@@ -39,6 +39,9 @@ import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
 import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { PulseEditorHost } from '../components/workspace/glance/PulseEditor'
 import { applyKeptListDrafts } from '../stores/list-draft-store'
+import { editorsHoldChanges, leaveOpenEditors } from '../stores/editor-leave'
+import { useLatestRef } from '../hooks/use-latest-ref'
+import { useBlocker } from 'react-router'
 import { WidgetKindIcon } from '../components/shared/icons'
 import {
   isWorkspaceDragType,
@@ -242,6 +245,35 @@ function PanelGhost({ tabs }: { tabs: WorkspaceDragState['tabs'] }) {
       <span className={styles.panelGhostBadge}>{tabsCount(tabs.length)}</span>
     </div>
   )
+}
+
+/**
+ * A route change (the phone's bottom tab bar, the browser's back button, a
+ * hash typed in) while an open editor holds changes (Edit list, a widget
+ * editor): blocked until it was saved or discarded — its own question
+ * (`editor-leave`); Keep editing stays here. Nothing else is ever unsaved,
+ * so nothing else blocks; a reload or a closed tab asks nothing, as the
+ * widget editors never did.
+ */
+function EditorLeaveGuard() {
+  const blocker = useBlocker(
+    useCallback(
+      ({ currentLocation, nextLocation }: { currentLocation: { pathname: string }; nextLocation: { pathname: string } }) =>
+        currentLocation.pathname !== nextLocation.pathname && editorsHoldChanges(),
+      [],
+    ),
+  )
+  const blocked = blocker.state === 'blocked'
+  const blockerRef = useLatestRef(blocker)
+  useEffect(() => {
+    if (!blocked) return
+    // Asked once per block.
+    void leaveOpenEditors().then((left) => {
+      if (left) blockerRef.current.proceed?.()
+      else blockerRef.current.reset?.()
+    })
+  }, [blocked, blockerRef])
+  return null
 }
 
 /**
@@ -469,6 +501,7 @@ export function WorkspacePage() {
       <TaskEditPopupHost />
       <EntityActionHost />
       <EditListHost />
+      <EditorLeaveGuard />
       <NumberEditorHost />
       <ChartEditorHost />
       <PulseEditorHost />

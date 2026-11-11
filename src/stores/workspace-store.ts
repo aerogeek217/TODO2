@@ -5,6 +5,7 @@ import { clearLayoutDraft, readLayoutDraft, type LayoutDraftRecord } from '../da
 import { ownerLayoutId } from '../models/list-definition'
 import { UndoGone, UndoRefused, useUndoStore, type UndoEntry } from './undo-store'
 import { undoable } from './undoable'
+import { editorsHoldChanges, leaveOpenEditors } from './editor-leave'
 import { assertNoReplaceHold, refusedByReplaceHold, registerReplaceSettle, replaceHoldActive } from './replace-hold'
 import { useListDefinitionStore } from './list-definition-store'
 import { useListOrderStore } from './list-order-store'
@@ -919,12 +920,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     async load(id) {
       if (refusedByReplaceHold()) return
+      // An open editor holding changes (Edit list, a widget editor) asks first (`editor-leave`).
+      if (id !== get().activeLayoutId && editorsHoldChanges() && !(await leaveOpenEditors())) return
       if (id === get().activeLayoutId || await readyToLeave()) await openLayout(id)
     },
 
     async createLayout(name) {
       const clean = cleanName(name)
       if (!clean || refusedByReplaceHold()) return null
+      if (editorsHoldChanges() && !(await leaveOpenEditors())) return null
       if (!(await readyToLeave())) return null
       const now = new Date()
       const record = { name: clean, ...emptyLayoutBody(), createdAt: now, modifiedAt: now, lastUsedAt: now }
@@ -956,6 +960,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const clean = cleanName(name)
       const source = get().saved
       if (!clean || !source || refusedByReplaceHold()) return null
+      if (editorsHoldChanges() && !(await leaveOpenEditors())) return null
       if (!(await readyToLeave())) return null
       const now = new Date()
       const { id: _from, sortOrder: _order, ...body } = source
@@ -1017,6 +1022,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     async delete(id) {
       if (refusedByReplaceHold()) return false
+      if (id === get().activeLayoutId && editorsHoldChanges() && !(await leaveOpenEditors())) return false
       const name = get().layouts.find((l) => l.id === id)?.name ?? 'the layout'
       // Its lists go with it.
       let removed: OwnedListsRemoved | null

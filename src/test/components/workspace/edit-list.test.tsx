@@ -250,29 +250,79 @@ describe('Edit list', () => {
     expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('Edit list asked for another list while this one has changes asks first; nothing else opens', async () => {
+  it('Edit list asked for another list while this one has changes asks first; Save or Discard, then the other opens', async () => {
+    const other: PersistedListDefinition = { ...saved, id: 9, name: 'Other', sortOrder: 1 }
+    useListDefinitionStore.setState({ listDefinitions: [saved, other] })
     const dialog = open()
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
-    act(() => openEditList('t2', 8))
+    act(() => openEditList('t2', 9))
     expect(question()).toBeInTheDocument()
     expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
-    await answer('Discard')
-    expect(useUIStore.getState().listEditor).toBeNull()
-    // Unchanged, it gives way at once.
-    act(() => useUIStore.getState().openListEditor(7, 't1'))
+    // Keep editing: everything as it was.
+    await answer('Keep editing')
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+    expect(draft()).toMatchObject({ name: 'Waiting' })
+    // Save: written, then the other list's Edit list opens.
+    act(() => openEditList('t2', 9))
+    await answer('Save')
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 9, tabId: 't2' })
+    await vi.waitFor(() => expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === 7)?.name).toBe('Waiting'))
+    // Unchanged, it gives way at once; the same target again changes nothing.
     act(() => openEditList('t1', 7))
     expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
     expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+    act(() => openEditList('t1', 7))
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
   })
 
-  it('opening Settings closes it, and its draft goes', () => {
+  it('opening Settings with changes asks: Keep editing stays; Discard drops the draft, then Settings opens', async () => {
     const dialog = open()
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
-    act(() => useUIStore.getState().openSettings())
+    act(() => useUIStore.getState().openSettings('lenses'))
+    expect(question()).toBeInTheDocument()
+    expect(useUIStore.getState().settingsOpen).toBe(false)
+    await answer('Keep editing')
+    expect(useUIStore.getState().settingsOpen).toBe(false)
+    expect(editorOpen()).toBe(true)
+    act(() => useUIStore.getState().openSettings('lenses'))
+    await answer('Discard')
+    expect(useUIStore.getState().settingsOpen).toBe(true)
     expect(useUIStore.getState().listEditor).toBeNull()
+    expect(draft()).toBeUndefined()
+    expect(useListDefinitionStore.getState().listDefinitions[0]).toBe(saved)
+  })
+
+  it('opening Settings with no changes closes it at once', () => {
+    open()
+    act(() => useUIStore.getState().openSettings())
     expect(useUIStore.getState().settingsOpen).toBe(true)
     expect(editorOpen()).toBe(false)
-    expect(draft()).toBeUndefined()
+    expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
+  })
+
+  it('a layout switch with changes asks first; Save writes the list, then the layout opens', async () => {
+    const loadSpy = vi.spyOn(useWorkspaceStore.getState(), 'load')
+    const dialog = open()
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
+    let switched: Promise<void> | undefined
+    act(() => { switched = useWorkspaceStore.getState().load(2) })
+    expect(question()).toBeInTheDocument()
+    await answer('Save')
+    await act(async () => { await switched })
+    expect(loadSpy).toHaveBeenCalled()
+    await vi.waitFor(() => expect(useListDefinitionStore.getState().listDefinitions[0]?.name).toBe('Waiting'))
+    expect(editorOpen()).toBe(false)
+  })
+
+  it('closed from outside with changes (a data replace, its list gone) says its changes weren’t saved', () => {
+    const dialog = open()
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
+    act(() => {
+      useUIStore.getState().closeListEditor()
+      useListDraftStore.setState({ drafts: {} })
+    })
+    expect(editorOpen()).toBe(false)
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Edit list closed: its changes to “Waiting on” weren’t saved.' })
   })
 
   it('closes when its tab shows another list now (Change list by keyboard): the list left the screen', () => {

@@ -5,6 +5,7 @@ import { tabListId } from '../../../models/workspace-layout'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
+import { useEditorLeave } from '../../../hooks/use-editor-leave'
 import { useListWidgetCount } from '../../../hooks/use-list-widget-count'
 import { useCopySources } from '../../../hooks/use-copy-sources'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -86,36 +87,24 @@ function useEditListModel(listDefinitionId: number, onClose: () => void) {
     onCloseRef.current()
   }, [listDefinitionId, onCloseRef])
 
-  const canSaveRef = useLatestRef(canSave)
-  const save = useCallback(() => {
-    if (canSaveRef.current) saveNow()
-  }, [canSaveRef, saveNow])
-
   const changedRef = useLatestRef(changed)
-  const nameRef = useLatestRef(base?.name ?? saved?.name ?? 'List')
-  const asking = useRef(false)
-  const requestClose = useCallback((): boolean => {
-    if (asking.current) return true
-    if (!changedRef.current) {
-      discard()
-      return false
-    }
-    asking.current = true
-    void useUIStore.getState().askChoice({
-      title: `Save changes to list “${nameRef.current}”?`,
-      message: 'Your changes will be lost if you don’t save.',
-      confirmLabel: 'Save',
-      discardLabel: 'Discard',
-      cancelLabel: 'Keep editing',
-    }).then((answer) => {
-      asking.current = false
-      if (answer === 'confirm') saveNow()
-      else if (answer === 'discard') discard()
-    })
-    return true
-  }, [changedRef, nameRef, saveNow, discard])
+  const listName = base?.name ?? saved?.name ?? 'List'
+  const leave = useEditorLeave({
+    changedRef,
+    title: `Save changes to list “${listName}”?`,
+    save: saveNow,
+    discard,
+    dropped: `Edit list closed: its changes to “${listName}” weren’t saved.`,
+  })
+  const { requestClose } = leave
 
-  // The filter line's words and summary, and Edit list opened elsewhere, ask through it.
+  const canSaveRef = useLatestRef(canSave)
+  const leaveSave = leave.save
+  const save = useCallback(() => {
+    if (canSaveRef.current) leaveSave()
+  }, [canSaveRef, leaveSave])
+
+  // The filter line's words and summary ask through it.
   useEffect(() => {
     setEditListCloseRequest(requestClose)
     return () => setEditListCloseRequest(null)
@@ -135,7 +124,7 @@ function useEditListModel(listDefinitionId: number, onClose: () => void) {
     },
     onChange: (next: PersistedListDefinition) => useListDraftStore.getState().edit(listDefinitionId, () => next),
     save,
-    discard,
+    discard: leave.discard,
     requestClose,
     reportExpression: expressions.report,
   }
