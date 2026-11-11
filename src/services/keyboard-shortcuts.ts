@@ -15,7 +15,8 @@ import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import { copyTasks, tasksToCopy } from './task-copy'
 import { cycleLens, toggleLensLift } from './lenses'
-import { reviewListTab, reviewTargetTabId } from './review'
+import { reviewTargetTabId } from './review'
+import { reviewJumpAvailable, reviewListTab } from './review-jump'
 import {
   findScopeElement,
   nextScopedSelection,
@@ -289,7 +290,7 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
   },
   'review-list': ({ e }) => {
     const tabId = reviewTargetTabId()
-    if (!tabId) return
+    if (!tabId || !reviewJumpAvailable()) return
     e.preventDefault()
     reviewListTab(tabId)
   },

@@ -9,10 +9,10 @@ import { runShortcutCommand, type ShortcutCallbacks } from './keyboard-shortcuts
 import { copySelectedTasks } from './task-copy'
 import { listTabZoom, stepListTabZoom, zoomTargetTab } from './list-zoom'
 import { LIST_ZOOM_LABELS, stepListZoom } from '../utils/list-zoom'
-import { listReviewCount, openReview, personReview, reviewTargetTabId } from './review'
+import { listReviewCount, personReviewFilter, reviewTargetTabId } from './review'
+import { jumpToReview, reviewJumpAvailable } from './review-jump'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useUIStore, type LayoutRequest } from '../stores/ui-store'
-import { useReviewStore } from '../stores/review-store'
 import { lensActions } from '../stores/lens-actions'
 import type { ThemeMode } from '../stores/settings-store'
 import { findLens, type Lens } from '../utils/lens'
@@ -152,19 +152,18 @@ function personCheckinCommands(ctx: CommandContext, send: (personId: number) => 
 }
 
 /**
- * Review With › each person with open tasks (their count the hint): the
- * review deck on their open tasks, as the person menu's Review with X…
- * opens it (`personReview`). Not while the deck is open: it takes one
- * review at a time.
+ * Review With › each person with open tasks (their count the hint): a jump
+ * to a Review widget with `@<name>`, as the person menu's Review with X
+ * (`services/review-jump`). None while no layout has a Review widget.
  */
 function reviewWithCommands(ctx: CommandContext): Command[] {
-  if (useReviewStore.getState().open) return []
+  if (!reviewJumpAvailable()) return []
   const people = peopleWithOpenTasks(ctx).map(({ id, name, n }): Command => ({
     id: `review-with-${id}`,
     name,
     hint: openTasksLabel(n),
     category: 'task',
-    action: () => { openReview(personReview({ id, name })) },
+    action: () => { void jumpToReview(personReviewFilter({ id })) },
   }))
   return people.length > 0 ? [stepCommand('review-with', 'Review With', 'task', people)] : []
 }
@@ -394,13 +393,14 @@ function listZoomCommands(): Command[] {
 }
 
 /**
- * Review List (D26): the review deck over the list tab on screen the user
- * was last in (`reviewTargetTabId`), as its key does; the hint names the
- * list and its count. None without a list tab on screen that shows a task.
+ * Review List: a jump to a Review widget with the list tab on screen the
+ * user was last in (`reviewTargetTabId`), as its key does; the hint names
+ * the list and its open tasks. None without a list tab on screen that shows
+ * an open task, or while no layout has a Review widget.
  */
 function reviewListCommands(bound: (id: string, name: string, binding: ShortcutId, category: CommandCategory) => Command): Command[] {
   const tabId = reviewTargetTabId()
-  if (!tabId) return []
+  if (!tabId || !reviewJumpAvailable()) return []
   const name = useListWidgetStore.getState().shown[tabId]?.label
   const count = tasksLabel(listReviewCount(tabId))
   return [{ ...bound('review-list', 'Review List', 'review-list', 'task'), hint: name ? `${name} · ${count}` : count }]

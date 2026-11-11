@@ -15,7 +15,7 @@ import { priorityRank } from '../utils/markers'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 
 /**
- * A review's queue and stepping (D26), the deck's and the Review widget's
+ * A review's queue and stepping (D26), the Review widget's
  * alike: the rail's sort (item 7) and a new queue put in with the place
  * kept (a lens toggle, a deleted task, a live queue's change). Pure parts
  * first; then the writers over a session (`review-session`).

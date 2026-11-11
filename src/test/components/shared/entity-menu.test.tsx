@@ -1,30 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { DialogLayer } from '../../../components/shared/Dialog'
 import { DialogLayerContext } from '../../../components/shared/dialog-layer'
 import { EntityMenu, type MenuEntity } from '../../../components/shared/EntityMenu'
 import type { Tag } from '../../../models'
+import { createTab } from '../../../models/workspace-layout'
+import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useReviewStore } from '../../../stores/review-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { makePerson, makeTodo } from '../../helpers'
+import { cell, grid } from '../../helpers/layout-builders'
 
 /**
- * The one person / tag menu (D26): a person's Review with X… · Email
+ * The one person / tag menu (D26): a person's Review with X · Email
  * check-in to X · Paste reply from X… · ─ · Show tasks · Edit… · ─ ·
- * Delete…; a tag's Review #tag tasks… · ─ · Show tasks · Edit… · ─ ·
- * Delete…. Review and the check-ins follow Show tasks' layer rule; Review is
- * also left out on a phone and while the review deck is open.
+ * Delete…; a tag's Review #tag tasks · ─ · Show tasks · Edit… · ─ ·
+ * Delete…. Review and the check-ins follow Show tasks' layer rule; Review —
+ * a jump to a Review widget — is also left out on a phone and while no
+ * layout has a Review widget.
  */
+
+const AT = new Date(2026, 0, 1)
+const reviewFilter = () => useListWidgetStore.getState().reviewFilters.rv
 
 const aisha = makePerson({ id: 1, name: 'Aisha Rahman', initials: 'AR' })
 const ben = makePerson({ id: 2, name: 'Ben Ortiz', initials: 'BO' })
 const legal: Tag = { id: 7, name: 'legal', color: '#999' }
 
-const PERSON_MENU = ['Review with Aisha Rahman…', 'Email check-in to Aisha Rahman', 'Paste reply from Aisha Rahman…', 'Show tasks', 'Edit…', 'Delete…']
+const PERSON_MENU = ['Review with Aisha Rahman', 'Email check-in to Aisha Rahman', 'Paste reply from Aisha Rahman…', 'Show tasks', 'Edit…', 'Delete…']
 
 beforeEach(() => {
   useTodoStore.setState({
@@ -33,6 +40,8 @@ beforeEach(() => {
   usePersonStore.setState({ people: [aisha, ben], assignedPeopleMap: new Map([[1, [aisha]], [2, [aisha, ben]], [3, [ben]]]) })
   useTagStore.setState({ tags: [legal], assignedTagsMap: new Map([[1, [legal]], [2, []], [3, []]]) })
   useUIStore.setState({ checkinDialog: null, checkinImportOpen: false, taskDialog: null })
+  const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: AT, modifiedAt: AT, ...grid([[cell('a', [createTab('review', 'rv')])]]) }
+  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
 })
 
 afterEach(cleanup)
@@ -56,21 +65,13 @@ describe('EntityMenu — a person', () => {
     expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(2)
   })
 
-  it('Review with X… opens the deck on their open tasks, as their task dialog lists them', () => {
+  it('Review with X jumps to the Review widget with @X as its filter', async () => {
     const onShowTasks = vi.fn()
     const { onClose } = renderMenu([person], { onShowTasks })
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Aisha Rahman…' }))
-    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Aisha Rahman' }, ids: [2, 1] })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Aisha Rahman' }))
+    await waitFor(() => expect(reviewFilter()).toEqual({ expression: { kind: 'person', id: 1 }, showCompleted: false }))
     expect(onShowTasks).toHaveBeenCalledOnce()
     expect(onClose).toHaveBeenCalled()
-  })
-
-  it('Review is disabled for a person with no open task', () => {
-    renderMenu([{ kind: 'person', entity: makePerson({ id: 9, name: 'Nobody' }) }])
-    const review = screen.getByRole('menuitem', { name: 'Review with Nobody…' })
-    expect(review).toBeDisabled()
-    fireEvent.click(review)
-    expect(useReviewStore.getState().open).toBe(false)
   })
 
   it('Email check-in to X sends inside the click (here: no open task matches, so the dialog opens with why)', () => {
@@ -93,13 +94,13 @@ describe('EntityMenu — a person', () => {
 describe('EntityMenu — a tag', () => {
   it('Review #tag tasks…, then Show tasks · Edit…, then Delete…', () => {
     renderMenu([tag])
-    expect(items(screen.getByRole('menu', { name: '#legal' }))).toEqual(['Review #legal tasks…', 'Show tasks', 'Edit…', 'Delete…'])
+    expect(items(screen.getByRole('menu', { name: '#legal' }))).toEqual(['Review #legal tasks', 'Show tasks', 'Edit…', 'Delete…'])
   })
 
-  it('Review #tag tasks… opens the deck on its open tasks', () => {
+  it('Review #tag tasks jumps with #tag as the filter', async () => {
     renderMenu([tag])
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Review #legal tasks…' }))
-    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'tag', title: '#legal' }, ids: [1] })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Review #legal tasks' }))
+    await waitFor(() => expect(reviewFilter()).toEqual({ expression: { kind: 'tag', id: 7 }, showCompleted: false }))
   })
 })
 
@@ -112,13 +113,14 @@ describe('EntityMenu — where Review and the check-ins are offered', () => {
     expect(items()).toEqual(['Edit…', 'Delete…'])
   })
 
-  it('on the overlay tier (the task dialog, the deck): the whole menu', () => {
+  it('on the overlay tier (the task dialog): the whole menu', () => {
     renderMenu([person], { layer: 'overlay' })
     expect(items()).toEqual(PERSON_MENU)
   })
 
-  it('while the review deck is open: no Review — the check-ins and Show tasks stay', () => {
-    useReviewStore.getState().start({ source: { kind: 'list', title: 'Inbox', description: '' }, ids: [1] })
+  it('no layout has a Review widget: no Review — the rest stays', () => {
+    const plain = { id: 1, name: 'Main', sortOrder: 0, createdAt: AT, modifiedAt: AT, ...grid([[cell('a', [createTab('notes', 'n')])]]) }
+    useWorkspaceStore.setState({ working: plain, saved: plain, layouts: [plain], activeLayoutId: 1 })
     renderMenu([person], { layer: 'overlay' })
     expect(items()).toEqual(PERSON_MENU.slice(1))
     cleanup()
@@ -126,7 +128,7 @@ describe('EntityMenu — where Review and the check-ins are offered', () => {
     expect(items()).toEqual(['Show tasks', 'Edit…', 'Delete…'])
   })
 
-  it('on a phone: no Review (the deck is desktop only)', () => {
+  it('on a phone: no Review (the jumps are desktop only)', () => {
     const original = window.matchMedia
     window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
     try {
@@ -139,16 +141,16 @@ describe('EntityMenu — where Review and the check-ins are offered', () => {
 })
 
 describe('EntityMenu — a row’s cell (one submenu per entity)', () => {
-  it('each person’s submenu holds the same entries', () => {
+  it('each person’s submenu holds the same entries', async () => {
     renderMenu([person, { kind: 'person', entity: ben }])
     const menu = screen.getByRole('menu', { name: 'People' })
     expect(items(menu)).toEqual(['@Aisha Rahman', '@Ben Ortiz'])
     fireEvent.click(within(menu).getByRole('menuitem', { name: '@Ben Ortiz' }))
     const sub = screen.getAllByRole('menu').find((m) => m !== menu)
     expect(sub && items(sub)).toEqual([
-      'Review with Ben Ortiz…', 'Email check-in to Ben Ortiz', 'Paste reply from Ben Ortiz…', 'Show tasks', 'Edit…', 'Delete…',
+      'Review with Ben Ortiz', 'Email check-in to Ben Ortiz', 'Paste reply from Ben Ortiz…', 'Show tasks', 'Edit…', 'Delete…',
     ])
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Ben Ortiz…' }))
-    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Ben Ortiz' }, ids: [2] })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Ben Ortiz' }))
+    await waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'person', id: 2 }))
   })
 })

@@ -13,7 +13,7 @@ export function makeRecurrenceRule(type: RecurrenceType, dueDate?: Date | null):
 
 /**
  * What a new due date writes on a task (the editor's due date, the review
- * deck's): the date, and the repeat rule anchored to it — a repeating task
+ * card's): the date, and the repeat rule anchored to it — a repeating task
  * keeps repeating, from the new date; clearing the date drops the rule (it
  * is anchored to the due date).
  */

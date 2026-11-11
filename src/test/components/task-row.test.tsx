@@ -650,7 +650,7 @@ describe('TaskRow', () => {
       fireEvent.contextMenu(screen.getByText('AL'))
       const menu = screen.getByRole('menu', { name: '@Alice' })
       expect(screen.queryByRole('menu', { name: 'Task actions' })).toBeNull()
-      expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Review with Alice…', 'Email check-in to Alice', 'Paste reply from Alice…', 'Show tasks', 'Edit…', 'Delete…'])
+      expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Email check-in to Alice', 'Paste reply from Alice…', 'Show tasks', 'Edit…', 'Delete…'])
       fireEvent.click(within(menu).getByRole('menuitem', { name: 'Show tasks' }))
       expect(useUIStore.getState().taskDialog).toMatchObject({ personId: 1, title: 'Alice' })
 

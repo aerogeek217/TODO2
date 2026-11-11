@@ -15,10 +15,10 @@ import { useReviewSession, useReviewSessionApi } from './review-session-context'
 import styles from './Review.module.css'
 
 /**
- * A review's queue rail (D26, board BL — the deck's and the Review
- * widget's): at its top the sort (item 7: `Sort: Queue order ▾` — Queue
- * order, Due, Next follow-up, Last follow-up, Priority, Title; the
- * session's, never saved by the deck), which stays put, then a row per task
+ * A review's queue rail (D26, board BL — the Review widget's): at its top
+ * the sort (item 7: `Sort: Queue order ▾` — Queue order, Due, Next
+ * follow-up, Last follow-up, Priority, Title; the session's, which the
+ * widget keeps as view state), which stays put, then a row per task
  * in the order shown, **on two lines**: its mark (✓ followed up today, item
  * 11; – skipped here), the box with the priority ring and the whole title
  * (cut only at the rail's width); under the title the next follow-up after

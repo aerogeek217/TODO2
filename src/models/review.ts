@@ -31,6 +31,6 @@ export function reviewSortLabel(sort: ReviewSort): string {
 
 /**
  * A Review widget's queue order where its tab stores none (item 12 of the
- * widget feedback): Priority. The review deck opens on Queue order.
+ * widget feedback): Priority.
  */
 export const DEFAULT_REVIEW_WIDGET_SORT: ReviewSort = 'priority'

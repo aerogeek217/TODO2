@@ -18,7 +18,7 @@ function sameDay(a: Date | null, b: Date | null): boolean {
 }
 
 /**
- * A review card's follow-up (the deck's card and the Review widget's
+ * A review card's follow-up (the Review widget's card and its
  * faces): the update line's text (the session's draft for the task), the
  * Next follow-up field — starting on what Mark followed up would leave (the
  * follow-up popover's rule), a date typed and not set kept for the task —
@@ -42,7 +42,7 @@ export function useReviewFollowUp(todo: PersistedTodoItem, flushNotes: () => Pro
   const current = todo.nextFollowupAt ?? null
   const ruled = nextAfterFollowup(current, today, proposal)
   const input = useFollowupInput(ruled ?? undefined, 'next', today)
-  // A date typed and not set yet is kept for the task (Back brings it back; the deck's close asks over it).
+  // A date typed and not set yet is kept for the task (Back brings it back).
   const typeNext = (text: string) => {
     input.change(text)
     session.getState().setNextDraft(todoId, text.trim() === '' ? null : text)

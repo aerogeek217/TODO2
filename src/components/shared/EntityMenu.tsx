@@ -24,10 +24,11 @@ interface EntityMenuProps {
 /**
  * The person / tag menu — a task row's avatar or tag, a people / tag picker's
  * option (`entityMenuEntries`) for one entity, or (a row's cell from the
- * keyboard) one submenu per entity. Inside a dialog the task dialog and the
- * deck can't show above (any tier but the workspace's overlays), Show
- * tasks, Review and the check-ins aren't offered; Review isn't either on a
- * phone or inside the review deck (`useEntityMenuOffers`).
+ * keyboard) one submenu per entity. Inside a dialog the task dialog can't
+ * show above (any tier but the workspace's overlays), Show
+ * tasks, Review and the check-ins aren't offered; Review — a jump to a Review
+ * widget — isn't either on a phone or while no layout has one
+ * (`useEntityMenuOffers`).
  */
 export function EntityMenu({ entities, anchorRef, point, closeOnScroll, restoreFocus, onShowTasks, onClose }: EntityMenuProps) {
   const options: EntityMenuOptions = { ...useEntityMenuOffers(), onShowTasks }

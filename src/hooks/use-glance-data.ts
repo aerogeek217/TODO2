@@ -14,10 +14,6 @@ import { useStatusUpdateStore } from '../stores/status-update-store'
 import { useSubtaskStore } from '../stores/subtask-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
-import { useFilterStore } from '../stores/filter-store'
-import { currentAppliedLens } from '../stores/screen-filter'
-import { startOfToday } from '../utils/date'
-import { withLens } from '../utils/lens'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
 import { applyFilter, matchesFilterWithLookups, readsText, type FilterSettings } from '../utils/filter-match'
@@ -126,26 +122,6 @@ export function useStatsBase(ignoreLens?: boolean): StatsBase {
     () => ({ ctx, todos, shown, filtered, todoById, screen, lookups, markerSettings }),
     [ctx, todos, shown, filtered, todoById, screen, lookups, markerSettings],
   )
-}
-
-/**
- * The shared base as the stores have it now, outside a render (an action
- * taking a widget's tasks again — the review deck's lens toggle, item 10):
- * with the top bar's lens, or without it (`ignoreLens`).
- */
-export function currentStatsBase(ignoreLens: boolean): StatsBase {
-  const todos = useTodoStore.getState().todos
-  const { statuses } = useStatusStore.getState()
-  const { assignedPeopleMap } = usePersonStore.getState()
-  const { assignedTagsMap } = useTagStore.getState()
-  const { weekStartsOn, urgentDueWithinDays: urgentRange } = useSettingsStore.getState()
-  const screen = withLens(useFilterStore.getState().filters, ignoreLens ? undefined : currentAppliedLens())
-  const ctx = ctxMemo(startOfToday().getTime(), weekStartsOn, urgentRange, assignedPeopleMap, assignedTagsMap, statuses)
-  const markerSettings = settingsMemo(urgentRange, weekStartsOn)
-  const lookups = lookupsMemo(assignedPeopleMap, assignedTagsMap, statuses, useStatusUpdateStore.getState().byTodo, useSubtaskStore.getState().byTodo)
-  const shown = shownMemo(screen, todos, lookups, ctx, markerSettings)
-  const filtered = countActiveFilters({ ...screen, showCompleted: false }) > 0
-  return { ctx, todos, shown, filtered, todoById: byIdMemo(todos), screen, lookups, markerSettings }
 }
 
 const screenTasksMemo = sharedMemo((shown: PersistedTodoItem[], withCompleted: boolean): PersistedTodoItem[] => (

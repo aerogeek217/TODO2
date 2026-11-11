@@ -5,7 +5,6 @@ import { PersonCheckinMenu } from '../../../components/shared/PersonCheckinMenu'
 import { db } from '../../../data/database'
 import { emptyPredicate, type Person, type PersistedTodoItem } from '../../../models'
 import { usePersonStore } from '../../../stores/person-store'
-import { useReviewStore } from '../../../stores/review-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -85,40 +84,10 @@ function openMenu(): HTMLElement {
 describe('PersonCheckinMenu', () => {
   const labels = (menu: HTMLElement) => Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent)
 
-  it('offers Review, Email check-in and Paste reply, focus on the first', () => {
+  it('offers Email check-in and Paste reply (no Review widget to jump to here), focus on the first', () => {
     const menu = openMenu()
-    expect(labels(menu)).toEqual(['Review with Ada Lovelace…', 'Email check-in to Ada Lovelace', 'Paste reply from Ada Lovelace…'])
+    expect(labels(menu)).toEqual(['Email check-in to Ada Lovelace', 'Paste reply from Ada Lovelace…'])
     expect(document.activeElement).toBe(menu.querySelector('[role="menuitem"]'))
-  })
-
-  it('Review opens the deck on the person’s open tasks, sending nothing; the focus is back on the envelope', () => {
-    openMenu()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Ada Lovelace…' }))
-    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Ada Lovelace' }, ids: [1] })
-    expect(screen.queryByRole('menu')).toBeNull()
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Envelope' }))
-    expect(write).not.toHaveBeenCalled()
-  })
-
-  it('while the deck is open: no Review (the check-ins stay)', () => {
-    useReviewStore.getState().start({ source: { kind: 'list', title: 'L', description: '' }, ids: [1] })
-    expect(labels(openMenu())).toEqual(['Email check-in to Ada Lovelace', 'Paste reply from Ada Lovelace…'])
-  })
-
-  it('on a phone: no Review (the deck is desktop only)', () => {
-    const original = window.matchMedia
-    window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
-    try {
-      expect(labels(openMenu())).toEqual(['Email check-in to Ada Lovelace', 'Paste reply from Ada Lovelace…'])
-    } finally {
-      window.matchMedia = original
-    }
-  })
-
-  it('a person with no open task: Review is disabled', () => {
-    useTodoStore.setState({ todos: [] })
-    openMenu()
-    expect(screen.getByRole('menuitem', { name: 'Review with Ada Lovelace…' })).toBeDisabled()
   })
 
   it('Email check-in runs the send inside the click — the clipboard write has started when the click returns — then opens the mail link', async () => {

@@ -2,8 +2,9 @@ import { useEffect, useId, useLayoutEffect, useState, type RefObject } from 'rea
 import { createPortal } from 'react-dom'
 import { screenTaskDialog } from '../../services/task-dialog'
 import { useFilterStore } from '../../stores/filter-store'
-import { useReviewStore } from '../../stores/review-store'
-import { openReview, screenReview } from '../../services/review'
+import { useReviewJumpAvailable } from '../../hooks/use-review-jump'
+import { screenReviewFilter } from '../../services/review'
+import { jumpToReview } from '../../services/review-jump'
 import { currentPickedLens } from '../../stores/screen-filter'
 import { useUIStore } from '../../stores/ui-store'
 import { attrSelector, SEARCH_INPUT_ATTR, SHOW_FILTERED_TASKS_ATTR, shortcutScope } from '../../utils/dom-contract'
@@ -60,8 +61,8 @@ export function FilteredTasksPanel({ trayRef, topBarRef, panelRef }: {
   const close = useUIStore((s) => s.closeFilterPanel)
   const focusKey = useUIStore((s) => s.filterPanelFocusKey)
   const isActive = useFilterStore((s) => s.isActive)
-  // Review these N tasks: one deck at a time (the panel is desktop only, as the deck).
-  const reviewOpen = useReviewStore((s) => s.open)
+  // Review these N tasks: a jump to a Review widget, while some layout has one.
+  const canReview = useReviewJumpAvailable()
   // What it shows: the screen filter's tasks (the description follows the filter).
   const [payload] = useState(screenTaskDialog)
   const titleId = useId()
@@ -144,12 +145,12 @@ export function FilteredTasksPanel({ trayRef, topBarRef, panelRef }: {
           titleId={titleId}
           panelRef={panelRef}
           onClose={close}
-          onReview={reviewOpen ? undefined : (groups) => {
-            // The deck takes over: this panel closes first, then the deck opens on its rows.
-            const review = screenReview(groups)
+          onReview={canReview ? () => {
+            // The top bar's chips and text search as the widget's filter; the panel closes (the jump closes it too).
+            const filter = screenReviewFilter()
             close()
-            openReview(review)
-          }}
+            void jumpToReview(filter)
+          } : undefined}
         />
       </div>
     </>,

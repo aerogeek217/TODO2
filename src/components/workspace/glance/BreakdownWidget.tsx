@@ -2,12 +2,13 @@ import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { DEFAULT_STATUS_ICON } from '../../../models'
 import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
-import { tabIgnoresLens, type BreakdownTab } from '../../../models/workspace-layout'
+import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
 import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { openReview } from '../../../services/review'
+import { breakdownReviewFilter } from '../../../services/review'
+import { jumpToReview } from '../../../services/review-jump'
 import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
@@ -21,7 +22,7 @@ import { useTooltip } from '../../shared/use-tooltip'
 import {
   breakdownLines, columnHeading, rowFigure, sortHeading, SPLIT_GLYPHS,
 } from './breakdown-copy'
-import { breakdownColumnDrill, breakdownRowDrill, breakdownRowLens, breakdownRowReview, rowHeading } from './chart-drills'
+import { breakdownColumnDrill, breakdownRowDrill, rowHeading } from './chart-drills'
 import { ChartPanel } from './chart-parts'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { GlanceDrill, OnGlanceDrill } from './glance-types'
@@ -113,7 +114,7 @@ function ColumnCount({ n, column, label, onOpen }: {
   )
 }
 
-/** A row's Review button (board BC): a muted icon right after the row's name, shown on the row's hover or focus; starts the review deck on the row's tasks. */
+/** A row's Review button (board BC): a muted icon right after the row's name, shown on the row's hover or focus; jumps to a Review widget with the row as its filter. */
 function RowReview({ heading, n, onReview }: { heading: string; n: number; onReview: () => void }) {
   const { triggerProps, tooltip } = useTooltip('Review')
   return (
@@ -193,10 +194,8 @@ interface TableProps {
   reversed: boolean
   onSort: (by: BreakdownSortKey) => void
   onDrill?: OnGlanceDrill
-  /** Reviews open from here (desktop, outside dialogs, no deck open). */
+  /** Reviews jump from here to a Review widget (desktop, outside dialogs, some layout has one). */
   review: boolean
-  /** The widget ignores the top bar's lens (its switch): how a row's review starts (item 10). */
-  ignoresLens: boolean
   /** The bar column (bars at the large face). */
   bars: boolean
 }
@@ -206,12 +205,27 @@ interface TableProps {
  * column, each heading a sort button; the row's actions (Review, and a
  * person's envelope) right after its name, shown while the row is hovered
  * or holds the focus. A row's click opens its tasks; its Review button and
- * a count column's count open the review deck on them; a person's or tag's
+ * a count column's count jump to a Review widget with them as its filter
+ * (where no layout has one, a count opens its tasks); a person's or tag's
  * right-click (or Shift+F10) opens its menu.
  */
-function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, ignoresLens, bars }: TableProps) {
+function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {
   const { splitBy, show } = config
   const [menu, setMenu] = useState<{ entity: MenuEntity; at: { x: number; y: number } } | null>(null)
+  /**
+   * A row's Review (or, with `column`, a count's click): a jump to a Review
+   * widget with the Breakdown's filter AND the row (AND the column's filter).
+   * A row no filter says opens its tasks in the task dialog instead.
+   */
+  const reviewRow = (row: BreakdownRow, column?: BreakdownColumn) => {
+    const filter = breakdownReviewFilter(config, row, column)
+    if (filter) {
+      void jumpToReview(filter)
+      return
+    }
+    if (!onDrill) return
+    onDrill(column ? breakdownColumnDrill(title, row, column.id, columnHeading(column)) : breakdownRowDrill(title, row))
+  }
   const envelope = !compact && config.checkins === true && splitBy === 'people'
   const figure = !compact
   const max = Math.max(1, ...rows.map((r) => (show === 'oldest' ? Math.max(0, r.oldest?.days ?? 0) : r.ids.length)))
@@ -302,7 +316,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                 </button>
                 {(review || (envelope && row.entity.kind === 'person')) && (
                   <span className={styles.nameActions} data-testid="breakdown-row-actions">
-                    {review && <RowReview heading={heading} n={n} onReview={() => { openReview(breakdownRowReview(title, row, 'all', breakdownRowLens(config, ignoresLens, row.key, 'all'))) }} />}
+                    {review && <RowReview heading={heading} n={n} onReview={() => reviewRow(row)} />}
                     {envelope && row.entity.kind === 'person' && <RowEnvelope person={row.entity.person} />}
                   </span>
                 )}
@@ -328,7 +342,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                       column={column}
                       label={`${review ? 'Review' : 'Show'} ${heading}'s ${count} in ${name}`}
                       onOpen={review
-                        ? () => { openReview(breakdownRowReview(title, row, { columnId: column.id, heading: name }, breakdownRowLens(config, ignoresLens, row.key, { columnId: column.id, heading: name }))) }
+                        ? () => reviewRow(row, column)
                         : onDrill ? () => onDrill(breakdownColumnDrill(title, row, column.id, name)) : undefined}
                     />
                   </span>
@@ -486,7 +500,6 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
         onSort={onSort}
         onDrill={drill}
         review={offers.review}
-        ignoresLens={tabIgnoresLens(tab)}
         bars={config.style === 'bars'}
       />
     )

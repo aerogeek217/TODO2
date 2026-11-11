@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, act, fireEvent, within } from '@testing-library/react'
 import { TaskDialog } from '../../../components/overlays/TaskDialog'
-import { currentTaskDialogEnv, personTaskDialog, resolveTaskDialog, screenTaskDialog } from '../../../services/task-dialog'
+import { personTaskDialog, screenTaskDialog } from '../../../services/task-dialog'
+import { createTab } from '../../../models/workspace-layout'
 import { useFilterStore } from '../../../stores/filter-store'
+import { useListWidgetStore } from '../../../stores/list-widget-store'
 import type { TaskDialogPayload } from '../../../stores/task-dialog-payload'
 import { usePersonStore } from '../../../stores/person-store'
-import { useReviewStore } from '../../../stores/review-store'
+import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { cell, grid } from '../../helpers/layout-builders'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -150,14 +153,14 @@ describe('TaskDialog', () => {
     expect(within(dialog()!).getByRole('button', { name: /Copy tasks/ })).toHaveProperty('disabled', true)
   })
 
-  it('a person’s dialog has Review · Email check-in · Paste reply… as buttons under its title; the footer only Copy tasks and Close', async () => {
+  it('a person’s dialog has Email check-in · Paste reply… as buttons under its title (no Review widget: no Review); the footer only Copy tasks and Close', async () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     open(personTaskDialog(priya))
     const actions = within(dialog()!).getByRole('group', { name: 'Actions for Priya Nair' })
-    expect(within(actions).getAllByRole('button').map((b) => b.textContent)).toEqual(['Review', 'Email check-in', 'Paste reply…'])
+    expect(within(actions).getAllByRole('button').map((b) => b.textContent)).toEqual(['Email check-in', 'Paste reply…'])
     // Each names the person in full, as the person menu does.
     expect(within(actions).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
-      .toEqual(['Review with Priya Nair…', 'Email check-in to Priya Nair', 'Paste reply from Priya Nair…'])
+      .toEqual(['Email check-in to Priya Nair', 'Paste reply from Priya Nair…'])
     // Under the title, before the rows.
     const heading = within(dialog()!).getByRole('heading')
     expect(heading.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -175,23 +178,14 @@ describe('TaskDialog', () => {
     expect(dialog()).not.toBeNull()
   })
 
-  it('a person’s dialog’s Review closes the dialog, then opens the deck on her open tasks', () => {
+  it('a person’s dialog’s Review (with a Review widget somewhere) closes the dialog and jumps with @<name>', async () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
-    const expected = resolveTaskDialog(personTaskDialog(priya).source, currentTaskDialogEnv()).flatMap((g) => g.todoIds)
+    const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab('review', 'rv')])]]) }
+    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
     open(personTaskDialog(priya))
-    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Review with Priya Nair…' }))
-    const review = useReviewStore.getState()
-    expect(review).toMatchObject({ open: true, source: { kind: 'person', title: 'Priya Nair' } })
-    expect(review.ids).toEqual(expected)
-    expect(review.ids.length).toBeGreaterThan(0)
+    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Review with Priya Nair' }))
     expect(useUIStore.getState().taskDialog).toBeNull()
-  })
-
-  it('a person with no open tasks: Review is off, saying why', () => {
-    open(personTaskDialog({ id: 999, name: 'Nobody' }))
-    const review = within(dialog()!).getByRole('button', { name: 'Review with Nobody…' })
-    expect(review).toBeDisabled()
-    expect(review).toHaveAttribute('title', 'No open tasks')
+    await vi.waitFor(() => expect(useListWidgetStore.getState().reviewFilters.rv).toEqual({ expression: { kind: 'person', id: priya.id }, showCompleted: false }))
   })
 
   it('a person’s dialog’s Paste reply opens the check-in reply import over it', () => {

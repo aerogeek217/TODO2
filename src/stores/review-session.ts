@@ -3,12 +3,11 @@ import type { ReviewSort } from '../models/review'
 import { registerModuleReset } from '../utils/module-reset'
 
 /**
- * A review's place (D26): what the review deck (`review-store`, one, frozen)
- * and each Review widget (item 12, one per tab, live) step through — the
- * queue, the order the rail shows it in (its sort, item 7), the current card,
- * the marks and the text typed per task. The rail, the card and the footer
- * (`components/review/`) read and step one through `ReviewSessionContext`,
- * whichever hosts it. The order a sort gives is computed by
+ * A review's place (D26): what each Review widget (item 12, one per tab,
+ * live) steps through — the queue, the order the rail shows it in (its sort,
+ * item 7), the current card, the marks and the text typed per task. The
+ * rail, the card and the footer (`components/review/`) read and step one
+ * through `ReviewSessionContext`. The order a sort gives is computed by
  * `services/review-queue` (a store doesn't sort tasks) and handed in with
  * `place`.
  */
@@ -73,7 +72,7 @@ export interface ReviewSessionActions {
 
 export type ReviewSession = ReviewSessionData & ReviewSessionActions
 
-/** What the review components read a session through (the deck's store, or a widget's). */
+/** What the review components read a session through (a widget's). */
 export type ReviewSessionApi = Pick<StoreApi<ReviewSession>, 'getState' | 'getInitialState' | 'subscribe'>
 
 export const EMPTY_SESSION: ReviewSessionData = {
@@ -94,10 +93,7 @@ export function currentReviewId(s: Pick<ReviewSessionData, 'order' | 'index'>): 
   return s.order[s.index]
 }
 
-/**
- * The session's actions over its data, for a store whose state holds it
- * (the deck's adds its own fields; a widget's is just this).
- */
+/** The session's actions over its data, for a store whose state holds it. */
 export function reviewSessionActions(
   set: (partial: Partial<ReviewSessionData>) => void,
   get: () => ReviewSessionData & Pick<ReviewSessionActions, 'go' | 'next' | 'mark'>,
@@ -192,15 +188,6 @@ export function reviewWidgetSession(tabId: string, initial?: () => Partial<Revie
 }
 
 // ── What the rail and the header read ──────────────────────────────────────
-
-/**
- * The tasks of the review whose field (`drafts`: the Status update line's,
- * `nextDrafts`: the Next follow-up field's) holds text not recorded or set
- * yet (only spaces count as none), in queue order.
- */
-export function unrecordedDraftIds(drafts: Readonly<Record<number, string>>, ids: readonly number[]): number[] {
-  return ids.filter((id) => (drafts[id] ?? '').trim() !== '')
-}
 
 /**
  * Task `id`'s mark as the rail shows it (item 11): `done` — ✓ — while the

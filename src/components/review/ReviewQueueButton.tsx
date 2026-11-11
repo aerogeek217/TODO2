@@ -7,9 +7,9 @@ import styles from './Review.module.css'
 
 /**
  * **Queue ▾** while the review's queue is folded away (task layout A: a
- * Review widget or the deck under 820px wide): a button that opens the queue — `ReviewRail`, with its sort — in a popover under it
+ * Review widget under 820px wide): a button that opens the queue — `ReviewRail`, with its sort — in a popover under it
  * (`AnchoredPicker` over `PopoverRoot`: level 1 in a cell, level 2 in the
- * deck). Picking a row goes to it and closes the popover; Esc or a press
+ * small face's popover). Picking a row goes to it and closes the popover; Esc or a press
  * outside closes it. ‹ Back and Skip › in the footer still step.
  */
 export function ReviewQueueButton({ todoById, followedUpToday, label, className }: {
@@ -24,7 +24,7 @@ export function ReviewQueueButton({ todoById, followedUpToday, label, className 
   const buttonRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   // Open, the focus goes to the current row (← / → step there; Esc is the popover's, not a layer's
-  // under it — the small face's popover, the deck); closed with it inside, back to the button.
+  // under it — the small face's popover); closed with it inside, back to the button.
   useEffect(() => {
     if (!open) return
     const popover = popoverRef.current

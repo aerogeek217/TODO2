@@ -142,7 +142,7 @@ export const SHORTCUT_SPECS = {
     description: 'Copy selected tasks', category: 'task', editable: true, blockedByEditPopup: true,
     chord: one({ key: 'c', mod: true }),
   },
-  // The review deck (D26): the list tab on screen the user was last in.
+  // Review List: a jump to a Review widget with the list tab on screen the user was last in.
   'review-list': {
     description: 'Review list', category: 'task', editable: true, blockedByEditPopup: true,
     chord: one({ key: 'r' }),

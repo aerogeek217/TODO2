@@ -4,8 +4,8 @@ import type { ReviewSession, ReviewSessionApi } from '../../stores/review-sessio
 
 /**
  * The review session the rail, the card and the footer read and step
- * (`stores/review-session`): the deck's (`useReviewStore`) or a Review
- * widget's (`reviewWidgetSession`), provided by the host.
+ * (`stores/review-session`): a Review widget's (`reviewWidgetSession`),
+ * provided by the widget.
  */
 export const ReviewSessionContext = createContext<ReviewSessionApi | null>(null)
 

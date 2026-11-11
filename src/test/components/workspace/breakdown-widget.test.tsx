@@ -12,7 +12,7 @@ import type { BreakdownConfig } from '../../../models/chart-widgets'
 import { createTab, type BreakdownTab, type LayoutTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useReviewStore } from '../../../stores/review-store'
+import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -21,14 +21,14 @@ import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { WidgetFace } from '../../../utils/widget-face'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
-import { single } from '../../helpers/layout-builders'
+import { grid, single } from '../../helpers/layout-builders'
 import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_TASKS, STATUSES, TAGS } from '../../fixtures/glance-sample'
 import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
  * The Breakdown (D26 P8) in JSDOM: its headings sort (view state), no
- * filter row, the row's Review button and the count columns' clicks (the
- * review deck), the person menu, its faces, its tab menu and its editor's
+ * filter row, the row's Review button and the count columns' clicks (jumps
+ * to a Review widget), the person menu, its faces, its tab menu and its editor's
  * round trip, its count columns among them (board BC).
  */
 
@@ -37,10 +37,17 @@ function breakdown(over: Partial<BreakdownConfig> = {}, id = 'b'): BreakdownTab 
 }
 
 /** The tab in the open layout, so its writes land there. */
-function inLayout(tab: LayoutTab) {
-  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [tab] }) }
-  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
+function inLayout(tab: LayoutTab, { reviewWidget = true }: { reviewWidget?: boolean } = {}) {
+  // Beside it (after it in reading order), a Review widget: where the Review buttons jump.
+  const body = reviewWidget
+    ? grid([[{ id: 'c', tabs: [tab] }, { id: 'r', tabs: [createTab('review', 'rv')] }]])
+    : single({ id: 'c', tabs: [tab] })
+  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...body }
+  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
 }
+
+/** The Review widget's filter (the jump's). */
+const reviewFilter = () => useListWidgetStore.getState().reviewFilters.rv
 
 const current = () => useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as BreakdownTab
 /** A fresh Breakdown's config (its empty filter), before any is in the layout. */
@@ -156,23 +163,29 @@ describe('no filter row', () => {
   })
 })
 
-describe('clicks: a row drills, its Review button and a count review', () => {
-  it('a row opens its tasks; Review opens the deck on them; a count column’s count on just its tasks', () => {
+describe('clicks: a row drills, its Review button and a count jump', () => {
+  it('a row opens its tasks; Review jumps to the Review widget with the row as its filter', async () => {
     const onDrill = vi.fn()
-    setup(breakdown({ name: 'Team' }), { onDrill })
+    setup(breakdown({ name: 'Team', filter: { ...current0().config.filter, tags: [1] } }), { onDrill })
     const priya = rowOf('person-4')
     fireEvent.click(priya)
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Team · Priya Nair', personId: 4 })
     fireEvent.click(within(priya).getByTestId('breakdown-review'))
-    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Priya Nair' } })
-    expect([...useReviewStore.getState().ids].sort((a, b) => a - b)).toEqual([3, 11, 14, 15])
-    act(() => { useReviewStore.setState({ open: false }) })
-    const countRow = rows().find((r) => r.querySelector('button[data-column]'))!
-    const count = countRow.querySelector<HTMLElement>('button[data-column]')!
-    const heading = document.querySelector(`[data-sort-key="${count.dataset.column}"]`)!.textContent
+    // The Breakdown's own filter AND the row.
+    await vi.waitFor(() => expect(reviewFilter()).toEqual({
+      expression: { kind: 'and', items: [{ kind: 'tag', id: 1 }, { kind: 'person', id: 4 }] },
+      showCompleted: false,
+    }))
+  })
+
+  it('a count column’s count jumps with the row AND the column’s filter', async () => {
+    setup(breakdown({
+      columns: [{ id: 'doing', name: 'Doing', color: '#7ec4bc', filter: { ...current0().config.filter, statusIds: [2] }, litWhen: 'never' }],
+    }))
+    const count = rowOf('person-4').querySelector<HTMLElement>('button[data-column="doing"]')
+    if (!count) throw new Error('Priya has no Doing task in the sample')
     fireEvent.click(count)
-    expect(useReviewStore.getState().ids).toHaveLength(Number(count.textContent))
-    expect(useReviewStore.getState().source?.title).toMatch(new RegExp(` · ${heading}$`))
+    await vi.waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'and', items: [{ kind: 'person', id: 4 }, { kind: 'status', id: 2 }] }))
   })
 
   it('every row has its Review button right after its name, in the name cell (no actions column, no pill)', () => {
@@ -227,16 +240,25 @@ describe('clicks: a row drills, its Review button and a count review', () => {
     expect(document.querySelector<HTMLElement>('[data-column="followup"]')!.style.getPropertyValue('--col-color')).toBe('var(--color-followup)')
   })
 
-  it('no Review while the deck is open', () => {
-    useReviewStore.setState({ open: true })
-    setup(breakdown())
+  it('no layout has a Review widget: no Review buttons, and a count opens its tasks in the task dialog', () => {
+    const onDrill = vi.fn()
+    inLayout(breakdown({ name: 'Team' }), { reviewWidget: false })
+    render(<DndContext><Live face="large" onDrill={onDrill} /></DndContext>)
     expect(document.querySelector('[data-testid="breakdown-review"]')).toBeNull()
+    const count = rows().map((r) => r.querySelector<HTMLElement>('button[data-column]')).find((b) => b != null)!
+    fireEvent.click(count)
+    expect(onDrill.mock.lastCall?.[0]?.title).toMatch(/^Team · .+ · /)
+    expect(reviewFilter()).toBeUndefined()
   })
 
-  it('a status row reviews as a status; a priority row as a priority', () => {
+  it('a status row jumps with its status; a priority row with its group', async () => {
     setup(breakdown({ name: 'Status', splitBy: 'status' }))
     fireEvent.click(within(rowOf('status-3')).getByTestId('breakdown-review'))
-    expect(useReviewStore.getState().source).toMatchObject({ kind: 'status', title: 'Waiting' })
+    await vi.waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'status', id: 3 }))
+    cleanup()
+    setup(breakdown({ name: 'Priority', splitBy: 'priority' }))
+    fireEvent.click(within(rowOf('priority-focus')).getByTestId('breakdown-review'))
+    await vi.waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'priority', value: 'focus' }))
   })
 
   it('a person row’s right-click opens the person menu', () => {

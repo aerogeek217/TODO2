@@ -1,9 +1,10 @@
-import { useIsMobile } from '../../hooks/use-is-mobile'
+import { useReviewJumpAvailable } from '../../hooks/use-review-jump'
 import type { Person, Tag } from '../../models'
 import { sendPersonCheckin } from '../../services/checkin-email/person-checkin'
-import { openReview, peopleReview, personReview, tagReview, type ReviewPayload } from '../../services/review'
+import { peopleReviewFilter, personReviewFilter, tagReviewFilter } from '../../services/review'
+import { jumpToReview } from '../../services/review-jump'
 import { personTaskDialog, tagTaskDialog } from '../../services/task-dialog'
-import { useReviewStore } from '../../stores/review-store'
+import type { ReviewFilter } from '../../stores/list-widget-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useDialogLayer } from './dialog-layer'
 import { AtIcon, EnvelopeIcon, HashIcon, PencilIcon, ReplyIcon, ReviewIcon, TrashIcon } from './icons'
@@ -26,22 +27,25 @@ type Named = Pick<Person, 'id' | 'name'>
 export interface EntityMenuOffers {
   /**
    * Show tasks and the check-ins: outside dialogs, or on the workspace's
-   * overlay tier (the task dialog, the review deck) — where the dialogs
+   * overlay tier (the task dialog) — where the dialogs
    * they open can show above.
    */
   showTasks: boolean
   checkins: boolean
-  /** Review: where Show tasks is, but not on a phone (the deck is desktop only) nor while the deck is open. */
+  /**
+   * Review (a jump to a Review widget, `services/review-jump`): where Show
+   * tasks is, while some layout has a Review widget, and not on a phone
+   * (`useReviewJumpAvailable`).
+   */
   review: boolean
 }
 
-/** What a person / tag menu rendered here may offer (its dialog tier, the phone, the open deck). */
+/** What a person / tag menu rendered here may offer (its dialog tier, the phone, a Review widget to jump to). */
 export function useEntityMenuOffers(): EntityMenuOffers {
   const layer = useDialogLayer()
-  const isMobile = useIsMobile()
-  const deckOpen = useReviewStore((s) => s.open)
+  const jump = useReviewJumpAvailable()
   const outside = layer == null || layer === 'overlay'
-  return { showTasks: outside, checkins: outside, review: outside && !isMobile && !deckOpen }
+  return { showTasks: outside, checkins: outside, review: outside && jump }
 }
 
 export interface PersonMenuOptions {
@@ -64,21 +68,19 @@ function handler(opts: PersonMenuOptions, act: () => void): () => void {
   }
 }
 
-/** The Review item of `payload`: disabled (with why) when it has no open task. */
-function reviewItem(label: string, payload: () => ReviewPayload, opts: PersonMenuOptions): MenuItemEntry {
-  const empty = payload().ids.length === 0
+/** The Review item: a jump to a Review widget with `filter` (`jumpToReview`). */
+function reviewItem(label: string, filter: () => ReviewFilter | null, opts: PersonMenuOptions): MenuItemEntry {
   return {
     kind: 'item',
     label,
     icon: <ReviewIcon />,
-    ...(empty ? { disabled: true, title: 'No open tasks' } : {}),
-    onSelect: handler(opts, () => { openReview(payload()) }),
+    onSelect: handler(opts, () => { void jumpToReview(filter()) }),
   }
 }
 
-/** `Review with X…`: the person's open tasks in the review deck, as their task dialog lists them. */
+/** `Review with X`: a jump to a Review widget, its filter `@X`. */
 export function personReviewLabel(name: string): string {
-  return `Review with ${name}…`
+  return `Review with ${name}`
 }
 
 /** `Email check-in to X`: the one-click send. */
@@ -101,7 +103,7 @@ export function personMenuEntries(person: Named, opts: PersonMenuOptions): MenuI
   const id = person.id
   if (id == null) return []
   const entries: MenuItemEntry[] = []
-  if (opts.review) entries.push(reviewItem(personReviewLabel(person.name), () => personReview(person), opts))
+  if (opts.review) entries.push(reviewItem(personReviewLabel(person.name), () => personReviewFilter({ id }), opts))
   if (opts.checkins !== false) {
     entries.push(
       { kind: 'item', label: personCheckinLabel(person.name), icon: <EnvelopeIcon />, onSelect: handler(opts, () => { void sendPersonCheckin(id) }) },
@@ -118,8 +120,9 @@ export function personMenuEntries(person: Named, opts: PersonMenuOptions): MenuI
 
 /** A tag's item: Review #tag tasks… (when `review`). */
 export function tagMenuEntries(tag: Pick<Tag, 'id' | 'name'>, opts: PersonMenuOptions): MenuItemEntry[] {
-  if (tag.id == null || !opts.review) return []
-  return [reviewItem(`Review #${tag.name} tasks…`, () => tagReview(tag), opts)]
+  const id = tag.id
+  if (id == null || !opts.review) return []
+  return [reviewItem(`Review #${tag.name} tasks`, () => tagReviewFilter({ id }), opts)]
 }
 
 /**
@@ -134,7 +137,7 @@ export function peopleMenuEntries(people: readonly Named[], opts: PersonMenuOpti
   if (people.length === 1) return personMenuEntries(only, opts)
   const ids = people.flatMap((p) => (p.id != null ? [p.id] : []))
   const entries: MenuItemEntry[] = []
-  if (opts.review) entries.push(reviewItem(`Review ${people.length} people’s tasks…`, () => peopleReview(people), opts))
+  if (opts.review) entries.push(reviewItem(`Review ${people.length} people’s tasks`, () => peopleReviewFilter(people), opts))
   if (opts.checkins !== false) {
     entries.push({
       kind: 'item',

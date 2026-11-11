@@ -11,10 +11,10 @@ import { expressionResolver } from './filter-expression-field'
 import { showTab } from './workspace-tabs'
 
 /**
- * What the Review buttons elsewhere (widget feedback 2B) write into a Review
- * widget (2A): its filter — temporary, kept per tab in memory
- * (`list-widget-store.reviewFilters`), never saved — and which widget a jump
- * goes to (J4).
+ * What the Review buttons elsewhere (widget feedback 2B, `services/review-jump`)
+ * write into a Review widget (2A): its filter — temporary, kept per tab in
+ * memory (`list-widget-store.reviewFilters`), never saved — and which widget
+ * a jump goes to (J4).
  */
 
 /**
@@ -68,6 +68,18 @@ export interface ReviewWidgetTarget {
  */
 export function reviewWidgetTarget(): ReviewWidgetTarget | null {
   const { working, layouts } = useWorkspaceStore.getState()
+  return reviewWidgetTargetIn(working, layouts)
+}
+
+/**
+ * `reviewWidgetTarget` over the given layouts: `working` (the open layout as
+ * shown) first, then the others in `layouts`' order (the open one's stored
+ * copy skipped). A hook reads it through the store's state.
+ */
+export function reviewWidgetTargetIn(
+  working: (LayoutBody & { id: number }) | null,
+  layouts: readonly (LayoutBody & { id: number })[],
+): ReviewWidgetTarget | null {
   if (working) {
     const tabId = firstReviewTab(working)
     if (tabId) return { layoutId: working.id, tabId, open: true }
