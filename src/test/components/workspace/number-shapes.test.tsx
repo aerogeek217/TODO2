@@ -79,7 +79,7 @@ afterEach(() => {
 
 describe('Share of…', () => {
   it('its tasks as a share of every open task: a ring, the percent, N of M, its line', () => {
-    setup(shape({ show: 'share' }))
+    setup(shape({ show: 'share', litWhen: 'never', litAt: undefined }))
     expect(number().dataset.show).toBe('share')
     expect(figure()).toBe('11%')
     expect(within(number()).getByTestId('number-share-of').textContent).toBe('2 of 19')
@@ -142,6 +142,37 @@ describe('Oldest', () => {
     setup(shape({ show: 'oldest', oldestBy: 'created', filter: { ...emptyPredicate(), searchText: 'nothing matches this' } }))
     expect(figure()).toBe('—')
     expect(number().textContent).toContain('No tasks')
+  })
+})
+
+describe('the colour otherwise (widget feedback 2D)', () => {
+  it('a shape not lit by its own rule draws its name and figure in it; lit, in its colour when lit', () => {
+    setup(shape({ show: 'goal', goal: { atLeast: 2 }, color: '#e86bf0', unlitColor: '#A78BFA' }))
+    expect(number().dataset.lit).toBeUndefined()
+    expect(within(number()).getByTestId('number-count').style.color).toBe('var(--hue-violet-text)')
+    cleanup()
+    setup(shape({ show: 'goal', goal: { atMost: 1 }, color: '#e86bf0', unlitColor: '#A78BFA' }))
+    expect(number().dataset.lit).toBe('true')
+    expect(within(number()).getByTestId('number-count').style.color).toBe('var(--color-overdue)')
+  })
+
+  it('a Share of… line follows the colour that applies', () => {
+    setup(shape({ show: 'share', litWhen: 'never', litAt: undefined, unlitColor: '#A78BFA' }))
+    expect(number().querySelector('[data-sparkline] polyline')!.getAttribute('stroke')).toBe('var(--hue-violet-text)')
+    cleanup()
+    setup(shape({ show: 'share', litWhen: 'never', litAt: undefined }))
+    expect(number().querySelector('[data-sparkline] polyline')!.getAttribute('stroke')).toBe('var(--color-accent)')
+  })
+
+  it('Against a goal lights by its own rule: both colours in its editor', () => {
+    const tab = shape({ show: 'goal', goal: { atLeast: 2 } })
+    const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [tab] }) }
+    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
+    render(<DndContext><GlanceWidget tab={tab} /><NumberEditorHost /></DndContext>)
+    act(() => { useUIStore.getState().openNumberEditor('n') })
+    const editor = document.querySelector<HTMLElement>('[data-number-editor="n"]')!
+    expect(within(editor).getByRole('group', { name: 'Color when lit' })).not.toBeNull()
+    expect(within(editor).getByRole('group', { name: 'Color otherwise' })).not.toBeNull()
   })
 })
 
@@ -283,7 +314,7 @@ describe('Edit number’s shape fields', () => {
 
     show(editor, 'group')
     expect(within(editor).queryByTestId('number-editor-filter')).toBeNull()
-    expect(within(editor).queryByRole('group', { name: 'Colour' })).toBeNull()
+    expect(within(editor).queryByRole('group', { name: /^Color/ })).toBeNull()
     expect(within(editor).getByRole('textbox', { name: 'Count 1 name' })).toHaveValue('Overdue')
     editor = saveAndReopen(editor)
     expect(config().items).toEqual([{ name: 'Overdue', filter: numberTab('n', 'overdue').config.filter, color: numberTab('n', 'overdue').config.color }])

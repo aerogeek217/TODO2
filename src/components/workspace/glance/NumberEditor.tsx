@@ -45,6 +45,43 @@ const COMPARES: ReadonlyArray<{ value: NumberCompare; label: string }> = [
   { value: 'none', label: 'None' },
 ]
 
+/**
+ * One of a Number's two colours (widget feedback 2D): when lit (`color`) or
+ * otherwise (`unlitColor`) — the picker with Auto (absent) before its swatches.
+ */
+function NumberColorField({ name, legend, value, onChange, autoLabel, hint }: {
+  /** The Auto radio's group name (unique per field). */
+  name: string
+  legend: string
+  value: string | undefined
+  onChange: (color: string | undefined) => void
+  autoLabel: string
+  hint: string
+}) {
+  const auto = value == null
+  const autoSwatch = (
+    <input
+      type="radio"
+      name={name}
+      className={styles.auto}
+      checked={auto}
+      onChange={() => onChange(undefined)}
+      aria-label={autoLabel}
+      title={autoLabel}
+      data-hue="auto"
+    />
+  )
+  return (
+    <fieldset className={styles.fieldset} data-number-color={legend}>
+      <legend className={styles.label}>{legend}</legend>
+      <div data-on-auto={auto || undefined} className={styles.colors}>
+        <ColorPicker value={value ?? AUTO_SHOWN} onChange={(hex) => onChange(hex)} before={autoSwatch} />
+      </div>
+      <span className={styles.hint}>{hint}</span>
+    </fieldset>
+  )
+}
+
 interface NumberEditorProps {
   tab: NumberTab
   /** The Number it sits beside. */
@@ -187,19 +224,10 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
     }
   }, [anchorRef, panelEl])
 
-  const auto = config.color == null
-  const autoSwatch = (
-    <input
-      type="radio"
-      name={`${id}-auto`}
-      className={styles.auto}
-      checked={auto}
-      onChange={() => patch({ color: undefined })}
-      aria-label="Auto (neutral, lit in the accent)"
-      title="Auto: neutral, lit in the accent"
-      data-hue="auto"
-    />
-  )
+  // Against a goal lights by its own rule; every other shape by Light up when — Never: never lit, so only its other colour shows.
+  const canLight = show === 'goal' || config.litWhen !== 'never'
+  // The shapes that draw a 14-day line: a count and a Share of….
+  const hasLine = show === 'count' || show === 'share'
 
   return createPortal(
     <PopoverRoot
@@ -232,13 +260,26 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
               onChange={(e) => patch({ name: e.target.value.slice(0, NUMBER_NAME_MAX) })}
             />
           </label>
-          {show !== 'group' && <fieldset className={styles.fieldset}>
-            <legend className={styles.label}>Colour</legend>
-            <div data-on-auto={auto || undefined} className={styles.colors}>
-              <ColorPicker value={config.color ?? AUTO_SHOWN} onChange={(hex) => patch({ color: hex })} before={autoSwatch} />
-            </div>
-            <span className={styles.hint}>Its label and count while it is lit. Auto: neutral, lit in the accent.</span>
-          </fieldset>}
+          {show !== 'group' && canLight && (
+            <NumberColorField
+              name={`${id}-lit`}
+              legend="Color when lit"
+              value={config.color}
+              onChange={(color) => patch({ color })}
+              autoLabel="Auto: the accent"
+              hint={`Its name, count${hasLine ? ' and line' : ''} while it is lit. Auto: the accent.`}
+            />
+          )}
+          {show !== 'group' && (
+            <NumberColorField
+              name={`${id}-unlit`}
+              legend={canLight ? 'Color otherwise' : 'Color'}
+              value={config.unlitColor}
+              onChange={(unlitColor) => patch({ unlitColor })}
+              autoLabel={hasLine ? 'Auto: a gray name, its count in the text color, the line in the accent' : 'Auto: a gray name, its count in the text color'}
+              hint={`Its name, count${hasLine ? ' and line' : ''}${canLight ? ' while it is not lit' : ''}. Auto: a gray name and the count in the text color${hasLine ? ', the line in the accent' : ''}.`}
+            />
+          )}
           {ownFilter && <div className={styles.fieldset} role="group" aria-labelledby={`${id}-filter`}>
             <span id={`${id}-filter`} className={styles.label}>Count tasks where</span>
             <div className={styles.filter} data-testid="number-editor-filter">

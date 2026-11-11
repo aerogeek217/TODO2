@@ -135,16 +135,18 @@ function Ring({ percent, color, size }: { percent: number | null; color: string;
 }
 
 /** A share's line of percents and its change in points: items of the wrapping line around it (`.figures`, `.shareLine`), so each drops out alone where it doesn't fit. */
-function ShareHistory({ history, large, deltaText, approximate }: {
+function ShareHistory({ history, large, color, deltaText, approximate }: {
   history: { series: readonly number[] }
   large: boolean
+  /** The line's colour (`NumberColors.line`). */
+  color: string
   deltaText: string | null
   approximate: string | null
 }) {
   return (
     <>
       <NumberLine approximate={approximate}>
-        <Sparkline series={history.series} width={large ? 96 : 56} height={large ? 30 : 20} />
+        <Sparkline series={history.series} width={large ? 96 : 56} height={large ? 30 : 20} color={color} />
       </NumberLine>
       {deltaText != null && <span className={base.delta} data-testid="number-delta">{deltaText}</span>}
     </>
@@ -166,7 +168,7 @@ export function ShareNumber({ tab, onResult, onDrill }: ShapeProps) {
   const [faceRef, face] = useWidgetFace()
   const name = nameOf(tab)
   const { percent, ids, of } = data.share
-  const colors = percent == null ? litColors(config.color, false, true) : numberColors(config, percent)
+  const colors = percent == null ? litColors(config, false, true) : numberColors(config, percent)
   const small = face === 'small'
   const large = face === 'large'
   const percentText = percentLabel(percent)
@@ -195,7 +197,7 @@ export function ShareNumber({ tab, onResult, onDrill }: ShapeProps) {
         // A fit row's: the percent, its line and its change beside it wherever they fit (`.figures`).
         <span className={base.figures}>
           <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{percentText}</span>
-          {history && <ShareHistory history={history} large={false} deltaText={deltaText} approximate={approximate} />}
+          {history && <ShareHistory history={history} large={false} color={colors.line} deltaText={deltaText} approximate={approximate} />}
         </span>
       ) : (
         <span className={styles.shareRow}>
@@ -205,7 +207,7 @@ export function ShareNumber({ tab, onResult, onDrill }: ShapeProps) {
             <span className={styles.meta} data-testid="number-share-of">{ofText}</span>
             {history && (
               <span className={`${styles.shareLine}${large ? ` ${styles.shareLineLarge}` : ''}`}>
-                <ShareHistory history={history} large={large} deltaText={deltaText} approximate={approximate} />
+                <ShareHistory history={history} large={large} color={colors.line} deltaText={deltaText} approximate={approximate} />
               </span>
             )}
           </span>
@@ -233,7 +235,7 @@ export function OldestNumber({ tab, onResult, onDrill }: ShapeProps) {
   const name = nameOf(tab)
   const top = oldest.oldest
   const age = top ? oldestAge(top.days, by) : null
-  const colors = top ? litColors(config.color, numberIsLit(config, top.days), false) : litColors(config.color, false, true)
+  const colors = top ? litColors(config, numberIsLit(config, top.days), false) : litColors(config, false, true)
   const total = count.ids.shown.length
   const foot = oldestFoot(total, oldest.median)
   const small = face === 'small'
@@ -285,7 +287,7 @@ export function GoalNumber({ tab, onResult, onDrill }: ShapeProps) {
   const n = count.ids.shown.length
   const goal = config.goal
   const progress = goal ? goalProgress(n, goal, stats.ctx.today, stats.ctx.weekStartsOn) : null
-  const colors = litColors(config.color, progress?.lit === true, n === 0 && !progress?.lit)
+  const colors = litColors(config, progress?.lit === true, n === 0 && !progress?.lit)
   const state = progress ? goalStateLabel(progress, n, stats.ctx.today) : 'No goal'
   const target = progress ? goalTargetLabel(progress.target) : ''
   const small = face === 'small'
@@ -376,7 +378,7 @@ export function GroupNumber({ tab, onResult, onDrill }: ShapeProps) {
               const count = counts[i]
               const n = count?.ids.shown.length ?? 0
               const itemName = item.name.trim() || 'Number'
-              const colors = litColors(item.color, numberIsLit(config, n), n === 0)
+              const colors = litColors({ color: item.color }, numberIsLit(config, n), n === 0)
               const figure = (
                 <>
                   <span className={styles.itemCount} style={{ color: colors.count }} data-testid="number-group-count">{n}</span>
@@ -426,7 +428,7 @@ export function ListNumber({ tab, onResult }: ShapeProps) {
   const [faceRef, face] = useWidgetFace()
   const name = nameOf(tab, list.name ?? 'Number')
   const n = list.ids.length
-  const colors = list.pending || !list.lensTab ? litColors(config.color, false, true) : numberColors(config, n)
+  const colors = list.pending || !list.lensTab ? litColors(config, false, true) : numberColors(config, n)
   const countText = list.pending || !list.lensTab ? '—' : String(n)
   const ofText = !list.pending && list.lensTab && n < list.baseCount ? `of ${list.baseCount}` : null
   const note = !list.lensTab

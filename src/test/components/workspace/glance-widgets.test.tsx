@@ -220,7 +220,10 @@ describe('Number widget', () => {
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Compare with' }), { target: { value: 'lastWeek' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Light up when' }), { target: { value: 'below' } })
     fireEvent.change(within(editor).getByRole('spinbutton', { name: 'Light up when below' }), { target: { value: '7' } })
-    fireEvent.click(within(editor).getByRole('radio', { name: /^Auto/ }))
+    // Lit by a rule: both colours (widget feedback 2D); Auto when lit.
+    const colorWhenLit = within(editor).getByRole('group', { name: 'Color when lit' })
+    expect(within(editor).getByRole('group', { name: 'Color otherwise' })).not.toBeNull()
+    fireEvent.click(within(colorWhenLit).getByRole('radio', { name: /^Auto/ }))
     const stored = () => (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as typeof tab).config
     // Nothing written until Save.
     expect(stored()).toBe(tab.config)
@@ -236,6 +239,20 @@ describe('Number widget', () => {
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Light up when' }), { target: { value: 'never' } })
     fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
     expect(stored()).not.toHaveProperty('litAt')
+    // Never lit: one Color — the colour otherwise —, the lit one kept as it is.
+    act(() => { useUIStore.getState().openNumberEditor('n') })
+    editor = document.querySelector<HTMLElement>('[data-number-editor="n"]')!
+    expect(within(editor).queryByRole('group', { name: 'Color when lit' })).toBeNull()
+    const color = within(editor).getByRole('group', { name: 'Color' })
+    fireEvent.click(within(color).getByRole('radio', { name: 'Violet' }))
+    // Drawn live: the line takes it while the Number isn't lit.
+    expect(document.querySelector('[data-number="n"] [data-sparkline] polyline')!.getAttribute('stroke')).toBe('var(--hue-violet-text)')
+    const before = layoutSteps().length
+    const lit = stored().color
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
+    expect(stored().unlitColor).toMatch(/^#/)
+    expect(stored().color).toBe(lit)
+    expect(layoutSteps().length).toBe(before + 1)
     // No lens picked: no Top-bar lens row.
     act(() => { useUIStore.getState().openNumberEditor('n') })
     editor = document.querySelector<HTMLElement>('[data-number-editor="n"]')!

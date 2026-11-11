@@ -168,7 +168,7 @@ function CountNumber({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
         {series && (
           <span className={styles.history}>
             <NumberLine approximate={approximate}>
-              <Sparkline series={series} width={large ? 120 : 64} height={large ? 36 : 22} />
+              <Sparkline series={series} width={large ? 120 : 64} height={large ? 36 : 22} color={colors.line} />
             </NumberLine>
             {deltaText != null && <span className={styles.delta} data-testid="number-delta">{deltaText}</span>}
           </span>
