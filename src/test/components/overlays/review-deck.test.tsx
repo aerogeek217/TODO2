@@ -56,14 +56,20 @@ const nextField = () => screen.getByLabelText('Next follow-up')
 const cardTitle = () => screen.getByTestId('review-card-title').textContent
 const markButton = () => screen.getByRole('button', { name: 'Mark followed up' })
 const railRow = (title: string) => within(screen.getByRole('navigation', { name: 'Review queue' })).getByRole('button', { name: new RegExp(`^${title}`) })
+/** The current card's dot: its index in the order shown. */
+const currentDot = () => [...screen.getByTestId('review-dots').children].findIndex((d) => d.getAttribute('data-dot') === 'current')
+const dotCount = () => screen.getByTestId('review-dots').children.length
 const sameDay = (a: Date | undefined, b: Date) => !!a && startOfDay(a).getTime() === startOfDay(b).getTime()
 const [FIRST, SECOND] = ['Answer Northwind', 'Map integration points']
 
 describe('the review deck', () => {
-  it('a labelled dialog: the source, k of N, the first card with its update line focused', async () => {
+  it('a labelled dialog: the source, no place in the queue (`k of N`), the first card with its update line focused', async () => {
     await openDeck()
     expect(screen.getByRole('dialog', { name: 'Aisha 1:1' })).toBeInTheDocument()
-    expect(screen.getByTestId('review-position')).toHaveTextContent('1 of 3')
+    expect(screen.queryByTestId('review-position')).toBeNull()
+    expect(document.querySelector('header')).not.toHaveTextContent(/\d+ of \d+/)
+    expect(screen.queryByRole('button', { name: 'Queue' })).toBeNull()
+    expect(currentDot()).toBe(0)
     expect(screen.getByTestId('review-followed-up')).toHaveTextContent('0 followed up')
     expect(cardTitle()).toBe(FIRST)
     expect(updateField()).toHaveFocus()
@@ -249,7 +255,8 @@ describe('the review deck', () => {
     await openDeck()
     fireEvent.click(railRow('Retention addendum'))
     expect(cardTitle()).toBe('Retention addendum')
-    expect(screen.getByTestId('review-position')).toHaveTextContent('3 of 3')
+    expect(railRow('Retention addendum')).toHaveAttribute('aria-current', 'true')
+    expect(currentDot()).toBe(2)
   })
 
   it('keys: Alt + → / ← anywhere skip / go back; J / K / S outside a text field', async () => {
@@ -446,7 +453,7 @@ describe('the review deck', () => {
     expect(rowTitles()).toEqual(['Retention addendum', FIRST, SECOND])
     expect(rail.querySelectorAll('li[aria-hidden="true"]')).toHaveLength(0)
     expect(cardTitle()).toBe(FIRST)
-    expect(screen.getByTestId('review-position')).toHaveTextContent('2 of 3')
+    expect(currentDot()).toBe(1)
     fireEvent.click(screen.getByRole('button', { name: /^Back/ }))
     expect(cardTitle()).toBe('Retention addendum')
     fireEvent.keyDown(railRow('Retention addendum'), { key: 'ArrowRight' })
@@ -470,11 +477,14 @@ describe('the review deck', () => {
     expect(lensSwitch).toHaveTextContent('−2')
     fireEvent.click(lensSwitch)
     expect(requery).toHaveBeenCalledWith(true)
-    expect(screen.getByTestId('review-position')).toHaveTextContent('2 of 3')
+    expect(dotCount()).toBe(3)
+    expect(currentDot()).toBe(1)
     expect(cardTitle()).toBe(SECOND)
     expect(screen.getByRole('button', { name: 'Apply the lens “Mine” here' })).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(screen.getByRole('button', { name: 'Apply the lens “Mine” here' }))
-    expect(screen.getByTestId('review-position')).toHaveTextContent('1 of 1')
+    expect(dotCount()).toBe(1)
+    expect(currentDot()).toBe(0)
+    expect(cardTitle()).toBe(SECOND)
   })
 
   it('no lens picked: no lens switch', async () => {
@@ -622,7 +632,9 @@ describe('the review deck', () => {
     expect(railRow(FIRST)).toHaveAccessibleName(/completed/)
     await act(async () => { await useTodoStore.getState().bulkRemove([second]) })
     expect(screen.queryByRole('button', { name: new RegExp(`^${SECOND}`) })).toBeNull()
-    expect(screen.getByTestId('review-position')).toHaveTextContent('1 of 2')
+    expect(dotCount()).toBe(2)
+    expect(currentDot()).toBe(0)
+    expect(cardTitle()).toBe(FIRST)
   })
 
   // ── Board BL: the header, the two-line rows, the always-there headings ──
@@ -643,7 +655,7 @@ describe('the review deck', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
     fireEvent.click(markButton())
     await waitFor(() => expect(dots()).toEqual(['skipped', 'done', 'current']))
-    expect(screen.getByTestId('review-position')).toHaveTextContent('3 of 3')
+    expect(screen.queryByTestId('review-position')).toBeNull()
     expect(screen.getByTestId('review-followed-up')).toHaveTextContent('1 followed up')
     expect(screen.getByTestId('review-skipped')).toHaveTextContent('· 1 skipped')
   })

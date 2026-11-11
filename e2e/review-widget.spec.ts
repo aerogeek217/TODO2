@@ -116,13 +116,16 @@ test('added from the cell’s ⋯: by Person, nothing picked — “Pick a perso
   await expect(chips(w)).toHaveCount(1)
   await expect(field).toHaveValue('')
   await expect(field).toBeFocused()
-  await expect(w.getByTestId('review-widget-progress')).toHaveText('1 of 4 · 0 followed up')
+  await expect(w.getByTestId('review-widget-progress')).toHaveText('0 followed up')
+  await expect(w.locator('[data-review-row]')).toHaveCount(4)
+  await expect(w.locator('[data-review-row]').first()).toHaveAttribute('aria-current', 'true')
   await field.fill('be')
   await shot(page, 'bm-typing')
   await field.press('Enter')
   await expect(chips(w)).toHaveCount(2)
   // Aisha or Ben: every open task of either, each once.
-  await expect(w.getByTestId('review-widget-progress')).toHaveText('1 of 5 · 0 followed up')
+  await expect(w.getByTestId('review-widget-progress')).toHaveText('0 followed up')
+  await expect(w.locator('[data-review-row]')).toHaveCount(5)
   await field.press('Escape')
   await expect(panel(page)).toHaveCount(0)
   const tabId = await w.getAttribute('data-review-widget') ?? ''
@@ -136,7 +139,8 @@ test('added from the cell’s ⋯: by Person, nothing picked — “Pick a perso
   await line.fill('Legal signed off the clause')
   await page.keyboard.press('Enter')
   await expect(cardTitle(page, tabId)).toHaveText('Q4 headcount plan')
-  await expect(w.getByTestId('review-widget-progress')).toHaveText('2 of 5 · 1 followed up')
+  await expect(railRows(page, tabId).nth(1)).toHaveAttribute('aria-current', 'true')
+  await expect(w.getByTestId('review-widget-progress')).toHaveText('1 followed up')
   await expect.poll(async () => isToday((await storedTask(page, 'Vendor contract renewal'))?.lastFollowupAt)).toBe(true)
 })
 
@@ -237,7 +241,8 @@ test('large face: the rail and the deck’s card; ⏎ in the update line follows
   await page.keyboard.press('Enter')
   await expect(cardTitle(page, 'rev1')).toHaveText('Q4 headcount plan')
   await expect(railRows(page, 'rev1').first()).toHaveAttribute('data-mark', 'done')
-  await expect(w.getByTestId('review-widget-progress')).toHaveText('2 of 4 · 1 followed up')
+  await expect(railRows(page, 'rev1').nth(1)).toHaveAttribute('aria-current', 'true')
+  await expect(w.getByTestId('review-widget-progress')).toHaveText('1 followed up')
   await expect.poll(async () => isToday((await storedTask(page, 'Vendor contract renewal'))?.lastFollowupAt)).toBe(true)
   // In the widget the focus moves on to the next card's update line.
   await expect(w.getByLabel('Status update · today')).toBeFocused()
@@ -257,6 +262,24 @@ test('large face: the rail and the deck’s card; ⏎ in the update line follows
   await page.reload()
   await pickInReview(page, 'rev1', 'Aisha')
   await expect(w.getByTestId('review-sort')).toContainText('Title')
+})
+
+test('no place in the queue: the large face says how many are followed up; once every task has a mark, all reviewed', async ({ page }) => {
+  await seedWorkspace(page, largeSeed())
+  const w = widget(page, 'rev1')
+  await pickInReview(page, 'rev1', 'Aisha')
+  await expect(w).toHaveAttribute('data-review-face', 'large')
+  await expect(w.locator('[data-review-queue-button]')).toHaveCount(0)
+  const top = w.locator('[data-widget-top-line]')
+  await expect(top.getByTestId('review-widget-progress')).toHaveText('0 followed up')
+  await expect(top).not.toHaveText(/[0-9]+ of [0-9]+/)
+  for (const next of ['Q4 headcount plan', 'Onboarding checklist', 'Hiring scorecard']) {
+    await w.getByRole('button', { name: /^Skip/ }).click()
+    await expect(cardTitle(page, 'rev1')).toHaveText(next)
+  }
+  await w.getByRole('button', { name: /^Skip/ }).click()
+  await expect(top.getByTestId('review-widget-progress')).toHaveText('All 4 reviewed · 0 followed up')
+  await expect(top.getByTestId('review-widget-progress').locator('strong')).toHaveText('All 4 reviewed')
 })
 
 test('the live queue: a task leaving the picks leaves the rail — the current one stays until the review moves on', async ({ page }) => {
@@ -314,7 +337,7 @@ test('in a cell of several widgets: no top line — the prompt row comes first a
   await expect(w.locator('[data-widget-top-line]')).toHaveCount(0)
   await pickInReview(page, 'rt', 'Aisha')
   const row = w.locator('[data-prompt-row]')
-  await expect(row.getByTestId('review-widget-progress')).toHaveText('1 of 4 · 0 followed up')
+  await expect(row.getByTestId('review-widget-progress')).toHaveText('0 followed up')
   // The row is the widget's first; the progress sits at its right end, after the field.
   const rowBox = await row.boundingBox()
   const hostBox = await w.boundingBox()
@@ -348,7 +371,8 @@ test('faces by size: medium — the card’s essentials and the update line; sma
   await shot(page, 'bm-medium-empty', wsCell(page, 'med'))
   await pickInReview(page, 'rm', 'Aisha')
   await expect(med.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
-  await expect(med.getByTestId('review-widget-progress')).toHaveText('1 of 4')
+  await expect(med.getByTestId('review-widget-progress')).toHaveText('0 followed up')
+  await expect(med.locator('[data-widget-top-line]')).not.toHaveText(/[0-9]+ of [0-9]+/)
   await expect(med.getByTestId('review-facts')).toContainText('Waiting')
   await expect(med.locator('[data-review-row]')).toHaveCount(0)
   await shot(page, 'review-widget-medium', wsCell(page, 'med'))
@@ -371,10 +395,16 @@ test('faces by size: medium — the card’s essentials and the update line; sma
   await field.fill('ben')
   await field.press('Enter')
   await expect(popover).toBeVisible()
-  // The popover is under 820px wide: the queue folds into the progress, which opens it (task layout A).
+  // The popover is under 820px wide: the queue folds into a Queue button before the progress, which opens it (task layout A).
   await expect(whole.locator('[data-review-rail]')).toHaveCount(0)
-  await whole.locator('[data-review-queue-button]').click()
+  await expect(whole.getByTestId('review-widget-progress')).toHaveText('Queue · 0 followed up')
+  await expect(whole.locator('[data-prompt-row]')).not.toHaveText(/[0-9]+ of [0-9]+/)
+  const queueButton = whole.getByRole('button', { name: 'Queue', exact: true })
+  await expect(queueButton).toHaveAttribute('data-review-queue-button', '')
+  await queueButton.click()
+  await expect(queueButton).toHaveAttribute('aria-expanded', 'true')
   await expect(page.locator('[data-review-queue-popover] [data-review-row]')).toHaveCount(5)
+  await expect(page.locator('[data-review-queue-popover] [data-review-row]').first()).toHaveAttribute('aria-current', 'true')
   await page.keyboard.press('Escape')
   await expect(page.locator('[data-review-queue-popover]')).toHaveCount(0)
   await expect(popover).toBeVisible()

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { expectDeckAt } from './fixtures/review'
 
 /**
  * D26 · the review deck in the real browser: opened from a list tab's menu
@@ -52,7 +53,7 @@ const isToday = (d: Date | undefined) => !!d && new Date(d).toDateString() === n
 
 test('a list tab’s menu opens the deck on its tasks, in the list’s order, on the first card', async ({ page }) => {
   await openDeck(page)
-  await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 4')
+  await expectDeckAt(deck(page), 1, 4)
   await expect(cardTitle(page)).toHaveText('Answer Northwind on the SLA')
   await expect(updateLine(page)).toBeFocused()
   await expect(rail(page).locator('[data-review-row]')).toHaveText([
@@ -88,7 +89,7 @@ test('Skip marks the task skipped and writes nothing; a rail row jumps to its ca
 
   await railRow(page, 'Renew the licences').click()
   await expect(cardTitle(page)).toHaveText('Renew the licences')
-  await expect(deck(page).getByTestId('review-position')).toHaveText('4 of 4')
+  await expectDeckAt(deck(page), 4, 4)
   await expect(railRow(page, 'Renew the licences')).toHaveAttribute('aria-current', 'true')
   // A click on the rail leaves the focus for the card's update line.
   await expect(updateLine(page)).toBeFocused()
@@ -124,7 +125,7 @@ test('a row’s avatar › Review with X…: the deck on the person’s open tas
   await menu.getByRole('menuitem', { name: 'Review with Aisha Rahman…' }).click()
 
   await expect(personDeck(page)).toBeVisible()
-  await expect(personDeck(page).getByTestId('review-position')).toHaveText('1 of 2')
+  await expectDeckAt(personDeck(page), 1, 2)
   await expect(personDeck(page).getByRole('navigation', { name: 'Review queue' }).locator('[data-review-row]'))
     .toHaveText([/Answer Northwind/, /Shared rollout plan/])
   await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
@@ -141,7 +142,7 @@ test('the person task dialog’s Review button: the dialog closes, then the deck
   await taskDialog.getByRole('button', { name: 'Review with Aisha Rahman…' }).click()
 
   await expect(taskDialog).toHaveCount(0)
-  await expect(personDeck(page).getByTestId('review-position')).toHaveText('1 of 2')
+  await expectDeckAt(personDeck(page), 1, 2)
   await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
 
   await page.keyboard.press('Escape')
@@ -215,7 +216,7 @@ test('the rail’s sort reorders the rail, keeps the card and steps in the order
     /Map integration/, /Retention addendum/, /Answer Northwind/, /Renew the licences/,
   ])
   await expect(cardTitle(page)).toHaveText('Answer Northwind on the SLA')
-  await expect(deck(page).getByTestId('review-position')).toHaveText('3 of 4')
+  await expectDeckAt(deck(page), 3, 4)
   await deck(page).getByRole('button', { name: /^Skip/ }).click()
   await expect(cardTitle(page)).toHaveText('Renew the licences')
   await page.keyboard.press('Alt+ArrowLeft')
@@ -235,9 +236,9 @@ test('the header’s lens switch: −N under the lens; a click takes the list ag
   await expect(cardTitle(page)).toHaveText('Retention addendum')
   await sw.click()
   await expect(sw).toHaveAttribute('aria-pressed', 'false')
-  await expect(deck(page).getByTestId('review-position')).toHaveText('3 of 4')
+  await expectDeckAt(deck(page), 3, 4)
   await expect(cardTitle(page)).toHaveText('Retention addendum')
   await expect(railRow(page, 'Answer Northwind')).toHaveAttribute('data-mark', 'skipped')
   await sw.click()
-  await expect(deck(page).getByTestId('review-position')).toHaveText('2 of 2')
+  await expectDeckAt(deck(page), 2, 2)
 })

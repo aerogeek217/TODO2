@@ -3,6 +3,7 @@ import { readStore } from './fixtures/db'
 import { box, type Box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
 import { pickInReview, seedWorkspace, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { expectDeckAt } from './fixtures/review'
 
 /**
  * Task layout A (2026-11-10) in a real browser — the task editor, the review
@@ -355,7 +356,7 @@ async function goTo(page: Page, scope: Locator, title: string) {
   if (await row.count()) {
     await row.click()
   } else {
-    // The queue folded: open it from the progress and pick there.
+    // The queue folded: open it from its Queue button and pick there.
     await scope.locator('[data-review-queue-button]').click()
     await page.locator('[data-review-queue-popover] [data-review-row]').filter({ hasText: title }).click()
   }
@@ -384,15 +385,22 @@ for (const size of [{ width: 1200, height: 800 }, { width: 1200, height: 760 }, 
 test.describe('the review dialog in a narrow window', () => {
   test.use({ viewport: { width: 840, height: 720 } })
 
-  test('under 820px of deck the queue folds into `k of N`, which opens it; a pick closes it', async ({ page }) => {
+  test('under 820px of deck the queue folds into a Queue button in the header, which opens it; a pick closes it', async ({ page }) => {
     const dialog = await openDeck(page)
     expect((await box(dialog)).width).toBeLessThan(820)
     await expect(dialog.locator('[data-review-rail]')).toHaveCount(0)
-    const position = dialog.getByTestId('review-position').getByRole('button')
-    await expect(position).toHaveText('1 of 5')
+    await expectDeckAt(dialog, 1, 5, { rail: false })
+    // No place in the queue: the header has no position words while there is something to review.
+    await expect(dialog.getByTestId('review-position')).toHaveCount(0)
+    const position = dialog.locator('header').getByRole('button', { name: 'Queue', exact: true })
+    await expect(position).toHaveText('Queue')
+    await expect(position).toHaveAttribute('data-review-queue-button', '')
+    await expect(position).toHaveAttribute('aria-expanded', 'false')
     await position.click()
+    await expect(position).toHaveAttribute('aria-expanded', 'true')
     const popover = page.locator('[data-review-queue-popover]')
     await expect(popover.locator('[data-review-row]')).toHaveCount(5)
+    await expect(popover.locator('[data-review-row]').first()).toHaveAttribute('aria-current', 'true')
     await expect(popover.getByTestId('review-sort')).toBeVisible()
     await popover.locator('[data-review-row]').filter({ hasText: HEAVY }).click()
     await expect(popover).toHaveCount(0)
@@ -527,6 +535,7 @@ for (const size of [{ width: 1400, height: 800 }, { width: 860, height: 600 }, {
         if (size.width < 820) {
           await expect(widget.locator('[data-review-rail]')).toHaveCount(0)
           await expect(widget.locator('[data-review-queue-button]')).toBeVisible()
+          await expect(widget.getByTestId('review-widget-progress')).toHaveText(/^Queue · [0-9]+ followed up$/)
         } else {
           await expect(widget.locator('[data-review-rail]')).toBeVisible()
           await expect(widget.locator('[data-review-queue-button]')).toHaveCount(0)
