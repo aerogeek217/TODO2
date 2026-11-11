@@ -10,6 +10,7 @@ import { numberBreakdown, type BreakdownEntry } from '../../../services/stats/nu
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { PriorityRing } from '../../shared/PriorityRing'
 import { StatusIcon } from '../../shared/StatusIcon'
+import { NumberLine } from './NumberLine'
 import { approximateNote, countOf, deltaLabel, numberDescription } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { numberLines } from './glance-summary'
@@ -113,8 +114,8 @@ export function NumberWidget(props: GlanceWidgetProps<NumberTab>) {
  * A count (D26 P5): the tasks its filter keeps under the top
  * bar's filter (its lens too, unless the Number ignores it), as their count
  * — `shown of total` while the top bar hides some, with its 14-day line
- * (`filter-history`, ≈ when the history log doesn't hold all it reads for
- * the whole line) and its change against yesterday or the same day last
+ * (`filter-history`; approximate while the history log doesn't hold all it
+ * reads for the whole line — said in its tooltip, `NumberLine`) and its change against yesterday or the same day last
  * week (`compare`) beside the count wherever they fit (widget feedback 2D:
  * by the room, not the face — in a fit row too; the change goes first, then
  * the line; `.figures`). By its face (D25 R): small and medium are the name
@@ -166,13 +167,10 @@ function CountNumber({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
         </span>
         {series && (
           <span className={styles.history}>
-            <Sparkline series={series} width={large ? 120 : 64} height={large ? 36 : 22} className={styles.spark} />
-            {(deltaText != null || approximate) && (
-              <span className={styles.delta} data-testid="number-delta">
-                {approximate && <span className={styles.approx} title={approximate} data-testid="number-approximate">≈ </span>}
-                {deltaText}
-              </span>
-            )}
+            <NumberLine approximate={approximate}>
+              <Sparkline series={series} width={large ? 120 : 64} height={large ? 36 : 22} />
+            </NumberLine>
+            {deltaText != null && <span className={styles.delta} data-testid="number-delta">{deltaText}</span>}
           </span>
         )}
       </span>

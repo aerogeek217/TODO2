@@ -104,9 +104,10 @@ button.number:hover {
   display: contents;
 }
 
+/* The line's box (`NumberLine`): its tooltip's trigger. */
 .spark {
   flex: none;
-  display: block;
+  display: inline-flex;
 }
 
 .delta {

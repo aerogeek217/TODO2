@@ -95,7 +95,7 @@ describe('Number widget', () => {
     expect(number().querySelector('[data-sparkline] polyline')).not.toBeNull()
     expect(within(number()).getByTestId('number-delta').textContent).toMatch(/vs yesterday$/)
     // State alone: the line is exact.
-    expect(within(number()).queryByTestId('number-approximate')).toBeNull()
+    expect(number().querySelector<HTMLElement>('[data-number-line]')!.dataset.approximate).toBeUndefined()
   })
 
   it('Overdue (converted): lit above 0 in its colour', () => {
@@ -128,18 +128,31 @@ describe('Number widget', () => {
     expect(within(number()).queryByTestId('number-delta')).toBeNull()
   })
 
-  it('a filter reading what the log didn’t hold for the whole line is marked ≈', () => {
+  it('a filter reading what the log didn’t hold for the whole line: the line’s tooltip says so, no ≈ beside it (widget feedback 2D)', () => {
+    // The tooltip's delay on a fake clock too (the suite's clock fakes only Date).
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date(2026, 9, 10, 10))
     setup(numberTab('n', 'focus'))
     expect(numberCount()).toBe('3')
     expect(number().dataset.lit).toBeUndefined()
     expect(within(number()).getByTestId('number-count').style.color).toBe('var(--color-text-primary)')
-    expect(number().querySelector('[data-sparkline]')).not.toBeNull()
-    expect(within(number()).getByTestId('number-approximate').getAttribute('title')).toMatch(/priorities/)
-    // Once the log covers the whole line, it is exact.
+    const line = number().querySelector<HTMLElement>('[data-number-line]')!
+    expect(line.querySelector('[data-sparkline]')).not.toBeNull()
+    expect(line.dataset.approximate).toBe('true')
+    expect(number().textContent).not.toContain('≈')
+    expect(number().getAttribute('aria-label')).toMatch(/About .*vs yesterday/)
+    fireEvent.pointerEnter(line, { pointerType: 'mouse' })
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toMatch(/^Approximate: .*priorities/)
+    fireEvent.pointerLeave(line)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 10, 10))
+    // Once the log covers the whole line, it is exact: no tooltip.
     cleanup()
     useSettingsStore.setState({ historyLogSince: new Date(2026, 8, 1) })
     setup(numberTab('n', 'focus'))
-    expect(within(number()).queryByTestId('number-approximate')).toBeNull()
+    expect(number().querySelector<HTMLElement>('[data-number-line]')!.dataset.approximate).toBeUndefined()
+    expect(number().getAttribute('aria-label')).not.toMatch(/About/)
   })
 
   it('a click opens its tasks in the task dialog, titled by its name and saying what it counts', () => {

@@ -29,6 +29,7 @@ import {
   shareDeltaLabel,
   shareOfLabel,
 } from './number-shape-copy'
+import { NumberLine } from './NumberLine'
 import { Sparkline } from './Sparkline'
 import base from './NumberWidget.module.css'
 import styles from './NumberShapes.module.css'
@@ -142,13 +143,10 @@ function ShareHistory({ history, large, deltaText, approximate }: {
 }) {
   return (
     <>
-      <Sparkline series={history.series} width={large ? 96 : 56} height={large ? 30 : 20} className={base.spark} />
-      {(deltaText != null || approximate) && (
-        <span className={base.delta} data-testid="number-delta">
-          {approximate && <span title={approximate} data-testid="number-approximate">≈ </span>}
-          {deltaText}
-        </span>
-      )}
+      <NumberLine approximate={approximate}>
+        <Sparkline series={history.series} width={large ? 96 : 56} height={large ? 30 : 20} />
+      </NumberLine>
+      {deltaText != null && <span className={base.delta} data-testid="number-delta">{deltaText}</span>}
     </>
   )
 }
