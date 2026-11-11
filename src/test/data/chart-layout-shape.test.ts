@@ -135,6 +135,24 @@ describe('a Pivot in a stored layout (D26 P8)', () => {
       expect((tabOf(row)?.config as unknown as Record<string, unknown>)[key]).toBe(reset)
     }
   })
+
+  // Item 8: its rows' sort is view state, beside its lens switch.
+  it('its sort and lens switch round-trip as view state; a bad sort is dropped (a fix)', () => {
+    const config = { name: 'Pivot', filter: emptyPredicate(), rows: 'people', cols: 'status' }
+    for (const viewState of [{ sort: { by: 'status-3' } }, { sort: { by: 'total', reversed: true }, ignoreLens: true }, { sort: { by: 'name' } }, { ignoreLens: false }]) {
+      const tab = { id: 't', kind: 'pivot', config, viewState }
+      expect(validateRow('layouts', layoutRow(tab))).toBe(true)
+      expect(tabOf(layoutRow(tab))).toEqual(tab)
+    }
+    for (const sort of [{ by: 'a height' }, { by: 'total', reversed: false }, { by: 'name', extra: 1 }, 'total']) {
+      const row = layoutRow({ id: 't', kind: 'pivot', config, viewState: { sort, ignoreLens: true } })
+      expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].viewState.sort')
+      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+      expect(tabOf(row)).toEqual({ id: 't', kind: 'pivot', config, viewState: { ignoreLens: true } })
+    }
+    // A tab without one reads as it did: no view state.
+    expect(tabOf(layoutRow({ id: 't', kind: 'pivot', config }))).toEqual({ id: 't', kind: 'pivot', config })
+  })
 })
 
 describe('a Status flow saved before it was removed (v78)', () => {

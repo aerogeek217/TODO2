@@ -1,5 +1,5 @@
 import type { PersistedTodoItem } from '../../models'
-import type { PivotDim } from '../../models/chart-widgets'
+import { PIVOT_FIXED_SORT_KEYS, type PivotDim, type PivotSort } from '../../models/chart-widgets'
 import type { TabBadgeRanges } from '../../models/list-definition'
 import { DEFAULT_TAB_BADGES, tabBadgeRangeHit } from '../../utils/tab-badges'
 import { computeBreakdown, type BreakdownColumnKeep, type BreakdownRow } from './breakdown'
@@ -84,4 +84,39 @@ export function computePivot(tasks: readonly PersistedTodoItem[], ctx: StatsCont
   // Counted: in some row and some column (a pick can leave a task out of an axis).
   const inCols = new Set(colStats.ids)
   return { rows, cols, cells, max, ids: rowStats.ids.filter((id) => inCols.has(id)) }
+}
+
+/** Whether `sort` names a heading the table has: the name, Total, or one of its columns. */
+export function isLivePivotSort(sort: PivotSort, stats: Pick<PivotStats, 'cols'>): boolean {
+  return (PIVOT_FIXED_SORT_KEYS as readonly string[]).includes(sort.by) || stats.cols.some((c) => c.key === sort.by)
+}
+
+/** Each heading's comparator, its default direction first: the name A–Z, Total and a column's cells largest first. */
+function pivotCompare(by: string, cells: PivotStats['cells']): (a: PivotHead, b: PivotHead) => number {
+  switch (by) {
+    case 'name': return (a, b) => a.label.localeCompare(b.label)
+    case 'total': return (a, b) => b.ids.length - a.ids.length
+    default: {
+      const count = (r: PivotHead) => cells.get(cellKey(r.key, by))?.length ?? 0
+      return (a, b) => count(b) - count(a)
+    }
+  }
+}
+
+/**
+ * The Pivot's rows in the order `sort` asks (item 8, as a Breakdown's
+ * headings sort its rows): absent, or by a column the table no longer
+ * shows — the natural order, as `computePivot` returns them; ties in the
+ * natural order; the none row (Unassigned, No tags, …) stays last.
+ * Columns never move.
+ */
+export function sortPivotRows(stats: Pick<PivotStats, 'rows' | 'cols' | 'cells'>, sort: PivotSort | undefined): PivotHead[] {
+  const none = stats.rows.filter((r) => r.entity.kind === 'none')
+  const rest = stats.rows.filter((r) => r.entity.kind !== 'none')
+  if (!sort || !isLivePivotSort(sort, stats)) return [...rest, ...none]
+  const cmp = pivotCompare(sort.by, stats.cells)
+  const sign = sort.reversed ? -1 : 1
+  const index = new Map(rest.map((r, i) => [r.key, i]))
+  const sorted = [...rest].sort((a, b) => sign * cmp(a, b) || (index.get(a.key) ?? 0) - (index.get(b.key) ?? 0))
+  return [...sorted, ...none]
 }

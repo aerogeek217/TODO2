@@ -38,6 +38,7 @@ import {
   type BreakdownConfig,
   type BreakdownViewState,
   type PivotConfig,
+  type PivotViewState,
   type TagMapConfig,
 } from './chart-widgets'
 import { DEFAULT_REVIEW_BY, type ReviewBy, type ReviewSort } from './review'
@@ -278,7 +279,7 @@ export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
 export type PulseTab = TabOf<'pulse', PulseTabConfig, LensViewState>
 // ── D26 P8: the chart widgets ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
-export type PivotTab = TabOf<'pivot', PivotConfig, LensViewState>
+export type PivotTab = TabOf<'pivot', PivotConfig, PivotViewState>
 export type TagMapTab = TabOf<'tagMap', TagMapConfig, LensViewState>
 
 /** A chart widget's tab (D26 P8). */

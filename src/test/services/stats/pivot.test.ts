@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Status } from '../../../models'
-import { cellKey, computePivot } from '../../../services/stats/pivot'
+import { cellKey, computePivot, sortPivotRows } from '../../../services/stats/pivot'
 import type { StatsContext } from '../../../services/stats/stats-context'
 import { makePerson, makeTodo } from '../../helpers'
 
@@ -75,5 +75,37 @@ describe('computePivot — the people / tags order', () => {
   it('reads the ranges it is given: due within 30 days counts Dee’s', () => {
     const out = computePivot(work, ctx({ assignedPeopleMap: people }), { rows: 'people', cols: 'status', ranges: { due: 30, followup: 0 } })
     expect(out.rows.map((r) => r.label).slice(0, 3)).toEqual(['Bob', 'Cy', 'Dee'])
+  })
+})
+
+// Item 8: the rows sorted by a heading, as a Breakdown's.
+describe('sortPivotRows', () => {
+  const stats = computePivot(tasks, ctx(), { rows: 'people', cols: 'status' })
+  const labels = (sort: Parameters<typeof sortPivotRows>[1]) => sortPivotRows(stats, sort).map((r) => r.label)
+
+  it('no sort: the natural order, the none row last', () => {
+    expect(labels(undefined)).toEqual(['Bob', 'Amy', 'Unassigned'])
+  })
+
+  it('by a column: its cells largest first, reversed fewest first; the none row stays last', () => {
+    // Doing: Amy 1, Bob 0, Unassigned 1. Waiting: Bob 2, Amy 1.
+    expect(labels({ by: 'status-10' })).toEqual(['Amy', 'Bob', 'Unassigned'])
+    expect(labels({ by: 'status-10', reversed: true })).toEqual(['Bob', 'Amy', 'Unassigned'])
+    expect(labels({ by: 'status-11' })).toEqual(['Bob', 'Amy', 'Unassigned'])
+  })
+
+  it('by Total largest first; by the name A–Z, reversed Z–A', () => {
+    expect(labels({ by: 'total' })).toEqual(['Bob', 'Amy', 'Unassigned'])
+    expect(labels({ by: 'total', reversed: true })).toEqual(['Amy', 'Bob', 'Unassigned'])
+    expect(labels({ by: 'name' })).toEqual(['Amy', 'Bob', 'Unassigned'])
+    expect(labels({ by: 'name', reversed: true })).toEqual(['Bob', 'Amy', 'Unassigned'])
+  })
+
+  it('ties keep the natural order; a column the table no longer shows reads as the natural order', () => {
+    const tied = computePivot(tasks.filter((t) => t.id !== 3), ctx(), { rows: 'people', cols: 'status' })
+    // Without task 3, Bob and Amy hold one Waiting task each: the natural order stays.
+    expect(sortPivotRows(tied, { by: 'status-11' }).map((r) => r.label)).toEqual(tied.rows.map((r) => r.label))
+    expect(labels({ by: 'status-99' })).toEqual(['Bob', 'Amy', 'Unassigned'])
+    expect(labels({ by: 'person-1' })).toEqual(['Bob', 'Amy', 'Unassigned'])
   })
 })

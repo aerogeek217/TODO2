@@ -477,6 +477,54 @@ export function newPivotConfig(filter: TodoPredicate): PivotConfig {
   return { name: DEFAULT_PIVOT_NAME, filter, rows: 'people', cols: 'status' }
 }
 
+/**
+ * The fixed headings a Pivot's rows sort by: the name (its corner heading)
+ * and Total. Every other heading is a column, by its head's key
+ * (`person-12`, `status-3`, `due-overdue`, `none`, …).
+ */
+export const PIVOT_FIXED_SORT_KEYS = ['name', 'total'] as const
+
+/**
+ * A heading a Pivot's rows are sorted by (view state, item 8): its key —
+ * a fixed one (`PIVOT_FIXED_SORT_KEYS`) or a column head's — counts largest
+ * first and names A–Z, or the reverse (`reversed`), as a Breakdown's. A
+ * sort by a column the Pivot no longer shows reads as the natural order.
+ */
+export type PivotSort = BreakdownSort
+
+/** A Pivot tab's view state: its rows' sort (absent = the natural order) and its lens switch, each saved at once. */
+export interface PivotViewState {
+  sort?: PivotSort
+  /** The top bar's lens doesn't apply here (the widget's lens switch, saved at once; absent = it applies). */
+  ignoreLens?: boolean
+}
+
+/** A stored Pivot sort: a fixed heading's key or a column head's (short word characters), `reversed` only as `true`. */
+function isPivotSort(v: unknown): v is PivotSort {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
+  const { by, reversed, ...rest } = v as Obj
+  return Object.keys(rest).length === 0 && typeof by === 'string' && COLUMN_ID.test(by) && (reversed === undefined || reversed === true)
+}
+
+/** Where a stored Pivot view state goes wrong: the bad key, or `null`. */
+export function pivotViewProblem(raw: Obj): string | null {
+  if (raw.ignoreLens !== undefined && typeof raw.ignoreLens !== 'boolean') return 'ignoreLens'
+  if (raw.sort !== undefined && !isPivotSort(raw.sort)) return 'sort'
+  return null
+}
+
+/** A Pivot's view state read from untrusted input: its valid sort and lens switch (`fixed` when anything is dropped). */
+export function pickPivotView(raw: Obj | undefined): PickedConfig<PivotViewState | undefined> {
+  if (raw === undefined) return { config: undefined, fixed: false }
+  let fixed = Object.keys(raw).some((k) => k !== 'sort' && k !== 'ignoreLens')
+  const view: PivotViewState = {}
+  if (typeof raw.ignoreLens === 'boolean') view.ignoreLens = raw.ignoreLens
+  else if (raw.ignoreLens !== undefined) fixed = true
+  if (isPivotSort(raw.sort)) view.sort = raw.sort.reversed ? { by: raw.sort.by, reversed: true } : { by: raw.sort.by }
+  else if (raw.sort !== undefined) fixed = true
+  return { config: Object.keys(view).length > 0 ? view : undefined, fixed }
+}
+
 const isSplit = (v: unknown): v is BreakdownSplit => includes(BREAKDOWN_SPLITS, v)
 
 /** Where a stored Pivot config goes wrong (the filter is the caller's): the bad key, or `null`. */
