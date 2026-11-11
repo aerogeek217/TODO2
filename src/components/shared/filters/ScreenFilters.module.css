@@ -116,6 +116,15 @@
   color: inherit;
   cursor: pointer;
   flex-shrink: 0;
+  position: relative;
+}
+
+/* A 24px target round it (UX cleanup 5A): 4px each way — over the chip's
+ * right margin and its value's right padding, never over the value. */
+.clearField::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
 }
 
 .clearField:hover {

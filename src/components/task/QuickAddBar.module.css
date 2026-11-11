@@ -175,6 +175,15 @@
   opacity: 0.6;
   cursor: pointer;
   transition: opacity var(--transition-fast), background var(--transition-fast);
+  position: relative;
+}
+
+/* A 24px target round the 14px circle (UX cleanup 5A): 5px each way — 2px
+ * into the 4px gap after the chip, never onto the next chip. */
+.chipRemove::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
 }
 
 .chipRemove:hover {

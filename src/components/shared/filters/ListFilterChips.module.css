@@ -100,6 +100,15 @@
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
+  position: relative;
+}
+
+/* A 24px target round it (UX cleanup 5A): 4px each way, to the chip's
+ * right edge and 1px past its top and bottom. */
+.chipRemove::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
 }
 
 .chipRemove:hover {
