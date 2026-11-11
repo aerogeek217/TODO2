@@ -72,7 +72,7 @@ describe('cellMenuEntries', () => {
 
 describe('mergedCellMenu', () => {
   it('the widget’s entries first, one separator, then the cell’s', () => {
-    const widget = widgetKindMenuEntries({ currentKind: 'notes', onChangeKind: () => {} }, [])
+    const widget = widgetKindMenuEntries({ currentKind: 'notes', onChangeKind: () => {} })
     const merged = mergedCellMenu(widget, cellMenuEntries(actions()))
     expect(words(merged)).toEqual([
       '[Notes]', 'Change widget',
@@ -80,17 +80,16 @@ describe('mergedCellMenu', () => {
     ])
   })
 
-  it('a list’s own items lead under its heading: Edit list…, Change list, its actions, then Change widget', () => {
+  it('a list’s own items lead under its heading: Edit list…, its actions, then Change widget — no Change list', () => {
     const widget = widgetKindMenuEntries({
       currentKind: 'lens',
       onChangeKind: () => {},
       onEditList: () => {},
-      pickListForLens: () => {},
-      currentListName: 'Team',
       widgetActions: [{ label: 'Copy tasks', onSelect: () => {} }],
-    }, [])
+    })
     const merged = words(mergedCellMenu(widget, cellMenuEntries(actions())))
-    expect(merged.slice(0, 7)).toEqual(['[List]', 'Edit list…', 'Change list', 'Copy tasks', 'Change widget', '—', '[Cell]'])
+    expect(merged.slice(0, 6)).toEqual(['[List]', 'Edit list…', 'Copy tasks', 'Change widget', '—', '[Cell]'])
+    expect(merged).not.toContain('Change list')
     expect(merged.indexOf('Change widget')).toBeLessThan(merged.indexOf('Add widget…'))
   })
 

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseE
 import { useDraggable } from '@dnd-kit/core'
 import { getActiveTab, isGlanceKind, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { useWidgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
+import { widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
@@ -144,7 +144,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const menuTab = menu ? cell.tabs.find((t) => t.id === menu.tabId) : undefined
   const menuTitle = useTabTitle(menuTab)
   const widgetContent = useWidgetMenuContent(menuTab, menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result : undefined)
-  const widgetEntries = useWidgetKindMenuEntries(widgetContent ?? NO_WIDGET_MENU)
+  const widgetEntries = widgetKindMenuEntries(widgetContent ?? NO_WIDGET_MENU)
   const menuEntries = menu && menuTab
     ? mergedCellMenu(widgetEntries, cellMenuEntries({
         cell,

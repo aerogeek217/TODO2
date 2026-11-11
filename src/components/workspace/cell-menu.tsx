@@ -187,7 +187,7 @@ function useLensMenuAction(tab: LayoutTab | undefined, listId: number | undefine
 
 /**
  * The widget part of the ⋯ menu for `tab` (what its tab menu had): its
- * list's Edit list… / Change list ›, its settings, its actions (Copy, the
+ * list's Edit list…, its settings, its actions (Copy, the
  * lens switch, Collapse / Expand all groups), then Change widget.
  * `result` is what the cell's active widget last reported (its Copy lines,
  * a list's sections); `undefined` content when there is no tab.
@@ -197,7 +197,6 @@ export function useWidgetMenuContent(
   result: WidgetResult | undefined,
 ): WidgetKindMenuContent | undefined {
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
-  const patchTabConfig = useWorkspaceStore((s) => s.patchTabConfig)
   const urgentRangeSetting = useUrgentRangeSetting()
   const layoutId = useListOwnerLayoutId()
   const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
@@ -266,17 +265,9 @@ export function useWidgetMenuContent(
   return {
     currentKind: tab.kind,
     onChangeKind: changeKind,
-    pickListForLens: tab.kind === 'lens'
-      ? (id) => {
-          if (id === tab.config.listDefinitionId) return
-          patchTabConfig(tab.id, 'lens', { listDefinitionId: id })
-        }
-      : undefined,
     onEditList: listId != null && (tab.kind === 'lens' || listName != null)
       ? () => openEditList(tab.id, listId)
       : undefined,
-    currentListName: listName,
-    listLayoutId: layoutId,
     sourceActions: tab.kind === 'eisenhower'
       ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => openEisenhowerSettings() }]
       : undefined,

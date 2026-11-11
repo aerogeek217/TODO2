@@ -369,7 +369,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   const panelElRef = useRef<HTMLDivElement | null>(null)
   const nameRef = useRef<HTMLInputElement | null>(null)
   const working = useWorkspaceStore((s) => s.working)
-  // The tab shows another list now (Change list by keyboard, an Eisenhower tab switched): this list left the screen.
+  // The tab shows another list now (an undo, an Eisenhower tab switched): this list left the screen.
   const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
   const tab = working ? layoutTabs(working).find((t) => t.id === tabId) : undefined
   const tabShowsList = !working || (tab != null && tabListId(tab, eisenhowerListId) === listDefinitionId)

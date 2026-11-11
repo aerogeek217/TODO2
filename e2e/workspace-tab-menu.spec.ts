@@ -1,16 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep } from './fixtures/workspace'
+import { seedWorkspace, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
- * A widget's menu — the cell's merged ⋯ menu (D26 AA1), its widget's
- * entries first: the list tab's "Change
- * list" submenu opens by hover or ArrowRight, Escape closes it back to the
- * menu, and a pick switches the tab's list; Shift+F10 on a tab opens the
- * menu under the tab and Esc gives the tab its focus back; the menu stays inside the
- * window; the Eisenhower range submenu
- * sit beside their items (flipped left near the right edge). Plus the
- * add-tab list picker, which must stay inside the viewport when opened from a
- * cell near the bottom.
+ * A widget's menu — the cell's whole menu on a right-click or Shift+F10
+ * (D26 AA1), its widget's entries first: a list tab's has no Change list
+ * (UX cleanup 4A); Shift+F10 on a tab opens the menu under the tab and Esc
+ * gives the tab its focus back; the menu stays inside the window; the
+ * Eisenhower range submenu sits beside its item.
  *
  * JSDOM is unauthoritative here — the menus portal to `document.body` and are
  * placed / clamped from `getBoundingClientRect`; hover and focus order are
@@ -30,47 +26,18 @@ const twoLists: WorkspaceSeed = {
 }
 
 const tabMenu = (page: Page) => page.getByRole('menu', { name: 'Cell options' })
-const flyout = (page: Page) => page.getByRole('menu', { name: 'Change list' })
 
-test('hovering Change list opens the flyout; picking a list switches the tab', async ({ page }) => {
+test('a list tab’s menu has no Change list (UX cleanup 4A, decision 11): Edit list… leads it', async ({ page }) => {
   await seedWorkspace(page, twoLists)
   // Alone in its cell: its top line (the filter line, its name first) stands for the tab.
   const tab = wsTab(page, 'listTab')
   await expect(tab).toContainText('Source list')
-
   await tab.getByTestId('top-line-name').click({ button: 'right' })
   const menu = tabMenu(page)
   await expect(menu).toBeVisible()
-  const changeList = menu.getByRole('menuitem', { name: /^Change list/ })
-  await expect(changeList).toContainText('Source list')
-
-  await changeList.hover()
-  await expect(flyout(page)).toBeVisible()
-  await flyout(page).getByRole('menuitem', { name: 'Target list' }).click()
-  await expect(menu).toHaveCount(0)
-  await expect(flyout(page)).toHaveCount(0)
-  await expect(tab).toContainText('Target list')
-  // The tab's list is layout config: the layout is now unsaved.
-  await expectLayoutStep(page)
-})
-
-test('keyboard: ArrowRight on Change list opens the flyout, Escape closes it back to the menu', async ({ page }) => {
-  await seedWorkspace(page, twoLists)
-  await wsTab(page, 'listTab').getByTestId('top-line-name').click({ button: 'right' })
-  const menu = tabMenu(page)
-  // Focus starts on the first item (Edit list…); Change list is second.
   await expect(menu.getByRole('menuitem').first()).toBeFocused()
-  await page.keyboard.press('ArrowDown')
-  const changeList = menu.getByRole('menuitem', { name: /^Change list/ })
-  await expect(changeList).toBeFocused()
-
-  await page.keyboard.press('ArrowRight')
-  await expect(flyout(page)).toBeVisible()
-
-  await page.keyboard.press('Escape')
-  await expect(flyout(page)).toHaveCount(0)
-  await expect(menu).toBeVisible()
-  await expect(changeList).toBeFocused()
+  await expect(menu.getByRole('menuitem').first()).toHaveAttribute('data-menu-label', 'Edit list…')
+  await expect(menu.getByRole('menuitem', { name: /Change list/ })).toHaveCount(0)
 })
 
 /** A tab in the right-hand of two columns (near the right edge) and one on the left. */
@@ -105,10 +72,8 @@ test('Shift+F10 on a tab opens its menu under the tab; type-ahead moves; Esc ret
   expect(Math.round(m.x)).toBe(Math.round(t.x))
   expect(m.y).toBeGreaterThanOrEqual(t.y + t.height)
   await expect(menu.getByRole('menuitem', { name: 'Edit list…' })).toBeFocused()
-  // Type-ahead: the next item starting with the key.
-  await page.keyboard.press('c')
-  await expect(menu.getByRole('menuitem', { name: /^Change list/ })).toBeFocused()
-  // The kinds are in Change widget's submenu now: the next top-level item by letter is the cell's.
+  // Type-ahead: the next item starting with the key — the kinds are in Change widget's submenu, so it is
+  // the cell's (Shift+F10 opens the whole menu, both sections).
   await page.keyboard.press('s')
   await expect(menu.getByRole('menuitem', { name: 'Split cell' })).toBeFocused()
   await page.keyboard.press('Escape')
