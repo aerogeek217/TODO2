@@ -355,7 +355,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   })
 
   // A Priority drop that would be refused: no landing line or highlight, the
-  // not-allowed cursor and a tooltip saying why (the Eisenhower's way).
+  // not-allowed cursor and a tooltip saying why.
   const refusal = (() => {
     if (groupedBy !== 'priority' || !drag?.target?.cross) return null
     const todo = list?.todos.find((t) => t.id === drag.source.todoId)

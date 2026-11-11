@@ -1,4 +1,3 @@
-import type { EisenhowerPanes } from '../models/eisenhower-settings'
 import type { TodoPredicate } from '../models/filter-predicate'
 import type { ListDefinition } from '../models/list-definition'
 import { byName } from './sort-order'
@@ -38,19 +37,16 @@ export function entityTaskUse<E extends { id?: number }>(
   return use
 }
 
-/** Where one person / tag is named in a filter: how many lists, how many Eisenhower panes, the check-in filter. */
+/** Where one person / tag is named in a filter: how many lists, the check-in filter. */
 export interface FilterRefs {
   lists: number
-  panes: number
   checkin: boolean
 }
 
 /** The stored filters that can name people and tags. */
 export interface FilterSources {
-  /** Every list — the layouts' and the Eisenhower's own. */
+  /** Every list. */
   lists: readonly ListDefinition[]
-  /** The app-wide Eisenhower panes as stored (a pane without a filter of its own names nobody). */
-  panes: EisenhowerPanes
   checkinFilter: TodoPredicate
 }
 
@@ -77,7 +73,7 @@ export function filterReferences(sources: FilterSources, kind: 'person' | 'tag')
   const at = (id: number): FilterRefs => {
     let r = refs.get(id)
     if (!r) {
-      r = { lists: 0, panes: 0, checkin: false }
+      r = { lists: 0, checkin: false }
       refs.set(id, r)
     }
     return r
@@ -86,15 +82,12 @@ export function filterReferences(sources: FilterSources, kind: 'person' | 'tag')
     const ids = new Set(namedIds(list.membership.predicate, field))
     for (const id of ids) at(id).lists += 1
   }
-  for (const pane of Object.values(sources.panes)) {
-    for (const id of new Set(namedIds(pane.filter, field))) at(id).panes += 1
-  }
   for (const id of new Set(namedIds(sources.checkinFilter, field))) at(id).checkin = true
   return refs
 }
 
 export function isNamedInFilter(refs: FilterRefs | undefined): boolean {
-  return refs != null && (refs.lists > 0 || refs.panes > 0 || refs.checkin)
+  return refs != null && (refs.lists > 0 || refs.checkin)
 }
 
 /** One unused person / tag as the Settings part lists it. */
@@ -134,7 +127,7 @@ function count(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
-/** A row's note: `on 2 completed tasks · in 2 list filters · in an Eisenhower pane · in the check-in filter`, or `''`. */
+/** A row's note: `on 2 completed tasks · in 2 list filters · in the check-in filter`, or `''`. */
 export function unusedEntryNote(entry: UnusedEntry<unknown>): string {
   const parts: string[] = []
   const done = entry.completedTodoIds.length
@@ -142,7 +135,6 @@ export function unusedEntryNote(entry: UnusedEntry<unknown>): string {
   const r = entry.refs
   if (r) {
     if (r.lists > 0) parts.push(r.lists === 1 ? 'in a list filter' : `in ${r.lists} list filters`)
-    if (r.panes > 0) parts.push(r.panes === 1 ? 'in an Eisenhower pane' : `in ${r.panes} Eisenhower panes`)
     if (r.checkin) parts.push('in the check-in filter')
   }
   return parts.join(' · ')

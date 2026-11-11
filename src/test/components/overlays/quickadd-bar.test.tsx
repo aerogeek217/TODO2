@@ -832,19 +832,18 @@ describe('QuickAddBar — render guarantees', () => {
   })
 })
 
-describe('QuickAddBar — preset (e.g. an Eisenhower quadrant\'s "+")', () => {
+describe('QuickAddBar — preset (e.g. a list’s "+ Add task")', () => {
   beforeEach(() => seedStores())
   afterEach(() => cleanup())
 
-  it('shows the preset markers and the source before anything is typed', () => {
-    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ urgent: true, important: true, source: 'Do' }} />)
+  it('shows the preset markers before anything is typed', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ urgent: true, important: true }} />)
     const texts = chipTexts()
     expect(texts.slice(0, 2)).toEqual(['Urgent', 'Important'])
-    expect(texts.at(-1)).toBe('Adding to Do')
   })
 
   it('a typed /urgent adds to the preset (one chip each)', () => {
-    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ important: true, source: 'Schedule' }} />)
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ important: true }} />)
     changeInput('Book caterer /urgent')
     expect(chipTexts().filter((t) => t === 'Urgent' || t === 'Important')).toEqual(['Urgent', 'Important'])
   })
@@ -854,12 +853,11 @@ describe('QuickAddBar — preset (e.g. an Eisenhower quadrant\'s "+")', () => {
     expect(chipTexts()).toEqual([])
   })
 
-  it('a No preset marker (a list or pane that wants it off) shows no chip; alone it is no preset', () => {
-    const { rerender } = render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ urgent: false, important: true, source: 'Schedule' }} />)
+  it('a No preset marker (a list that wants it off) shows no chip; alone it is no preset', () => {
+    const { rerender } = render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ urgent: false, important: true }} />)
     const texts = chipTexts()
     expect(texts[0]).toBe('Important')
     expect(texts).not.toContain('Urgent')
-    expect(texts.at(-1)).toBe('Adding to Schedule')
     rerender(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ urgent: false }} />)
     expect(chipTexts()).toEqual([])
   })
@@ -968,8 +966,8 @@ describe('QuickAddBar — chip ×', () => {
     return kept
   }
 
-  it('every chip has a × that is not a Tab stop; the Adding to label has none', () => {
-    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ focus: true, source: 'Focus' }} />)
+  it('every chip has a × that is not a Tab stop; the caption has none', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ focus: true, caption: 'With 2 subtasks' }} />)
     typeAt('Fix @Anna @Zed #x /due tomorrow /repeat daily !Doing /urgent')
     const group = screen.getByRole('group', { name: 'What the task gets' })
     const buttons = Array.from(group.querySelectorAll('button'))
@@ -978,7 +976,7 @@ describe('QuickAddBar — chip ×', () => {
       'Remove due date', 'No follow-up', 'Remove repeat', 'Remove status',
     ])
     for (const b of buttons) expect(b.tabIndex).toBe(-1)
-    expect(screen.getByText('Adding to Focus').querySelector('button')).toBeNull()
+    expect(screen.getByText('With 2 subtasks').querySelector('button')).toBeNull()
   })
 
   it('a tag chip: × cuts the tag from the text; the focus and the caret stay in the field', () => {
@@ -1086,11 +1084,10 @@ describe('QuickAddBar — chip ×', () => {
 
   it('a preset marker: × drops it from the preset, and the submit says so', () => {
     const onSubmit = vi.fn()
-    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} preset={{ urgent: true, important: true, source: 'Do' }} />)
+    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} preset={{ urgent: true, important: true }} />)
     pressRemove('Remove Urgent')
     expect(chipTexts()[0]).toBe('Important')
     expect(chipTexts()).not.toContain('Urgent')
-    expect(chipTexts().at(-1)).toBe('Adding to Do')
     const input = typeAt('Book caterer')
     fireEvent.keyDown(input, { key: 'Enter' })
     expect((onSubmit.mock.calls[0]?.[0] as QuickAddDraft).removedPresetMarkers).toEqual(['urgent'])

@@ -36,13 +36,13 @@ import { readStore } from './fixtures/db'
  */
 
 
-/** `a b / c b`: a (Notes, Eisenhower) over c (Notes), b (Calendar) down the right. */
+/** `a b / c b`: a (Notes, Neglect map) over c (Notes), b (Calendar) down the right. */
 const aBc: WsLayoutSeed = {
   name: 'Main',
   table: {
     areas: ['a b', 'c b'],
     cells: [
-      { id: 'a', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] },
+      { id: 'a', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'mapTab', kind: 'neglect' }] },
       { id: 'b', tabs: [{ id: 'calTab', kind: 'calendar' }] },
       { id: 'c', tabs: [{ id: 'notes2', kind: 'notes' }] },
     ],
@@ -80,17 +80,17 @@ async function dragWithGhost(page: Page, tabId: string, to: Point, label: string
 
 test.describe('drops and the ghost', () => {
   const sides = [
-    { side: 'left', at: [0.05, 0.5], label: 'Split Calendar · left', shape: [[['notesTab'], ['notes2']], [['eisTab']], [['calTab']]] },
-    { side: 'right', at: [0.95, 0.5], label: 'Split Calendar · right', shape: [[['notesTab'], ['notes2']], [['calTab']], [['eisTab']]] },
-    { side: 'top', at: [0.5, 0.05], label: 'Split Calendar · above', shape: [[['notesTab'], ['notes2']], [['eisTab'], ['calTab']]] },
-    { side: 'bottom', at: [0.5, 0.95], label: 'Split Calendar · below', shape: [[['notesTab'], ['notes2']], [['calTab'], ['eisTab']]] },
+    { side: 'left', at: [0.05, 0.5], label: 'Split Calendar · left', shape: [[['notesTab'], ['notes2']], [['mapTab']], [['calTab']]] },
+    { side: 'right', at: [0.95, 0.5], label: 'Split Calendar · right', shape: [[['notesTab'], ['notes2']], [['calTab']], [['mapTab']]] },
+    { side: 'top', at: [0.5, 0.05], label: 'Split Calendar · above', shape: [[['notesTab'], ['notes2']], [['mapTab'], ['calTab']]] },
+    { side: 'bottom', at: [0.5, 0.95], label: 'Split Calendar · below', shape: [[['notesTab'], ['notes2']], [['calTab'], ['mapTab']]] },
   ] as const
   for (const { side, at, label, shape } of sides) {
     test(`a tab on a cell’s ${side} edge splits it; the ghost is the new cell’s place and size`, async ({ page }) => {
       await seedWorkspace(page, { layouts: [aBc] })
-      const ghost = await dragWithGhost(page, 'eisTab', await bodyPoint(page, 'b', at[0], at[1]), label)
+      const ghost = await dragWithGhost(page, 'mapTab', await bodyPoint(page, 'b', at[0], at[1]), label)
       await expect.poll(() => wsShape(page)).toEqual(shape)
-      expectSameEdges(ghost, await edges(cellOf(page, 'eisTab')))
+      expectSameEdges(ghost, await edges(cellOf(page, 'mapTab')))
       await expectLayoutStep(page)
     })
   }
@@ -98,9 +98,9 @@ test.describe('drops and the ghost', () => {
   test('the layout’s top edge inserts a full-width row; its right edge a full-height column', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     const a = await areaBox(page)
-    const row = await dragWithGhost(page, 'eisTab', { x: a.x + 300, y: a.y + 3 }, 'Insert row · full width')
-    await expect.poll(async () => Math.round((await box(cellOf(page, 'eisTab'))).width)).toBe(Math.round(a.width - 12))
-    expectSameEdges(row, await edges(cellOf(page, 'eisTab')))
+    const row = await dragWithGhost(page, 'mapTab', { x: a.x + 300, y: a.y + 3 }, 'Insert row · full width')
+    await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round(a.width - 12))
+    expectSameEdges(row, await edges(cellOf(page, 'mapTab')))
 
     const col = await dragWithGhost(page, 'notes2', { x: a.x + a.width - 8, y: a.y + a.height / 2 }, 'Insert column · full height')
     await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).height)).toBe(Math.round(a.height - 12))
@@ -109,15 +109,15 @@ test.describe('drops and the ghost', () => {
 
   test('the middle of a cell joins it as a tab (ghost tab in its strip); its strip inserts at the line', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
-    const ghost = await dragWithGhost(page, 'eisTab', await bodyPoint(page, 'b', 0.5, 0.5), 'Add as tab')
+    const ghost = await dragWithGhost(page, 'mapTab', await bodyPoint(page, 'b', 0.5, 0.5), 'Add as tab')
     expectSameEdges(ghost, await edges(wsCell(page, 'b')))
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['notes2']], [['calTab', 'eisTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['notes2']], [['calTab', 'mapTab']]])
 
     const cal = await box(wsTab(page, 'calTab'))
     await dragTab(page, wsTab(page, 'notesTab'), { x: cal.x + 10, y: cal.y + cal.height / 2 }, async () => {
       await expect(wsCell(page, 'b').getByTestId('ws-tab-insert-line')).toBeVisible()
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['notes2']], [['notesTab', 'calTab', 'eisTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notes2']], [['notesTab', 'calTab', 'mapTab']]])
   })
 
   test('a drop that changes nothing shows no ghost; Escape cancels', async ({ page }) => {
@@ -127,7 +127,7 @@ test.describe('drops and the ghost', () => {
     })
     await expectLayoutStored(page)
 
-    const t = await box(wsTab(page, 'eisTab'))
+    const t = await box(wsTab(page, 'mapTab'))
     const to = await bodyPoint(page, 'b', 0.5, 0.5)
     await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2)
     await page.mouse.down()
@@ -137,7 +137,7 @@ test.describe('drops and the ghost', () => {
     await page.keyboard.press('Escape')
     await releaseDrag(page)
     await expect(wsGhost(page)).toHaveCount(0)
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab'], ['notes2']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab'], ['notes2']], [['calTab']]])
     await expectLayoutStored(page)
   })
 })
@@ -147,14 +147,14 @@ test.describe('whole-cell drags', () => {
     await seedWorkspace(page, { layouts: [aBc] })
     const handle = wsPanelHandle(page, 'a')
     const grip = page.locator('[data-ws-cell-header="a"]').getByRole('button', { name: 'Cell layout' })
-    const before = await box(wsTab(page, 'eisTab'))
+    const before = await box(wsTab(page, 'mapTab'))
     await page.mouse.move(2, 2)
     await expect.poll(() => grip.evaluate((e) => getComputedStyle(e.parentElement!).opacity)).toBe('0')
     await handle.hover()
     await expect.poll(() => grip.evaluate((e) => getComputedStyle(e.parentElement!).opacity)).toBe('1')
     await expect(grip).toHaveCSS('cursor', 'grab')
     await expect(handle).toHaveCSS('cursor', 'grab')
-    expect(await box(wsTab(page, 'eisTab'))).toEqual(before)
+    expect(await box(wsTab(page, 'mapTab'))).toEqual(before)
     const p = await pointIn(handle)
     await page.mouse.move(p.x, p.y)
     await page.mouse.down()
@@ -176,7 +176,7 @@ test.describe('whole-cell drags', () => {
         await expect(wsCell(page, 'c').getByTestId('ws-ghost-tab')).toHaveCount(2)
       },
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['notes2', 'notesTab', 'eisTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notes2', 'notesTab', 'mapTab']], [['calTab']]])
     await expect(wsTab(page, 'notesTab')).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -189,7 +189,7 @@ test.describe('whole-cell drags', () => {
         ghost = await edges(wsGhost(page))
       },
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']], [['notes2']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab']], [['calTab']], [['notes2']]])
     expectSameEdges(ghost, await edges(cellOf(page, 'notes2')))
   })
 
@@ -209,7 +209,7 @@ test.describe('whole-cell drags', () => {
         await expectInsideViewport(page, page.getByTestId('ws-panel-ghost'), 0)
       },
     })
-    await expect.poll(async () => Math.round((await box(cellOf(page, 'eisTab'))).width)).toBe(Math.round(a.width - 12))
+    await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round(a.width - 12))
   })
 })
 
@@ -220,7 +220,7 @@ test.describe('the cell menu', () => {
     await page.getByRole('menuitem', { name: 'Merge with', exact: true }).click()
     await expect(page.getByRole('menuitem', { name: 'Right', exact: true })).toBeDisabled()
     await page.getByRole('menuitem', { name: 'Below', exact: true }).click()
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab', 'notes2']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab', 'notes2']], [['calTab']]])
     await expectLayoutStep(page)
 
     await openCellLayoutMenu(page, 'b')

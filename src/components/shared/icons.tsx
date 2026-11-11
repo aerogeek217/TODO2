@@ -55,12 +55,6 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M9.5 9.5v4.5l3.75-2.25z" />
     </>
   ),
-  eisenhower: (
-    <>
-      <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
-      <path d="M8 2.5v11M2.5 8h11" />
-    </>
-  ),
   // A scatter plot: two axes and three dots, the largest top right (Slipping).
   neglect: (
     <>

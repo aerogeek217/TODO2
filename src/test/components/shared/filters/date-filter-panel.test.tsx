@@ -334,12 +334,6 @@ describe('DateFilterPanel', () => {
     expect(log).toEqual([])
   })
 
-  it('an Eisenhower pane’s Completed range only keeps: its line says so', () => {
-    render(<Harness log={[]} initialField="completed" host={{ completedNote: 'narrow' }} />)
-    expect(screen.getByText('Keeps tasks completed in this range, of the tasks the Eisenhower’s list shows.')).toBeInTheDocument()
-    expect(screen.queryByText(/even where completed tasks are hidden/)).toBeNull()
-  })
-
   it('Completed is a range only (Calendar · Relative, no Is not), with a line saying it shows completed tasks', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} initialField="completed" />)

@@ -369,12 +369,6 @@
      `utils/theme-color`): none here, where the picks were made. */
   --custom-color-shade: 0%;
 
-  /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
-  --eis-do-bg: rgba(238, 125, 119, 0.075);
-  --eis-schedule-bg: rgba(245, 200, 66, 0.06);
-  --eis-delegate-bg: rgba(255, 255, 255, 0.035);
-  --eis-drop-bg: rgba(0, 0, 0, 0.2);
-
   /* Glance widgets: a section's panel fill (with an inset border-muted
      ring) and the "Created" bars of Created vs completed. */
   --color-dash-panel: rgba(255, 255, 255, 0.025);
@@ -650,12 +644,6 @@
   /* A picked colour is a dark-theme pick (the swatches insert the dark hues):
      in light it takes this much black (in oklab) to read on the light surfaces. */
   --custom-color-shade: 40%;
-
-  /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
-  --eis-do-bg: rgba(196, 60, 53, 0.06);
-  --eis-schedule-bg: rgba(245, 200, 66, 0.10);
-  --eis-delegate-bg: rgba(0, 0, 0, 0.025);
-  --eis-drop-bg: rgba(0, 0, 0, 0.055);
 
   /* Glance panel fill + "Created" bars. */
   --color-dash-panel: rgba(0, 0, 0, 0.018);

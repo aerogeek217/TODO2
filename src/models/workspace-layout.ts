@@ -56,7 +56,7 @@ import { DEFAULT_REVIEW_BY, type ReviewBy, type ReviewSort } from './review'
  * the review deck in a cell.
  */
 export type WidgetKind =
-  | 'lens' | 'calendar' | 'notes' | 'review' | 'eisenhower' | 'neglect'
+  | 'lens' | 'calendar' | 'notes' | 'review' | 'neglect'
   | GlanceWidgetKind
 
 /** The glance widget kinds (D25 N): a Number, the charts and Project pulse, each a widget. */
@@ -119,19 +119,6 @@ export interface CalendarTabViewState extends LensViewState {
   titles?: boolean
 }
 
-/**
- * The four Eisenhower quadrants, by (urgent, important): Do (both),
- * Schedule (important only), Delegate (urgent only), Drop (neither).
- */
-export type EisenhowerQuadrant = 'do' | 'schedule' | 'delegate' | 'drop'
-
-/** Quadrants in display order (also the stacked layout's order). */
-export const EISENHOWER_QUADRANTS: readonly EisenhowerQuadrant[] = ['do', 'schedule', 'delegate', 'drop']
-
-export function isEisenhowerQuadrant(v: unknown): v is EisenhowerQuadrant {
-  return typeof v === 'string' && (EISENHOWER_QUADRANTS as readonly string[]).includes(v)
-}
-
 /** The largest stored task-row details width, px (`TaskRowsViewState.detailsWidth`). */
 export const DETAILS_WIDTH_MAX = 4000
 
@@ -186,17 +173,6 @@ export interface ListTabViewState extends TaskRowsViewState {
    * absent = Settings › Appearance › Default list zoom.
    */
   zoom?: ListZoom
-}
-
-/**
- * An Eisenhower tab has no settings of its own: its panes and its source are
- * app-wide settings (`models/eisenhower-settings`).
- */
-export type EisenhowerTabConfig = NoTabSettings
-
-export interface EisenhowerTabViewState extends TaskRowsViewState, LensViewState {
-  /** Sections collapsed in the stacked (narrow) layout. */
-  collapsed?: EisenhowerQuadrant[]
 }
 
 /** Config / view state of a kind that has none. */
@@ -271,7 +247,6 @@ export type LensTab = TabOf<'lens', LensTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
-export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, LensViewState>
 export type NumberTab = TabOf<'number', NumberConfig, LensViewState>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
@@ -287,7 +262,7 @@ export type ChartTab = BreakdownTab | PivotTab | TagMapTab
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | ReviewTab | EisenhowerTab | NeglectTab | GlanceTab
+export type LayoutTab = LensTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | GlanceTab
 
 export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -444,11 +419,11 @@ export interface TabSeed {
 
 /**
  * The add-widget menus' groups: **Tasks** (the widgets that show tasks to
- * work on — List, Calendar, Eisenhower, Review, Notes) and **Insights** (the
+ * work on — List, Calendar, Review, Notes) and **Insights** (the
  * numbers and charts, and the Neglect map). The grouping is the menus' only:
  * nothing behavioural reads it — the glance minimums, fit rows and the
- * right-click rule read `glance` / `fitHeight`, which the Calendar, the
- * Eisenhower and the Neglect map don't have, whichever group they are in.
+ * right-click rule read `glance` / `fitHeight`, which the Calendar and the
+ * Neglect map don't have, whichever group they are in.
  */
 export type WidgetKindGroup = 'tasks' | 'insights'
 
@@ -511,14 +486,6 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'calendar', config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }),
   },
-  eisenhower: {
-    label: 'Eisenhower',
-    showsList: false,
-    group: 'tasks',
-    glance: false,
-    fitHeight: false,
-    newTab: (id) => ({ id, kind: 'eisenhower', config: {} }),
-  },
   // Item 12: the review deck in a cell, by person, nothing picked yet (its prompt row's field).
   review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: { by: DEFAULT_REVIEW_BY } }) },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
@@ -568,7 +535,7 @@ export function isGlanceKind(kind: WidgetKind): kind is GlanceWidgetKind {
 
 /** A glance widget's tab. */
 /** The kinds with a lens switch of their own in their view state (G3; a list's is its list's). */
-export const LENS_SWITCH_KINDS = ['calendar', 'review', 'eisenhower', 'neglect', 'number', 'pulse', 'breakdown', 'pivot', 'tagMap'] as const
+export const LENS_SWITCH_KINDS = ['calendar', 'review', 'neglect', 'number', 'pulse', 'breakdown', 'pivot', 'tagMap'] as const
 export type LensSwitchKind = (typeof LENS_SWITCH_KINDS)[number]
 export type LensSwitchTab = Extract<LayoutTab, { kind: LensSwitchKind }>
 
@@ -612,14 +579,12 @@ export function createTab<K extends WidgetKind>(kind: K, id: string, seed: TabSe
 }
 
 /**
- * The list a tab shows — a list tab's own list; an Eisenhower tab shows
- * the Eisenhower's own list, `eisenhowerListId` (`null` until it is
- * loaded) —, else `undefined`. A tab with a list counts as a widget showing
- * that list (its unsaved edits, the last-widget prompt).
+ * The list a tab shows — a list tab's own list —, else `undefined`. A tab
+ * with a list counts as a widget showing that list (its unsaved edits, the
+ * last-widget prompt).
  */
-export function tabListId(tab: LayoutTab, eisenhowerListId: number | null): number | undefined {
-  if (tab.kind === 'lens') return tab.config.listDefinitionId
-  return tab.kind === 'eisenhower' ? (eisenhowerListId ?? undefined) : undefined
+export function tabListId(tab: LayoutTab): number | undefined {
+  return tab.kind === 'lens' ? tab.config.listDefinitionId : undefined
 }
 
 /** A cell's active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */

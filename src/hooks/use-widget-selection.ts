@@ -24,7 +24,7 @@ export interface WidgetSelection {
 }
 
 /**
- * Row selection for a widget that lists tasks (list, Eisenhower, a glance row widget):
+ * Row selection for a widget that lists tasks (list, a glance row widget):
  * one widget owns the selection at a time (`scope` = its tab id), rows are
  * addressed by occurrence (`utils/scoped-selection`), and the selection goes
  * when the widget unmounts. `getRows` returns the rows in display order at

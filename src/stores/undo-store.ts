@@ -177,7 +177,7 @@ interface UndoState {
    * count of what went in) with the undo snackbar; `fn` may close it itself
    * first (`abortGroup` on a failure). Resolves / rejects as `fn` does.
    *
-   * Every compound operation (Eisenhower drops, check-in replies) goes
+   * Every compound operation (check-in replies) goes
    * through here, so groups never overlap. An unrelated undoable write that
    * lands while a group is open (a user edit in the milliseconds a drop
    * takes) is still merged into it — accepted: groups are short, and

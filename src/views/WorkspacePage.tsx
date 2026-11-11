@@ -24,9 +24,6 @@ import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignme
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
-import { applyPaneDrop, currentPaneContext, currentPanes } from '../services/eisenhower-drop'
-import { startOfToday } from '../utils/date'
-import { dragTasks } from '../components/workspace/eisenhower/eisenhower-drag'
 import { dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, sameDropHit } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
@@ -387,8 +384,8 @@ export function WorkspacePage() {
   const sensors = useSensors(isMobile ? noDragSensor : pointerSensor)
 
   // Tab and panel drags find their target from pointer geometry, not dnd-kit
-  // droppables; task drags match the widgets' droppables (calendar days,
-  // Eisenhower quadrants) under the pointer.
+  // droppables; task drags match the widgets' droppables (calendar days)
+  // under the pointer.
   const collisionDetection = useMemo(() => buildTaskCollision([
     { when: (active) => isWorkspaceDragType(active.data.current?.type), accept: () => false },
   ]), [])
@@ -413,7 +410,7 @@ export function WorkspacePage() {
       return
     }
     setActiveDrag(null)
-    // A calendar day or an Eisenhower pane: the row changes there, later.
+    // A calendar day: the row changes there, later.
     if (event.over) landDrop('in-place')
     await dispatchTaskDrop(event, {
       calendar: {
@@ -423,12 +420,6 @@ export function WorkspacePage() {
           await useTodoStore.getState().update(todoId, buildRescheduleUpdate(t, date, type))
         },
         chooseType,
-      },
-      eisenhower: {
-        tasksFor: dragTasks,
-        panes: currentPanes,
-        context: () => currentPaneContext(startOfToday()),
-        apply: applyPaneDrop,
       },
     })
   }, [tabDrag, chooseType, landDrop])

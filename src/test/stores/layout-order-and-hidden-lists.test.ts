@@ -139,22 +139,22 @@ describe('workspace store: the layout order', () => {
 })
 
 describe('list store: hidden lists', () => {
-  it('ensureEisenhowerList makes the list, loads it and points the setting at it', async () => {
-    useSettingsStore.setState({ eisenhowerListId: null })
-    const id = await useListDefinitionStore.getState().ensureEisenhowerList()
-    expect(useListDefinitionStore.getState().listDefinitions.map((d) => [d.id, d.owner])).toEqual([[id, { eisenhower: true }]])
-    expect(useSettingsStore.getState().eisenhowerListId).toBe(id)
-    expect(await useListDefinitionStore.getState().ensureEisenhowerList()).toBe(id)
+  it('the retired Eisenhower’s list is never loaded: it stays stored, untouched', async () => {
+    const retired = await db.listDefinitions.add(list('Eisenhower', { owner: { eisenhower: true } }))
+    const mine = await db.listDefinitions.add(list('Mine', { owner: { layoutId: 1 } }))
+    await useListDefinitionStore.getState().load()
+    expect(useListDefinitionStore.getState().listDefinitions.map((d) => d.id)).toEqual([mine])
+    expect(await db.listDefinitions.get(retired)).toMatchObject({ name: 'Eisenhower', owner: { eisenhower: true } })
   })
 
   it('a list edit never changes who the list belongs to (an edit without the owner keeps it)', async () => {
-    const id = await db.listDefinitions.add(list('Eis', { owner: { eisenhower: true } }))
+    const id = await db.listDefinitions.add(list('Mine', { owner: { layoutId: 1 } }))
     await useListDefinitionStore.getState().load()
     const saved = useListDefinitionStore.getState().listDefinitions[0]!
     const { owner: _o, ...withoutOwner } = saved
     void _o
     await useListDefinitionStore.getState().editList(id, () => ({ ...withoutOwner, grouping: 'people' }), 'Edited')
-    expect(await db.listDefinitions.get(id)).toMatchObject({ grouping: 'people', owner: { eisenhower: true } })
+    expect(await db.listDefinitions.get(id)).toMatchObject({ grouping: 'people', owner: { layoutId: 1 } })
     // A list with no owner stays so, whatever the edit holds.
     const other = await db.listDefinitions.add(list('Saved'))
     await useListDefinitionStore.getState().load()

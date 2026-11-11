@@ -1,16 +1,12 @@
 import { useMemo } from 'react'
 import type { PersistedTodoItem, Tag, TodoEvent, TodoPredicate } from '../models'
-import type { PersistedListDefinition } from '../models/list-definition'
 import { TREND_RANGES, type NumberConfig, type TrendRange } from '../models/glance-widgets'
-import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
 import { filterHistory, historyExactness, type HistoryExactness } from '../services/stats/filter-history'
 import { numberHistoryDays, numberIds, numberStages } from '../services/stats/number-count'
 import { computePulse, type PulseCard } from '../services/stats/pulse'
 import { pulseRuleFilter, type PulseRuleKey, type PulseTabConfig } from '../models/pulse-config'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
-import { useListDefinitionStore } from '../stores/list-definition-store'
-import { listAsShown, useListDraftStore } from '../stores/list-draft-store'
 import { usePersonStore } from '../stores/person-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
@@ -21,11 +17,8 @@ import { useTodoStore } from '../stores/todo-store'
 import { useFilterStore } from '../stores/filter-store'
 import { currentAppliedLens } from '../stores/screen-filter'
 import { startOfToday } from '../utils/date'
-import type { PaneContext } from '../utils/eisenhower'
 import { withLens } from '../utils/lens'
-import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
-import { hasNarrowingFilters } from '../utils/filter-chips'
 import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
 import { applyFilter, matchesFilterWithLookups, readsText, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
@@ -200,8 +193,8 @@ export function lensHidesFor(info: LensHidden | null, ...filters: TodoPredicate[
 }
 
 /**
- * The tasks the screen filter shows, as a list, the calendar and the
- * Eisenhower show them: the shared base's `shown` (filtered once for every
+ * The tasks the screen filter shows, as a list and the calendar show
+ * them: the shared base's `shown` (filtered once for every
  * widget on screen), its completed tasks kept only while the screen filter
  * lets them through (`admitsCompleted`: Show completed, or a Completed
  * range) — the same tasks `applyFilter(screen, …)` keeps.
@@ -372,95 +365,3 @@ export function usePulse(base: StatsBase, config: Pick<PulseTabConfig, 'tagIds' 
   return pulseMemo(base.shown, tags, base.ctx, config.tagIds, staleAfterDays, late, stale, lookups, base.markerSettings)
 }
 
-// ── The Eisenhower's counts (its small and medium faces) ────────────────────
-
-/** The Eisenhower settings as its small and medium faces count with them. */
-export interface EisenhowerSetup {
-  /** The four panes, in position order. */
-  panes: readonly EisenhowerPane[]
-  /**
-   * The Eisenhower's list's name (as edited) when its filter narrows the
-   * tasks; `null` while it holds every task.
-   */
-  listName: string | null
-}
-
-const panesMemo = sharedMemo(resolvePanes)
-
-const eisenhowerListMemo = sharedMemo((
-  listId: number | null,
-  defs: readonly PersistedListDefinition[],
-  drafts: Readonly<Record<number, PersistedListDefinition | undefined>>,
-): PersistedListDefinition | undefined => {
-  return listAsShown(listId != null ? defs.find((d) => d.id === listId) : undefined, drafts)
-})
-
-const setupMemo = sharedMemo((
-  panes: readonly EisenhowerPane[],
-  list: PersistedListDefinition | undefined,
-  listId: number | null,
-  defs: readonly PersistedListDefinition[],
-): EisenhowerSetup => {
-  const savedName = defs.find((d) => d.id === listId)?.name
-  const narrows = list != null && hasNarrowingFilters(list.membership.predicate)
-  return { panes, listName: narrows ? (list.name.trim() || savedName || '') : null }
-})
-
-const paneCtxMemo = sharedMemo((
-  ctx: StatsContext,
-  settings: FilterSettings,
-  people: PaneContext['people'],
-  tags: PaneContext['tags'],
-  statusUpdatesByTodo: PaneContext['statusUpdatesByTodo'],
-  subtasksByTodo: PaneContext['subtasksByTodo'],
-): PaneContext => ({
-  today: ctx.today,
-  settings,
-  people,
-  assignedPeopleMap: ctx.assignedPeopleMap,
-  tags,
-  assignedTagsMap: ctx.assignedTagsMap,
-  statuses: ctx.statuses,
-  statusUpdatesByTodo,
-  subtasksByTodo,
-}))
-
-const eisenhowerMemo = sharedMemo((
-  todos: Tasks,
-  shown: Tasks,
-  screen: FilterCriteria,
-  lookups: TodoNameLookups,
-  settings: FilterSettings,
-  list: PersistedListDefinition | undefined,
-  panes: readonly EisenhowerPane[],
-  paneCtx: PaneContext,
-): ShownOfTotal<EisenhowerSummary> => {
-  const source = eisenhowerSourceTasks(todos, shown, list, { screen: statsFilter(screen), lookups, today: paneCtx.today, settings })
-  return {
-    shown: computeEisenhowerSummary(source.shown, panes, paneCtx),
-    total: computeEisenhowerSummary(source.total, panes, paneCtx),
-  }
-})
-
-/**
- * The Eisenhower's counts (its small and medium faces): its own list's members (its unsaved
- * draft included; every task until it is loaded) sorted by the app-wide
- * panes, and the setup it counts with.
- */
-export function useEisenhowerStats(base: StatsBase): { eisenhower: ShownOfTotal<EisenhowerSummary>; eisenhowerSetup: EisenhowerSetup } {
-  const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
-  const drafts = useListDraftStore((s) => s.drafts)
-  const storedPanes = useSettingsStore((s) => s.eisenhowerPanes)
-  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
-  const people = usePersonStore((s) => s.people)
-  const tags = useTagStore((s) => s.tags)
-  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
-  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
-
-  const panes = panesMemo(storedPanes)
-  const list = eisenhowerListMemo(eisenhowerListId, listDefinitions, drafts)
-  const eisenhowerSetup = setupMemo(panes, list, eisenhowerListId, listDefinitions)
-  const paneCtx = paneCtxMemo(base.ctx, base.markerSettings, people, tags, statusUpdatesByTodo, subtasksByTodo)
-  const eisenhower = eisenhowerMemo(base.todos, base.shown, base.screen, base.lookups, base.markerSettings, list, panes, paneCtx)
-  return { eisenhower, eisenhowerSetup }
-}

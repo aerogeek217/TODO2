@@ -32,7 +32,7 @@ export type ListRowDragLook =
 /**
  * Where a dragged task would land (D25 E4): a blank, inset space a row
  * high — the one look of every task drop between rows (a reorder, another
- * group, a sorted list, an Eisenhower pane). In a sorted list it is dashed
+ * group, a sorted list). In a sorted list it is dashed
  * and holds `children`, the hint that the drop switches it to manual.
  */
 export function DropSlot({ sorted, children }: { sorted?: boolean; children?: ReactNode }) {

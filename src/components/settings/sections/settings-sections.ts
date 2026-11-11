@@ -6,7 +6,6 @@ import { NewTasksSection } from './NewTasksSection'
 import { ListsAndRowsSection } from './ListsAndRowsSection'
 import { EntitiesSection } from './EntitiesSection'
 import { CompletedTasksSection } from './CompletedTasksSection'
-import { EisenhowerSection } from './EisenhowerSection'
 import { LensesSection } from './LensesSection'
 import { FileStorageSection } from './FileStorageSection'
 import { BackupsSection } from './BackupsSection'
@@ -55,8 +54,6 @@ function single(id: SettingsSectionId, label: string, Icon: ComponentType, Body:
 
 const LENSES_HELP = 'A lens is a saved filter with a name, picked in the top bar: every widget shows only what it keeps, on every layout. Edit it like a list’s filters — the same pickers, with their “is not” switch for what to leave out. Filters set in the top bar apply on top of it.'
 
-const EISENHOWER_HELP = 'A task shows in the first pane whose filter it matches, checked in order: top left, top right, bottom left, bottom right. Dropping a task on a pane gives it what the filter sets. The panes are the same in every Eisenhower; changes are saved at once.'
-
 const BACKUPS_HELP = 'Taken automatically every day, before destructive operations, and before the sync file is rewritten. Restoring one backs up the data it replaces first.'
 
 const AMBIENCE_HELP = 'Quiet signs of the time of day and the season in the top bar and the space around your lists: the sky, the sun and the moon, weather. Nothing changes on your tasks. Desktop only.'
@@ -99,7 +96,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
       { id: 'new-tasks', label: 'New tasks', Body: NewTasksSection, mobile: false },
       { id: 'lists-and-rows', label: 'Lists & rows', Body: ListsAndRowsSection, mobile: false },
       { id: 'lenses', label: 'Lenses', Body: LensesSection, mobile: false, help: LENSES_HELP },
-      { id: 'eisenhower', label: 'Eisenhower', Body: EisenhowerSection, mobile: false, help: EISENHOWER_HELP },
       { id: 'completed', label: 'Completed tasks', Body: CompletedTasksSection, mobile: false },
     ],
   },

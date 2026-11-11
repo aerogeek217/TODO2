@@ -29,7 +29,7 @@ const SEED: WorkspaceSeed = {
   ],
 }
 
-type StoredList = { id: number; name: string; owner?: { layoutId?: number; eisenhower?: true }; membership: { predicate: { searchText: string } } }
+type StoredList = { id: number; name: string; owner?: { layoutId?: number }; membership: { predicate: { searchText: string } } }
 const lists = async (page: Page) => (await readListDefinitions(page)) as unknown as StoredList[]
 const layouts = async (page: Page) => readStore<{ id: number; name: string }>(page, 'layouts')
 const layoutId = async (page: Page, name: string) => (await layouts(page)).find((l) => l.name === name)!.id

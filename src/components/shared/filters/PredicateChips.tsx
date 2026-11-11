@@ -59,7 +59,7 @@ interface PredicateChipsProps {
   omitFields?: readonly ListFilterField[]
   /**
    * The date panel's host options: date types left out (the check-in's
-   * Completed) and the Completed range's note (an Eisenhower pane's `narrow`).
+   * Completed).
    */
   dateHost?: DateFilterHost
   /**
@@ -77,8 +77,8 @@ interface PredicateChipsProps {
   onOpenExpression?: () => void
   /**
    * `false`: an expression's `done` is refused (an error line), for the
-   * filters that never show completed tasks by it — a lens, an Eisenhower
-   * pane, the check-in — which would drop it silently (cr33 F9).
+   * filters that never show completed tasks by it — a lens, the
+   * check-in — which would drop it silently (cr33 F9).
    */
   allowDone?: boolean
 }

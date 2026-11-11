@@ -54,7 +54,7 @@ async function writeNewData(): Promise<void> {
   await db.layouts.add({ id: 1, sortOrder: 0, ...layoutWith('New', [lens('n', 20)]) })
 }
 
-/** The stored lists of layouts (the reload makes the Eisenhower's own list too). */
+/** The stored lists of layouts. */
 async function layoutLists(): Promise<PersistedListDefinition[]> {
   return ((await db.listDefinitions.toArray()) as PersistedListDefinition[]).filter((d) => d.owner && 'layoutId' in d.owner)
 }

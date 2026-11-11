@@ -23,7 +23,7 @@ export interface ReadCheckinFilter {
 
 /**
  * The longest `checkinTaskFilter` text read (a million characters, as the
- * Eisenhower panes): a filter's id lists have no cap of their own below the
+ * lenses): a filter's id lists have no cap of their own below the
  * table size, so this bounds the whole value.
  */
 export const CHECKIN_FILTER_SETTING_MAX_LEN = 1_000_000

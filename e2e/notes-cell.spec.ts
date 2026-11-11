@@ -203,18 +203,3 @@ test('the popover keeps inside the window near its right edge, ending at the cel
   expect(p.y).toBeGreaterThanOrEqual(c.y + c.height)
   expect(p.y + p.height).toBeLessThanOrEqual(vp.height)
 })
-
-test('Eisenhower rows add status updates the same way', async ({ page }) => {
-  await seedWorkspace(page, seed({ kind: 'eisenhower' }))
-  const eis = page.locator('[data-eisenhower="tab"]')
-  const row = eis.locator('[data-todo-id]').filter({ has: page.locator('[data-task-title="Status only"]') })
-  const cell = notesCell(row)
-  await cell.click()
-  await expect(popover(page).locator('[data-newest-update]')).toHaveText(`${mmdd()} Waiting on legal`)
-  await statusLine(page).fill('Legal signed')
-  await page.keyboard.press('Enter')
-  await expect.poll(() => storedUpdates(page, 'Status only')).toEqual(['Waiting on legal', 'Legal signed'])
-  await page.keyboard.press('Escape')
-  await expect(popover(page)).toHaveCount(0)
-  await expect(cell).toBeFocused()
-})

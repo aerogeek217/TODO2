@@ -5,8 +5,7 @@ import { prepareImport } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { auditData } from '../../data/audit'
 import { readCheckinFilterSetting } from '../../data/checkin-filter-shape'
-import { readPanesSetting } from '../../data/eisenhower-shape'
-import { isEisenhowerOwner, ownerLayoutId } from '../../models/list-definition'
+import { ownerLayoutId } from '../../models/list-definition'
 import { pickLayoutBody, type RawLayoutBody } from '../../data/layout-shape'
 import { resetDb } from '../helpers'
 
@@ -126,21 +125,19 @@ describe('dev seed generator', () => {
     expect(seed.statusUpdates.some((u) => u.followedUp === true)).toBe(true)
   })
 
-  it('gives every list an owner: a layout that shows it, or the Eisenhower', () => {
+  it('gives every list an owner: a layout that shows it', () => {
     const seed = seedFor()
     const shown = new Map(seed.layouts.map((l) => [l.id, new Set(
       l.cells
         .flatMap((p) => p.tabs.flatMap((t) => (t.kind === 'lens' && t.config.listDefinitionId !== undefined ? [t.config.listDefinitionId] : []))),
     )]))
     for (const def of seed.listDefinitions) {
-      if (isEisenhowerOwner(def.owner)) continue
       const layoutId = ownerLayoutId(def)
       expect(layoutId, def.name).toBeDefined()
       expect(shown.get(layoutId)?.has(def.id!), `${def.name} shown by its layout`).toBe(true)
     }
-    const eisenhower = seed.listDefinitions.filter((d) => isEisenhowerOwner(d.owner))
-    expect(eisenhower.map((d) => d.id)).toEqual([DEV_SEED_IDS.lists.eisenhower])
-    expect(setting(seed, 'eisenhowerSource')).toBe(`list:${DEV_SEED_IDS.lists.eisenhower}`)
+    // Nothing of the removed Eisenhower.
+    expect(seed.settings.filter((r) => r.key.startsWith('eisenhower'))).toEqual([])
     expect(setting(seed, 'activeLayoutId')).toBe(String(DEV_SEED_IDS.layouts.default))
     // Tables with a fixed row, a collapsed row, cells spanning tracks (D26).
     expect(seed.layouts.some((l) => l.grid.rows.some((t) => t.px != null)), 'a fixed row').toBe(true)
@@ -148,7 +145,7 @@ describe('dev seed generator', () => {
     expect(seed.layouts.some((l) => l.cells.some((c) => c.area.rowSpan > 1)), 'a cell spanning rows').toBe(true)
     const kinds = new Set(seed.layouts.flatMap((l) => l.cells)
       .flatMap((p) => p.tabs.map((t) => t.kind)))
-    expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'eisenhower', 'lens', 'neglect', 'notes', 'number', 'pivot', 'pulse', 'tagMap', 'trend'])
+    expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'lens', 'neglect', 'notes', 'number', 'pivot', 'pulse', 'tagMap', 'trend'])
   })
 
   it('shows a list tab at each zoom and a Neglect map by project, kept whole by the layout repair (D25)', () => {
@@ -168,15 +165,12 @@ describe('dev seed generator', () => {
     }
   })
 
-  it('stores a check-in filter and Eisenhower panes the app reads unchanged', () => {
+  it('stores a check-in filter the app reads unchanged', () => {
     const seed = seedFor()
     const checkin = readCheckinFilterSetting(setting(seed, 'checkinTaskFilter')!)
     expect(checkin.fixes).toEqual([])
     expect(checkin.filter.statusIds).toEqual([DEV_SEED_IDS.statuses.parked])
     expect(checkin.filter.negate).toEqual({ statusIds: true })
-    const panes = readPanesSetting(setting(seed, 'eisenhowerPanes')!)
-    expect(panes.fixes).toEqual([])
-    expect(panes.panes).toEqual({ delegate: { name: 'Hand off' } })
   })
 })
 

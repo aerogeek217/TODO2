@@ -72,8 +72,8 @@ describe('draft storage', () => {
     expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body })
   })
 
-  it('a current draft whose Eisenhower tab holds a config key (it has none) is no draft', () => {
-    const bad = single(cell('k', [{ id: 'e', kind: 'eisenhower', config: { listDefinitionId: 3 } as never }]))
+  it('a current draft holding a retired Eisenhower tab (the layout repair drops it) is no draft', () => {
+    const bad = single(cell('k', [{ id: 'e', kind: 'eisenhower', config: {} } as never]))
     localStorage.setItem('todo2-unsaved-layout', kept({ ...bad, schemaVersion: CURRENT_DB_VERSION }))
     expect(readLayoutDraft()).toBeNull()
   })

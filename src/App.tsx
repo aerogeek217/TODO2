@@ -213,11 +213,11 @@ function AppQuickAddBar() {
     useUIStore.getState().openCreatePopup()
   }, [])
 
-  // An explicit seed (a list's "+ Add task", an Eisenhower quadrant's "+")
-  // shows its markers (each with a ×) and its source as chips.
+  // An explicit seed (a list's "+ Add task") shows its markers (each with a ×)
+  // as chips.
   const preset = useMemo<QuickAddPreset | undefined>(() => {
-    if (!draft?.defaults && !draft?.source) return undefined
-    return { ...markerFlags(draft.defaults), ...(draft.source ? { source: draft.source } : {}) }
+    if (!draft?.defaults) return undefined
+    return markerFlags(draft.defaults)
   }, [draft])
 
   return (

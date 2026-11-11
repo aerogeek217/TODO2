@@ -7,7 +7,6 @@ export {
 export {
   taskDragId,
   calendarDayDropId,
-  eisenhowerQuadrantDropId,
   type TaskSurfaceKey,
   type TaskDragIdExtras,
 } from './ids'
@@ -24,5 +23,4 @@ export {
   type CalendarDropChoiceRequest,
   type TaskDropDispatchDeps,
   type CalendarOps,
-  type EisenhowerOps,
 } from './dispatch'

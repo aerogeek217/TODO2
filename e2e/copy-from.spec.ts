@@ -7,7 +7,7 @@ import { rowTitles } from './fixtures/seed'
  * Copy from, in a real browser: Edit list's Copy from… takes another list's
  * filters, group, sort, prompt and filter line into the list as an unsaved
  * edit (its name kept; Discard drops it, Save keeps it). One chooser:
- * the lists by layout — this one first —, then the Eisenhower's.
+ * the lists by layout — this one first.
  */
 
 const SEED: WorkspaceSeed = {
@@ -43,7 +43,7 @@ const SEED: WorkspaceSeed = {
 type StoredList = {
   id: number
   name: string
-  owner?: { layoutId?: number; eisenhower?: true }
+  owner?: { layoutId?: number }
   sort: string
   sortDirection?: string
   grouping: string
@@ -82,8 +82,8 @@ test('Edit list › Copy from…: by layout; the copy is an unsaved edit — Dis
   await editor.getByRole('button', { name: 'Copy from…' }).click()
   const menu = page.getByRole('menu', { name: 'Copy from' })
   await expect(menu).toBeVisible()
-  // This layout first (the list being edited left out), then the others, then the Eisenhower's.
-  expect(await menuOutline(menu)).toEqual(['# Main · this layout', 'Ordered', '# Second', 'Calls', '# Eisenhower', 'Eisenhower'])
+  // This layout first (the list being edited left out), then the others.
+  expect(await menuOutline(menu)).toEqual(['# Main · this layout', 'Ordered', '# Second', 'Calls'])
   await expect(menu.getByRole('menuitem', { name: /^Calls/ })).toContainText('Text: “call”')
   await expect(menu.getByRole('menuitem', { name: /^Ordered/ })).toContainText('All tasks')
   // Esc closes the chooser only.

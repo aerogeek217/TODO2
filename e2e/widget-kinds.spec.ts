@@ -19,7 +19,6 @@ function body(cell: Locator, kind: WidgetKind): Locator {
     case 'calendar': return cell.locator('[data-calendar-widget]')
     case 'notes': return cell.locator('.cm-content')
     case 'review': return cell.locator('[data-review-widget]')
-    case 'eisenhower': return cell.locator('[data-eisenhower]')
     case 'neglect': return cell.locator('[data-neglect-map]')
     default: return cell.locator(`[data-glance="${kind}"]`)
   }

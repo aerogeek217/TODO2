@@ -10,8 +10,8 @@ export type TaskDropLanding =
   | 'settle'
   /**
    * Untilts and fades where it was let go: the drop changes the task by a
-   * write (or a question first) the row follows later — a calendar day, an
-   * Eisenhower pane, another group of its list.
+   * write (or a question first) the row follows later — a calendar day,
+   * another group of its list.
    */
   | 'in-place'
 

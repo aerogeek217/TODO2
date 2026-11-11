@@ -67,7 +67,7 @@ describe('Add Widget ›', () => {
     const commands = createCommands(makeContext({ getLayouts: () => layouts, addWidget }))
     const step = find(commands, 'add-widget')?.step ?? []
     expect(step.map((c) => [c.group, c.name])).toEqual([
-      ['Tasks', 'List'], ['Tasks', 'Calendar'], ['Tasks', 'Eisenhower'], ['Tasks', 'Review'], ['Tasks', 'Notes'],
+      ['Tasks', 'List'], ['Tasks', 'Calendar'], ['Tasks', 'Review'], ['Tasks', 'Notes'],
       ['Insights', 'Number'], ['Insights', 'Breakdown'], ['Insights', 'Pivot'], ['Insights', 'Tag map'],
       ['Insights', 'Created vs completed'], ['Insights', 'Project pulse'], ['Insights', 'Neglect map'],
     ])

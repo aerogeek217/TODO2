@@ -6,7 +6,7 @@ import { seedWorkspace, wsTab, type WorkspaceSeed, wsRow } from './fixtures/work
  * (D26 AA1), its widget's entries first: a list tab's has no Change list
  * (UX cleanup 4A); Shift+F10 on a tab opens the menu under the tab and Esc
  * gives the tab its focus back; the menu stays inside the window; the
- * Eisenhower range submenu sits beside its item.
+ * Neglect map's Untouched after submenu sits beside its item.
  *
  * JSDOM is unauthoritative here — the menus portal to `document.body` and are
  * placed / clamped from `getBoundingClientRect`; hover and focus order are
@@ -46,7 +46,7 @@ const twoColumns: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'left', rows: [wsRow({ id: 'leftCell', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'listTab', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'left', rows: [wsRow({ id: 'leftCell', tabs: [{ id: 'mapTab', kind: 'neglect' }, { id: 'listTab', kind: 'lens', listDefIdx: 0 }] })] },
       { id: 'right', rows: [wsRow({ id: 'rightCell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
     ],
   }],
@@ -59,7 +59,7 @@ async function rect(locator: Locator): Promise<{ x: number; y: number; width: nu
 }
 
 test('Shift+F10 on a tab opens its menu under the tab; type-ahead moves; Esc returns focus to the tab', async ({ page }) => {
-  // A tab: the list beside the Eisenhower in one cell.
+  // A tab: the list beside the Neglect map in one cell.
   await seedWorkspace(page, twoColumns)
   const tab = wsTab(page, 'listTab')
   await tab.focus()
@@ -95,22 +95,19 @@ test('the tab menu opened at the window’s right edge stays inside the window',
   expect(m.y + m.height).toBeLessThanOrEqual(vp.height - 8 + 0.5)
 })
 
-test('the Eisenhower range submenu: → opens it on the current value beside its item; ← goes back', async ({ page }) => {
+test('a widget setting’s submenu (the Neglect map’s Untouched after): → opens it on the current value beside its item; ← goes back', async ({ page }) => {
   await seedWorkspace(page, twoColumns)
-  await wsTab(page, 'eisTab').click({ button: 'right' })
+  await wsTab(page, 'mapTab').click({ button: 'right' })
   const menu = tabMenu(page)
-  const item = menu.getByRole('menuitem', { name: /Due date makes a task urgent/ })
-  // First Edit list… (its own list), then Customize panes…, then the range.
-  await expect(menu.getByRole('menuitem', { name: 'Edit list…' })).toBeFocused()
-  await page.keyboard.press('ArrowDown')
-  await expect(menu.getByRole('menuitem', { name: 'Customize panes…' })).toBeFocused()
+  const item = menu.getByRole('menuitem', { name: /Untouched after/ })
+  // First Colour by, then Untouched after.
+  await expect(menu.getByRole('menuitem', { name: /Colour by/ })).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(item).toBeFocused()
-  await expect(item).toContainText('3 days')
+  await expect(item).toContainText('14 days')
   await page.keyboard.press('ArrowRight')
-  const sub = page.getByRole('menu', { name: 'Due date makes a task urgent' })
-  await expect(sub.getByRole('menuitemradio', { name: /3 days/ })).toBeFocused()
-  await expect(sub).toContainText('Overdue tasks count too')
+  const sub = page.getByRole('menu', { name: 'Untouched after' })
+  await expect(sub.getByRole('menuitemradio', { name: /14 days/ })).toBeFocused()
   const m = await rect(menu)
   const s = await rect(sub)
   const i = await rect(item)

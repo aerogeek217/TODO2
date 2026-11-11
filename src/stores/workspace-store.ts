@@ -230,8 +230,7 @@ export interface WorkspaceState {
 
   /**
    * Adds a new widget tab at `target`. Returns its id, or `null` when the
-   * target is unknown or the tab would show a list another layout (or the
-   * Eisenhower) owns. This and every structural edit below is saved at once
+   * target is unknown or the tab would show a list another layout owns. This and every structural edit below is saved at once
    * as one undo step (see the store's comment).
    */
   addWidget: (kind: WidgetKind, target: LayoutDropTarget, seed?: TabSeed) => string | null
@@ -375,7 +374,7 @@ registerModuleReset(() => { firstInit = null })
 
 /**
  * Whether a kept new layout can become a stored one: it shows no list (no
- * list tab) — every list belongs to a stored layout (or the Eisenhower), so
+ * list tab) — every list belongs to a stored layout, so
  * a layout not stored yet can't show one.
  */
 function showsNoList(body: LayoutBody): boolean {
@@ -393,7 +392,7 @@ function showsOnlyOwnLists(body: LayoutBody, layoutId: number): boolean {
 
 /**
  * The lists `next` names that `before` didn't and that belong elsewhere —
- * another layout, the Eisenhower, or no layout. A layout shows only its own
+ * another layout, or no layout. A layout shows only its own
  * lists, so an edit that would show one of these is refused. A list that
  * doesn't exist (any more) isn't anyone's: a tab on it shows it as deleted.
  */

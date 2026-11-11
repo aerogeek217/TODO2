@@ -38,11 +38,11 @@ test('switching tabs drops the hidden list selection', async ({ page }) => {
 })
 
 /**
- * The list and Eisenhower widgets select rows the same way (one hook): a click selects one task, Ctrl+click adds, Shift+click takes the
+ * Every list widget selects rows the same way (one hook): a click selects one task, Ctrl+click adds, Shift+click takes the
  * range, a click on the widget's empty space clears it, and only one widget
  * holds a selection at a time.
  */
-test('list and Eisenhower rows select alike; one widget at a time', async ({ page }) => {
+test('two lists’ rows select alike; one widget at a time', async ({ page }) => {
   const due = { urgent: true, important: true, followupInDays: 0 }
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Tasks' }],
@@ -51,14 +51,13 @@ test('list and Eisenhower rows select alike; one widget at a time', async ({ pag
       name: 'Main',
       columns: [
         { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
-        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] })] },
         { id: 'c3', rows: [wsRow({ id: 'k3', tabs: [{ id: 'list2', kind: 'lens', listDefIdx: 0 }] })] },
       ],
     }],
   })
   const widgets = [
     { name: 'list', root: wsListWidget(page, 'list') },
-    { name: 'eisenhower', root: page.locator('[data-eisenhower="eis"]') },
     { name: 'list 2', root: wsListWidget(page, 'list2') },
   ]
   const selected = page.locator('[data-selected="true"]')
@@ -81,16 +80,11 @@ test('list and Eisenhower rows select alike; one widget at a time', async ({ pag
     // Only this widget holds a selection.
     await expect(selected).toHaveCount(2)
 
-    // A click on the widget's own empty space clears it: below the list's
-    // rows; on the grid itself (between quadrants / sections) elsewhere.
-    if (w.name.startsWith('list')) {
-      // Just under the last row (the bulk bar floats at the bottom).
-      const last = await w.root.locator('[data-todo-id]').last().boundingBox()
-      if (!last) throw new Error('no box')
-      await page.mouse.click(last.x + last.width / 2, last.y + last.height + 24)
-    } else {
-      await w.root.dispatchEvent('click')
-    }
+    // A click on the widget's own empty space clears it: just under the
+    // last row (the bulk bar floats at the bottom).
+    const last = await w.root.locator('[data-todo-id]').last().boundingBox()
+    if (!last) throw new Error('no box')
+    await page.mouse.click(last.x + last.width / 2, last.y + last.height + 24)
     await expect(selected).toHaveCount(0)
     await expect(bulkBar).toHaveCount(0)
 
@@ -98,9 +92,9 @@ test('list and Eisenhower rows select alike; one widget at a time', async ({ pag
     await title('alpha').click()
     await expect(w.root.locator('[data-selected="true"]')).toHaveCount(1)
   }
-  // The second list's click took the selection from the Eisenhower widget.
+  // The second list's click took the selection from the first.
   await expect(selected).toHaveCount(1)
-  await expect(widgets[2]!.root.locator('[data-selected="true"]')).toHaveCount(1)
+  await expect(widgets[1]!.root.locator('[data-selected="true"]')).toHaveCount(1)
 })
 
 /**
@@ -117,7 +111,7 @@ test('a click outside the rows clears the selection; rows, the bulk bar, menus a
       name: 'Main',
       columns: [
         { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
-        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] }), wsRow({ id: 'k3', tabs: [{ id: 'eis', kind: 'eisenhower' }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] }), wsRow({ id: 'k3', tabs: [{ id: 'map', kind: 'neglect' }] })] },
       ],
     }],
   })
@@ -154,12 +148,12 @@ test('a click outside the rows clears the selection; rows, the bulk bar, menus a
 
   // Cleared: another widget's tab.
   await selectTwo()
-  await wsTab(page, 'eis').click()
+  await wsTab(page, 'map').click()
   await expect(selected).toHaveCount(0)
 
   // Cleared: another widget's body.
   await selectTwo()
-  await page.locator('[data-eisenhower="eis"]').click({ position: { x: 4, y: 4 } })
+  await page.locator('[data-neglect-map="map"]').click({ position: { x: 4, y: 4 } })
   await expect(selected).toHaveCount(0)
 
   // Cleared: the list's own top line (alone in its cell, its name: D26 AA1).

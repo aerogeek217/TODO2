@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useSettingsStore } from '../../stores/settings-store'
 import { emptyPredicate } from '../../models/filter-predicate'
@@ -721,154 +721,16 @@ describe('useSettingsStore', () => {
   })
 })
 
-describe('the Eisenhower settings', () => {
-  const HAND_OFF = { delegate: { name: 'Hand off', filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: [{ values: ['urgent' as const] }, { values: ['important' as const], not: true as const }], negate: { statusIds: true as const } } } }
-  const undoNames = () => useUndoStore.getState().undoStack.map((e) => e.description)
-  afterEach(() => { vi.restoreAllMocks() })
-
-  it('load reads the panes and the source; absent = the defaults and all tasks; unreadable values read as those too', async () => {
+describe('the retired Eisenhower rows', () => {
+  it('load reads past them (nothing in the store names them) and a settings write leaves them stored', async () => {
+    const panes = { key: 'eisenhowerPanes', value: JSON.stringify({ delegate: { name: 'Hand off' } }) }
+    const source = { key: 'eisenhowerSource', value: 'list:4' }
+    await db.settings.bulkPut([panes, source])
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState()).toMatchObject({ eisenhowerPanes: {}, eisenhowerListId: null })
-    await db.settings.bulkPut([
-      { key: 'eisenhowerPanes', value: JSON.stringify({ ...HAND_OFF, later: {} }) },
-      { key: 'eisenhowerSource', value: 'list:4' },
-    ])
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState()).toMatchObject({ eisenhowerPanes: HAND_OFF, eisenhowerListId: 4 })
-    await db.settings.bulkPut([{ key: 'eisenhowerPanes', value: '{oops' }, { key: 'eisenhowerSource', value: 'Team' }])
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState()).toMatchObject({ eisenhowerPanes: {}, eisenhowerListId: null })
-  })
-
-  it('setEisenhowerPanes writes at once in the stored form (the row goes at the defaults), one undo step each', async () => {
-    await useSettingsStore.getState().setEisenhowerPanes({ ...HAND_OFF, do: { name: 'Do' } }, 'Changed pane “Delegate”')
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual(HAND_OFF)
-    expect(await db.settings.get('eisenhowerPanes')).toEqual({ key: 'eisenhowerPanes', value: JSON.stringify(HAND_OFF) })
-    await useSettingsStore.getState().setEisenhowerPanes(undefined, 'Reset the Eisenhower panes')
-    expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
-    // The same panes again: nothing written, no step.
-    await useSettingsStore.getState().setEisenhowerPanes({}, 'Nothing')
-    expect(undoNames()).toEqual(['Changed pane “Delegate”', 'Reset the Eisenhower panes'])
-    await useUndoStore.getState().undo()
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual(HAND_OFF)
-    expect(await db.settings.get('eisenhowerPanes')).toEqual({ key: 'eisenhowerPanes', value: JSON.stringify(HAND_OFF) })
-  })
-
-  it('a pane filter written as an expression is stored as one', async () => {
-    const base = { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
-    const expression = { kind: 'or' as const, items: [{ kind: 'status' as const, id: 3 }, { kind: 'priority' as const, value: 'focus' as const }] }
-    await useSettingsStore.getState().setEisenhowerPanes({ drop: { filter: { ...base, expression } } }, 'Changed pane “Drop”')
-    expect(useSettingsStore.getState().eisenhowerPanes.drop?.filter?.expression).toEqual(expression)
-    expect(JSON.parse((await db.settings.get('eisenhowerPanes'))!.value).drop.filter).toMatchObject({ expression })
-    expect(undoNames()).toEqual(['Changed pane “Drop”'])
-  })
-
-  it('writes with the same merge key in a row are one undo step; another write ends the run', async () => {
-    const set = useSettingsStore.getState().setEisenhowerPanes
-    await set({ drop: { name: 'S' } }, 'Renamed pane “Drop”', 'name:drop')
-    await set({ drop: { name: 'Someday' } }, 'Renamed pane “Drop”', 'name:drop')
-    expect(undoNames()).toEqual(['Renamed pane “Drop”'])
-    await set({ drop: { name: 'Someday' }, do: { name: 'Now' } }, 'Renamed pane “Do”', 'name:do')
-    await set({ drop: { name: 'Later' }, do: { name: 'Now' } }, 'Renamed pane “Drop”', 'name:drop')
-    expect(undoNames()).toEqual(['Renamed pane “Drop”', 'Renamed pane “Do”', 'Renamed pane “Drop”'])
-    await useUndoStore.getState().undo()
-    await useUndoStore.getState().undo()
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({ drop: { name: 'Someday' } })
-    await useUndoStore.getState().undo()
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
-  })
-
-  it('a name typed back to where it started leaves no undo step', async () => {
-    const set = useSettingsStore.getState().setEisenhowerPanes
-    await set({ drop: { name: 'S' } }, 'Renamed pane “Drop”', 'name:drop')
-    await set({}, 'Renamed pane “Drop”', 'name:drop')
-    expect(undoNames()).toEqual([])
-    // Typing on starts a new step.
-    await set({ drop: { name: 'L' } }, 'Renamed pane “Drop”', 'name:drop')
-    expect(undoNames()).toEqual(['Renamed pane “Drop”'])
-    await useUndoStore.getState().undo()
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
-  })
-
-  it('a failed save puts the value saved back, adds no undo step and says so', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('disk full'))
-    await useSettingsStore.getState().setEisenhowerPanes(HAND_OFF, 'Changed pane “Delegate”')
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
-    expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
-    expect(undoNames()).toEqual([])
-    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Couldn’t save the Eisenhower panes.', notice: true })
-  })
-
-  it('a filter change, Reset pane or Reset all panes shows the undo snackbar; a typed name does not', async () => {
-    const set = useSettingsStore.getState().setEisenhowerPanes
-    await set({ drop: { name: 'S' } }, 'Renamed pane “Drop”', 'name:drop')
-    expect(useUndoStore.getState().snackbar).toBeNull()
-    await set(HAND_OFF, 'Changed pane “Hand off”')
-    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Changed pane “Hand off”' })
-    await set(undefined, 'Reset the Eisenhower panes')
-    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Reset the Eisenhower panes' })
-  })
-
-  it('writes are saved one after another: an earlier one failing late leaves the later one shown, saved and undoable', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    const put = async (key: string, value: string) => { await db.settings.put({ key, value }) }
-    let failFirst!: () => void
-    vi.spyOn(settingsRepository, 'put')
-      .mockImplementationOnce(() => new Promise((_, reject) => { failFirst = () => reject(new Error('disk full')) }))
-      .mockImplementation(put)
-    const set = useSettingsStore.getState().setEisenhowerPanes
-    const first = set({ drop: { name: 'Someday' } }, 'Renamed pane “Drop”')
-    const second = set({ drop: { name: 'Someday' }, do: { name: 'Now' } }, 'Renamed pane “Do”')
-    // Both show at once; the second waits for the first's save.
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({ do: { name: 'Now' }, drop: { name: 'Someday' } })
-    await vi.waitFor(() => expect(failFirst).toBeDefined())
-    failFirst()
-    await Promise.all([first, second])
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({ do: { name: 'Now' }, drop: { name: 'Someday' } })
-    expect(JSON.parse((await db.settings.get('eisenhowerPanes'))!.value)).toEqual({ do: { name: 'Now' }, drop: { name: 'Someday' } })
-    expect(undoNames()).toEqual(['Renamed pane “Do”'])
-    // Its undo puts back what was saved before it.
-    await useUndoStore.getState().undo()
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
-    expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
-  })
-
-  it('the last of several writes failing shows the value saved before them', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    const put = async (key: string, value: string) => { await db.settings.put({ key, value }) }
-    let failSecond!: () => void
-    vi.spyOn(settingsRepository, 'put')
-      .mockImplementationOnce(put)
-      .mockImplementationOnce(() => new Promise((_, reject) => { failSecond = () => reject(new Error('disk full')) }))
-    const set = useSettingsStore.getState().setEisenhowerPanes
-    const first = set({ drop: { name: 'Someday' } }, 'Renamed pane “Drop”')
-    const second = set({ drop: { name: 'Later' } }, 'Renamed pane “Drop” again')
-    await first
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({ drop: { name: 'Later' } })
-    await vi.waitFor(() => expect(failSecond).toBeDefined())
-    failSecond()
-    await second
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({ drop: { name: 'Someday' } })
-    expect(JSON.parse((await db.settings.get('eisenhowerPanes'))!.value)).toEqual({ drop: { name: 'Someday' } })
-    expect(undoNames()).toEqual(['Renamed pane “Drop”'])
-  })
-
-  it('an undo or redo whose save fails stays on its stack and says so', async () => {
-    await useSettingsStore.getState().setEisenhowerPanes(HAND_OFF, 'Changed pane “Hand off”')
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.spyOn(settingsRepository, 'delete').mockRejectedValueOnce(new Error('disk full'))
-    await useUndoStore.getState().undo()
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual(HAND_OFF)
-    expect(undoNames()).toEqual(['Changed pane “Hand off”'])
-    expect(useUndoStore.getState().snackbar).toEqual({ description: "Couldn't undo: Changed pane “Hand off”", notice: true })
-    await useUndoStore.getState().undo()
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
-    vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('disk full'))
-    await useUndoStore.getState().redo()
-    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
-    expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
-    expect(useUndoStore.getState().redoStack.map((e) => e.description)).toEqual(['Changed pane “Hand off”'])
-    expect(useUndoStore.getState().snackbar).toEqual({ description: "Couldn't redo: Changed pane “Hand off”", notice: true })
+    const state = useSettingsStore.getState() as unknown as Record<string, unknown>
+    expect(Object.keys(state).filter((k) => /eisenhower/i.test(k))).toEqual([])
+    await useSettingsStore.getState().setWeekStartsOn(1)
+    expect(await db.settings.get('eisenhowerPanes')).toEqual(panes)
+    expect(await db.settings.get('eisenhowerSource')).toEqual(source)
   })
 })

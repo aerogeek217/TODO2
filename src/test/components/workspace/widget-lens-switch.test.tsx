@@ -192,8 +192,8 @@ describe('the ⋯ menu’s Apply lens “X” here', () => {
   })
 })
 
-describe('the Eisenhower’s and the Neglect map’s', () => {
-  it('alone in their cell, on their name line; in a cell of several, the Neglect map’s floats over its corner', () => {
+describe('the Neglect map’s', () => {
+  it('alone in its cell, on its name line; in a cell of several, floating over its corner', () => {
     useSettingsStore.setState({ activeLensId: LENS.id })
     inLayout(createTab('neglect', 'w'))
     const { unmount } = render(<DndContext><CellControlsContext.Provider value={CONTROLS}><Live /></CellControlsContext.Provider></DndContext>)

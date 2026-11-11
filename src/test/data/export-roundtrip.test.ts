@@ -15,7 +15,6 @@ import { TODO_EVENT_TYPES } from '../../models/todo-event'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import { formatLensesSetting } from '../../data/lens-shape'
-import type { EisenhowerPanes } from '../../models/eisenhower-settings'
 import { makeTodo, resetDb } from '../helpers'
 import { cell, emptyBody, grid, numberTab } from '../helpers/layout-builders'
 
@@ -198,7 +197,6 @@ function buildSeed(): Seed {
           const k3 = cell('k3', [
             numberTab('t5', 'noFollowup', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 4 }),
             { id: 't6', kind: 'lens', config: {} },
-            { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
             // Item 12: a Review widget by list, its sort and lens switch.
             { id: 't14', kind: 'review', config: { by: 'list' }, viewState: { sort: 'next', ignoreLens: true } },
@@ -235,8 +233,11 @@ function buildSeed(): Seed {
   }
 }
 
-/** The seed's Eisenhower panes, in their stored form (what import keeps unchanged). */
-const SEED_PANES: EisenhowerPanes = {
+/**
+ * The removed Eisenhower's panes as a v78 database holds them: carried as
+ * stored (schema v79 deletes the row), like its list (`owner: { eisenhower: true }`).
+ */
+const SEED_PANES = {
   do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: [{ values: ['focus'] }, { values: ['urgent'], not: true }], tags: [2], negate: { tags: true } } },
   delegate: { filter: { ...emptyPredicate(), expression: { kind: 'and', items: [{ kind: 'not', item: { kind: 'status', id: 3 } }, { kind: 'priority', value: 'urgent' }, { kind: 'not', item: { kind: 'priority', value: 'important' } }] } } },
   drop: { name: 'Someday' },
@@ -306,7 +307,7 @@ describe('export → JSON → import round-trip', () => {
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter !== undefined)).toBe(true)
-    // Both kinds of owner: a layout's list and the Eisenhower's.
+    // Both kinds of owner: a layout's list and the retired Eisenhower's (carried as stored).
     expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'layoutId' in d.owner)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'eisenhower' in d.owner)).toBe(true)
     // A Priority filter's forms: "is" with several values, and "is not".
@@ -316,11 +317,11 @@ describe('export → JSON → import round-trip', () => {
     // Every "is not" switch.
     const negations = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.keys(d.membership.predicate.negate ?? {}) : [])
     expect(new Set(negations)).toEqual(new Set(NEGATABLE_FIELDS))
-    // Expressions: on a list, with every kind of atom and a `not`; in a lens, a pane and the check-in filter.
+    // Expressions: on a list, with every kind of atom and a `not`; in a lens and the check-in filter.
     const expressions = seed.listDefinitions.flatMap((d) => (d.membership.kind === 'custom' && d.membership.predicate.expression ? [d.membership.predicate.expression] : []))
     expect(new Set(expressions.flatMap((e) => expressionAtoms(e).map((a) => a.kind)))).toEqual(new Set(['person', 'tag', 'status', 'priority', 'text', 'date']))
     expect(JSON.stringify(expressions)).toContain('"kind":"not"')
-    for (const key of ['lenses', 'eisenhowerPanes', 'checkinTaskFilter']) {
+    for (const key of ['lenses', 'checkinTaskFilter']) {
       expect(seed.settings.find((r) => r.key === key)?.value, `${key} holds an expression`).toContain('"expression"')
     }
     // Every date type and every kind of date clause.
@@ -340,14 +341,7 @@ describe('export → JSON → import round-trip', () => {
     expect(cells.some((c) => c.area.rowSpan > 1)).toBe(true)
     expect(cells.some((c) => c.area.colSpan > 1)).toBe(true)
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
-    expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
-    // The Eisenhower panes (a setting): a pane with a name and a filter, a "not" switch, a Priority No, an expression.
-    const panesRow = seed.settings.find((r) => r.key === 'eisenhowerPanes')
-    const panes = Object.values(JSON.parse(panesRow?.value ?? '{}') as EisenhowerPanes)
-    expect(panes.some((p) => p?.name !== undefined && p.filter !== undefined)).toBe(true)
-    expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers?.some((c) => c.not === true))).toBe(true)
-    expect(panes.some((p) => p?.filter?.expression !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'number' && t.config.breakdown !== undefined)).toBe(true)
   })

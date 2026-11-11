@@ -22,7 +22,7 @@ export const DELETED_LIST_TITLE = '(Deleted list)'
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by
  * the caller; `(Deleted list)` when its list is gone), other tabs their
- * kind's name — an Eisenhower tab reads `Eisenhower`.
+ * kind's name.
  */
 export function tabTitle(tab: LayoutTab, listName: string | undefined): string {
   if (tab.kind !== 'lens' || tab.config.listDefinitionId == null) return kindTabTitle(tab)
@@ -55,7 +55,7 @@ function shownListName(
  * Edit list has it (its draft, while open on it), else as saved.
  */
 export function useTabTitle(tab: LayoutTab | undefined): string {
-  const listId = tab ? tabListId(tab, null) : undefined
+  const listId = tab ? tabListId(tab) : undefined
   const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
   const draftName = useListDraftStore((s) => (listId != null ? s.drafts[listId]?.name : undefined))
   return tab ? tabTitle(tab, shownName(savedName, draftName)) : ''
@@ -65,7 +65,7 @@ export function useTabTitle(tab: LayoutTab | undefined): string {
 export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
   const defs = useListDefinitionStore((s) => s.listDefinitions)
   const drafts = useListDraftStore((s) => s.drafts)
-  return useMemo(() => tabs.map((tab) => tabTitle(tab, shownListName(tabListId(tab, null), defs, drafts))), [tabs, defs, drafts])
+  return useMemo(() => tabs.map((tab) => tabTitle(tab, shownListName(tabListId(tab), defs, drafts))), [tabs, defs, drafts])
 }
 
 /**

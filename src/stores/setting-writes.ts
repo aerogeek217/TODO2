@@ -45,7 +45,7 @@ export interface SettingSpec<S, K extends keyof S> extends StoredSetting<S, K> {
 }
 
 export interface SettingWriteOptions {
-  /** The undo step's name, instead of the spec's (the lenses', the Eisenhower panes'). */
+  /** The undo step's name, instead of the spec's (the lenses'). */
   description?: string
   /**
    * Writes passing the same key one after another (while their step is the

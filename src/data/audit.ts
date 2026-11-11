@@ -1,7 +1,7 @@
 import { db } from './database'
 import { readDataTables } from './export-data'
 import { DATA_TABLE_NAMES, type DataTableName } from './tables'
-import { isEisenhowerOwner, ownerLayoutId } from '../models/list-definition'
+import { isRetiredEisenhowerOwner, ownerLayoutId } from '../models/list-definition'
 import { RECOVERED_LISTS_LAYOUT_NAME, layoutRepository } from './layout-repository'
 import { subtaskTitle } from '../utils/subtasks'
 import {
@@ -462,12 +462,13 @@ export async function auditData(): Promise<AuditReport> {
   }
 
   // --- Lists that belong to no layout ---
-  // Every list belongs to a layout (or is the Eisenhower's); one without an
-  // owner, or whose layout is gone, is shown and offered nowhere. Cleanup
+  // Every list belongs to a layout; one without an owner, or whose layout
+  // is gone, is shown and offered nowhere. The removed Eisenhower's hidden
+  // list is left alone (never read, deleted by schema v79). Cleanup
   // gives each the first layout that shows it, the rest a new layout of
   // their own — it never deletes one.
   const layoutIds = new Set(layouts.map((l) => l.id))
-  const unowned = listDefinitions.filter((d) => !isEisenhowerOwner(d.owner) && !layoutIds.has(ownerLayoutId(d) ?? NaN))
+  const unowned = listDefinitions.filter((d) => !isRetiredEisenhowerOwner(d.owner) && !layoutIds.has(ownerLayoutId(d) ?? NaN))
   if (unowned.length > 0) {
     issues.push({
       table: 'listDefinitions',

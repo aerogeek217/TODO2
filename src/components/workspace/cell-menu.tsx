@@ -12,7 +12,6 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useAppliedLens } from '../../stores/screen-filter'
 import { setTabIgnoresLens } from '../../hooks/use-widget-lens'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { useListWidgetStore } from '../../stores/list-widget-store'
 import { copyTasks } from '../../services/task-copy'
 import type { MenuEntry } from '../shared/MenuPopover'
@@ -29,8 +28,6 @@ import {
 import { mergeNeighbour, type Side } from '../../utils/workspace-grid'
 import { tabsCount } from './workspace-drag'
 import type { WidgetResult } from './WidgetBody'
-import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
-import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from './eisenhower/eisenhower-settings-link'
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
 import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
@@ -225,10 +222,8 @@ export function useWidgetMenuContent(
   result: WidgetResult | undefined,
 ): WidgetKindMenuContent | undefined {
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
-  const urgentRangeSetting = useUrgentRangeSetting()
   const layoutId = useListOwnerLayoutId()
-  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
-  const listId = tab ? tabListId(tab, eisenhowerListId) : undefined
+  const listId = tab ? tabListId(tab) : undefined
   const listName = useListDefinitionStore((s) =>
     listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined,
   )
@@ -243,9 +238,8 @@ export function useWidgetMenuContent(
   const glance = glanceMenu(isGlanceTab(tab) ? tab : undefined, result?.summary)
 
   /**
-   * Changes the tab's kind. Switched to List — an Eisenhower tab too: the
-   * Eisenhower's own list is never a list tab's — it shows a new blank list
-   * of the layout, whose Edit list opens at once.
+   * Changes the tab's kind. Switched to List, it shows a new blank list of
+   * the layout, whose Edit list opens at once.
    */
   const changeKind = (kind: WidgetKind) => {
     if (kind === tab.kind) return
@@ -296,10 +290,6 @@ export function useWidgetMenuContent(
     onEditList: listId != null && (tab.kind === 'lens' || listName != null)
       ? () => openEditList(tab.id, listId)
       : undefined,
-    sourceActions: tab.kind === 'eisenhower'
-      ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => openEisenhowerSettings() }]
-      : undefined,
-    widgetSetting: tab.kind === 'eisenhower' ? urgentRangeSetting : undefined,
     settingEntries: tab.kind === 'neglect' ? neglectEntries : tab.kind === 'lens' ? zoomEntries : glance?.settingEntries,
     widgetActions: glance
       ? [...(lensAction ? [lensAction] : []), ...glance.actions]

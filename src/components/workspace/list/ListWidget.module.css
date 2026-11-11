@@ -332,7 +332,7 @@
 
 /* Where the dragged row lands (manual order: rows make room) — a row's height at the list's zoom. */
 .dropSlot {
-  /* A row high; 30px (a Rows row) outside a list widget — an Eisenhower pane. */
+  /* A row high; 30px (a Rows row) by default. */
   height: var(--list-drop-slot-height, 30px);
   border-radius: 6px;
   background: var(--color-inset);
@@ -384,7 +384,7 @@
 
 /*
  * Docked at the widget's foot (UX cleanup 1A): a flex child after the scroll
- * (the list, the Eisenhower's panes, the Neglect map), so the scroll gives it
+ * (the list, the Neglect map), so the scroll gives it
  * room and it covers no row; in a narrow cell its buttons wrap. Sticky at the
  * bottom for a widget that grows past its cell (a stacked Neglect map scrolls
  * the cell body).

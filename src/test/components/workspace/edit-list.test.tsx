@@ -8,7 +8,6 @@ import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { useSettingsStore } from '../../../stores/settings-store'
 import type { PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { emptyPredicate } from '../../../models'
 import type { PersistedListDefinition } from '../../../models/list-definition'
@@ -350,23 +349,21 @@ describe('Edit list › Copy from…', () => {
     sort: 'created', sortDirection: 'desc', grouping: 'status', runtimeFilter: { field: 'tag' }, showFilterLine: false,
   }
   const sibling: PersistedListDefinition = { ...saved, id: 9, name: 'Sibling', sortOrder: 2, owner: { layoutId: 1 }, sort: 'manual', grouping: 'none' }
-  const eisenhower: PersistedListDefinition = { ...saved, id: 10, name: 'Eisenhower', sortOrder: 3, owner: { eisenhower: true }, sort: 'manual', grouping: 'none' }
 
   beforeEach(() => {
     useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout, other] })
-    useListDefinitionStore.setState({ listDefinitions: [{ ...saved, owner: { layoutId: 1 } }, calls, sibling, eisenhower] })
-    useSettingsStore.setState({ eisenhowerListId: 10 })
+    useListDefinitionStore.setState({ listDefinitions: [{ ...saved, owner: { layoutId: 1 } }, calls, sibling] })
   })
 
   /** The open menu's headings and items, in order. */
   const outline = (menu: HTMLElement) => Array.from(menu.children).flatMap((c) =>
     c.getAttribute('role') === 'presentation' ? [`# ${c.textContent}`] : c.getAttribute('data-menu-label') != null ? [c.getAttribute('data-menu-label')] : [])
 
-  it('offers every list but this one, by layout — this layout first —, then the Eisenhower’s, each with its filters in words', () => {
+  it('offers every list but this one, by layout — this layout first —, each with its filters in words', () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Copy from…' }))
     const menu = screen.getByRole('menu', { name: 'Copy from' })
-    expect(outline(menu)).toEqual(['# Default · this layout', 'Sibling', '# Second', 'Calls', '# Eisenhower', 'Eisenhower'])
+    expect(outline(menu)).toEqual(['# Default · this layout', 'Sibling', '# Second', 'Calls'])
     expect(within(menu).getByRole('menuitem', { name: /^Calls/ })).toHaveTextContent('Text: “call”')
     expect(within(menu).getByRole('menuitem', { name: /^Sibling/ })).toHaveTextContent('All tasks')
   })

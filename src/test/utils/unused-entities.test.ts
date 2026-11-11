@@ -28,7 +28,7 @@ function list(id: number, predicate: Partial<TodoPredicate>, owner: ListDefiniti
 }
 
 function sources(over: Partial<FilterSources> = {}): FilterSources {
-  return { lists: [], panes: {}, checkinFilter: emptyPredicate(), ...over }
+  return { lists: [], checkinFilter: emptyPredicate(), ...over }
 }
 
 describe('entityTaskUse', () => {
@@ -64,31 +64,25 @@ describe('findUnused', () => {
 })
 
 describe('filterReferences', () => {
-  it('finds people in a list filter, "is" or "is not", the Eisenhower’s own list included, ignoring the unassigned sentinel', () => {
+  it('finds people in a list filter, "is" or "is not", ignoring the unassigned sentinel', () => {
     const refs = filterReferences(sources({
       lists: [
         list(1, { personIds: [1, 0] }),
         list(2, { personIds: [1, 2], negate: { personIds: true } }),
-        list(3, { personIds: [3] }, { eisenhower: true }),
+        list(3, { personIds: [3] }),
       ],
     }), 'person')
-    expect(refs.get(1)).toEqual({ lists: 2, panes: 0, checkin: false })
-    expect(refs.get(2)).toEqual({ lists: 1, panes: 0, checkin: false })
-    expect(refs.get(3)).toEqual({ lists: 1, panes: 0, checkin: false })
+    expect(refs.get(1)).toEqual({ lists: 2, checkin: false })
+    expect(refs.get(2)).toEqual({ lists: 1, checkin: false })
+    expect(refs.get(3)).toEqual({ lists: 1, checkin: false })
     expect(refs.has(0)).toBe(false)
   })
 
-  it('finds tags in Eisenhower pane filters and the check-in filter', () => {
+  it('finds tags in the check-in filter', () => {
     const refs = filterReferences(sources({
-      panes: {
-        do: { filter: { ...emptyPredicate(), tags: [10] } },
-        drop: { filter: { ...emptyPredicate(), tags: [10], negate: { tags: true } } },
-        schedule: { name: 'Later' },
-      },
       checkinFilter: { ...emptyPredicate(), tags: [11] },
     }), 'tag')
-    expect(refs.get(10)).toEqual({ lists: 0, panes: 2, checkin: false })
-    expect(refs.get(11)).toEqual({ lists: 0, panes: 0, checkin: true })
+    expect(refs.get(11)).toEqual({ lists: 0, checkin: true })
   })
 
   it('finds people and tags named only inside an expression, a list counting once', () => {
@@ -99,17 +93,16 @@ describe('filterReferences', () => {
       ] },
     })
     const s = sources({
-      lists: [list(1, terms(2, 10))],
-      panes: { do: { filter: { ...emptyPredicate(), ...terms(3, 11) } } },
+      lists: [list(1, terms(2, 10)), list(2, terms(3, 11))],
       checkinFilter: { ...emptyPredicate(), expression: { kind: 'or', items: [{ kind: 'tag', id: 12 }, { kind: 'tag', id: 0 }] } },
     })
     const people = filterReferences(s, 'person')
-    expect(people.get(1)).toEqual({ lists: 1, panes: 1, checkin: false })
-    expect(people.get(2)).toEqual({ lists: 1, panes: 0, checkin: false })
-    expect(people.get(3)).toEqual({ lists: 0, panes: 1, checkin: false })
+    expect(people.get(1)).toEqual({ lists: 2, checkin: false })
+    expect(people.get(2)).toEqual({ lists: 1, checkin: false })
+    expect(people.get(3)).toEqual({ lists: 1, checkin: false })
     const tags = filterReferences(s, 'tag')
     expect([...tags.keys()].sort()).toEqual([10, 11, 12])
-    expect(tags.get(12)).toEqual({ lists: 0, panes: 0, checkin: true })
+    expect(tags.get(12)).toEqual({ lists: 0, checkin: true })
   })
 
   it('a people filter names no tag, and the other way round', () => {
@@ -125,9 +118,9 @@ describe('notes and the confirm', () => {
   it('a row’s note names its completed tasks and the filters naming it', () => {
     expect(unusedEntryNote(entry(1))).toBe('')
     expect(unusedEntryNote(entry(1, [5]))).toBe('on 1 completed task')
-    expect(unusedEntryNote(entry(1, [5, 6], { lists: 2, panes: 1, checkin: true })))
-      .toBe('on 2 completed tasks · in 2 list filters · in an Eisenhower pane · in the check-in filter')
-    expect(unusedEntryNote(entry(1, [], { lists: 1, panes: 2, checkin: false }))).toBe('in a list filter · in 2 Eisenhower panes')
+    expect(unusedEntryNote(entry(1, [5, 6], { lists: 2, checkin: true })))
+      .toBe('on 2 completed tasks · in 2 list filters · in the check-in filter')
+    expect(unusedEntryNote(entry(1, [], { lists: 1, checkin: false }))).toBe('in a list filter')
   })
 
   it('the undo step names what goes', () => {
@@ -138,8 +131,8 @@ describe('notes and the confirm', () => {
 
   it('the confirm counts distinct completed tasks and the entries filters name', () => {
     const lines = removeConfirmLines(
-      [entry(1, [5, 6], { lists: 1, panes: 0, checkin: false }), entry(2)],
-      [entry(10, [6, 7], { lists: 0, panes: 1, checkin: false })],
+      [entry(1, [5, 6], { lists: 1, checkin: false }), entry(2)],
+      [entry(10, [6, 7], { lists: 0, checkin: true })],
     )
     expect(lines).toEqual({
       question: 'Remove 2 people and 1 tag?',
@@ -147,7 +140,7 @@ describe('notes and the confirm', () => {
       filters: '2 are named in filters, which will stop matching them.',
       undo: 'You can undo this.',
     })
-    const one = removeConfirmLines([entry(1, [5], { lists: 1, panes: 0, checkin: false })], [])
+    const one = removeConfirmLines([entry(1, [5], { lists: 1, checkin: false })], [])
     expect(one.completed).toBe('It’s removed from 1 completed task.')
     expect(one.filters).toBe('1 is named in filters, which will stop matching it.')
     const plain = removeConfirmLines([], [entry(10)])

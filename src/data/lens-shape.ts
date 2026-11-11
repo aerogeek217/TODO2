@@ -6,7 +6,7 @@ import { checkPredicateShape, pickPredicate } from './predicate-shape'
  * The stored `lenses` setting — JSON of an array of `{ id, name, predicate }`
  * — read and written the one way import validation (and so the audit), the
  * settings store's read and its writes use. Read leniently, as the
- * Eisenhower panes are: a lens without a usable id or name, with an id
+ * check-in filter is: a lens without a usable id or name, with an id
  * another lens has, or whose predicate lacks the list predicate's core
  * shape is dropped; a malformed filter clause is dropped from its lens
  * (`pickPredicate`); completed tasks stay off; unknown keys go — each
@@ -29,7 +29,7 @@ export interface ReadLenses {
   fixes: string[]
 }
 
-/** The longest `lenses` text read (a million characters, as the Eisenhower panes and the check-in filter). */
+/** The longest `lenses` text read (a million characters, as the check-in filter). */
 export const LENSES_SETTING_MAX_LEN = 1_000_000
 
 function parseJson(value: string): unknown {

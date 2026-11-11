@@ -8,7 +8,7 @@ import { box, pointIn, type Point } from './geometry'
 export interface WsTabSeed {
   id: string
   kind: WidgetKind
-  /** List tabs: index into `listDefinitions`. (The Eisenhower's list is a setting: `WorkspaceSeed.eisenhower`.) */
+  /** List tabs: index into `listDefinitions`. */
   listDefIdx?: number
   /** Calendar tabs: date types shown (default both). */
   dateTypes?: { due: boolean; followup: boolean }
@@ -17,9 +17,7 @@ export interface WsTabSeed {
   offset?: number
   /** Calendar tabs: the month shows titled bars (view state; default off = the heat map). */
   titles?: boolean
-  /** Eisenhower tabs: collapsed sections (view state). */
-  collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
-  /** List / Eisenhower tabs: the task rows' details width (view state). */
+  /** List tabs: the task rows' details width (view state). */
   detailsWidth?: number
   /** List tabs: the zoom (view state; absent = the Settings default; `strips`, a removed level, opens as `lines`). */
   zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
@@ -183,19 +181,9 @@ function withNumberConfigs(table: WsTable): WsTable {
   }
 }
 
-/** The app-wide Eisenhower panes (a filter is merged over the empty predicate). */
-export type EisenhowerPanesSeed = Partial<Record<'do' | 'schedule' | 'delegate' | 'drop', { name?: string; filter?: Record<string, unknown> }>>
-
 export interface WorkspaceSeed {
   /** The first layout is opened. */
   layouts: WsLayoutSeed[]
-  /**
-   * The app-wide Eisenhower settings (every Eisenhower tab and Eisenhower
-   * summary): its own list (index into `listDefinitions` — that list is
-   * made the Eisenhower's, a hidden list; none = the one the app made, with
-   * no filter) and its custom panes.
-   */
-  eisenhower?: { listDefIdx?: number; panes?: EisenhowerPanesSeed }
   /**
    * Lenses (the `lenses` settings row, the presets marked seeded so none are
    * added): each predicate merged over the empty one.
@@ -332,9 +320,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     for (const name of seed.statuses ?? []) {
       statusIds.set(name, await add(tx.objectStore('statuses'), { name, color: '#4caf50', icon: 'circle', sortOrder: ++statusOrder }))
     }
-    // The seed's lists replace the app's own (the Eisenhower's list it made
-    // at launch): the app makes that again on the reload unless the seed
-    // names one (`eisenhower.listDefIdx`).
+    // The seed's lists replace any the database holds.
     tx.objectStore('listDefinitions').clear()
     const defIds: number[] = []
     let defOrder = 0
@@ -351,7 +337,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
         ...(def.showFilterLine === false ? { showFilterLine: false } : {}),
         ...(def.ignoreLens ? { ignoreLens: true } : {}),
-        ...(seed.eisenhower?.listDefIdx === defIds.length ? { owner: { eisenhower: true } } : {}),
       }))
     }
     let taskOrder = 0
@@ -411,7 +396,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         if (tab.view != null || tab.offset != null) out.viewState = { view: tab.view ?? 'month', offset: tab.offset ?? 0 }
         if (tab.titles != null) out.viewState = { ...(out.viewState as object | undefined), titles: tab.titles }
       }
-      if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
       if (tab.kind === 'neglect' && tab.neglect) {
         const n = tab.neglect
         if (n.colourBy === 'people' || n.colourBy === 'none') config.colourBy = { kind: n.colourBy }
@@ -454,23 +438,12 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     const shownBy = (i: number) => seed.tables.findIndex((table) => table.cells.some((p) => p.tabs.some((t) => t.listDefIdx === i)))
     for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
       const listId = defIds[i]
-      if (seed.eisenhower?.listDefIdx === i) continue
       const layoutId = layoutIds[def.layoutIdx ?? Math.max(0, shownBy(i))]
       if (listId == null || layoutId == null) continue
       const store = tx.objectStore('listDefinitions')
       store.put({ ...(await get(store, listId)), owner: { layoutId } })
     }
     if (firstId != null) tx.objectStore('settings').put({ key: 'activeLayoutId', value: String(firstId) })
-    const eis = seed.eisenhower
-    const eisListId = eis?.listDefIdx != null ? defIds[eis.listDefIdx] : undefined
-    if (eisListId != null) tx.objectStore('settings').put({ key: 'eisenhowerSource', value: `list:${eisListId}` })
-    if (eis?.panes) {
-      const panes = Object.fromEntries(Object.entries(eis.panes).map(([q, p]) => [q, {
-        ...(p?.name != null ? { name: p.name } : {}),
-        ...(p?.filter ? { filter: { ...seed.predicate, ...p.filter } } : {}),
-      }]))
-      tx.objectStore('settings').put({ key: 'eisenhowerPanes', value: JSON.stringify(panes) })
-    }
     for (const [key, value] of Object.entries({ rowDensity: 'rows', ...seed.settings })) {
       if (value === null) tx.objectStore('settings').delete(key)
       else tx.objectStore('settings').put({ key, value })
@@ -880,7 +853,6 @@ export async function gotoSettingsDeepLink(page: Page): Promise<Locator> {
 const SETTINGS_PART_SECTION: Readonly<Record<string, string>> = {
   'New tasks': 'Tasks',
   'Lists & rows': 'Tasks',
-  Eisenhower: 'Tasks',
   'Completed tasks': 'Tasks',
   'File storage': 'Database',
   Backups: 'Database',
@@ -911,8 +883,8 @@ export async function openSettings(page: Page, section?: string): Promise<Locato
 export const ADD_FILTER = /^(Filter|Another filter \(AND\))$/
 
 /**
- * Opens Edit list from a list's filter line inside `scope` (a list widget,
- * or the Eisenhower's cell): the line reads the filter in words (UX cleanup
+ * Opens Edit list from a list's filter line inside `scope` (a list
+ * widget): the line reads the filter in words (UX cleanup
  * 2A), and a click on them opens Edit list, where the filter is edited — its
  * chips, + Filter, Another filter (AND). Returns the open Edit list; the
  * edits there are the list's draft, kept when it closes (Esc).

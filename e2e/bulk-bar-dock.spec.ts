@@ -5,7 +5,7 @@ import { seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './fixtures/wor
 
 /**
  * UX cleanup 1A · the bulk bar docks at the widget's foot — a flex child
- * after the scroll — in the list, the Eisenhower and the Neglect map: it
+ * after the scroll — in the list and the Neglect map: it
  * covers no row (it floated over the rows under the selection), and in a
  * narrow cell its buttons wrap inside it.
  */
@@ -14,14 +14,14 @@ const TASKS: NonNullable<WorkspaceSeed['tasks']> = Array.from({ length: 12 }, (_
   title: `Task ${i + 1}`, urgent: i % 2 === 0, important: i % 3 === 0, dueInDays: i - 3,
 }))
 
-function seed(kind: 'lens' | 'eisenhower', leftWeight: number): WorkspaceSeed {
+function seed(kind: 'lens', leftWeight: number): WorkspaceSeed {
   return {
     listDefinitions: [{ name: 'All' }],
     tasks: TASKS,
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', weight: leftWeight, rows: [wsRow({ id: 'a', tabs: [{ id: 'w', kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }] })] },
+        { id: 'c1', weight: leftWeight, rows: [wsRow({ id: 'a', tabs: [{ id: 'w', kind, listDefIdx: 0 }] })] },
         { id: 'c2', weight: 1280 - leftWeight, rows: [wsRow({ id: 'b', tabs: [{ id: 'n', kind: 'notes' }] })] },
       ],
     }],
@@ -61,16 +61,4 @@ test('a list: the bar docks under the scroll, which makes room for it; in a narr
   // Its buttons all show, on two lines in a cell this narrow.
   await expect(bar.getByRole('button', { name: 'Delete' })).toBeInViewport()
   expect(b.height).toBeGreaterThan(40)
-})
-
-test('an Eisenhower: the bar docks under the panes', async ({ page }) => {
-  await seedWorkspace(page, seed('eisenhower', 760))
-  await selectTaskRowByTitle(page, 'Task 1')
-  await page.locator('[data-row-key]').filter({ hasText: 'Task 7' }).locator('span[data-task-title="Task 7"]').click({ modifiers: ['Control'] })
-  const bar = page.getByTestId('list-bulk-bar')
-  await expect(bar).toBeVisible()
-  const panes = await box(page.locator('[data-eisenhower]'))
-  const b = await box(bar)
-  expect(b.y).toBeGreaterThanOrEqual(panes.y + panes.height - 0.5)
-  await expectNoRowUnder(page, bar)
 })

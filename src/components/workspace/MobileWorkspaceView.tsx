@@ -2,7 +2,6 @@ import { useCallback, useMemo, useRef, useState, type CSSProperties, type Keyboa
 import {
   getActiveTab,
   isGlanceKind,
-  type EisenhowerTab,
   type LayoutCell,
   type WorkspaceLayout,
 } from '../../models/workspace-layout'
@@ -16,13 +15,11 @@ import { smallFaceClick, useCellFace } from './cell-face'
 import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { DialogFrame } from '../shared/Dialog'
 import type { ListWidgetResult } from './list/ListWidget'
 import { copyTasks } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
 import { useSettingsStore } from '../../stores/settings-store'
-import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon, HuedLayoutIcon, MoreIcon } from '../shared/icons'
 import { useFilterStore } from '../../stores/filter-store'
 import { usePickedLens } from '../../stores/screen-filter'
@@ -186,70 +183,6 @@ function moveInMenu(e: KeyboardEvent<HTMLElement>) {
   items[next]?.focus()
 }
 
-/**
- * An Eisenhower tab's long-press sheet: Edit list… (the Eisenhower's own
- * list) and the app-wide "Due date makes a task urgent" range (the desktop
- * tab menu's submenu). The shared dialog frame, as the layout sheet: Esc, a
- * backdrop press, focus in and kept inside, focus back on the tab.
- */
-function EisenhowerSheet({ tab, onClose }: { tab: EisenhowerTab; onClose: () => void }) {
-  const setting = useUrgentRangeSetting()
-  const listId = useSettingsStore((s) => s.eisenhowerListId)
-  const listExists = useListDefinitionStore((s) => listId != null && s.listDefinitions.some((d) => d.id === listId))
-  const editList = listId != null && listExists
-  // The focus starts on Edit list…, else on the range picked now.
-  const focusRef = useRef<HTMLButtonElement | null>(null)
-  return (
-    <DialogFrame
-      onClose={onClose}
-      layer="overlay"
-      className={styles.sheet}
-      backdropClassName={styles.backdrop}
-      style={SHEET_PLACEMENT}
-      aria-label="Eisenhower tab"
-      initialFocus={focusRef}
-      onKeyDown={moveInMenu}
-    >
-      <span className={styles.handle} aria-hidden="true" />
-      <div role="menu" aria-label="Eisenhower">
-        <div className={styles.sheetRows}>
-          {editList && (
-            <button
-              ref={focusRef}
-              type="button"
-              role="menuitem"
-              className={styles.sheetRow}
-              onClick={() => { onClose(); openEditList(tab.id, listId) }}
-            >
-              <span className={styles.sheetName}>Edit list…</span>
-            </button>
-          )}
-        </div>
-        <div className={styles.sheetFootnote}>To change the panes, use Settings on a wider screen.</div>
-        <div className={`${styles.sheetTitle} ${styles.sheetSectionTitle}`}>{setting.heading}</div>
-        <div className={styles.sheetRows}>
-          {setting.options.map((o) => (
-            <button
-              key={o.key}
-              ref={!editList && o.checked ? focusRef : undefined}
-              type="button"
-              role="menuitemradio"
-              aria-checked={o.checked}
-              className={styles.sheetRow}
-              onClick={() => { o.onSelect(); onClose() }}
-            >
-              <span className={styles.sheetName}>{o.label}</span>
-              {o.note && <span className={styles.sheetNote}>{o.note}</span>}
-              {o.checked && <span className={styles.sheetCheck} aria-hidden="true"><CheckIcon /></span>}
-            </button>
-          ))}
-        </div>
-        {setting.footnote && <div className={styles.sheetFootnote}>{setting.footnote}</div>}
-      </div>
-    </DialogFrame>
-  )
-}
-
 /** Copies a list's shown sections (Copy tasks): each under its label, unless the list isn't grouped. */
 function copySections(result: ListWidgetResult): void {
   const labelled = !(result.sections.length === 1 && result.sections[0]?.key === 'all')
@@ -261,7 +194,7 @@ function claimNothing(): () => void {
   return () => {}
 }
 
-/** Long-press on a list tab: the tab menu's list items as a bottom sheet (the frame as `EisenhowerSheet`'s). */
+/** Long-press on a list tab: the tab menu's list items as a bottom sheet (the shared dialog frame, as the layout sheet's). */
 function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
   tabId: string
   listDefinitionId: number
@@ -307,7 +240,7 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
  * A cell of the table on mobile: tabs only when there's a choice (D26
  * AA1) — one widget's top line names it and holds the ⋯ (always shown) —;
  * tabs switch; the ⋯ menu has the widget's phone items (a list's Edit list…
- * and Copy tasks, the Eisenhower's options sheet) and collapses the row
+ * and Copy tasks) and collapses the row
  * tracks it covers; a list tab's long-press opens its list sheet. No layout
  * editing.
  */
@@ -329,7 +262,6 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
   const activeTitle = useTabTitle(active)
   const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
   const [tabSheet, setTabSheet] = useState<{ tabId: string; listDefinitionId: number } | null>(null)
-  const [eisenhowerSheet, setEisenhowerSheet] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   // The ⋯ button (in the strip's header, or a top line's slot): kept as state, so the menu anchors to whichever is drawn.
   // The ⋯ buttons drawn (the strip's header's, a top line's slot, the cell's own while no top line
@@ -383,8 +315,6 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
     )
   }
 
-  const sheetTab = eisenhowerSheet != null ? cell.tabs.find((t) => t.id === eisenhowerSheet) : undefined
-  const eisenhowerTab = sheetTab?.kind === 'eisenhower' ? sheetTab : undefined
   const listResult = lens && lens.tabId === active?.id ? lens.result : undefined
 
   const widgetEntries: MenuEntry[] = []
@@ -392,8 +322,6 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
     const listId = active.config.listDefinitionId
     widgetEntries.push({ kind: 'item', label: 'Edit list…', onSelect: () => openEditList(active.id, listId) })
     if (listResult) widgetEntries.push({ kind: 'item', label: 'Copy tasks', onSelect: () => copySections(listResult) })
-  } else if (active?.kind === 'eisenhower') {
-    widgetEntries.push({ kind: 'item', label: 'Eisenhower options…', onSelect: () => setEisenhowerSheet(active.id) })
   }
   const menuEntries: MenuEntry[] = [
     ...widgetEntries,
@@ -422,7 +350,6 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
             onOpenTabMenu={(tabId) => {
               const tab = cell.tabs.find((t) => t.id === tabId)
               if (tab?.kind === 'lens' && tab.config.listDefinitionId != null) setTabSheet({ tabId, listDefinitionId: tab.config.listDefinitionId })
-              if (tab?.kind === 'eisenhower') setEisenhowerSheet(tabId)
             }}
             onActivate={(tabId) => {
               withViewTransition(() => {
@@ -480,7 +407,6 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
       {cellFace.fullOpen && active && !collapsed && (
         <WidgetFacePopover tab={active} anchorRef={cellRef} onClose={cellFace.closeFull} />
       )}
-      {eisenhowerTab && <EisenhowerSheet tab={eisenhowerTab} onClose={() => setEisenhowerSheet(null)} />}
       {tabSheet && (
         <ListTabSheet
           tabId={tabSheet.tabId}

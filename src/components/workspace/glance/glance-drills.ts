@@ -1,10 +1,7 @@
 import type { Tag } from '../../../models'
 import type { NumberBreakdown } from '../../../models/glance-widgets'
-import type { EisenhowerQuadrant } from '../../../models/workspace-layout'
-import type { EisenhowerPane } from '../../../utils/eisenhower-panes'
 import { formatFollowupDay } from '../../../utils/followup'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
-import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 import { trendBucketLabel } from './glance-copy'
 import type { GlanceDrill } from './glance-types'
 
@@ -83,7 +80,7 @@ export function trendBucketDrill(
   }
 }
 
-// Project pulse's tag, the Eisenhower panes and the Neglect map's Slipping
+// Project pulse's tag and the Neglect map's Slipping
 // list: the tasks it counted (screen-filtered), in its order.
 
 /** A tag's open tasks (a Project pulse card); `null` = no tag. */
@@ -102,55 +99,6 @@ export function slippingDrill(todoIds: readonly number[], days: number): GlanceD
     title: 'Slipping',
     glyph: 'stale',
     description: `Open tasks due soon or late and not changed in ${days} days or more, latest first.`,
-    source: { kind: 'todos', todoIds },
-  }
-}
-
-const QUADRANT_WORDS: Record<EisenhowerQuadrant, string> = {
-  do: 'urgent and important',
-  schedule: 'important, not urgent',
-  delegate: 'urgent, not important',
-  drop: 'neither urgent nor important',
-}
-
-/** What the app-wide urgent range adds to Urgent, as a sentence (empty when it's off). */
-function urgentIncludes(range: UrgentDueWithinDays): string {
-  if (range == null) return ''
-  if (range === 0) return ' Urgent includes tasks due today or earlier.'
-  return ` Urgent includes tasks due within ${urgentRangeLabel(range)}.`
-}
-
-/** What the Eisenhower counts are taken from, for a dialog's description. */
-export interface EisenhowerDrillSource {
-  /** The app-wide urgent range (what Urgent includes). */
-  urgentRange: UrgentDueWithinDays
-  /** The Eisenhower's list's name while its filter narrows the tasks; `null` = every task. */
-  listName: string | null
-}
-
-/** ` of “Team”` for a list source, else nothing. */
-function ofList(listName: string | null): string {
-  return listName == null ? '' : ` of “${listName}”`
-}
-
-/**
- * An Eisenhower pane (its small or medium face): its open tasks. A default pane is described
- * by its quadrant (`Open tasks that are urgent and important.`), a custom
- * one by its filter in words (`subtitle`).
- */
-export function eisenhowerPaneDrill(
-  pane: EisenhowerPane,
-  subtitle: string,
-  todoIds: readonly number[],
-  { urgentRange, listName }: EisenhowerDrillSource,
-): GlanceDrill {
-  const description = pane.customFilter
-    ? `Open tasks${ofList(listName)} in “${pane.name}” (${subtitle}) — the first pane each matches.`
-    : `Open tasks${ofList(listName)} that are ${QUADRANT_WORDS[pane.id]}.${urgentIncludes(urgentRange)}`
-  return {
-    title: pane.name,
-    glyph: 'matrix',
-    description,
     source: { kind: 'todos', todoIds },
   }
 }

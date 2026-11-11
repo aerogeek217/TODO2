@@ -1,5 +1,4 @@
-/* A list's top line (list widgets, an Eisenhower widget on a list): the
- * list's filter in words (Settings › Eisenhower: its chips), the count while
+/* A list's top line (list widgets): the list's filter in words, the count while
  * narrowed and the group · sort summary. The host widget is the size container for the narrow
  * rules; a `data-touch-chips` ancestor (phones) gets touch sizes. */
 
@@ -11,28 +10,6 @@
   padding: 0 8px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--color-border-muted);
-}
-
-/* A scroller clips on both axes (`overflow-x` makes `overflow-y` auto too), so
- * it is padded 4px round its chips — taken back by the negative margin, the
- * line's height and the chips' place unchanged — for an open trigger's ring
- * (D21) and the 4px focus ring to show whole, at the first chip as well. Its
- * basis is 0: it takes the line's room after the list's name (alone in its
- * cell), which keeps its width (at most 45%) rather than shrinking with it. */
-.chips {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1 1 0;
-  min-width: 0;
-  margin: -4px;
-  padding: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.chips::-webkit-scrollbar {
-  display: none;
 }
 
 /* A widget's filter in words (UX cleanup 2A): it takes the line's room after
@@ -92,18 +69,6 @@ button.everyTask:hover {
 
 [data-touch-chips] .everyTask {
   height: 32px;
-}
-
-/* Chips wider than their space fade out at the right. */
-.chipsClipped {
-  mask-image: linear-gradient(to right, #000 80%, transparent);
-}
-
-/* A list with no filters to show as chips (Settings › Eisenhower). */
-.noFilters {
-  flex-shrink: 0;
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
 }
 
 /* ── Touch (phones) ─────────────────────────────────────────────────────── */

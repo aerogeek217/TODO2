@@ -181,7 +181,7 @@ interface WidgetTopLineProps {
    * can't hold buttons.
    */
   controls?: 'inline' | 'cell'
-  /** Shown only alone in its cell: a slim name line (Notes, the Eisenhower, the Neglect map). */
+  /** Shown only alone in its cell: a slim name line (Notes, the Neglect map). */
   alone?: boolean
   children?: ReactNode
   'data-testid'?: string
@@ -224,7 +224,7 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
 }
 
 /**
- * A slim name line (Notes, the Eisenhower, the Neglect map): the widget's
+ * A slim name line (Notes, the Neglect map): the widget's
  * name and `children` after it. Alone in its cell only.
  */
 export function WidgetNameLine({ name, children }: { name: string; children?: ReactNode }) {

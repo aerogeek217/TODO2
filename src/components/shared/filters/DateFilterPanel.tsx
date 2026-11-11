@@ -64,11 +64,8 @@ const NO_DATE_WORDS: Partial<Record<DateField, { also: string; kept: string; has
   lastFollowup: { also: 'Also tasks never followed up', kept: 'Tasks never followed up are kept.', has: 'Only tasks that have been followed up.', none: 'Only tasks never followed up.' },
 }
 
-/** The line under a Completed range, by what the range does where the panel is (`DateFilterHost.completedNote`). */
-const COMPLETED_NOTE: Record<NonNullable<DateFilterHost['completedNote']>, string> = {
-  gate: 'Shows tasks completed in this range, even where completed tasks are hidden.',
-  narrow: 'Keeps tasks completed in this range, of the tasks the Eisenhower’s list shows.',
-}
+/** The line under a Completed range: it brings the completed tasks it keeps in. */
+const COMPLETED_NOTE = 'Shows tasks completed in this range, even where completed tasks are hidden.'
 
 /**
  * What a host's date panel offers, where it differs from the default (every
@@ -78,13 +75,6 @@ const COMPLETED_NOTE: Record<NonNullable<DateFilterHost['completedNote']>, strin
 export interface DateFilterHost {
   /** Date types left out of the tabs (the check-in: Completed — it only ever takes open tasks). */
   omit?: readonly DateField[]
-  /**
-   * The line under a Completed range. `gate` (default): the range brings the
-   * completed tasks it keeps in, even where completed tasks are hidden.
-   * `narrow`: it only narrows what the host is given (an Eisenhower pane —
-   * matched over the Eisenhower's list, completed tasks only if it shows them).
-   */
-  completedNote?: 'gate' | 'narrow'
 }
 
 /** The date types `host` offers, in reading order (the tabs' order). */
@@ -122,7 +112,7 @@ export interface DateFilterPanelProps {
   variant?: 'popover' | 'sheet'
   /** Focus the selected tab when the panel mounts (a popover opened from a button). */
   autoFocus?: boolean
-  /** Types left out, the Completed note (see `DateFilterHost`); default every type, the gate's note. */
+  /** Types left out (see `DateFilterHost`); default every type. */
   host?: DateFilterHost
 }
 
@@ -141,9 +131,7 @@ export interface DateFilterPanelProps {
  * …" — under Is not, a line saying those are kept — (Completed: a line
  * saying it shows completed tasks), and a footer with Clear <Type> and
  * Clear all. The same component in the top bar, a list's + Filter / date
- * chip, Edit list, Lenses, the Eisenhower panes (`host` narrow: its
- * Completed line says the range only keeps), the check-in filter (`host`
- * omits Completed) and the phone Filters sheet. With a type left out, the tabs fill the rows in reading order.
+ * chip, Edit list, Lenses, the check-in filter (`host` omits Completed) and the phone Filters sheet. With a type left out, the tabs fill the rows in reading order.
  */
 export function DateFilterPanel({ dates, initialField, onChange, variant = 'popover', autoFocus = false, host }: DateFilterPanelProps) {
   const types = dateFieldsOffered(host)
@@ -186,7 +174,7 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const negatable = isNegatableDateField(field)
   const not = negatable && (hasEnd ? range.not : pendingNot[field] === true)
   const noDateWords = optional ? NO_DATE_WORDS[field] : undefined
-  const rangeNote = field === 'completed' ? COMPLETED_NOTE[host?.completedNote ?? 'gate'] : undefined
+  const rangeNote = field === 'completed' ? COMPLETED_NOTE : undefined
   const shortName = DATE_FIELD_LABELS_SHORT[field]
 
   const forgetHidden = (f: DateField) => setHidden((h) => {

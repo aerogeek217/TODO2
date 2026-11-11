@@ -5,7 +5,7 @@ import { afterLeavingEditors, editorsHoldChanges, leaveOpenEditors } from './edi
 import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
-import type { EisenhowerQuadrant, WidgetKind } from '../models/workspace-layout'
+import type { WidgetKind } from '../models/workspace-layout'
 
 type EditPopupMode = 'edit' | 'create' | null
 
@@ -23,7 +23,6 @@ export type SettingsPartId =
   | 'new-tasks'
   | 'lists-and-rows'
   | 'lenses'
-  | 'eisenhower'
   | 'completed'
   | 'file-storage'
   | 'backups'
@@ -39,17 +38,11 @@ export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSect
   'new-tasks': 'tasks',
   'lists-and-rows': 'tasks',
   lenses: 'tasks',
-  eisenhower: 'tasks',
   completed: 'tasks',
   'file-storage': 'database',
   backups: 'database',
   'import-export': 'database',
   'data-integrity': 'database',
-}
-
-/** The `data-settings-focus` of pane `q`'s name field in Settings › Tasks › Eisenhower. */
-export function eisenhowerPaneFocus(q: EisenhowerQuadrant): string {
-  return `eisenhower-pane-${q}`
 }
 
 /** The `data-settings-focus` of lens `lensId`'s row (its head button) in Settings › Tasks › Lenses. */
@@ -131,7 +124,6 @@ export interface AddWidgetRequest {
 export interface QuickAddDraftSeed {
   rawTitle: string
   defaults?: FilterDefaults
-  source?: string
 }
 
 export interface BulkConfirmation {
@@ -331,8 +323,6 @@ interface UIState {
    *    widget's "+ Add task" affordance to plumb the list's predicate
    *    through to QuickAddBar's submit handler. When absent, the submit
    *    handler falls back to `useFilterStore.getState().filters`.
-   * 4. `source` names where the task is being added (e.g. an Eisenhower
-   *    quadrant): the bar shows `Adding to <source>`.
    */
   quickAddDraft: QuickAddDraftSeed | null
   /**
@@ -359,7 +349,7 @@ interface UIState {
   settingsPart: SettingsPartId | null
   /**
    * A control in that part to focus once shown — the one whose
-   * `data-settings-focus` it names (e.g. an Eisenhower pane's name field);
+   * `data-settings-focus` it names (e.g. a lens's row);
    * set only with a part, cleared with it (and when Settings closes).
    */
   settingsFocus: string | null
@@ -431,7 +421,7 @@ interface UIState {
   closeListEditor: () => void
   openNumberEditor: (tabId: string) => void
   closeNumberEditor: () => void
-  openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults; source?: string }) => void
+  openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults }) => void
   closeQuickAdd: () => void
   setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
   showRecentlyCreated: (todoId: number) => void
@@ -733,11 +723,10 @@ export const useUIStore = create<UIState>((set, get) => ({
     let draft: QuickAddDraftSeed | null = null
     if (typeof seed === 'string') {
       draft = { rawTitle: seed }
-    } else if (seed && (seed.rawTitle != null || seed.defaults || seed.source)) {
+    } else if (seed && (seed.rawTitle != null || seed.defaults)) {
       draft = {
         rawTitle: seed.rawTitle ?? '',
         ...(seed.defaults ? { defaults: seed.defaults } : {}),
-        ...(seed.source ? { source: seed.source } : {}),
       }
     }
     set({ quickAddOpen: true, quickAddDraft: draft })

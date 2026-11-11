@@ -344,12 +344,3 @@ export function tagTaskDialog(tag: Pick<Tag, 'id' | 'name'>): TaskDialogPayload 
   }
 }
 
-/** An Eisenhower tab's open tasks that no pane's filter matches (the line under its panes). */
-export function noPaneTaskDialog(todoIds: readonly number[]): TaskDialogPayload {
-  return {
-    title: 'In no pane',
-    glyph: 'matrix',
-    description: 'Open tasks the Eisenhower considers that match none of its panes’ filters.',
-    source: { kind: 'todos', todoIds },
-  }
-}

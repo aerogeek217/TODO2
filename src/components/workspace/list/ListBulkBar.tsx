@@ -36,7 +36,7 @@ function sharedIds(map: Map<number, Array<{ id?: number }>>, todoIds: readonly n
 }
 
 /**
- * The bar docked at the foot of a list widget (an Eisenhower, a Neglect map)
+ * The bar docked at the foot of a list widget (and a Neglect map)
  * with 2+ rows selected — a flex child after its scroll, so it covers no row,
  * wrapping in a narrow cell (UX cleanup 1A): set due date,
  * set follow-up, assign people, add tag, complete, ⋯ More, delete, clear.

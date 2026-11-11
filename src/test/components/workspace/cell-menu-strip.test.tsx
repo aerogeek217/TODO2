@@ -463,9 +463,9 @@ describe('a cell’s widget faces (D25 R)', () => {
     expect(document.querySelector('[data-glance]')!.getAttribute('data-face')).toBe('small')
   })
 
-  it('a face with no top line of its own (the Eisenhower’s small one): the cell’s slot stands for the tab', () => {
+  it('a face with no top line of its own (the calendar’s small one): the cell’s slot stands for the tab', () => {
     stubSize(400, 80)
-    const k = cell('k', [createTab('eisenhower', 'e')])
+    const k = cell('k', [createTab('calendar', 'e')])
     open(single(k))
     renderCell(k)
     expect(cellEl('k').dataset.face).toBe('small')

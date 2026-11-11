@@ -6,7 +6,6 @@ import { NotesWidget } from './NotesWidget'
 import { ReviewWidget } from './review/ReviewWidget'
 import { CalendarWidget } from './calendar/CalendarWidget'
 import type { GlanceSummary } from './glance/glance-summary'
-import { EisenhowerWidget } from './eisenhower/EisenhowerWidget'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 import { NeglectMapWidget } from './neglect/NeglectMapWidget'
 import { GlanceWidget } from './glance/GlanceWidget'
@@ -21,8 +20,7 @@ export interface WidgetResult extends ListWidgetResult {
 interface WidgetBodyProps {
   tab: LayoutTab
   /**
-   * List and Eisenhower tabs report their count label (for the tab); list
-   * tabs also their shown sections (for "Copy tasks"), a glance widget its
+   * List tabs report their count label (for the tab) and their shown sections (for "Copy tasks"), a glance widget its
    * lines (for "Copy").
    */
   onResult?: (result: WidgetResult) => void
@@ -52,13 +50,6 @@ function KindBody({ tab, onResult }: WidgetBodyProps): ReactElement {
       return <ReviewWidget tab={tab} />
     case 'notes':
       return <NotesWidget />
-    case 'eisenhower':
-      return (
-        <EisenhowerWidget
-          tab={tab}
-          onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS }) : undefined}
-        />
-      )
     case 'neglect':
       return <NeglectMapWidget tab={tab} />
     case 'number':
