@@ -274,7 +274,7 @@ test('narrowing with a long lens on: it never folds or overflows; the tray folds
   expect(wide.nameWidth).toBe(160)
 
   const seen = new Set<string>()
-  // Measured on this seed: the chip folds below 978px, the tabs below 890px, the name is cut below 744px.
+  // Measured on this seed: the chip folds below 1000px, the tabs below 914px, the name is cut below 764px.
   for (let width = 1600; width >= 720; width -= 40) {
     await page.setViewportSize({ width, height: 900 })
     const g = await settled(page)
@@ -298,8 +298,8 @@ test('narrowing with a long lens on: it never folds or overflows; the tray folds
 })
 
 test('with the chips folded and the panel open the control stays put; a press on it closes the panel, then its picker picks', async ({ page }) => {
-  // Measured on this seed with this lens and Aisha picked: the chip folds below 890px, the tabs below 806px.
-  await page.setViewportSize({ width: 850, height: 900 })
+  // Measured on this seed with this lens and Aisha picked: the chip folds below 914px, the tabs below 828px.
+  await page.setViewportSize({ width: 870, height: 900 })
   await seedWorkspace(page, SEED)
   await pickLens(page, 'Has a person')
   await personChip(page, 'Aisha Rahman')

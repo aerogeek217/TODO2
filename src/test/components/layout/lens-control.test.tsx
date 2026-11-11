@@ -51,7 +51,9 @@ describe('the lens control and the counter', () => {
     const slot = lens().parentElement!
     expect(slot).toHaveAttribute('data-fold-part', 'lens')
     expect(tray().contains(lens())).toBe(false)
-    expect(slot.previousElementSibling).toHaveAttribute('data-fold-part', 'layout')
+    // After the centring gap that puts it and the tray in the middle of the bar.
+    expect(slot.previousElementSibling).toHaveAttribute('data-fold-part', 'centre')
+    expect(slot.previousElementSibling?.previousElementSibling).toHaveAttribute('data-fold-part', 'layout')
     expect(slot.nextElementSibling).toBe(tray())
   })
 

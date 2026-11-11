@@ -143,9 +143,11 @@ export function traySqueeze(natural: number, width: number, values: readonly Tra
 /**
  * The bar's parts, by their `data-fold-part`: the filter tray, the layout
  * controls, the lens control (a fixed part, like New task: never folds,
- * counted in the base) and the right zone (its auto margin is free space).
+ * counted in the base), the right zone (its auto margin is free space) and
+ * the centring gap before the lens control (`useTopBarCentre`: free space
+ * too — only its place, the bar's gap, counts).
  */
-export const FOLD_PART = { tray: 'tray', layout: 'layout', lens: 'lens', spring: 'spring' } as const
+export const FOLD_PART = { tray: 'tray', layout: 'layout', lens: 'lens', spring: 'spring', centre: 'centre' } as const
 
 /** On the tray's search box (`SEARCH_WIDTH` wide, narrowed by `traySqueeze`). */
 export const FOLD_SEARCH_ATTR = 'data-fold-search'
@@ -249,6 +251,12 @@ export function measureTopBar(bar: HTMLElement, fold: TopBarFold, tabsKey: strin
     if (part === FOLD_PART.tray) tray = child
     const ccs = getComputedStyle(child)
     if (ccs.display === 'none' || ccs.position === 'absolute' || ccs.position === 'fixed') continue
+    // The centring gap is free space: only its place in the bar counts.
+    if (part === FOLD_PART.centre) {
+      need += shown > 0 ? gap : 0
+      shown++
+      continue
+    }
     const margins = part === FOLD_PART.spring ? 0 : (parseFloat(ccs.marginLeft) || 0) + (parseFloat(ccs.marginRight) || 0)
     // The tray's own width is what each fold decides; its place (gap, margins) is the base's.
     const width = part === FOLD_PART.tray ? 0 : child.offsetWidth

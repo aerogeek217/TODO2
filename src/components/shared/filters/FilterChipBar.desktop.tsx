@@ -301,7 +301,7 @@ function FilterMenu({ fields, folded, showCompleted, onToggleCompleted, active, 
   measureOnly: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const [sub, setSub] = useState<{ key: FieldKey; x: number; y: number } | null>(null)
+  const [sub, setSub] = useState<{ key: FieldKey; row: { left: number; top: number; right: number; bottom: number } } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
@@ -334,9 +334,11 @@ function FilterMenu({ fields, folded, showCompleted, onToggleCompleted, active, 
     caret: true,
   })
   const { panelRef: subPanelRef, style: subStyle } = usePopoverAnchor({
-    anchor: { kind: 'point', x: sub?.x ?? 0, y: sub?.y ?? 0 },
+    // Beside its row, to the right — or to the left of the menu when the right has no room.
+    anchor: { kind: 'rect', ...(sub?.row ?? { left: 0, top: 0, right: 0, bottom: 0 }) },
+    placement: 'right-start',
     open: sub != null,
-    offset: 0,
+    offset: 4,
     onClose: closeSub,
     closeOnOutsideClick: false,
     consumeEscape,
@@ -355,8 +357,10 @@ function FilterMenu({ fields, folded, showCompleted, onToggleCompleted, active, 
     if (sub?.key === field.key) { closeSub(); return }
     closeSub()
     subRowRef.current = button
+    // The menu's edges, the row's height (a picker clear of the whole menu, on whichever side has room).
     const rect = (button.parentElement ?? button).getBoundingClientRect()
-    setSub({ key: field.key, x: rect.right + 4, y: rect.top - 4 })
+    const menu = menuRef.current?.getBoundingClientRect() ?? rect
+    setSub({ key: field.key, row: { left: menu.left, top: rect.top - 4, right: menu.right, bottom: rect.bottom } })
     field.onOpen?.()
   }
 

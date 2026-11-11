@@ -64,7 +64,7 @@ test('dragging a tab reorders the layouts, saved at once (no unsaved dot); Undo 
   await page.reload()
   await expect.poll(() => layoutTabNames(page)).toEqual(['Third', 'Main', 'Second'])
   // A window too narrow for the tabs (the picker then).
-  await page.setViewportSize({ width: 660, height: 800 }) // the tabs fold below 674px here
+  await page.setViewportSize({ width: 660, height: 800 }) // three tabs fold into the picker here
   await page.getByTestId('layout-picker').click()
   await expect(page.getByRole('menuitemradio')).toHaveText(['Third', 'Main', 'Second'])
 })
@@ -198,7 +198,7 @@ test('Delete from a tab’s menu names the lists that go with it', async ({ page
 })
 
 test('the folded picker: drag a layout to reorder it', async ({ page }) => {
-  await page.setViewportSize({ width: 660, height: 800 }) // the tabs fold below 674px here
+  await page.setViewportSize({ width: 660, height: 800 }) // three tabs fold into the picker here
   await seedWorkspace(page, three)
   await page.getByTestId('layout-picker').click()
   const item = (name: string) => page.getByRole('menuitemradio', { name, exact: true })
