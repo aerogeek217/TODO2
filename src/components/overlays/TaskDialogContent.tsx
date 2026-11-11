@@ -28,7 +28,7 @@ import { GlanceGlyph } from '../shared/GlanceGlyph'
 import { EnvelopeIcon, ReplyIcon, ReviewIcon } from '../shared/icons'
 import { personCheckinLabel, personReplyLabel, personReviewLabel, useEntityMenuOffers } from '../shared/person-menu-entries'
 import { sendPersonCheckin } from '../../services/checkin-email/person-checkin'
-import { openReview, personReview } from '../../services/review'
+import { openReview, personReview, queueOfRowGroups, reviewTasksLabel } from '../../services/review'
 import styles from './TaskDialog.module.css'
 
 interface Resolved {
@@ -53,6 +53,11 @@ export interface TaskDialogContentProps {
   onClose: () => void
   /** Under the header (the phone's screen-filter bar). */
   filterBar?: ReactNode
+  /**
+   * Offers **Review these N tasks** beside Copy tasks (the filtered-tasks
+   * panel's): called with the rows as listed. None with no task.
+   */
+  onReview?: (groups: readonly TaskDialogRowGroup[]) => void
 }
 
 /**
@@ -67,7 +72,7 @@ export interface TaskDialogContentProps {
  * under the title (`PersonActions`, D26 BD). Footer: Copy tasks, Close (a
  * secondary button, as the review deck's, with its Esc hint).
  */
-export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterBar }: TaskDialogContentProps) {
+export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterBar, onReview }: TaskDialogContentProps) {
   const [resolved, setResolved] = useState<Resolved>(() => resolve(payload))
   const isScreen = payload.source.kind === 'screen'
   // The screen filter (the chips with the lens), only for its own tasks (no
@@ -90,6 +95,8 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
 
   const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos])
   const count = taskDialogCount(groups)
+  // The review's queue length: each task once.
+  const reviewCount = onReview ? queueOfRowGroups(groups).ids.length : 0
   const { personId } = payload
 
   // The editor closed: focus comes back here, so the next Esc closes this —
@@ -170,6 +177,12 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
           <CopyIcon />
           {copied ? 'Copied' : 'Copy tasks'}
         </button>
+        {onReview && reviewCount > 0 && (
+          <button type="button" className={styles.ghostBtn} onClick={() => onReview(groups)}>
+            <ReviewIcon size={12} />
+            {reviewTasksLabel(reviewCount)}
+          </button>
+        )}
         <span className={styles.spacer} />
         <button type="button" className={styles.secondaryBtn} onClick={onClose}>
           Close<kbd className={styles.kbd}>Esc</kbd>

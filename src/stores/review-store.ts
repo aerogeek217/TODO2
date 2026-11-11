@@ -28,8 +28,12 @@ export {
  * (`components/overlays/ReviewDeck`) shows it while `open`.
  */
 
-/** Where a review came from: a list tab, a person, several people, a tag; a Breakdown row (D26 P8) — a status, a priority group or another split's row (`chart`). */
-export type ReviewSourceKind = 'list' | 'person' | 'people' | 'tag' | 'status' | 'priority' | 'chart'
+/**
+ * Where a review came from: a list tab, a person, several people, a tag; a
+ * Breakdown row (D26 P8) — a status, a priority group or another split's row
+ * (`chart`); the top bar's screen filter, from its filtered-tasks panel (`screen`).
+ */
+export type ReviewSourceKind = 'list' | 'person' | 'people' | 'tag' | 'status' | 'priority' | 'chart' | 'screen'
 
 export interface ReviewSource {
   kind: ReviewSourceKind

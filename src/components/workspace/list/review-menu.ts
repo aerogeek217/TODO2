@@ -1,5 +1,5 @@
 import type { LensTab } from '../../../models/workspace-layout'
-import { queueOfSections, reviewListTab } from '../../../services/review'
+import { queueOfSections, reviewListTab, reviewTasksLabel } from '../../../services/review'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { shortcutLabel } from '../../../utils/shortcut-bindings'
@@ -7,7 +7,7 @@ import type { MenuEntry } from '../../shared/MenuPopover'
 
 /** The tab menu item's label: `Review these 8 tasks` (`Review this task` for one). */
 export function reviewMenuLabel(n: number): string {
-  return n === 1 ? 'Review this task' : `Review these ${n} tasks`
+  return reviewTasksLabel(n)
 }
 
 /**

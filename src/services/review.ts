@@ -9,14 +9,21 @@ import { currentAppliedLens } from '../stores/screen-filter'
 import { useUIStore } from '../stores/ui-store'
 import type { TaskDialogPayload } from '../stores/task-dialog-payload'
 import { todoNameLookups } from '../utils/filter'
-import { predicateToCriteria } from '../utils/filter-criteria'
+import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
 import { createPredicateEvaluator, createScreenComposedEvaluator, type FilterSettings } from '../utils/filter-match'
 import { withLens } from '../utils/lens'
 import { bySortOrder } from '../utils/sort-order'
 import { buildList } from './build-list'
 import { zoomTargetTab } from './list-zoom'
 import { setReviewQueue } from './review-queue'
-import { currentTaskDialogEnv, personTaskDialog, tagTaskDialog, type TaskDialogEnv } from './task-dialog'
+import {
+  currentTaskDialogEnv,
+  personTaskDialog,
+  resolveTaskDialog,
+  tagTaskDialog,
+  type TaskDialogEnv,
+  type TaskDialogRowGroup,
+} from './task-dialog'
 
 /**
  * The review deck's entry point (D26): `openReview` with what to review,
@@ -203,6 +210,69 @@ export function listReview(tabId: string): ReviewPayload | null {
 export function reviewTargetTabId(): string | null {
   const tab = zoomTargetTab()
   return tab && listReviewCount(tab.id) > 0 ? tab.id : null
+}
+
+/**
+ * A task dialog's row groups as a queue: every task once, at its first place;
+ * when the groups have headings, each that adds a task is a divider before
+ * its first (as a grouped list tab's review).
+ */
+export function queueOfRowGroups(groups: readonly TaskDialogRowGroup[]): { ids: number[]; dividers: ReviewDivider[] } {
+  const seen = new Set<number>()
+  const ids: number[] = []
+  const dividers: ReviewDivider[] = []
+  for (const group of groups) {
+    const start = ids.length
+    for (const id of group.todoIds) {
+      if (seen.has(id)) continue
+      seen.add(id)
+      ids.push(id)
+    }
+    if (group.label != null && ids.length > start) dividers.push({ index: start, label: group.label })
+  }
+  return { ids, dividers }
+}
+
+/**
+ * The screen filter's tasks now — the top bar's chips, and its lens unless
+ * `ignoreLens` — as its filtered-tasks panel lists them (Settings' new-list
+ * sort and grouping), as a queue.
+ */
+export function screenQueueNow(ignoreLens: boolean): ReviewQueue {
+  const env = currentTaskDialogEnv()
+  const chips = useFilterStore.getState().filters
+  const screen = withLens(chips, ignoreLens ? undefined : currentAppliedLens())
+  return queueOfRowGroups(resolveTaskDialog({ kind: 'screen' }, { ...env, screen }))
+}
+
+/** A review entry point's label for `n` tasks: `Review these 8 tasks` (`Review this task` for one). */
+export function reviewTasksLabel(n: number): string {
+  return n === 1 ? 'Review this task' : `Review these ${n} tasks`
+}
+
+/** What the screen filter's review took, in one line (the deck's header). */
+export function screenReviewDescription(chips: FilterCriteria): string {
+  if (countActiveFilters(chips) === 0) return 'Every open task the top bar shows.'
+  return admitsCompleted(chips) ? 'Tasks matching the screen filter, completed ones included.' : 'Open tasks matching the screen filter.'
+}
+
+/** The screen filter's review's name in the deck's header: the panel's. */
+export const SCREEN_REVIEW_TITLE = 'Filtered tasks'
+
+/**
+ * The filtered-tasks panel's review (Review these N tasks): the tasks the
+ * panel lists, in its order — `groups`, its rows as they are now (a task
+ * completed there stays) — its headings the dividers; the deck's lens switch
+ * takes them again from the screen filter with / without the lens.
+ */
+export function screenReview(groups: readonly TaskDialogRowGroup[]): ReviewPayload {
+  return {
+    kind: 'screen',
+    title: SCREEN_REVIEW_TITLE,
+    description: screenReviewDescription(useFilterStore.getState().filters),
+    ...queueOfRowGroups(groups),
+    lens: { ignored: false, requery: screenQueueNow },
+  }
 }
 
 /** Reviews list tab `tabId`'s tasks as shown (false: nothing to review). */
