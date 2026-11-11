@@ -26,7 +26,7 @@ import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_TASKS, STATUSES, TAGS } 
 import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
- * The Breakdown (D26 P8) in JSDOM: its headings sort (view state), the
+ * The Breakdown (D26 P8) in JSDOM: its headings sort (view state), no
  * filter row, the row's Review button and the count columns' clicks (the
  * review deck), the person menu, its faces, its tab menu and its editor's
  * round trip, its count columns among them (board BC).
@@ -143,46 +143,15 @@ describe('the headings sort (view state, per split)', () => {
   })
 })
 
-describe('the filter row (temporary, per split)', () => {
-  it('typing narrows by name; Enter picks the first match; Backspace takes it back; × clears', () => {
+describe('no filter row', () => {
+  it('the large face has no text field: every row shows', () => {
     setup(breakdown())
-    const field = within(document.querySelector<HTMLElement>('[data-testid="breakdown-filter-row"]')!).getByRole('textbox', { name: 'Filter by person' })
-    fireEvent.change(field, { target: { value: 'pri' } })
-    expect(keys()).toEqual(['person-4'])
-    fireEvent.keyDown(field, { key: 'Enter' })
-    expect(field).toHaveValue('')
-    expect(useChartWidgetsStore.getState().rowPicks.b?.people).toEqual(['person-4'])
-    expect(keys()).toEqual(['person-4'])
-    fireEvent.change(field, { target: { value: 'unass' } })
-    fireEvent.keyDown(field, { key: 'Enter' })
-    expect(keys()).toEqual(['person-4', 'none'])
-    fireEvent.keyDown(field, { key: 'Backspace' })
-    expect(keys()).toEqual(['person-4'])
-    fireEvent.click(document.querySelector('[aria-label="Clear the person filter"]')!)
+    expect(document.querySelectorAll('input[type="text"]')).toHaveLength(0)
     expect(keys().length).toBeGreaterThan(2)
-    // Never in the layout.
-    expect(layoutSteps()).toEqual([])
   })
 
-  it('a pick that matches no row any more is ignored: no chip, every row shown, and a new pick replaces it', () => {
-    setup(breakdown())
-    const all = keys()
-    act(() => { useChartWidgetsStore.getState().setRowPicks('b', 'people', ['person-99']) })
-    expect(keys()).toEqual(all)
-    expect(document.querySelector('[data-testid="breakdown-filter-chip"]')).toBeNull()
-    // A stale pick with a live one: the live one filters alone.
-    act(() => { useChartWidgetsStore.getState().setRowPicks('b', 'people', ['person-99', 'person-4']) })
-    expect(keys()).toEqual(['person-4'])
-    // Backspace takes back the chip on screen, not the stale pick.
-    const field = within(document.querySelector<HTMLElement>('[data-testid="breakdown-filter-row"]')!).getByRole('textbox', { name: 'Filter by person' })
-    fireEvent.keyDown(field, { key: 'Backspace' })
-    expect(keys()).toEqual(all)
-    expect(useChartWidgetsStore.getState().rowPicks.b?.people ?? []).toEqual([])
-  })
-
-  it('the medium face has no filter row and shows name · the count columns', () => {
+  it('the medium face shows name · the count columns', () => {
     setup(breakdown(), { face: 'medium' })
-    expect(document.querySelector('[data-testid="breakdown-filter-row"]')).toBeNull()
     expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toEqual(['Person', 'Due', 'Follow-up'])
   })
 })
@@ -486,7 +455,7 @@ describe('Add widget › Insights › Breakdown › its presets', () => {
     return [...document.querySelectorAll<HTMLElement>('[role="menu"][aria-label="Breakdown"] [role="menuitem"]')]
   }
 
-  it('lists People · Tags · Status · Custom (no Waiting on); a preset adds its Breakdown and opens its editor', () => {
+  it('lists People · Tags · Status · Custom (no Waiting on); a preset adds its Breakdown and opens no editor', () => {
     inLayout(breakdown())
     render(<DndContext><AddWidgetFlow cellId="c" anchor={{ x: 10, y: 10 }} onClose={() => {}} /></DndContext>)
     const presets = openPresets()
@@ -494,7 +463,7 @@ describe('Add widget › Insights › Breakdown › its presets', () => {
     fireEvent.click(presets[2]!)
     const added = useWorkspaceStore.getState().working!.cells[0]!.tabs.at(-1) as BreakdownTab
     expect(added.config).toMatchObject({ name: 'Status', splitBy: 'status' })
-    expect(useChartWidgetsStore.getState().editorTabId).toBe(added.id)
+    expect(useChartWidgetsStore.getState().editorTabId).toBeNull()
   })
 
   it('every preset writes the Due and Follow-up columns in Settings’ ranges of the moment; later Settings changes leave them', () => {

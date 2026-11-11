@@ -47,9 +47,7 @@ import {
   pickBreakdownConfig,
   pickBreakdownView,
   pickPivotConfig,
-  pickTagMapConfig,
   pivotConfigProblem,
-  tagMapConfigProblem,
 } from '../models/chart-widgets'
 // G5: Project pulse's config and its rules.
 import { pickPulseConfig, pulseConfigProblem, pulseRulePredicates } from '../models/pulse-config'
@@ -239,10 +237,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       const bad = pivotConfigProblem(config)
       return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
     }
-    case 'tagMap': {
-      const bad = tagMapConfigProblem(config)
-      return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
-    }
     case 'notes':
       return true
     // Item 12: a Review widget — what it reviews by (or an earlier build's saved pick), and its sort.
@@ -366,13 +360,13 @@ function idTracker(): (id: string) => boolean {
 
 /**
  * Kinds removed while the schema stayed at v78 — the Status flow chart
- * (D26 P8, shipped in v78) —: a v78 file may hold one, and no upgrade
- * runs on it, so its tab passes the check (import, a restore and the sync
- * file take the file) and the repair drops it as an unknown kind (a fix:
- * `Fixed 1 layout`; a stored layout opens unsaved), its emptied cell
- * closing.
+ * (D26 P8, shipped in v78) and the Tag map —: a v78 file may hold one, and
+ * no upgrade runs on it, so its tab passes the check (import, a restore and
+ * the sync file take the file) and the repair drops it as an unknown kind
+ * (a fix: `Fixed 1 layout`; a stored layout opens unsaved), its emptied
+ * cell closing.
  */
-const REMOVED_IN_V78: ReadonlySet<unknown> = new Set(['statusFlow'])
+const REMOVED_IN_V78: ReadonlySet<unknown> = new Set(['statusFlow', 'tagMap'])
 
 /** `true` when every tab of a strip is valid, else the path of the first bad field. */
 function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) => boolean): true | string {
@@ -500,8 +494,8 @@ interface PickedCell {
  * (v77 converted every one), and `followup`, `next7`, `stale`, `recent`,
  * `changes`, `today` and `eisenhowerSummary` (v78 dropped or converted
  * every one) — is an unknown kind, dropped like one, and a cell it leaves
- * without tabs closes. A Status flow tab (`REMOVED_IN_V78`) passes the
- * check but is dropped the same way, reported in `fixes`.
+ * without tabs closes. A Status flow or Tag map tab (`REMOVED_IN_V78`)
+ * passes the check but is dropped the same way, reported in `fixes`.
  *
  * Past `LAYOUT_PART_LIMIT` tracks, cells or tabs in the layout, the rest are
  * dropped and reported in `fixes`.
@@ -653,8 +647,6 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'pivot':
         return withLensView<LensSwitchTab>({ id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) })
-      case 'tagMap':
-        return withLensView<LensSwitchTab>({ id, kind: 'tagMap', config: glance(pickTagMapConfig(config, chartFilterOf(config))) })
     }
   }
 

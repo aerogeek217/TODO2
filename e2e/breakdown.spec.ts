@@ -5,8 +5,8 @@ import { expectDeckAt } from './fixtures/review'
 /**
  * The Breakdown (D26 P8, boards Z1 / Z3 and review mode's board F): a row,
  * a bar or a segment drills into the task dialog; the headings sort (view
- * state, kept across a reload, the layout still saved); the filter row
- * narrows the rows; the row's Review button and a count column's count
+ * state, kept across a reload, the layout still saved); the top bar's @
+ * pick narrows the rows (no filter row of its own); the row's Review button and a count column's count
  * open the review deck on just those tasks; the editor's count columns
  * (board BC); the lens switch (G3).
  */
@@ -74,7 +74,7 @@ test('a row and a stacked segment open their tasks in the task dialog', async ({
   await expect(dialog(page).getByRole('heading')).toHaveText(/^People · /)
 })
 
-test('the headings sort (saved at once, per split); the filter row narrows the rows', async ({ page }) => {
+test('the headings sort (saved at once, per split); the top bar’s @ pick narrows the rows (no filter row)', async ({ page }) => {
   await seedWorkspace(page, SEED)
   // The default: most counted across the count columns first; no sort words in the header.
   await expect.poll(() => rowNames(page)).toEqual(['Aisha Rahman', 'Ben Ortiz', 'Cy Young', 'Unassigned'])
@@ -95,23 +95,15 @@ test('the headings sort (saved at once, per split); the filter row narrows the r
   await chart(page).getByRole('button', { name: /^Open/ }).click()
   await expect.poll(() => rowNames(page)).toEqual(['Aisha Rahman', 'Ben Ortiz', 'Cy Young', 'Unassigned'])
 
-  // The filter row: typing narrows by name; Enter picks the first match; picks OR.
-  const field = chart(page).getByRole('textbox', { name: 'Filter by person' })
-  await field.fill('ben')
+  // No filter row (item 2): the top bar's @ picks narrow the people rows instead.
+  await expect(chart(page).getByRole('textbox')).toHaveCount(0)
+  const tray = page.locator('header').getByRole('group', { name: 'Screen filters — apply to every widget' })
+  await tray.getByRole('textbox', { name: 'Filter tasks' }).click()
+  await page.keyboard.type('@Ben', { delay: 20 })
+  await page.getByRole('listbox', { name: 'People' }).getByRole('option', { name: 'Ben Ortiz' }).waitFor()
+  await page.keyboard.press('Enter')
+  await expect(tray).toContainText('Ben Ortiz')
   await expect.poll(() => rowNames(page)).toEqual(['Ben Ortiz'])
-  await field.press('Enter')
-  await expect(chart(page).getByTestId('breakdown-filter-chip')).toHaveText(['Ben Ortiz×'])
-  await field.fill('cy')
-  await field.press('Enter')
-  await expect.poll(() => rowNames(page)).toEqual(['Ben Ortiz', 'Cy Young'])
-  // Backspace in the empty field takes the last chip back; Esc clears the text; × clears it all.
-  await field.press('Backspace')
-  await expect.poll(() => rowNames(page)).toEqual(['Ben Ortiz'])
-  await field.fill('ai')
-  await field.press('Escape')
-  await expect(field).toHaveValue('')
-  await chart(page).getByRole('button', { name: 'Clear the person filter' }).click()
-  await expect.poll(() => rowNames(page)).toHaveLength(4)
 })
 
 /** The opacity of a row's actions (Review, the envelope), which show on the row's hover or focus. */

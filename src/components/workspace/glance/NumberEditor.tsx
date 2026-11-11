@@ -130,12 +130,10 @@ export function NumberEditorHost() {
  * goal, several counts (each its own name, colour and filter, in place of
  * its filter and colour) or one of the layout's lists (in place of its
  * filter and lens) — only the active shape's fields. A popover beside
- * the Number, opened by Edit number… (its tab menu) and straight after a
- * Number is added. Its controls edit a copy of the config, which the
+ * the Number, opened by Edit number… (its tab menu). Its controls edit a copy of the config, which the
  * Number draws live (`useEditorDraft`, Edit list's pattern): Save writes the
  * changes for good as one layout config update — one undo step — and
- * Discard drops them (straight after Add widget, the new
- * Number stays with its first config). Esc, × or a press elsewhere close
+ * Discard drops them. Esc, × or a press elsewhere close
  * it at once while nothing changed, else ask Save / Discard / Keep editing
  * (an expression that doesn't read holds the first press, as everywhere).
  * The Top-bar lens switch is view state, written at once as on the

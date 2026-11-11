@@ -113,7 +113,7 @@ export function breakdownColumnDrill(chart: string, row: BreakdownRow, columnId:
   }
 }
 
-/** A chart's tasks under a heading of their own (a Pivot cell, a Tag map tile). */
+/** A chart's tasks under a heading of their own (a Pivot cell). */
 export function chartDrill(title: string, glyph: GlanceGlyphName, description: string, ids: readonly number[]): GlanceDrill {
   return { title, glyph, description, source: { kind: 'todos', todoIds: [...ids] } }
 }
