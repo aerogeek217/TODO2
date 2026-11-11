@@ -260,7 +260,7 @@ function PivotFields({ config, patch }: { config: PivotConfig; patch: (p: Partia
 type ChartConfig = ChartTab['config']
 
 /** Each chart kind's noun, as its editor's title and close question name it. */
-const KIND_NOUNS: Record<ChartTab['kind'], string> = { breakdown: 'breakdown', pivot: 'pivot', tagMap: 'tag map' }
+const KIND_NOUNS: Record<ChartTab['kind'], string> = { breakdown: 'breakdown', pivot: 'pivot' }
 
 /**
  * What each chart kind's editor's filter is labelled and its own fields,
@@ -282,11 +282,6 @@ function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { f
       return {
         filterLabel: 'Split tasks where',
         fields: <PivotFields config={tab.config} patch={patch} />,
-      }
-    case 'tagMap':
-      return {
-        filterLabel: 'Open tasks where',
-        fields: <span className={styles.hint}>Its ⋯ menu’s Tags picks the tags it maps; Every tag by default.</span>,
       }
   }
 }

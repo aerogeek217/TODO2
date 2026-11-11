@@ -35,7 +35,7 @@ const tab = (page: Page, kind: WidgetKind) => {
 }
 /** The add-widget menu's items: the task kinds, then the Insights submenu. */
 /** The chart kinds (D26 P8): a new one opens its editor. */
-const CHART_KINDS: ReadonlySet<string> = new Set(['breakdown', 'pivot', 'tagMap'])
+const CHART_KINDS: ReadonlySet<string> = new Set(['breakdown', 'pivot'])
 const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindLabel), 'Insights']
 
 test.describe('desktop', () => {

@@ -223,7 +223,7 @@ export function addWidgetAt(kind: WidgetKind, target: LayoutDropTarget, listDefi
   const tabId = useWorkspaceStore.getState().addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
   if (tabId != null && kind === 'number') openNumberEditor(tabId)
   // D26 P8: a chart opens its editor too.
-  if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'tagMap')) {
+  if (tabId != null && (kind === 'breakdown' || kind === 'pivot')) {
     const chartTab = tabId
     openBeside(chartTab, () => useChartWidgetsStore.getState().openEditor(chartTab))
   }
