@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { checkOfflineFile, scriptHash, splitHtml, unusedInertTexts } from '../../../scripts/offline-file'
+import { escapeRegExp } from '../helpers/escape-reg-exp'
 
 /**
  * The offline build's reading of its own file (`scripts/offline-file.ts`):
@@ -155,7 +156,7 @@ describe('checkOfflineFile', () => {
     const problems = checkOfflineFile(offlineFile({ script, csp }))
     // A rel value in markup in a string is both a `rel=` and a quoted value: one hint, said twice.
     expect(problems).toHaveLength(code.includes('rel="') ? 2 : 1)
-    for (const p of problems) expect(p).toMatch(new RegExp(`^uses ${name.replace(/[.()]/g, '\\$&')}: …`))
+    for (const p of problems) expect(p).toMatch(new RegExp(`^uses ${escapeRegExp(name)}: …`))
   })
 
   it.each([
@@ -172,7 +173,7 @@ describe('checkOfflineFile', () => {
     const csp = `default-src 'none'; script-src ${scriptHash(script)}; base-uri 'none'; form-action 'none'`
     const problems = checkOfflineFile(offlineFile({ script, csp }))
     expect(problems).toHaveLength(1)
-    expect(problems[0]).toMatch(new RegExp(`^holds a URL not in INERT_URLS: ${url.replace(/[.()/[\]]/g, '\\$&')} \\(…`))
+    expect(problems[0]).toMatch(new RegExp(`^holds a URL not in INERT_URLS: ${escapeRegExp(url)} \\(…`))
   })
 
   it.each([

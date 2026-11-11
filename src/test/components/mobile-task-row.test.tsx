@@ -8,6 +8,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { makeTodo, makePerson } from '../helpers'
+import { escapeRegExp } from '../helpers/escape-reg-exp'
 
 const mockToggleComplete = vi.fn()
 const mockRemove = vi.fn()
@@ -309,7 +310,7 @@ describe('MobileTaskRow', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} onOpenDetail={vi.fn()} />)
       longPress()
       for (const name of ['Open', 'Mark complete', 'Set due date…', 'Follow-up', 'Mark followed up', 'Assign people…', 'Add tag…', 'Add subtask…', 'Delete']) {
-        expect(screen.getByRole('menuitem', { name: new RegExp(`^${name.replace(/[.…]/g, '\\$&')}`) })).toBeInTheDocument()
+        expect(screen.getByRole('menuitem', { name: new RegExp(`^${escapeRegExp(name)}`) })).toBeInTheDocument()
       }
       expect(screen.getByRole('menuitemcheckbox', { name: 'Focus' })).toBeInTheDocument()
     })
