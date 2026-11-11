@@ -455,7 +455,7 @@ describe('Add widget › Insights › Breakdown › its presets', () => {
     return [...document.querySelectorAll<HTMLElement>('[role="menu"][aria-label="Breakdown"] [role="menuitem"]')]
   }
 
-  it('lists People · Tags · Status · Custom (no Waiting on); a preset adds its Breakdown and opens its editor', () => {
+  it('lists People · Tags · Status · Custom (no Waiting on); a preset adds its Breakdown and opens no editor', () => {
     inLayout(breakdown())
     render(<DndContext><AddWidgetFlow cellId="c" anchor={{ x: 10, y: 10 }} onClose={() => {}} /></DndContext>)
     const presets = openPresets()
@@ -463,7 +463,7 @@ describe('Add widget › Insights › Breakdown › its presets', () => {
     fireEvent.click(presets[2]!)
     const added = useWorkspaceStore.getState().working!.cells[0]!.tabs.at(-1) as BreakdownTab
     expect(added.config).toMatchObject({ name: 'Status', splitBy: 'status' })
-    expect(useChartWidgetsStore.getState().editorTabId).toBe(added.id)
+    expect(useChartWidgetsStore.getState().editorTabId).toBeNull()
   })
 
   it('every preset writes the Due and Follow-up columns in Settings’ ranges of the moment; later Settings changes leave them', () => {

@@ -291,11 +291,10 @@ function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { f
  * name, the filter it splits — the Graphical / Expression filter Edit list
  * has, with Reads as — and its kind's own fields (a Breakdown's split,
  * style and what it shows). A popover under the chart's title, opened by
- * its ⋯ menu's Edit … and straight after Add widget. Its controls edit a
+ * its ⋯ menu's Edit …. Its controls edit a
  * copy of the config, which the chart draws live (`useEditorDraft`, Edit
  * list's pattern): Save writes the changes for good as one layout config
- * update — one undo step — and Discard drops them
- * (straight after Add widget, the new chart stays with its first config).
+ * update — one undo step — and Discard drops them.
  * Esc, × or a press elsewhere close it at once while nothing changed, else
  * ask Save / Discard / Keep editing.
  */
