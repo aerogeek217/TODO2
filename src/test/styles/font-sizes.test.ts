@@ -34,6 +34,16 @@ describe('font sizes come from the scale', () => {
     expect(bad).toEqual([])
   })
 
+  it('no transitional --font-size-legacy-* token is defined or used', () => {
+    const bad: string[] = []
+    for (const [path, css] of sourceFiles(/\.css$/)) {
+      stripComments(css).split('\n').forEach((line, i) => {
+        if (/--font-size-legacy-/.test(line)) bad.push(`${path}:${i + 1}  ${line.trim()}`)
+      })
+    }
+    expect(bad).toEqual([])
+  })
+
   it('no inline fontSize with a literal in TS / TSX', () => {
     const bad: string[] = []
     for (const [path, text] of sourceFiles(/\.tsx?$/)) {
