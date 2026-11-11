@@ -60,8 +60,15 @@
   overflow-y: auto;
 }
 
+.cardBox {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
 .card {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
@@ -86,6 +93,98 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  /* The × sits over this corner: the name ellipsizes before it, shown or not. */
+  padding-right: 18px;
+}
+
+/*
+ * A card's × (item 9): over its top-right corner, so showing it moves
+ * nothing. Where there is hover it shows only while the card is hovered or
+ * holds the focus — opacity and no presses while hidden, and no fade: while
+ * opacity is between 0 and 1 it would be a stacking context drawn over its
+ * neighbours, taking their presses. Without hover it always shows.
+ */
+.remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.remove:hover,
+.remove:focus-visible {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+@media (hover: hover) {
+  .cardBox:not(:hover):not(:focus-within) .remove {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+/* The dashed + card after the last card (item 9): opens the tag picker. */
+.addCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 96px;
+  padding: 12px;
+  border: 1px dashed var(--color-border-muted);
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.addCard:hover,
+.addCard:focus-visible,
+.addCard[aria-expanded='true'] {
+  border-color: var(--color-tint-16);
+  color: var(--color-text-primary);
+}
+
+.addPlus {
+  font-size: var(--font-size-display-lg);
+  line-height: 1;
+}
+
+/* The empty state's Add tag: the same picker. */
+.addButton {
+  margin-top: 6px;
+  padding: 4px 10px;
+  border: 1px dashed var(--color-border-muted);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.addButton:hover,
+.addButton:focus-visible,
+.addButton[aria-expanded='true'] {
+  border-color: var(--color-tint-16);
+  color: var(--color-text-primary);
 }
 
 .swatch {
