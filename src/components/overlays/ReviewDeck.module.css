@@ -4,15 +4,16 @@
 
 .deck {
   width: min(1200px, calc(100vw - 32px));
-  /* Its height fits the task (the frame's `fit-content`): never under 700px — the facts column
-   * of a task with a due date, tags and people, so light tasks are all this tall and the update
-   * line stays put —, taller only when a lot is written, up to the window; then the writing
-   * scrolls above its dock. */
-  min-height: min(700px, calc(100vh - 32px));
+  /* Its height fits the task (the frame's `fit-content`): never under 640px — the taller of the
+   * facts rail of a task with a due date, tags and people, and the title + the dock + 160px of
+   * writing — so light tasks are all this tall and the update line stays put; taller only when a
+   * lot is written, up to the window; then the writing scrolls above its dock. */
+  min-height: min(640px, calc(100vh - 32px));
   max-height: calc(100vh - 32px);
   display: grid;
-  /* The queue (300px: a whole title over its two dates), then the card: its facts rail, then its writing. */
-  grid-template-columns: 300px minmax(0, 1fr);
+  /* The queue (300px: a whole title over its two dates; giving way to 220px in a narrow window),
+   * then the card: its facts rail, then its writing. */
+  grid-template-columns: clamp(220px, 25%, 300px) minmax(0, 1fr);
   grid-template-rows: 56px minmax(0, 1fr) 60px;
   grid-template-areas:
     'header header'
@@ -25,6 +26,15 @@
   border: 1px solid var(--color-tint-7);
   border-radius: 24px;
   box-shadow: var(--shadow-glass-card);
+}
+
+/* Under 820px of deck the queue folds into the header's position (`3 of 8`), which opens it. */
+.deck[data-queue-folded] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'header'
+    'card'
+    'footer';
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */

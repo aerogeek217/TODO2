@@ -5,6 +5,7 @@ import {
   dragTab,
   edges,
   expectSameEdges,
+  openCellLayoutMenu,
   openCellMenu,
   pickCellMenu,
   releaseDrag,
@@ -142,14 +143,16 @@ test.describe('drops and the ghost', () => {
 })
 
 test.describe('whole-cell drags', () => {
-  test('the grip shows on header hover without moving anything; a press without travel moves nothing', async ({ page }) => {
+  test('the header’s grip shows on header hover without moving anything; a press without travel moves nothing', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     const handle = wsPanelHandle(page, 'a')
-    const grip = handle.locator('span')
+    const grip = page.locator('[data-ws-cell-header="a"]').getByRole('button', { name: 'Cell layout' })
     const before = await box(wsTab(page, 'eisTab'))
-    await expect(grip).toHaveCSS('opacity', '0')
+    await page.mouse.move(2, 2)
+    await expect.poll(() => grip.evaluate((e) => getComputedStyle(e.parentElement!).opacity)).toBe('0')
     await handle.hover()
-    await expect(grip).toHaveCSS('opacity', '0.9')
+    await expect.poll(() => grip.evaluate((e) => getComputedStyle(e.parentElement!).opacity)).toBe('1')
+    await expect(grip).toHaveCSS('cursor', 'grab')
     await expect(handle).toHaveCSS('cursor', 'grab')
     expect(await box(wsTab(page, 'eisTab'))).toEqual(before)
     const p = await pointIn(handle)
@@ -213,14 +216,14 @@ test.describe('whole-cell drags', () => {
 test.describe('the cell menu', () => {
   test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); Insert ▸ Row at the top', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
-    await openCellMenu(page, 'a')
+    await openCellLayoutMenu(page, 'a')
     await page.getByRole('menuitem', { name: 'Merge with', exact: true }).click()
     await expect(page.getByRole('menuitem', { name: 'Right', exact: true })).toBeDisabled()
     await page.getByRole('menuitem', { name: 'Below', exact: true }).click()
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab', 'notes2']], [['calTab']]])
     await expectLayoutStep(page)
 
-    await openCellMenu(page, 'b')
+    await openCellLayoutMenu(page, 'b')
     await pickCellMenu(page, 'Insert', 'Row at the top')
     const empty = page.getByRole('region', { name: 'Empty cell' })
     await expect(empty).toBeVisible()
@@ -231,7 +234,7 @@ test.describe('the cell menu', () => {
   test('Close cell gives its place to a neighbour sharing its whole edge; with none it stays an empty cell', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     const area = await areaBox(page)
-    await openCellMenu(page, 'c')
+    await openCellLayoutMenu(page, 'c')
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).height)).toBe(Math.round(area.height - 12))
 
@@ -246,7 +249,7 @@ test.describe('the cell menu', () => {
       }],
     })
     const before = await edges(wsCell(page, 'm'))
-    await openCellMenu(page, 'm')
+    await openCellLayoutMenu(page, 'm')
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
     const empty = page.getByRole('region', { name: 'Empty cell' })
     await expect(empty).toBeVisible()

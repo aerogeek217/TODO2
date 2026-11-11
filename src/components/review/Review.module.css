@@ -232,6 +232,50 @@
   font-weight: var(--font-weight-regular);
 }
 
+/* ── The folded queue (task layout A): the progress as a button, the rail in a popover ── */
+
+.queueButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  margin: 0 -8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.queueButton::after {
+  content: '▾';
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.queueButton:hover,
+.queueButton[aria-expanded='true'] {
+  background: var(--color-surface-hover);
+}
+
+.queuePopover {
+  composes: menu from '../shared/dropdown.module.css';
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/* The rail at a size of its own (it never sizes itself from its rows). */
+.queuePopoverRail {
+  width: min(300px, calc(100vw - 32px));
+  height: min(420px, calc(100vh - 120px));
+  border-right: none;
+}
+
 /* ── Card ───────────────────────────────────────────────────────────────── */
 
 /* The task editor's layout (boards BJ, BL): the box and title, then the
@@ -330,39 +374,6 @@
   pointer-events: none;
 }
 
-/* ── Follow-up (the rail's Next and Last) ───────────────────────────────── */
-
-/* Last: a date only, in the rows' words (yellow while the next follow-up is late). */
-.lastValue {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-  font-size: var(--font-size-task);
-}
-
-.lastValue[data-late] > :first-child {
-  color: var(--color-followup);
-}
-
-/* What the Next field holds, in words, while typed into (empty at rest). */
-.help {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11.5px;
-  color: var(--color-text-muted);
-}
-
-.help:empty {
-  display: none;
-}
-
-.helpError {
-  color: var(--color-danger-text);
-}
-
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 
 .footer {
@@ -405,16 +416,6 @@
 .key {
   font-family: inherit;
   font-size: 10.5px;
-  color: var(--color-text-muted);
-}
-
-.hint {
-  min-width: 0;
-  margin-right: 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
   color: var(--color-text-muted);
 }
 
@@ -568,21 +569,54 @@
   white-space: nowrap;
 }
 
-/* Short cells: first the older entry goes, then the log, then the heading. */
-@container review-compact (max-height: 172px) {
+/* The Next row, under the update line (the card's field and quick intervals, short label). Its
+ * help line takes what is left of the row and never wraps a line of its own. */
+.compactNext {
+  flex: none;
+  min-width: 0;
+}
+
+.compactNext [aria-live] {
+  flex-basis: 0;
+}
+
+/* A narrow card: the quick intervals give way (the field takes `2w` typed), and the field narrows,
+ * so the row stays one line. */
+@container review-compact (max-width: 381px) {
+  .compactNext [role='group'] {
+    display: none;
+  }
+
+  .compactNext [data-fact-date-field] {
+    flex: 0 1 160px;
+    min-width: 96px;
+  }
+}
+
+/* Short cells: first the older entry goes, then the log, then the heading, then the Next row; the
+ * update line stays. Each step is the height the card needs with what is still shown (the head
+ * 62px; the dock's padding 19px, heading 14px, entries 19px, update line 32px, Next row 30px, 6px
+ * apart). */
+@container review-compact (max-height: 214px) {
   .compactEntry:not([data-newest]) {
     display: none;
   }
 }
 
-@container review-compact (max-height: 150px) {
+@container review-compact (max-height: 193px) {
   .compactLog {
     display: none;
   }
 }
 
-@container review-compact (max-height: 128px) {
+@container review-compact (max-height: 168px) {
   .compactHeading {
+    display: none;
+  }
+}
+
+@container review-compact (max-height: 148px) {
+  .compactNext {
     display: none;
   }
 }

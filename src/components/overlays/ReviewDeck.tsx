@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, type RefObject, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useElementSize } from '../../hooks/use-element-size'
 import { useToday } from '../../hooks/use-today'
 import { isMacLike } from '../../utils/platform'
+import { reviewQueueFolds } from '../../utils/widget-face'
 import { toggleReviewLens, unrecordedReviewPrompt } from '../../services/review'
 import type { LensMark } from '../../hooks/use-widget-lens'
 import { useAppliedLens } from '../../stores/screen-filter'
@@ -15,6 +17,7 @@ import { DialogFrame } from '../shared/Dialog'
 import { CloseIcon, ReviewIcon } from '../shared/icons'
 import { LensSwitch } from '../shared/LensSwitch'
 import { ReviewCard } from '../review/ReviewCard'
+import { ReviewQueueButton } from '../review/ReviewQueueButton'
 import { ReviewRail } from '../review/ReviewRail'
 import { ReviewSessionContext } from '../review/review-session-context'
 import reviewStyles from '../review/Review.module.css'
@@ -189,6 +192,10 @@ function ReviewDeckPanel() {
     ? `${n} open ${n === 1 ? 'task' : 'tasks'}`
     : `${n} ${n === 1 ? 'task' : 'tasks'}`
   const sourceWords = source && source.kind !== 'person' && source.kind !== 'tag' ? source.description : ''
+  const positionWords = finished ? `All ${n} reviewed` : n > 0 ? `${index + 1} of ${n}` : 'Nothing to review'
+  // Under 820px of deck the queue folds into the position (`3 of 8`), which opens it.
+  const [headerRef, headerSize] = useElementSize()
+  const queueFolded = reviewQueueFolds(headerSize.width)
 
   return (
     <DialogFrame
@@ -199,11 +206,11 @@ function ReviewDeckPanel() {
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       className={styles.deck}
-      data={{ 'review-deck': '' }}
+      data={queueFolded ? { 'review-deck': '', 'queue-folded': '' } : { 'review-deck': '' }}
       panelRef={panelRef}
       onKeyDown={onKeyDown}
     >
-      <header className={styles.header}>
+      <header ref={headerRef} className={styles.header}>
         <span className={styles.tile} aria-hidden="true"><ReviewIcon size={15} /></span>
         <div className={styles.heading}>
           <h2 id={titleId} className={styles.title}>{source?.title ?? 'Review'}</h2>
@@ -233,7 +240,11 @@ function ReviewDeckPanel() {
           </span>
         )}
         <span className={styles.position} data-testid="review-position" aria-live="polite">
-          {finished ? `All ${n} reviewed` : n > 0 ? `${index + 1} of ${n}` : 'Nothing to review'}
+          {queueFolded && n > 0 ? (
+            <ReviewQueueButton todoById={todoById} followedUpToday={followedUpToday} label="Review queue" words={positionWords}>
+              {positionWords}
+            </ReviewQueueButton>
+          ) : positionWords}
         </span>
         <span className={styles.counts}>
           <span data-testid="review-followed-up">{done} followed up</span>
@@ -242,7 +253,7 @@ function ReviewDeckPanel() {
         {lensMark && <LensSwitch lens={lensMark} noun="review" onToggle={toggleReviewLens} />}
         <button type="button" className={styles.closeBtn} aria-label="Close review" onClick={close}><CloseIcon size={12} /></button>
       </header>
-      <ReviewRail todoById={todoById} followedUpToday={followedUpToday} />
+      {!queueFolded && <ReviewRail todoById={todoById} followedUpToday={followedUpToday} />}
       {todo ? (
         <ReviewCard key={todo.id} todo={todo} keyHints />
       ) : (

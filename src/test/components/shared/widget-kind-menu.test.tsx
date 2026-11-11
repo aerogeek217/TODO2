@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, fireEvent, screen, cleanup } from '@testing-library/react'
 import { WidgetKindMenu } from '../../../components/shared/WidgetKindMenu'
-import { useListDefinitionStore } from '../../../stores/list-definition-store'
-import type { PersistedListDefinition } from '../../../models'
 
 afterEach(cleanup)
 
@@ -72,37 +70,12 @@ describe('WidgetKindMenu', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('shows a "Change list ›" row only when current kind is lens and pickListForLens is provided', () => {
-    const { rerender } = render(
-      <WidgetKindMenu
-        anchor={ANCHOR}
-        currentKind="notes"
-        onChangeKind={() => {}}
-        pickListForLens={() => {}}
-        onClose={() => {}}
-      />,
-    )
-    expect(screen.queryByRole('menuitem', { name: /Change list/ })).toBeNull()
-
-    rerender(
+  it('a list tab has no Change list › (UX cleanup 4A, decision 11)', () => {
+    render(
       <WidgetKindMenu
         anchor={ANCHOR}
         currentKind="lens"
         onChangeKind={() => {}}
-        pickListForLens={() => {}}
-        onClose={() => {}}
-      />,
-    )
-    expect(screen.getByRole('menuitem', { name: /Change list/ })).toBeInTheDocument()
-  })
-
-  it('does NOT show a secondary row for a kind with nothing to pick', () => {
-    render(
-      <WidgetKindMenu
-        anchor={ANCHOR}
-        currentKind="trend"
-        onChangeKind={() => {}}
-        pickListForLens={() => {}}
         onClose={() => {}}
       />,
     )
@@ -288,23 +261,19 @@ describe('WidgetKindMenu', () => {
     })
   })
 
-  it('a list tab opens with its own items: Edit list… · Change list › · actions · Change widget (no List options)', () => {
-    useListDefinitionStore.setState({ listDefinitions: [{ id: 1, name: 'First', sortOrder: 0 } as PersistedListDefinition] })
+  it('a list tab opens with its own items: Edit list… · actions · Change widget (no List options)', () => {
     render(
       <WidgetKindMenu
         anchor={ANCHOR}
         currentKind="lens"
         onChangeKind={() => {}}
         onEditList={() => {}}
-        pickListForLens={() => {}}
-        currentListName="First"
         widgetActions={[{ label: 'Copy tasks', onSelect: () => {} }]}
         onClose={() => {}}
       />,
     )
     expect(panelWords(screen.getByRole('menu', { name: 'Change widget' })))
-      .toEqual(['[List]', 'Edit list…', 'Change list', 'Copy tasks', 'Change widget'])
-    expect(screen.getByRole('menuitem', { name: /Change list/ })).toHaveTextContent('First')
+      .toEqual(['[List]', 'Edit list…', 'Copy tasks', 'Change widget'])
     expect(screen.queryByRole('menuitem', { name: /List options/ })).toBeNull()
     // Focus starts on Edit list….
     expect(document.activeElement).toHaveAttribute('data-menu-label', 'Edit list…')
@@ -359,71 +328,6 @@ describe('WidgetKindMenu — widget setting submenu', () => {
     fireEvent.keyDown(screen.getByRole('menuitemradio', { name: /3 days/ }), { key: 'Escape' })
     expect(screen.queryByRole('menu', { name: 'Due date makes a task urgent' })).toBeNull()
     expect(onClose).not.toHaveBeenCalled()
-  })
-})
-
-describe('WidgetKindMenu — Change list submenu', () => {
-  beforeEach(() => {
-    useListDefinitionStore.setState({
-      listDefinitions: [
-        { id: 2, name: 'Second', sortOrder: 1, owner: { layoutId: 7 } } as PersistedListDefinition,
-        { id: 1, name: 'First', sortOrder: 0, owner: { layoutId: 7 } } as PersistedListDefinition,
-      ],
-    })
-  })
-
-  it('→ opens the layout’s lists in their order with the focus on the first; a pick runs and closes the menu', () => {
-    const pick = vi.fn()
-    const onClose = vi.fn()
-    render(
-      <WidgetKindMenu
-        anchor={ANCHOR}
-        currentKind="lens"
-        onChangeKind={() => {}}
-        pickListForLens={pick}
-        onEditList={() => {}}
-        currentListName="First"
-        listLayoutId={7}
-        onClose={onClose}
-      />,
-    )
-    const row = screen.getByRole('menuitem', { name: /Change list/ })
-    expect(row).toHaveTextContent('First')
-    expect(row).toHaveAttribute('aria-haspopup', 'menu')
-    row.focus()
-    fireEvent.keyDown(row, { key: 'ArrowRight' })
-    const sub = screen.getByRole('menu', { name: 'Change list' })
-    expect(Array.from(sub.querySelectorAll('[role="menuitem"]')).map((el) => el.textContent)).toEqual(['First', 'Second'])
-    expect(document.activeElement).toHaveTextContent('First')
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Second' }))
-    expect(pick).toHaveBeenCalledWith(2)
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('only the layout’s own lists: never another layout’s, the Eisenhower’s or one without an owner', () => {
-    useListDefinitionStore.setState({
-      listDefinitions: [
-        { id: 1, name: 'First', sortOrder: 0 } as PersistedListDefinition,
-        { id: 3, name: 'Mine', sortOrder: 2, owner: { layoutId: 7 } } as PersistedListDefinition,
-        { id: 4, name: 'Theirs', sortOrder: 3, owner: { layoutId: 8 } } as PersistedListDefinition,
-        { id: 5, name: 'Eisenhower', sortOrder: 4, owner: { eisenhower: true } } as PersistedListDefinition,
-      ],
-    })
-    render(
-      <WidgetKindMenu anchor={ANCHOR} currentKind="lens" onChangeKind={() => {}} pickListForLens={() => {}} onEditList={() => {}} listLayoutId={7} onClose={() => {}} />,
-    )
-    const row = screen.getByRole('menuitem', { name: /Change list/ })
-    row.focus()
-    fireEvent.keyDown(row, { key: 'ArrowRight' })
-    const sub = screen.getByRole('menu', { name: 'Change list' })
-    expect(Array.from(sub.querySelectorAll('[role="menuitem"]')).map((el) => el.getAttribute('data-menu-label'))).toEqual(['Mine'])
-  })
-
-  it('says so when there are no lists', () => {
-    useListDefinitionStore.setState({ listDefinitions: [] })
-    render(<WidgetKindMenu anchor={ANCHOR} currentKind="lens" onChangeKind={() => {}} pickListForLens={() => {}} onClose={() => {}} />)
-    fireEvent.click(screen.getByRole('menuitem', { name: /Change list/ }))
-    expect(screen.getByRole('menu', { name: 'Change list' })).toHaveTextContent('No lists yet.')
   })
 })
 

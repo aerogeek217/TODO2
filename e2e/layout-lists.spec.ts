@@ -4,8 +4,8 @@ import { readStore } from './fixtures/db'
 
 /**
  * Every list belongs to one layout, in a real browser: the list picker's
- * Create new list… makes a list of the open layout — offered by its Change
- * list, not by another layout's; Settings
+ * Create new list… makes a list of the open layout (a list tab is never
+ * pointed at another list); Settings
  * has no Lists; Save as gives the new layout copies that edit on their own;
  * Delete layout takes its lists with it (the confirm says so); a closed
  * tab's list goes when the layout is saved, Discard keeps it.
@@ -41,24 +41,9 @@ async function switchLayout(page: Page, name: string): Promise<void> {
   await expectOpenLayout(page, name)
 }
 
-/** The tab's Change list › submenu's choices. */
-async function changeListChoices(page: Page, tabId: string): Promise<string[]> {
-  await wsTab(page, tabId).click({ button: 'right' })
-  const row = page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: /Change list/ })
-  await row.focus()
-  await page.keyboard.press('ArrowRight')
-  const sub = page.getByRole('menu', { name: 'Change list' })
-  await expect(sub).toBeVisible()
-  const names = await sub.getByRole('menuitem').evaluateAll((els) => els.map((el) => el.getAttribute('data-menu-label') ?? ''))
-  await page.keyboard.press('Escape')
-  await page.keyboard.press('Escape')
-  return names
-}
-
-
 test.use({ viewport: { width: 1600, height: 900 } })
 
-test('a new list widget’s list is the open layout’s, offered only there (Change list); Settings has no Lists', async ({ page }) => {
+test('a new list widget’s list is the open layout’s; a list tab is never pointed at another list; Settings has no Lists', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await wsCell(page, 'b1').hover()
   await wsCell(page, 'b1').getByRole('button', { name: 'Cell options' }).click()
@@ -73,9 +58,18 @@ test('a new list widget’s list is the open layout’s, offered only there (Cha
   // The tab is a layout edit, saved at once.
   await expectLayoutStored(page)
 
-  expect(await changeListChoices(page, 'sharedTab')).toEqual(['Shared', 'Mine', 'Errands'])
+  // No Change list (UX cleanup 4A, decision 11): a list tab keeps its list; each list is its layout's.
+  await wsTab(page, 'sharedTab').click({ button: 'right' })
+  const menu = page.getByRole('menu', { name: 'Cell options' })
+  await expect(menu.getByRole('menuitem', { name: 'Edit list…' })).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: /Change list/ })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  const main = await layoutId(page, 'Main')
+  const second = await layoutId(page, 'Second')
+  const owners = Object.fromEntries((await lists(page)).map((d) => [d.name, d.owner?.layoutId]))
+  expect(owners).toMatchObject({ Shared: main, Mine: main, Errands: main, Theirs: second })
   await switchLayout(page, 'Second')
-  expect(await changeListChoices(page, 'otherTab')).toEqual(['Theirs'])
+  await expect(wsTab(page, 'otherTab')).toContainText('Theirs')
 
   const settings = await openSettings(page, 'People, statuses & tags')
   await expect(settings.getByRole('button', { name: 'Manage people…' })).toBeVisible()

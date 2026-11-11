@@ -38,12 +38,14 @@ import { useListReviewMenuEntries } from './list/review-menu'
 import { createListThenEdit, openEditList, useListOwnerLayoutId } from './widget-hooks'
 
 /**
- * A cell's ⋯ menu (D26 AA1): the widget's own entries first, under its
- * kind's heading — Edit list…, Zoom, Copy…, Change widget › —, then the
- * cell's under Cell, in the table's words (D26 board V): Add widget…, Split
- * cell ▸, Merge with ▸, Insert ▸, Collapse row; then Close tab, Close cell. One
- * menu, opened from the ⋯ (a widget's top line, or a tab strip's header),
- * a right-click on the top line or a tab, and Shift+F10 / the Menu key.
+ * A cell's menus (D26 AA1, UX cleanup 4A). The ⋯ (**Cell options**) opens
+ * the widget's own entries under its kind's heading — Edit list…, Zoom,
+ * Copy…, Change widget › — then Add widget…. A click on the grip (**Cell
+ * layout**) opens the cell's layout entries under Cell, in the table's words
+ * (D26 board V): Split cell ▸, Merge with ▸, Insert ▸, Collapse row; then
+ * Close tab, Close cell. A right-click on a widget's top line or a tab, and
+ * Shift+F10 / the Menu key there, open the whole menu: both, in their two
+ * headed sections.
  */
 
 /** Merge with ▸ Right / Below: why the item is off when the cell doesn't merge that way. */
@@ -83,23 +85,20 @@ export interface CellMenuActions {
   mergeWith?: (cellId: string, side: Side) => string | undefined
 }
 
+/** Add widget… (the ⋯ menu's last entry; first under Cell in the whole menu). */
+function addWidgetEntry(a: CellMenuActions): MenuEntry {
+  return { kind: 'item', label: 'Add widget…', icon: <PlusIcon />, submenu: true, onSelect: a.onAddWidget }
+}
+
 /**
- * The cell's part of the ⋯ menu, under its heading (Cell): Add widget…,
- * Split cell ▸, Merge with ▸, Insert ▸, Collapse row, then Close tab (with
- * two or more widgets; one widget's is Close cell's) and Close cell.
+ * The cell's layout entries (the grip's menu): Split cell ▸, Merge with ▸,
+ * Insert ▸, Collapse row, then Close tab (with two or more widgets; one
+ * widget's is Close cell's) and Close cell.
  */
-export function cellMenuEntries(a: CellMenuActions): MenuEntry[] {
+export function cellLayoutEntries(a: CellMenuActions): MenuEntry[] {
   const mergeWith = a.mergeWith ?? mergeTarget
   const several = a.cell.tabs.length > 1
   return [
-    { kind: 'label', text: 'Cell' },
-    {
-      kind: 'item',
-      label: 'Add widget…',
-      icon: <PlusIcon />,
-      submenu: true,
-      onSelect: a.onAddWidget,
-    },
     {
       kind: 'item',
       label: 'Split cell',
@@ -150,7 +149,36 @@ export function cellMenuEntries(a: CellMenuActions): MenuEntry[] {
   ]
 }
 
-/** The merged ⋯ menu: the widget's entries, a separator, the cell's (no separator doubled or left at an end). */
+/**
+ * The cell's section of the whole menu, under its heading (Cell): Add
+ * widget…, then the layout entries ({@link cellLayoutEntries}).
+ */
+export function cellMenuEntries(a: CellMenuActions): MenuEntry[] {
+  return [{ kind: 'label', text: 'Cell' }, addWidgetEntry(a), ...cellLayoutEntries(a)]
+}
+
+/**
+ * Which of a cell's menus is open: the ⋯'s (`widget`: the widget's entries,
+ * then Add widget…), the grip's (`layout`: the layout entries under Cell),
+ * or the whole menu (`all`: a right-click, Shift+F10 / the Menu key).
+ */
+export type CellMenuPart = 'widget' | 'layout' | 'all'
+
+/** Each menu's name (its `aria-label`; the ⋯'s and the grip's are their buttons' too). */
+export const CELL_MENU_LABEL: Readonly<Record<CellMenuPart, string>> = {
+  widget: 'Cell options',
+  layout: 'Cell layout',
+  all: 'Cell options',
+}
+
+/** The entries of the cell's menu `part`, from the widget's entries and the cell's actions. */
+export function cellMenuFor(part: CellMenuPart, widget: readonly MenuEntry[], a: CellMenuActions): MenuEntry[] {
+  if (part === 'layout') return [{ kind: 'label', text: 'Cell' }, ...cellLayoutEntries(a)]
+  if (part === 'widget') return mergedCellMenu(widget, [addWidgetEntry(a)])
+  return mergedCellMenu(widget, cellMenuEntries(a))
+}
+
+/** The widget's entries, a separator, the cell's (no separator doubled or left at an end). */
 export function mergedCellMenu(widget: readonly MenuEntry[], cell: readonly MenuEntry[]): MenuEntry[] {
   const out: MenuEntry[] = []
   for (const entry of [...widget, { kind: 'separator' } as const, ...cell]) {
@@ -187,7 +215,7 @@ function useLensMenuAction(tab: LayoutTab | undefined, listId: number | undefine
 
 /**
  * The widget part of the ⋯ menu for `tab` (what its tab menu had): its
- * list's Edit list… / Change list ›, its settings, its actions (Copy, the
+ * list's Edit list…, its settings, its actions (Copy, the
  * lens switch, Collapse / Expand all groups), then Change widget.
  * `result` is what the cell's active widget last reported (its Copy lines,
  * a list's sections); `undefined` content when there is no tab.
@@ -197,7 +225,6 @@ export function useWidgetMenuContent(
   result: WidgetResult | undefined,
 ): WidgetKindMenuContent | undefined {
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
-  const patchTabConfig = useWorkspaceStore((s) => s.patchTabConfig)
   const urgentRangeSetting = useUrgentRangeSetting()
   const layoutId = useListOwnerLayoutId()
   const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
@@ -266,17 +293,9 @@ export function useWidgetMenuContent(
   return {
     currentKind: tab.kind,
     onChangeKind: changeKind,
-    pickListForLens: tab.kind === 'lens'
-      ? (id) => {
-          if (id === tab.config.listDefinitionId) return
-          patchTabConfig(tab.id, 'lens', { listDefinitionId: id })
-        }
-      : undefined,
     onEditList: listId != null && (tab.kind === 'lens' || listName != null)
       ? () => openEditList(tab.id, listId)
       : undefined,
-    currentListName: listName,
-    listLayoutId: layoutId,
     sourceActions: tab.kind === 'eisenhower'
       ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => openEisenhowerSettings() }]
       : undefined,

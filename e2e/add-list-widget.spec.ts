@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openCellMenu, pickSplit, pickWidgetKind, seedWorkspace, wsCell, wsRow, wsTab } from './fixtures/workspace'
+import { openCellLayoutMenu, openCellMenu, pickSplit, pickWidgetKind, seedWorkspace, wsCell, wsRow, wsTab } from './fixtures/workspace'
 
 /**
  * Adding a List widget (the ⋯'s Add widget…, an empty cell's / layout's List) and
@@ -59,7 +59,7 @@ test('an empty cell’s List: a new list in the cell, its Edit list open', async
     layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
   })
   // Split, then the new empty cell's List button.
-  await openCellMenu(page, 'cell')
+  await openCellLayoutMenu(page, 'cell')
   await pickSplit(page, 'Right')
   const empty = page.locator('[data-ws-cell][data-empty]')
   await empty.getByRole('button', { name: 'List', exact: true }).click()

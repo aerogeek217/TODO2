@@ -19,9 +19,9 @@ import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
  * A layout's lists in the workspace: a new list widget makes a blank list
- * owned by the open layout (Edit list opens on it, no picker); Change list
- * offers only the layout's own lists; the delete confirm says they go with
- * the layout.
+ * owned by the open layout (Edit list opens on it, no picker); a list tab
+ * is never pointed at another list (no Change list); the delete confirm says
+ * they go with the layout.
  */
 
 const AT = new Date(2026, 0, 1)
@@ -150,13 +150,10 @@ describe('a layout’s lists in the workspace', () => {
     expect(await db.listDefinitions.get(5)).toBeDefined()
   })
 
-  it('Change list offers only this layout’s own lists', () => {
+  it('a list tab’s menu offers no Change list (UX cleanup 4A, decision 11): Edit list… leads it', () => {
     const menu = openTabMenu()
-    const row = within(menu).getByRole('menuitem', { name: /Change list/ })
-    row.focus()
-    fireEvent.keyDown(row, { key: 'ArrowRight' })
-    const sub = screen.getByRole('menu', { name: 'Change list' })
-    expect(Array.from(sub.querySelectorAll('[role="menuitem"]')).map((el) => el.getAttribute('data-menu-label'))).toEqual(['Other', 'Mine'])
+    expect(within(menu).queryByRole('menuitem', { name: /Change list/ })).toBeNull()
+    expect(within(menu).getAllByRole('menuitem')[0]).toHaveAttribute('data-menu-label', 'Edit list…')
   })
 
   it('the delete confirm says the layout’s own lists go with it', () => {

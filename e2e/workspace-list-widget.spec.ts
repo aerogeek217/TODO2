@@ -234,9 +234,9 @@ test('closing a list’s last widget asks nothing: the list goes, Undo brings it
   await editListSave(page).click()
   await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team')?.grouping).toBe('people')
 
-  // Closing its only widget (alone in its cell: its ⋯ › Close cell): no question.
+  // Closing its only widget (alone in its cell: its grip › Close cell): no question.
   await wsTab(page, 't1').hover()
-  await wsTab(page, 't1').getByRole('button', { name: 'Cell options' }).click()
+  await wsTab(page, 't1').getByRole('button', { name: 'Cell layout' }).click()
   await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
   await expect(page.getByRole('dialog', { name: /^Save changes/ })).toHaveCount(0)
   await expect(wsTab(page, 't1')).toHaveCount(0)

@@ -4,6 +4,7 @@ import { STATUS_UPDATE_TEXT_MAX } from '../../../models'
 import { useStatusUpdateDay } from '../../../hooks/use-status-update-day'
 import { useToday } from '../../../hooks/use-today'
 import { formatDateNumeric } from '../../../utils/date'
+import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { statusUpdateText } from '../../../utils/status-updates'
 import { PencilIcon, TrashIcon } from '../../shared/icons'
 import { StatusUpdateDayField } from './StatusUpdateDayField'
@@ -78,6 +79,15 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
   const labelId = useId()
   const [editingId, setEditingId] = useState<number | null>(null)
   const listRef = useRef<HTMLUListElement>(null)
+  // The log scrolls inside: its edge fades say there is more (an entry cut under the heading reads as earlier ones).
+  const listRefAndEdges = useCallback((el: HTMLUListElement | null) => {
+    listRef.current = el
+    const untrack = trackScrollEdges(el)
+    return () => {
+      untrack?.()
+      listRef.current = null
+    }
+  }, [])
   const addLineRef = useRef<HTMLDivElement>(null)
   // Each entry's edit button, to hand the focus back to after an edit or a delete.
   const editButtons = useRef(new Map<number, HTMLButtonElement>())
@@ -174,7 +184,7 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
         </div>
       </div>
       {entries.length > 0 && (
-        <ul ref={listRef} className={styles.list} aria-label="Status updates" data-status-update-list="">
+        <ul ref={listRefAndEdges} className={styles.list} aria-label="Status updates" data-status-update-list="">
           {shown.map((e, i) => renderEntry(e, i === shown.length - 1))}
         </ul>
       )}

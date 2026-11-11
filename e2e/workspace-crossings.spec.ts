@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { edges, expectSameEdges, openCellMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { edges, expectSameEdges, openCellLayoutMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { box, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -282,7 +282,7 @@ test.describe('a Numbers-only row', () => {
   test('collapsed, its cells keep their small face (no top line in the 32px row), given a height or not', async ({ page }) => {
     await seedWorkspace(page, { layouts: [numbers] })
     await expect(wsCell(page, 'n1')).toHaveAttribute('data-face', 'small')
-    await openCellMenu(page, 'n1')
+    await openCellLayoutMenu(page, 'n1')
     await page.getByRole('menuitem', { name: 'Collapse row' }).click()
     await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBe(32)
     // The widgets inside draw their small face (the cell itself names no face while folded).

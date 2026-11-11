@@ -29,10 +29,26 @@ export function widgetFaceFor(size: { width: number; height: number }): WidgetFa
   return 'large'
 }
 
-/** A Review widget's body this tall or shorter (and not small) shows its medium face: the card needs more room than a chart (item 12). */
-export const REVIEW_MEDIUM_MAX_HEIGHT_PX = 380
-/** A Review widget's body this narrow or narrower (and not small) shows its medium face: the rail beside the card needs it. */
+/**
+ * A Review widget's body this tall or shorter (and not small) shows its medium face: the large face's
+ * pinned dock (the update line and the two follow-up rows), 120px of writing, the top line, the prompt
+ * row, the title and the footer need more (task layout A).
+ */
+export const REVIEW_MEDIUM_MAX_HEIGHT_PX = 530
+/** A Review widget's body this narrow or narrower (and not small) shows its medium face: the card's rail beside its writing needs it. */
 export const REVIEW_MEDIUM_MAX_WIDTH_PX = 640
+
+/**
+ * Under this width (a Review widget's body, the review deck) the queue column folds away and the
+ * progress (`3 of 12`) opens it as a popover: the queue's narrowest (220px) beside the card's
+ * narrowest two-column layout (600px). Unmeasured (0) never folds.
+ */
+export const REVIEW_QUEUE_FOLD_PX = 820
+
+/** Whether a review of `width` folds its queue away (`REVIEW_QUEUE_FOLD_PX`). */
+export function reviewQueueFolds(width: number): boolean {
+  return width > 0 && width < REVIEW_QUEUE_FOLD_PX
+}
 
 /**
  * A Review widget's face (item 12): small as every widget's; medium — the

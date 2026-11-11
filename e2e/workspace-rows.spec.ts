@@ -3,7 +3,7 @@ import {
   drag,
   dragTab,
   edges,
-  openCellMenu,
+  openCellLayoutMenu,
   pickCellMenu,
   pickSplit,
   seedWorkspace,
@@ -124,7 +124,7 @@ test.describe('sizes and collapse of cells side by side', () => {
     await seedWorkspace(page, { layouts: [sideBySide] })
     const rowDividers = page.locator('[data-ws-divider][data-axis="rows"]')
     await expect(rowDividers).toHaveCount(1)
-    await openCellMenu(page, 'c1')
+    await openCellLayoutMenu(page, 'c1')
     await page.getByRole('menuitem', { name: 'Collapse row' }).click()
     // One widget each: its top line shows, the rest hidden (D26 AA1).
     await expect(wsCell(page, 'c1').locator('[data-ws-cell-body]')).toBeHidden()
@@ -145,7 +145,7 @@ test.describe('the cell menu', () => {
   test('Split cell ▸ Right adds a cell beside, Below one under it; Insert ▸ Column at the right a column', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const a1 = await edges(wsCell(page, 'a1'))
-    await openCellMenu(page, 'a1')
+    await openCellLayoutMenu(page, 'a1')
     await pickSplit(page, 'Right')
     const empty = page.getByRole('region', { name: 'Empty cell' })
     await expect(empty).toBeVisible()
@@ -154,13 +154,13 @@ test.describe('the cell menu', () => {
     await empty.getByRole('button', { name: 'Close empty cell' }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(2)
 
-    await openCellMenu(page, 'a1')
+    await openCellLayoutMenu(page, 'a1')
     await pickSplit(page, 'Below')
     await expect.poll(() => rowCount(page)).toBe(2)
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Close empty cell' }).click()
     await expect.poll(() => rowCount(page)).toBe(1)
 
-    await openCellMenu(page, 'a1')
+    await openCellLayoutMenu(page, 'a1')
     await pickCellMenu(page, 'Insert', 'Column at the right')
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     await expectLayoutStep(page)

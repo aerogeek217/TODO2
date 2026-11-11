@@ -371,7 +371,13 @@ test('faces by size: medium — the card’s essentials and the update line; sma
   await field.fill('ben')
   await field.press('Enter')
   await expect(popover).toBeVisible()
-  await expect(whole.locator('[data-review-row]')).toHaveCount(5)
+  // The popover is under 820px wide: the queue folds into the progress, which opens it (task layout A).
+  await expect(whole.locator('[data-review-rail]')).toHaveCount(0)
+  await whole.locator('[data-review-queue-button]').click()
+  await expect(page.locator('[data-review-queue-popover] [data-review-row]')).toHaveCount(5)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-review-queue-popover]')).toHaveCount(0)
+  await expect(popover).toBeVisible()
   await shot(page, 'review-widget-small-open')
   // Esc leaves the field first, then closes the popover.
   await field.press('Escape')
