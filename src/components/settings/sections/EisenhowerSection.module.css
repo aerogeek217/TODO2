@@ -41,7 +41,7 @@
 
 .nameLabel {
   flex: none;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -55,7 +55,7 @@
   background: var(--color-surface);
   color: var(--color-text-primary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 
@@ -66,7 +66,7 @@
 
 .count {
   flex: none;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
@@ -80,7 +80,7 @@
 }
 
 .noFilter {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -96,7 +96,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -109,7 +109,7 @@
   background: var(--color-tint-8);
   color: var(--color-text-secondary);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
@@ -132,6 +132,6 @@
 .noPane {
   flex: 1 1 auto;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }

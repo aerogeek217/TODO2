@@ -58,7 +58,7 @@
   justify-content: center;
   height: 100vh;
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-body);
   gap: 10px;
 }
 
@@ -89,13 +89,13 @@
 
 .initError h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--font-size-legacy-18);
 }
 
 .initError p {
   margin: 0;
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-body);
   max-width: 420px;
 }
 
@@ -103,7 +103,7 @@
   background: var(--color-surface-high);
   padding: 8px 16px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   max-width: 500px;
   overflow-x: auto;

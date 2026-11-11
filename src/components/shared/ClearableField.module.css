@@ -28,7 +28,7 @@
   border-radius: 50%;
   background: transparent;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1;
   color: var(--color-text-muted);
   cursor: pointer;

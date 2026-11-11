@@ -21,7 +21,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.02em;
   color: var(--color-text-muted);
@@ -52,7 +52,7 @@
 
 .title {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
   overflow-wrap: anywhere;
@@ -60,7 +60,7 @@
 
 .body {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   line-height: 1.5;
   color: var(--color-text-secondary);
   overflow-wrap: anywhere;
@@ -111,14 +111,14 @@
 
 .optionTitle {
   display: block;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
 }
 
 .optionLine {
   display: block;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   color: var(--color-text-secondary);
   overflow-wrap: anywhere;
@@ -132,7 +132,7 @@
 
 .optionLines p {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.5;
   color: var(--color-text-secondary);
 }
@@ -151,7 +151,7 @@
   border-radius: 10px;
   background: var(--color-inset);
   box-shadow: inset 0 0 0 1px var(--color-border-muted);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--color-text-secondary);
 }
 
@@ -174,14 +174,14 @@
 
 .refusedTitle {
   display: block;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-bold);
   color: var(--color-danger-text);
 }
 
 .refusedLine {
   display: block;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   color: var(--color-text-secondary);
 }
@@ -206,7 +206,7 @@
   border: none;
   border-radius: var(--radius-md);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
   cursor: pointer;
@@ -241,7 +241,7 @@
   border-radius: 4px;
   box-shadow: inset 0 0 0 1px var(--color-border);
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-regular);
   color: var(--color-text-muted);
 }
@@ -277,7 +277,7 @@
   .primary,
   .secondary {
     height: 44px;
-    font-size: 15px;
+    font-size: var(--font-size-legacy-15);
   }
 
   .secondary {

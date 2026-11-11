@@ -30,7 +30,7 @@
 .mirror,
 .input {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 20px;
   letter-spacing: normal;
   margin: 0;

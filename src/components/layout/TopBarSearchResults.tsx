@@ -41,7 +41,7 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
     case 'subtask':
       return <svg {...common}><path d="M3 3.5h10M6 8h7M6 12.5h7M3 8v4.5" /></svg>
     case 'person':
-      return <span className={styles.miniListGroupIcon} style={{ fontSize: 12 }}>@</span>
+      return <span className={styles.miniListGroupIcon}>@</span>
     case 'status':
       return <svg {...common}><circle cx="8" cy="8" r="5.5" /><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none" /></svg>
     case 'tag':

@@ -212,7 +212,7 @@
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 
 .noneLabel {
@@ -240,7 +240,7 @@
   background: transparent;
   color: var(--color-text-secondary);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
   cursor: pointer;
@@ -277,7 +277,7 @@
 .modeToggleTouch .modeSegment {
   height: 36px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 
 /* In a row (a marker's Any · Yes · No): sized to its labels, no margin. */

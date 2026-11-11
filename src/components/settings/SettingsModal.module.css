@@ -30,7 +30,7 @@
 .title {
   flex: 1;
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
 }
@@ -95,7 +95,7 @@
   background: transparent;
   color: var(--color-text-secondary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   text-align: left;
   white-space: nowrap;
@@ -176,7 +176,7 @@
 
 .sectionTitle {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
 }

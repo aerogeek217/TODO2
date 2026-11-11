@@ -140,7 +140,7 @@
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .glyphUrgent {

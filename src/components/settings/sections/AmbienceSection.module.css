@@ -50,7 +50,7 @@
 .sliderValue {
   min-width: 36px;
   margin-top: 4px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-variant-numeric: tabular-nums;
   color: var(--color-text-secondary);
 }

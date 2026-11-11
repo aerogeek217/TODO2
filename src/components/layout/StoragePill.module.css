@@ -102,7 +102,7 @@
   padding: 0 4px;
   border-radius: var(--radius-pill);
   background: var(--color-warning-bg-strong);
-  font-size: 10px;
+  font-size: var(--font-size-legacy-10);
   font-weight: var(--font-weight-bold);
 }
 
@@ -175,7 +175,7 @@
 
 .body {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.5;
   color: var(--color-text-secondary);
   overflow-wrap: anywhere;
@@ -245,7 +245,7 @@
   background: transparent;
   color: var(--color-text-muted);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
