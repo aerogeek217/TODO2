@@ -20,7 +20,13 @@ import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { WidgetFace } from '../../../utils/widget-face'
-import { reviewFaceFor } from '../../../utils/widget-face'
+import {
+  REVIEW_MEDIUM_MAX_HEIGHT_PX,
+  REVIEW_MEDIUM_MAX_WIDTH_PX,
+  REVIEW_QUEUE_FOLD_PX,
+  reviewFaceFor,
+  reviewQueueFolds,
+} from '../../../utils/widget-face'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 import { single } from '../../helpers/layout-builders'
 
@@ -462,6 +468,24 @@ describe('reviewFaceFor', () => {
     expect(reviewFaceFor({ width: 480, height: 260 })).toBe('medium')
     expect(reviewFaceFor({ width: 1000, height: 300 })).toBe('medium')
     expect(reviewFaceFor({ width: 600, height: 800 })).toBe('medium')
-    expect(reviewFaceFor({ width: 1000, height: 560 })).toBe('large')
+    // Task layout A: the large face needs 530px (the pinned dock, 120px of writing, the top line,
+    // the prompt row, the title and the footer); 640px wide stays.
+    expect(reviewFaceFor({ width: 1000, height: 500 })).toBe('medium')
+    expect(reviewFaceFor({ width: 1000, height: REVIEW_MEDIUM_MAX_HEIGHT_PX })).toBe('medium')
+    expect(reviewFaceFor({ width: 1000, height: REVIEW_MEDIUM_MAX_HEIGHT_PX + 1 })).toBe('large')
+    expect(reviewFaceFor({ width: REVIEW_MEDIUM_MAX_WIDTH_PX, height: 800 })).toBe('medium')
+    expect(reviewFaceFor({ width: REVIEW_MEDIUM_MAX_WIDTH_PX + 1, height: 800 })).toBe('large')
+    expect([REVIEW_MEDIUM_MAX_HEIGHT_PX, REVIEW_MEDIUM_MAX_WIDTH_PX]).toEqual([530, 640])
+  })
+})
+
+describe('reviewQueueFolds', () => {
+  it('under 820px (the queue’s 220px beside the card’s 600px) the queue folds; unmeasured never', () => {
+    expect(REVIEW_QUEUE_FOLD_PX).toBe(820)
+    expect(reviewQueueFolds(0)).toBe(false)
+    expect(reviewQueueFolds(700)).toBe(true)
+    expect(reviewQueueFolds(819)).toBe(true)
+    expect(reviewQueueFolds(820)).toBe(false)
+    expect(reviewQueueFolds(1400)).toBe(false)
   })
 })

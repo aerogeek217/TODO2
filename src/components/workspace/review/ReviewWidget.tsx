@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, type FocusEvent, type ReactNode } from 'react'
 import { REVIEW_BY_LABEL, reviewBy, type ReviewBy } from '../../../models/review'
 import type { ReviewTab } from '../../../models/workspace-layout'
+import { useElementSize } from '../../../hooks/use-element-size'
 import { useReviewWidgetQueue } from '../../../hooks/use-review-widget-queue'
 import { useToday } from '../../../hooks/use-today'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
@@ -17,10 +18,11 @@ import { useSubtaskStore } from '../../../stores/subtask-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { isFollowedUpToday } from '../../../utils/followup'
-import { reviewFaceFor } from '../../../utils/widget-face'
+import { reviewFaceFor, reviewQueueFolds } from '../../../utils/widget-face'
 import { EmptyState } from '../../shared/EmptyState'
 import { ReviewIcon } from '../../shared/icons'
 import { ReviewCard, ReviewCompactCard, type ReviewFocusOnOpen } from '../../review/ReviewCard'
+import { ReviewQueueButton } from '../../review/ReviewQueueButton'
 import { ReviewRail } from '../../review/ReviewRail'
 import { ReviewSessionContext, useReviewSession } from '../../review/review-session-context'
 import { CellControlsContext } from '../cell-controls'
@@ -55,6 +57,9 @@ import styles from './ReviewWidget.module.css'
  */
 export function ReviewWidget({ tab }: { tab: ReviewTab }) {
   const [faceRef, face] = useWidgetFace(reviewFaceFor)
+  // The body's width too: under 820px the large face folds its queue away.
+  const [sizeRef, size] = useElementSize()
+  const hostRef = useCallback((el: HTMLElement | null) => { faceRef(el); sizeRef(el) }, [faceRef, sizeRef])
   const storedSort = tab.viewState?.sort
   const session = useMemo(() => reviewWidgetSession(tab.id, () => ({ sort: storedSort ?? 'queue' })), [tab.id, storedSort])
   // A card opening takes the focus only while the user is working in the widget: the focus is (or was, until the
@@ -72,7 +77,7 @@ export function ReviewWidget({ tab }: { tab: ReviewTab }) {
   return (
     <ReviewSessionContext.Provider value={session}>
       <div
-        ref={faceRef}
+        ref={hostRef}
         className={styles.faceHost}
         data-review-widget={tab.id}
         data-review-face={face}
@@ -80,7 +85,7 @@ export function ReviewWidget({ tab }: { tab: ReviewTab }) {
         onFocus={() => { focusWithin.current = true }}
         onBlur={onBlur}
       >
-        <ReviewWidgetBody tab={tab} face={face} session={session} focusOnOpen={focusOnOpen} />
+        <ReviewWidgetBody tab={tab} face={face} width={size.width} session={session} focusOnOpen={focusOnOpen} />
       </div>
     </ReviewSessionContext.Provider>
   )
@@ -94,9 +99,11 @@ function anyOf(names: readonly string[]): string {
   return `${names.slice(0, -1).join(', ')} or ${names.at(-1) ?? ''}`
 }
 
-function ReviewWidgetBody({ tab, face, session, focusOnOpen }: {
+function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
   tab: ReviewTab
   face: 'small' | 'medium' | 'large'
+  /** The widget's measured width (0 unmeasured). */
+  width: number
   session: ReturnType<typeof reviewWidgetSession>
   focusOnOpen: ReviewFocusOnOpen
 }) {
@@ -188,10 +195,20 @@ function ReviewWidgetBody({ tab, face, session, focusOnOpen }: {
     useWorkspaceStore.getState().patchTabConfig(tab.id, 'review', { by: next }, `Review by ${REVIEW_BY_LABEL[next]}`)
   }
 
+  // Medium: the place alone; large: with how many are followed up — `All N reviewed` once every task has a mark.
+  const place = face === 'large' && finished ? `All ${n} reviewed` : `${index + 1} of ${n}`
+  const queueLabel = `Review queue: ${names}`
+  // The large face under 820px wide: no queue column; the place opens the queue.
+  const queueFolded = face === 'large' && !!todo && reviewQueueFolds(width)
   const progress = picked && n > 0 && (
     <span className={styles.progress} data-testid="review-widget-progress" aria-live="polite">
-      {/* Medium: the place alone; large: with how many are followed up — `All N reviewed` once every task has a mark. */}
-      <strong>{face === 'large' && finished ? `All ${n} reviewed` : `${index + 1} of ${n}`}</strong>
+      {queueFolded
+        ? (
+          <ReviewQueueButton todoById={todoById} followedUpToday={followedUpToday} label={queueLabel} words={place}>
+            <strong>{place}</strong>
+          </ReviewQueueButton>
+        )
+        : <strong>{place}</strong>}
       {face === 'large' && ` · ${done} followed up`}
     </span>
   )
@@ -222,8 +239,8 @@ function ReviewWidgetBody({ tab, face, session, focusOnOpen }: {
     )
   } else {
     body = (
-      <div className={styles.large}>
-        <ReviewRail todoById={todoById} followedUpToday={followedUpToday} className={styles.rail} label={`Review queue: ${names}`} />
+      <div className={styles.large} data-queue-folded={queueFolded || undefined}>
+        {!queueFolded && <ReviewRail todoById={todoById} followedUpToday={followedUpToday} className={styles.rail} label={queueLabel} />}
         <ReviewCard key={todo.id} todo={todo} focusOnOpen={focusOnOpen} />
       </div>
     )

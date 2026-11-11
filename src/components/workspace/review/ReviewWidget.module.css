@@ -74,9 +74,10 @@
 
 /* ── Faces ──────────────────────────────────────────────────────────────── */
 
-/* Large: the dialog's layout (board BL) — the queue beside the card, the footer under both. The
- * columns give way in a small cell (board BM): the queue from 300px down to 220px, the card's
- * facts rail (`TaskDetails.module.css` reads `--task-rail-width`) from 268px down to 220px. */
+/* Large: the dialog's layout (board BL, task layout A) — the queue beside the card, the footer under
+ * both; the card never stacks. The columns give way in a small cell: the queue from 300px down to
+ * 220px, the card's facts rail (`TaskDetails.module.css` reads `--task-rail-width`; `cqw` there is
+ * the card's) from 268px down to 220px, the writing taking the rest (340px at the least). */
 .large {
   --task-rail-width: clamp(220px, 33cqw, 268px);
 
@@ -89,6 +90,14 @@
     'rail card'
     'footer footer';
   overflow: hidden;
+}
+
+/* Under 820px wide the queue folds away (before the rail would move): the progress opens it. */
+.large[data-queue-folded] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'card'
+    'footer';
 }
 
 /* Medium: the card's essentials over the footer. */

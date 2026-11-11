@@ -4,10 +4,10 @@ import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { describeFollowupInterval, nextAfterFollowup } from '../../utils/followup'
+import { describeFollowupInterval } from '../../utils/followup'
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
-import { startOfDay, startOfToday } from '../../utils/date'
+import { formatDate, formatRelativeTime, startOfDay, startOfToday } from '../../utils/date'
 import { urgentMark, urgentToggleHint } from '../../utils/urgency'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
@@ -18,8 +18,8 @@ import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
 import { taskLayoutClasses } from './task-layout-classes'
-import { TaskDetailsBody, TaskNotesSection } from './TaskDetailsBody'
-import { FollowupFacts, PriorityFacts, StatusFacts } from './TaskFacts'
+import { TaskDetailsBody, TaskNotesSection, TaskRailFoot } from './TaskDetailsBody'
+import { PriorityFacts, StatusFacts } from './TaskFacts'
 import { FollowupEditorGroup } from './FollowupEditorGroup'
 import { CopyIcon, IndentIcon, TrashIcon } from '../shared/icons'
 import type { MenuEntry } from '../shared/MenuPopover'
@@ -404,19 +404,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }
   const draftLastWithUpdates = lastWithUpdates(pendingUpdates)
 
+  // The footer's Mark followed up (edit mode; a new task's footer has none — its Last field takes a date).
   const handleFollowedUp = () => {
-    if (isEdit && todo) {
-      void flushNotes()
-      if (props.onFollowedUp) props.onFollowedUp()
-      else void useTodoStore.getState().markFollowedUp([todo.id])
-      return
-    }
-    const now = new Date()
-    setDraftLastFollowup(now)
-    // Mark followed up's rule: a next follow-up after today stays, else the
-    // automatic one (none while it is off).
-    setDraftNextFollowup(nextAfterFollowup(draftNextFollowup, now, autoNextFollowup(now)) ?? undefined)
-    setNextFollowupIsDefault(false)
+    if (!isEdit || !todo) return
+    void flushNotes()
+    if (props.onFollowedUp) props.onFollowedUp()
+    else void useTodoStore.getState().markFollowedUp([todo.id])
   }
 
   // The Urgent toggle shows and flips the flag only. A due date within the
@@ -701,23 +694,27 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                 onCreatePerson={handleCreatePerson}
                 onCreateTag={handleCreateTag}
               />
-              <FollowupFacts>
-                <FollowupEditorGroup
-                  next={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
-                  last={isEdit ? todo?.lastFollowupAt : draftLastWithUpdates}
-                  nextTone={nextTone}
-                  nextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
-                    ? `Default · ${describeFollowupInterval(followupInterval)}`
-                    : undefined}
-                  // The untouched default is a proposal: focus selects it, so typing replaces it.
-                  selectNextOnFocus={!isEdit && nextFollowupIsDefault && !!draftNextFollowup}
-                  onNextChange={handleNextFollowupChange}
-                  onLastChange={handleLastFollowupChange}
-                  onFollowedUp={handleFollowedUp}
-                  hideLast={isDraft}
-                />
-              </FollowupFacts>
+              {isEdit && todo && (
+                <TaskRailFoot>
+                  Created {formatDate(todo.createdAt)} · Modified {formatRelativeTime(todo.modifiedAt)}
+                </TaskRailFoot>
+              )}
             </>
+          )}
+          followup={(
+            <FollowupEditorGroup
+              next={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
+              last={isEdit ? todo?.lastFollowupAt : draftLastWithUpdates}
+              nextTone={nextTone}
+              nextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
+                ? `Default · ${describeFollowupInterval(followupInterval)}`
+                : undefined}
+              // The untouched default is a proposal: focus selects it, so typing replaces it.
+              selectNextOnFocus={!isEdit && nextFollowupIsDefault && !!draftNextFollowup}
+              onNextChange={handleNextFollowupChange}
+              onLastChange={handleLastFollowupChange}
+              hideLast={isDraft}
+            />
           )}
           subtasks={(
             // Keyed by the task: Duplicate switches the editor to the copy, and a
@@ -752,7 +749,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         />
 
         {isEdit && todo ? (
-          <TaskEditFooter mode="edit" todo={todo} onClose={onClose} />
+          <TaskEditFooter mode="edit" todo={todo} onClose={onClose} onFollowedUp={handleFollowedUp} />
         ) : (
           <TaskEditFooter mode="create" onClose={onClose} onCreate={handleCreate} titleValid={!!title.trim()} isDraft={isDraft} />
         )}

@@ -29,7 +29,8 @@ import { SubtasksSection } from '../task/subtasks/SubtasksSection'
 import { storedSubtaskMenuEntries } from '../task/subtasks/subtask-menu'
 import { TaskDetailsBody, TaskNotesSection } from '../task/TaskDetailsBody'
 import { taskLayoutClasses } from '../task/task-layout-classes'
-import { FactDateField, FactDateWords, FactRow, FollowupFacts, PriorityFacts, StatusFacts, type FactDateTone } from '../task/TaskFacts'
+import { FactDateField, PriorityFacts, StatusFacts, type FactDateTone } from '../task/TaskFacts'
+import { TaskFollowupRows, type FollowupRowParts } from '../task/TaskFollowupRows'
 import { TaskEditMetadata } from '../task/TaskEditMetadata'
 import { useEditorStatusUpdates, useEditorSubtasks } from '../task/use-editor-entries'
 import { useReviewSessionApi } from './review-session-context'
@@ -41,16 +42,16 @@ const NO_TAGS: Tag[] = []
 
 /**
  * The review card (D26; the deck's and the Review widget's large face): the
- * task editor's layout (boards BJ, BL, the shared `TaskDetailsBody`) for
- * one task, every edit written at once, each its own undo step after the
- * notes typed so far — the box and title; the facts rail (Priority, Status,
- * People, Tags, Due + repeat, then Follow-up: Next — the field Mark
- * followed up reads —, Last as a date only); the writing (Notes and
- * Subtasks above the dock: Status updates oldest first with the review's
- * update line last, so that line is in the same place on every card). One task
- * only, never the selection. Then the footer (`ReviewFooter`): the hint,
- * ‹ Back, Skip › and Mark followed up ›. The host lays the card and the
- * footer out (`data-review-card`, `data-review-footer`).
+ * task editor's layout (boards BJ, BL, task layout A — the shared
+ * `TaskDetailsBody`) for one task, every edit written at once, each its own
+ * undo step after the notes typed so far — the box and title; the facts
+ * rail (Priority, Status, People, Tags, Due + repeat); the writing (Notes
+ * and Subtasks above the dock: Status updates oldest first with the
+ * review's update line last, then the follow-up rows — Next, the field Mark
+ * followed up reads, and Last, a field too —, so that line is in the same
+ * place on every card). One task only, never the selection. Then the footer
+ * (`ReviewFooter`): ‹ Back, Skip › and Mark followed up ›. The host lays the
+ * card and the footer out (`data-review-card`, `data-review-footer`).
  */
 export function ReviewCard({ todo, keyHints = false, focusOnOpen }: { todo: PersistedTodoItem; keyHints?: boolean; focusOnOpen?: ReviewFocusOnOpen }) {
   const todoId = todo.id
@@ -71,13 +72,10 @@ export function ReviewCard({ todo, keyHints = false, focusOnOpen }: { todo: Pers
   const updates = useEditorStatusUpdates(entryOptions, undefined)
   const updateRef = useRef<HTMLInputElement>(null)
   const f = useReviewFollowUp(todo, flushNotes, updateRef)
-  const { today, afterNotes, input, untouched, current, fieldDate } = f
+  const { today, afterNotes } = f
   const update = (changes: TodoChanges) => afterNotes(() => useTodoStore.getState().update(todoId, changes))
-  const nextRef = useRef<HTMLInputElement>(null)
 
   useFocusUpdateLineOnOpen(updateRef, focusOnOpen)
-
-  const s = input.state
 
   const toggleComplete = () => {
     const shownCompleted = todo.isCompleted
@@ -118,12 +116,8 @@ export function ReviewCard({ todo, keyHints = false, focusOnOpen }: { todo: Pers
     afterNotes(() => useTagStore.getState().assignTag(todoId, id))
   }
 
-  const lastLate = followupState(todo, today) === 'late'
-  const last = todo.lastFollowupAt
-  // The Next field's words at rest: the date it holds, coloured as a row's follow-up date.
-  const shownNext = fieldDate === 'invalid' ? null : fieldDate
-  const shownNextState = shownNext ? followupState({ nextFollowupAt: shownNext, isCompleted: todo.isCompleted }, today) : undefined
-  const nextTone: FactDateTone | undefined = shownNextState === 'late' ? 'followup-late' : shownNextState === 'today' ? 'followup-today' : undefined
+  const { last } = f
+  const ls = last.input.state
   const dues = dueState(todo, today, urgentRange)
 
   return (
@@ -169,65 +163,48 @@ export function ReviewCard({ todo, keyHints = false, focusOnOpen }: { todo: Pers
                 onCreatePerson={createPerson}
                 onCreateTag={createTag}
               />
-              <FollowupFacts>
-                <FactRow label="Next">
-                  <FactDateField date={shownNext} kind="next" tone={nextTone} empty="None" showWords={untouched}>
-                    <div className={`${followupStyles.editorInputWrap} ${s.kind === 'invalid' ? followupStyles.inputWrapError : ''}`}>
+            </>
+          )}
+          followup={(
+            <TaskFollowupRows
+              next={reviewNextParts(f, `${uid}-next`, selectOnFocus)}
+              last={{
+                field: (
+                  <FactDateField date={last.stored} kind="last" empty="Never" showWords={!last.input.dirty} testId="review-last-followup">
+                    <div className={`${followupStyles.editorInputWrap} ${ls.kind === 'invalid' ? followupStyles.inputWrapError : ''}`}>
                       <input
-                        id={`${uid}-next`}
-                        ref={nextRef}
-                        aria-label="Next follow-up"
+                        aria-label="Last follow-up"
                         className={followupStyles.input}
-                        value={input.text}
-                        placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
-                        onChange={(e) => f.typeNext(e.target.value)}
-                        {...selectOnFocus}
-                        data-review-next=""
-                        onKeyDown={f.onNextKeyDown}
-                        aria-invalid={s.kind === 'invalid'}
-                        aria-describedby={`${uid}-next-help`}
+                        value={last.input.text}
+                        placeholder="Never"
+                        onChange={(e) => last.input.change(e.target.value)}
+                        onFocus={last.onFocus}
+                        onBlur={last.onBlur}
+                        onKeyDown={last.onKeyDown}
+                        aria-invalid={ls.kind === 'invalid'}
+                        aria-describedby={`${uid}-last-help`}
+                        data-review-last=""
                         autoComplete="off"
                         spellCheck={false}
                       />
-                      {input.text !== '' && (
-                        <button
-                          type="button"
-                          className={followupStyles.inputClear}
-                          aria-label="Clear next follow-up"
-                          title="Clear next follow-up"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={f.clearNext}
-                        >
-                          &times;
-                        </button>
-                      )}
                       <FollowupDateButton
-                        label="Pick next follow-up date"
-                        value={shownNext ?? undefined}
-                        onPick={(d) => (d ? f.apply(d) : f.clearNext())}
+                        label="Pick last follow-up date"
+                        value={last.stored}
+                        max={today}
+                        onPick={last.pick}
                       />
                     </div>
                   </FactDateField>
-                </FactRow>
-                <div className={followupStyles.factIndent}>
-                  <span id={`${uid}-next-help`} className={styles.help} aria-live="polite">
-                    {s.kind === 'valid' && <>→ {formatFollowupDate(s.date, today)} · {relativeDayPhrase(s.date, today)} · ⏎ to set</>}
-                    {s.kind === 'invalid' && <span className={styles.helpError}>{s.message}</span>}
-                    {s.kind === 'empty' && (current !== null ? 'No next follow-up · ⏎ to clear' : 'No next follow-up')}
+                ),
+                help: (
+                  <span id={`${uid}-last-help`} className={followupStyles.rowHelp} aria-live="polite">
+                    {ls.kind === 'valid' && <>→ {formatFollowupDate(ls.date, today)} · {relativeDayPhrase(ls.date, today)} · ⏎ to set</>}
+                    {ls.kind === 'invalid' && <span className={followupStyles.helpError}>{ls.message}</span>}
+                    {ls.kind === 'empty' && last.stored ? 'Never followed up · ⏎ to clear' : null}
                   </span>
-                  <FollowupQuickButtons
-                    intervals={QUICK_FOLLOWUP_INTERVALS}
-                    labelStyle="short"
-                    onPick={(i) => f.apply(addFollowupInterval(today, i))}
-                  />
-                </div>
-                <FactRow label="Last">
-                  <span className={styles.lastValue} data-late={lastLate || undefined} data-testid="review-last-followup">
-                    <FactDateWords date={last} kind="last" empty="Never followed up" />
-                  </span>
-                </FactRow>
-              </FollowupFacts>
-            </>
+                ),
+              }}
+            />
           )}
           subtasks={(
             <SubtasksSection
@@ -259,6 +236,76 @@ export function ReviewCard({ todo, keyHints = false, focusOnOpen }: { todo: Pers
       <ReviewFooter followUp={f} keyHints={keyHints} />
     </>
   )
+}
+
+/**
+ * The review's Next follow-up row (the card's and the medium face's): the
+ * field — starting on what Mark followed up would leave; ⏎ or a quick button
+ * sets the date at once and hands the focus back to the update line; ×
+ * clears it —, the quick intervals 1w 2w 1m 3m, then what the typed text
+ * means (`aria-live`).
+ */
+function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnType<typeof useSelectAllOnFocus>): FollowupRowParts {
+  const { input, fieldDate, current, today, todo } = f
+  const s = input.state
+  // The field's words at rest: the date it holds, coloured as a row's follow-up date.
+  const shownNext = fieldDate === 'invalid' ? null : fieldDate
+  const shownNextState = shownNext ? followupState({ nextFollowupAt: shownNext, isCompleted: todo.isCompleted }, today) : undefined
+  const nextTone: FactDateTone | undefined = shownNextState === 'late' ? 'followup-late' : shownNextState === 'today' ? 'followup-today' : undefined
+  return {
+    field: (
+      <FactDateField date={shownNext} kind="next" tone={nextTone} empty="None" showWords={f.untouched}>
+        <div className={`${followupStyles.editorInputWrap} ${s.kind === 'invalid' ? followupStyles.inputWrapError : ''}`}>
+          <input
+            id={id}
+            aria-label="Next follow-up"
+            className={followupStyles.input}
+            value={input.text}
+            placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
+            onChange={(e) => f.typeNext(e.target.value)}
+            {...selectOnFocus}
+            data-review-next=""
+            onKeyDown={f.onNextKeyDown}
+            aria-invalid={s.kind === 'invalid'}
+            aria-describedby={`${id}-help`}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {input.text !== '' && (
+            <button
+              type="button"
+              className={followupStyles.inputClear}
+              aria-label="Clear next follow-up"
+              title="Clear next follow-up"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={f.clearNext}
+            >
+              &times;
+            </button>
+          )}
+          <FollowupDateButton
+            label="Pick next follow-up date"
+            value={shownNext ?? undefined}
+            onPick={(d) => (d ? f.apply(d) : f.clearNext())}
+          />
+        </div>
+      </FactDateField>
+    ),
+    quick: (
+      <FollowupQuickButtons
+        intervals={QUICK_FOLLOWUP_INTERVALS}
+        labelStyle="short"
+        onPick={(i) => f.apply(addFollowupInterval(today, i))}
+      />
+    ),
+    help: (
+      <span id={`${id}-help`} className={followupStyles.rowHelp} aria-live="polite">
+        {s.kind === 'valid' && <>→ {formatFollowupDate(s.date, today)} · {relativeDayPhrase(s.date, today)} · ⏎ to set</>}
+        {s.kind === 'invalid' && <span className={followupStyles.helpError}>{s.message}</span>}
+        {s.kind === 'empty' && (current !== null ? 'No next follow-up · ⏎ to clear' : 'No next follow-up')}
+      </span>
+    ),
+  }
 }
 
 /**
@@ -320,9 +367,10 @@ export function ReviewUpdateLine({ followUp: f, inputRef, id, compact = false }:
 }
 
 /**
- * The review's footer: what Mark followed up will do, ‹ Back, Skip › and
- * Mark followed up ›. `keyHints`: the deck's keys beside Back and Skip;
- * `openCard`: the medium face's Open card ↗ (the task in its editor).
+ * The review's footer: ‹ Back, Skip › and Mark followed up › (its tooltip
+ * says what it will do; the Next field it reads is right above it, in the
+ * dock). `keyHints`: the deck's keys beside Back and Skip; `openCard`: the
+ * medium face's Open card ↗ (the task in its editor).
  */
 export function ReviewFooter({ followUp: f, keyHints = false, compact = false, onOpenCard }: {
   followUp: ReviewFollowUp
@@ -339,7 +387,6 @@ export function ReviewFooter({ followUp: f, keyHints = false, compact = false, o
         </button>
       )}
       <span className={styles.spacer} />
-      {!compact && <span className={styles.hint} data-testid="review-hint">{f.hint}</span>}
       <button
         type="button"
         className={styles.secondaryBtn}
@@ -375,13 +422,15 @@ const COMPACT_UPDATES = 2
 
 /**
  * The review card's essentials (the Review widget's medium face, item 12;
- * board BM): the box and title, a one-line summary of the facts (due,
- * status, priority, next and last follow-up), then the **updates dock** —
- * the Status updates heading (with the count once there is an entry), the
- * latest two entries oldest first (read-only: Open card ↗ edits them) and
- * the update line (⏎ follows up) — and the footer; Open card ↗ opens the
- * task in its editor. In a short cell the older entry, the log, then the
- * heading give way (`Review.module.css`).
+ * board BM, task layout A): the box and title, a one-line summary of the
+ * facts (due, status, priority, next and last follow-up), then the **updates
+ * dock** — the Status updates heading (with the count once there is an
+ * entry), the latest two entries oldest first (read-only: Open card ↗ edits
+ * them), the update line (⏎ follows up) and the Next row (the field and the
+ * quick intervals, as the card's) — and the footer; Open card ↗ opens the
+ * task in its editor (where Last is edited). In a short cell the older
+ * entry, the log, the heading, then the Next row give way
+ * (`Review.module.css`); the update line and the footer stay.
  */
 export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; focusOnOpen?: ReviewFocusOnOpen }) {
   const todoId = todo.id
@@ -394,6 +443,7 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
   const headingId = useId()
   const updateRef = useRef<HTMLInputElement>(null)
   const f = useReviewFollowUp(todo, NO_NOTES, updateRef)
+  const selectOnFocus = useSelectAllOnFocus()
   useFocusUpdateLineOnOpen(updateRef, focusOnOpen)
   const { today } = f
   const summary = markerSummary(todo, today, urgentRange)
@@ -458,6 +508,9 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
             </ul>
           )}
           <ReviewUpdateLine followUp={f} inputRef={updateRef} compact />
+          <div className={styles.compactNext} data-review-compact-next="">
+            <TaskFollowupRows next={reviewNextParts(f, `${headingId}-next`, selectOnFocus)} labels="short" />
+          </div>
         </section>
       </div>
       <ReviewFooter followUp={f} compact onOpenCard={() => useUIStore.getState().openEditPopup(todoId)} />

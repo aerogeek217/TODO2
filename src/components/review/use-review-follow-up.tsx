@@ -1,4 +1,4 @@
-import { useLayoutEffect, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react'
 import type { PersistedTodoItem } from '../../models'
 import { useFollowupInput } from '../../hooks/use-followup-input'
 import { useLatestRef } from '../../hooks/use-latest-ref'
@@ -121,22 +121,71 @@ export function useReviewFollowUp(todo: PersistedTodoItem, flushNotes: () => Pro
     session.getState().next()
   }
 
-  const nextWords = fieldDate === 'invalid'
-    ? 'Fix the next follow-up date'
-    : fieldDate ? `next ${formatFollowupDate(fieldDate, today)}` : 'no next follow-up'
-  // What Mark followed up will do, as the follow-up popover's tooltip says it.
+  // ── Last follow-up: a field, the editor's rules (a date, never in the future; ⏎ / Tab / blur
+  // commit, Esc reverts) — written after the notes, its own undo step.
+  const storedLast = todo.lastFollowupAt
+  const lastInput = useFollowupInput(storedLast, 'last', today)
+  // ⏎ commits and moves on: the blur that follows has nothing more to write.
+  const lastCommitted = useRef(false)
+  const setLast = (date: Date | null) => afterNotes(() => useTodoStore.getState().update(todoId, { lastFollowupAt: date ?? undefined }))
+  const commitLast = () => {
+    const ls = lastInput.state
+    if (ls.kind === 'empty') {
+      if (storedLast) setLast(null)
+      lastInput.settle(null)
+    } else if (ls.kind === 'valid') {
+      if (!sameDay(ls.date, storedLast ?? null)) setLast(ls.date)
+      lastInput.settle(ls.date)
+    }
+  }
+  const last = {
+    input: lastInput,
+    stored: storedLast,
+    onFocus: () => { lastCommitted.current = false },
+    onBlur: () => {
+      if (lastCommitted.current) {
+        lastCommitted.current = false
+        return
+      }
+      commitLast()
+    },
+    onKeyDown: (e: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (e.nativeEvent.isComposing) return
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        if (e.repeat || lastInput.state.kind === 'invalid') return
+        commitLast()
+        lastCommitted.current = true
+        updateRef.current?.focus()
+      } else if (e.key === 'Escape' && lastInput.dirty) {
+        // Back to the stored date; the field keeps the focus (a second Esc is the host's).
+        e.preventDefault()
+        e.stopPropagation()
+        lastInput.reset()
+      }
+    },
+    /** The calendar's pick: set at once. */
+    pick: (date: Date | null) => {
+      if (!sameDay(date, storedLast ?? null)) setLast(date)
+      lastInput.settle(date)
+    },
+  }
+
+  // What Mark followed up will do, as the follow-up popover's tooltip says it (the Next field it reads is right above it).
   const kept = untouched && current !== null && ruled === current
-  const followUpWords = kept
-    ? 'Record a follow-up today and keep the next follow-up'
-    : fieldDate === null
-      ? (current === null ? 'Record a follow-up today (no next follow-up)' : 'Record a follow-up today and clear the next follow-up')
-      : 'Record a follow-up today and set the next follow-up to the date in the field'
+  const followUpWords = fieldDate === 'invalid'
+    ? 'Fix the next follow-up date first'
+    : kept
+      ? 'Record a follow-up today and keep the next follow-up'
+      : fieldDate === null
+        ? (current === null ? 'Record a follow-up today (no next follow-up)' : 'Record a follow-up today and clear the next follow-up')
+        : `Record a follow-up today and set the next follow-up to ${formatFollowupDate(fieldDate, today)}`
   const { triggerProps: followUpTipProps, tooltip: followUpTip } = useTooltip(
-    followUpWords + (hasUpdate ? ', and add the status update' : ''),
+    followUpWords + (hasUpdate && fieldDate !== 'invalid' ? ', and add the status update' : ''),
   )
-  const hint = hasUpdate ? `With the update · ${nextWords}` : nextWords.charAt(0).toUpperCase() + nextWords.slice(1)
 
   return {
+    todo,
     today,
     draft,
     setDraft: (text: string) => session.getState().setDraft(todoId, text),
@@ -152,7 +201,7 @@ export function useReviewFollowUp(todo: PersistedTodoItem, flushNotes: () => Pro
     onNextKeyDown,
     followUp,
     afterNotes,
-    hint,
+    last,
     followUpTipProps,
     followUpTip: followUpTip as ReactNode,
   }

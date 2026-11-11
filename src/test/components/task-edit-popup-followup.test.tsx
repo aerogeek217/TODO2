@@ -137,46 +137,19 @@ describe('TaskEditPopup — follow-up group', () => {
     expect(onCreate.mock.calls[0]![0].nextFollowupAt).toEqual(day(2026, 10, 24))
   })
 
-  it('create mode: Mark followed up stamps last = now and next = default', async () => {
+  it('create mode: no Mark followed up (task layout A: it is the edit footer’s); a Last date typed goes into the new task', async () => {
     const { onCreate } = renderCreate()
-    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
+    expect(screen.queryByRole('button', { name: 'Mark followed up' })).toBeNull()
+    fireEvent.change(lastInput(), { target: { value: 'today' } })
+    fireEvent.blur(lastInput())
     // At rest the Last field reads as a row's date: Today.
     expect(lastInput().closest('[data-words]')).toHaveTextContent('Today')
     fireEvent.click(screen.getByText('Create task'))
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
     const partial = onCreate.mock.calls[0]![0]
-    expect(partial.lastFollowupAt).toEqual(NOW)
-    expect(partial.nextFollowupAt).toEqual(day(2026, 11, 10))
-  })
-
-  it('create mode with the automatic next follow-up off: Mark followed up stamps last = now and leaves no next', async () => {
-    useSettingsStore.setState({ autoFollowup: false })
-    const { onCreate } = renderCreate()
-    fireEvent.change(nextInput(), { target: { value: 'today' } })
-    fireEvent.blur(nextInput())
-    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
-    expect(nextInput().value).toBe('')
-    fireEvent.click(screen.getByText('Create task'))
-    await waitFor(() => expect(onCreate).toHaveBeenCalled())
-    const partial = onCreate.mock.calls[0]![0]
-    expect(partial.lastFollowupAt).toEqual(NOW)
-    // Key present: none, not "the default".
-    expect('nextFollowupAt' in partial).toBe(true)
-    expect(partial.nextFollowupAt).toBeUndefined()
-  })
-
-  it('create mode: Mark followed up keeps a next follow-up after today (the setting off or on)', async () => {
-    useSettingsStore.setState({ autoFollowup: false })
-    const { onCreate } = renderCreate()
-    fireEvent.change(nextInput(), { target: { value: '2w' } })
-    fireEvent.blur(nextInput())
-    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
-    expect(nextInput().value).toBe('Sat 24 Oct')
-    fireEvent.click(screen.getByText('Create task'))
-    await waitFor(() => expect(onCreate).toHaveBeenCalled())
-    const partial = onCreate.mock.calls[0]![0]
-    expect(partial.lastFollowupAt).toEqual(NOW)
-    expect(partial.nextFollowupAt).toEqual(day(2026, 10, 24))
+    expect(partial.lastFollowupAt).toEqual(day(2026, 10, 10))
+    // The Next default is still left to the new task.
+    expect('nextFollowupAt' in partial).toBe(false)
   })
 
   it('edit mode: Next edits apply immediately; invalid input keeps the old value; Esc reverts', () => {
