@@ -22,8 +22,8 @@ export function groupPerson(groupBy: TodoGroupBy, section: Section): GroupPerson
 
 /**
  * A list group header's menu: a People group's person menu
- * (`entityMenuEntries`: Review with X… · Email check-in to X · Paste reply
- * from X… · Show tasks · Edit… · Delete…, each where `offers` allows it),
+ * (`entityMenuEntries`: Review with X ·
+ * Show tasks · Edit… · Delete…, each where `offers` allows it),
  * then `Copy N tasks` — the group's tasks as one list headed by the
  * group's name.
  */

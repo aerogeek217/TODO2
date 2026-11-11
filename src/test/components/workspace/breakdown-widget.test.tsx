@@ -201,7 +201,7 @@ describe('clicks: a row drills, its Review button and a count jump', () => {
     expect(document.body.textContent).not.toContain('Review ▸')
   })
 
-  it('the medium face keeps Review after the name, no envelope', () => {
+  it('the medium face keeps Review after the name', () => {
     setup(breakdown({ checkins: true }), { face: 'medium' })
     const priya = rowOf('person-4')
     expect(priya.querySelector('[role="cell"]')!.contains(within(priya).getByTestId('breakdown-review'))).toBe(true)
@@ -268,23 +268,15 @@ describe('clicks: a row drills, its Review button and a count jump', () => {
   })
 })
 
-describe('the check-in envelope', () => {
-  it('each person row has it with checkins, beside Review; its menu is Email check-in · Paste reply; none without', () => {
+describe('no check-in envelope (widget feedback 2B)', () => {
+  it('a person row has no envelope, even with a stored `checkins` (read and ignored); Oldest shows the age', () => {
     setup(breakdown({ checkins: true, show: 'oldest', oldestBy: 'lastFollowup' }))
-    const envelope = within(rowOf('person-4')).getByRole('button', { name: 'Email check-in options for Priya Nair' })
-    expect(envelope.previousElementSibling).toBe(within(rowOf('person-4')).getByTestId('breakdown-review'))
-    fireEvent.click(envelope)
-    expect([...document.querySelectorAll('[role="menu"] [role="menuitem"]')].map((e) => e.textContent)).toEqual(['Email check-in to Priya Nair', 'Paste reply from Priya Nair…'])
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
-    expect(within(rowOf('none')).queryByRole('button', { name: /Email check-in/ })).toBeNull()
+    expect(document.querySelector('[aria-label^="Email check-in options"]')).toBeNull()
+    expect(document.querySelector('[data-testid="breakdown-envelope"]')).toBeNull()
     // Oldest: the age in days, its title under the name.
     expect(within(rowOf('person-4')).getByTestId('breakdown-figure').textContent).toMatch(/^\d+ d$/)
-    cleanup()
-    setup(breakdown())
-    expect(document.querySelector('[aria-label^="Email check-in options"]')).toBeNull()
   })
 })
-
 describe('the table’s columns', () => {
   it('large: name · bar · Open · each count column — no Priority column; a count column is its number’s room, the name takes the rest', () => {
     setup(breakdown())
@@ -397,20 +389,19 @@ describe('the editor (D26 P8, the Number editor’s pattern)', () => {
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Style' }), { target: { value: 'donut' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Show' }), { target: { value: 'oldest' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Oldest by' }), { target: { value: 'created' } })
-    fireEvent.click(within(editor).getByRole('checkbox', { name: 'Check-in envelope on each person' }))
     fireEvent.click(within(editor).getByRole('checkbox', { name: 'Show Unassigned' }))
     // Nothing written until Save.
     expect(current().config.name).toBe('People')
     expect(layoutSteps()).toEqual([])
     editor = saveAndReopen()
-    expect(current().config).toMatchObject({ name: 'Waiting on', style: 'donut', show: 'oldest', oldestBy: 'created', checkins: true, showNone: false })
+    expect(current().config).toMatchObject({ name: 'Waiting on', style: 'donut', show: 'oldest', oldestBy: 'created', showNone: false })
+    expect(within(editor).queryByRole('checkbox', { name: /Check-in/ })).toBeNull()
     expect(layoutSteps()).not.toEqual([])
-    // Another split drops the check-ins; Count drops oldestBy.
+    // Count drops oldestBy.
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Split by' }), { target: { value: 'status' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Show' }), { target: { value: 'count' } })
     expect(within(editor).getByRole('checkbox', { name: 'Show No status' })).not.toBeChecked()
     editor = saveAndReopen()
-    expect(current().config).not.toHaveProperty('checkins')
     expect(current().config).not.toHaveProperty('oldestBy')
     fireEvent.click(within(editor).getByRole('button', { name: 'Close' }))
     expect(document.querySelector('[data-chart-editor]')).toBeNull()

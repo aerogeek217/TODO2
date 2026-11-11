@@ -127,26 +127,25 @@ function FieldPanelBody({ field, onDone, onCloseAll = onDone }: { field: FieldDe
 
 /**
  * The People picker's footer while the filter is narrowed to some (not all,
- * not none) people — the person menu's items (`peopleMenuEntries`): for one
- * person `Review with <name>…`, `Email check-in to <name>` (the one-click
- * send, inside the click) and `Paste reply from <name>…`; for several
- * `Review N people’s tasks…` and `Email check-in to N people…` (the check-in
- * dialog with exactly those people ticked; it has its own Paste a reply…).
- * Review isn't offered while the deck is open. Else a hint.
+ * not none) people — the person menu's Review (`peopleMenuEntries`): for one
+ * person `Review with <name>`, for several `Review N people’s tasks` — a
+ * jump to a Review widget with `@A or @B`. Else a hint. None while no layout
+ * has a Review widget (or on a phone): Review is all it offers.
  */
-function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number; name: string }[]; onDone: () => void }) {
+function PeopleReviewAction({ people, onDone }: { people: readonly { id: number; name: string }[]; onDone: () => void }) {
   const { review } = useEntityMenuOffers()
+  if (!review) return null
   return (
     <>
       <div className={picker.dropdownDivider} />
       {people.length === 0 ? (
-        <div className={styles.checkinHint}>Narrow to some people to review or email them.</div>
+        <div className={styles.reviewHint}>Narrow to some people to review them.</div>
       ) : (
         peopleMenuEntries(people, { review, after: onDone }).map((item) => (
           <button
             key={item.label}
             type="button"
-            className={styles.checkinAction}
+            className={styles.reviewAction}
             disabled={item.disabled}
             title={item.title}
             onClick={item.onSelect}
@@ -618,7 +617,7 @@ export function FilterChipBarDesktop({
           />
         ),
         footer: (closeAll) => (
-          <PeopleCheckinAction
+          <PeopleReviewAction
             people={previewEmpty === 'people' && !negated.people ? [] : narrowedPeople(people, personIdsSet, negated.people)}
             onDone={closeAll}
           />

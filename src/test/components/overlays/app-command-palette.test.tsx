@@ -5,7 +5,10 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { createTab } from '../../../models/workspace-layout'
 import { makePerson, makeTodo } from '../../helpers'
+import { cell, grid } from '../../helpers/layout-builders'
 
 // JSDOM has no scrollIntoView (the palette keeps the active row in view).
 const proto = Element.prototype as { scrollIntoView?: unknown }
@@ -25,10 +28,12 @@ afterEach(() => {
 const shortcuts = { openPalette: vi.fn(), closePalette: vi.fn(), openSettings: vi.fn(), openShortcutsModal: vi.fn() }
 
 describe('AppCommandPalette', () => {
-  it('a palette opened before the tasks load gains the per-person check-ins as they arrive', () => {
+  it('a palette opened before the tasks load gains Review With › as they arrive; no Email Check-in ›', () => {
+    const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab('review', 'rv')])]]) }
+    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
     render(<AppCommandPalette onClose={vi.fn()} shortcuts={shortcuts} />)
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'email ada' } })
-    expect(screen.queryByRole('option', { name: /Email Check-in › Ada Lovelace/ })).toBeNull()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'review ada' } })
+    expect(screen.queryByRole('option', { name: /Review With › Ada Lovelace/ })).toBeNull()
 
     const ada = makePerson({ id: 1, name: 'Ada Lovelace' })
     act(() => {
@@ -36,7 +41,9 @@ describe('AppCommandPalette', () => {
       useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Report' })] })
       usePersonStore.setState({ assignedPeopleMap: new Map([[1, [ada]]]) })
     })
-    expect(screen.getByRole('option', { name: /Email Check-in › Ada Lovelace/ })).toHaveTextContent('1 open task')
+    expect(screen.getByRole('option', { name: /Review With › Ada Lovelace/ })).toHaveTextContent('1 open task')
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'email ada' } })
+    expect(screen.queryByRole('option', { name: /Email Check-in/ })).toBeNull()
   })
 
   it('Show Tasks Matching the Filter: always offered, counts the tasks, opens the top bar’s filtered-tasks panel', () => {

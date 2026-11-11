@@ -16,10 +16,10 @@ import { makePerson, makeTodo } from '../../helpers'
 import { cell, grid } from '../../helpers/layout-builders'
 
 /**
- * The one person / tag menu (D26): a person's Review with X · Email
- * check-in to X · Paste reply from X… · ─ · Show tasks · Edit… · ─ ·
- * Delete…; a tag's Review #tag tasks · ─ · Show tasks · Edit… · ─ ·
- * Delete…. Review and the check-ins follow Show tasks' layer rule; Review —
+ * The one person / tag menu (D26): a person's Review with X · ─ · Show
+ * tasks · Edit… · ─ · Delete…; a tag's Review #tag tasks · ─ · Show tasks ·
+ * Edit… · ─ · Delete…. No check-ins (widget feedback 2B). Review follows
+ * Show tasks' layer rule; Review —
  * a jump to a Review widget — is also left out on a phone and while no
  * layout has a Review widget.
  */
@@ -31,7 +31,7 @@ const aisha = makePerson({ id: 1, name: 'Aisha Rahman', initials: 'AR' })
 const ben = makePerson({ id: 2, name: 'Ben Ortiz', initials: 'BO' })
 const legal: Tag = { id: 7, name: 'legal', color: '#999' }
 
-const PERSON_MENU = ['Review with Aisha Rahman', 'Email check-in to Aisha Rahman', 'Paste reply from Aisha Rahman…', 'Show tasks', 'Edit…', 'Delete…']
+const PERSON_MENU = ['Review with Aisha Rahman', 'Show tasks', 'Edit…', 'Delete…']
 
 beforeEach(() => {
   useTodoStore.setState({
@@ -58,7 +58,7 @@ const person: MenuEntity = { kind: 'person', entity: aisha }
 const tag: MenuEntity = { kind: 'tag', entity: legal }
 
 describe('EntityMenu — a person', () => {
-  it('Review · the two check-ins, then Show tasks · Edit…, then Delete…', () => {
+  it('Review, then Show tasks · Edit…, then Delete…', () => {
     renderMenu([person])
     const menu = screen.getByRole('menu', { name: '@Aisha Rahman' })
     expect(items(menu)).toEqual(PERSON_MENU)
@@ -74,25 +74,14 @@ describe('EntityMenu — a person', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('Email check-in to X sends inside the click (here: no open task matches, so the dialog opens with why)', () => {
-    useTodoStore.setState({ todos: [] })
-    const onShowTasks = vi.fn()
-    renderMenu([person], { onShowTasks })
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in to Aisha Rahman' }))
-    // Set before the click returned: the send ran synchronously up to its first await.
-    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: 'Aisha Rahman has no open tasks, so nothing was sent.' })
-    expect(onShowTasks).toHaveBeenCalledOnce()
-  })
-
-  it('Paste reply from X… opens the reply import for them', () => {
+  it('no check-in items (they live on the Review widget’s field)', () => {
     renderMenu([person])
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Paste reply from Aisha Rahman…' }))
-    expect(useUIStore.getState()).toMatchObject({ checkinImportOpen: true, checkinImportPersonId: 1 })
+    expect(screen.queryByRole('menuitem', { name: /Email check-in|Paste reply/ })).toBeNull()
   })
 })
 
 describe('EntityMenu — a tag', () => {
-  it('Review #tag tasks…, then Show tasks · Edit…, then Delete…', () => {
+  it('Review #tag tasks, then Show tasks · Edit…, then Delete…', () => {
     renderMenu([tag])
     expect(items(screen.getByRole('menu', { name: '#legal' }))).toEqual(['Review #legal tasks', 'Show tasks', 'Edit…', 'Delete…'])
   })
@@ -104,7 +93,7 @@ describe('EntityMenu — a tag', () => {
   })
 })
 
-describe('EntityMenu — where Review and the check-ins are offered', () => {
+describe('EntityMenu — where Review is offered', () => {
   it.each(['dialog', 'raised', 'nested'] as const)('inside a %s-tier dialog: Edit… and Delete… only', (layer) => {
     renderMenu([person], { layer })
     expect(items()).toEqual(['Edit…', 'Delete…'])
@@ -148,7 +137,7 @@ describe('EntityMenu — a row’s cell (one submenu per entity)', () => {
     fireEvent.click(within(menu).getByRole('menuitem', { name: '@Ben Ortiz' }))
     const sub = screen.getAllByRole('menu').find((m) => m !== menu)
     expect(sub && items(sub)).toEqual([
-      'Review with Ben Ortiz', 'Email check-in to Ben Ortiz', 'Paste reply from Ben Ortiz…', 'Show tasks', 'Edit…', 'Delete…',
+      'Review with Ben Ortiz', 'Show tasks', 'Edit…', 'Delete…',
     ])
     fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Ben Ortiz' }))
     await waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'person', id: 2 }))

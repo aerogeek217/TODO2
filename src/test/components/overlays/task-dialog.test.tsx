@@ -153,49 +153,26 @@ describe('TaskDialog', () => {
     expect(within(dialog()!).getByRole('button', { name: /Copy tasks/ })).toHaveProperty('disabled', true)
   })
 
-  it('a person’s dialog has Email check-in · Paste reply… as buttons under its title (no Review widget: no Review); the footer only Copy tasks and Close', async () => {
+  it('a person’s dialog has no check-in buttons; without a Review widget, no actions at all; the footer only Copy tasks and Close', () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     open(personTaskDialog(priya))
-    const actions = within(dialog()!).getByRole('group', { name: 'Actions for Priya Nair' })
-    expect(within(actions).getAllByRole('button').map((b) => b.textContent)).toEqual(['Email check-in', 'Paste reply…'])
-    // Each names the person in full, as the person menu does.
-    expect(within(actions).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
-      .toEqual(['Email check-in to Priya Nair', 'Paste reply from Priya Nair…'])
-    // Under the title, before the rows.
-    const heading = within(dialog()!).getByRole('heading')
-    expect(heading.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(actions.compareDocumentPosition(within(dialog()!).getByRole('group', { name: 'Tasks' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(dialog()!).queryByRole('group', { name: 'Actions for Priya Nair' })).toBeNull()
+    expect(within(dialog()!).queryByRole('button', { name: /Email check-in|Paste reply/ })).toBeNull()
     const footerButtons = Array.from(dialog()!.querySelectorAll('[class*="footer"] button')).map((b) => b.textContent)
     expect(footerButtons).toEqual(['Copy tasks', 'CloseEsc'])
-    expect(within(dialog()!).queryByRole('button', { name: /Email check-in options/ })).toBeNull()
-    // No clipboard here: the send can't copy, so the check-in dialog opens for her with the reason.
-    fireEvent.click(within(actions).getByRole('button', { name: 'Email check-in to Priya Nair' }))
-    await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toEqual({
-      personIds: [priya.id],
-      notice: 'Couldn’t copy the email to the clipboard, so nothing was opened. Try again.',
-    }))
-    // The task dialog stays open underneath.
-    expect(dialog()).not.toBeNull()
   })
-
   it('a person’s dialog’s Review (with a Review widget somewhere) closes the dialog and jumps with @<name>', async () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab('review', 'rv')])]]) }
     useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
     open(personTaskDialog(priya))
-    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Review with Priya Nair' }))
+    const actions = within(dialog()!).getByRole('group', { name: 'Actions for Priya Nair' })
+    expect(within(actions).getAllByRole('button').map((b) => b.textContent)).toEqual(['Review'])
+    // Under the title, before the rows.
+    expect(within(dialog()!).getByRole('heading').compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(within(actions).getByRole('button', { name: 'Review with Priya Nair' }))
     expect(useUIStore.getState().taskDialog).toBeNull()
     await vi.waitFor(() => expect(useListWidgetStore.getState().reviewFilters.rv).toEqual({ expression: { kind: 'person', id: priya.id }, showCompleted: false }))
-  })
-
-  it('a person’s dialog’s Paste reply opens the check-in reply import over it', () => {
-    const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
-    useUIStore.setState({ checkinImportOpen: false })
-    open(personTaskDialog(priya))
-    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Paste reply from Priya Nair…' }))
-    expect(useUIStore.getState().checkinImportOpen).toBe(true)
-    expect(useUIStore.getState().checkinImportPersonId).toBe(priya.id)
-    expect(dialog()).not.toBeNull()
   })
 
   it('other dialogs have no Email check-in', () => {

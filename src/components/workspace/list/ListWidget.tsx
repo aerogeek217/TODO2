@@ -487,7 +487,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
         const header = (
           <button
             type="button"
-            className={`${styles.groupHeader} ${person && !drag ? styles.groupHeaderWithAction : ''}`}
+            className={styles.groupHeader}
             aria-expanded={!isCollapsed}
             onClick={() => withViewTransition(() => toggleGroup(tab.id, section.key))}
           >
@@ -514,7 +514,6 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
             {isMobile ? header : (
               <ListGroupHeader
                 person={person}
-                showAction={!drag}
                 onOpenMenu={(at) => setHeaderMenu({ section, person, at })}
               >
                 {header}

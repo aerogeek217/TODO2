@@ -28,7 +28,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { buildCheckinEmail, type CheckinEmail } from './build'
 import { checkinEmlFileName } from './handoff'
 import { createTaskRefLookup } from './ref'
-import { checkinTaskCounts, selectCheckinTasks, type CheckinSelectContext } from './select'
+import { selectCheckinTasks, type CheckinSelectContext } from './select'
 import { sendCheckinEmail, type CheckinSendResult } from './send'
 import { expressionAtoms } from '../../utils/filter-expression'
 
@@ -119,19 +119,6 @@ function currentCheckinSources(): CheckinContextSources {
 /** The build context as the stores hold it now. */
 export function currentCheckinContext(): CheckinBuildContext {
   return buildCheckinContext(currentCheckinSources())
-}
-
-/**
- * Per person id, how many open tasks the check-in filter (default: the saved
- * one) picks over the stores' tasks — what a one-click send would email;
- * `null` while there is no filter (every open task).
- */
-export function currentCheckinTaskCounts(
-  filter: CheckinTaskFilter = useSettingsStore.getState().checkinTaskFilter,
-): Map<number, number> | null {
-  if (isNoCheckinFilter(filter)) return null
-  const { filterSettings: { urgentRange, weekStartsOn }, ...data } = currentCheckinSources()
-  return checkinTaskCounts(filter, { ...data, markerSettings: { urgentRange }, weekStartsOn })
 }
 
 /** `Check-in for Ann opened · 5 tasks followed up` (`downloaded` for an `.eml`). */

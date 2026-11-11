@@ -721,7 +721,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
   })
 })
 
-describe('ListWidget People group headers: email check-in', () => {
+describe('ListWidget People group headers', () => {
   beforeEach(() => {
     // No clipboard unless a test stubs one (a send then falls back to the dialog).
     Reflect.deleteProperty(navigator, 'clipboard')
@@ -734,35 +734,15 @@ describe('ListWidget People group headers: email check-in', () => {
 
   const header = (key: string) => document.querySelector(`[data-list-group="${key}"] button[aria-expanded]`) as HTMLElement
 
-  // No clipboard in this environment: a one-click send can't copy, so it opens the check-in dialog for the person.
-  it('each person’s group has an envelope whose menu sends their check-in (here: the dialog, as the copy fails); Unassigned has none', async () => {
+  it('no group header has a check-in envelope (widget feedback 2B); the header still collapses its group', () => {
     setup(def({ grouping: 'people' }))
-    const envelopes = screen.getAllByRole('button', { name: /^Email check-in options for / })
-    expect(envelopes.map((b) => b.getAttribute('aria-label')))
-      .toEqual(['Email check-in options for Alice', 'Email check-in options for Bob'])
-    expect(envelopes.map((b) => b.getAttribute('aria-haspopup'))).toEqual(['menu', 'menu'])
-    expect(document.querySelector('[data-list-group="unassigned"] [aria-label^="Email check-in"]')).toBeNull()
-    const bob = screen.getByRole('button', { name: 'Email check-in options for Bob' })
-    fireEvent.click(bob)
-    expect(bob).toHaveAttribute('aria-expanded', 'true')
-    const menu = screen.getByRole('menu', { name: 'Check-in for Bob' })
-    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent))
-      .toEqual(['Email check-in to Bob', 'Paste reply from Bob…'])
-    // Nothing sent until Email check-in is picked.
-    expect(useUIStore.getState().checkinDialog).toBeNull()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in to Bob' }))
-    expect(screen.queryByRole('menu')).toBeNull()
-    expect(bob).toHaveAttribute('aria-expanded', 'false')
-    await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [2], notice: expect.stringMatching(/clipboard/) }))
-    // The header itself still collapses its group.
+    expect(screen.queryByRole('button', { name: /^Email check-in/ })).toBeNull()
     fireEvent.click(header('person-1'))
     expect(document.querySelector('[data-list-group="person-1"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(0)
   })
-
-  it('other groupings get no envelope; their header’s menu copies the group, headed by its name', async () => {
+  it('another grouping’s header menu copies the group, headed by its name', async () => {
     const { written } = stubClipboard()
     setup(def({ grouping: 'status' }))
-    expect(screen.queryByRole('button', { name: /^Email check-in/ })).toBeNull()
     const first = document.querySelector('[data-list-group] button[aria-expanded]')!
     const name = first.querySelector('[data-testid="list-group-name"]')!.textContent!
     fireEvent.contextMenu(first)
@@ -780,11 +760,10 @@ describe('ListWidget People group headers: email check-in', () => {
     fireEvent.contextMenu(header('person-1'), { clientX: 40, clientY: 60 })
     const menu = screen.getByRole('menu', { name: 'Alice group' })
     expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent)).toEqual([
-      'Email check-in to Alice', 'Paste reply from Alice…',
       'Show tasks', 'Edit…', 'Delete…', 'Copy 2 tasks',
     ])
-    // The person menu's groups, then a separator before Copy.
-    expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(3)
+    // The person menu (no Review here: no Review widget), then a separator before Copy.
+    expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(2)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Show tasks' }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Alice', personId: 1 })
@@ -801,44 +780,14 @@ describe('ListWidget People group headers: email check-in', () => {
     await vi.waitFor(() => expect(useListWidgetStore.getState().reviewFilters.rv).toEqual({ expression: { kind: 'person', id: 2 }, showCompleted: false }))
   })
 
-  it('Shift+F10 (or the context-menu key) on a header opens the menu from the keyboard', async () => {
+  it('Shift+F10 (or the context-menu key) on a header opens the menu from the keyboard', () => {
     setup(def({ grouping: 'people' }))
     fireEvent.keyDown(header('person-2'), { key: 'F10', shiftKey: true })
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in to Bob' }))
-    await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [2] }))
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Email check-in options for Alice' }), { key: 'ContextMenu' })
+    expect(screen.getByRole('menu', { name: 'Bob group' })).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.keyDown(header('person-1'), { key: 'ContextMenu' })
     expect(screen.getByRole('menu', { name: 'Alice group' })).toBeInTheDocument()
   })
-
-  it('keys and right-clicks in the envelope’s (portaled) menu never open the group menu', () => {
-    setup(def({ grouping: 'people' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Email check-in options for Alice' }))
-    const item = screen.getByRole('menuitem', { name: 'Email check-in to Alice' })
-    fireEvent.keyDown(item, { key: 'F10', shiftKey: true })
-    fireEvent.keyDown(item, { key: 'ContextMenu' })
-    fireEvent.contextMenu(item)
-    expect(screen.queryByRole('menu', { name: 'Alice group' })).toBeNull()
-    expect(screen.getByRole('menu', { name: 'Check-in for Alice' })).toBeInTheDocument()
-  })
-
-  it('the envelope’s Paste reply — and the header menu’s — open the check-in reply import', () => {
-    setup(def({ grouping: 'people' }))
-    useUIStore.setState({ checkinImportOpen: false })
-    fireEvent.click(screen.getByRole('button', { name: 'Email check-in options for Alice' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Paste reply from Alice…' }))
-    expect(useUIStore.getState().checkinImportOpen).toBe(true)
-    expect(useUIStore.getState().checkinImportPersonId).toBe(1)
-    expect(useUIStore.getState().checkinDialog).toBeNull()
-
-    useUIStore.setState({ checkinImportOpen: false })
-    fireEvent.contextMenu(header('person-2'), { clientX: 40, clientY: 60 })
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Paste reply from Bob…' }))
-    expect(screen.queryByRole('menu')).toBeNull()
-    expect(useUIStore.getState().checkinImportOpen).toBe(true)
-    expect(useUIStore.getState().checkinImportPersonId).toBe(2)
-    expect(useUIStore.getState().checkinDialog).toBeNull()
-  })
-
   it('Unassigned’s header menu holds only Copy (from the pointer or Shift+F10)', async () => {
     const { written } = stubClipboard()
     setup(def({ grouping: 'people' }))

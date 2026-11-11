@@ -81,20 +81,12 @@ export interface CommandContext {
   getStatuses?: () => Status[]
   /** Opens the email check-in dialog with `personIds` ticked (none = choose people there). */
   openCheckinDialog?: (personIds?: number[]) => void
-  /**
-   * Emails one person their check-in at once (`checkin-email/person-checkin`
-   * `sendPersonCheckin`). Runs inside the command's key press / click: the
-   * clipboard write needs that gesture.
-   */
-  sendPersonCheckin?: (personId: number) => void
   /** Opens the check-in reply import dialog. */
   openCheckinImport?: () => void
-  /** People, for the per-person check-in commands. */
+  /** People, for Review With ›. */
   getPeople?: () => readonly Person[]
   /** Open tasks assigned per person id (people with none may be absent). */
   getOpenTaskCounts?: () => ReadonlyMap<number, number>
-  /** Per person id, the open tasks the check-in filter picks; `null` (or absent) while there is no filter. */
-  getCheckinTaskCounts?: () => ReadonlyMap<number, number> | null
   /**
    * Adds a widget of `kind` to the open layout (Add Widget ›): the Where
    * picker on the cell last used, the kind chosen; the empty layout's way
@@ -130,25 +122,6 @@ function peopleWithOpenTasks(ctx: CommandContext): { id: number; name: string; n
       return [{ id, name: p.name, n }]
     })
     .sort(byName)
-}
-
-/**
- * Email Check-in › each person with at least one open task, by name (an
- * email address isn't needed: the recipient can be added in the mail app);
- * the hint counts their open tasks — `2 of 5 open tasks` while the check-in
- * filter narrows them (what the email would hold). Running one sends that
- * person's check-in at once. None without such a person.
- */
-function personCheckinCommands(ctx: CommandContext, send: (personId: number) => void): Command[] {
-  const matching = ctx.getCheckinTaskCounts?.() ?? null
-  const people = peopleWithOpenTasks(ctx).map(({ id, name, n }): Command => ({
-    id: `email-checkin-${id}`,
-    name,
-    hint: matching ? `${matching.get(id) ?? 0} of ${openTasksLabel(n)}` : openTasksLabel(n),
-    category: 'email',
-    action: () => send(id),
-  }))
-  return people.length > 0 ? [stepCommand('email-checkin', 'Email Check-in', 'email', people)] : []
 }
 
 /**
@@ -321,7 +294,6 @@ export function createCommands(
   if (ctx.openCheckinImport) {
     commands.push({ id: 'email-import-reply', name: 'Import check-in reply…', category: 'email', action: ctx.openCheckinImport })
   }
-  if (ctx.sendPersonCheckin) commands.push(...personCheckinCommands(ctx, ctx.sendPersonCheckin))
 
   // Bulk actions — only when tasks are selected
   if (ctx.selectionCount === 1) {

@@ -452,12 +452,19 @@ describe('FilterChipBar — primitive', () => {
       })
     })
 
-    describe('People picker: Email check-in', () => {
+    describe('People picker: Review (widget feedback 2B: no check-ins here)', () => {
+      const reviewFilter = () => useListWidgetStore.getState().reviewFilters.rv
+      const withWidget = (has: boolean) => {
+        const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab(has ? 'review' : 'notes', 'rv')])]]) }
+        useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
+      }
+
       beforeEach(() => {
         useUIStore.setState({ checkinDialog: null, checkinImportOpen: false })
         usePersonStore.setState({
           people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' }), makePerson({ id: 3, name: 'Cara' })],
         })
+        withWidget(true)
       })
 
       // From its chip while on, else from the menu.
@@ -467,63 +474,29 @@ describe('FilterChipBar — primitive', () => {
         else fireEvent.click(screen.getByRole('button', { name: /^People filter/ }))
       }
 
-      // No tasks loaded here: a one-click send has nothing to send, so it opens the dialog for the person with the reason.
-      it('narrowed to one person: Email check-in to <name> sends at once (else the dialog, with the reason) and closes the picker', () => {
-        openPeople([2])
-        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Bob' }))
-        expect(useUIStore.getState().checkinDialog).toEqual({
-          personIds: [2],
-          notice: 'Bob has no open tasks, so nothing was sent.',
-        })
-        expect(screen.queryByPlaceholderText('Search...')).toBeNull()
-      })
-
-      it('narrowed to one person: Paste reply from <name>… under the send opens the reply import and closes the picker', () => {
-        openPeople([2])
+      it('narrowed to one person: Review with <name> alone (no check-ins) jumps with @<name> and closes the picker', async () => {
+        openPeople([1])
         const footer = screen.getAllByRole('button', { name: /^(Review|Email check-in|Paste reply)/ }).map((b) => b.textContent)
-        expect(footer).toEqual(['Email check-in to Bob', 'Paste reply from Bob…'])
-        fireEvent.click(screen.getByRole('button', { name: 'Paste reply from Bob…' }))
-        expect(useUIStore.getState().checkinImportOpen).toBe(true)
-        expect(useUIStore.getState().checkinImportPersonId).toBe(2)
+        expect(footer).toEqual(['Review with Alice'])
+        fireEvent.click(screen.getByRole('button', { name: 'Review with Alice' }))
+        await waitFor(() => expect(reviewFilter()).toEqual({ expression: { kind: 'person', id: 1 }, showCompleted: false }))
+        expect(screen.queryByPlaceholderText('Search...')).toBeNull()
         expect(useUIStore.getState().checkinDialog).toBeNull()
+      })
+
+      it('narrowed to several: Review N people’s tasks jumps with @A or @B (None ignored)', async () => {
+        openPeople([3, 0, 1])
+        expect(screen.queryByRole('button', { name: /^(Email check-in|Paste reply)/ })).toBeNull()
+        fireEvent.click(screen.getByRole('button', { name: 'Review 2 people’s tasks' }))
+        await waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 3 }] }))
         expect(screen.queryByPlaceholderText('Search...')).toBeNull()
       })
 
-      it('narrowed to several: Email check-in to N people…, ticking exactly those (None ignored); no Paste reply', () => {
-        openPeople([3, 0, 1])
-        expect(screen.queryByRole('button', { name: /^Paste reply/ })).toBeNull()
-        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to 2 people…' }))
-        expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1, 3] })
-      })
-
-      describe('Review', () => {
-        const reviewFilter = () => useListWidgetStore.getState().reviewFilters.rv
-
-        beforeEach(() => {
-          const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab('review', 'rv')])]]) }
-          useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
-        })
-
-        it('narrowed to one person: Review with <name> jumps with @<name> and closes the picker', async () => {
-          openPeople([1])
-          fireEvent.click(screen.getByRole('button', { name: 'Review with Alice' }))
-          await waitFor(() => expect(reviewFilter()).toEqual({ expression: { kind: 'person', id: 1 }, showCompleted: false }))
-          expect(screen.queryByPlaceholderText('Search...')).toBeNull()
-        })
-
-        it('narrowed to several: Review N people’s tasks jumps with @A or @B', async () => {
-          openPeople([3, 1])
-          fireEvent.click(screen.getByRole('button', { name: 'Review 2 people’s tasks' }))
-          await waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 3 }] }))
-          expect(screen.queryByPlaceholderText('Search...')).toBeNull()
-        })
-
-        it('no layout has a Review widget: no Review', () => {
-          const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab('notes', 'n')])]]) }
-          useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
-          openPeople([1])
-          expect(screen.queryByRole('button', { name: /^Review/ })).toBeNull()
-        })
+      it('no layout has a Review widget: no footer at all', () => {
+        withWidget(false)
+        openPeople([1])
+        expect(screen.queryByRole('button', { name: /^Review/ })).toBeNull()
+        expect(screen.queryByText('Narrow to some people to review them.')).toBeNull()
       })
 
       it.each([
@@ -533,26 +506,25 @@ describe('FilterChipBar — primitive', () => {
         ['nobody', []],
       ])('%s: a hint instead of the action', (_label, personIds) => {
         openPeople(personIds)
-        expect(screen.getByText('Narrow to some people to review or email them.')).toBeInTheDocument()
+        expect(screen.getByText('Narrow to some people to review them.')).toBeInTheDocument()
         expect(screen.queryByRole('button', { name: /^(Review|Email check-in|Paste reply)/ })).toBeNull()
       })
 
-      it('from the menu: the action closes the Filter menu too', () => {
+      it('from the menu: the action closes the Filter menu too', async () => {
         render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds: [1] }} onChange={() => {}} fold />)
         openFilterPicker('People filter: Alice')
-        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Alice' }))
-        expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [1] })
+        fireEvent.click(screen.getByRole('button', { name: 'Review with Alice' }))
+        await waitFor(() => expect(reviewFilter()).toBeDefined())
         expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
       })
 
       it('Tags and Status pickers have no such footer', () => {
         render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
         openFilterPicker('Tags filter')
-        expect(screen.queryByText('Narrow to some people to review or email them.')).toBeNull()
+        expect(screen.queryByText('Narrow to some people to review them.')).toBeNull()
       })
     })
   })
-
   // ── Mobile density ───────────────────────────────────────────────────
 
   describe('mobile density', () => {

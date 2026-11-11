@@ -119,7 +119,7 @@ function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: st
  *
  * Who replied comes from the reply's "Check-in for …" footer; when it names
  * none of your people, the person the dialog was opened for (a person's
- * `Paste reply from …`, `ui-store.checkinImportPersonId`) is chosen to start
+ * `Paste reply` on the Review widget's field, `ui-store.checkinImportPersonId`) is chosen to start
  * with, else the user chooses.
  *
  * The paste is read from the `paste` event's `text/html` and `text/plain`

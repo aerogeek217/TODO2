@@ -4,6 +4,10 @@ import { CommandPalette } from '../../../components/overlays/CommandPalette'
 import { createCommands, type CommandContext } from '../../../services/command-registry'
 import type { Command } from '../../../services/command-registry'
 import type { Person } from '../../../models/person'
+import { createTab } from '../../../models/workspace-layout'
+import { useListWidgetStore } from '../../../stores/list-widget-store'
+import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { cell, grid } from '../../helpers/layout-builders'
 
 // JSDOM has no scrollIntoView (the palette keeps the active row in view).
 const proto = Element.prototype as { scrollIntoView?: unknown }
@@ -46,7 +50,7 @@ describe('CommandPalette', () => {
       { id: 2, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' },
       { id: 3, name: 'Mark Twain', initials: 'MT', email: 'mark@example.com' },
     ]
-    function realCommands(sendPersonCheckin = vi.fn()): Command[] {
+    function realCommands(): Command[] {
       const ctx: CommandContext = {
         shortcuts: { openPalette: vi.fn(), closePalette: vi.fn(), openSettings: vi.fn(), openShortcutsModal: vi.fn() },
         selectionCount: 2,
@@ -54,45 +58,49 @@ describe('CommandPalette', () => {
         clearAllFilters: vi.fn(), setShowCompleted: vi.fn(), getShowCompleted: () => false, setDateRange: vi.fn(),
         getTodos: () => [], focusTask: vi.fn(),
         getStatuses: () => [{ id: 1, name: 'Waiting', color: '#888888', sortOrder: 0 }],
-        openCheckinDialog: vi.fn(), sendPersonCheckin, openCheckinImport: vi.fn(),
+        openCheckinDialog: vi.fn(), openCheckinImport: vi.fn(),
         getPeople: () => people, getOpenTaskCounts: () => new Map([[1, 3], [2, 4], [3, 1]]),
       }
       return createCommands(ctx)
     }
+    // A Review widget on the open layout: Review With › lists the people (a jump goes there).
+    beforeEach(() => {
+      const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab('review', 'rv')])]]) }
+      useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
+    })
     const optionNames = () => screen.queryAllByRole('option').map((o) => o.querySelector('span')?.textContent ?? '')
     const type = (value: string) => fireEvent.change(screen.getByRole('combobox'), { target: { value } })
 
-    it('matches every word of a multi-word query on its own, in any order, best match first', () => {
-      const open = vi.fn()
+    it('matches every word of a multi-word query on its own, in any order, best match first', async () => {
       const onClose = vi.fn()
-      render(<CommandPalette commands={realCommands(open)} onClose={onClose} />)
-      type('email mar')
-      expect(optionNames().slice(0, 2)).toEqual(['Email Check-in › Marcus Chen', 'Email Check-in › Mark Twain'])
-      type('mar email')
-      expect(optionNames()[0]).toBe('Email Check-in › Marcus Chen')
-      type('  email   ada ')
-      expect(optionNames()).toEqual(['Email Check-in › Ada Lovelace'])
+      render(<CommandPalette commands={realCommands()} onClose={onClose} />)
+      type('review mar')
+      expect(optionNames().slice(0, 2)).toEqual(['Review With › Marcus Chen', 'Review With › Mark Twain'])
+      type('mar review')
+      expect(optionNames()[0]).toBe('Review With › Marcus Chen')
+      type('  review   ada ')
+      expect(optionNames()).toEqual(['Review With › Ada Lovelace'])
       type('import reply')
       expect(optionNames()).toEqual(['Import check-in reply…'])
       type('clear filters')
       expect(optionNames()).toEqual(['Clear All Filters'])
-      type('>email mark')
-      expect(optionNames()[0]).toBe('Email Check-in › Mark Twain')
+      type('>review mark')
+      expect(optionNames()[0]).toBe('Review With › Mark Twain')
       expect(screen.queryByRole('group', { name: 'Search Results' })).toBeNull()
       // Enter runs the top match.
-      type('email mar')
+      type('review mar')
       fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' })
-      expect(open).toHaveBeenCalledWith(1)
       expect(onClose).toHaveBeenCalled()
+      await vi.waitFor(() => expect(useListWidgetStore.getState().reviewFilters.rv?.expression).toEqual({ kind: 'person', id: 1 }))
     })
 
     it('highlights the letters each word matched in the command name', () => {
       render(<CommandPalette commands={realCommands()} onClose={vi.fn()} />)
-      type('email marc')
+      type('review marc')
       const row = screen.getByRole('option', { name: /Marcus Chen/ })
-      expect(row.querySelector('span')?.textContent).toBe('Email Check-in › Marcus Chen')
+      expect(row.querySelector('span')?.textContent).toBe('Review With › Marcus Chen')
       const marked = Array.from(row.querySelectorAll('mark')).map((m) => m.textContent).join('')
-      expect(marked).toContain('Email')
+      expect(marked).toContain('Review')
       expect(marked).toContain('Marc')
     })
 
@@ -117,7 +125,7 @@ describe('CommandPalette', () => {
       expect(optionNames()).toEqual(['Complete 2 Tasks', 'Uncomplete 2 Tasks', 'Toggle Show Completed'])
       // The step, not every person in it: a word must match a leaf's own name to reach it.
       type('email')
-      expect(optionNames()).toEqual(['Email Check-in', 'Email task check-ins…', 'Import check-in reply…'])
+      expect(optionNames()).toEqual(['Email task check-ins…', 'Import check-in reply…'])
     })
 
     it('passes the whole query to the task search, whatever the number of words', () => {

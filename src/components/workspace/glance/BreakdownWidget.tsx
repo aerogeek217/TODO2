@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useMemo, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { DEFAULT_STATUS_ICON } from '../../../models'
 import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
@@ -13,9 +13,8 @@ import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { EntityMenu, type MenuEntity } from '../../shared/EntityMenu'
-import { EnvelopeIcon, ReviewIcon } from '../../shared/icons'
+import { ReviewIcon } from '../../shared/icons'
 import { useEntityMenuOffers } from '../../shared/person-menu-entries'
-import { PersonCheckinMenu } from '../../shared/PersonCheckinMenu'
 import { PriorityRing } from '../../shared/PriorityRing'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { useTooltip } from '../../shared/use-tooltip'
@@ -137,35 +136,6 @@ function RowReview({ heading, n, onReview }: { heading: string; n: number; onRev
   )
 }
 
-/** A person row's envelope (board BC, beside Review): their check-in menu — Email check-in · Paste reply (Review is its own button here). */
-function RowEnvelope({ person }: { person: { id: number; name: string } }) {
-  const { triggerProps, tooltip } = useTooltip('Email check-in')
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLButtonElement>(null)
-  return (
-    <>
-      <button
-        ref={ref}
-        type="button"
-        className={styles.rowAction}
-        data-testid="breakdown-envelope"
-        aria-label={`Email check-in options for ${person.name}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen((o) => !o)
-        }}
-        {...triggerProps}
-      >
-        <EnvelopeIcon size={15} />
-      </button>
-      {tooltip}
-      {open && <PersonCheckinMenu person={person} anchorRef={ref} placement="bottom-start" review={false} onClose={() => setOpen(false)} />}
-    </>
-  )
-}
-
 /** The entity a row's right-click opens the person / tag menu for. */
 function rowEntity(row: BreakdownRow): MenuEntity | null {
   if (row.entity.kind === 'person') return { kind: 'person', entity: row.entity.person }
@@ -188,7 +158,7 @@ interface TableProps {
   config: BreakdownConfig
   columns: readonly BreakdownColumn[]
   rows: readonly BreakdownRow[]
-  /** Medium: name (· Review after it) · the count columns, no bar, Open or envelope. */
+  /** Medium: name (· Review after it) · the count columns, no bar or Open. */
   compact: boolean
   sortBy: BreakdownSortKey | null
   reversed: boolean
@@ -202,8 +172,8 @@ interface TableProps {
 
 /**
  * The rows as a table: name · (bar) · Open (or Oldest) · each count
- * column, each heading a sort button; the row's actions (Review, and a
- * person's envelope) right after its name, shown while the row is hovered
+ * column, each heading a sort button; the row's action (Review)
+ * right after its name, shown while the row is hovered
  * or holds the focus. A row's click opens its tasks; its Review button and
  * a count column's count jump to a Review widget with them as its filter
  * (where no layout has one, a count opens its tasks); a person's or tag's
@@ -226,7 +196,6 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
     if (!onDrill) return
     onDrill(column ? breakdownColumnDrill(title, row, column.id, columnHeading(column)) : breakdownRowDrill(title, row))
   }
-  const envelope = !compact && config.checkins === true && splitBy === 'people'
   const figure = !compact
   const max = Math.max(1, ...rows.map((r) => (show === 'oldest' ? Math.max(0, r.oldest?.days ?? 0) : r.ids.length)))
   // A narrow table (`@container`, under 400px) drops the bar, and its count columns take a two-digit badge's room.
@@ -314,10 +283,9 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                     )}
                   </span>
                 </button>
-                {(review || (envelope && row.entity.kind === 'person')) && (
+                {review && (
                   <span className={styles.nameActions} data-testid="breakdown-row-actions">
-                    {review && <RowReview heading={heading} n={n} onReview={() => reviewRow(row)} />}
-                    {envelope && row.entity.kind === 'person' && <RowEnvelope person={row.entity.person} />}
+                    <RowReview heading={heading} n={n} onReview={() => reviewRow(row)} />
                   </span>
                 )}
               </span>

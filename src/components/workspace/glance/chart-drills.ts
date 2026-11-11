@@ -41,7 +41,7 @@ function rowWords(row: Pick<BreakdownRow, 'label' | 'entity'>): string {
   }
 }
 
-/** A Breakdown row (its name, its bar, its segment): its tasks; a person's dialog offers their check-in. */
+/** A Breakdown row (its name, its bar, its segment): its tasks; a person's dialog offers their Review. */
 export function breakdownRowDrill(chart: string, row: BreakdownRow): GlanceDrill {
   const personId = row.entity.kind === 'person' ? row.entity.person.id : undefined
   return {
