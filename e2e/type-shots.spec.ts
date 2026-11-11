@@ -63,7 +63,7 @@ function seedText(): string {
       })),
       {
         id: 's-review',
-        tabs: [{ id: 's-tab-review', kind: 'review', config: { by: 'person' } }],
+        tabs: [{ id: 's-tab-review', kind: 'review', config: {} }],
         activeTabId: 's-tab-review',
         area: { col: 0, row: 1, colSpan: 3, rowSpan: 1 },
       },

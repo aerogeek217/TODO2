@@ -28,7 +28,7 @@ import {
   type ReviewTab,
   type ReviewTabViewState,
 } from '../models/workspace-layout'
-import { isLegacyReviewPick, isReviewBy, isReviewSort, reviewBy } from '../models/review'
+import { isReviewSort } from '../models/review'
 import {
   GLANCE_CONFIG_FIELDS,
   numberConfigProblem,
@@ -233,10 +233,9 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     }
     case 'notes':
       return true
-    // Item 12: a Review widget — what it reviews by (or an earlier build's saved pick), and its sort.
+    // Item 12: a Review widget — no settings (2A: a kind `by` or a saved `pick` an earlier build stored
+    // isn't read, whatever it holds: never a repair), and its sort.
     case 'review': {
-      if (config.by !== undefined && !isReviewBy(config.by)) return `${path}.config.by`
-      if (config.pick !== undefined && !isLegacyReviewPick(config.pick)) return `${path}.config.pick`
       const bad = view ? reviewViewProblem(view) : null
       return bad ? `${path}.viewState.${bad}` : true
     }
@@ -266,22 +265,27 @@ function pickReviewView(view: Obj | undefined): { view: ReviewTabViewState; fixe
   return { view: out, fixed }
 }
 
-/** A stored tab that is a Review widget holding what an earlier build saved: a `pick`, no `by`, or where it stood. */
+/** The config keys an earlier build saved on a Review widget: board BM's kind (`by`), board BK's pick (`pick`). Not read. */
+const LEGACY_REVIEW_CONFIG_KEYS = ['by', 'pick'] as const
+
+/** A stored tab that is a Review widget holding what an earlier build saved: a kind, a pick, or where it stood. */
 function isLegacyReviewTab(tab: unknown): tab is Obj & { config: Obj } {
   if (!isRecord(tab) || tab.kind !== 'review' || !isRecord(tab.config)) return false
+  const { config } = tab
   const view = tab.viewState
-  return tab.config.by === undefined || tab.config.pick !== undefined
+  return LEGACY_REVIEW_CONFIG_KEYS.some((key) => config[key] !== undefined)
     || (isRecord(view) && LEGACY_REVIEW_VIEW_KEYS.some((key) => view[key] !== undefined))
 }
 
 /**
- * `row` with its Review widgets as this build stores them (board BM): a
- * config from before (`pick`, or nothing) as the kind it reads as
- * (`reviewBy`), the saved place (`currentId`, `skipped`) gone. Not a repair
- * — the layout opens clean, and the stored row takes the new shape with its
- * next write (as `layout-repository.withoutLegacyLens`). The same object
- * when no Review widget needs it; a row whose cells or tabs don't read is
- * left to the layout repair.
+ * `row` with its Review widgets as this build reads them (widget feedback
+ * 2A): the kind (`by`) and an older saved pick (`pick`) gone from the config
+ * — the widget has no settings, only a temporary filter field —, the saved
+ * place (`currentId`, `skipped`) gone from the view state. Not a repair —
+ * the layout opens clean, and the stored row takes the new shape with its
+ * next write (as `layout-repository.withoutLegacyLens`); schema v79 is to
+ * write it for every row. The same object when no Review widget needs it; a
+ * row whose cells or tabs don't read is left to the layout repair.
  */
 export function withoutLegacyReview<T extends { cells?: unknown }>(row: T): T {
   const cells = row.cells
@@ -290,8 +294,8 @@ export function withoutLegacyReview<T extends { cells?: unknown }>(row: T): T {
   if (!cells.some(legacy)) return row
   const tabOf = (tab: unknown): unknown => {
     if (!isLegacyReviewTab(tab)) return tab
-    const config: Obj = { ...tab.config, by: reviewBy(tab.config) }
-    delete config.pick
+    const config: Obj = { ...tab.config }
+    for (const key of LEGACY_REVIEW_CONFIG_KEYS) delete config[key]
     const next: Obj = { ...tab, config }
     if (isRecord(tab.viewState)) {
       const view = { ...tab.viewState }
@@ -598,13 +602,12 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
-      // Item 12: a Review widget — what it reviews by (an earlier build's saved pick read as its kind, no
-      // fix); a kind or a saved pick that doesn't read is reset (Person, or the other's kind), any other key dropped.
+      // Item 12: a Review widget — no settings (2A): any config key, an earlier build's kind or pick among
+      // them, is dropped and never a fix; its view state's sort as checked.
       case 'review': {
-        if ((config.by !== undefined && !isReviewBy(config.by)) || (config.pick !== undefined && !isLegacyReviewPick(config.pick))) fix('settings')
         const picked = pickReviewView(view)
         if (picked.fixed) fix('settings')
-        const review: ReviewTab = { id, kind: 'review', config: { by: reviewBy(config) } }
+        const review: ReviewTab = { id, kind: 'review', config: {} }
         if (Object.keys(picked.view).length > 0) review.viewState = picked.view
         return withLensView<LensSwitchTab>(review)
       }

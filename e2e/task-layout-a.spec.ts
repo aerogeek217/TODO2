@@ -67,7 +67,7 @@ const WIDGET_SEED: WorkspaceSeed = {
   ...SEED,
   layouts: [{
     name: 'Review',
-    table: { areas: ['rv'], cells: [{ id: 'rv', tabs: [{ id: 'rv1', kind: 'review', review: { by: 'person' } }] }] },
+    table: { areas: ['rv'], cells: [{ id: 'rv', tabs: [{ id: 'rv1', kind: 'review' }] }] },
   }],
 }
 

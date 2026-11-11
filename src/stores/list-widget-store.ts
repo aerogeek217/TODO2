@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { FilterExpr } from '../models'
 import type { ListZoom, WorkspaceLayout } from '../models/workspace-layout'
 import { useWorkspaceStore } from './workspace-store'
 import { layoutTabs } from '../utils/workspace-layout-queries'
@@ -44,19 +45,33 @@ export interface ShownList {
 export type ListFilterField = 'people' | 'tags' | 'status' | 'markers' | 'dates' | 'text'
 
 /**
+ * What a Review widget reviews (widget feedback 2A): the filter its field
+ * last read — an expression (`TodoPredicate.expression`) and its `done`.
+ */
+export interface ReviewFilter {
+  expression: FilterExpr
+  showCompleted: boolean
+}
+
+/**
  * State of workspace list widgets that is never saved: per-tab prompt picks
  * and collapsed groups (keyed by layout tab id, so they follow a tab that is
- * moved to another cell). A Review widget's prompt row keeps its picks here
- * too (board BM), under its own tab id.
+ * moved to another cell). A Review widget's filter is kept here too (widget
+ * feedback 2A), under its own tab id.
  */
 interface ListWidgetState {
   /**
-   * Picks of a prompt row by tab id: a list tab's runtime prompt, a Review
-   * widget's field (the people, tags, statuses or lists it reviews).
-   * Temporary by design: never saved, so a reload starts with nothing
-   * picked. Absent = nothing picked.
+   * Picks of a list tab's runtime prompt, by tab id. Temporary by design:
+   * never saved, so a reload starts with nothing picked. Absent = nothing
+   * picked.
    */
   picks: Readonly<Record<string, number[]>>
+  /**
+   * Each Review widget's filter, by tab id: the last its field read (a text
+   * that doesn't read is never put here). Temporary as the picks: never
+   * saved, gone with a reload. Absent = nothing to review.
+   */
+  reviewFilters: Readonly<Record<string, ReviewFilter>>
   /** Collapsed section keys by tab id. */
   collapsed: Readonly<Record<string, readonly string[]>>
   /**
@@ -74,6 +89,8 @@ interface ListWidgetState {
 
   /** Sets a tab's prompt picks; an empty list clears them. */
   setPicks: (tabId: string, ids: readonly number[]) => void
+  /** Sets a Review widget's filter; `null` clears it. */
+  setReviewFilter: (tabId: string, filter: ReviewFilter | null) => void
   toggleGroup: (tabId: string, sectionKey: string) => void
   /** Collapses exactly `sectionKeys` of a tab (Collapse all groups); an empty list expands them all. */
   setCollapsed: (tabId: string, sectionKeys: readonly string[]) => void
@@ -103,6 +120,7 @@ function withoutGoneTabs<T>(byTab: Readonly<Record<string, T>>): Record<string, 
 
 export const useListWidgetStore = create<ListWidgetState>((set, get) => ({
   picks: {},
+  reviewFilters: {},
   collapsed: {},
   shown: {},
   zoom: {},
@@ -112,6 +130,15 @@ export const useListWidgetStore = create<ListWidgetState>((set, get) => ({
     if (ids.length > 0) next[tabId] = [...ids]
     else delete next[tabId]
     set({ picks: next })
+  },
+
+  setReviewFilter(tabId, filter) {
+    const current = get().reviewFilters
+    if (current[tabId] === (filter ?? undefined)) return
+    const next = withoutGoneTabs(current)
+    if (filter) next[tabId] = filter
+    else delete next[tabId]
+    set({ reviewFilters: next })
   },
 
   toggleGroup(tabId, sectionKey) {

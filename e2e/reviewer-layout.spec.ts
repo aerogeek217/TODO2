@@ -464,7 +464,7 @@ test.describe('the Review widget’s faces (boards BL, BM)', () => {
           // Room for the whole medium face: two entries, the update line and the Next row (task layout A).
           rows: [{ px: 360 }],
           cells: [
-            { id: 'med', tabs: [{ id: 'rm', kind: 'review', review: { by: 'person' } }] },
+            { id: 'med', tabs: [{ id: 'rm', kind: 'review' }] },
             { id: 'notes', tabs: [{ id: 'n1', kind: 'notes' }] },
           ],
         },
@@ -515,7 +515,7 @@ test.describe('the Review widget’s faces (boards BL, BM)', () => {
             areas: ['rv notes'],
             cols,
             cells: [
-              { id: 'rv', tabs: [{ id: 'rev1', kind: 'review', review: { by: 'person' } }] },
+              { id: 'rv', tabs: [{ id: 'rev1', kind: 'review' }] },
               { id: 'notes', tabs: [{ id: 'n1', kind: 'notes' }] },
             ],
           },

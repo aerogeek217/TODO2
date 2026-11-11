@@ -198,8 +198,8 @@ function buildSeed(): Seed {
             numberTab('t5', 'noFollowup', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 4 }),
             { id: 't6', kind: 'lens', config: {} },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
-            // Item 12: a Review widget by list, its sort and lens switch.
-            { id: 't14', kind: 'review', config: { by: 'list' }, viewState: { sort: 'next', ignoreLens: true } },
+            // Item 12: a Review widget (no settings, 2A), its sort and lens switch.
+            { id: 't14', kind: 'review', config: {}, viewState: { sort: 'next', ignoreLens: true } },
             // The glance widgets, each with a setting off its default.
             numberTab('g1', 'closedThisWeek'),
             { id: 'g4', kind: 'trend', config: { range: '12w' } },
