@@ -191,7 +191,7 @@ describe('an edit that leaves a list shown by no tab', () => {
     expect(useUndoStore.getState().snackbar?.description).toBe('Can’t undo: Closed tab “Mine 1” — its layout is gone.')
   })
 
-  it('Change list away from one deletes it too; Undo brings it back under the tab', async () => {
+  it('a tab re-pointed away from one (patchTabConfig) deletes it too; Undo brings it back under the tab', async () => {
     const w = await world()
     ws().patchTabConfig('m2', 'lens', { listDefinitionId: w.saved })
     expect(await storedListIds()).not.toContain(w.mine2)
@@ -241,7 +241,7 @@ describe('a layout shows only its own lists', () => {
     await settled()
   })
 
-  it('Change list to another layout’s list changes nothing; to its own, it switches', async () => {
+  it('a tab re-pointed at another layout’s list changes nothing; at its own, it switches', async () => {
     const w = await world()
     ws().patchTabConfig('s', 'lens', { listDefinitionId: w.theirs })
     expect(tabsOf().find((t) => t.id === 's')?.config).toMatchObject({ listDefinitionId: w.saved })

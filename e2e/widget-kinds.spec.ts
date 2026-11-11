@@ -104,7 +104,7 @@ test.describe('desktop', () => {
       await expect(body(cell, kind)).toBeVisible()
     }
 
-    // Close: every tab; the last one — alone, no strip: its ⋯ › Close cell — closes the cell: with no
+    // Close: every tab; the last one — alone, no strip: its grip › Close cell — closes the cell: with no
     // neighbour to take its space, it stays an empty cell (D26).
     for (const kind of WIDGET_KINDS.slice(0, -1)) {
       const t = tab(page, kind).first()
@@ -113,7 +113,7 @@ test.describe('desktop', () => {
     }
     await expect(cell.getByRole('tablist')).toHaveCount(0)
     await cell.hover()
-    await cell.getByRole('button', { name: 'Cell options' }).click()
+    await cell.getByRole('button', { name: 'Cell layout' }).click()
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
   })

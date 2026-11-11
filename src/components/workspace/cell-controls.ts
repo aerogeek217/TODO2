@@ -4,7 +4,8 @@ import type { LayoutTab } from '../../models/workspace-layout'
 /**
  * What a cell without a tab strip (one widget, D26 AA1) lends its widget's
  * top line (`WidgetTopLine`): the controls slot — the grip that drags the
- * whole cell and the ⋯ that opens the cell's merged menu — and the tab the
+ * whole cell and, clicked, opens its layout menu, and the ⋯ that opens the
+ * widget's menu (`cell-menu`) — and the tab the
  * line stands for. `null` (the context's default) wherever the widget isn't
  * alone in a cell: a strip names it there, and its ⋯ is in the strip's header
  * (a cell of two or more widgets, the small face's popover, Settings).
@@ -22,10 +23,18 @@ export interface CellControlsValue {
   touch: boolean
   /** Takes the ⋯ button (a callback ref, with its cleanup): the menu opens under it. */
   setMoreButton: (el: HTMLButtonElement | null) => (() => void) | undefined
-  /** The ⋯ menu is open: the slot stays shown. */
+  /** A menu of the cell is open (the ⋯'s, the grip's, Add widget): the slot stays shown. */
   menuOpen: boolean
+  /** The ⋯'s menu is open (pressed, `aria-expanded`); default `menuOpen`. */
+  moreOpen?: boolean
   /** The ⋯ was pressed. */
   onMore: () => void
+  /** The grip was clicked (UX cleanup 4A): the cell's layout menu. No grip without it (touch has none). */
+  onGrip?: () => void
+  /** The grip's menu is open. */
+  gripOpen?: boolean
+  /** Takes the grip's button (a callback ref, with its cleanup): its menu opens under it. */
+  setGripButton?: (el: HTMLButtonElement | null) => (() => void) | undefined
   /** Every row track the cell covers is collapsed: the slot adds an Expand button, always shown. */
   collapsed: boolean
   onExpand: () => void

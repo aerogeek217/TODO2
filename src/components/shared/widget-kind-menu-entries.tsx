@@ -1,7 +1,5 @@
-import { useMemo, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { listChoiceEntries } from './list-choice-entries'
 import { WidgetKindIcon } from './icons'
 import type { MenuEntry, MenuItemEntry } from './MenuPopover'
 
@@ -53,15 +51,9 @@ export interface WidgetKindMenuProps {
   /** Kinds offered but not available now, each with why (shown under it, the item disabled). */
   unavailableKinds?: Partial<Record<WidgetKind, string>>
   /**
-   * Lens-only: fires when the user picks a list from the "Change list"
-   * submenu (the layout's lists in their order); a pick closes the menu.
-   */
-  pickListForLens?: (listDefinitionId: number) => void
-  /**
    * "Edit list…" for the tab's list, first under the widget's heading (a
-   * list tab's, then "Change list ›" showing `currentListName`; an
-   * Eisenhower tab's own list). The caller binds the widget's list; the
-   * menu forwards the click and closes.
+   * list tab's; an Eisenhower tab's own list). The caller binds the
+   * widget's list; the menu forwards the click and closes.
    */
   onEditList?: () => void
   onClose: () => void
@@ -72,8 +64,6 @@ export interface WidgetKindMenuProps {
    * switcher. Each closes the menu after running.
    */
   widgetActions?: ReadonlyArray<WidgetMenuAction>
-  /** The list a list tab shows, as the note on "Change list ›". */
-  currentListName?: string
   /** A setting of the widget, listed first (see {@link WidgetSetting}). */
   widgetSetting?: WidgetSetting
   /**
@@ -88,11 +78,6 @@ export interface WidgetKindMenuProps {
    * the widget setting. Each closes the menu after running.
    */
   sourceActions?: ReadonlyArray<{ label: string; icon?: ReactNode; onSelect: () => void }>
-  /**
-   * The stored layout the tab is in: Change list offers the lists it owns
-   * (`listChoiceEntries`). Omit: none.
-   */
-  listLayoutId?: number
   /** Entries before everything else (Add widget's where: Tab · Right · Below · Row · Column). */
   leadEntries?: readonly MenuEntry[]
   /**
@@ -103,51 +88,35 @@ export interface WidgetKindMenuProps {
   kindPresets?: Partial<Record<WidgetKind, readonly MenuItemEntry[]>>
 }
 
-const CHANGE_LIST_WIDTH_PX = 240
-const CHANGE_LIST_MAX_HEIGHT_PX = 320
 const SETTING_SUBMENU_WIDTH_PX = 248
 const KIND_SUBMENU_WIDTH_PX = 240
 
 /** What {@link widgetKindMenuEntries} builds the entries from: `WidgetKindMenu`'s props but where it opens and its close. */
 export type WidgetKindMenuContent = Omit<WidgetKindMenuProps, 'anchor' | 'onClose'>
 
-/** {@link widgetKindMenuEntries} over the stored lists (Change list's choices). */
-export function useWidgetKindMenuEntries(content: WidgetKindMenuContent): MenuEntry[] {
-  const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
-  const { pickListForLens, listLayoutId } = content
-  const listChoices = useMemo<MenuEntry[]>(
-    () => (pickListForLens ? listChoiceEntries(listDefinitions, pickListForLens, listLayoutId) : []),
-    [listDefinitions, pickListForLens, listLayoutId],
-  )
-  return widgetKindMenuEntries(content, listChoices)
-}
-
 /**
  * The entries of a widget's menu. Changing a widget (the cell's ⋯ menu
  * lists them first, D26 AA1): a heading naming the widget's kind, then its
- * own items — Edit list… and Change list ›, its source actions, its
+ * own items — Edit list…, its source actions, its
  * settings, its widget setting, its actions — and last **Change widget ›**
  * (the current kind beside it), whose submenu holds every kind by group
  * under its caption. Adding (`currentKind` absent, Add widget): the lead
  * entries, then the kinds — the first group (Tasks) inline under its
  * caption, every other (Insights) a submenu of its own.
- * `listChoices` are Change list's items.
  */
 export function widgetKindMenuEntries({
   currentKind,
   onChangeKind,
   unavailableKinds,
-  pickListForLens,
   onEditList,
   heading = 'Change widget',
   widgetActions,
-  currentListName,
   widgetSetting,
   settingEntries,
   sourceActions,
   leadEntries,
   kindPresets,
-}: WidgetKindMenuContent, listChoices: readonly MenuEntry[]): MenuEntry[] {
+}: WidgetKindMenuContent): MenuEntry[] {
   const kindItem = (k: WidgetKind): MenuItemEntry => {
     // Add mode: a kind with presets opens them (D26 P8).
     const presets = currentKind == null ? kindPresets?.[k] : undefined
@@ -192,16 +161,6 @@ export function widgetKindMenuEntries({
 
   const entries: MenuEntry[] = [{ kind: 'label', text: widgetKindLabel(currentKind) }]
   if (onEditList) entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList() })
-  if (currentKind === 'lens' && pickListForLens != null) {
-    entries.push({
-      kind: 'item',
-      label: 'Change list',
-      note: currentListName,
-      children: listChoices,
-      childrenWidth: CHANGE_LIST_WIDTH_PX,
-      childrenMaxHeight: CHANGE_LIST_MAX_HEIGHT_PX,
-    })
-  }
   for (const a of sourceActions ?? []) entries.push({ kind: 'item', label: a.label, icon: a.icon, onSelect: a.onSelect })
   if (settingEntries && settingEntries.length > 0) entries.push(...settingEntries)
   if (widgetSetting) {

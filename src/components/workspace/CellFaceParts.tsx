@@ -46,7 +46,7 @@ export function SmallFaceOpener({ title, open, onOpen }: { title: string; open: 
 const CELL_FOCUS_TARGETS = [
   '[role="tab"][aria-selected="true"]:not([aria-hidden="true"])',
   '[data-widget-top-line][data-ws-tab][tabindex]',
-  '[data-cell-controls] button[aria-haspopup="menu"]',
+  '[data-cell-controls] button[aria-label="Cell options"]',
 ]
 
 function cellFocusTarget(cell: HTMLElement): HTMLElement | null {

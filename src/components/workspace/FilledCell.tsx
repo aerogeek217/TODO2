@@ -2,14 +2,14 @@ import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseE
 import { useDraggable } from '@dnd-kit/core'
 import { getActiveTab, isGlanceKind, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { useWidgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
+import { widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
 import type { AddWhere } from './add-widget-where'
 import { useTabTitle, useTabTitles } from './widget-hooks'
 import { MenuPopover } from '../shared/MenuPopover'
-import { ChevronDownIcon, ChevronUpIcon, GripIcon, MoreIcon } from '../shared/icons'
+import { ChevronDownIcon, ChevronUpIcon, MoreIcon } from '../shared/icons'
 import {
   useWorkspaceDrag,
   WORKSPACE_PANEL_DRAG,
@@ -23,9 +23,9 @@ import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { smallFaceClick, useCellFace } from './cell-face'
 import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
 import { transitionName, withViewTransition } from '../shared/view-transition'
-import { cellMenuEntries, mergedCellMenu, useWidgetMenuContent } from './cell-menu'
+import { CELL_MENU_LABEL, cellMenuFor, useWidgetMenuContent, type CellMenuPart } from './cell-menu'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
-import { CellControls } from './WidgetTopLine'
+import { CellControls, CellGrip } from './WidgetTopLine'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
   const r = ref.current?.getBoundingClientRect()
@@ -34,8 +34,8 @@ function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number
 
 /**
  * The strip header's empty space: drags the whole panel (5px to start, as a
- * tab), with a faint grip on header hover. Not focusable — the ⋯ menu's
- * Split, Merge and Insert are the keyboard way.
+ * tab); a click there opens nothing (J15). Not focusable — the header's grip
+ * button, beside the ⋯, drags too and opens the cell's layout menu.
  */
 function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly LayoutTab[] }) {
   const titles = useTabTitles(tabs)
@@ -46,17 +46,36 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
   }
   const { setNodeRef, listeners } = useDraggable({ id: workspacePanelDragId(panelId), data })
   return (
-    <div ref={setNodeRef} {...listeners} className={styles.fill} data-ws-panel-handle={panelId} data-strip-room="" aria-hidden="true">
-      <span className={styles.grip}><GripIcon /></span>
-    </div>
+    <div ref={setNodeRef} {...listeners} className={styles.fill} data-ws-panel-handle={panelId} data-strip-room="" aria-hidden="true" />
   )
 }
 
 /** Before any menu is open: the widget part builds nothing. */
 const NO_WIDGET_MENU: WidgetKindMenuContent = { onChangeKind: () => {} }
 
-/** Where the ⋯ menu opens: under the ⋯ (`null`), or at a point (a right-click). */
+/** Where a menu opens: under its button (`null`: the ⋯, the grip's under the grip), or at a point (a right-click). */
 type MenuAt = { x: number; y: number } | null
+
+/**
+ * The buttons of one kind a cell draws (the strip's header's, a top line's
+ * slot, the cell's own while no top line holds one — briefly two): a menu
+ * anchors to the one still in the page.
+ */
+function useButtonSet() {
+  const [els] = useState(() => new Set<HTMLButtonElement>())
+  const ref = useMemo(() => ({
+    get current(): HTMLButtonElement | null {
+      for (const el of els) if (el.isConnected) return el
+      return null
+    },
+  }), [els])
+  const set = useCallback((el: HTMLButtonElement | null) => {
+    if (!el) return undefined
+    els.add(el)
+    return () => { els.delete(el) }
+  }, [els])
+  return [ref, set] as const
+}
 
 /**
  * Whether `target` is in a widget top line of `cell` — or, with `holding`
@@ -74,10 +93,11 @@ function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = fals
  * A cell of the layout's table holding tabs (D26 AA1): with one widget no
  * tab strip — the widget's own top line names it and holds the controls
  * slot (grip and ⋯, `CellControlsContext`); with two or more, the tab
- * strip, the panel handle, collapse and the ⋯ in its header. Either way the
- * ⋯ opens one merged menu (`cell-menu`): the widget's own entries, then the
- * cell's in the table's words (D26 board V). The active widget's body shows
- * at its face (D25 R).
+ * strip, the panel handle, the grip, collapse and the ⋯ in its header.
+ * Either way (`cell-menu`, UX cleanup 4A) the ⋯ opens the widget's own
+ * entries and Add widget…, the grip the cell's layout entries in the table's
+ * words (D26 board V), and a right-click or Shift+F10 the whole menu. The
+ * active widget's body shows at its face (D25 R).
  */
 export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
@@ -100,22 +120,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const cellRef = useRef<HTMLElement | null>(null)
   /** What the active tab's widget last reported (any kind): its count label, shown sections or summary. */
   const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
-  const [menu, setMenu] = useState<{ tabId: string; at: MenuAt } | null>(null)
+  const [menu, setMenu] = useState<{ tabId: string; at: MenuAt; part: CellMenuPart } | null>(null)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number }; where: AddWhere } | null>(null)
-  // The ⋯ buttons drawn (the strip's header's, a top line's slot, the cell's own while no top line
-  // holds one — briefly two): the menu anchors to the one still in the page.
-  const [moreEls] = useState(() => new Set<HTMLButtonElement>())
-  const moreRef = useMemo(() => ({
-    get current(): HTMLButtonElement | null {
-      for (const el of moreEls) if (el.isConnected) return el
-      return null
-    },
-  }), [moreEls])
-  const setMoreButton = useCallback((el: HTMLButtonElement | null) => {
-    if (!el) return undefined
-    moreEls.add(el)
-    return () => { moreEls.delete(el) }
-  }, [moreEls])
+  const [moreRef, setMoreButton] = useButtonSet()
+  const [gripRef, setGripButton] = useButtonSet()
   /**
    * The widget's top lines mounted, and those holding the controls slot: with
    * none holding it, the cell draws its own (a face without one); with no top
@@ -140,13 +148,12 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const ghosts = joining ? drag.tabs : null
   const isDragSource = drag?.source.type === 'panel' && drag.source.panelId === cell.id
 
-  // ── The merged ⋯ menu ──
+  // ── The ⋯'s menu, the grip's, the whole one ──
   const menuTab = menu ? cell.tabs.find((t) => t.id === menu.tabId) : undefined
   const menuTitle = useTabTitle(menuTab)
   const widgetContent = useWidgetMenuContent(menuTab, menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result : undefined)
-  const widgetEntries = useWidgetKindMenuEntries(widgetContent ?? NO_WIDGET_MENU)
   const menuEntries = menu && menuTab
-    ? mergedCellMenu(widgetEntries, cellMenuEntries({
+    ? cellMenuFor(menu.part, widgetKindMenuEntries(widgetContent ?? NO_WIDGET_MENU), {
         cell,
         tab: menuTab,
         tabTitle: menuTitle,
@@ -158,10 +165,16 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         onCollapse: setRowCollapsed,
         onCloseTab: closeTab,
         onCloseCell: () => closeCell(cell.id),
-      }))
+      })
     : null
-  const openMenu = useCallback((tabId: string, at: MenuAt) => setMenu({ tabId, at }), [])
+  /** The whole menu (a right-click, Shift+F10 / the Menu key): at a point, or under the ⋯. */
+  const openMenu = useCallback((tabId: string, at: MenuAt) => setMenu({ tabId, at, part: 'all' }), [])
+  /** The ⋯'s menu (`widget`) or the grip's (`layout`) for tab `tabId`, under its button; pressed again, closed. */
+  const toggleMenu = useCallback((part: 'widget' | 'layout', tabId: string | undefined) => {
+    setMenu((m) => (m && m.at === null && m.part === part ? null : tabId != null ? { tabId, at: null, part } : null))
+  }, [])
   const menuOpen = menu != null || addFlow != null
+  const gripOpen = menu?.part === 'layout'
 
   // A one-widget cell's controls slot, lent to its widget's top line.
   const activeId = active?.id
@@ -173,11 +186,15 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
     touch: false,
     setMoreButton,
     menuOpen,
-    onMore: () => setMenu((m) => (m ? null : { tabId: activeId, at: null })),
+    moreOpen: menuOpen && !gripOpen,
+    onMore: () => toggleMenu('widget', activeId),
+    onGrip: () => toggleMenu('layout', activeId),
+    gripOpen,
+    setGripButton,
     collapsed,
     onExpand: () => setRowCollapsed(false),
     claim,
-  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, collapsed, setRowCollapsed, claim, setMoreButton])
+  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, gripOpen, collapsed, setRowCollapsed, claim, setMoreButton, setGripButton, toggleMenu])
 
   /** A right-click on the top line (a glance widget's: anywhere on it) opens the ⋯ menu there. */
   const onContextMenu = (e: MouseEvent<HTMLElement>) => {
@@ -251,6 +268,16 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             </button>
           ) : (
             <div className={styles.actions}>
+              <CellGrip
+                cellId={cell.id}
+                tabs={cell.tabs}
+                title={activeTitle}
+                idSuffix=":header"
+                expanded={gripOpen}
+                onMenu={() => toggleMenu('layout', active?.id)}
+                setButton={setGripButton}
+                className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
+              />
               <button
                 type="button"
                 className={styles.action}
@@ -264,12 +291,12 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
               <button
                 ref={setMoreButton}
                 type="button"
-                className={`${styles.action} ${menu?.at === null ? styles.actionPressed : ''}`}
+                className={`${styles.action} ${menu?.at === null && !gripOpen ? styles.actionPressed : ''}`}
                 aria-label="Cell options"
                 aria-haspopup="menu"
-                aria-expanded={menu != null}
+                aria-expanded={menu != null && !gripOpen}
                 title="Cell options"
-                onClick={() => setMenu((m) => (m ? null : active ? { tabId: active.id, at: null } : null))}
+                onClick={() => toggleMenu('widget', active?.id)}
               >
                 <MoreIcon />
               </button>
@@ -306,9 +333,9 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
 
       {menu && menuEntries && (
         <MenuPopover
-          {...(menu.at ? { point: menu.at, restoreFocus: true } : { anchorRef: moreRef, placement: 'bottom-end' as const })}
+          {...(menu.at ? { point: menu.at, restoreFocus: true } : { anchorRef: menu.part === 'layout' ? gripRef : moreRef, placement: 'bottom-end' as const })}
           width={248}
-          label="Cell options"
+          label={CELL_MENU_LABEL[menu.part]}
           entries={menuEntries}
           onClose={() => setMenu(null)}
         />

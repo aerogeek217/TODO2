@@ -200,16 +200,12 @@
 }
 
 
-/* The header's empty space: drags the whole panel. */
+/* The header's empty space: drags the whole panel; a click there opens nothing. */
 .fill {
   flex: 1 1 0;
   /* Kept beside a full tab strip, so the panel can still be dragged whole (the strip measures the rest as its room). */
   min-width: 16px;
   align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  container-type: inline-size;
   cursor: grab;
   touch-action: none;
 }
@@ -218,31 +214,21 @@
   cursor: grabbing;
 }
 
-/* A faint grip on header hover — opacity only, so nothing moves. */
-.grip {
-  display: inline-flex;
-  color: var(--color-text-muted);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--transition-fast);
+/* The header's grip button (UX cleanup 4A): drags the panel too; a click opens the cell's layout menu. */
+.gripButton {
+  /* As narrow as the one-widget slot's grip: the strip keeps its room. */
+  width: 16px;
+  cursor: grab;
+  touch-action: none;
 }
 
-.header:hover .grip {
-  opacity: 0.9;
-}
-
-.fill:active .grip {
-  opacity: 1;
+.gripButton:active {
+  cursor: grabbing;
   color: var(--color-accent-text);
 }
 
-@container (max-width: 11.99px) {
-  .grip {
-    display: none;
-  }
-}
-
-.header:has(.fill:active) {
+.header:has(.fill:active),
+.header:has(.gripButton:active) {
   background: color-mix(in srgb, var(--color-accent) 8%, var(--color-header-bg));
 }
 
