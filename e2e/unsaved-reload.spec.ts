@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { ADD_FILTER, closeListFilterEditor, expectOpenLayout, openCellMenu, openListFilterEditor, openSettings, seedTaskList, seedWorkspace, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, expectOpenLayout, openCellLayoutMenu, openListFilterEditor, openSettings, seedTaskList, seedWorkspace, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { createTab } from '../src/models/workspace-layout'
 import { readStore } from './fixtures/db'
 
@@ -59,7 +59,7 @@ test('a layout change is saved at once: closing the tab asks nothing, a reload k
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
 
   // Undo lasts until a reload: made again, then undone.
-  await openCellMenu(page, 'b1')
+  await openCellLayoutMenu(page, 'b1')
   await page.getByRole('menuitem', { name: /^Close cell/ }).click()
   await expectLayoutStep(page, 'Closed cell “Calendar”')
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab']]])
