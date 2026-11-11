@@ -158,3 +158,38 @@ export function historyExactness(
     .filter((f) => UNLOGGED_FIELDS.has(f) || (H3_FIELDS.has(f) && !h3Exact))
   return { exact: approximate.length === 0, approximate }
 }
+
+/** From which day a filter's history over some days is exact, and what reads as now before it. */
+export interface HistoryExactFrom {
+  /** The index of the first of the days from which every count is exact (`days.length`: none is). */
+  from: number
+  /** The fields read as they are now (or as they were when the log began) before `from`; empty when `from` is 0. */
+  approximate: HistoryField[]
+}
+
+/**
+ * Day by day, `historyExactness`: a day's count is exact when the filter
+ * reads only what the log held from that day's end on — the history log
+ * H3's fields from the `historyLogSince` day on, never text or the
+ * modified date (`from` is then `days.length`). Created vs completed marks
+ * the days before `from` ≈.
+ */
+export function historyExactFrom(
+  filter: FilterCriteria | readonly FilterCriteria[],
+  days: readonly Date[],
+  historyLogSince: Date | null,
+): HistoryExactFrom {
+  const fields = [...filterHistoryFields(filter)]
+  const unlogged = fields.filter((f) => UNLOGGED_FIELDS.has(f))
+  const h3 = fields.filter((f) => H3_FIELDS.has(f))
+  if (unlogged.length > 0) return { from: days.length, approximate: [...unlogged, ...h3] }
+  if (h3.length === 0) return { from: 0, approximate: [] }
+  const first = historyLogSince
+    ? days.findIndex((d) => {
+      const since = daysUntil(historyLogSince, d)
+      return since != null && since <= 0
+    })
+    : -1
+  const from = first < 0 ? days.length : first
+  return { from, approximate: from === 0 ? [] : h3 }
+}
