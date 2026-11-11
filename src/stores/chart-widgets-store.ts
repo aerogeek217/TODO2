@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { afterLeavingEditors } from './editor-leave'
 import type { BreakdownSplit } from '../models/chart-widgets'
 
 /**
@@ -28,7 +29,9 @@ export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
   rowPicks: {},
 
   openEditor(tabId) {
-    set({ editorTabId: tabId })
+    if (get().editorTabId === tabId) return
+    // An editor with changes is asked first (`editor-leave`).
+    afterLeavingEditors(() => set({ editorTabId: tabId }))
   },
 
   closeEditor() {
@@ -45,7 +48,8 @@ export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
   pulseEditorTabId: null,
 
   openPulseEditor(tabId) {
-    set({ pulseEditorTabId: tabId })
+    if (get().pulseEditorTabId === tabId) return
+    afterLeavingEditors(() => set({ pulseEditorTabId: tabId }))
   },
 
   closePulseEditor() {

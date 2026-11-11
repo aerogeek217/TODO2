@@ -75,7 +75,6 @@ import { CellControlsContext } from '../cell-controls'
 import { lensHidesWhere, useLensHidden } from '../../../hooks/use-glance-data'
 import { matchesMembership } from '../../../services/build-list'
 import { createPredicateEvaluator } from '../../../utils/filter-match'
-import { useIsListDirty } from '../../../hooks/use-list-draft'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -470,7 +469,6 @@ function EisenhowerLensSwitch({ tab, list }: { tab: EisenhowerTab; list: Persist
 
 function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, shownIdsRef }: BodyProps) {
   const isMobile = useIsMobile()
-  const listUnsaved = useIsListDirty(list?.definition.id)
   // A pane divider's width while it is dragged: every pane follows it live.
   // (A store, not state: the drag re-renders the row lists, not the widget.)
   const [liveDetailsWidth] = useState(() => createValueStore<number | null>(null))
@@ -583,7 +581,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
       data-touch-chips={list && isMobile ? '' : undefined}
     >
       {/* Alone in its cell, its top line (D26 AA1): a slim name line. */}
-      <WidgetNameLine name="Eisenhower" unsaved={listUnsaved}>
+      <WidgetNameLine name="Eisenhower">
         {countLabel != null && <span className={styles.lineCount} data-testid="eisenhower-line-count">{countLabel}</span>}
         {alone && lensSwitch}
       </WidgetNameLine>

@@ -66,7 +66,6 @@ test.describe('desktop', () => {
     for (const tabId of ['t1', 't2']) {
       await expect.poll(() => rowTitles(wsListWidget(page, tabId))).toEqual(DESCENDING)
       await expect(summary(page, tabId)).toHaveText('Due date ↓')
-      await expect(wsListWidget(page, tabId).getByTestId('save-list')).toBeVisible()
     }
     await expect(editList(page).locator('[data-changed]')).toHaveText(['Sort by'])
 
@@ -79,18 +78,16 @@ test.describe('desktop', () => {
     await page.keyboard.press('Enter')
     await expect(summary(page, 't1')).toHaveText('Due date ↓')
 
-    // Esc closes Edit list at once, the list unsaved; its filter line's Save writes it.
+    // Esc with changes asks; its Save writes them.
     await page.keyboard.press('Escape')
+    const question = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
+    await question.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(editList(page)).toHaveCount(0)
-    await wsListWidget(page, 't1').getByTestId('save-list').click()
-    await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
-    // The save button goes as the write starts: wait for the stored row.
     await expect.poll(async () => (await readListDefinitions(page))[0]).toMatchObject({ sort: 'deadline', sortDirection: 'desc' })
 
     await page.reload()
     await expect(summary(page, 't2')).toHaveText('Due date ↓')
     await expect.poll(() => rowTitles(wsListWidget(page, 't2'))).toEqual(DESCENDING)
-    await expect(wsListWidget(page, 't2').getByTestId('save-list')).toHaveCount(0)
 
     // Switching to Manual drops the direction: no toggle, no arrow.
     await summary(page, 't2').click()
@@ -100,7 +97,7 @@ test.describe('desktop', () => {
     await expect(summary(page, 't2')).toHaveText('Manual')
   })
 
-  test('a saved descending list: reversing it is an unsaved edit that Revert undoes (with Undo); reversing it back is no edit', async ({ page }) => {
+  test('a saved descending list: reversing it is an edit Discard drops; saved, Undo puts it back; reversing it back is no edit', async ({ page }) => {
     await seedWorkspace(page, seed({ name: 'Team', sort: 'deadline', sortDirection: 'desc' }))
     await expect(summary(page, 't1')).toHaveText('Due date ↓')
     await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(DESCENDING)
@@ -110,25 +107,29 @@ test.describe('desktop', () => {
     await toggle(page).click()
     await expect(summary(page, 't1')).toHaveText('Due date')
     await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(ASCENDING)
-    // Esc closes Edit list at once, the list unsaved; its filter line's Revert drops the edit.
-    await page.keyboard.press('Escape')
+    // Discard drops the edit, in every widget showing the list.
+    await editList(page).getByRole('button', { name: 'Discard' }).click()
     await expect(editList(page)).toHaveCount(0)
-    await wsListWidget(page, 't1').getByTestId('revert-list').click()
     for (const tabId of ['t1', 't2']) {
       await expect(summary(page, tabId)).toHaveText('Due date ↓')
       await expect.poll(() => rowTitles(wsListWidget(page, tabId))).toEqual(DESCENDING)
-      await expect(wsListWidget(page, tabId).getByTestId('save-list')).toHaveCount(0)
     }
-    await page.getByRole('button', { name: 'Undo' }).click()
-    await expect(summary(page, 't2')).toHaveText('Due date')
-    await expect.poll(() => rowTitles(wsListWidget(page, 't2'))).toEqual(ASCENDING)
 
-    // Back to the saved direction: nothing unsaved.
+    // Reversed and saved: one undo step, which puts the direction back.
+    await summary(page, 't1').click()
+    await toggle(page).click()
+    await editList(page).getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(async () => (await readListDefinitions(page))[0]?.sortDirection).toBeUndefined()
+    await page.getByRole('button', { name: 'Undo' }).click()
+    await expect(summary(page, 't2')).toHaveText('Due date ↓')
+    await expect.poll(async () => (await readListDefinitions(page))[0]?.sortDirection).toBe('desc')
+
+    // Back to the saved direction: nothing to save.
     await summary(page, 't2').click()
     await toggle(page).click()
+    await toggle(page).click()
     await expect(summary(page, 't2')).toHaveText('Due date ↓')
-    await expect(wsListWidget(page, 't2').getByTestId('save-list')).toHaveCount(0)
-    await expect(wsTab(page, 't2').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
+    await expect(editList(page).getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
   })
 
 })

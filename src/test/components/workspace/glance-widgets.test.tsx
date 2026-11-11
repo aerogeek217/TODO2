@@ -255,8 +255,9 @@ describe('a Number’s lens switch (G3)', () => {
     render(<DndContext><Live /></DndContext>)
     const sw = screen.getByTestId('lens-switch')
     const shown = Number(numberCount()!.split('of')[0])
-    // Quiet on desktop (2A): the number in its tooltip, not on it.
-    expect(sw.textContent).toBe('')
+    // It hides some here: shown at rest with its −N (2A, as restated).
+    expect(sw).toHaveTextContent(`−${19 - shown}`)
+    expect(sw).not.toHaveAttribute('data-quiet')
     expect(sw).toHaveAttribute('data-lens-hides', String(19 - shown))
     expect(sw).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(sw)

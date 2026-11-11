@@ -1,12 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
 import { openFilterPicker, setShowCompleted } from './fixtures/filters'
-import { closeListFilterEditor, expectOpenLayout, openListFilterEditor, openSettings, ADD_FILTER, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, editListDraft, wsRow, expectLayoutStep } from './fixtures/workspace'
+import { closeListFilterEditor, editListSave, expectOpenLayout, layoutTab, openListFilterEditor, ADD_FILTER, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep } from './fixtures/workspace'
 
 /**
  * List widgets in the workspace: the top-bar (screen) filter narrows them,
- * their own definition is edited in Edit list (opened from the filter line, which reads it in words) and
- * stays unsaved — dot on the tab, Revert · Save on the filter line, a prompt
- * before the edits would be lost — until saved.
+ * their own definition is edited in Edit list (opened from the filter line, which reads it in words),
+ * drawn live while it is open and written for good by its Save (one undo
+ * step); closing it with changes asks Save / Discard / Keep editing.
+ * Nothing else ever asks: no unsaved marks, no prompt on a layout switch.
  */
 
 const team: WorkspaceSeed = {
@@ -83,7 +84,7 @@ test('a screen filter narrows every list widget and shows the count as shown of 
   await expect(wsListWidget(page, 't1').getByTestId('list-count')).toHaveText('1 of 2')
 })
 
-test('adding a filter in Edit list (opened from the line’s words) makes the list unsaved; saving keeps it across a reload', async ({ page }) => {
+test('adding a filter in Edit list (opened from the line’s words) shows at once; its Save keeps it across a reload', async ({ page }) => {
   await seedWorkspace(page, team)
   const widget = wsListWidget(page, 't1')
   const editor = await openListFilterEditor(page, widget)
@@ -95,18 +96,17 @@ test('adding a filter in Edit list (opened from the line’s words) makes the li
   await expect(picker).toBeHidden()
 
   await expect(editor.getByTestId('list-filter-chip')).toHaveText(/People\s*Bob/)
+  // The list draws the draft live; nothing stored, nothing marked unsaved.
+  await expect(rows(page, 't1')).toHaveCount(1)
+  await expect(wsTab(page, 't1').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
+  await expect(wsCell(page, 'k1').getByTestId('save-list')).toHaveCount(0)
+  expect(((await readListDefinitions(page))[0]!.membership as { predicate: { personIds: unknown } }).predicate.personIds).toBeNull()
   await closeListFilterEditor(page)
   // The line reads it in words, with no chip to edit there.
   await expect(widget.getByTestId('list-filter-expression')).toHaveText(/Bob/)
   await expect(widget.getByTestId('list-filter-chip')).toHaveCount(0)
-  await expect(rows(page, 't1')).toHaveCount(1)
-  await expect(wsTab(page, 't1').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
-  const save = wsCell(page, 'k1').getByTestId('save-list')
-  await expect(save).toBeVisible()
-
-  await save.click()
-  await expect(save).toBeHidden()
-  await expect(wsTab(page, 't1').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
+  await expect(page.getByText('Edited list “Team”')).toBeVisible()
+  await expect.poll(async () => ((await readListDefinitions(page))[0]!.membership as { predicate: { personIds: unknown } }).predicate.personIds).not.toBeNull()
   await page.reload()
   await expect(rows(page, 't1')).toHaveCount(1)
   await expect(wsListWidget(page, 't1').getByTestId('list-filter-expression')).toHaveText(/Bob/)
@@ -156,7 +156,7 @@ test('a list’s date filters: a due-date range and Next follow-up Any both narr
   await expect(editor.getByTestId('list-filter-chip')).toHaveText([/Due\s*on or before .+/, /Next follow-up\s*any date/])
   await closeListFilterEditor(page)
 
-  await wsCell(page, 'k1').getByTestId('save-list').click()
+  await expect.poll(async () => ((await readListDefinitions(page))[0]!.membership as { predicate: { dates?: unknown } }).predicate.dates).toBeDefined()
   await page.reload()
   await expect(rows(page, 't1')).toHaveCount(1)
   const [stored] = await readListDefinitions(page)
@@ -185,69 +185,60 @@ test('Edit list from the tab menu groups the list; the edit is shared by every w
 
   for (const tabId of ['t1', 't2']) {
     await expect(wsListWidget(page, tabId).getByTestId('list-group-name')).toHaveText(['Alice', 'Bob'])
-    await expect(wsTab(page, tabId).getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
   }
   // Hovering isn't a press: Edit list stays open — and no tooltip opens beside it (UX cleanup 1A).
-  await wsCell(page, 'k1').getByTestId('save-list').hover()
+  await wsCell(page, 'k2').getByTestId('list-summary').hover()
   await page.waitForTimeout(700)
   await expect(page.getByTestId('edit-list')).toBeVisible()
   await expect(page.getByRole('tooltip')).toHaveCount(0)
-  // Edit list closed, the Save button's tooltip opens.
-  await page.keyboard.press('Escape')
-  await expect(page.getByTestId('edit-list')).toBeHidden()
-  await page.mouse.move(2, 2)
-  await wsCell(page, 'k1').getByTestId('save-list').hover()
-  await expect(page.getByRole('tooltip')).toHaveText(/Save list “Team”\s*Shared · shown in 2 widgets/)
+  // Saved for both.
+  await editListSave(page).click()
+  await expect(page.getByTestId('edit-list')).toHaveCount(0)
+  await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team')?.grouping).toBe('people')
+  for (const tabId of ['t1', 't2']) {
+    await expect(wsListWidget(page, tabId).getByTestId('list-group-name')).toHaveText(['Alice', 'Bob'])
+  }
 })
 
-test('switching layouts with an unsaved list asks about the list alone; Discard drops the edit', async ({ page }) => {
+test('an open Edit list with changes asks before a layout switch; with none, or once closed, nothing asks', async ({ page }) => {
   await seedWorkspace(page, team)
-  await editListDraft(page, 'Team', { sort: 'name' })
+  await openEditList(page, 't1')
+  await pickChoice(page, 'Sort by', 'Name')
 
-  await switchLayout(page, 'Second')
+  // A press on another layout's tab is a press elsewhere: the question, and the switch waits.
+  await layoutTab(page, 'Second').click()
   const dialog = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
   await expect(dialog).toContainText('Your changes will be lost if you don’t save.')
-  await dialog.getByRole('button', { name: /Cancel/ }).click()
+  await dialog.getByRole('button', { name: 'Keep editing' }).click()
   await expectOpenLayout(page, 'Main')
-
-  // A layout edit meanwhile is saved at once: switching still asks about the list alone. (Alone in its cell, its ⋯ › Close cell.)
-  await wsTab(page, 't2').hover()
-  await wsTab(page, 't2').getByRole('button', { name: 'Cell options' }).click()
-  await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
-  await expectLayoutStep(page, 'Closed cell “Other”')
-  await switchLayout(page, 'Second')
-  await expect(page.getByRole('dialog', { name: 'Save your changes?' })).toHaveCount(0)
-  await expect(dialog).toContainText('Your changes will be lost if you don’t save.')
+  await expect(page.getByTestId('edit-list')).toBeVisible()
+  await layoutTab(page, 'Second').click()
   await dialog.getByRole('button', { name: 'Discard' }).click()
-  await expectOpenLayout(page, 'Second')
+  await expect(page.getByTestId('edit-list')).toHaveCount(0)
+  await expectOpenLayout(page, 'Main')
+  expect((await readListDefinitions(page)).find((d) => d.name === 'Team')?.sort).toBe('manual')
 
+  // Edit list closed: switching asks nothing.
+  await switchLayout(page, 'Second')
+  await expectOpenLayout(page, 'Second')
+  await expect(page.getByRole('dialog', { name: /^Save changes/ })).toHaveCount(0)
   await switchLayout(page, 'Main')
-  await expect(wsTab(page, 't2')).toHaveCount(0)
   await openEditList(page, 't1')
   await expect(page.getByTestId('edit-list').getByRole('button', { name: /^Sort by/ })).toHaveText('Manual')
 })
 
-test('closing the last widget of an unsaved list asks first (then the list goes, Undo brings it back); leaving the workspace too', async ({ page }) => {
+test('closing a list’s last widget asks nothing: the list goes, Undo brings it back as saved', async ({ page }) => {
   await seedWorkspace(page, team)
-  await editListDraft(page, 'Team', { grouping: 'people' })
+  await openEditList(page, 't1')
+  await pickChoice(page, 'Group by', 'People')
+  await editListSave(page).click()
+  await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team')?.grouping).toBe('people')
 
-  // Opening Settings (Edit list closed) never asks; leaving the workspace (the phone's Settings tab) does.
-  await openSettings(page)
-  await page.keyboard.press('Escape')
-  const dialog = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
-  await expect(dialog).toHaveCount(0)
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByRole('button', { name: 'Settings' }).click()
-  await expect(dialog).toBeVisible()
-  await dialog.getByRole('button', { name: /Cancel/ }).click()
-  await expect(page).toHaveURL(/#\/$/)
-  await page.setViewportSize({ width: 1280, height: 800 })
-
-  // Closing its only widget (alone in its cell: its ⋯ › Close cell): Save writes the list, then closes it.
+  // Closing its only widget (alone in its cell: its ⋯ › Close cell): no question.
   await wsTab(page, 't1').hover()
   await wsTab(page, 't1').getByRole('button', { name: 'Cell options' }).click()
   await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
-  await dialog.getByRole('button', { name: 'Save list' }).click()
+  await expect(page.getByRole('dialog', { name: /^Save changes/ })).toHaveCount(0)
   await expect(wsTab(page, 't1')).toHaveCount(0)
   // Its last tab gone, the list goes at once; Undo brings it back, as saved.
   await expectLayoutStep(page, 'Closed cell “Team”')
@@ -255,6 +246,11 @@ test('closing the last widget of an unsaved list asks first (then the list goes,
   await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()
   await expect(wsTab(page, 't1')).toBeVisible()
   await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team')?.grouping).toBe('people')
+
+  // Leaving the workspace (the phone's Settings tab) asks nothing either.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page).toHaveURL(/#\/settings$/)
 })
 
 test('prompt picks are temporary: empty again after a reload', async ({ page }) => {
@@ -271,7 +267,7 @@ test('prompt picks are temporary: empty again after a reload', async ({ page }) 
   await page.keyboard.press('Escape')
   await expect(rows(page, 't1')).toHaveCount(1)
   // Picking is not a list edit.
-  await expect(wsCell(page, 'k1').getByTestId('save-list')).toHaveCount(0)
+  expect((await readListDefinitions(page)).find((d) => d.name === 'Team')).not.toHaveProperty('picks')
 
   await page.reload()
   await expect(wsListWidget(page, 't1')).toContainText('Pick a person to show this list')

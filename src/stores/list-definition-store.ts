@@ -15,6 +15,11 @@ import { effectiveSortDirection, type TodoSortDirection } from '../models/todo-s
 import { loadFresh, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { useListOrderStore } from './list-order-store'
 import { useSettingsStore } from './settings-store'
+import { UndoGone, useUndoStore } from './undo-store'
+import { undoable } from './undoable'
+import { assertNoReplaceHold, refusedByReplaceHold } from './replace-hold'
+import { configPatch, withConfigPatch } from '../utils/config-patch'
+import { defsEqual } from '../utils/list-def-equal'
 
 /**
  * A new list. A sort or grouping not given is Settings' new-list default
@@ -41,7 +46,25 @@ interface ListDefinitionState {
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
   add: (input: AddInput) => Promise<number>
+  /**
+   * Writes `def` over the stored list (no undo step). Rejects when the
+   * write fails (the store then has the list as it was). Under a data
+   * replace's hold (`replace-hold`) nothing is written.
+   */
   update: (def: PersistedListDefinition) => Promise<void>
+  /**
+   * An edit of list `id` (`fn` over its stored definition), written for good
+   * as one undo step with the snackbar (`description`: `Edited list “This
+   * week”`). Only what the list's own editors change is taken from `fn`'s
+   * result: its id, sort order, owner and lens switch stay the stored ones,
+   * and a blank name keeps the stored name. Undo puts back the keys it
+   * changed — over the list as it is then, so a later write to another part
+   * (the lens switch) stays — and Redo writes them again; either says so
+   * when the list is gone. Resolves whether it wrote (nothing changed, an
+   * unknown list, a failed write — the snackbar says so — or a data replace
+   * under way: false).
+   */
+  editList: (id: number, fn: (def: PersistedListDefinition) => PersistedListDefinition, description: string) => Promise<boolean>
   /**
    * Whether the top bar's lens applies to list `id` (`ListDefinition.ignoreLens`),
    * saved at once on the saved list — never a draft edit, so it neither
@@ -56,6 +79,25 @@ interface ListDefinitionState {
   ensureEisenhowerList: () => Promise<number>
   /** Drops lists the database no longer has (deleted with their layout) from the store. */
   forgetLists: (ids: readonly number[]) => void
+}
+
+/**
+ * `edited` as `editList` writes it over `saved`: its name trimmed (a blank
+ * one keeps the saved name), and the saved list's id, sort order, owner and
+ * lens switch — none of them an edit of the list's editors.
+ */
+function editedOf(edited: PersistedListDefinition, saved: PersistedListDefinition): PersistedListDefinition {
+  const { owner: _owner, ignoreLens: _lens, ...rest } = edited
+  void _owner
+  void _lens
+  return {
+    ...rest,
+    id: saved.id,
+    sortOrder: saved.sortOrder,
+    name: edited.name.trim() || saved.name,
+    ...(saved.owner ? { owner: saved.owner } : {}),
+    ...(saved.ignoreLens ? { ignoreLens: true as const } : {}),
+  }
 }
 
 export const useListDefinitionStore = create<ListDefinitionState>((set, get) => {
@@ -102,6 +144,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
 
   async update(def) {
+    if (refusedByReplaceHold()) return
     const prev = get().listDefinitions.find(d => d.id === def.id)
     const applied = { ...def }
     const put = (next: PersistedListDefinition) =>
@@ -113,6 +156,30 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       () => { if (prev && get().listDefinitions.find(d => d.id === def.id) === applied) put(prev) },
       'Failed to update list',
     )
+  },
+
+  async editList(id, fn, description) {
+    if (refusedByReplaceHold()) return false
+    const saved = get().listDefinitions.find((d) => d.id === id)
+    if (!saved) return false
+    const next = editedOf(fn(saved), saved)
+    if (defsEqual(next, saved)) return false
+    const forward = configPatch(saved, next)
+    const back = configPatch(next, saved)
+    try {
+      await get().update(next)
+    } catch {
+      useUndoStore.getState().notify(`Couldn't save list “${saved.name}”.`)
+      return false
+    }
+    const replay = (patch: Partial<PersistedListDefinition>) => async () => {
+      assertNoReplaceHold()
+      const now = get().listDefinitions.find((d) => d.id === id)
+      if (!now) throw new UndoGone(`The list “${next.name}” is gone.`)
+      await get().update(withConfigPatch(now, patch))
+    }
+    undoable(description, replay(forward), replay(back), true)
+    return true
   },
 
   async setIgnoreLens(id, ignore) {

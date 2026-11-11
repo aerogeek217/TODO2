@@ -15,6 +15,7 @@ import { panelOfTab } from '../../utils/workspace-layout-queries'
 import { cellRowTracks } from '../../utils/workspace-layout-ops'
 import { type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
+import { afterLeavingEditors } from '../../stores/editor-leave'
 
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by
@@ -27,7 +28,7 @@ export function tabTitle(tab: LayoutTab, listName: string | undefined): string {
 }
 
 /**
- * The name a tab's list shows, from its saved name and its unsaved draft's:
+ * The name a tab's list shows, from its saved name and Edit list's draft's:
  * as edited (a blank draft name aside), else saved; `undefined` when the
  * list is gone. The one rule for every tab title — the strip, the `+N`
  * overflow menu, the phone.
@@ -49,7 +50,7 @@ function shownListName(
 
 /**
  * A tab's title (`tabTitle`), kept current: a list tab names its list as
- * edited (its unsaved draft), else as saved.
+ * Edit list has it (its draft, while open on it), else as saved.
  */
 export function useTabTitle(tab: LayoutTab | undefined): string {
   const listId = tab ? tabListId(tab, null) : undefined
@@ -68,12 +69,27 @@ export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
 /**
  * Opens Edit list for a list tab: the tab is made its cell's active one and
  * the row tracks it covers expanded (so the list it previews is on screen), then the
- * surface opens beside it, in place of another list's open Edit list (that
- * list keeps its draft).
+ * surface opens beside it, in place of another list's open Edit list —
+ * which, holding changes, asks first: Save or Discard, then this one opens;
+ * Keep editing, nothing changes (`openBeside`).
  */
 export function openEditList(tabId: string, listDefinitionId: number): void {
-  showTab(tabId)
-  useUIStore.getState().openListEditor(listDefinitionId, tabId)
+  const open = useUIStore.getState().listEditor
+  if (open?.listDefinitionId === listDefinitionId && open.tabId === tabId) return
+  openBeside(tabId, () => useUIStore.getState().openListEditor(listDefinitionId, tabId))
+}
+
+/**
+ * Shows tab `tabId` (`showTab`) and opens an editor beside it (`open`) —
+ * once an open editor holding changes was saved or discarded (its question
+ * asked first, `editor-leave`), never on Keep editing: showing the tab
+ * could take that editor's subject off the screen.
+ */
+function openBeside(tabId: string, open: () => void): void {
+  afterLeavingEditors(() => {
+    showTab(tabId)
+    open()
+  })
 }
 
 /** Makes `tabId` its cell's active tab and expands the row tracks the cell covers, so the widget is on screen. */
@@ -93,8 +109,8 @@ export function showTab(tabId: string): void {
  * shows its list's (`showTab`), then the popover beside the Number.
  */
 export function openNumberEditor(tabId: string): void {
-  showTab(tabId)
-  useUIStore.getState().openNumberEditor(tabId)
+  if (useUIStore.getState().numberEditorTabId === tabId) return
+  openBeside(tabId, () => useUIStore.getState().openNumberEditor(tabId))
 }
 
 /** `base` as a list name layout `layoutId` doesn't use yet: `base`, `base 2`, … */
@@ -104,9 +120,6 @@ function freshListName(base: string, layoutId: number): string {
     .map((d) => d.name)
   return uniqueListName(base, taken)
 }
-
-/** Why a list widget can't be added to (or a tab switched to List in) a layout that isn't stored yet. */
-export const NO_LIST_LAYOUT_REASON = 'Save the layout first to add lists.'
 
 /** The new list widget being made, while its list is being saved (`createListThenEdit`). */
 let creatingList: Promise<void> | null = null
@@ -131,10 +144,9 @@ export function createListThenEdit(show: (listDefinitionId: number) => string | 
 }
 
 /**
- * The open layout as a list chooser's owner: its id once it is stored (the
- * lists it owns are offered, and a new list is made for it), `undefined`
- * while it is a new layout an older build kept unsaved (New layout stores
- * the layout at once) — no list is offered or made for that one.
+ * The open layout as a list chooser's owner: its id (the lists it owns are
+ * offered, and a new list is made for it) — `undefined` only before the
+ * workspace has opened a layout (every layout is stored at once).
  */
 export function useListOwnerLayoutId(): number | undefined {
   return useWorkspaceStore((s) => s.saved?.id)
@@ -210,8 +222,8 @@ export function addWidgetAt(kind: WidgetKind, target: LayoutDropTarget, listDefi
   if (tabId != null && kind === 'number') openNumberEditor(tabId)
   // D26 P8: a chart opens its editor too.
   if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'tagMap')) {
-    showTab(tabId)
-    useChartWidgetsStore.getState().openEditor(tabId)
+    const chartTab = tabId
+    openBeside(chartTab, () => useChartWidgetsStore.getState().openEditor(chartTab))
   }
   return tabId
 }

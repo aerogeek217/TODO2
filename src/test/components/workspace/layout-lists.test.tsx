@@ -8,7 +8,6 @@ import { deleteLayoutMessage } from '../../../components/workspace/delete-layout
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import type { LayoutCell, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import type { PersistedListDefinition } from '../../../models/list-definition'
@@ -112,19 +111,11 @@ describe('a layout’s lists in the workspace', () => {
     expect(layoutSteps()).not.toEqual([])
   })
 
-  it('an empty layout’s List tile does the same; a layout not stored yet offers it disabled, saying why', async () => {
-    const { unmount } = render(<AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={undefined} iconClassName={undefined} />)
+  it('an empty layout’s List tile does the same', async () => {
+    render(<AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={undefined} iconClassName={undefined} />)
     fireEvent.click(screen.getByRole('button', { name: 'List' }))
     const { tabId, listId } = await addedListTab()
     expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: listId, tabId })
-    unmount()
-
-    useWorkspaceStore.setState({ saved: null })
-    render(<AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={undefined} iconClassName={undefined} />)
-    const list = screen.getByRole('button', { name: 'List' })
-    expect(list).toBeDisabled()
-    expect(list).toHaveAttribute('title', 'Save the layout first to add lists.')
-    expect(screen.getByRole('button', { name: 'Notes' })).toBeEnabled()
   })
 
   it('a double-click on the List tile makes one list and one tab', async () => {
@@ -140,7 +131,7 @@ describe('a layout’s lists in the workspace', () => {
     expect(tabs.filter((t) => t.id !== 'mine')).toHaveLength(1)
   })
 
-  it('an Eisenhower tab switched to List while the Eisenhower’s list is unsaved asks first; Cancel changes nothing', async () => {
+  it('an Eisenhower tab switched to List switches at once, asking nothing (the Eisenhower’s list is saved as it is)', async () => {
     const eisenhowerList = def(5, 'Eisenhower', { owner: { eisenhower: true } })
     await db.listDefinitions.add(eisenhowerList)
     useListDefinitionStore.setState({ listDefinitions: [...useListDefinitionStore.getState().listDefinitions, eisenhowerList] })
@@ -148,20 +139,15 @@ describe('a layout’s lists in the workspace', () => {
     const cell: LayoutCell = { id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 'eis', kind: 'eisenhower', config: {} }] }
     const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...single(cell) }
     useWorkspaceStore.setState({ layouts: [layout], working: layout, saved: layout })
-    useListDraftStore.getState().edit(5, (d) => ({ ...d, membership: { kind: 'custom', predicate: { ...emptyPredicate(), searchText: 'q4' } } }))
 
     render(<DndContext><WorkspaceCell cell={cell} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
     fireEvent.contextMenu(document.querySelector('[data-ws-tab="eis"]')!)
     fireEvent.click(within(screen.getByRole('menu', { name: 'Cell options' })).getByRole('menuitem', { name: /^Change widget/ }))
     fireEvent.click(within(screen.getByRole('menu', { name: 'Change widget' })).getByRole('menuitemradio', { name: /^List/ }))
-    const prompt = await screen.findByRole('dialog', { name: 'Save changes to list “Eisenhower”?' })
-    fireEvent.click(within(prompt).getByRole('button', { name: /^Cancel/ }))
-
+    await waitFor(() => expect(useWorkspaceStore.getState().working!.cells.flatMap((k) => k.tabs).map((t) => [t.id, t.kind])).toEqual([['eis', 'lens']]))
     expect(screen.queryByRole('dialog', { name: /^Save changes to list/ })).toBeNull()
-    const tabs = useWorkspaceStore.getState().working!.cells.flatMap((k) => k.tabs)
-    expect(tabs.map((t) => [t.id, t.kind])).toEqual([['eis', 'eisenhower']])
-    expect((await db.listDefinitions.toArray()).filter((d) => d.name.startsWith('New list'))).toEqual([])
-    expect(useListDraftStore.getState().drafts[5]).toBeDefined()
+    // The Eisenhower's own list stays (no tab shows it, but it is the Eisenhower's, not the layout's).
+    expect(await db.listDefinitions.get(5)).toBeDefined()
   })
 
   it('Change list offers only this layout’s own lists', () => {

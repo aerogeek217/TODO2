@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { editListDraft, seedWorkspace, wsTab, type WsTabSeed, wsRow } from './fixtures/workspace'
+import { seedWorkspace, wsTab, type WsTabSeed, wsRow } from './fixtures/workspace'
 
 /**
  * A shrunk tab strip fits again when a tab's own content changes, not only
@@ -51,19 +51,6 @@ const shrunk = (page: Page) => page.evaluate(async () => {
   return Array.from(cell.querySelectorAll('[data-ws-tab] [data-tab-title]')).some((t) => t.scrollWidth > t.clientWidth)
 })
 
-/** Drops the list's unsaved edits (no snackbar). */
-const revertListDraft = (page: Page, listName: string) => page.evaluate(async (name) => {
-  const defs = (await import(/* @vite-ignore */ '/src/stores/list-definition-store.ts' as string)) as {
-    useListDefinitionStore: { getState: () => { listDefinitions: Array<{ id: number; name: string }> } }
-  }
-  const drafts = (await import(/* @vite-ignore */ '/src/stores/list-draft-store.ts' as string)) as {
-    useListDraftStore: { getState: () => { discard: (id: number) => void } }
-  }
-  const def = defs.useListDefinitionStore.getState().listDefinitions.find((d) => d.name === name)
-  if (!def) throw new Error(`no list “${name}”`)
-  drafts.useListDraftStore.getState().discard(def.id)
-}, listName)
-
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
 
 /**
@@ -105,16 +92,6 @@ test('the active tab’s count growing fits the strip again (its title stays who
     page,
     async () => { await search.fill('Task 1'); await expect(active).toContainText('1 of 5') },
     async () => { await search.fill(''); await expect(active).not.toContainText('of') },
-  )
-  expect(widthsCut, 'widths where the title was cut').toEqual([])
-})
-
-test('the active list’s unsaved dot appearing fits the strip again', async ({ page }) => {
-  const dot = wsTab(page, 'l1').getByRole('img', { name: 'unsaved list changes' })
-  const widthsCut = await sweep(
-    page,
-    async () => { await editListDraft(page, 'Inbox', { sort: 'title' }); await expect(dot).toBeVisible() },
-    async () => { await revertListDraft(page, 'Inbox'); await expect(dot).toHaveCount(0) },
   )
   expect(widthsCut, 'widths where the title was cut').toEqual([])
 })

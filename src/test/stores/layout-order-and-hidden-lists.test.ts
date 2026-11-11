@@ -147,20 +147,18 @@ describe('list store: hidden lists', () => {
     expect(await useListDefinitionStore.getState().ensureEisenhowerList()).toBe(id)
   })
 
-  it('saving a draft never changes who the list belongs to (a draft kept without the owner keeps it)', async () => {
+  it('a list edit never changes who the list belongs to (an edit without the owner keeps it)', async () => {
     const id = await db.listDefinitions.add(list('Eis', { owner: { eisenhower: true } }))
     await useListDefinitionStore.getState().load()
     const saved = useListDefinitionStore.getState().listDefinitions[0]!
     const { owner: _o, ...withoutOwner } = saved
     void _o
-    useListDraftStore.getState().edit(id, () => ({ ...withoutOwner, grouping: 'people' }))
-    await useListDraftStore.getState().save(id)
+    await useListDefinitionStore.getState().editList(id, () => ({ ...withoutOwner, grouping: 'people' }), 'Edited')
     expect(await db.listDefinitions.get(id)).toMatchObject({ grouping: 'people', owner: { eisenhower: true } })
-    // A saved list stays one, whatever the draft holds.
+    // A list with no owner stays so, whatever the edit holds.
     const other = await db.listDefinitions.add(list('Saved'))
     await useListDefinitionStore.getState().load()
-    useListDraftStore.getState().edit(other, (d) => ({ ...d, grouping: 'tag', owner: { layoutId: 3 } }))
-    await useListDraftStore.getState().save(other)
+    await useListDefinitionStore.getState().editList(other, (d) => ({ ...d, grouping: 'tag', owner: { layoutId: 3 } }), 'Edited')
     expect('owner' in (await db.listDefinitions.get(other))!).toBe(false)
   })
 })

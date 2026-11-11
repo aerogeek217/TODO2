@@ -1,7 +1,7 @@
 import { emptyPredicate, type PersistedTodoItem, type Person, type Tag, type TodoPredicate } from '../models'
 import { useFilterStore } from '../stores/filter-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import { useListDraftStore } from '../stores/list-draft-store'
+import { listAsShownNow } from '../stores/list-draft-store'
 import { useListOrderStore } from '../stores/list-order-store'
 import { useListWidgetStore, type ShownListSection } from '../stores/list-widget-store'
 import { useReviewStore, type ReviewDivider, type ReviewQueue, type ReviewSourceKind } from '../stores/review-store'
@@ -134,8 +134,7 @@ function predicateLens(predicate: TodoPredicate): ReviewPayloadLens {
  * as a queue (`queueOfSections`, with its group headers when `grouped`).
  */
 export function listQueueNow(listId: number, tabId: string, grouped: boolean, ignoreLens: boolean): ReviewQueue {
-  const saved = useListDefinitionStore.getState().listDefinitions.find((d) => d.id === listId)
-  const definition = saved ? (useListDraftStore.getState().drafts[listId] ?? saved) : undefined
+  const definition = listAsShownNow(listId)
   if (!definition) return { ids: [] }
   const env = currentTaskDialogEnv()
   const { filters: chips, isActive } = useFilterStore.getState()

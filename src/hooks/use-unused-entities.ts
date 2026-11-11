@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import type { Person, Tag } from '../models'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import { useListDraftStore } from '../stores/list-draft-store'
 import { usePersonStore } from '../stores/person-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTagStore } from '../stores/tag-store'
@@ -34,7 +33,6 @@ export function useUnusedEntities(ignoreCompleted: boolean): UnusedEntities {
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const lists = useListDefinitionStore((s) => s.listDefinitions)
   const listsLoaded = useListDefinitionStore((s) => s.loaded)
-  const drafts = useListDraftStore((s) => s.drafts)
   const panes = useSettingsStore((s) => s.eisenhowerPanes)
   const checkinFilter = useSettingsStore((s) => s.checkinTaskFilter)
 
@@ -50,7 +48,7 @@ export function useUnusedEntities(ignoreCompleted: boolean): UnusedEntities {
   const ready = todosLoaded && peopleLoaded && tagsLoaded && listsLoaded
     && todos.every((t) => assignedPeopleMap.has(t.id) && assignedTagsMap.has(t.id))
 
-  const sources = useMemo<FilterSources>(() => ({ lists, drafts, panes, checkinFilter }), [lists, drafts, panes, checkinFilter])
+  const sources = useMemo<FilterSources>(() => ({ lists, panes, checkinFilter }), [lists, panes, checkinFilter])
   const unusedPeople = useMemo(
     () => findUnused(people, entityTaskUse(todos, assignedPeopleMap), filterReferences(sources, 'person'), ignoreCompleted),
     [people, todos, assignedPeopleMap, sources, ignoreCompleted],

@@ -212,14 +212,13 @@ describe('EisenhowerWidget on its list', () => {
     expect(within(line).queryByTestId('list-summary')).toBeNull()
   })
 
-  it('a list set to hide its filter line: none above the panes until the list is unsaved', () => {
+  it('a list set to hide its filter line: none above the panes, an Edit list draft too', () => {
     useListDefinitionStore.setState({ listDefinitions: [listDef({ showFilterLine: false }, notWaiting)] })
     setupOnList()
     expect(titles('schedule')).toEqual(['Board update'])
     expect(screen.queryByTestId('list-filter-row')).toBeNull()
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, name: 'Renamed' })))
-    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
-    expect(screen.getByTestId('save-list')).toBeInTheDocument()
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
   })
 
   it('switching the source back to all tasks shows every task again', () => {
@@ -232,14 +231,15 @@ describe('EisenhowerWidget on its list', () => {
     expect(document.querySelector('[data-list-host]')).toBeNull()
   })
 
-  it('shows the list as edited (its unsaved draft), with Revert · Save on the filter line', () => {
+  it('shows the list as Edit list has it (its draft), with no Revert · Save on the filter line', () => {
     const saved = listDef()
     useListDefinitionStore.setState({ listDefinitions: [saved] })
     setupOnList()
     expect(lastResult).toEqual({ countLabel: undefined })
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, membership: { kind: 'custom', predicate: { ...d.membership.predicate, ...notWaiting } } })))
     expect(lastResult).toEqual({ countLabel: undefined })
-    expect(screen.getByTestId('save-list')).toBeInTheDocument()
+    expect(titles('schedule')).toEqual(['Board update'])
+    expect(screen.queryByTestId('save-list')).toBeNull()
   })
 
   it('composes the screen filter in: "shown of the list\'s total"', () => {

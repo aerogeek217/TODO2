@@ -78,14 +78,6 @@ describe('filterReferences', () => {
     expect(refs.has(0)).toBe(false)
   })
 
-  it('a list counts once whether its saved filter or its unsaved edit names the entry', () => {
-    const saved = list(1, { tags: [10] })
-    const draft = list(1, { tags: [10, 11] })
-    const refs = filterReferences(sources({ lists: [saved], drafts: { 1: draft } }), 'tag')
-    expect(refs.get(10)?.lists).toBe(1)
-    expect(refs.get(11)?.lists).toBe(1)
-  })
-
   it('finds tags in Eisenhower pane filters and the check-in filter', () => {
     const refs = filterReferences(sources({
       panes: {

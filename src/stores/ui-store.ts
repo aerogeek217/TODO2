@@ -1,6 +1,7 @@
 import type { RefObject } from 'react'
 import { create } from 'zustand'
 import { registerModuleReset } from '../utils/module-reset'
+import { afterLeavingEditors, editorsHoldChanges, leaveOpenEditors } from './editor-leave'
 import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
@@ -707,7 +708,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openListEditor(listDefinitionId, tabId) {
-    set({ listEditor: { listDefinitionId, tabId } })
+    const open = get().listEditor
+    if (open?.listDefinitionId === listDefinitionId && open.tabId === tabId) return
+    // An editor with changes is asked first (`editor-leave`): it is left only through Save / Discard.
+    afterLeavingEditors(() => set({ listEditor: { listDefinitionId, tabId } }))
   },
 
   closeListEditor() {
@@ -716,7 +720,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openNumberEditor(tabId) {
-    set({ numberEditorTabId: tabId })
+    if (get().numberEditorTabId === tabId) return
+    afterLeavingEditors(() => set({ numberEditorTabId: tabId }))
   },
 
   closeNumberEditor() {
@@ -756,8 +761,14 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openSettings(target, focus) {
-    // Edit list belongs to the workspace under the modal: it closes (an
-    // unsaved list keeps its draft).
+    // Edit list and the widget editors belong to the workspace under the
+    // modal: one holding changes asks first (Save / Discard / Keep editing,
+    // `editor-leave`) and Settings opens once it was saved or discarded; an
+    // unchanged one just closes.
+    if (editorsHoldChanges()) {
+      void leaveOpenEditors().then((left) => { if (left) get().openSettings(target, focus) })
+      return
+    }
     get().closeListEditor()
     get().closeNumberEditor()
     // Unsaved work Settings doesn't show (a lens draft kept at phone width):
