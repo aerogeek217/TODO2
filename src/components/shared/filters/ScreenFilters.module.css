@@ -199,7 +199,7 @@
   border-radius: var(--radius-pill);
   background: var(--color-accent);
   color: var(--color-text-on-accent);
-  font-size: var(--font-size-legacy-10);
+  font-size: var(--font-size-badge);
   font-weight: var(--font-weight-bold);
 }
 

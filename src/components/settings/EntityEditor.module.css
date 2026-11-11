@@ -29,7 +29,7 @@
   border: none;
   color: var(--color-text-muted);
   cursor: pointer;
-  font-size: var(--font-size-legacy-18);
+  font-size: var(--font-size-glyph-lg);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   line-height: 1;

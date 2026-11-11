@@ -171,7 +171,7 @@
 /* The clock, at the flag's size (its glyph is 1em). */
 .railClock {
   display: inline-flex;
-  font-size: var(--font-size-legacy-10);
+  font-size: var(--font-size-glyph-sm);
 }
 
 .railFollowup[data-followup='today'],
@@ -253,7 +253,7 @@
 
 .queueButton::after {
   content: '▾';
-  font-size: var(--font-size-legacy-10);
+  font-size: var(--font-size-glyph-sm);
   color: var(--color-text-muted);
 }
 
@@ -318,7 +318,7 @@
 .cardTitle {
   margin: 0;
   min-width: 0;
-  font-size: var(--font-size-legacy-17);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   line-height: 1.4;
   letter-spacing: -0.01em;
@@ -415,7 +415,7 @@
 
 .key {
   font-family: inherit;
-  font-size: var(--font-size-legacy-10-5);
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 

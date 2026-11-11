@@ -113,20 +113,46 @@
 
   /* Typography */
   --font-family: 'Plus Jakarta Sans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
-  /* The type scale: xs 11 · sm 12 · md 13 · body 14 · lg 16 · xl 22. A new
-     font-size in a stylesheet takes one of these (`styles/font-sizes.test`). */
+  /* The type scale: xs 11 · sm 12 · md 13 · body 14 · lg 16 · xl 22. A
+     font-size in a stylesheet takes one of these, or one of the role tokens
+     below when what it sizes isn't text on the scale (`styles/font-sizes.test`). */
   --font-size-xs: 11px;
   --font-size-sm: 12px;
   --font-size-md: 13px;
   --font-size-lg: 16px;
   --font-size-xl: 22px;
-  /* The big figures on a Number / glance widget face — nothing else. */
+  /* The figures on a widget's face (a Number, a glance widget, a list's,
+     the calendar's and the Neglect map's small and medium faces) — nothing
+     else: a goal's target (3xs), a count in a small face's group (2xs), a
+     medium face's count (xs), a face's main count (md). */
+  --font-size-display-3xs: 15px;
+  --font-size-display-2xs: 17px;
+  --font-size-display-xs: 18px;
   --font-size-display-sm: 20px;
-  --font-size-display-md: 24px;
-  --font-size-display-lg: 28px;
-  --font-size-display-xl: 40px;
-  /* An avatar's initials in a 16px circle, and a "+N" badge on one. */
+  --font-size-display-md: 22px;
+  --font-size-display-lg: 24px;
+  --font-size-display-xl: 28px;
+  --font-size-display-2xl: 40px;
+  /* An avatar's initials, sized to its circle: 8 in a 14–16px circle on a
+     row or a chip (and a "+N" badge on one), 9 in a 16–20px one in a picker
+     or a list, 10 in a 16–18px one beside 12–13px text (the editor's
+     people, a Breakdown's rows). Two letters at 11 don't fit. */
   --font-size-avatar: 8px;
+  --font-size-avatar-md: 9px;
+  --font-size-avatar-lg: 10px;
+  /* A count in a 14–16px round badge (a filter count, the storage pill's
+     warnings, a drag's tab count, a Neglect map dot's number). */
+  --font-size-badge: 10px;
+  /* A list tab's due / follow-up capsule, 14px tall (`BadgeCapsule`). */
+  --font-size-badge-capsule: 10.5px;
+  /* A glyph drawn as text or at 1em, sized to its box rather than read:
+     a sort mark ▲▼ (xs), a ▾ caret, a phone checkbox's ✓ or the review
+     rail's clock at its flag's size (sm), a dialog's or sheet's × (lg). */
+  --font-size-glyph-xs: 8px;
+  --font-size-glyph-sm: 10px;
+  --font-size-glyph-lg: 18px;
+  /* The total in a Breakdown's donut, in its 42-unit viewBox (≈ 21px drawn). */
+  --font-size-donut-total: 8px;
   --font-size-title: 24px;
   --font-size-nav: 14px;
   --font-size-task: 14px;
@@ -139,21 +165,6 @@
   --font-size-row-meta: 11.5px;
   /* A Lines row's title and a Lines group header's name (D25 I1). */
   --font-size-task-line: 10.5px;
-  /* Transitional (UX cleanup 5A): every size the scale doesn't hold, each named
-     for its pixels. The next step folds each use onto the scale and deletes
-     these — don't use one in new CSS. */
-  --font-size-legacy-8: 8px;
-  --font-size-legacy-8-5: 8.5px;
-  --font-size-legacy-9: 9px;
-  --font-size-legacy-9-5: 9.5px;
-  --font-size-legacy-10: 10px;
-  --font-size-legacy-10-5: 10.5px;
-  --font-size-legacy-11-5: 11.5px;
-  --font-size-legacy-12-5: 12.5px;
-  --font-size-legacy-15: 15px;
-  --font-size-legacy-17: 17px;
-  --font-size-legacy-18: 18px;
-  --font-size-legacy-20: 20px;
   --font-weight-regular: 400;
   /* A task row's title (D25 B); a priority's semibold cue is 600. */
   --font-weight-medium: 500;

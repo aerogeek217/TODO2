@@ -59,7 +59,7 @@
   border: 1px solid var(--color-border);
   background: var(--color-surface-high);
   color: var(--color-text-primary);
-  font-size: var(--font-size-legacy-15);
+  font-size: var(--font-size-input);
   font-family: inherit;
   outline: none;
   box-shadow: none;
@@ -79,7 +79,7 @@
   background: none;
   border: none;
   color: var(--color-text-muted);
-  font-size: var(--font-size-legacy-18);
+  font-size: var(--font-size-glyph-lg);
   padding: 4px 8px;
   cursor: pointer;
   min-height: var(--touch-target-min);
@@ -126,7 +126,7 @@
   align-items: center;
   overflow: hidden;
   padding: 0 37px;
-  font-size: var(--font-size-legacy-15);
+  font-size: var(--font-size-input);
   font-family: inherit;
   white-space: pre;
   color: var(--color-text-primary);

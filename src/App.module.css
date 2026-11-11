@@ -89,7 +89,7 @@
 
 .initError h2 {
   margin: 0;
-  font-size: var(--font-size-legacy-18);
+  font-size: var(--font-size-lg);
 }
 
 .initError p {

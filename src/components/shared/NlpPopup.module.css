@@ -205,7 +205,7 @@
   place-items: center;
   box-sizing: border-box;
   border: 1px dashed var(--color-accent);
-  font-size: var(--font-size-legacy-9);
+  font-size: var(--font-size-avatar-md);
   font-weight: 700;
   line-height: 1;
 }

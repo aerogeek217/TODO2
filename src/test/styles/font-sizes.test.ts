@@ -5,7 +5,7 @@ const stripComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, (m) =>
 
 /**
  * Font sizes that must stay literal, `file: reason`. Empty on purpose: a size comes from the
- * scale in `tokens.css` (`--font-size-*`), or from a `--font-size-legacy-*` while it waits to be folded onto it.
+ * scale in `tokens.css` (`--font-size-*`): the scale itself, or a role token named for what it sizes.
  */
 const ALLOWED_LITERALS: string[] = []
 

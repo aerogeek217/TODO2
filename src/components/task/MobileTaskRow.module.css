@@ -120,7 +120,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: var(--font-size-legacy-10);
+  font-size: var(--font-size-glyph-sm);
   font-weight: bold;
   color: var(--color-text-on-accent);
   line-height: 1;
@@ -150,7 +150,7 @@
   border: none;
   background: none;
   font-family: inherit;
-  font-size: var(--font-size-legacy-15);
+  font-size: var(--font-size-task);
   font-weight: var(--font-weight-medium);
   line-height: 20px;
   text-align: left;
