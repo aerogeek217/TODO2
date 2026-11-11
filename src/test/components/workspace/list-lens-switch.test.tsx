@@ -18,8 +18,9 @@ import { db } from '../../../data/database'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 
 /**
- * A list's switch for the top bar's lens (its filter line's glasses — quiet
- * on desktop, its `−N` in the tooltip — and the list's count while narrowed): what the lens hides here, turned off and on
+ * A list's switch for the top bar's lens (its filter line's glasses and
+ * `−N` — on desktop hidden at rest while the lens hides nothing here — and
+ * the list's count while narrowed): what the lens hides here, turned off and on
  * for this list alone, saved at once on the saved list — never a draft
  * edit. With the line hidden, the tab carries the count and the lens.
  */
@@ -81,13 +82,15 @@ afterEach(async () => {
 })
 
 describe('a list’s lens switch', () => {
-  it('no lens, or a lens that hides nothing here: no switch and no count (one number per list, 2A)', async () => {
+  it('no lens: no switch and no count; a lens that hides nothing here: the switch kept in place, hidden at rest (2A)', async () => {
     const { result } = await setup(def())
     expect(lensSwitch()).toBeNull()
     expect(count()).toBeNull()
     expect(result()?.countLabel).toBeUndefined()
     act(() => pickAliceLens({ ...emptyPredicate(), personIds: [1, 2] }))
-    expect(lensSwitch()).toBeNull()
+    expect(lensSwitch()).toHaveAttribute('data-quiet')
+    expect(lensSwitch()).toHaveAttribute('data-lens-hides', '0')
+    expect(count()).toBeNull()
   })
 
   it('shows what the lens hides here; a click turns it off for this list, saved at once — and back on', async () => {
@@ -97,8 +100,9 @@ describe('a list’s lens switch', () => {
     expect(count()).toBe('2 of 3')
     const on = lensSwitch()!
     expect(on).toHaveAttribute('aria-pressed', 'true')
-    // Quiet in a desktop cell (2A): no `−N` on it; its tooltip says what it hides.
-    expect(on.textContent).toBe('')
+    // It has an effect here: shown at rest with its `−N` (not quiet).
+    expect(on).toHaveTextContent('−1')
+    expect(on).not.toHaveAttribute('data-quiet')
     expect(on).toHaveAttribute('data-lens-hides', '1')
     expect(on).toHaveAccessibleName('Apply the lens “Alice only” here')
 
@@ -134,13 +138,15 @@ describe('a list’s lens switch', () => {
     expect(on).toBe(off)
     expect(on).toHaveAttribute('aria-pressed', 'true')
     expect(on).toHaveAttribute('data-lens-hides', '0')
+    // Nothing hidden here: quiet (hidden at rest), but the same element under the focus.
+    expect(on).toHaveAttribute('data-quiet')
     expect(document.activeElement).toBe(on)
-    // Another lens picked: the switch is back to its rule (nothing hidden here, so none).
+    // Another lens picked that hides nothing here: still in place, quiet.
     act(() => useSettingsStore.setState({
       lenses: [{ id: 'lens-b', name: 'Everyone', predicate: { ...emptyPredicate(), personIds: [1, 2] } }],
       activeLensId: 'lens-b',
     }))
-    expect(lensSwitch()).toBeNull()
+    expect(lensSwitch()).toHaveAttribute('data-quiet')
   })
 
   it('off, the chips still apply; the lens lifted at the top bar shows no switch', async () => {
@@ -154,16 +160,16 @@ describe('a list’s lens switch', () => {
     expect(lensSwitch()).toBeNull()
   })
 
-  it('a draft’s Save keeps the saved list’s switch', async () => {
+  it('Edit list’s Save keeps the saved list’s switch (written at once, meanwhile)', async () => {
     pickAliceLens()
     await setup(def())
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, name: 'Team renamed' })))
     fireEvent.click(lensSwitch()!)
     await waitFor(() => expect(useListDefinitionStore.getState().listDefinitions[0]?.ignoreLens).toBe(true))
-    // Still the draft's list, still unsaved by its name alone.
+    // Still the draft's list, still a draft by its name alone.
     expect(useListDraftStore.getState().drafts[7]?.name).toBe('Team renamed')
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
-    await act(() => useListDraftStore.getState().save(7))
+    await act(() => useListDefinitionStore.getState().editList(7, () => useListDraftStore.getState().drafts[7]!, 'Edited list'))
     const saved = useListDefinitionStore.getState().listDefinitions[0]
     expect(saved).toMatchObject({ name: 'Team renamed', ignoreLens: true })
   })

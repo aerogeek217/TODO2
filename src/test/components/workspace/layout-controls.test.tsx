@@ -8,6 +8,7 @@ import { emptyPredicate } from '../../../models/filter-predicate'
 import { LayoutControls } from '../../../components/workspace/LayoutControls'
 import { settleLayoutWrites, useWorkspaceStore } from '../../../stores/workspace-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import { useUIStore } from '../../../stores/ui-store'
 import { resetDb } from '../../helpers'
 import { emptyBody, single } from '../../helpers/layout-builders'
 
@@ -178,5 +179,35 @@ describe('LayoutControls — folded into the picker', () => {
     ])
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'New layout…' }))
     expect(screen.getByRole('dialog', { name: 'New layout' })).toBeInTheDocument()
+  })
+})
+
+describe('LayoutControls — requests from elsewhere (the palette)', () => {
+  const ui = () => useUIStore.getState()
+
+  it('a switch request opens the layout as a tab click does, and is taken once', async () => {
+    const [, second] = await seed('Main', 'Second')
+    render(<LayoutControls mode="tabs" />)
+    act(() => ui().requestLayout({ kind: 'switch', layoutId: second! }))
+    await waitFor(() => expect(ws().working?.name).toBe('Second'))
+    expect(ui().layoutRequest).toBeNull()
+  })
+
+  it('a switch to the open layout does nothing', async () => {
+    const [main] = await seed('Main', 'Second')
+    render(<LayoutControls mode="menu" />)
+    act(() => ui().requestLayout({ kind: 'switch', layoutId: main! }))
+    expect(ui().layoutRequest).toBeNull()
+    expect(ws().working?.name).toBe('Main')
+  })
+
+  it('New layout… and Duplicate layout… open their name dialogs', async () => {
+    await seed('Main')
+    render(<LayoutControls mode="tabs" />)
+    act(() => ui().requestLayout({ kind: 'new' }))
+    const created = screen.getByRole('dialog', { name: 'New layout' })
+    fireEvent.click(within(created).getByRole('button', { name: 'Cancel' }))
+    act(() => ui().requestLayout({ kind: 'duplicate' }))
+    expect(within(screen.getByRole('dialog', { name: 'Duplicate layout' })).getByLabelText('Name')).toHaveValue('Main copy')
   })
 })

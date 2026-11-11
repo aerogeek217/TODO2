@@ -3,9 +3,7 @@ import { BadgeCapsule } from '../shared/BadgeCapsule'
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
-import { getActiveTab, tabListId } from '../../models/workspace-layout'
-import { useIsListDirty } from '../../hooks/use-list-draft'
-import { useSettingsStore } from '../../stores/settings-store'
+import { getActiveTab } from '../../models/workspace-layout'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useTabTitle, useTabTitles } from './widget-hooks'
 import { ChevronDownIcon, CloseIcon, GlassesIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
@@ -113,9 +111,6 @@ interface TabProps {
 
 function Tab({ tab, badge, active, collapsed, count, lens, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef, offstage, size }: TabProps) {
   const title = useTabTitle(tab)
-  // A list tab's list, or an Eisenhower tab's (the Eisenhower's own): its unsaved dot.
-  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
-  const listUnsaved = useIsListDirty(tabListId(tab, eisenhowerListId))
   const data: WorkspaceTabDragData = { type: WORKSPACE_TAB_DRAG, tabId: tab.id, kind: tab.kind, title }
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: workspaceTabDragId(tab.id), data, disabled: touch })
   const closable = !collapsed && onClose != null
@@ -164,7 +159,6 @@ function Tab({ tab, badge, active, collapsed, count, lens, touch, onActivate, on
     >
       <span className={styles.kindIcon}><WidgetKindIcon kind={tab.kind} size={12} /></span>
       <span className={styles.title} data-tab-title="">{title}</span>
-      {listUnsaved && <span className={styles.unsavedDot} role="img" aria-label="unsaved list changes" />}
       {lens && (
         <span className={`${styles.lensMark} ${lens.ignored ? styles.lensMarkOff : ''}`} role="img" aria-label={lensLine(lens)} data-tab-lens="">
           <GlassesIcon size={12} slashed={lens.ignored} />
@@ -324,7 +318,7 @@ export function CellTabStrip({
     ro.observe(strip)
     if (strip.parentElement) ro.observe(strip.parentElement)
     for (const el of tabEls.current.values()) ro.observe(el)
-    // A tab's own content changing (its count, the unsaved dot, a rename): a
+    // A tab's own content changing (its count, a rename): a
     // shrunk tab's width is pinned, so no box resizes. Not attributes — the
     // fit's own sizes are inline styles.
     const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(measure)
@@ -464,7 +458,7 @@ function OverflowMenu({ anchorRef, tabs, badges, onPick, onClose }: {
   onPick: (tabId: string) => void
   onClose: () => void
 }) {
-  // The strip's own titles: a list's unsaved name included.
+  // The strip's own titles: a list's name as Edit list has it included.
   const titles = useTabTitles(tabs)
   const entries = tabs.map((tab, i) => {
     const badge = badges.get(tab.id)

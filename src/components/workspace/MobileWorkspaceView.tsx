@@ -17,10 +17,8 @@ import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { UnsavedPrompt } from './UnsavedPrompt'
 import { DialogFrame } from '../shared/Dialog'
 import type { ListWidgetResult } from './list/ListWidget'
-import { useUnsavedListIds } from '../../hooks/use-list-draft'
 import { copyTasks } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -52,15 +50,11 @@ function SearchIcon() {
 function LayoutSheet({ onClose }: { onClose: () => void }) {
   const layouts = useWorkspaceStore((s) => s.layouts)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
-  const unsavedLists = useUnsavedListIds()
-  const [pending, setPending] = useState<{ id: number; name: string } | null>(null)
   const currentRowRef = useRef<HTMLButtonElement | null>(null)
   const firstRowRef = useRef<HTMLButtonElement | null>(null)
 
-  const pick = (id: number, name: string) => {
+  const pick = (id: number) => {
     if (id === activeLayoutId) { onClose(); return }
-    // Unsaved list edits can only come from a wider screen in this session; still never lose them silently.
-    if (unsavedLists.length > 0) { setPending({ id, name }); return }
     withViewTransition(() => useWorkspaceStore.getState().load(id))
     onClose()
   }
@@ -90,7 +84,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
                 type="button"
                 className={`${styles.sheetRow} ${current ? styles.sheetRowCurrent : ''}`}
                 aria-current={current ? 'true' : undefined}
-                onClick={() => pick(l.id, l.name)}
+                onClick={() => pick(l.id)}
               >
                 <span className={styles.sheetGlyph}><HuedLayoutIcon hue={l.hue} /></span>
                 <span className={styles.sheetName}>{l.name}</span>
@@ -101,19 +95,6 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
         </div>
         <p className={styles.sheetFooter}>{WIDER_SCREEN_HINT}</p>
       </DialogFrame>
-      {pending && (
-        <UnsavedPrompt
-          lead={`You’re switching to layout “${pending.name}”.`}
-          listIds={unsavedLists}
-          onDone={() => {
-            const { id } = pending
-            setPending(null)
-            onClose()
-            withViewTransition(() => useWorkspaceStore.getState().load(id))
-          }}
-          onCancel={() => setPending(null)}
-        />
-      )}
     </>
   )
 }

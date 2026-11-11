@@ -3,15 +3,17 @@ import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
- * A list's switch for the top bar's lens (the standard switch, G3): while
- * the lens hides tasks in the list, its top line ends with the glasses,
- * after the count and group · sort, just before the cell's ⋯. Following the
- * lens it is quiet (UX cleanup 2A): hidden until the cell is hovered or
- * holds the focus — its room kept, no press taken while hidden — and without
- * its `−N` (the tooltip says it). A click turns the lens off for this list
- * alone (slashed glasses, always shown, every task back), saved at once: it
- * outlasts a reload and never makes the list unsaved. The count shows only
- * while the screen filter or the lens narrows the list.
+ * A list's switch for the top bar's lens (the standard switch, G3): while a
+ * lens applies, its top line ends with the glasses, after the count and
+ * group · sort, just before the cell's ⋯. Visible while it has an effect
+ * (UX cleanup 2A, as the user restated it): while the lens hides tasks in
+ * the list it shows at rest with its `−N`; while it hides nothing there it
+ * is hidden until the cell is hovered or holds the focus — its room kept (N
+ * crossing 0 moves nothing), no press taken while hidden, still a tab stop.
+ * A click turns the lens off for this list alone (slashed glasses, always
+ * shown, every task back), saved at once: it outlasts a reload and never
+ * makes the list unsaved. The count shows only while the screen filter or
+ * the lens narrows the list.
  */
 
 const SEED: WorkspaceSeed = {
@@ -22,7 +24,11 @@ const SEED: WorkspaceSeed = {
     { title: 'Plan the offsite', people: ['Marcus Chen'] },
     { title: 'Call the vendor', people: ['Aisha Rahman'] },
   ],
-  lenses: [{ id: 'lens-aisha', name: 'Aisha', predicate: { personIds: [1] } }],
+  lenses: [
+    { id: 'lens-aisha', name: 'Aisha', predicate: { personIds: [1] } },
+    // Aisha or Marcus: every task here — the lens hides nothing in this list.
+    { id: 'lens-both', name: 'Both', predicate: { personIds: [1, 2] } },
+  ],
   layouts: [
     { name: 'Default', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] },
   ],
@@ -54,7 +60,7 @@ async function pointerAway(page: Page) {
   await page.mouse.move(2, 2)
 }
 
-test('quiet while it follows the lens: shown on the cell’s hover, at the line’s end before the ⋯; off for this list it always shows and stays off after a reload', async ({ page }) => {
+test('shown at rest with −N while the lens hides tasks here, at the line’s end before the ⋯; off for this list it always shows and stays off after a reload', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(rows(page)).toHaveCount(3)
   // No lens and no screen filter: nothing narrows the list — no count, no switch; alone in its cell, no tab (D26 AA1).
@@ -66,21 +72,14 @@ test('quiet while it follows the lens: shown on the cell’s hover, at the line�
   await expect(rows(page)).toHaveCount(2)
   await expect(count(page)).toHaveText('2 of 3')
   await expect(lensSwitch(page)).toHaveAttribute('aria-pressed', 'true')
-  // The glasses alone: what it hides is in its tooltip.
-  await expect(lensSwitch(page)).toHaveText('')
+  await expect(lensSwitch(page)).toHaveText('−1')
   await expect(lensSwitch(page)).toHaveAttribute('data-lens-hides', '1')
-
-  // At rest: hidden, its room kept, and a press there doesn't reach it.
+  // It has an effect here: shown at rest, and it takes a press.
   await pointerAway(page)
-  const atRest = await box(lensSwitch(page))
-  expect(atRest.width).toBeGreaterThan(0)
-  await expect.poll(() => drawn(lensSwitch(page))).toEqual({ opacity: '0', takesPress: false })
-  // The cell hovered: shown, in the same place.
-  await line(page).hover()
   await expect.poll(() => drawn(lensSwitch(page))).toEqual({ opacity: '1', takesPress: true })
-  expect(await box(lensSwitch(page))).toEqual(atRest)
 
   // Left to right: the count, group · sort, the switch, then the cell's ⋯ (shown on hover).
+  await line(page).hover()
   const s = await box(lensSwitch(page))
   const c = await box(count(page))
   const summary = await box(line(page).getByTestId('list-summary'))
@@ -111,9 +110,30 @@ test('quiet while it follows the lens: shown on the cell’s hover, at the line�
   await expect(rows(page)).toHaveCount(2)
 })
 
-test('hidden at rest, the switch is still a tab stop: the keyboard focus shows it', async ({ page }) => {
+test('a lens that hides nothing here: the switch hidden at rest in the same room, shown on hover, taking no press while hidden', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await pickLens(page, 'Aisha')
+  await pointerAway(page)
+  // Where the parts sit while it hides one task here.
+  const withEffect = { sw: await box(lensSwitch(page)), summary: await box(line(page).getByTestId('list-summary')) }
+
+  await pickLens(page, 'Both')
+  await expect(rows(page)).toHaveCount(3)
+  await expect(lensSwitch(page)).toHaveAttribute('data-lens-hides', '0')
+  await pointerAway(page)
+  await expect.poll(() => drawn(lensSwitch(page))).toEqual({ opacity: '0', takesPress: false })
+  // N crossing 0 moves nothing: the switch keeps its room, group · sort stays put.
+  expect(await box(lensSwitch(page))).toEqual(withEffect.sw)
+  expect(await box(line(page).getByTestId('list-summary'))).toEqual(withEffect.summary)
+  // The cell hovered: shown, in the same place.
+  await line(page).hover()
+  await expect.poll(() => drawn(lensSwitch(page))).toEqual({ opacity: '1', takesPress: true })
+  expect(await box(lensSwitch(page))).toEqual(withEffect.sw)
+})
+
+test('hidden at rest, the switch is still a tab stop: the keyboard focus shows it', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await pickLens(page, 'Both')
   await pointerAway(page)
   await expect.poll(() => drawn(lensSwitch(page))).toEqual({ opacity: '0', takesPress: false })
   // The group · sort summary just before it, then Tab.
@@ -123,7 +143,9 @@ test('hidden at rest, the switch is still a tab stop: the keyboard focus shows i
   await expect.poll(async () => (await drawn(lensSwitch(page))).opacity).toBe('1')
   await page.keyboard.press('Enter')
   await expect(lensSwitch(page)).toHaveAttribute('aria-pressed', 'false')
-  await expect(rows(page)).toHaveCount(3)
+  // Ignored: shown at rest once the focus leaves.
+  await lensSwitch(page).blur()
+  await expect.poll(() => drawn(lensSwitch(page))).toEqual({ opacity: '1', takesPress: true })
 })
 
 test('applying a lens that hides nothing here keeps the switch under the focus, its name fixed', async ({ page }) => {
@@ -151,7 +173,7 @@ test('with the filter line hidden, its top line ends with the switch after its c
   // Alone in its cell: its slim top line stands for the tab (D26 AA1).
   const t1 = page.locator('[data-ws-tab="t1"]')
   await expect(t1).toHaveAttribute('data-testid', 'list-name-line')
-  await expect(t1.getByTestId('lens-switch')).toHaveAttribute('data-lens-hides', '1')
+  await expect(t1.getByTestId('lens-switch')).toHaveText('−1')
   await expect(t1).toContainText('2 of 3')
   await t1.getByTestId('top-line-name').click({ button: 'right' })
   await page.getByRole('menuitemcheckbox', { name: 'Apply lens “Aisha” here' }).click()

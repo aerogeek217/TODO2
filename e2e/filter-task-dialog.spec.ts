@@ -137,8 +137,8 @@ test.describe('desktop', () => {
   })
 
   test('with the chips folded the panel changes nothing in the bar; the Filter menu over it edits the filter — every time', async ({ page }) => {
-    // Measured with one spare layout and Ann picked: the chip folds below 838px, the layout tabs below 784px.
-    await page.setViewportSize({ width: 810, height: 800 })
+    // Measured with one spare layout and Ann picked: the chip folds below 860px, the layout tabs below 806px.
+    await page.setViewportSize({ width: 830, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await filterToAnn(page)
     // Closed: the chip folded into the Filter button.

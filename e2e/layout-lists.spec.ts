@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { ADD_FILTER, closeListFilterEditor, expectOpenLayout, openListFilterEditor, openLayoutAction, openSettings, readListDefinitions, seedWorkspace, switchLayout as openLayout, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
@@ -55,7 +55,6 @@ async function changeListChoices(page: Page, tabId: string): Promise<string[]> {
   return names
 }
 
-const filterLine = (scope: Locator) => scope.getByTestId('list-filter-row')
 
 test.use({ viewport: { width: 1600, height: 900 } })
 
@@ -69,7 +68,7 @@ test('a new list widget’s list is the open layout’s, offered only there (Cha
   const editor = page.getByRole('dialog', { name: 'Edit list New list' })
   await expect(editor).toBeVisible()
   await editor.getByRole('textbox', { name: 'Name' }).fill('Errands')
-  await page.getByRole('dialog', { name: 'Edit list Errands' }).getByRole('button', { name: 'Save list' }).click()
+  await page.getByRole('dialog', { name: 'Edit list Errands' }).getByRole('button', { name: 'Save', exact: true }).click()
   await expect.poll(async () => (await lists(page)).find((d) => d.name === 'Errands')?.owner).toEqual({ layoutId: await layoutId(page, 'Main') })
   // The tab is a layout edit, saved at once.
   await expectLayoutStored(page)
@@ -108,7 +107,6 @@ test('Duplicate layout: the new layout shows copies of its lists that edit on th
   await page.keyboard.press('Enter')
   await expect(widget.locator('[data-row-key]').filter({ hasText: 'Book flights' })).toHaveCount(0)
   await closeListFilterEditor(page)
-  await filterLine(widget).getByTestId('save-list').click()
   await expect.poll(async () => (await lists(page)).find((d) => d.id === copy.id)?.membership.predicate.searchText).toBe('plumber')
   expect((await lists(page)).find((d) => d.id === mine.id)?.membership.predicate.searchText).toBe('')
 

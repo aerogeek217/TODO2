@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext } from 'react'
 import { tabIgnoresLens, type LensSwitchTab } from '../models/workspace-layout'
 import { useFilterStore } from '../stores/filter-store'
 import { useIsMobile } from './use-is-mobile'
@@ -76,8 +76,9 @@ export function setTabIgnoresLens(tab: LensSwitchTab, ignore: boolean): void {
 /**
  * Whether a widget's (or a list's) lens switch in a cell is quiet (UX
  * cleanup 2A, `LensSwitch`'s `quiet`): on desktop, where a cell has hover —
- * following the lens it shows only on the cell's hover and focus, without
- * its `−N`. The phone keeps it shown, with its `−N`.
+ * following the lens while it hides nothing there it shows only on the cell's
+ * hover and focus; hiding some (`−N`) or ignored it shows at rest. The phone
+ * keeps it shown.
  */
 export function useQuietLensSwitch(): boolean {
   return !useIsMobile()
@@ -90,23 +91,19 @@ export interface WidgetLensSwitch {
 }
 
 /**
- * The lens switch of a widget (not a list): shown while a lens applies at
- * the top bar and it hides something there (`hides`), or the widget
- * ignores it — and, once used, for as long as that lens stays picked, so a
- * click that leaves it nothing to hide doesn't take it from under the
- * focus (as a list's, U7). Its toggle writes the tab's view state.
+ * The lens switch of a widget (not a list): there whenever a lens applies at
+ * the top bar — in a desktop cell drawn at rest only while it has an effect
+ * (`hides` ≥ 1, or the widget ignores the lens), otherwise kept in place,
+ * hidden until the cell's hover or focus (`LensSwitch`'s `quiet`), so `hides`
+ * crossing 0 never adds or takes away its room, nor takes it from under the
+ * focus (U7). Its toggle writes the tab's view state.
  */
 export function useWidgetLensSwitch(tab: LensSwitchTab, hides: number): WidgetLensSwitch {
   const lens = useAppliedLens()
   const ignored = tabIgnoresLens(tab)
-  const [usedFor, setUsedFor] = useState<string | null>(null)
-  const used = lens != null && usedFor === lens.id
-  const mark = lens && (ignored || hides > 0 || used) ? { name: lens.name, ignored, hides } : undefined
+  const mark = lens ? { name: lens.name, ignored, hides } : undefined
   return {
     mark,
-    toggle: () => {
-      if (lens) setUsedFor(lens.id)
-      setTabIgnoresLens(tab, !ignored)
-    },
+    toggle: () => setTabIgnoresLens(tab, !ignored),
   }
 }

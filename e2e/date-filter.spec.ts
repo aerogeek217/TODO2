@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, seedWorkspace, wsCell, wsListWidget, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, editListSave, openListFilterEditor, seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 import { box, expectInsideViewport } from './fixtures/geometry'
 import { completedChip, filterChip, filterMenu, filterMenuButton, filterMenuRow, openFilterPicker } from './fixtures/filters'
 
@@ -298,11 +298,11 @@ test('Edit list’s chips: one per date type; a chip opens the panel under it on
   await page.keyboard.press('Escape')
   await expect(panel).toBeHidden()
 
-  // × on the Due chip: only the due-date clause goes; the list is unsaved.
+  // × on the Due chip: only the due-date clause goes; Edit list can save it.
   await chips.nth(0).getByRole('button', { name: 'Remove filter' }).click()
   await expect(chips).toHaveText([/Next follow-up\s*none/])
   await expect(rows(page, 't2')).toHaveText([/Due only/, /Neither/])
-  await expect(wsCell(page, 'k2').getByTestId('save-list')).toBeVisible()
+  await expect(editListSave(page)).toBeEnabled()
 
   // + Filter › Dates: the panel opens on the first type that doesn't filter
   // yet (cr25 P4b) — Due, before Next follow-up —, focused there, so it adds a chip.

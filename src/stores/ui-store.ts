@@ -1,10 +1,11 @@
 import type { RefObject } from 'react'
 import { create } from 'zustand'
 import { registerModuleReset } from '../utils/module-reset'
+import { afterLeavingEditors, editorsHoldChanges, leaveOpenEditors } from './editor-leave'
 import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
-import type { EisenhowerQuadrant } from '../models/workspace-layout'
+import type { EisenhowerQuadrant, WidgetKind } from '../models/workspace-layout'
 
 type EditPopupMode = 'edit' | 'create' | null
 
@@ -109,6 +110,24 @@ export interface EntityAction {
 }
 
 /** What Quick Add (or the editor it hands off to) starts from; see `quickAddDraft`. */
+/**
+ * A layout action asked for from outside the top bar's layout controls (the
+ * palette): `LayoutControls` takes it and runs it as its own tabs and picker
+ * do — a switch through the same path as a tab's click, New layout… and
+ * Duplicate layout… opening their name dialogs.
+ */
+export type LayoutRequest =
+  | { kind: 'switch'; layoutId: number }
+  | { kind: 'new' }
+  | { kind: 'duplicate' }
+
+/** Add widget ▸ kind from the palette: the Where picker of cell `cellId`, at `anchor`, with `kind` chosen (`AddWidgetRequestHost`). */
+export interface AddWidgetRequest {
+  cellId: string
+  kind: WidgetKind
+  anchor: { x: number; y: number }
+}
+
 export interface QuickAddDraftSeed {
   rawTitle: string
   defaults?: FilterDefaults
@@ -359,6 +378,10 @@ interface UIState {
   checkinImportPersonId: number | null
   /** A person's / tag's Edit… or Delete… from its menu (`EntityActionHost`); `null` = none. */
   entityAction: EntityAction | null
+  /** A layout action for `LayoutControls` to run (`LayoutRequest`); `null` = none waiting. */
+  layoutRequest: LayoutRequest | null
+  /** An Add widget the palette asked for (`AddWidgetRequest`); `null` = none. */
+  addWidgetRequest: AddWidgetRequest | null
 
   selectOneTodo: (id: number) => void
   rangeSelectTodo: (id: number, orderedIds: number[]) => void
@@ -451,6 +474,10 @@ interface UIState {
   closeCheckinImport: () => void
   openEntityAction: (action: EntityAction) => void
   closeEntityAction: () => void
+  requestLayout: (request: LayoutRequest) => void
+  clearLayoutRequest: () => void
+  requestAddWidget: (request: AddWidgetRequest) => void
+  clearAddWidgetRequest: () => void
 }
 
 /**
@@ -516,6 +543,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   checkinImportOpen: false,
   checkinImportPersonId: null,
   entityAction: null,
+  layoutRequest: null,
+  addWidgetRequest: null,
 
   selectOneTodo(id: number) {
     set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
@@ -679,7 +708,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openListEditor(listDefinitionId, tabId) {
-    set({ listEditor: { listDefinitionId, tabId } })
+    const open = get().listEditor
+    if (open?.listDefinitionId === listDefinitionId && open.tabId === tabId) return
+    // An editor with changes is asked first (`editor-leave`): it is left only through Save / Discard.
+    afterLeavingEditors(() => set({ listEditor: { listDefinitionId, tabId } }))
   },
 
   closeListEditor() {
@@ -688,7 +720,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openNumberEditor(tabId) {
-    set({ numberEditorTabId: tabId })
+    if (get().numberEditorTabId === tabId) return
+    afterLeavingEditors(() => set({ numberEditorTabId: tabId }))
   },
 
   closeNumberEditor() {
@@ -728,8 +761,14 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openSettings(target, focus) {
-    // Edit list belongs to the workspace under the modal: it closes (an
-    // unsaved list keeps its draft).
+    // Edit list and the widget editors belong to the workspace under the
+    // modal: one holding changes asks first (Save / Discard / Keep editing,
+    // `editor-leave`) and Settings opens once it was saved or discarded; an
+    // unchanged one just closes.
+    if (editorsHoldChanges()) {
+      void leaveOpenEditors().then((left) => { if (left) get().openSettings(target, focus) })
+      return
+    }
     get().closeListEditor()
     get().closeNumberEditor()
     // Unsaved work Settings doesn't show (a lens draft kept at phone width):
@@ -796,5 +835,17 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   closeEntityAction() {
     set({ entityAction: null })
+  },
+  requestLayout(request) {
+    set({ layoutRequest: request })
+  },
+  clearLayoutRequest() {
+    set({ layoutRequest: null })
+  },
+  requestAddWidget(request) {
+    set({ addWidgetRequest: request })
+  },
+  clearAddWidgetRequest() {
+    set({ addWidgetRequest: null })
   },
 }))

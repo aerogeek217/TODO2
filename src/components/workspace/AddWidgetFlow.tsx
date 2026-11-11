@@ -1,31 +1,26 @@
 import { useState } from 'react'
 import { BREAKDOWN_PRESET_LABELS, BREAKDOWN_PRESETS, breakdownPreset, type BreakdownPreset } from '../../models/chart-widgets'
-import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
+import { useUIStore } from '../../stores/ui-store'
+import { useWorkspaceStore } from '../../stores/workspace-store'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import type { MenuEntry, MenuItemEntry } from '../shared/MenuPopover'
+import { MenuPopover, type MenuEntry, type MenuItemEntry } from '../shared/MenuPopover'
 import { addWherePicture, addWhereTarget, type AddWhere } from './add-widget-where'
 import { WidgetKindIcon } from '../shared/icons'
-import { createListThenEdit, NO_LIST_LAYOUT_REASON, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
+import { addKindAt, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
 import styles from './AddWidgetFlow.module.css'
 
 /**
  * Adds a widget of `kind` at `target`. A list widget gets a new blank list
  * of the open layout and opens its Edit list at once (`createListThenEdit`)
  * — copying another list's setup is Edit list's Copy from…. Nothing for a
- * list while the open layout isn't stored (`layoutId` undefined): it can't
- * own a list yet.
+ * list before the workspace has opened a layout (`layoutId` undefined).
  */
 function useAddKind(target: LayoutDropTarget): (kind: WidgetKind) => void {
   const add = useAddWidget()
   const layoutId = useListOwnerLayoutId()
-  return (kind) => {
-    if (!WIDGET_KIND_SPECS[kind].showsList) {
-      add(kind, target)
-      return
-    }
-    if (layoutId != null) void createListThenEdit((id) => add('lens', target, id), layoutId)
-  }
+  return (kind) => addKindAt(kind, target, add, layoutId)
 }
 
 /** Adds a Breakdown from a preset at `target` (D26 P8, `breakdownPreset`): its editor opens at once. */
@@ -45,18 +40,13 @@ function breakdownPresetItems(addBreakdown: (preset: BreakdownPreset) => void): 
   }))
 }
 
-/** The kinds that can't be added to the open layout yet, with why (a list, while the layout isn't stored). */
-function useUnavailableKinds(): Partial<Record<WidgetKind, string>> | undefined {
-  const layoutId = useListOwnerLayoutId()
-  if (layoutId != null) return undefined
-  return Object.fromEntries(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList).map((k) => [k, NO_LIST_LAYOUT_REASON]))
-}
-
 interface AddWidgetFlowProps {
   /** The cell it is added from. */
   cellId: string
   /** Where it goes until the user picks another (default a tab). */
   initialWhere?: AddWhere
+  /** The kind, already chosen (the palette's Add Widget › kind): only where is asked. */
+  kind?: WidgetKind
   anchor: { x: number; y: number }
   onClose: () => void
 }
@@ -66,21 +56,44 @@ interface AddWidgetFlowProps {
  * picture of the cell (`addWherePicture`: its middle a tab, its sides a
  * split, the bars outside a row or column at the layout's edge; default
  * Tab) —, then the kinds; a pick adds that widget there (`useAddKind`).
+ * With `kind` chosen, the picture is followed by `Add <kind>` (a
+ * Breakdown's presets) instead of the kinds.
  */
-export function AddWidgetFlow({ cellId, initialWhere = 'tab', anchor, onClose }: AddWidgetFlowProps) {
+export function AddWidgetFlow({ cellId, initialWhere = 'tab', kind, anchor, onClose }: AddWidgetFlowProps) {
   const [where, setWhere] = useState<AddWhere>(initialWhere)
   const addKind = useAddKind(addWhereTarget(cellId, where))
   const addBreakdown = useAddBreakdown(addWhereTarget(cellId, where))
   const lead: MenuEntry[] = [addWherePicture(where, setWhere)]
+  if (kind) {
+    const add: MenuEntry[] = kind === 'breakdown'
+      ? [{ kind: 'label', text: widgetKindLabel(kind) }, ...breakdownPresetItems(addBreakdown)]
+      : [{ kind: 'item', label: `Add ${widgetKindLabel(kind)}`, icon: <WidgetKindIcon kind={kind} />, onSelect: () => addKind(kind) }]
+    return <MenuPopover point={anchor} label="Add widget" width={248} restoreFocus entries={[...lead, { kind: 'separator' }, ...add]} onClose={onClose} />
+  }
   return (
     <WidgetKindMenu
       anchor={anchor}
       heading="Add widget"
-      unavailableKinds={useUnavailableKinds()}
       onChangeKind={addKind}
       leadEntries={lead}
       kindPresets={{ breakdown: breakdownPresetItems(addBreakdown) }}
       onClose={onClose}
+    />
+  )
+}
+
+/** The Where picker the palette asked for (`ui-store.addWidgetRequest`), while its cell is in the open layout. */
+export function AddWidgetRequestHost() {
+  const request = useUIStore((s) => s.addWidgetRequest)
+  const cellThere = useWorkspaceStore((s) => request != null && s.working?.cells.some((c) => c.id === request.cellId) === true)
+  if (!request || !cellThere) return null
+  return (
+    <AddWidgetFlow
+      key={`${request.cellId}:${request.kind}`}
+      cellId={request.cellId}
+      kind={request.kind}
+      anchor={request.anchor}
+      onClose={() => useUIStore.getState().clearAddWidgetRequest()}
     />
   )
 }
@@ -102,7 +115,6 @@ export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconS
   const addBreakdown = useAddBreakdown(target)
   // A Breakdown's button adds a Custom one (its editor opens).
   const addKind = (kind: WidgetKind) => (kind === 'breakdown' ? addBreakdown('custom') : addKindOnly(kind))
-  const unavailable = useUnavailableKinds()
   return (
     <>
       {WIDGET_KIND_GROUPS.map(({ group, label }) => (
@@ -114,8 +126,6 @@ export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconS
                 key={kind}
                 type="button"
                 className={buttonClassName}
-                disabled={unavailable?.[kind] != null}
-                title={unavailable?.[kind]}
                 onClick={() => addKind(kind)}
               >
                 <span className={iconClassName}><WidgetKindIcon kind={kind} size={iconSize} /></span>

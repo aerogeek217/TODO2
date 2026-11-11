@@ -8,16 +8,17 @@ import { pickLayoutBody } from './layout-shape'
 import { upgradeDataSet, type DataRow } from './schema-upgrades'
 
 /**
- * Unsaved list changes kept across a reload, in `localStorage` — and the
- * unsaved layout change a build before layout autosave kept there, which
- * launch reads once (applied when it still fits, else dropped) and removes:
- * per browser, outside the Dexie database — so never in the sync file, an
- * export or a backup, and untouched by a data replace (the stores drop them
- * then; `clearUnsavedDrafts`). Each record carries what it was made
- * against (the stored layout's table, the saved list), and is only taken
- * back while the stored data still matches: a draft made against other data
- * is dropped, never applied to it. Storage that can't be read or written
- * (private mode, quota, blocked site data) just means nothing is kept.
+ * The unsaved changes a build before autosave kept across a reload, in
+ * `localStorage` — a layout's and lists' —, which launch reads once
+ * (applied when they still fit, else dropped) and removes: per browser,
+ * outside the Dexie database — so never in the sync file, an export or a
+ * backup, and untouched by a data replace (which forgets them once the
+ * workspace has opened; `clearUnsavedDrafts`). This build writes none (the
+ * writers stand in for an older build in tests). Each record carries what
+ * it was made against (the stored layout's table, the saved list), and is
+ * only applied while the stored data still matches: a draft made against
+ * other data is dropped, never applied to it. Storage that can't be read
+ * just means nothing is found.
  *
  * Each record also carries the schema version it was written in: a record
  * an older build kept is read through the schema upgrades (as a file of that
@@ -70,16 +71,10 @@ function upgradeRows(table: string, rows: unknown[], from: number): unknown[] | 
   }
 }
 
-/**
- * This tab's last write of each kind: the text it stored (`null` = none
- * kept), or `false` when storage refused it.
- */
-let layoutWritten: string | null | false = null
-let listsWritten: string | null | false = null
 registerModuleReset(() => {
   // A fresh page load's storage: no drafts kept from an earlier test.
-  layoutWritten = writeJson(LAYOUT_KEY, null)
-  listsWritten = writeJson(LISTS_KEY, null)
+  writeJson(LAYOUT_KEY, null)
+  writeJson(LISTS_KEY, null)
 })
 
 function readJson(key: string): unknown {
@@ -91,19 +86,13 @@ function readJson(key: string): unknown {
   }
 }
 
-/** Writes `value` (or removes the key for `null`): the text stored (`null` when removed), false when storage refused. */
-function writeJson(key: string, value: unknown): string | null | false {
+/** Writes `value` (or removes the key for `null`); storage that refuses is logged. */
+function writeJson(key: string, value: unknown): void {
   try {
-    if (value == null) {
-      localStorage.removeItem(key)
-      return null
-    }
-    const text = JSON.stringify(value)
-    localStorage.setItem(key, text)
-    return text
+    if (value == null) localStorage.removeItem(key)
+    else localStorage.setItem(key, JSON.stringify(value))
   } catch (err) {
-    console.warn(`[drafts] could not keep unsaved changes (${key})`, err)
-    return false
+    console.warn(`[drafts] could not write kept changes (${key})`, err)
   }
 }
 
@@ -150,12 +139,12 @@ export function readLayoutDraft(): LayoutDraftRecord | null {
  * build's kept draft).
  */
 export function writeLayoutDraft(record: LayoutDraftRecord | null): void {
-  layoutWritten = writeJson(LAYOUT_KEY, record && { ...storedForm(record), schemaVersion: CURRENT_DB_VERSION })
+  writeJson(LAYOUT_KEY, record && { ...storedForm(record), schemaVersion: CURRENT_DB_VERSION })
 }
 
 /** Forgets the layout draft an older build kept, once launch has applied or dropped it. */
 export function clearLayoutDraft(): void {
-  layoutWritten = writeJson(LAYOUT_KEY, null)
+  writeJson(LAYOUT_KEY, null)
 }
 
 /** A layout draft as kept: the body's keys flat (`grid`, `cells`), the base's prefixed. */
@@ -193,34 +182,23 @@ export function readListDrafts(): Map<number, ListDraftRecord> {
   return out
 }
 
-/** Keeps the list drafts (an empty map removes them). */
+/**
+ * Keeps the list drafts (an empty map removes them) as a build before list
+ * autosave did (the app no longer writes them: tests use this to stand in
+ * for such a build's kept drafts).
+ */
 export function writeListDrafts(records: ReadonlyMap<number, ListDraftRecord>): void {
   const entries = [...records].map(([id, record]) => [id, { ...record, schemaVersion: CURRENT_DB_VERSION }] as const)
-  listsWritten = writeJson(LISTS_KEY, entries.length > 0 ? Object.fromEntries(entries) : null)
+  writeJson(LISTS_KEY, entries.length > 0 ? Object.fromEntries(entries) : null)
+}
+
+/** Forgets the list drafts an older build kept, once launch has applied or dropped them. */
+export function clearListDrafts(): void {
+  writeJson(LISTS_KEY, null)
 }
 
 /** Forgets every kept draft (a data replace: they were made against other data). */
 export function clearUnsavedDrafts(): void {
-  layoutWritten = writeJson(LAYOUT_KEY, null)
-  listsWritten = writeJson(LISTS_KEY, null)
-}
-
-/**
- * Whether the unsaved changes on screen are kept for a reload: this tab's
- * last write of each kind reached storage and is still there — another tab
- * of the app shares the storage, and its own writes replace these.
- */
-export function unsavedDraftsKept(): boolean {
-  return stillKept(LAYOUT_KEY, layoutWritten) && stillKept(LISTS_KEY, listsWritten)
-}
-
-function stillKept(key: string, written: string | null | false): boolean {
-  if (written === false) return false
-  // Nothing of this kind to keep: another tab's draft doesn't matter here.
-  if (written === null) return true
-  try {
-    return localStorage.getItem(key) === written
-  } catch {
-    return false
-  }
+  writeJson(LAYOUT_KEY, null)
+  writeJson(LISTS_KEY, null)
 }

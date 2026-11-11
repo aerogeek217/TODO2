@@ -7,6 +7,7 @@ import { restoreFromImportData } from '../data/restore'
 import { useFileOpsStore } from '../stores/file-ops-store'
 import { useNoteStore } from '../stores/note-store'
 import { takeSafetySnapshot } from '../stores/safety-snapshot'
+import { beginReplaceHold, settleBeforeReplace } from '../stores/replace-hold'
 import { refreshAllStores, refreshTaskStores } from './refresh-all'
 
 /**
@@ -21,7 +22,12 @@ import { refreshAllStores, refreshTaskStores } from './refresh-all'
  * 2. the safety snapshot of the current data (`takeSafetySnapshot`: a failed
  *    one asks "Continue without a backup?" — Cancel changes nothing), or a
  *    best-effort one when nothing can be lost;
- * 3. the write;
+ * 3. the write — under the hold on layout and list writes
+ *    (`stores/replace-hold`, a replace only — an append import replaces no
+ *    layout or list): the layout writes already running land first
+ *    (`settleBeforeReplace`), and from then until the stores have reloaded,
+ *    an edit can't write the layout or list still in memory — the replaced
+ *    data's — over the new data;
  * 4. the stores' reload — `refreshAllStores` (it clears the undo stack, the
  *    selection, unsaved drafts …) after a replace, `refreshTaskStores` after
  *    an append import, which replaces nothing and keeps the undo history and
@@ -95,12 +101,20 @@ export async function replaceData<T>(
       if (snapshot === 'cancelled') return { status: 'cancelled' }
       noBackup = snapshot === 'without-backup'
     }
-    const result = await write()
+    const release = source === 'append-import' ? null : beginReplaceHold()
+    let result: T
     let failure: { error: unknown } | null = null
     try {
-      await (source === 'append-import' ? refreshTaskStores() : refreshAllStores())
-    } catch (error) {
-      failure = { error }
+      // An edit's write still running lands before the replace, never over it.
+      if (release) await settleBeforeReplace()
+      result = await write()
+      try {
+        await (source === 'append-import' ? refreshTaskStores() : refreshAllStores())
+      } catch (error) {
+        failure = { error }
+      }
+    } finally {
+      release?.()
     }
     for (const listener of [...listeners]) {
       try {

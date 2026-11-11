@@ -93,13 +93,12 @@ async function pick(page: Page, field: 'People' | 'Status', ...options: string[]
 }
 
 // The storage pill is its 24px dot while all is well. Measured on this seed
-// with Aisha Rahman picked: the field narrows below 968px, her name is cut
-// below 876px, the chip folds into the Filter button below 852px and the
-// layout tabs fold below 766px. With nothing picked the field narrows only
-// below 776px and nothing folds.
-test.use({ viewport: { width: 862, height: 900 } })
+// with Aisha Rahman picked: the field narrows below 990px, her name is cut
+// below 898px, the chip folds into the Filter button below 874px and the
+// layout tabs fold below 788px.
+test.use({ viewport: { width: 885, height: 900 } })
 
-test('at 862px one person picked shows her chip: the field narrows, the name is cut and whole in its tooltip', async ({ page }) => {
+test('at 885px one person picked shows her chip: the field narrows, the name is cut and whole in its tooltip', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(filterMenuButton(page)).toHaveAccessibleName('Filter')
   const before = await settled(page)
@@ -108,9 +107,9 @@ test('at 862px one person picked shows her chip: the field narrows, the name is 
   await pick(page, 'People', 'Aisha Rahman')
   await expect(people(page)).toHaveAccessibleName('People filter: Aisha Rahman')
 
-  // Shrunk, not folded: the tray where it was, up to the right zone.
+  // Shrunk, not folded: the tray up to the right zone (no centring gap left).
   const shrunk = await settled(page)
-  expect(shrunk).toMatchObject({ fold: 'none', trayLeft: before.trayLeft, valueCut: true, oneLine: true })
+  expect(shrunk).toMatchObject({ fold: 'none', valueCut: true, oneLine: true })
   expect(shrunk.search).toBe(110)
   expect(shrunk.trayRight).toBeLessThanOrEqual(shrunk.springLeft)
   // The whole name in the tooltip.
@@ -121,17 +120,17 @@ test('at 862px one person picked shows her chip: the field narrows, the name is 
   // Wider: the full field and the whole name, no tooltip needed.
   await page.setViewportSize({ width: 1600, height: 900 })
   await expect.poll(async () => (await settled(page)).search).toBe(200)
-  expect(await settled(page)).toMatchObject({ fold: 'none', trayLeft: before.trayLeft, valueCut: false, oneLine: true })
+  expect(await settled(page)).toMatchObject({ fold: 'none', valueCut: false, oneLine: true })
   await people(page).hover()
   await expect(page.getByRole('tooltip')).toHaveCount(0)
   await page.mouse.move(640, 600)
 
   // Too narrow even shrunk: the chip folds into the Filter button, the field wider again.
-  await page.setViewportSize({ width: 820, height: 900 })
+  await page.setViewportSize({ width: 840, height: 900 })
   await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 1 active')
   await expect(people(page)).toHaveCount(0)
   const folded = await settled(page)
-  expect(folded).toMatchObject({ fold: 'filters', trayLeft: before.trayLeft, oneLine: true })
+  expect(folded).toMatchObject({ fold: 'filters', oneLine: true })
   expect(folded.search).toBeGreaterThan(110)
   // Its menu still says what is on.
   await openFilterMenu(page)
@@ -148,16 +147,13 @@ test('narrowing: the field narrows first, then the value is cut, then the chips 
 
   const seen = new Set<string>()
   // 20 px steps, 5 px across the narrow band where the value is cut (about
-  // 876–852 px in this seed), so each phase is seen more than once.
-  for (let width = 1600; width >= 700; width -= width <= 890 && width > 840 ? 5 : 20) {
+  // 898–874 px in this seed), so each phase is seen more than once.
+  for (let width = 1600; width >= 700; width -= width <= 910 && width > 860 ? 5 : 20) {
     await page.setViewportSize({ width, height: 900 })
     const s = await settled(page)
     expect(s.oneLine, `at ${width}px`).toBe(true)
-    if (s.fold !== 'both') {
-      // Nothing left of the tray moves for any of it.
-      expect(s.trayLeft, `at ${width}px`).toBe(wide.trayLeft)
-      expect(s.trayRight, `at ${width}px`).toBeLessThanOrEqual(s.springLeft)
-    }
+    // The tray (centred while there is room, `top-bar-centre.spec.ts`) never runs into the right zone.
+    expect(s.trayRight, `at ${width}px`).toBeLessThanOrEqual(s.springLeft)
     // The value is cut only once the field is as narrow as it goes.
     if (s.valueCut) expect(s.search, `at ${width}px`).toBe(110)
     seen.add(s.fold === 'none' ? (s.valueCut ? 'value cut' : s.search < 200 ? 'search narrowed' : 'natural') : s.fold!)
@@ -171,8 +167,8 @@ test('narrowing: the field narrows first, then the value is cut, then the chips 
 })
 
 test('a pick that needs the fold waits for the Filter menu to close: the menu and its picker stay put mid-pick (cr31 UI F10)', async ({ page }) => {
-  // Aisha's chip fits (the field narrowed); a Status value as well folds the chips (below 960px).
-  await page.setViewportSize({ width: 920, height: 900 })
+  // Aisha's chip fits (the field narrowed); a Status value as well folds the chips (below 982px).
+  await page.setViewportSize({ width: 940, height: 900 })
   await seedWorkspace(page, SEED)
   await pick(page, 'People', 'Aisha Rahman')
   expect((await settled(page)).fold).toBe('none')

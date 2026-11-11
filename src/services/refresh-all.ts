@@ -21,7 +21,7 @@ import { clearUnsavedDrafts } from '../data/draft-storage'
 /**
  * Reloads every store from IndexedDB after a data replace (import, backup
  * restore, audit cleanup, the sync file's load), resetting first what the
- * replaced data may make wrong (the undo stack, the filters, unsaved edits,
+ * replaced data may make wrong (the undo stack, the filters, open editors,
  * the selection …). Run by `replace-data.replaceData` — the one roster of the
  * stores a replace reloads.
  *
@@ -31,13 +31,12 @@ import { clearUnsavedDrafts } from '../data/draft-storage'
 export async function refreshAllStores() {
   useUndoStore.getState().clear()
   useFilterStore.getState().clearAll()
-  // Unsaved list edits, prompt picks and collapsed groups are keyed by ids
-  // the replaced data may reuse for other lists / tabs. The unsaved layout
-  // and list edits kept for a reload go too — once the workspace has opened
-  // (before that, at launch, they're from the last visit and are checked
-  // against the loaded data when it opens).
+  // Prompt picks and collapsed groups are keyed by ids the replaced data may
+  // reuse for other lists / tabs. The unsaved layout and list edits an older
+  // build kept go too — once the workspace has opened (before that, at
+  // launch, they're from the last visit and are checked against the loaded
+  // data when it opens; after it, launch has removed them already).
   if (useWorkspaceStore.getState().hydrated) clearUnsavedDrafts()
-  useListDraftStore.setState({ drafts: {} })
   // A lens's unsaved filter edits name a lens the replaced data may not have.
   useLensDraftStore.getState().discard()
   useListWidgetStore.setState({ picks: {}, collapsed: {} })
@@ -49,8 +48,10 @@ export async function refreshAllStores() {
   useUIStore.getState().closeEditPopup()
   // The task picker names a task or a subtask by id too.
   useUIStore.getState().closeTaskPicker()
-  // Edit list names a list and a tab by id.
+  // Edit list names a list and a tab by id; its draft goes at once (the
+  // list's id may name another list in the replaced data).
   useUIStore.getState().closeListEditor()
+  useListDraftStore.setState({ drafts: {} })
   // Note text typed before the replace would be saved over the new note.
   useNoteStore.getState().discardPending()
   const lensBefore = useSettingsStore.getState().activeLensId
@@ -88,8 +89,8 @@ export async function refreshAllStores() {
 /**
  * The reload after an append import, which adds tasks (and the people, tags
  * and statuses they name) and replaces nothing: the task-side stores only —
- * the undo history, the selection, unsaved layout and list edits and the
- * filters stay, as nothing they name changed.
+ * the undo history, the selection, an open Edit list and the filters stay,
+ * as nothing they name changed.
  */
 export async function refreshTaskStores() {
   await Promise.all([

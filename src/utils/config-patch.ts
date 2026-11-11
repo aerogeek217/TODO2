@@ -34,3 +34,10 @@ export function configPatch<C extends object>(base: C, next: C): Partial<C> {
   }
   return patch as Partial<C>
 }
+
+/** `base` with `patch`'s keys over it — a key patched to `undefined` goes (as `configPatch` writes a dropped key). */
+export function withConfigPatch<C extends object>(base: C, patch: Partial<C>): C {
+  const next: Record<string, unknown> = { ...base, ...patch }
+  for (const [k, v] of Object.entries(patch)) if (v === undefined) delete next[k]
+  return next as C
+}

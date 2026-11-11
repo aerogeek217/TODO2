@@ -9,8 +9,7 @@ import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useListScreenFilter } from '../../../hooks/use-list-screen-filter'
 import type { LensMark } from '../../../hooks/use-widget-lens'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
-import { useListDraftStore } from '../../../stores/list-draft-store'
-import { useEffectiveListDefinition, useIsListDirty } from '../../../hooks/use-list-draft'
+import { useEffectiveListDefinition } from '../../../hooks/use-list-draft'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useListOrderStore, useListRanks } from '../../../stores/list-order-store'
@@ -114,7 +113,7 @@ function uniqueCount(sections: readonly Section[]): number {
 /**
  * A workspace list widget: the list's prompt row, a filter row (screen
  * filters, then the list's own filters), its groups and a footer (Add
- * task). Shows the list's unsaved draft when it has one; the screen
+ * task). Shows Edit list's draft while it is open on the list; the screen
  * (top-bar) filter narrows it too (`composeScreenFilter`).
  */
 export function ListWidget({ tab, onResult }: ListWidgetProps) {
@@ -174,8 +173,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const screenFor = useListScreenFilter(definition.id)
   // The lens as it applies to this list (none while the list ignores it).
   const lens = screenFor.ignoresLens ? undefined : screenFor.lens
-  const unsaved = useIsListDirty(definition.id)
-  const filterLineShown = definition.showFilterLine !== false || unsaved
+  const filterLineShown = definition.showFilterLine !== false
   const screenChips = useScreenChips()
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -256,25 +254,22 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const manual = definition.sort === 'manual'
   const collapsedKeys = useMemo(() => new Set(collapsed ?? []), [collapsed])
 
-  // The lens on this list, while one applies at the top bar: shown while
-  // it hides something here, or while the list ignores it (so it can be
-  // turned back on) — and, once used, for as long as that lens stays picked,
-  // so a click that leaves it nothing to hide doesn't take it from under the
-  // focus (U7).
+  // The lens on this list, whenever one applies at the top bar (its prompt
+  // answered): in a desktop cell its switch shows at rest only while it has an
+  // effect — it hides something here, or the list ignores it — and is otherwise
+  // kept in place, hidden until the cell's hover or focus (`LensSwitch`'s
+  // `quiet`), so `lensHides` crossing 0 neither moves the line nor takes the
+  // switch from under the focus (U7).
   const lensName = screenFor.lens?.name
-  const lensId = screenFor.lens?.id
-  const [switchUsedFor, setSwitchUsedFor] = useState<string | null>(null)
-  const switchUsed = lensId != null && switchUsedFor === lensId
   const lensMark = useMemo<ListLensMark | undefined>(
-    () => (lensName != null && !runtimeFilterPending && (screenFor.ignoresLens || lensHides > 0 || switchUsed)
+    () => (lensName != null && !runtimeFilterPending
       ? { name: lensName, ignored: screenFor.ignoresLens, hides: lensHides }
       : undefined),
-    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides, switchUsed],
+    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides],
   )
   const toggleLens = useCallback(() => {
-    if (lensId != null) setSwitchUsedFor(lensId)
     void useListDefinitionStore.getState().setIgnoreLens(definition.id, !screenFor.ignoresLens)
-  }, [definition.id, screenFor.ignoresLens, lensId])
+  }, [definition.id, screenFor.ignoresLens])
 
   const onResultRef = useLatestRef(onResult)
   const tabCount = filterLineShown ? undefined : countLabel
@@ -381,7 +376,8 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
       }))
       .map((t) => t.id)
     void useListOrderStore.getState().replaceList(listId, seedRanks(order, pendingSwitch.move))
-    useListDraftStore.getState().edit(listId, (d) => withListSort(d, 'manual'))
+    // Written at once, one undo step (the manual order itself is kept apart, as every reorder is).
+    void useListDefinitionStore.getState().editList(listId, (d) => withListSort(d, 'manual'), `Switched “${definition.name.trim() || 'List'}” to manual order`)
     setPendingSwitch(null)
   }
 
@@ -569,9 +565,9 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
           count={countLabel}
           lens={lensMark}
           onToggleLens={toggleLens}
-          topLine={{ lead: <ListTopLineLead tab={tab} listId={definition.id} /> }}
+          topLine={{ lead: <ListTopLineLead tab={tab} /> }}
         />
-      ) : <ListNameLine tab={tab} listId={definition.id} count={countLabel} lens={lensMark} onToggleLens={toggleLens} />}
+      ) : <ListNameLine tab={tab} count={countLabel} lens={lensMark} onToggleLens={toggleLens} />}
       {definition.runtimeFilter && (
         <RuntimeFilterPicker
           inputRef={runtimeInputRef}

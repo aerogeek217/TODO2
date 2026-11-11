@@ -6,7 +6,7 @@ import { rowTitles } from './fixtures/seed'
 /**
  * Copy from, in a real browser: Edit list's Copy from… takes another list's
  * filters, group, sort, prompt and filter line into the list as an unsaved
- * edit (its name kept; Revert drops it, Save list keeps it). One chooser:
+ * edit (its name kept; Discard drops it, Save keeps it). One chooser:
  * the lists by layout — this one first —, then the Eisenhower's.
  */
 
@@ -76,7 +76,7 @@ async function openEditList(page: Page, tabId: string): Promise<Locator> {
 
 test.use({ viewport: { width: 1600, height: 900 } })
 
-test('Edit list › Copy from…: by layout; the copy is an unsaved edit — Revert drops it, Save list keeps it, the name stays', async ({ page }) => {
+test('Edit list › Copy from…: by layout; the copy is an unsaved edit — Discard drops it, Save keeps it, the name stays', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const editor = await openEditList(page, 'mineTab')
   await editor.getByRole('button', { name: 'Copy from…' }).click()
@@ -99,16 +99,17 @@ test('Edit list › Copy from…: by layout; the copy is an unsaved edit — Rev
   await expect(editor.getByRole('textbox', { name: 'Name' })).toHaveValue('Mine')
   await expect(editor.getByRole('status')).toHaveText('Copied from “Calls” · unsaved')
   await expect.poll(() => rowTitles(wsListWidget(page, 'mineTab'))).toEqual(['Call the plumber', 'Call mom'])
-  await expect(wsTab(page, 'mineTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
+  // No unsaved mark: the draft is Edit list's, nothing stored yet.
+  expect((await lists(page)).find((d) => d.name === 'Mine')?.grouping).not.toBe('status')
 
-  await editor.getByRole('button', { name: 'Revert' }).click()
+  await editor.getByRole('button', { name: 'Discard' }).click()
   await expect(editor).toHaveCount(0)
   await expect.poll(async () => (await rowTitles(wsListWidget(page, 'mineTab'))).length).toBe(3)
 
   await openEditList(page, 'mineTab')
   await editList(page).getByRole('button', { name: 'Copy from…' }).click()
   await menu.getByRole('menuitem', { name: /^Calls/ }).click()
-  await editList(page).getByRole('button', { name: 'Save list' }).click()
+  await editList(page).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editList(page)).toHaveCount(0)
   await expect.poll(() => listNamed(page, 'Mine')).toMatchObject({
     sort: 'deadline',

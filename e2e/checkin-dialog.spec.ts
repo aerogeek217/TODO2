@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { ADD_FILTER, seedWorkspace, type WorkspaceSeed, wsRow, editListDraft, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, seedWorkspace, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -59,12 +59,6 @@ async function recordAnchorClicks(page: Page) {
 
 const anchors = (page: Page) => page.evaluate(() => (window as unknown as { __anchors: Array<{ href: string; target: string; download: string }> }).__anchors)
 
-/** Unsaved work the page asks about before it unloads: a list's unsaved edit (a layout is saved at once). */
-async function makeListUnsaved(page: Page) {
-  await editListDraft(page, 'Team', { name: 'Team edited' })
-  await expect(page.getByTestId('save-list')).toBeVisible()
-}
-
 async function openFromPalette(page: Page) {
   await page.keyboard.press('Control+k')
   await page.getByPlaceholder(/Find tasks, commands/).fill('>check-in')
@@ -78,12 +72,12 @@ test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-change
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await recordAnchorClicks(page)
   await seedWorkspace(page, seed)
-  // A browser that can't keep an unsaved list edit for a reload: leaving the
-  // page would ask "Leave site?" — what the new-context link must not do.
+  // The app never asks "Leave site?" (lists and layouts autosave): a page
+  // handler stands in for one, so an unload of the page would show — what the
+  // new-context link must not cause.
   await page.evaluate(() => {
-    Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError') }
+    window.addEventListener('beforeunload', (e) => { e.preventDefault(); e.returnValue = '' })
   })
-  await makeListUnsaved(page)
 
   const dialogs: string[] = []
   page.on('dialog', (d) => { dialogs.push(d.type()); void d.dismiss() })
@@ -131,7 +125,7 @@ test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-change
   await expect.poll(async () => (await readTasks(page)).filter((t) => t.lastFollowupAt).length).toBe(0)
 
   // Control: navigating the page itself to a mailto: link does trip the
-  // unsaved-changes prompt — what the new-context link avoids.
+  // stand-in prompt — what the new-context link avoids.
   await page.evaluate(() => {
     const a = document.createElement('a')
     a.href = 'mailto:x@example.com'
@@ -226,7 +220,7 @@ test('Which tasks is a filter line: it narrows the counts, is remembered, and a 
   // A one-click send uses it: the palette counts what it picks, the email holds that one task.
   await page.keyboard.press('Control+k')
   await page.getByPlaceholder(/Find tasks, commands/).pressSequentially('email ada')
-  await expect(page.getByRole('option', { name: /Email check-in: Ada Lovelace/ })).toContainText('1 of 2 open tasks')
+  await expect(page.getByRole('option', { name: /Email Check-in › Ada Lovelace/ })).toContainText('1 of 2 open tasks')
   await page.keyboard.press('Enter')
   await expect.poll(async () => (await anchors(page)).map((a) => a.href).filter((h) => h.startsWith('mailto:')))
     .toEqual(['mailto:ada@example.com?subject=Task%20check-in%3A%201%20open%20task'])

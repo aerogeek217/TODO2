@@ -9,11 +9,21 @@ import { runShortcutCommand, type ShortcutCallbacks } from './keyboard-shortcuts
 import { copySelectedTasks } from './task-copy'
 import { listTabZoom, stepListTabZoom, zoomTargetTab } from './list-zoom'
 import { LIST_ZOOM_LABELS, stepListZoom } from '../utils/list-zoom'
-import { listReviewCount, reviewTargetTabId } from './review'
+import { listReviewCount, openReview, personReview, reviewTargetTabId } from './review'
 import { useListWidgetStore } from '../stores/list-widget-store'
+import { useUIStore, type LayoutRequest } from '../stores/ui-store'
+import { useReviewStore } from '../stores/review-store'
+import { lensActions } from '../stores/lens-actions'
+import type { ThemeMode } from '../stores/settings-store'
+import { findLens, type Lens } from '../utils/lens'
+import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../models/workspace-layout'
 
-/** `task` = task actions (New Task, Undo …); `search-results` = tasks found by the palette's search. */
-export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'search-results'
+/**
+ * `task` = task actions (New Task, Undo …); `layout` = the layouts and what
+ * goes in them (Go to Layout ›, Add Widget ›); `search-results` = tasks found
+ * by the palette's search.
+ */
+export type CommandCategory = 'navigation' | 'layout' | 'task' | 'bulk' | 'filter' | 'email' | 'search-results'
 
 export interface Command {
   id: string
@@ -22,7 +32,23 @@ export interface Command {
   /** Muted text on the right of the row (e.g. `4 open tasks`). */
   hint?: string
   category: CommandCategory
+  /** What a leaf does (the palette then closes). A step command's is never run: the palette opens its `step`. */
   action: () => void
+  /**
+   * A second step (`Go to Layout ›`): choosing the command opens these in the
+   * same palette, under a breadcrumb of its name; each is a leaf. The search
+   * at the top level reaches them too (`Go to Layout › Planning`).
+   */
+  step?: readonly Command[]
+  /** Inside a step: the heading it sits under (Add Widget ›'s Tasks / Insights); none, no heading. */
+  group?: string
+  /** The one in use (the open layout, the picked lens, the theme): marked in its row. */
+  current?: boolean
+}
+
+/** A command that opens `step` (its own `action` is never run). */
+function stepCommand(id: string, name: string, category: CommandCategory, step: readonly Command[]): Command {
+  return { id, name, category, step, action: () => {} }
 }
 
 export interface CommandContext {
@@ -69,21 +95,33 @@ export interface CommandContext {
   getOpenTaskCounts?: () => ReadonlyMap<number, number>
   /** Per person id, the open tasks the check-in filter picks; `null` (or absent) while there is no filter. */
   getCheckinTaskCounts?: () => ReadonlyMap<number, number> | null
+  /**
+   * Adds a widget of `kind` to the open layout (Add Widget ›): the Where
+   * picker on the cell last used, the kind chosen; the empty layout's way
+   * with no cell. Absent: no Add Widget ›.
+   */
+  addWidget?: (kind: WidgetKind) => void
+  /** The layouts, for Go to Layout › and the layout commands; null (or absent) while no layout is open. */
+  getLayouts?: () => LayoutChoices | null
+  /** The lenses and the top bar's pick, for Lens ›. */
+  getLenses?: () => { lenses: readonly Lens[]; activeLensId: string | null }
+  /** The theme setting, for Theme ›. */
+  getThemeMode?: () => ThemeMode
+}
+
+/** The layouts as the palette offers them: by name in their order, the open one, and whether it is stored (it can own lists). */
+export interface LayoutChoices {
+  layouts: readonly { id: number; name: string }[]
+  activeLayoutId: number | null
+  stored: boolean
 }
 
 const openTasksLabel = (n: number) => `${n} open ${n === 1 ? 'task' : 'tasks'}`
 const tasksLabel = (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`
 
-/**
- * `Email check-in: <person>` for each person with at least one open task, by
- * name (an email address isn't needed: the recipient can be added in the mail
- * app); the hint counts their open tasks — `2 of 5 open tasks` while the
- * check-in filter narrows them (what the email would hold). Running one sends
- * that person's check-in at once.
- */
-function personCheckinCommands(ctx: CommandContext, send: (personId: number) => void): Command[] {
+/** The people with at least one open task, by name, with how many. */
+function peopleWithOpenTasks(ctx: CommandContext): { id: number; name: string; n: number }[] {
   const counts = ctx.getOpenTaskCounts?.() ?? new Map<number, number>()
-  const matching = ctx.getCheckinTaskCounts?.() ?? null
   return (ctx.getPeople?.() ?? [])
     .flatMap((p) => {
       const id = p.id
@@ -92,13 +130,131 @@ function personCheckinCommands(ctx: CommandContext, send: (personId: number) => 
       return [{ id, name: p.name, n }]
     })
     .sort(byName)
-    .map(({ id, name, n }): Command => ({
-      id: `email-checkin-${id}`,
-      name: `Email check-in: ${name}`,
-      hint: matching ? `${matching.get(id) ?? 0} of ${openTasksLabel(n)}` : openTasksLabel(n),
-      category: 'email',
-      action: () => send(id),
-    }))
+}
+
+/**
+ * Email Check-in › each person with at least one open task, by name (an
+ * email address isn't needed: the recipient can be added in the mail app);
+ * the hint counts their open tasks — `2 of 5 open tasks` while the check-in
+ * filter narrows them (what the email would hold). Running one sends that
+ * person's check-in at once. None without such a person.
+ */
+function personCheckinCommands(ctx: CommandContext, send: (personId: number) => void): Command[] {
+  const matching = ctx.getCheckinTaskCounts?.() ?? null
+  const people = peopleWithOpenTasks(ctx).map(({ id, name, n }): Command => ({
+    id: `email-checkin-${id}`,
+    name,
+    hint: matching ? `${matching.get(id) ?? 0} of ${openTasksLabel(n)}` : openTasksLabel(n),
+    category: 'email',
+    action: () => send(id),
+  }))
+  return people.length > 0 ? [stepCommand('email-checkin', 'Email Check-in', 'email', people)] : []
+}
+
+/**
+ * Review With › each person with open tasks (their count the hint): the
+ * review deck on their open tasks, as the person menu's Review with X…
+ * opens it (`personReview`). Not while the deck is open: it takes one
+ * review at a time.
+ */
+function reviewWithCommands(ctx: CommandContext): Command[] {
+  if (useReviewStore.getState().open) return []
+  const people = peopleWithOpenTasks(ctx).map(({ id, name, n }): Command => ({
+    id: `review-with-${id}`,
+    name,
+    hint: openTasksLabel(n),
+    category: 'task',
+    action: () => { openReview(personReview({ id, name })) },
+  }))
+  return people.length > 0 ? [stepCommand('review-with', 'Review With', 'task', people)] : []
+}
+
+/**
+ * The layouts' commands (none before the workspace has a layout open): Go
+ * to Layout › each layout (the open one marked; a pick switches as its tab
+ * does — `LayoutControls` runs it, `ui-store.requestLayout`), Add Widget ›
+ * each kind by group, Tasks then Insights, as the Add widget menu lists
+ * them (a list only once the layout is stored: it owns its lists), and New
+ * Layout… / Duplicate Layout… (their name dialogs).
+ */
+function layoutCommands(ctx: CommandContext): Command[] {
+  const choices = ctx.getLayouts?.()
+  if (!choices) return []
+  const { layouts, activeLayoutId, stored } = choices
+  const request = (r: LayoutRequest) => useUIStore.getState().requestLayout(r)
+  const commands: Command[] = [
+    stepCommand('go-to-layout', 'Go to Layout', 'layout', layouts.map((l): Command => ({
+      id: `go-to-layout-${l.id}`,
+      name: l.name,
+      category: 'layout',
+      ...(l.id === activeLayoutId ? { current: true } : {}),
+      action: () => request({ kind: 'switch', layoutId: l.id }),
+    }))),
+  ]
+  const addWidget = ctx.addWidget
+  if (addWidget) {
+    const kinds = WIDGET_KIND_GROUPS.flatMap(({ group, label }) => widgetKindsOf(group)
+      .filter((kind) => stored || !WIDGET_KIND_SPECS[kind].showsList)
+      .map((kind): Command => ({
+        id: `add-widget-${kind}`,
+        name: widgetKindLabel(kind),
+        category: 'layout',
+        group: label,
+        action: () => addWidget(kind),
+      })))
+    commands.push(stepCommand('add-widget', 'Add Widget', 'layout', kinds))
+  }
+  commands.push(
+    { id: 'layout-new', name: 'New Layout…', category: 'layout', action: () => request({ kind: 'new' }) },
+    { id: 'layout-duplicate', name: 'Duplicate Layout…', category: 'layout', action: () => request({ kind: 'duplicate' }) },
+  )
+  return commands
+}
+
+/**
+ * Lens › No lens and each lens by name (the picked one marked): a pick is
+ * the top bar's — the lens put back on if it was lifted, saved at once, as
+ * the lens picker's. None while no lens is defined (Cycle Lens says where
+ * to make one).
+ */
+function lensCommands(ctx: CommandContext): Command[] {
+  const { lenses, activeLensId } = ctx.getLenses?.() ?? { lenses: [], activeLensId: null }
+  if (lenses.length === 0) return []
+  const picked = findLens(lenses, activeLensId)?.id ?? null
+  const pick = (id: string | null) => () => {
+    useUIStore.getState().setLensLifted(false)
+    void lensActions.setActiveLens(id)
+  }
+  const choices: Command[] = [
+    { id: 'lens-none', name: 'No lens', category: 'filter', ...(picked == null ? { current: true } : {}), action: pick(null) },
+    ...lenses.map((l): Command => ({
+      id: `lens-${l.id}`,
+      name: l.name,
+      category: 'filter',
+      ...(l.id === picked ? { current: true } : {}),
+      action: pick(l.id),
+    })),
+  ]
+  return [stepCommand('lens-pick', 'Lens', 'filter', choices)]
+}
+
+const THEME_MODES: readonly { mode: ThemeMode; name: string }[] = [
+  { mode: 'light', name: 'Light' },
+  { mode: 'dark', name: 'Dark' },
+  { mode: 'system', name: 'System' },
+]
+
+/** Theme › Light / Dark / System (the current one marked), as Settings › Appearance sets it. */
+function themeCommands(ctx: CommandContext): Command[] {
+  const themeMode = ctx.getThemeMode?.()
+  if (!themeMode) return []
+  return [stepCommand('theme', 'Theme', 'navigation', THEME_MODES.map(({ mode, name }): Command => ({
+    id: `theme-${mode}`,
+    name,
+    category: 'navigation',
+    ...(mode === themeMode ? { current: true } : {}),
+    action: () => { void useSettingsStore.getState().setThemeMode(mode) },
+  })))]
 }
 
 /** The palette's commands; key hints show the live keys (`overrides`: the user's shortcut changes). */
@@ -118,6 +274,10 @@ export function createCommands(
     bound('focus-filter', 'Open Filter Menu', 'focus-filters', 'navigation'),
     bound('focus-search', 'Focus Filter Field', 'focus-search', 'navigation'),
     ...(ctx.shortcuts.openShortcutsModal ? [bound('keyboard-shortcuts', 'Keyboard Shortcuts', 'show-shortcuts', 'navigation')] : []),
+    ...themeCommands(ctx),
+
+    // Layouts
+    ...layoutCommands(ctx),
 
     // Task actions
     bound('new-task', 'New Task', 'quick-add', 'task'),
@@ -130,6 +290,7 @@ export function createCommands(
     { id: 'filter-clear', name: 'Clear All Filters', category: 'filter', action: ctx.clearAllFilters },
     bound('lens-cycle', 'Cycle Lens', 'cycle-lens', 'filter'),
     bound('lens-lift', 'Lift Lens / Put It Back', 'lift-lens', 'filter'),
+    ...lensCommands(ctx),
     { id: 'filter-overdue', name: 'Show Overdue Tasks', category: 'filter', action: () => {
       ctx.clearAllFilters()
       const yesterday = new Date(startOfToday().getTime() - 1)
@@ -138,6 +299,7 @@ export function createCommands(
   ]
   commands.push(...listZoomCommands())
   commands.push(...reviewListCommands(bound))
+  commands.push(...reviewWithCommands(ctx))
 
   // Always offered: with no filter on, it lists every open task.
   const showScreenTasks = ctx.showScreenTasks

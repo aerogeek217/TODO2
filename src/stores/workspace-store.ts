@@ -5,8 +5,9 @@ import { clearLayoutDraft, readLayoutDraft, type LayoutDraftRecord } from '../da
 import { ownerLayoutId } from '../models/list-definition'
 import { UndoGone, UndoRefused, useUndoStore, type UndoEntry } from './undo-store'
 import { undoable } from './undoable'
+import { editorsHoldChanges, leaveOpenEditors } from './editor-leave'
+import { assertNoReplaceHold, refusedByReplaceHold, registerReplaceSettle, replaceHoldActive } from './replace-hold'
 import { useListDefinitionStore } from './list-definition-store'
-import { useListDraftStore } from './list-draft-store'
 import { useListOrderStore } from './list-order-store'
 import { useTagStore } from './tag-store'
 import { useSettingsStore } from './settings-store'
@@ -133,6 +134,11 @@ export interface EditUndoOptions {
  *   against, else dropped; a kept new layout becomes a stored one.
  * - `load(id)` switches layouts; `createLayout(name)` stores a new, empty
  *   layout at once and opens it.
+ * - While a data replace holds layout and list writes (`replace-hold`: from
+ *   its database write until `refresh-all` has opened the new data), the
+ *   layout in memory is the replaced one: nothing writes it — an edit, a
+ *   rename, a reorder, a delete, a switch or a new layout changes nothing
+ *   and says so, an undo / redo is refused, view state isn't written.
  */
 export interface WorkspaceState {
   /** Stored layouts in the picker's order (`sortOrder`, then oldest first). */
@@ -191,7 +197,7 @@ export interface WorkspaceState {
   /**
    * Duplicate layout…: stores a copy of the open layout as a new layout
    * named `name` (after the others) and opens it. The lists it shows are
-   * copied for the new layout (as edited, with their manual order) and its
+   * copied for the new layout (with their manual order) and its
    * tabs show the copies; the layout it came from keeps its own. Returns
    * the new id, or `null` for an empty name or a failed write.
    */
@@ -205,7 +211,7 @@ export interface WorkspaceState {
   /**
    * Deletes a layout — never the last one (`false`). Deleting the open layout
    * opens the most recently used remaining one. The lists it owns go with
-   * it (their manual order and unsaved edits too). Not undoable. Never
+   * it (their manual order too). Not undoable. Never
    * rejects: a failed delete is reported and resolves false; a failure after
    * the delete committed (opening the next layout) is reported too.
    */
@@ -403,23 +409,12 @@ function foreignListRefs(before: LayoutBody, next: LayoutBody, layoutId: number)
 }
 
 /**
- * Lists deleted with their layout (or no longer shown by it): out of the
- * list stores, their unsaved edits dropped.
- */
-function forgetDeletedLists(ids: readonly number[]): void {
-  if (ids.length === 0) return
-  useListDefinitionStore.getState().forgetLists(ids)
-  const drafts = useListDraftStore.getState()
-  for (const id of ids) drafts.discard(id)
-}
-
-/**
  * Takes a removal of a layout's lists into the stores: the deleted ones
- * forgotten (`forgetDeletedLists`), the ones handed to another layout read
- * again (their owner changed).
+ * forgotten (an Edit list open on one closes, dropping its draft), the ones
+ * handed to another layout read again (their owner changed).
  */
 async function applyRemoved({ deleted, handedOver }: OwnedListsRemoved): Promise<void> {
-  forgetDeletedLists(deleted)
+  useListDefinitionStore.getState().forgetLists(deleted)
   if (handedOver.length > 0) await useListDefinitionStore.getState().load()
 }
 
@@ -450,22 +445,17 @@ async function restoreLists(removed: OwnedListsRemoved | null): Promise<void> {
   await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
 }
 
-/**
- * The lists of layout `layoutId` that `body` shows, as copies
- * for a new layout: each list as edited (its unsaved draft, else as saved;
- * a blank draft name keeps the saved name).
- */
+/** The lists of layout `layoutId` that `body` shows, as copies for a new layout (each as saved). */
 function ownedListCopies(layoutId: number, body: LayoutBody): ListCopy[] {
   const shown = layoutListRefs(body)
-  const drafts = useListDraftStore.getState().drafts
   const copies: ListCopy[] = []
   for (const saved of useListDefinitionStore.getState().listDefinitions) {
     if (!shown.has(saved.id) || ownerLayoutId(saved) !== layoutId) continue
-    const { id: _id, sortOrder: _order, owner: _owner, ...def } = drafts[saved.id] ?? saved
+    const { id: _id, sortOrder: _order, owner: _owner, ...def } = saved
     void _id
     void _order
     void _owner
-    copies.push({ from: saved.id, def: { ...def, name: def.name.trim() || saved.name } })
+    copies.push({ from: saved.id, def })
   }
   return copies
 }
@@ -542,6 +532,8 @@ export async function settleLayoutWrites(): Promise<void> {
   while (layoutWrites.size > 0) await Promise.allSettled([...layoutWrites])
 }
 registerModuleSettle(settleLayoutWrites)
+// A data replace writes once they have landed (`replace-hold`).
+registerReplaceSettle(settleLayoutWrites)
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   /**
@@ -589,6 +581,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * open (`UndoRefused`, the step stays) and still exist (`UndoGone`).
    */
   function openFor(run: EditRun, verb: 'undo' | 'redo', description: string): Layout {
+    assertNoReplaceHold()
     const { layouts, saved } = get()
     const layout = layouts.find((l) => l.id === run.layoutId)
     if (!layout) throw new UndoGone(`Can’t ${verb}: ${description} — its layout is gone.`)
@@ -658,6 +651,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   function edit(fn: (layout: Layout, genId: IdGen) => Layout, describe: string | ((before: Layout, next: Layout) => string), opts: EditUndoOptions = {}): boolean {
     const { working, saved } = get()
     if (!working || !saved) return false
+    if (refusedByReplaceHold()) return false
     let next = fn(working, idGenFor(working))
     if (next === working) return false
     const foreign = foreignListRefs(working, next, working.id)
@@ -715,7 +709,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    */
   async function editView(fn: (layout: Layout) => Layout): Promise<void> {
     const { working, saved, layouts, repairedIds } = get()
-    if (!working) return
+    // The layout in memory is the replaced one (the reload opens the new data next).
+    if (!working || replaceHoldActive()) return
     const nextWorking = fn(working)
     const nextSaved = saved ? fn(saved) : saved
     if (nextWorking === working && nextSaved === saved) return
@@ -924,12 +919,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async load(id) {
+      if (refusedByReplaceHold()) return
+      // An open editor holding changes (Edit list, a widget editor) asks first (`editor-leave`).
+      if (id !== get().activeLayoutId && editorsHoldChanges() && !(await leaveOpenEditors())) return
       if (id === get().activeLayoutId || await readyToLeave()) await openLayout(id)
     },
 
     async createLayout(name) {
       const clean = cleanName(name)
-      if (!clean) return null
+      if (!clean || refusedByReplaceHold()) return null
+      if (editorsHoldChanges() && !(await leaveOpenEditors())) return null
       if (!(await readyToLeave())) return null
       const now = new Date()
       const record = { name: clean, ...emptyLayoutBody(), createdAt: now, modifiedAt: now, lastUsedAt: now }
@@ -953,20 +952,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     async retryWrite() {
       const { saved, writeFailed } = get()
       if (!saved || !writeFailed) return true
+      if (refusedByReplaceHold()) return false
       return (await commit(saved)).ok
     },
 
     async duplicateLayout(name) {
       const clean = cleanName(name)
       const source = get().saved
-      if (!clean || !source) return null
+      if (!clean || !source || refusedByReplaceHold()) return null
+      if (editorsHoldChanges() && !(await leaveOpenEditors())) return null
       if (!(await readyToLeave())) return null
       const now = new Date()
       const { id: _from, sortOrder: _order, ...body } = source
       void _from
       void _order
-      // The lists it shows are copied for the new layout (as edited); the
-      // originals stay with the layout they came from.
+      // The lists it shows are copied for the new layout; the originals stay
+      // with the layout they came from.
       await useListDefinitionStore.getState().ensureLoaded()
       const copies = ownedListCopies(source.id, source)
       const original = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
@@ -994,7 +995,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     async rename(id, name, hue) {
       const clean = cleanName(name)
-      if (!clean) return false
+      if (!clean || refusedByReplaceHold()) return false
       const renamed = <L extends WorkspaceLayout>(layout: L): L => {
         const next = { ...layout, name: clean }
         return hue === undefined ? next : setLayoutHue(next, hue)
@@ -1020,6 +1021,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async delete(id) {
+      if (refusedByReplaceHold()) return false
+      if (id === get().activeLayoutId && editorsHoldChanges() && !(await leaveOpenEditors())) return false
       const name = get().layouts.find((l) => l.id === id)?.name ?? 'the layout'
       // Its lists go with it.
       let removed: OwnedListsRemoved | null
@@ -1051,12 +1054,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async reorderLayouts(orderedIds, description = 'Reordered layouts') {
+      if (refusedByReplaceHold()) return false
       const before = get().layouts.map((l) => l.id)
       if (!(await applyOrder(orderedIds))) return false
       const after = get().layouts.map((l) => l.id)
       if (after.length === before.length && after.every((id, i) => id === before[i])) return true
       // Undo / redo throw on a failed write: the entry stays, to try again.
       const apply = (ids: readonly number[]) => async () => {
+        assertNoReplaceHold()
         if (!(await applyOrder(ids, false))) throw new Error('the layout order was not saved')
       }
       undoable(description, apply(after), apply(before), true)

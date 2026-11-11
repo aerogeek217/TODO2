@@ -20,6 +20,7 @@ import { useShortcutLabel } from '../../hooks/use-shortcut-label'
 import { useFilterPlaceholder } from '../../hooks/use-filter-placeholder'
 import styles from './TopBar.module.css'
 import { filtersFolded, FOLD_PART, FOLD_SEARCH_ATTR, SEARCH_WIDTH, tabsFolded, useTopBarFold } from './use-top-bar-fold'
+import { useTopBarCentre } from './use-top-bar-centre'
 import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
 import { LensControl } from '../shared/filters/LensControl'
 import { usePickedLens, useScreenFilter } from '../../stores/screen-filter'
@@ -165,6 +166,14 @@ export function TopBar() {
   const showTasksButton = isActive || lensPicked || panelOpen
   // The tray gains or loses Show N tasks: measured again then.
   const { fold, squeeze, lensName } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}`)
+  // The lens control, the tray and their chips: one group in the middle of
+  // the bar at rest; grown by chips or the counter it keeps its left edge
+  // (nothing moves under the caret) until it would reach the right zone.
+  const spacerRef = useRef<HTMLDivElement>(null)
+  const lensRef = useRef<HTMLDivElement>(null)
+  const rightRef = useRef<HTMLDivElement>(null)
+  const groupRef = isWorkspace ? lensRef : trayRef
+  const centre = useTopBarCentre(barRef, spacerRef, groupRef, trayRef, rightRef)
 
   const clearSearch = box.clear
   const handleOpenTodo = useCallback((todoId: number) => {
@@ -211,10 +220,13 @@ export function TopBar() {
             <LayoutControls mode={tabsFolded(fold) || manyLayouts ? 'menu' : 'tabs'} />
           </div>
         )}
-        {/* The top bar's lens: its own part, outside the tray (never lifted
-            with it), a fixed width the fold counts in its base. */}
+        {/* The centring gap: puts the lens-and-filter group in the middle of
+            the bar (`useTopBarCentre`); free space to the fold. */}
+        <div ref={spacerRef} className={styles.centreGap} style={{ width: centre }} data-fold-part={FOLD_PART.centre} aria-hidden="true" />
+        {/* The top bar's lens: its own part, outside the tray, a fixed width
+            the fold counts in its base. */}
         {isWorkspace && (
-          <div className={styles.lensSlot} data-fold-part={FOLD_PART.lens}>
+          <div ref={lensRef} className={styles.lensSlot} data-fold-part={FOLD_PART.lens}>
             <LensControl nameWidth={lensName} />
           </div>
         )}
@@ -336,7 +348,7 @@ export function TopBar() {
           {showTasksButton && <ShowFilteredTasksButton open={panelOpen} />}
         </div>
 
-        <div className={styles.right} data-fold-part={FOLD_PART.spring}>
+        <div ref={rightRef} className={styles.right} data-fold-part={FOLD_PART.spring}>
           <StoragePill />
           <button
             type="button"

@@ -1,7 +1,8 @@
-/* The app's one top bar (desktop): the layout tabs (or picker), the lens
- * control, the screen-filter tray (the field, the Filter button, the set
- * filters' chips, the counter), then the storage pill, the Settings gear and
- * New task.
+/* The app's one top bar (desktop), three groups: the layout tabs (or
+ * picker) on the left; the lens control and the screen-filter tray (the
+ * field, the Filter button, the set filters' chips, the counter) in the
+ * middle, centred at rest by the centring gap before them; the storage pill,
+ * the Settings gear and New task on the right.
  * It never wraps; when it runs out of room (measured) the tray shrinks (the
  * field, then long filter values), then the chips fold into the Filter
  * button, then the layout tabs into the picker. The filtered-tasks panel
@@ -86,8 +87,19 @@
 .lensSlot {
   display: flex;
   align-items: center;
-  margin-left: 10px;
+  /* With the bar's two gaps round the centring gap: at least 20px from the tabs. */
+  margin-left: 12px;
   flex-shrink: 0;
+}
+
+/* The centring gap before the lens-and-filter group (`useTopBarCentre`):
+ * its width set by the bar; the first thing flex gives up when the bar is
+ * short (until the bar measures again). */
+.centreGap {
+  /* Shrinks far ahead of the tray (whose natural width the centring reads). */
+  flex: 0 10000 auto;
+  min-width: 0;
+  align-self: stretch;
 }
 
 /* The tray right after it. */
@@ -332,6 +344,8 @@
   align-items: center;
   gap: 6px;
   margin-left: auto;
+  /* With the bar's gap: at least 20px between the middle group and the right zone. */
+  padding-left: 16px;
   flex-shrink: 0;
 }
 

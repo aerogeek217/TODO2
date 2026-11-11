@@ -6,7 +6,7 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import type { ListDefinition, ListOwner, PersistedListDefinition } from '../../models/list-definition'
 import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { getUnsavedListIds, useListDraftStore } from '../../stores/list-draft-store'
+import { useListDraftStore } from '../../stores/list-draft-store'
 import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
@@ -67,7 +67,7 @@ async function world(): Promise<World> {
     { listDefinitionId: theirs, todoId: 1, rank: 5 },
   ])
   await layoutRepository.setActiveId(a)
-  await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load(), useListDraftStore.getState().restore()])
+  await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
   await ws().init()
   return { a, b, saved, mine1, mine2, theirs, eisenhower }
 }
@@ -79,7 +79,6 @@ const storedListIds = async () => {
 }
 const storeListIds = () => useListDefinitionStore.getState().listDefinitions.map((d) => d.id).sort((x, y) => x - y)
 const ranksOf = async (listId: number) => (await db.listOrders.where('listDefinitionId').equals(listId).toArray()).map((r) => [r.todoId, r.rank])
-const editName = (id: number, name: string) => useListDraftStore.getState().edit(id, (d) => ({ ...d, name }))
 const undoNames = () => useUndoStore.getState().undoStack.map((e) => e.description)
 const undo = () => useUndoStore.getState().undo()
 const redo = () => useUndoStore.getState().redo()
@@ -97,15 +96,13 @@ beforeEach(async () => {
 })
 
 describe('an edit that leaves a list shown by no tab', () => {
-  it('deletes it at once — with its manual order and unsaved edits — and nothing else', async () => {
+  it('deletes it at once — with its manual order — and nothing else', async () => {
     const w = await world()
-    editName(w.mine1, 'Mine 1 edited')
     ws().closeTab('m1')
     expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs, w.eisenhower])
     expect(storeListIds()).toEqual([w.saved, w.mine2, w.theirs, w.eisenhower])
     expect(await ranksOf(w.mine1)).toEqual([])
     expect(useListOrderStore.getState().ranks.has(w.mine1)).toBe(false)
-    expect(useListDraftStore.getState().drafts[w.mine1]).toBeUndefined()
     // Another layout's list keeps its order.
     expect(await ranksOf(w.theirs)).toEqual([[1, 5]])
     expect(undoNames()).toEqual(['Closed tab “Mine 1”'])
@@ -214,7 +211,6 @@ describe('an edit that leaves a list shown by no tab', () => {
     await undo()
     expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower])
     expect(storeListIds()).not.toContain(fresh)
-    expect(getUnsavedListIds()).toEqual([])
     await redo()
     expect(await storedListIds()).toContain(fresh)
     expect(await ranksOf(fresh)).toEqual([[1, 1]])
@@ -417,10 +413,9 @@ describe('a list of the layout another layout names (data edited by hand)', () =
 })
 
 describe('Duplicate layout', () => {
-  it('copies the shown own lists — as edited, with their manual order — for the new layout, whose tabs show the copies', async () => {
+  it('copies the shown own lists — with their manual order — for the new layout, whose tabs show the copies', async () => {
     const w = await world()
-    editName(w.mine1, 'Mine 1 edited')
-    useListDraftStore.getState().edit(w.mine1, (d) => ({ ...d, sort: 'deadline' }))
+    await useListDefinitionStore.getState().editList(w.mine1, (d) => ({ ...d, name: 'Mine 1 edited', sort: 'deadline' }), 'Edited list')
     const before = layoutBodyOf(await stored(w.a))
     const id = await ws().duplicateLayout('A copy')
     expect(id).not.toBeNull()
@@ -439,13 +434,9 @@ describe('Duplicate layout', () => {
     expect(layoutListRefs(ws().working!)).toEqual(refs)
     expect(storeListIds()).toEqual(expect.arrayContaining([copy1.id, copy2.id]))
     expect(useListOrderStore.getState().ranks.get(copy1.id)?.size).toBe(2)
-    // The originals stay with A, their edits still unsaved; A as it was.
+    // The originals stay with A; A as it was.
     expect(await storedListIds()).toEqual(expect.arrayContaining([w.saved, w.mine1, w.mine2]))
-    expect(useListDraftStore.getState().drafts[w.mine1]?.name).toBe('Mine 1 edited')
     expect(layoutBodyOf(await stored(w.a))).toEqual(before)
-    // The copy edits on its own.
-    editName(copy2.id, 'Copy only')
-    expect(useListDraftStore.getState().drafts[w.mine2]).toBeUndefined()
   })
 
   it('a failed write makes nothing: no layout, no copies', async () => {
@@ -465,14 +456,12 @@ describe('Duplicate layout', () => {
 })
 
 describe('Delete layout', () => {
-  it('deletes the open layout’s own lists, their manual order and unsaved edits; never another layout’s or the Eisenhower’s', async () => {
+  it('deletes the open layout’s own lists and their manual order; never another layout’s or the Eisenhower’s', async () => {
     const w = await world()
-    editName(w.mine2, 'Edited')
     expect(await ws().delete(w.a)).toBe(true)
     expect(await storedListIds()).toEqual([w.theirs, w.eisenhower])
     expect(storeListIds()).toEqual([w.theirs, w.eisenhower])
     expect(await ranksOf(w.mine1)).toEqual([])
-    expect(useListDraftStore.getState().drafts[w.mine2]).toBeUndefined()
     expect(ws().activeLayoutId).toBe(w.b)
   })
 

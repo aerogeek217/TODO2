@@ -5,7 +5,7 @@ import type { ReviewBy } from '../models/review'
 import { applyRuntimeFilter, buildList } from '../services/build-list'
 import { queueOfSections } from '../services/review'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import { useListDraftStore } from '../stores/list-draft-store'
+import { listAsShown, useListDraftStore } from '../stores/list-draft-store'
 import { useListOrderStore } from '../stores/list-order-store'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { usePersonStore } from '../stores/person-store'
@@ -107,8 +107,8 @@ export function useReviewWidgetQueue(by: ReviewBy, ids: readonly number[]): Revi
   const lists = useMemo(() => {
     if (!byList || ids.length === 0) return NO_LISTS
     return ids.flatMap((id) => {
-      const def = saved.find((d) => d.id === id)
-      return def ? [drafts[id] ?? def] : []
+      const def = listAsShown(saved.find((d) => d.id === id), drafts)
+      return def ? [def] : []
     })
   }, [byList, ids, saved, drafts])
   const listing = lists.length > 0

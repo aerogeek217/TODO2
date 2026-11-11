@@ -78,16 +78,6 @@ describe('Eisenhower entry points', () => {
     expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: listId, tabId: 'eis' })
   })
 
-  it('a layout not stored yet can’t make a list: List is offered disabled, saying why', () => {
-    useWorkspaceStore.setState({ saved: null })
-    const kinds = openKinds(openTabMenu())
-    const list = within(kinds).getByRole('menuitemradio', { name: /^List/ })
-    expect(list).toBeDisabled()
-    expect(list).toHaveTextContent('Save the layout first to add lists.')
-    fireEvent.click(list)
-    expect(useWorkspaceStore.getState().working?.cells[0]?.tabs[0]?.kind).toBe('eisenhower')
-  })
-
   it('the cell menu’s Customize panes… opens Settings there too', () => {
     render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
     fireEvent.click(screen.getByRole('button', { name: 'Cell options' }))
