@@ -1,6 +1,6 @@
 /**
  * The review's shapes that are stored or shared below the stores (D26): the
- * rail's sort (item 7) and what a Review widget reviews by (board BM).
+ * rail's sort (item 7).
  */
 
 /**
@@ -30,47 +30,7 @@ export function reviewSortLabel(sort: ReviewSort): string {
 }
 
 /**
- * What a Review widget reviews by (board BM): people's, tags' or statuses'
- * open tasks, or the layout's lists as they show. The kind is the widget's
- * saved setting; who or what is picked is temporary, as a list's prompt
- * pick is (`list-widget-store.picks`).
+ * A Review widget's queue order where its tab stores none (item 12 of the
+ * widget feedback): Priority. The review deck opens on Queue order.
  */
-export type ReviewBy = 'person' | 'tag' | 'status' | 'list'
-
-/** The kinds in menu order. */
-export const REVIEW_BY_KINDS: readonly ReviewBy[] = ['person', 'tag', 'status', 'list']
-
-/** A new Review widget's kind. */
-export const DEFAULT_REVIEW_BY: ReviewBy = 'person'
-
-export function isReviewBy(v: unknown): v is ReviewBy {
-  return typeof v === 'string' && (REVIEW_BY_KINDS as readonly string[]).includes(v)
-}
-
-/** A kind's name, as the prompt row's label and the Review by menu say it. */
-export const REVIEW_BY_LABEL: Record<ReviewBy, string> = { person: 'Person', tag: 'Tag', status: 'Status', list: 'List' }
-
-/**
- * The pick an earlier build saved in a Review widget's config (board BK:
- * one person, tag, status or list). Read only for its kind (`reviewBy`).
- */
-export interface LegacyReviewPick {
-  kind: ReviewBy
-  id: number
-}
-
-export function isLegacyReviewPick(v: unknown): v is LegacyReviewPick {
-  if (typeof v !== 'object' || v === null) return false
-  const { kind, id } = v as { kind?: unknown; id?: unknown }
-  return isReviewBy(kind) && typeof id === 'number' && Number.isInteger(id) && id > 0
-}
-
-/**
- * What a Review widget's config reviews by: its `by`; a config from before
- * the kind was the setting reads as its saved pick's kind (the id dropped —
- * picks aren't saved), and one with neither as Person.
- */
-export function reviewBy(config: { by?: unknown; pick?: unknown }): ReviewBy {
-  if (isReviewBy(config.by)) return config.by
-  return isLegacyReviewPick(config.pick) ? config.pick.kind : DEFAULT_REVIEW_BY
-}
+export const DEFAULT_REVIEW_WIDGET_SORT: ReviewSort = 'priority'

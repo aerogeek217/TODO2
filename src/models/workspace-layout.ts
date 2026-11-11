@@ -39,7 +39,7 @@ import {
   type PivotConfig,
   type PivotViewState,
 } from './chart-widgets'
-import { DEFAULT_REVIEW_BY, type ReviewBy, type ReviewSort } from './review'
+import type { ReviewSort } from './review'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
@@ -178,20 +178,19 @@ export interface ListTabViewState extends TaskRowsViewState {
 export type NoTabSettings = Record<string, never>
 
 /**
- * A Review widget's settings (board BM, layout config): what it reviews by —
- * people, tags, statuses or the layout's lists (`ReviewBy`). Who or what is
- * picked is temporary (`list-widget-store.picks`), never saved. Read it
- * through `models/review.reviewBy`: a config an earlier build stored (one
- * saved `pick`, or nothing) reads as that pick's kind, or Person.
+ * A Review widget's settings: none (widget feedback 2A). What it reviews is
+ * a filter typed into its field, temporary (`list-widget-store.reviewFilters`),
+ * never saved. A tab an earlier build stored may still hold a `by` (board BM's
+ * kind) or a `pick` (board BK): neither is read, and the layout read drops
+ * both (`layout-shape.withoutLegacyReview`); schema v79 removes them.
  */
-export interface ReviewTabConfig {
-  by: ReviewBy
-}
+export type ReviewTabConfig = NoTabSettings
 
 /**
  * A Review widget's view state (saved at once): its lens switch and the
- * rail's sort. Where it stands — the current task, the – marks — lasts as
- * long as its picks (`review-session`) and is never saved.
+ * rail's sort (absent: Priority, `DEFAULT_REVIEW_WIDGET_SORT`). Where it
+ * stands — the current task, the – marks — lasts as long as its filter
+ * (`review-session`) and is never saved.
  */
 export interface ReviewTabViewState extends LensViewState {
   sort?: ReviewSort
@@ -485,7 +484,7 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     newTab: (id) => ({ id, kind: 'calendar', config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }),
   },
   // Item 12: the review deck in a cell, by person, nothing picked yet (its prompt row's field).
-  review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: { by: DEFAULT_REVIEW_BY } }) },
+  review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: {} }) },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
   // Insights.
   number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),

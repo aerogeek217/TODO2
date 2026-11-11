@@ -1,4 +1,4 @@
-/* A prompt row (`PromptField`): a labelled multi-value field above a list's or the Review widget's body. */
+/* A prompt row (`PromptField`): a labelled multi-value field above a list's body. */
 .row {
   position: relative;
   display: flex;

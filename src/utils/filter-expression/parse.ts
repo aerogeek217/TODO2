@@ -189,7 +189,7 @@ function lex(text: string): Lex[] {
 // ── Parser ──────────────────────────────────────────────────────────────────
 
 /** Words that end a text phrase: they start a term or join terms. */
-const KEYWORDS = new Set(['and', 'or', 'not', 'no', 'any', 'never', 'overdue', 'done', ...DATE_WORDS.keys()])
+export const KEYWORDS: ReadonlySet<string> = new Set(['and', 'or', 'not', 'no', 'any', 'never', 'overdue', 'done', ...DATE_WORDS.keys()])
 
 const PRIORITIES: ReadonlyMap<string, MarkerKey> = new Map([['urgent', 'urgent'], ['important', 'important'], ['focus', 'focus']])
 

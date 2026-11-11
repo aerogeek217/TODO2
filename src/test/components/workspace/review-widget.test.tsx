@@ -5,12 +5,8 @@ import { WidgetBody } from '../../../components/workspace/WidgetBody'
 import { CellControlsContext, type CellControlsValue } from '../../../components/workspace/cell-controls'
 import { db } from '../../../data/database'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
-import { emptyPredicate, type Person, type Status, type Tag } from '../../../models'
-import type { PersistedListDefinition } from '../../../models/list-definition'
-import type { ReviewBy } from '../../../models/review'
-import type { PersistedWorkspaceLayout, ReviewTab } from '../../../models/workspace-layout'
-import { useListDefinitionStore } from '../../../stores/list-definition-store'
-import { useListOrderStore } from '../../../stores/list-order-store'
+import type { FilterExpr, Person, Status, Tag } from '../../../models'
+import type { ReviewTab } from '../../../models/workspace-layout'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { reviewWidgetSession } from '../../../stores/review-session'
@@ -18,6 +14,7 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { WidgetFace } from '../../../utils/widget-face'
 import {
@@ -28,19 +25,18 @@ import {
   reviewQueueFolds,
 } from '../../../utils/widget-face'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
-import { single } from '../../helpers/layout-builders'
 
 /**
- * Item 12 · the Review widget as far as JSDOM shows it (board BM): its
- * prompt row — the kind as the row's label, a menu that writes the layout
- * config; the field typed in, its picks temporary (the list widgets' store,
- * never the layout) and OR-combined —, the empty state in the kind's words,
- * the live queue (a task leaving the picks, the current one staying until
- * the review moves on), the place and – marks lasting as long as the picks,
- * the progress on the top line (alone in its cell) or at the prompt row's
- * end (a cell of several widgets), and its faces. Its large face's card is
- * the deck's (`review-deck.test`); layout, focus and the small face's
- * popover are the real browser's (`e2e/review-widget.spec.ts`).
+ * The Review widget as far as JSDOM shows it (item 12; widget feedback 2A,
+ * board Review-field): no kind — one field that takes a filter expression,
+ * temporary (the list widgets' store, never the layout); a click lists
+ * people, tags and statuses with their open tasks, bare letters match all
+ * three, picks join by `or` / `and`; a filter that doesn't read keeps the
+ * last one that did; the check-in buttons while the filter names only
+ * people; the live queue, its default Priority sort and a row's
+ * double-click; the progress on the top line or the row's end; the faces.
+ * Layout, focus and the popup's placement are the real browser's
+ * (`e2e/review-widget.spec.ts`).
  */
 
 const aisha: Person = { id: 1, name: 'Aisha', initials: 'A' }
@@ -50,18 +46,8 @@ const q4: Tag = { id: 2, name: 'q4', color: '#c8743a' }
 const waiting: Status = { id: 1, name: 'Waiting', color: '#4caf50', sortOrder: 1 }
 const blocked: Status = { id: 2, name: 'Blocked', color: '#e06c75', sortOrder: 2 }
 
-function listDef(id: number, name: string, over: Partial<PersistedListDefinition> = {}, predicate: Partial<ReturnType<typeof emptyPredicate>> = {}): PersistedListDefinition {
-  return {
-    id, name, sortOrder: id,
-    membership: { kind: 'custom', predicate: { ...emptyPredicate(), ...predicate } },
-    sort: 'manual', grouping: 'none',
-    owner: { layoutId: 1 },
-    ...over,
-  }
-}
-
-function reviewTab(by: ReviewBy = 'person', over: Partial<ReviewTab> = {}): ReviewTab {
-  return { id: 'rv', kind: 'review', config: { by }, ...over }
+function reviewTab(over: Partial<ReviewTab> = {}): ReviewTab {
+  return { id: 'rv', kind: 'review', config: {}, ...over }
 }
 
 const CONTROLS: CellControlsValue = {
@@ -72,8 +58,11 @@ const CONTROLS: CellControlsValue = {
 let patchConfig: ReturnType<typeof vi.fn>
 let patchView: ReturnType<typeof vi.fn>
 
-const picks = () => useListWidgetStore.getState().picks.rv
-const setPicks = (...ids: number[]) => act(() => { useListWidgetStore.getState().setPicks('rv', ids) })
+const person = (id: number): FilterExpr => ({ kind: 'person', id })
+const stored = () => useListWidgetStore.getState().reviewFilters.rv
+const setFilter = (expression: FilterExpr | null) => act(() => {
+  useListWidgetStore.getState().setReviewFilter('rv', expression ? { expression, showCompleted: false } : null)
+})
 
 beforeEach(() => {
   resetEntityStores()
@@ -95,7 +84,6 @@ beforeEach(() => {
   })
   useTagStore.setState({ tags: [legal, q4], assignedTagsMap: new Map([[1, [legal]], [2, [q4]], [4, [legal, q4]]]) })
   useStatusStore.setState({ statuses: [waiting, blocked] })
-  useListOrderStore.setState({ ranks: new Map(), loaded: true })
   patchConfig = vi.fn()
   patchView = vi.fn(() => Promise.resolve())
   useWorkspaceStore.setState({ patchTabConfig: patchConfig as never, patchTabViewState: patchView as never })
@@ -127,134 +115,121 @@ function renderAlone(face: WidgetFace, tab: ReviewTab = reviewTab()) {
   )
 }
 
-const field = () => screen.getByRole('combobox', { name: / to review$/ })
+const field = () => screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Review filter' })
 const options = () => screen.getAllByRole('option').map((o) => o.textContent)
+const rowIds = () => [...document.querySelectorAll('[data-review-row]')].map((r) => r.getAttribute('data-review-row'))
+const type = (text: string) => fireEvent.change(field(), { target: { value: text, selectionStart: text.length } })
 
-describe('the Review widget: nothing picked', () => {
-  it.each([
-    ['person', 'Pick a person to review', 'Type in the Person field above. The pick is temporary and isn’t saved.', 'Pick a person', 'Pick a person…'],
-    ['tag', 'Pick a tag to review', 'Type in the Tag field above. The pick is temporary and isn’t saved.', 'Pick a tag', 'Pick a tag…'],
-    ['status', 'Pick a status to review', 'Type in the Status field above. The pick is temporary and isn’t saved.', 'Pick a status', 'Pick a status…'],
-    ['list', 'Pick a list to review', 'Type in the List field above. The pick is temporary and isn’t saved.', 'Pick a list', 'Pick a list…'],
-  ] as const)('by %s: “%s”, the field’s words, a button that focuses the field', (by, title, text, action, placeholder) => {
-    renderAt('medium', reviewTab(by))
+describe('the Review widget: nothing to review', () => {
+  it('the empty state in the board’s words; Pick focuses the field and lists who or what', () => {
+    renderAt('medium')
     const empty = screen.getByTestId('review-empty')
-    expect(empty).toHaveTextContent(title)
-    expect(empty).toHaveTextContent(text)
-    expect(field()).toHaveAttribute('placeholder', placeholder)
-    expect(screen.queryByText(/pick someone/i)).toBeNull()
+    expect(empty).toHaveTextContent('Pick who or what to review')
+    expect(empty).toHaveTextContent('Click the field, or type @person, #tag, !status or any filter. It is temporary and isn’t saved.')
+    expect(field()).toHaveAttribute('placeholder', 'Who or what to review…')
     expect(screen.queryByTestId('lens-switch')).toBeNull()
     expect(screen.queryByTestId('review-widget-progress')).toBeNull()
-    fireEvent.click(within(empty).getByRole('button', { name: action }))
+    fireEvent.click(within(empty).getByRole('button', { name: 'Pick' }))
     expect(field()).toHaveFocus()
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
   })
 
-  it('a config an earlier build stored (one saved pick) reads as that pick’s kind, nothing picked', () => {
-    renderAt('medium', reviewTab('person', { config: { pick: { kind: 'status', id: 1 } } as never }))
-    expect(screen.getByTestId('review-by')).toHaveTextContent('Status')
-    expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick a status to review')
-    expect(picks()).toBeUndefined()
+  it('no kind to choose: no Review by menu', () => {
+    renderAt('medium')
+    expect(screen.queryByTestId('review-by')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Review by/ })).toBeNull()
+  })
+
+  it('a tab an earlier build stored with a kind or a pick opens without error, nothing to review', () => {
+    renderAt('medium', reviewTab({ config: { by: 'status', pick: { kind: 'tag', id: 1 } } as never }))
+    expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick who or what to review')
+    expect(stored()).toBeUndefined()
   })
 })
 
 describe('the Review widget: its field', () => {
-  it('people, each with their avatar and open tasks; typing narrows them; ⏎ picks the first', () => {
+  it('a click lists people, tags and statuses under their headings, each with its open tasks, the most counted first', () => {
+    renderAt('medium')
+    fireEvent.click(field())
+    const list = screen.getByRole('listbox')
+    expect(list).toHaveTextContent(/^People.*Tags.*Status/)
+    expect(options()).toEqual(['AAisha3', 'BBen2', 'legal2', 'q42', 'Waiting2', 'Blocked1'])
+  })
+
+  it('a click on a row adds it; a second person joins with or, a tag with and', () => {
+    renderAt('medium')
+    fireEvent.click(field())
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Aisha/ }))
+    expect(field()).toHaveValue('@Aisha ')
+    expect(stored()).toEqual({ expression: person(1), showCompleted: false })
+    expect(screen.queryByRole('listbox')).toBeNull()
+    fireEvent.click(field())
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Ben/ }))
+    expect(field()).toHaveValue('@Aisha or @Ben ')
+    expect(stored()?.expression).toEqual({ kind: 'or', items: [person(1), person(2)] })
+    fireEvent.click(field())
+    fireEvent.mouseDown(screen.getByRole('option', { name: /legal/ }))
+    expect(field()).toHaveValue('@Aisha or @Ben and #legal ')
+  })
+
+  it('bare letters match people, tags and statuses at once; ⏎ takes the first', () => {
     renderAt('medium')
     fireEvent.focus(field())
-    expect(options()).toEqual(['AAisha3', 'BBen2'])
-    fireEvent.change(field(), { target: { value: 'be' } })
-    expect(options()).toEqual(['BBen2'])
+    type('b')
+    expect(options()).toEqual(['BBen2', 'Blocked1'])
     fireEvent.keyDown(field(), { key: 'Enter' })
-    expect(picks()).toEqual([2])
-    expect(field()).toHaveValue('')
-    // Its chip, with the avatar and a ×.
-    expect(screen.getByRole('button', { name: 'Remove Ben' })).toBeInTheDocument()
+    expect(field()).toHaveValue('@Ben ')
+    expect(stored()).toEqual({ expression: person(2), showCompleted: false })
     expect(screen.getByTestId('review-card-title')).toHaveTextContent('Onboarding checklist')
   })
 
-  it('the picks are temporary: nothing is written to the layout — no config, no view state', () => {
-    renderAt('medium')
+  it('a typed expression is written on ⏎; the queue follows it', () => {
+    renderAt('large')
     fireEvent.focus(field())
-    fireEvent.click(screen.getByRole('option', { name: /Aisha/ }))
-    fireEvent.click(screen.getByRole('option', { name: /Ben/ }))
-    expect(picks()).toEqual([1, 2])
+    type('#legal or !Blocked')
+    fireEvent.keyDown(field(), { key: 'Enter' })
+    expect(stored()?.expression).toEqual({ kind: 'or', items: [{ kind: 'tag', id: 1 }, { kind: 'status', id: 2 }] })
+    expect(rowIds().sort()).toEqual(['1', '2', '4'])
+  })
+
+  it('a filter that doesn’t read: its error under the field, the queue keeps the last that read, Esc puts its text back', () => {
+    renderAt('large')
+    setFilter(person(2))
+    expect(field()).toHaveValue('@Ben')
+    type('@Ben and')
+    fireEvent.keyDown(field(), { key: 'Enter' })
+    expect(screen.getByTestId('review-field-error')).toBeInTheDocument()
+    expect(field()).toHaveAttribute('aria-invalid', 'true')
+    expect(stored()?.expression).toEqual(person(2))
+    expect(rowIds().sort()).toEqual(['3', '4'])
+    fireEvent.keyDown(field(), { key: 'Escape' })
+    expect(field()).toHaveValue('@Ben')
+    expect(screen.queryByTestId('review-field-error')).toBeNull()
+  })
+
+  it('× clears the field and the filter', () => {
+    renderAt('medium')
+    setFilter(person(1))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the filter' }))
+    expect(field()).toHaveValue('')
+    expect(stored()).toBeUndefined()
+    expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick who or what to review')
+  })
+
+  it('the filter changing from elsewhere (a Review button’s jump) shows in the field', () => {
+    renderAt('medium')
+    setFilter({ kind: 'and', items: [person(1), { kind: 'status', id: 1 }] })
+    expect(field()).toHaveValue('@Aisha and !Waiting')
+  })
+
+  it('the filter is temporary: nothing is written to the layout — no config, no view state', () => {
+    renderAt('medium')
+    fireEvent.click(field())
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Aisha/ }))
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Aisha' }))
-    expect(picks()).toEqual([2])
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the filter' }))
     expect(patchConfig).not.toHaveBeenCalled()
     expect(patchView).not.toHaveBeenCalled()
-  })
-
-  it('several picks are any of them: Aisha or Ben — each task once', () => {
-    renderAt('large')
-    setPicks(1)
-    expect(document.querySelectorAll('[data-review-row]')).toHaveLength(3)
-    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
-    setPicks(1, 2)
-    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
-    const rail = screen.getByRole('navigation', { name: 'Review queue: Aisha or Ben' })
-    expect([...rail.querySelectorAll('[data-review-row]')].map((r) => r.getAttribute('data-review-row'))).toEqual(['1', '2', '3', '4'])
-  })
-
-  it('Backspace in the empty text takes the last chip back; the × at the field’s end clears them all', () => {
-    renderAt('medium')
-    setPicks(1, 2)
-    fireEvent.keyDown(field(), { key: 'Backspace' })
-    expect(picks()).toEqual([1])
-    fireEvent.click(screen.getByRole('button', { name: 'Clear Person' }))
-    expect(picks()).toBeUndefined()
-    expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick a person to review')
-  })
-
-  it('tags with their open tasks; a pick’s tasks are any picked tag’s', () => {
-    renderAt('large', reviewTab('tag'))
-    fireEvent.focus(field())
-    expect(options()).toEqual(['legal2', 'q42'])
-    setPicks(1, 2)
-    expect(screen.getByRole('navigation', { name: 'Review queue: #legal or #q4' })).toBeInTheDocument()
-    expect([...document.querySelectorAll('[data-review-row]')].map((r) => r.getAttribute('data-review-row'))).toEqual(['1', '2', '4'])
-  })
-
-  it('statuses in their own order, with their open tasks', () => {
-    renderAt('large', reviewTab('status'))
-    fireEvent.focus(field())
-    expect(options()).toEqual(['Waiting2', 'Blocked1'])
-    setPicks(2, 1)
-    expect([...document.querySelectorAll('[data-review-row]')].map((r) => r.getAttribute('data-review-row'))).toEqual(['1', '2', '4'])
-  })
-
-  it('lists: this layout’s lists (no count); several picked are the union of what they show, divided by list', () => {
-    const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [reviewTab('list')] }) }
-    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
-    useListDefinitionStore.setState({
-      listDefinitions: [
-        listDef(11, 'Aisha 1:1', {}, { personIds: [1] }),
-        listDef(12, 'Waiting', {}, { statusIds: [1] }),
-        listDef(13, 'Another layout’s', { owner: { layoutId: 2 } }),
-      ],
-    })
-    renderAt('large', reviewTab('list'))
-    fireEvent.focus(field())
-    expect(options()).toEqual(['Aisha 1:1', 'Waiting'])
-    setPicks(11)
-    expect([...document.querySelectorAll('[data-review-row]')].map((r) => r.getAttribute('data-review-row'))).toEqual(['1', '2', '3'])
-    setPicks(11, 12)
-    // Aisha 1:1's three, then Waiting's that aren't among them (task 1 is: once).
-    expect(screen.getByRole('navigation', { name: 'Review queue: Aisha 1:1 or Waiting' })).toBeInTheDocument()
-    expect([...document.querySelectorAll('[data-review-row]')].map((r) => r.getAttribute('data-review-row'))).toEqual(['1', '2', '3', '4'])
-    expect(patchConfig).not.toHaveBeenCalled()
-    // A picked list that is deleted just drops from the picks.
-    act(() => { useListDefinitionStore.setState({ listDefinitions: useListDefinitionStore.getState().listDefinitions.filter((d) => d.id !== 11) }) })
-    expect(screen.queryByRole('button', { name: 'Remove Aisha 1:1' })).toBeNull()
-    expect([...document.querySelectorAll('[data-review-row]')].map((r) => r.getAttribute('data-review-row'))).toEqual(['1', '4'])
-  })
-
-  it('a pick that names no one any more drops out: back to the prompt', () => {
-    renderAt('medium')
-    setPicks(2)
-    expect(screen.getByTestId('review-card-title')).toBeInTheDocument()
-    act(() => { usePersonStore.setState({ people: [aisha] }) })
-    expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick a person to review')
   })
 
   it('reads no table: mounting, typing and picking stay in the stores', () => {
@@ -265,134 +240,135 @@ describe('the Review widget: its field', () => {
     cleanup()
     renderAt('medium')
     fireEvent.focus(field())
-    fireEvent.change(field(), { target: { value: 'a' } })
+    type('ai')
     fireEvent.keyDown(field(), { key: 'Enter' })
-    expect(picks()).toEqual([1])
+    expect(stored()?.expression).toEqual(person(1))
     for (const spy of spies) expect(spy).not.toHaveBeenCalled()
   })
 })
 
-describe('the Review widget: its kind', () => {
-  it('the row’s label is a menu — Review by: Person ✓ · Tag · Status · List; a pick writes the layout config and clears the picks', () => {
-    renderAt('medium')
-    setPicks(1)
-    fireEvent.click(screen.getByTestId('review-by'))
-    const menu = screen.getByRole('menu', { name: 'Review by' })
-    expect(menu).toHaveTextContent('Review by')
-    const items = within(menu).getAllByRole('menuitemradio')
-    expect(items.map((i) => i.textContent)).toEqual(['Person', 'Tag', 'Status', 'List'])
-    expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false'])
-    fireEvent.click(within(menu).getByRole('menuitemradio', { name: 'Tag' }))
-    expect(patchConfig).toHaveBeenCalledWith('rv', 'review', { by: 'tag' }, 'Review by Tag')
-    expect(picks()).toBeUndefined()
+describe('the Review widget: the check-in buttons', () => {
+  it('only while the filter names only people', () => {
+    renderAt('large')
+    expect(screen.queryByRole('button', { name: 'Email check-in' })).toBeNull()
+    setFilter(person(1))
+    expect(screen.getByRole('button', { name: 'Email check-in' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Paste reply' })).toBeInTheDocument()
+    setFilter({ kind: 'or', items: [person(1), person(2)] })
+    expect(screen.getByRole('button', { name: 'Email check-in' })).toBeInTheDocument()
+    setFilter({ kind: 'and', items: [person(1), { kind: 'tag', id: 1 }] })
+    expect(screen.queryByRole('button', { name: 'Email check-in' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Paste reply' })).toBeNull()
   })
 
-  it('a kind that changes under the picks some other way (the layout’s unsaved kind discarded) takes them along', () => {
-    const view = renderAt('medium')
-    setPicks(1)
-    expect(screen.getByTestId('review-card-title')).toBeInTheDocument()
-    view.rerender(
-      <WidgetFaceContext.Provider value={{ forced: 'medium' }}>
-        <WidgetBody tab={reviewTab('tag')} />
-      </WidgetFaceContext.Provider>,
-    )
-    expect(picks()).toBeUndefined()
-    expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick a tag to review')
+  it('one person: Paste reply opens the reply import for them', () => {
+    const openCheckinImport = vi.fn()
+    useUIStore.setState({ openCheckinImport })
+    renderAt('large')
+    setFilter(person(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Paste reply' }))
+    expect(openCheckinImport).toHaveBeenCalledWith({ personId: 2 })
   })
 
-  it('the kind it already has changes nothing: the picks stay, the layout is not touched', () => {
-    renderAt('medium')
-    setPicks(1)
-    fireEvent.click(screen.getByTestId('review-by'))
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Review by' })).getByRole('menuitemradio', { name: 'Person' }))
-    expect(patchConfig).not.toHaveBeenCalled()
-    expect(picks()).toEqual([1])
+  it('several: Email opens a menu of them; Paste reply opens the import (the reply names its person)', () => {
+    const openCheckinImport = vi.fn()
+    useUIStore.setState({ openCheckinImport })
+    renderAt('large')
+    setFilter({ kind: 'or', items: [person(1), person(2)] })
+    fireEvent.click(screen.getByRole('button', { name: 'Email check-in' }))
+    const menu = screen.getByRole('menu', { name: 'Email check-in' })
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Email check-in to Aisha', 'Email check-in to Ben'])
+    fireEvent.click(screen.getByRole('button', { name: 'Paste reply' }))
+    expect(openCheckinImport).toHaveBeenCalledWith(undefined)
   })
 })
 
 describe('the Review widget: the progress and its faces', () => {
   it('no place in the queue (`k of N`) at any face; once every task has a mark the large face says all reviewed', () => {
     const { unmount } = renderAt('medium')
-    setPicks(1)
+    setFilter(person(1))
     expect(document.querySelector('[data-review-widget]')).not.toHaveTextContent(/\d+ of \d+/)
     unmount()
     renderAlone('large')
     expect(document.querySelector('[data-review-widget]')).not.toHaveTextContent(/\d+ of \d+/)
-    expect(screen.queryByRole('button', { name: 'Queue' })).toBeNull()
     for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
     expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^All 3 reviewed · 1 followed up$/)
-    expect(within(screen.getByTestId('review-widget-progress')).getByText('All 3 reviewed').tagName).toBe('STRONG')
   })
 
-  it('alone in its cell: a top line — Review, the progress, then the prompt row under it', () => {
+  it('alone in its cell: a top line — Review, the progress, then the field’s row under it', () => {
     renderAlone('large')
     const top = document.querySelector<HTMLElement>('[data-widget-top-line]')!
     expect(within(top).getByTestId('top-line-name')).toHaveTextContent('Review')
-    // Nothing picked: no progress.
     expect(screen.queryByTestId('review-widget-progress')).toBeNull()
-    setPicks(1)
+    setFilter(person(1))
     expect(within(top).getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
     const row = document.querySelector<HTMLElement>('[data-prompt-row]')!
     expect(within(row).queryByTestId('review-widget-progress')).toBeNull()
     expect(top.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('in a cell of several widgets: no top line — the prompt row is first and ends with the progress', () => {
+  it('in a cell of several widgets: no top line — the field’s row is first and ends with the progress', () => {
     renderAt('large')
-    setPicks(1)
+    setFilter(person(1))
     expect(document.querySelector('[data-widget-top-line]')).toBeNull()
     const host = document.querySelector<HTMLElement>('[data-review-widget]')!
     const row = document.querySelector<HTMLElement>('[data-prompt-row]')!
     expect(host.firstElementChild).toBe(row)
-    expect(row.lastElementChild).toBe(within(row).getByTestId('review-widget-progress'))
     expect(within(row).getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
   })
 
-  it('medium face: the picks’ first open task, how many are followed up and the update line', () => {
+  it('medium face: the first open task, how many are followed up and the update line', () => {
     renderAt('medium')
-    setPicks(1)
+    setFilter(person(1))
     expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
+    expect(screen.getByTestId('review-card-title')).toBeInTheDocument()
     expect(screen.getByLabelText('Status update · today')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Open card/ })).toBeInTheDocument()
     expect(document.querySelectorAll('[data-review-row]')).toHaveLength(0)
   })
 
-  it('small face: `Review · Pick a person` with nothing picked — no field; then the picks, how many are left (✓ followed up today, item 11) and followed up', () => {
+  it('small face: `Review · Pick who or what` with no filter — no field; then the filter, how many are left and followed up', () => {
     renderAt('small')
-    expect(screen.getByTestId('review-small-face')).toHaveTextContent('Review · Pick a person')
+    expect(screen.getByTestId('review-small-face')).toHaveTextContent('Review · Pick who or what')
     expect(screen.queryByTestId('review-small-caption')).toBeNull()
-    expect(screen.queryByRole('combobox')).toBeNull()
-    setPicks(1)
-    expect(screen.getByTestId('review-small-face')).toHaveTextContent('Review · Aisha')
+    expect(screen.queryByRole('textbox')).toBeNull()
+    setFilter(person(1))
+    expect(screen.getByTestId('review-small-face')).toHaveTextContent('Review · @Aisha')
     expect(screen.getByTestId('review-small-caption')).toHaveTextContent('2 left · 1 followed up')
-    setPicks(1, 2)
-    expect(screen.getByTestId('review-small-face')).toHaveTextContent('Review · Aisha or Ben')
+    setFilter({ kind: 'or', items: [person(1), person(2)] })
+    expect(screen.getByTestId('review-small-face')).toHaveTextContent('Review · @Aisha or @Ben')
     expect(screen.getByTestId('review-small-caption')).toHaveTextContent('3 left · 1 followed up')
   })
 
-  it('small face, by tag: `Review · Pick a tag`', () => {
-    renderAt('small', reviewTab('tag'))
-    expect(screen.getByTestId('review-small-face')).toHaveTextContent('Review · Pick a tag')
+  it('large face: the rail, sorted by Priority unless the tab stores a sort, ✓ on a task followed up today', () => {
+    renderAt('large')
+    setFilter(person(1))
+    const rail = screen.getByRole('navigation', { name: 'Review queue: @Aisha' })
+    expect(rail.querySelectorAll('[data-review-row]')).toHaveLength(3)
+    expect(rail.querySelector('[data-review-row="2"]')).toHaveAttribute('data-mark', 'done')
+    expect(screen.getByTestId('review-sort')).toHaveTextContent('Sort: Priority')
+    expect(patchView).not.toHaveBeenCalled()
   })
 
-  it('large face: the rail, its rows as the deck’s, ✓ on a task followed up today', () => {
+  it('a double-click on a rail row opens the task in its editor; a single click shows its card', () => {
+    const openEditPopup = vi.fn()
+    useUIStore.setState({ openEditPopup })
     renderAt('large')
-    setPicks(1)
-    const rail = screen.getByRole('navigation', { name: 'Review queue: Aisha' })
-    const rows = rail.querySelectorAll('[data-review-row]')
-    expect([...rows].map((r) => r.getAttribute('aria-label')?.split(',')[0])).toEqual(['Vendor contract renewal', 'Q4 headcount plan', 'Onboarding checklist'])
-    expect(rows[1]).toHaveAttribute('data-mark', 'done')
-    expect(screen.getByTestId('review-sort')).toHaveTextContent('Sort: Queue order')
+    setFilter(person(1))
+    const row = document.querySelector<HTMLElement>('[data-review-row="3"]')!
+    fireEvent.click(row)
+    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Onboarding checklist')
+    expect(openEditPopup).not.toHaveBeenCalled()
+    fireEvent.doubleClick(row)
+    expect(openEditPopup).toHaveBeenCalledWith(3)
   })
 })
 
 describe('the Review widget: the queue and where it stands', () => {
-  it('the live queue: a task leaving the picks leaves it; the current one stays until the review moves on', () => {
-    renderAt('medium')
-    setPicks(1)
+  it('the live queue: a task leaving the filter leaves it; the current one stays until the review moves on', () => {
+    renderAt('medium', reviewTab({ viewState: { sort: 'queue' } }))
+    setFilter(person(1))
     const session = reviewWidgetSession('rv')
-    // Skip to Q4, then Q4 and the next task lose Aisha.
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
     expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
     act(() => {
@@ -406,37 +382,23 @@ describe('the Review widget: the queue and where it stands', () => {
     expect(session.getState().order).toEqual([1])
   })
 
-  it('a pick added keeps the place and the – marks; a current task whose pick is removed gives way to the next', () => {
-    renderAt('large')
-    setPicks(1)
-    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
-    setPicks(1, 2)
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
-    expect(document.querySelector('[data-review-row="1"]')).toHaveAttribute('data-mark', 'skipped')
-    // Aisha removed while on her task: Ben's tasks are the queue, the review on the first of them after it.
-    setPicks(2)
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Onboarding checklist')
-    expect([...document.querySelectorAll('[data-review-row]')].map((r) => r.getAttribute('data-review-row'))).toEqual(['3', '4'])
-  })
-
-  it('the place and the – marks last as long as the picks: cleared, the next review starts over', () => {
-    renderAt('large')
-    setPicks(1)
+  it('the place and the – marks last as long as the filter: cleared, the next review starts over', () => {
+    renderAt('large', reviewTab({ viewState: { sort: 'queue' } }))
+    setFilter(person(1))
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
     expect(reviewWidgetSession('rv').getState().marks).toEqual({ 1: 'skipped' })
-    setPicks()
+    setFilter(null)
     expect(reviewWidgetSession('rv').getState().marks).toEqual({})
     expect(reviewWidgetSession('rv').getState().order).toEqual([])
-    setPicks(1)
+    setFilter(person(1))
     expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
     expect(document.querySelector('[data-review-row="1"]')).not.toHaveAttribute('data-mark')
-    // None of it was ever view state.
     expect(patchView).not.toHaveBeenCalled()
   })
 
   it('only the rail’s sort is view state, saved at once', () => {
     renderAt('large')
-    setPicks(1)
+    setFilter(person(1))
     fireEvent.click(screen.getByTestId('review-sort'))
     fireEvent.click(within(screen.getByRole('menu', { name: 'Sort the queue' })).getByRole('menuitemradio', { name: 'Title' }))
     expect(patchView).toHaveBeenCalledTimes(1)
@@ -444,33 +406,19 @@ describe('the Review widget: the queue and where it stands', () => {
   })
 
   it('opens with the stored sort; a place an earlier build saved is ignored', () => {
-    renderAt('large', reviewTab('person', { viewState: { sort: 'title', currentId: 3, skipped: { day: '2000-01-01', ids: [1] } } as never }))
-    setPicks(1)
+    renderAt('large', reviewTab({ viewState: { sort: 'title', currentId: 3, skipped: { day: '2000-01-01', ids: [1] } } as never }))
+    setFilter(person(1))
     expect(screen.getByTestId('review-sort')).toHaveTextContent('Sort: Title')
-    // Title order: Onboarding, Q4, Vendor — on the first, not the stored task; no mark.
     expect(screen.getByTestId('review-card-title')).toHaveTextContent('Onboarding checklist')
     expect(document.querySelector('[data-review-row="1"]')).not.toHaveAttribute('data-mark')
     expect(patchView).not.toHaveBeenCalled()
   })
 
-  it('picks with no open tasks here say so', () => {
+  it('a filter with no open tasks here says so', () => {
     usePersonStore.setState({ assignedPeopleMap: new Map() })
     renderAt('medium')
-    setPicks(1, 2)
-    expect(screen.getByTestId('review-empty')).toHaveTextContent('Nothing to review: no open tasks for Aisha or Ben here.')
-  })
-
-  it('a picked list that asks for a pick waits for it: the pick of a list tab of this layout showing it', () => {
-    const lensTab = { id: 'lt', kind: 'lens' as const, config: { listDefinitionId: 21 } }
-    const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [reviewTab('list'), lensTab] }) }
-    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
-    useListDefinitionStore.setState({ listDefinitions: [listDef(21, 'Tasks for…', { runtimeFilter: { field: 'person' } })] })
-    renderAt('large', reviewTab('list'))
-    setPicks(21)
-    expect(screen.getByTestId('review-empty')).toHaveTextContent('Tasks for… asks for a pick first: answer it in a list widget showing it.')
-    // Answered in the list tab (Ben): the review takes what that tab shows.
-    act(() => { useListWidgetStore.getState().setPicks('lt', [2]) })
-    expect([...document.querySelectorAll('[data-review-row]')].map((r) => r.getAttribute('data-review-row'))).toEqual(['3', '4'])
+    setFilter({ kind: 'or', items: [person(1), person(2)] })
+    expect(screen.getByTestId('review-empty')).toHaveTextContent('Nothing to review: no open tasks match this filter here.')
   })
 })
 
@@ -481,8 +429,6 @@ describe('reviewFaceFor', () => {
     expect(reviewFaceFor({ width: 480, height: 260 })).toBe('medium')
     expect(reviewFaceFor({ width: 1000, height: 300 })).toBe('medium')
     expect(reviewFaceFor({ width: 600, height: 800 })).toBe('medium')
-    // Task layout A: the large face needs 530px (the pinned dock, 120px of writing, the top line,
-    // the prompt row, the title and the footer); 640px wide stays.
     expect(reviewFaceFor({ width: 1000, height: 500 })).toBe('medium')
     expect(reviewFaceFor({ width: 1000, height: REVIEW_MEDIUM_MAX_HEIGHT_PX })).toBe('medium')
     expect(reviewFaceFor({ width: 1000, height: REVIEW_MEDIUM_MAX_HEIGHT_PX + 1 })).toBe('large')
