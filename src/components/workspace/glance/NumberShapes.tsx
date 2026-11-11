@@ -133,6 +133,26 @@ function Ring({ percent, color, size }: { percent: number | null; color: string;
   )
 }
 
+/** A share's line of percents and its change in points: items of the wrapping line around it (`.figures`, `.shareLine`), so each drops out alone where it doesn't fit. */
+function ShareHistory({ history, large, deltaText, approximate }: {
+  history: { series: readonly number[] }
+  large: boolean
+  deltaText: string | null
+  approximate: string | null
+}) {
+  return (
+    <>
+      <Sparkline series={history.series} width={large ? 96 : 56} height={large ? 30 : 20} className={base.spark} />
+      {(deltaText != null || approximate) && (
+        <span className={base.delta} data-testid="number-delta">
+          {approximate && <span title={approximate} data-testid="number-approximate">≈ </span>}
+          {deltaText}
+        </span>
+      )}
+    </>
+  )
+}
+
 /**
  * Share of… (board Y): the tasks its filter keeps as a share of the ones a
  * second filter keeps (every open task by default) — a ring, the percent and
@@ -170,11 +190,15 @@ export function ShareNumber({ tab, onResult, onDrill }: ShapeProps) {
       faceRef={faceRef}
       colors={colors}
       name={name}
-      ariaLabel={`${name}: ${percentText}, ${ofText}.${deltaText && !small ? ` ${approximate ? 'About ' : ''}${deltaText}.` : ''}`}
+      ariaLabel={`${name}: ${percentText}, ${ofText}.${deltaText ? ` ${approximate ? 'About ' : ''}${deltaText}.` : ''}`}
       onOpen={open}
     >
       {small ? (
-        <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{percentText}</span>
+        // A fit row's: the percent, its line and its change beside it wherever they fit (`.figures`).
+        <span className={base.figures}>
+          <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{percentText}</span>
+          {history && <ShareHistory history={history} large={false} deltaText={deltaText} approximate={approximate} />}
+        </span>
       ) : (
         <span className={styles.shareRow}>
           <Ring percent={percent} color={colors.lit ? colors.count : 'var(--color-text-secondary)'} size={large ? 72 : 44} />
@@ -182,14 +206,8 @@ export function ShareNumber({ tab, onResult, onDrill }: ShapeProps) {
             <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{percentText}</span>
             <span className={styles.meta} data-testid="number-share-of">{ofText}</span>
             {history && (
-              <span className={base.history}>
-                <Sparkline series={history.series} width={large ? 96 : 56} height={large ? 30 : 20} className={base.spark} />
-                {(deltaText != null || approximate) && (
-                  <span className={base.delta} data-testid="number-delta">
-                    {approximate && <span title={approximate} data-testid="number-approximate">≈ </span>}
-                    {deltaText}
-                  </span>
-                )}
+              <span className={`${styles.shareLine}${large ? ` ${styles.shareLineLarge}` : ''}`}>
+                <ShareHistory history={history} large={large} deltaText={deltaText} approximate={approximate} />
               </span>
             )}
           </span>

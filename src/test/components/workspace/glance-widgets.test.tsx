@@ -403,12 +403,14 @@ describe('faces (D25 R)', () => {
   const smallFace = () => document.querySelector<HTMLElement>('[data-testid="glance-small-face"]')
   const smallValue = () => within(smallFace()!).getByTestId('glance-small-value').textContent
 
-  it('a small Number is its label and count: no 14-day line', () => {
+  it('a small Number is its label and count, its line and change beside the count (shown where they fit: CSS, widget feedback 2D)', () => {
     setup(numberTab('n', 'overdue'), undefined, 'small')
     expect(numberCount()).toBe('2')
     expect(number().textContent).toContain('Overdue')
-    expect(number().querySelector('[data-sparkline]')).toBeNull()
-    expect(within(number()).queryByTestId('number-delta')).toBeNull()
+    // Drawn at every face; `.figures` clips what doesn't fit beside the count (a real browser's check: number-line-fit.spec).
+    expect(number().querySelector('[data-sparkline]')).not.toBeNull()
+    expect(within(number()).getByTestId('number-delta').textContent).toMatch(/yesterday/)
+    expect(number().getAttribute('aria-label')).toMatch(/yesterday/)
     expect(document.querySelector('[data-glance]')!.getAttribute('data-face')).toBe('small')
   })
 

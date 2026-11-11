@@ -61,14 +61,27 @@ button.number:hover {
   flex: none;
 }
 
+/* The count, its line and its change, on one line (widget feedback 2D):
+ * what doesn't fit beside the count wraps onto a second line, which the
+ * fixed height clips — the change goes first, then the line, never the
+ * count. Pure layout, no measuring: nothing flickers while a divider is
+ * dragged across the point, and the row is no taller than the count. */
 .figures {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  align-content: flex-start;
+  justify-content: center;
+  column-gap: 10px;
+  row-gap: 0;
+  height: 28px;
+  max-width: 100%;
   min-width: 0;
+  overflow: hidden;
 }
 
 .count {
+  flex: none;
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
@@ -86,18 +99,19 @@ button.number:hover {
   color: var(--color-text-muted);
 }
 
+/* Its line and change are `.figures`' own items (each wraps away alone); the large face stacks them. */
 .history {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
+  display: contents;
 }
 
 .spark {
   flex: none;
+  display: block;
 }
 
 .delta {
+  flex: none;
+  margin-left: -4px;
   font-size: var(--font-size-sm);
   line-height: 16px;
   color: var(--color-text-muted);
@@ -125,9 +139,23 @@ button.number:hover {
   line-height: 44px;
 }
 
+/* Large: the line over its change beside the count, or under it in a narrow cell. */
+.large .figures {
+  height: auto;
+  overflow: visible;
+  row-gap: 4px;
+}
+
 .large .history {
+  display: inline-flex;
+  flex: none;
   flex-direction: column;
+  align-items: center;
   gap: 2px;
+}
+
+.large .delta {
+  margin-left: 0;
 }
 
 /* The large face with a breakdown: the number above it. */

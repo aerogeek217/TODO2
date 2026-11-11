@@ -100,11 +100,13 @@ describe('Share of…', () => {
     expect(number().dataset.lit).toBe('true')
   })
 
-  it('its small face is its label and percent', () => {
+  it('its small face is its label and percent, its line and change beside it where they fit', () => {
     setup(shape({ show: 'share' }), undefined, 'small')
     expect(figure()).toBe('11%')
     expect(within(number()).queryByTestId('number-ring')).toBeNull()
-    expect(number().textContent).toBe('Late11%')
+    expect(within(number()).queryByTestId('number-share-of')).toBeNull()
+    expect(number().querySelector('[data-sparkline]')).not.toBeNull()
+    expect(number().textContent).toBe('Late11%No change vs yesterday')
   })
 
   it('a click opens the shared tasks', () => {
