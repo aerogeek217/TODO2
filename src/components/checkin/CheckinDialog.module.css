@@ -39,7 +39,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--color-text-muted);
-  font-size: var(--font-size-legacy-18);
+  font-size: var(--font-size-glyph-lg);
   line-height: 1;
   cursor: pointer;
 }

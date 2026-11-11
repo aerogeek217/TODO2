@@ -62,7 +62,7 @@
 
 .smallValue {
   flex: none;
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-display-md);
   font-weight: var(--font-weight-bold);
   line-height: 28px;
   font-variant-numeric: tabular-nums;

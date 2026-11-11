@@ -27,7 +27,7 @@
 }
 
 .target {
-  font-size: var(--font-size-legacy-15);
+  font-size: var(--font-size-display-3xs);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
 }
@@ -186,7 +186,7 @@ button.item:hover {
 }
 
 .groupLarge .itemCount {
-  font-size: var(--font-size-display-lg);
+  font-size: var(--font-size-display-xl);
   line-height: 34px;
 }
 
@@ -206,6 +206,6 @@ button.item:hover {
 }
 
 .group.small .itemCount {
-  font-size: var(--font-size-legacy-17);
+  font-size: var(--font-size-display-2xs);
   line-height: 22px;
 }

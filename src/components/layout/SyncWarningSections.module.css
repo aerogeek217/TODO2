@@ -84,7 +84,7 @@
 }
 
 .sheet .why {
-  font-size: var(--font-size-legacy-15);
+  font-size: var(--font-size-body);
 }
 
 .flag {
@@ -187,5 +187,5 @@
 .sheet .warningFill,
 .sheet .ghost {
   height: 44px;
-  font-size: var(--font-size-legacy-15);
+  font-size: var(--font-size-body);
 }

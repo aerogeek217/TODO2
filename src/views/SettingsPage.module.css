@@ -47,14 +47,14 @@
 
 .title {
   margin: 0;
-  font-size: var(--font-size-legacy-17);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
 }
 
 .titleRoot {
   padding-left: 8px;
-  font-size: var(--font-size-legacy-20);
+  font-size: var(--font-size-xl);
 }
 
 .list {

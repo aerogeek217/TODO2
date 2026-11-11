@@ -443,7 +443,7 @@ button.heatDay {
 }
 
 .weekdayName {
-  font-size: var(--font-size-legacy-10);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -540,7 +540,7 @@ button.heatDay {
 
 .compactCount {
   height: 12px;
-  font-size: var(--font-size-legacy-10);
+  font-size: var(--font-size-xs);
   line-height: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-secondary);

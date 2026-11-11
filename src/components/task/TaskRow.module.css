@@ -113,6 +113,16 @@
   transition: border-color 0.15s, background 0.15s;
 }
 
+/* A 24px target round the 18px box (UX cleanup 5A): 3px each way — into the
+ * 5px gaps beside it (the priority gutter's and the title's presses stay
+ * theirs) and, Stacked, to the row's top edge. Lines rows draw no checkbox. */
+.checkbox::after {
+  content: '';
+  position: absolute;
+  /* From the padding box: the 1.5px border, then the 3px. */
+  inset: -4.5px;
+}
+
 .checkbox:hover {
   border-color: var(--color-text-secondary);
 }

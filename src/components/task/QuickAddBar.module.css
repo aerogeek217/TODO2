@@ -57,7 +57,7 @@
 
 .mirror,
 .titleInput {
-  font-size: var(--font-size-legacy-18);
+  font-size: var(--font-size-lg);
   font-family: inherit;
   line-height: 28px;
   letter-spacing: normal;
@@ -175,6 +175,15 @@
   opacity: 0.6;
   cursor: pointer;
   transition: opacity var(--transition-fast), background var(--transition-fast);
+  position: relative;
+}
+
+/* A 24px target round the 14px circle (UX cleanup 5A): 5px each way — 2px
+ * into the 4px gap after the chip, never onto the next chip. */
+.chipRemove::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
 }
 
 .chipRemove:hover {
@@ -227,7 +236,7 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: var(--font-size-legacy-8);
+  font-size: var(--font-size-avatar);
   font-weight: 700;
   color: var(--color-text-on-accent);
   margin-left: -2px;
@@ -336,7 +345,7 @@
   background: var(--color-tint-6);
   border: 1px solid var(--color-border);
   border-radius: 3px;
-  font-size: var(--font-size-legacy-10);
+  font-size: var(--font-size-xs);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--color-text-secondary);
   line-height: 1.4;
