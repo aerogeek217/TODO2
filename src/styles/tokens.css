@@ -834,8 +834,17 @@ body {
   line-height: 1.5;
 }
 
-button {
+/* Controls take their parent's type, not the browser's own 13.33px: a
+   control with no size of its own reads as the text around it. */
+button,
+input,
+select,
+textarea {
   font-family: inherit;
+  font-size: inherit;
+}
+
+button {
   cursor: pointer;
 }
 
@@ -858,10 +867,6 @@ button {
   :is([role="dialog"], [role="listbox"])[tabindex="-1"]:focus-visible {
     box-shadow: none;
   }
-}
-
-input {
-  font-family: inherit;
 }
 
 /*
