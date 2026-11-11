@@ -77,7 +77,6 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
     // D26 P8: the chart widgets.
     case 'breakdown':
     case 'pivot':
-    case 'tagMap':
       return chartSettingEntries(tab)
   }
 }

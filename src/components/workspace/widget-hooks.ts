@@ -4,7 +4,6 @@ import { breakdownPreset } from '../../models/chart-widgets'
 import { getActiveTab, kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
 import { zoomTargetTab } from '../../services/list-zoom'
 import { readingOrder } from '../../utils/workspace-grid'
-import { useChartWidgetsStore } from '../../stores/chart-widgets-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -123,23 +122,22 @@ function freshListName(base: string, layoutId: number): string {
   return uniqueListName(base, taken)
 }
 
-/** The new list widget being made, while its list is being saved (`createListThenEdit`). */
+/** The new list widget being made, while its list is being saved (`createListAndTab`). */
 let creatingList: Promise<void> | null = null
 registerModuleReset(() => { creatingList = null })
 
 /**
  * A new list widget (adding one, a tab switched to List): saves a blank
- * list of layout `layoutId` (`New list`, `New list 2`, …; no filter;
- * Settings' new-list sort and grouping), hands its id to `show` (which puts
- * it in a tab and returns that tab's id), then opens Edit list beside that
- * tab. One at a time: a call while one is still saving its list (a
+ * list of layout `layoutId` (`New list`, `New list 2`, …; no filter, so it
+ * shows every open task; Settings' new-list sort and grouping) and hands its
+ * id to `show`, which puts it in a tab. No editor opens: Edit list is in the
+ * list's ⋯ menu. One at a time: a call while one is still saving its list (a
  * double-click on a List button or menu item) does nothing.
  */
-export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutId: number): Promise<void> {
+export function createListAndTab(show: (listDefinitionId: number) => unknown, layoutId: number): Promise<void> {
   if (creatingList) return creatingList
   const run = useListDefinitionStore.getState().add({ name: freshListName('New list', layoutId), owner: { layoutId } }).then((id) => {
-    const tabId = show(id)
-    if (tabId != null) openEditList(tabId, id)
+    show(id)
   })
   creatingList = run.finally(() => { creatingList = null })
   return creatingList
@@ -156,9 +154,10 @@ export function useListOwnerLayoutId(): number | undefined {
 
 /**
  * Adds a widget tab of `kind` at `target` (a list tab with its list).
- * Returns the new tab's id. A new Number opens its editor at once: its empty
- * filter counts every open task until one is set. So does a new chart
- * (D26 P8; `seed` its preset's config).
+ * Returns the new tab's id. No editor opens: every kind draws something by
+ * default — a new Number's empty filter counts every open task, a chart
+ * (D26 P8; `seed` its preset's config) splits them —, and its editor is in
+ * its ⋯ menu.
  */
 export function useAddWidget() {
   return addWidgetAt
@@ -166,16 +165,16 @@ export function useAddWidget() {
 
 /**
  * Adds a widget of `kind` at `target` with `add` (`addWidgetAt`): a list
- * widget gets a new blank list of layout `layoutId` and opens its Edit list
- * (`createListThenEdit`); without a stored layout (`layoutId` undefined) no
- * list is added — it can't own one yet.
+ * widget gets a new blank list of layout `layoutId` (`createListAndTab`);
+ * without a stored layout (`layoutId` undefined) no list is added — it
+ * can't own one yet.
  */
 export function addKindAt(kind: WidgetKind, target: LayoutDropTarget, add: typeof addWidgetAt, layoutId: number | undefined): void {
   if (!WIDGET_KIND_SPECS[kind].showsList) {
     add(kind, target)
     return
   }
-  if (layoutId != null) void createListThenEdit((id) => add('lens', target, id), layoutId)
+  if (layoutId != null) void createListAndTab((id) => add('lens', target, id), layoutId)
 }
 
 /**
@@ -220,12 +219,5 @@ export function addWidgetFromPalette(kind: WidgetKind): void {
 
 /** `useAddWidget`'s add, outside a component (the palette's Add Widget ›). */
 export function addWidgetAt(kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number, seed?: TabSeed): string | null {
-  const tabId = useWorkspaceStore.getState().addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
-  if (tabId != null && kind === 'number') openNumberEditor(tabId)
-  // D26 P8: a chart opens its editor too.
-  if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'tagMap')) {
-    const chartTab = tabId
-    openBeside(chartTab, () => useChartWidgetsStore.getState().openEditor(chartTab))
-  }
-  return tabId
+  return useWorkspaceStore.getState().addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
 }

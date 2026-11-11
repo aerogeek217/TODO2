@@ -1009,8 +1009,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         ]),
         Z: cell('cell-pulse', [
           { id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } },
-          // D26 P8: every tag, sized by open tasks, coloured by the late share.
-          { id: 'tab-tag-map', kind: 'tagMap', config: { name: 'Tag map', filter: filter() } },
         ]),
         K: cell('cell-month', [calendar('tab-month', 'month', 0, false)]),
         Q: cell('cell-matrix3', [{ id: 'tab-matrix3', kind: 'eisenhower', config: {} }]),
