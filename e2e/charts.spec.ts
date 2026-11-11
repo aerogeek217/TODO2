@@ -39,7 +39,7 @@ test('a Pivot’s cell and its totals open their tasks', async ({ page }) => {
   await expect(pivot.getByTestId('chart-sub')).toHaveText('People × Status')
   // Rows: people (Unassigned last); columns: the statuses in Settings order, No status last.
   await expect(pivot.locator('[role="rowheader"]')).toHaveText(['Aisha Rahman', 'Ben Ortiz', 'Unassigned', 'Total'])
-  await expect(pivot.locator('[role="columnheader"]')).toHaveText(['', 'Doing', 'Waiting', 'No status', 'Total'])
+  await expect(pivot.locator('[role="columnheader"]')).toHaveText(['Person', 'Doing', 'Waiting', 'No status', 'Total'])
   const cell = pivot.getByRole('button', { name: 'Ben Ortiz × Waiting: 1. Show tasks' })
   await cell.click()
   await expect(dialog(page).getByRole('heading')).toHaveText('Pivot · Ben Ortiz × Waiting')
