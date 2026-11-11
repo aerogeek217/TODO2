@@ -158,19 +158,7 @@ test('list', async ({ browser }) => {
   })
 })
 
-test('task', async ({ browser }) => {
-  await withPage(browser, 1280, 980, 2, false, async (page) => {
-    // Over the quieter layout: the dialogs' glass blurs what is behind them.
-    await layout(page, 'Planning')
-    await ui(page, 'openEditPopup', await idOf(page, 'todo', EDITOR_TASK))
-    const editor = page.getByRole('dialog').first()
-    await editor.waitFor()
-    await page.mouse.move(2, 2)
-    await settled(page)
-    await shoot(page, 'task', [editor], 6)
-  })
-})
-
+// The task editor has no shot of its own: the review deck's card is the same layout.
 test('review', async ({ browser }) => {
   await withPage(browser, 1080, 860, 1.65, false, async (page) => {
     await layout(page, 'Planning')
