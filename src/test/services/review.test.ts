@@ -6,11 +6,16 @@ import {
   openReview,
   peopleReview,
   personReview,
+  queueOfRowGroups,
   queueOfSections,
   reviewListTab,
+  reviewTasksLabel,
+  screenQueueNow,
+  screenReview,
   tagReview,
   toggleReviewLens,
 } from '../../services/review'
+import { useFilterStore } from '../../stores/filter-store'
 import { useListWidgetStore, type ShownList } from '../../stores/list-widget-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { usePersonStore } from '../../stores/person-store'
@@ -210,5 +215,79 @@ describe('the deck’s lens switch (item 10)', () => {
     toggleReviewLens()
     expect(store().ids).toEqual([1, 2, 3])
     expect(current()).toBe(2)
+  })
+})
+
+describe('the filtered-tasks panel’s review (the screen filter as a source)', () => {
+  const aisha: Person = { id: 1, name: 'Aisha', initials: 'A' }
+  const legal: Tag = { id: 7, name: 'legal', color: '#999' }
+  const store = () => useReviewStore.getState()
+
+  beforeEach(() => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, sortOrder: 1 }),
+        makeTodo({ id: 2, sortOrder: 2 }),
+        makeTodo({ id: 3, sortOrder: 3 }),
+        makeTodo({ id: 4, sortOrder: 4 }),
+      ],
+    })
+    usePersonStore.setState({ people: [aisha], assignedPeopleMap: new Map([[1, [aisha]], [2, [aisha]], [3, [aisha]]]) })
+    useTagStore.setState({ tags: [legal], assignedTagsMap: new Map([[2, [legal]], [4, [legal]]]) })
+    useSettingsStore.setState({ lenses: [{ id: 'l1', name: 'Legal', predicate: { ...emptyPredicate(), tags: [7] } }], activeLensId: null })
+    useFilterStore.getState().clearAll()
+  })
+
+  it('takes the panel’s rows in its order, each once; its headings become the dividers', () => {
+    const groups = [
+      { key: 'a', label: 'Aisha', todoIds: [3, 1] },
+      { key: 'b', label: 'Unassigned', todoIds: [1, 4] },
+    ]
+    expect(queueOfRowGroups(groups)).toEqual({ ids: [3, 1, 4], dividers: [{ index: 0, label: 'Aisha' }, { index: 2, label: 'Unassigned' }] })
+    // A flat panel: no dividers.
+    expect(queueOfRowGroups([{ key: 'all', label: null, todoIds: [2, 1] }])).toEqual({ ids: [2, 1], dividers: [] })
+    const payload = screenReview(groups)
+    expect(payload).toMatchObject({ kind: 'screen', title: 'Filtered tasks', ids: [3, 1, 4], description: 'Every open task the top bar shows.' })
+    expect(openReview(payload)).toBe(true)
+    expect(store()).toMatchObject({ open: true, source: { kind: 'screen', title: 'Filtered tasks' }, ids: [3, 1, 4] })
+  })
+
+  it('its description follows the chips', () => {
+    useFilterStore.getState().setPersonIds(new Set([1]))
+    expect(screenReview([]).description).toBe('Open tasks matching the screen filter.')
+    useFilterStore.getState().setShowCompleted(true)
+    expect(screenReview([]).description).toBe('Tasks matching the screen filter, completed ones included.')
+  })
+
+  it('the lens switch: under the lens as the panel showed it; a toggle takes the screen filter’s tasks again without it, and back', () => {
+    useFilterStore.getState().setPersonIds(new Set([1]))
+    useSettingsStore.setState({ activeLensId: 'l1' })
+    // Aisha's tasks under Legal: task 2 alone.
+    expect(screenQueueNow(false).ids).toEqual([2])
+    expect(screenQueueNow(true).ids).toEqual([1, 2, 3])
+    openReview(screenReview([{ key: 'all', label: null, todoIds: [2] }]))
+    expect(store().lens).toMatchObject({ ignored: false, hides: 2, used: false })
+    toggleReviewLens()
+    expect(store().ids).toEqual([1, 2, 3])
+    expect(store().order[store().index]).toBe(2)
+    expect(store().lens).toMatchObject({ ignored: true, hides: 2, used: true })
+    toggleReviewLens()
+    expect(store().ids).toEqual([2])
+  })
+
+  it('a lifted lens hides nothing; no tasks opens nothing', () => {
+    useSettingsStore.setState({ activeLensId: 'l1' })
+    useUIStore.setState({ lensLifted: true })
+    expect(screenQueueNow(false).ids).toEqual([1, 2, 3, 4])
+    openReview(screenReview([{ key: 'all', label: null, todoIds: [1, 2, 3, 4] }]))
+    expect(store().lens).toMatchObject({ hides: 0 })
+    store().close()
+    expect(openReview(screenReview([]))).toBe(false)
+    expect(store().open).toBe(false)
+  })
+
+  it('the entry points’ label', () => {
+    expect(reviewTasksLabel(1)).toBe('Review this task')
+    expect(reviewTasksLabel(8)).toBe('Review these 8 tasks')
   })
 })
