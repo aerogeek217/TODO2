@@ -178,6 +178,11 @@ test('review', async ({ browser }) => {
         jumpToReview: (f: { expression: { kind: 'person'; id: number }; showCompleted: boolean }) => Promise<boolean>
       }
       await jump.jumpToReview({ expression: { kind: 'person', id }, showCompleted: false })
+      // Adding the widget is an undo step: its snackbar would sit over the footer.
+      const undo = (await import(/* @vite-ignore */ '/src/stores/undo-store.ts' as string)) as {
+        useUndoStore: { getState: () => { dismissSnackbar: () => void } }
+      }
+      undo.useUndoStore.getState().dismissSnackbar()
     }, { id })
     const widget = page.locator('[data-review-widget]').first()
     await widget.waitFor()
