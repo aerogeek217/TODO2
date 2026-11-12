@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../../models'
 import { computeTrend } from '../../../services/stats/trend'
-import { signed, trendApproxLabel, trendBucketWords } from '../../../components/workspace/glance/glance-copy'
+import { signed, trendBucketWords } from '../../../components/workspace/glance/glance-copy'
 import { trendCumulativeDrill, trendOpenDrill, trendTotalDrill } from '../../../components/workspace/glance/glance-drills'
 import { summaryOf, trendLines } from '../../../components/workspace/glance/glance-summary'
 import { makeTodo } from '../../helpers'
@@ -46,13 +46,11 @@ describe('trendLines', () => {
     expect(lines.at(-1)?.[0]?.count).toBe('3 created · 1 completed')
   })
 
-  it('marks the bars before the first exact day ≈', () => {
+  it('names the bars before the first exact day approximate, in words (no ≈)', () => {
     const lines = trendLines({ ...input, show: 'bars', exactFrom: 3 })
-    expect(lines[2]?.[0]?.label.endsWith(' ≈')).toBe(true)
-    expect(lines[5]?.[0]?.label.endsWith(' ≈')).toBe(false)
-    expect(trendApproxLabel(trend.window.days, 3, today)).toMatch(/^≈ before /)
-    expect(trendApproxLabel(trend.window.days, 0, today)).toBeNull()
-    expect(trendApproxLabel(trend.window.days, 14, today)).toBe('≈')
+    expect(lines[2]?.[0]?.label.endsWith(' (approximate)')).toBe(true)
+    expect(lines[5]?.[0]?.label.endsWith(' (approximate)')).toBe(false)
+    expect(summaryOf(lines).plain).not.toContain('≈')
   })
 
   it('before the history is read: its name and range only', () => {

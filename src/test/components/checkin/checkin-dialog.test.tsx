@@ -4,7 +4,6 @@ import { CheckinDialog } from '../../../components/checkin/CheckinDialog'
 import { db } from '../../../data/database'
 import type { Person, PersistedTodoItem, TodoPredicate } from '../../../models'
 import { emptyPredicate } from '../../../models/filter-predicate'
-import { createCommands, type CommandContext } from '../../../services/command-registry'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -373,16 +372,5 @@ describe('CheckinDialog — layers and closing', () => {
     act(() => useUIStore.getState().openCheckinDialog())
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(useUIStore.getState().checkinDialog).toBeNull()
-  })
-})
-
-describe('Email task check-ins command', () => {
-  it('opens the dialog with nobody ticked', () => {
-    const openCheckinDialog = vi.fn()
-    const ctx = { shortcuts: {}, openCheckinDialog, getStatuses: () => [], selectionCount: 0 } as unknown as CommandContext
-    const cmd = createCommands(ctx).find((c) => c.id === 'email-checkins')
-    expect(cmd).toMatchObject({ name: 'Email task check-ins…', category: 'email' })
-    cmd!.action()
-    expect(openCheckinDialog).toHaveBeenCalledWith()
   })
 })

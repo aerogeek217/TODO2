@@ -7,7 +7,7 @@ import { lensHidesFor, trendFilter, useLensHidden, useStatsBase, useTrend, type 
 import { trendBucketDays, trendCumulative } from '../../../services/stats/trend'
 import { TabLensSwitch } from '../LensSwitch'
 import {
-  approximateNote, signed, sinceLabel, trendApproxLabel, trendBucketLabel, trendBucketWords, trendRangeLabel, trendRangeWords,
+  approximateNote, signed, sinceLabel, trendBucketLabel, trendBucketWords, trendRangeLabel, trendRangeWords,
 } from './glance-copy'
 import { trendBucketDrill, trendCumulativeDrill, trendOpenDrill, trendTotalDrill } from './glance-drills'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
@@ -34,7 +34,7 @@ interface ShowProps {
   rangeWords: string
   today: Date
   onDrill?: OnGlanceDrill
-  /** The medium face: a line chart leaves out its stats row (its lines' end values say them), keeping the ≈ note. */
+  /** The medium face: a line chart leaves out its stats row (its lines' end values say them). */
   compact?: boolean
 }
 
@@ -73,11 +73,13 @@ function Axis({ columns, width }: { columns: readonly Column[]; width: number })
   )
 }
 
-/** The stats row's ≈ note (its tooltip names what the log doesn't hold), while some days aren't exact. */
-function ApproxNote({ data, today }: { data: TrendData; today: Date }) {
-  const label = trendApproxLabel(data.stats.window.days, data.exactFrom, today)
-  if (!label) return null
-  return <span className={`${styles.trendStat} ${styles.trendApprox}`} title={approximateNote(data.approximate)} data-testid="trend-approximate">{label}</span>
+/**
+ * The tooltip of a column the history log can't count exactly (a dimmed bar,
+ * a dashed stretch of line): which fields read as they are now. No mark of
+ * its own on the chart, as a Number's line has none.
+ */
+function approxTitle(data: TrendData, column: Column | undefined): string | undefined {
+  return column != null && column.first < data.exactFrom ? approximateNote(data.approximate) : undefined
 }
 
 /** One of the stats row's figures: a number and its words, a button opening its tasks when there are any. */
@@ -122,7 +124,6 @@ function BarsShow({ data, name, rangeWords, today, onDrill }: ShowProps) {
           onClick={onDrill ? () => onDrill(trendTotalDrill('created', rangeWords, stats.buckets.flatMap((b) => b.createdIds), name)) : undefined}
         />
         <span className={styles.trendStat} data-testid="glance-trend-net"><b>{signed(stats.net)}</b>{sinceLabel(stats.window.start, today)}</span>
-        <ApproxNote data={data} today={today} />
       </div>
       <div ref={ref} className={styles.trendChart} style={{ gridTemplateColumns: columnTemplate(columns) }}>
         {stats.buckets.map((b, i) => {
@@ -137,6 +138,7 @@ function BarsShow({ data, name, rangeWords, today, onDrill }: ShowProps) {
               className={styles.trendGroup}
               data-trend-column={String(i)}
               data-approx={approx ? 'true' : undefined}
+              title={approxTitle(data, column)}
               label={`${column?.words ?? ''}: ${c} created, ${k} completed${approx ? ' (approximate)' : ''}. Show tasks`}
               onClick={onDrill && c + k > 0
                 ? () => onDrill(trendBucketDrill(b.start, stats.window.granularity, today, { completed: b.completedIds, created: b.createdIds }, name))
@@ -182,8 +184,8 @@ function LineChart({ lines, columns, exactFrom, band, area, startLabel, hits }: 
   area?: boolean
   /** Label the first line's first value too (the Burndown's start). */
   startLabel?: boolean
-  /** Each column's label and drill. */
-  hits: ReadonlyArray<{ label: string; onClick?: () => void }>
+  /** Each column's label, tooltip and drill. */
+  hits: ReadonlyArray<{ label: string; title?: string; onClick?: () => void }>
 }) {
   const [ref, size] = useElementSize()
   const [active, setActive] = useState<number | null>(null)
@@ -255,6 +257,7 @@ function LineChart({ lines, columns, exactFrom, band, area, startLabel, hits }: 
               data-trend-column={String(i)}
               data-approx={c.first < exactFrom ? 'true' : undefined}
               label={hit?.label}
+              title={hit?.title}
               onClick={hit?.onClick}
             >
               {null}
@@ -305,14 +308,13 @@ function BurndownShow({ data, name, today, onDrill, compact }: ShowProps) {
     const approx = c.first < data.exactFrom ? ' (approximate)' : ''
     return {
       label: `${c.words}: ${ids.length} open ${isToday ? 'now' : stats.window.granularity === 'day' ? 'at its end' : 'at the week’s end'}${approx}. Show tasks`,
+      title: approxTitle(data, c),
       onClick: onDrill && day && ids.length > 0 ? () => onDrill(trendOpenDrill(day, today, ids, name)) : undefined,
     }
   })
   return (
     <div className={styles.trend}>
-      {compact
-        ? data.exactFrom > 0 && <div className={styles.trendStats}><ApproxNote data={data} today={today} /></div>
-        : (
+      {!compact && (
           <div className={styles.trendStats}>
             <Stat
               value={String(openNow)}
@@ -330,9 +332,8 @@ function BurndownShow({ data, name, today, onDrill, compact }: ShowProps) {
               onClick={onDrill && stats.openAtStart > 0 ? () => onDrill(trendOpenDrill(null, today, stats.openAtStartIds, name)) : undefined}
             />
             <span className={styles.trendStat} data-testid="trend-change"><b>{signed(stats.net)}</b>{sinceLabel(stats.window.start, today)}</span>
-            <ApproxNote data={data} today={today} />
           </div>
-        )}
+      )}
       <LineChart lines={lines} columns={columns} exactFrom={data.exactFrom} area startLabel hits={hits} />
       <div ref={axisRef}><Axis columns={columns} width={axisSize.width} /></div>
     </div>
@@ -357,6 +358,7 @@ function CumulativeShow({ data, name, rangeWords, today, onDrill, compact }: Sho
     const approx = c.first < data.exactFrom ? ' (approximate)' : ''
     return {
       label: `Through ${c.words}: ${cumulative.created[c.last] ?? 0} created (with ${stats.openAtStart} open at the start), ${cumulative.completed[c.last] ?? 0} completed${approx}. Show tasks`,
+      title: approxTitle(data, c),
       onClick: onDrill && day && created.length + completed.length + stats.openAtStart > 0
         ? () => onDrill(trendCumulativeDrill(day, today, { completed, created, openAtStart: stats.openAtStartIds }, name))
         : undefined,
@@ -364,9 +366,7 @@ function CumulativeShow({ data, name, rangeWords, today, onDrill, compact }: Sho
   })
   return (
     <div className={styles.trend}>
-      {compact
-        ? data.exactFrom > 0 && <div className={styles.trendStats}><ApproxNote data={data} today={today} /></div>
-        : (
+      {!compact && (
           <div className={styles.trendStats}>
             <Stat
               value={String(stats.created)}
@@ -390,9 +390,8 @@ function CumulativeShow({ data, name, rangeWords, today, onDrill, compact }: Sho
               label={`${stats.openAtStart} open when the range began. Show tasks`}
               onClick={onDrill && stats.openAtStart > 0 ? () => onDrill(trendOpenDrill(null, today, stats.openAtStartIds, name)) : undefined}
             />
-            <ApproxNote data={data} today={today} />
           </div>
-        )}
+      )}
       <LineChart lines={lines} columns={columns} exactFrom={data.exactFrom} band hits={hits} />
       <div ref={axisRef}><Axis columns={columns} width={axisSize.width} /></div>
     </div>
@@ -419,7 +418,8 @@ function smallFigures(show: TrendShow, data: TrendData | null, rangeShort: strin
  * The Created vs completed widget: its filter's tasks among those the top
  * bar shows (its lens switch, G3), over its range, shown as Bars, a
  * Burndown or Cumulative lines (`config.show`), the days the history log
- * can't count exactly marked ≈. Every bar, point and total opens its tasks.
+ * can't count exactly dimmed or dashed (their tooltip says why). Every bar,
+ * point and total opens its tasks.
  * Small face: its name and the presentation's headline; medium and large:
  * the chart. Its editor (Edit chart…, `TrendEditorHost`) opens under its
  * title (`data-trend-head`).

@@ -5,7 +5,6 @@ import { CheckinImportDialog } from '../../../components/checkin/CheckinImportDi
 import { db } from '../../../data/database'
 import type { PersistedTodoItem } from '../../../models'
 import { emptyPredicate } from '../../../models/filter-predicate'
-import { createCommands, type CommandContext } from '../../../services/command-registry'
 import { CHECKIN_REPLY_MAX_CHARS } from '../../../services/checkin-reply/parse'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -420,14 +419,5 @@ describe('entry points', () => {
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Email task check-ins' })).getByRole('button', { name: 'Paste a reply…' }))
     expect(screen.queryByRole('dialog', { name: 'Email task check-ins' })).toBeNull()
     expect(dialog()).toBeTruthy()
-  })
-
-  it('the palette command opens it', () => {
-    const openCheckinImport = vi.fn()
-    const commands = createCommands({ shortcuts: {}, openCheckinImport } as unknown as CommandContext)
-    const cmd = commands.find((c) => c.name === 'Import check-in reply…')
-    expect(cmd?.category).toBe('email')
-    cmd?.action()
-    expect(openCheckinImport).toHaveBeenCalledOnce()
   })
 })

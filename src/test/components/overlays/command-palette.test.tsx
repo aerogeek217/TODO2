@@ -25,16 +25,16 @@ afterEach(() => {
 })
 
 describe('CommandPalette', () => {
-  it('shows a command’s hint on the right of its row, and the Email section groups the check-in commands', () => {
+  it('shows a command’s hint on the right of its row, and a section groups its category’s commands', () => {
     const open = vi.fn()
     const commands: Command[] = [
-      { id: 'email-checkins', name: 'Email task check-ins…', hint: 'choose people', category: 'email', action: vi.fn() },
-      { id: 'email-checkin-2', name: 'Email check-in: Ada Lovelace', hint: '4 open tasks', category: 'email', action: open },
+      { id: 'filter-show-tasks', name: 'Show Tasks Matching the Filter', hint: '12 tasks', category: 'filter', action: vi.fn() },
+      { id: 'filter-ada', name: 'Show tasks of Ada Lovelace', hint: '4 open tasks', category: 'filter', action: open },
     ]
     const onClose = vi.fn()
     render(<CommandPalette commands={commands} onClose={onClose} />)
-    const section = screen.getByRole('group', { name: 'Email' })
-    const row = screen.getByRole('option', { name: /Email check-in: Ada Lovelace/ })
+    const section = screen.getByRole('group', { name: 'Filters' })
+    const row = screen.getByRole('option', { name: /Show tasks of Ada Lovelace/ })
     expect(section).toContainElement(row)
     expect(row).toHaveTextContent('4 open tasks')
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ada' } })
@@ -44,7 +44,7 @@ describe('CommandPalette', () => {
   })
 
   describe('search', () => {
-    // The real command list: navigation, task, filter, bulk (two tasks selected) and email commands.
+    // The real command list: navigation, task, filter and bulk (two tasks selected) commands.
     const people: Person[] = [
       { id: 1, name: 'Marcus Chen', initials: 'MC', email: 'marcus@example.com' },
       { id: 2, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' },
@@ -58,7 +58,6 @@ describe('CommandPalette', () => {
         clearAllFilters: vi.fn(), setShowCompleted: vi.fn(), getShowCompleted: () => false, setDateRange: vi.fn(),
         getTodos: () => [], focusTask: vi.fn(),
         getStatuses: () => [{ id: 1, name: 'Waiting', color: '#888888', sortOrder: 0 }],
-        openCheckinDialog: vi.fn(), openCheckinImport: vi.fn(),
         getPeople: () => people, getOpenTaskCounts: () => new Map([[1, 3], [2, 4], [3, 1]]),
       }
       return createCommands(ctx)
@@ -80,8 +79,6 @@ describe('CommandPalette', () => {
       expect(optionNames()[0]).toBe('Review With › Marcus Chen')
       type('  review   ada ')
       expect(optionNames()).toEqual(['Review With › Ada Lovelace'])
-      type('import reply')
-      expect(optionNames()).toEqual(['Import check-in reply…'])
       type('clear filters')
       expect(optionNames()).toEqual(['Clear All Filters'])
       type('>review mark')
@@ -123,9 +120,9 @@ describe('CommandPalette', () => {
       expect(optionNames()).toEqual(['Open Filter Menu', 'Focus Filter Field', 'Clear All Filters', 'Toggle Show Completed', 'Cycle Lens', 'Lift Lens / Put It Back', 'Show Overdue Tasks'])
       type('complete')
       expect(optionNames()).toEqual(['Complete 2 Tasks', 'Uncomplete 2 Tasks', 'Toggle Show Completed'])
-      // The step, not every person in it: a word must match a leaf's own name to reach it.
-      type('email')
-      expect(optionNames()).toEqual(['Email task check-ins…', 'Import check-in reply…'])
+      // No check-in commands: those are on the Review widget's field.
+      type('check-in')
+      expect(optionNames()).toEqual([])
     })
 
     it('passes the whole query to the task search, whatever the number of words', () => {
@@ -145,7 +142,7 @@ describe('CommandPalette', () => {
 describe('CommandPalette — second steps', () => {
   const go = vi.fn()
   const review = vi.fn()
-  const email = vi.fn()
+  const show = vi.fn()
   const addList = vi.fn()
   function stepCommands(): Command[] {
     const leaf = (id: string, name: string, category: Command['category'], action: () => void, extra: Partial<Command> = {}): Command => ({ id, name, category, action, ...extra })
@@ -164,8 +161,8 @@ describe('CommandPalette — second steps', () => {
         step: [leaf('review-1', 'Aisha Rahman', 'task', () => review(1), { hint: '3 open tasks' }), leaf('review-2', 'Ben Ito', 'task', () => review(2))],
       },
       {
-        id: 'email-checkin', name: 'Email Check-in', category: 'email', action: vi.fn(),
-        step: [leaf('email-1', 'Aisha Rahman', 'email', () => email(1)), leaf('email-2', 'Ben Ito', 'email', () => email(2))],
+        id: 'show-tasks-of', name: 'Show Tasks Of', category: 'filter', action: vi.fn(),
+        step: [leaf('show-1', 'Aisha Rahman', 'filter', () => show(1)), leaf('show-2', 'Ben Ito', 'filter', () => show(2))],
       },
     ]
   }
@@ -179,7 +176,7 @@ describe('CommandPalette — second steps', () => {
 
   it('at rest lists the step commands, marked as opening a step, not what is in them', () => {
     render(<CommandPalette commands={stepCommands()} onClose={vi.fn()} />)
-    expect(optionNames()).toEqual(['Open Settings', 'Go to Layout', 'Add Widget', 'Review With', 'Email Check-in'])
+    expect(optionNames()).toEqual(['Open Settings', 'Go to Layout', 'Add Widget', 'Review With', 'Show Tasks Of'])
     expect(screen.getByRole('option', { name: /Go to Layout/ })).toHaveAttribute('aria-haspopup', 'listbox')
     expect(screen.getByRole('option', { name: /Open Settings/ })).not.toHaveAttribute('aria-haspopup')
   })
@@ -256,10 +253,10 @@ describe('CommandPalette — second steps', () => {
     type('planning')
     expect(optionNames()).toEqual(['Go to Layout › Planning'])
     type('aisha')
-    expect(optionNames()).toEqual(['Review With › Aisha Rahman', 'Email Check-in › Aisha Rahman'])
+    expect(optionNames()).toEqual(['Review With › Aisha Rahman', 'Show Tasks Of › Aisha Rahman'])
     expect(screen.getByRole('group', { name: 'Tasks' })).toHaveTextContent('3 open tasks')
-    type('email aisha')
-    expect(optionNames()).toEqual(['Email Check-in › Aisha Rahman'])
+    type('show aisha')
+    expect(optionNames()).toEqual(['Show Tasks Of › Aisha Rahman'])
     // The step's name alone finds the step (and its category's commands), not each leaf.
     type('layout')
     expect(optionNames()).toContain('Go to Layout')

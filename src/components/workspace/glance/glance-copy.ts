@@ -75,16 +75,6 @@ export const TREND_SHOW_HINTS: Record<TrendShow, string> = {
   cumulative: 'Running totals of created (starting from the tasks open when the range began) and completed: the gap between the lines is what is open.',
 }
 
-/**
- * The ≈ note on Created vs completed's stats row: `≈ before Thu 5` while
- * the first days can't be counted exactly, `≈` alone while none can.
- */
-export function trendApproxLabel(days: readonly Date[], exactFrom: number, today: Date): string | null {
-  if (exactFrom <= 0) return null
-  const first = days[exactFrom]
-  return first ? `≈ before ${formatFollowupDay(first, today)}` : '≈'
-}
-
 // ── The task dialog's words ──────────────────────────────────────────────────
 
 /** A dialog line under the top-bar filter: it counts only what the filter shows. */
@@ -131,7 +121,7 @@ const APPROXIMATE_WORDS: Record<HistoryField, string> = {
   modified: 'modified dates',
 }
 
-/** The ≈ mark's tooltip: which fields some days read as they are now. */
+/** The tooltip of an approximate line, bar or point: which fields some days read as they are now. */
 export function approximateNote(fields: readonly HistoryField[]): string {
   const words = fields.map((f) => APPROXIMATE_WORDS[f])
   const list = words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}` : (words[0] ?? '')

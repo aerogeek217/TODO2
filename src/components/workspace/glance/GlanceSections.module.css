@@ -240,7 +240,7 @@ button.trendGroup:hover {
   border-radius: 2px 2px 0 0;
 }
 
-/* A bar the history log can't count exactly (≈): dimmed. */
+/* A bar the history log can't count exactly: dimmed. */
 .trendGroup[data-approx='true'] .trendBar {
   opacity: 0.45;
 }
@@ -251,10 +251,6 @@ button.trendGroup:hover {
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-}
-
-.trendApprox {
-  cursor: help;
 }
 
 /* Burndown and Cumulative: the SVG fills the measured box; the column buttons lie over it. */

@@ -306,17 +306,10 @@ describe('createCommands — the lens', () => {
 
 describe('createCommands — email check-ins', () => {
   const people = [{ id: 2, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' }]
-  const emailCommands = (ctx: CommandContext) => createCommands(ctx).filter((c) => c.category === 'email')
 
-  it('the check-in dialog and the reply import only: no Email Check-in › per person (widget feedback 2B)', () => {
-    const ctx = makeContext({
-      openCheckinDialog: vi.fn(), openCheckinImport: vi.fn(),
-      getPeople: () => people, getOpenTaskCounts: () => new Map([[2, 4]]),
-    })
-    expect(emailCommands(ctx).map((c) => [c.name, c.hint])).toEqual([
-      ['Email task check-ins…', 'choose people'],
-      ['Import check-in reply…', undefined],
-    ])
-    expect(createCommands(ctx).some((c) => c.id === 'email-checkin')).toBe(false)
+  it('offers none: check-ins are sent and replies pasted on the Review widget’s field', () => {
+    const ctx = makeContext({ getPeople: () => people, getOpenTaskCounts: () => new Map([[2, 4]]) })
+    const names = createCommands(ctx).flatMap((c) => [c, ...(c.step ?? [])]).map((c) => c.name)
+    expect(names.filter((n) => /check-in/i.test(n))).toEqual([])
   })
 })

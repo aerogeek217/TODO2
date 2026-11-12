@@ -901,3 +901,33 @@ export async function closeListFilterEditor(page: Page): Promise<void> {
 export function editListSave(page: Page): Locator {
   return page.getByTestId('edit-list').getByRole('button', { name: 'Save', exact: true })
 }
+
+/**
+ * Opens the email check-in dialog, as the app does when a one-click send
+ * can't go: no command or button opens it on purpose, so a spec about the
+ * dialog itself asks the store. Returns the open dialog.
+ */
+export async function openCheckinDialog(page: Page): Promise<Locator> {
+  await page.evaluate(async () => {
+    const mod = (await import(/* @vite-ignore */ '/src/stores/ui-store.ts' as string)) as {
+      useUIStore: { getState: () => { openCheckinDialog: () => void } }
+    }
+    mod.useUIStore.getState().openCheckinDialog()
+  })
+  const dialog = page.getByRole('dialog', { name: 'Email task check-ins' })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+/** Opens the check-in reply import, as the Review widget's Paste reply does. Returns the open dialog. */
+export async function openCheckinImport(page: Page): Promise<Locator> {
+  await page.evaluate(async () => {
+    const mod = (await import(/* @vite-ignore */ '/src/stores/ui-store.ts' as string)) as {
+      useUIStore: { getState: () => { openCheckinImport: () => void } }
+    }
+    mod.useUIStore.getState().openCheckinImport()
+  })
+  const dialog = page.getByRole('dialog', { name: 'Import task update' })
+  await expect(dialog).toBeVisible()
+  return dialog
+}

@@ -14,7 +14,8 @@ import { emptyPredicate, pickInReview, seedWorkspace, wsListWidget, type Workspa
  * clipboard, the check-in dialog opens for the person instead, saying why.
  * Every older place is gone: the People group header's envelope, a Breakdown
  * person row's envelope, the person menu's items, the person task dialog's
- * buttons, the People filter's footer and the palette's Email Check-in ›.
+ * buttons, the People filter's footer and every palette command (Email
+ * Check-in ›, Email task check-ins…, Import check-in reply…).
  */
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -194,13 +195,15 @@ test('the old places are gone: the task dialog, the group header, its menu, the 
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
-  // The palette: no Email Check-in › (the check-in dialog and the reply import stay).
+  // The palette: no check-in command at all — at rest, or searched for.
   await page.keyboard.press('Control+k')
   const input = page.getByPlaceholder(/Find tasks, commands/)
-  await input.pressSequentially('email')
   const options = page.getByRole('listbox').getByRole('option')
-  await expect(options.filter({ hasText: 'Email task check-ins…' })).toHaveCount(1)
-  await expect(options.filter({ hasText: /Email Check-in/ })).toHaveCount(0)
+  await expect(options.filter({ hasText: 'Open Settings' })).toHaveCount(1)
+  await expect(options.filter({ hasText: /check-in/i })).toHaveCount(0)
+  await input.pressSequentially('>check-in')
+  await expect(options.filter({ hasText: 'Open Settings' })).toHaveCount(0)
+  await expect(options.filter({ hasText: /check-in/i })).toHaveCount(0)
   expect(await mailtoLinks(page)).toEqual([])
 })
 

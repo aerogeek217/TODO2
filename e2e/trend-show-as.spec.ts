@@ -8,7 +8,8 @@ import { emptyPredicate, seedWorkspace, type WorkspaceSeed } from './fixtures/wo
  * Created vs completed's name, filter and Show as (widget feedback 2C) in a
  * real browser: the three presentations at the medium and the large face
  * over a seeded history, a point opening its tasks, the days before the
- * history log began dashed and marked ≈, and the editor's Save / Undo.
+ * history log began dashed or dimmed (their tooltip says why; no ≈ note),
+ * and the editor's Save / Undo.
  *
  * `TREND_SHOTS=<folder>` also writes a dark-theme screenshot of each
  * presentation at each face there.
@@ -69,7 +70,7 @@ function order(id: string): number {
 /**
  * Seeds the layout and a history: each task's `created` event at its
  * creation, `completed` at its completion; the history log H3 began five
- * days ago (so a tag filter's earlier days read ≈).
+ * days ago (so a tag filter's earlier days are approximate).
  */
 async function seedHistory(page: Page): Promise<void> {
   // A fresh database: the one seeded tag is tag 1.
@@ -95,7 +96,7 @@ async function seedHistory(page: Page): Promise<void> {
 const widget = (page: Page, id: string) => page.locator(`[data-glance-tab="${id}"]`)
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
 
-test('the three presentations at the medium and large face; a point opens its tasks; days before the log are ≈', async ({ page }) => {
+test('the three presentations at the medium and large face; a point opens its tasks; days before the log are dashed or dimmed', async ({ page }) => {
   await seedHistory(page)
   for (const show of SHOWS) {
     await expect(widget(page, `m-${show}`)).toHaveAttribute('data-face', 'medium')
@@ -111,12 +112,15 @@ test('the three presentations at the medium and large face; a point opens its ta
   await expect(burndown.locator('svg text')).toContainText(['12', '11'])
   // No filter: every count exact.
   await expect(burndown.locator('polyline[data-approx="true"]')).toHaveCount(0)
-  await expect(widget(page, 'l-bars').getByTestId('trend-approximate')).toHaveCount(1)
-  // The large ones count #Project: Atlas — tags are exact only since the log began: ≈, the early days dashed.
+  await expect(burndown.locator('[data-trend-column="0"]')).not.toHaveAttribute('title', /.+/)
+  // The large ones count #Project: Atlas — tags are exact only since the log began: the early days dashed,
+  // their tooltip saying why, and no ≈ note anywhere on the chart.
   const atlas = widget(page, 'l-burndown')
   await expect(atlas.locator('[data-trend-head]')).toHaveText('Atlas')
-  await expect(atlas.getByTestId('trend-approximate')).toHaveText(/^≈ before /)
   await expect(atlas.locator('[data-trend-line="open"] polyline[data-approx="true"]')).toHaveCount(1)
+  await expect(atlas.locator('[data-trend-column="0"]')).toHaveAttribute('title', /^Approximate: .*tags read as they are now/)
+  await expect(atlas.locator('[data-trend-column="13"]')).not.toHaveAttribute('title', /.+/)
+  for (const show of SHOWS) await expect(widget(page, `l-${show}`)).not.toContainText('≈')
   await expect(atlas.getByTestId('trend-open-now')).toContainText('6')
   // Today's point opens the tasks open now.
   await atlas.locator('[data-trend-column="13"]').click()
@@ -128,8 +132,9 @@ test('the three presentations at the medium and large face; a point opens its ta
   await expect(dialog(page).getByRole('heading')).toHaveText('Atlas · Through today')
   await expect(dialog(page)).toContainText('Open at the start')
   await page.keyboard.press('Escape')
-  // Bars before the log began are dimmed (≈).
+  // Bars before the log began are dimmed, with the same tooltip.
   await expect(widget(page, 'l-bars').locator('[data-trend-column="0"]')).toHaveAttribute('data-approx', 'true')
+  await expect(widget(page, 'l-bars').locator('[data-trend-column="0"]')).toHaveAttribute('title', /^Approximate: /)
   await expect(widget(page, 'l-bars').locator('[data-trend-column="13"]')).not.toHaveAttribute('data-approx', 'true')
 
   if (SHOTS) {

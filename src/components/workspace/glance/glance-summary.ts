@@ -28,7 +28,7 @@ export interface TrendLinesInput {
   show: TrendShow
   /** `null` until the history has been read. */
   trend: TrendStats | null
-  /** The first day (index) whose counts are exact; a bar or point before it is marked ≈. */
+  /** The first day (index) whose counts are exact; a bar or point before it reads `(approximate)`. */
   exactFrom: number
   /** Each bar's name in words (`Thu 8`, `Week of Sep 28`). */
   bucketLabels: readonly string[]
@@ -38,7 +38,7 @@ export interface TrendLinesInput {
 /**
  * Created vs completed's lines, as the presentation shown reads: its name
  * and range, then its totals, then a line per bar (per week on the weekly
- * ranges), a bar the log can't count exactly marked ≈ —
+ * ranges), a bar the log can't count exactly named `Thu 8 (approximate)` —
  * Bars: `Completed 5 · Created 8 · Net +3`, `Thu 8 2 created · 1 completed`;
  * Burndown: `Open at the start 34 · Open now 21 · Change −13`, `Thu 8 30 open`;
  * Cumulative: `Open at the start 34 · Created 8 · Completed 5`, `Thu 8 36 created · 2 completed` (running totals).
@@ -49,7 +49,7 @@ export function trendLines({ name, rangeLabel, show, trend, exactFrom, bucketLab
   const buckets = trendBucketDays(trend.window)
   const label = (i: number) => {
     const days = buckets[i]
-    return `${bucketLabels[i] ?? ''}${days && days.first < exactFrom ? ' ≈' : ''}`
+    return `${bucketLabels[i] ?? ''}${days && days.first < exactFrom ? ' (approximate)' : ''}`
   }
   if (show === 'burndown') {
     return [
