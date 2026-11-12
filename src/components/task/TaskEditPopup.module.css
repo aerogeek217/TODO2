@@ -68,9 +68,10 @@
 
 /* ── Header ── */
 
+/* The checkbox, the title's one line and the ⋯ / × on one centre line. */
 .header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   padding: 20px 20px 14px var(--space-9);
 }
@@ -89,7 +90,7 @@
   background: transparent;
   cursor: pointer;
   flex-shrink: 0;
-  margin-top: 4px;
+  margin: 0;
   position: relative;
   transition: background-color 200ms cubic-bezier(0.16, 1, 0.3, 1), border-color 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -340,14 +341,12 @@
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  margin-top: 6px;
   border: 1.5px dashed var(--color-text-muted);
   border-radius: 50%;
 }
 
 .draftBadge {
   flex-shrink: 0;
-  margin-top: 6px;
   padding: 1px 7px;
   border-radius: var(--radius-pill);
   background: var(--color-tint-8);

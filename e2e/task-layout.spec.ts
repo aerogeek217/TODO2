@@ -105,6 +105,16 @@ async function expectWithin(inner: Locator, outer: Locator) {
 test.describe('the task editor', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
+  test('the header: the checkbox, the title and the ⋯ / × share one centre line', async ({ page }) => {
+    await seedWorkspace(page, SEED)
+    const dialog = await openEditor(page)
+    const centre = async (el: Locator) => { const b = await box(el); return b.y + b.height / 2 }
+    const check = await centre(dialog.getByRole('checkbox', { name: 'Mark complete' }))
+    expect(Math.abs(await centre(dialog.getByRole('textbox').first()) - check)).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(await centre(dialog.getByRole('button', { name: 'More actions' })) - check)).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(await centre(dialog.getByRole('button', { name: 'Close' })) - check)).toBeLessThanOrEqual(0.5)
+  })
+
   test('760px: the facts rail (268px) left in its order, the writing right; the follow-up rows in view without scrolling', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page)

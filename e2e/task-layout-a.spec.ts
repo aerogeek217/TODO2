@@ -491,10 +491,10 @@ test.describe('the Review widget across widths', () => {
     }
   })
 
-  test('the medium face (660 × 400): the update line and the Next row over the footer', async ({ page }) => {
+  test('the medium face (660 × 300: too short for the queue and a scrolling card): the update line and the Next row over the footer', async ({ page }) => {
     await seedWorkspace(page, WIDGET_SEED)
     await pickInReview(page, 'rv1', 'Aisha')
-    const widget = await sizeWidget(page, 660, 400)
+    const widget = await sizeWidget(page, 660, 300)
     await expect(widget).toHaveAttribute('data-review-face', 'medium')
     for (const title of [HEAVY, EMPTY]) {
       while ((await widget.getByTestId('review-card-title').textContent()) !== title) {
@@ -509,7 +509,7 @@ test.describe('the Review widget across widths', () => {
       expect((await box(next)).y).toBeGreaterThan((await box(update)).y + 20)
       await expectRowApart(widget.locator('[data-followup-row="next"]'))
       expectNoOverlaps({ dock: await box(widget.locator('[data-review-dock]')), footer: await box(widget.locator('[data-review-footer]')) })
-      await shot(page, `widget-660x400-medium-${title === EMPTY ? 'empty' : 'heavy'}`)
+      await shot(page, `widget-660x300-medium-${title === EMPTY ? 'empty' : 'heavy'}`)
     }
   })
 })

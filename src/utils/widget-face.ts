@@ -30,11 +30,13 @@ export function widgetFaceFor(size: { width: number; height: number }): WidgetFa
 }
 
 /**
- * A Review widget's body this tall or shorter (and not small) shows its medium face: the large face's
- * pinned dock (the update line and the two follow-up rows), 120px of writing, the top line, the prompt
- * row, the title and the footer need more (task layout A).
+ * A Review widget's body this tall or shorter (and not small) shows its medium face. Above it the large
+ * face — the queue beside the card — shows, and both scroll: under about 530px the card has no room to
+ * pin its dock (the update line and the two follow-up rows, 120px of writing, the top line, the prompt
+ * row, the title and the footer), so its body scrolls as one (`Review.module.css`, `review-card`). At
+ * this height the top line, the prompt row, the title and the footer leave about 110px of card.
  */
-export const REVIEW_MEDIUM_MAX_HEIGHT_PX = 530
+export const REVIEW_MEDIUM_MAX_HEIGHT_PX = 320
 /** A Review widget's body this narrow or narrower (and not small) shows its medium face: the card's rail beside its writing needs it. */
 export const REVIEW_MEDIUM_MAX_WIDTH_PX = 640
 
@@ -52,8 +54,9 @@ export function reviewQueueFolds(width: number): boolean {
 
 /**
  * A Review widget's face (item 12): small as every widget's; medium — the
- * card's essentials — until the body has room for the rail beside the whole
- * card (`REVIEW_MEDIUM_MAX_*`); else large. Unmeasured is `large`.
+ * card's essentials — while the body is too narrow for the card's two
+ * columns or too short for the queue and a scrolling card
+ * (`REVIEW_MEDIUM_MAX_*`); else large. Unmeasured is `large`.
  */
 export function reviewFaceFor(size: { width: number; height: number }): WidgetFace {
   const face = widgetFaceFor(size)

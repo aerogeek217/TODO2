@@ -12,12 +12,14 @@ import styles from './Review.module.css'
  * small face's popover). Picking a row goes to it and closes the popover; Esc or a press
  * outside closes it. ‹ Back and Skip › in the footer still step.
  */
-export function ReviewQueueButton({ todoById, followedUpToday, label, className }: {
+export function ReviewQueueButton({ todoById, followedUpToday, label, className, onToggleComplete }: {
   todoById: ReadonlyMap<number, PersistedTodoItem>
   followedUpToday: (id: number) => boolean
   /** The queue's accessible name (the rail's). */
   label: string
   className?: string
+  /** The rail's: a row's box checked or unchecked (the popover stays open). */
+  onToggleComplete?: (id: number) => void
 }) {
   const [open, setOpen] = useState(false)
   const { triggerProps: tipProps, tooltip } = useTooltip('Show the review queue')
@@ -61,7 +63,7 @@ export function ReviewQueueButton({ todoById, followedUpToday, label, className 
         <AnchoredPicker anchorRef={buttonRef} onClose={() => setOpen(false)} closeOnEscape>
           {/* Not a menu: a list of rows to pick from, with its sort. */}
           <div ref={popoverRef} className={styles.queuePopover} onClick={onClick} data-review-queue-popover="">
-            <ReviewRail todoById={todoById} followedUpToday={followedUpToday} className={styles.queuePopoverRail} label={label} />
+            <ReviewRail todoById={todoById} followedUpToday={followedUpToday} className={styles.queuePopoverRail} label={label} onToggleComplete={onToggleComplete} />
           </div>
         </AnchoredPicker>
       )}
