@@ -99,16 +99,29 @@ const FOCUS_STEP_MS = 50
 /** Once the widget is there, how many steps it waits for a card before it settles for the field. */
 const CARD_STEPS = 4
 
+/** The focus wait in flight: one at a time — a later jump's takes its place, and a reset drops it. */
+let focusWait: ReturnType<typeof setTimeout> | null = null
+function stopFocusWait(): void {
+  if (focusWait != null) clearTimeout(focusWait)
+  focusWait = null
+}
+registerModuleReset(stopFocusWait)
+
 /**
  * Moves the focus into Review widget `tabId` once it renders (a layout
  * switch, a tab change and its queue land over a few renders): the card's
  * Status update line while a card shows, else its filter field, else (a
- * small face) the first control in its cell.
+ * small face) the first control in its cell. Only the latest call waits:
+ * an earlier one still looking for its widget gives up.
  */
 export function focusReviewWidget(tabId: string): void {
+  stopFocusWait()
   const started = Date.now()
   let seen = 0
   const attempt = () => {
+    focusWait = null
+    // The page is gone (the wait outlived it): nothing to focus.
+    if (typeof document === 'undefined') return
     const host = document.querySelector<HTMLElement>(attrSelector(REVIEW_WIDGET_ATTR, tabId))
     if (host) {
       const update = host.querySelector<HTMLElement>(attrSelector(REVIEW_UPDATE_ATTR))
@@ -125,7 +138,7 @@ export function focusReviewWidget(tabId: string): void {
         return
       }
     }
-    if (Date.now() - started < FOCUS_WAIT_MS) window.setTimeout(attempt, FOCUS_STEP_MS)
+    if (Date.now() - started < FOCUS_WAIT_MS) focusWait = setTimeout(attempt, FOCUS_STEP_MS)
   }
-  window.setTimeout(attempt, 0)
+  focusWait = setTimeout(attempt, 0)
 }

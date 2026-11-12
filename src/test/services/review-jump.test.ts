@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTab, type LayoutTab, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
 import { REVIEW_POPUP_TAB_ID } from '../../models/review'
-import { jumpToReview } from '../../services/review-jump'
+import { focusReviewWidget, jumpToReview } from '../../services/review-jump'
 import { registerOpenEditor } from '../../stores/editor-leave'
 import { useListWidgetStore, type ReviewFilter } from '../../stores/list-widget-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { resetModuleState } from '../../utils/module-reset'
 import { cell, grid } from '../helpers/layout-builders'
 
 /**
@@ -164,5 +165,42 @@ describe('jumpToReview', () => {
     expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'review' })
     expect(useUIStore.getState().taskDialog).toBeNull()
     expect(patchTabViewState).not.toHaveBeenCalled()
+  })
+})
+
+describe('focusReviewWidget', () => {
+  it('waits for its widget on a timer that a reset drops, so it never outlives its test', () => {
+    vi.useFakeTimers()
+    try {
+      // No such widget on the page: it keeps looking.
+      focusReviewWidget('nowhere')
+      expect(vi.getTimerCount()).toBe(1)
+      vi.advanceTimersByTime(200)
+      expect(vi.getTimerCount()).toBe(1)
+      // A later call takes its place: still one wait.
+      focusReviewWidget('elsewhere')
+      expect(vi.getTimerCount()).toBe(1)
+      resetModuleState()
+      expect(vi.getTimerCount()).toBe(0)
+      // Left alone it gives up by itself.
+      focusReviewWidget('nowhere')
+      vi.advanceTimersByTime(2000)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives up quietly when the page is gone by the time it looks', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('document', undefined)
+    try {
+      focusReviewWidget('nowhere')
+      expect(() => vi.advanceTimersByTime(100)).not.toThrow()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
   })
 })
