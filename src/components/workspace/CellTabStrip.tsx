@@ -317,7 +317,14 @@ export function CellTabStrip({
     }
     const ro = new ResizeObserver(measure)
     ro.observe(strip)
-    if (strip.parentElement) ro.observe(strip.parentElement)
+    if (strip.parentElement) {
+      ro.observe(strip.parentElement)
+      // The header's other parts (its buttons: Open larger comes and goes with the active widget) take from the
+      // strip's room without resizing the strip or the header — the panel handle, which only gives room, aside.
+      for (const part of Array.from(strip.parentElement.children)) {
+        if (part !== strip && !part.hasAttribute('data-strip-room')) ro.observe(part)
+      }
+    }
     for (const el of tabEls.current.values()) ro.observe(el)
     // A tab's own content changing (its count, a rename): a
     // shrunk tab's width is pinned, so no box resizes. Not attributes — the

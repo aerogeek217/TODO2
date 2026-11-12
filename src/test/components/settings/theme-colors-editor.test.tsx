@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, fireEvent, waitFor } from '@testing-library/react'
+import { render, cleanup, fireEvent, getByText, waitFor } from '@testing-library/react'
 import { ThemeColorsEditor } from '../../../components/settings/ThemeColorsEditor'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { db } from '../../../data/database'
@@ -23,6 +23,7 @@ afterEach(() => {
     '--color-border', '--color-header-bg',
     '--color-danger', '--color-warning', '--color-followup',
     '--color-deadline', '--color-accent-dim',
+    '--color-marker-focus', '--color-marker-urgent', '--color-marker-important',
   ]) root.style.removeProperty(v)
 })
 
@@ -57,5 +58,31 @@ describe('ThemeColorsEditor', () => {
       expect(useSettingsStore.getState().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent)
     })
     expect(useSettingsStore.getState().colors.light.accent).toBe('#0000ff')
+  })
+
+  it('a priority shows the color it follows until it is given its own', async () => {
+    await useSettingsStore.getState().setColor('dark', 'danger', '#ff0000')
+    const { getByLabelText } = render(<ThemeColorsEditor onClose={() => {}} />)
+    const swatch = (label: string) => getByLabelText(label) as HTMLInputElement
+    const root = document.documentElement
+
+    // Urgent follows Danger, its override included; nothing of its own is written.
+    expect(swatch('Urgent priority').value).toBe('#ff0000')
+    expect(swatch('Focus priority').value).toBe(DEFAULT_THEMED_COLORS.dark.accent)
+    expect(swatch('Important priority').value).toBe(DEFAULT_THEMED_COLORS.dark.star)
+    expect(root.style.getPropertyValue('--color-marker-urgent')).toBe('')
+
+    fireEvent.change(swatch('Urgent priority'), { target: { value: '#00ff00' } })
+    await waitFor(() => expect(root.style.getPropertyValue('--color-marker-urgent')).toBe('#00ff00'))
+    expect(swatch('Urgent priority').value).toBe('#00ff00')
+    // Danger keeps its own.
+    expect(swatch('Danger accent').value).toBe('#ff0000')
+    expect(root.style.getPropertyValue('--color-danger')).toBe('#ff0000')
+    expect((await db.settings.get('color.dark.urgent'))!.value).toBe('#00ff00')
+
+    // Reset: Urgent follows the default Danger again.
+    fireEvent.click(getByText(document.body, /reset dark to defaults/i))
+    await waitFor(() => expect(root.style.getPropertyValue('--color-marker-urgent')).toBe(''))
+    expect(swatch('Urgent priority').value).toBe(DEFAULT_THEMED_COLORS.dark.danger)
   })
 })

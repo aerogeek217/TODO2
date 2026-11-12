@@ -429,6 +429,18 @@ describe('a cell’s widget faces (D25 R)', () => {
     expect(useUIStore.getState().widgetPopup).toBeNull()
   })
 
+  it('a tab strip’s header has Open larger too, after the grip: it opens the active tab', () => {
+    stubSize(400, 400)
+    const k = cell('k', [listTab, createTab('notes', 'n')])
+    open(single(k))
+    renderCell(k)
+    const header = document.querySelector<HTMLElement>('[data-ws-cell-header]')!
+    const names = within(header).getAllByRole('button').map((b) => b.getAttribute('aria-label'))
+    expect(names.slice(-4)).toEqual(['Cell layout', 'Open larger', 'Collapse row', 'Cell options'])
+    fireEvent.click(within(header).getByRole('button', { name: 'Open larger' }))
+    expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'tab', tabId: listTab.id })
+  })
+
   it('the ⋯ on a small face opens the menu, not the full widget', () => {
     stubSize(400, 80)
     const k = cell('k', [listTab])

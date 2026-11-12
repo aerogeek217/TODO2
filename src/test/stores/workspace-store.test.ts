@@ -296,6 +296,8 @@ describe('undo of a structural edit', () => {
     await step(16, 'divider:ka-kc')
     await step(16, 'divider:ka-kc')
     expect(undoNames()).toEqual(['Moved divider'])
+    // An undo step with no snackbar: the table shows the move.
+    expect(useUndoStore.getState().snackbar).toBeNull()
     await undo()
     expect(picture(ws().working!)).toEqual(before)
     expect(picture(await stored(id!))).toEqual(before)

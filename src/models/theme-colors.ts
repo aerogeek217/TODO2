@@ -6,6 +6,8 @@
  * The seeds mirror `tokens.css` (the dark block and the
  * `[data-theme="light"]` block) — the values the theme stylesheet applies
  * when the user has no overrides — so the editor shows the colours in use.
+ * A priority's seed is the seed of the colour it follows there
+ * (`THEME_COLOR_FOLLOWS`).
  */
 export interface ThemeColors {
   accent: string
@@ -17,6 +19,10 @@ export interface ThemeColors {
   warning: string
   star: string
   deadline: string
+  /** The three priorities' colors (a task's ring, glow and row cue, the editor's toggles, the menus). */
+  focus: string
+  urgent: string
+  important: string
 }
 
 export interface ThemedColors {
@@ -37,6 +43,9 @@ export const DEFAULT_THEMED_COLORS: ThemedColors = {
     warning: '#f5a623',
     star: '#f5c842',
     deadline: '#e86bf0',
+    focus: '#7ec4bc',
+    urgent: '#ee7d77',
+    important: '#f5c842',
   },
   light: {
     accent: '#2f9a8f',
@@ -48,6 +57,9 @@ export const DEFAULT_THEMED_COLORS: ThemedColors = {
     warning: '#d08a12',
     star: '#826600',
     deadline: '#a32cab',
+    focus: '#2f9a8f',
+    urgent: '#d94a43',
+    important: '#826600',
   },
 }
 
@@ -62,6 +74,31 @@ export const THEME_COLOR_VARS: Readonly<Record<keyof ThemeColors, string>> = {
   warning: '--color-warning',
   star: '--color-followup',
   deadline: '--color-deadline',
+  focus: '--color-marker-focus',
+  urgent: '--color-marker-urgent',
+  important: '--color-marker-important',
+}
+
+/**
+ * The colours that, with no override of their own, are another theme colour
+ * (the stylesheet's `--color-marker-urgent: var(--color-danger)`): a priority
+ * follows the accent, Danger or Follow up — an override of that one too —
+ * until it is given its own.
+ */
+export const THEME_COLOR_FOLLOWS: Readonly<Partial<Record<keyof ThemeColors, keyof ThemeColors>>> = {
+  focus: 'accent',
+  urgent: 'danger',
+  important: 'star',
+}
+
+/**
+ * The colour `key` is drawn in: its own value once overridden (`customized`),
+ * else the value of the colour it follows, else its seed (`colors` holds the
+ * seeds of the colours without an override).
+ */
+export function themeColorShown(colors: ThemeColors, customized: readonly (keyof ThemeColors)[], key: keyof ThemeColors): string {
+  const follows = THEME_COLOR_FOLLOWS[key]
+  return follows !== undefined && !customized.includes(key) ? colors[follows] : colors[key]
 }
 
 const THEME_NAMES: readonly ThemeName[] = ['dark', 'light']

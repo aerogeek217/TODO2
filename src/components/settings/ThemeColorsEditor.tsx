@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useSettingsStore, type ThemeColors, type ThemeName } from '../../stores/settings-store'
+import { themeColorShown } from '../../models/theme-colors'
 import { useResolvedTheme } from '../../hooks/use-resolved-theme'
 import { ColorInput } from '../shared/ColorInput'
 import styles from './EntityEditor.module.css'
@@ -17,6 +18,9 @@ const colorLabels: Record<keyof ThemeColors, string> = {
   warning: 'Warning accent',
   star: 'Follow up',
   deadline: 'Due date',
+  focus: 'Focus priority',
+  urgent: 'Urgent priority',
+  important: 'Important priority',
 }
 
 const themeLabel: Record<ThemeName, string> = { dark: 'Dark', light: 'Light' }
@@ -34,6 +38,8 @@ export function ThemeColorsEditor({ onClose }: ThemeColorsEditorProps) {
   const resolvedTheme = useResolvedTheme()
   const [workingTheme, setWorkingTheme] = useState<ThemeName>(resolvedTheme)
   const workingColors = colors[workingTheme]
+  // A priority without a color of its own shows the one it follows (the accent, Danger, Follow up).
+  const customized = useSettingsStore((s) => s.customizedColors)[workingTheme]
 
   return (
     <EditorModal title={<>Theme Colors — {themeLabel[workingTheme]}</>} onClose={onClose}>
@@ -56,7 +62,7 @@ export function ThemeColorsEditor({ onClose }: ThemeColorsEditorProps) {
         {(Object.keys(colorLabels) as Array<keyof ThemeColors>).map((key) => (
           <div key={key} className={settingsStyles.colorRow}>
             <span className={settingsStyles.colorLabel}>{colorLabels[key]}</span>
-            <ColorInput value={workingColors[key]} onChange={(color) => setColor(workingTheme, key, color)} label={colorLabels[key]} />
+            <ColorInput value={themeColorShown(workingColors, customized, key)} onChange={(color) => setColor(workingTheme, key, color)} label={colorLabels[key]} />
           </div>
         ))}
       </div>

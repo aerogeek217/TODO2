@@ -2,14 +2,14 @@ import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseE
 import { useDraggable } from '@dnd-kit/core'
 import { getActiveTab, isGlanceKind, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
+import { OPEN_LARGER_LABEL, widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
 import type { AddWhere } from './add-widget-where'
 import { useTabTitle, useTabTitles } from './widget-hooks'
 import { MenuPopover } from '../shared/MenuPopover'
-import { ChevronDownIcon, ChevronUpIcon, MoreIcon } from '../shared/icons'
+import { ChevronDownIcon, ChevronUpIcon, ExpandIcon, MoreIcon } from '../shared/icons'
 import {
   useWorkspaceDrag,
   WORKSPACE_PANEL_DRAG,
@@ -96,7 +96,8 @@ function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = fals
  * A cell of the layout's table holding tabs (D26 AA1): with one widget no
  * tab strip — the widget's own top line names it and holds the controls
  * slot (grip and ⋯, `CellControlsContext`); with two or more, the tab
- * strip, the panel handle, the grip, collapse and the ⋯ in its header.
+ * strip, the panel handle, the grip, Open larger (the active widget's),
+ * collapse and the ⋯ in its header.
  * Either way (`cell-menu`, UX cleanup 4A) the ⋯ opens the widget's own
  * entries and Add widget…, the grip the cell's layout entries in the table's
  * words (D26 board V), and a right-click or Shift+F10 the whole menu. The
@@ -298,6 +299,19 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
                 setButton={setGripButton}
                 className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
               />
+              {onOpenLarger && (
+                <button
+                  type="button"
+                  className={`${styles.action} ${styles.openLarger}`}
+                  aria-label={OPEN_LARGER_LABEL}
+                  aria-haspopup="dialog"
+                  title={OPEN_LARGER_LABEL}
+                  data-testid="open-larger"
+                  onClick={onOpenLarger}
+                >
+                  <ExpandIcon size={13} />
+                </button>
+              )}
               <button
                 type="button"
                 className={styles.action}
