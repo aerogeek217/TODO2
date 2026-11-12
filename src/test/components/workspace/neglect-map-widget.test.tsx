@@ -26,7 +26,13 @@ function neglectTab(config: Partial<NeglectTab['config']> = {}): NeglectTab {
 const dots = (zone?: string) => [...document.querySelectorAll<HTMLElement>(zone ? `[data-neglect-dot="${zone}"]` : '[data-neglect-dot]')]
 const dotOf = (title: string) => dots().find((d) => d.getAttribute('aria-label')?.startsWith(`${title}:`))
 
+/** The width every element measures (JSDOM lays nothing out): wide enough for the Slipping list beside the plot unless a test narrows it. */
+let measuredWidth = 1200
+
 beforeEach(() => {
+  measuredWidth = 1200
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => measuredWidth)
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => 600)
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(TODAY)
   resetEntityStores()
@@ -52,6 +58,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('NeglectMapWidget', () => {
@@ -69,6 +76,42 @@ describe('NeglectMapWidget', () => {
     expect(dots('noDue')).toHaveLength(1)
     expect(screen.getByText('No due date · 2')).toBeInTheDocument()
     expect(screen.getByTestId('neglect-forgotten').textContent).toBe('Forgotten · 1')
+  })
+
+  it('each zone’s word carries its count and opens its tasks as a list; an empty zone’s word is no button', () => {
+    render(<NeglectMapWidget tab={neglectTab()} />)
+    const word = (zone: string) => document.querySelector<HTMLElement>(`[data-neglect-zone="${zone}"]`)
+    expect(['slipping', 'inHand', 'planned', 'drifting', 'noDue', 'forgotten'].map((z) => word(z)?.textContent))
+      .toEqual(['Slipping 2', 'In hand 1', 'Planned 1', 'Drifting 1', 'No due date · 2', 'Forgotten · 1'])
+    fireEvent.click(screen.getByRole('button', { name: 'Slipping: show 2 tasks' }))
+    expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Slipping', source: { kind: 'todos', todoIds: [1, 2] } })
+    fireEvent.click(screen.getByRole('button', { name: 'In hand: show 1 task' }))
+    expect(useUIStore.getState().taskDialog).toMatchObject({
+      title: 'In hand',
+      description: 'Open tasks due soon or late that changed in the last 14 days, latest first.',
+      source: { kind: 'todos', todoIds: [3] },
+    })
+    // The strip's No due date: every task without one, the longest untouched first.
+    fireEvent.click(screen.getByRole('button', { name: 'No due date: show 2 tasks' }))
+    expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'No due date', source: { kind: 'todos', todoIds: [6, 7] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Forgotten: show 1 task' }))
+    expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Forgotten', source: { kind: 'todos', todoIds: [6] } })
+    // Nothing drifting: the word stays, with its 0, and is not a button.
+    act(() => useTodoStore.setState({ todos: useTodoStore.getState().todos.filter((t) => t.id !== 5) }))
+    expect(word('drifting')).toBeNull()
+    expect(screen.getByText('Drifting 0')).toBeInTheDocument()
+  })
+
+  it('a widget under 900px wide has no Slipping list and no numbers on its dots; its plot fills it', () => {
+    measuredWidth = 700
+    render(<NeglectMapWidget tab={neglectTab()} />)
+    expect(screen.queryByRole('region', { name: 'Slipping' })).toBeNull()
+    expect(document.querySelector('[data-neglect-map]')).toHaveAttribute('data-layout', 'beside')
+    expect(document.querySelector('[data-neglect-map]')).not.toHaveAttribute('data-slipping-list')
+    expect(dotOf('Late and old')?.textContent).toBe('')
+    // Its Slipping tasks are a press away.
+    fireEvent.click(screen.getByRole('button', { name: 'Slipping: show 2 tasks' }))
+    expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Slipping' })
   })
 
   it('lists Slipping latest first, numbered, the same number by each dot', () => {

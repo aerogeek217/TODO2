@@ -174,6 +174,37 @@ test('task names stand beside their dots where they fit: none over a dot or anot
   if (process.env.NEGLECT_SHOTS) await map(page).screenshot({ path: `${process.env.NEGLECT_SHOTS}/neglect-names-narrow.png` })
 })
 
+test('a zone’s word opens its tasks as a list; under 900px the widget has no Slipping list and its plot fills it', async ({ page }) => {
+  const taskDialog = page.locator('[data-task-dialog]')
+  // Wide: the list beside the plot, the dots numbered; the words carry their counts.
+  await expect(slippingList(page)).toBeVisible()
+  await expect(dot(page, 'Ship the quarterly report')).toHaveText('2')
+  const word = (zone: string) => map(page).locator(`[data-neglect-zone="${zone}"]`)
+  await expect(word('slipping')).toHaveText('Slipping 4')
+  await expect(word('forgotten')).toHaveText('Forgotten · 1')
+  await word('inHand').click()
+  await expect(taskDialog.getByRole('heading')).toHaveText('In hand')
+  await expect(taskDialog.locator('[data-todo-id]')).toHaveCount(await dots(page, 'inHand').count())
+  await page.keyboard.press('Escape')
+  await expect(taskDialog).toHaveCount(0)
+
+  // Narrow: no list (and no numbers on the dots); the plot takes the widget's width and height.
+  await page.setViewportSize({ width: 760, height: 700 })
+  await expect(slippingList(page)).toHaveCount(0)
+  await expect(dot(page, 'Ship the quarterly report')).toHaveText('')
+  const [m, plot] = [await box(map(page)), await box(map(page).getByRole('group', { name: /^Neglect map/ }))]
+  expect(plot.width).toBeGreaterThan(m.width - 100)
+  expect(plot.height).toBeGreaterThan(m.height - 110)
+  // Its Slipping tasks: the corner's word.
+  await word('slipping').click()
+  await expect(taskDialog.getByRole('heading')).toHaveText('Slipping')
+  await expect(taskDialog.locator('[data-todo-id]')).toHaveCount(4)
+  await page.keyboard.press('Escape')
+  // A word takes the press itself: no lasso starts on it, and the dots under it stay clickable.
+  await expect(map(page).getByTestId('neglect-lasso')).toHaveCount(0)
+  if (process.env.NEGLECT_SHOTS) await map(page).screenshot({ path: `${process.env.NEGLECT_SHOTS}/neglect-no-list.png` })
+})
+
 test('the ⋯ menu sets Colour by and Untouched after', async ({ page }) => {
   // Alone in its cell: its top line (its name, Slipping N) stands for the tab (D26 AA1).
   const tab = wsCell(page, 'k1').locator('[data-ws-tab]').getByTestId('top-line-name')

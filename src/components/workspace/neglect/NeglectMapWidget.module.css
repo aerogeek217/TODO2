@@ -155,6 +155,29 @@
   pointer-events: none;
 }
 
+/* A zone's word that opens its tasks: a button in the word's own type, over the dots' names, under the dots. */
+.zoneWord {
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.zoneWord:hover {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.zoneWord:focus-visible {
+  opacity: 1;
+  box-shadow: var(--focus-ring);
+}
+
 .cornerSlipping {
   top: 0;
   right: 0;
