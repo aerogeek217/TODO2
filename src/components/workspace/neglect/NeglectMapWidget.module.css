@@ -325,6 +325,29 @@
   left: auto;
 }
 
+/* A task's name beside its dot, where it fits (`utils/neglect-labels`): at the dot's spot, pushed
+ * off it by its offset, on one 13px line, cut with an ellipsis at the width it was given. Under the
+ * dots, and it takes no press: a drag over it still lassoes, a click still reaches the plot. */
+.dotLabel {
+  position: absolute;
+  height: 13px;
+  box-sizing: border-box;
+  overflow: hidden;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-secondary);
+  pointer-events: none;
+  transform: translate(var(--label-offset), -50%);
+}
+
+.dotLabel[data-side='left'] {
+  text-align: right;
+  transform: translate(calc(-100% - var(--label-offset)), -50%);
+}
+
 /* The lasso: a drag on empty plot. */
 .lasso {
   position: absolute;

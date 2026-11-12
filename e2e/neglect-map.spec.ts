@@ -124,6 +124,56 @@ test('the screen filter narrows the dots', async ({ page }) => {
   await expect(dots(page)).toHaveCount(12)
 })
 
+/** Every dot's and every name's box in the map, in viewport px. */
+async function labelGeometry(page: Page) {
+  return map(page).evaluate((root) => {
+    const rect = (el: Element) => { const r = el.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom } }
+    return {
+      dots: [...root.querySelectorAll('[data-neglect-dot]')].map((d) => ({ id: d.getAttribute('data-todo-id'), ...rect(d) })),
+      labels: [...root.querySelectorAll('[data-neglect-label]')].map((l) => ({ id: l.getAttribute('data-neglect-label'), text: l.textContent ?? '', ...rect(l) })),
+      fields: [...root.querySelectorAll('[data-neglect-chart] [role="group"]')].map(rect),
+    }
+  })
+}
+
+type Box = { l: number; t: number; r: number; b: number }
+/** Two boxes overlap by more than half a px each way. */
+const overlaps = (a: Box, b: Box) => a.l < b.r - 0.5 && b.l < a.r - 0.5 && a.t < b.b - 0.5 && b.t < a.b - 0.5
+
+test('task names stand beside their dots where they fit: none over a dot or another name; a narrow map names no more', async ({ page }) => {
+  await expect(map(page).locator('[data-neglect-label]').first()).toBeVisible()
+  const wide = await labelGeometry(page)
+  // Twelve open tasks on a wide map: every one is named, by its own title.
+  expect(wide.labels.map((l) => l.text).sort()).toEqual(NEGLECT_SEED.tasks!.filter((t) => t.completedInDays == null).map((t) => t.title).sort())
+  for (const title of SLIPPING) expect(wide.labels.map((l) => l.text), title).toContain(title)
+  const check = (g: typeof wide) => {
+    for (const label of g.labels) {
+      // On its own dot's line, beside it; over no dot and no other name; inside the plot or the strip.
+      const own = g.dots.find((d) => d.id === label.id)!
+      const mid = (label.t + label.b) / 2
+      expect(Math.abs(mid - (own.t + own.b) / 2), label.text).toBeLessThanOrEqual(1)
+      expect(label.l >= own.r || label.r <= own.l, label.text).toBe(true)
+      for (const d of g.dots) expect(overlaps(label, d), `${label.text} over a dot`).toBe(false)
+      for (const other of g.labels) if (other !== label) expect(overlaps(label, other), `${label.text} over ${other.text}`).toBe(false)
+      expect(g.fields.some((f) => label.l >= f.l - 1 && label.r <= f.r + 1), `${label.text} inside its field`).toBe(true)
+    }
+  }
+  check(wide)
+  // A name takes no press: a click on it reaches the plot (nothing opens), its dot still opens the task.
+  const first = map(page).locator('[data-neglect-label]').first()
+  expect(await first.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none')
+  if (process.env.NEGLECT_SHOTS) await map(page).screenshot({ path: `${process.env.NEGLECT_SHOTS}/neglect-names-wide.png` })
+
+  // Narrower: the names still keep clear of everything, and there are no more of them.
+  await page.setViewportSize({ width: 760, height: 900 })
+  await expect.poll(async () => (await box(map(page))).width).toBeLessThan(760)
+  await expect.poll(async () => { const g = await labelGeometry(page); return g.labels.every((l) => g.fields.some((f) => l.r <= f.r + 1)) }).toBe(true)
+  const narrow = await labelGeometry(page)
+  check(narrow)
+  expect(narrow.labels.length).toBeLessThanOrEqual(wide.labels.length)
+  if (process.env.NEGLECT_SHOTS) await map(page).screenshot({ path: `${process.env.NEGLECT_SHOTS}/neglect-names-narrow.png` })
+})
+
 test('the ⋯ menu sets Colour by and Untouched after', async ({ page }) => {
   // Alone in its cell: its top line (its name, Slipping N) stands for the tab (D26 AA1).
   const tab = wsCell(page, 'k1').locator('[data-ws-tab]').getByTestId('top-line-name')

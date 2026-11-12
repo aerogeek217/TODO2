@@ -33,11 +33,13 @@ import {
   type NeglectPoint,
   type NeglectZone,
 } from '../../../utils/neglect-map'
+import { placeNeglectLabels, type LabelDot, type LabelRect, type PlacedLabel } from '../../../utils/neglect-labels'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import { sharedMemo } from '../../../utils/shared-memo'
 import type { UrgentDueWithinDays } from '../../../utils/urgency'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useTooltip } from '../../shared/use-tooltip'
+import { appTextWidth } from '../../task/text-width'
 import { ListBulkBar } from '../list/ListBulkBar'
 import { WidgetNameLine } from '../WidgetTopLine'
 import { TabLensSwitch } from '../LensSwitch'
@@ -71,6 +73,39 @@ const xPct = (x: number) => (x / NEGLECT_X_CAP) * 100
 const yPct = (y: number) => ((y - NEGLECT_Y_MIN) / (NEGLECT_Y_MAX - NEGLECT_Y_MIN)) * 100
 /** A strip place (0 – 1) down the strip, as a percentage: under its labels, in its lower part. */
 const stripPct = (y: number) => 70 + (y - 0.5) * 30
+
+/** A task's name beside its dot: `.dotLabel`'s font (11px, medium). */
+const LABEL_FONT_PX = 11
+const LABEL_FONT_WEIGHT = 500
+/** A dot's half size as drawn, its ring included: 9px (13px with a priority flag), the surface ring, a late follow-up's ring. */
+const dotRadius = (marked: boolean, followupLate: boolean) => (marked ? 6.5 : 4.5) + (followupLate ? 3 : 1.5)
+/** A Slipping badge's box (one digit: `SLIPPING_LISTED` is 9). */
+const BADGE_PX = 14
+
+/** The box of one of the plot's own words (11px bold caps, 0.08em apart), `at` its corner of a field `w` × `h`. */
+function wordRect(word: string, at: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', w: number, h: number, top = 0): LabelRect {
+  const width = appTextWidth(word.toUpperCase(), LABEL_FONT_PX, 700) + word.length * LABEL_FONT_PX * 0.08 + 4
+  const height = LABEL_FONT_PX + 3
+  const left = at.endsWith('left') ? 0 : w - width
+  const y = at.startsWith('top') ? top : h - height
+  return { left, right: left + width, top: y, bottom: y + height }
+}
+
+/** A name placed beside its dot (`placeNeglectLabels`): at the dot's spot, pushed off it by its offset. */
+function DotLabel({ point, label, noDue }: { point: NeglectPoint<PersistedTodoItem>; label: PlacedLabel; noDue: boolean }) {
+  const style = {
+    left: `${xPct(point.x)}%`,
+    top: noDue ? `${stripPct(point.y)}%` : `${yPct(point.y)}%`,
+    width: label.width,
+    '--label-offset': `${label.offset}px`,
+  } as CSSProperties
+  return (
+    // The dot's own name says it: this is its picture.
+    <span className={styles.dotLabel} style={style} data-side={label.side} data-neglect-label={point.todo.id} aria-hidden="true">
+      {point.todo.title}
+    </span>
+  )
+}
 
 /** What a dot says (its label and tooltip lines). */
 function pointLines(p: NeglectPoint<PersistedTodoItem>, followupLate: boolean): [string, string] {
@@ -228,7 +263,12 @@ function xMarks(untouchedDays: number): Array<{ x: number; label: string; key: s
  * due soon or late and untouched for the tab's threshold — is Slipping,
  * listed beside the plot (under it when narrow). A dot's colour is the
  * tab's Colour by (a picked tag's, the first person's, or neutral); a
- * priority flag makes it larger, a late follow-up rings it yellow. A click
+ * priority flag makes it larger, a late follow-up rings it yellow. **A
+ * task's name stands beside its dot where it fits** (`utils/neglect-labels`:
+ * right of it, else left, clear of every dot, badge, other name and the
+ * plot's own words; the Slipping tasks first; cut with an ellipsis where
+ * there is less room than the name, absent where there is too little) — so
+ * a bigger map names more of its tasks. A click
  * opens the task; a drag on empty plot lassoes dots into the widget's
  * selection, which the bulk bar acts on.
  */
@@ -311,6 +351,8 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const [sizeRef, size] = useElementSize()
+  const [fieldRef, fieldSize] = useElementSize()
+  const [stripRef, stripSize] = useElementSize()
   const { untouchedDays, colourBy } = tab.config
 
   const map = useNeglectMap(tab)
@@ -368,8 +410,38 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
       selectable={!isMobile}
     />
   )
-  const plotted = map.points.filter((p) => p.dueIn != null)
-  const strip = map.points.filter((p) => p.dueIn == null)
+  const plotted = useMemo(() => map.points.filter((p) => p.dueIn != null), [map])
+  const strip = useMemo(() => map.points.filter((p) => p.dueIn == null), [map])
+
+  // The names that fit beside their dots (`placeNeglectLabels`): the Slipping tasks first, in their list's
+  // order, then the flagged ones, then the rest — on the plot and on the strip, each in its own field.
+  const { plotLabels, stripLabels } = useMemo(() => {
+    const rank = new Map(map.slipping.map((p, i) => [p.todo.id, i]))
+    const flagged = (p: NeglectPoint<PersistedTodoItem>) => p.todo.urgent === true || p.todo.important === true || p.todo.focus === true
+    const order = (a: NeglectPoint<PersistedTodoItem>, b: NeglectPoint<PersistedTodoItem>) =>
+      (rank.get(a.todo.id) ?? Infinity) - (rank.get(b.todo.id) ?? Infinity) || Number(flagged(b)) - Number(flagged(a))
+    const dotsOf = (points: readonly NeglectPoint<PersistedTodoItem>[], w: number, h: number, noDue: boolean): LabelDot[] =>
+      [...points].sort(order).map((p) => ({
+        id: p.todo.id,
+        x: (xPct(p.x) / 100) * w,
+        y: ((noDue ? stripPct(p.y) : yPct(p.y)) / 100) * h,
+        radius: dotRadius(flagged(p), isFollowupOverdue(p.todo, today)),
+        textWidth: appTextWidth(p.todo.title, LABEL_FONT_PX, LABEL_FONT_WEIGHT),
+        ...(badges.has(p.todo.id) ? { badge: { side: p.x > BADGE_FLIP_X ? 'left' as const : 'right' as const, width: BADGE_PX, height: BADGE_PX } } : {}),
+      }))
+    const { width: fw, height: fh } = fieldSize
+    const { width: sw, height: sh } = stripSize
+    const noDueCount = map.counts.noDue + map.counts.forgotten
+    return {
+      plotLabels: placeNeglectLabels(dotsOf(plotted, fw, fh, false), fieldSize, [
+        wordRect('In hand', 'top-left', fw, fh), wordRect('Slipping', 'top-right', fw, fh),
+        wordRect('Planned', 'bottom-left', fw, fh), wordRect('Drifting', 'bottom-right', fw, fh),
+      ]),
+      stripLabels: placeNeglectLabels(dotsOf(strip, sw, sh, true), stripSize, [
+        wordRect(`No due date · ${noDueCount}`, 'top-left', sw, sh, 3), wordRect(`Forgotten · ${map.counts.forgotten}`, 'top-right', sw, sh, 3),
+      ]),
+    }
+  }, [map, plotted, strip, badges, today, fieldSize, stripSize])
 
   return (
     <>
@@ -394,7 +466,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
           ))}
         </div>
         <div className={styles.plot} role="group" aria-label="Neglect map: days until due by days untouched">
-          <div className={styles.field}>
+          <div ref={fieldRef} className={styles.field}>
             <div
               className={styles.slippingCorner}
               style={{ left: `${threshold}%`, height: `calc(${nearEdge}% + var(--neglect-inset))` }}
@@ -411,6 +483,10 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
             <span className={`${styles.corner} ${styles.cornerPlanned}`} aria-hidden="true">Planned</span>
             <span className={`${styles.corner} ${styles.cornerDrifting}`} aria-hidden="true">Drifting</span>
             {plotted.map(dotFor)}
+            {plotted.map((p) => {
+              const label = plotLabels.get(p.todo.id)
+              return label ? <DotLabel key={p.todo.id} point={p} label={label} noDue={false} /> : null
+            })}
           </div>
         </div>
         <div className={styles.xAxis} aria-hidden="true">
@@ -419,11 +495,15 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
           ))}
         </div>
         <div className={styles.strip} role="group" aria-label={`No due date: ${map.counts.noDue + map.counts.forgotten}`}>
-          <div className={styles.stripField}>
+          <div ref={stripRef} className={styles.stripField}>
             <div className={styles.forgottenPart} style={{ left: `${forgottenStart}%` }} aria-hidden="true" />
             <span className={styles.stripLabel} aria-hidden="true">No due date · {map.counts.noDue + map.counts.forgotten}</span>
             <span className={styles.forgottenLabel} aria-hidden="true" data-testid="neglect-forgotten">Forgotten · {map.counts.forgotten}</span>
             {strip.map(dotFor)}
+            {strip.map((p) => {
+              const label = stripLabels.get(p.todo.id)
+              return label ? <DotLabel key={p.todo.id} point={p} label={label} noDue /> : null
+            })}
           </div>
         </div>
         {lasso && (
