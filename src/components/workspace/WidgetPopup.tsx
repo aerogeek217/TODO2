@@ -111,6 +111,8 @@ function WidgetPopup({ tab }: { tab: LayoutTab }) {
   // The focus back to the tab's cell when what opened the popup is gone (a menu item): after the frame's own return.
   useEffect(() => () => {
     window.setTimeout(() => {
+      // The page is gone by now (the popup closed with it): nothing to focus.
+      if (typeof document === 'undefined') return
       const active = document.activeElement
       if (active == null || active === document.body || !active.isConnected) focusTabCell(tabId)
     }, 0)
