@@ -663,6 +663,24 @@ describe('FileStorageService — older sync files', () => {
     expect(data.layouts[0]!.cells).toEqual([expect.objectContaining({ id: 'b', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 'r', kind: 'review', config: {} }] })])
   })
 
+  it('a v79 sync file with people’s addresses and the open method: accepted, the browser gets it in the v80 shape (schema v80 runs on the load)', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc } = await startWith(fileBody({
+      __schemaVersion: 79,
+      people: [{ id: 1, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' }],
+      settings: [{ key: 'checkinOpenMethod', value: 'eml' }, { key: 'weekStartsOn', value: '1' }],
+    }))
+    const ask = vi.fn(async () => true)
+    svc.onConfirmFileUpgrade(ask)
+    await svc.initialize()
+
+    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ fromVersion: 79, toVersion: CURRENT }))
+    expect(mockRestoreFromImportData).toHaveBeenCalledTimes(1)
+    const data = mockRestoreFromImportData.mock.calls[0]![0] as { people: unknown[]; settings: unknown[] }
+    expect(data.people).toEqual([{ id: 1, name: 'Ada Lovelace', initials: 'AL' }])
+    expect(data.settings).toEqual([{ key: 'weekStartsOn', value: '1' }])
+  })
+
   it('upgrade prompt with no listener stays paused', async () => {
     const { svc, writable } = await startWith(fileBody({ __schemaVersion: OLDER }))
     await svc.initialize()

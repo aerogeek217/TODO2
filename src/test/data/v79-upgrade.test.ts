@@ -56,8 +56,8 @@ function expectClean(row: DataRow): void {
 }
 
 describe('v79: registered', () => {
-  it('is the current schema, after v78', () => {
-    expect(CURRENT_DB_VERSION).toBe(79)
+  it('is registered as v79 (the current schema is past it)', () => {
+    expect(CURRENT_DB_VERSION).toBeGreaterThan(79)
     expect(SCHEMA_UPGRADES.get(79)).toBe(upgradeV79)
   })
 })
