@@ -144,8 +144,8 @@ export interface HistoryExactness {
  * reads only fields the log held for the whole window — the history log
  * H3's fields only when `historyLogSince` is on or before `firstDay` (a day's
  * count needs every change after its end, so the log may begin during the
- * first day), never text or the modified date. A sparkline that isn't is
- * marked ≈.
+ * first day), never text or the modified date. A sparkline that isn't
+ * says so in its tooltip.
  */
 export function historyExactness(
   filter: FilterCriteria | readonly FilterCriteria[],
@@ -171,8 +171,8 @@ export interface HistoryExactFrom {
  * Day by day, `historyExactness`: a day's count is exact when the filter
  * reads only what the log held from that day's end on — the history log
  * H3's fields from the `historyLogSince` day on, never text or the
- * modified date (`from` is then `days.length`). Created vs completed marks
- * the days before `from` ≈.
+ * modified date (`from` is then `days.length`). Created vs completed draws
+ * the days before `from` dimmed or dashed.
  */
 export function historyExactFrom(
   filter: FilterCriteria | readonly FilterCriteria[],

@@ -81,18 +81,20 @@ export function Legend({ color, label, glyph }: { color: string; label: string; 
 }
 
 /** A button when the number can be opened, else a plain element with the same look. */
-export function Clickable({ as, className, label, onClick, children, ...rest }: {
+export function Clickable({ as, className, label, title, onClick, children, ...rest }: {
   as: 'div' | 'span'
   className?: string
   label?: string
+  /** Its tooltip, either way. */
+  title?: string
   onClick?: () => void
   children: ReactNode
 } & Record<`data-${string}`, string | undefined>) {
   if (onClick) {
-    return <button type="button" className={className} aria-label={label} onClick={onClick} {...rest}>{children}</button>
+    return <button type="button" className={className} aria-label={label} title={title} onClick={onClick} {...rest}>{children}</button>
   }
   const Tag = as
-  return <Tag className={className} {...rest}>{children}</Tag>
+  return <Tag className={className} title={title} {...rest}>{children}</Tag>
 }
 
 /** A count in `color`, or a muted dash for none. */

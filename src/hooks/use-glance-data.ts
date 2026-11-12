@@ -198,9 +198,9 @@ export function useTrendStats(base: StatsBase, range: TrendRange): TrendStats | 
 /** What Created vs completed draws: its statistics, and from which day they are exact. */
 export interface TrendData {
   stats: TrendStats
-  /** The index of the first of the window's days from which every count is exact (`days.length`: none is); the days before it are marked ≈. */
+  /** The index of the first of the window's days from which every count is exact (`days.length`: none is); the days before it are drawn dimmed or dashed. */
   exactFrom: number
-  /** What reads as it is now on the days before `exactFrom` (the ≈ mark's tooltip). */
+  /** What reads as it is now on the days before `exactFrom` (those days' tooltip). */
   approximate: HistoryField[]
   /** The screen filter narrows what it counts (its drills say so). */
   filtered: boolean
