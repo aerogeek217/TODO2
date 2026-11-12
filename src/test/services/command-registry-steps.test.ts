@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { createCommands, type Command, type CommandContext } from '../../services/command-registry'
 import { emptyPredicate } from '../../models/filter-predicate'
 import { createTab } from '../../models/workspace-layout'
+import { REVIEW_POPUP_TAB_ID } from '../../models/review'
 import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useListWidgetStore } from '../../stores/list-widget-store'
@@ -155,9 +156,11 @@ describe('Review With ›', () => {
     await vi.waitFor(() => expect(useListWidgetStore.getState().reviewFilters.rv).toEqual({ expression: { kind: 'person', id: 1 }, showCompleted: false }))
   })
 
-  it('not offered while no layout has a Review widget', () => {
+  it('offered with no Review widget on the layout too: a pick opens the popup review', async () => {
     withReviewWidget(false)
-    expect(find(createCommands(ctx()), 'review-with')).toBeUndefined()
+    find(createCommands(ctx()), 'review-with')?.step?.[0]?.action()
+    await vi.waitFor(() => expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]).toEqual({ expression: { kind: 'person', id: 1 }, showCompleted: false }))
+    expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'review' })
   })
 
   it('none without a person who has open tasks', () => {

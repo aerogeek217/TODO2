@@ -1,4 +1,5 @@
 import { getActiveTab } from '../models/workspace-layout'
+import { REVIEW_POPUP_TAB_ID } from '../models/review'
 import { editorsHoldChanges, leaveOpenEditors } from '../stores/editor-leave'
 import type { ReviewFilter } from '../stores/list-widget-store'
 import { useUIStore } from '../stores/ui-store'
@@ -7,67 +8,69 @@ import { attrSelector, PROMPT_ROW_ATTR, REVIEW_UPDATE_ATTR, REVIEW_WIDGET_ATTR }
 import { registerModuleReset } from '../utils/module-reset'
 import { panelOfTab } from '../utils/workspace-layout-queries'
 import { listReviewFilter } from './review'
-import { firstReviewTab, reviewWidgetTarget, setReviewWidgetFilter } from './review-widget'
+import { reviewWidgetTarget, setReviewWidgetFilter } from './review-widget'
+import { openReviewPopup } from './widget-popup'
 
 /**
- * A Review button's jump (widget feedback 2B, J4): every Review entry point —
- * a list's Review these N tasks, `R`, the palette's Review List and Review
- * With ›, the person / tag menu, the top bar's People filter, a Breakdown
- * row's Review and its count columns' counts, the filtered-tasks panel —
- * hands its filter (`services/review`) to `jumpToReview`, which shows it in
- * a Review widget: the open layout's first one (reading order), else the
- * first layout in tab order that has one. Where none exists the buttons are
- * hidden (`hooks/use-review-jump`), never a widget added.
+ * A Review button's jump: every Review entry point — a list's Review these N
+ * tasks, `R`, the palette's Review List and Review With ›, the person / tag
+ * menu, the top bar's People filter, a Breakdown row's Review and its count
+ * columns' counts, the filtered-tasks panel — hands its filter
+ * (`services/review`) to `jumpToReview`, which shows it in a Review widget:
+ * the open layout's first one (reading order) when it has one, else the
+ * popup review (`services/widget-popup`: a Review widget in the widget popup,
+ * tied to no layout tab). The buttons are always there, the phone's too.
  *
  * **Nothing is saved**: the filter is the widget's temporary one, a jump
  * replaces whatever it was reviewing without asking, and it writes no layout
- * and makes no undo step (a layout switch records what a switch records).
+ * and makes no undo step.
  */
-
-/** Whether a jump has somewhere to go: a Review widget on some layout. */
-export function reviewJumpAvailable(): boolean {
-  return reviewWidgetTarget() != null
-}
 
 /** The jump running, so a second press while its question is up does nothing. */
 let jumping = false
 registerModuleReset(() => { jumping = false })
 
 /**
- * Shows `filter` in the Review widget a jump goes to (`reviewWidgetTarget`)
- * and moves the focus into it. On another layout it switches there first,
- * the way the layout tabs do (`workspace-store.load`): an open editor with
- * changes asks Save / Discard / Keep editing, and Keep editing cancels the
- * jump. On the open layout an editor with changes asks too when showing the
- * widget would hide another tab of its cell (the editor's subject could be
- * that tab). The task dialog and the filtered-tasks panel, which would cover
- * the widget, close. Resolves whether the filter was shown.
+ * Shows `filter` in a Review widget and moves the focus into it. The open
+ * layout's Review widget (`reviewWidgetTarget`), when it has one: an open
+ * editor with changes asks Save / Discard / Keep editing first when showing
+ * the widget would hide another tab of its cell (the editor's subject could
+ * be that tab), and Keep editing cancels the jump; the widget popup closes
+ * unless it shows that very widget. Else the popup review, opened with the
+ * filter (an editor with changes asked first, as the popup asks). The task
+ * dialog and the filtered-tasks panel, which would cover the widget, close.
+ * Resolves whether the filter was shown.
  */
 export async function jumpToReview(filter: ReviewFilter | null): Promise<boolean> {
-  const target = reviewWidgetTarget()
-  if (!target || jumping) return false
+  if (jumping) return false
   jumping = true
   try {
-    let tabId = target.tabId
-    const ws = useWorkspaceStore.getState()
-    if (!target.open) {
-      await ws.load(target.layoutId)
-      const after = useWorkspaceStore.getState()
-      // Keep editing (or a failed switch): the jump goes no further.
-      if (after.activeLayoutId !== target.layoutId || !after.working) return false
-      tabId = firstReviewTab(after.working) ?? tabId
-    } else if (editorsHoldChanges() && hidesAnotherTab(tabId) && !(await leaveOpenEditors())) {
-      return false
+    const target = reviewWidgetTarget()
+    if (!target) {
+      if (!(await openReviewPopup(filter))) return false
+      closeCovers()
+      focusReviewWidget(REVIEW_POPUP_TAB_ID)
+      return true
     }
+    const tabId = target.tabId
+    if (editorsHoldChanges() && hidesAnotherTab(tabId) && !(await leaveOpenEditors())) return false
+    closeCovers()
     const ui = useUIStore.getState()
-    if (ui.taskDialog) ui.hideTaskDialog()
-    if (ui.filterPanelOpen) ui.closeFilterPanel()
+    const popup = ui.widgetPopup
+    if (popup && !(popup.kind === 'tab' && popup.tabId === tabId)) ui.closeWidgetPopup()
     setReviewWidgetFilter(tabId, filter)
     focusReviewWidget(tabId)
     return true
   } finally {
     jumping = false
   }
+}
+
+/** The task dialog and the filtered-tasks panel close: they would cover the widget. */
+function closeCovers(): void {
+  const ui = useUIStore.getState()
+  if (ui.taskDialog) ui.hideTaskDialog()
+  if (ui.filterPanelOpen) ui.closeFilterPanel()
 }
 
 /**

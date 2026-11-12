@@ -307,11 +307,11 @@ describe('ChipSelector — a person’s / tag’s menu on its options', () => {
     const { onToggle, onClose } = renderWithMenu()
     fireEvent.contextMenu(screen.getByRole('option', { name: 'Dana Kim' }), { button: 2, clientX: 40, clientY: 60 })
     const menu = screen.getByRole('menu', { name: '@Dana Kim' })
-    expect(menuItems()).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+    expect(menuItems()).toEqual(['Review with Dana Kim', 'Show tasks', 'Edit…', 'Delete…'])
     expect(onToggle).not.toHaveBeenCalled()
     expect(activeOption()).toHaveTextContent('Dana Kim')
     // The focus is on the first item.
-    expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Show tasks' }))
+    expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Review with Dana Kim' }))
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
     expect(onClose).not.toHaveBeenCalled()
@@ -398,7 +398,7 @@ describe('ChipSelector — a person’s / tag’s menu on its options', () => {
     unmount()
     render(<DialogFrame layer="overlay" onClose={vi.fn()} aria-label="Task dialog">{picker}</DialogFrame>)
     fireEvent.contextMenu(screen.getByRole('option', { name: 'Dana Kim' }), { button: 2 })
-    expect(menuItems()).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+    expect(menuItems()).toEqual(['Review with Dana Kim', 'Show tasks', 'Edit…', 'Delete…'])
   })
 
   it('the menu closes itself once its person is gone', () => {

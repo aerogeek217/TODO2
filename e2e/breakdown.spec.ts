@@ -6,7 +6,7 @@ import { layoutTab, openCellMenu, seedWorkspace, wsRow, type WorkspaceSeed, expe
  * a bar or a segment drills into the task dialog; the headings sort (view
  * state, kept across a reload, the layout still saved); the top bar's @
  * pick narrows the rows (no filter row of its own); the row's Review button and a count column's count
- * jump to the Review widget (on another layout here) with just those tasks as its filter; the editor's count columns
+ * open the popup review (the Review widget is on another layout here) with just those tasks as its filter; the editor's count columns
  * (board BC); the lens switch (G3).
  */
 
@@ -53,11 +53,13 @@ const rowNames = (page: Page, tabId = 'people') =>
   chart(page, tabId).locator('[data-breakdown-row] > [role="cell"]:first-child > button:first-child')
     .evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')?.split(':')[0]))
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
-/** The Review widget's queue rows (on the Review layout, where a jump goes). */
-const queueRows = (page: Page) => page.locator('[data-review-widget="rv"] [data-review-row]')
-/** Back to the Charts layout after a jump. */
+/** The popup review's queue rows (no Review widget on the Charts layout: a jump opens it). */
+const queueRows = (page: Page) => page.locator('[data-review-widget="review-popup"] [data-review-row]')
+/** Back to the Charts layout after a jump: the popup closed, no layout switched. */
 async function backToCharts(page: Page) {
-  await layoutTab(page, 'Charts').click()
+  await expect(layoutTab(page, 'Charts')).toHaveAttribute('aria-selected', 'true')
+  await page.getByTestId('widget-popup').getByRole('button', { name: 'Close' }).click()
+  await expect(page.getByTestId('widget-popup')).toHaveCount(0)
   await expect(chart(page)).toBeVisible()
 }
 
@@ -87,7 +89,7 @@ test('the headings sort (saved at once, per split); the top bar’s @ pick narro
   // The default: most counted across the count columns first; no sort words in the header.
   await expect.poll(() => rowNames(page)).toEqual(['Aisha Rahman', 'Ben Ortiz', 'Cy Young', 'Unassigned'])
   await expect(chart(page).getByTestId('chart-sub')).toHaveCount(0)
-  const open = chart(page).getByRole('button', { name: /^Open/ })
+  const open = chart(page).getByRole('button', { name: 'Open', exact: true })
   await open.click()
   await expect.poll(() => rowNames(page)).toEqual(['Ben Ortiz', 'Aisha Rahman', 'Cy Young', 'Unassigned'])
   await expect(chart(page).getByRole('columnheader', { name: /Open/ })).toHaveAttribute('aria-sort', 'descending')
@@ -100,7 +102,7 @@ test('the headings sort (saved at once, per split); the top bar’s @ pick narro
   await page.reload()
   await expect.poll(() => rowNames(page)).toEqual(['Cy Young', 'Aisha Rahman', 'Ben Ortiz', 'Unassigned'])
   // A third click: back to the default.
-  await chart(page).getByRole('button', { name: /^Open/ }).click()
+  await chart(page).getByRole('button', { name: 'Open', exact: true }).click()
   await expect.poll(() => rowNames(page)).toEqual(['Aisha Rahman', 'Ben Ortiz', 'Cy Young', 'Unassigned'])
 
   // No filter row (item 2): the top bar's @ picks narrow the people rows instead.
@@ -145,8 +147,8 @@ test('Review sits right after the name, shown on the row’s hover or focus; it 
   await expect.poll(() => actionsOpacity(review)).toBe(1)
   await expect(chart(page)).not.toContainText('Review ▸')
   await review.click()
-  // The jump: to the Review layout, its widget's filter the row, its queue Aisha's three open tasks.
-  await expect(page.locator('[data-review-widget="rv"]').getByRole('textbox', { name: 'Review filter' })).toHaveValue('@"Aisha Rahman"')
+  // The jump: the popup review, its filter the row, its queue Aisha's three open tasks.
+  await expect(page.locator('[data-review-widget="review-popup"]').getByRole('textbox', { name: 'Review filter' })).toHaveValue('@"Aisha Rahman"')
   await expect(queueRows(page)).toHaveCount(3)
   await backToCharts(page)
 
@@ -258,7 +260,7 @@ test('the lens switch at the header’s end, quiet while it follows the lens (2A
   const more = (await chart(page).getByRole('button', { name: 'Cell options' }).boundingBox())!
   const sb = (await sw.boundingBox())!
   expect(sb.x + sb.width).toBeLessThanOrEqual(more.x + 0.5)
-  expect(more.x - (sb.x + sb.width)).toBeLessThan(40)
+  expect(more.x - (sb.x + sb.width)).toBeLessThan(64) // the grip and Open larger between
   await sw.click()
   await expect(sw).toHaveAttribute('aria-pressed', 'false')
   await expect(chart(page).getByTestId('glance-section-count')).toHaveText('10 open')

@@ -47,7 +47,7 @@ import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
 import { ErrorBoundary } from './components/shared/ErrorBoundary'
 import { AddWidgetRequestHost } from './components/workspace/AddWidgetFlow'
-import { addWidgetFromPalette } from './components/workspace/widget-hooks'
+import { addWidgetFromPalette, openWidgetLargerFromPalette } from './components/workspace/widget-hooks'
 const SettingsPage = lazy(() => import('./views/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const SettingsModal = lazy(() => import('./components/settings/SettingsModal').then(m => ({ default: m.SettingsModal })))
 const WorkspacePage = lazy(() => import('./views/WorkspacePage').then(m => ({ default: m.WorkspacePage })))
@@ -103,6 +103,7 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
       showScreenTasks: () => useUIStore.getState().openFilterPanel(),
       getScreenTaskCount: () => screenTaskCount(currentTaskDialogEnv()),
       addWidget: addWidgetFromPalette,
+      openWidgetLarger: openWidgetLargerFromPalette,
       getLayouts: () => (layoutOpen ? { layouts, activeLayoutId, stored: layoutStored } : null),
       getLenses: () => ({ lenses, activeLensId }),
       getThemeMode: () => themeMode,

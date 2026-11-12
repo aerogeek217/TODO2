@@ -1,5 +1,4 @@
 import type { LensTab } from '../../../models/workspace-layout'
-import { useReviewJumpAvailable } from '../../../hooks/use-review-jump'
 import { reviewTasksLabel, sectionTaskIds } from '../../../services/review'
 import { reviewListTab } from '../../../services/review-jump'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
@@ -18,15 +17,13 @@ export function reviewMenuLabel(n: number): string {
  * tasks** — a jump to a Review widget with the list's filter as it shows its
  * tasks (`listReviewFilter`; its manual order and groups don't carry over),
  * N the open tasks the tab shows (each once), its key as the note. Offered
- * while the tab shows an open task and some layout has a Review widget
- * (`useReviewJumpAvailable`); none otherwise (or for no tab).
+ * while the tab shows an open task; none otherwise (or for no tab).
  */
 export function useListReviewMenuEntries(tab: LensTab | undefined): MenuEntry[] {
   const shown = useListWidgetStore((s) => (tab ? s.shown[tab.id] : undefined))
   const todos = useTodoStore((s) => s.todos)
   const overrides = useSettingsStore((s) => s.shortcutOverrides)
-  const available = useReviewJumpAvailable()
-  if (!tab || !shown || !available) return []
+  if (!tab || !shown) return []
   const open = new Set(todos.filter((t) => !t.isCompleted).map((t) => t.id))
   const n = sectionTaskIds(shown.sections).filter((id) => open.has(id)).length
   if (n === 0) return []

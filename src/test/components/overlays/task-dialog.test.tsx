@@ -153,15 +153,16 @@ describe('TaskDialog', () => {
     expect(within(dialog()!).getByRole('button', { name: /Copy tasks/ })).toHaveProperty('disabled', true)
   })
 
-  it('a person’s dialog has no check-in buttons; without a Review widget, no actions at all; the footer only Copy tasks and Close', () => {
+  it('a person’s dialog has no check-in buttons; without a Review widget its Review still shows (the popup review); the footer only Copy tasks and Close', () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     open(personTaskDialog(priya))
-    expect(within(dialog()!).queryByRole('group', { name: 'Actions for Priya Nair' })).toBeNull()
+    const actions = within(dialog()!).getByRole('group', { name: 'Actions for Priya Nair' })
+    expect(within(actions).getAllByRole('button').map((b) => b.textContent)).toEqual(['Review'])
     expect(within(dialog()!).queryByRole('button', { name: /Email check-in|Paste reply/ })).toBeNull()
     const footerButtons = Array.from(dialog()!.querySelectorAll('[class*="footer"] button')).map((b) => b.textContent)
     expect(footerButtons).toEqual(['Copy tasks', 'CloseEsc'])
   })
-  it('a person’s dialog’s Review (with a Review widget somewhere) closes the dialog and jumps with @<name>', async () => {
+  it('a person’s dialog’s Review (with a Review widget on the layout) closes the dialog and jumps with @<name>', async () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab('review', 'rv')])]]) }
     useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })

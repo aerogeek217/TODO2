@@ -10,7 +10,7 @@ import { copySelectedTasks } from './task-copy'
 import { listTabZoom, stepListTabZoom, zoomTargetTab } from './list-zoom'
 import { LIST_ZOOM_LABELS, stepListZoom } from '../utils/list-zoom'
 import { listReviewCount, personReviewFilter, reviewTargetTabId } from './review'
-import { jumpToReview, reviewJumpAvailable } from './review-jump'
+import { jumpToReview } from './review-jump'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useUIStore, type LayoutRequest } from '../stores/ui-store'
 import { lensActions } from '../stores/lens-actions'
@@ -89,6 +89,8 @@ export interface CommandContext {
    * with no cell. Absent: no Add Widget ›.
    */
   addWidget?: (kind: WidgetKind) => void
+  /** Opens the active widget of the cell last used larger (Open Widget Larger). Absent: no such command. */
+  openWidgetLarger?: () => void
   /** The layouts, for Go to Layout › and the layout commands; null (or absent) while no layout is open. */
   getLayouts?: () => LayoutChoices | null
   /** The lenses and the top bar's pick, for Lens ›. */
@@ -123,10 +125,9 @@ function peopleWithOpenTasks(ctx: CommandContext): { id: number; name: string; n
 /**
  * Review With › each person with open tasks (their count the hint): a jump
  * to a Review widget with `@<name>`, as the person menu's Review with X
- * (`services/review-jump`). None while no layout has a Review widget.
+ * (`services/review-jump`).
  */
 function reviewWithCommands(ctx: CommandContext): Command[] {
-  if (!reviewJumpAvailable()) return []
   const people = peopleWithOpenTasks(ctx).map(({ id, name, n }): Command => ({
     id: `review-with-${id}`,
     name,
@@ -142,7 +143,8 @@ function reviewWithCommands(ctx: CommandContext): Command[] {
  * to Layout › each layout (the open one marked; a pick switches as its tab
  * does — `LayoutControls` runs it, `ui-store.requestLayout`), Add Widget ›
  * each kind by group, Tasks then Insights, as the Add widget menu lists
- * them (a list only once the layout is stored: it owns its lists), and New
+ * them (a list only once the layout is stored: it owns its lists), Open
+ * Widget Larger (the cell last used, in the widget popup), and New
  * Layout… / Duplicate Layout… (their name dialogs).
  */
 function layoutCommands(ctx: CommandContext): Command[] {
@@ -172,6 +174,8 @@ function layoutCommands(ctx: CommandContext): Command[] {
       })))
     commands.push(stepCommand('add-widget', 'Add Widget', 'layout', kinds))
   }
+  const openLarger = ctx.openWidgetLarger
+  if (openLarger) commands.push({ id: 'widget-open-larger', name: 'Open Widget Larger', category: 'layout', action: openLarger })
   commands.push(
     { id: 'layout-new', name: 'New Layout…', category: 'layout', action: () => request({ kind: 'new' }) },
     { id: 'layout-duplicate', name: 'Duplicate Layout…', category: 'layout', action: () => request({ kind: 'duplicate' }) },
@@ -355,11 +359,11 @@ function listZoomCommands(): Command[] {
  * Review List: a jump to a Review widget with the list tab on screen the
  * user was last in (`reviewTargetTabId`), as its key does; the hint names
  * the list and its open tasks. None without a list tab on screen that shows
- * an open task, or while no layout has a Review widget.
+ * an open task.
  */
 function reviewListCommands(bound: (id: string, name: string, binding: ShortcutId, category: CommandCategory) => Command): Command[] {
   const tabId = reviewTargetTabId()
-  if (!tabId || !reviewJumpAvailable()) return []
+  if (!tabId) return []
   const name = useListWidgetStore.getState().shown[tabId]?.label
   const count = tasksLabel(listReviewCount(tabId))
   return [{ ...bound('review-list', 'Review List', 'review-list', 'task'), hint: name ? `${name} · ${count}` : count }]

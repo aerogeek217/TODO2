@@ -492,11 +492,10 @@ describe('FilterChipBar — primitive', () => {
         expect(screen.queryByPlaceholderText('Search...')).toBeNull()
       })
 
-      it('no layout has a Review widget: no footer at all', () => {
+      it('no Review widget on the layout: the footer still offers Review (the popup review)', () => {
         withWidget(false)
         openPeople([1])
-        expect(screen.queryByRole('button', { name: /^Review/ })).toBeNull()
-        expect(screen.queryByText('Narrow to some people to review them.')).toBeNull()
+        expect(screen.getByRole('button', { name: 'Review with Alice' })).toBeInTheDocument()
       })
 
       it.each([

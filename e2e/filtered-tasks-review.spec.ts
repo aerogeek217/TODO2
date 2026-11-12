@@ -5,9 +5,10 @@ import { openFilterPicker } from './fixtures/filters'
 
 /**
  * The filtered-tasks panel (the top bar's `N of M` counter) offers Review
- * these N tasks beside Copy tasks (widget feedback 2B): a jump to the Review
- * widget with the top bar's chips and its text search as its filter — the
- * panel closes. Hidden while no layout has a Review widget; desktop only.
+ * these N tasks beside Copy tasks: a jump with the top bar's chips and its
+ * text search as its filter — the panel closes. With no Review widget on the
+ * open layout (another layout's is left alone) it opens the popup review.
+ * The phone's screen-filter dialog offers it too.
  */
 
 const SEED: WorkspaceSeed = {
@@ -47,7 +48,7 @@ async function openPanelOnAnn(page: Page, seed: WorkspaceSeed = SEED) {
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
-test('Review these 3 tasks jumps to the Review widget with the top bar’s filter; the panel closes; its queue is the panel’s tasks', async ({ page }) => {
+test('Review these 3 tasks opens the popup review with the top bar’s filter (no layout switch); the panel closes; its queue is the panel’s tasks', async ({ page }) => {
   await openPanelOnAnn(page)
   const listed = await rowTitles(panel(page))
   expect(listed).toHaveLength(3)
@@ -55,9 +56,10 @@ test('Review these 3 tasks jumps to the Review widget with the top bar’s filte
 
   await reviewButton(page).click()
   await expect(panel(page)).toHaveCount(0)
-  await expectOpenLayout(page, 'Review')
-  await expect(reviewField(page, 'rv')).toHaveValue('@Ann')
-  const widget = page.locator('[data-review-widget="rv"]')
+  await expectOpenLayout(page, 'Main')
+  await expect(page.getByTestId('widget-popup')).toBeVisible()
+  await expect(reviewField(page, 'review-popup')).toHaveValue('@Ann')
+  const widget = page.locator('[data-review-widget="review-popup"]')
   await expect(widget.locator('[data-review-row]')).toHaveCount(3)
   for (const title of listed) await expect(widget.locator('[data-review-row]').filter({ hasText: title })).toHaveCount(1)
   // The focus moved into the widget: the card's update line.
@@ -70,20 +72,21 @@ test('the text search comes along as a quoted phrase', async ({ page }) => {
   await page.locator('header').getByRole('button', { name: /^1 of 4 open tasks shown/ }).click()
   await expect(panel(page)).toBeVisible()
   await reviewButton(page).or(panel(page).getByRole('button', { name: 'Review this task' })).click()
-  await expect(reviewField(page, 'rv')).toHaveValue('"report"')
-  await expect(page.locator('[data-review-widget="rv"]').getByTestId('review-card-title')).toHaveText('Ann report')
+  await expect(reviewField(page, 'review-popup')).toHaveValue('"report"')
+  await expect(page.locator('[data-review-widget="review-popup"]').getByTestId('review-card-title')).toHaveText('Ann report')
 })
 
-test('no layout has a Review widget: no Review button', async ({ page }) => {
+test('no layout has a Review widget: the Review button is there and opens the popup review', async ({ page }) => {
   await openPanelOnAnn(page, NO_WIDGET)
   await expect(panel(page).getByRole('button', { name: /^Copy tasks/ })).toBeVisible()
-  await expect(panel(page).getByRole('button', { name: /^Review/ })).toHaveCount(0)
+  await reviewButton(page).click()
+  await expect(reviewField(page, 'review-popup')).toHaveValue('@Ann')
 })
 
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('the screen filter’s task dialog has no Review action', async ({ page }) => {
+  test('the screen filter’s task dialog offers Review, which opens the popup review on the full screen', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Filters', exact: true }).click()
     await page.getByRole('dialog', { name: 'Filters' }).getByPlaceholder('Filter…').fill('ann')
@@ -91,6 +94,14 @@ test.describe('phone', () => {
     const dialog = page.locator('[data-task-dialog]')
     await expect(dialog).toBeVisible()
     await expect(dialog.getByRole('button', { name: /^Copy tasks/ })).toBeVisible()
-    await expect(dialog.getByRole('button', { name: /^Review/ })).toHaveCount(0)
+    await dialog.getByRole('button', { name: 'Review these 3 tasks' }).click()
+    await expect(dialog).toHaveCount(0)
+    const popup = page.getByTestId('widget-popup')
+    await expect(popup).toBeVisible()
+    await expect(reviewField(page, 'review-popup')).toHaveValue('"ann"')
+    const box = await popup.boundingBox()
+    expect(box?.width).toBeGreaterThanOrEqual(389)
+    // The Review widget's medium face, as the phone's cells show it.
+    await expect(page.locator('[data-review-widget="review-popup"]')).toHaveAttribute('data-review-face', 'medium')
   })
 })

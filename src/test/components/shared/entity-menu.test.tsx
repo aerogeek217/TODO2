@@ -107,22 +107,22 @@ describe('EntityMenu — where Review is offered', () => {
     expect(items()).toEqual(PERSON_MENU)
   })
 
-  it('no layout has a Review widget: no Review — the rest stays', () => {
+  it('no Review widget on the layout: Review still offered (the popup review)', () => {
     const plain = { id: 1, name: 'Main', sortOrder: 0, createdAt: AT, modifiedAt: AT, ...grid([[cell('a', [createTab('notes', 'n')])]]) }
     useWorkspaceStore.setState({ working: plain, saved: plain, layouts: [plain], activeLayoutId: 1 })
     renderMenu([person], { layer: 'overlay' })
-    expect(items()).toEqual(PERSON_MENU.slice(1))
+    expect(items()).toEqual(PERSON_MENU)
     cleanup()
     renderMenu([tag], { layer: 'overlay' })
-    expect(items()).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+    expect(items()).toEqual(['Review #legal tasks', 'Show tasks', 'Edit…', 'Delete…'])
   })
 
-  it('on a phone: no Review (the jumps are desktop only)', () => {
+  it('on a phone: Review offered too', () => {
     const original = window.matchMedia
     window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
     try {
       renderMenu([person])
-      expect(items()).toEqual(PERSON_MENU.slice(1))
+      expect(items()).toEqual(PERSON_MENU)
     } finally {
       window.matchMedia = original
     }
