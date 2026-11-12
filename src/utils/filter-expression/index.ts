@@ -1,6 +1,6 @@
 export { KEYWORDS as EXPRESSION_KEYWORDS, parseExpression, type ExpressionError, type ExpressionNameResolver, type ExpressionParse, type ExpressionParseOptions, type ExpressionSpan, type ExpressionSpanKind } from './parse'
-export { printExpression, printTerm, type ExpressionNames } from './print'
+export { printExpression, printPieces, printTerm, type ExpressionNames, type ExpressionPiece } from './print'
 export { clausesToExpression, expressionToClauses, orGroupTerm, splitTopLevel, topLevelIdPicks, wholeExpression, type SplitExpression } from './convert'
-export { expressionAtoms, expressionDepth, expressionSize, expressionsEqual, normalizeExpression, topLevelTerms } from './tree'
+export { expressionAtoms, expressionDepth, expressionSize, expressionsEqual, normalizeExpression, topLevelTerms, withoutAtom } from './tree'
 export { DATE_WORD, dateClauseWords } from './dates'
 export { expressionWords, pieceSpaces, wordsText, type ExpressionWords, type WordNameKind, type WordPiece } from './words'

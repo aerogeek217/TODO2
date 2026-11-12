@@ -138,6 +138,60 @@
   box-shadow: none;
 }
 
+/* At rest (not focused, the text the filter's): each term a pill with its own ×, the words between
+ * them muted — in the text's font and line, so going to the text and back moves little. The pills
+ * size the field; the text field fills it under them and takes every press but an ×'s. */
+.pills {
+  position: relative;
+  z-index: 1;
+  min-height: 20px;
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: var(--color-text-primary);
+  pointer-events: none;
+}
+
+.pill {
+  white-space: nowrap;
+}
+
+/* A pill's ×: 14px inside the pill's line, quiet until hovered. */
+.pillRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin: 0 -1px 0 3px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  line-height: 1;
+  vertical-align: -2px;
+  opacity: 0.6;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.pillRemove:hover {
+  opacity: 1;
+  background: var(--color-tint-10);
+}
+
+.input.inputRest {
+  position: absolute;
+  inset: 0;
+  /* Over the height the text asked for: the pills' box is the field's. */
+  height: 100% !important;
+}
+
 .input::placeholder {
   color: var(--color-text-muted);
 }

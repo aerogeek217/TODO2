@@ -363,6 +363,27 @@ describe('the Review widget: the progress and its faces', () => {
     expect(openEditPopup).toHaveBeenCalledWith(3)
   })
 
+  it('at rest each term of the filter is a pill with its own ×, which takes that term out', () => {
+    renderAt('large')
+    setFilter({ kind: 'and', items: [{ kind: 'or', items: [person(1), person(2)] }, { kind: 'not', item: { kind: 'priority', value: 'urgent' } }] })
+    const pills = () => [...document.querySelectorAll('[data-review-pill]')].map((el) => el.getAttribute('data-review-pill'))
+    expect(pills()).toEqual(['@Aisha', '@Ben', '/urgent'])
+    expect(screen.getByTestId('review-field-pills').textContent).toBe('(@Aisha× or @Ben×) and not /urgent×')
+    expect(document.querySelector('[data-review-pill="/urgent"]')).toHaveAttribute('data-tint', 'urgent')
+    // The `not` goes with its term; a group left with one term loses its parentheses.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove /urgent' }))
+    expect(useListWidgetStore.getState().reviewFilters.rv?.expression).toEqual({ kind: 'or', items: [person(1), person(2)] })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove @Aisha' }))
+    expect(useListWidgetStore.getState().reviewFilters.rv?.expression).toEqual(person(2))
+    expect(pills()).toEqual(['@Ben'])
+    // Focused, the field is its text: no pills.
+    fireEvent.focus(screen.getByRole('textbox', { name: 'Review filter' }))
+    expect(pills()).toEqual([])
+    fireEvent.blur(screen.getByRole('textbox', { name: 'Review filter' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove @Ben' }))
+    expect(useListWidgetStore.getState().reviewFilters.rv).toBeUndefined()
+  })
+
   it('a rail row’s box is a checkbox beside the row: it completes the task and doesn’t pick the row', () => {
     const toggleComplete = vi.fn(async () => {})
     useTodoStore.setState({ toggleComplete })

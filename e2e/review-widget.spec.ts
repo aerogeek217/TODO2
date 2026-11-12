@@ -440,6 +440,47 @@ test('the queue’s checkboxes: a row’s box completes its task without opening
   await expect(railRows(page, 'rev1')).toHaveCount(3)
 })
 
+test('at rest each term is a pill with its own ×: it takes that term out of the filter; a press elsewhere goes back to the text', async ({ page }) => {
+  await seedWorkspace(page, largeSeed())
+  const w = widget(page, 'rev1')
+  const field = reviewField(page, 'rev1')
+  await pickInReview(page, 'rev1', 'Aisha', 'Ben')
+  await expect(field).toHaveValue('@Aisha or @Ben')
+  // Not focused: the terms are pills, the joining word between them; the text field is still there under them.
+  const pills = w.locator('[data-review-pill]')
+  await expect(pills).toHaveCount(2)
+  expect(await pills.evaluateAll((els) => els.map((el) => el.getAttribute('data-review-pill')))).toEqual(['@Aisha', '@Ben'])
+  await expect(w.getByTestId('review-field-pills')).toHaveText(/^@Aisha\s*×\s*or\s*@Ben\s*×$/)
+  await expect(railRows(page, 'rev1')).toHaveCount(5)
+  // Each × is inside its pill, on the field's one line.
+  const [pb, xb] = [await pills.first().boundingBox(), await w.getByRole('button', { name: 'Remove @Aisha' }).boundingBox()]
+  expect(xb!.x).toBeGreaterThan(pb!.x)
+  expect(xb!.x + xb!.width).toBeLessThanOrEqual(pb!.x + pb!.width + 1)
+  expect((await field.boundingBox())!.height).toBeLessThanOrEqual(22)
+  await shot(page, 'review-field-pills', w.getByTestId('review-field-row'))
+  // A pill's ×: that term goes, with its joining word; the queue follows; the focus doesn't move into the field.
+  await w.getByRole('button', { name: 'Remove @Aisha' }).click()
+  await expect(field).toHaveValue('@Ben')
+  await expect(pills).toHaveCount(1)
+  await expect(railRows(page, 'rev1')).toHaveCount(2)
+  await expect(field).not.toBeFocused()
+  // A press elsewhere in the field: the text, as typed text (no pills), the list of names open.
+  await field.click()
+  await expect(field).toBeFocused()
+  await expect(w.getByTestId('review-field-pills')).toHaveCount(0)
+  await expect(popup(page)).toBeVisible()
+  await field.press('End')
+  await field.pressSequentially(' and #legal')
+  await field.blur()
+  await expect(field).toHaveValue('@Ben and #legal')
+  expect(await pills.evaluateAll((els) => els.map((el) => el.getAttribute('data-review-pill')))).toEqual(['@Ben', '#legal'])
+  // The last pill's × leaves no filter.
+  await w.getByRole('button', { name: 'Remove #legal' }).click()
+  await w.getByRole('button', { name: 'Remove @Ben' }).click()
+  await expect(field).toHaveValue('')
+  await expect(w.getByTestId('review-empty')).toBeVisible()
+})
+
 test('faces by size: medium — the card’s essentials; small — the filter and what’s left, a click opens it whole with the field', async ({ page }) => {
   await seedWorkspace(page, {
     ...BASE,
