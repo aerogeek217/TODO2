@@ -1,13 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openCellMenu, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
-import { expectDeckAt } from './fixtures/review'
+import { layoutTab, openCellMenu, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * The Breakdown (D26 P8, boards Z1 / Z3 and review mode's board F): a row,
  * a bar or a segment drills into the task dialog; the headings sort (view
  * state, kept across a reload, the layout still saved); the top bar's @
  * pick narrows the rows (no filter row of its own); the row's Review button and a count column's count
- * open the review deck on just those tasks; the editor's count columns
+ * jump to the Review widget (on another layout here) with just those tasks as its filter; the editor's count columns
  * (board BC); the lens switch (G3).
  */
 
@@ -41,6 +40,9 @@ const SEED: WorkspaceSeed = {
       { id: 'c1', weight: 3, rows: [wsRow({ id: 'k1', tabs: [{ id: 'people', kind: 'breakdown', glance: { name: 'People', splitBy: 'people' } }] })] },
       { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
     ],
+  }, {
+    name: 'Review',
+    columns: [{ id: 'r1', rows: [wsRow({ id: 'rk', tabs: [{ id: 'rv', kind: 'review' }] })] }],
   }],
 }
 
@@ -51,7 +53,13 @@ const rowNames = (page: Page, tabId = 'people') =>
   chart(page, tabId).locator('[data-breakdown-row] > [role="cell"]:first-child > button:first-child')
     .evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')?.split(':')[0]))
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
-const deck = (page: Page) => page.locator('[data-review-deck]')
+/** The Review widget's queue rows (on the Review layout, where a jump goes). */
+const queueRows = (page: Page) => page.locator('[data-review-widget="rv"] [data-review-row]')
+/** Back to the Charts layout after a jump. */
+async function backToCharts(page: Page) {
+  await layoutTab(page, 'Charts').click()
+  await expect(chart(page)).toBeVisible()
+}
 
 test('a row and a stacked segment open their tasks in the task dialog', async ({ page }) => {
   await seedWorkspace(page, SEED)
@@ -106,10 +114,10 @@ test('the headings sort (saved at once, per split); the top bar’s @ pick narro
   await expect.poll(() => rowNames(page)).toEqual(['Ben Ortiz'])
 })
 
-/** The opacity of a row's actions (Review, the envelope), which show on the row's hover or focus. */
+/** The opacity of a row's action (Review), which shows on the row's hover or focus. */
 const actionsOpacity = (l: Locator) => l.evaluate((el) => Number(getComputedStyle(el.parentElement!).opacity))
 
-test('Review and the envelope sit right after the name, shown on the row’s hover or focus; a count column’s count reviews just its tasks', async ({ page }) => {
+test('Review sits right after the name, shown on the row’s hover or focus; it and a count column’s count jump with just their tasks', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await page.mouse.move(0, 0)
   const aisha = row(page, 'Aisha Rahman')
@@ -137,10 +145,10 @@ test('Review and the envelope sit right after the name, shown on the row’s hov
   await expect.poll(() => actionsOpacity(review)).toBe(1)
   await expect(chart(page)).not.toContainText('Review ▸')
   await review.click()
-  await expect(deck(page)).toBeVisible()
-  await expectDeckAt(deck(page), 1, 3)
-  await page.keyboard.press('Escape')
-  await expect(deck(page)).toHaveCount(0)
+  // The jump: to the Review layout, its widget's filter the row, its queue Aisha's three open tasks.
+  await expect(page.locator('[data-review-widget="rv"]').getByRole('textbox', { name: 'Review filter' })).toHaveValue('@"Aisha Rahman"')
+  await expect(queueRows(page)).toHaveCount(3)
+  await backToCharts(page)
 
   // The derived count columns (Settings' ranges), no Priority column: Due (overdue and the next 3 days) lit above 0.
   await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Due', 'Follow-up'])
@@ -149,9 +157,10 @@ test('Review and the envelope sit right after the name, shown on the row’s hov
   await expect(due).toHaveAttribute('data-solid', '')
   await expect(due).toHaveCSS('background-color', 'rgb(232, 107, 240)')
   await due.click()
-  await expectDeckAt(deck(page), 1, 2)
-  await expect(deck(page).getByRole('navigation', { name: 'Review queue' }).locator('[data-review-row]')).toHaveText([/Aisha late/, /Aisha soon/])
-  await page.keyboard.press('Escape')
+  await expect(queueRows(page)).toHaveCount(2)
+  await expect(queueRows(page).filter({ hasText: 'Aisha late' })).toHaveCount(1)
+  await expect(queueRows(page).filter({ hasText: 'Aisha soon' })).toHaveCount(1)
+  await backToCharts(page)
   // None: a dim dash.
   await expect(aisha.getByLabel('No tasks in Follow-up')).toHaveText('–')
 })
@@ -171,37 +180,26 @@ test('a count column is its number’s room: the heading is cut short (its name 
   await expect(row(page, 'Aisha Rahman').getByText('Aisha Rahman', { exact: true })).toBeVisible()
 })
 
-test('with check-ins, a person row’s envelope sits beside Review and opens Email check-in · Paste reply', async ({ page }) => {
+test('no check-in envelope on a person row, and no check-in option in the editor (widget feedback 2B)', async ({ page }) => {
   await seedWorkspace(page, SEED)
+  const ben = row(page, 'Ben Ortiz')
+  await ben.hover()
+  await expect(ben.getByTestId('breakdown-review')).toBeVisible()
+  await expect(ben.getByRole('button', { name: /Email check-in/ })).toHaveCount(0)
   await chart(page).locator('[data-chart-head]').click({ button: 'right' })
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit breakdown…' }).click()
   const editor = page.locator('[data-chart-editor]')
-  await editor.getByRole('checkbox', { name: 'Check-in envelope on each person' }).check()
-  await editor.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(editor).toHaveCount(0)
-  const ben = row(page, 'Ben Ortiz')
-  const envelope = ben.getByRole('button', { name: 'Email check-in options for Ben Ortiz' })
-  await ben.hover()
-  await expect.poll(() => actionsOpacity(envelope)).toBe(1)
-  const eb = (await envelope.boundingBox())!
-  const rb = (await ben.getByTestId('breakdown-review').boundingBox())!
-  expect(Math.round(eb.width)).toBe(24)
-  expect(Math.abs(eb.y - rb.y)).toBeLessThan(1)
-  expect(eb.x).toBeGreaterThan(rb.x)
-  await envelope.click()
-  await expect(page.getByRole('menu', { name: 'Check-in for Ben Ortiz' }).getByRole('menuitem')).toHaveText(['Email check-in to Ben Ortiz', 'Paste reply from Ben Ortiz…'])
-  // Shown while its menu is open, the pointer gone.
-  await page.mouse.move(0, 0)
-  await expect.poll(() => actionsOpacity(envelope)).toBe(1)
+  await expect(editor).toBeVisible()
+  await expect(editor.getByRole('checkbox', { name: /Check-in/ })).toHaveCount(0)
 })
 
 test('a person row’s right-click opens the person menu', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await row(page, 'Ben Ortiz').click({ button: 'right' })
   const menu = page.getByRole('menu', { name: '@Ben Ortiz' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Review with Ben Ortiz…', 'Email check-in to Ben Ortiz', 'Paste reply from Ben Ortiz…', 'Show tasks', 'Edit…', 'Delete…'])
-  await menu.getByRole('menuitem', { name: 'Review with Ben Ortiz…' }).click()
-  await expectDeckAt(deck(page), 1, 5)
+  await expect(menu.getByRole('menuitem')).toHaveText(['Review with Ben Ortiz', 'Show tasks', 'Edit…', 'Delete…'])
+  await menu.getByRole('menuitem', { name: 'Review with Ben Ortiz' }).click()
+  await expect(queueRows(page)).toHaveCount(5)
 })
 
 test('the editor’s count columns: a column with its own filter, name and rule; the table follows', async ({ page }) => {
@@ -230,8 +228,8 @@ test('the editor’s count columns: a column with its own filter, name and rule;
   await expect(waiting).toHaveText('2')
   await expect(waiting).toHaveAttribute('data-solid', '')
   await waiting.click()
-  await expectDeckAt(deck(page), 1, 2)
-  await page.keyboard.press('Escape')
+  await expect(queueRows(page)).toHaveCount(2)
+  await backToCharts(page)
   // Its heading sorts by it.
   await chart(page).getByRole('button', { name: /^Waiting/ }).click()
   await expect.poll(() => rowNames(page)).toEqual(['Ben Ortiz', 'Cy Young', 'Aisha Rahman', 'Unassigned'])

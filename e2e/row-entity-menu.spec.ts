@@ -4,8 +4,8 @@ import { seedTaskList } from './fixtures/workspace'
 
 /**
  * Right-click on a task row's avatar or tag (or the context-menu key on its
- * cell) offers the person / tag menu for that person or tag: Review ·
- * the check-ins (a person's) · Show tasks · Edit… · Delete….
+ * cell) offers the person / tag menu for that person or tag: Review (while
+ * a layout has a Review widget — none here) · Show tasks · Edit… · Delete….
  */
 
 const SEED = {
@@ -25,7 +25,7 @@ test('an avatar’s menu: Show tasks opens the person’s task dialog, Edit… t
   const row = taskRowByTitle(page, 'Plan the offsite')
   await row.locator('[data-person-avatar="Alice Chen"]').click({ button: 'right' })
   const menu = page.getByRole('menu', { name: '@Alice Chen' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Review with Alice Chen…', 'Email check-in to Alice Chen', 'Paste reply from Alice Chen…', 'Show tasks', 'Edit…', 'Delete…'])
+  await expect(menu.getByRole('menuitem')).toHaveText(['Show tasks', 'Edit…', 'Delete…'])
   // Not the task menu.
   await expect(page.getByRole('menu', { name: 'Task actions' })).toHaveCount(0)
 
@@ -80,11 +80,7 @@ test('the context-menu key on a focused people cell lists each person with their
   await expect(menu.getByRole('menuitem', { name: '@Alice Chen' })).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowRight')
-  await expect(page.getByRole('menuitem', { name: 'Review with Ben Ortiz…' })).toBeFocused()
-  // Past the check-ins (the separator is skipped) to Show tasks.
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('ArrowDown')
+  // The submenu opens on its first item: Show tasks.
   await expect(page.getByRole('menuitem', { name: 'Show tasks' })).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(taskDialog(page).getByRole('heading')).toHaveText('Ben Ortiz')

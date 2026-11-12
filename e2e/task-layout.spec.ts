@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { expectOpenLayout, reviewField, seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * Boards BJ, BL, task layout A · the one task layout in a real browser: the
@@ -14,10 +14,11 @@ import { seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from '.
  * is scrolled; an empty task still shows the Notes box and every heading;
  * under 600px of body the rail goes above the writing, its facts two up.
  * The header's ⋯ (Duplicate, Make subtask of…, Delete); the footer's Mark
- * followed up and Done. The review card in the same layout: queue (300px),
- * facts, writing left to right; Next follow-up's quick row is 1w 2w 1m 3m
- * (no None — its × clears it); ⏎ in the update line still follows up. The
- * person task dialog's Review · Email check-in · Paste reply… buttons.
+ * followed up and Done. The review card in the same layout (the Review
+ * widget, reached by a list's Review these N tasks): queue (300px), facts,
+ * writing left to right; Next follow-up's quick row is 1w 2w 1m 3m (no None
+ * — its × clears it); ⏎ in the update line still follows up. The person task
+ * dialog's Review button (a jump; no check-in buttons, widget feedback 2B).
  * Board BL's own checks are `reviewer-layout.spec.ts`; the sizes and the
  * overlaps of task layout A, `task-layout-a.spec.ts`.
  */
@@ -69,6 +70,10 @@ const SEED: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: TAB, kind: 'lens', listDefIdx: 0 }] })] }],
+  }, {
+    // Where a Review button jumps: a Review widget filling the window (its large face).
+    name: 'Review',
+    columns: [{ id: 'r1', rows: [wsRow({ id: 'rk', tabs: [{ id: 'rv', kind: 'review' }] })] }],
   }],
 }
 
@@ -260,8 +265,9 @@ test.describe('the review card', () => {
     await wsListWidget(page, TAB).waitFor({ state: 'visible' })
     await wsTab(page, TAB).click({ button: 'right' })
     await page.getByRole('menu').getByRole('menuitem', { name: /Review these 3 tasks/ }).click()
-    const deck = page.getByRole('dialog', { name: 'Aisha 1:1' })
-    await expect(deck).toBeVisible()
+    await expectOpenLayout(page, 'Review')
+    const deck = page.locator('[data-review-widget="rv"]')
+    await expect(deck.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
     await deck.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
     const card = deck.locator('[data-review-card]')
     const [queue, rail, writing] = [
@@ -305,7 +311,7 @@ test.describe('the review card', () => {
 test.describe('the person task dialog', () => {
   test.use({ viewport: { width: 1280, height: 900 } })
 
-  test('Review · Email check-in · Paste reply… under the title; Review closes the dialog, then the deck opens', async ({ page }) => {
+  test('Review alone under the title (no check-ins); Review closes the dialog and jumps to the Review widget with @<name>', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await wsListWidget(page, TAB).waitFor({ state: 'visible' })
     const avatar = taskRowByTitle(page, 'Vendor contract renewal').locator('[data-person-avatar="Aisha"]')
@@ -314,14 +320,14 @@ test.describe('the person task dialog', () => {
     const dialog = page.locator('[data-task-dialog]')
     await expect(dialog).toBeVisible()
     const actions = dialog.getByRole('group', { name: 'Actions for Aisha' })
-    await expect(actions.getByRole('button')).toHaveText(['Review', 'Email check-in', 'Paste reply…'])
-    await expect(dialog.getByRole('button', { name: /Email check-in options/ })).toHaveCount(0)
+    await expect(actions.getByRole('button')).toHaveText(['Review'])
+    await expect(dialog.getByRole('button', { name: /Email check-in|Paste reply/ })).toHaveCount(0)
     await expect(dialog.getByRole('button', { name: 'Close Esc' })).toBeVisible()
 
-    await actions.getByRole('button', { name: 'Review with Aisha…' }).click()
+    await actions.getByRole('button', { name: 'Review with Aisha' }).click()
     await expect(dialog).toHaveCount(0)
-    const deck = page.getByRole('dialog', { name: 'Aisha' })
-    await expect(deck).toBeVisible()
-    await expect(deck.getByLabel('Status update · today')).toBeFocused()
+    await expectOpenLayout(page, 'Review')
+    await expect(reviewField(page, 'rv')).toHaveValue('@Aisha')
+    await expect(page.locator('[data-review-widget="rv"]').getByLabel('Status update · today')).toBeFocused()
   })
 })

@@ -241,10 +241,6 @@ for (const size of SIZES) {
           await ui(page, 'openCreatePopup')
           await page.getByRole('dialog').first().waitFor()
         })
-        await shot('review-deck', async () => {
-          await store(page, '/src/services/review.ts', 'reviewListTab', 'tab-someday')
-          await page.getByRole('dialog').first().waitFor()
-        }, { layout: 'Planning' })
         await shot('edit-list', async () => {
           await ui(page, 'openListEditor', 5, 'tab-someday')
           await page.getByRole('dialog').first().waitFor()
