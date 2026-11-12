@@ -100,13 +100,12 @@ describe('the lens switch in a stored layout (view state)', () => {
     expect((tabOf(bad).viewState as { ignoreLens?: unknown } | undefined)?.ignoreLens).toBeUndefined()
   })
 
-  it('a Number without its own switch reads its config’s old ignoreLens; its switch wins', () => {
+  it('a widget ignores the lens only by its switch (v79 moved a Number’s older config ignoreLens there)', () => {
     const fresh = createTab('number', 'n')
     if (fresh.kind !== 'number') throw new Error('a Number')
-    const number = { ...fresh, config: { ...fresh.config, ignoreLens: true as const } }
     expect(tabIgnoresLens(fresh)).toBe(false)
-    expect(tabIgnoresLens(number)).toBe(true)
-    expect(tabIgnoresLens({ ...number, viewState: { ignoreLens: false } })).toBe(false)
+    expect(tabIgnoresLens({ ...fresh, viewState: { ignoreLens: true } })).toBe(true)
+    expect(tabIgnoresLens({ ...fresh, viewState: { ignoreLens: false } })).toBe(false)
     expect(tabIgnoresLens(createTab('calendar', 'c') as LensSwitchTab)).toBe(false)
   })
 })

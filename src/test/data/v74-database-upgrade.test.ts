@@ -5,6 +5,8 @@ import { emptyFilterClauses, emptyPredicate } from '../../models'
 import { browserMatchesFile } from '../../services/file-sync-compare'
 import { resetDb } from '../helpers'
 import { numberConfigOfMetric } from '../../data/upgrades/v78/number-metrics'
+import { defaultBreakdownColumns } from '../../models/chart-widgets'
+import { DEFAULT_TAB_BADGES } from '../../utils/tab-badges'
 
 /**
  * v74 through the browser's own upgrade (cr31 data S3-1(a), tests 3.7): a
@@ -105,15 +107,15 @@ describe('the browser database’s v74 upgrade', () => {
       { kind: 'or', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'person', id: 1 }] },
       { kind: 'or', items: [{ kind: 'priority', value: 'important' }, { kind: 'person', id: 1 }] },
     ] })
-    const panes = JSON.parse(String((await db.settings.get('eisenhowerPanes'))?.value)) as { do: { filter: { markers: unknown } } }
-    expect(panes.do.filter.markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['urgent', 'important'] }])
+    // v74 converted the Eisenhower's panes; v79 deleted the row with the Eisenhower.
+    expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
     const checkin = JSON.parse(String((await db.settings.get('checkinTaskFilter'))?.value)) as { markers: unknown }
     expect(checkin.markers).toEqual([{ values: ['focus'], not: true }])
-    // v74 took the dashboard's Hot tile and section; v77 made the rest widgets; v78 a table of them, its Numbers filters, People a Breakdown.
+    // v74 took the dashboard's Hot tile and section; v77 made the rest widgets; v78 a table of them, its Numbers filters, People a Breakdown; v79 its count columns.
     const cells = (await db.layouts.get(1))?.cells
     expect(cells?.map((c) => [c.area.row, c.tabs[0]])).toEqual([
       [0, { id: 'd-n1', kind: 'number', config: numberConfigOfMetric('open') }],
-      [1, { id: 'd-n2', kind: 'breakdown', config: { name: 'People', filter: emptyPredicate(), splitBy: 'people', style: 'bars', show: 'count', showNone: false } }],
+      [1, { id: 'd-n2', kind: 'breakdown', config: { name: 'People', filter: emptyPredicate(), splitBy: 'people', style: 'bars', show: 'count', showNone: false, columns: defaultBreakdownColumns(DEFAULT_TAB_BADGES) } }],
     ])
     // The subtasks a v73 build stored as they were: the empty one gone, the long one cut, each one line.
     expect((await db.subtasks.toArray()).map((s) => [s.id, s.title])).toEqual([[2, 'k'.repeat(500)], [3, 'Book flights']])

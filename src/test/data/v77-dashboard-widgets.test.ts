@@ -8,6 +8,7 @@ import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
 import type { LayoutBody } from '../../models/workspace-layout'
 import { upgradeV78 } from '../../data/upgrades/v78'
+import { upgradeV79 } from '../../data/upgrades/v79'
 import { picture } from '../helpers/layout-builders'
 
 const DATE = '2026-11-01T09:00:00.000Z'
@@ -294,8 +295,8 @@ describe('v77 — the Dashboard as widgets', () => {
     const v78 = upgradeDataSet(JSON.parse(JSON.stringify({ layouts: file.layouts })) as DataSet, 75, 78).layouts![0]! as unknown as LayoutBody
     expect(picture(v78)).toEqual(['d-c1', 'd-c2'])
     expect(v78.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'eisenhower'])
-    // … which this build's repair drops (removed after v78), its cell closing.
-    expect(result.warnings).toEqual(['Fixed 1 layout: "Daily" (tab dropped)'])
+    // … which v79 drops (removed after v78), its cell closing: nothing left to repair.
+    expect(result.warnings).toEqual([])
     expect(result.data.layouts[0]!.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number'])
   })
 
@@ -324,7 +325,7 @@ describe('a layout draft kept at v76', () => {
     expect(picture(draft.base)).toEqual(['d-c1', 'd-c2'])
     expect(picture(draft.body)).toEqual(['d-c1', 'd-c2', 'm'])
     expect(rowsOf(upgraded(layout({ columns: v76Base })))).toEqual(widgets)
-    const stored = asV78(upgraded(layout({ columns: v76Base }))) as unknown as LayoutBody
+    const stored = upgradeV79({ layouts: [asV78(upgraded(layout({ columns: v76Base })))] }).layouts![0]! as unknown as LayoutBody
     expect(draft.base).toEqual({ grid: stored.grid, cells: stored.cells })
   })
 })

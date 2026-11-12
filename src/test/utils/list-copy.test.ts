@@ -19,12 +19,11 @@ describe('copySourceGroups', () => {
     def(12, 'Third', { layoutId: 4 }),
     def(13, 'Main B', { layoutId: 1 }, 1),
     def(14, 'Second A', { layoutId: 2 }, 0),
-    def(15, 'Eisenhower', { eisenhower: true }),
     def(16, 'Orphan', { layoutId: 99 }),
     def(17, 'No owner', undefined),
   ]
 
-  it('this layout first, then the others in their order (empty ones left out); lists by sort order; a list of no layout (a retired Eisenhower’s included) offered nowhere', () => {
+  it('this layout first, then the others in their order (empty ones left out); lists by sort order; a list of no layout offered nowhere', () => {
     const groups = copySourceGroups({ lists, layouts, openLayoutId: 2 })
     expect(groups.map((g) => [g.heading, g.lists.map((d) => d.name)])).toEqual([
       ['Second · this layout', ['Second A', 'Second B']],

@@ -9,11 +9,11 @@ import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed, wsRow,
  * Ctrl + wheel stepping the level without zooming the page, the tab menu's
  * − / +, the palette's Zoom List In / Out, a drag reorder, keyboard
  * navigation and the task menu at Lines, the level surviving a reload, the
- * Settings default for a tab that hasn't picked one, and a tab stored at the
- * removed Strips opening at Lines.
+ * Settings default for a tab that hasn't picked one. (A tab stored at the
+ * removed Strips, v79 wrote as Lines: `v79-upgrade.test`.)
  */
 
-type Zoom = 'stacked' | 'rows' | 'lines' | 'strips'
+type Zoom = 'stacked' | 'rows' | 'lines'
 
 const TAB = 'z1'
 const widget = (page: Page) => wsListWidget(page, TAB)
@@ -77,7 +77,7 @@ const heightOf = async (row: Locator) => (await box(row)).height
 
 test.use({ viewport: { width: 1000, height: 700 } })
 
-const LEVELS: Record<Exclude<Zoom, 'strips'>, { row: number; header: number }> = {
+const LEVELS: Record<Zoom, { row: number; header: number }> = {
   stacked: { row: 44, header: 28 },
   rows: { row: 30, header: 28 },
   lines: { row: 15, header: 20 },
@@ -370,13 +370,13 @@ for (const zoom of ['stacked', 'lines'] as const) {
   })
 }
 
-test('a tab that hasn’t picked a zoom shows the Settings default; the old Comfortable density reads as Stacked', async ({ page }) => {
+test('a tab that hasn’t picked a zoom shows the Settings default; a tab’s own pick wins', async ({ page }) => {
   await open(page, { settings: { rowDensity: 'lines' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
-  await open(page, { settings: { rowDensity: 'comfortable' } })
+  await open(page, { settings: { rowDensity: 'stacked' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'stacked')
-  // A tab's own pick wins.
-  await open(page, { zoom: 'lines', settings: { rowDensity: 'comfortable' } })
+  // A tab's own pick wins. (The old Comfortable density v79 wrote as Stacked: `v79-upgrade.test`.)
+  await open(page, { zoom: 'lines', settings: { rowDensity: 'stacked' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
 })
 
@@ -421,12 +421,4 @@ test('Auto (the default with no row): Stacked under 480px of list, Rows from it,
   await ctrlWheel(page, 100)
   await expect(widget(page)).toHaveAttribute('data-zoom', 'rows')
   await expect.poll(() => storedZoom(page)).toBe('rows')
-})
-
-test('a tab, or the Settings default, stored at the removed Strips opens at Lines, the layout not unsaved', async ({ page }) => {
-  await open(page, { zoom: 'strips' })
-  await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
-  await expectLayoutStored(page)
-  await open(page, { settings: { rowDensity: 'strips' } })
-  await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
 })

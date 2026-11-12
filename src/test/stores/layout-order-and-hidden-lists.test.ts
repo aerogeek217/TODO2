@@ -139,14 +139,6 @@ describe('workspace store: the layout order', () => {
 })
 
 describe('list store: hidden lists', () => {
-  it('the retired Eisenhower’s list is never loaded: it stays stored, untouched', async () => {
-    const retired = await db.listDefinitions.add(list('Eisenhower', { owner: { eisenhower: true } }))
-    const mine = await db.listDefinitions.add(list('Mine', { owner: { layoutId: 1 } }))
-    await useListDefinitionStore.getState().load()
-    expect(useListDefinitionStore.getState().listDefinitions.map((d) => d.id)).toEqual([mine])
-    expect(await db.listDefinitions.get(retired)).toMatchObject({ name: 'Eisenhower', owner: { eisenhower: true } })
-  })
-
   it('a list edit never changes who the list belongs to (an edit without the owner keeps it)', async () => {
     const id = await db.listDefinitions.add(list('Mine', { owner: { layoutId: 1 } }))
     await useListDefinitionStore.getState().load()

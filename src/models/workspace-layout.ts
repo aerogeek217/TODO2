@@ -24,7 +24,9 @@
 
 import { emptyPredicate } from './filter-predicate'
 import {
+  DEFAULT_TREND_NAME,
   DEFAULT_TREND_RANGE,
+  DEFAULT_TREND_SHOW,
   newNumberConfig,
   trendName,
   type NumberConfig,
@@ -52,9 +54,8 @@ import type { IconValue, LineIconKey } from './icon'
  * (D26 P4) retired Needs follow-up, Next 7 days, Stale tasks, Recently
  * completed, What changed and Today, and made the Eisenhower summary the
  * Eisenhower's small face; P8 made People, Tags and Status Breakdowns. The
- * Status flow chart (P8), the Tag map and the Eisenhower were removed after v78 shipped: a
- * saved one is dropped by the layout repair (`data/layout-shape`). `review` (item 12) is
- * the review deck in a cell.
+ * Status flow chart (P8), the Tag map and the Eisenhower were removed after v78 shipped;
+ * v79 dropped every saved one. `review` (item 12) is the Review widget.
  */
 export type WidgetKind =
   | 'lens' | 'calendar' | 'notes' | 'review' | 'neglect'
@@ -102,8 +103,7 @@ export interface CalendarTabConfig {
 /**
  * A widget's lens switch (G3, board BD): view state, saved at once, never
  * an unsaved edit — `true`, the top bar's lens doesn't apply here. A
- * list's is its list's (`ListDefinition.ignoreLens`); a Number's absent
- * one reads its config's old `ignoreLens` (`tabIgnoresLens`).
+ * list's is its list's (`ListDefinition.ignoreLens`).
  */
 export interface LensViewState {
   ignoreLens?: boolean
@@ -158,15 +158,6 @@ export function isListZoom(v: unknown): v is ListZoom {
   return typeof v === 'string' && (LIST_ZOOMS as readonly string[]).includes(v)
 }
 
-/**
- * A stored zoom as a level: a level, or `strips` — a level once, a bar per
- * task, removed — as `lines`, the nearest; `undefined` for anything else.
- */
-export function readListZoom(v: unknown): ListZoom | undefined {
-  if (isListZoom(v)) return v
-  return v === 'strips' ? 'lines' : undefined
-}
-
 /** A list tab's view state: the rows' details width and its zoom. */
 export interface ListTabViewState extends TaskRowsViewState {
   /**
@@ -182,9 +173,8 @@ export type NoTabSettings = Record<string, never>
 /**
  * A Review widget's settings: none (widget feedback 2A). What it reviews is
  * a filter typed into its field, temporary (`list-widget-store.reviewFilters`),
- * never saved. A tab an earlier build stored may still hold a `by` (board BM's
- * kind) or a `pick` (board BK): neither is read, and the layout read drops
- * both (`layout-shape.withoutLegacyReview`); schema v79 removes them.
+ * never saved. (Board BM's kind `by` and board BK's `pick`, which earlier
+ * builds stored, were removed by schema v79.)
  */
 export type ReviewTabConfig = NoTabSettings
 
@@ -516,7 +506,7 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   // D26 P8: the chart widgets.
   breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
   pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
-  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
+  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE, name: DEFAULT_TREND_NAME, show: DEFAULT_TREND_SHOW } })),
   pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
   // In Insights, but a whole widget, not a glance one (no glance minimums).
   neglect: {
@@ -565,14 +555,11 @@ export function isLensSwitchTab(tab: LayoutTab): tab is LensSwitchTab {
 }
 
 /**
- * Whether a widget ignores the top bar's lens: its switch (`viewState.ignoreLens`);
- * a Number without one, its config's `ignoreLens` (what its editor's
- * Follow / Ignore stored before the switch).
+ * Whether a widget ignores the top bar's lens: its switch (`viewState.ignoreLens`;
+ * v79 moved a Number's older config `ignoreLens` there).
  */
 export function tabIgnoresLens(tab: LensSwitchTab): boolean {
-  const own = tab.viewState?.ignoreLens
-  if (own !== undefined) return own
-  return tab.kind === 'number' && tab.config.ignoreLens === true
+  return tab.viewState?.ignoreLens === true
 }
 
 export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {

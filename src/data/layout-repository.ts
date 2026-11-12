@@ -1,7 +1,6 @@
 import { db } from './database'
 import { SETTING_KEYS } from './setting-keys'
 import { rowFixes, sanitizeRow } from './import-validation'
-import { withoutLegacyReview } from './layout-shape'
 import {
   DEFAULT_LAYOUT_NAME,
   DEFAULT_WEIGHT,
@@ -11,7 +10,7 @@ import {
   type PersistedWorkspaceLayout,
   type WorkspaceLayout,
 } from '../models/workspace-layout'
-import { isRetiredEisenhowerOwner, ownerLayoutId, type ListDefinition, type PersistedListDefinition } from '../models/list-definition'
+import { ownerLayoutId, type ListDefinition, type PersistedListDefinition } from '../models/list-definition'
 import type { PersistedListOrder } from '../models/list-order'
 import type { IconValue } from '../models/icon'
 import { repointLayoutLists } from '../utils/workspace-layout-lists'
@@ -40,33 +39,10 @@ export interface ReadLayout {
  * no cells (the workspace then shows its empty-layout tiles); it is never
  * dropped.
  */
-function readable(stored: PersistedWorkspaceLayout): ReadLayout {
-  const row = withoutLegacy(stored)
+function readable(row: PersistedWorkspaceLayout): ReadLayout {
   const fixes = rowFixes('layouts', row)
   if (fixes.length === 0) return { layout: row, fixes }
   return { layout: { ...sanitizeRow('layouts', row), id: row.id } as PersistedWorkspaceLayout, fixes }
-}
-
-/**
- * `row` without the lens pick an earlier build kept on a layout (`lensId`;
- * the top bar's pick is a settings row now — `activeLensId`) — not a repair:
- * the layout opens clean, and the key goes with the row's next write.
- */
-function withoutLegacyLens(row: PersistedWorkspaceLayout): PersistedWorkspaceLayout {
-  if (!('lensId' in row)) return row
-  const next: PersistedWorkspaceLayout & { lensId?: unknown } = { ...row }
-  delete next.lensId
-  return next
-}
-
-/**
- * `row` without what an earlier build kept on it that this one reads another
- * way: the layout's lens pick (`withoutLegacyLens`), and a Review widget's
- * saved pick and place (`layout-shape.withoutLegacyReview`: the kind it
- * reviews by stays, board BM). Neither is a repair.
- */
-function withoutLegacy(row: PersistedWorkspaceLayout): PersistedWorkspaceLayout {
-  return withoutLegacyReview(withoutLegacyLens(row))
 }
 
 /** Picker order: by `sortOrder`, then oldest first. */
@@ -254,9 +230,8 @@ export const layoutRepository = {
    */
   async updateView(id: number, apply: (layout: PersistedWorkspaceLayout) => PersistedWorkspaceLayout): Promise<void> {
     await db.transaction('rw', db.layouts, async () => {
-      const stored = (await db.layouts.get(id)) as PersistedWorkspaceLayout | undefined
-      if (!stored) return
-      const row = withoutLegacy(stored)
+      const row = (await db.layouts.get(id)) as PersistedWorkspaceLayout | undefined
+      if (!row) return
       if (rowFixes('layouts', row).length > 0) return
       const next = apply(row)
       if (next !== row) await db.layouts.put(next)
@@ -329,7 +304,7 @@ export const layoutRepository = {
 
   /**
    * Gives the lists of `ids` that belong to no stored layout (no owner, or
-   * a layout that is gone — never the retired Eisenhower's) a layout, in one
+   * a layout that is gone) a layout, in one
    * transaction: each the first layout (in the picker's order) whose stored
    * row names it; the rest go, as list tabs in their list order, into a new
    * layout `RECOVERED_LISTS_LAYOUT_NAME` after the others. Returns how many
@@ -341,7 +316,7 @@ export const layoutRepository = {
       const layoutIds = new Set(layouts.map((l) => l.id))
       const refs = layouts.map((l) => ({ id: l.id, names: storedListRefs(l) }))
       const rows = ((await db.listDefinitions.bulkGet([...ids])) as Array<PersistedListDefinition | undefined>)
-        .filter((d): d is PersistedListDefinition => d != null && !isRetiredEisenhowerOwner(d.owner) && !layoutIds.has(ownerLayoutId(d) ?? NaN))
+        .filter((d): d is PersistedListDefinition => d != null && !layoutIds.has(ownerLayoutId(d) ?? NaN))
       const rest: PersistedListDefinition[] = []
       for (const def of rows) {
         const layoutId = refs.find((r) => r.names.has(def.id))?.id

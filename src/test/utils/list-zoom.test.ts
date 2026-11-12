@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { LIST_ZOOMS, isListZoom, readListZoom } from '../../models/workspace-layout'
+import { LIST_ZOOMS, isListZoom } from '../../models/workspace-layout'
 import {
   autoListZoom,
   canStepListZoom,
@@ -78,12 +78,11 @@ describe('the zoom step (D25 C + I1)', () => {
 })
 
 describe('the Default list zoom row', () => {
-  it('reads a level as it is, the old densities as levels, anything else as nothing', () => {
+  it('reads a level as it is, anything else as nothing (v79 wrote the old densities and Strips as levels)', () => {
     for (const z of LIST_ZOOMS) expect(parseListZoomSetting(z)).toBe(z)
-    expect(parseListZoomSetting('comfortable')).toBe('stacked')
-    expect(parseListZoomSetting('compact')).toBe('rows')
-    // Strips, removed, reads as the nearest level.
-    expect(parseListZoomSetting('strips')).toBe('lines')
+    expect(parseListZoomSetting('comfortable')).toBeUndefined()
+    expect(parseListZoomSetting('compact')).toBeUndefined()
+    expect(parseListZoomSetting('strips')).toBeUndefined()
     expect(parseListZoomSetting('Rows')).toBeUndefined()
     expect(parseListZoomSetting('')).toBeUndefined()
     expect(parseListZoomSetting(3)).toBeUndefined()
@@ -134,11 +133,10 @@ describe('a line’s tooltip', () => {
 })
 
 describe('a stored zoom', () => {
-  it('reads a level as it is, the removed Strips as Lines, anything else as nothing', () => {
-    for (const z of LIST_ZOOMS) expect(readListZoom(z)).toBe(z)
-    expect(readListZoom('strips')).toBe('lines')
-    expect(readListZoom('compact')).toBeUndefined()
-    expect(readListZoom(undefined)).toBeUndefined()
+  it('is a level; anything else (the removed Strips among them: v79 wrote it as Lines) is none', () => {
+    for (const z of LIST_ZOOMS) expect(isListZoom(z)).toBe(true)
+    expect(isListZoom('strips')).toBe(false)
+    expect(isListZoom(undefined)).toBe(false)
   })
 })
 

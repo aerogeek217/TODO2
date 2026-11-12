@@ -52,18 +52,6 @@ export const SETTING_KEYS = {
    * `utils/shortcut-bindings`). Only changed bindings; absent = all defaults.
    */
   keyboardShortcuts: 'keyboardShortcuts',
-  /**
-   * Retired with the Eisenhower: its panes (JSON). A database or file from
-   * before its removal may hold the row; it is carried as stored (import,
-   * export, backup, sync file) and read by nothing. Schema v79 deletes it.
-   */
-  eisenhowerPanes: 'eisenhowerPanes',
-  /**
-   * Retired with the Eisenhower: its hidden list (`list:<id>`, or `all`).
-   * Carried as stored and read by nothing, as `eisenhowerPanes`; schema v79
-   * deletes it.
-   */
-  eisenhowerSource: 'eisenhowerSource',
   /** What a new blank list sorts by (a `TodoSortBy`). Absent = `manual`. */
   newListSort: 'newListSort',
   /**
@@ -92,9 +80,9 @@ export const SETTING_KEYS = {
   /** What each priority adds to a task's row (`utils/priority-cues`): JSON; absent = the default. */
   priorityCues: 'priorityCues',
   /**
-   * The default list zoom (Settings › Appearance; a list tab that hasn't picked one): `stacked`, `rows` or `lines`;
-   * the removed `strips` reads as `lines`, the densities before it as levels (`comfortable` → `stacked`,
-   * `compact` → `rows`). Absent = `rows`.
+   * The default list zoom (Settings › Appearance; a list tab that hasn't picked one): `stacked`, `rows` or `lines`
+   * (v79 wrote the removed `strips` as `lines`, the densities before the levels as levels: `comfortable` →
+   * `stacked`, `compact` → `rows`). Absent = Auto.
    */
   rowDensity: 'rowDensity',
   /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `11/20`) or `numeric` (`MM/DD`). Absent = `relative`. */

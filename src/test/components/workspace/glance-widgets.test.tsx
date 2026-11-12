@@ -194,7 +194,7 @@ describe('Number widget', () => {
     setup(numberTab('n'), onDrill)
     expect(numberCount()).toMatch(/^\d+of 19$/)
     cleanup()
-    setup(numberTab('n', 'open', { ignoreLens: true }), onDrill)
+    setup({ ...numberTab('n', 'open'), viewState: { ignoreLens: true } }, onDrill)
     expect(numberCount()).toBe('19')
     fireEvent.click(number())
     // Nothing narrows it: the dialog doesn't say the top bar's filter does.
@@ -297,14 +297,14 @@ describe('a Number’s lens switch (G3)', () => {
     expect(screen.getByTestId('lens-switch')).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('an old config’s ignoreLens is its first value; the switch overrides it in view state', () => {
+  it('its switch is view state (v79 moved an older config ignoreLens there): a click flips it there', () => {
     useSettingsStore.setState({ lenses: [lens], activeLensId: lens.id })
-    inLayout(numberTab('n', 'open', { ignoreLens: true }))
+    inLayout({ ...numberTab('n', 'open'), viewState: { ignoreLens: true } })
     render(<DndContext><Live /></DndContext>)
     expect(numberCount()).toBe('19')
     fireEvent.click(screen.getByTestId('lens-switch'))
     expect(live().viewState).toEqual({ ignoreLens: false })
-    expect(live().config.ignoreLens).toBe(true)
+    expect(live().config).not.toHaveProperty('ignoreLens')
     expect(numberCount()).toMatch(/of 19$/)
   })
 

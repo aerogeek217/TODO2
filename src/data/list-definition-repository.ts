@@ -1,10 +1,6 @@
 import { db } from './database'
 import { createRepository, insertLast } from './create-repository'
-import {
-  isRetiredEisenhowerOwner,
-  type ListDefinition,
-  type PersistedListDefinition,
-} from '../models/list-definition'
+import type { ListDefinition, PersistedListDefinition } from '../models/list-definition'
 import { pickPredicate } from './predicate-shape'
 
 /**
@@ -27,15 +23,10 @@ function withSafeShape(row: PersistedListDefinition): PersistedListDefinition {
 export const listDefinitionRepository = {
   ...createRepository<ListDefinition>(db.listDefinitions),
 
-  /**
-   * Every list the app reads, in list order. The removed Eisenhower's hidden
-   * list (`RetiredEisenhowerOwner`), which a database from before its
-   * removal may still hold, is left out: it stays stored (and travels with
-   * exports, backups and the sync file) until schema v79 deletes it.
-   */
+  /** Every list the app reads, in list order. */
   async getAll(): Promise<PersistedListDefinition[]> {
     const rows = await db.listDefinitions.orderBy('sortOrder').toArray()
-    return (rows as PersistedListDefinition[]).filter((d) => !isRetiredEisenhowerOwner(d.owner)).map(withSafeShape)
+    return (rows as PersistedListDefinition[]).map(withSafeShape)
   },
 
   /** Adds a list after the others (sort order: one past the highest, from 0). */

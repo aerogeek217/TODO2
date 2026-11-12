@@ -44,22 +44,13 @@ export interface RuntimeFilterSpec {
  * Who a list belongs to: one layout (whose tabs show it, and whose list
  * choosers offer it — `isListedList`). Every list has one; a list without
  * (older data, or a file edited by hand) is offered nowhere until Settings ›
- * Data integrity's cleanup gives it a layout. A v78 database may also hold
- * the retired Eisenhower's hidden list (`RetiredEisenhowerOwner`).
+ * Data integrity's cleanup gives it a layout. (The removed Eisenhower's
+ * hidden list, `owner: { eisenhower: true }`, was deleted by schema v79.)
  */
-export type ListOwner = LayoutListOwner | RetiredEisenhowerOwner
+export type ListOwner = LayoutListOwner
 
 /** A list's owner: the layout whose tabs show it. The only owner the app gives a list. */
 export type LayoutListOwner = { layoutId: number }
-
-/**
- * The owner of the removed Eisenhower's hidden list, which a database or
- * file from before its removal may still hold. Such a list is carried as
- * stored (export, backup, sync file) but never read into the app: the
- * repository leaves it out (`listDefinitionRepository.getAll`), the audit
- * never gives it a layout. Schema v79 deletes it.
- */
-export type RetiredEisenhowerOwner = { eisenhower: true }
 
 export interface ListDefinition {
   id?: number
@@ -108,13 +99,7 @@ export type ListTabBadges = 'off' | TabBadgeRanges
 
 export type PersistedListDefinition = ListDefinition & { id: number }
 
-/** Whether `owner` is the removed Eisenhower's (`RetiredEisenhowerOwner`). */
-export function isRetiredEisenhowerOwner(owner: ListOwner | undefined): owner is RetiredEisenhowerOwner {
-  // `typeof`: a stored row another build wrote may hold anything here.
-  return typeof owner === 'object' && owner !== null && 'eisenhower' in owner && owner.eisenhower === true
-}
-
-/** The layout a list belongs to, or `undefined` (the retired Eisenhower's, or a list with no owner). */
+/** The layout a list belongs to, or `undefined` (a list with no owner). */
 export function ownerLayoutId(def: Pick<ListDefinition, 'owner'>): number | undefined {
   const owner = def.owner
   return typeof owner === 'object' && owner !== null && 'layoutId' in owner ? owner.layoutId : undefined
@@ -122,7 +107,7 @@ export function ownerLayoutId(def: Pick<ListDefinition, 'owner'>): number | unde
 
 /**
  * Whether a list chooser in layout `layoutId` offers `def`: only a list that
- * layout owns — never another layout's, the retired Eisenhower's, or a list without
+ * layout owns — never another layout's, or a list without
  * an owner; no layout (`undefined`) offers none. The one rule every chooser
  * goes through (`listedLists`).
  */

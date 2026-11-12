@@ -634,6 +634,35 @@ describe('FileStorageService — older sync files', () => {
     expect(svc.status.isConnected).toBe(true)
   })
 
+  it('a v78 sync file holding what v79 rewrites: accepted, the browser gets it in the v79 shape (schema v79 runs on the load)', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const pred = { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
+    const area = (col: number) => ({ col, row: 0, colSpan: 1, rowSpan: 1 })
+    const { svc } = await startWith(fileBody({
+      __schemaVersion: 78,
+      settings: [{ key: 'eisenhowerPanes', value: '{}' }, { key: 'eisenhowerSource', value: 'all' }],
+      listDefinitions: [{ id: 2, name: 'Eisenhower', sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: pred }, owner: { eisenhower: true } }],
+      listOrders: [{ id: 1, listDefinitionId: 2, todoId: 1, rank: 1 }],
+      layouts: [{
+        id: 1, name: 'Main', sortOrder: 0, createdAt: FILE_SAVED_AT, modifiedAt: FILE_SAVED_AT,
+        grid: { columns: [{ id: 'c1', weight: 500 }, { id: 'c2', weight: 500 }], rows: [{ id: 'r1', weight: 1000 }] },
+        cells: [
+          { id: 'a', area: area(0), tabs: [{ id: 'e', kind: 'eisenhower', config: {} }] },
+          { id: 'b', area: area(1), tabs: [{ id: 'r', kind: 'review', config: { by: 'person' }, viewState: { currentId: 1 } }] },
+        ],
+      }],
+    }))
+    svc.onConfirmFileUpgrade(async () => true)
+    await svc.initialize()
+
+    expect(mockRestoreFromImportData).toHaveBeenCalledTimes(1)
+    const data = mockRestoreFromImportData.mock.calls[0]![0] as { settings: unknown[]; listDefinitions: unknown[]; listOrders: unknown[]; layouts: Array<{ cells: Array<{ id: string; tabs: unknown[] }> }> }
+    expect(data.settings).toEqual([])
+    expect(data.listDefinitions).toEqual([])
+    expect(data.listOrders).toEqual([])
+    expect(data.layouts[0]!.cells).toEqual([expect.objectContaining({ id: 'b', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 'r', kind: 'review', config: {} }] })])
+  })
+
   it('upgrade prompt with no listener stays paused', async () => {
     const { svc, writable } = await startWith(fileBody({ __schemaVersion: OLDER }))
     await svc.initialize()

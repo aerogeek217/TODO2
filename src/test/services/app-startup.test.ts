@@ -129,6 +129,5 @@ describe('runAppStartup — the launch question', () => {
     await db.listDefinitions.clear()
     await runAppStartup()
     expect(await db.listDefinitions.count()).toBe(0)
-    expect(await db.settings.get(SETTING_KEYS.eisenhowerSource)).toBeUndefined()
   })
 })

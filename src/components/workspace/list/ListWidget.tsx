@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersistedTodoItem } from '../../../models'
-import { readListZoom, type LensTab, type ListZoom } from '../../../models/workspace-layout'
+import type { LensTab, ListZoom } from '../../../models/workspace-layout'
 import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
@@ -158,7 +158,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   // the list's measured width (`autoListZoom`). The phone has one density.
   const zoomSetting = useSettingsStore((s) => s.listZoom)
   const [autoZoom, measureAutoZoom] = useAutoListZoom()
-  const ownZoom = readListZoom(tab.viewState?.zoom)
+  const ownZoom = tab.viewState?.zoom
   const zoom: ListZoom = isMobile ? 'rows' : ownZoom ?? (zoomSetting === 'auto' ? autoZoom : zoomSetting)
   const zoomRef = useLatestRef(isMobile ? null : zoom)
   // The level shown, for the zoom controls to step from (`services/list-zoom.listTabZoom`).

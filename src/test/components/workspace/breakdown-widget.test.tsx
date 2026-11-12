@@ -114,24 +114,8 @@ describe('the headings sort (view state, per split)', () => {
     expect(keys()).toEqual(before)
   })
 
-  it('a sort stored by the older derived columns (Overdue … Follow-up due) ranks by the Due / Follow-up column that holds them', async () => {
-    setup(breakdown({}, 'b'))
-    act(() => { useWorkspaceStore.getState().patchTabViewState('b', 'breakdown', { sorts: { people: { by: 'overdue' }, tags: { by: 'followup-due', reversed: true } } }) })
-    const heading = (key: string) => document.querySelector(`[data-sort-key="${key}"]`)!.closest('[role="columnheader"]')!
-    expect(heading('due').getAttribute('aria-sort')).toBe('descending')
-    expect(heading('followup').getAttribute('aria-sort')).toBe('none')
-    const due = rows().filter((r) => r.dataset.breakdownRow !== 'none')
-      .map((r) => Number(r.querySelector('[data-column="due"]')?.textContent?.replace('–', '0') ?? 0))
-    expect(due).toEqual([...due].sort((a, b) => b - a))
-    expect(item(glanceMenu(current(), undefined)!.settingEntries, 'Sort').note).toBe('Most Due first')
-    // A click on the Due heading goes on from there: reversed.
-    await act(async () => { fireEvent.click(document.querySelector('[data-sort-key="due"]')!) })
-    expect(current().viewState?.sorts?.people).toEqual({ by: 'due', reversed: true })
-    act(() => { useWorkspaceStore.getState().patchTabConfig('b', 'breakdown', { splitBy: 'tags' }) })
-    expect(heading('followup').getAttribute('aria-sort')).toBe('ascending')
-  })
-
-  it('a sort stored by the old Priority column reads as the default order', () => {
+  // The older derived columns' sorts (Overdue … Follow-up due) v79 rewrote as the Due / Follow-up column (`v79-upgrade.test`).
+  it('a sort by a key no column has (the old Priority column’s among them) reads as the default order', () => {
     setup(breakdown({}, 'b'))
     const before = keys()
     act(() => { useWorkspaceStore.getState().patchTabViewState('b', 'breakdown', { sorts: { people: { by: 'priority' } } }) })
@@ -202,7 +186,7 @@ describe('clicks: a row drills, its Review button and a count jump', () => {
   })
 
   it('the medium face keeps Review after the name', () => {
-    setup(breakdown({ checkins: true }), { face: 'medium' })
+    setup(breakdown(), { face: 'medium' })
     const priya = rowOf('person-4')
     expect(priya.querySelector('[role="cell"]')!.contains(within(priya).getByTestId('breakdown-review'))).toBe(true)
     expect(within(priya).queryByRole('button', { name: /Email check-in/ })).toBeNull()
@@ -269,8 +253,8 @@ describe('clicks: a row drills, its Review button and a count jump', () => {
 })
 
 describe('no check-in envelope (widget feedback 2B)', () => {
-  it('a person row has no envelope, even with a stored `checkins` (read and ignored); Oldest shows the age', () => {
-    setup(breakdown({ checkins: true, show: 'oldest', oldestBy: 'lastFollowup' }))
+  it('a person row has no envelope; Oldest shows the age', () => {
+    setup(breakdown({ show: 'oldest', oldestBy: 'lastFollowup' }))
     expect(document.querySelector('[aria-label^="Email check-in options"]')).toBeNull()
     expect(document.querySelector('[data-testid="breakdown-envelope"]')).toBeNull()
     // Oldest: the age in days, its title under the name.
@@ -411,8 +395,9 @@ describe('the editor (D26 P8, the Number editor’s pattern)', () => {
 describe('the editor’s Count columns (board BC)', () => {
   const columnsBox = () => document.querySelector<HTMLElement>('[data-testid="chart-editor-columns"]')!
 
-  it('shows the derived columns until edited; the first edit writes them all as columns and drops the old ranges', () => {
-    setup(breakdown({ badges: { followup: 'overdue' } }))
+  it('a config without columns (a hand-made file) shows the defaults in Settings’ ranges until edited; the first edit writes them all as columns', () => {
+    act(() => { useSettingsStore.setState({ tabBadges: { due: 3, followup: 'overdue' } }) })
+    setup(breakdown())
     act(() => { useChartWidgetsStore.getState().openEditor('b') })
     expect([...columnsBox().querySelectorAll<HTMLInputElement>('input[aria-label$="name"]')].map((i) => i.value)).toEqual(['Due', 'Follow-up'])
     expect(current().config).not.toHaveProperty('columns')
@@ -421,7 +406,6 @@ describe('the editor’s Count columns (board BC)', () => {
     expect(current().config.columns?.map((c) => [c.id, c.name, c.litWhen, c.litAt])).toEqual([['due', 'Late', 'above', 0], ['followup', 'Follow-up', 'above', 0]])
     // The follow-up range was `overdue`: its column counts the late ones only (up to yesterday), as written.
     expect(current().config.columns?.[1]?.filter.dates?.followup).toEqual({ match: 'range', start: null, end: { kind: 'offset', days: -1 } })
-    expect(current().config).not.toHaveProperty('badges')
     expect(layoutSteps()).not.toEqual([])
     // The table follows: its headings are the columns' names.
     expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toContain('Late')
