@@ -2,14 +2,14 @@ import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseE
 import { useDraggable } from '@dnd-kit/core'
 import { getActiveTab, isGlanceKind, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { OPEN_LARGER_LABEL, widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
+import { widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
 import type { AddWhere } from './add-widget-where'
 import { useTabTitle, useTabTitles } from './widget-hooks'
 import { MenuPopover } from '../shared/MenuPopover'
-import { ChevronDownIcon, ChevronUpIcon, ExpandIcon, MoreIcon } from '../shared/icons'
+import { ChevronDownIcon, ChevronUpIcon, MoreIcon } from '../shared/icons'
 import {
   useWorkspaceDrag,
   WORKSPACE_PANEL_DRAG,
@@ -298,19 +298,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
                 setButton={setGripButton}
                 className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
               />
-              {onOpenLarger && (
-                <button
-                  type="button"
-                  className={styles.action}
-                  aria-label={OPEN_LARGER_LABEL}
-                  aria-haspopup="dialog"
-                  title={OPEN_LARGER_LABEL}
-                  data-testid="open-larger"
-                  onClick={onOpenLarger}
-                >
-                  <ExpandIcon />
-                </button>
-              )}
               <button
                 type="button"
                 className={styles.action}
