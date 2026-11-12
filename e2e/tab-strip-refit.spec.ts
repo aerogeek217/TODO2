@@ -63,14 +63,15 @@ const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAni
  */
 async function sweep(page: Page, change: () => Promise<void>, undo: () => Promise<void>): Promise<number[]> {
   test.slow()
-  await seed(page, 1800)
+  await seed(page, 2000)
   const active = wsTab(page, 'l1')
   // Nothing narrows the list: no count yet (one number per list, 2A).
   await expect(active).toContainText('Inbox')
   await expect(active).not.toContainText('of 5')
   const widthsCut: number[] = []
   let tried = 0
-  for (let width = 1700; width >= 1100; width -= 10) {
+  // Its tabs fold from about 1700 down (the header holds Open larger too): the widths that only shrink them are above.
+  for (let width = 1900; width >= 1300; width -= 10) {
     await page.setViewportSize({ width, height: 800 })
     if (!(await shrunk(page))) continue
     tried++

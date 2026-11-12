@@ -100,6 +100,8 @@ export interface ResizePreview {
 export interface EditUndoOptions {
   /** Steps passing the same key one after another stay one undo step (a divider stepped by the arrow keys). */
   mergeKey?: string
+  /** No undo snackbar: the step is on the undo stack all the same (a divider moved — the table shows it). */
+  quiet?: boolean
 }
 
 /**
@@ -262,8 +264,8 @@ export interface WorkspaceState {
    * Drags a stretch of grid line by `delta` px (`moveEdge`): when it only
    * resizes the two tracks beside a whole line, a resize (view state, as
    * `setTrackSizes`); when it moves part of a line (a new line and track),
-   * a structural edit (`Moved divider`; `undo.mergeKey` merges a divider's
-   * key steps into one).
+   * a structural edit (`Moved divider`, an undo step with no snackbar: the
+   * table shows it; `undo.mergeKey` merges a divider's key steps into one).
    */
   moveEdge: (stretch: EdgeStretch, delta: number, opts: MoveEdgeOptions, undo?: EditUndoOptions) => Promise<void>
   /**
@@ -607,7 +609,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * `after`, its write `written`) as an undo step with the snackbar — or,
    * under the newest step's merge key, as more of that step.
    */
-  function recordEdit(layoutId: number, before: LayoutBody, after: LayoutBody, written: Promise<WriteResult>, description: string, mergeKey: string | undefined): void {
+  function recordEdit(layoutId: number, before: LayoutBody, after: LayoutBody, written: Promise<WriteResult>, description: string, { mergeKey, quiet = false }: EditUndoOptions): void {
     const undo = useUndoStore.getState()
     if (undo.isPerformingUndoRedo) return
     const into = mergeKey === undefined ? null : undo.mergeTarget(mergeKey)
@@ -626,7 +628,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       undo: () => undoRun(run, description),
       redo: () => redoRun(run, description),
     }
-    const top = undo.push(entry, true)
+    const top = undo.push(entry, !quiet)
     runs.set(top, run)
   }
 
@@ -681,7 +683,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const description = typeof describe === 'function' ? describe(working, next) : describe
     const committed: Layout = { ...next, modifiedAt: new Date() }
     const written = commit(committed)
-    recordEdit(saved.id, layoutBodyOf(saved), layoutBodyOf(committed), written, description, opts.mergeKey)
+    recordEdit(saved.id, layoutBodyOf(saved), layoutBodyOf(committed), written, description, opts)
     return true
   }
 
@@ -1153,7 +1155,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const next = moveEdge(working, stretch, delta, opts, idGenFor(working))
       if (next === working) return Promise.resolve()
       if (layoutStructureEqual(next, working)) return resize(() => next, () => [stretch.axis])
-      edit(() => next, 'Moved divider', undo)
+      edit(() => next, 'Moved divider', { ...undo, quiet: true })
       return Promise.resolve()
     },
 

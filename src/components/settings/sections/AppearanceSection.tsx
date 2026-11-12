@@ -85,7 +85,7 @@ export function AppearanceSection() {
           ))}
         </div>
       </SettingRow>
-      <SettingRow label="Theme colors" help="Override accent and surface colors per theme.">
+      <SettingRow label="Theme colors" help="Override accent, surface and priority colors per theme.">
         <button type="button" className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowThemeColors(true)}>
           Customize colors…
         </button>

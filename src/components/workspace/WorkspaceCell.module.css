@@ -27,6 +27,17 @@
     linear-gradient(var(--color-header-bg), var(--cell-header-shade));
   border-bottom: 1px solid var(--color-border-muted);
   position: relative;
+  /* Its width decides whether Open larger shows (`.openLarger`). */
+  container: cell-header / inline-size;
+}
+
+/* Open larger gives way in a narrow column: the strip keeps that room for
+   its tabs (a long active tab beside `+N` needs it), and the ⋯ menu still
+   has the entry. */
+@container cell-header (max-width: 339px) {
+  .action.openLarger {
+    display: none;
+  }
 }
 
 .collapsed .header {

@@ -339,7 +339,8 @@
   /* A calendar day cell. */
   --cal-day-fill: var(--color-tint-5);
 
-  /* Task markers: a task row's priority ring on its checkbox (D25 B), the editor's toggles, the menus. */
+  /* Task markers: a task row's priority ring on its checkbox (D25 B), the editor's toggles, the menus.
+     Each follows a theme colour until Settings › Theme colors gives it its own (`models/theme-colors`). */
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
