@@ -311,7 +311,7 @@ export function readmeData(today: Date = new Date()): Obj {
   return {
     __schemaVersion: README_SCHEMA_VERSION,
     todos,
-    people: PEOPLE.map((p, i) => ({ id: i + 1, name: p.name, initials: p.initials, color: p.color, email: `${p.name.split(' ')[0]!.toLowerCase()}@example.com` })),
+    people: PEOPLE.map((p, i) => ({ id: i + 1, name: p.name, initials: p.initials, color: p.color })),
     settings,
     todoPeople: withIds(todoPeople),
     statuses: STATUSES.map((s, i) => ({ id: i + 1, name: s.name, color: s.color, sortOrder: i, icon: s.icon })),

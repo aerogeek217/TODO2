@@ -46,9 +46,9 @@ describe('CommandPalette', () => {
   describe('search', () => {
     // The real command list: navigation, task, filter and bulk (two tasks selected) commands.
     const people: Person[] = [
-      { id: 1, name: 'Marcus Chen', initials: 'MC', email: 'marcus@example.com' },
-      { id: 2, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' },
-      { id: 3, name: 'Mark Twain', initials: 'MT', email: 'mark@example.com' },
+      { id: 1, name: 'Marcus Chen', initials: 'MC' },
+      { id: 2, name: 'Ada Lovelace', initials: 'AL' },
+      { id: 3, name: 'Mark Twain', initials: 'MT' },
     ]
     function realCommands(): Command[] {
       const ctx: CommandContext = {

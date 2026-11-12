@@ -207,11 +207,11 @@ describe('load vs. edit', () => {
 
     const load = useSettingsStore.getState().load()
     await gate.read
-    await useSettingsStore.getState().setCheckinOpenMethod('eml')
+    await useSettingsStore.getState().setThemeMode('light')
     gate.release()
     await load
 
-    expect(useSettingsStore.getState().checkinOpenMethod).toBe('eml')
+    expect(useSettingsStore.getState().themeMode).toBe('light')
   })
 })
 

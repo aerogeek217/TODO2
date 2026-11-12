@@ -229,13 +229,6 @@ describe('markFollowedUp', () => {
     await useUndoStore.getState().redo()
     expect((await db.todos.get(a))!).toMatchObject({ lastFollowupAt: new Date(2026, 9, 12, 8, 0), nextFollowupAt: day(2026, 10, 24) })
   })
-
-  it('names its undo step with a description and a detail line when given', async () => {
-    const a = await addTask('A')
-    useUndoStore.getState().clear()
-    await useTodoStore.getState().markFollowedUp([a], { description: 'Sent a check-in', detail: 'to Ann' })
-    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Sent a check-in', detail: 'to Ann' })
-  })
 })
 
 describe('nextAfterFollowup — what Mark followed up leaves without a given date', () => {

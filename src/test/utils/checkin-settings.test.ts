@@ -3,24 +3,10 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import type { FilterExpr } from '../../models/filter-expression'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import {
-  DEFAULT_CHECKIN_OPEN_METHOD,
   checkinFilterOf,
   checkinFiltersEqual,
-  isCheckinOpenMethod,
   isNoCheckinFilter,
 } from '../../utils/checkin-settings'
-
-describe('check-in settings', () => {
-  it('default: open in the mail app', () => {
-    expect(DEFAULT_CHECKIN_OPEN_METHOD).toBe('mailto')
-  })
-
-  it('isCheckinOpenMethod accepts mailto and eml only', () => {
-    expect(isCheckinOpenMethod('mailto')).toBe(true)
-    expect(isCheckinOpenMethod('eml')).toBe(true)
-    for (const bad of ['', 'MAILTO', 'outlook', null, undefined, 1]) expect(isCheckinOpenMethod(bad)).toBe(false)
-  })
-})
 
 describe('the check-in filter', () => {
   it('is kept without people (nor their “is not”) and with completed tasks off; the other switches stay', () => {

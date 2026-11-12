@@ -140,8 +140,8 @@ describe('useUndoStore', () => {
   })
 
   it('an entry with a detail shows it as the snackbar’s second line, for as long as a notice', () => {
-    useUndoStore.getState().push({ ...makeEntry('Check-in for Ann opened'), detail: 'Paste the body.' }, true)
-    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Check-in for Ann opened', detail: 'Paste the body.' })
+    useUndoStore.getState().push({ ...makeEntry('Checked “Draft OKRs”'), detail: 'All its subtasks are done' }, true)
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Checked “Draft OKRs”', detail: 'All its subtasks are done' })
     vi.advanceTimersByTime(5000)
     expect(useUndoStore.getState().snackbar).not.toBeNull()
     vi.advanceTimersByTime(3000)

@@ -25,12 +25,9 @@ import {
   type UrgentDueWithinDays,
 } from '../utils/urgency'
 import {
-  DEFAULT_CHECKIN_OPEN_METHOD,
   checkinFilterOf,
   checkinFiltersEqual,
-  isCheckinOpenMethod,
   isNoCheckinFilter,
-  type CheckinOpenMethod,
   type CheckinTaskFilter,
 } from '../utils/checkin-settings'
 import { emptyPredicate } from '../models/filter-predicate'
@@ -121,8 +118,6 @@ interface SettingsData {
   removeConvertedLines: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
-  /** How a check-in email opens in the mail app. */
-  checkinOpenMethod: CheckinOpenMethod
   /**
    * Which of a person's open tasks a check-in covers: a list filter without
    * people (`checkinFilterOf`); `emptyPredicate()` = all of them.
@@ -190,8 +185,6 @@ interface SettingsState extends SettingsData {
   setAutoFollowup: (on: boolean) => Promise<void>
   setRemoveConvertedLines: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
-  /** No undo step (also picked in the check-in dialog). */
-  setCheckinOpenMethod: (method: CheckinOpenMethod) => Promise<void>
   /**
    * Remembers the check-in filter (kept without people; no filter = the row
    * removed); no undo step (the check-in dialog's filter line writes on
@@ -504,12 +497,6 @@ export const SETTINGS = {
       ? 'Due dates don’t make tasks urgent'
       : range === 0 ? 'Due today makes a task urgent' : `Due within ${urgentRangeLabel(range)} makes a task urgent`),
   }),
-  checkinOpenMethod: setting(['checkinOpenMethod'], {
-    read: (rows) => ({ checkinOpenMethod: rowOr(rows, K.checkinOpenMethod, DEFAULT_CHECKIN_OPEN_METHOD, (v) => (isCheckinOpenMethod(v) ? v : DEFAULT_CHECKIN_OPEN_METHOD)) }),
-    rows: ({ checkinOpenMethod }) => ({ [K.checkinOpenMethod]: checkinOpenMethod }),
-    label: 'the check-in open method',
-    failure: 'Couldn’t save how check-ins open.',
-  }),
   checkinTaskFilter: setting(['checkinTaskFilter'], {
     read: (rows) => ({ checkinTaskFilter: rowOr(rows, K.checkinTaskFilter, emptyPredicate(), (v) => readCheckinFilterSetting(v).filter) }),
     // Stored only when it narrows: absent = all open tasks.
@@ -712,10 +699,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   async setUrgentDueWithinDays(range) {
     if (parseUrgentDueWithinDays(formatUrgentDueWithinDays(range)) === undefined) return
     await SETTINGS.urgentDueWithinDays.write({ urgentDueWithinDays: range })
-  },
-
-  async setCheckinOpenMethod(method) {
-    if (isCheckinOpenMethod(method)) await SETTINGS.checkinOpenMethod.write({ checkinOpenMethod: method })
   },
 
   async setCheckinTaskFilter(filter) {

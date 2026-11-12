@@ -37,7 +37,6 @@ const CASES: Record<string, Case> = {
   autoFollowup: { value: { autoFollowup: false }, undo: 'Don’t set a next follow-up automatically', failure: 'Couldn’t save whether a next follow-up is set automatically.' },
   removeConvertedLines: { value: { removeConvertedLines: true }, undo: 'Remove note lines after converting', failure: 'Couldn’t save what converted note lines become.' },
   urgentDueWithinDays: { value: { urgentDueWithinDays: 7 }, undo: 'Due within 1 week makes a task urgent', failure: 'Couldn’t save when a due date makes a task urgent.' },
-  checkinOpenMethod: { value: { checkinOpenMethod: 'eml' }, undo: null, failure: 'Couldn’t save how check-ins open.' },
   checkinTaskFilter: { value: { checkinTaskFilter: checkinFilterOf({ ...emptyPredicate(), tags: [4] }) }, undo: null, failure: 'Couldn’t save the check-in filter.' },
   newListSort: { value: { newListSort: 'deadline', newListSortDirection: 'desc' }, undo: 'New lists sort by Due date ↓', failure: 'Couldn’t save how new lists sort.' },
   newListGroup: { value: { newListGroup: 'people' }, undo: 'New lists group by People', failure: 'Couldn’t save how new lists group.' },

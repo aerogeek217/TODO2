@@ -129,7 +129,6 @@ export async function appendImportTasks(
       if (id == null) {
         const person: Person = { name: storedName(row.name), initials: row.initials }
         if (row.color != null) person.color = row.color
-        if (row.email != null) person.email = row.email
         id = await db.people.add(person) as number
         peopleByName.set(nameKey(row.name), id)
         created.people.push(storedName(row.name))

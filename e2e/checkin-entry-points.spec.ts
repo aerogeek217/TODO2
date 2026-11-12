@@ -1,30 +1,22 @@
-import { readFile } from 'node:fs/promises'
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test'
 import { readStore, writeStores } from './fixtures/db'
 import { openFieldPicker, openFilterPicker } from './fixtures/filters'
 import { emptyPredicate, pickInReview, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
- * The ways into an email check-in, in a real browser (widget feedback 2B,
- * decision 7): they live only on the Review widget's field — while its filter
- * names only people, Email check-in sends the one person's check-in from the
- * click (the body on the clipboard, the `mailto:` link opened or the `.eml`
- * downloaded, a follow-up recorded that Undo takes back) and Paste reply opens
- * the reply import. With no open tasks in the saved scope, or a refused
- * clipboard, the check-in dialog opens for the person instead, saying why.
- * Every older place is gone: the People group header's envelope, a Breakdown
- * person row's envelope, the person menu's items, the person task dialog's
- * buttons, the People filter's footer and every palette command (Email
- * Check-in ›, Email task check-ins…, Import check-in reply…).
+ * The ways into a check-in, in a real browser (widget feedback 2B, decision
+ * 7; check-ins by copy): they live only on the Review widget's field — while
+ * its filter names only people, Check-in opens the check-in dialog for those
+ * people (the first selected; nothing copied, sent or recorded until the
+ * user copies) and Paste reply opens the reply import. Every older place is
+ * gone: the People group header's envelope, a Breakdown person row's
+ * envelope, the person menu's items, the person task dialog's buttons, the
+ * People filter's footer and every palette command.
  */
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-const PEOPLE: WorkspaceSeed['people'] = [
-  { name: 'Ada Lovelace', email: 'ada@example.com' },
-  { name: 'Bob Stone', email: 'bob@example.com' },
-  'Cy Young',
-]
+const PEOPLE: WorkspaceSeed['people'] = ['Ada Lovelace', 'Bob Stone', 'Cy Young']
 
 const TASKS: WorkspaceSeed['tasks'] = [
   { title: 'Overdue report', people: ['Ada Lovelace'], dueInDays: -2 },
@@ -54,74 +46,36 @@ const SEED: WorkspaceSeed = {
   }],
 }
 
-const checkinDialog = (page: Page) => page.getByRole('dialog', { name: 'Email task check-ins' })
+const checkinDialog = (page: Page) => page.getByRole('dialog', { name: 'Task check-ins' })
+const peopleList = (page: Page) => checkinDialog(page).getByRole('listbox', { name: 'People' })
 
-/** The check-in dialog is open with exactly `names` ticked. */
-async function expectTicked(page: Page, names: string[]) {
+/** The check-in dialog is open, listing `first` first, the first of them selected. */
+async function expectOpenedFor(page: Page, first: string[]) {
   await expect(checkinDialog(page)).toBeVisible()
-  const rows = checkinDialog(page).locator('[data-checkin-row]')
-  const ticked: string[] = []
-  for (const row of await rows.all()) {
-    if (await row.getByRole('checkbox').isChecked()) ticked.push((await row.locator('label').textContent()) ?? '')
-  }
-  expect(ticked.map((t) => names.find((n) => t.startsWith(n)) ?? t)).toEqual(names)
+  const options = peopleList(page).getByRole('option')
+  for (const [i, name] of first.entries()) await expect(options.nth(i)).toContainText(name)
+  await expect(peopleList(page).getByRole('option', { selected: true })).toContainText(first[0]!)
 }
 
-interface AnchorClick { href: string; target: string; download: string; activation: boolean }
-
-/**
- * Records every anchor click (href / target / download, and whether the page
- * still had the user activation a new browsing context needs). A `mailto:`
- * one is not performed (no mail app to hand it to); a download is.
- */
+/** Records every anchor click's href (a `mailto:` would be one). */
 async function recordAnchorClicks(page: Page) {
   await page.addInitScript(() => {
-    const w = window as unknown as { __anchors: AnchorClick[] }
+    const w = window as unknown as { __anchors: string[] }
     w.__anchors = []
     const click = HTMLAnchorElement.prototype.click
     HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
-      w.__anchors.push({ href: this.href, target: this.target, download: this.download, activation: navigator.userActivation.isActive })
-      if (this.href.startsWith('mailto:')) return
+      w.__anchors.push(this.href)
       return click.call(this)
     }
   })
 }
 
-const anchorClicks = (page: Page) => page.evaluate(() => (window as unknown as { __anchors: AnchorClick[] }).__anchors)
-const mailtoLinks = async (page: Page) => (await anchorClicks(page)).map((a) => a.href).filter((h) => h.startsWith('mailto:'))
-
-/** The clipboard's plain text (the email body). */
-const clipboardPlain = (page: Page) => page.evaluate(async () => {
-  const [item] = await navigator.clipboard.read()
-  return (await item!.getType('text/plain')).text()
-})
+const mailtoLinks = async (page: Page) =>
+  (await page.evaluate(() => (window as unknown as { __anchors: string[] }).__anchors)).filter((h) => h.startsWith('mailto:'))
 
 /** Titles of the tasks with a follow-up recorded, from IndexedDB. */
 const followedUp = async (page: Page) =>
   (await readStore<{ title: string; lastFollowupAt?: Date }>(page, 'todos')).filter((t) => t.lastFollowupAt).map((t) => t.title).sort()
-
-/**
- * A send went out: the link (opened in a new context while the gesture's
- * user activation still held), the body, the follow-up and its notice; Undo
- * takes the follow-up back.
- */
-async function expectSent(page: Page, { mailto, person, titles }: { mailto: string; person: string; titles: string[] }) {
-  await expect.poll(() => mailtoLinks(page)).toEqual([mailto])
-  const link = (await anchorClicks(page)).find((a) => a.href === mailto)
-  expect(link).toMatchObject({ target: '_blank', activation: true })
-  expect(await clipboardPlain(page)).toMatch(new RegExp(`Check-in for ${person} · sent \\d{4}-\\d{2}-\\d{2}`))
-  await expect(checkinDialog(page)).toHaveCount(0)
-  const n = titles.length
-  await expect(page.getByText(`Check-in for ${person} opened · ${n} ${n === 1 ? 'task' : 'tasks'} followed up`)).toBeVisible()
-  // The snackbar's second line: the address it went to (or none) and how to finish.
-  const to = decodeURIComponent(mailto.slice('mailto:'.length).split('?')[0] ?? '')
-  await expect(page.locator('[data-snackbar-detail]')).toHaveText(to === ''
-    ? `Opened a message to ${person}. The body is on your clipboard: paste it with Ctrl+V. Add the recipient in your mail app.`
-    : `Opened a message to ${person} <${to}>. The body is on your clipboard: paste it with Ctrl+V.`)
-  await expect.poll(() => followedUp(page)).toEqual([...titles].sort())
-  await page.getByRole('button', { name: 'Undo' }).click()
-  await expect.poll(() => followedUp(page)).toEqual([])
-}
 
 async function setup(page: Page, context: BrowserContext) {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -129,9 +83,9 @@ async function setup(page: Page, context: BrowserContext) {
   await seedWorkspace(page, SEED)
 }
 
-/** Saves check-in settings straight to the database and reloads, so the app starts with them. */
-async function withCheckinSettings(page: Page, settings: { checkinOpenMethod?: string; checkinTaskFilter?: string }) {
-  await writeStores(page, { put: { settings: Object.entries(settings).map(([key, value]) => ({ key, value })) } })
+/** Saves the check-in filter straight to the database and reloads, so the app starts with it. */
+async function withCheckinFilter(page: Page, value: string) {
+  await writeStores(page, { put: { settings: [{ key: 'checkinTaskFilter', value }] } })
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
 }
@@ -139,27 +93,21 @@ async function withCheckinSettings(page: Page, settings: { checkinOpenMethod?: s
 const groupHeader = (page: Page, name: string): Locator =>
   wsListWidget(page, 't1').locator('[data-person-group]').filter({ hasText: name })
 const reviewWidget = (page: Page) => page.locator('[data-review-widget="rv"]')
-/** The Review widget's Email check-in, once its filter names one person (`pickInReview`). */
-const widgetSend = (page: Page) => reviewWidget(page).getByRole('button', { name: 'Email check-in' })
+/** The Review widget's Check-in, once its filter names only people (`pickInReview`). */
+const widgetCheckin = (page: Page) => reviewWidget(page).getByRole('button', { name: 'Check-in' })
 const importDialog = (page: Page) => page.getByRole('dialog', { name: 'Import task update' })
 
-test('the Review widget’s Email check-in sends the one person’s check-in at once — with or without an address', async ({ page, context }) => {
+test('the Review widget’s Check-in opens the dialog for the one person: nothing copied, sent or recorded', async ({ page, context }) => {
   await setup(page, context)
-  expect(await mailtoLinks(page)).toEqual([])
   await pickInReview(page, 'rv', 'Bob')
-  await widgetSend(page).click()
-  await expectSent(page, {
-    mailto: 'mailto:bob@example.com?subject=Task%20check-in%3A%202%20open%20tasks',
-    person: 'Bob Stone',
-    titles: ['Bob only', 'Review plan'],
-  })
-
-  // A person without an email: an empty To, the name nowhere in it.
-  await page.evaluate(() => { (window as unknown as { __anchors: unknown[] }).__anchors = [] })
-  await reviewWidget(page).getByRole('button', { name: 'Clear the filter' }).click()
-  await pickInReview(page, 'rv', 'Cy')
-  await widgetSend(page).click()
-  await expectSent(page, { mailto: 'mailto:?subject=Task%20check-in%3A%201%20open%20task', person: 'Cy Young', titles: ['Cy only'] })
+  await widgetCheckin(page).hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Check-in for Bob Stone…')
+  await widgetCheckin(page).click()
+  await expectOpenedFor(page, ['Bob Stone'])
+  await expect(checkinDialog(page).getByTestId('checkin-subject')).toHaveText('Task check-in: 2 open tasks')
+  expect(await mailtoLinks(page)).toEqual([])
+  expect(await followedUp(page)).toEqual([])
+  await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0)
 })
 
 test('the old places are gone: the task dialog, the group header, its menu, the Breakdown row, the People filter, the palette', async ({ page, context }) => {
@@ -173,25 +121,25 @@ test('the old places are gone: the task dialog, the group header, its menu, the 
   await page.getByRole('menuitem', { name: 'Show tasks' }).click()
   await expect(taskDialog.getByRole('heading')).toHaveText('Bob Stone')
   await expect(taskDialog.getByRole('group', { name: 'Actions for Bob Stone' }).getByRole('button')).toHaveText(['Review'])
-  await expect(taskDialog.getByRole('button', { name: /Email check-in|Paste reply/ })).toHaveCount(0)
+  await expect(taskDialog.getByRole('button', { name: /Check-in|Paste reply/ })).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(taskDialog).toHaveCount(0)
 
   // A People group header: no envelope, on hover or otherwise.
   await groupHeader(page, 'Bob Stone').hover()
-  await expect(wsListWidget(page, 't1').getByRole('button', { name: /Email check-in/ })).toHaveCount(0)
+  await expect(wsListWidget(page, 't1').getByRole('button', { name: /Check-in/ })).toHaveCount(0)
 
   // The Breakdown's person rows: Review, no envelope.
   const bobRow = page.locator('[data-glance-tab="dash"] [data-breakdown-row]').filter({ hasText: 'Bob Stone' })
   await bobRow.hover()
   await expect(bobRow.getByTestId('breakdown-review')).toBeVisible()
-  await expect(bobRow.getByRole('button', { name: /Email check-in/ })).toHaveCount(0)
+  await expect(bobRow.getByRole('button', { name: /Check-in/ })).toHaveCount(0)
 
   // The top-bar People filter: Review alone in its footer.
   await openFilterPicker(page, 'People')
   await page.getByRole('option', { name: 'Ada Lovelace' }).click()
   await expect(page.getByRole('button', { name: 'Review with Ada Lovelace' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^(Email check-in|Paste reply)/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^(Check-in|Paste reply)/ })).toHaveCount(0)
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
@@ -268,65 +216,27 @@ test('near the bottom of the window the header menu opens upward', async ({ page
   await expect(menu).toHaveCount(0)
 })
 
-test('several people: the widget’s Email check-in is a menu of them', async ({ page, context }) => {
+test('several people: the widget’s Check-in opens the dialog for all of them, no menu', async ({ page, context }) => {
   await setup(page, context)
   await pickInReview(page, 'rv', 'Ada', 'Bob')
-  await widgetSend(page).click()
-  const menu = page.getByRole('menu')
-  await expect(menu.getByRole('menuitem')).toHaveText(['Email check-in to Ada Lovelace', 'Email check-in to Bob Stone'])
-  await menu.getByRole('menuitem', { name: 'Email check-in to Ada Lovelace' }).click()
-  await expectSent(page, {
-    mailto: 'mailto:ada@example.com?subject=Task%20check-in%3A%202%20open%20tasks',
-    person: 'Ada Lovelace',
-    titles: ['Overdue report', 'Review plan'],
-  })
+  await widgetCheckin(page).hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Check-ins…')
+  await widgetCheckin(page).click()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expectOpenedFor(page, ['Ada Lovelace', 'Bob Stone'])
+  expect(await followedUp(page)).toEqual([])
 })
 
-test('fallback: no open tasks match the saved check-in filter: opens the dialog for the person, saying why', async ({ page, context }) => {
+test('a person with no open tasks matching the saved check-in filter: the dialog opens for them and says so', async ({ page, context }) => {
   await setup(page, context)
-  await withCheckinSettings(page, { checkinTaskFilter: JSON.stringify({ ...emptyPredicate(), markers: [{ values: ['focus'] }] }) })
+  await withCheckinFilter(page, JSON.stringify({ ...emptyPredicate(), markers: [{ values: ['focus'] }] }))
   await pickInReview(page, 'rv', 'Ada')
-  await widgetSend(page).click()
-  await expectTicked(page, ['Ada Lovelace'])
-  await expect(checkinDialog(page).getByRole('status'))
-    .toHaveText('Ada Lovelace has no open tasks that match the check-in filter, so nothing was sent. Change the filter under Which tasks.')
+  await widgetCheckin(page).click()
+  await expectOpenedFor(page, ['Ada Lovelace'])
+  await expect(checkinDialog(page).getByTestId('checkin-no-tasks')).toHaveText('No open tasks match Which tasks.')
+  await expect(checkinDialog(page).getByRole('button', { name: 'Copy message' })).toBeDisabled()
   expect(await mailtoLinks(page)).toEqual([])
   expect(await followedUp(page)).toEqual([])
-})
-
-test('fallback: a refused clipboard opens nothing and opens the dialog for the person, saying why', async ({ page, context }) => {
-  await setup(page, context)
-  await page.evaluate(() => {
-    const refuse = () => Promise.reject(new DOMException('denied', 'NotAllowedError'))
-    Object.defineProperty(navigator.clipboard, 'write', { configurable: true, value: refuse })
-    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: refuse })
-  })
-  await pickInReview(page, 'rv', 'Bob')
-  await widgetSend(page).click()
-  await expectTicked(page, ['Bob Stone'])
-  await expect(checkinDialog(page).getByRole('status'))
-    .toHaveText('Couldn’t copy the email to the clipboard, so nothing was opened. Try again.')
-  expect(await mailtoLinks(page)).toEqual([])
-  expect(await followedUp(page)).toEqual([])
-})
-
-test('.eml method: the one-click send downloads the draft (no To header without an address)', async ({ page, context }) => {
-  await setup(page, context)
-  await withCheckinSettings(page, { checkinOpenMethod: 'eml' })
-  await pickInReview(page, 'rv', 'Cy')
-  const downloadPromise = page.waitForEvent('download')
-  await widgetSend(page).click()
-  const download = await downloadPromise
-  expect(download.suggestedFilename()).toMatch(/^Check-in - Cy Young - \d{4}-\d{2}-\d{2}\.eml$/)
-  const eml = await readFile((await download.path())!, 'utf8')
-  expect(eml).toMatch(/^X-Unsent: 1\r\nSubject: Task check-in: 1 open task\r\n/)
-  expect(eml).not.toMatch(/^To:/im)
-  await expect(checkinDialog(page)).toHaveCount(0)
-  await expect(page.getByText('Check-in for Cy Young downloaded · 1 task followed up')).toBeVisible()
-  await expect(page.locator('[data-snackbar-detail]'))
-    .toHaveText(/^Downloaded the draft for Cy Young \(Check-in - Cy Young - \d{4}-\d{2}-\d{2}\.eml\) — open it from your Downloads folder to review and send\. Add the recipient in your mail app\.$/)
-  await expect.poll(() => followedUp(page)).toEqual(['Cy only'])
-  expect(await mailtoLinks(page)).toEqual([])
 })
 
 test('paste a reply: the Review widget’s Paste reply opens the reply import, sending nothing', async ({ page, context }) => {

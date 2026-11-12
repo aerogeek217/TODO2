@@ -22,7 +22,7 @@ const day = (offset: number) => new Date(2026, 9, 12 + offset)
 // Late evening local time: the footer must use the local date, not UTC.
 const sentAt = new Date(2026, 9, 12, 23, 45)
 
-const marcus = makePerson({ id: 1, name: 'Marcus Chen', email: 'marcus.chen@example.com' })
+const marcus = makePerson({ id: 1, name: 'Marcus Chen' })
 const sam = makePerson({ id: 2, name: 'Sam Ortiz' })
 const security: Tag = { id: 1, name: 'security', color: '#fff' }
 const northwind: Tag = { id: 2, name: 'Project: Northwind Rollout', color: '#fff' }
@@ -82,15 +82,7 @@ describe('checkin email basics', () => {
     const { sections, ctx } = sample()
     const email = buildCheckinEmail(marcus, sections, ctx, ON)
     expect(email.subject).toBe('Task check-in: 3 open tasks')
-    expect(email.to).toBe('marcus.chen@example.com')
-  })
-
-  it('goes without a recipient when the person has no valid address — never their name or the bad value', () => {
-    const { sections, ctx } = sample()
-    for (const email of [undefined, '', 'Marcus Chen', 'marcus@example.com,evil@x.com', '"M" <m@x.com>']) {
-      expect(buildCheckinEmail({ ...marcus, email }, sections, ctx, ON).to).toBe('')
-    }
-    expect(buildCheckinEmail({ ...marcus, email: ' marcus.chen@example.com ' }, sections, ctx, ON).to).toBe('marcus.chen@example.com')
+    expect(Object.keys(email).sort()).toEqual(['html', 'plain', 'subject'])
   })
 
   it('greets by first name; a colon prefix keeps the whole name', () => {
@@ -329,7 +321,7 @@ describe('escaping', () => {
   const evil = '<script>alert(1)</script>'
 
   it('escapes titles, status updates, notes, tags, names and the footer', () => {
-    const person = makePerson({ id: 1, name: `Eve ${evil}`, email: 'eve@example.com' })
+    const person = makePerson({ id: 1, name: `Eve ${evil}` })
     const other = makePerson({ id: 2, name: `<img src=x onerror=alert(1)>` })
     const t = makeTodo({
       id: 1, uid: UID1, title: `Fix ${evil} & "quotes"`,
@@ -365,7 +357,6 @@ describe('escaping', () => {
     expect(lines).toContain('Status: (10/11) a b')
     expect(lines.filter((l) => l === 'Your update')).toHaveLength(1)
     expect(lines.at(-1)).toBe('Check-in for Ada Lovelace · sent 2026-10-12')
-    expect(email.to).toBe('')
   })
 })
 

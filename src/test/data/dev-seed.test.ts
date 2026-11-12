@@ -63,9 +63,6 @@ describe('dev seed generator', () => {
     expect(new Set(seed.todos.map((t) => t.uid)).size).toBe(seed.todos.length)
     expect(seed.people).toHaveLength(16)
     expect(seed.people.filter((p) => p.name.startsWith('Org: '))).toHaveLength(4)
-    const withEmail = seed.people.filter((p) => p.email !== undefined)
-    expect(withEmail.length).toBeGreaterThanOrEqual(8)
-    expect(withEmail.length).toBeLessThan(seed.people.length)
     expect(seed.tags.filter((t) => t.name.startsWith('Project: '))).toHaveLength(5)
     expect(seed.statuses).toHaveLength(4)
 

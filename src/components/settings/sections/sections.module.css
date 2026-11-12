@@ -494,39 +494,6 @@
   }
 }
 
-/* ═══ Radio options (label + muted help line) ═══ */
-
-.radioGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.radioOption {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: var(--font-size-md);
-  line-height: 1.4;
-  color: var(--color-text-primary);
-  cursor: pointer;
-}
-
-.radioOption input {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  margin: 1px 0 0;
-  accent-color: var(--color-accent);
-  cursor: pointer;
-}
-
-.radioText {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
 /* A merged section's part (Tasks › Completed tasks, Database › Backups, …):
    a heading over the part's rows; a rule above every part but the first. */
 .part {

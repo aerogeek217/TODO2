@@ -280,10 +280,10 @@ describe('appendImportTasks — status updates', () => {
   })
 })
 
-describe('appendImportTasks — person emails', () => {
-  it('matches people by name only: a match keeps its own email, a created person brings the archived one', async () => {
-    const alice = await db.people.add({ name: 'Alice', initials: 'AL', email: 'alice@source.example' }) as number
-    const bob = await db.people.add({ name: 'Bob', initials: 'BO', email: 'bob@source.example' }) as number
+describe('appendImportTasks — people', () => {
+  it('matches people by name only: a match keeps its own row, a created person brings the archived one’s initials', async () => {
+    const alice = await db.people.add({ name: 'Alice', initials: 'AL' }) as number
+    const bob = await db.people.add({ name: 'Bob', initials: 'BO', color: '#336699' }) as number
     const now = new Date()
     const id = await todoRepository.insert({ title: 'Shared task', isCompleted: true, completedAt: now, createdAt: now, modifiedAt: now, sortOrder: 1 })
     await db.todoPeople.bulkAdd([{ todoId: id, personId: alice }, { todoId: id, personId: bob }])
@@ -296,7 +296,7 @@ describe('appendImportTasks — person emails', () => {
 
     expect(result.created.people).toEqual(['Bob'])
     expect(await db.people.get(target)).toEqual({ id: target, name: 'alice', initials: 'A' })
-    expect(await db.people.where('name').equals('Bob').first()).toMatchObject({ initials: 'BO', email: 'bob@source.example' })
+    expect(await db.people.where('name').equals('Bob').first()).toMatchObject({ initials: 'BO', color: '#336699' })
   })
 })
 

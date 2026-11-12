@@ -245,13 +245,13 @@ describe('v79 through the browser database’s own upgrade', () => {
     await resetDb()
   })
 
-  it('a v78 database opens at v79 converted, and reads as the same data imported as a v78 file', async () => {
+  it('a v78 database opens at the current version converted, and reads as the same data imported as a v78 file', async () => {
     db.close()
     await db.delete()
     await createV78Db(v78Rows())
     await db.open()
     expect(db.verno).toBe(CURRENT_DB_VERSION)
-    expect(db.backendDB().version).toBe(790)
+    expect(db.backendDB().version).toBe(CURRENT_DB_VERSION * 10)
     await expectV79Data()
 
     const file = prepareImport(JSON.parse(JSON.stringify(v78File())))

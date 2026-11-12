@@ -76,7 +76,7 @@ describe('EntityMenu — a person', () => {
 
   it('no check-in items (they live on the Review widget’s field)', () => {
     renderMenu([person])
-    expect(screen.queryByRole('menuitem', { name: /Email check-in|Paste reply/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /Check-in|Paste reply/ })).toBeNull()
   })
 })
 
