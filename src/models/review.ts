@@ -34,3 +34,11 @@ export function reviewSortLabel(sort: ReviewSort): string {
  * widget feedback): Priority.
  */
 export const DEFAULT_REVIEW_WIDGET_SORT: ReviewSort = 'priority'
+
+/**
+ * The popup review's tab id: a Review widget tied to no layout tab, which a
+ * Review button opens in the widget popup when the open layout has no Review
+ * widget (`services/review-jump`). Its filter and session are kept under this
+ * id as a tab's are; its sort and lens switch in `ui-store.popupReviewView`.
+ */
+export const REVIEW_POPUP_TAB_ID = 'review-popup'

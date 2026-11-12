@@ -513,9 +513,9 @@ test('faces by size: medium — the card’s essentials; small — the filter an
   await expect(small).toHaveAttribute('data-review-face', 'small')
   await expect(small.getByTestId('review-small-face')).toHaveText('Review · Pick who or what')
 
-  // A click opens the whole widget over the cell; its field works there, its list over the popover.
+  // A click opens the whole widget in the widget popup; its field works there, its list over the popup.
   await small.click()
-  const popover = page.getByTestId('widget-face-popover')
+  const popover = page.getByTestId('widget-popup')
   await expect(popover).toBeVisible()
   const whole = popover.locator('[data-review-widget="rs"]')
   await expect(whole).toHaveAttribute('data-review-face', 'large')
@@ -528,8 +528,9 @@ test('faces by size: medium — the card’s essentials; small — the filter an
   await field.press('Enter')
   await expect(field).toHaveValue('@Aisha or @Ben ')
   await expect(popover).toBeVisible()
-  await expect(whole.getByTestId('review-widget-progress')).toHaveText('Queue · 0 followed up')
-  // Leaving the field, then Esc closes the popover.
+  // Wide in the popup: the queue beside the card, no Queue button.
+  await expect(whole.getByTestId('review-widget-progress')).toHaveText('0 followed up')
+  // Leaving the field, then Esc closes the popup.
   await field.blur()
   await page.keyboard.press('Escape')
   await expect(popover).toHaveCount(0)

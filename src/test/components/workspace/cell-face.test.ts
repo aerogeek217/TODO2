@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { createTab } from '../../../models/workspace-layout'
 import { useCellFace } from '../../../components/workspace/cell-face'
+import { useUIStore } from '../../../stores/ui-store'
 import type { WidgetFace } from '../../../utils/widget-face'
 
-/** The full-widget popover of a small face: open only while the face stays small (cr33 W6). */
+/** A cell's face and its Open larger: the widget popup, held in `ui-store`. */
 describe('useCellFace', () => {
   const tab = createTab('lens', 'list', { listDefinitionId: 1 })
 
@@ -12,22 +13,22 @@ describe('useCellFace', () => {
     return renderHook(({ face }: { face: WidgetFace }) => useCellFace(tab, { forced: face }), { initialProps: { face: initial } })
   }
 
-  it('opens at the small face and stays open while it is small', () => {
+  it('opens the tab in the popup; it stays open as the face changes', () => {
     const { result, rerender } = setup('small')
-    act(() => result.current.openFull())
-    expect(result.current.fullOpen).toBe(true)
-    rerender({ face: 'small' })
-    expect(result.current.fullOpen).toBe(true)
+    expect(result.current.opensLarger).toBe(true)
+    act(() => result.current.openLarger())
+    expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'tab', tabId: 'list' })
+    expect(result.current.open).toBe(true)
+    rerender({ face: 'large' })
+    expect(result.current.open).toBe(true)
   })
 
-  it('the face growing to medium closes it, as to large; shrinking back doesn’t reopen it', () => {
-    for (const grown of ['medium', 'large'] as const) {
-      const { result, rerender } = setup('small')
-      act(() => result.current.openFull())
-      rerender({ face: grown })
-      expect(result.current.fullOpen).toBe(false)
-      rerender({ face: 'small' })
-      expect(result.current.fullOpen).toBe(false)
-    }
+  it('the host offers it to the widget (a face’s +N more), not for a Number with nothing more to show', () => {
+    const { result } = setup('medium')
+    expect(result.current.host.openFull).toBeDefined()
+    const number = createTab('number', 'n')
+    const n = renderHook(() => useCellFace(number, { forced: 'small' }))
+    expect(n.result.current.opensLarger).toBe(false)
+    expect(n.result.current.host.openFull).toBeUndefined()
   })
 })

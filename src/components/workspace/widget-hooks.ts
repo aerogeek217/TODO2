@@ -1,9 +1,11 @@
 import { useMemo } from 'react'
 import { ownerLayoutId } from '../../models/list-definition'
 import { breakdownPreset } from '../../models/chart-widgets'
-import { kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
+import { getActiveTab, kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
 import { zoomTargetTab } from '../../services/list-zoom'
 import { showTab } from '../../services/workspace-tabs'
+import { openNumberList, openWidgetLarger } from '../../services/widget-popup'
+import { tabOpensLarger, type WidgetFace } from '../../utils/widget-face'
 import { readingOrder } from '../../utils/workspace-grid'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
@@ -210,4 +212,27 @@ export function addWidgetFromPalette(kind: WidgetKind): void {
 /** `useAddWidget`'s add, outside a component (the palette's Add Widget ›). */
 export function addWidgetAt(kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number, seed?: TabSeed): string | null {
   return useWorkspaceStore.getState().addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
+}
+
+/**
+ * The palette's Open Widget Larger: the active widget of the cell last used
+ * (as Add Widget › picks it, `paletteTargetCell`) in the widget popup, where
+ * it offers that at the face its cell shows (`tabOpensLarger`); a Number that
+ * follows a list opens that list, as its click does. Nothing in an empty
+ * layout, or for a Number with nothing more to show.
+ */
+export function openWidgetLargerFromPalette(): void {
+  const { working } = useWorkspaceStore.getState()
+  if (!working) return
+  const cellId = paletteTargetCell(working, document.activeElement)
+  const cell = cellId != null ? working.cells.find((c) => c.id === cellId) : undefined
+  const tab = cell ? getActiveTab(cell) : undefined
+  if (!tab || cellId == null) return
+  if (tab.kind === 'number' && tab.config.show === 'list') {
+    if (tab.config.list != null) void openNumberList(tab.id)
+    return
+  }
+  const shown = document.querySelector(`[data-ws-cell="${CSS.escape(cellId)}"]`)?.getAttribute('data-face')
+  const face: WidgetFace = shown === 'small' || shown === 'medium' ? shown : 'large'
+  if (tabOpensLarger(tab, face)) void openWidgetLarger(tab.id)
 }

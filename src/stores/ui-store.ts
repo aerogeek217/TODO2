@@ -5,7 +5,7 @@ import { afterLeavingEditors, editorsHoldChanges, leaveOpenEditors } from './edi
 import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
-import type { WidgetKind } from '../models/workspace-layout'
+import type { ReviewTabViewState, WidgetKind } from '../models/workspace-layout'
 
 type EditPopupMode = 'edit' | 'create' | null
 
@@ -120,6 +120,14 @@ export interface AddWidgetRequest {
   kind: WidgetKind
   anchor: { x: number; y: number }
 }
+
+/**
+ * The widget open larger (`WidgetPopupHost`, `services/widget-popup`): a tab
+ * of the open layout by id; the list a Number that follows a list shows
+ * (`list`: the Number's tab id); or the popup review — a Review widget tied
+ * to no layout tab (`REVIEW_POPUP_TAB_ID`).
+ */
+export type WidgetPopupTarget = { kind: 'tab'; tabId: string } | { kind: 'list'; tabId: string } | { kind: 'review' }
 
 export interface QuickAddDraftSeed {
   rawTitle: string
@@ -371,6 +379,14 @@ interface UIState {
   layoutRequest: LayoutRequest | null
   /** An Add widget the palette asked for (`AddWidgetRequest`); `null` = none. */
   addWidgetRequest: AddWidgetRequest | null
+  /** The widget open larger, one at a time (`WidgetPopupTarget`); `null` = none. Opened through `services/widget-popup`. */
+  widgetPopup: WidgetPopupTarget | null
+  /**
+   * The popup review's view state — its rail's sort and its lens switch —
+   * kept here in memory (it has no layout to save them in): Priority and
+   * Follow until changed, back to them on a reload.
+   */
+  popupReviewView: ReviewTabViewState
 
   selectOneTodo: (id: number) => void
   rangeSelectTodo: (id: number, orderedIds: number[]) => void
@@ -467,6 +483,11 @@ interface UIState {
   clearLayoutRequest: () => void
   requestAddWidget: (request: AddWidgetRequest) => void
   clearAddWidgetRequest: () => void
+  /** Shows `target` in the popup (replacing what it showed). */
+  setWidgetPopup: (target: WidgetPopupTarget) => void
+  closeWidgetPopup: () => void
+  /** Changes the popup review's sort or lens switch (`popupReviewView`). */
+  patchPopupReviewView: (patch: Partial<ReviewTabViewState>) => void
 }
 
 /**
@@ -534,6 +555,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   entityAction: null,
   layoutRequest: null,
   addWidgetRequest: null,
+  widgetPopup: null,
+  popupReviewView: {},
 
   selectOneTodo(id: number) {
     set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
@@ -835,5 +858,15 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
   clearAddWidgetRequest() {
     set({ addWidgetRequest: null })
+  },
+  setWidgetPopup(target) {
+    set({ widgetPopup: target })
+  },
+  closeWidgetPopup() {
+    if (get().widgetPopup === null) return
+    set({ widgetPopup: null })
+  },
+  patchPopupReviewView(patch) {
+    set({ popupReviewView: { ...get().popupReviewView, ...patch } })
   },
 }))

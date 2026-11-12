@@ -28,6 +28,7 @@ import { useEscapeCloses } from './editor-escape'
 import { useEditorDraft, usePressElsewhereCloses } from './editor-draft'
 import { EditorFooter } from './EditorFooter'
 import styles from './ChartEditor.module.css'
+import { widgetElement } from '../../../utils/dom-contract'
 
 /** The Project pulse tab `tabId` names in the open layout, if it is one. */
 function usePulseTab(tabId: string | null): PulseTab | undefined {
@@ -60,7 +61,7 @@ export function PulseEditorHost() {
     let frames = 0
     let raf = 0
     const look = () => {
-      const el = document.querySelector<HTMLElement>(`[data-pulse-head="${CSS.escape(tab.id)}"]`)
+      const el = widgetElement(tab.id, `[data-pulse-head="${CSS.escape(tab.id)}"]`)
       anchorRef.current = el
       setFound(el ? tab.id : null)
       if (!el && ++frames < 30) raf = requestAnimationFrame(look)

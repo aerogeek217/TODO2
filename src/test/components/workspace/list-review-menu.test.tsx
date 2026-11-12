@@ -14,6 +14,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { createTab, type LayoutCell, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import { REVIEW_POPUP_TAB_ID } from '../../../models/review'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { emptyPredicate } from '../../../models'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
@@ -113,10 +114,12 @@ describe('a list tab’s Review these N tasks', () => {
     expect(within(openTabMenu()).queryByRole('menuitem', { name: /Review/ })).toBeNull()
   })
 
-  it('no layout has a Review widget: no Review item', () => {
+  it('no Review widget on the layout: the item still shows and opens the popup review', async () => {
     setLayout(false)
     showCell()
-    expect(within(openTabMenu()).queryByRole('menuitem', { name: /Review/ })).toBeNull()
+    fireEvent.click(within(openTabMenu()).getByRole('menuitem', { name: /^Review these/ }))
+    await waitFor(() => expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'review' }))
+    expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]).toBeDefined()
   })
 
   it('the widget gone: its shown tasks go with it', () => {
@@ -145,7 +148,7 @@ describe('Review List: the shortcut and the palette', () => {
     expect(command).toMatchObject({ name: 'Review List', hint: 'Aisha 1:1 · 3 tasks', shortcut: 'R', category: 'task' })
   })
 
-  it('no Review List without a list on screen, with one that shows nothing, or with no Review widget', () => {
+  it('no Review List without a list on screen or with one that shows nothing; with no Review widget it is there', () => {
     expect(paletteCommands().some((c) => c.id === 'review-list')).toBe(false)
     useTodoStore.setState({ todos: [] })
     showCell()
@@ -154,7 +157,7 @@ describe('Review List: the shortcut and the palette', () => {
     useTodoStore.setState({ todos: [makeTodo({ id: 1, sortOrder: 1 })] })
     setLayout(false)
     showCell()
-    expect(paletteCommands().some((c) => c.id === 'review-list')).toBe(false)
+    expect(paletteCommands().some((c) => c.id === 'review-list')).toBe(true)
   })
 
   it('the key jumps with the list on screen', async () => {
@@ -164,11 +167,12 @@ describe('Review List: the shortcut and the palette', () => {
     await waitFor(() => expect(reviewFilter()).toEqual({ expression: { kind: 'status', id: 2 }, showCompleted: false }))
   })
 
-  it('the key with no list on screen, or no Review widget, does nothing (and leaves the key alone)', () => {
+  it('the key with no list on screen does nothing (and leaves the key alone); with no Review widget it opens the popup review', async () => {
     expect(press()).toBe(false)
     setLayout(false)
     showCell()
-    expect(press()).toBe(false)
+    expect(press()).toBe(true)
+    await waitFor(() => expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]).toBeDefined())
     expect(reviewFilter()).toBeUndefined()
   })
 

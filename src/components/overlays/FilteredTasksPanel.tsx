@@ -2,7 +2,6 @@ import { useEffect, useId, useLayoutEffect, useState, type RefObject } from 'rea
 import { createPortal } from 'react-dom'
 import { screenTaskDialog } from '../../services/task-dialog'
 import { useFilterStore } from '../../stores/filter-store'
-import { useReviewJumpAvailable } from '../../hooks/use-review-jump'
 import { screenReviewFilter } from '../../services/review'
 import { jumpToReview } from '../../services/review-jump'
 import { currentPickedLens } from '../../stores/screen-filter'
@@ -61,8 +60,6 @@ export function FilteredTasksPanel({ trayRef, topBarRef, panelRef }: {
   const close = useUIStore((s) => s.closeFilterPanel)
   const focusKey = useUIStore((s) => s.filterPanelFocusKey)
   const isActive = useFilterStore((s) => s.isActive)
-  // Review these N tasks: a jump to a Review widget, while some layout has one.
-  const canReview = useReviewJumpAvailable()
   // What it shows: the screen filter's tasks (the description follows the filter).
   const [payload] = useState(screenTaskDialog)
   const titleId = useId()
@@ -145,12 +142,12 @@ export function FilteredTasksPanel({ trayRef, topBarRef, panelRef }: {
           titleId={titleId}
           panelRef={panelRef}
           onClose={close}
-          onReview={canReview ? () => {
+          onReview={() => {
             // The top bar's chips and text search as the widget's filter; the panel closes (the jump closes it too).
             const filter = screenReviewFilter()
             close()
             void jumpToReview(filter)
-          } : undefined}
+          }}
         />
       </div>
     </>,

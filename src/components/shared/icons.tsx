@@ -214,6 +214,11 @@ export function MoreIcon({ size = 14 }: { size?: number }) {
   )
 }
 
+/** Two corners pulled outward: open a widget larger (its popup). */
+export function ExpandIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M9.5 3H13v3.5M13 3L9 7M6.5 13H3V9.5M3 13l4-4" /></Svg>
+}
+
 export function CheckIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size} strokeWidth={2}><path d="M3.5 8.5l3 3 6-7" /></Svg>
 }

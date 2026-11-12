@@ -195,8 +195,7 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
 /**
  * A person's action as a button under the dialog's title (D26 BD):
  * **Review** — a jump to a Review widget with `@<name>`
- * (`services/review-jump`), this dialog closed first; shown while some
- * layout has a Review widget, not on a phone. It names the person in full
+ * (`services/review-jump`), this dialog closed first. It names the person in full
  * (`Review with Aisha`), as the person menu does (`person-menu-entries`).
  * The check-ins live on the Review widget's field (decision 7).
  */

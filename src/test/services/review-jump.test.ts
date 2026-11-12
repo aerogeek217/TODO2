@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTab, type LayoutTab, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
-import { jumpToReview, reviewJumpAvailable } from '../../services/review-jump'
+import { REVIEW_POPUP_TAB_ID } from '../../models/review'
+import { jumpToReview } from '../../services/review-jump'
 import { registerOpenEditor } from '../../stores/editor-leave'
 import { useListWidgetStore, type ReviewFilter } from '../../stores/list-widget-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -8,10 +9,9 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { cell, grid } from '../helpers/layout-builders'
 
 /**
- * A Review button's jump (widget feedback 2B): the filter shown in the open
- * layout's first Review widget, else the first layout that has one (switched
- * to as the layout tabs switch, an editor with changes asked first); none
- * anywhere, nowhere to go. Nothing is written to a layout.
+ * A Review button's jump: the filter shown in the open layout's first Review
+ * widget; without one, in the popup review (the widget popup, no layout
+ * switch, an editor with changes asked first). Nothing is written to a layout.
  */
 
 const T0 = new Date('2026-11-01T09:00:00Z')
@@ -58,7 +58,6 @@ describe('jumpToReview', () => {
     const open = layout(1, grid([[cell('a', [notes('n'), review('rv')], { activeTabId: 'n' })]], { rows: [{ weight: 1000, collapsed: true }] }))
     useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })
     const load = stubLoad([open])
-    expect(reviewJumpAvailable()).toBe(true)
     expect(await jumpToReview(AISHA)).toBe(true)
     expect(useListWidgetStore.getState().reviewFilters.rv).toEqual(AISHA)
     expect(setActiveTab).toHaveBeenCalledWith('rv')
@@ -78,42 +77,59 @@ describe('jumpToReview', () => {
     expect(ask).not.toHaveBeenCalled()
   })
 
-  it('on another layout: switches to the first one that has a widget, then shows the filter there', async () => {
+  it('another layout has one, the open one none: the popup review takes the filter (no layout switch)', async () => {
     const open = layout(1, grid([[cell('a', [notes('n')])]]))
-    const second = layout(2, grid([[cell('a', [notes('m')])]]))
-    const third = layout(3, grid([[cell('a', [review('rv3')])]]))
-    useWorkspaceStore.setState({ working: open, saved: open, layouts: [open, second, third], activeLayoutId: 1 })
-    const load = stubLoad([open, second, third])
+    const other = layout(3, grid([[cell('a', [review('rv3')])]]))
+    useWorkspaceStore.setState({ working: open, saved: open, layouts: [open, other], activeLayoutId: 1 })
+    const load = stubLoad([open, other])
     expect(await jumpToReview(AISHA)).toBe(true)
-    expect(load).toHaveBeenCalledWith(3)
-    expect(useWorkspaceStore.getState().activeLayoutId).toBe(3)
-    expect(useListWidgetStore.getState().reviewFilters.rv3).toEqual(AISHA)
+    expect(load).not.toHaveBeenCalled()
+    expect(useWorkspaceStore.getState().activeLayoutId).toBe(1)
+    expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'review' })
+    expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]).toEqual(AISHA)
+    expect(useListWidgetStore.getState().reviewFilters.rv3).toBeUndefined()
   })
 
-  it('an editor with changes asks first; Keep editing cancels the jump', async () => {
+  it('the popup review: an editor with changes asks first; Keep editing opens nothing', async () => {
     const open = layout(1, grid([[cell('a', [notes('n')])]]))
-    const other = layout(2, grid([[cell('a', [review('rv2')])]]))
-    useWorkspaceStore.setState({ working: open, saved: open, layouts: [open, other], activeLayoutId: 1 })
-    stubLoad([open, other])
+    useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })
     const ask = vi.fn(() => Promise.resolve(false))
     const unregister = registerOpenEditor({ changed: () => true, ask })
     expect(await jumpToReview(AISHA)).toBe(false)
     expect(ask).toHaveBeenCalledTimes(1)
-    expect(useWorkspaceStore.getState().activeLayoutId).toBe(1)
-    expect(useListWidgetStore.getState().reviewFilters.rv2).toBeUndefined()
+    expect(useUIStore.getState().widgetPopup).toBeNull()
+    expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]).toBeUndefined()
     unregister()
   })
 
-  it('an editor with changes, Save or Discard: the jump goes on', async () => {
+  it('the popup review: Save or Discard, then it opens', async () => {
     const open = layout(1, grid([[cell('a', [notes('n')])]]))
-    const other = layout(2, grid([[cell('a', [review('rv2')])]]))
-    useWorkspaceStore.setState({ working: open, saved: open, layouts: [open, other], activeLayoutId: 1 })
-    stubLoad([open, other])
+    useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })
     let changed = true
     const unregister = registerOpenEditor({ changed: () => changed, ask: () => { changed = false; return Promise.resolve(true) } })
     expect(await jumpToReview(AISHA)).toBe(true)
-    expect(useListWidgetStore.getState().reviewFilters.rv2).toEqual(AISHA)
+    expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]).toEqual(AISHA)
     unregister()
+  })
+
+  it('a second jump replaces what the popup review reviewed', async () => {
+    const open = layout(1, grid([[cell('a', [notes('n')])]]))
+    useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })
+    await jumpToReview(AISHA)
+    const tag: ReviewFilter = { expression: { kind: 'tag', id: 3 }, showCompleted: false }
+    await jumpToReview(tag)
+    expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]).toEqual(tag)
+  })
+
+  it('on the open layout: another widget open larger closes; that widget open larger stays', async () => {
+    const open = layout(1, grid([[cell('a', [notes('n')]), cell('b', [review('rv')])]]))
+    useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })
+    useUIStore.setState({ widgetPopup: { kind: 'tab', tabId: 'n' } })
+    await jumpToReview(AISHA)
+    expect(useUIStore.getState().widgetPopup).toBeNull()
+    useUIStore.setState({ widgetPopup: { kind: 'tab', tabId: 'rv' } })
+    await jumpToReview(AISHA)
+    expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'tab', tabId: 'rv' })
   })
 
   it('on the open layout, an editor with changes asks only when the widget would hide another tab of its cell', async () => {
@@ -140,11 +156,13 @@ describe('jumpToReview', () => {
     expect(useUIStore.getState().filterPanelOpen).toBe(false)
   })
 
-  it('no Review widget anywhere: nowhere to go', async () => {
+  it('no Review widget anywhere: the popup review, the task dialog closed', async () => {
     const open = layout(1, grid([[cell('a', [notes('n')])]]))
     useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })
-    expect(reviewJumpAvailable()).toBe(false)
-    expect(await jumpToReview(AISHA)).toBe(false)
-    expect(useListWidgetStore.getState().reviewFilters).toEqual({})
+    useUIStore.setState({ taskDialog: { title: 'Aisha', glyph: 'people', description: '', source: { kind: 'todos', todoIds: [] } } })
+    expect(await jumpToReview(AISHA)).toBe(true)
+    expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'review' })
+    expect(useUIStore.getState().taskDialog).toBeNull()
+    expect(patchTabViewState).not.toHaveBeenCalled()
   })
 })

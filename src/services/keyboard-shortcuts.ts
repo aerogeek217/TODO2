@@ -16,7 +16,7 @@ import { useUndoStore } from '../stores/undo-store'
 import { copyTasks, tasksToCopy } from './task-copy'
 import { cycleLens, toggleLensLift } from './lenses'
 import { reviewTargetTabId } from './review'
-import { reviewJumpAvailable, reviewListTab } from './review-jump'
+import { reviewListTab } from './review-jump'
 import {
   findScopeElement,
   nextScopedSelection,
@@ -290,7 +290,7 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
   },
   'review-list': ({ e }) => {
     const tabId = reviewTargetTabId()
-    if (!tabId || !reviewJumpAvailable()) return
+    if (!tabId) return
     e.preventDefault()
     reviewListTab(tabId)
   },

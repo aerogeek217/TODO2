@@ -56,16 +56,14 @@ describe('reviewWidgetTarget', () => {
     const open = layout(2, grid([[cell('a', [notes('n')]), cell('b', [review('rv2')])]]))
     const other = layout(1, grid([[cell('a', [review('rv1')])]]))
     useWorkspaceStore.setState({ working: open, layouts: [other, open] })
-    expect(reviewWidgetTarget()).toEqual({ layoutId: 2, tabId: 'rv2', open: true })
+    expect(reviewWidgetTarget()).toEqual({ layoutId: 2, tabId: 'rv2' })
   })
 
-  it('else the first layout in tab order that has one', () => {
+  it('never another layout’s: none on the open layout is null', () => {
     const open = layout(1, grid([[cell('a', [notes('n')])]]))
-    const second = layout(2, grid([[cell('a', [notes('m')])]]))
     const third = layout(3, grid([[cell('a', [review('rv3')])]]))
-    const fourth = layout(4, grid([[cell('a', [review('rv4')])]]))
-    useWorkspaceStore.setState({ working: open, layouts: [open, second, third, fourth] })
-    expect(reviewWidgetTarget()).toEqual({ layoutId: 3, tabId: 'rv3', open: false })
+    useWorkspaceStore.setState({ working: open, layouts: [open, third] })
+    expect(reviewWidgetTarget()).toBeNull()
   })
 
   it('none anywhere: null', () => {
@@ -78,7 +76,7 @@ describe('reviewWidgetTarget', () => {
     const stored = layout(1, grid([[cell('a', [notes('n')])]]))
     const shown = layout(1, grid([[cell('a', [notes('n'), review('rv-new')])]]))
     useWorkspaceStore.setState({ working: shown, layouts: [stored] })
-    expect(reviewWidgetTarget()).toEqual({ layoutId: 1, tabId: 'rv-new', open: true })
+    expect(reviewWidgetTarget()).toEqual({ layoutId: 1, tabId: 'rv-new' })
   })
 })
 

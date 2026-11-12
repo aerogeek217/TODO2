@@ -55,7 +55,7 @@ describe('NlpPopup — a person’s / tag’s menu on its rows', () => {
     fireEvent.contextMenu(andy, { button: 2, clientX: 20, clientY: 30 })
     expect(onPick).not.toHaveBeenCalled()
     expect(screen.getByRole('menu', { name: '@Andy Ross' })).toBeInTheDocument()
-    expect(menuItems()).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+    expect(menuItems()).toEqual(['Review with Andy Ross', 'Show tasks', 'Edit…', 'Delete…'])
     expect(onOpenChange).toHaveBeenLastCalledWith(true)
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()

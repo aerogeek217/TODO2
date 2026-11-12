@@ -12,7 +12,7 @@ import { isFitCell } from '../../utils/workspace-rows'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { smallFaceClick, useCellFace } from './cell-face'
-import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
+import { SmallFaceOpener } from './CellFaceParts'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { DialogFrame } from '../shared/Dialog'
@@ -394,7 +394,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
           data-kind={active.kind}
           onClick={collapsed ? undefined : smallFaceClick(cellFace)}
         >
-          {smallFace && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
+          {smallFace && cellFace.opensLarger && <SmallFaceOpener title={activeTitle} open={cellFace.open} onOpen={cellFace.openLarger} />}
           <CellControlsContext.Provider value={controls}>
             <WidgetFaceContext.Provider value={cellFace.host}>
               <WidgetBody
@@ -405,9 +405,6 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
             </WidgetFaceContext.Provider>
           </CellControlsContext.Provider>
         </div>
-      )}
-      {cellFace.fullOpen && active && !collapsed && (
-        <WidgetFacePopover tab={active} anchorRef={cellRef} onClose={cellFace.closeFull} />
       )}
       {tabSheet && (
         <ListTabSheet

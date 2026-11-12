@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
-import { expectOpenLayout, reviewField, seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { reviewField, seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * Boards BJ, BL, task layout A · the one task layout in a real browser: the
@@ -275,8 +275,8 @@ test.describe('the review card', () => {
     await wsListWidget(page, TAB).waitFor({ state: 'visible' })
     await wsTab(page, TAB).click({ button: 'right' })
     await page.getByRole('menu').getByRole('menuitem', { name: /Review these 3 tasks/ }).click()
-    await expectOpenLayout(page, 'Review')
-    const deck = page.locator('[data-review-widget="rv"]')
+    await expect(page.getByTestId('widget-popup')).toBeVisible() // no Review widget on this layout: the popup review
+    const deck = page.locator('[data-review-widget="review-popup"]')
     await expect(deck.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
     await deck.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
     const card = deck.locator('[data-review-card]')
@@ -321,7 +321,7 @@ test.describe('the review card', () => {
 test.describe('the person task dialog', () => {
   test.use({ viewport: { width: 1280, height: 900 } })
 
-  test('Review alone under the title (no check-ins); Review closes the dialog and jumps to the Review widget with @<name>', async ({ page }) => {
+  test('Review alone under the title (no check-ins); Review closes the dialog and opens the popup review with @<name>', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await wsListWidget(page, TAB).waitFor({ state: 'visible' })
     const avatar = taskRowByTitle(page, 'Vendor contract renewal').locator('[data-person-avatar="Aisha"]')
@@ -336,8 +336,8 @@ test.describe('the person task dialog', () => {
 
     await actions.getByRole('button', { name: 'Review with Aisha' }).click()
     await expect(dialog).toHaveCount(0)
-    await expectOpenLayout(page, 'Review')
-    await expect(reviewField(page, 'rv')).toHaveValue('@Aisha')
-    await expect(page.locator('[data-review-widget="rv"]').getByLabel('Status update · today')).toBeFocused()
+    await expect(page.getByTestId('widget-popup')).toBeVisible()
+    await expect(reviewField(page, 'review-popup')).toHaveValue('@Aisha')
+    await expect(page.locator('[data-review-widget="review-popup"]').getByLabel('Status update · today')).toBeFocused()
   })
 })

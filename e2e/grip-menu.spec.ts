@@ -74,7 +74,7 @@ test('one widget: the grip opens the layout menu, the ⋯ the widget’s entries
 
   await cell.getByRole('button', { name: 'Cell options' }).click()
   await expect(optionsMenu(page)).toBeVisible()
-  expect(await labels(optionsMenu(page))).toEqual(['Name and icon…', 'Change widget', 'Add widget…'])
+  expect(await labels(optionsMenu(page))).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Add widget…'])
 })
 
 test('the keyboard: Enter and Space on the focused grip open its menu; Esc gives the grip its focus back', async ({ page }) => {

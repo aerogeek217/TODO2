@@ -14,7 +14,7 @@ import { showTab } from './workspace-tabs'
  * What the Review buttons elsewhere (widget feedback 2B, `services/review-jump`)
  * write into a Review widget (2A): its filter — temporary, kept per tab in
  * memory (`list-widget-store.reviewFilters`), never saved — and which widget
- * a jump goes to (J4).
+ * of the open layout a jump sets.
  */
 
 /**
@@ -52,42 +52,20 @@ export function firstReviewTab(layout: LayoutBody): string | null {
   return null
 }
 
-/** The Review widget a jump goes to: its layout, its tab, and whether that layout is the open one. */
+/** The Review widget a jump sets: its layout (the open one) and its tab. */
 export interface ReviewWidgetTarget {
   layoutId: number
   tabId: string
-  /** The layout is the open one (no switch needed). */
-  open: boolean
 }
 
 /**
- * Where a Review button's jump goes (J4): the open layout's first Review
- * widget in reading order, else the first layout in tab order that has one
- * (the caller switches to it — `workspace-store.load`, after the
- * editor-leave question); null when no layout has one (the buttons hide).
+ * Where a Review button's jump goes: the open layout's first Review widget
+ * in reading order; null when it has none (the jump opens the popup review,
+ * `services/review-jump`). Other layouts are never switched to.
  */
 export function reviewWidgetTarget(): ReviewWidgetTarget | null {
-  const { working, layouts } = useWorkspaceStore.getState()
-  return reviewWidgetTargetIn(working, layouts)
-}
-
-/**
- * `reviewWidgetTarget` over the given layouts: `working` (the open layout as
- * shown) first, then the others in `layouts`' order (the open one's stored
- * copy skipped). A hook reads it through the store's state.
- */
-export function reviewWidgetTargetIn(
-  working: (LayoutBody & { id: number }) | null,
-  layouts: readonly (LayoutBody & { id: number })[],
-): ReviewWidgetTarget | null {
-  if (working) {
-    const tabId = firstReviewTab(working)
-    if (tabId) return { layoutId: working.id, tabId, open: true }
-  }
-  for (const layout of layouts) {
-    if (layout.id === working?.id) continue
-    const tabId = firstReviewTab(layout)
-    if (tabId) return { layoutId: layout.id, tabId, open: false }
-  }
-  return null
+  const { working } = useWorkspaceStore.getState()
+  if (!working) return null
+  const tabId = firstReviewTab(working)
+  return tabId ? { layoutId: working.id, tabId } : null
 }

@@ -8,19 +8,19 @@ import { useElementSize } from './use-element-size'
  * body's measured one.
  */
 export interface WidgetFaceHost {
-  /** Render at this face whatever the size: the small face's popover (`large`), a fit row (`small`). */
+  /** Render at this face whatever the size: the widget popup (`large`), a fit row (`small`). */
   forced?: WidgetFace
   /** The body's height is its content's (a phone cell that isn't a page): the face goes by the width alone. */
   heightFree?: boolean
   /** Hears the face the widget shows (the click that opens the full widget). */
   onFace?: (face: WidgetFace) => void
-  /** Opens the full widget over the cell (a face's "+N more"); absent where there is none. */
+  /** Opens the widget larger (the widget popup: a face's "+N more"); absent where it doesn't open larger. */
   openFull?: () => void
 }
 
 const NO_HOST: WidgetFaceHost = {}
 
-/** The face host of the widget rendered inside (`WorkspaceCell`, `MobileCell`, the face popover). */
+/** The face host of the widget rendered inside (`WorkspaceCell`, `MobileCell`, the widget popup). */
 export const WidgetFaceContext = createContext<WidgetFaceHost>(NO_HOST)
 
 /**
@@ -50,7 +50,7 @@ export function hostedFace(size: { width: number; height: number }, host: Pick<W
   return faceFor({ width: size.width, height })
 }
 
-/** Opens the full widget over its cell, where the host has one (`WidgetFaceHost.openFull`). */
+/** Opens the widget larger (the widget popup), where its host offers that (`WidgetFaceHost.openFull`). */
 export function useOpenFullWidget(): (() => void) | undefined {
   return useContext(WidgetFaceContext).openFull
 }

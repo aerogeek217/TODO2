@@ -1,4 +1,3 @@
-import { useReviewJumpAvailable } from '../../hooks/use-review-jump'
 import type { Person, Tag } from '../../models'
 import { peopleReviewFilter, personReviewFilter, tagReviewFilter } from '../../services/review'
 import { jumpToReview } from '../../services/review-jump'
@@ -29,20 +28,15 @@ export interface EntityMenuOffers {
    * task dialog) — where the task dialog it opens can show above.
    */
   showTasks: boolean
-  /**
-   * Review (a jump to a Review widget, `services/review-jump`): where Show
-   * tasks is, while some layout has a Review widget, and not on a phone
-   * (`useReviewJumpAvailable`).
-   */
+  /** Review (a jump to a Review widget, `services/review-jump`): where Show tasks is. */
   review: boolean
 }
 
-/** What a person / tag menu rendered here may offer (its dialog tier, the phone, a Review widget to jump to). */
+/** What a person / tag menu rendered here may offer (by its dialog tier). */
 export function useEntityMenuOffers(): EntityMenuOffers {
   const layer = useDialogLayer()
-  const jump = useReviewJumpAvailable()
   const outside = layer == null || layer === 'overlay'
-  return { showTasks: outside, review: outside && jump }
+  return { showTasks: outside, review: outside }
 }
 
 export interface PersonMenuOptions {

@@ -40,7 +40,7 @@ describe('EntityDropdownItems — a person’s / tag’s menu on its rows', () =
     expect(fireEvent.mouseDown(row, { button: 2 })).toBe(false)
     fireEvent.contextMenu(row, { button: 2, clientX: 30, clientY: 40 })
     const menu = screen.getByRole('menu', { name: '@Ben Ortiz' })
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Review with Ben Ortiz', 'Show tasks', 'Edit…', 'Delete…'])
     expect(onToggle).not.toHaveBeenCalled()
     expect(host).not.toHaveBeenCalled()
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' })

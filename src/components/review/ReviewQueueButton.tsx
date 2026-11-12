@@ -26,7 +26,7 @@ export function ReviewQueueButton({ todoById, followedUpToday, label, className,
   const buttonRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   // Open, the focus goes to the current row (← / → step there; Esc is the popover's, not a layer's
-  // under it — the small face's popover); closed with it inside, back to the button.
+  // under it — the widget popup); closed with it inside, back to the button.
   useEffect(() => {
     if (!open) return
     const popover = popoverRef.current

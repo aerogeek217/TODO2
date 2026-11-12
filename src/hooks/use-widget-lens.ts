@@ -3,7 +3,9 @@ import { tabIgnoresLens, type LensSwitchTab } from '../models/workspace-layout'
 import { useFilterStore } from '../stores/filter-store'
 import { useIsMobile } from './use-is-mobile'
 import { useAppliedLens, type ScreenFilterState } from '../stores/screen-filter'
+import { useUIStore } from '../stores/ui-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
+import { REVIEW_POPUP_TAB_ID } from '../models/review'
 import { withLens, type Lens } from '../utils/lens'
 
 /**
@@ -56,10 +58,18 @@ export interface LensMark {
   hides: number
 }
 
-/** Turns the top bar's lens off (`ignore`) or on for a widget: its view state, saved at once (a case per kind). */
+/**
+ * Turns the top bar's lens off (`ignore`) or on for a widget: its view state,
+ * saved at once (a case per kind) — the popup review's kept in memory
+ * (`ui-store.popupReviewView`: it has no layout).
+ */
 export function setTabIgnoresLens(tab: LensSwitchTab, ignore: boolean): void {
   const ws = useWorkspaceStore.getState()
   const patch = { ignoreLens: ignore }
+  if (tab.id === REVIEW_POPUP_TAB_ID) {
+    useUIStore.getState().patchPopupReviewView(patch)
+    return
+  }
   switch (tab.kind) {
     case 'calendar': void ws.patchTabViewState(tab.id, 'calendar', patch); return
     case 'review': void ws.patchTabViewState(tab.id, 'review', patch); return
