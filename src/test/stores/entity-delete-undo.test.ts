@@ -55,11 +55,11 @@ describe('undo of an entity delete puts its assignments back on the loaded tasks
 })
 
 describe('undo of an entity delete when the name was created again meanwhile', () => {
-  it('a person: the original comes back (id, colour, email, tasks) and takes over the new one’s tasks — no second "Ann"', async () => {
+  it('a person: the original comes back (id, colour, tasks) and takes over the new one’s tasks — no second "Ann"', async () => {
     const t1 = await seedTask('one')
     const t2 = await seedTask('two')
     const t3 = await seedTask('three')
-    const ann = await usePersonStore.getState().add('Ann', 'A', '#ff0000', 'ann@example.com')
+    const ann = await usePersonStore.getState().add('Ann', 'A', '#ff0000')
     await usePersonStore.getState().assignPerson(t1, ann)
     await usePersonStore.getState().assignPerson(t3, ann)
     await usePersonStore.getState().loadAssignments(useTodoStore.getState().todos.map((t) => t.id))
@@ -72,7 +72,7 @@ describe('undo of an entity delete when the name was created again meanwhile', (
 
     await useUndoStore.getState().undo()
     const people = await db.people.toArray()
-    expect(people).toEqual([expect.objectContaining({ id: ann, name: 'Ann', color: '#ff0000', email: 'ann@example.com' })])
+    expect(people).toEqual([expect.objectContaining({ id: ann, name: 'Ann', color: '#ff0000' })])
     expect(usePersonStore.getState().people.map((p) => p.id)).toEqual([ann])
     const joins = await db.todoPeople.toArray()
     expect(joins.map((j) => [j.todoId, j.personId]).sort()).toEqual([[t1, ann], [t2, ann], [t3, ann]].sort())

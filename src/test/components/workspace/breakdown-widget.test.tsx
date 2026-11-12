@@ -189,7 +189,7 @@ describe('clicks: a row drills, its Review button and a count jump', () => {
     setup(breakdown(), { face: 'medium' })
     const priya = rowOf('person-4')
     expect(priya.querySelector('[role="cell"]')!.contains(within(priya).getByTestId('breakdown-review'))).toBe(true)
-    expect(within(priya).queryByRole('button', { name: /Email check-in/ })).toBeNull()
+    expect(within(priya).queryByRole('button', { name: /Check-in/ })).toBeNull()
   })
 
   it('a count is solid while it meets its column’s Light up when rule, outlined otherwise; 0 is a dim –', () => {

@@ -162,7 +162,7 @@
   color: var(--color-danger-text);
 }
 
-/* Email check-in and Paste reply (people only, desktop): two quiet icon buttons. */
+/* Check-in and Paste reply (people only, desktop): two quiet icon buttons. */
 .checkinButton {
   display: inline-flex;
   align-items: center;

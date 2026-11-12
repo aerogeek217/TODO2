@@ -16,7 +16,7 @@ export function EntityActionHost() {
   if (!action) return null
   if (action.action === 'edit') {
     return action.kind === 'person'
-      ? <PeopleEditor editPersonId={action.id} focusField="name" layer="nested" onClose={close} />
+      ? <PeopleEditor editPersonId={action.id} layer="nested" onClose={close} />
       : <TagEditor editTagId={action.id} layer="nested" onClose={close} />
   }
   return action.kind === 'person'

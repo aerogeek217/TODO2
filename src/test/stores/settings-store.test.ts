@@ -159,14 +159,13 @@ describe('useSettingsStore', () => {
     expect(await db.settings.get('completedRetentionDays')).toEqual({ key: 'completedRetentionDays', value: '14' })
   })
 
-  it('the theme, colours, check-in method, shortcuts and the purge stamp add no undo step', async () => {
+  it('the theme, colours, shortcuts and the purge stamp add no undo step', async () => {
     await useSettingsStore.getState().load()
     useUndoStore.getState().clear()
     const s = () => useSettingsStore.getState()
     await s().setThemeMode('light')
     await s().setColor('dark', 'accent', '#123456')
     await s().resetColors()
-    await s().setCheckinOpenMethod('eml')
     await s().setShortcut('command-palette', [{ key: 'p', mod: true, shift: true }])
     await s().resetAllShortcuts()
     await s().setPurgePromptLastAt(new Date())
@@ -229,25 +228,6 @@ describe('useSettingsStore', () => {
     await db.settings.put({ key: 'urgentDueWithinDays', value: 'soon' })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().urgentDueWithinDays).toBe(3)
-  })
-
-  it('check-in open method defaults to mailto, saves, and ignores junk on load', async () => {
-    useSettingsStore.setState({ checkinOpenMethod: 'eml' })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().checkinOpenMethod).toBe('mailto')
-
-    await useSettingsStore.getState().setCheckinOpenMethod('eml')
-    expect((await db.settings.get('checkinOpenMethod'))!.value).toBe('eml')
-    useSettingsStore.setState({ checkinOpenMethod: 'mailto' })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().checkinOpenMethod).toBe('eml')
-
-    await useSettingsStore.getState().setCheckinOpenMethod('outlook' as never)
-    expect((await db.settings.get('checkinOpenMethod'))!.value).toBe('eml')
-
-    await db.settings.put({ key: 'checkinOpenMethod', value: 'pigeon' })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().checkinOpenMethod).toBe('mailto')
   })
 
   it('the check-in filter defaults to none, is kept without people (none = the row removed), and reads leniently', async () => {

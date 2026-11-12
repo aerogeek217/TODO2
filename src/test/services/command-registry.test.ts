@@ -280,8 +280,6 @@ describe('createCommands — no dynamic commands', () => {
   })
 })
 
-// ─── Email check-in commands ─────────────────────────────────────────────────
-
 describe('createCommands — the screen filter’s tasks', () => {
   it('offered when the app can show them, with their count as the hint', () => {
     expect(createCommands(makeContext()).some((c) => c.id === 'filter-show-tasks')).toBe(false)
@@ -304,10 +302,10 @@ describe('createCommands — the lens', () => {
   })
 })
 
-describe('createCommands — email check-ins', () => {
-  const people = [{ id: 2, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' }]
+describe('createCommands — check-ins', () => {
+  const people = [{ id: 2, name: 'Ada Lovelace', initials: 'AL' }]
 
-  it('offers none: check-ins are sent and replies pasted on the Review widget’s field', () => {
+  it('offers none: check-ins are copied and replies pasted from the Review widget’s field', () => {
     const ctx = makeContext({ getPeople: () => people, getOpenTaskCounts: () => new Map([[2, 4]]) })
     const names = createCommands(ctx).flatMap((c) => [c, ...(c.step ?? [])]).map((c) => c.name)
     expect(names.filter((n) => /check-in/i.test(n))).toEqual([])

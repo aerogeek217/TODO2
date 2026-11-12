@@ -476,7 +476,7 @@ describe('FilterChipBar — primitive', () => {
 
       it('narrowed to one person: Review with <name> alone (no check-ins) jumps with @<name> and closes the picker', async () => {
         openPeople([1])
-        const footer = screen.getAllByRole('button', { name: /^(Review|Email check-in|Paste reply)/ }).map((b) => b.textContent)
+        const footer = screen.getAllByRole('button', { name: /^(Review|Check-in|Paste reply)/ }).map((b) => b.textContent)
         expect(footer).toEqual(['Review with Alice'])
         fireEvent.click(screen.getByRole('button', { name: 'Review with Alice' }))
         await waitFor(() => expect(reviewFilter()).toEqual({ expression: { kind: 'person', id: 1 }, showCompleted: false }))
@@ -486,7 +486,7 @@ describe('FilterChipBar — primitive', () => {
 
       it('narrowed to several: Review N people’s tasks jumps with @A or @B (None ignored)', async () => {
         openPeople([3, 0, 1])
-        expect(screen.queryByRole('button', { name: /^(Email check-in|Paste reply)/ })).toBeNull()
+        expect(screen.queryByRole('button', { name: /^(Check-in|Paste reply)/ })).toBeNull()
         fireEvent.click(screen.getByRole('button', { name: 'Review 2 people’s tasks' }))
         await waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 3 }] }))
         expect(screen.queryByPlaceholderText('Search...')).toBeNull()
@@ -507,7 +507,7 @@ describe('FilterChipBar — primitive', () => {
       ])('%s: a hint instead of the action', (_label, personIds) => {
         openPeople(personIds)
         expect(screen.getByText('Narrow to some people to review them.')).toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: /^(Review|Email check-in|Paste reply)/ })).toBeNull()
+        expect(screen.queryByRole('button', { name: /^(Review|Check-in|Paste reply)/ })).toBeNull()
       })
 
       it('from the menu: the action closes the Filter menu too', async () => {

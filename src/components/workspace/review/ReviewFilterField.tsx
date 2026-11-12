@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { emptyPredicate, type TodoPredicate } from '../../../models'
 import { useStatsBase } from '../../../hooks/use-glance-data'
@@ -7,7 +7,6 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { mirrorCharX, useNlpPopupAnchor } from '../../../hooks/use-nlp-popup-anchor'
 import { ESCAPE_OWN_ATTR } from '../../../hooks/use-popover-anchor'
 import { reviewFilterPredicate } from '../../../hooks/use-review-widget-queue'
-import { sendPersonCheckin } from '../../../services/checkin-email/person-checkin'
 import { expressionResolver } from '../../../services/filter-expression-field'
 import type { AutocompleteRow, computeAutocomplete } from '../../../services/nlp-autocomplete'
 import { peopleOnly, reviewFieldAutocomplete, reviewFieldPick, type ReviewFieldCounts } from '../../../services/review-field'
@@ -19,7 +18,6 @@ import { useUIStore } from '../../../stores/ui-store'
 import { startOfToday } from '../../../utils/date'
 import { parseExpression } from '../../../utils/filter-expression'
 import { EnvelopeIcon, ReplyIcon } from '../../shared/icons'
-import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
 import { NlpPopup } from '../../shared/NlpPopup'
 import { TintedText } from '../../shared/TintedText'
 import { useTooltip } from '../../shared/use-tooltip'
@@ -72,9 +70,8 @@ function useReviewFieldCounts(): ReviewFieldCounts {
  * text back (and, with nothing to put back, leaves the field). × clears it.
  *
  * At its end, while the filter names only people (`@A`, `@A or @B`) and only
- * on desktop: Email check-in (one person: theirs at once; several: a menu of
- * them) and Paste reply (the reply import, which reads the person from the
- * reply). `trailing` follows (the progress and the lens switch, in a cell of
+ * on desktop: Check-in (the check-in dialog for those people) and Paste reply
+ * (the reply import, which reads the person from the reply). `trailing` follows (the progress and the lens switch, in a cell of
  * several widgets).
  */
 export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
@@ -287,11 +284,10 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
 }
 
 /**
- * Email check-in and Paste reply at the field's end (J9): one person — Email
- * sends theirs at once (`sendPersonCheckin`: the dialog instead when it
- * can't) and Paste reply opens the reply import for them; several — Email
- * opens a menu of them, and Paste reply the import (the reply names its
- * person).
+ * Check-in and Paste reply at the field's end (J9): Check-in opens the
+ * check-in dialog for the filter's people (the first of them selected), where
+ * the message is copied; nothing is sent from here. Paste reply opens the
+ * reply import — for the one person, or for whoever the reply names.
  */
 function CheckinButtons({ personIds }: { personIds: readonly number[] }) {
   const people = usePersonStore((s) => s.people)
@@ -299,36 +295,25 @@ function CheckinButtons({ personIds }: { personIds: readonly number[] }) {
     const p = people.find((x) => x.id === id)
     return p ? [{ id, name: p.name }] : []
   })
-  const [menuOpen, setMenuOpen] = useState(false)
-  const emailRef = useRef<HTMLButtonElement>(null)
   const [only] = named
   const one = named.length === 1 ? only : undefined
-  const emailTip = useTooltip(one ? `Email check-in to ${one.name}` : 'Email check-in')
+  const checkinTip = useTooltip(one ? `Check-in for ${one.name}…` : 'Check-ins…')
   const replyTip = useTooltip(one ? `Paste reply from ${one.name}…` : 'Paste reply…')
   if (!only) return null
-  const entries: MenuEntry[] = named.map((p) => ({
-    kind: 'item',
-    label: `Email check-in to ${p.name}`,
-    icon: <EnvelopeIcon />,
-    onSelect: () => { void sendPersonCheckin(p.id) },
-  }))
   return (
     <>
       <button
-        ref={emailRef}
         type="button"
         className={styles.checkinButton}
-        aria-label="Email check-in"
-        aria-haspopup={one ? undefined : 'menu'}
-        aria-expanded={one ? undefined : menuOpen}
-        data-testid="review-email-checkin"
-        {...emailTip.triggerProps}
-        // Inside the click: the clipboard write needs the gesture.
-        onClick={() => { if (one) void sendPersonCheckin(one.id); else setMenuOpen((o) => !o) }}
+        aria-label="Check-in"
+        aria-haspopup="dialog"
+        data-testid="review-checkin"
+        {...checkinTip.triggerProps}
+        onClick={() => useUIStore.getState().openCheckinDialog(named.map((p) => p.id))}
       >
         <EnvelopeIcon size={15} />
       </button>
-      {emailTip.tooltip}
+      {checkinTip.tooltip}
       <button
         type="button"
         className={styles.checkinButton}
@@ -340,9 +325,6 @@ function CheckinButtons({ personIds }: { personIds: readonly number[] }) {
         <ReplyIcon size={15} />
       </button>
       {replyTip.tooltip}
-      {menuOpen && (
-        <MenuPopover anchorRef={emailRef} entries={entries} label="Email check-in" width={220} onClose={() => setMenuOpen(false)} />
-      )}
     </>
   )
 }
