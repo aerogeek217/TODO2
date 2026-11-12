@@ -109,6 +109,8 @@ export interface WsLayoutSeed {
   table?: WsTableSeed
   /** The layout's hue (D19): a preset name or a hex colour. */
   hue?: string
+  /** The layout's icon as stored (items 11, 14), e.g. `{ kind: 'emoji', emoji: '🏠' }`. */
+  icon?: Record<string, unknown>
 }
 
 /** A seeded layout's table: its tracks, and each cell's area with its tab seeds (built in the page). */
@@ -425,7 +427,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     })
     for (const [i, layout] of seed.layouts.entries()) {
       const table = seed.tables[i]!
-      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: i, grid: table.grid, cells: table.cells.map(buildCell), ...(layout.hue ? { hue: layout.hue } : {}), createdAt: now, modifiedAt: now })
+      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: i, grid: table.grid, cells: table.cells.map(buildCell), ...(layout.hue ? { hue: layout.hue } : {}), ...(layout.icon ? { icon: layout.icon } : {}), createdAt: now, modifiedAt: now })
       firstId ??= id
       layoutIds.push(id)
     }

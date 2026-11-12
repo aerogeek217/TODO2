@@ -13,6 +13,7 @@ import {
 } from '../models/workspace-layout'
 import { isRetiredEisenhowerOwner, ownerLayoutId, type ListDefinition, type PersistedListDefinition } from '../models/list-definition'
 import type { PersistedListOrder } from '../models/list-order'
+import type { IconValue } from '../models/icon'
 import { repointLayoutLists } from '../utils/workspace-layout-lists'
 import { nextSortOrder } from './create-repository'
 
@@ -377,9 +378,13 @@ export const layoutRepository = {
   },
 
   /** Renames the layout; nothing else in the row changes. */
-  /** Renames a layout; with `hue`, sets its hue too (`null` = none: the key goes). */
-  async rename(id: number, name: string, hue?: string | null): Promise<void> {
-    await db.layouts.update(id, hue === undefined ? { name } : { name, hue: hue ?? undefined })
+  /** Renames a layout; with `hue`, sets its hue too (`null` = none: the key goes); with `icon`, its icon. */
+  async rename(id: number, name: string, hue?: string | null, icon?: IconValue): Promise<void> {
+    await db.layouts.update(id, {
+      name,
+      ...(hue === undefined ? {} : { hue: hue ?? undefined }),
+      ...(icon ? { icon } : {}),
+    })
   },
 
   /**

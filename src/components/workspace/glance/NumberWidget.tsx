@@ -1,5 +1,4 @@
 import { useMemo, type MouseEvent } from 'react'
-import { DEFAULT_STATUS_ICON } from '../../../models'
 import { DEFAULT_NUMBER_BREAKDOWN } from '../../../models/glance-widgets'
 import type { NumberTab } from '../../../models/workspace-layout'
 import { useNumberCount, useNumberHistory, useStatsBase } from '../../../hooks/use-glance-data'
@@ -9,7 +8,7 @@ import { historyDelta } from '../../../services/stats/number-count'
 import { numberBreakdown, type BreakdownEntry } from '../../../services/stats/number-breakdown'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { PriorityRing } from '../../shared/PriorityRing'
-import { StatusIcon } from '../../shared/StatusIcon'
+import { StatusMark } from '../../shared/StatusMark'
 import { NumberLine } from './NumberLine'
 import { approximateNote, countOf, deltaLabel, numberDescription } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
@@ -33,7 +32,7 @@ const BY_WORDS: Record<NumberBreakdownBy, string> = { people: 'person', tags: 't
 function EntryMark({ entry }: { entry: BreakdownEntry }) {
   const mark = entry.mark
   if (mark?.kind === 'status') {
-    return <span className={styles.breakdownMark} style={{ color: entry.color }} aria-hidden="true"><StatusIcon icon={mark.icon ?? DEFAULT_STATUS_ICON} filled /></span>
+    return <span className={styles.breakdownMark} style={{ color: entry.color }} aria-hidden="true"><StatusMark status={mark} filled /></span>
   }
   if (mark?.kind === 'priority') {
     return (

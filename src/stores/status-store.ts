@@ -17,7 +17,8 @@ interface StatusState {
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
-  add: (name: string, color?: string, icon?: StatusIconKey) => Promise<number>
+  /** `emoji`: an emoji drawn instead of the glyph (J17), with its Show as. */
+  add: (name: string, color?: string, icon?: StatusIconKey, emoji?: Pick<Status, 'emoji' | 'emojiShow'>) => Promise<number>
   update: (status: Status) => Promise<void>
   remove: (id: number) => Promise<void>
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
@@ -108,9 +109,14 @@ export const useStatusStore = create<StatusState>((set, get) => {
   },
   ensureLoaded: statusEnsure,
 
-  add(name: string, color = DEFAULT_ENTITY_COLOR, icon: StatusIconKey = DEFAULT_STATUS_ICON) {
+  add(name: string, color = DEFAULT_ENTITY_COLOR, icon: StatusIconKey = DEFAULT_STATUS_ICON, emoji?: Pick<Status, 'emoji' | 'emojiShow'>) {
     return trackWrite(async () => {
-      const entry = { name, color, icon }
+      const entry: Omit<Status, 'id' | 'sortOrder'> = {
+        name,
+        color,
+        icon,
+        ...(emoji?.emoji ? { emoji: emoji.emoji, ...(emoji.emojiShow === 'color' ? { emojiShow: 'color' as const } : {}) } : {}),
+      }
       // Goes last; the repository picks the sort order and refuses a name
       // already stored, both in its transaction.
       const { id, sortOrder } = await statusRepository.insertLast(entry)

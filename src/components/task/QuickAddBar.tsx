@@ -40,7 +40,7 @@ import type {
   RecurrenceType,
   Status,
 } from '../../models'
-import { DEFAULT_STATUS_ICON, MARKER_KEYS, type MarkerKey } from '../../models'
+import { MARKER_KEYS, type MarkerKey } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import {
@@ -73,7 +73,7 @@ import { NlpPopup } from '../shared/NlpPopup'
 import { DialogLayerContext, MODAL_BACKDROP_ATTR } from '../shared/dialog-layer'
 import { useBackdropPress } from '../shared/use-backdrop-press'
 import { isInLayerAbove } from '../../utils/dom-layers'
-import { StatusIcon } from '../shared/StatusIcon'
+import { StatusMark } from '../shared/StatusMark'
 import styles from './QuickAddBar.module.css'
 import { shortcutScope } from '../../utils/dom-contract'
 
@@ -311,7 +311,7 @@ function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
       )}
       {draft.status && (
         <span className={`${styles.chip} ${styles.statusChip}`}>
-          <span style={{ color: draft.status.color }}><StatusIcon icon={draft.status.icon || DEFAULT_STATUS_ICON} filled /></span>
+          <span style={{ color: draft.status.color }}><StatusMark status={draft.status} filled /></span>
           {draft.status.name}
           <ChipRemove label="Remove status" onRemove={() => onRemove({ kind: 'status' })} />
         </span>
