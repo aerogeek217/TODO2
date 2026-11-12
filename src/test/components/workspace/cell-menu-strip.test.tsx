@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent, within, screen, act } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { WorkspaceCell } from '../../../components/workspace/WorkspaceCell'
+import { WidgetPopupHost } from '../../../components/workspace/WidgetPopup'
+import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { createTab, type LayoutBody, type LayoutCell, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { makeTodo, resetEntityStores } from '../../helpers'
@@ -42,6 +44,7 @@ function renderCell(c: CellSpec, extra: { fitRow?: boolean; collapsed?: boolean 
   return render(
     <DndContext>
       <WorkspaceCell cell={placed(c)} rowTrackIds={['r1']} collapsed={extra.collapsed ?? false} fitRow={extra.fitRow} />
+      <WidgetPopupHost />
     </DndContext>,
   )
 }
@@ -85,7 +88,7 @@ describe('the cell menu', () => {
     renderCell(k)
     const menu = cellMenu()
     expect(headings(menu)).toEqual(['Notes'])
-    expect(itemLabels(menu)).toEqual(['Name and icon…', 'Change widget', 'Add widget…'])
+    expect(itemLabels(menu)).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Add widget…'])
   })
 
   it('the grip lists the table’s words under Cell in order; one widget’s close is Close cell', () => {
@@ -315,7 +318,7 @@ describe('tabs on demand (D26 AA1)', () => {
     const menu = screen.getByRole('menu', { name: 'Cell options' })
     expect(headings(menu)).toEqual(['Notes', 'Cell'])
     expect(itemLabels(menu)).toEqual([
-      'Name and icon…', 'Change widget',
+      'Open larger', 'Name and icon…', 'Change widget',
       'Add widget…', 'Split cell', 'Merge with', 'Insert', 'Collapse row', 'Close cell',
     ])
   })
@@ -358,7 +361,7 @@ describe('tabs on demand (D26 AA1)', () => {
 describe('a cell’s widget faces (D25 R)', () => {
   const listTab = { id: 'l', kind: 'lens' as const, config: { listDefinitionId: 7 } }
   const cellEl = (id: string) => document.querySelector<HTMLElement>(`[data-ws-cell="${id}"]`)!
-  const popover = () => document.querySelector<HTMLElement>('[data-testid="widget-face-popover"]')
+  const popover = () => document.querySelector<HTMLElement>('[data-testid="widget-popup"]')
 
   /** Every element measures `width` × `height` (JSDOM lays nothing out). */
   function stubSize(width: number, height: number) {
@@ -378,7 +381,7 @@ describe('a cell’s widget faces (D25 R)', () => {
 
   afterEach(() => vi.restoreAllMocks())
 
-  it('a one-tab List cell at its small face: its click opens the full list over it, Esc closes it', () => {
+  it('a one-tab List cell at its small face: its click opens the list in the widget popup, Esc closes it', () => {
     stubSize(400, 80)
     const k = cell('k', [listTab])
     open(single(k))
@@ -399,15 +402,31 @@ describe('a cell’s widget faces (D25 R)', () => {
     expect(popover()).toBeNull()
   })
 
-  it('the keyboard opener opens it too; a second click on the face closes it', () => {
+  it('the keyboard opener opens it too; × closes it', () => {
     stubSize(400, 80)
     const k = cell('k', [listTab])
     open(single(k))
     renderCell(k)
     fireEvent.click(screen.getByRole('button', { name: 'Open Team' }))
     expect(popover()).not.toBeNull()
-    fireEvent.click(document.querySelector('[data-list-face]')!)
+    expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'tab', tabId: listTab.id })
+    fireEvent.click(within(popover()!).getByRole('button', { name: 'Close' }))
     expect(popover()).toBeNull()
+  })
+
+  it('the controls slot has Open larger before the ⋯; a closed tab closes the popup', () => {
+    stubSize(400, 400)
+    const k = cell('k', [listTab])
+    open(single(k))
+    renderCell(k)
+    const slot = document.querySelector('[data-cell-controls]')!
+    const names = within(slot as HTMLElement).getAllByRole('button').map((b) => b.getAttribute('aria-label'))
+    expect(names).toEqual(['Cell layout', 'Open larger', 'Cell options'])
+    fireEvent.click(within(slot as HTMLElement).getByRole('button', { name: 'Open larger' }))
+    expect(popover()).not.toBeNull()
+    act(() => { open(single(cell('k2', [createTab('notes', 'other')]))) })
+    expect(popover()).toBeNull()
+    expect(useUIStore.getState().widgetPopup).toBeNull()
   })
 
   it('the ⋯ on a small face opens the menu, not the full widget', () => {

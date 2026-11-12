@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { FilterExpr } from '../models'
 import type { ListZoom, WorkspaceLayout } from '../models/workspace-layout'
+import { REVIEW_POPUP_TAB_ID } from '../models/review'
 import { useWorkspaceStore } from './workspace-store'
 import { layoutTabs } from '../utils/workspace-layout-queries'
 
@@ -107,12 +108,13 @@ function addTabIds(layout: WorkspaceLayout | null, into: Set<string>): void {
 /**
  * `byTab` without the tabs that are in no layout any more (not in the
  * working copy, not in a saved layout) — so closed tabs don't pile up over a
- * session. Before the workspace is open nothing is dropped.
+ * session. Before the workspace is open nothing is dropped; the popup
+ * review (`REVIEW_POPUP_TAB_ID`, in no layout) never is.
  */
 function withoutGoneTabs<T>(byTab: Readonly<Record<string, T>>): Record<string, T> {
   const { working, layouts } = useWorkspaceStore.getState()
   if (!working) return { ...byTab }
-  const live = new Set<string>()
+  const live = new Set<string>([REVIEW_POPUP_TAB_ID])
   addTabIds(working, live)
   for (const layout of layouts) addTabIds(layout, live)
   return Object.fromEntries(Object.entries(byTab).filter(([tabId]) => live.has(tabId)))

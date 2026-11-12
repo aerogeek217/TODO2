@@ -10,6 +10,7 @@ import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPo
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { BreakdownConfig } from '../../../models/chart-widgets'
 import { createTab, type BreakdownTab, type LayoutTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import { REVIEW_POPUP_TAB_ID } from '../../../models/review'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
@@ -224,15 +225,16 @@ describe('clicks: a row drills, its Review button and a count jump', () => {
     expect(document.querySelector<HTMLElement>('[data-column="followup"]')!.style.getPropertyValue('--col-color')).toBe('var(--color-followup)')
   })
 
-  it('no layout has a Review widget: no Review buttons, and a count opens its tasks in the task dialog', () => {
+  it('no Review widget on the layout: the Review buttons still show, and a count opens the popup review', async () => {
     const onDrill = vi.fn()
     inLayout(breakdown({ name: 'Team' }), { reviewWidget: false })
     render(<DndContext><Live face="large" onDrill={onDrill} /></DndContext>)
-    expect(document.querySelector('[data-testid="breakdown-review"]')).toBeNull()
+    expect(document.querySelector('[data-testid="breakdown-review"]')).not.toBeNull()
     const count = rows().map((r) => r.querySelector<HTMLElement>('button[data-column]')).find((b) => b != null)!
     fireEvent.click(count)
-    expect(onDrill.mock.lastCall?.[0]?.title).toMatch(/^Team · .+ · /)
-    expect(reviewFilter()).toBeUndefined()
+    await vi.waitFor(() => expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'review' }))
+    expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]).toBeDefined()
+    expect(onDrill).not.toHaveBeenCalled()
   })
 
   it('a status row jumps with its status; a priority row with its group', async () => {

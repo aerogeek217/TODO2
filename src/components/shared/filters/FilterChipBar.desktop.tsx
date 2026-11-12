@@ -129,8 +129,8 @@ function FieldPanelBody({ field, onDone, onCloseAll = onDone }: { field: FieldDe
  * The People picker's footer while the filter is narrowed to some (not all,
  * not none) people — the person menu's Review (`peopleMenuEntries`): for one
  * person `Review with <name>`, for several `Review N people’s tasks` — a
- * jump to a Review widget with `@A or @B`. Else a hint. None while no layout
- * has a Review widget (or on a phone): Review is all it offers.
+ * jump to a Review widget with `@A or @B`. Else a hint. None inside a dialog
+ * the task dialog can't show above (`useEntityMenuOffers`): Review is all it offers.
  */
 function PeopleReviewAction({ people, onDone }: { people: readonly { id: number; name: string }[]; onDone: () => void }) {
   const { review } = useEntityMenuOffers()

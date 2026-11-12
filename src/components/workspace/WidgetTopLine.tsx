@@ -3,7 +3,8 @@ import { useDraggable } from '@dnd-kit/core'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import { tabTopLineIcon, type LayoutTab } from '../../models/workspace-layout'
 import { AppIcon } from '../shared/AppIcon'
-import { ChevronDownIcon, GripIcon, MoreIcon } from '../shared/icons'
+import { ChevronDownIcon, ExpandIcon, GripIcon, MoreIcon } from '../shared/icons'
+import { OPEN_LARGER_LABEL } from '../shared/widget-kind-menu-entries'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
 import { useTabTitles } from './widget-hooks'
 import { WORKSPACE_PANEL_DRAG, workspacePanelDragId, type WorkspacePanelDragData } from './workspace-drag'
@@ -83,7 +84,7 @@ export function CellGrip({ cellId, tabs, title, idSuffix = '', expanded, onMenu,
         listeners?.onPointerDown?.(e)
       }}
       onClick={(e) => {
-        // A small face's body opens its full widget on a click: not this one.
+        // A small face's body opens its widget larger on a click: not this one.
         e.preventDefault()
         const p = press.current
         press.current = null
@@ -99,7 +100,7 @@ export function CellGrip({ cellId, tabs, title, idSuffix = '', expanded, onMenu,
 
 /**
  * A cell's controls slot (D26 AA1): the grip (its layout menu, UX cleanup
- * 4A) and the ⋯ (the widget's menu) — shown while the pointer is over the
+ * 4A), Open larger (where the widget offers it) and the ⋯ (the widget's menu) — shown while the pointer is over the
  * cell, while focus is in it and while a menu of the cell is open, always on
  * touch (no grip there); hidden, they take no press — and, while its row is
  * collapsed, an Expand button that always shows. In a widget's top line, or
@@ -112,10 +113,10 @@ export function CellControls({ value, floating = false, standsForTab = false }: 
   /** No top line in the widget's face: the slot is its top line (`data-ws-tab`, its right-click and Shift+F10 the menu). */
   standsForTab?: boolean
 }) {
-  const { setMoreButton, menuOpen, touch, collapsed, onExpand, onMore, tabId, onGrip } = value
+  const { setMoreButton, menuOpen, touch, collapsed, onExpand, onMore, tabId, onGrip, onOpenLarger } = value
   const moreOpen = value.moreOpen ?? menuOpen
   const stop = (e: MouseEvent) => {
-    // The body's small-face click (it opens the full widget) is not this one.
+    // The body's small-face click (it opens the widget larger) is not this one.
     e.preventDefault()
   }
   return (
@@ -151,6 +152,19 @@ export function CellControls({ value, floating = false, standsForTab = false }: 
             panelHandle
             className={`${styles.grip} ${value.gripOpen ? styles.pressed : ''}`}
           />
+        )}
+        {!touch && onOpenLarger && (
+          <button
+            type="button"
+            className={styles.button}
+            aria-label={OPEN_LARGER_LABEL}
+            aria-haspopup="dialog"
+            title={OPEN_LARGER_LABEL}
+            data-testid="open-larger"
+            onClick={(e) => { stop(e); onOpenLarger() }}
+          >
+            <ExpandIcon size={13} />
+          </button>
         )}
         <button
           ref={setMoreButton}
@@ -198,7 +212,7 @@ interface WidgetTopLineProps {
  * or Shift+F10 / the Menu key in it opens the cell's ⋯ menu (the cell's
  * handlers, by `data-widget-top-line`); it stands for the tab
  * (`data-ws-tab`) the strip would show. Elsewhere (a strip names the widget,
- * the small face's popover, Settings) it is just the line.
+ * the widget popup, Settings) it is just the line.
  */
 export function WidgetTopLine({ as = 'div', className, style, lead, controls = 'inline', alone = false, leadIcon = true, children, ...rest }: WidgetTopLineProps) {
   const value = useContext(CellControlsContext)

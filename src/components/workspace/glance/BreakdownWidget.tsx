@@ -163,7 +163,7 @@ interface TableProps {
   reversed: boolean
   onSort: (by: BreakdownSortKey) => void
   onDrill?: OnGlanceDrill
-  /** Reviews jump from here to a Review widget (desktop, outside dialogs, some layout has one). */
+  /** Reviews jump from here to a Review widget (outside dialogs: `useEntityMenuOffers`). */
   review: boolean
   /** The bar column (bars at the large face). */
   bars: boolean
@@ -175,7 +175,7 @@ interface TableProps {
  * right after its name, shown while the row is hovered
  * or holds the focus. A row's click opens its tasks; its Review button and
  * a count column's count jump to a Review widget with them as its filter
- * (where no layout has one, a count opens its tasks); a person's or tag's
+ * (inside a dialog, where no review is offered, a count opens its tasks); a person's or tag's
  * right-click (or Shift+F10) opens its menu.
  */
 function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {

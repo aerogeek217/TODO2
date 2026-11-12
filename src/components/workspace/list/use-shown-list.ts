@@ -15,7 +15,7 @@ export function shownListDescription(definition: PersistedListDefinition, filter
 /**
  * The widgets showing each tab now, by tab id: each one's id and what it
  * last reported, the latest last. A tab can show in two widgets at once —
- * its small face, and the full list in the face's popover —, so the store
+ * its small face, and the full list in the widget popup —, so the store
  * holds the latest writer's report, and a writer going hands the tab back
  * to the one still there.
  */

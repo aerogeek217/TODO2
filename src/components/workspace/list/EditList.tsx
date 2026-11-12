@@ -21,7 +21,7 @@ import { CloseIcon, LinkIcon } from '../../shared/icons'
 import { SAVE_UNREADABLE_TITLE } from '../glance/editor-draft'
 import { EDIT_LIST_KEEP_ATTR, setEditListCloseRequest } from './edit-list-keep'
 import styles from './EditList.module.css'
-import { shortcutScope } from '../../../utils/dom-contract'
+import { shortcutScope, widgetPopupOf } from '../../../utils/dom-contract'
 import { PopoverRoot } from '../../shared/PopoverRoot'
 
 /** The side popover's width (px) and its gap to the panel. */
@@ -285,7 +285,10 @@ type Placement =
   | { mode: 'beside'; width: number; rect: { left: number; top: number; right: number; bottom: number } }
   | { mode: 'below'; width: number; rect: { left: number; top: number; right: number; bottom: number } }
 
+/** What the popover sits beside: the widget popup while it shows the list's tab, else the tab's cell. */
 function cellOf(tabId: string): HTMLElement | null {
+  const popup = widgetPopupOf(tabId)
+  if (popup?.querySelector(`[data-list-host="${tabId}"]`)) return popup
   return document.querySelector<HTMLElement>(`[data-ws-tab="${tabId}"]`)?.closest<HTMLElement>('[data-ws-cell]') ?? null
 }
 

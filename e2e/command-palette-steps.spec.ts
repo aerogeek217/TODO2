@@ -165,7 +165,7 @@ test('Add Widget › kind opens the Where picker on the cell last used, the kind
   expect(n.top).toBeGreaterThan(b.top + (b.bottom - b.top) / 2 - 40)
 })
 
-test('Review With › person jumps to the Review widget on the other layout with @<name>', async ({ page }) => {
+test('Review With › person opens the popup review with @<name> (the Review widget on the other layout left alone)', async ({ page }) => {
   await open(page)
   await openPalette(page)
   await page.getByRole('option', { name: 'Review With', exact: true }).click()
@@ -173,9 +173,10 @@ test('Review With › person jumps to the Review widget on the other layout with
   await expect(options(page).filter({ hasText: 'Ben Ortiz' })).toContainText('2 open tasks')
   await field(page).pressSequentially('aisha')
   await page.keyboard.press('Enter')
-  await expectOpenLayout(page, 'Planning')
-  await expect(reviewField(page, 'pTab')).toHaveValue('@"Aisha Rahman"')
-  await expect(page.locator('[data-review-widget="pTab"] [data-review-row]')).toHaveCount(2)
+  await expect(page.getByTestId('widget-popup')).toBeVisible()
+  await expect(reviewField(page, 'review-popup')).toHaveValue('@"Aisha Rahman"')
+  await expect(page.locator('[data-review-widget="review-popup"] [data-review-row]')).toHaveCount(2)
+  await expect(reviewField(page, 'pTab')).toHaveCount(0)
 })
 
 test('Theme › switches the theme, the current one marked', async ({ page }) => {

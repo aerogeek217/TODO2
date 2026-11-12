@@ -260,7 +260,7 @@
   height: auto;
 }
 
-/* A small face (D25 R): the whole body opens its full widget. */
+/* A small face (D25 R): the whole body opens its widget larger. */
 .bodySmall {
   overflow: hidden;
   cursor: pointer;

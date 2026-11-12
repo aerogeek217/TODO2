@@ -38,6 +38,7 @@ import { useEditorDraft, usePressElsewhereCloses } from './editor-draft'
 import { useEscapeCloses } from './editor-escape'
 import { EditorFooter } from './EditorFooter'
 import styles from './NumberEditor.module.css'
+import { widgetElement } from '../../../utils/dom-contract'
 
 const COMPARES: ReadonlyArray<{ value: NumberCompare; label: string }> = [
   { value: 'yesterday', label: 'Yesterday' },
@@ -142,7 +143,7 @@ export function NumberEditorHost() {
     let frames = 0
     let raf = 0
     const look = () => {
-      const el = document.querySelector<HTMLElement>(`[data-number-body="${CSS.escape(tab.id)}"]`)
+      const el = widgetElement(tab.id, `[data-number-body="${CSS.escape(tab.id)}"]`)
       anchorRef.current = el
       setFound(el ? tab.id : null)
       if (!el && ++frames < 30) raf = requestAnimationFrame(look)

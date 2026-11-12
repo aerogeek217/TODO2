@@ -1,4 +1,6 @@
 import { useId, useRef } from 'react'
+import { screenReviewFilter } from '../../services/review'
+import { jumpToReview } from '../../services/review-jump'
 import type { TaskDialogPayload } from '../../stores/task-dialog-payload'
 import { useUIStore } from '../../stores/ui-store'
 import { DialogFrame } from '../shared/Dialog'
@@ -12,7 +14,7 @@ import styles from './TaskDialog.module.css'
  * (desktop shows those in the top bar's filtered-tasks panel). What it
  * shows is `TaskDialogContent`; the screen filter's dialog adds that
  * filter's bar under its header (the filter itself: the workspace behind
- * follows).
+ * follows) and Review these N tasks, as the desktop panel has.
  *
  * It sits low (the editor's own layer) so the rows' menus and popovers open
  * above it; the editor stacks over it (`nested`) and takes focus. Esc closes
@@ -46,6 +48,12 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
         panelRef={panelRef}
         onClose={hide}
         filterBar={payload.source.kind === 'screen' ? <TaskDialogFilterBar /> : null}
+        onReview={payload.source.kind === 'screen' ? () => {
+          // The screen filter's chips and text search as the widget's filter; the dialog closes (the jump closes it too).
+          const filter = screenReviewFilter()
+          hide()
+          void jumpToReview(filter)
+        } : undefined}
       />
     </DialogFrame>
   )

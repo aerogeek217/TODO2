@@ -760,10 +760,10 @@ describe('ListWidget People group headers', () => {
     fireEvent.contextMenu(header('person-1'), { clientX: 40, clientY: 60 })
     const menu = screen.getByRole('menu', { name: 'Alice group' })
     expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent)).toEqual([
-      'Show tasks', 'Edit…', 'Delete…', 'Copy 2 tasks',
+      'Review with Alice', 'Show tasks', 'Edit…', 'Delete…', 'Copy 2 tasks',
     ])
-    // The person menu (no Review here: no Review widget), then a separator before Copy.
-    expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(2)
+    // The person menu (Review, a separator, Show tasks · Edit…, a separator, Delete…), then a separator before Copy.
+    expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(3)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Show tasks' }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Alice', personId: 1 })

@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, type FocusEvent, type ReactNode } from 'react'
-import { DEFAULT_REVIEW_WIDGET_SORT } from '../../../models/review'
+import { DEFAULT_REVIEW_WIDGET_SORT, REVIEW_POPUP_TAB_ID } from '../../../models/review'
 import { kindTabTitle, type ReviewTab } from '../../../models/workspace-layout'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useReviewWidgetQueue } from '../../../hooks/use-review-widget-queue'
@@ -60,7 +60,9 @@ import styles from './ReviewWidget.module.css'
  * (`components/review/ReviewCard`) and its footer; medium — the card's
  * essentials, the update line and the footer (the phone's face too); small
  * — `Review · <filter>` and `N left · M followed up`, a click opens the
- * whole widget over the cell. Every write is the card's
+ * whole widget in the widget popup. Drawn in the popup as the popup review
+ * (`REVIEW_POPUP_TAB_ID`, no layout tab), its sort and lens switch are kept
+ * in `ui-store.popupReviewView`. Every write is the card's
  * (`useReviewFollowUp`, its fields), each its own undo step.
  */
 export function ReviewWidget({ tab }: { tab: ReviewTab }) {
@@ -147,10 +149,12 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
     setReviewQueue(session, queue, { keepCurrent: !first })
   }, [session, filter, picked, queue])
 
-  // The rail's sort is view state, saved at once.
+  // The rail's sort is view state, saved at once — the popup review's kept in memory (it has no layout).
   const viewSort = tab.viewState?.sort ?? DEFAULT_REVIEW_WIDGET_SORT
   useEffect(() => session.subscribe((s) => {
-    if (s.sort !== viewSort) void useWorkspaceStore.getState().patchTabViewState(tab.id, 'review', { sort: s.sort })
+    if (s.sort === viewSort) return
+    if (tab.id === REVIEW_POPUP_TAB_ID) useUIStore.getState().patchPopupReviewView({ sort: s.sort })
+    else void useWorkspaceStore.getState().patchTabViewState(tab.id, 'review', { sort: s.sort })
   }), [session, tab.id, viewSort])
 
   const followedUpToday = useCallback((id: number) => {

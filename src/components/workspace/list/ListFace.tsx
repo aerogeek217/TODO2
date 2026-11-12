@@ -43,8 +43,8 @@ function uniqueTodos(sections: readonly Section[]): PersistedTodoItem[] {
  * count of tasks shown (under the screen filter and the lens, as the tab
  * counts them) in its tab badge's colours, the badge, and its oldest due
  * date. Medium: that line over the top rows — read-only, a title and its
- * due date, a click opens the editor — and `+N more`, which opens the full
- * list over the cell. No selection, drag or zoom: the full widget has them.
+ * due date, a click opens the editor — and `+N more`, which opens the list
+ * larger (the widget popup). No selection, drag or zoom: the full widget has them.
  */
 export function ListFace({ tab, definition, face, faceRef, onResult }: {
   tab: LensTab

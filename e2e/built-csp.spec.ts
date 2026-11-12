@@ -354,13 +354,14 @@ test('the offline file requests nothing through the glance widgets and the Negle
   }, { url: fileUrl })
   const taskDialog = page.locator('[data-task-dialog]')
 
-  // A Number: its small face, its full widget in the popover, its tasks.
+  // A Number: its small face and its tasks; the Tags Breakdown opened larger (the widget popup).
   const numberCell = wsCell(page, 'kn')
   await expect(numberCell.locator('[data-number="num"]').getByTestId('number-count')).toHaveText('4')
-  await numberCell.getByRole('button', { name: 'Open Open' }).focus()
-  await page.keyboard.press('Enter')
-  const full = page.getByTestId('widget-face-popover')
-  await expect(full.locator('[data-sparkline]')).toBeVisible()
+  const tagsCell = page.locator('[data-chart="tags"]').locator('xpath=ancestor::*[@data-ws-cell][1]')
+  await tagsCell.hover()
+  await tagsCell.getByRole('button', { name: 'Open larger' }).click()
+  const full = page.getByTestId('widget-popup')
+  await expect(full.locator('[data-chart="tags"]')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(full).toHaveCount(0)
   await numberCell.locator('[data-number="num"]').click()

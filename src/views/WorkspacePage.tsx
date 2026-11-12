@@ -32,6 +32,7 @@ import { SyncStatusButton } from '../components/layout/SyncStatusButton'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { measureWorkspace } from '../components/workspace/measure'
 import { EditListHost } from '../components/workspace/list/EditList'
+import { WidgetPopupHost } from '../components/workspace/WidgetPopup'
 import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
 import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { PulseEditorHost } from '../components/workspace/glance/PulseEditor'
@@ -485,6 +486,7 @@ export function WorkspacePage() {
         />
       )}
 
+      <WidgetPopupHost />
       <TaskDialog />
       <CheckinDialog />
       <CheckinImportDialog />

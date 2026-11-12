@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { useMemo, type MouseEvent, type ReactNode } from 'react'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import { numberIsLit } from '../../../models/glance-widgets'
 import { DEFAULT_NUMBER_OLDEST_BY, type NumberGroupItem } from '../../../models/number-shapes'
@@ -11,7 +11,7 @@ import { goalProgress } from '../../../services/stats/number-shapes'
 import type { WidgetFace } from '../../../utils/widget-face'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
 import { useChipNames } from '../../shared/filters/filter-menu'
-import { WidgetFacePopover } from '../CellFaceParts'
+import { openNumberList } from '../../../services/widget-popup'
 import { WidgetTopLine } from '../WidgetTopLine'
 import { approximateNote, countOf, numberDescription } from './glance-copy'
 import { numberDrill } from './glance-drills'
@@ -40,7 +40,7 @@ import styles from './NumberShapes.module.css'
  * own data (`hooks/use-number-shapes`). Every one keeps the Number's frame:
  * its body (`data-number-body`, where its editor opens), its label as its
  * top line, a click on it opening its tasks (a group's on each count; a
- * list's opening the list over the cell); its small face is its label and
+ * list's opening the list in the widget popup); its small face is its label and
  * its number.
  */
 
@@ -60,7 +60,7 @@ function Label({ name, color }: { name: string; color: string }) {
  * figures in one button that opens what it stands for (`onOpen`; a plain
  * group without one).
  */
-function NumberShell({ tab, face, faceRef, colors, name, ariaLabel, onOpen, bodyRef, children }: {
+function NumberShell({ tab, face, faceRef, colors, name, ariaLabel, onOpen, children }: {
   tab: NumberTab
   face: WidgetFace
   faceRef: (el: HTMLElement | null) => void
@@ -68,7 +68,6 @@ function NumberShell({ tab, face, faceRef, colors, name, ariaLabel, onOpen, body
   name: string
   ariaLabel: string
   onOpen?: () => void
-  bodyRef?: (el: HTMLDivElement | null) => void
   children: ReactNode
 }) {
   const large = face === 'large'
@@ -91,7 +90,7 @@ function NumberShell({ tab, face, faceRef, colors, name, ariaLabel, onOpen, body
   }
   return (
     <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
-      <div ref={bodyRef} data-number-body={tab.id} className={base.body}>
+      <div data-number-body={tab.id} className={base.body}>
         {onOpen ? (
           <button type="button" {...common} aria-label={`${ariaLabel} Show tasks`} onClick={open}>{content}</button>
         ) : (
@@ -419,7 +418,7 @@ export function GroupNumber({ tab, onResult, onDrill }: ShapeProps) {
  * Follow a list (board Y): what one of the layout's lists shows — its
  * filter as edited, its own lens switch, its prompt and the screen filter
  * (`use-built-list`) — as a count, with its tab badge. A click opens the
- * list over the cell (the small face's popover); its prompt is answered
+ * list in the widget popup (`services/widget-popup`); its prompt is answered
  * there. Lit by its count (`litWhen` / `litAt`).
  */
 export function ListNumber({ tab, onResult }: ShapeProps) {
@@ -434,34 +433,27 @@ export function ListNumber({ tab, onResult }: ShapeProps) {
   const note = !list.lensTab
     ? (config.list ? 'This list was deleted' : 'No list picked')
     : list.pending ? 'Pick to count' : null
-  const [open, setOpen] = useState(false)
-  const bodyEl = useRef<HTMLDivElement | null>(null)
-
   const lines = useMemo(() => [[{ label: name, count: ofText ? `${countText} ${ofText}` : countText }]], [name, countText, ofText])
   useReportLines(onResult, lines)
 
   return (
-    <>
-      <NumberShell
-        tab={tab}
-        face={face}
-        faceRef={faceRef}
-        colors={colors}
-        name={name}
-        ariaLabel={`${name}: ${countText}${ofText ? ` ${ofText}` : ''}${list.badge ? `, ${list.badge.summary.join(', ')}` : ''}${note ? `. ${note}` : ''}.`}
-        onOpen={list.lensTab ? () => setOpen((v) => !v) : undefined}
-        bodyRef={(el) => { bodyEl.current = el }}
-      >
-        <span className={styles.figureLine}>
-          <span className={base.count} style={{ color: colors.count }} data-testid="number-count">
-            {countText}
-            {ofText && <span className={base.of}>{ofText}</span>}
-          </span>
-          {list.badge && <BadgeCapsule counts={list.badge.counts} label={list.badge.summary.join(', ')} data-number-badge="" />}
+    <NumberShell
+      tab={tab}
+      face={face}
+      faceRef={faceRef}
+      colors={colors}
+      name={name}
+      ariaLabel={`${name}: ${countText}${ofText ? ` ${ofText}` : ''}${list.badge ? `, ${list.badge.summary.join(', ')}` : ''}${note ? `. ${note}` : ''}.`}
+      onOpen={list.lensTab ? () => { void openNumberList(tab.id) } : undefined}
+    >
+      <span className={styles.figureLine}>
+        <span className={base.count} style={{ color: colors.count }} data-testid="number-count">
+          {countText}
+          {ofText && <span className={base.of}>{ofText}</span>}
         </span>
-        {note && face !== 'small' && <span className={styles.meta} data-testid="number-list-note">{note}</span>}
-      </NumberShell>
-      {open && list.lensTab && <WidgetFacePopover tab={list.lensTab} anchorRef={bodyEl} onClose={() => setOpen(false)} />}
-    </>
+        {list.badge && <BadgeCapsule counts={list.badge.counts} label={list.badge.summary.join(', ')} data-number-badge="" />}
+      </span>
+      {note && face !== 'small' && <span className={styles.meta} data-testid="number-list-note">{note}</span>}
+    </NumberShell>
   )
 }
