@@ -1,8 +1,9 @@
-import type { LayoutBody, WorkspaceLayout } from '../models/workspace-layout'
+import type { LayoutBody, LayoutCell, WorkspaceLayout } from '../models/workspace-layout'
 import { findTab } from './workspace-layout-queries'
 import { movePanel, moveTab, type LayoutDropTarget } from './workspace-layout-ops'
 import { cellById, spanOf, type Side } from './workspace-grid'
-import { spanPx, tableTrackSizes, trackStart } from './workspace-table'
+import { cellsOnlyInRow } from './workspace-rows'
+import { FIT_TRACK_NOMINAL_PX, spanPx, tableTrackSizes, trackSizing, trackStart } from './workspace-table'
 
 /**
  * Hit testing for dragging a workspace tab or a whole cell (by its header).
@@ -337,12 +338,61 @@ export function cellRectIn(body: LayoutBody, cellId: string, table: TableMetrics
 }
 
 /**
+ * The heights (px, by row track id) the fit rows of `next` — the layout a
+ * drop makes — will be drawn at, from the table as measured over `before`
+ * (`measured`: each row track's drawn height). A fit row's height is its
+ * content's, which only the browser knows (widget feedback 2D):
+ * - a row that was a fit row when measured keeps its drawn height;
+ * - any other — a new one (a split above / below a fit row's Number), or one
+ *   a drop leaves holding only Numbers (what else was in it moved out) — the
+ *   tallest of its cells' fit heights: a cell whose widgets came from a fit
+ *   row that row's height, else the lowest fit row drawn (a plain Number's),
+ *   else `FIT_TRACK_NOMINAL_PX`.
+ * Rows that aren't fit rows in `next` aren't listed (their sizes come from
+ * their weights or px, `tableTrackSizes`).
+ */
+export function fitRowHeights(before: LayoutBody, next: LayoutBody, measured: Readonly<Record<string, number>>): Record<string, number> {
+  const fitBefore = new Map<string, number>()
+  before.grid.rows.forEach((track, i) => {
+    const px = measured[track.id]
+    if (px != null && trackSizing(before, 'rows', i).kind === 'fit') fitBefore.set(track.id, px)
+  })
+  const typical = fitBefore.size > 0 ? Math.min(...fitBefore.values()) : FIT_TRACK_NOMINAL_PX
+  /** The fit height of a cell of `next`: the fit row its widgets were in, if any. */
+  const cellFitPx = (cell: LayoutCell): number => {
+    let px: number | null = null
+    for (const tab of cell.tabs) {
+      const from = findTab(before, tab.id)
+      const fromCell = from ? cellById(before, from.cellId) : undefined
+      if (!fromCell || fromCell.area.rowSpan !== 1) continue
+      const rowId = before.grid.rows[fromCell.area.row]?.id
+      const rowPx = rowId != null ? fitBefore.get(rowId) : undefined
+      if (rowPx != null) px = Math.max(px ?? 0, rowPx)
+    }
+    return px ?? typical
+  }
+  const out: Record<string, number> = {}
+  next.grid.rows.forEach((track, i) => {
+    if (trackSizing(next, 'rows', i).kind !== 'fit') return
+    const kept = fitBefore.get(track.id)
+    if (kept != null) {
+      out[track.id] = kept
+      return
+    }
+    const cells = cellsOnlyInRow(next, i)
+    out[track.id] = cells.length > 0 ? Math.max(...cells.map(cellFitPx)) : typical
+  })
+  return out
+}
+
+/**
  * The ghost of a drop of what is dragged (`source`; `tabIds` its tabs) on
  * `target`: the move run on a probe copy of the layout, and the cell that
  * then holds the first dragged tab placed from the geometry measured when
- * the drag started (`cellRectIn`) — the place and size the drop will
- * produce — with its words (`dropLabel`). An empty layout's first cell is
- * the whole area. `null` when the drop changes nothing.
+ * the drag started (`cellRectIn`, its fit rows at `fitRowHeights`) — the
+ * place and size the drop will produce — with its words (`dropLabel`). An
+ * empty layout's first cell is the whole area. `null` when the drop
+ * changes nothing.
  */
 export function dropGhost(
   layout: WorkspaceLayout,
@@ -357,6 +407,7 @@ export function dropGhost(
   if (layout.cells.length === 0 || !geo.table) return { rect: geo.area, label }
   const first = tabIds[0] ?? (source.type === 'tab' ? source.tabId : undefined)
   const holder = first != null ? findTab(next, first)?.cellId : undefined
-  const rect = holder != null ? cellRectIn(next, holder, geo.table) : null
+  const table = { ...geo.table, rowPx: fitRowHeights(layout, next, geo.table.rowPx) }
+  const rect = holder != null ? cellRectIn(next, holder, table) : null
   return rect ? { rect, label } : null
 }

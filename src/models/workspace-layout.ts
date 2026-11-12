@@ -247,7 +247,7 @@ export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, LensViewState>
 export type NumberTab = TabOf<'number', NumberConfig, LensViewState>
-export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
+export type TrendTab = TabOf<'trend', TrendTabConfig, LensViewState>
 export type PulseTab = TabOf<'pulse', PulseTabConfig, LensViewState>
 // ── D26 P8: the chart widgets ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
@@ -531,7 +531,7 @@ export function isGlanceKind(kind: WidgetKind): kind is GlanceWidgetKind {
 
 /** A glance widget's tab. */
 /** The kinds with a lens switch of their own in their view state (G3; a list's is its list's). */
-export const LENS_SWITCH_KINDS = ['calendar', 'review', 'neglect', 'number', 'pulse', 'breakdown', 'pivot'] as const
+export const LENS_SWITCH_KINDS = ['calendar', 'review', 'neglect', 'number', 'trend', 'pulse', 'breakdown', 'pivot'] as const
 export type LensSwitchKind = (typeof LENS_SWITCH_KINDS)[number]
 export type LensSwitchTab = Extract<LayoutTab, { kind: LensSwitchKind }>
 

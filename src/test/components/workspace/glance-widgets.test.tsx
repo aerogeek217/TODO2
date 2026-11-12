@@ -95,7 +95,7 @@ describe('Number widget', () => {
     expect(number().querySelector('[data-sparkline] polyline')).not.toBeNull()
     expect(within(number()).getByTestId('number-delta').textContent).toMatch(/vs yesterday$/)
     // State alone: the line is exact.
-    expect(within(number()).queryByTestId('number-approximate')).toBeNull()
+    expect(number().querySelector<HTMLElement>('[data-number-line]')!.dataset.approximate).toBeUndefined()
   })
 
   it('Overdue (converted): lit above 0 in its colour', () => {
@@ -128,18 +128,31 @@ describe('Number widget', () => {
     expect(within(number()).queryByTestId('number-delta')).toBeNull()
   })
 
-  it('a filter reading what the log didn’t hold for the whole line is marked ≈', () => {
+  it('a filter reading what the log didn’t hold for the whole line: the line’s tooltip says so, no ≈ beside it (widget feedback 2D)', () => {
+    // The tooltip's delay on a fake clock too (the suite's clock fakes only Date).
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date(2026, 9, 10, 10))
     setup(numberTab('n', 'focus'))
     expect(numberCount()).toBe('3')
     expect(number().dataset.lit).toBeUndefined()
     expect(within(number()).getByTestId('number-count').style.color).toBe('var(--color-text-primary)')
-    expect(number().querySelector('[data-sparkline]')).not.toBeNull()
-    expect(within(number()).getByTestId('number-approximate').getAttribute('title')).toMatch(/priorities/)
-    // Once the log covers the whole line, it is exact.
+    const line = number().querySelector<HTMLElement>('[data-number-line]')!
+    expect(line.querySelector('[data-sparkline]')).not.toBeNull()
+    expect(line.dataset.approximate).toBe('true')
+    expect(number().textContent).not.toContain('≈')
+    expect(number().getAttribute('aria-label')).toMatch(/About .*vs yesterday/)
+    fireEvent.pointerEnter(line, { pointerType: 'mouse' })
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toMatch(/^Approximate: .*priorities/)
+    fireEvent.pointerLeave(line)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 10, 10))
+    // Once the log covers the whole line, it is exact: no tooltip.
     cleanup()
     useSettingsStore.setState({ historyLogSince: new Date(2026, 8, 1) })
     setup(numberTab('n', 'focus'))
-    expect(within(number()).queryByTestId('number-approximate')).toBeNull()
+    expect(number().querySelector<HTMLElement>('[data-number-line]')!.dataset.approximate).toBeUndefined()
+    expect(number().getAttribute('aria-label')).not.toMatch(/About/)
   })
 
   it('a click opens its tasks in the task dialog, titled by its name and saying what it counts', () => {
@@ -207,7 +220,10 @@ describe('Number widget', () => {
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Compare with' }), { target: { value: 'lastWeek' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Light up when' }), { target: { value: 'below' } })
     fireEvent.change(within(editor).getByRole('spinbutton', { name: 'Light up when below' }), { target: { value: '7' } })
-    fireEvent.click(within(editor).getByRole('radio', { name: /^Auto/ }))
+    // Lit by a rule: both colours (widget feedback 2D); Auto when lit.
+    const colorWhenLit = within(editor).getByRole('group', { name: 'Color when lit' })
+    expect(within(editor).getByRole('group', { name: 'Color otherwise' })).not.toBeNull()
+    fireEvent.click(within(colorWhenLit).getByRole('radio', { name: /^Auto/ }))
     const stored = () => (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as typeof tab).config
     // Nothing written until Save.
     expect(stored()).toBe(tab.config)
@@ -223,6 +239,20 @@ describe('Number widget', () => {
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Light up when' }), { target: { value: 'never' } })
     fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
     expect(stored()).not.toHaveProperty('litAt')
+    // Never lit: one Color — the colour otherwise —, the lit one kept as it is.
+    act(() => { useUIStore.getState().openNumberEditor('n') })
+    editor = document.querySelector<HTMLElement>('[data-number-editor="n"]')!
+    expect(within(editor).queryByRole('group', { name: 'Color when lit' })).toBeNull()
+    const color = within(editor).getByRole('group', { name: 'Color' })
+    fireEvent.click(within(color).getByRole('radio', { name: 'Violet' }))
+    // Drawn live: the line takes it while the Number isn't lit.
+    expect(document.querySelector('[data-number="n"] [data-sparkline] polyline')!.getAttribute('stroke')).toBe('var(--hue-violet-text)')
+    const before = layoutSteps().length
+    const lit = stored().color
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
+    expect(stored().unlitColor).toMatch(/^#/)
+    expect(stored().color).toBe(lit)
+    expect(layoutSteps().length).toBe(before + 1)
     // No lens picked: no Top-bar lens row.
     act(() => { useUIStore.getState().openNumberEditor('n') })
     editor = document.querySelector<HTMLElement>('[data-number-editor="n"]')!
@@ -403,12 +433,14 @@ describe('faces (D25 R)', () => {
   const smallFace = () => document.querySelector<HTMLElement>('[data-testid="glance-small-face"]')
   const smallValue = () => within(smallFace()!).getByTestId('glance-small-value').textContent
 
-  it('a small Number is its label and count: no 14-day line', () => {
+  it('a small Number is its label and count, its line and change beside the count (shown where they fit: CSS, widget feedback 2D)', () => {
     setup(numberTab('n', 'overdue'), undefined, 'small')
     expect(numberCount()).toBe('2')
     expect(number().textContent).toContain('Overdue')
-    expect(number().querySelector('[data-sparkline]')).toBeNull()
-    expect(within(number()).queryByTestId('number-delta')).toBeNull()
+    // Drawn at every face; `.figures` clips what doesn't fit beside the count (a real browser's check: number-line-fit.spec).
+    expect(number().querySelector('[data-sparkline]')).not.toBeNull()
+    expect(within(number()).getByTestId('number-delta').textContent).toMatch(/yesterday/)
+    expect(number().getAttribute('aria-label')).toMatch(/yesterday/)
     expect(document.querySelector('[data-glance]')!.getAttribute('data-face')).toBe('small')
   })
 
