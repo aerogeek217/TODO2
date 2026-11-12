@@ -10,6 +10,7 @@ import { upgradeV76 } from './upgrades/v76-layout-rows'
 import { upgradeV77 } from './upgrades/v77-dashboard-widgets'
 import { upgradeV78 } from './upgrades/v78'
 import { upgradeV79 } from './upgrades/v79'
+import { upgradeV80 } from './upgrades/v80'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -98,7 +99,9 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * columns, rows and bands as a table (`upgrades/v78/layout-table.ts`), and
  * v79, the final shapes of what later builds read at load time — the
  * removed kinds' tabs, the Eisenhower's leftovers, the Review, Breakdown,
- * Number, list zoom and trend shapes (`upgrades/v79/index.ts`). Each
+ * Number, list zoom and trend shapes (`upgrades/v79/index.ts`), and v80,
+ * people without their email and the check-in open method's settings row
+ * deleted (`upgrades/v80/index.ts`). Each
  * transform lives in `data/upgrades/v<N>-*.ts` (or `v<N>/`, by parts); the
  * tab walk v78 and v79 share is `upgrades/layout-tabs.ts`.
  */
@@ -114,6 +117,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [77, upgradeV77],
   [78, upgradeV78],
   [79, upgradeV79],
+  [80, upgradeV80],
 ])
 
 /**

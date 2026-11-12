@@ -1,19 +1,19 @@
 import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import type { PersistedPerson } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
-import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useFilterSettings } from '../../hooks/use-filter-settings'
 import { useToday } from '../../hooks/use-today'
-import type { CheckinEmail } from '../../services/checkin-email/build'
 import { checkinRecipients } from '../../services/checkin-email/recipients'
 import { checkinTaskCount, selectCheckinTasks } from '../../services/checkin-email/select'
 import {
   buildCheckinContext,
   CHECKIN_INCLUDE_DEFAULTS,
-  checkinSentStatus,
+  checkinCopiedStatus,
+  checkinSubjectCopiedStatus,
+  copyCheckinMessage,
+  copyCheckinSubject,
   COPY_FAILED_NOTICE,
   prepareCheckin,
-  sendPreparedCheckin,
 } from '../../services/checkin-email/person-checkin'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -23,22 +23,18 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { useSubtaskStore } from '../../stores/subtask-store'
 import { useUIStore } from '../../stores/ui-store'
-import { isValidEmail } from '../../utils/person'
-import { CHECKIN_OPEN_METHOD_OPTIONS, isNoCheckinFilter } from '../../utils/checkin-settings'
+import { isNoCheckinFilter } from '../../utils/checkin-settings'
 import type { ListFilterField } from '../../stores/list-widget-store'
-import { PeopleEditor } from '../settings/PeopleEditor'
-import { Dialog, DialogFrame } from '../shared/Dialog'
+import { DialogFrame } from '../shared/Dialog'
 import { PredicateChips } from '../shared/filters/PredicateChips'
 import type { DateFilterHost } from '../shared/filters/DateFilterPanel'
+import { CopyIcon } from '../shared/icons'
+import { useTooltip } from '../shared/use-tooltip'
 import styles from './CheckinDialog.module.css'
 
-type SentAs = 'opened' | 'downloaded'
-
-interface Toast {
+interface Status {
   text: string
   error?: boolean
-  /** The reason the dialog opened instead of a one-click send: it describes the dialog until the next message. */
-  opening?: true
 }
 
 const tasksLabel = (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`
@@ -46,30 +42,17 @@ const tasksLabel = (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`
 const CHECKIN_OMIT_FIELDS: readonly ListFilterField[] = ['people']
 /** A check-in takes open tasks only, so its date panel leaves Completed out. */
 const CHECKIN_DATE_HOST: DateFilterHost = { omit: ['completed'] }
-/** Whether the person has an email a check-in can go to (one valid address). */
-const hasEmail = (p: PersistedPerson) => isValidEmail(p.email ?? '')
-/** A row's address line: the address, or what happens without one. */
-const addressLine = (p: PersistedPerson) => {
-  if (hasEmail(p)) return p.email
-  return p.email
-    ? 'Invalid email address — sent without a recipient'
-    : 'No email address — add the recipient in your mail app'
-}
 
 /**
- * The email check-in dialog (`ui-store.checkinDialog`): one row per person
- * with open tasks (plus the people it was opened for), each sent on its own
- * with the row's button — one message per click, since the clipboard holds
- * one body at a time. Which tasks is the check-in filter as a filter line
- * (the list filter line's chips and + Filter, without People): each edit is
- * saved at once (`settings-store.checkinTaskFilter`), so the row counts
- * follow it, and the next dialog and every one-click send use it. Anyone can be ticked: without a valid address the
- * email goes without a recipient, added in the mail app. Sending puts the
- * body on the clipboard and opens a `mailto:` link, or downloads an `.eml`
- * draft (Settings' choice, also set here), then records a follow-up on the
- * email's tasks (one undo entry) — `services/checkin-email/person-checkin`,
- * shared with the one-click send, which opens this dialog with a `notice`
- * when it can't send.
+ * The check-in dialog (`ui-store.checkinDialog`), opened from the Review
+ * widget's Check-in button for the filter's people. Left: the people — one
+ * per person with open tasks, plus the people it was opened for — as a
+ * single-select list (↑ / ↓), then Which tasks (the saved check-in filter,
+ * written at once: `settings-store.checkinTaskFilter`) and Include (dialog
+ * state). Right: the selected person's message — its subject with Copy
+ * subject, the body in a sandboxed frame — and **Copy**, which puts the body
+ * on the clipboard as rich HTML + plain text. Copying records nothing: no
+ * follow-up, no undo entry (the reply import's Record a follow-up does that).
  *
  * Mounted by the workspace page, which loads every task, their people and
  * tags and the statuses this reads.
@@ -77,27 +60,23 @@ const addressLine = (p: PersistedPerson) => {
 export function CheckinDialog() {
   const state = useUIStore((s) => s.checkinDialog)
   if (!state) return null
-  return <CheckinDialogPanel openedFor={state.personIds} notice={state.notice} />
+  return <CheckinDialogPanel openedFor={state.personIds} />
 }
 
-const noticeToast = (notice: string | undefined): Toast | null => (notice ? { text: notice, error: true, opening: true } : null)
-
-function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice?: string }) {
+function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
   // A new open request while open (another entry point): start afresh.
   const [opened, setOpened] = useState(openedFor)
-  const [ticked, setTicked] = useState<ReadonlySet<number>>(() => new Set(openedFor))
-  const [sent, setSent] = useState<ReadonlyMap<number, SentAs>>(() => new Map())
-  const [toast, setToast] = useState<Toast | null>(() => noticeToast(notice))
+  const [selectedId, setSelectedId] = useState<number | null>(openedFor[0] ?? null)
+  const [copied, setCopied] = useState<ReadonlySet<number>>(() => new Set())
+  const [status, setStatus] = useState<Status | null>(null)
   if (opened !== openedFor) {
     setOpened(openedFor)
-    setTicked(new Set(openedFor))
-    setSent(new Map())
-    setToast(noticeToast(notice))
+    setSelectedId(openedFor[0] ?? null)
+    setCopied(new Set())
+    setStatus(null)
   }
   const [includeNotes, setIncludeNotes] = useState(CHECKIN_INCLUDE_DEFAULTS.includeNotes)
   const [includeOthers, setIncludeOthers] = useState(CHECKIN_INCLUDE_DEFAULTS.includeOthers)
-  const [emailEditorFor, setEmailEditorFor] = useState<number | null>(null)
-  const [previewOpen, setPreviewOpen] = useState(false)
 
   const close = useUIStore((s) => s.closeCheckinDialog)
   const openImport = useUIStore((s) => s.openCheckinImport)
@@ -109,12 +88,12 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
   const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
   const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
   const filter = useSettingsStore((s) => s.checkinTaskFilter)
-  const method = useSettingsStore((s) => s.checkinOpenMethod)
   const filterSettings = useFilterSettings()
   const today = useToday()
 
   const titleId = useId()
-  const panelRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const copyRef = useRef<HTMLButtonElement>(null)
 
   const recipients = useMemo(
     () => checkinRecipients(people, todos, assignedPeopleMap, opened),
@@ -129,171 +108,144 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
     [filter, buildCtx],
   )
   const filtered = !isNoCheckinFilter(filter)
-  const isChecked = (p: PersistedPerson) => ticked.has(p.id)
-  const checkedPeople = recipients.filter(isChecked)
+  const selected = recipients.find((p) => p.id === selectedId) ?? recipients[0]
 
-  const buildEmail = useCallback(
-    (p: PersistedPerson, sentAt: Date) => prepareCheckin(p, filter, buildCtx, { includeNotes, includeOthers }, sentAt),
+  const build = useCallback(
+    (p: PersistedPerson) => prepareCheckin(p, filter, buildCtx, { includeNotes, includeOthers }, new Date()),
     [filter, buildCtx, includeNotes, includeOthers],
   )
-  const buildPreview = useCallback((p: PersistedPerson) => buildEmail(p, new Date()).email, [buildEmail])
+  const prepared = useMemo(() => (selected ? build(selected) : null), [selected, build])
+  const hasTasks = prepared != null && prepared.taskIds.length > 0
 
-  // The people editor and the preview own Esc while open (the filter's
-  // menus and pickers are portaled layers: their keys never reach the frame).
-  const layerOpenRef = useLatestRef(emailEditorFor !== null || previewOpen)
-  const escapeBelongsElsewhere = useCallback(() => layerOpenRef.current, [layerOpenRef])
+  // On open: Copy when the selected person's message has tasks, else the people list.
+  const [initialFocus] = useState(() => (hasTasks ? copyRef : listRef))
 
-
-  /** After a send: the next row still to send, else Done. */
-  const focusNext = () => {
+  const select = (p: PersistedPerson) => {
+    setSelectedId(p.id)
     requestAnimationFrame(() => {
-      const panel = panelRef.current
-      const next = panel?.querySelector<HTMLElement>('[data-checkin-send]:not([disabled])')
-        ?? panel?.querySelector<HTMLElement>('[data-checkin-done]')
-      next?.focus()
+      listRef.current?.querySelector(`[data-checkin-row="${p.id}"]`)?.scrollIntoView({ block: 'nearest' })
     })
   }
 
-  // People whose send is running: a second click meanwhile sends nothing.
-  const sendingRef = useRef<Set<number>>(new Set())
-  const send = async (p: PersistedPerson) => {
-    if (sendingRef.current.has(p.id)) return
-    const sentAt = new Date()
-    const prepared = buildEmail(p, sentAt)
-    if (prepared.taskIds.length === 0) return
-    sendingRef.current.add(p.id)
-    try {
-      // First thing in the click: the clipboard needs the user gesture. A
-      // successful send records the follow-up (one undo entry).
-      const result = await sendPreparedCheckin(p, prepared, method, sentAt)
-      if (result === 'copy-failed') {
-        setToast({ text: COPY_FAILED_NOTICE, error: true })
-        return
-      }
-      setSent((prev) => new Map(prev).set(p.id, result))
-      setToast({ text: checkinSentStatus(p.name, prepared.email.to, result, sentAt) })
-      focusNext()
-    } finally {
-      sendingRef.current.delete(p.id)
+  const onListKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!selected || recipients.length === 0) return
+    const at = recipients.findIndex((p) => p.id === selected.id)
+    const to = e.key === 'ArrowDown' ? Math.min(at + 1, recipients.length - 1)
+      : e.key === 'ArrowUp' ? Math.max(at - 1, 0)
+        : e.key === 'Home' ? 0
+          : e.key === 'End' ? recipients.length - 1
+            : null
+    if (to == null) return
+    e.preventDefault()
+    const next = recipients[to]
+    if (next) select(next)
+  }
+
+  const copy = async () => {
+    if (!selected) return
+    // Built afresh for the click (today's date in its footer); the clipboard
+    // write starts before any `await`, inside the click's user gesture.
+    const now = build(selected)
+    if (now.taskIds.length === 0) return
+    const ok = await copyCheckinMessage(now.email)
+    if (!ok) {
+      setStatus({ text: COPY_FAILED_NOTICE, error: true })
+      return
     }
+    setCopied((prev) => new Set(prev).add(selected.id))
+    setStatus({ text: checkinCopiedStatus(selected.name) })
   }
 
-  const toggle = (id: number) => {
-    setTicked((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const copySubject = async () => {
+    if (!selected || !prepared) return
+    const ok = await copyCheckinSubject(prepared.email)
+    setStatus(ok ? { text: checkinSubjectCopiedStatus(selected.name) } : { text: COPY_FAILED_NOTICE, error: true })
   }
 
-  const addEmail = (id: number) => {
-    setTicked((prev) => new Set(prev).add(id))
-    setEmailEditorFor(id)
-  }
-
-  const closeEmailEditor = () => {
-    setEmailEditorFor(null)
-    requestAnimationFrame(() => panelRef.current?.focus())
-  }
-
-
-  const sendLabel = method === 'eml' ? 'Download .eml' : 'Copy & open'
+  const subjectTip = useTooltip('Copy subject')
+  const noTasksText = selected
+    ? (filtered ? 'No open tasks match Which tasks.' : `${selected.name} has no open tasks.`)
+    : ''
+  const optionId = (id: number) => `${titleId}-person-${id}`
 
   return (
-    <>
-      <DialogFrame
-        onClose={close}
-        layer="overlay"
-        initialFocus="panel"
-        escapeBelongsElsewhere={escapeBelongsElsewhere}
-        aria-labelledby={titleId}
-        // The status line is already there when the dialog opens with the
-        // reason a one-click send didn't go, so a live region wouldn't
-        // announce it: it describes the dialog, read as the focus lands.
-        aria-describedby={toast?.opening ? `${titleId}-toast` : undefined}
-        className={styles.dialog}
-        data={{ 'checkin-dialog': '' }}
-        panelRef={panelRef}
-      >
-        <div className={styles.header}>
-        <h2 id={titleId} className={styles.title}>Email task check-ins</h2>
+    <DialogFrame
+      onClose={close}
+      layer="overlay"
+      initialFocus={initialFocus}
+      aria-labelledby={titleId}
+      className={styles.dialog}
+      data={{ 'checkin-dialog': '' }}
+    >
+      <div className={styles.header}>
+        <h2 id={titleId} className={styles.title}>Task check-ins</h2>
         <button type="button" className={styles.closeBtn} aria-label="Close" onClick={close}>×</button>
-        </div>
+      </div>
 
-        <div className={styles.body}>
-        <section className={styles.group} aria-labelledby={`${titleId}-recipients`}>
-          <div id={`${titleId}-recipients`} className={styles.groupLabel}>
-            {filtered ? 'Recipients · their open tasks that match Which tasks' : 'Recipients · open tasks assigned to each'}
-          </div>
-          {recipients.length === 0 && <div className={styles.empty}>Nobody has open tasks assigned.</div>}
-          {recipients.map((p) => {
-            const email = hasEmail(p)
-            const checked = isChecked(p)
-            const count = countFor(p)
-            const sentAs = sent.get(p.id)
-            const inputId = `${titleId}-person-${p.id}`
-            return (
-              <div key={p.id} className={styles.row} data-checkin-row={p.id}>
-                <input
-                  id={inputId}
-                  type="checkbox"
-                  className={styles.checkbox}
-                  checked={checked}
-                  onChange={() => toggle(p.id)}
-                />
-                <span className={styles.avatar} style={{ background: p.color ?? NEUTRAL_PERSON_COLOR }} aria-hidden="true">
-                  {p.initials || p.name.slice(0, 2).toUpperCase()}
-                </span>
-                <label htmlFor={inputId} className={styles.who}>
-                  <span className={styles.name}>{p.name}</span>
-                  <span className={styles.email} title={addressLine(p)}>{addressLine(p)}</span>
-                </label>
-                <span className={styles.count} data-checkin-count="">{tasksLabel(count)}</span>
-                {!email && (
-                  <button type="button" className={styles.outlineBtn} aria-label={`${p.email ? 'Fix' : 'Add'} email for ${p.name}`} onClick={() => addEmail(p.id)}>
-                    {p.email ? 'Fix email' : 'Add email'}
-                  </button>
-                )}
-                {checked && (sentAs
-                  ? <span className={styles.sent}>{sentAs === 'opened' ? 'Opened ✓' : 'Downloaded ✓'}</span>
-                  : (
-                    <button
-                      type="button"
-                      className={styles.sendBtn}
-                      aria-label={`${sendLabel} for ${p.name}`}
-                      data-checkin-send={p.id}
-                      disabled={count === 0}
-                      title={count === 0 ? 'No open tasks match Which tasks' : undefined}
-                      onClick={() => { void send(p) }}
-                    >
-                      {sendLabel}
-                    </button>
-                  ))}
-              </div>
-            )
-          })}
-        </section>
+      <div className={styles.body}>
+        <div className={styles.side}>
+          <section className={styles.group}>
+            <div id={`${titleId}-people`} className={styles.groupLabel}>People</div>
+            {recipients.length === 0
+              ? <div className={styles.empty}>Nobody has open tasks assigned.</div>
+              : (
+                <div
+                  ref={listRef}
+                  role="listbox"
+                  tabIndex={0}
+                  className={styles.people}
+                  aria-labelledby={`${titleId}-people`}
+                  aria-activedescendant={selected ? optionId(selected.id) : undefined}
+                  onKeyDown={onListKeyDown}
+                  data-testid="checkin-people"
+                >
+                  {recipients.map((p) => {
+                    const isSelected = p.id === selected?.id
+                    return (
+                      <div
+                        key={p.id}
+                        id={optionId(p.id)}
+                        role="option"
+                        aria-selected={isSelected}
+                        className={`${styles.person} ${isSelected ? styles.personSelected : ''}`}
+                        data-checkin-row={p.id}
+                        onClick={() => select(p)}
+                      >
+                        <span className={styles.avatar} style={{ background: p.color ?? NEUTRAL_PERSON_COLOR }} aria-hidden="true">
+                          {p.initials || p.name.slice(0, 2).toUpperCase()}
+                        </span>
+                        <span className={styles.who}>
+                          <span className={styles.name}>{p.name}</span>
+                          <span className={styles.count} data-checkin-count="">
+                            {tasksLabel(countFor(p))}
+                            {copied.has(p.id) && <span className={styles.copiedMark}> · Copied ✓</span>}
+                          </span>
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+          </section>
 
-        <section className={styles.group} aria-labelledby={`${titleId}-filter`}>
-          <div id={`${titleId}-filter`} className={styles.groupLabel}>Which tasks · remembered for every check-in</div>
-          <div className={styles.filterLine} data-testid="checkin-filter">
-            <PredicateChips
-              predicate={filter}
-              onChange={(next) => { void useSettingsStore.getState().setCheckinTaskFilter(next) }}
-              addLabel="Add a filter to the check-in"
-              layout="stack"
-              allowDone={false}
-              omitFields={CHECKIN_OMIT_FIELDS}
-              dateHost={CHECKIN_DATE_HOST}
-              inDialog
-              before={filtered ? undefined : <span className={styles.noFilter}>All open tasks</span>}
-            />
-          </div>
-        </section>
+          <section className={styles.group} aria-labelledby={`${titleId}-filter`}>
+            <div id={`${titleId}-filter`} className={styles.groupLabel}>Which tasks · remembered for every check-in</div>
+            <div className={styles.filterLine} data-testid="checkin-filter">
+              <PredicateChips
+                predicate={filter}
+                onChange={(next) => { void useSettingsStore.getState().setCheckinTaskFilter(next) }}
+                addLabel="Add a filter to the check-in"
+                layout="stack"
+                allowDone={false}
+                omitFields={CHECKIN_OMIT_FIELDS}
+                dateHost={CHECKIN_DATE_HOST}
+                inDialog
+                before={filtered ? undefined : <span className={styles.noFilter}>All open tasks</span>}
+              />
+            </div>
+          </section>
 
-        <div className={styles.options}>
-          <div className={styles.group}>
+          <section className={styles.group}>
             <div className={styles.groupLabel}>Include</div>
             <label className={styles.check}>
               <input type="checkbox" checked={includeNotes} onChange={(e) => setIncludeNotes(e.target.checked)} />
@@ -303,62 +255,73 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
               <input type="checkbox" checked={includeOthers} onChange={(e) => setIncludeOthers(e.target.checked)} />
               Other people on the task
             </label>
-          </div>
-          <div className={styles.group} role="radiogroup" aria-label="How to open it">
-            <div className={styles.groupLabel}>How to open it · saved in Settings</div>
-            {CHECKIN_OPEN_METHOD_OPTIONS.map((o) => (
-              <label key={o.method} className={styles.radio}>
-                <input
-                  type="radio"
-                  name={`${titleId}-method`}
-                  value={o.method}
-                  checked={method === o.method}
-                  onChange={() => { void useSettingsStore.getState().setCheckinOpenMethod(o.method) }}
-                />
-                <span className={styles.radioText}>
-                  {o.label}
-                  <span className={styles.help}>{o.help}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
+          </section>
         </div>
 
-        <div className={styles.toastSlot} role="status" aria-live="polite">
-        {toast && (
-          <div className={`${styles.toast} ${toast.error ? styles.toastError : ''}`} data-checkin-toast="">
-            <span className={styles.toastDot} aria-hidden="true" />
-            <span id={`${titleId}-toast`}>{toast.text}</span>
+        <div className={styles.message} data-testid="checkin-message">
+          {selected && prepared && (
+            <>
+              <div className={styles.subjectLine}>
+                <span className={styles.groupLabel}>Subject</span>
+                <span className={styles.subject} data-testid="checkin-subject">{prepared.email.subject}</span>
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  aria-label="Copy subject"
+                  disabled={!hasTasks}
+                  {...subjectTip.triggerProps}
+                  onClick={() => { void copySubject() }}
+                >
+                  <CopyIcon size={14} />
+                </button>
+                {subjectTip.tooltip}
+              </div>
+              {hasTasks
+                ? (
+                  <iframe
+                    className={styles.frame}
+                    title={`Check-in for ${selected.name}`}
+                    sandbox=""
+                    // Out of the Tab order: keys inside a frame never reach the dialog's
+                    // focus trap, so a Tab out of it would leave the dialog.
+                    tabIndex={-1}
+                    srcDoc={previewDocument(prepared.email.html)}
+                  />
+                )
+                : <div className={styles.noTasks} data-testid="checkin-no-tasks">{noTasksText}</div>}
+            </>
+          )}
+          <div className={styles.copyRow}>
+            <button
+              ref={copyRef}
+              type="button"
+              className={styles.copyBtn}
+              aria-label="Copy message"
+              disabled={!hasTasks}
+              data-checkin-copy=""
+              onClick={() => { void copy() }}
+            >
+              <CopyIcon size={14} />
+              Copy
+            </button>
           </div>
-        )}
         </div>
+      </div>
 
-        <div className={styles.footer}>
-        <span className={styles.hint}>One message per person, opened one at a time.</span>
+      <div className={styles.footer}>
+        <div className={styles.status} role="status" aria-live="polite">
+          {status && (
+            <span className={status.error ? styles.statusError : undefined} data-checkin-status="">{status.text}</span>
+          )}
+        </div>
         <button type="button" className={styles.linkBtn} onClick={() => openImport()}>Paste a reply…</button>
-        <button type="button" className={styles.footerBtn} disabled={checkedPeople.length === 0} onClick={() => setPreviewOpen(true)}>
-          Preview email
-        </button>
-        <button type="button" className={styles.footerBtn} data-checkin-done="" onClick={close}>Done</button>
-        </div>
-      </DialogFrame>
-
-      {emailEditorFor !== null && <PeopleEditor editPersonId={emailEditorFor} onClose={closeEmailEditor} />}
-      {previewOpen && checkedPeople.length > 0 && (
-        <CheckinPreview
-          people={checkedPeople}
-          build={buildPreview}
-          onClose={() => setPreviewOpen(false)}
-        />
-      )}
-    </>
+        <button type="button" className={styles.footerBtn} onClick={close}>Done</button>
+      </div>
+    </DialogFrame>
   )
 }
 
-const PREVIEW_SIZE = { width: 'min(760px, calc(100vw - 32px))', maxWidth: 'none' } as const
-
-/** The email as a full HTML document for the preview frame: no scripts, nothing fetched. */
+/** The message as a full HTML document for the frame: no scripts, nothing fetched. */
 function previewDocument(html: string): string {
   return [
     '<!DOCTYPE html><html><head><meta charset="utf-8">',
@@ -366,47 +329,4 @@ function previewDocument(html: string): string {
     '<style>body{margin:0;padding:20px 24px;background:#ffffff;color:#242424}</style>',
     `</head><body>${html}</body></html>`,
   ].join('')
-}
-
-/**
- * "Preview email": a ticked person's email rendered in a sandboxed frame
- * (no scripts, its own origin), with a picker when several are ticked.
- */
-function CheckinPreview({ people, build, onClose }: {
-  people: PersistedPerson[]
-  build: (p: PersistedPerson) => CheckinEmail
-  onClose: () => void
-}) {
-  const [personId, setPersonId] = useState(people[0]?.id)
-  const person = people.find((p) => p.id === personId) ?? people[0]
-  const email = useMemo(() => (person ? build(person) : null), [person, build])
-  const selectId = useId()
-  if (!person || !email) return null
-  return (
-    <Dialog open onClose={onClose} title="Preview email" size="lg" className={styles.preview} style={PREVIEW_SIZE}>
-      <div className={styles.previewMeta}>
-        {people.length > 1 && (
-          <label className={styles.previewPick} htmlFor={selectId}>
-            For
-            <select id={selectId} value={person.id} onChange={(e) => setPersonId(Number(e.target.value))}>
-              {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </label>
-        )}
-        <div>
-          <span className={styles.previewKey}>To</span> {email.to === '' ? `${person.name} (no address)` : <>{person.name} &lt;{email.to}&gt;</>}
-        </div>
-        <div><span className={styles.previewKey}>Subject</span> {email.subject}</div>
-      </div>
-      <iframe
-        className={styles.previewFrame}
-        title={`Check-in email for ${person.name}`}
-        sandbox=""
-        srcDoc={previewDocument(email.html)}
-      />
-      <div className={styles.previewActions}>
-        <button type="button" className={styles.footerBtn} onClick={onClose}>Close</button>
-      </div>
-    </Dialog>
-  )
 }

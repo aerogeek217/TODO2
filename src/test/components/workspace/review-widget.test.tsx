@@ -250,14 +250,14 @@ describe('the Review widget: its field', () => {
 describe('the Review widget: the check-in buttons', () => {
   it('only while the filter names only people', () => {
     renderAt('large')
-    expect(screen.queryByRole('button', { name: 'Email check-in' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Check-in' })).toBeNull()
     setFilter(person(1))
-    expect(screen.getByRole('button', { name: 'Email check-in' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check-in' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Paste reply' })).toBeInTheDocument()
     setFilter({ kind: 'or', items: [person(1), person(2)] })
-    expect(screen.getByRole('button', { name: 'Email check-in' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check-in' })).toBeInTheDocument()
     setFilter({ kind: 'and', items: [person(1), { kind: 'tag', id: 1 }] })
-    expect(screen.queryByRole('button', { name: 'Email check-in' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Check-in' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Paste reply' })).toBeNull()
   })
 
@@ -270,14 +270,27 @@ describe('the Review widget: the check-in buttons', () => {
     expect(openCheckinImport).toHaveBeenCalledWith({ personId: 2 })
   })
 
-  it('several: Email opens a menu of them; Paste reply opens the import (the reply names its person)', () => {
+  it('one person: Check-in opens the check-in dialog for them; nothing is copied or sent', () => {
+    const openCheckinDialog = vi.fn()
+    useUIStore.setState({ openCheckinDialog })
+    renderAt('large')
+    setFilter(person(2))
+    const button = screen.getByRole('button', { name: 'Check-in' })
+    expect(button).toHaveAttribute('aria-haspopup', 'dialog')
+    fireEvent.click(button)
+    expect(openCheckinDialog).toHaveBeenCalledWith([2])
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('several: Check-in opens the dialog for all of them (no menu), the first selected there; Paste reply opens the import (the reply names its person)', () => {
+    const openCheckinDialog = vi.fn()
     const openCheckinImport = vi.fn()
-    useUIStore.setState({ openCheckinImport })
+    useUIStore.setState({ openCheckinDialog, openCheckinImport })
     renderAt('large')
     setFilter({ kind: 'or', items: [person(1), person(2)] })
-    fireEvent.click(screen.getByRole('button', { name: 'Email check-in' }))
-    const menu = screen.getByRole('menu', { name: 'Email check-in' })
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Email check-in to Aisha', 'Email check-in to Ben'])
+    fireEvent.click(screen.getByRole('button', { name: 'Check-in' }))
+    expect(openCheckinDialog).toHaveBeenCalledWith([1, 2])
+    expect(screen.queryByRole('menu')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Paste reply' }))
     expect(openCheckinImport).toHaveBeenCalledWith(undefined)
   })

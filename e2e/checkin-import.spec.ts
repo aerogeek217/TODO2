@@ -27,7 +27,7 @@ const RUNBOOK_NOTES = [
 // last modified before the email's send date (2026-10-12).
 const modifiedAt = '2026-10-10T15:30'
 const seed: WorkspaceSeed = {
-  people: [{ name: 'Marcus Chen', email: 'marcus.chen@example.com' }],
+  people: ['Marcus Chen'],
   listDefinitions: [{ name: 'All' }],
   tasks: [
     {

@@ -58,7 +58,7 @@ type FieldPanel =
        * `clearSearch` empties the search box (a pick clears it).
        */
       items: (searchText: string, closeAll: () => void, clearSearch: () => void) => ReactNode
-      /** Below the items (the People picker's Email check-in action); `closeAll` closes every filter popover. */
+      /** Below the items (the People picker's Review action); `closeAll` closes every filter popover. */
       footer?: (closeAll: () => void) => ReactNode
     }
   | {

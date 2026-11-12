@@ -157,7 +157,7 @@ describe('TaskDialog', () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     open(personTaskDialog(priya))
     expect(within(dialog()!).queryByRole('group', { name: 'Actions for Priya Nair' })).toBeNull()
-    expect(within(dialog()!).queryByRole('button', { name: /Email check-in|Paste reply/ })).toBeNull()
+    expect(within(dialog()!).queryByRole('button', { name: /Check-in|Paste reply/ })).toBeNull()
     const footerButtons = Array.from(dialog()!.querySelectorAll('[class*="footer"] button')).map((b) => b.textContent)
     expect(footerButtons).toEqual(['Copy tasks', 'CloseEsc'])
   })
@@ -175,9 +175,9 @@ describe('TaskDialog', () => {
     await vi.waitFor(() => expect(useListWidgetStore.getState().reviewFilters.rv).toEqual({ expression: { kind: 'person', id: priya.id }, showCompleted: false }))
   })
 
-  it('other dialogs have no Email check-in', () => {
+  it('other dialogs have no Check-in', () => {
     open(HOT)
-    expect(within(dialog()!).queryByRole('button', { name: /Email check-in/ })).toBeNull()
+    expect(within(dialog()!).queryByRole('button', { name: /Check-in/ })).toBeNull()
   })
 })
 
@@ -197,7 +197,7 @@ describe('TaskDialog — the screen filter’s tasks (a phone)', () => {
     fireEvent.click(filters)
     expect(filters).toHaveAttribute('aria-expanded', 'true')
     // Footer: Copy tasks and Close only.
-    expect(within(dialog()!).queryByRole('button', { name: 'Email check-in' })).toBeNull()
+    expect(within(dialog()!).queryByRole('button', { name: 'Check-in' })).toBeNull()
   })
 
   it('rows resolve again when the screen filter changes, and stay fixed between changes', () => {

@@ -36,10 +36,8 @@ export const SETTING_KEYS = {
    * Absent = the default (3 days).
    */
   urgentDueWithinDays: 'urgentDueWithinDays',
-  /** How a check-in email opens: `mailto` (open, then paste) or `eml` (download a draft). Absent = `mailto`. */
-  checkinOpenMethod: 'checkinOpenMethod',
   /**
-   * Which of a person's open tasks a check-in email covers: JSON of a list
+   * Which of a person's open tasks a check-in covers: JSON of a list
    * predicate without a people filter (`data/checkin-filter-shape`).
    * Absent = no filter (all their open tasks).
    */

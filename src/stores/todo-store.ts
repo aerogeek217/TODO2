@@ -52,10 +52,6 @@ export interface MarkFollowedUpOptions {
    * next follow-up after it is kept, else it + the Settings interval.
    */
   at?: Date
-  /** The undo entry's name (default `Followed up · next follow-up …`, {@link followedUpName}). */
-  description?: string
-  /** The undo snackbar's second line. */
-  detail?: string
 }
 
 /**
@@ -180,8 +176,7 @@ interface TodoState {
    * today is kept (not written), one today / past / none gets the automatic
    * rule (`autoNextFollowup`: today + the Settings interval, or none while
    * that is off) — `nextAfterFollowup`. One undo step with the undo snackbar
-   * — `description` names it (default {@link followedUpName}), `detail` is
-   * the snackbar's second line; undo restores only what was written, redo
+   * — named by {@link followedUpName}; undo restores only what was written, redo
    * re-applies the rule from its own now. The timestamps are resolved once
    * and shared by the store and the DB write.
    */
@@ -573,7 +568,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
   function followUp(ids: number[], options: MarkFollowedUpOptions, stamp?: StampChanges): Promise<void> {
     const targets = get().todos.filter((t) => ids.includes(t.id))
     if (targets.length === 0) return Promise.resolve()
-    const { description, detail } = options
     const now = new Date()
     const at = options.at ?? now
     // What every task not kept gets: the given date, else the automatic rule.
@@ -597,7 +591,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const write: Stamp = stamp ?? now
     const stampOf = new Map(targets.map((t) => [t.id, stampAfter(write, t.id, t.modifiedAt)]))
     const step: StampChanges = new Map(targets.map((t) => [t.id, { before: t.modifiedAt, after: stampOf.get(t.id) ?? now }]))
-    const name = description ?? followedUpName(targets.length, kept.size, next, now)
+    const name = followedUpName(targets.length, kept.size, next, now)
     return optimistic(
       () => set({
         todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...changesFor(t.id), modifiedAt: stampOf.get(t.id) ?? t.modifiedAt } : t)),
@@ -621,7 +615,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
       'Failed to mark tasks followed up',
       {
         description: name,
-        detail,
         // The same next follow-up when it was given; else the rule again, per
         // task, from the redo's now — with the step's stamp put back.
         redo: guardTasks(targetIds, (present) => followUp(present, options, step)),

@@ -5,7 +5,7 @@ import { checkinSampleStatusUpdates, checkinSampleTasks } from '../../fixtures/c
 import { makePerson } from '../../helpers'
 
 export const SENT_AT = new Date(2026, 9, 12, 9, 14)
-export const marcus = makePerson({ id: 1, name: 'Marcus Chen', email: 'marcus.chen@example.com' })
+export const marcus = makePerson({ id: 1, name: 'Marcus Chen' })
 
 /** The check-in email for the sample tasks (or `todos`), as sent on `sentAt`. */
 export function sampleEmail(

@@ -5,7 +5,7 @@ import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
 import { loadFresh, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { undoable } from './undoable'
-import { generateInitials, withEmail } from '../utils/person'
+import { generateInitials } from '../utils/person'
 
 interface PersonState {
   people: Person[]
@@ -15,8 +15,8 @@ interface PersonState {
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
-  /** Adds a person; `email` is stored trimmed and dropped when empty. */
-  add: (name: string, initials: string, color?: string, email?: string) => Promise<number>
+  /** Adds a person. */
+  add: (name: string, initials: string, color?: string) => Promise<number>
   /**
    * Lookup-or-create by name (the people counterpart of `useTagStore.add`):
    * an existing person whose name matches case-insensitively is reused;
@@ -24,7 +24,7 @@ interface PersonState {
    * and no color. Returns the person's id.
    */
   getOrCreate: (name: string) => Promise<number>
-  /** Replaces the person row; `email` is stored trimmed and dropped when empty. */
+  /** Replaces the person row. */
   update: (person: Person) => Promise<void>
   remove: (id: number) => Promise<void>
   /** Drops people the database no longer has (removed with their assignments) from the store and the assignment map. */
@@ -70,9 +70,9 @@ export const usePersonStore = create<PersonState>((set, get) => {
     },
     ensureLoaded: personEnsure,
 
-    add(name: string, initials: string, color?: string, email?: string) {
+    add(name: string, initials: string, color?: string) {
       return trackWrite(async () => {
-        const person = withEmail<Person>({ name, initials, ...(color ? { color } : {}) }, email)
+        const person: Person = { name, initials, ...(color ? { color } : {}) }
         const id = await personRepository.insert(person)
         set({ people: [...get().people, { ...person, id }] })
         return id
@@ -96,7 +96,7 @@ export const usePersonStore = create<PersonState>((set, get) => {
     },
 
     async update(input: Person) {
-      const person = withEmail(input, input.email)
+      const person = { ...input }
       const prev = get().people.find((p) => p.id === person.id)
       const applied = { ...person }
       const put = (p: Person) => set({

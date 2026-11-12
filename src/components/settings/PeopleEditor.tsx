@@ -3,7 +3,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonAssignmentsForLoadedTodos } from '../../hooks/use-entity-assignments-for-todos'
 import { countTodosByEntity } from '../../stores/assignment-helpers'
-import { generateInitials, isValidEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
+import { generateInitials } from '../../utils/person'
 import { ColorPicker } from '../shared/ColorPicker'
 import { DeletePersonConfirm } from './EntityDeleteConfirm'
 import type { Person } from '../../models'
@@ -20,57 +20,15 @@ interface PersonEditState {
   initials: string
   /** Undefined = no color (neutral avatar). */
   color: string | undefined
-  /** As typed; saved trimmed, empty = no email. */
-  email: string
-}
-
-const EMAIL_SHAPE_ERROR = "Doesn't look like an email address"
-
-/** Whether a typed email can be saved: empty, or shaped like an address. */
-function emailOk(value: string): boolean {
-  return value.trim() === '' || isValidEmail(value)
-}
-
-interface EmailFieldProps {
-  value: string
-  onChange: (value: string) => void
-  /** Show the shape error (after the field was left or a save was tried). */
-  showError: boolean
-  onBlur: () => void
-  errorId: string
-  autoFocus?: boolean
-}
-
-/** The optional email input; the shape error shows under the row. */
-function EmailField({ value, onChange, showError, onBlur, errorId, autoFocus }: EmailFieldProps) {
-  const invalid = showError && !emailOk(value)
-  return (
-    <input
-      type="email"
-      className={styles.editInputEmail}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={onBlur}
-      placeholder="Email (optional)"
-      aria-label="Email"
-      maxLength={PERSON_EMAIL_MAX}
-      aria-invalid={invalid || undefined}
-      aria-describedby={invalid ? errorId : undefined}
-      autoFocus={autoFocus}
-    />
-  )
 }
 
 interface PeopleEditorProps {
   onClose: () => void
   /**
-   * Open straight onto this person's edit row (e.g. "Add email" in the
-   * check-in dialog, a task row's avatar menu › Edit…); saving that row
-   * closes the editor.
+   * Open straight onto this person's edit row (a task row's avatar menu ›
+   * Edit…); saving that row closes the editor.
    */
   editPersonId?: number
-  /** The field focused on that row: `email` (default) or `name`. */
-  focusField?: 'name' | 'email'
   /** The modal's tier (`EditorModal`). */
   layer?: DialogLayer
 }
@@ -95,13 +53,11 @@ function PersonColorField({ color, onChange }: { color: string | undefined; onCh
   )
 }
 
-const EMAIL_ERROR_ID = 'person-email-error'
-
 function withColor(person: Omit<Person, 'color'>, color: string | undefined): Person {
   return color ? { ...person, color } : person
 }
 
-export function PeopleEditor({ onClose, editPersonId, focusField = 'email', layer }: PeopleEditorProps) {
+export function PeopleEditor({ onClose, editPersonId, layer }: PeopleEditorProps) {
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const { load: loadPeople, add: addPerson, update: updatePerson } = usePersonStore.getState()
@@ -117,9 +73,6 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [searchText, setSearchText] = useState('')
   const [nameError, setNameError] = useState('')
-  const [newEmail, setNewEmail] = useState('')
-  /** The email field was left (or a save was tried): its shape error may show. */
-  const [emailTouched, setEmailTouched] = useState(false)
 
   // Every task and its people, so each row can show its task count.
   useEffect(() => { loadPeople(); ensureTodosLoaded() }, [loadPeople, ensureTodosLoaded])
@@ -133,47 +86,40 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
     : undefined
   if (ontoPerson) {
     setOpenedOnto(editPersonId ?? null)
-    setEditing({ id: ontoPerson.id!, name: ontoPerson.name, initials: ontoPerson.initials, color: ontoPerson.color, email: ontoPerson.email ?? '' })
+    setEditing({ id: ontoPerson.id!, name: ontoPerson.name, initials: ontoPerson.initials, color: ontoPerson.color })
     setEditInitialsManual(true)
   }
-  const focusEmail = focusField === 'email' && editPersonId != null && editing?.id === editPersonId
 
   const clearState = () => {
     setEditing(null)
     setAdding(false)
     setDeleteId(null)
     setNameError('')
-    setEmailTouched(false)
   }
 
   // --- Person CRUD ---
 
   const startEditPerson = (p: Person) => {
     clearState()
-    setEditing({ id: p.id!, name: p.name, initials: p.initials, color: p.color, email: p.email ?? '' })
+    setEditing({ id: p.id!, name: p.name, initials: p.initials, color: p.color })
     setEditInitialsManual(true) // existing person already has initials, treat as manual until changed
   }
 
   const saveEditPerson = async () => {
     if (!editing || !editing.name.trim()) return
-    if (!emailOk(editing.email)) {
-      setEmailTouched(true)
-      return
-    }
     try {
-      await updatePerson(withEmail(withColor({
+      await updatePerson(withColor({
         id: editing.id,
         name: editing.name.trim(),
         initials: editing.initials || generateInitials(editing.name),
-      }, editing.color), editing.email))
-      // Opened onto this person (Add email, a menu's Edit…): saving it is what the editor was for.
+      }, editing.color))
+      // Opened onto this person (a menu's Edit…): saving it is what the editor was for.
       if (editing.id === editPersonId) {
         onClose()
         return
       }
       setEditing(null)
       setNameError('')
-      setEmailTouched(false)
     } catch (e) {
       setNameError((e as Error).message)
     }
@@ -186,20 +132,14 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
     setNewInitials('')
     setNewInitialsManual(false)
     setNewColor(undefined)
-    setNewEmail('')
   }
 
   const saveAddPerson = async () => {
     if (!newName.trim()) return
-    if (!emailOk(newEmail)) {
-      setEmailTouched(true)
-      return
-    }
     try {
-      await addPerson(newName.trim(), newInitials || generateInitials(newName), newColor, newEmail)
+      await addPerson(newName.trim(), newInitials || generateInitials(newName), newColor)
       setAdding(false)
       setNameError('')
-      setEmailTouched(false)
     } catch (e) {
       setNameError((e as Error).message)
     }
@@ -223,25 +163,16 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
       const ed = editing
       return (
         <div key={p.id}>
-          <div className={`${styles.editRow} ${styles.editRowWrap}`} onKeyDown={handleKeyDown(saveEditPerson, () => { setEditing(null); setNameError(''); setEmailTouched(false) })}>
+          <div className={styles.editRow} onKeyDown={handleKeyDown(saveEditPerson, () => { setEditing(null); setNameError('') })}>
             <PersonColorField color={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
-            <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }); setNameError('') }} placeholder="Name" autoFocus={!focusEmail} />
+            <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }); setNameError('') }} placeholder="Name" autoFocus />
             <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditInitialsManual(true); setEditing({ ...ed, initials: e.target.value.toUpperCase().slice(0, 2) }) }} placeholder="AB" />
             <div className={styles.editActions}>
               <button className={styles.saveBtn} onClick={saveEditPerson}>Save</button>
-              <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError(''); setEmailTouched(false) }}>Cancel</button>
+              <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
             </div>
-            <EmailField
-              value={ed.email}
-              onChange={(email) => setEditing({ ...ed, email })}
-              showError={emailTouched}
-              onBlur={() => setEmailTouched(true)}
-              errorId={EMAIL_ERROR_ID}
-              autoFocus={focusEmail}
-            />
           </div>
           {nameError && <div className={styles.errorHint}>{nameError}</div>}
-          {emailTouched && !emailOk(ed.email) && <div id={EMAIL_ERROR_ID} className={styles.errorHint}>{EMAIL_SHAPE_ERROR}</div>}
         </div>
       )
     }
@@ -250,7 +181,6 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
       <div key={p.id} className={styles.row}>
         <div className={styles.colorSwatch} style={{ background: p.color ?? NEUTRAL_PERSON_COLOR }} onClick={() => startEditPerson(p)} />
         <span className={styles.nameEditable} onClick={() => startEditPerson(p)}>{p.name}</span>
-        {p.email && <span className={styles.email} title={p.email}>{p.email}</span>}
         <span className={styles.initials}>{p.initials}</span>
         <TaskCount count={counts.get(p.id!) ?? 0} />
         <div className={styles.actions}>
@@ -294,24 +224,16 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
 
           {adding && (
             <div>
-              <div className={`${styles.editRow} ${styles.editRowWrap}`} onKeyDown={handleKeyDown(saveAddPerson, () => { setAdding(false); setNameError(''); setEmailTouched(false) })}>
+              <div className={styles.editRow} onKeyDown={handleKeyDown(saveAddPerson, () => { setAdding(false); setNameError('') })}>
                 <PersonColorField color={newColor} onChange={setNewColor} />
                 <input className={styles.editInput} value={newName} onChange={(e) => { setNewName(e.target.value); if (!newInitialsManual) setNewInitials(generateInitials(e.target.value)); setNameError('') }} placeholder="Name" autoFocus />
                 <input className={styles.editInputSmall} value={newInitials} onChange={(e) => { setNewInitialsManual(true); setNewInitials(e.target.value.toUpperCase().slice(0, 2)) }} placeholder="AB" />
                 <div className={styles.editActions}>
                   <button className={styles.saveBtn} onClick={saveAddPerson}>Add</button>
-                  <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError(''); setEmailTouched(false) }}>Cancel</button>
+                  <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
                 </div>
-                <EmailField
-                  value={newEmail}
-                  onChange={setNewEmail}
-                  showError={emailTouched}
-                  onBlur={() => setEmailTouched(true)}
-                  errorId={EMAIL_ERROR_ID}
-                />
               </div>
               {nameError && <div className={styles.errorHint}>{nameError}</div>}
-              {emailTouched && !emailOk(newEmail) && <div id={EMAIL_ERROR_ID} className={styles.errorHint}>{EMAIL_SHAPE_ERROR}</div>}
             </div>
           )}
           {!adding && (

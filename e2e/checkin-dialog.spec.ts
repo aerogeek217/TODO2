@@ -1,24 +1,20 @@
-import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { ADD_FILTER, openCheckinDialog, pickInReview, seedWorkspace, type WorkspaceSeed, wsRow, wsTab, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, pickInReview, seedWorkspace, type WorkspaceSeed, wsRow, wsTab } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
- * The email check-in dialog in a real browser: Copy & open puts the email
- * (rich HTML with each task's Ref) on the clipboard and opens a mailto: link
- * without the page unloading or the unsaved-layout prompt appearing; the
- * .eml method downloads an unsent draft; both record a follow-up that Undo
- * takes back. Which tasks is a filter line (no People) that narrows the row
- * counts at once and is remembered for the next dialog and the one-click
- * send (the Review widget's Email check-in).
+ * The check-in dialog in a real browser, reached from the Review widget's
+ * Check-in: the people on the left (one selected; ↑ / ↓ move it), the
+ * selected person's message on the right in a sandboxed frame, and Copy,
+ * which puts rich HTML + plain text on the clipboard and records nothing —
+ * no follow-up, no undo step. Nothing opens a mail app or a new page. Which
+ * tasks is a filter line (no People) that narrows the counts and the
+ * message at once and is remembered for the next dialog. Under 760px wide
+ * the dialog is one column.
  */
 
 const seed: WorkspaceSeed = {
-  people: [
-    { name: 'Ada Lovelace', email: 'ada@example.com' },
-    { name: 'Bob Stone', email: 'bob@example.com' },
-    'Cy Young',
-  ],
+  people: ['Ada Lovelace', 'Bob Stone', 'Cy Young'],
   listDefinitions: [{ name: 'Team' }],
   tasks: [
     { title: 'Overdue report', people: ['Ada Lovelace'], dueInDays: -2, notes: 'First line\n- a bullet' },
@@ -29,7 +25,7 @@ const seed: WorkspaceSeed = {
   layouts: [
     {
       name: 'Main',
-      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, { id: 'n1', kind: 'notes' }, { id: 'rv', kind: 'review' }] })] }],
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, { id: 'rv', kind: 'review' }] })] }],
     },
   ],
 }
@@ -43,135 +39,99 @@ async function readTasks(page: Page): Promise<TaskRow[]> {
 }
 
 const refOf = (uid: string) => uid.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8)
+const checkinDialog = (page: Page) => page.getByRole('dialog', { name: 'Task check-ins' })
+const checkinButton = (page: Page) => page.locator('[data-review-widget="rv"]').getByRole('button', { name: 'Check-in' })
 
-/** Records every anchor click (href / target / download) and still performs it. */
-async function recordAnchorClicks(page: Page) {
-  await page.addInitScript(() => {
-    const w = window as unknown as { __anchors: Array<{ href: string; target: string; download: string }> }
-    w.__anchors = []
-    const click = HTMLAnchorElement.prototype.click
-    HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
-      w.__anchors.push({ href: this.href, target: this.target, download: this.download })
-      return click.call(this)
-    }
-  })
+/** Opens the Review tab and narrows its field to `names`; then its Check-in. */
+async function openFromReview(page: Page, ...names: string[]) {
+  await wsTab(page, 'rv').click()
+  await pickInReview(page, 'rv', ...names)
+  await checkinButton(page).click()
+  const dialog = checkinDialog(page)
+  await expect(dialog).toBeVisible()
+  return dialog
 }
 
-const anchors = (page: Page) => page.evaluate(() => (window as unknown as { __anchors: Array<{ href: string; target: string; download: string }> }).__anchors)
-
-test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-changes prompt, follow-up + Undo', async ({ page, context }) => {
+test('from the Review widget: the person’s message in the dialog; Copy puts it on the clipboard and records nothing', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-  await recordAnchorClicks(page)
   await seedWorkspace(page, seed)
-  // The app never asks "Leave site?" (lists and layouts autosave): a page
-  // handler stands in for one, so an unload of the page would show — what the
-  // new-context link must not cause.
-  await page.evaluate(() => {
-    window.addEventListener('beforeunload', (e) => { e.preventDefault(); e.returnValue = '' })
-  })
-
-  const dialogs: string[] = []
-  page.on('dialog', (d) => { dialogs.push(d.type()); void d.dismiss() })
   const popups: string[] = []
   context.on('page', (p) => { popups.push(p.url()); void p.close().catch(() => {}) })
-  await page.evaluate(() => { (window as unknown as { __alive: boolean }).__alive = true })
 
-  const dialog = await openCheckinDialog(page)
-  const ada = dialog.locator('[data-checkin-row]').filter({ hasText: 'Ada Lovelace' })
-  await expect(ada).toContainText('2 tasks')
-  await ada.getByRole('checkbox').check()
-  await ada.getByRole('button', { name: 'Copy & open for Ada Lovelace' }).click()
-  await expect(ada).toContainText('Opened ✓')
-  await expect(dialog.getByRole('status')).toHaveText('Opened a message to Ada Lovelace <ada@example.com>. The body is on your clipboard: paste it with Ctrl+V.')
+  const dialog = await openFromReview(page, 'Ada')
+  const people = dialog.getByRole('listbox', { name: 'People' })
+  await expect(people.getByRole('option', { selected: true })).toContainText('Ada Lovelace')
+  await expect(people.getByRole('option', { selected: true })).toContainText('2 tasks')
+  await expect(dialog.getByTestId('checkin-subject')).toHaveText('Task check-in: 2 open tasks')
 
-  // The mailto: link went to a new browsing context: the page stayed, no prompt.
-  expect(await anchors(page)).toEqual([
-    { href: 'mailto:ada@example.com?subject=Task%20check-in%3A%202%20open%20tasks', target: '_blank', download: '' },
-  ])
-  // The page is the same one (a reload would have dropped `__alive`); this
-  // round trip also delivers any dialog the click opened before it.
-  expect(await page.evaluate(() => (window as unknown as { __alive?: boolean }).__alive)).toBe(true)
-  expect(dialogs).toEqual([])
-  await expect(page).toHaveURL(/#\/$/)
-  await expectLayoutStored(page)
-
-  // The clipboard holds the email: HTML with each task's ref, and plain text.
+  // The message, in the sandboxed frame.
   const tasks = await readTasks(page)
   const ref = (title: string) => refOf(tasks.find((t) => t.title === title)!.uid)
+  const frame = dialog.locator('iframe[title="Check-in for Ada Lovelace"]')
+  await expect(frame).toHaveAttribute('sandbox', '')
+  const body = page.frameLocator('iframe[title="Check-in for Ada Lovelace"]').locator('body')
+  await expect(body).toContainText(`Ref ${ref('Overdue report')}`)
+  await expect(body).toContainText(`Ref ${ref('Review plan')}`)
+  await expect(body).not.toContainText(`Ref ${ref('Bob only')}`)
+
+  // On open the focus is on Copy (Ada has tasks); Copy keeps it.
+  const copy = dialog.getByRole('button', { name: 'Copy message' })
+  await expect(copy).toBeFocused()
+  await copy.click()
+  await expect(copy).toBeFocused()
+  await expect(people.getByRole('option', { selected: true })).toContainText('Copied ✓')
+  await expect(dialog.getByRole('status')).toHaveText('Copied the check-in for Ada Lovelace. Paste it into your message.')
+
   const clip = await page.evaluate(async () => {
     const [item] = await navigator.clipboard.read()
     return { html: await (await item!.getType('text/html')).text(), plain: await (await item!.getType('text/plain')).text() }
   })
   expect(clip.html).toContain(`Ref ${ref('Overdue report')}`)
-  expect(clip.html).toContain(`Ref ${ref('Review plan')}`)
-  expect(clip.html).not.toContain(`Ref ${ref('Bob only')}`)
   expect(clip.html).toContain('Your update')
   expect(clip.plain).toContain(`1. Overdue report  Ref ${ref('Overdue report')}`)
   expect(clip.plain).toMatch(/Check-in for Ada Lovelace · sent \d{4}-\d{2}-\d{2}/)
 
-  // Sending recorded a follow-up on Ada's two tasks only; Undo takes it back.
-  await expect.poll(async () => (await readTasks(page)).filter((t) => t.lastFollowupAt).map((t) => t.title).sort())
-    .toEqual(['Overdue report', 'Review plan'])
-  await page.getByRole('button', { name: 'Undo' }).click()
-  await expect.poll(async () => (await readTasks(page)).filter((t) => t.lastFollowupAt).length).toBe(0)
+  // Nothing recorded, nothing to undo, nothing opened.
+  expect((await readTasks(page)).filter((t) => t.lastFollowupAt)).toEqual([])
+  await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0)
+  expect(popups).toEqual([])
+  await expect(page).toHaveURL(/#\/$/)
 
-  // Control: navigating the page itself to a mailto: link does trip the
-  // stand-in prompt — what the new-context link avoids.
-  await page.evaluate(() => {
-    const a = document.createElement('a')
-    a.href = 'mailto:x@example.com'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-  })
-  await expect.poll(() => dialogs).toEqual(['beforeunload'])
+  // Copy subject: the subject as plain text.
+  await dialog.getByRole('button', { name: 'Copy subject' }).click()
+  await expect(dialog.getByRole('status')).toHaveText('Copied the subject for Ada Lovelace.')
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Task check-in: 2 open tasks')
+
+  // Esc closes it; the focus goes back to the Check-in button.
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(checkinButton(page)).toBeFocused()
 })
 
-test('Download .eml: an unsent draft with both bodies; one click per person', async ({ page }) => {
+test('several people: the dialog lists them first, the first selected; ↑ / ↓ move the selection and the message follows', async ({ page }) => {
   await seedWorkspace(page, seed)
-  const dialog = await openCheckinDialog(page)
-  await dialog.getByRole('radio', { name: /Download draft \(\.eml\)/ }).check()
+  const dialog = await openFromReview(page, 'Bob', 'Ada')
+  const people = dialog.getByRole('listbox', { name: 'People' })
+  await expect(people.getByRole('option')).toHaveText([/Bob Stone/, /Ada Lovelace/, /Cy Young/])
+  await expect(people.getByRole('option', { selected: true })).toContainText('Bob Stone')
+  await expect(dialog.locator('iframe')).toHaveAttribute('title', 'Check-in for Bob Stone')
 
-  const ada = dialog.locator('[data-checkin-row]').filter({ hasText: 'Ada Lovelace' })
-  const bob = dialog.locator('[data-checkin-row]').filter({ hasText: 'Bob Stone' })
-  await ada.getByRole('checkbox').check()
-  await bob.getByRole('checkbox').check()
-
-  const downloadPromise = page.waitForEvent('download')
-  await ada.getByRole('button', { name: 'Download .eml for Ada Lovelace' }).click()
-  const download = await downloadPromise
-  expect(download.suggestedFilename()).toMatch(/^Check-in - Ada Lovelace - \d{4}-\d{2}-\d{2}\.eml$/)
-  const eml = await readFile((await download.path())!, 'utf8')
-  expect(eml).toMatch(/^X-Unsent: 1\r\n/)
-  expect(eml).toContain('To: "Ada Lovelace" <ada@example.com>\r\n')
-  expect(eml).toContain('Subject: Task check-in: 2 open tasks\r\n')
-  const parts = [...eml.matchAll(/Content-Transfer-Encoding: base64\r\n\r\n([A-Za-z0-9+/=\r\n]+?)\r\n--/g)]
-    .map((m) => Buffer.from(m[1]!.replace(/\r\n/g, ''), 'base64').toString('utf8'))
-  expect(parts).toHaveLength(2)
-  const tasks = await readTasks(page)
-  const overdueRef = refOf(tasks.find((t) => t.title === 'Overdue report')!.uid)
-  expect(parts[0]).toContain(`Ref ${overdueRef}`)
-  expect(parts[1]).toContain(`Ref ${overdueRef}`)
-  expect(parts[1]).toContain('<li')
-
-  await expect(ada).toContainText('Downloaded ✓')
-  // Focus moves on to the next person still to send.
-  await expect(bob.getByRole('button', { name: 'Download .eml for Bob Stone' })).toBeFocused()
-  await expect.poll(async () => (await readTasks(page)).filter((t) => t.lastFollowupAt).map((t) => t.title).sort())
-    .toEqual(['Overdue report', 'Review plan'])
+  await people.focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(people.getByRole('option', { selected: true })).toContainText('Ada Lovelace')
+  await expect(dialog.locator('iframe')).toHaveAttribute('title', 'Check-in for Ada Lovelace')
+  await expect(people).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(people.getByRole('option', { selected: true })).toContainText('Cy Young')
+  await people.getByRole('option', { name: /Bob Stone/ }).click()
+  await expect(dialog.locator('iframe')).toHaveAttribute('title', 'Check-in for Bob Stone')
 })
 
-test('Which tasks is a filter line: it narrows the counts, is remembered, and a one-click send uses it; Add email opens the person editor', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-  await recordAnchorClicks(page)
+test('Which tasks is a filter line: it narrows the counts and the message at once and is remembered', async ({ page }) => {
   await seedWorkspace(page, seed)
-  const dialog = await openCheckinDialog(page)
+  const dialog = await openFromReview(page, 'Ada')
   const row = (name: string) => dialog.locator('[data-checkin-row]').filter({ hasText: name })
   const count = (name: string) => row(name).locator('[data-checkin-count]')
-  const cy = row('Cy Young')
-  // No address: still tickable (the recipient is added in the mail app).
-  await expect(cy.getByRole('checkbox')).toBeEnabled()
-  await expect(cy).toContainText('No email address — add the recipient in your mail app')
 
   const line = dialog.getByTestId('checkin-filter')
   await expect(line).toContainText('All open tasks')
@@ -188,36 +148,46 @@ test('Which tasks is a filter line: it narrows the counts, is remembered, and a 
   await expect(count('Ada Lovelace')).toHaveText('1 task')
   await expect(count('Bob Stone')).toHaveText('1 task')
   await expect(count('Cy Young')).toHaveText('0 tasks')
+  await expect(dialog.getByTestId('checkin-subject')).toHaveText('Task check-in: 1 open task')
+  const body = page.frameLocator('iframe[title="Check-in for Ada Lovelace"]').locator('body')
+  await expect(body).toContainText('Review plan')
+  await expect(body).not.toContainText('Overdue report')
   await expect.poll(async () => (await readStore<{ key: string; value: string }>(page, 'settings'))
     .find((r) => r.key === 'checkinTaskFilter')?.value ?? '').toContain('"searchText":"review"')
 
-  await cy.getByRole('button', { name: 'Add email for Cy Young' }).click()
-  const email = page.getByRole('textbox', { name: 'Email' })
-  await expect(email).toBeFocused()
-  await email.fill('cy@example.com')
-  await page.keyboard.press('Enter')
-  await expect(cy).toContainText('cy@example.com')
-  await expect(cy.getByRole('checkbox')).toBeChecked()
+  // Cy has none that match: the message's place says so and Copy is off.
+  await row('Cy Young').click()
+  await expect(dialog.getByTestId('checkin-no-tasks')).toHaveText('No open tasks match Which tasks.')
+  await expect(dialog.getByRole('button', { name: 'Copy message' })).toBeDisabled()
 
   // Remembered: the next dialog, after a reload, has it.
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  const again = await openCheckinDialog(page)
+  const again = await openFromReview(page, 'Ada')
   await expect(again.getByTestId('checkin-filter').getByTestId('list-filter-chip')).toContainText('review')
   await expect(again.locator('[data-checkin-row]').filter({ hasText: 'Ada Lovelace' }).locator('[data-checkin-count]')).toHaveText('1 task')
-  await again.getByRole('button', { name: 'Done' }).click()
-  await expect(again).toHaveCount(0)
+})
 
-  // A one-click send (the Review widget's Email check-in, widget feedback 2B) uses it: the email holds that one task.
-  await wsTab(page, 'rv').click()
-  await pickInReview(page, 'rv', 'Ada')
-  await page.locator('[data-review-widget="rv"]').getByRole('button', { name: 'Email check-in' }).click()
-  await expect.poll(async () => (await anchors(page)).map((a) => a.href).filter((h) => h.startsWith('mailto:')))
-    .toEqual(['mailto:ada@example.com?subject=Task%20check-in%3A%201%20open%20task'])
-  const html = await page.evaluate(async () => {
-    const items = await navigator.clipboard.read()
-    return (await items[0]!.getType('text/html')).text()
-  })
-  expect(html).toContain('Review plan')
-  expect(html).not.toContain('Overdue report')
+test('two columns when wide; one column (people, options, then the message) under 760px', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 860 })
+  await seedWorkspace(page, seed)
+  const dialog = await openFromReview(page, 'Ada')
+  const people = dialog.getByRole('listbox', { name: 'People' })
+  const message = dialog.getByTestId('checkin-message')
+  let a = (await people.boundingBox())!
+  let b = (await message.boundingBox())!
+  expect(b.x).toBeGreaterThan(a.x + a.width - 1)
+  const box = (await dialog.boundingBox())!
+  expect(box.width).toBeLessThanOrEqual(980)
+
+  await page.setViewportSize({ width: 700, height: 860 })
+  a = (await people.boundingBox())!
+  b = (await message.boundingBox())!
+  expect(b.y).toBeGreaterThan(a.y + a.height - 1)
+  const narrow = (await dialog.boundingBox())!
+  expect(narrow.x).toBeGreaterThanOrEqual(15)
+  expect(narrow.x + narrow.width).toBeLessThanOrEqual(700 - 15)
+  // The message still shows, scrolled to inside the dialog.
+  await message.getByRole('button', { name: 'Copy message' }).scrollIntoViewIfNeeded()
+  await expect(message.getByRole('button', { name: 'Copy message' })).toBeInViewport()
 })

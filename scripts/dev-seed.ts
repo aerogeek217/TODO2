@@ -11,7 +11,7 @@
  * same file.
  *
  * Covers: ~145 work-like tasks, each of five projects a `Project: <name>`
- * tag (plus a few loose tasks); 12 people, most with an email, and 4
+ * tag (plus a few loose tasks); 12 people and 4
  * `Org: <name>` people; 10 plain tags; the seeded Assigned / Follow-up
  * statuses plus Waiting and Parked; due dates incl. overdue + today, some
  * pushed out (deadline history); next follow-ups incl. overdue and today,
@@ -56,7 +56,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 79
+export const DEV_SEED_SCHEMA_VERSION = 80
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -136,21 +136,21 @@ interface SettingRow {
 
 // ── Entities ────────────────────────────────────────────────────────────
 
-/** Name, initials, email domain (absent = no email), avatar color. */
+/** Name, initials, avatar color. */
 const PEOPLE = {
-  priya: ['Priya Shah', 'PS', 'example.com', '#4f8cff'],
-  marcus: ['Marcus Chen', 'MC', 'example.com'],
-  elena: ['Elena Rossi', 'ER', 'northwind.example'],
-  david: ['David Okafor', 'DO', 'northwind.example'],
-  sarah: ['Sarah Kim', 'SK', 'example.com', '#34c759'],
-  tom: ['Tom Becker', 'TB', 'example.com', '#d4a017'],
-  aisha: ['Aisha Rahman', 'AR', 'example.com'],
-  jonas: ['Jonas Weber', 'JW', 'example.com'],
-  laura: ['Laura Martinez', 'LM', 'example.com', '#d4a017'],
-  kenji: ['Kenji Watanabe', 'KW', 'bluefield.example', '#2bb3a3'],
-  nina: ['Nina Petrova', 'NP', undefined, '#2bb3a3'],
+  priya: ['Priya Shah', 'PS', '#4f8cff'],
+  marcus: ['Marcus Chen', 'MC'],
+  elena: ['Elena Rossi', 'ER'],
+  david: ['David Okafor', 'DO'],
+  sarah: ['Sarah Kim', 'SK', '#34c759'],
+  tom: ['Tom Becker', 'TB', '#d4a017'],
+  aisha: ['Aisha Rahman', 'AR'],
+  jonas: ['Jonas Weber', 'JW'],
+  laura: ['Laura Martinez', 'LM', '#d4a017'],
+  kenji: ['Kenji Watanabe', 'KW', '#2bb3a3'],
+  nina: ['Nina Petrova', 'NP', '#2bb3a3'],
   sam: ['Sam Taylor', 'ST'],
-} as const satisfies Record<string, readonly [string, string, (string | undefined)?, string?]>
+} as const satisfies Record<string, readonly [string, string, string?]>
 type PersonKey = keyof typeof PEOPLE
 
 /** Organisations, kept as `Org: <name>` people (a naming convention only). */
@@ -793,10 +793,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   const longAgo = iso(at(-200, 9))
   const people: Person[] = [
     ...personKeys.map((key, i): Person => {
-      const [name, initials, domain, color] = PEOPLE[key] as readonly [string, string, string?, string?]
+      const [name, initials, color] = PEOPLE[key] as readonly [string, string, string?]
       const row: Person = { id: i + 1, name, initials }
       if (color) row.color = color
-      if (domain) row.email = `${name.toLowerCase().replace(' ', '.')}@${domain}`
       return row
     }),
     ...orgKeys.map((key): Person => {
@@ -1027,7 +1026,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   const checkinFilter = filter({ statusIds: [IDS.statuses.parked], negate: { statusIds: true } })
   const settings: SettingRow[] = ([
     { key: 'activeLayoutId', value: String(IDS.layouts.default) },
-    { key: 'checkinOpenMethod', value: 'mailto' },
     { key: 'checkinTaskFilter', value: JSON.stringify(checkinFilter) },
     { key: 'color.dark.accent', value: '#4f8cff' },
     { key: 'color.dark.appBg', value: '#111110' },

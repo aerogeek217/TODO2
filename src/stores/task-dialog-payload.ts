@@ -37,6 +37,6 @@ export interface TaskDialogPayload {
   /** What is counted, in words. */
   description: string
   source: TaskDialogSource
-  /** A person's tasks: the footer offers `Email check-in` to that person. */
+  /** A person's tasks: the person whose tasks they are (their actions under the title). */
   personId?: number
 }

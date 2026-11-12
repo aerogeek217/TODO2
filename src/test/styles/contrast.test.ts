@@ -211,7 +211,7 @@ describe('a Lines tick (D25 I1) tells plain from stale', () => {
 
 /** Literal white is theme-blind: on the dark theme's light accent or danger fills it all but vanishes. */
 describe('no hard-coded white in component styles', () => {
-  // The check-in email preview is an email: white paper in either theme.
+  // The check-in message frame is an email: white paper in either theme.
   const ALLOWED = new Set(['components/checkin/CheckinDialog.module.css'])
 
   it('every white comes from a token', () => {

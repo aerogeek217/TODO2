@@ -398,11 +398,11 @@ describe('validateImportData', () => {
     if (result.ok) expect('color' in (result.data.people[0] ?? {})).toBe(false)
   })
 
-  describe('person email', () => {
-    it('keeps a valid address, trimmed', () => {
-      const result = validateImportData(validData({ people: [makePerson({ email: '  ann@example.com ' })] }))
+  describe('person fields', () => {
+    it('an email on a person (a hand-made file) is dropped as any key the row doesn’t have, without a warning', () => {
+      const result = validateImportData(validData({ people: [makePerson({ email: 'ann@example.com' })] }))
       if (!result.ok) throw new Error(result.error)
-      expect(result.data.people[0]!.email).toBe('ann@example.com')
+      expect('email' in result.data.people[0]!).toBe(false)
       expect(result.warnings).toEqual([])
     })
 
@@ -425,46 +425,13 @@ describe('validateImportData', () => {
         expect(validateImportData(validData({ people: [makePerson({ initials })] })).ok).toBe(false)
       }
     })
-
-    it('drops an email that is not one valid address, keeping the person, with a warning', () => {
-      const result = validateImportData(validData({
-        people: [
-          makePerson({ email: 'a@b.com,evil@x.com' }),
-          makePerson({ id: 2, name: 'Bo', email: 'not an address' }),
-          makePerson({ id: 3, name: 'Cy', email: 'cy@example.com' }),
-        ],
-      }))
-      if (!result.ok) throw new Error(result.error)
-      expect(result.data.people.map((p) => p.email)).toEqual([undefined, undefined, 'cy@example.com'])
-      expect('email' in result.data.people[0]!).toBe(false)
-      expect(result.warnings).toEqual(['Fixed 2 people: "Alice" (invalid email dropped); "Bo" (invalid email dropped)'])
-    })
-
-    it('drops an empty or blank email', () => {
-      const result = validateImportData(validData({
-        people: [makePerson({ email: '' }), makePerson({ id: 2, name: 'Bo', email: '   ' }), makePerson({ id: 3, name: 'Cy', email: null })],
-      }))
-      expect(result.ok).toBe(true)
-      if (result.ok) for (const p of result.data.people) expect('email' in p).toBe(false)
-    })
-
-    it('drops a non-string or over-long email instead of rejecting the file', () => {
-      for (const email of [42, true, ['a@b.co'], { at: 'b.co' }, `${'a'.repeat(250)}@b.co`]) {
-        const result = validateImportData(validData({ people: [makePerson({ email })] }))
-        if (!result.ok) throw new Error(result.error)
-        expect('email' in result.data.people[0]!, JSON.stringify(email)).toBe(false)
-        expect(result.warnings).toHaveLength(1)
-      }
-    })
   })
 
   describe('check-in settings', () => {
     const FILTER = JSON.stringify({ ...emptyPredicate(), markers: [{ values: ['focus'] }], tags: [2] })
 
-    it('accepts both open methods and a check-in filter', () => {
-      for (const [key, value] of [
-        ['checkinOpenMethod', 'mailto'], ['checkinOpenMethod', 'eml'], ['checkinTaskFilter', FILTER],
-      ]) {
+    it('accepts a check-in filter', () => {
+      for (const [key, value] of [['checkinTaskFilter', FILTER]]) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
         expect(result.ok, `${key}=${value}`).toBe(true)
         if (result.ok) expect(result.data.settings).toEqual([{ key, value }])
@@ -521,9 +488,11 @@ describe('validateImportData', () => {
       expect(result.warnings).toEqual(['Ignored 1 unrecognized setting: checkinTaskScope'])
     })
 
-    it('rejects other open methods', () => {
-      const result = validateImportData(validData({ settings: [{ key: 'checkinOpenMethod', value: 'outlook' }] }))
-      expect(result).toEqual({ ok: false, error: expect.stringContaining('checkinOpenMethod must be mailto or eml') })
+    it('the open method of older builds is an unknown setting in a current file (v80 deleted it)', () => {
+      const result = validateImportData(validData({ settings: [{ key: 'checkinOpenMethod', value: 'eml' }] }))
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.settings).toEqual([])
+      expect(result.warnings).toEqual(['Ignored 1 unrecognized setting: checkinOpenMethod'])
     })
   })
 

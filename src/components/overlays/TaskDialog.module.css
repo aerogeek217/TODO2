@@ -198,7 +198,7 @@
   color: var(--color-text-muted);
 }
 
-/* A person's Review · Email check-in · Paste reply…, under the title (D26 BD). */
+/* A person's actions (Review), under the title (D26 BD). */
 .personActions {
   display: flex;
   flex-wrap: wrap;

@@ -11,7 +11,6 @@ import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
 import { parseFollowupInterval } from '../utils/followup'
 import { parseUrgentDueWithinDays } from '../utils/urgency'
 import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcut-bindings'
-import { isCheckinOpenMethod } from '../utils/checkin-settings'
 import { parseStaleAfterDays } from '../utils/stale'
 import { isRowDates } from '../utils/row-dates'
 import { parsePurgePromptIntervalDays } from '../utils/completed-at'
@@ -22,7 +21,7 @@ import { isEmoji, isIconValue, pickIconValue } from '../models/icon'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
 import { formatLensesSetting, isLensId, readLensesSetting } from './lens-shape'
-import { isValidEmail, normalizeEmail, normalizeInitials } from '../utils/person'
+import { normalizeInitials } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -243,8 +242,6 @@ function checkPerson(v: unknown): CheckResult {
     ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['initials', isStr(v.initials, 4)],
     ['color', isOptColor(v.color)],
-    // `email` is not checked: one that isn't a single valid address is
-    // dropped by `pickPerson` (see `personEmail`), with a warning.
   ])
 }
 
@@ -432,9 +429,6 @@ function checkSetting(v: unknown): CheckResult {
       ? true
       : 'value (urgentDueWithinDays must be off or a day count 0–365)'
   }
-  if (v.key === SETTING_KEYS.checkinOpenMethod) {
-    return isCheckinOpenMethod(v.value) ? true : 'value (checkinOpenMethod must be mailto or eml)'
-  }
   if (v.key === SETTING_KEYS.newListSort) {
     return isTodoSortBy(v.value) ? true : 'value (newListSort must be a list sort)'
   }
@@ -560,23 +554,10 @@ function pickStatus(v: Raw): AllFields<Status> {
   } satisfies AllFields<Status>
 }
 
-/**
- * A person row's email as stored: trimmed, absent when empty, and dropped
- * when it isn't one valid address (`isValidEmail`) — a `,` or `;` in it
- * would add recipients to a check-in email. `dropped` when there was one.
- */
-function personEmail(v: unknown): { email: string | undefined; dropped: boolean } {
-  if (v === undefined || v === null) return { email: undefined, dropped: false }
-  const email = typeof v === 'string' ? normalizeEmail(v) : undefined
-  if (email === undefined) return { email: undefined, dropped: typeof v !== 'string' }
-  return isValidEmail(email) ? { email, dropped: false } : { email: undefined, dropped: true }
-}
-
 function pickPerson(v: Raw): AllFields<Person> {
   return {
     id: optNum(v.id), name: v.name as string, initials: normalizeInitials(v.initials as string, v.name as string),
     color: optStr(v.color),
-    email: personEmail(v.email).email,
   } satisfies AllFields<Person>
 }
 
@@ -854,7 +835,6 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
     fixer: {
       fixes: (row) => [
         ...(typeof row.initials === 'string' && normalizeInitials(row.initials, String(row.name)) !== row.initials ? ['initials normalised'] : []),
-        ...(personEmail(row.email).dropped ? ['invalid email dropped'] : []),
       ],
       lead: (n) => `Fixed ${plural(n, 'person', 'people')}`,
     },

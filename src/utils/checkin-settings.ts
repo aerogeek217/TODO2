@@ -5,24 +5,9 @@ import { withExpression } from './predicate-expression'
 import { predicatesEqual } from './list-def-equal'
 
 /**
- * Email check-in settings: how a check-in email is handed to the mail app,
- * and which of a person's open tasks it covers. Both are remembered in the
- * `settings` table (`checkinOpenMethod`, `checkinTaskFilter`).
+ * The check-in's setting: which of a person's open tasks it covers,
+ * remembered in the `settings` table (`checkinTaskFilter`).
  */
-
-/**
- * `mailto`: open a `mailto:` link (To + Subject) and put the body on the
- * clipboard to paste. `eml`: download an unsent `.eml` draft.
- */
-export type CheckinOpenMethod = 'mailto' | 'eml'
-
-export const CHECKIN_OPEN_METHODS: readonly CheckinOpenMethod[] = ['mailto', 'eml']
-
-export const DEFAULT_CHECKIN_OPEN_METHOD: CheckinOpenMethod = 'mailto'
-
-export function isCheckinOpenMethod(value: unknown): value is CheckinOpenMethod {
-  return (CHECKIN_OPEN_METHODS as readonly unknown[]).includes(value)
-}
 
 /**
  * Which of a person's open tasks a check-in covers: a list predicate,
@@ -169,9 +154,3 @@ export function isNoCheckinFilter(filter: CheckinTaskFilter): boolean {
 export function checkinFiltersEqual(a: CheckinTaskFilter, b: CheckinTaskFilter): boolean {
   return predicatesEqual(checkinFilterOf(a), checkinFilterOf(b))
 }
-
-/** The "How to open it" choices, as the check-in dialog and Settings show them. */
-export const CHECKIN_OPEN_METHOD_OPTIONS: ReadonlyArray<{ method: CheckinOpenMethod; label: string; help: string }> = [
-  { method: 'mailto', label: 'Open in mail app, then paste', help: 'To + Subject filled in; body copied. New and classic Outlook.' },
-  { method: 'eml', label: 'Download draft (.eml)', help: 'Opens ready to send in classic Outlook. No paste.' },
-]

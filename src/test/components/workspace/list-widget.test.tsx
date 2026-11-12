@@ -736,7 +736,7 @@ describe('ListWidget People group headers', () => {
 
   it('no group header has a check-in envelope (widget feedback 2B); the header still collapses its group', () => {
     setup(def({ grouping: 'people' }))
-    expect(screen.queryByRole('button', { name: /^Email check-in/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Check-in/ })).toBeNull()
     fireEvent.click(header('person-1'))
     expect(document.querySelector('[data-list-group="person-1"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(0)
   })
