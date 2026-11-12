@@ -79,7 +79,12 @@ export interface BreakdownConfig {
   oldestBy?: BreakdownOldestBy
   /** The none row (Unassigned / No tags / No status / No priority / No due date) shows. */
   showNone: boolean
-  /** Each person row has the check-in envelope (people only); stored only when true. */
+  /**
+   * Retired (widget feedback 2B, decision 7: the check-ins live on the Review
+   * widget's field): a config an earlier build wrote may still hold `true`.
+   * Read and kept, never acted on, never written by this build; schema v79
+   * drops it.
+   */
   checkins?: true
   /**
    * Its count columns (board BC): up to `BREAKDOWN_COLUMNS_MAX`, each a

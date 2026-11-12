@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { render, cleanup, fireEvent, screen, within, waitFor } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { WorkspaceCell } from '../../../components/workspace/WorkspaceCell'
 import { createCommands, type CommandContext } from '../../../services/command-registry'
@@ -9,26 +9,26 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useListOrderStore } from '../../../stores/list-order-store'
-import { useReviewStore } from '../../../stores/review-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
-import type { LayoutCell, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import { createTab, type LayoutCell, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { emptyPredicate } from '../../../models'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
-import { single } from '../../helpers/layout-builders'
+import { cell, grid } from '../../helpers/layout-builders'
 
 /**
- * A list tab's Review these N tasks (D26): the tab menu's item, the
- * shortcut (R) and the palette's Review List all open the deck on the tab's
- * tasks as shown — the list's filter and order, its group headers as
- * dividers.
+ * A list tab's Review these N tasks (widget feedback 2B): the tab menu's
+ * item, the shortcut (R) and the palette's Review List all jump to a Review
+ * widget with the list's filter as it shows its tasks — hidden while no
+ * layout has a Review widget.
  */
 
 const AT = new Date(2026, 0, 1)
-const CELL: LayoutCell = { id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 'mine', kind: 'lens', config: { listDefinitionId: 2 } }] }
+const LIST_CELL = cell('k', [{ id: 'mine', kind: 'lens', config: { listDefinitionId: 2 } }])
+const REVIEW_CELL = cell('rv-cell', [createTab('review', 'rv')])
 
 const def = (extra: Partial<PersistedListDefinition> = {}): PersistedListDefinition => ({
   id: 2, name: 'Aisha 1:1', sortOrder: 0, sort: 'manual', grouping: 'none',
@@ -39,13 +39,19 @@ function setList(extra: Partial<PersistedListDefinition> = {}) {
   useListDefinitionStore.setState({ listDefinitions: [def(extra)], loaded: true })
 }
 
+/** The open layout: the list beside a Review widget (or the list alone). */
+function setLayout(withReview: boolean) {
+  const body = withReview ? grid([[LIST_CELL, REVIEW_CELL]]) : grid([[LIST_CELL]])
+  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...body }
+  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
+}
+
 beforeEach(() => {
   resetEntityStores()
   clearFilterStore()
   useUIStore.setState(useUIStore.getInitialState(), true)
   useListOrderStore.setState({ ranks: new Map(), loaded: true })
-  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...single(CELL) }
-  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
+  setLayout(true)
   useStatusStore.setState({ statuses: [{ id: 1, name: 'Waiting', color: '#db5', sortOrder: 1 }, { id: 2, name: 'Doing', color: '#5b8', sortOrder: 2 }] })
   useTodoStore.setState({
     todos: [
@@ -61,7 +67,8 @@ beforeEach(() => {
 afterEach(cleanup)
 
 function showCell() {
-  render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
+  const listCell = useWorkspaceStore.getState().working?.cells.find((c) => c.id === 'k') as LayoutCell
+  render(<DndContext><WorkspaceCell cell={listCell} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
 }
 
 function openTabMenu(): HTMLElement {
@@ -70,42 +77,28 @@ function openTabMenu(): HTMLElement {
 }
 
 const paletteCommands = () => createCommands({ shortcuts: {} } as unknown as CommandContext)
+const reviewFilter = () => useListWidgetStore.getState().reviewFilters.rv
 
 describe('a list tab’s Review these N tasks', () => {
-  it('the tab menu offers it with the key, and opens the deck on the tasks as shown', () => {
+  it('the tab menu offers it with the key; it sets the Review widget’s filter to the list’s', async () => {
+    setList({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), statusIds: [1] } } })
     showCell()
-    const menu = openTabMenu()
-    const item = within(menu).getByRole('menuitem', { name: /Review these 3 tasks/ })
+    const item = within(openTabMenu()).getByRole('menuitem', { name: /Review these 2 tasks/ })
     expect(item).toHaveTextContent('R')
     fireEvent.click(item)
-    expect(useReviewStore.getState()).toMatchObject({
-      open: true,
-      source: { kind: 'list', title: 'Aisha 1:1', description: 'list · Manual' },
-      ids: [1, 2, 3],
-      dividers: [],
-      index: 0,
-    })
+    await waitFor(() => expect(reviewFilter()).toEqual({ expression: { kind: 'status', id: 1 }, showCompleted: false }))
   })
 
-  it('a grouped list: its groups as dividers, in the list’s order', () => {
-    setList({ grouping: 'status' })
+  it('a list that narrows by nothing: every open task (an empty filter)', async () => {
     showCell()
     fireEvent.click(within(openTabMenu()).getByRole('menuitem', { name: /Review these 3 tasks/ }))
-    const { ids, dividers } = useReviewStore.getState()
-    expect(ids).toEqual([2, 3, 1])
-    expect(dividers).toEqual([{ index: 0, label: 'Waiting' }, { index: 2, label: 'Doing' }])
+    await waitFor(() => expect(reviewFilter()).toEqual({ expression: { kind: 'and', items: [] }, showCompleted: false }))
   })
 
-  it('collapsed groups come along', () => {
-    setList({ grouping: 'status' })
+  it('counts the open tasks shown (a completed one it shows isn’t reviewed)', () => {
+    setList({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), showCompleted: true } } })
     showCell()
-    const waiting = Object.keys(useListWidgetStore.getState().shown).length > 0
-      ? useListWidgetStore.getState().shown.mine?.sections.find((s) => s.label === 'Waiting')?.key
-      : undefined
-    expect(waiting).toBeDefined()
-    useListWidgetStore.getState().setCollapsed('mine', [waiting!])
-    fireEvent.click(within(openTabMenu()).getByRole('menuitem', { name: /Review these 3 tasks/ }))
-    expect(useReviewStore.getState().ids).toEqual([2, 3, 1])
+    expect(within(openTabMenu()).getByRole('menuitem', { name: /Review these 3 tasks/ })).toBeInTheDocument()
   })
 
   it('one task: Review this task', () => {
@@ -120,6 +113,12 @@ describe('a list tab’s Review these N tasks', () => {
     expect(within(openTabMenu()).queryByRole('menuitem', { name: /Review/ })).toBeNull()
   })
 
+  it('no layout has a Review widget: no Review item', () => {
+    setLayout(false)
+    showCell()
+    expect(within(openTabMenu()).queryByRole('menuitem', { name: /Review/ })).toBeNull()
+  })
+
   it('the widget gone: its shown tasks go with it', () => {
     showCell()
     expect(useListWidgetStore.getState().shown.mine?.sections.flatMap((s) => s.todos.map((t) => t.id))).toEqual([1, 2, 3])
@@ -129,43 +128,54 @@ describe('a list tab’s Review these N tasks', () => {
 })
 
 describe('Review List: the shortcut and the palette', () => {
+  const press = () => {
+    let prevented = false
+    void SHORTCUT_HANDLERS['review-list']({ e: { key: 'r', shiftKey: false, preventDefault: () => { prevented = true } }, callbacks: { openPalette() {}, closePalette() {}, openSettings() {} } })
+    return prevented
+  }
+
   it('R by default, editable, not in text fields, blocked while the editor is open', () => {
     expect(shortcutSpec('review-list')).toMatchObject({ chord: [{ key: 'r' }], editable: true, blockedByEditPopup: true })
     expect(shortcutSpec('review-list').allowInInput).toBeUndefined()
   })
 
-  it('the palette offers Review List for the list on screen, with its name and count', () => {
+  it('the palette offers Review List for the list on screen, with its name and open tasks', () => {
     showCell()
     const command = paletteCommands().find((c) => c.id === 'review-list')
     expect(command).toMatchObject({ name: 'Review List', hint: 'Aisha 1:1 · 3 tasks', shortcut: 'R', category: 'task' })
   })
 
-  it('no Review List without a list on screen, or with one that shows nothing', () => {
+  it('no Review List without a list on screen, with one that shows nothing, or with no Review widget', () => {
     expect(paletteCommands().some((c) => c.id === 'review-list')).toBe(false)
     useTodoStore.setState({ todos: [] })
     showCell()
     expect(paletteCommands().some((c) => c.id === 'review-list')).toBe(false)
-  })
-
-  it('the key opens the deck on the list on screen', () => {
+    cleanup()
+    useTodoStore.setState({ todos: [makeTodo({ id: 1, sortOrder: 1 })] })
+    setLayout(false)
     showCell()
-    let prevented = false
-    void SHORTCUT_HANDLERS['review-list']({ e: { key: 'r', shiftKey: false, preventDefault: () => { prevented = true } }, callbacks: { openPalette() {}, closePalette() {}, openSettings() {} } })
-    expect(prevented).toBe(true)
-    expect(useReviewStore.getState()).toMatchObject({ open: true, ids: [1, 2, 3] })
+    expect(paletteCommands().some((c) => c.id === 'review-list')).toBe(false)
   })
 
-  it('the key with no list on screen does nothing (and leaves the key alone)', () => {
-    let prevented = false
-    void SHORTCUT_HANDLERS['review-list']({ e: { key: 'r', shiftKey: false, preventDefault: () => { prevented = true } }, callbacks: { openPalette() {}, closePalette() {}, openSettings() {} } })
-    expect(prevented).toBe(false)
-    expect(useReviewStore.getState().open).toBe(false)
+  it('the key jumps with the list on screen', async () => {
+    setList({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), statusIds: [2] } } })
+    showCell()
+    expect(press()).toBe(true)
+    await waitFor(() => expect(reviewFilter()).toEqual({ expression: { kind: 'status', id: 2 }, showCompleted: false }))
   })
 
-  it('the palette command runs the key’s handler', () => {
+  it('the key with no list on screen, or no Review widget, does nothing (and leaves the key alone)', () => {
+    expect(press()).toBe(false)
+    setLayout(false)
+    showCell()
+    expect(press()).toBe(false)
+    expect(reviewFilter()).toBeUndefined()
+  })
+
+  it('the palette command runs the key’s handler', async () => {
     useSettingsStore.setState({ shortcutOverrides: {} })
     showCell()
     paletteCommands().find((c) => c.id === 'review-list')?.action()
-    expect(useReviewStore.getState().open).toBe(true)
+    await waitFor(() => expect(reviewFilter()).toBeDefined())
   })
 })

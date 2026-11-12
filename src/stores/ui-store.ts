@@ -362,7 +362,7 @@ interface UIState {
   /** The check-in reply import dialog (`CheckinImportDialog`) is open. */
   checkinImportOpen: boolean
   /**
-   * The person the import was opened for (a person's `Paste reply from …`):
+   * The person the import was opened for (the Review widget's Paste reply, while its filter names one person):
    * who replied when the reply's footer names nobody of yours. `null`: none.
    */
   checkinImportPersonId: number | null

@@ -48,7 +48,7 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M6 8h4.5M6 10.5h4.5" />
     </>
   ),
-  // Review (item 12): the review deck's glyph — list lines and a play triangle.
+  // Review (item 12): the review's glyph — list lines and a play triangle.
   review: (
     <>
       <path d="M2.5 4h8M2.5 7.5h8M2.5 11h4" />
@@ -421,7 +421,7 @@ export function ReplyIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-/** Three list lines and a play triangle: the review deck (Review with X…) — step through these tasks. */
+/** Three list lines and a play triangle: a review (Review with X) — step through these tasks. */
 export function ReviewIcon({ size = 14 }: { size?: number }) {
   return (
     <Svg size={size} strokeWidth={1.5}>

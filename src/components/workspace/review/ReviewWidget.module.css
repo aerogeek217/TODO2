@@ -1,6 +1,6 @@
 /* The Review widget (item 12; widget feedback 2A, board Review-field): its top
  * line and its filter field (`ReviewFilterField`), its faces (large: the rail
- * beside the deck's card, its footer under the card; medium: the card's
+ * beside the card, its footer under the card; medium: the card's
  * essentials over the footer; small: the filter and what is left) and its
  * empty states. The rail, card and footer are `components/review`'s. */
 

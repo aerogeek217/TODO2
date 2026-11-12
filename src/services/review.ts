@@ -1,247 +1,38 @@
-import { emptyPredicate, type PersistedTodoItem, type Person, type Tag, type TodoPredicate } from '../models'
+import type { FilterExpr, Person, Tag, TodoPredicate } from '../models'
+import type { BreakdownColumn, BreakdownConfig } from '../models/chart-widgets'
 import { useFilterStore } from '../stores/filter-store'
-import { useListDefinitionStore } from '../stores/list-definition-store'
 import { listAsShownNow } from '../stores/list-draft-store'
-import { useListOrderStore } from '../stores/list-order-store'
-import { useListWidgetStore, type ShownListSection } from '../stores/list-widget-store'
-import { useReviewStore, type ReviewDivider, type ReviewQueue, type ReviewSourceKind } from '../stores/review-store'
-import { currentAppliedLens } from '../stores/screen-filter'
-import { useUIStore } from '../stores/ui-store'
-import type { TaskDialogPayload } from '../stores/task-dialog-payload'
-import { todoNameLookups } from '../utils/filter'
-import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
-import { createPredicateEvaluator, createScreenComposedEvaluator, type FilterSettings } from '../utils/filter-match'
-import { withLens } from '../utils/lens'
-import { bySortOrder } from '../utils/sort-order'
-import { buildList } from './build-list'
+import { useListWidgetStore, type ReviewFilter, type ShownListSection } from '../stores/list-widget-store'
+import { useTodoStore } from '../stores/todo-store'
+import { criteriaToPredicate } from '../utils/filter-criteria'
+import { normalizeExpression, wholeExpression } from '../utils/filter-expression'
+import { applyRuntimeFilter } from './build-list'
 import { zoomTargetTab } from './list-zoom'
-import { setReviewQueue } from './review-queue'
-import {
-  currentTaskDialogEnv,
-  personTaskDialog,
-  resolveTaskDialog,
-  tagTaskDialog,
-  type TaskDialogEnv,
-  type TaskDialogRowGroup,
-} from './task-dialog'
+import type { AgeBucket, BreakdownRow, DueBucket, PriorityGroupKey } from './stats/breakdown'
 
 /**
- * The review deck's entry point (D26): `openReview` with what to review,
- * built from a list tab as it shows its tasks (`listReview`), a person's
- * or a tag's open tasks as their task dialog lists them (`personReview`,
- * `tagReview`), or several people's together (`peopleReview`). Each source
- * can be taken again with or without the top bar's lens (item 10: the
- * deck's lens switch, `toggleReviewLens`).
+ * What each Review button sends to a Review widget (widget feedback 2B): a
+ * filter (`ReviewFilter`, the expression its field shows) built from where
+ * the button is — a list tab as it shows its tasks, a person, a tag, several
+ * people, a Breakdown row or one of its count columns, the top bar's filter.
+ * The jump itself is `services/review-jump`. Every filter is built as a tree
+ * of ids (`FilterExpr`), never as text: a name with spaces, quotes or
+ * parentheses prints as the field quotes it.
  */
 
-/**
- * How a source takes its queue again (item 10): whether the queue it gives
- * was taken without the top bar's lens (`ignored` — a list or a widget that
- * ignores it, a person's or a tag's tasks, which the screen filter never
- * narrowed), and the queue with or without it (`requery`).
- */
-export interface ReviewPayloadLens {
-  ignored: boolean
-  requery: (ignoreLens: boolean) => ReviewQueue
+/** The filter that keeps every open task (an `and` of nothing; it prints as an empty field). */
+const EVERY_TASK: FilterExpr = { kind: 'and', items: [] }
+
+/** `terms` ANDed (the absent ones left out) in normal form; null when none is left. */
+function allOf(terms: readonly (FilterExpr | null | undefined)[]): FilterExpr | null {
+  const items = terms.filter((t): t is FilterExpr => t != null)
+  if (items.length === 0) return null
+  return normalizeExpression(items.length === 1 && items[0] ? items[0] : { kind: 'and', items })
 }
 
-/** What a review opens on: its source in words, the tasks in queue order and the list's group headers. */
-export interface ReviewPayload {
-  kind: ReviewSourceKind
-  /** The source's name: the list's, the person's, `#tag`. */
-  title: string
-  description: string
-  ids: readonly number[]
-  dividers?: readonly ReviewDivider[]
-  /** How to take it again with / without the lens; absent: no lens switch in the deck. */
-  lens?: ReviewPayloadLens
-}
-
-/** How many tasks of `unlensed` the lens leaves out of `lensed` (the switch's `−N`). */
-function hiddenCount(unlensed: ReviewQueue, lensed: ReviewQueue): number {
-  const kept = new Set(lensed.ids)
-  return unlensed.ids.filter((id) => !kept.has(id)).length
-}
-
-/**
- * Opens the deck on `payload` (none, or no tasks: nothing happens — false).
- * Clears the selection, as the task dialog does: the deck acts on one task
- * at a time, never on the selection. The queue is the payload's, as its
- * source showed it; with a `lens`, the switch's `−N` is taken now.
- */
-export function openReview(payload: ReviewPayload | null): boolean {
-  if (!payload || payload.ids.length === 0) return false
-  const { kind, title, description, ids, dividers, lens } = payload
-  useUIStore.getState().clearSelection()
-  useReviewStore.getState().start({
-    source: { kind, title, description },
-    ids,
-    ...(dividers ? { dividers } : {}),
-    ...(lens ? { lens: { ...lens, used: false, hides: hiddenCount(lens.requery(true), lens.requery(false)) } } : {}),
-  })
-  return true
-}
-
-/**
- * The deck's lens switch (item 10): takes the queue again from its source
- * with the lens if it was ignored, else without it — the only change a
- * frozen queue takes besides a deleted task leaving it. The current card
- * stays while its task is still there, else the next one does; the sort,
- * marks and typed text stay (`services/review-queue.setReviewQueue`).
- */
-export function toggleReviewLens(): void {
-  const { lens, open } = useReviewStore.getState()
-  if (!open || !lens) return
-  const ignored = !lens.ignored
-  const queue = lens.requery(ignored)
-  setReviewQueue(useReviewStore, queue)
-  const hides = hiddenCount(ignored ? queue : lens.requery(true), ignored ? lens.requery(false) : queue)
-  useReviewStore.getState().setLens({ ...lens, ignored, hides, used: true })
-}
-
-/** The filter settings a task dialog env reads. */
-function settingsOf(env: TaskDialogEnv): FilterSettings {
-  return { ...env.markerSettings, weekStartsOn: env.weekStartsOn }
-}
-
-/** The chips of no screen filter (the lens alone composed under them). */
-const NO_CHIPS = predicateToCriteria(emptyPredicate())
-
-/**
- * A predicate's tasks in `sortOrder` (as a person's or a tag's task dialog
- * lists them): its open tasks — and, unless `ignoreLens`, only those the
- * top bar's lens keeps (the lens alone: a person's review never read the
- * chips).
- */
-function predicateQueue(predicate: TodoPredicate, ignoreLens: boolean): ReviewQueue {
-  const env = currentTaskDialogEnv()
-  const lens = ignoreLens ? undefined : currentAppliedLens()
-  const lookups = todoNameLookups(env)
-  const matches = lens
-    ? createScreenComposedEvaluator(withLens(NO_CHIPS, lens), lookups, env.today, settingsOf(env))
-    : createPredicateEvaluator(lookups, env.today, settingsOf(env))
-  return { ids: env.todos.filter((t) => matches(predicate, t)).sort(bySortOrder).map((t) => t.id) }
-}
-
-/** A predicate's review lens: taken without the lens (`ignored`), either way on a toggle. */
-function predicateLens(predicate: TodoPredicate): ReviewPayloadLens {
-  return { ignored: true, requery: (ignoreLens) => predicateQueue(predicate, ignoreLens) }
-}
-
-/**
- * List `listId` as list tab `tabId` shows it now — its filter as edited, its
- * prompt pick, the screen filter's chips, and the lens unless `ignoreLens` —
- * as a queue (`queueOfSections`, with its group headers when `grouped`).
- */
-export function listQueueNow(listId: number, tabId: string, grouped: boolean, ignoreLens: boolean): ReviewQueue {
-  const definition = listAsShownNow(listId)
-  if (!definition) return { ids: [] }
-  const env = currentTaskDialogEnv()
-  const { filters: chips, isActive } = useFilterStore.getState()
-  const lens = ignoreLens ? undefined : currentAppliedLens()
-  const screen = isActive || lens ? withLens(chips, lens) : undefined
-  const lookups = todoNameLookups(env)
-  const settings = settingsOf(env)
-  const list = buildList(definition, env.todos as PersistedTodoItem[], {
-    today: env.today,
-    weekStartsOn: env.weekStartsOn,
-    evalPredicate: screen ? createScreenComposedEvaluator(screen, lookups, env.today, settings) : createPredicateEvaluator(lookups, env.today, settings),
-    screenFilter: screen,
-    assignedTagsMap: env.assignedTagsMap,
-    assignedPeopleMap: env.assignedPeopleMap,
-    people: env.people,
-    statuses: env.statuses,
-    runtimeFilterValue: useListWidgetStore.getState().picks[tabId],
-    ranks: useListOrderStore.getState().ranks.get(listId),
-    urgentRange: env.markerSettings.urgentRange,
-  })
-  if (list.runtimeFilterUnset) return { ids: [] }
-  return queueOfSections(list.sections.map((s) => ({ key: s.key, label: s.label, todos: s.todos })), grouped)
-}
-
-/**
- * A list's sections as a queue: every task once, at its first place (a task
- * in several People groups), collapsed groups too; with group headers
- * (`grouped`), each group that adds a task is a divider before its first.
- */
-export function queueOfSections(sections: readonly ShownListSection[], grouped: boolean): { ids: number[]; dividers: ReviewDivider[] } {
-  const seen = new Set<number>()
-  const ids: number[] = []
-  const dividers: ReviewDivider[] = []
-  for (const section of sections) {
-    const start = ids.length
-    for (const t of section.todos) {
-      if (seen.has(t.id)) continue
-      seen.add(t.id)
-      ids.push(t.id)
-    }
-    if (grouped && ids.length > start) dividers.push({ index: start, label: section.label })
-  }
-  return { ids, dividers }
-}
-
-/** How many tasks a list tab's review would take (its shown tasks, each once); 0 while it isn't on screen. */
-export function listReviewCount(tabId: string): number {
-  const shown = useListWidgetStore.getState().shown[tabId]
-  return shown ? queueOfSections(shown.sections, false).ids.length : 0
-}
-
-/** A list tab's tasks as it shows them (`list-widget-store.shown`); null while it isn't on screen. */
-export function listReview(tabId: string): ReviewPayload | null {
-  const shown = useListWidgetStore.getState().shown[tabId]
-  if (!shown) return null
-  const { listId, grouped } = shown
-  const ignored = useListDefinitionStore.getState().listDefinitions.find((d) => d.id === listId)?.ignoreLens === true
-  return {
-    kind: 'list',
-    title: shown.label,
-    description: shown.description,
-    ...queueOfSections(shown.sections, grouped),
-    lens: { ignored, requery: (ignoreLens) => listQueueNow(listId, tabId, grouped, ignoreLens) },
-  }
-}
-
-/**
- * The list tab Review List acts on (the shortcut, the palette): the one on
- * screen the user was last in, as the zoom commands pick it
- * (`zoomTargetTab`), while it shows a task to review; else null.
- */
-export function reviewTargetTabId(): string | null {
-  const tab = zoomTargetTab()
-  return tab && listReviewCount(tab.id) > 0 ? tab.id : null
-}
-
-/**
- * A task dialog's row groups as a queue: every task once, at its first place;
- * when the groups have headings, each that adds a task is a divider before
- * its first (as a grouped list tab's review).
- */
-export function queueOfRowGroups(groups: readonly TaskDialogRowGroup[]): { ids: number[]; dividers: ReviewDivider[] } {
-  const seen = new Set<number>()
-  const ids: number[] = []
-  const dividers: ReviewDivider[] = []
-  for (const group of groups) {
-    const start = ids.length
-    for (const id of group.todoIds) {
-      if (seen.has(id)) continue
-      seen.add(id)
-      ids.push(id)
-    }
-    if (group.label != null && ids.length > start) dividers.push({ index: start, label: group.label })
-  }
-  return { ids, dividers }
-}
-
-/**
- * The screen filter's tasks now — the top bar's chips, and its lens unless
- * `ignoreLens` — as its filtered-tasks panel lists them (Settings' new-list
- * sort and grouping), as a queue.
- */
-export function screenQueueNow(ignoreLens: boolean): ReviewQueue {
-  const env = currentTaskDialogEnv()
-  const chips = useFilterStore.getState().filters
-  const screen = withLens(chips, ignoreLens ? undefined : currentAppliedLens())
-  return queueOfRowGroups(resolveTaskDialog({ kind: 'screen' }, { ...env, screen }))
+/** A Review widget's filter of `expression` (null: every open task). The widget reviews open tasks, so never `done`. */
+function reviewFilterOf(expression: FilterExpr | null): ReviewFilter {
+  return { expression: expression ?? EVERY_TASK, showCompleted: false }
 }
 
 /** A review entry point's label for `n` tasks: `Review these 8 tasks` (`Review this task` for one). */
@@ -249,114 +40,174 @@ export function reviewTasksLabel(n: number): string {
   return n === 1 ? 'Review this task' : `Review these ${n} tasks`
 }
 
-/** What the screen filter's review took, in one line (the deck's header). */
-export function screenReviewDescription(chips: FilterCriteria): string {
-  if (countActiveFilters(chips) === 0) return 'Every open task the top bar shows.'
-  return admitsCompleted(chips) ? 'Tasks matching the screen filter, completed ones included.' : 'Open tasks matching the screen filter.'
+// ── People and tags ─────────────────────────────────────────────────────────
+
+/** A person's open tasks: `@Name`. */
+export function personReviewFilter(person: Pick<Person, 'id'> & { id: number }): ReviewFilter {
+  return reviewFilterOf({ kind: 'person', id: person.id })
 }
 
-/** The screen filter's review's name in the deck's header: the panel's. */
-export const SCREEN_REVIEW_TITLE = 'Filtered tasks'
+/** A tag's open tasks: `#name`. */
+export function tagReviewFilter(tag: Pick<Tag, 'id'> & { id: number }): ReviewFilter {
+  return reviewFilterOf({ kind: 'tag', id: tag.id })
+}
+
+/** Several people's open tasks together: `@A or @B` (one person: `@A`). Null with none. */
+export function peopleReviewFilter(people: readonly Pick<Person, 'id'>[]): ReviewFilter | null {
+  const atoms = people.flatMap((p): FilterExpr[] => (p.id != null ? [{ kind: 'person', id: p.id }] : []))
+  if (atoms.length === 0) return null
+  return reviewFilterOf(normalizeExpression(atoms.length === 1 && atoms[0] ? atoms[0] : { kind: 'or', items: atoms }))
+}
+
+// ── A list tab ──────────────────────────────────────────────────────────────
+
+/** A list's sections as their tasks, each once, at its first place (a task in several People groups). */
+export function sectionTaskIds(sections: readonly ShownListSection[]): number[] {
+  const seen = new Set<number>()
+  for (const section of sections) for (const t of section.todos) seen.add(t.id)
+  return [...seen]
+}
+
+/** How many open tasks list tab `tabId` shows now (each once); 0 while it isn't on screen. */
+export function listReviewCount(tabId: string): number {
+  const shown = useListWidgetStore.getState().shown[tabId]
+  if (!shown) return 0
+  return openCount(sectionTaskIds(shown.sections))
+}
+
+/** How many of `ids` are open tasks. */
+export function openCount(ids: readonly number[]): number {
+  const open = new Set(useTodoStore.getState().todos.filter((t) => !t.isCompleted).map((t) => t.id))
+  return ids.filter((id) => open.has(id)).length
+}
 
 /**
- * The filtered-tasks panel's review (Review these N tasks): the tasks the
- * panel lists, in its order — `groups`, its rows as they are now (a task
- * completed there stays) — its headings the dividers; the deck's lens switch
- * takes them again from the screen filter with / without the lens.
+ * List tab `tabId`'s filter as it shows its tasks (J5): the list's whole
+ * filter as edited (its chips or its expression as one expression,
+ * `wholeExpression`), its prompt pick taking the place of that field's own
+ * term as the list applies it (`applyRuntimeFilter`). Its manual order and
+ * group dividers don't carry over. Null while the tab isn't on screen or its
+ * prompt waits for a pick.
  */
-export function screenReview(groups: readonly TaskDialogRowGroup[]): ReviewPayload {
+export function listReviewFilter(tabId: string): ReviewFilter | null {
+  const shown = useListWidgetStore.getState().shown[tabId]
+  if (!shown) return null
+  const definition = listAsShownNow(shown.listId)
+  if (!definition) return null
+  let predicate: TodoPredicate = definition.membership.predicate
+  if (definition.runtimeFilter) {
+    const pick = useListWidgetStore.getState().picks[tabId]
+    if (!pick || pick.length === 0) return null
+    predicate = applyRuntimeFilter(predicate, definition.runtimeFilter, pick)
+  }
+  return reviewFilterOf(wholeExpression(predicate))
+}
+
+/**
+ * The list tab Review List acts on (the shortcut, the palette): the one on
+ * screen the user was last in, as the zoom commands pick it
+ * (`zoomTargetTab`), while it shows an open task; else null.
+ */
+export function reviewTargetTabId(): string | null {
+  const tab = zoomTargetTab()
+  return tab && listReviewCount(tab.id) > 0 ? tab.id : null
+}
+
+// ── The top bar's filter ────────────────────────────────────────────────────
+
+/**
+ * The filtered-tasks panel's review: the top bar's chips and its text search
+ * as one expression. The lens is not part of it — the widget has its own
+ * lens switch.
+ */
+export function screenReviewFilter(): ReviewFilter {
+  return reviewFilterOf(wholeExpression(criteriaToPredicate(useFilterStore.getState().filters)))
+}
+
+// ── A Breakdown row ─────────────────────────────────────────────────────────
+
+/** A date range of `field`, each end a day offset from today (null: open). */
+function daysRange(field: 'deadline' | 'created', start: number | null, end: number | null): FilterExpr {
   return {
-    kind: 'screen',
-    title: SCREEN_REVIEW_TITLE,
-    description: screenReviewDescription(useFilterStore.getState().filters),
-    ...queueOfRowGroups(groups),
-    lens: { ignored: false, requery: screenQueueNow },
+    kind: 'date',
+    field,
+    match: {
+      match: 'range',
+      start: start == null ? null : { kind: 'offset', days: start },
+      end: end == null ? null : { kind: 'offset', days: end },
+    },
   }
 }
 
-/** Reviews list tab `tabId`'s tasks as shown (false: nothing to review). */
-export function reviewListTab(tabId: string): boolean {
-  return openReview(listReview(tabId))
+const URGENT: FilterExpr = { kind: 'priority', value: 'urgent' }
+const IMPORTANT: FilterExpr = { kind: 'priority', value: 'important' }
+const FOCUS: FilterExpr = { kind: 'priority', value: 'focus' }
+const not = (item: FilterExpr): FilterExpr => ({ kind: 'not', item })
+
+/** Each priority row: the Priority sort's exclusive groups (`utils/markers.priorityRank`). */
+const PRIORITY_TERMS: Record<PriorityGroupKey, FilterExpr> = {
+  focus: FOCUS,
+  urgentImportant: { kind: 'and', items: [URGENT, IMPORTANT, not(FOCUS)] },
+  urgent: { kind: 'and', items: [URGENT, not(IMPORTANT), not(FOCUS)] },
+  important: { kind: 'and', items: [IMPORTANT, not(URGENT), not(FOCUS)] },
+}
+
+/** Each due row (`services/stats/breakdown` `dueBucketOf`: days until due). */
+const DUE_TERMS: Record<DueBucket, FilterExpr> = {
+  overdue: daysRange('deadline', null, -1),
+  today: daysRange('deadline', 0, 0),
+  week: daysRange('deadline', 1, 7),
+  later: daysRange('deadline', 8, null),
+}
+
+/** Each age row (`ageBucketOf`: whole days since created). */
+const AGE_TERMS: Record<AgeBucket, FilterExpr> = {
+  week: daysRange('created', -6, null),
+  month: daysRange('created', -27, -7),
+  quarter: daysRange('created', -90, -28),
+  older: daysRange('created', null, -91),
 }
 
 /**
- * A predicate dialog's review: its tasks as the dialog lists them now (the
- * screen filter never narrowed them), with the lens switch off — a toggle
- * takes the tasks the lens keeps.
+ * A Breakdown row as a filter term — the tasks the row holds among the
+ * chart's (`services/stats/breakdown`): a person, a tag, a status, a
+ * priority group, a due or an age bucket, or the split's none row
+ * (Unassigned, No tags, No status, No priority, No due date). Every split's
+ * rows are expressible; null only for a row this build doesn't know.
  */
-function predicateReview(kind: ReviewSourceKind, title: string, dialog: TaskDialogPayload): ReviewPayload {
-  const { description, source } = dialog
-  if (source.kind !== 'predicate') return { kind, title, description, ids: [] }
-  return { kind, title, description, ids: predicateQueue(source.predicate, true).ids, lens: predicateLens(source.predicate) }
-}
-
-/** A person's open tasks, as their task dialog lists them (Review with X…). */
-export function personReview(person: Pick<Person, 'id' | 'name'>): ReviewPayload {
-  const dialog = personTaskDialog(person)
-  return predicateReview('person', dialog.title, dialog)
-}
-
-/** A tag's open tasks, as its task dialog lists them (Review #tag tasks…). */
-export function tagReview(tag: Pick<Tag, 'id' | 'name'>): ReviewPayload {
-  const dialog = tagTaskDialog(tag)
-  return predicateReview('tag', dialog.title, dialog)
-}
-
-/** Names as a phrase: `Aisha`, `Aisha and Ben`, `Aisha, Ben and Chen`. */
-function namesPhrase(names: readonly string[], last: 'and' | 'or'): string {
-  if (names.length <= 1) return names.join('')
-  return `${names.slice(0, -1).join(', ')} ${last} ${names.at(-1) ?? ''}`
+export function breakdownRowTerm(row: Pick<BreakdownRow, 'entity'>, splitBy: BreakdownConfig['splitBy']): FilterExpr | null {
+  const e = row.entity
+  switch (e.kind) {
+    case 'person': return { kind: 'person', id: e.person.id }
+    case 'tag': return { kind: 'tag', id: e.tag.id }
+    case 'status': return { kind: 'status', id: e.status.id }
+    case 'priority': return PRIORITY_TERMS[e.group]
+    case 'due': return DUE_TERMS[e.bucket]
+    case 'age': return AGE_TERMS[e.bucket]
+    case 'none':
+      switch (splitBy) {
+        case 'people': return { kind: 'person', id: 0 }
+        case 'tags': return { kind: 'tag', id: 0 }
+        case 'status': return { kind: 'status', id: 0 }
+        case 'priority': return { kind: 'priority', value: 'none' }
+        case 'due': return { kind: 'date', field: 'deadline', match: { match: 'unset' } }
+        default: return null
+      }
+  }
 }
 
 /**
- * Several people's open tasks together, each once (Review N people's
- * tasks…): the tasks any of them has, in the order a person's task dialog
- * lists tasks. One person is `personReview`.
+ * A Breakdown row's review (its Review button): the Breakdown's own filter
+ * AND the row; with `column` (a count column's count), AND that column's
+ * filter too. Null when the row can't be said as a filter (the caller then
+ * opens the task dialog instead).
  */
-export function peopleReview(people: readonly Pick<Person, 'id' | 'name'>[]): ReviewPayload {
-  const [only] = people
-  if (people.length === 1 && only) return personReview(only)
-  const personIds = people.flatMap((p) => (p.id != null ? [p.id] : []))
-  const names = people.map((p) => p.name)
-  const dialog: TaskDialogPayload = {
-    title: namesPhrase(names, 'and'),
-    glyph: 'people',
-    description: `Open tasks assigned to ${namesPhrase(names, 'or')}.`,
-    source: { kind: 'predicate', predicate: { ...emptyPredicate(), personIds } },
-  }
-  if (personIds.length === 0) return { kind: 'people', title: `${people.length} people`, description: dialog.description, ids: [] }
-  return predicateReview('people', `${people.length} people`, dialog)
-}
-
-/** `“A”`, `“A” and “B”`, `“A”, “B” and “C”`. */
-function quotedTitles(titles: readonly string[]): string {
-  const quoted = titles.map((t) => `“${t}”`)
-  return quoted.length <= 1 ? quoted.join('') : `${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1) ?? ''}`
-}
-
-/**
- * What closing the deck asks while tasks hold text not recorded yet:
- * `updates` — the titles of the tasks whose Status update line has text;
- * `nextDates` — those whose Next follow-up field has a date typed and not
- * set. The title counts both: `Discard the unrecorded update?` /
- * `Discard N unrecorded updates?`.
- */
-export function unrecordedReviewPrompt(
-  { updates, nextDates }: { updates: readonly string[]; nextDates: readonly string[] },
-): { title: string; message: string } {
-  const n = updates.length + nextDates.length
-  const parts: string[] = []
-  if (updates.length > 0) {
-    const one = updates.length === 1
-    parts.push(`${one ? 'the update typed for' : 'the updates typed for'} ${quotedTitles(updates)} ${one ? 'hasn’t' : 'haven’t'} been recorded`)
-  }
-  if (nextDates.length > 0) {
-    const one = nextDates.length === 1
-    parts.push(`${one ? 'a next follow-up date typed for' : 'the next follow-up dates typed for'} ${quotedTitles(nextDates)} ${one ? 'hasn’t' : 'haven’t'} been set`)
-  }
-  const sentence = parts.join(', and ')
-  return {
-    title: n === 1 ? 'Discard the unrecorded update?' : `Discard ${n} unrecorded updates?`,
-    message: `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}. Nothing is marked followed up.`,
-  }
+export function breakdownReviewFilter(
+  config: Pick<BreakdownConfig, 'filter' | 'splitBy'>,
+  row: Pick<BreakdownRow, 'entity'>,
+  column?: Pick<BreakdownColumn, 'filter'>,
+): ReviewFilter | null {
+  const term = breakdownRowTerm(row, config.splitBy)
+  if (!term) return null
+  return reviewFilterOf(allOf([wholeExpression(config.filter), term, column ? wholeExpression(column.filter) : null]))
 }

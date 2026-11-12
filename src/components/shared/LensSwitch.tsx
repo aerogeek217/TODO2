@@ -7,7 +7,7 @@ import styles from './LensSwitch.module.css'
  * The top bar's lens on one widget (G3, board BD — the list's switch, made
  * the standard): on — glasses and `−N`, what it hides here; off — slashed
  * glasses, muted. A click turns it off / on for this widget (saved at
- * once) — or for the review deck's queue (item 10). A toggle button: its
+ * once). A toggle button: its
  * name is fixed, `aria-pressed` its state. At the right end of the widget's
  * own header line, before the ⋯.
  *

@@ -122,12 +122,8 @@ export function useBreakdownData(base: StatsBase, config: BreakdownConfig): Brea
   return breakdownDataOf(base, config, appRanges)
 }
 
-/**
- * `useBreakdownData` outside a render (no hook inside): a Breakdown row's
- * tasks taken again over another base — the review deck's lens toggle
- * (item 10) on a row's review.
- */
-export function breakdownDataOf(base: StatsBase, config: BreakdownConfig, appRanges: TabBadgeRanges): BreakdownData {
+/** `useBreakdownData`'s work, with no hook inside. */
+function breakdownDataOf(base: StatsBase, config: BreakdownConfig, appRanges: TabBadgeRanges): BreakdownData {
   const count = numberCountOf(base, { filter: config.filter })
   const chart: ChartTasks = { count, tasks: tasksOfMemo(count.ids.shown, base.todoById) }
   const columns = columnsMemo(config, appRanges)

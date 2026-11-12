@@ -1,12 +1,13 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { createCommands, type Command, type CommandContext } from '../../services/command-registry'
 import { emptyPredicate } from '../../models/filter-predicate'
+import { createTab } from '../../models/workspace-layout'
 import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { useReviewStore } from '../../stores/review-store'
-import { usePersonStore } from '../../stores/person-store'
-import { useTodoStore } from '../../stores/todo-store'
-import { makePerson, makeTodo } from '../helpers'
+import { useListWidgetStore } from '../../stores/list-widget-store'
+import { useWorkspaceStore } from '../../stores/workspace-store'
+import { makePerson } from '../helpers'
+import { cell, grid } from '../helpers/layout-builders'
 import type { Lens } from '../../utils/lens'
 
 /**
@@ -135,6 +136,13 @@ describe('Review With ›', () => {
     getPeople: () => [zoe, idle, ada],
     getOpenTaskCounts: () => new Map([[1, 2], [2, 1]]),
   })
+  const T0 = new Date(0)
+  const withReviewWidget = (has: boolean) => {
+    const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: T0, modifiedAt: T0, ...grid([[cell('a', [createTab(has ? 'review' : 'notes', 'rv')])]]) }
+    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
+  }
+
+  beforeEach(() => withReviewWidget(true))
 
   it('each person with open tasks, by name, their count the hint', () => {
     const step = find(createCommands(ctx()), 'review-with')?.step ?? []
@@ -142,12 +150,13 @@ describe('Review With ›', () => {
     expect(step.map((c) => [c.name, c.hint])).toEqual([['Ada Lovelace', '2 open tasks'], ['Zoe Park', '1 open task']])
   })
 
-  it('a pick opens the review deck on the person’s open tasks; not offered while a deck is open', () => {
-    useTodoStore.setState({ todos: [makeTodo({ id: 10, title: 'Report' }), makeTodo({ id: 11, title: 'Other' })] })
-    usePersonStore.setState({ people: [ada], assignedPeopleMap: new Map([[10, [ada]]]) })
+  it('a pick jumps to the Review widget with @<name> as its filter', async () => {
     find(createCommands(ctx()), 'review-with')?.step?.[0]?.action()
-    expect(useReviewStore.getState()).toMatchObject({ open: true })
-    expect(useReviewStore.getState().source?.title).toContain('Ada Lovelace')
+    await vi.waitFor(() => expect(useListWidgetStore.getState().reviewFilters.rv).toEqual({ expression: { kind: 'person', id: 1 }, showCompleted: false }))
+  })
+
+  it('not offered while no layout has a Review widget', () => {
+    withReviewWidget(false)
     expect(find(createCommands(ctx()), 'review-with')).toBeUndefined()
   })
 

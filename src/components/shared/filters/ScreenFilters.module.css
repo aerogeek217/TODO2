@@ -311,9 +311,9 @@
   color: var(--color-text-primary);
 }
 
-/* ── People picker footer: Review, Email check-in ───────────────────────── */
+/* ── People picker footer: Review ───────────────────────── */
 
-.checkinAction {
+.reviewAction {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -331,17 +331,17 @@
   cursor: pointer;
 }
 
-.checkinAction:hover:not(:disabled),
-.checkinAction:focus-visible {
+.reviewAction:hover:not(:disabled),
+.reviewAction:focus-visible {
   background: var(--color-accent-bg-medium);
 }
 
-.checkinAction:disabled {
+.reviewAction:disabled {
   color: var(--color-text-muted);
   cursor: default;
 }
 
-.checkinHint {
+.reviewHint {
   padding: 7px 10px;
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);

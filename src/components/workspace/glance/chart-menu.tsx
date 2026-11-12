@@ -64,7 +64,7 @@ function breakdownEntries(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEn
   const entries: MenuEntry[] = [
     { kind: 'item', label: 'Edit breakdown…', onSelect: () => openChartEditor(tab.id) },
     settingEntry('Split by', SPLIT_CHOICES, config.splitBy,
-      (splitBy) => ws().patchTabConfig(tab.id, 'breakdown', splitBy === 'people' ? { splitBy } : { splitBy, checkins: undefined })),
+      (splitBy) => ws().patchTabConfig(tab.id, 'breakdown', { splitBy })),
     settingEntry('Style', BREAKDOWN_STYLES.map((s) => ({ value: s, label: STYLE_LABELS[s] })), config.style,
       (style) => ws().patchTabConfig(tab.id, 'breakdown', { style })),
     sortEntry(tab),

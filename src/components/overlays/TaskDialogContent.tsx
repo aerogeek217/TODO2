@@ -19,16 +19,15 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
 import type { FilterCriteria } from '../../utils/filter-criteria'
 import { useUIStore } from '../../stores/ui-store'
-import { useReviewStore } from '../../stores/review-store'
 import { startOfToday } from '../../utils/date'
 import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
 import { TaskRowGrid } from '../task/TaskRowGrid'
 import { GlanceGlyph } from '../shared/GlanceGlyph'
-import { EnvelopeIcon, ReplyIcon, ReviewIcon } from '../shared/icons'
-import { personCheckinLabel, personReplyLabel, personReviewLabel, useEntityMenuOffers } from '../shared/person-menu-entries'
-import { sendPersonCheckin } from '../../services/checkin-email/person-checkin'
-import { openReview, personReview, queueOfRowGroups, reviewTasksLabel } from '../../services/review'
+import { ReviewIcon } from '../shared/icons'
+import { personReviewLabel, useEntityMenuOffers } from '../shared/person-menu-entries'
+import { personReviewFilter, reviewTasksLabel } from '../../services/review'
+import { jumpToReview } from '../../services/review-jump'
 import styles from './TaskDialog.module.css'
 
 interface Resolved {
@@ -55,9 +54,10 @@ export interface TaskDialogContentProps {
   filterBar?: ReactNode
   /**
    * Offers **Review these N tasks** beside Copy tasks (the filtered-tasks
-   * panel's): called with the rows as listed. None with no task.
+   * panel's jump to a Review widget), N the open tasks listed. None with no
+   * open task.
    */
-  onReview?: (groups: readonly TaskDialogRowGroup[]) => void
+  onReview?: () => void
 }
 
 /**
@@ -68,9 +68,9 @@ export interface TaskDialogContentProps {
  * completed here stays, struck through, until it closes, while the counts
  * behind update. The screen filter's tasks resolve again on every change of
  * that filter — fixed between changes — and their description follows it.
- * A person's tasks have Review · Email check-in · Paste reply… as buttons
+ * A person's tasks have Review (where a Review widget is) as a button
  * under the title (`PersonActions`, D26 BD). Footer: Copy tasks, Close (a
- * secondary button, as the review deck's, with its Esc hint).
+ * secondary button, with its Esc hint).
  */
 export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterBar, onReview }: TaskDialogContentProps) {
   const [resolved, setResolved] = useState<Resolved>(() => resolve(payload))
@@ -95,20 +95,20 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
 
   const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos])
   const count = taskDialogCount(groups)
-  // The review's queue length: each task once.
-  const reviewCount = onReview ? queueOfRowGroups(groups).ids.length : 0
+  // What a review would take: the open tasks listed, each once.
+  const reviewCount = onReview
+    ? [...new Set(groups.flatMap((g) => g.todoIds))].filter((id) => todoById.get(id)?.isCompleted === false).length
+    : 0
   const { personId } = payload
 
-  // The editor closed: focus comes back here, so the next Esc closes this —
-  // unless the review deck is open over it (the editor was the deck's, and
-  // the deck takes the focus back).
+  // The editor closed: focus comes back here, so the next Esc closes this.
   const editorWasOpen = useRef(false)
   useEffect(() => {
     if (editPopupMode) {
       editorWasOpen.current = true
     } else if (editorWasOpen.current) {
       editorWasOpen.current = false
-      if (!useReviewStore.getState().open) panelRef.current?.focus()
+      panelRef.current?.focus()
     }
   }, [editPopupMode, panelRef])
 
@@ -178,7 +178,7 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
           {copied ? 'Copied' : 'Copy tasks'}
         </button>
         {onReview && reviewCount > 0 && (
-          <button type="button" className={styles.ghostBtn} onClick={() => onReview(groups)}>
+          <button type="button" className={styles.ghostBtn} onClick={onReview}>
             <ReviewIcon size={12} />
             {reviewTasksLabel(reviewCount)}
           </button>
@@ -193,63 +193,32 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
 }
 
 /**
- * A person's actions as buttons under the dialog's title (D26 BD): **Review**
- * — the deck of their open tasks, this dialog closed first (off, saying
- * why, with none; not on a phone nor while a deck is open) —, **Email
- * check-in** (the one-click send, inside the click so the clipboard keeps
- * the gesture) and **Paste reply…** (the reply import, for this person).
- * Each names the person in full (`Review with Aisha…`), as the person menu
- * does (`person-menu-entries`).
+ * A person's action as a button under the dialog's title (D26 BD):
+ * **Review** — a jump to a Review widget with `@<name>`
+ * (`services/review-jump`), this dialog closed first; shown while some
+ * layout has a Review widget, not on a phone. It names the person in full
+ * (`Review with Aisha`), as the person menu does (`person-menu-entries`).
+ * The check-ins live on the Review widget's field (decision 7).
  */
 function PersonActions({ personId, fallbackName, onClose }: { personId: number; fallbackName: string; onClose: () => void }) {
   const name = usePersonStore((s) => s.people.find((p) => p.id === personId)?.name) ?? fallbackName
-  // The deck's queue as of now (re-read with the dialog, which follows the tasks and their people).
-  const reviewCount = personReview({ id: personId, name }).ids.length
-  const { review, checkins } = useEntityMenuOffers()
-  if (!review && !checkins) return null
+  const { review } = useEntityMenuOffers()
+  if (!review) return null
   const startReview = () => {
-    const payload = personReview({ id: personId, name })
-    if (payload.ids.length === 0) return
     onClose()
-    openReview(payload)
+    void jumpToReview(personReviewFilter({ id: personId }))
   }
   return (
     <div className={styles.personActions} role="group" aria-label={`Actions for ${name}`}>
-      {review && (
-        <button
-          type="button"
-          className={styles.secondaryBtn}
-          aria-label={personReviewLabel(name)}
-          disabled={reviewCount === 0}
-          title={reviewCount === 0 ? 'No open tasks' : undefined}
-          onClick={startReview}
-        >
-          <span className={styles.actionIcon}><ReviewIcon size={15} /></span>
-          Review
-        </button>
-      )}
-      {checkins && (
-        <>
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            aria-label={personCheckinLabel(name)}
-            onClick={() => { void sendPersonCheckin(personId) }}
-          >
-            <span className={styles.actionIcon}><EnvelopeIcon size={15} /></span>
-            Email check-in
-          </button>
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            aria-label={personReplyLabel(name)}
-            onClick={() => useUIStore.getState().openCheckinImport({ personId })}
-          >
-            <span className={styles.actionIcon}><ReplyIcon size={15} /></span>
-            Paste reply…
-          </button>
-        </>
-      )}
+      <button
+        type="button"
+        className={styles.secondaryBtn}
+        aria-label={personReviewLabel(name)}
+        onClick={startReview}
+      >
+        <span className={styles.actionIcon}><ReviewIcon size={15} /></span>
+        Review
+      </button>
     </div>
   )
 }

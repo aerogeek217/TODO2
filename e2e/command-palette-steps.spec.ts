@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { edges, expectOpenLayout, layoutTab, seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './fixtures/workspace'
-import { expectDeckAt } from './fixtures/review'
+import { edges, expectOpenLayout, layoutTab, reviewField, seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * The command palette's second steps (UX cleanup 3B), in the real browser:
@@ -8,7 +7,8 @@ import { expectDeckAt } from './fixtures/review'
  * field; Backspace in the empty field and Esc go back a step; the focus
  * returns to what opened the palette only when it closes or a leaf runs;
  * and each leaf does its job — Go to Layout ›, Lens ›, Add Widget › (the
- * Where picker on the cell last used), Review With ›, Theme ›.
+ * Where picker on the cell last used), Review With › (a jump to the Review
+ * widget), Theme ›.
  */
 
 const SEED: WorkspaceSeed = {
@@ -30,7 +30,8 @@ const SEED: WorkspaceSeed = {
         ],
       },
     },
-    { name: 'Planning', columns: [{ id: 'p1', rows: [wsRow({ id: 'pk', tabs: [{ id: 'pTab', kind: 'notes' }] })] }] },
+    // Its Review widget: where Review With › jumps.
+    { name: 'Planning', columns: [{ id: 'p1', rows: [wsRow({ id: 'pk', tabs: [{ id: 'pTab', kind: 'review' }] })] }] },
   ],
 }
 
@@ -60,7 +61,9 @@ test('a step opens in place; Backspace and Esc go back; the focus returns to the
 
   // At rest: the step commands, not their leaves.
   const rest = await optionNames(page)
-  expect(rest).toEqual(expect.arrayContaining(['Theme', 'Go to Layout', 'Add Widget', 'Lens', 'Review With', 'Email Check-in']))
+  expect(rest).toEqual(expect.arrayContaining(['Theme', 'Go to Layout', 'Add Widget', 'Lens', 'Review With']))
+  // The check-ins live on the Review widget's field (widget feedback 2B).
+  expect(rest).not.toContain('Email Check-in')
   expect(rest.filter((n) => n.includes('›'))).toEqual([])
 
   await field(page).pressSequentially('go to lay')
@@ -162,7 +165,7 @@ test('Add Widget › kind opens the Where picker on the cell last used, the kind
   expect(n.top).toBeGreaterThan(b.top + (b.bottom - b.top) / 2 - 40)
 })
 
-test('Review With › person opens the review deck on their open tasks', async ({ page }) => {
+test('Review With › person jumps to the Review widget on the other layout with @<name>', async ({ page }) => {
   await open(page)
   await openPalette(page)
   await page.getByRole('option', { name: 'Review With', exact: true }).click()
@@ -170,9 +173,9 @@ test('Review With › person opens the review deck on their open tasks', async (
   await expect(options(page).filter({ hasText: 'Ben Ortiz' })).toContainText('2 open tasks')
   await field(page).pressSequentially('aisha')
   await page.keyboard.press('Enter')
-  const deck = page.locator('[data-review-deck]')
-  await expect(deck).toBeVisible()
-  await expectDeckAt(deck, 1, 2)
+  await expectOpenLayout(page, 'Planning')
+  await expect(reviewField(page, 'pTab')).toHaveValue('@"Aisha Rahman"')
+  await expect(page.locator('[data-review-widget="pTab"] [data-review-row]')).toHaveCount(2)
 })
 
 test('Theme › switches the theme, the current one marked', async ({ page }) => {

@@ -3,7 +3,7 @@ import type { LensSwitchTab } from '../../models/workspace-layout'
 import { LensSwitch } from '../shared/LensSwitch'
 import styles from './LensSwitch.module.css'
 
-// The control itself lives in `shared` (the review deck has one too); the widgets' editors import it from here.
+// The control itself lives in `shared`; the widgets' editors import it from here.
 export { LensSwitch }
 
 /**

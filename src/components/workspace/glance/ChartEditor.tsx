@@ -107,7 +107,7 @@ function Select<V extends string>({ label, value, options, labels, onChange }: {
   )
 }
 
-/** A Breakdown's own fields: split by, style, show (and the date `oldest` reads), the none row, the check-ins. */
+/** A Breakdown's own fields: split by, style, show (and the date `oldest` reads), the none row. */
 function BreakdownFields({ config, patch }: { config: BreakdownConfig; patch: (p: Partial<BreakdownConfig>) => void }) {
   const noneLabel = NONE_ROW_LABELS[config.splitBy]
   return (
@@ -118,7 +118,7 @@ function BreakdownFields({ config, patch }: { config: BreakdownConfig; patch: (p
           value={config.splitBy}
           options={BREAKDOWN_SPLITS}
           labels={SPLIT_CHOICE_LABELS}
-          onChange={(splitBy) => patch(splitBy === 'people' ? { splitBy } : { splitBy, checkins: undefined })}
+          onChange={(splitBy) => patch({ splitBy })}
         />
         <Select<BreakdownStyle> label="Style" value={config.style} options={BREAKDOWN_STYLES} labels={STYLE_LABELS} onChange={(style) => patch({ style })} />
         <Select<BreakdownShow>
@@ -143,12 +143,6 @@ function BreakdownFields({ config, patch }: { config: BreakdownConfig; patch: (p
           <label className={styles.check}>
             <input type="checkbox" checked={config.showNone} onChange={(e) => patch({ showNone: e.target.checked })} />
             {`Show ${noneLabel}`}
-          </label>
-        )}
-        {config.splitBy === 'people' && (
-          <label className={styles.check}>
-            <input type="checkbox" checked={config.checkins === true} onChange={(e) => patch({ checkins: e.target.checked ? true : undefined })} />
-            Check-in envelope on each person
           </label>
         )}
       </div>

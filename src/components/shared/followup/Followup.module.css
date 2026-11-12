@@ -269,7 +269,7 @@
   margin-left: 0;
 }
 
-/* A trailing key hint (the review deck's `› ⏎`). */
+/* A trailing key hint (the review footer's `› ⏎`). */
 .markFollowedUpAdornment {
   margin-left: 2px;
   font-weight: var(--font-weight-regular);

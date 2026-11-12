@@ -205,7 +205,7 @@
   gap: 8px;
 }
 
-/* The review deck's secondary button: the person's actions and the footer's Close. */
+/* The secondary button: the person's actions and the footer's Close. */
 .secondaryBtn {
   display: inline-flex;
   align-items: center;

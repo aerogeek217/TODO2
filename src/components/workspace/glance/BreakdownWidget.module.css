@@ -313,9 +313,9 @@
   min-width: 0;
 }
 
-/* The row's actions: Review and a person's envelope, two matching icon buttons right after its name
-   (the name ellipsizes before them). Shown while the row is hovered or holds the focus, or a menu is
-   open from them; opacity only, so nothing shifts. Always shown without hover (touch). */
+/* The row's action: Review, a muted icon button right after its name (the name ellipsizes before
+   it). Shown while the row is hovered or holds the focus; opacity only, so nothing shifts. Always
+   shown without hover (touch). */
 .nameActions {
   display: flex;
   flex: none;

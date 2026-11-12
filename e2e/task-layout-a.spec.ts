@@ -2,18 +2,17 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box, type Box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
-import { pickInReview, seedWorkspace, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
-import { expectDeckAt } from './fixtures/review'
+import { pickInReview, seedWorkspace, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * Task layout A (2026-11-10) in a real browser — the task editor, the review
- * dialog and the Review widget, by geometry, at the sizes the plan lists:
+ * Task layout A (2026-11-10) in a real browser — the task editor and the
+ * Review widget, by geometry, at the sizes the plan lists:
  * the update line, the Next and Last follow-up fields and Mark followed up
  * are in view without scrolling, on a heavy task (long notes, eight
  * subtasks, six updates) and on an empty one; the rail, Notes, Subtasks, the
  * dock and the footer never overlap, nor do the parts of the dock or of a
  * follow-up row; empty Notes is one line; the card's rail is always left of
- * its writing; under 820px a widget (and the deck) folds its queue into the
+ * its writing; under 820px a widget folds its queue into the
  * progress, which opens it. Then the behaviour: Last is a field in review
  * (⏎ writes it, one undo step, a future day refused), Next ⏎ hands the focus
  * back to the update line, the Tab order, and the editor footer's Mark
@@ -121,7 +120,7 @@ async function expectReachable(page: Page, el: Locator, what: string) {
 }
 
 /**
- * The layout's checks inside `host` (the editor, the deck, a widget): the four routine controls
+ * The layout's checks inside `host` (the editor, a widget): the four routine controls
  * reachable without scrolling, the regions apart, the dock's parts apart, each follow-up row's parts
  * apart, the rail left of the writing.
  */
@@ -337,19 +336,7 @@ test.describe('the task editor’s dock and footer', () => {
   })
 })
 
-// ── The review dialog ───────────────────────────────────────────────────────
-
-const deck = (page: Page) => page.locator('[data-review-deck]')
-
-async function openDeck(page: Page): Promise<Locator> {
-  await seedWorkspace(page, SEED)
-  await wsListWidget(page, LIST).waitFor({ state: 'visible' })
-  await taskRowByTitle(page, EMPTY).locator('[data-person-avatar="Aisha"]').click({ button: 'right' })
-  await page.getByRole('menuitem', { name: 'Review with Aisha…' }).click()
-  await expect(deck(page)).toBeVisible()
-  await settle(deck(page))
-  return deck(page)
-}
+// ── The review card ─────────────────────────────────────────────────────────
 
 async function goTo(page: Page, scope: Locator, title: string) {
   const row = scope.locator('[data-review-row]').filter({ hasText: title })
@@ -363,68 +350,10 @@ async function goTo(page: Page, scope: Locator, title: string) {
   await expect(scope.getByTestId('review-card-title')).toHaveText(title)
 }
 
-for (const size of [{ width: 1200, height: 800 }, { width: 1200, height: 760 }, { width: 900, height: 640 }]) {
-  test.describe(`the review dialog at ${size.width} × ${size.height}`, () => {
-    // The deck is 32px narrower and shorter than the window at most.
-    test.use({ viewport: { width: size.width + 32, height: size.height + 32 } })
-
-    for (const title of [HEAVY, EMPTY]) {
-      test(`${title}: in view without scrolling; nothing overlaps; the rail left of the writing`, async ({ page }) => {
-        const dialog = await openDeck(page)
-        await goTo(page, dialog, title)
-        expect(Math.round((await box(dialog)).width)).toBe(size.width)
-        await expectLayoutA(page, dialog, { footer: dialog.locator('[data-review-footer]') })
-        // The hint over the footer's buttons went: the field it echoed is right above it.
-        await expect(dialog.getByTestId('review-hint')).toHaveCount(0)
-        await shot(page, `deck-${size.width}x${size.height}-${title === EMPTY ? 'empty' : 'heavy'}`)
-      })
-    }
-  })
-}
-
-test.describe('the review dialog in a narrow window', () => {
-  test.use({ viewport: { width: 840, height: 720 } })
-
-  test('under 820px of deck the queue folds into a Queue button in the header, which opens it; a pick closes it', async ({ page }) => {
-    const dialog = await openDeck(page)
-    expect((await box(dialog)).width).toBeLessThan(820)
-    await expect(dialog.locator('[data-review-rail]')).toHaveCount(0)
-    await expectDeckAt(dialog, 1, 5, { rail: false })
-    // No place in the queue: the header has no position words while there is something to review.
-    await expect(dialog.getByTestId('review-position')).toHaveCount(0)
-    const position = dialog.locator('header').getByRole('button', { name: 'Queue', exact: true })
-    await expect(position).toHaveText('Queue')
-    await expect(position).toHaveAttribute('data-review-queue-button', '')
-    await expect(position).toHaveAttribute('aria-expanded', 'false')
-    await position.click()
-    await expect(position).toHaveAttribute('aria-expanded', 'true')
-    const popover = page.locator('[data-review-queue-popover]')
-    await expect(popover.locator('[data-review-row]')).toHaveCount(5)
-    await expect(popover.locator('[data-review-row]').first()).toHaveAttribute('aria-current', 'true')
-    await expect(popover.getByTestId('review-sort')).toBeVisible()
-    await popover.locator('[data-review-row]').filter({ hasText: HEAVY }).click()
-    await expect(popover).toHaveCount(0)
-    await expect(dialog.getByTestId('review-card-title')).toHaveText(HEAVY)
-    // Esc closes an open queue, not the deck.
-    await position.click()
-    await expect(popover).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(popover).toHaveCount(0)
-    await expect(dialog).toBeVisible()
-    await shot(page, 'deck-840x720-folded')
-  })
-})
-
 test.describe('the review card’s follow-up rows', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('the deck: Last is a field (⏎ writes it, one undo step; a future day refused); Next ⏎ returns to the update line; Tab order', async ({ page }) => {
-    const dialog = await openDeck(page)
-    await goTo(page, dialog, HEAVY)
-    await expectFollowupBehaviour(page, dialog)
-  })
-
-  test('the Review widget’s large face: the same', async ({ page }) => {
+  test('the Review widget’s large face: Last is a field (⏎ writes it, one undo step; a future day refused); Next ⏎ returns to the update line; Tab order', async ({ page }) => {
     await seedWorkspace(page, WIDGET_SEED)
     const widget = page.locator('[data-review-widget="rv1"]')
     await pickInReview(page, 'rv1', 'Aisha')

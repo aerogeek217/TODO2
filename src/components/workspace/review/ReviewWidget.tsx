@@ -23,6 +23,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { expressionNamesOf } from '../../../utils/filter-chips'
 import { printExpression } from '../../../utils/filter-expression'
+import { REVIEW_WIDGET_ATTR } from '../../../utils/dom-contract'
 import { isFollowedUpToday } from '../../../utils/followup'
 import { reviewFaceFor, reviewQueueFolds } from '../../../utils/widget-face'
 import { EmptyState } from '../../shared/EmptyState'
@@ -38,8 +39,9 @@ import { ReviewFilterField } from './ReviewFilterField'
 import styles from './ReviewWidget.module.css'
 
 /**
- * The Review widget (item 12; widget feedback 2A, board Review-field): the
- * review deck in a cell. Alone in its cell its top line reads `Review`, the
+ * The Review widget (item 12; widget feedback 2A, board Review-field): a
+ * review in a cell — where every Review button jumps (2B,
+ * `services/review-jump`, which sets its filter). Alone in its cell its top line reads `Review`, the
  * progress (`2 followed up`, with a filter; under 820px wide a Queue button
  * before it), its lens switch and the cell's ⋯; under it the prompt row
  * (`ReviewFilterField`): one field that takes a filter expression — no kind
@@ -54,12 +56,12 @@ import styles from './ReviewWidget.module.css'
  * tab's session; ✓ is followed up today, item 11); only the rail's sort
  * (Priority unless one is stored) and the lens switch are view state. A
  * double-click on a rail row opens the task in its editor. Faces
- * (`utils/widget-face.reviewFaceFor`): large — the rail, the deck's card
+ * (`utils/widget-face.reviewFaceFor`): large — the rail, the card
  * (`components/review/ReviewCard`) and its footer; medium — the card's
  * essentials, the update line and the footer (the phone's face too); small
  * — `Review · <filter>` and `N left · M followed up`, a click opens the
- * whole widget over the cell. Every write is the deck's
- * (`useReviewFollowUp`, the card's fields), each its own undo step.
+ * whole widget over the cell. Every write is the card's
+ * (`useReviewFollowUp`, its fields), each its own undo step.
  */
 export function ReviewWidget({ tab }: { tab: ReviewTab }) {
   const [faceRef, face] = useWidgetFace(reviewFaceFor)
@@ -85,7 +87,7 @@ export function ReviewWidget({ tab }: { tab: ReviewTab }) {
       <div
         ref={hostRef}
         className={styles.faceHost}
-        data-review-widget={tab.id}
+        {...{ [REVIEW_WIDGET_ATTR]: tab.id }}
         data-review-face={face}
         onFocus={() => { focusWithin.current = true }}
         onBlur={onBlur}
@@ -110,8 +112,9 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
+  // A jump from a list that narrows by nothing sends a filter that prints as nothing: every open task.
   const filterText = useMemo(
-    () => (filter ? printExpression(filter.expression, filter.showCompleted, expressionNamesOf({ people, tags, statuses })) : ''),
+    () => (filter ? printExpression(filter.expression, filter.showCompleted, expressionNamesOf({ people, tags, statuses })) || 'Every open task' : ''),
     [filter, people, tags, statuses],
   )
   const queue = useReviewWidgetQueue(filter)

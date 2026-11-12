@@ -1,15 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readStore } from './fixtures/db'
 import { rowTitles } from './fixtures/seed'
-import { seedWorkspace, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { expectOpenLayout, reviewField, seedWorkspace, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 import { openFilterPicker } from './fixtures/filters'
-import { expectDeckAt } from './fixtures/review'
 
 /**
  * The filtered-tasks panel (the top bar's `N of M` counter) offers Review
- * these N tasks beside Copy tasks: the review deck on exactly the tasks the
- * panel lists, in its order — the panel closes first. Desktop only, one deck
- * at a time, none with no task.
+ * these N tasks beside Copy tasks (widget feedback 2B): a jump to the Review
+ * widget with the top bar's chips and its text search as its filter — the
+ * panel closes. Hidden while no layout has a Review widget; desktop only.
  */
 
 const SEED: WorkspaceSeed = {
@@ -21,15 +19,23 @@ const SEED: WorkspaceSeed = {
     { title: 'Bob task', people: ['Bob'] },
     { title: 'Ann report', people: ['Ann'] },
   ],
+  layouts: [
+    { name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] },
+    // Where the jump goes: a Review widget filling the window (its large face, the queue beside the card).
+    { name: 'Review', columns: [{ id: 'r1', rows: [wsRow({ id: 'rk', tabs: [{ id: 'rv', kind: 'review' }] })] }] },
+  ],
+}
+
+const NO_WIDGET: WorkspaceSeed = {
+  ...SEED,
   layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 const panel = (page: Page) => page.locator('[data-filter-panel]')
 const reviewButton = (page: Page) => panel(page).getByRole('button', { name: /^Review these \d+ tasks$/ })
-const deck = (page: Page) => page.getByRole('dialog', { name: 'Filtered tasks' })
 
-async function openPanelOnAnn(page: Page) {
-  await seedWorkspace(page, SEED)
+async function openPanelOnAnn(page: Page, seed: WorkspaceSeed = SEED) {
+  await seedWorkspace(page, seed)
   await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toHaveLength(4)
   await openFilterPicker(page, 'People')
   await page.getByRole('option', { name: 'Ann' }).click()
@@ -41,7 +47,7 @@ async function openPanelOnAnn(page: Page) {
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
-test('Review these 3 tasks opens the deck on the panel’s tasks, in its order; the panel closes; a follow-up is recorded', async ({ page }) => {
+test('Review these 3 tasks jumps to the Review widget with the top bar’s filter; the panel closes; its queue is the panel’s tasks', async ({ page }) => {
   await openPanelOnAnn(page)
   const listed = await rowTitles(panel(page))
   expect(listed).toHaveLength(3)
@@ -49,34 +55,29 @@ test('Review these 3 tasks opens the deck on the panel’s tasks, in its order; 
 
   await reviewButton(page).click()
   await expect(panel(page)).toHaveCount(0)
-  await expect(deck(page)).toBeVisible()
-  await expectDeckAt(deck(page), 1, 3)
-  const rail = deck(page).getByRole('navigation', { name: 'Review queue' })
-  await expect(rail.locator('[data-review-row]')).toHaveText(listed.map((t) => new RegExp(t)))
-  await expect(deck(page).getByTestId('review-card-title')).toHaveText(listed[0]!)
-
-  await deck(page).getByRole('button', { name: /^Mark followed up/ }).click()
-  await expect(deck(page).getByTestId('review-followed-up')).toHaveText('1 followed up')
-  await expect.poll(async () => {
-    const task = (await readStore<{ title: string; lastFollowupAt?: Date }>(page, 'todos')).find((t) => t.title === listed[0])
-    return task?.lastFollowupAt != null && new Date(task.lastFollowupAt).toDateString() === new Date().toDateString()
-  }).toBe(true)
-
-  await deck(page).getByRole('button', { name: 'Close review' }).click()
-  await expect(deck(page)).toHaveCount(0)
+  await expectOpenLayout(page, 'Review')
+  await expect(reviewField(page, 'rv')).toHaveValue('@Ann')
+  const widget = page.locator('[data-review-widget="rv"]')
+  await expect(widget.locator('[data-review-row]')).toHaveCount(3)
+  for (const title of listed) await expect(widget.locator('[data-review-row]').filter({ hasText: title })).toHaveCount(1)
+  // The focus moved into the widget: the card's update line.
+  await expect(widget.getByLabel('Status update · today')).toBeFocused()
 })
 
-test('none while a deck is open', async ({ page }) => {
-  await openPanelOnAnn(page)
-  await expect(reviewButton(page)).toBeVisible()
-  await page.evaluate(async () => {
-    const mod = (await import(/* @vite-ignore */ '/src/stores/review-store.ts' as string)) as {
-      useReviewStore: { getState: () => { start: (s: { source: { kind: string; title: string; description: string }; ids: number[] }) => void } }
-    }
-    mod.useReviewStore.getState().start({ source: { kind: 'list', title: 'Elsewhere', description: '' }, ids: [1] })
-  })
-  await expect(reviewButton(page)).toHaveCount(0)
-  await expect(page.getByRole('dialog', { name: 'Elsewhere' })).toBeVisible()
+test('the text search comes along as a quoted phrase', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await page.locator('header').getByPlaceholder('Filter…').fill('report')
+  await page.locator('header').getByRole('button', { name: /^1 of 4 open tasks shown/ }).click()
+  await expect(panel(page)).toBeVisible()
+  await reviewButton(page).or(panel(page).getByRole('button', { name: 'Review this task' })).click()
+  await expect(reviewField(page, 'rv')).toHaveValue('"report"')
+  await expect(page.locator('[data-review-widget="rv"]').getByTestId('review-card-title')).toHaveText('Ann report')
+})
+
+test('no layout has a Review widget: no Review button', async ({ page }) => {
+  await openPanelOnAnn(page, NO_WIDGET)
+  await expect(panel(page).getByRole('button', { name: /^Copy tasks/ })).toBeVisible()
+  await expect(panel(page).getByRole('button', { name: /^Review/ })).toHaveCount(0)
 })
 
 test.describe('phone', () => {

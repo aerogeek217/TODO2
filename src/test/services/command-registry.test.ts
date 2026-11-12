@@ -305,65 +305,18 @@ describe('createCommands — the lens', () => {
 })
 
 describe('createCommands — email check-ins', () => {
-  const people = [
-    { id: 1, name: 'Zoe Park', initials: 'ZP', email: 'zoe@example.com' },
-    { id: 2, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' },
-    { id: 3, name: 'No Email', initials: 'NE' },
-    { id: 4, name: 'Idle Person', initials: 'IP', email: 'idle@example.com' },
-    { id: 5, name: 'Blank Email', initials: 'BE', email: '' },
-  ]
-  const counts = new Map([[1, 1], [2, 4], [3, 2], [5, 3]])
+  const people = [{ id: 2, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' }]
   const emailCommands = (ctx: CommandContext) => createCommands(ctx).filter((c) => c.category === 'email')
-  /** Email Check-in ›'s people. */
-  const checkinStep = (ctx: CommandContext) => createCommands(ctx).find((c) => c.id === 'email-checkin')?.step ?? []
 
-  it('createCommands_people_onePerPersonWithOpenTasks_withOrWithoutEmail_byName_withOpenTaskHint', () => {
+  it('the check-in dialog and the reply import only: no Email Check-in › per person (widget feedback 2B)', () => {
     const ctx = makeContext({
-      openCheckinDialog: vi.fn(), sendPersonCheckin: vi.fn(), openCheckinImport: vi.fn(),
-      getPeople: () => people, getOpenTaskCounts: () => counts,
+      openCheckinDialog: vi.fn(), openCheckinImport: vi.fn(),
+      getPeople: () => people, getOpenTaskCounts: () => new Map([[2, 4]]),
     })
     expect(emailCommands(ctx).map((c) => [c.name, c.hint])).toEqual([
       ['Email task check-ins…', 'choose people'],
       ['Import check-in reply…', undefined],
-      ['Email Check-in', undefined],
     ])
-    expect(checkinStep(ctx).map((c) => [c.name, c.hint, c.category])).toEqual([
-      ['Ada Lovelace', '4 open tasks', 'email'],
-      ['Blank Email', '3 open tasks', 'email'],
-      ['No Email', '2 open tasks', 'email'],
-      ['Zoe Park', '1 open task', 'email'],
-    ])
-  })
-
-  it('createCommands_people_withCheckinFilter_hintCountsWhatItPicks_ofTheirOpenTasks', () => {
-    const ctx = makeContext({
-      sendPersonCheckin: vi.fn(), getPeople: () => people, getOpenTaskCounts: () => counts,
-      getCheckinTaskCounts: () => new Map([[2, 1], [3, 2]]),
-    })
-    expect(checkinStep(ctx).map((c) => [c.name, c.hint])).toEqual([
-      ['Ada Lovelace', '1 of 4 open tasks'],
-      ['Blank Email', '0 of 3 open tasks'],
-      ['No Email', '2 of 2 open tasks'],
-      ['Zoe Park', '0 of 1 open task'],
-    ])
-  })
-
-  it('createCommands_personCommand_sendsThatPersonsCheckin_noDialog', () => {
-    const openCheckinDialog = vi.fn()
-    const sendPersonCheckin = vi.fn()
-    const ctx = makeContext({ openCheckinDialog, sendPersonCheckin, getPeople: () => people, getOpenTaskCounts: () => counts })
-    checkinStep(ctx).find((c) => c.id === 'email-checkin-2')!.action()
-    expect(sendPersonCheckin).toHaveBeenCalledWith(2)
-    expect(openCheckinDialog).not.toHaveBeenCalled()
-  })
-
-  it('createCommands_noOpenTaskCounts_noPersonCommands', () => {
-    const ctx = makeContext({ openCheckinDialog: vi.fn(), sendPersonCheckin: vi.fn(), getPeople: () => people })
-    expect(emailCommands(ctx).map((c) => c.id)).toEqual(['email-checkins'])
-  })
-
-  it('createCommands_withoutSendPersonCheckin_noPersonCommands', () => {
-    const ctx = makeContext({ openCheckinDialog: vi.fn(), getPeople: () => people, getOpenTaskCounts: () => counts })
-    expect(emailCommands(ctx).map((c) => c.id)).toEqual(['email-checkins'])
+    expect(createCommands(ctx).some((c) => c.id === 'email-checkin')).toBe(false)
   })
 })

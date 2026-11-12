@@ -28,7 +28,6 @@ import { createCommands, searchDynamicCommands } from './services/command-regist
 import { currentTaskDialogEnv, screenTaskCount } from './services/task-dialog'
 import type { ShortcutCallbacks } from './services/keyboard-shortcuts'
 import { openTaskCounts } from './services/checkin-email/recipients'
-import { currentCheckinTaskCounts, sendPersonCheckin } from './services/checkin-email/person-checkin'
 import { backupScheduler } from './data/backup-scheduler'
 import { CURRENT_DB_VERSION, findDatabaseTooNew, findDatabaseTooOld } from './data/database'
 import { runAppStartup } from './services/app-startup'
@@ -59,10 +58,10 @@ import './styles/tokens.css'
 /**
  * The command palette, mounted while it shows (so the shell never re-renders
  * for a task write or a selection click). The command list is built from the
- * tasks, people, their assignments, statuses, the check-in filter, the
- * layouts, the lenses and the theme, and is rebuilt when they change: a
- * palette opened while the app is still loading gains the per-person
- * check-ins as the tasks and their people arrive. Commands that act read
+ * tasks, people, their assignments, statuses, the layouts, the lenses and
+ * the theme, and is rebuilt when they change: a palette opened while the
+ * app is still loading gains Review With › as the tasks and their people
+ * arrive. Commands that act read
  * the stores when they run (`getState`).
  */
 export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void; shortcuts: ShortcutCallbacks }) {
@@ -72,7 +71,6 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const statuses = useStatusStore((s) => s.statuses)
-  const checkinTaskFilter = useSettingsStore((s) => s.checkinTaskFilter)
   // What the second steps list (Go to Layout ›, Lens ›, Theme ›) and mark.
   const layouts = useWorkspaceStore((s) => s.layouts)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
@@ -101,11 +99,9 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
       },
       getStatuses: () => statuses,
       openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
-      sendPersonCheckin: (personId: number) => { void sendPersonCheckin(personId) },
       openCheckinImport: () => useUIStore.getState().openCheckinImport(),
       getPeople: () => people,
       getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
-      getCheckinTaskCounts: () => currentCheckinTaskCounts(checkinTaskFilter),
       showScreenTasks: () => useUIStore.getState().openFilterPanel(),
       getScreenTaskCount: () => screenTaskCount(currentTaskDialogEnv()),
       addWidget: addWidgetFromPalette,
@@ -113,7 +109,7 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
       getLenses: () => ({ lenses, activeLensId }),
       getThemeMode: () => themeMode,
     }),
-    [selectionCount, shortcuts, todos, people, assignedPeopleMap, statuses, checkinTaskFilter,
+    [selectionCount, shortcuts, todos, people, assignedPeopleMap, statuses,
       layouts, activeLayoutId, layoutOpen, layoutStored, lenses, activeLensId, themeMode],
   )
 

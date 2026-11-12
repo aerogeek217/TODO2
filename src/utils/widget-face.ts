@@ -39,7 +39,7 @@ export const REVIEW_MEDIUM_MAX_HEIGHT_PX = 530
 export const REVIEW_MEDIUM_MAX_WIDTH_PX = 640
 
 /**
- * Under this width (a Review widget's body, the review deck) the queue column folds away and the
+ * Under this width (a Review widget's body) the queue column folds away and the
  * Queue button opens it as a popover: the queue's narrowest (220px) beside the card's
  * narrowest two-column layout (600px). Unmeasured (0) never folds.
  */
