@@ -3,8 +3,8 @@ import { openCellLayoutMenu, pickSplit, seedWorkspace, wsRow, type WorkspaceSeed
 
 /**
  * The glance widgets (D25 N) in a real browser: a Number and a Created vs
- * completed cell added from the grouped add-widget buttons; the Number's
- * editor opening as it is added, and again from its tab menu; a Number's click opening the task dialog;
+ * completed cell added from the grouped add-widget buttons; no editor
+ * opening as it is added, the Number's from its tab menu; a Number's click opening the task dialog;
  * a row widget's rows selecting in its own scope with its bulk bar.
  */
 
@@ -33,18 +33,14 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await openCellLayoutMenu(page, 'k1')
   await pickSplit(page, 'Below')
   const empty = page.getByRole('region', { name: 'Empty cell' })
-  // Tasks: List, Calendar, Eisenhower, Review, Notes; Insights: the numbers and charts, and the Neglect map.
+  // Tasks: List, Calendar, Review, Notes; Insights: the numbers and charts, and the Neglect map.
   await expect(empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Notes' })).toBeVisible()
   await expect(empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Calendar' })).toBeVisible()
   await expect(empty.getByRole('group', { name: 'Insights' }).getByRole('button', { name: 'Neglect map' })).toBeVisible()
   await empty.getByRole('group', { name: 'Insights' }).getByRole('button', { name: 'Number', exact: true }).click()
-  // A new Number counts every open task, its editor open beside it, its name focused.
+  // A new Number counts every open task; no editor opens (decision 8).
   await expect(number(page).getByTestId('number-count')).toHaveText('4')
   await expect(number(page)).not.toHaveAttribute('data-lit', 'true')
-  await expect(editor(page)).toBeVisible()
-  await expect(editor(page).getByRole('textbox', { name: 'Name' })).toBeFocused()
-  await expect(editor(page).getByRole('textbox', { name: 'Name' })).toHaveValue('Open')
-  await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
 
   // And Created vs completed below it.

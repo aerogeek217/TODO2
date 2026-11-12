@@ -1,5 +1,5 @@
-import { useMemo, type CSSProperties } from 'react'
-import type { PulseTab } from '../../../models/workspace-layout'
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { kindTabTitle, type PulseTab } from '../../../models/workspace-layout'
 import { lensHidesWhere, useLensHidden, usePulse, useStatsBase } from '../../../hooks/use-glance-data'
 import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
@@ -11,6 +11,9 @@ import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { Empty, Panel, type PanelDef } from './section-parts'
 import { pulseRuleName } from '../../../models/pulse-config'
+import { useTagStore } from '../../../stores/tag-store'
+import { TagPicker } from '../../shared/TagChipSelector'
+import { removePulseTag, togglePulseTag } from './pulse-tags'
 import styles from './PulseWidget.module.css'
 
 const PULSE_DEF: PanelDef = { id: 'pulse', title: 'Project pulse', glyph: 'tag', glyphColor: 'var(--color-accent)' }
@@ -59,7 +62,7 @@ function PulseLines({ card }: { card: PulseCard }) {
   )
 }
 
-function PulseCardView({ card, names, onDrill }: { card: PulseCard; names: PulseNames; onDrill: OnGlanceDrill | undefined }) {
+function PulseCardView({ tabId, card, names, onDrill }: { tabId: string; card: PulseCard; names: PulseNames; onDrill: OnGlanceDrill | undefined }) {
   const name = card.tag.name
   const content = (
     <>
@@ -82,9 +85,90 @@ function PulseCardView({ card, names, onDrill }: { card: PulseCard; names: Pulse
   )
   const label = `#${name}: ${countsText(card, names)}. ${momentumText(card)}.`
   const common = { className: styles.card, 'data-pulse-card': card.tag.id }
-  return onDrill
-    ? <button type="button" {...common} aria-label={`${label} Show open tasks`} onClick={() => onDrill(tagRowDrill(card.tag, card.openIds))}>{content}</button>
-    : <div {...common} role="group" aria-label={label}>{content}</div>
+  return (
+    <div className={styles.cardBox}>
+      {onDrill
+        ? <button type="button" {...common} aria-label={`${label} Show open tasks`} onClick={() => onDrill(tagRowDrill(card.tag, card.openIds))}>{content}</button>
+        : <div {...common} role="group" aria-label={label}>{content}</div>}
+      {/* Item 9: the ×, shown on the card's hover and focus (always without hover); it removes the tag's card. */}
+      <button
+        type="button"
+        className={styles.remove}
+        data-pulse-remove={card.tag.id}
+        aria-label={`Remove “${name}” from project pulse`}
+        title="Remove from project pulse"
+        onClick={() => removePulseTag(tabId, card.tag)}
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
+  )
+}
+
+/**
+ * The tag picker Project pulse's + card and its empty state open (item 9):
+ * the app's tag picker, the picked tags ticked — a pick adds its card after
+ * the last one, unticking removes it, each its own undo step. It stays open
+ * for more picks; Esc or a press outside closes it.
+ */
+function PulseTagPicker({ tabId, picked, trigger }: {
+  tabId: string
+  picked: readonly number[]
+  /** The trigger, given its ref, whether the picker is open and its toggle. */
+  trigger: (ref: RefObject<HTMLButtonElement | null>, open: boolean, toggle: () => void) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLButtonElement>(null)
+  const tags = useTagStore((s) => s.tags)
+  const assigned = useMemo(() => tags.filter((t) => t.id != null && picked.includes(t.id)), [tags, picked])
+  return (
+    <>
+      {trigger(ref, open, () => setOpen((o) => !o))}
+      {open && (
+        <TagPicker
+          anchorRef={ref}
+          assignedTags={assigned}
+          allTags={tags}
+          onToggle={(id) => {
+            const tag = tags.find((t) => t.id === id)
+            if (tag) togglePulseTag(tabId, tag)
+          }}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  )
+}
+
+/** The dashed + card after the last card (item 9): opens the tag picker. */
+function AddTagCard({ tabId, picked }: { tabId: string; picked: readonly number[] }) {
+  return (
+    <PulseTagPicker
+      tabId={tabId}
+      picked={picked}
+      trigger={(ref, open, toggle) => (
+        <button ref={ref} type="button" className={styles.addCard} data-pulse-add="" aria-label="Add a tag to project pulse" aria-expanded={open} onClick={toggle}>
+          <span className={styles.addPlus} aria-hidden="true">+</span>
+          <span>Add tag</span>
+        </button>
+      )}
+    />
+  )
+}
+
+/** The empty state's Add tag button (no card yet): the same picker. */
+function AddTagButton({ tabId, picked }: { tabId: string; picked: readonly number[] }) {
+  return (
+    <PulseTagPicker
+      tabId={tabId}
+      picked={picked}
+      trigger={(ref, open, toggle) => (
+        <button ref={ref} type="button" className={styles.addButton} data-pulse-add="" aria-expanded={open} onClick={toggle}>
+          + Add tag
+        </button>
+      )}
+    />
+  )
 }
 
 /**
@@ -95,7 +179,9 @@ function PulseCardView({ card, names, onDrill }: { card: PulseCard; names: Pulse
  * opens the tag's open tasks. Small: the worst tag's late share; medium:
  * a line per tag. Late and stale follow its rules (G5), and read by their
  * names; its editor (Edit project pulse…, `PulseEditorHost`) opens under
- * its title (`data-pulse-head`).
+ * its title (`data-pulse-head`). Item 9: the large face ends with a dashed
+ * + card that adds a tag (the tag picker), each card has a × that removes
+ * its tag, and the empty state's Add tag opens the same picker.
  */
 export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseTab>) {
   const base = useStatsBase()
@@ -125,7 +211,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
       )
       : (
         <>
-          <span className={styles.pulseSmallName}>Project pulse</span>
+          <span className={styles.pulseSmallName}>{kindTabTitle(tab)}</span>
           <span className={styles.quiet}>{cards.length > 0 ? `Nothing ${names.late}` : picked ? 'Picked tags deleted' : 'No tags picked'}</span>
         </>
       )
@@ -143,11 +229,13 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
   return (
     <GlanceFrame tab={tab}>
       <div ref={faceRef} className={styles.face} data-face={face}>
-        <Panel def={PULSE_DEF} className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks" lens={<TabLensSwitch tab={tab} hides={lensHides} />} titleData={{ 'data-pulse-head': tab.id }}>
+        <Panel def={{ ...PULSE_DEF, title: kindTabTitle(tab) }}className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks" lens={<TabLensSwitch tab={tab} hides={lensHides} />} titleData={{ 'data-pulse-head': tab.id }}>
           {cards.length === 0 ? (
-            picked
-              ? <Empty title="The picked tags were deleted" hint="Pick the tags to follow in the tab menu’s Tags." />
-              : <Empty title="No tags picked" hint="Pick the tags to follow in the tab menu’s Tags." />
+            <Empty
+              title={picked ? 'The picked tags were deleted' : 'No tags picked'}
+              hint="Add the tags to follow here or in the tab menu’s Tags."
+              action={<AddTagButton tabId={tab.id} picked={tagIds} />}
+            />
           ) : face === 'medium' ? (
             <ul className={styles.pulseList} aria-label="Project pulse">
               {cards.map((c) => {
@@ -170,7 +258,8 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
             </ul>
           ) : (
             <div className={styles.pulseGrid}>
-              {cards.map((c) => <PulseCardView key={c.tag.id} card={c} names={names} onDrill={drill} />)}
+              {cards.map((c) => <PulseCardView key={c.tag.id} tabId={tab.id} card={c} names={names} onDrill={drill} />)}
+              <AddTagCard tabId={tab.id} picked={tagIds} />
             </div>
           )}
         </Panel>

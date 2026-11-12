@@ -1,4 +1,4 @@
-import { readListZoom, type LensTab, type ListZoom } from '../models/workspace-layout'
+import type { LensTab, ListZoom } from '../models/workspace-layout'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
@@ -14,8 +14,8 @@ import { getTab } from '../utils/workspace-layout-queries'
  */
 
 /**
- * The level `tab` shows — the one every zoom control steps from: its own pick
- * (a stored `strips` as `lines`), else the level its widget shows now
+ * The level `tab` shows — the one every zoom control steps from: its own
+ * pick, else the level its widget shows now
  * (`list-widget-store.zoom`: Settings › Appearance › Default list zoom, Auto
  * resolved by the list's width), else that default (Auto unmeasured: Rows).
  */
@@ -23,7 +23,7 @@ export function listTabZoom(
   tab: Pick<LensTab, 'id' | 'viewState'>,
   setting: ListZoomSetting = useSettingsStore.getState().listZoom,
 ): ListZoom {
-  return readListZoom(tab.viewState?.zoom) ?? useListWidgetStore.getState().zoom[tab.id] ?? defaultListZoom(setting)
+  return tab.viewState?.zoom ?? useListWidgetStore.getState().zoom[tab.id] ?? defaultListZoom(setting)
 }
 
 /** Saves `zoom` as list tab `tabId`'s (view state: saved at once). */

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { upgradeV78 } from '../../data/upgrades/v78'
+import { layoutV79Of } from '../../data/upgrades/v79/layouts'
 import { layoutWidgetSetOf, upgradeWidgetSet } from '../../data/upgrades/v78/widget-set'
 import { prepareImport } from '../../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
@@ -24,13 +25,18 @@ function upgraded(matrix: Parameters<typeof grid>[0], opts?: GridOptions): Layou
   return layoutWidgetSetOf(layout(grid(matrix, opts))) as LayoutBody & Obj
 }
 
-/** Holds: a valid tiling, every line an edge, and a row the current schema takes as it is. */
+/**
+ * Holds: a valid tiling, every line an edge, and — once v79 has run on it
+ * (it drops the Eisenhower tabs v78 made: the Eisenhower was removed after
+ * v78) — a row the current schema takes as it is.
+ */
 function expectValid(row: Obj): void {
   const body = row as unknown as LayoutBody
   expect(validateTiling(body)).toBe(true)
   expect(isNormalized(body)).toBe(true)
-  expect(validateRow('layouts', row)).toBe(true)
-  expect(rowFixes('layouts', row)).toEqual([])
+  const final = layoutV79Of(row)
+  expect(validateRow('layouts', final)).toBe(true)
+  expect(rowFixes('layouts', final)).toEqual([])
 }
 
 const weights = (body: LayoutBody, axis: 'columns' | 'rows') => body.grid[axis].map((t) => (t.px != null ? `${t.px}px` : t.weight))

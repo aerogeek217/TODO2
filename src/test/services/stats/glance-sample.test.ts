@@ -8,11 +8,9 @@ import { predicateToCriteria } from '../../../utils/filter-criteria'
 import { computeTrend } from '../../../services/stats/trend'
 import { computeBreakdown } from '../../../services/stats/breakdown'
 import { openTasks, statsFilter } from '../../../services/stats/stats-context'
-import { derivedBreakdownColumns, type BreakdownSplit } from '../../../models/chart-widgets'
+import { defaultBreakdownColumns, type BreakdownSplit } from '../../../models/chart-widgets'
 import { DEFAULT_TAB_BADGES } from '../../../utils/tab-badges'
-import { computeEisenhowerSummary } from '../../../services/stats/eisenhower-summary'
-import { emptyFilterCriteria, statsPaneContext, testLookups } from '../../helpers'
-import { resolvePanes } from '../../../utils/eisenhower-panes'
+import { emptyFilterCriteria, testLookups } from '../../helpers'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, DESIGN_TREND, DESIGN_TREND_Q4, Q4, SAMPLE_CTX, SAMPLE_EVENTS,
   SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
@@ -28,9 +26,9 @@ function screened(screen: FilterCriteria) {
   return applyFilter(statsFilter(screen), SAMPLE_TASKS, lookups, SAMPLE_TODAY, markerSettings)
 }
 
-/** The derived count columns (Settings' default ranges) over `tasks`: each column's filter, as the widget runs it. */
+/** The default count columns (Settings' default ranges) over `tasks`: each column's filter, as the widget runs it. */
 function columnsOf(tasks: typeof SAMPLE_TASKS) {
-  return derivedBreakdownColumns(undefined, DEFAULT_TAB_BADGES).map((c) => ({
+  return defaultBreakdownColumns(DEFAULT_TAB_BADGES).map((c) => ({
     id: c.id,
     keep: new Set(numberIds(predicateToCriteria(c.filter), tasks, lookups, SAMPLE_TODAY, markerSettings)),
   }))
@@ -150,7 +148,7 @@ describe('glance sample data — top-bar Tags filter q4 (shown of total)', () =>
   })
 })
 
-describe('glance sample data — the Tags section and the Eisenhower’s counts', () => {
+describe('glance sample data — the Tags section', () => {
   const all = screened(NO_FILTER)
   const q4 = screened(Q4_FILTER)
 
@@ -159,17 +157,5 @@ describe('glance sample data — the Tags section and the Eisenhower’s counts'
     // Under the q4 filter only the q4 row is left (with the q4 pick narrowing, `computeBreakdown`'s restrictions, no No tags row either).
     expect(computeBreakdown(openTasks(q4), SAMPLE_CTX, { splitBy: 'tags', show: 'count', oldestBy: 'created', columns: [], restrictions: [[Q4]] })
       .rows.map((r) => [r.label, r.ids.length])).toEqual([['q4', 5]])
-  })
-
-  it('Eisenhower: Do 3 · Schedule 1 · Delegate 5 · Drop 10 (Urgent 8 = Do + Delegate)', () => {
-    const quadrants = computeEisenhowerSummary(all, resolvePanes({}), statsPaneContext(SAMPLE_CTX))
-    expect(titles(quadrants.do.ids)).toEqual(['Fix checkout outage', 'Headcount request', 'Draft homepage copy'])
-    expect(quadrants.do.byDate).toBe(1)
-    expect(titles(quadrants.schedule.ids)).toEqual(['Book venue for offsite'])
-    expect(quadrants.delegate.ids).toEqual([5, 6, 7, 12, 13])
-    expect(quadrants.delegate.byDate).toBe(4)
-    expect(quadrants.drop.ids).toEqual([14, 8, 15, 16, 9, 10, 11, 17, 18, 19])
-    const filtered = computeEisenhowerSummary(q4, resolvePanes({}), statsPaneContext(SAMPLE_CTX))
-    expect([filtered.do.ids, filtered.schedule.ids, filtered.delegate.ids, filtered.drop.ids]).toEqual([[], [4], [7], [14, 15, 17]])
   })
 })

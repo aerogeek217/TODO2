@@ -17,7 +17,7 @@ export const FILTER_ROW_ATTR = 'data-filter-row'
 export const FILTER_MENU_ATTR = 'data-filter-menu'
 /** The tray's Show N tasks (the filtered-tasks panel's toggle): where the focus goes back when the panel closes. */
 export const SHOW_FILTERED_TASKS_ATTR = 'data-show-filtered-tasks'
-/** A widget that owns a row selection (list, Eisenhower, a glance row widget): its scope, the tab id. */
+/** A widget that owns a row selection (list, a glance row widget): its scope, the tab id. */
 export const SELECTION_SCOPE_ATTR = 'data-selection-scope'
 /** A list widget row: its occurrence key within the scope. */
 export const ROW_KEY_ATTR = 'data-row-key'
@@ -25,6 +25,12 @@ export const ROW_KEY_ATTR = 'data-row-key'
 export const ROW_TODO_ATTR = 'data-row-todo'
 /** A list widget (a list tab's body): its tab id — the palette's Zoom List In / Out find the list on screen by it. */
 export const LIST_WIDGET_ATTR = 'data-list-widget'
+/** A Review widget (its face's host): its tab id — a Review button's jump moves the focus into it. */
+export const REVIEW_WIDGET_ATTR = 'data-review-widget'
+/** A review card's Status update line: where a jump puts the focus while a card shows. */
+export const REVIEW_UPDATE_ATTR = 'data-review-update'
+/** A Review widget's prompt row (its filter field): where a jump puts the focus while no card shows. */
+export const PROMPT_ROW_ATTR = 'data-prompt-row'
 /** A list widget section (a group): its key. */
 export const LIST_SECTION_ATTR = 'data-list-section'
 /** An area where a click keeps the row selection (the bulk bar, the snackbar, the row grid). */

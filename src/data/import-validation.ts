@@ -13,14 +13,13 @@ import { parseUrgentDueWithinDays } from '../utils/urgency'
 import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcut-bindings'
 import { isCheckinOpenMethod } from '../utils/checkin-settings'
 import { parseStaleAfterDays } from '../utils/stale'
-import { parseListZoomSetting } from '../utils/list-zoom'
 import { isRowDates } from '../utils/row-dates'
 import { parsePurgePromptIntervalDays } from '../utils/completed-at'
 import type { WorkspaceLayout } from '../models/workspace-layout'
-import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
+import { isListZoom, LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { isLayoutHue } from '../utils/layout-hue'
+import { isEmoji, isIconValue, pickIconValue } from '../models/icon'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
-import { formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
 import { formatLensesSetting, isLensId, readLensesSetting } from './lens-shape'
 import { isValidEmail, normalizeEmail, normalizeInitials } from '../utils/person'
@@ -206,6 +205,16 @@ function isKnownStatusIcon(v: unknown): v is StatusIconKey {
   return typeof v === 'string' && (STATUS_ICON_KEYS as readonly string[]).includes(v)
 }
 
+/** Any string passes, as the glyph's key: one that isn't a single emoji is dropped by `pickStatus`, with a warning. */
+function isOptStatusEmoji(v: unknown): boolean {
+  return v === undefined || v === null || typeof v === 'string'
+}
+
+/** A status's emoji as stored (J17): one emoji, else none. */
+function statusEmoji(v: unknown): string | undefined {
+  return isEmoji(v) ? v : undefined
+}
+
 function checkStatus(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
@@ -214,7 +223,17 @@ function checkStatus(v: unknown): CheckResult {
     ['color', isValidCssColor(v.color)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
     ['icon', isOptStatusIcon(v.icon)],
+    ['emoji', isOptStatusEmoji(v.emoji)],
+    ['emojiShow', v.emojiShow === undefined || v.emojiShow === null || typeof v.emojiShow === 'string'],
   ])
+}
+
+/** What `pickStatus` drops from a status row, in words. */
+function statusFixes(row: Raw): string[] {
+  return [
+    ...(row.icon != null && !isKnownStatusIcon(row.icon) ? ['unknown icon dropped'] : []),
+    ...(row.emoji != null && statusEmoji(row.emoji) === undefined ? ['emoji dropped'] : []),
+  ]
 }
 
 function checkPerson(v: unknown): CheckResult {
@@ -338,6 +357,7 @@ function checkLayout(v: unknown): CheckResult {
     ['modifiedAt', isDateLike(v.modifiedAt)],
     ['lastUsedAt', isOptDateLike(v.lastUsedAt)],
     ['hue', v.hue === undefined || isLayoutHue(v.hue)],
+    ['icon', v.icon === undefined || isIconValue(v.icon)],
   ])
   if (fields !== true) return fields
   return checkLayoutBody(v)
@@ -374,17 +394,11 @@ function checkSetting(v: unknown): CheckResult {
   // read and resets an over-long text unread (`settingFixes` names what it
   // drops, a few at most), so what is stored is short.
   if (v.key === SETTING_KEYS.keyboardShortcuts) return true
-  // The Eisenhower panes: any text, as the panes were layout data the
-  // layout repair fixed rather than failed — the picker keeps the panes it
-  // can read and resets the rest (an unreadable or over-long value reads as
-  // the defaults); `settingFixes` names what it drops. Names and filters
-  // have no length limit (the whole value has one: `PANES_SETTING_MAX_LEN`).
-  if (v.key === SETTING_KEYS.eisenhowerPanes) return true
   // The check-in filter: any text, read leniently as a list's filter is
   // (`readCheckinFilterSetting`; `settingFixes` names what it drops). Its id
   // lists have no limit of their own (the whole value has one).
   if (v.key === SETTING_KEYS.checkinTaskFilter) return true
-  // The lenses: any text, read leniently as the Eisenhower panes are
+  // The lenses: any text, read leniently as the check-in filter is
   // (`readLensesSetting`; `settingFixes` names what it drops). Their
   // filters' id lists have no limit of their own (the whole value has one).
   if (v.key === SETTING_KEYS.lenses) return true
@@ -442,9 +456,7 @@ function checkSetting(v: unknown): CheckResult {
     return isDateLike(v.value) ? true : 'value (historyLogSince must be a date)'
   }
   if (v.key === SETTING_KEYS.rowDensity) {
-    return parseListZoomSetting(v.value) !== undefined
-      ? true
-      : 'value (rowDensity must be stacked, rows or lines — or strips, comfortable or compact)'
+    return isListZoom(v.value) ? true : 'value (rowDensity must be stacked, rows or lines)'
   }
   if (v.key === SETTING_KEYS.ambience) {
     return parseAmbienceSettings(v.value as string) !== undefined ? true : 'value (ambience must be a JSON object)'
@@ -475,11 +487,6 @@ function checkSetting(v: unknown): CheckResult {
   }
   if (v.key === SETTING_KEYS.newTaskFollowup) {
     return v.value === 'true' || v.value === 'false' ? true : 'value (newTaskFollowup must be true or false)'
-  }
-  if (v.key === SETTING_KEYS.eisenhowerSource) {
-    return parseEisenhowerSource(v.value as string) !== undefined
-      ? true
-      : 'value (eisenhowerSource must be all or list:<id>)'
   }
   return true
 }
@@ -547,6 +554,9 @@ function pickStatus(v: Raw): AllFields<Status> {
   return {
     id: optNum(v.id), name: v.name as string, color: v.color as string, sortOrder: v.sortOrder as number,
     icon: isKnownStatusIcon(v.icon) ? v.icon : undefined,
+    emoji: statusEmoji(v.emoji),
+    // Only with an emoji, and only `color` (absent: muted).
+    emojiShow: statusEmoji(v.emoji) !== undefined && v.emojiShow === 'color' ? 'color' : undefined,
   } satisfies AllFields<Status>
 }
 
@@ -598,10 +608,6 @@ function pickSetting(v: Raw): AllFields<SettingRow> {
     // Only the bindings that read, pass the rules and don't clash.
     return { key, value: formatShortcutOverrides(readShortcutOverrides(value).overrides) } satisfies AllFields<SettingRow>
   }
-  if (key === SETTING_KEYS.eisenhowerPanes) {
-    // Stored normalised: known panes and keys only, what equals the default left out.
-    return { key, value: formatPanesSetting(readPanesSetting(value).panes) } satisfies AllFields<SettingRow>
-  }
   if (key === SETTING_KEYS.checkinTaskFilter) {
     // Stored rebuilt: known filter parts only, no people, completed tasks off.
     return { key, value: formatCheckinFilterSetting(readCheckinFilterSetting(value).filter) } satisfies AllFields<SettingRow>
@@ -617,7 +623,6 @@ function pickSetting(v: Raw): AllFields<SettingRow> {
 function settingFixes(row: Raw): string[] {
   if (typeof row.value !== 'string') return []
   if (row.key === SETTING_KEYS.keyboardShortcuts) return readShortcutOverrides(row.value).dropped
-  if (row.key === SETTING_KEYS.eisenhowerPanes) return readPanesSetting(row.value).fixes
   if (row.key === SETTING_KEYS.checkinTaskFilter) return readCheckinFilterSetting(row.value).fixes
   if (row.key === SETTING_KEYS.lenses) return readLensesSetting(row.value).fixes
   return []
@@ -625,7 +630,6 @@ function settingFixes(row: Raw): string[] {
 
 /** How an import warning names a settings row `pickSetting` fixed. */
 function settingLabel(row: Raw): string {
-  if (row.key === SETTING_KEYS.eisenhowerPanes) return 'Eisenhower panes'
   if (row.key === SETTING_KEYS.checkinTaskFilter) return 'check-in filter'
   if (row.key === SETTING_KEYS.lenses) return 'lenses'
   return 'keyboard shortcuts'
@@ -665,6 +669,7 @@ function layoutFixes(v: Raw): string[] {
   if (!isFiniteNum(v.sortOrder)) fixes.push('order reset')
   if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
   if (v.hue !== undefined && !isLayoutHue(v.hue)) fixes.push('hue reset')
+  if (v.icon !== undefined && !isIconValue(v.icon)) fixes.push('icon reset')
   return [...fixes, ...pickLayoutBody(v).fixes]
 }
 
@@ -689,6 +694,7 @@ function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
     modifiedAt: isDateLike(v.modifiedAt) ? toDate(v.modifiedAt) : now,
     lastUsedAt: isDateLike(v.lastUsedAt) ? toDate(v.lastUsedAt) : undefined,
     hue: isLayoutHue(v.hue) ? v.hue : undefined,
+    icon: pickIconValue(v.icon),
   } satisfies AllFields<WorkspaceLayout>
 }
 
@@ -735,14 +741,13 @@ function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
 
 /**
  * A list's owner rebuilt from its known keys: one layout (`layoutId`, a
- * positive whole number) or the Eisenhower (`eisenhower: true`), each its
- * only key; anything else is none (a list that belongs to no layout, which
- * the audit reports).
+ * positive whole number, its only key); anything else is none (a list that
+ * belongs to no layout, which the audit reports) — the removed Eisenhower's
+ * `eisenhower: true` among them (v79 deleted that list).
  */
 function pickListOwner(v: unknown): ListOwner | undefined {
   if (!isRecord(v) || Object.keys(v).length !== 1) return undefined
   if (typeof v.layoutId === 'number' && Number.isSafeInteger(v.layoutId) && v.layoutId > 0) return { layoutId: v.layoutId }
-  if (v.eisenhower === true) return { eisenhower: true }
   return undefined
 }
 
@@ -864,7 +869,7 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
     check: checkStatus,
     pick: pickStatus,
     fixer: {
-      fixes: (row) => (row.icon != null && !isKnownStatusIcon(row.icon) ? ['unknown icon dropped'] : []),
+      fixes: statusFixes,
       lead: (n) => `Fixed ${plural(n, 'status', 'statuses')}`,
     },
   },

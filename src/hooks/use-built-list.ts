@@ -41,12 +41,6 @@ export interface BuiltList {
    */
   orderCandidates: () => PersistedTodoItem[]
   /**
-   * Open tasks the list's own filter (and prompt picks) matches, before the
-   * screen filter — the total an Eisenhower widget on the list counts its
-   * open tasks against. Computed on call.
-   */
-  countOpenBase: () => number
-  /**
    * Of the `leaving` tasks, the ones kept in place (as they were before they
    * were completed) because the list would otherwise drop them now.
    */
@@ -70,7 +64,6 @@ export interface LensProbe {
 }
 
 const NO_CANDIDATES = (): PersistedTodoItem[] => []
-const NO_COUNT = (): number => 0
 const NO_IDS: ReadonlySet<number> = new Set()
 
 const NO_BUILT: BuiltList = {
@@ -79,7 +72,6 @@ const NO_BUILT: BuiltList = {
   runtimeFilterPending: false,
   mergedPredicate: null,
   orderCandidates: NO_CANDIDATES,
-  countOpenBase: NO_COUNT,
   kept: NO_IDS,
   lensHides: 0,
 }
@@ -199,7 +191,6 @@ export function useBuiltList(
       const shown = new Set(list.todos.map((t) => t.id))
       return todos.filter((t) => shown.has(t.id) || listOnly(ownPredicate, t))
     }
-    const countOpenBase = () => (mergedPredicate ? countMatching(todos, (t) => !t.isCompleted && listOnly(mergedPredicate, t)) : 0)
     // What the lens hides here, of open tasks only — the picker's and the counter's rule.
     let lensHides = 0
     if (lensProbe && mergedPredicate) {
@@ -214,7 +205,7 @@ export function useBuiltList(
       }
       lensHides = Math.max(0, openUnder(lensProbe.chips) - openUnder(lensProbe.lensed))
     }
-    return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, countOpenBase, kept, lensHides }
+    return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, kept, lensHides }
   }, [
     definition, todos, people, assignedPeopleMap,
     assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings, leaving, lookups, lensProbe,

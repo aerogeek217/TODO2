@@ -12,7 +12,7 @@ import type { BreakdownConfig } from '../../../models/chart-widgets'
 import { createTab, type BreakdownTab, type LayoutTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useReviewStore } from '../../../stores/review-store'
+import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -21,14 +21,14 @@ import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { WidgetFace } from '../../../utils/widget-face'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
-import { single } from '../../helpers/layout-builders'
+import { grid, single } from '../../helpers/layout-builders'
 import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_TASKS, STATUSES, TAGS } from '../../fixtures/glance-sample'
 import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
- * The Breakdown (D26 P8) in JSDOM: its headings sort (view state), the
- * filter row, the row's Review button and the count columns' clicks (the
- * review deck), the person menu, its faces, its tab menu and its editor's
+ * The Breakdown (D26 P8) in JSDOM: its headings sort (view state), no
+ * filter row, the row's Review button and the count columns' clicks (jumps
+ * to a Review widget), the person menu, its faces, its tab menu and its editor's
  * round trip, its count columns among them (board BC).
  */
 
@@ -37,10 +37,17 @@ function breakdown(over: Partial<BreakdownConfig> = {}, id = 'b'): BreakdownTab 
 }
 
 /** The tab in the open layout, so its writes land there. */
-function inLayout(tab: LayoutTab) {
-  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [tab] }) }
-  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
+function inLayout(tab: LayoutTab, { reviewWidget = true }: { reviewWidget?: boolean } = {}) {
+  // Beside it (after it in reading order), a Review widget: where the Review buttons jump.
+  const body = reviewWidget
+    ? grid([[{ id: 'c', tabs: [tab] }, { id: 'r', tabs: [createTab('review', 'rv')] }]])
+    : single({ id: 'c', tabs: [tab] })
+  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...body }
+  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
 }
+
+/** The Review widget's filter (the jump's). */
+const reviewFilter = () => useListWidgetStore.getState().reviewFilters.rv
 
 const current = () => useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as BreakdownTab
 /** A fresh Breakdown's config (its empty filter), before any is in the layout. */
@@ -107,24 +114,8 @@ describe('the headings sort (view state, per split)', () => {
     expect(keys()).toEqual(before)
   })
 
-  it('a sort stored by the older derived columns (Overdue … Follow-up due) ranks by the Due / Follow-up column that holds them', async () => {
-    setup(breakdown({}, 'b'))
-    act(() => { useWorkspaceStore.getState().patchTabViewState('b', 'breakdown', { sorts: { people: { by: 'overdue' }, tags: { by: 'followup-due', reversed: true } } }) })
-    const heading = (key: string) => document.querySelector(`[data-sort-key="${key}"]`)!.closest('[role="columnheader"]')!
-    expect(heading('due').getAttribute('aria-sort')).toBe('descending')
-    expect(heading('followup').getAttribute('aria-sort')).toBe('none')
-    const due = rows().filter((r) => r.dataset.breakdownRow !== 'none')
-      .map((r) => Number(r.querySelector('[data-column="due"]')?.textContent?.replace('–', '0') ?? 0))
-    expect(due).toEqual([...due].sort((a, b) => b - a))
-    expect(item(glanceMenu(current(), undefined)!.settingEntries, 'Sort').note).toBe('Most Due first')
-    // A click on the Due heading goes on from there: reversed.
-    await act(async () => { fireEvent.click(document.querySelector('[data-sort-key="due"]')!) })
-    expect(current().viewState?.sorts?.people).toEqual({ by: 'due', reversed: true })
-    act(() => { useWorkspaceStore.getState().patchTabConfig('b', 'breakdown', { splitBy: 'tags' }) })
-    expect(heading('followup').getAttribute('aria-sort')).toBe('ascending')
-  })
-
-  it('a sort stored by the old Priority column reads as the default order', () => {
+  // The older derived columns' sorts (Overdue … Follow-up due) v79 rewrote as the Due / Follow-up column (`v79-upgrade.test`).
+  it('a sort by a key no column has (the old Priority column’s among them) reads as the default order', () => {
     setup(breakdown({}, 'b'))
     const before = keys()
     act(() => { useWorkspaceStore.getState().patchTabViewState('b', 'breakdown', { sorts: { people: { by: 'priority' } } }) })
@@ -143,67 +134,42 @@ describe('the headings sort (view state, per split)', () => {
   })
 })
 
-describe('the filter row (temporary, per split)', () => {
-  it('typing narrows by name; Enter picks the first match; Backspace takes it back; × clears', () => {
+describe('no filter row', () => {
+  it('the large face has no text field: every row shows', () => {
     setup(breakdown())
-    const field = within(document.querySelector<HTMLElement>('[data-testid="breakdown-filter-row"]')!).getByRole('textbox', { name: 'Filter by person' })
-    fireEvent.change(field, { target: { value: 'pri' } })
-    expect(keys()).toEqual(['person-4'])
-    fireEvent.keyDown(field, { key: 'Enter' })
-    expect(field).toHaveValue('')
-    expect(useChartWidgetsStore.getState().rowPicks.b?.people).toEqual(['person-4'])
-    expect(keys()).toEqual(['person-4'])
-    fireEvent.change(field, { target: { value: 'unass' } })
-    fireEvent.keyDown(field, { key: 'Enter' })
-    expect(keys()).toEqual(['person-4', 'none'])
-    fireEvent.keyDown(field, { key: 'Backspace' })
-    expect(keys()).toEqual(['person-4'])
-    fireEvent.click(document.querySelector('[aria-label="Clear the person filter"]')!)
+    expect(document.querySelectorAll('input[type="text"]')).toHaveLength(0)
     expect(keys().length).toBeGreaterThan(2)
-    // Never in the layout.
-    expect(layoutSteps()).toEqual([])
   })
 
-  it('a pick that matches no row any more is ignored: no chip, every row shown, and a new pick replaces it', () => {
-    setup(breakdown())
-    const all = keys()
-    act(() => { useChartWidgetsStore.getState().setRowPicks('b', 'people', ['person-99']) })
-    expect(keys()).toEqual(all)
-    expect(document.querySelector('[data-testid="breakdown-filter-chip"]')).toBeNull()
-    // A stale pick with a live one: the live one filters alone.
-    act(() => { useChartWidgetsStore.getState().setRowPicks('b', 'people', ['person-99', 'person-4']) })
-    expect(keys()).toEqual(['person-4'])
-    // Backspace takes back the chip on screen, not the stale pick.
-    const field = within(document.querySelector<HTMLElement>('[data-testid="breakdown-filter-row"]')!).getByRole('textbox', { name: 'Filter by person' })
-    fireEvent.keyDown(field, { key: 'Backspace' })
-    expect(keys()).toEqual(all)
-    expect(useChartWidgetsStore.getState().rowPicks.b?.people ?? []).toEqual([])
-  })
-
-  it('the medium face has no filter row and shows name · the count columns', () => {
+  it('the medium face shows name · the count columns', () => {
     setup(breakdown(), { face: 'medium' })
-    expect(document.querySelector('[data-testid="breakdown-filter-row"]')).toBeNull()
     expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toEqual(['Person', 'Due', 'Follow-up'])
   })
 })
 
-describe('clicks: a row drills, its Review button and a count review', () => {
-  it('a row opens its tasks; Review opens the deck on them; a count column’s count on just its tasks', () => {
+describe('clicks: a row drills, its Review button and a count jump', () => {
+  it('a row opens its tasks; Review jumps to the Review widget with the row as its filter', async () => {
     const onDrill = vi.fn()
-    setup(breakdown({ name: 'Team' }), { onDrill })
+    setup(breakdown({ name: 'Team', filter: { ...current0().config.filter, tags: [1] } }), { onDrill })
     const priya = rowOf('person-4')
     fireEvent.click(priya)
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Team · Priya Nair', personId: 4 })
     fireEvent.click(within(priya).getByTestId('breakdown-review'))
-    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Priya Nair' } })
-    expect([...useReviewStore.getState().ids].sort((a, b) => a - b)).toEqual([3, 11, 14, 15])
-    act(() => { useReviewStore.setState({ open: false }) })
-    const countRow = rows().find((r) => r.querySelector('button[data-column]'))!
-    const count = countRow.querySelector<HTMLElement>('button[data-column]')!
-    const heading = document.querySelector(`[data-sort-key="${count.dataset.column}"]`)!.textContent
+    // The Breakdown's own filter AND the row.
+    await vi.waitFor(() => expect(reviewFilter()).toEqual({
+      expression: { kind: 'and', items: [{ kind: 'tag', id: 1 }, { kind: 'person', id: 4 }] },
+      showCompleted: false,
+    }))
+  })
+
+  it('a count column’s count jumps with the row AND the column’s filter', async () => {
+    setup(breakdown({
+      columns: [{ id: 'doing', name: 'Doing', color: '#7ec4bc', filter: { ...current0().config.filter, statusIds: [2] }, litWhen: 'never' }],
+    }))
+    const count = rowOf('person-4').querySelector<HTMLElement>('button[data-column="doing"]')
+    if (!count) throw new Error('Priya has no Doing task in the sample')
     fireEvent.click(count)
-    expect(useReviewStore.getState().ids).toHaveLength(Number(count.textContent))
-    expect(useReviewStore.getState().source?.title).toMatch(new RegExp(` · ${heading}$`))
+    await vi.waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'and', items: [{ kind: 'person', id: 4 }, { kind: 'status', id: 2 }] }))
   })
 
   it('every row has its Review button right after its name, in the name cell (no actions column, no pill)', () => {
@@ -219,8 +185,8 @@ describe('clicks: a row drills, its Review button and a count review', () => {
     expect(document.body.textContent).not.toContain('Review ▸')
   })
 
-  it('the medium face keeps Review after the name, no envelope', () => {
-    setup(breakdown({ checkins: true }), { face: 'medium' })
+  it('the medium face keeps Review after the name', () => {
+    setup(breakdown(), { face: 'medium' })
     const priya = rowOf('person-4')
     expect(priya.querySelector('[role="cell"]')!.contains(within(priya).getByTestId('breakdown-review'))).toBe(true)
     expect(within(priya).queryByRole('button', { name: /Email check-in/ })).toBeNull()
@@ -258,16 +224,25 @@ describe('clicks: a row drills, its Review button and a count review', () => {
     expect(document.querySelector<HTMLElement>('[data-column="followup"]')!.style.getPropertyValue('--col-color')).toBe('var(--color-followup)')
   })
 
-  it('no Review while the deck is open', () => {
-    useReviewStore.setState({ open: true })
-    setup(breakdown())
+  it('no layout has a Review widget: no Review buttons, and a count opens its tasks in the task dialog', () => {
+    const onDrill = vi.fn()
+    inLayout(breakdown({ name: 'Team' }), { reviewWidget: false })
+    render(<DndContext><Live face="large" onDrill={onDrill} /></DndContext>)
     expect(document.querySelector('[data-testid="breakdown-review"]')).toBeNull()
+    const count = rows().map((r) => r.querySelector<HTMLElement>('button[data-column]')).find((b) => b != null)!
+    fireEvent.click(count)
+    expect(onDrill.mock.lastCall?.[0]?.title).toMatch(/^Team · .+ · /)
+    expect(reviewFilter()).toBeUndefined()
   })
 
-  it('a status row reviews as a status; a priority row as a priority', () => {
+  it('a status row jumps with its status; a priority row with its group', async () => {
     setup(breakdown({ name: 'Status', splitBy: 'status' }))
     fireEvent.click(within(rowOf('status-3')).getByTestId('breakdown-review'))
-    expect(useReviewStore.getState().source).toMatchObject({ kind: 'status', title: 'Waiting' })
+    await vi.waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'status', id: 3 }))
+    cleanup()
+    setup(breakdown({ name: 'Priority', splitBy: 'priority' }))
+    fireEvent.click(within(rowOf('priority-focus')).getByTestId('breakdown-review'))
+    await vi.waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'priority', value: 'focus' }))
   })
 
   it('a person row’s right-click opens the person menu', () => {
@@ -277,23 +252,15 @@ describe('clicks: a row drills, its Review button and a count review', () => {
   })
 })
 
-describe('the check-in envelope', () => {
-  it('each person row has it with checkins, beside Review; its menu is Email check-in · Paste reply; none without', () => {
-    setup(breakdown({ checkins: true, show: 'oldest', oldestBy: 'lastFollowup' }))
-    const envelope = within(rowOf('person-4')).getByRole('button', { name: 'Email check-in options for Priya Nair' })
-    expect(envelope.previousElementSibling).toBe(within(rowOf('person-4')).getByTestId('breakdown-review'))
-    fireEvent.click(envelope)
-    expect([...document.querySelectorAll('[role="menu"] [role="menuitem"]')].map((e) => e.textContent)).toEqual(['Email check-in to Priya Nair', 'Paste reply from Priya Nair…'])
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
-    expect(within(rowOf('none')).queryByRole('button', { name: /Email check-in/ })).toBeNull()
+describe('no check-in envelope (widget feedback 2B)', () => {
+  it('a person row has no envelope; Oldest shows the age', () => {
+    setup(breakdown({ show: 'oldest', oldestBy: 'lastFollowup' }))
+    expect(document.querySelector('[aria-label^="Email check-in options"]')).toBeNull()
+    expect(document.querySelector('[data-testid="breakdown-envelope"]')).toBeNull()
     // Oldest: the age in days, its title under the name.
     expect(within(rowOf('person-4')).getByTestId('breakdown-figure').textContent).toMatch(/^\d+ d$/)
-    cleanup()
-    setup(breakdown())
-    expect(document.querySelector('[aria-label^="Email check-in options"]')).toBeNull()
   })
 })
-
 describe('the table’s columns', () => {
   it('large: name · bar · Open · each count column — no Priority column; a count column is its number’s room, the name takes the rest', () => {
     setup(breakdown())
@@ -406,20 +373,19 @@ describe('the editor (D26 P8, the Number editor’s pattern)', () => {
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Style' }), { target: { value: 'donut' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Show' }), { target: { value: 'oldest' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Oldest by' }), { target: { value: 'created' } })
-    fireEvent.click(within(editor).getByRole('checkbox', { name: 'Check-in envelope on each person' }))
     fireEvent.click(within(editor).getByRole('checkbox', { name: 'Show Unassigned' }))
     // Nothing written until Save.
     expect(current().config.name).toBe('People')
     expect(layoutSteps()).toEqual([])
     editor = saveAndReopen()
-    expect(current().config).toMatchObject({ name: 'Waiting on', style: 'donut', show: 'oldest', oldestBy: 'created', checkins: true, showNone: false })
+    expect(current().config).toMatchObject({ name: 'Waiting on', style: 'donut', show: 'oldest', oldestBy: 'created', showNone: false })
+    expect(within(editor).queryByRole('checkbox', { name: /Check-in/ })).toBeNull()
     expect(layoutSteps()).not.toEqual([])
-    // Another split drops the check-ins; Count drops oldestBy.
+    // Count drops oldestBy.
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Split by' }), { target: { value: 'status' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Show' }), { target: { value: 'count' } })
     expect(within(editor).getByRole('checkbox', { name: 'Show No status' })).not.toBeChecked()
     editor = saveAndReopen()
-    expect(current().config).not.toHaveProperty('checkins')
     expect(current().config).not.toHaveProperty('oldestBy')
     fireEvent.click(within(editor).getByRole('button', { name: 'Close' }))
     expect(document.querySelector('[data-chart-editor]')).toBeNull()
@@ -429,8 +395,9 @@ describe('the editor (D26 P8, the Number editor’s pattern)', () => {
 describe('the editor’s Count columns (board BC)', () => {
   const columnsBox = () => document.querySelector<HTMLElement>('[data-testid="chart-editor-columns"]')!
 
-  it('shows the derived columns until edited; the first edit writes them all as columns and drops the old ranges', () => {
-    setup(breakdown({ badges: { followup: 'overdue' } }))
+  it('a config without columns (a hand-made file) shows the defaults in Settings’ ranges until edited; the first edit writes them all as columns', () => {
+    act(() => { useSettingsStore.setState({ tabBadges: { due: 3, followup: 'overdue' } }) })
+    setup(breakdown())
     act(() => { useChartWidgetsStore.getState().openEditor('b') })
     expect([...columnsBox().querySelectorAll<HTMLInputElement>('input[aria-label$="name"]')].map((i) => i.value)).toEqual(['Due', 'Follow-up'])
     expect(current().config).not.toHaveProperty('columns')
@@ -439,7 +406,6 @@ describe('the editor’s Count columns (board BC)', () => {
     expect(current().config.columns?.map((c) => [c.id, c.name, c.litWhen, c.litAt])).toEqual([['due', 'Late', 'above', 0], ['followup', 'Follow-up', 'above', 0]])
     // The follow-up range was `overdue`: its column counts the late ones only (up to yesterday), as written.
     expect(current().config.columns?.[1]?.filter.dates?.followup).toEqual({ match: 'range', start: null, end: { kind: 'offset', days: -1 } })
-    expect(current().config).not.toHaveProperty('badges')
     expect(layoutSteps()).not.toEqual([])
     // The table follows: its headings are the columns' names.
     expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toContain('Late')
@@ -486,7 +452,7 @@ describe('Add widget › Insights › Breakdown › its presets', () => {
     return [...document.querySelectorAll<HTMLElement>('[role="menu"][aria-label="Breakdown"] [role="menuitem"]')]
   }
 
-  it('lists People · Tags · Status · Custom (no Waiting on); a preset adds its Breakdown and opens its editor', () => {
+  it('lists People · Tags · Status · Custom (no Waiting on); a preset adds its Breakdown and opens no editor', () => {
     inLayout(breakdown())
     render(<DndContext><AddWidgetFlow cellId="c" anchor={{ x: 10, y: 10 }} onClose={() => {}} /></DndContext>)
     const presets = openPresets()
@@ -494,7 +460,7 @@ describe('Add widget › Insights › Breakdown › its presets', () => {
     fireEvent.click(presets[2]!)
     const added = useWorkspaceStore.getState().working!.cells[0]!.tabs.at(-1) as BreakdownTab
     expect(added.config).toMatchObject({ name: 'Status', splitBy: 'status' })
-    expect(useChartWidgetsStore.getState().editorTabId).toBe(added.id)
+    expect(useChartWidgetsStore.getState().editorTabId).toBeNull()
   })
 
   it('every preset writes the Due and Follow-up columns in Settings’ ranges of the moment; later Settings changes leave them', () => {

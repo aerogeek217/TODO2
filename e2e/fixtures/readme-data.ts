@@ -161,7 +161,6 @@ const byPerson = (id: string) => ({
     style: 'bars',
     show: 'count',
     showNone: false,
-    checkins: true,
     columns: [
       { id: 'due', name: 'Due', color: DUE, filter: filter({ dates: { deadline: range(null, offset(3)) } }), litWhen: 'above', litAt: 0 },
       { id: 'followup', name: 'Chase', color: FOLLOWUP, filter: filter({ dates: { followup: range(null, rel('today')) } }), litWhen: 'above', litAt: 0 },
@@ -255,7 +254,6 @@ export function readmeData(today: Date = new Date()): Obj {
       membership: { kind: 'custom', predicate: filter({ dates: { deadline: range(null, offset(3)) } }) },
       sort: 'priority', grouping: 'deadline', owner: { layoutId: README_IDS.layouts.today },
     },
-    { id: 2, name: 'Eisenhower', sortOrder: 1, membership: { kind: 'custom', predicate: filter() }, sort: 'manual', grouping: 'none', owner: { eisenhower: true } },
   ]
 
   const C = README_IDS.cells
@@ -301,7 +299,6 @@ export function readmeData(today: Date = new Date()): Obj {
 
   const settings = [
     { key: 'activeLayoutId', value: String(README_IDS.layouts.today) },
-    { key: 'eisenhowerSource', value: 'list:2' },
     { key: 'followupDefaultInterval', value: '1w' },
     { key: 'historyLogSince', value: longAgo },
     { key: 'seededAssignedStatusId', value: '1' },

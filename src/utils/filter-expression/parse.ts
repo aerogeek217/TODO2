@@ -65,7 +65,7 @@ export interface ExpressionParseOptions {
   allowPeople?: boolean
   /** `false`: Completed dates are refused (the check-in filter: it takes open tasks only). */
   allowCompleted?: boolean
-  /** `false`: `done` is refused (a lens, an Eisenhower pane, the check-in: they never show completed tasks by it). */
+  /** `false`: `done` is refused (a lens, the check-in: they never show completed tasks by it). */
   allowDone?: boolean
 }
 
@@ -189,7 +189,7 @@ function lex(text: string): Lex[] {
 // ── Parser ──────────────────────────────────────────────────────────────────
 
 /** Words that end a text phrase: they start a term or join terms. */
-const KEYWORDS = new Set(['and', 'or', 'not', 'no', 'any', 'never', 'overdue', 'done', ...DATE_WORDS.keys()])
+export const KEYWORDS: ReadonlySet<string> = new Set(['and', 'or', 'not', 'no', 'any', 'never', 'overdue', 'done', ...DATE_WORDS.keys()])
 
 const PRIORITIES: ReadonlyMap<string, MarkerKey> = new Map([['urgent', 'urgent'], ['important', 'important'], ['focus', 'focus']])
 

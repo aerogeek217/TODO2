@@ -1,32 +1,32 @@
 import { create } from 'zustand'
 import { afterLeavingEditors } from './editor-leave'
-import type { BreakdownSplit } from '../models/chart-widgets'
 
 /**
  * The chart widgets' temporary state (D26 P8), never in a layout: the open
  * chart editor (one at a time, beside its chart — `ChartEditorHost`), and
- * each Breakdown's filter-row picks (per tab and split; a reload clears
- * them). Also Project pulse's open editor (G5, `PulseEditorHost`), one at a
- * time like the chart editor's.
+ * Project pulse's open editor (G5, `PulseEditorHost`) and Created vs
+ * completed's (`TrendEditorHost`), each one at a time like the chart
+ * editor's.
  */
 interface ChartWidgetsState {
   /** The chart tab whose editor is open. */
   editorTabId: string | null
-  /** Each Breakdown tab's filter-row picks, by split: the rows' keys, in pick order. */
-  rowPicks: Readonly<Record<string, Partial<Record<BreakdownSplit, readonly string[]>> | undefined>>
   openEditor: (tabId: string) => void
   closeEditor: () => void
-  setRowPicks: (tabId: string, split: BreakdownSplit, keys: readonly string[]) => void
   // ── G5: Project pulse's editor ──
   /** The Project pulse tab whose editor is open. */
   pulseEditorTabId: string | null
   openPulseEditor: (tabId: string) => void
   closePulseEditor: () => void
+  // ── Created vs completed's editor ──
+  /** The Created vs completed tab whose editor is open. */
+  trendEditorTabId: string | null
+  openTrendEditor: (tabId: string) => void
+  closeTrendEditor: () => void
 }
 
 export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
   editorTabId: null,
-  rowPicks: {},
 
   openEditor(tabId) {
     if (get().editorTabId === tabId) return
@@ -37,11 +37,6 @@ export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
   closeEditor() {
     if (get().editorTabId === null) return
     set({ editorTabId: null })
-  },
-
-  setRowPicks(tabId, split, keys) {
-    const rowPicks = get().rowPicks
-    set({ rowPicks: { ...rowPicks, [tabId]: { ...rowPicks[tabId], [split]: keys } } })
   },
 
   // ── G5: Project pulse's editor ──
@@ -55,5 +50,18 @@ export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
   closePulseEditor() {
     if (get().pulseEditorTabId === null) return
     set({ pulseEditorTabId: null })
+  },
+
+  // ── Created vs completed's editor ──
+  trendEditorTabId: null,
+
+  openTrendEditor(tabId) {
+    if (get().trendEditorTabId === tabId) return
+    afterLeavingEditors(() => set({ trendEditorTabId: tabId }))
+  },
+
+  closeTrendEditor() {
+    if (get().trendEditorTabId === null) return
+    set({ trendEditorTabId: null })
   },
 }))

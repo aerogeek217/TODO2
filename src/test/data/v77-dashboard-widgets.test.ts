@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { upgradeV77 } from '../../data/upgrades/v77-dashboard-widgets'
-import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow } from '../../data/schema-upgrades'
+import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
 import { readLayoutDraft } from '../../data/draft-storage'
 import { rowFixes } from '../../data/import-validation'
@@ -8,6 +8,7 @@ import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
 import type { LayoutBody } from '../../models/workspace-layout'
 import { upgradeV78 } from '../../data/upgrades/v78'
+import { upgradeV79 } from '../../data/upgrades/v79'
 import { picture } from '../helpers/layout-builders'
 
 const DATE = '2026-11-01T09:00:00.000Z'
@@ -106,7 +107,8 @@ describe('v77 — the Dashboard as widgets', () => {
     ])
     // The layout still names the lists it showed.
     expect([...layoutListRefs(asV78(out) as unknown as LayoutBody)].sort()).toEqual([4, 7])
-    noFixes(out)
+    // The Eisenhower v78 makes of the summary is dropped by this build's repair (removed after v78).
+    expect(rowFixes('layouts', asV78(out))).toEqual(['tab dropped'])
   })
 
   it('a Dashboard sharing its cell: the cell keeps its other tabs, the new rows go below it, the kept row one share', () => {
@@ -288,11 +290,14 @@ describe('v77 — the Dashboard as widgets', () => {
     }
     const result = prepareImport(JSON.parse(JSON.stringify(file)))
     if (!result.ok) throw new Error(result.error)
+    // Through v77's rows to v78's table: the Number's fit row over the section's; v78 makes the
+    // Eisenhower summary the Eisenhower (its small face) …
+    const v78 = upgradeDataSet(JSON.parse(JSON.stringify({ layouts: file.layouts })) as DataSet, 75, 78).layouts![0]! as unknown as LayoutBody
+    expect(picture(v78)).toEqual(['d-c1', 'd-c2'])
+    expect(v78.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'eisenhower'])
+    // … which v79 drops (removed after v78), its cell closing: nothing left to repair.
     expect(result.warnings).toEqual([])
-    // Through v77's rows to v78's table: the Number's fit row over the section's.
-    expect(picture(result.data.layouts[0]!)).toEqual(['d-c1', 'd-c2'])
-    // …and v78 makes the Eisenhower summary the Eisenhower (its small face).
-    expect(result.data.layouts[0]!.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'eisenhower'])
+    expect(result.data.layouts[0]!.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number'])
   })
 
   it('runs in the chain from the floor', () => {
@@ -320,7 +325,7 @@ describe('a layout draft kept at v76', () => {
     expect(picture(draft.base)).toEqual(['d-c1', 'd-c2'])
     expect(picture(draft.body)).toEqual(['d-c1', 'd-c2', 'm'])
     expect(rowsOf(upgraded(layout({ columns: v76Base })))).toEqual(widgets)
-    const stored = asV78(upgraded(layout({ columns: v76Base }))) as unknown as LayoutBody
+    const stored = upgradeV79({ layouts: [asV78(upgraded(layout({ columns: v76Base })))] }).layouts![0]! as unknown as LayoutBody
     expect(draft.base).toEqual({ grid: stored.grid, cells: stored.cells })
   })
 })

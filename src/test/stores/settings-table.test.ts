@@ -52,7 +52,6 @@ const CASES: Record<string, Case> = {
   lenses: { value: { lenses: [{ id: 'lens-a', name: 'Fresh', predicate: emptyPredicate() }] }, undo: null, failure: 'Couldn’t save the lenses.' },
   activeLensId: { value: { activeLensId: 'lens-a' }, undo: null, failure: 'Couldn’t save the lens pick.' },
   shortcutOverrides: { value: { shortcutOverrides: { 'command-palette': [{ key: 'p', mod: true, shift: true }] } }, undo: null, failure: 'Couldn’t save the keyboard shortcuts.' },
-  eisenhowerPanes: { value: { eisenhowerPanes: { drop: { name: 'Someday' } } }, undo: null, failure: 'Couldn’t save the Eisenhower panes.' },
 }
 
 const writable = Object.entries(SETTINGS).filter(([, s]) => 'write' in s) as unknown as [string, Writable][]

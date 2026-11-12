@@ -18,12 +18,6 @@ export interface PromptOption {
 interface PromptFieldProps {
   /** The field's name (`Person`): the row's label, the option list's name, the clear button's `Clear Person`. */
   label: string
-  /**
-   * Drawn in place of the label's text: a control of the caller's (the
-   * Review widget's `Person ▾` menu button). A press on it — or on
-   * `trailing` — is outside the field, so the option list closes.
-   */
-  labelControl?: ReactNode
   /** The choices, in the order the list shows them. Read from cached stores by the caller — never the database. */
   options: readonly PromptOption[]
   /** Currently picked ids (OR-combined). Empty / undefined ≡ nothing picked. */
@@ -43,22 +37,15 @@ interface PromptFieldProps {
   emptyText: string
   /** Each chip shows its option's mark before its name. */
   chipMarks?: boolean
-  /** After the field, at the row's end (a count, a switch). */
+  /** After the field, at the row's end (a count, a switch): outside the field, so a press there closes the option list. */
   trailing?: ReactNode
-  /**
-   * What the field is of (the Review widget's kind): when it changes, the
-   * options are another set, so the typed text and the highlight go and the
-   * option list closes — the row itself (a `labelControl` holding the focus)
-   * stays mounted.
-   */
-  resetKey?: string
 }
 
 const NO_IDS: readonly number[] = []
 const NO_REFS: RefObject<HTMLElement | null>[] = []
 
 /**
- * A prompt row (a list's Prompt for, the Review widget's field): a label,
+ * A prompt row (a list's Prompt for): a label,
  * then a multi-value field the user types in. Visual shape mirrors
  * `FilterDropdown` (chip-row + searchable option list) but the trigger is the
  * text input itself — it stays visible above the body so typing the first
@@ -82,7 +69,7 @@ const NO_REFS: RefObject<HTMLElement | null>[] = []
  * tank the hover / typing path).
  */
 export function PromptField({
-  label, labelControl, options, value, onChange, inputRef: outerInputRef, inputLabel, placeholder, emptyText, chipMarks = false, trailing, resetKey,
+  label, options, value, onChange, inputRef: outerInputRef, inputLabel, placeholder, emptyText, chipMarks = false, trailing,
 }: PromptFieldProps) {
   const ids = value ?? NO_IDS
   const idSet = useMemo(() => new Set(ids), [ids])
@@ -120,14 +107,6 @@ export function PromptField({
   // The highlighted option, by id (it survives the query narrowing): the one
   // moved to or picked, else the first match while a query is typed.
   const [activeId, setActiveId] = useState<number | null>(null)
-  // A new `resetKey`: another field (adjusted during render, not in an effect: no render of the old text over the new options).
-  const [shownKey, setShownKey] = useState(resetKey)
-  if (resetKey !== shownKey) {
-    setShownKey(resetKey)
-    setSearchText('')
-    setActiveId(null)
-    setOpen(false)
-  }
   const chosen = activeId === null ? -1 : filtered.findIndex((o) => o.id === activeId)
   const active = chosen >= 0 ? chosen : query && filtered.length > 0 ? 0 : -1
   const listId = useId()
@@ -146,13 +125,13 @@ export function PromptField({
   }
 
   // Element-anchored: the panel tracks the field rect on scroll/resize
-  // (closeOnScroll/closeOnResize=false → reposition mode). With a plain
-  // label the wrapper row (label + chips + input) counts as "inside" so
-  // clicking a chip's × or the label doesn't dismiss the panel mid-edit; a
-  // label control or trailing content of the caller's is outside (the field
-  // itself, the anchor, always is inside). Escape is owned by the input's
-  // onKeyDown (also blurs the input), so closeOnEscape=false.
-  const rowIsInside = labelControl == null && trailing == null
+  // (closeOnScroll/closeOnResize=false → reposition mode). Without trailing
+  // content the wrapper row (label + chips + input) counts as "inside" so
+  // clicking a chip's × or the label doesn't dismiss the panel mid-edit;
+  // trailing content of the caller's is outside (the field itself, the
+  // anchor, always is inside). Escape is owned by the input's onKeyDown
+  // (also blurs the input), so closeOnEscape=false.
+  const rowIsInside = trailing == null
   const { panelRef, style, caret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: fieldRef },
     open,
@@ -224,7 +203,7 @@ export function PromptField({
 
   return (
     <div ref={wrapperRef} className={styles.row} data-prompt-row="">
-      {labelControl ?? <span className={styles.label}>{label}</span>}
+      <span className={styles.label}>{label}</span>
       <div
         ref={fieldRef}
         className={styles.field}

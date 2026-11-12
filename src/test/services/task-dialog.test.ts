@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { emptyPredicate, type DateMatch, type PersistedTodoItem, type Person, type Tag, type TodoPredicate } from '../../models'
 import {
-  noPaneTaskDialog,
   personTaskDialog,
   resolveTaskDialog,
   screenTaskCount,
@@ -321,13 +320,3 @@ describe('taskDialogCount / taskDialogCopySections', () => {
   })
 })
 
-describe('noPaneTaskDialog', () => {
-  it('lists an Eisenhower tab’s open tasks in no pane, in the order given', () => {
-    expect(noPaneTaskDialog([4, 2])).toEqual({
-      title: 'In no pane',
-      glyph: 'matrix',
-      description: 'Open tasks the Eisenhower considers that match none of its panes’ filters.',
-      source: { kind: 'todos', todoIds: [4, 2] },
-    })
-  })
-})

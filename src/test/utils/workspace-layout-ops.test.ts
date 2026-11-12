@@ -24,6 +24,7 @@ import {
   setActiveTab,
   setTrackCollapsed,
   splitCell,
+  withRowDrawnAt,
   type LayoutDropTarget,
 } from '../../utils/workspace-layout-ops'
 import { cell as spec, emptyBody, grid, picture, type CellSpec } from '../helpers/layout-builders'
@@ -574,6 +575,101 @@ describe('a Numbers-only (fit) row\'s divider', () => {
   })
 })
 
+describe('only the dragged line moves (J14)', () => {
+  const n1 = spec('n1', [createTab('number', 'num1')])
+  const n2 = spec('n2', [createTab('number', 'num2')])
+  const a = cell('a')
+  const b = cell('b')
+  const minPx = () => 40
+
+  /**
+   * The rows as the grid draws them in `total` px (no gaps): a fixed track
+   * its px, a fit one `fit` px (its content), the rest shared by weight.
+   */
+  function drawn(body: LayoutBody, total: number, fit = 76): number[] {
+    const sizings = body.grid.rows.map((_, i) => trackSizing(body, 'rows', i))
+    const settled = sizings.map((s) => (s.kind === 'fixed' ? s.px : s.kind === 'fit' ? fit : null))
+    const free = total - settled.reduce<number>((sum, px) => sum + (px ?? 0), 0)
+    const weights = sizings.reduce((sum, s) => sum + (s.kind === 'weighted' ? s.weight : 0), 0)
+    return sizings.map((s, i) => settled[i] ?? (s.kind === 'weighted' ? (s.weight / weights) * free : 0))
+  }
+
+  // a  a
+  // n1 n2  — a fit row between two weighted rows, 300 + 76 + 300 px
+  const sandwich = layout(grid([[a, a], [n1, n2], [b, b]], { rows: [1000, 1000, 1000] }))
+  const sizes = drawn(sandwich, 676)
+
+  it('a fit row\'s bottom line: the row below gives the px, the row above keeps its size', () => {
+    expect(sizes).toEqual([300, 76, 300])
+    const out = moveEdge(sandwich, wholeLine(sandwich, 'rows', 2), 60, { sizes, minPx }, ids())
+    expect(out.grid.rows[1]).toEqual({ id: 'r2', weight: 1000, fitPx: 136 })
+    expect(out.grid.rows[0]).toEqual({ id: 'r1', weight: 1000 })
+    expect(drawn(out, 676).map(Math.round)).toEqual([300, 136, 240])
+    // Back up: from those sizes, the same line only.
+    const back = moveEdge(out, wholeLine(out, 'rows', 2), -100, { sizes: drawn(out, 676), minPx }, ids())
+    // Clamped at the fit row's minimum (40px here).
+    expect(drawn(back, 676).map(Math.round)).toEqual([300, 40, 336])
+  })
+
+  it('a fit row\'s top line: the row above gives the px, the row below keeps its size', () => {
+    const out = moveEdge(sandwich, wholeLine(sandwich, 'rows', 1), -60, { sizes, minPx }, ids())
+    expect(out.grid.rows[1]?.fitPx).toBe(136)
+    expect(out.grid.rows[2]).toEqual({ id: 'r3', weight: 1000 })
+    expect(drawn(out, 676).map(Math.round)).toEqual([240, 136, 300])
+  })
+
+  it('a fixed (px) row between weighted rows: either line moves alone', () => {
+    const fixed = layout(grid([[a], [cell('f')], [b]], { rows: [600, { px: 160 }, 400] }))
+    const s = drawn(fixed, 760)
+    expect(s).toEqual([360, 160, 240])
+    const down = moveEdge(fixed, wholeLine(fixed, 'rows', 2), 50, { sizes: s, minPx }, ids())
+    expect(down.grid.rows[1]).toEqual({ id: 'r2', px: 210 })
+    expect(drawn(down, 760).map(Math.round)).toEqual([360, 210, 190])
+    const up = moveEdge(fixed, wholeLine(fixed, 'rows', 1), -50, { sizes: s, minPx }, ids())
+    expect(drawn(up, 760).map(Math.round)).toEqual([310, 210, 240])
+  })
+
+  it('a fixed column beside weighted ones: the same on the other axis', () => {
+    const cols = layout(grid([[a, cell('f'), b, cell('c')]], { cols: [1000, { px: 200 }, 1000, 1000] }))
+    const s = [300, 200, 300, 300]
+    const out = moveEdge(cols, wholeLine(cols, 'columns', 2), 90, { sizes: s, minPx }, ids())
+    expect(out.grid.columns[1]).toEqual({ id: 'c2', px: 290 })
+    const weights = out.grid.columns.map((t) => t.weight ?? 0)
+    const free = 1100 - 290
+    const total = (weights[0] ?? 0) + (weights[2] ?? 0) + (weights[3] ?? 0)
+    expect([weights[0], weights[2], weights[3]].map((w) => Math.round(((w ?? 0) / total) * free))).toEqual([300, 210, 300])
+  })
+
+  it('two weighted tracks keep their summed weight: the other lines stay (unchanged behaviour)', () => {
+    const three = layout(grid([[a], [b], [cell('c')]], { rows: [1000, 1000, 1000] }))
+    const out = moveEdge(three, wholeLine(three, 'rows', 1), 60, { sizes: [200, 200, 200], minPx }, ids())
+    expect(out.grid.rows.map((t) => t.weight)).toEqual([1300, 700, 1000])
+  })
+
+  it('a crossing\'s level line beside a fit row (a whole line with snapHome) moves alone too', () => {
+    // a  c
+    // n1 n2
+    // b  d   — "+" crossings on both row lines
+    const quad = layout(grid([[a, cell('c')], [n1, n2], [b, cell('d')]], { cols: [500, 500], rows: [1000, 1000, 1000] }))
+    const out = moveEdge(quad, wholeLine(quad, 'rows', 2), 40, { sizes, minPx, snapHome: true }, ids())
+    expect(drawn(out, 676).map(Math.round)).toEqual([300, 116, 260])
+  })
+
+  it('a double-click clearing the fit row\'s height: the row across the line takes it back (`withRowDrawnAt`)', () => {
+    const given = moveEdge(sandwich, wholeLine(sandwich, 'rows', 2), 60, { sizes, minPx }, ids())
+    const before = drawn(given, 676)
+    const cleared = withoutTrackFitPx(given, 'r2')
+    // Unaided, the free space would split among both weighted rows.
+    expect(cleared.grid.rows.map((t) => t.weight)).toEqual([1000, 1000, 800])
+    expect(drawn(cleared, 676).map(Math.round)).toEqual([333, 76, 267])
+    const fixed = withRowDrawnAt(cleared, 2, (before[2] ?? 0) + (before[1] ?? 0) - 76, before)
+    expect(drawn(fixed, 676).map(Math.round)).toEqual([300, 76, 300])
+    // Nothing to re-weight: a fit or fixed track, or sizes that don't match.
+    expect(withRowDrawnAt(cleared, 1, 100, before)).toBe(cleared)
+    expect(withRowDrawnAt(cleared, 2, 300, [1, 2])).toBe(cleared)
+  })
+})
+
 describe('evenStretchDelta (a divider double-click)', () => {
   it('part of a line goes midway between its own cells; a whole line has none', () => {
     const [a, b, e, c, d] = ['a', 'b', 'e', 'c', 'd'].map((id) => cell(id)) as [CellSpec, CellSpec, CellSpec, CellSpec, CellSpec]
@@ -636,11 +732,12 @@ describe('view state, config and sizes', () => {
 
   it('counts the tabs showing a list', () => {
     const lens: LayoutTab = { id: 'l', kind: 'lens', config: { listDefinitionId: 7 } }
-    const eis: LayoutTab = { id: 'e', kind: 'eisenhower', config: {} }
-    const body = layout(grid([[spec('a', [lens, eis])]]))
-    expect(countListTabs(body, 7, null)).toBe(1)
-    expect(countListTabs(body, 7, 7)).toBe(2)
-    expect(countListTabs(body, 7, 7, new Set(['e']))).toBe(1)
+    const other: LayoutTab = { id: 'o', kind: 'lens', config: { listDefinitionId: 7 } }
+    const notes: LayoutTab = { id: 'n', kind: 'notes', config: {} }
+    const body = layout(grid([[spec('a', [lens, other, notes])]]))
+    expect(countListTabs(body, 7)).toBe(2)
+    expect(countListTabs(body, 8)).toBe(0)
+    expect(countListTabs(body, 7, new Set(['o']))).toBe(1)
   })
 })
 

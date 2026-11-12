@@ -99,8 +99,9 @@ export function TagChipSelector({
 /**
  * The tag lookup-or-create popover over the full tag registry, anchored to
  * `anchorRef` (`anchorIsInside`: the anchor is the trigger, so a click on it
- * is left to the trigger's own toggle). Shared by the chip row above and the
- * desktop task row's tags cell.
+ * is left to the trigger's own toggle). Shared by the chip row above, the
+ * desktop task row's tags cell and Project pulse's + card (which picks
+ * among the tags there are: no `onCreate`, no Create row).
  */
 export function TagPicker({ anchorRef, anchorIsInside = true, assignedTags, allTags, onToggle, onCreate, onClose }: {
   anchorRef: RefObject<HTMLElement | null>
@@ -108,7 +109,7 @@ export function TagPicker({ anchorRef, anchorIsInside = true, assignedTags, allT
   assignedTags: readonly Tag[]
   allTags: readonly Tag[]
   onToggle: (tagId: number) => void
-  onCreate: (name: string) => Promise<void> | void
+  onCreate?: (name: string) => Promise<void> | void
   onClose: () => void
 }) {
   const assignedIds = new Set(assignedTags.map((t) => t.id!))

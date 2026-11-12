@@ -1,0 +1,180 @@
+/* The icon picker (items 11, 14; the icons board): Icons | Emoji, then No icon. */
+.picker {
+  position: fixed;
+  z-index: var(--z-dialog-nested);
+  box-sizing: border-box;
+  width: 300px;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--color-popover-bg);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* A segmented control: the source tabs, Show as. */
+.tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--color-seg-track);
+}
+
+.segment {
+  height: 22px;
+  padding: 0 var(--space-5);
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.segment:hover {
+  color: var(--color-text-primary);
+}
+
+.segmentOn,
+.segmentOn:hover {
+  background: var(--color-seg-selected);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-seg-selected);
+}
+
+.segment:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.segmentOn:focus-visible {
+  box-shadow: var(--shadow-seg-selected), var(--focus-ring);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.cell {
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.cell:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.cell:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/* The current icon: in the accent, like a line icon taking a color. */
+.cellOn,
+.cellOn:hover {
+  background: var(--color-accent-bg-medium);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  color: var(--color-accent-text);
+}
+
+.emojiTab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.field {
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-muted);
+  border-radius: 7px;
+  background: var(--color-seg-track);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-md);
+}
+
+.field::placeholder {
+  color: var(--color-text-muted);
+}
+
+.field:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+
+.problem {
+  margin-top: calc(-1 * var(--space-2));
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+.showAs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.showAsLabel {
+  color: var(--color-text-muted);
+}
+
+.caption {
+  margin-bottom: calc(-1 * var(--space-1));
+  color: var(--color-text-muted);
+  font-size: var(--font-size-badge-capsule);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.foot {
+  display: flex;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.noIcon {
+  height: 24px;
+  padding: 0 9px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.noIcon:hover {
+  color: var(--color-text-primary);
+}
+
+.noIcon:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.noIconOn {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  color: var(--color-accent-text);
+}

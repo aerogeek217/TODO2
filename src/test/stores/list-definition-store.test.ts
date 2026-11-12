@@ -74,20 +74,17 @@ describe('useListDefinitionStore mutations', () => {
     expect(sorted.map(d => d.sortOrder)).toEqual([0, 1, 2])
   })
 
-  it('a blank list starts with Settings’ new-list sort, direction and grouping; a given sort / grouping and the Eisenhower’s list don’t', async () => {
+  it('a blank list starts with Settings’ new-list sort, direction and grouping; a given sort / grouping doesn’t', async () => {
     useSettingsStore.setState({ newListSort: 'deadline', newListSortDirection: 'desc', newListGroup: 'people' })
     const blank = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'Blank' })
     // A copy passes its source's definition.
     const copy = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'Copy', sort: 'name', grouping: 'none' })
     const copyDesc = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'Copy ↓', sort: 'created', sortDirection: 'desc', grouping: 'tag' })
-    const eisenhower = await useListDefinitionStore.getState().add({ owner: { eisenhower: true }, name: 'Eisenhower' })
     const stored = new Map((await db.listDefinitions.toArray()).map((d) => [d.id, d]))
     expect(stored.get(blank)).toMatchObject({ sort: 'deadline', sortDirection: 'desc', grouping: 'people' })
     expect(stored.get(copy)).toMatchObject({ sort: 'name', grouping: 'none' })
     expect(stored.get(copy)).not.toHaveProperty('sortDirection')
     expect(stored.get(copyDesc)).toMatchObject({ sort: 'created', sortDirection: 'desc', grouping: 'tag' })
-    expect(stored.get(eisenhower)).toMatchObject({ sort: 'manual', grouping: 'none' })
-    expect(stored.get(eisenhower)).not.toHaveProperty('sortDirection')
 
     // A default sort without a direction stores none.
     useSettingsStore.setState({ newListSort: 'people', newListSortDirection: 'asc', newListGroup: 'none' })

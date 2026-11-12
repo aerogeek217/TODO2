@@ -182,7 +182,7 @@ describe('ui-store: Settings asks before it leaves a lens draft', () => {
   })
 
   it('another section asks; a part of the same section, or no section, does not', async () => {
-    ui().setSettingsSection('eisenhower')
+    ui().setSettingsSection('lists-and-rows')
     expect(ui().confirmPrompts).toHaveLength(0)
     ui().openSettings()
     expect(ui().confirmPrompts).toHaveLength(0)
@@ -215,21 +215,21 @@ describe('ui-store: Settings asks before it leaves a lens draft', () => {
   it.each([
     ['no target (the gear, G S, #/settings)', undefined],
     ['another section (the storage pill)', 'file-storage'],
-    ['another part of Tasks', 'eisenhower'],
+    ['another part of Tasks', 'lists-and-rows'],
     ['a section', 'about'],
   ] as const)('a draft kept by hideSettings: opening with %s opens Tasks › Lenses on the drafted lens', (_, target) => {
     ui().hideSettings()
     // Closed, a section change asks nothing (and Settings would open there).
     ui().setSettingsSection('database')
-    ui().openSettings(target, 'eisenhower-pane-do')
+    ui().openSettings(target, 'urgent-range')
     expect(ui()).toMatchObject({ settingsOpen: true, settingsSection: 'tasks', settingsPart: 'lenses', settingsFocus: 'lens-lens-a' })
     expect(ui().confirmPrompts).toHaveLength(0)
     expect(drafts().draft?.lensId).toBe('lens-a')
   })
 
   it('without a draft, or open on Tasks with one, opening goes where it is asked', () => {
-    ui().openSettings('eisenhower', 'eisenhower-pane-do')
-    expect(ui()).toMatchObject({ settingsSection: 'tasks', settingsPart: 'eisenhower', settingsFocus: 'eisenhower-pane-do' })
+    ui().openSettings('lists-and-rows', 'urgent-range')
+    expect(ui()).toMatchObject({ settingsSection: 'tasks', settingsPart: 'lists-and-rows', settingsFocus: 'urgent-range' })
 
     ui().hideSettings()
     drafts().discard()

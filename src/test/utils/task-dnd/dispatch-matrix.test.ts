@@ -5,7 +5,6 @@
  * relies on:
  *   - calendar-day target → reschedule (which date: the entry's own, the
  *     one the calendar shows, or the user's pick when it shows both)
- *   - Eisenhower pane target → what the pane's filter implies
  *   - any other target (or none) → not handled; the caller's own
  *     handler runs
  */
@@ -20,10 +19,7 @@ import {
   taskDragId,
   type TaskDropKind,
 } from '../../../utils/task-dnd'
-import { makePaneContext, makeTodo } from '../../helpers'
-import { resolvePanes } from '../../../utils/eisenhower-panes'
-import { emptyPredicate } from '../../../models'
-import type { EisenhowerPanes } from '../../../models/eisenhower-settings'
+import { makeTodo } from '../../helpers'
 
 function makeEvent(opts: {
   activeId?: string
@@ -211,23 +207,16 @@ describe('dispatchTaskDrop — every drop kind, and nothing else', () => {
   // doesn't compile, and one the dispatcher ignores fails.
   const OVER_DATA: Record<TaskDropKind, Record<string, unknown>> = {
     'calendar-day': { date: new Date(2026, 9, 13), scope: 't1', dateTypes: { due: true, followup: false } },
-    'eisenhower-quadrant': { quadrant: 'do', scope: 't2' },
   }
   const deps = () => ({
     calendar: { reschedule: vi.fn(async () => {}) },
-    eisenhower: {
-      tasksFor: () => [makeTodo({ id: 1 })],
-      panes: () => resolvePanes(undefined),
-      context: () => makePaneContext(new Date(2026, 9, 10), null),
-      apply: vi.fn(async () => {}),
-    },
   })
 
   it.each(Object.values(TASK_DROP_KIND))('a drop on a %s is handled', async (kind) => {
     const d = deps()
     const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 1, over: { id: `${kind}-x`, type: kind, extra: OVER_DATA[kind] } }), d)
     expect(handled).toBe(true)
-    expect(d.calendar.reschedule.mock.calls.length + d.eisenhower.apply.mock.calls.length).toBe(1)
+    expect(d.calendar.reschedule.mock.calls.length).toBe(1)
   })
 
   it('over=null is not handled', async () => {
@@ -235,18 +224,16 @@ describe('dispatchTaskDrop — every drop kind, and nothing else', () => {
     const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 99, over: null }), d)
     expect(handled).toBe(false)
     expect(d.calendar.reschedule).not.toHaveBeenCalled()
-    expect(d.eisenhower.apply).not.toHaveBeenCalled()
   })
 
   it('a target of any other type is not handled, so the caller\'s own drop runs', async () => {
     const d = deps()
     const handled = await dispatchTaskDrop(
-      makeEvent({ activeTodoId: 1, over: { id: 'other-1', type: 'not-a-task-drop', extra: { ...OVER_DATA['calendar-day'], ...OVER_DATA['eisenhower-quadrant'] } } }),
+      makeEvent({ activeTodoId: 1, over: { id: 'other-1', type: 'not-a-task-drop', extra: { ...OVER_DATA['calendar-day'] } } }),
       d,
     )
     expect(handled).toBe(false)
     expect(d.calendar.reschedule).not.toHaveBeenCalled()
-    expect(d.eisenhower.apply).not.toHaveBeenCalled()
   })
 })
 
@@ -265,74 +252,5 @@ describe('dispatchTaskDrop — degenerate inputs', () => {
     const handled = await dispatchTaskDrop(event, { calendar: { reschedule } })
     expect(handled).toBe(false)
     expect(reschedule).not.toHaveBeenCalled()
-  })
-})
-
-describe('dispatchTaskDrop — Eisenhower quadrant drops', () => {
-  const TODAY = new Date(2026, 9, 10)
-  const quadrantOver = (quadrant: string) => ({ id: `eis-t1-${quadrant}`, type: TASK_DROP_KIND.eisenhowerQuadrant, extra: { quadrant, scope: 't1' } })
-  const ops = (tasks: ReturnType<typeof makeTodo>[], panes: EisenhowerPanes | null | undefined = undefined) => ({
-    tasksFor: vi.fn(() => tasks),
-    panes: vi.fn((tabId: string) => (tabId === 't1' && panes !== null ? resolvePanes(panes) : null)),
-    context: () => makePaneContext(TODAY, 3, {
-      statuses: [{ id: 7, name: 'Waiting', color: '#000', icon: 'circle', sortOrder: 1 }],
-    }),
-    apply: vi.fn(async () => {}),
-  })
-
-  it('applies the quadrant flags to the tasks the drag moves', async () => {
-    const eisenhower = ops([makeTodo({ id: 4, important: true }), makeTodo({ id: 5 })])
-    const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('delegate') }), { eisenhower })
-    expect(handled).toBe(true)
-    expect(eisenhower.tasksFor).toHaveBeenCalledWith(expect.objectContaining({ todo: expect.objectContaining({ id: 4 }) }))
-    expect(eisenhower.apply).toHaveBeenCalledWith([{ todoId: 4, urgent: true, important: false }, { todoId: 5, urgent: true }])
-  })
-
-  it('a blocked drop is handled and changes nothing', async () => {
-    const eisenhower = ops([makeTodo({ id: 4, dueDate: new Date(2026, 9, 12) })])
-    const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('drop') }), { eisenhower })
-    expect(handled).toBe(true)
-    expect(eisenhower.apply).not.toHaveBeenCalled()
-  })
-
-  it('a drop on its own quadrant changes nothing', async () => {
-    const eisenhower = ops([makeTodo({ id: 4 })])
-    expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('drop') }), { eisenhower })).toBe(true)
-    expect(eisenhower.apply).not.toHaveBeenCalled()
-  })
-
-  it('reads the panes of the drop target’s tab (its scope) at the drop: a custom pane’s writes', async () => {
-    const eisenhower = ops([makeTodo({ id: 4 })], {
-      drop: { name: 'Waiting', filter: { ...emptyPredicate(), statusIds: [7] } },
-    })
-    expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('drop') }), { eisenhower })).toBe(true)
-    expect(eisenhower.panes).toHaveBeenCalledWith('t1')
-    expect(eisenhower.apply).toHaveBeenCalledWith([{ todoId: 4, statusId: 7 }])
-  })
-
-  it('a custom pane’s refusal holds at the drop (no fallback to the default rules)', async () => {
-    // Delegate = Urgent, not Important, not Waiting: a Waiting task can't land there.
-    const eisenhower = ops([makeTodo({ id: 4, statusId: 7 })], {
-      delegate: { filter: { ...emptyPredicate(), markers: [{ values: ['urgent'] }, { values: ['important'], not: true }], statusIds: [7], negate: { statusIds: true } } },
-    })
-    expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('delegate') }), { eisenhower })).toBe(true)
-    expect(eisenhower.apply).not.toHaveBeenCalled()
-  })
-
-  it('no tab for the drop target (or no scope): handled, nothing written', async () => {
-    const gone = ops([makeTodo({ id: 4 })], null)
-    expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('do') }), { eisenhower: gone })).toBe(true)
-    expect(gone.apply).not.toHaveBeenCalled()
-    const noScope = ops([makeTodo({ id: 4 })])
-    const over = { id: 'eis-x-do', type: TASK_DROP_KIND.eisenhowerQuadrant, extra: { quadrant: 'do' } }
-    expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over }), { eisenhower: noScope })).toBe(true)
-    expect(noScope.panes).not.toHaveBeenCalled()
-    expect(noScope.apply).not.toHaveBeenCalled()
-  })
-
-  it('without Eisenhower ops (or with an unknown quadrant) the drop falls through', async () => {
-    expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('do') }), {})).toBe(false)
-    const eisenhower = ops([makeTodo({ id: 4 })])
-    expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('later') }), { eisenhower })).toBe(false)
   })
 })

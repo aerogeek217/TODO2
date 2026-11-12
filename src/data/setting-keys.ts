@@ -52,21 +52,6 @@ export const SETTING_KEYS = {
    * `utils/shortcut-bindings`). Only changed bindings; absent = all defaults.
    */
   keyboardShortcuts: 'keyboardShortcuts',
-  /**
-   * The Eisenhower panes (every Eisenhower tab, at every face):
-   * JSON object of the panes that differ from their defaults, by position —
-   * `{"delegate":{"name":"Hand off","filter":{…}}}` (`data/eisenhower-shape`).
-   * Absent = the four default quadrants.
-   */
-  eisenhowerPanes: 'eisenhowerPanes',
-  /**
-   * Which tasks the Eisenhower considers: `list:<listDefinitionId>` — its
-   * own list (`owner: { eisenhower: true }`). The app makes and names it
-   * when it is missing or names another list (app startup, a data replace —
-   * `listDefinitionRepository.ensureEisenhowerList`); `all` (older data)
-   * reads as no list yet.
-   */
-  eisenhowerSource: 'eisenhowerSource',
   /** What a new blank list sorts by (a `TodoSortBy`). Absent = `manual`. */
   newListSort: 'newListSort',
   /**
@@ -95,9 +80,9 @@ export const SETTING_KEYS = {
   /** What each priority adds to a task's row (`utils/priority-cues`): JSON; absent = the default. */
   priorityCues: 'priorityCues',
   /**
-   * The default list zoom (Settings › Appearance; a list tab that hasn't picked one): `stacked`, `rows` or `lines`;
-   * the removed `strips` reads as `lines`, the densities before it as levels (`comfortable` → `stacked`,
-   * `compact` → `rows`). Absent = `rows`.
+   * The default list zoom (Settings › Appearance; a list tab that hasn't picked one): `stacked`, `rows` or `lines`
+   * (v79 wrote the removed `strips` as `lines`, the densities before the levels as levels: `comfortable` →
+   * `stacked`, `compact` → `rows`). Absent = Auto.
    */
   rowDensity: 'rowDensity',
   /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `11/20`) or `numeric` (`MM/DD`). Absent = `relative`. */

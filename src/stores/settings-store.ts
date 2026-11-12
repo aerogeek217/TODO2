@@ -72,13 +72,6 @@ import {
   shortcutRefusal,
   withShortcut,
 } from '../utils/shortcut-bindings'
-import type { EisenhowerPanes } from '../models/eisenhower-settings'
-import {
-  formatPanesSetting,
-  parseEisenhowerSource,
-  pickPanes,
-  readPanesSetting,
-} from '../data/eisenhower-shape'
 import { readFresh, reportLoadFailure, trackWrite } from './store-helpers'
 import {
   settingWriter,
@@ -175,21 +168,6 @@ interface SettingsData {
   activeLensId: string | null
   /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
   shortcutOverrides: ShortcutOverrides
-  /**
-   * The Eisenhower panes that differ from their defaults (every Eisenhower
-   * tab, at every face), in their stored form; `{}` = the four
-   * default quadrants.
-   */
-  eisenhowerPanes: EisenhowerPanes
-  /**
-   * The Eisenhower's own list (a hidden list, `owner: { eisenhower: true }`)
-   * whose tasks every Eisenhower tab considers, at every face —
-   * the `eisenhowerSource` setting, kept naming it by
-   * `useListDefinitionStore.ensureEisenhowerList` (app startup, a data
-   * replace). Until then it is what the stored setting names — `null`
-   * (none): the Eisenhower reads all tasks, as the new, empty list would.
-   */
-  eisenhowerListId: number | null
 }
 
 // Every setter below shows its value at once and saves it through the
@@ -265,13 +243,6 @@ interface SettingsState extends SettingsData {
   resetShortcut: (id: ShortcutId) => Promise<void>
   /** Puts every binding back on its default keys. */
   resetAllShortcuts: () => Promise<void>
-  /**
-   * Shows the Eisenhower panes at once (normalised; `{}` / `undefined` =
-   * the defaults) and saves them as one undo step named `description`.
-   * Writes passing the same `mergeKey` one after another (e.g. a pane name
-   * typed letter by letter) stay one undo step, without the snackbar.
-   */
-  setEisenhowerPanes: (panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -385,9 +356,6 @@ function isValidWeekStart(n: unknown): n is WeekStart {
   return n === 0 || n === 1
 }
 
-/** The default panes (no pane customized). */
-const NO_PANES: EisenhowerPanes = {}
-
 const THEMES: readonly ThemeName[] = ['dark', 'light']
 
 // The writers reach the store only when they write (the table is built before it).
@@ -405,7 +373,7 @@ function setting<K extends keyof SettingsData>(
   return { ...spec, ...settingWriter(store, spec) }
 }
 
-/** A setting only read here (written elsewhere: the status seed, the Eisenhower list, the lens seed). */
+/** A setting only read here (written elsewhere: the status seed, the lens seed). */
 function stored<K extends keyof SettingsData>(fields: readonly K[], read: (rows: StoredRows) => Pick<SettingsState, K>): StoredSetting<SettingsState, K> {
   return { fields, read }
 }
@@ -669,17 +637,6 @@ export const SETTINGS = {
     label: 'the keyboard shortcuts',
     failure: 'Couldn’t save the keyboard shortcuts.',
   }),
-  // Its undo names are the edit's (`setEisenhowerPanes`' description).
-  eisenhowerPanes: setting(['eisenhowerPanes'], {
-    read: (rows) => ({ eisenhowerPanes: rowOr(rows, K.eisenhowerPanes, NO_PANES, (v) => readPanesSetting(v).panes) }),
-    // The row goes when every pane is its default.
-    rows: ({ eisenhowerPanes: p }) => ({ [K.eisenhowerPanes]: Object.keys(p).length === 0 ? null : formatPanesSetting(p) }),
-    label: 'the Eisenhower panes',
-    failure: 'Couldn’t save the Eisenhower panes.',
-  }),
-  eisenhowerListId: stored(['eisenhowerListId'], (rows) => ({
-    eisenhowerListId: rowOr(rows, K.eisenhowerSource, null, (v) => parseEisenhowerSource(v) ?? null),
-  })),
 }
 
 /** Every setting's value from the stored rows (no rows: the defaults). */
@@ -848,11 +805,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async resetAllShortcuts() {
     await SETTINGS.shortcutOverrides.write({ shortcutOverrides: {} })
-  },
-
-  async setEisenhowerPanes(panes, description, mergeKey) {
-    const next = pickPanes(panes ?? {}).panes
-    await SETTINGS.eisenhowerPanes.write({ eisenhowerPanes: next }, { description, mergeKey })
   },
 }))
 

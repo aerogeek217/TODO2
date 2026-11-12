@@ -12,6 +12,8 @@ import { useListOrderStore } from './list-order-store'
 import { useTagStore } from './tag-store'
 import { useSettingsStore } from './settings-store'
 import { defaultBreakdownColumns } from '../models/chart-widgets'
+import { trendName } from '../models/glance-widgets'
+import type { IconValue } from '../models/icon'
 import { projectTagIds } from '../utils/neglect-map'
 import { registerModuleReset, registerModuleSettle } from '../utils/module-reset'
 import {
@@ -50,7 +52,9 @@ import {
   setActiveTab,
   setTrackCollapsed,
   setLayoutHue,
+  setTabLabel,
   splitCell,
+  withLabelOf,
   withTrackIdsOf,
   type IdGen,
   type LayoutDropTarget,
@@ -205,9 +209,10 @@ export interface WorkspaceState {
   /**
    * Renames a layout (not a structural edit: no undo step). Empty name → `false`.
    * With `hue`, sets its hue in the same write (`null` = none; D19 — the
-   * Edit layout dialog's swatches).
+   * Edit layout dialog's swatches). With `icon`, sets its icon in the same
+   * write (items 11, 14; `{ kind: 'none' }` = No icon) — absent leaves it.
    */
-  rename: (id: number, name: string, hue?: string | null) => Promise<boolean>
+  rename: (id: number, name: string, hue?: string | null, icon?: IconValue) => Promise<boolean>
   /**
    * Deletes a layout — never the last one (`false`). Deleting the open layout
    * opens the most recently used remaining one. The lists it owns go with
@@ -230,8 +235,7 @@ export interface WorkspaceState {
 
   /**
    * Adds a new widget tab at `target`. Returns its id, or `null` when the
-   * target is unknown or the tab would show a list another layout (or the
-   * Eisenhower) owns. This and every structural edit below is saved at once
+   * target is unknown or the tab would show a list another layout owns. This and every structural edit below is saved at once
    * as one undo step (see the store's comment).
    */
   addWidget: (kind: WidgetKind, target: LayoutDropTarget, seed?: TabSeed) => string | null
@@ -288,6 +292,15 @@ export interface WorkspaceState {
   patchTabConfig: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabConfigOf<K>>, description?: string) => void
   /** "Change widget": swaps the tab's kind in place, with the new kind's defaults. */
   changeTabKind: (tabId: string, kind: WidgetKind, seed?: TabSeed) => void
+  /**
+   * Name and icon… (items 11, 14): renames tab `tabId` — a list tab's list
+   * (as Edit list does; a blank name keeps it), a Number's or a chart's
+   * `config.name`, any other kind's tab name (blank: back to the kind's
+   * label) —, one undo step (`Renamed tab to “Inbox”`). Resolves whether it wrote.
+   */
+  renameTab: (tabId: string, name: string) => Promise<boolean>
+  /** Sets tab `tabId`'s picked icon (`null`: never picked, the kind's icon), one undo step (`Changed icon of “Inbox”`). */
+  setTabIcon: (tabId: string, icon: IconValue | null) => boolean
 
   /** View state: switch a cell's tab. */
   setActiveTab: (tabId: string) => Promise<void>
@@ -375,7 +388,7 @@ registerModuleReset(() => { firstInit = null })
 
 /**
  * Whether a kept new layout can become a stored one: it shows no list (no
- * list tab) — every list belongs to a stored layout (or the Eisenhower), so
+ * list tab) — every list belongs to a stored layout, so
  * a layout not stored yet can't show one.
  */
 function showsNoList(body: LayoutBody): boolean {
@@ -393,7 +406,7 @@ function showsOnlyOwnLists(body: LayoutBody, layoutId: number): boolean {
 
 /**
  * The lists `next` names that `before` didn't and that belong elsewhere —
- * another layout, the Eisenhower, or no layout. A layout shows only its own
+ * another layout, or no layout. A layout shows only its own
  * lists, so an edit that would show one of these is refused. A list that
  * doesn't exist (any more) isn't anyone's: a tab on it shows it as deleted.
  */
@@ -993,19 +1006,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return id
     },
 
-    async rename(id, name, hue) {
+    async rename(id, name, hue, icon) {
       const clean = cleanName(name)
       if (!clean || refusedByReplaceHold()) return false
       const renamed = <L extends WorkspaceLayout>(layout: L): L => {
-        const next = { ...layout, name: clean }
+        const next = { ...layout, name: clean, ...(icon ? { icon } : {}) }
         return hue === undefined ? next : setLayoutHue(next, hue)
       }
       const read = await layoutRepository.get(id)
       if (!read) return false
-      // Only the name (and the hue): a layout repaired when read keeps its
-      // stored row. Renamed on screen once the write has landed.
+      // Only the name (and the hue, the icon): a layout repaired when read
+      // keeps its stored row. Renamed on screen once the write has landed.
       try {
-        await layoutRepository.rename(id, clean, hue)
+        await layoutRepository.rename(id, clean, hue, icon)
       } catch (err) {
         reportWriteFailure(`Couldn't rename layout "${read.layout.name}".`, err)
         return false
@@ -1167,9 +1180,35 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       edit((layout) => patchTabConfig(layout, tabId, kind, patch), (before) => description ?? `Changed “${tabName(before, tabId)}”`)
     },
 
+    renameTab(tabId, name) {
+      const working = get().working
+      const tab = working ? getTab(working, tabId) : undefined
+      if (!tab) return Promise.resolve(false)
+      const trimmed = name.trim()
+      if (tab.kind === 'lens') {
+        // A list tab's name is its list's (the same write as Edit list's; a blank one keeps it).
+        const listId = tab.config.listDefinitionId
+        if (listId == null || !trimmed) return Promise.resolve(false)
+        return useListDefinitionStore.getState().editList(listId, (d) => ({ ...d, name: trimmed }), `Renamed tab to “${trimmed}”`)
+      }
+      const shown = trimmed || (tab.kind === 'trend' ? trendName({}) : widgetKindLabel(tab.kind))
+      const description = `Renamed tab to “${shown}”`
+      if (tab.kind === 'number' || tab.kind === 'breakdown' || tab.kind === 'pivot') {
+        return Promise.resolve(edit((layout) => patchTabConfig(layout, tabId, tab.kind, { name: trimmed }), description))
+      }
+      if (tab.kind === 'trend') {
+        return Promise.resolve(edit((layout) => patchTabConfig(layout, tabId, 'trend', { name: trimmed || undefined }), description))
+      }
+      return Promise.resolve(edit((layout) => setTabLabel(layout, tabId, { name: trimmed || null }), description))
+    },
+
+    setTabIcon(tabId, icon) {
+      return edit((layout) => setTabLabel(layout, tabId, { icon }), (before) => `Changed icon of “${tabName(before, tabId)}”`)
+    },
+
     changeTabKind(tabId, kind, seed) {
       edit(
-        (layout) => replaceTab(layout, tabId, createTab(kind, tabId, seedFor(kind, seed))),
+        (layout) => replaceTab(layout, tabId, withLabelOf(createTab(kind, tabId, seedFor(kind, seed)), getTab(layout, tabId))),
         (before) => `Changed “${tabName(before, tabId)}” to ${widgetKindLabel(kind)}`,
       )
     },

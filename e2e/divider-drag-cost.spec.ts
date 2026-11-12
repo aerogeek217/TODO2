@@ -22,7 +22,7 @@ const PEOPLE = ['Alice Chen', 'Ben Ortiz', 'Carla Diaz', 'Dee King', 'Eli Moss']
 const TAGS = ['planning', 'q4', 'exec', 'finance', 'hiring', 'ops']
 const ROWS = 40
 
-/** Rows with every kind of cell filled, spread over the Eisenhower quadrants. */
+/** Rows with every kind of cell filled, every priority among them. */
 const TASKS: NonNullable<WorkspaceSeed['tasks']> = Array.from({ length: ROWS }, (_, i) => ({
   title: `Task ${i} with a reasonably long title to cut`,
   people: PEOPLE.slice(0, i % 5),
@@ -36,7 +36,7 @@ const TASKS: NonNullable<WorkspaceSeed['tasks']> = Array.from({ length: ROWS }, 
   focus: i % 7 === 0,
 }))
 
-const WATCHED = ['TaskRow', 'PeopleCell', 'TagsCell', 'DatesCell', 'ListWidget', 'EisenhowerWidget']
+const WATCHED = ['TaskRow', 'PeopleCell', 'TagsCell', 'DatesCell', 'ListWidget']
 
 function seed(tab: Omit<WsTabSeed, 'id'>): WorkspaceSeed {
   return {
@@ -88,14 +88,6 @@ async function storedViewState(page: Page): Promise<Record<string, unknown> | un
 async function settled(scope: Locator): Promise<void> {
   await expect(scope.locator('[data-person-avatar]').first()).toBeVisible()
   await expect(scope.locator('[data-tag-name]').first()).toBeVisible()
-}
-
-/** Every row of each of `scope`'s `lists` laid out with `details`. */
-async function expectDetails(scope: Locator, lists: string, details: number): Promise<void> {
-  for (const list of await scope.locator(lists).all()) {
-    const each = await everyLaidOutDetails(list.locator('[data-todo-id]'))
-    expect(each).toEqual(Array<number>(each.length).fill(details))
-  }
 }
 
 /** Counts `localStorage` writes from page load on. */
@@ -184,32 +176,6 @@ test('a drag across a dates tier renders each dates cell once, still no row', as
     expect(counts.ListWidget).toBe(0)
     expect(counts.DatesCell).toBe(ROWS)
   })
-})
-
-test('Eisenhower: every quadrant follows the drag without the widget or its rows re-rendering', async ({ page }) => {
-  await installRenderCounter(page, WATCHED)
-  await seedWorkspace(page, seed({ kind: 'eisenhower' }))
-  const eis = page.locator('[data-eisenhower="tab"]')
-  await expect(eis.locator('[data-todo-id]')).toHaveCount(ROWS)
-  await settled(eis)
-  await expectCounterLive(page, 'TaskRow')
-  // Nothing stored: Do's divider starts at its rows' default (45 % of their inner width, at most 300).
-  const start = Number(await eis.locator('[data-eis-quadrant="do"] [data-task-row-divider]').first().getAttribute('aria-valuenow'))
-  expect(start).toBeLessThan(300)
-  // A drag that keeps every row's columns (people and tags stay: D ≥ 150), so no row re-renders.
-  const dragged = start - 30
-  expect(dragged).toBeGreaterThanOrEqual(150)
-  await resetRenderCounts(page)
-  await dragDivider(page, eis.locator('[data-eis-quadrant="do"]'), 30, 10, async () => {
-    // Every quadrant follows with the one width the drag sets (30 narrower than Do's start; within every quadrant's room).
-    await expectDetails(eis, '[data-eis-quadrant]', dragged)
-    const counts = await readRenderCounts(page)
-    expect(counts.TaskRow).toBe(0)
-    expect(counts.EisenhowerWidget).toBe(0)
-  })
-  await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: dragged })
-  // The release writes the view state: the widget re-renders once, its (memoised) rows don't.
-  expect((await readRenderCounts(page)).TaskRow).toBe(0)
 })
 
 /** Counts the database writes to the `layouts` store from page load on. */

@@ -1,28 +1,26 @@
-import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useMemo, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
-import { DEFAULT_STATUS_ICON } from '../../../models'
-import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey, type BreakdownSplit } from '../../../models/chart-widgets'
-import { tabIgnoresLens, type BreakdownTab } from '../../../models/workspace-layout'
+import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
+import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
 import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { openReview } from '../../../services/review'
+import { breakdownReviewFilter } from '../../../services/review'
+import { jumpToReview } from '../../../services/review-jump'
 import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
-import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { EntityMenu, type MenuEntity } from '../../shared/EntityMenu'
-import { EnvelopeIcon, ReviewIcon } from '../../shared/icons'
+import { ReviewIcon } from '../../shared/icons'
 import { useEntityMenuOffers } from '../../shared/person-menu-entries'
-import { PersonCheckinMenu } from '../../shared/PersonCheckinMenu'
 import { PriorityRing } from '../../shared/PriorityRing'
-import { StatusIcon } from '../../shared/StatusIcon'
+import { StatusMark } from '../../shared/StatusMark'
 import { useTooltip } from '../../shared/use-tooltip'
 import {
-  breakdownLines, columnHeading, filteredRows, livePicks, rowFigure, sortHeading, SPLIT_GLYPHS, SPLIT_ROW_LABELS,
+  breakdownLines, columnHeading, rowFigure, sortHeading, SPLIT_GLYPHS,
 } from './breakdown-copy'
-import { breakdownColumnDrill, breakdownRowDrill, breakdownRowLens, breakdownRowReview, rowHeading } from './chart-drills'
+import { breakdownColumnDrill, breakdownRowDrill, rowHeading } from './chart-drills'
 import { ChartPanel } from './chart-parts'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { GlanceDrill, OnGlanceDrill } from './glance-types'
@@ -61,7 +59,7 @@ function RowMark({ row, color }: { row: BreakdownRow; color: string }) {
         </i>
       )
     case 'status':
-      return <span className={styles.mark} style={{ color: e.status.color }} aria-hidden="true"><StatusIcon icon={e.status.icon ?? DEFAULT_STATUS_ICON} filled /></span>
+      return <span className={styles.mark} style={{ color: e.status.color }} aria-hidden="true"><StatusMark status={e.status} filled /></span>
     case 'priority':
       return (
         <span className={styles.ringBox} aria-hidden="true">
@@ -114,7 +112,7 @@ function ColumnCount({ n, column, label, onOpen }: {
   )
 }
 
-/** A row's Review button (board BC): a muted icon right after the row's name, shown on the row's hover or focus; starts the review deck on the row's tasks. */
+/** A row's Review button (board BC): a muted icon right after the row's name, shown on the row's hover or focus; jumps to a Review widget with the row as its filter. */
 function RowReview({ heading, n, onReview }: { heading: string; n: number; onReview: () => void }) {
   const { triggerProps, tooltip } = useTooltip('Review')
   return (
@@ -133,35 +131,6 @@ function RowReview({ heading, n, onReview }: { heading: string; n: number; onRev
         <ReviewIcon size={15} />
       </button>
       {tooltip}
-    </>
-  )
-}
-
-/** A person row's envelope (board BC, beside Review): their check-in menu — Email check-in · Paste reply (Review is its own button here). */
-function RowEnvelope({ person }: { person: { id: number; name: string } }) {
-  const { triggerProps, tooltip } = useTooltip('Email check-in')
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLButtonElement>(null)
-  return (
-    <>
-      <button
-        ref={ref}
-        type="button"
-        className={styles.rowAction}
-        data-testid="breakdown-envelope"
-        aria-label={`Email check-in options for ${person.name}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen((o) => !o)
-        }}
-        {...triggerProps}
-      >
-        <EnvelopeIcon size={15} />
-      </button>
-      {tooltip}
-      {open && <PersonCheckinMenu person={person} anchorRef={ref} placement="bottom-start" review={false} onClose={() => setOpen(false)} />}
     </>
   )
 }
@@ -188,32 +157,44 @@ interface TableProps {
   config: BreakdownConfig
   columns: readonly BreakdownColumn[]
   rows: readonly BreakdownRow[]
-  /** Medium: name (· Review after it) · the count columns, no bar, Open or envelope. */
+  /** Medium: name (· Review after it) · the count columns, no bar or Open. */
   compact: boolean
   sortBy: BreakdownSortKey | null
   reversed: boolean
   onSort: (by: BreakdownSortKey) => void
   onDrill?: OnGlanceDrill
-  /** Reviews open from here (desktop, outside dialogs, no deck open). */
+  /** Reviews jump from here to a Review widget (desktop, outside dialogs, some layout has one). */
   review: boolean
-  /** The widget ignores the top bar's lens (its switch): how a row's review starts (item 10). */
-  ignoresLens: boolean
   /** The bar column (bars at the large face). */
   bars: boolean
 }
 
 /**
  * The rows as a table: name · (bar) · Open (or Oldest) · each count
- * column, each heading a sort button; the row's actions (Review, and a
- * person's envelope) right after its name, shown while the row is hovered
+ * column, each heading a sort button; the row's action (Review)
+ * right after its name, shown while the row is hovered
  * or holds the focus. A row's click opens its tasks; its Review button and
- * a count column's count open the review deck on them; a person's or tag's
+ * a count column's count jump to a Review widget with them as its filter
+ * (where no layout has one, a count opens its tasks); a person's or tag's
  * right-click (or Shift+F10) opens its menu.
  */
-function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, ignoresLens, bars }: TableProps) {
+function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {
   const { splitBy, show } = config
   const [menu, setMenu] = useState<{ entity: MenuEntity; at: { x: number; y: number } } | null>(null)
-  const envelope = !compact && config.checkins === true && splitBy === 'people'
+  /**
+   * A row's Review (or, with `column`, a count's click): a jump to a Review
+   * widget with the Breakdown's filter AND the row (AND the column's filter).
+   * A row no filter says opens its tasks in the task dialog instead.
+   */
+  const reviewRow = (row: BreakdownRow, column?: BreakdownColumn) => {
+    const filter = breakdownReviewFilter(config, row, column)
+    if (filter) {
+      void jumpToReview(filter)
+      return
+    }
+    if (!onDrill) return
+    onDrill(column ? breakdownColumnDrill(title, row, column.id, columnHeading(column)) : breakdownRowDrill(title, row))
+  }
   const figure = !compact
   const max = Math.max(1, ...rows.map((r) => (show === 'oldest' ? Math.max(0, r.oldest?.days ?? 0) : r.ids.length)))
   // A narrow table (`@container`, under 400px) drops the bar, and its count columns take a two-digit badge's room.
@@ -301,10 +282,9 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                     )}
                   </span>
                 </button>
-                {(review || (envelope && row.entity.kind === 'person')) && (
+                {review && (
                   <span className={styles.nameActions} data-testid="breakdown-row-actions">
-                    {review && <RowReview heading={heading} n={n} onReview={() => { openReview(breakdownRowReview(title, row, 'all', breakdownRowLens(config, ignoresLens, row.key, 'all'))) }} />}
-                    {envelope && row.entity.kind === 'person' && <RowEnvelope person={row.entity.person} />}
+                    <RowReview heading={heading} n={n} onReview={() => reviewRow(row)} />
                   </span>
                 )}
               </span>
@@ -329,7 +309,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                       column={column}
                       label={`${review ? 'Review' : 'Show'} ${heading}'s ${count} in ${name}`}
                       onOpen={review
-                        ? () => { openReview(breakdownRowReview(title, row, { columnId: column.id, heading: name }, breakdownRowLens(config, ignoresLens, row.key, { columnId: column.id, heading: name }))) }
+                        ? () => reviewRow(row, column)
                         : onDrill ? () => onDrill(breakdownColumnDrill(title, row, column.id, name)) : undefined}
                     />
                   </span>
@@ -417,102 +397,12 @@ function Donut({ title, rows, onDrill }: { title: string; rows: readonly Breakdo
 }
 
 /**
- * The filter row (large face only, board F): a label (Person / Tag /
- * Status / Priority …) and a field. Typing narrows the rows by name;
- * Enter picks the first match as a chip (picks OR); Backspace in the empty
- * field takes the last chip back, Esc clears the text, × clears it all.
- * Temporary: per tab and split, never in the layout.
- */
-function BreakdownFilterRow({ split, rows, picks, text, onPicks, onText }: {
-  split: BreakdownSplit
-  rows: readonly BreakdownRow[]
-  picks: readonly string[]
-  text: string
-  onPicks: (keys: readonly string[]) => void
-  onText: (text: string) => void
-}) {
-  const label = SPLIT_ROW_LABELS[split]
-  const inputRef = useRef<HTMLInputElement>(null)
-  const byKey = new Map(rows.map((r) => [r.key, r]))
-  const picked = picks.flatMap((k) => {
-    const r = byKey.get(k)
-    return r ? [r] : []
-  })
-  const query = text.trim().toLowerCase()
-  return (
-    <div className={styles.filterRow} data-testid="breakdown-filter-row">
-      <span className={styles.filterLabel} aria-hidden="true">{label}</span>
-      <span className={styles.filterField} onClick={() => inputRef.current?.focus()}>
-        {picked.map((r) => (
-          <span key={r.key} className={styles.chip} data-testid="breakdown-filter-chip">
-            {rowHeading(r)}
-            <button
-              type="button"
-              className={styles.chipRemove}
-              aria-label={`Remove ${rowHeading(r)}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                onPicks(picks.filter((k) => k !== r.key))
-              }}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          ref={inputRef}
-          type="text"
-          className={styles.filterInput}
-          aria-label={`Filter by ${label.toLowerCase()}`}
-          placeholder={picked.length > 0 ? '' : `Type a ${label.toLowerCase()}…`}
-          value={text}
-          onChange={(e) => onText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              if (!query) return
-              const first = rows.find((r) => !picks.includes(r.key) && r.label.toLowerCase().includes(query))
-              if (first) onPicks([...picks, first.key])
-              onText('')
-            } else if (e.key === 'Backspace' && text === '' && picks.length > 0) {
-              e.preventDefault()
-              onPicks(picks.slice(0, -1))
-            } else if (e.key === 'Escape' && text !== '') {
-              e.preventDefault()
-              e.stopPropagation()
-              onText('')
-            }
-          }}
-        />
-        {(picked.length > 0 || text !== '') && (
-          <button
-            type="button"
-            className={styles.clear}
-            aria-label={`Clear the ${label.toLowerCase()} filter`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onPicks([])
-              onText('')
-              inputRef.current?.focus()
-            }}
-          >
-            ×
-          </button>
-        )}
-      </span>
-    </div>
-  )
-}
-
-const NO_PICKS: readonly string[] = []
-
-/**
  * The Breakdown widget (D26 P8, board Z1): the tasks its filter keeps under
  * the top bar's filter, split by people, tags, status, priority, due date
  * or age — a row each, as bars, a donut or one stacked bar. By its face
  * (D25 R): small is its title and the top row; medium a compact table
  * (name · its count columns); large the chart, the table with its sortable
- * headings (view state, per split) and the filter row. Its editor (Edit
+ * headings (view state, per split). Its editor (Edit
  * breakdown…, `ChartEditorHost`) opens under its title (`data-chart-head`).
  */
 export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<BreakdownTab>) {
@@ -525,9 +415,6 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   const columnIds = useMemo(() => data.columns.map((c) => c.id), [data.columns])
   // A sort by a column it no longer has reads as the default order; an older derived column's as the Due / Follow-up column.
   const sort = liveBreakdownSort(storedSort, columnIds)
-  const picks = useChartWidgetsStore((s) => s.rowPicks[tab.id]?.[config.splitBy]) ?? NO_PICKS
-  const [typed, setTyped] = useState<{ split: BreakdownSplit; text: string }>({ split: config.splitBy, text: '' })
-  const text = typed.split === config.splitBy ? typed.text : ''
 
   const title = config.name.trim() || 'Breakdown'
   const all = useMemo(
@@ -535,8 +422,6 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
     [data.stats.rows, config.showNone, sort, config.show, columnIds],
   )
   const large = face === 'large'
-  const shownPicks = useMemo(() => livePicks(all, picks), [all, picks])
-  const rows = large ? filteredRows(all, shownPicks, text) : all
   // What the rows shown hold (a task in several rows once): the header, Copy and the count's drill
   // agree, a hidden none row counted in none of them.
   const total = useMemo(() => new Set(all.flatMap((r) => r.ids)).size, [all])
@@ -575,14 +460,13 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
         title={title}
         config={config}
         columns={data.columns}
-        rows={rows}
+        rows={all}
         compact={!large}
         sortBy={sort?.by ?? null}
         reversed={sort?.reversed === true}
         onSort={onSort}
         onDrill={drill}
         review={offers.review}
-        ignoresLens={tabIgnoresLens(tab)}
         bars={config.style === 'bars'}
       />
     )
@@ -600,20 +484,10 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
           <Empty title="No tasks" hint="The tasks this breakdown's filter keeps show here." />
         ) : (
           <>
-            {large && (
-              <BreakdownFilterRow
-                split={config.splitBy}
-                rows={all}
-                picks={shownPicks}
-                text={text}
-                onPicks={(keys) => useChartWidgetsStore.getState().setRowPicks(tab.id, config.splitBy, keys)}
-                onText={(t) => setTyped({ split: config.splitBy, text: t })}
-              />
-            )}
-            {config.style === 'stacked' && <StackedBar title={title} rows={rows} onDrill={drill} />}
+            {config.style === 'stacked' && <StackedBar title={title} rows={all} onDrill={drill} />}
             {config.style === 'donut' && large ? (
               <div className={styles.donutLayout}>
-                <Donut title={title} rows={rows} onDrill={drill} />
+                <Donut title={title} rows={all} onDrill={drill} />
                 {table}
               </div>
             ) : table}

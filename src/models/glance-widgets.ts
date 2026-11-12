@@ -55,8 +55,13 @@ export const NUMBER_LIT_AT_MAX = 1_000_000
 export interface NumberConfig {
   /** Its label and tab title (may be blank while it's being typed: the tab then reads `Number`). */
   name: string
-  /** Its colour when lit, a hex (`#rgb` / `#rrggbb`, used as it is in both themes); absent = Auto (neutral, lit in the accent). */
+  /** Its colour when lit — its label, count and line —, a hex (`#rgb` / `#rrggbb`, drawn per theme: `utils/theme-color`); absent = Auto (the accent). */
   color?: string
+  /**
+   * Its colour while not lit (widget feedback 2D) — its label, count and line —, a hex as `color`;
+   * absent = Auto (the label muted, the count in the text colour, the line in the accent). Optional.
+   */
+  unlitColor?: string
   /** What it counts: a Graphical or expression filter, as a list's (an empty one keeps every open task). */
   filter: TodoPredicate
   show: NumberShow
@@ -64,8 +69,7 @@ export interface NumberConfig {
   /** The threshold of `above` / `below` (a whole number); absent with `never`. */
   litAt?: number
   compare: NumberCompare
-  /** The top bar's lens doesn't apply to it (as `ListDefinition.ignoreLens`); stored only when true. */
-  ignoreLens?: true
+  // Its lens switch is the tab's view state (`LensViewState.ignoreLens`; v79 moved an older `ignoreLens` here there).
   /** Its large face's breakdown (the count's); absent = `none`. */
   breakdown?: NumberBreakdown
   // The active shape's field (D26 P6, `models/number-shapes`): only that one is kept.
@@ -117,11 +121,11 @@ export function numberIsLit(config: Pick<NumberConfig, 'litWhen' | 'litAt'>, cou
 export function numberConfigProblem(raw: Obj): string | null {
   if (!isNumberName(raw.name)) return 'name'
   if (raw.color !== undefined && !isNumberColor(raw.color)) return 'color'
+  if (raw.unlitColor !== undefined && !isNumberColor(raw.unlitColor)) return 'unlitColor'
   if (!includes(NUMBER_SHOWS, raw.show)) return 'show'
   if (!includes(NUMBER_LIT_WHEN, raw.litWhen)) return 'litWhen'
   if (raw.litWhen === 'never' ? raw.litAt !== undefined : !isNumberLitAt(raw.litAt)) return 'litAt'
   if (!includes(NUMBER_COMPARES, raw.compare)) return 'compare'
-  if (raw.ignoreLens !== undefined && raw.ignoreLens !== true) return 'ignoreLens'
   if (raw.breakdown !== undefined && !isNumberBreakdown(raw.breakdown)) return 'breakdown'
   return numberShapeProblem(raw)
 }
@@ -170,8 +174,8 @@ export type NumberPredicateRead = (raw: unknown) => PickedConfig<TodoPredicate>
  * caller's predicate read; `readPredicate` reads its shape's): a bad or
  * missing field gets its default (`fixed`) — the name `Number`, Auto, a
  * count, never lit (a threshold of 0 when `above` / `below` lacks one),
- * against yesterday —; an unknown colour, breakdown or a non-true
- * `ignoreLens` is dropped (`fixed`). Its shape's field is read too
+ * against yesterday —; an unknown colour or breakdown, or an `ignoreLens`
+ * (the tab's view state since v79), is dropped (`fixed`). Its shape's field is read too
  * (`pickShapeField`); another shape's is dropped (`fixed`).
  */
 export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, readPredicate: NumberPredicateRead): PickedConfig<NumberConfig> {
@@ -188,10 +192,12 @@ export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, 
   const config: NumberConfig = { name, filter: filter.config, show, litWhen, compare }
   if (isNumberColor(raw.color)) config.color = raw.color
   else if (raw.color !== undefined) fixed = true
+  if (isNumberColor(raw.unlitColor)) config.unlitColor = raw.unlitColor
+  else if (raw.unlitColor !== undefined) fixed = true
   if (litWhen !== 'never') config.litAt = pick(raw.litAt, isNumberLitAt, 0)
   else if (raw.litAt !== undefined) fixed = true
-  if (raw.ignoreLens === true) config.ignoreLens = true
-  else if (raw.ignoreLens !== undefined) fixed = true
+  // The lens switch is the tab's view state (v79 moved this one there): one left here is dropped.
+  if (raw.ignoreLens !== undefined) fixed = true
   if (isNumberBreakdown(raw.breakdown)) config.breakdown = raw.breakdown
   else if (raw.breakdown !== undefined) fixed = true
   if (pickShapeField(raw, config, readPredicate)) fixed = true
@@ -289,8 +295,50 @@ export type SectionId = (typeof SECTION_IDS)[number]
 
 // ── The glance widget kinds' configs ────────────────────────────────────────
 
+/**
+ * How Created vs completed shows its range: per-bar created and completed
+ * (`bars`), the filter's open tasks at each day's end (`burndown`), or the
+ * running totals of created and completed (`cumulative`).
+ */
+export const TREND_SHOWS = ['bars', 'burndown', 'cumulative'] as const
+export type TrendShow = (typeof TREND_SHOWS)[number]
+
+export const DEFAULT_TREND_SHOW: TrendShow = 'bars'
+
+/** Created vs completed's name until it is given one. */
+export const DEFAULT_TREND_NAME = 'Created vs completed'
+
+/**
+ * Created vs completed's settings (layout config). `name`, `filter` and
+ * `show` came after v78; v79 wrote `name` and `show` on every stored tab and
+ * a new tab writes them (`WIDGET_KIND_SPECS`). All three stay optional and
+ * read with their defaults — a name renamed blank, a hand-made file: its
+ * default name, every task, Bars (`trendName`, `trendFilter`, `trendShow`).
+ * An absent `filter` reads as the empty one (`trendFilter`), so it is left
+ * absent rather than written.
+ */
 export interface TrendTabConfig {
   range: TrendRange
+  /** Its title (blank or absent: `DEFAULT_TREND_NAME`). */
+  name?: string
+  /** What it counts, among the tasks the top bar shows: a Graphical or expression filter (absent: every task). */
+  filter?: TodoPredicate
+  /** How it shows the range (absent: `bars`). */
+  show?: TrendShow
+}
+
+/** Created vs completed's title: its name, else the default. */
+export function trendName(config: Pick<TrendTabConfig, 'name'>): string {
+  return config.name?.trim() || DEFAULT_TREND_NAME
+}
+
+/** How Created vs completed shows its range. */
+export function trendShow(config: Pick<TrendTabConfig, 'show'>): TrendShow {
+  return config.show ?? DEFAULT_TREND_SHOW
+}
+
+export function isTrendShow(v: unknown): v is TrendShow {
+  return includes(TREND_SHOWS, v)
 }
 
 /**
@@ -317,10 +365,38 @@ function pickOne<V>(v: unknown, ok: (v: unknown) => v is V, fallback: V): { valu
   return ok(v) ? { value: v, fixed: false } : { value: fallback, fixed: true }
 }
 
-/** A Created vs completed's config: a known range, else 14 days (`fixed`). */
-export function pickTrendConfig(raw: Obj): PickedConfig<TrendTabConfig> {
-  const { value, fixed } = pickOne(raw.range, isTrendRange, DEFAULT_TREND_RANGE)
-  return { config: { range: value }, fixed }
+/**
+ * Where a stored Created vs completed config goes wrong (its scalar fields —
+ * the filter is the caller's: `data/predicate-shape`): the bad key, or `null`.
+ */
+export function trendConfigProblem(raw: Obj): string | null {
+  if (!isTrendRange(raw.range)) return 'range'
+  if (raw.name !== undefined && !isNumberName(raw.name)) return 'name'
+  if (raw.show !== undefined && !isTrendShow(raw.show)) return 'show'
+  if (raw.filter !== undefined && (raw.filter === null || typeof raw.filter !== 'object' || Array.isArray(raw.filter))) return 'filter'
+  return null
+}
+
+/**
+ * A Created vs completed's config read from untrusted input: a known range,
+ * else 14 days (`fixed`); its optional name, filter (read as a Number's,
+ * `readPredicate`) and Show as kept when they read, else dropped (`fixed`) —
+ * an absent one stays absent (the defaults, no fix).
+ */
+export function pickTrendConfig(raw: Obj, readPredicate: NumberPredicateRead): PickedConfig<TrendTabConfig> {
+  const range = pickOne(raw.range, isTrendRange, DEFAULT_TREND_RANGE)
+  let fixed = range.fixed
+  const config: TrendTabConfig = { range: range.value }
+  if (isNumberName(raw.name)) config.name = raw.name
+  else if (raw.name !== undefined) fixed = true
+  if (isTrendShow(raw.show)) config.show = raw.show
+  else if (raw.show !== undefined) fixed = true
+  if (raw.filter !== null && typeof raw.filter === 'object' && !Array.isArray(raw.filter)) {
+    const filter = readPredicate(raw.filter)
+    config.filter = filter.config
+    if (filter.fixed) fixed = true
+  } else if (raw.filter !== undefined) fixed = true
+  return { config, fixed }
 }
 
 /**
@@ -333,8 +409,3 @@ export function pickTagPicksConfig(raw: Obj): PickedConfig<TagPicksTabConfig> {
   const tagIds = [...new Set((v as unknown[]).filter(isTagId))]
   return { config: { tagIds }, fixed: !isTagIds(v) }
 }
-
-/** Each glance kind's one config field and whether a stored value is one it keeps (the layout check). */
-export const GLANCE_CONFIG_FIELDS = {
-  trend: { key: 'range', ok: isTrendRange },
-} as const satisfies Record<string, { key: string; ok: (v: unknown) => boolean }>

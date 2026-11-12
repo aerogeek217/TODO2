@@ -2,8 +2,9 @@ import { useCallback, useEffect, useId, useState, type CSSProperties, type Ref }
 import type { AutocompleteRow, AutocompleteView } from '../../services/nlp-autocomplete'
 import { CalendarIcon, CommandIcon } from './CommandIcons'
 import { FollowupFlagIcon } from './FollowupIcons'
-import { StatusIcon } from './StatusIcon'
-import { DEFAULT_STATUS_ICON } from '../../models'
+import { StatusMark } from './StatusMark'
+import { NEUTRAL_PERSON_COLOR } from '../../constants'
+import { HashIcon } from './icons'
 import styles from './NlpPopup.module.css'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { PickerEntityMenu } from './EntityMenu'
@@ -154,8 +155,10 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
     const cls = `${styles.item} ${active ? styles.active : ''}`
     const common = { 'data-row-index': i, onMouseMove: hover(i) }
     switch (row.kind) {
-      case 'entity':
-        return (
+      case 'entity': {
+        const prev = view.rows[i - 1]
+        const heading = row.section != null && (prev?.kind !== 'entity' || prev.section !== row.section)
+        const button = (
           <button
             key={rowKey(row, i)}
             type="button"
@@ -167,13 +170,24 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
           >
             {row.item.kind === 'status' ? (
               <span className={styles.icon} style={{ color: row.item.color }}>
-                <StatusIcon icon={row.item.icon || DEFAULT_STATUS_ICON} filled />
+                <StatusMark status={row.item} filled />
               </span>
+            ) : view.mixed ? (
+              row.item.kind === 'person' ? (
+                <span className={styles.avatar} style={{ background: row.item.color || NEUTRAL_PERSON_COLOR }} aria-hidden="true">
+                  {row.item.initials || row.item.name.slice(0, 2).toUpperCase()}
+                </span>
+              ) : <span className={styles.icon} style={{ color: row.item.color }}><HashIcon size={12} /></span>
             ) : row.item.color && <span className={styles.dot} style={{ background: row.item.color }} />}
             {/* The name alone: the trigger (`@ # !`) is the header's, not each row's. */}
             <span className={styles.name}><MarkedAt text={row.item.name} match={row.match} /></span>
+            {row.count != null && <span className={styles.count}>{row.count}</span>}
           </button>
         )
+        return heading
+          ? [<div key={`section-${row.section ?? ''}`} className={styles.section} role="presentation">{row.section}</div>, button]
+          : button
+      }
       case 'create': {
         const person = row.trigger === '@'
         return (
@@ -249,16 +263,18 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
       className={`${styles.popup} ${className ?? ''}`}
       style={style}
       role="listbox"
-      aria-label={view.header}
+      aria-label={view.header || 'Suggestions'}
       data-nlp-popup={view.mode}
       data-nlp-popup-id={popupId}
       // No right-click here reaches the host behind; only person / tag rows have a menu.
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
     >
-      <div className={styles.header}>
-        <span>{view.header}</span>
-        {view.headerNote && <span className={styles.headerNote}>{view.headerNote}</span>}
-      </div>
+      {view.header && (
+        <div className={styles.header}>
+          <span>{view.header}</span>
+          {view.headerNote && <span className={styles.headerNote}>{view.headerNote}</span>}
+        </div>
+      )}
       {view.hint && <div className={styles.hint}>{view.hint}</div>}
       {view.rows.map(renderRow)}
       {view.footer && (

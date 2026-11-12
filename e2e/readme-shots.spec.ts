@@ -158,30 +158,43 @@ test('list', async ({ browser }) => {
   })
 })
 
-// The task editor has no shot of its own: the review deck's card is the same layout.
+// The task editor has no shot of its own: the Review widget's card is the same layout. The README's
+// layouts hold no Review widget, so this shot makes one on a layout of its own (only this page sees it)
+// and jumps to it with the person, as a Review button does.
 test('review', async ({ browser }) => {
   await withPage(browser, 1080, 860, 1.65, false, async (page) => {
     await layout(page, 'Planning')
     const id = await idOf(page, 'person', REVIEW_PERSON)
-    await page.evaluate(async ({ id, name }) => {
-      const mod = (await import(/* @vite-ignore */ '/src/services/review.ts' as string)) as {
-        openReview: (p: unknown) => boolean
-        personReview: (p: { id: number; name: string }) => unknown
+    await page.evaluate(async ({ id }) => {
+      const ws = (await import(/* @vite-ignore */ '/src/stores/workspace-store.ts' as string)) as {
+        useWorkspaceStore: { getState: () => {
+          createLayout: (name: string) => Promise<number | null>
+          addWidget: (kind: string, target: { kind: 'layout' }) => string | null
+        } }
       }
-      mod.openReview(mod.personReview({ id, name }))
-    }, { id, name: REVIEW_PERSON })
-    const deck = page.getByRole('dialog').first()
-    await deck.waitFor()
+      await ws.useWorkspaceStore.getState().createLayout('Review')
+      ws.useWorkspaceStore.getState().addWidget('review', { kind: 'layout' })
+      const jump = (await import(/* @vite-ignore */ '/src/services/review-jump.ts' as string)) as {
+        jumpToReview: (f: { expression: { kind: 'person'; id: number }; showCompleted: boolean }) => Promise<boolean>
+      }
+      await jump.jumpToReview({ expression: { kind: 'person', id }, showCompleted: false })
+      // Adding the widget is an undo step: its snackbar would sit over the footer.
+      const undo = (await import(/* @vite-ignore */ '/src/stores/undo-store.ts' as string)) as {
+        useUndoStore: { getState: () => { dismissSnackbar: () => void } }
+      }
+      undo.useUndoStore.getState().dismissSnackbar()
+    }, { id })
+    const widget = page.locator('[data-review-widget]').first()
+    await widget.waitFor()
     // Step to the task with notes, subtasks and updates (the queue opens on its first task).
-    const row = deck.locator('[data-review-row]').filter({ hasText: EDITOR_TASK })
+    const row = widget.locator('[data-review-row]').filter({ hasText: EDITOR_TASK })
     await row.click()
     await row.and(page.locator('[aria-current="true"]')).waitFor()
     await page.mouse.move(2, 2)
     await settled(page)
-    await shoot(page, 'review', [deck], 6)
+    await shoot(page, 'review', [widget], 6)
   })
 })
-
 test('insights', async ({ browser }) => {
   await withPage(browser, 880, 720, 2, false, async (page) => {
     await layout(page, 'Planning')

@@ -175,8 +175,8 @@ describe('v78 layout-table: columns, rows and bands become a table', () => {
     expect(upgradeV78(none)).toBe(none)
   })
 
-  it('is registered as v78, the current schema; a v77 file upgrades through it', () => {
-    expect(CURRENT_DB_VERSION).toBe(78)
+  it('is registered as v78 (the current schema is past it); a v77 file upgrades through it', () => {
+    expect(CURRENT_DB_VERSION).toBeGreaterThan(78)
     expect(SCHEMA_UPGRADES.get(78)).toBe(upgradeV78)
     const out = upgradeDataSet({ layouts: [layout({ columns: [col('A', [rowOf('A1', [cellOf('a')])])] })] }, 77, 78)
     expect(picture(out.layouts![0] as unknown as LayoutBody)).toEqual(['a'])

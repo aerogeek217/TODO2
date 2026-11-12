@@ -27,6 +27,12 @@ interface ExpressionFieldOptions {
   allowCompleted?: boolean
   /** `false`: `done` is refused (filters that never show completed tasks by it: a lens, a pane, the check-in). */
   allowDone?: boolean
+  /**
+   * What the popup lists (default `expressionAutocomplete`: Quick Add's
+   * `@ # ! /` popup cut to an expression). Keep it stable: the popup re-reads
+   * its text whenever it changes.
+   */
+  autocomplete?: typeof computeAutocomplete
 }
 
 /**
@@ -44,7 +50,7 @@ interface ExpressionFieldOptions {
  * Hosts render a textarea over `tints` (`shared/TintedText`), the popup with
  * `ac.state`, and route the textarea's change / select / keydown / blur here.
  */
-export function useExpressionField({ predicate, onChange, inputRef, allowPeople = true, allowCompleted = true, allowDone = true }: ExpressionFieldOptions) {
+export function useExpressionField({ predicate, onChange, inputRef, allowPeople = true, allowCompleted = true, allowDone = true, autocomplete }: ExpressionFieldOptions) {
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
@@ -136,10 +142,16 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
     input.setSelectionRange(caret, caret)
   }, [text, inputRef])
 
-  const setAndRead = useCallback((value: string) => {
+  const setAndRead = useCallback((value: string, now = false) => {
     setText(value)
-    queue(parseExpression(value, { today: startOfToday(), names: resolver, allowPeople, allowCompleted, allowDone }), false)
+    queue(parseExpression(value, { today: startOfToday(), names: resolver, allowPeople, allowCompleted, allowDone }), now)
   }, [queue, resolver, allowPeople, allowCompleted, allowDone])
+
+  /** Puts `value` in the field with the caret at `cursor` (a pick the host makes itself); `now`: written at once when it reads. */
+  const apply = useCallback((value: string, cursor: number, now = false) => {
+    pendingCaret.current = cursor
+    setAndRead(value, now)
+  }, [setAndRead])
 
   const acPeople = useMemo(() => personItems(people), [people])
   const acTags = useMemo(() => tagItems(tags), [tags])
@@ -147,10 +159,11 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   // Stable, as the sources are: the popup re-reads its text whenever
   // `compute` changes (its candidates changed), so a new one each render
   // would re-render it forever while it is open.
-  const compute = useCallback<typeof computeAutocomplete>(
+  const defaultCompute = useCallback<typeof computeAutocomplete>(
     (value, cursor, sources) => expressionAutocomplete(value, cursor, sources, allowPeople),
     [allowPeople],
   )
+  const compute = autocomplete ?? defaultCompute
   const ac = useNlpAutocomplete({
     people: acPeople,
     tags: acTags,
@@ -231,5 +244,5 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   /** Typed text the filter doesn't hold yet (written after the pause, or never when it doesn't read). */
   const unsettled = text !== stored
 
-  return { text, parse, tints, names, ac, onTextChange, onSelect, onKeyDown, onBlur, closeHeld, holdClose, unsettled, unreadable }
+  return { text, stored, parse, tints, names, ac, apply, onTextChange, onSelect, onKeyDown, onBlur, closeHeld, holdClose, unsettled, unreadable }
 }

@@ -1,12 +1,11 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
-import { pickInReview, seedWorkspace, wsCell, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
-import { expectDeckAt } from './fixtures/review'
+import { pickInReview, seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * Board BL · the reviewer, revised — the one task layout in the task
- * editor, the review dialog and the Review widget, in a real browser:
+ * editor and the Review widget, in a real browser:
  * plain fact headings (the standard section label, no colour, no icon);
  * the Notes box always there, one line while empty (task layout A); the
  * Status updates heading always there; the updates dock at the bottom of
@@ -79,16 +78,6 @@ const SEED: WorkspaceSeed = {
   }],
 }
 
-async function setTheme(page: Page, mode: 'dark' | 'light') {
-  await page.evaluate(async (m) => {
-    const mod = (await import(/* @vite-ignore */ '/src/stores/settings-store.ts' as string)) as {
-      useSettingsStore: { getState: () => { setThemeMode: (mode: 'dark' | 'light') => Promise<void> } }
-    }
-    await mod.useSettingsStore.getState().setThemeMode(m)
-  }, mode)
-  await expect(page.locator('html')).toHaveAttribute('data-theme', mode)
-}
-
 async function settle(el: Locator) {
   await el.evaluate((node) => Promise.all(node.getAnimations({ subtree: true }).map((a) => a.finished)))
 }
@@ -106,27 +95,6 @@ async function openEditor(page: Page, title: string): Promise<Locator> {
   await expect(editor(page)).toBeVisible()
   await settle(editor(page))
   return editor(page)
-}
-
-const deck = (page: Page) => page.locator('[data-review-deck]')
-const deckRow = (page: Page, title: string) => deck(page).locator('[data-review-row]').filter({ hasText: title })
-const cardTitle = (page: Page) => deck(page).getByTestId('review-card-title')
-const updateLine = (page: Page) => deck(page).getByLabel('Status update · today')
-
-/** Opens the deck on Aisha's open tasks (her avatar's menu), sorted by next follow-up. */
-async function openDeck(page: Page, seed: WorkspaceSeed = SEED): Promise<Locator> {
-  await seedWorkspace(page, seed)
-  await wsListWidget(page, LIST).waitFor({ state: 'visible' })
-  await taskRowByTitle(page, 'Empty task').locator('[data-person-avatar="Aisha"]').click({ button: 'right' })
-  await page.getByRole('menuitem', { name: 'Review with Aisha…' }).click()
-  await expect(deck(page)).toBeVisible()
-  await settle(deck(page))
-  return deck(page)
-}
-
-async function goTo(page: Page, title: string) {
-  await deckRow(page, title).click()
-  await expect(cardTitle(page)).toHaveText(title)
 }
 
 /** The layout's facts: each heading's computed look. */
@@ -264,68 +232,32 @@ test.describe('the task editor (board BL)', () => {
   })
 })
 
-test.describe('the review dialog (board BL)', () => {
-  test('1200px wide, the queue 300px, the facts 268px; its height fits the task and the update line stays put on light tasks', async ({ page }) => {
-    const dialog = await openDeck(page)
-    const size = async () => { const b = await box(dialog); return { w: Math.round(b.width), h: Math.round(b.height), y: Math.round(b.y) } }
-
-    await goTo(page, 'Empty task')
-    await expect(updateLine(page)).toBeFocused()
-    expect(await size()).toMatchObject({ w: 1200, h: 640 })
-    expect(Math.round((await box(dialog.locator('[data-review-rail]'))).width)).toBe(300)
-    expect(Math.round((await box(dialog.locator('[data-task-rail]'))).width)).toBe(268)
-    const emptyLine = await box(updateLine(page))
-    // The dock straight above the footer; Notes one line, the room to spare above the dock (task layout A).
-    const dockBottom = async () => { const d = await box(dialog.locator('[data-task-dock]')); return d.y + d.height }
-    const footerTop = async () => (await box(dialog.locator('[data-review-footer]'))).y
-    expect(Math.abs(await dockBottom() - await footerTop())).toBeLessThan(1)
-    expect((await box(dialog.locator('[data-task-notes-box]'))).height).toBeLessThan(40)
-    await shot(page, 'dialog-empty')
-
-    // A light task (notes, a subtask, an update): the same height, the line typed into in the same place.
-    await goTo(page, 'Offsite agenda')
-    expect(await size()).toMatchObject({ w: 1200, h: 640 })
-    const lightLine = await box(updateLine(page))
-    expect(Math.abs(lightLine.y - emptyLine.y)).toBeLessThan(1)
-    expect(Math.abs(lightLine.x - emptyLine.x)).toBeLessThan(1)
-
-    // A typical task: as tall as what is written, nothing scrolls.
-    await goTo(page, 'Vendor contract renewal')
-    const typical = await size()
-    expect(typical.h).toBeGreaterThanOrEqual(640)
-    expect(typical.h).toBeLessThan(868)
-    expect(await dialog.locator('[data-task-writing-scroll]').evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1)
-    expect(Math.abs(await dockBottom() - await footerTop())).toBeLessThan(1)
-    await shot(page, 'dialog-typical')
-
-    // A heavy task: up to the window (16px clear each side), the writing scrolling above the dock.
-    await goTo(page, 'Long running migration')
-    const heavy = await size()
-    expect(heavy).toMatchObject({ w: 1200, h: 868, y: 16 })
-    expect(await dialog.locator('[data-task-writing-scroll]').evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(20)
-    expect(Math.abs(await dockBottom() - await footerTop())).toBeLessThan(1)
-    await expect(updateLine(page)).toBeInViewport({ ratio: 1 })
-    await expect(dialog.getByRole('button', { name: 'Mark followed up' })).toBeInViewport({ ratio: 1 })
-    await expect(dialog.locator('[data-task-followup]')).toBeInViewport({ ratio: 1 })
-    // The log keeps its own scroll, open at its newest.
-    const log = dialog.getByRole('list', { name: 'Status updates' })
-    expect(await log.evaluate((el) => Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop))).toBeLessThanOrEqual(2)
-    await expect(log.locator('[data-status-update]').last()).toContainText('Update 9')
-    await shot(page, 'dialog-heavy')
-
-    // Back to a light one: 640 again, nothing left over from the tall card.
-    await goTo(page, 'Empty task')
-    expect(await size()).toMatchObject({ w: 1200, h: 640 })
-    expect(Math.abs((await box(updateLine(page))).y - emptyLine.y)).toBeLessThan(1)
-  })
-
+test.describe('the Review widget’s queue (board BL)', () => {
   test('the queue’s rows are two lines: mark · box · title, then the follow-up (flag) and the due date (clock) under the title', async ({ page }) => {
-    const dialog = await openDeck(page)
-    await dialog.getByTestId('review-sort').click()
+    await seedWorkspace(page, {
+      ...SEED,
+      layouts: [{
+        name: 'Large',
+        table: {
+          areas: ['rv notes'],
+          cols: [1160, 280],
+          cells: [
+            { id: 'rv', tabs: [{ id: 'rev1', kind: 'review' }] },
+            { id: 'notes', tabs: [{ id: 'n1', kind: 'notes' }] },
+          ],
+        },
+      }],
+    })
+    const w = page.locator('[data-review-widget="rev1"]')
+    await pickInReview(page, 'rev1', 'Aisha')
+    await expect(w).toHaveAttribute('data-review-face', 'large')
+    const rowOf = (title: string) => w.locator('[data-review-row]').filter({ hasText: title })
+    await w.getByTestId('review-sort').click()
     await page.getByRole('menu', { name: 'Sort the queue' }).getByRole('menuitemradio', { name: /^Next follow-up/ }).click()
-    await goTo(page, 'Vendor contract renewal')
+    await rowOf('Vendor contract renewal').click()
+    await expect(w.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
 
-    const row = deckRow(page, 'Vendor contract renewal')
+    const row = rowOf('Vendor contract renewal')
     const [title, dates] = [await box(row.locator('[data-review-row-title]')), await box(row.locator('[data-review-row-dates]'))]
     expect(dates.y).toBeGreaterThanOrEqual(title.y + title.height - 1)
     expect(Math.abs(dates.x - title.x)).toBeLessThan(1)
@@ -337,7 +269,7 @@ test.describe('the review dialog (board BL)', () => {
     // The whole title: not cut in a 300px rail.
     expect(await row.locator('[data-review-row-title]').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
     // A row with one date has just that one; its name still says it.
-    const emptyRow = deckRow(page, 'Empty task')
+    const emptyRow = rowOf('Empty task')
     await expect(emptyRow.locator('[data-review-row-dates] svg')).toHaveCount(1)
     await expect(emptyRow).toHaveAccessibleName(/^Empty task, follow-up /)
 
@@ -349,7 +281,7 @@ test.describe('the review dialog (board BL)', () => {
     expect((await look(emptyRow)).shadow).toBe('none')
 
     // Followed up today (✓): its title is dimmer than a row still to do.
-    const done = deckRow(page, 'Q4 headcount plan')
+    const done = rowOf('Q4 headcount plan')
     await expect(done).toHaveAttribute('data-mark', 'done')
     const titleColour = (l: Locator) => l.locator('[data-review-row-title]').evaluate((el) => getComputedStyle(el).color)
     expect(await titleColour(done)).not.toBe(await titleColour(emptyRow))
@@ -359,96 +291,10 @@ test.describe('the review dialog (board BL)', () => {
     await page.keyboard.press('ArrowRight')
     await expect(row).toHaveAttribute('data-mark', 'skipped')
     await page.keyboard.press('ArrowLeft')
-    await expect(cardTitle(page)).toHaveText('Vendor contract renewal')
-    await shot(page, 'dialog-queue')
-  })
-
-  test('the header: who is reviewed, a dot per task, no `k of N`, the counts, ×', async ({ page }) => {
-    const dialog = await openDeck(page)
-    await expect(dialog.getByRole('heading', { name: 'Aisha' })).toBeVisible()
-    await expect(dialog.getByTestId('review-description')).toHaveText('Review · 8 open tasks')
-    await expect(dialog).toHaveAccessibleDescription('Review · 8 open tasks')
-
-    const dots = dialog.getByTestId('review-dots')
-    await expect(dots).toHaveAttribute('aria-hidden', 'true')
-    await expect(dots.locator('[data-dot]')).toHaveCount(8)
-    await expect(dialog.getByRole('progressbar')).toHaveCount(0)
-    const states = () => dots.locator('[data-dot]').evaluateAll((els) => els.map((el) => el.getAttribute('data-dot')))
-    const order = await dialog.locator('[data-review-row]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')?.split(',')[0]))
-    const at = (title: string) => order.indexOf(title)
-    // One task was followed up today before the review; the first card is current.
-    const start = await states()
-    expect(start[0]).toBe('current')
-    expect(start.filter((s) => s === 'done')).toHaveLength(at('Q4 headcount plan') === 0 ? 0 : 1)
-    await expectDeckAt(dialog, 1, 8)
-    await expect(dialog.getByTestId('review-skipped')).toHaveCount(0)
-
-    // Skip one, follow one up: its dot grey, the other's the accent; the counts say so.
-    await goTo(page, 'Onboarding checklist')
-    await dialog.getByRole('button', { name: /^Skip/ }).click()
-    await goTo(page, 'Hiring scorecard template')
-    await updateLine(page).fill('Template drafted')
-    await page.keyboard.press('Enter')
-    await expect(deckRow(page, 'Hiring scorecard template')).toHaveAttribute('data-mark', 'done')
-    await goTo(page, 'Empty task')
-    const now = await states()
-    expect(now[at('Onboarding checklist')]).toBe('skipped')
-    expect(now[at('Hiring scorecard template')]).toBe('done')
-    expect(now[at('Q4 headcount plan')]).toBe('done')
-    expect(now[at('Empty task')]).toBe('current')
-    expect(now.filter((s) => s === 'todo')).toHaveLength(4)
-    await expectDeckAt(dialog, at('Empty task') + 1, 8)
-    await expect(dialog.getByTestId('review-position')).toHaveCount(0)
-    await expect(dialog.getByTestId('review-followed-up')).toHaveText('2 followed up')
-    await expect(dialog.getByTestId('review-skipped')).toHaveText('· 1 skipped')
-    // The four looks differ.
-    const looks = await dots.locator('[data-dot]').evaluateAll((els) => Object.fromEntries(els.map((el) => {
-      const cs = getComputedStyle(el)
-      return [el.getAttribute('data-dot'), `${cs.backgroundColor} | ${cs.boxShadow}`]
-    })))
-    expect(new Set(Object.values(looks)).size).toBe(4)
-
-    await dialog.getByRole('button', { name: 'Close review' }).click()
-    await expect(dialog).toHaveCount(0)
-  })
-
-  test('past 20 tasks the dots give way to a thin progress bar', async ({ page }) => {
-    const many = Array.from({ length: 22 }, (_, i) => ({ title: `Task ${String(i + 1).padStart(2, '0')}`, people: ['Aisha'] }))
-    const dialog = await openDeck(page, { ...SEED, tasks: [...many, { title: 'Empty task', people: ['Aisha'] }] })
-    await expect(dialog.getByTestId('review-dots')).toHaveCount(0)
-    const bar = dialog.getByRole('progressbar', { name: 'Followed up' })
-    await expect(bar).toHaveAttribute('aria-valuemax', '23')
-    await expect(bar).toHaveAttribute('aria-valuenow', '0')
-    expect((await box(bar)).height).toBeLessThanOrEqual(4)
-    await expectDeckAt(dialog, 1, 23)
-    // The queue scrolls; the dialog stays as tall as its (empty) task, not as its queue.
-    expect(Math.round((await box(dialog)).height)).toBe(640)
-    expect(await dialog.locator('[data-review-rail] ol').evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
-  })
-
-  test('the light theme reads: plain headings, the dock’s ground, the dots', async ({ page }) => {
-    const dialog = await openDeck(page)
-    await setTheme(page, 'light')
-    await goTo(page, 'Vendor contract renewal')
-    const looks = await headingLooks(dialog)
-    expect(new Set(looks.map((l) => l.color)).size).toBe(1)
-    const dock = await dialog.locator('[data-task-dock]').evaluate((el) => getComputedStyle(el).backgroundColor)
-    expect(dock).not.toBe('rgba(0, 0, 0, 0)')
-    // The headings read on the light ground: the muted text colour, darker there than in the dark theme.
-    const [r, g, b] = (looks[0]?.color.match(/\d+/g) ?? []).map(Number)
-    expect(Math.max(r ?? 255, g ?? 255, b ?? 255)).toBeLessThan(130)
-    // A dot still to do and the current one are told apart there too.
-    const dots = await dialog.getByTestId('review-dots').locator('[data-dot]').evaluateAll((els) => Object.fromEntries(els.map((el) => [el.getAttribute('data-dot'), getComputedStyle(el).boxShadow])))
-    expect(dots.todo).not.toBe(dots.current)
-    await shot(page, 'dialog-typical-light')
-    if (!SHOTS) return
-    await page.keyboard.press('Escape')
-    await expect(dialog).toHaveCount(0)
-    await openEditor(page, 'Vendor contract renewal')
-    await shot(page, 'task-details-light')
+    await expect(w.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
+    await shot(page, 'widget-queue')
   })
 })
-
 test.describe('the Review widget’s faces (boards BL, BM)', () => {
   const widget = (page: Page, tabId: string) => page.locator(`[data-review-widget="${tabId}"]`)
 
@@ -464,7 +310,7 @@ test.describe('the Review widget’s faces (boards BL, BM)', () => {
           // Room for the whole medium face: two entries, the update line and the Next row (task layout A).
           rows: [{ px: 360 }],
           cells: [
-            { id: 'med', tabs: [{ id: 'rm', kind: 'review', review: { by: 'person' } }] },
+            { id: 'med', tabs: [{ id: 'rm', kind: 'review' }] },
             { id: 'notes', tabs: [{ id: 'n1', kind: 'notes' }] },
           ],
         },
@@ -515,7 +361,7 @@ test.describe('the Review widget’s faces (boards BL, BM)', () => {
             areas: ['rv notes'],
             cols,
             cells: [
-              { id: 'rv', tabs: [{ id: 'rev1', kind: 'review', review: { by: 'person' } }] },
+              { id: 'rv', tabs: [{ id: 'rev1', kind: 'review' }] },
               { id: 'notes', tabs: [{ id: 'n1', kind: 'notes' }] },
             ],
           },

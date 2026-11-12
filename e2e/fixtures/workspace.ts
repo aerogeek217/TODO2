@@ -8,7 +8,7 @@ import { box, pointIn, type Point } from './geometry'
 export interface WsTabSeed {
   id: string
   kind: WidgetKind
-  /** List tabs: index into `listDefinitions`. (The Eisenhower's list is a setting: `WorkspaceSeed.eisenhower`.) */
+  /** List tabs: index into `listDefinitions`. */
   listDefIdx?: number
   /** Calendar tabs: date types shown (default both). */
   dateTypes?: { due: boolean; followup: boolean }
@@ -17,12 +17,10 @@ export interface WsTabSeed {
   offset?: number
   /** Calendar tabs: the month shows titled bars (view state; default off = the heat map). */
   titles?: boolean
-  /** Eisenhower tabs: collapsed sections (view state). */
-  collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
-  /** List / Eisenhower tabs: the task rows' details width (view state). */
+  /** List tabs: the task rows' details width (view state). */
   detailsWidth?: number
-  /** List tabs: the zoom (view state; absent = the Settings default; `strips`, a removed level, opens as `lines`). */
-  zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
+  /** List tabs: the zoom (view state; absent = the Settings default). */
+  zoom?: 'stacked' | 'rows' | 'lines'
   /**
    * Glance tabs (Number, the sections): config fields over the kind's defaults. A Number's
    * `metric` (a v77 one, e.g. `{ metric: 'open' }`) seeds the config v78 converts it to
@@ -37,13 +35,6 @@ export interface WsTabSeed {
     colourBy?: { tags: string[] } | 'people' | 'none'
     untouchedDays?: number
   }
-  /**
-   * Review tabs (item 12, board BM): what the widget reviews by (default
-   * Person). Its picks are temporary — type them into its field
-   * (`pickInReview`). `legacyPick` stores the config an earlier build saved
-   * (one person or tag by name) instead.
-   */
-  review?: { by?: 'person' | 'tag' | 'status' | 'list'; legacyPick?: { person?: string; tag?: string } }
 }
 
 export interface WsCellSeed {
@@ -111,6 +102,8 @@ export interface WsLayoutSeed {
   table?: WsTableSeed
   /** The layout's hue (D19): a preset name or a hex colour. */
   hue?: string
+  /** The layout's icon as stored (items 11, 14), e.g. `{ kind: 'emoji', emoji: '🏠' }`. */
+  icon?: Record<string, unknown>
 }
 
 /** A seeded layout's table: its tracks, and each cell's area with its tab seeds (built in the page). */
@@ -183,19 +176,9 @@ function withNumberConfigs(table: WsTable): WsTable {
   }
 }
 
-/** The app-wide Eisenhower panes (a filter is merged over the empty predicate). */
-export type EisenhowerPanesSeed = Partial<Record<'do' | 'schedule' | 'delegate' | 'drop', { name?: string; filter?: Record<string, unknown> }>>
-
 export interface WorkspaceSeed {
   /** The first layout is opened. */
   layouts: WsLayoutSeed[]
-  /**
-   * The app-wide Eisenhower settings (every Eisenhower tab and Eisenhower
-   * summary): its own list (index into `listDefinitions` — that list is
-   * made the Eisenhower's, a hidden list; none = the one the app made, with
-   * no filter) and its custom panes.
-   */
-  eisenhower?: { listDefIdx?: number; panes?: EisenhowerPanesSeed }
   /**
    * Lenses (the `lenses` settings row, the presets marked seeded so none are
    * added): each predicate merged over the empty one.
@@ -332,9 +315,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     for (const name of seed.statuses ?? []) {
       statusIds.set(name, await add(tx.objectStore('statuses'), { name, color: '#4caf50', icon: 'circle', sortOrder: ++statusOrder }))
     }
-    // The seed's lists replace the app's own (the Eisenhower's list it made
-    // at launch): the app makes that again on the reload unless the seed
-    // names one (`eisenhower.listDefIdx`).
+    // The seed's lists replace any the database holds.
     tx.objectStore('listDefinitions').clear()
     const defIds: number[] = []
     let defOrder = 0
@@ -351,7 +332,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
         ...(def.showFilterLine === false ? { showFilterLine: false } : {}),
         ...(def.ignoreLens ? { ignoreLens: true } : {}),
-        ...(seed.eisenhower?.listDefIdx === defIds.length ? { owner: { eisenhower: true } } : {}),
       }))
     }
     let taskOrder = 0
@@ -411,7 +391,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         if (tab.view != null || tab.offset != null) out.viewState = { view: tab.view ?? 'month', offset: tab.offset ?? 0 }
         if (tab.titles != null) out.viewState = { ...(out.viewState as object | undefined), titles: tab.titles }
       }
-      if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
       if (tab.kind === 'neglect' && tab.neglect) {
         const n = tab.neglect
         if (n.colourBy === 'people' || n.colourBy === 'none') config.colourBy = { kind: n.colourBy }
@@ -420,16 +399,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       }
       if (tab.kind === 'pulse' && tab.tagNames) {
         config.tagIds = tab.tagNames.map((name) => tagIds.get(name)).filter((id) => id != null)
-      }
-      if (tab.kind === 'review') {
-        const legacy = tab.review?.legacyPick
-        const id = legacy?.person != null ? personIds.get(legacy.person) : legacy?.tag != null ? tagIds.get(legacy.tag) : undefined
-        if (legacy && id != null) {
-          delete config.by
-          config.pick = { kind: legacy.person != null ? 'person' : 'tag', id }
-        } else {
-          config.by = tab.review?.by ?? 'person'
-        }
       }
       if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
@@ -445,7 +414,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     })
     for (const [i, layout] of seed.layouts.entries()) {
       const table = seed.tables[i]!
-      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: i, grid: table.grid, cells: table.cells.map(buildCell), ...(layout.hue ? { hue: layout.hue } : {}), createdAt: now, modifiedAt: now })
+      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: i, grid: table.grid, cells: table.cells.map(buildCell), ...(layout.hue ? { hue: layout.hue } : {}), ...(layout.icon ? { icon: layout.icon } : {}), createdAt: now, modifiedAt: now })
       firstId ??= id
       layoutIds.push(id)
     }
@@ -454,23 +423,12 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     const shownBy = (i: number) => seed.tables.findIndex((table) => table.cells.some((p) => p.tabs.some((t) => t.listDefIdx === i)))
     for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
       const listId = defIds[i]
-      if (seed.eisenhower?.listDefIdx === i) continue
       const layoutId = layoutIds[def.layoutIdx ?? Math.max(0, shownBy(i))]
       if (listId == null || layoutId == null) continue
       const store = tx.objectStore('listDefinitions')
       store.put({ ...(await get(store, listId)), owner: { layoutId } })
     }
     if (firstId != null) tx.objectStore('settings').put({ key: 'activeLayoutId', value: String(firstId) })
-    const eis = seed.eisenhower
-    const eisListId = eis?.listDefIdx != null ? defIds[eis.listDefIdx] : undefined
-    if (eisListId != null) tx.objectStore('settings').put({ key: 'eisenhowerSource', value: `list:${eisListId}` })
-    if (eis?.panes) {
-      const panes = Object.fromEntries(Object.entries(eis.panes).map(([q, p]) => [q, {
-        ...(p?.name != null ? { name: p.name } : {}),
-        ...(p?.filter ? { filter: { ...seed.predicate, ...p.filter } } : {}),
-      }]))
-      tx.objectStore('settings').put({ key: 'eisenhowerPanes', value: JSON.stringify(panes) })
-    }
     for (const [key, value] of Object.entries({ rowDensity: 'rows', ...seed.settings })) {
       if (value === null) tx.objectStore('settings').delete(key)
       else tx.objectStore('settings').put({ key, value })
@@ -747,8 +705,8 @@ const INSIGHTS_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('insights').m
  * Picks the kind named `label` in the open add-widget (`Add widget`) or
  * cell (`Change widget`: the ⋯ menu, `Cell options`) menu. Adding: a task
  * kind from the menu itself, an Insights kind from its submenu, and
- * a Breakdown one of its presets (`preset`, default Custom: D26 P8), whose
- * editor then opens. Changing: every kind from the Change widget › submenu.
+ * a Breakdown one of its presets (`preset`, default Custom: D26 P8); no
+ * editor opens. Changing: every kind from the Change widget › submenu.
  */
 export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Change widget', label: string, preset = 'Custom'): Promise<void> {
   if (menuName === 'Change widget') {
@@ -803,23 +761,27 @@ export function wsListWidget(page: Page, tabId: string): Locator {
   return page.locator(`[data-list-widget="${tabId}"]`)
 }
 
-/** The field of Review widget `tabId`'s prompt row (board BM). */
+/** The filter field of Review widget `tabId` (widget feedback 2A). */
 export function reviewField(page: Page, tabId: string): Locator {
-  return page.locator(`[data-review-widget="${tabId}"]`).getByRole('combobox', { name: / to review$/ })
+  return page.locator(`[data-review-widget="${tabId}"]`).getByRole('textbox', { name: 'Review filter' })
 }
 
 /**
- * Picks in Review widget `tabId` by typing: each of `names` typed into its
- * field and taken with ⏎ (the first match), as a user would — its picks are
- * temporary, so no seed holds them. The option list is closed afterwards.
+ * Picks in Review widget `tabId` by typing: each of `names` typed bare at the
+ * field's end and taken with ⏎ (the first match — a second person joins with
+ * `or`), as a user would; its filter is temporary, so no seed holds it. The
+ * field is left afterwards (its text settled, the list closed).
  */
 export async function pickInReview(page: Page, tabId: string, ...names: string[]): Promise<void> {
   const field = reviewField(page, tabId)
+  await field.click()
   for (const name of names) {
-    await field.fill(name)
+    await field.press('End')
+    await field.pressSequentially(name)
+    await expect(page.locator('[data-nlp-popup]').getByRole('option').first()).toBeVisible()
     await field.press('Enter')
   }
-  await field.press('Escape')
+  await field.blur()
 }
 
 /**
@@ -880,7 +842,6 @@ export async function gotoSettingsDeepLink(page: Page): Promise<Locator> {
 const SETTINGS_PART_SECTION: Readonly<Record<string, string>> = {
   'New tasks': 'Tasks',
   'Lists & rows': 'Tasks',
-  Eisenhower: 'Tasks',
   'Completed tasks': 'Tasks',
   'File storage': 'Database',
   Backups: 'Database',
@@ -911,8 +872,8 @@ export async function openSettings(page: Page, section?: string): Promise<Locato
 export const ADD_FILTER = /^(Filter|Another filter \(AND\))$/
 
 /**
- * Opens Edit list from a list's filter line inside `scope` (a list widget,
- * or the Eisenhower's cell): the line reads the filter in words (UX cleanup
+ * Opens Edit list from a list's filter line inside `scope` (a list
+ * widget): the line reads the filter in words (UX cleanup
  * 2A), and a click on them opens Edit list, where the filter is edited — its
  * chips, + Filter, Another filter (AND). Returns the open Edit list; the
  * edits there are the list's draft, kept when it closes (Esc).

@@ -12,7 +12,7 @@ import { withLens, type Lens } from '../utils/lens'
  * being drawn ignores the top bar's lens (`WidgetBody` provides it from
  * the tab, `tabIgnoresLens`), and everything that filters by the screen
  * filter inside it — the glance widgets' shared base, the calendar, the
- * Eisenhower, the Neglect map — reads the screen filter through
+ * Neglect map — reads the screen filter through
  * `useWidgetScreenFilter`, so its data follows the switch. A list's switch
  * is its list's (`useListScreenFilter`).
  */
@@ -63,13 +63,12 @@ export function setTabIgnoresLens(tab: LensSwitchTab, ignore: boolean): void {
   switch (tab.kind) {
     case 'calendar': void ws.patchTabViewState(tab.id, 'calendar', patch); return
     case 'review': void ws.patchTabViewState(tab.id, 'review', patch); return
-    case 'eisenhower': void ws.patchTabViewState(tab.id, 'eisenhower', patch); return
     case 'neglect': void ws.patchTabViewState(tab.id, 'neglect', patch); return
     case 'number': void ws.patchTabViewState(tab.id, 'number', patch); return
+    case 'trend': void ws.patchTabViewState(tab.id, 'trend', patch); return
     case 'pulse': void ws.patchTabViewState(tab.id, 'pulse', patch); return
     case 'breakdown': void ws.patchTabViewState(tab.id, 'breakdown', patch); return
     case 'pivot': void ws.patchTabViewState(tab.id, 'pivot', patch); return
-    case 'tagMap': void ws.patchTabViewState(tab.id, 'tagMap', patch); return
   }
 }
 

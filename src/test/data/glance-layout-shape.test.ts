@@ -34,23 +34,23 @@ const SETTINGS: Array<[GlanceWidgetKind, string, unknown, unknown, unknown]> = [
 describe('glance widget kinds', () => {
   it('are glance widgets in the Insights group; only a Number fits its height', () => {
     const glance = WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].glance)
-    expect(glance).toEqual(['number', 'breakdown', 'pivot', 'tagMap', 'trend', 'pulse'])
+    expect(glance).toEqual(['number', 'breakdown', 'pivot', 'trend', 'pulse'])
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
-    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'eisenhower', 'review', 'notes'])
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'notes'])
     // Insights: the glance widgets, then the Neglect map — a whole widget, not a glance one. The group is the menus'
-    // only: the Calendar and the Eisenhower (Tasks) and the Neglect map (Insights) alike are not glance kinds.
+    // only: the Calendar (Tasks) and the Neglect map (Insights) alike are not glance kinds.
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'insights')).toEqual([...glance, 'neglect'])
-    expect(['calendar', 'eisenhower', 'neglect'].some((k) => isWidgetKind(k) && isGlanceKind(k))).toBe(false)
-    // The Dashboard (v77) and the kinds D26 retired (v78) are gone.
-    for (const gone of ['dashboard', 'followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary', 'people', 'tags', 'status']) {
+    expect(['calendar', 'neglect'].some((k) => isWidgetKind(k) && isGlanceKind(k))).toBe(false)
+    // The Dashboard (v77), the kinds D26 retired (v78) and the Eisenhower (after v78) are gone.
+    for (const gone of ['dashboard', 'followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary', 'people', 'tags', 'status', 'eisenhower']) {
       expect(isWidgetKind(gone), gone).toBe(false)
     }
   })
 
   it('a new tab has its defaults; a Number counts every open task', () => {
     expect(createTab('number', 'n')).toEqual({ id: 'n', kind: 'number', config: { name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' } })
-    expect(createTab('trend', 't').config).toEqual({ range: '14d' })
+    expect(createTab('trend', 't').config).toEqual({ range: '14d', name: 'Created vs completed', show: 'bars' })
     expect(createTab('breakdown', 'b').config).toEqual({ name: 'Breakdown', filter: emptyPredicate(), splitBy: 'people', style: 'bars', show: 'count', showNone: true })
     // Project pulse reads the tags it's seeded with (the store passes the `Project: …` tags).
     expect(createTab('pulse', 'x').config).toEqual({ tagIds: [] })
@@ -95,6 +95,40 @@ describe('glance widget kinds', () => {
     expect(tabOf(notObject)).toEqual({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { name: 'L' } } })
   })
 
+  // Widget feedback 2C: Created vs completed's name, filter and Show as (no schema step: absent = the defaults).
+  it('Created vs completed’s name, filter and Show as round-trip; absent they stay absent; a bad one is a fix and goes', () => {
+    const filter = { ...emptyPredicate(), expression: { kind: 'tag', id: 4 } }
+    const config = { range: '4w', name: 'Atlas', filter, show: 'burndown' }
+    const good = layoutRow({ id: 't', kind: 'trend', config, viewState: { ignoreLens: true } })
+    expect(validateRow('layouts', good)).toBe(true)
+    expect(rowFixes('layouts', good)).toEqual([])
+    expect(tabOf(good)).toEqual({ id: 't', kind: 'trend', config, viewState: { ignoreLens: true } })
+
+    const old = layoutRow({ id: 't', kind: 'trend', config: { range: '14d' } })
+    expect(rowFixes('layouts', old)).toEqual([])
+    expect(tabOf(old)).toEqual({ id: 't', kind: 'trend', config: { range: '14d' } })
+
+    const badShow = layoutRow({ id: 't', kind: 'trend', config: { range: '14d', show: 'pie', name: 'X' } })
+    expect(checkLayoutBody(badShow)).toBe('cells[0].tabs[0].config.show')
+    expect(rowFixes('layouts', badShow)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(badShow)).toEqual({ id: 't', kind: 'trend', config: { range: '14d', name: 'X' } })
+
+    const badName = layoutRow({ id: 't', kind: 'trend', config: { range: '14d', name: 4 } })
+    expect(checkLayoutBody(badName)).toBe('cells[0].tabs[0].config.name')
+    expect(tabOf(badName)).toEqual({ id: 't', kind: 'trend', config: { range: '14d' } })
+
+    // A filter without its required fields is read as a list's (a fix); one that isn't an object goes.
+    const badFilter = layoutRow({ id: 't', kind: 'trend', config: { range: '14d', filter: { tags: [3] } } })
+    expect(checkLayoutBody(badFilter)).toBe('cells[0].tabs[0].config.filter.showCompleted')
+    expect(rowFixes('layouts', badFilter)).toEqual(['tab or cell settings reset'])
+    const notObject = layoutRow({ id: 't', kind: 'trend', config: { range: '14d', filter: 'overdue' } })
+    expect(checkLayoutBody(notObject)).toBe('cells[0].tabs[0].config.filter')
+    expect(tabOf(notObject)).toEqual({ id: 't', kind: 'trend', config: { range: '14d' } })
+
+    const badLens = layoutRow({ id: 't', kind: 'trend', config: { range: '14d' }, viewState: { ignoreLens: 'yes' } })
+    expect(checkLayoutBody(badLens)).toBe('cells[0].tabs[0].viewState.ignoreLens')
+  })
+
   it.each(SETTINGS)('%s: a known %s round-trips; a bad or missing one is reset to its default', (kind, key, kept, bad, fallback) => {
     const good = layoutRow({ id: 't', kind, config: { [key]: kept } })
     expect(validateRow('layouts', good)).toBe(true)
@@ -115,7 +149,10 @@ describe('glance widget kinds', () => {
   it('a Number (D26 P5): every field round-trips; Auto, never and following the lens are absent', () => {
     for (const config of [
       numberTab('t').config,
-      numberTab('t', 'overdue', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 12, compare: 'none', color: '#abc' }).config,
+      numberTab('t', 'overdue', { breakdown: 'tags', litWhen: 'below', litAt: 12, compare: 'none', color: '#abc' }).config,
+      // The colour while not lit (widget feedback 2D; optional, no schema step), with and without the lit one.
+      numberTab('t', 'overdue', { litWhen: 'above', litAt: 0, color: '#abc', unlitColor: '#7ec4bc' }).config,
+      numberTab('t', 'open', { unlitColor: '#7EC4BC' }).config,
       // The breakdowns that came later (no schema step): status and priority.
       numberTab('t', 'open', { breakdown: 'status' }).config,
       numberTab('t', 'open', { breakdown: 'priority' }).config,
@@ -132,12 +169,13 @@ describe('glance widget kinds', () => {
     ['name', 7, { name: 'Number' }],
     ['name', 'x'.repeat(81), { name: 'Number' }],
     ['color', 'teal', {}],
+    ['unlitColor', 'teal', {}],
+    ['unlitColor', 7, {}],
     ['show', 'pie', { show: 'count' }],
     ['litWhen', 'always', { litWhen: 'never', litAt: undefined }],
     ['litAt', -1, { litAt: 0 }],
     ['litAt', 1.5, { litAt: 0 }],
     ['compare', 'lastYear', { compare: 'yesterday' }],
-    ['ignoreLens', false, {}],
     ['breakdown', 'person', {}],
     ['breakdown', 'due', {}],
   ] as const)('a Number’s %s %j is reset (a fix)', (key, value, reset) => {
@@ -148,6 +186,16 @@ describe('glance widget kinds', () => {
     const { [key]: _gone, ...rest } = base as unknown as Record<string, unknown>
     void _gone
     expect(tabOf(row)).toEqual({ id: 't', kind: 'number', config: { ...rest, ...reset } })
+  })
+
+  it('a Number’s config `ignoreLens` (v79 moved it to the view state) passes the check and is dropped (a fix)', () => {
+    const base = numberTab('t', 'overdue').config
+    for (const value of [true, false]) {
+      const row = layoutRow({ id: 't', kind: 'number', config: { ...base, ignoreLens: value } })
+      expect(checkLayoutBody(row)).toBe(true)
+      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+      expect(tabOf(row)).toEqual({ id: 't', kind: 'number', config: base })
+    }
   })
 
   it('a Number’s threshold goes with never; a filter is read as a list’s is; a v77 metric reads as a new Number', () => {

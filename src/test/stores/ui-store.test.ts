@@ -120,10 +120,10 @@ describe('useUIStore', () => {
   })
 
   it('a control to focus is kept only on the way to a part, and forgotten when Settings closes', () => {
-    useUIStore.getState().openSettings('tasks', 'eisenhower-pane-do')
+    useUIStore.getState().openSettings('tasks', 'lens-a')
     expect(useUIStore.getState()).toMatchObject({ settingsSection: 'tasks', settingsPart: null, settingsFocus: null })
-    useUIStore.getState().openSettings('eisenhower', 'eisenhower-pane-do')
-    expect(useUIStore.getState()).toMatchObject({ settingsPart: 'eisenhower', settingsFocus: 'eisenhower-pane-do' })
+    useUIStore.getState().openSettings('lenses', 'lens-a')
+    expect(useUIStore.getState()).toMatchObject({ settingsPart: 'lenses', settingsFocus: 'lens-a' })
     useUIStore.getState().closeSettings()
     expect(useUIStore.getState()).toMatchObject({ settingsOpen: false, settingsPart: null, settingsFocus: null })
   })

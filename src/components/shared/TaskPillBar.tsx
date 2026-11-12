@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { MouseEvent, Ref } from 'react'
-import { type PersistedTodoItem, type Person, type Status, DEFAULT_STATUS_ICON } from '../../models'
+import { type PersistedTodoItem, type Person, type Status } from '../../models'
 import { formatDateShort } from '../../utils/date'
 import { isDeadlinePast } from '../../utils/effective-date'
 import { followupPillLabel, followupTooltip, isFollowupOverdue } from '../../utils/followup'
@@ -8,6 +8,7 @@ import { startOfDay } from '../../utils/date'
 import { FollowupFlagIcon } from './FollowupIcons'
 import { useTooltip } from './use-tooltip'
 import { StatusIcon } from './StatusIcon'
+import { StatusMark } from './StatusMark'
 import { AvatarStack } from './AvatarStack'
 import styles from './TaskPillBar.module.css'
 
@@ -261,7 +262,7 @@ export const TaskPillStatus = memo(function TaskPillStatus({
           aria-label={status ? `Status: ${status.name}` : 'Set status'}
         >
           {status
-            ? <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} filled />
+            ? <StatusMark status={status} filled />
             : <span className={styles.statusDotEmpty} />}
         </button>
       </div>
@@ -276,7 +277,7 @@ export const TaskPillStatus = memo(function TaskPillStatus({
       aria-label={status ? `Status: ${status.name}` : 'No status'}
     >
       {status
-        ? <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} filled />
+        ? <StatusMark status={status} filled />
         : <span className={styles.statusReadOnlyEmpty} aria-hidden="true" />}
     </span>
   )

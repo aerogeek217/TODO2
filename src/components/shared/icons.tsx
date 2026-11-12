@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import type { WidgetKind } from '../../models/workspace-layout'
-import { hueColor } from '../../utils/layout-hue'
+import { KIND_LINE_ICON, type WidgetKind } from '../../models/workspace-layout'
+import type { LineIconKey } from '../../models/icon'
 import { GLANCE_GLYPH } from '../../utils/glance-glyphs'
 
 /**
@@ -48,17 +48,11 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M6 8h4.5M6 10.5h4.5" />
     </>
   ),
-  // Review (item 12): the review deck's glyph — list lines and a play triangle.
+  // Review (item 12): the review's glyph — list lines and a play triangle.
   review: (
     <>
       <path d="M2.5 4h8M2.5 7.5h8M2.5 11h4" />
       <path d="M9.5 9.5v4.5l3.75-2.25z" />
-    </>
-  ),
-  eisenhower: (
-    <>
-      <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
-      <path d="M8 2.5v11M2.5 8h11" />
     </>
   ),
   // A scatter plot: two axes and three dots, the largest top right (Slipping).
@@ -79,12 +73,43 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   breakdown: <path d="M2.5 3.5h11M2.5 8h7M2.5 12.5h4" />,
   // Pivot: a table with a heading row and column.
   pivot: <path d="M2.5 2.5h11v11h-11zM2.5 6h11M6 2.5v11M2.5 9.75h11M9.75 6v7.5" />,
-  // Tag map: tiles of three sizes.
-  tagMap: <path d="M2.5 2.5h11v11h-11zM8.5 2.5v11M2.5 9h6M8.5 7h5" />,
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {
   return <Svg size={size}>{KIND_PATHS[kind]}</Svg>
+}
+
+/** The widget kind whose glyph a line icon is (the kinds' icons lead the picker, J1). */
+const KIND_OF_LINE_ICON: Partial<Record<LineIconKey, WidgetKind>> = Object.fromEntries(
+  (Object.entries(KIND_LINE_ICON) as Array<[WidgetKind, LineIconKey]>).map(([kind, key]) => [key, kind]),
+)
+
+/**
+ * One of the built-in line icons a user can pick (items 11, 14), by key: a
+ * widget kind's glyph or one of the app's generic icons — the one icon
+ * family, nothing drawn twice.
+ */
+export function LineIcon({ name, size = 14 }: { name: LineIconKey; size?: number }) {
+  const kind = KIND_OF_LINE_ICON[name]
+  if (kind) return <WidgetKindIcon kind={kind} size={size} />
+  switch (name) {
+    case 'layout': return <LayoutIcon size={size} />
+    case 'flag': return <FlagIcon size={size} />
+    case 'check': return <CheckCircleIcon size={size} />
+    case 'person': return <PersonIcon size={size} />
+    case 'at': return <AtIcon size={size} />
+    case 'hash': return <HashIcon size={size} />
+    case 'envelope': return <EnvelopeIcon size={size} />
+    case 'search': return <SearchIcon size={size} />
+    case 'file': return <FileIcon size={size} />
+    case 'lock': return <LockIcon size={size} />
+    case 'funnel': return <FunnelIcon size={size} />
+    case 'glasses': return <GlassesIcon size={size} />
+    case 'repeat': return <RepeatIcon size={size} />
+    case 'checklist': return <ChecklistIcon size={size} />
+    case 'link': return <LinkIcon size={size} />
+    default: return <WidgetKindIcon kind="lens" size={size} />
+  }
 }
 
 /** A rounded rect split into three columns: the workspace / layout glyph. */
@@ -95,13 +120,6 @@ export function LayoutIcon({ size = 14 }: { size?: number }) {
       <path d="M6.5 2.5v11M10 2.5v11" />
     </Svg>
   )
-}
-
-/** The layout glyph in the layout's hue (D19); none = the surrounding colour. */
-export function HuedLayoutIcon({ hue, size = 14 }: { hue?: string; size?: number }) {
-  return hue
-    ? <span style={{ display: 'inline-flex', color: hueColor(hue) }}><LayoutIcon size={size} /></span>
-    : <LayoutIcon size={size} />
 }
 
 export function SaveIcon({ size = 14 }: { size?: number }) {
@@ -429,7 +447,7 @@ export function ReplyIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-/** Three list lines and a play triangle: the review deck (Review with X…) — step through these tasks. */
+/** Three list lines and a play triangle: a review (Review with X) — step through these tasks. */
 export function ReviewIcon({ size = 14 }: { size?: number }) {
   return (
     <Svg size={size} strokeWidth={1.5}>

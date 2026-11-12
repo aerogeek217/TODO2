@@ -23,7 +23,6 @@ const OPTIONS: PromptOption[] = [
 function Field({ initial = [], onChange = () => {}, ...props }: {
   initial?: number[]
   onChange?: (ids: number[]) => void
-  labelControl?: ReactNode
   trailing?: ReactNode
   chipMarks?: boolean
   options?: PromptOption[]
@@ -38,7 +37,6 @@ function Field({ initial = [], onChange = () => {}, ...props }: {
       inputLabel="People to review"
       placeholder="Pick a person…"
       emptyText="No people yet"
-      labelControl={props.labelControl}
       trailing={props.trailing}
       chipMarks={props.chipMarks}
     />
@@ -94,38 +92,18 @@ describe('PromptField', () => {
     expect(screen.getByRole('listbox')).toBeInTheDocument()
   })
 
-  it('a control in place of the label, and content at the row’s end, are outside the field: a press there closes the option list', () => {
-    render(<Field labelControl={<button type="button">Person ▾</button>} trailing={<span data-testid="trailing">3 of 12</span>} />)
+  it('content at the row’s end is outside the field: a press there closes the option list', () => {
+    render(<Field trailing={<span data-testid="trailing">3 of 12</span>} />)
     const row = document.querySelector<HTMLElement>('[data-prompt-row]')!
-    expect(row.firstElementChild).toBe(screen.getByRole('button', { name: 'Person ▾' }))
     expect(row.lastElementChild).toBe(screen.getByTestId('trailing'))
     fireEvent.focus(input())
     expect(screen.getByRole('listbox')).toBeInTheDocument()
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'Person ▾' }))
-    expect(screen.queryByRole('listbox')).toBeNull()
-    fireEvent.focus(input())
     fireEvent.mouseDown(screen.getByTestId('trailing'))
     expect(screen.queryByRole('listbox')).toBeNull()
     // The field itself (a chip's ×, the text) stays inside.
     fireEvent.focus(input())
     fireEvent.mouseDown(input())
     expect(screen.getByRole('listbox')).toBeInTheDocument()
-  })
-
-  it('a new `resetKey` is another field: the typed text goes and the option list closes; the row (its label control) stays mounted', () => {
-    const props = { label: 'Person', options: OPTIONS, value: [], onChange: () => {}, inputLabel: 'People to review', placeholder: 'Pick…', emptyText: 'None' }
-    const control = <button type="button">Kind ▾</button>
-    const { rerender } = render(<PromptField {...props} labelControl={control} resetKey="person" />)
-    const button = screen.getByRole('button', { name: 'Kind ▾' })
-    fireEvent.change(input(), { target: { value: 'mar' } })
-    expect(screen.getByRole('listbox')).toBeInTheDocument()
-    // The same key: nothing changes.
-    rerender(<PromptField {...props} labelControl={control} resetKey="person" />)
-    expect(input()).toHaveValue('mar')
-    rerender(<PromptField {...props} labelControl={control} resetKey="tag" />)
-    expect(input()).toHaveValue('')
-    expect(screen.queryByRole('listbox')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Kind ▾' })).toBe(button)
   })
 
   it('Esc is the field’s own — it closes the option list — so a popover the row sits in stays open', () => {

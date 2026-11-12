@@ -1,9 +1,8 @@
-/* The Review widget (item 12, boards BK / BM): its top line and prompt row,
- * its faces (large: the rail beside the deck's card, its footer under the
- * card; medium: the card's essentials over the footer; small: the picks and
- * what is left) and its empty states. The prompt row's field is
- * `components/shared/PromptField`; the rail, card and footer are
- * `components/review`'s. */
+/* The Review widget (item 12; widget feedback 2A, board Review-field): its top
+ * line and its filter field (`ReviewFilterField`), its faces (large: the rail
+ * beside the card, its footer under the card; medium: the card's
+ * essentials over the footer; small: the filter and what is left) and its
+ * empty states. The rail, card and footer are `components/review`'s. */
 
 .faceHost {
   /* The rail's sticky sort head takes the cell's ground. */
@@ -15,7 +14,7 @@
   min-height: 0;
 }
 
-/* ── Top line and prompt row (board BM) ─────────────────────────────────── */
+/* ── Top line and prompt row ────────────────────────────────────────────── */
 
 /* Alone in its cell: `Review`, the progress, the lens switch, the cell's ⋯. The prompt row under it draws the hairline. */
 .topLine {
@@ -41,35 +40,154 @@
   color: var(--color-text-primary);
 }
 
-/* The prompt row's label: the kind, a small menu button (`Person ▾`). */
-.kindButton {
-  display: inline-flex;
-  align-items: center;
+/* The prompt row (widget feedback 2A, board Review-field): one filter field, the check-in buttons
+ * after it (people only, desktop), then — in a cell of several widgets — the progress and the lens
+ * switch; a filter's error under the field. */
+.fieldRow {
+  display: flex;
+  flex-direction: column;
   gap: 4px;
   flex-shrink: 0;
-  height: 26px;
-  padding: 0 6px 0 8px;
-  border: none;
+  min-height: var(--list-prompt-row-height);
+  padding: 6px 8px 6px 10px;
+  box-sizing: border-box;
+  justify-content: center;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.fieldLine {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The field: the text over its tint mirror (the expression field's pattern), the × at its end. */
+.field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 3px 4px 3px 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: var(--color-tint-5);
-  color: var(--color-text-secondary);
+  background: var(--color-inset);
+  cursor: text;
+}
+
+.field:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-focus);
+}
+
+.fieldError,
+.fieldError:focus-within {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 2px var(--color-danger-bg);
+}
+
+.fieldText {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.mirror,
+.input {
   font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
+  font-size: var(--font-size-body);
+  line-height: 20px;
+  letter-spacing: normal;
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
-.kindButton:hover,
-.kindButton[aria-expanded='true'] {
-  background: var(--color-tint-10);
+.mirror {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
   color: var(--color-text-primary);
+  pointer-events: none;
 }
 
-/* An option's glyph in the field's list and on its chip: a tag's #, a status's icon, a list's — in its colour. */
-.optionMark {
+.input {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 20px;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--color-text-primary);
+  outline: none;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* No scrollbar: it would narrow the text against the mirror's. */
+  scrollbar-width: none;
+}
+
+.input:focus-visible {
+  box-shadow: none;
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.input::selection {
+  color: transparent;
+  background: var(--color-accent-bg);
+}
+
+.clear {
+  composes: clear from '../../shared/ClearableField.module.css';
+}
+
+.field > .clear {
+  position: static;
+  transform: none;
+  flex-shrink: 0;
+}
+
+.fieldErrorText {
+  font-size: var(--font-size-row-meta);
+  color: var(--color-danger-text);
+}
+
+/* Email check-in and Paste reply (people only, desktop): two quiet icon buttons. */
+.checkinButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.checkinButton:hover,
+.checkinButton[aria-expanded='true'] {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+/* The field's popup: over the cell, and over the small face's popover. */
+.popup {
+  position: fixed;
+  z-index: var(--z-dialog-nested);
 }
 
 /* ── Faces ──────────────────────────────────────────────────────────────── */
@@ -112,7 +230,7 @@
   overflow: hidden;
 }
 
-/* Small: the glyph, then `Review · <pick>` over `N left · M followed up`. */
+/* Small: the glyph, then `Review · <filter>` over `N left · M followed up`. */
 .small {
   display: flex;
   align-items: center;
@@ -177,7 +295,7 @@
   color: var(--color-text-muted);
 }
 
-/* Nothing picked: the list's prompt empty state (`EmptyState`), in the room under the prompt row. */
+/* No filter: the prompt empty state (`EmptyState`), in the room under the prompt row. */
 .emptyPrompt {
   flex: 1;
   min-height: 0;

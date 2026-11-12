@@ -22,12 +22,12 @@
  * status updates (a few per task, one added with a follow-up); the global note; two layouts, each a
  * table (D26) — Default (tall cells over a collapsed row, a fit row of
  * Numbers, a fixed strip of glance widgets) and Planning (a fit row of
- * Numbers across the top, lists — a tab at each zoom —, the Eisenhower, a
- * Neglect map by project, glance widgets — Tags, Created vs completed,
- * Status, Project pulse —, a fixed strip with the month and a second
- * Eisenhower) — each owning its lists, with list prompts, an "is not"
- * filter, a descending sort, Priority filters (several values, "is not") and manual orders; the
- * Eisenhower's own list with one renamed pane; a check-in filter.
+ * Numbers across the top, lists — a tab at each zoom —, next week's
+ * calendar, a Neglect map by project, glance widgets — Tags, Created vs
+ * completed, Status, Project pulse —, a fixed strip with the month and a
+ * Breakdown by due date) — each owning its lists, with list prompts, an
+ * "is not" filter, a descending sort, Priority filters (several values,
+ * "is not") and manual orders; a check-in filter.
  *
  * Pure: no Node or DOM APIs, so the vitest suite can run it in memory. The
  * rows are typed by the app's models (type imports only — Node strips them),
@@ -50,14 +50,13 @@ import type { RecurrenceType } from '../src/models/recurrence'
 import type { ListDefinition } from '../src/models/list-definition'
 import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-predicate'
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
-import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
 import type { BreakdownConfig } from '../src/models/chart-widgets'
 import { numberConfigOfMetric, type V77NumberMetric } from '../src/data/upgrades/v78/number-metrics.ts'
 import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 78
+export const DEV_SEED_SCHEMA_VERSION = 79
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -529,7 +528,7 @@ export const DEV_SEED_IDS = {
   lists: {
     thisWeek: 1, nextWeek: 2, restOfMonth: 3, later: 4, someday: 5,
     dueSoon: 6, followupsThisWeek: 7, northwind: 8, tasksFor: 9, byPerson: 10,
-    focus: 11, hot: 12, recentlyAdded: 13, eisenhower: 14,
+    focus: 11, hot: 12, recentlyAdded: 13,
     doneThisWeek: 15, notFollowedUp: 16, followupsToChase: 17,
   },
   layouts: { default: 1, planning: 2 },
@@ -860,7 +859,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       statusIds: [IDS.statuses.parked], negate: { statusIds: true },
       dates: { created: range({ kind: 'offset', days: -14 }, null) },
     }), 'created', 'status', plan, { sortDirection: 'desc', showFilterLine: false }),
-    list(L.eisenhower, 'Eisenhower', filter(), 'manual', 'none', { eisenhower: true }),
     // A Completed range brings in the tasks completed in it without Show completed.
     list(L.doneThisWeek, 'Done this week', filter({ dates: { completed: range(rel('start-of-week'), { kind: 'relative', token: 'today' }) } }),
       'completed', 'none', plan, { sortDirection: 'desc' }),
@@ -949,7 +947,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       ], {
         F: cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), notes('tab-notes')]),
         P: cell('cell-person', [lens('tab-person', L.byPerson)]),
-        B: cell('cell-board', [lens('tab-board', L.focus), { id: 'tab-matrix', kind: 'eisenhower', config: {} }]),
+        B: cell('cell-board', [lens('tab-board', L.focus)]),
         C: cell('cell-cal', [calendar('tab-cal', 'week', 0)]),
         S: cell('cell-soon', [lens('tab-soon', L.dueSoon)]),
         O: cell('cell-open', [number('tab-open', 'open')]),
@@ -958,9 +956,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         D: cell('cell-due-today', [number('tab-due-today', 'dueToday')]),
         X: cell('cell-status', [breakdown('tab-status', 'Status', 'status', { style: 'stacked' })]),
         T: cell('cell-trend', [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }]),
-        // Waiting on (D26 P8 / Z3): the Waiting tasks by person, oldest last follow-up first, with the check-in envelope.
+        // Waiting on (D26 P8 / Z3): the Waiting tasks by person, oldest last follow-up first.
         E: cell('cell-people', [
-          breakdown('tab-waiting', 'Waiting on', 'people', { filter: filter({ statusIds: [IDS.statuses.waiting] }), show: 'oldest', oldestBy: 'lastFollowup', checkins: true }),
+          breakdown('tab-waiting', 'Waiting on', 'people', { filter: filter({ statusIds: [IDS.statuses.waiting] }), show: 'oldest', oldestBy: 'lastFollowup' }),
           breakdown('tab-people', 'People', 'people'),
         ]),
       }, [280, 220, 220, 280], [400, 250, { weight: 150, collapsed: true }, { fit: true }, { px: 240 }]),
@@ -972,7 +970,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       id: IDS.layouts.planning,
       name: 'Planning',
       sortOrder: 1,
-      // The table (D26): a fit row of Numbers across the top, columns of lists and glance widgets, a fixed strip with the month and an Eisenhower.
+      // The table (D26): a fit row of Numbers across the top, columns of lists and glance widgets, a fixed strip with the month and a Breakdown.
       ...table('planning', [
         'a b c d e',
         'H F M G G',
@@ -989,7 +987,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         // A list tab at each zoom (D25 C + I1): Stacked, Rows and Lines.
         H: cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], 'tab-rest'),
         F: cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]),
-        M: cell('cell-matrix', [{ id: 'tab-matrix2', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }]),
+        M: cell('cell-plan-week', [calendar('tab-plan-week', 'week', 1)]),
         // Glance widgets (D25 N + L, D26 P8): Tags and Status Breakdowns, Created vs completed, Project pulse.
         G: cell('cell-g-tags', [breakdown('tab-g-tags', 'Tags', 'tags'), breakdown('tab-g-priority', 'Priority', 'priority', { style: 'donut' })]),
         // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is.
@@ -1009,11 +1007,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         ]),
         Z: cell('cell-pulse', [
           { id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } },
-          // D26 P8: every tag, sized by open tasks, coloured by the late share.
-          { id: 'tab-tag-map', kind: 'tagMap', config: { name: 'Tag map', filter: filter() } },
         ]),
         K: cell('cell-month', [calendar('tab-month', 'month', 0, false)]),
-        Q: cell('cell-matrix3', [{ id: 'tab-matrix3', kind: 'eisenhower', config: {} }]),
+        Q: cell('cell-g-due', [breakdown('tab-g-due', 'Due', 'due')]),
       }, [250, 250, 250, 125, 125], [{ fit: true }, 300, 200, 150, 150, { px: 220 }]),
       createdAt: iso(at(-60, 10)),
       modifiedAt: iso(at(-8, 16, 45)),
@@ -1029,7 +1025,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
 
   // ── Settings ──
   const checkinFilter = filter({ statusIds: [IDS.statuses.parked], negate: { statusIds: true } })
-  const panes: EisenhowerPanes = { delegate: { name: 'Hand off' } }
   const settings: SettingRow[] = ([
     { key: 'activeLayoutId', value: String(IDS.layouts.default) },
     { key: 'checkinOpenMethod', value: 'mailto' },
@@ -1038,8 +1033,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     { key: 'color.dark.appBg', value: '#111110' },
     { key: 'color.light.appBg', value: '#f5f4f2' },
     { key: 'completedRetentionDays', value: '30' },
-    { key: 'eisenhowerPanes', value: JSON.stringify(panes) },
-    { key: 'eisenhowerSource', value: `list:${L.eisenhower}` },
     { key: 'followupDefaultInterval', value: '1w' },
     // Every task's history was logged (D26's history log H3) from before the first one.
     { key: 'historyLogSince', value: longAgo },

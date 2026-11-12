@@ -7,6 +7,7 @@ import {
   dropGhost,
   dropLabel,
   dropTargetForHit,
+  fitRowHeights,
   hitTestWorkspace,
   sameDropHit,
   type CellGeometry,
@@ -15,6 +16,7 @@ import {
 } from '../../utils/workspace-drop'
 import { cell as spec, grid, type CellSpec } from '../helpers/layout-builders'
 import { pairPercent } from '../../utils/workspace-resize'
+import { FIT_TRACK_NOMINAL_PX } from '../../utils/workspace-table'
 
 function rect(left: number, top: number, right: number, bottom: number): Rect {
   return { left, top, right, bottom }
@@ -192,6 +194,42 @@ describe('the drop ghost', () => {
     const r = cellRectIn(fit, 'big', { ...table, rowPx: { r1: 70 } })!
     expect(r.top).toBeCloseTo(6 + 70 + 6)
     expect(r.bottom).toBeCloseTo(700)
+  })
+
+  /** `[n1 n2] / [big big]`: a Numbers row (drawn 58px) over a cell. */
+  function numbersOverBig(): WorkspaceLayout {
+    const n1 = spec('n1', [createTab('number', 'num1')])
+    const n2 = spec('n2', [createTab('number', 'num2')])
+    return { sortOrder: 0, name: 'L', ...grid([[n1, n2], [cell('big', ['t9']), cell('big', ['t9'])]]), createdAt: new Date(0), modifiedAt: new Date(0) }
+  }
+
+  it('a split below a fit row’s Number: the new fit row as tall as the row the Number came from, not a nominal height (widget feedback 2D)', () => {
+    const l = numbersOverBig()
+    const g: WorkspaceGeometry = { ...geo, table: { ...table, rowPx: { r1: 58, r2: 630 } } }
+    const ghost = dropGhost(l, g, { type: 'tab', tabId: 'num1' }, { kind: 'split', cellId: 'n2', side: 'bottom' }, ['num1'])!
+    expect(ghost.label).toMatch(/below/)
+    expect(ghost.rect.top).toBeCloseTo(6 + 58 + 6)
+    expect(ghost.rect.bottom - ghost.rect.top).toBeCloseTo(58)
+  })
+
+  it('a row a drop leaves holding only Numbers fits them: the other rows take the rest (widget feedback 2D)', () => {
+    // [n1 x1] / [big big]: the first row isn't a fit row (x1 is Notes); drawn 344px.
+    const n1 = spec('n1', [createTab('number', 'num1')])
+    const x1 = cell('x1', ['tx'])
+    const big = cell('big', ['t9'])
+    const l: WorkspaceLayout = { sortOrder: 0, name: 'L', ...grid([[n1, x1], [big, big]]), createdAt: new Date(0), modifiedAt: new Date(0) }
+    const g: WorkspaceGeometry = { ...geo, table: { ...table, rowPx: { r1: 344, r2: 344 } } }
+    const ghost = dropGhost(l, g, { type: 'tab', tabId: 'tx' }, { kind: 'split', cellId: 'big', side: 'right' }, ['tx'])!
+    // n1 alone is a fit row now: no fit row was drawn, so a Number's nominal height.
+    expect(ghost.rect.top).toBeCloseTo(6 + FIT_TRACK_NOMINAL_PX + 6)
+    expect(ghost.rect.bottom).toBeCloseTo(700)
+  })
+
+  it('fitRowHeights: a kept fit row its drawn height; a new one its cells’ origin row; none for weighted rows', () => {
+    const l = numbersOverBig()
+    const next: WorkspaceLayout = { ...l, ...grid([[spec('n1', [createTab('number', 'num1')])], [spec('n2', [createTab('number', 'num2')])], [cell('big', ['t9'])]]) }
+    // The rows of `next` are r1, r2, r3: r1 was a fit row (kept), r2 is new (num2 came from r1), r3 weighted.
+    expect(fitRowHeights(l, next, { r1: 62, r2: 630 })).toEqual({ r1: 62, r2: 62 })
   })
 })
 

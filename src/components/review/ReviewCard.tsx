@@ -41,7 +41,7 @@ const NO_PEOPLE: Person[] = []
 const NO_TAGS: Tag[] = []
 
 /**
- * The review card (D26; the deck's and the Review widget's large face): the
+ * The review card (D26; the Review widget's large face): the
  * task editor's layout (boards BJ, BL, task layout A — the shared
  * `TaskDetailsBody`) for one task, every edit written at once, each its own
  * undo step after the notes typed so far — the box and title; the facts
@@ -53,7 +53,7 @@ const NO_TAGS: Tag[] = []
  * (`ReviewFooter`): ‹ Back, Skip › and Mark followed up ›. The host lays the
  * card and the footer out (`data-review-card`, `data-review-footer`).
  */
-export function ReviewCard({ todo, keyHints = false, focusOnOpen }: { todo: PersistedTodoItem; keyHints?: boolean; focusOnOpen?: ReviewFocusOnOpen }) {
+export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; focusOnOpen?: ReviewFocusOnOpen }) {
   const todoId = todo.id
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const statuses = useStatusStore((s) => s.statuses)
@@ -233,7 +233,7 @@ export function ReviewCard({ todo, keyHints = false, focusOnOpen }: { todo: Pers
           )}
         />
       </div>
-      <ReviewFooter followUp={f} keyHints={keyHints} />
+      <ReviewFooter followUp={f} />
     </>
   )
 }
@@ -309,8 +309,8 @@ function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnTyp
 }
 
 /**
- * Whether a card opening takes the focus into its update line: the deck's
- * always (absent); a widget's only while the user is working in it — the
+ * Whether a card opening takes the focus into its update line (absent:
+ * always); a widget's only while the user is working in it — the
  * focus was in the widget when the card changed (a card changing under a
  * list the user is typing in leaves the focus there).
  */
@@ -369,12 +369,11 @@ export function ReviewUpdateLine({ followUp: f, inputRef, id, compact = false }:
 /**
  * The review's footer: ‹ Back, Skip › and Mark followed up › (its tooltip
  * says what it will do; the Next field it reads is right above it, in the
- * dock). `keyHints`: the deck's keys beside Back and Skip; `openCard`: the
- * medium face's Open card ↗ (the task in its editor).
+ * dock). `onOpenCard`: the medium face's Open card ↗ (the task in its
+ * editor).
  */
-export function ReviewFooter({ followUp: f, keyHints = false, compact = false, onOpenCard }: {
+export function ReviewFooter({ followUp: f, compact = false, onOpenCard }: {
   followUp: ReviewFollowUp
-  keyHints?: boolean
   compact?: boolean
   onOpenCard?: () => void
 }) {
@@ -387,21 +386,11 @@ export function ReviewFooter({ followUp: f, keyHints = false, compact = false, o
         </button>
       )}
       <span className={styles.spacer} />
-      <button
-        type="button"
-        className={styles.secondaryBtn}
-        aria-keyshortcuts={keyHints ? 'K Alt+ArrowLeft' : undefined}
-        onClick={() => session.getState().back()}
-      >
-        <ChevronLeftIcon /> Back {keyHints && <kbd className={styles.key} aria-hidden="true">K</kbd>}
+      <button type="button" className={styles.secondaryBtn} onClick={() => session.getState().back()}>
+        <ChevronLeftIcon /> Back
       </button>
-      <button
-        type="button"
-        className={styles.secondaryBtn}
-        aria-keyshortcuts={keyHints ? 'S Alt+ArrowRight' : undefined}
-        onClick={() => session.getState().skip()}
-      >
-        Skip <ChevronRightIcon /> {keyHints && <kbd className={styles.key} aria-hidden="true">S</kbd>}
+      <button type="button" className={styles.secondaryBtn} onClick={() => session.getState().skip()}>
+        Skip <ChevronRightIcon />
       </button>
       <MarkFollowedUpButton
         className={styles.markBtn}

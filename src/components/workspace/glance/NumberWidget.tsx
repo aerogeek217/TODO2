@@ -1,5 +1,4 @@
 import { useMemo, type MouseEvent } from 'react'
-import { DEFAULT_STATUS_ICON } from '../../../models'
 import { DEFAULT_NUMBER_BREAKDOWN } from '../../../models/glance-widgets'
 import type { NumberTab } from '../../../models/workspace-layout'
 import { useNumberCount, useNumberHistory, useStatsBase } from '../../../hooks/use-glance-data'
@@ -9,7 +8,8 @@ import { historyDelta } from '../../../services/stats/number-count'
 import { numberBreakdown, type BreakdownEntry } from '../../../services/stats/number-breakdown'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { PriorityRing } from '../../shared/PriorityRing'
-import { StatusIcon } from '../../shared/StatusIcon'
+import { StatusMark } from '../../shared/StatusMark'
+import { NumberLine } from './NumberLine'
 import { approximateNote, countOf, deltaLabel, numberDescription } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { numberLines } from './glance-summary'
@@ -32,7 +32,7 @@ const BY_WORDS: Record<NumberBreakdownBy, string> = { people: 'person', tags: 't
 function EntryMark({ entry }: { entry: BreakdownEntry }) {
   const mark = entry.mark
   if (mark?.kind === 'status') {
-    return <span className={styles.breakdownMark} style={{ color: entry.color }} aria-hidden="true"><StatusIcon icon={mark.icon ?? DEFAULT_STATUS_ICON} filled /></span>
+    return <span className={styles.breakdownMark} style={{ color: entry.color }} aria-hidden="true"><StatusMark status={mark} filled /></span>
   }
   if (mark?.kind === 'priority') {
     return (
@@ -112,11 +112,13 @@ export function NumberWidget(props: GlanceWidgetProps<NumberTab>) {
 /**
  * A count (D26 P5): the tasks its filter keeps under the top
  * bar's filter (its lens too, unless the Number ignores it), as their count
- * — `shown of total` while the top bar hides some. By its face (D25 R):
- * small is the name and the count (a fit row's, ~76px); medium adds its
- * 14-day line (`filter-history`, ≈ when the history log doesn't hold all
- * it reads for the whole line) and its change against yesterday or the
- * same day last week (`compare`); large draws it bigger and adds the
+ * — `shown of total` while the top bar hides some, with its 14-day line
+ * (`filter-history`; approximate while the history log doesn't hold all it
+ * reads for the whole line — said in its tooltip, `NumberLine`) and its change against yesterday or the same day last
+ * week (`compare`) beside the count wherever they fit (widget feedback 2D:
+ * by the room, not the face — in a fit row too; the change goes first, then
+ * the line; `.figures`). By its face (D25 R): small and medium are the name
+ * over the count (a fit row's, 58px); large draws it bigger and adds the
  * breakdown its config picks (by person, tag, status or priority). Lit in its colour while
  * its count crosses its threshold (D18, `litWhen`). A click opens its
  * tasks, at every face. Its editor (Edit number…, `NumberEditorHost`)
@@ -136,8 +138,8 @@ function CountNumber({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
   const shown = shownIds.length
   const total = count.ids.total.length
   const large = face === 'large'
-  const small = face === 'small'
-  const series = history && !small ? history.series : null
+  // The line is drawn at every face; it shows where it fits beside the count (`.figures` drops it otherwise).
+  const series = history ? history.series : null
   const delta = history && config.compare !== 'none' ? historyDelta(history.series, config.compare) : null
   const deltaText = delta == null || config.compare === 'none' ? null : deltaLabel(delta, config.compare, base.ctx.today)
   const approximate = history != null && !history.exactness.exact ? approximateNote(history.exactness.approximate) : null
@@ -164,19 +166,16 @@ function CountNumber({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
         </span>
         {series && (
           <span className={styles.history}>
-            <Sparkline series={series} width={large ? 120 : 64} height={large ? 36 : 22} className={styles.spark} />
-            {(deltaText != null || approximate) && (
-              <span className={styles.delta} data-testid="number-delta">
-                {approximate && <span className={styles.approx} title={approximate} data-testid="number-approximate">≈ </span>}
-                {deltaText}
-              </span>
-            )}
+            <NumberLine approximate={approximate}>
+              <Sparkline series={series} width={large ? 120 : 64} height={large ? 36 : 22} color={colors.line} />
+            </NumberLine>
+            {deltaText != null && <span className={styles.delta} data-testid="number-delta">{deltaText}</span>}
           </span>
         )}
       </span>
     </>
   )
-  const label = `${name}: ${countText}.${deltaText != null && !small ? ` ${approximate ? 'About ' : ''}${deltaText}.` : ''}`
+  const label = `${name}: ${countText}.${deltaText != null ? ` ${approximate ? 'About ' : ''}${deltaText}.` : ''}`
   const common = {
     className: `${styles.number}${large ? ` ${styles.large}` : ''}`,
     'data-number': tab.id,

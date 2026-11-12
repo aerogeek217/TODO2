@@ -22,7 +22,7 @@ export interface SettingRow {
  * `db.verno === CURRENT_DB_VERSION` after open, so a `this.version(N+1)`
  * without raising this constant fails the suite.
  */
-export const CURRENT_DB_VERSION = 78
+export const CURRENT_DB_VERSION = 79
 
 /**
  * Lowest database version this build reads. A browser database whose
@@ -251,6 +251,13 @@ export class Todo2Database extends Dexie {
     // and cells covering rectangles of them), and the parts of `upgrades/v78`
     // after it; no store changes.
     this.version(78).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 78))
+
+    // v79: the final shapes (widget feedback 2026-11-11) — the removed
+    // kinds' tabs (Eisenhower, Tag map, Status flow) dropped, the
+    // Eisenhower's hidden list and settings rows deleted, the Review,
+    // Breakdown, Number, list zoom and trend tabs written as this build
+    // reads them (`upgrades/v79`); no store changes.
+    this.version(79).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 79))
 
     // The next schema step N goes here, after the last one:
     //

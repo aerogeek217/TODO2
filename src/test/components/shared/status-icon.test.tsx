@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import { StatusIcon, STATUS_ICON_KEYS } from '../../../components/shared/StatusIcon'
+import { StatusMark } from '../../../components/shared/StatusMark'
+import { AppIcon } from '../../../components/shared/AppIcon'
 
 afterEach(cleanup)
 
@@ -26,5 +28,38 @@ describe('StatusIcon', () => {
       expect(container.querySelector('svg')?.getAttribute('fill-rule')).toBe('evenodd')
       unmount()
     }
+  })
+})
+
+describe('StatusMark (J17)', () => {
+  it('draws the glyph, the default one without', () => {
+    const { container, unmount } = render(<StatusMark status={{ icon: 'clock' }} filled />)
+    expect(container.querySelector('svg')).not.toBeNull()
+    expect(container.querySelector('[data-app-icon]')).toBeNull()
+    unmount()
+    const { container: c2 } = render(<StatusMark status={{}} />)
+    expect(c2.querySelector('svg circle')).not.toBeNull()
+  })
+
+  it('draws the emoji instead where the status has one: muted (tinted by the color around it) or in its colors', () => {
+    const { container, unmount } = render(<span style={{ color: '#e0a030' }}><StatusMark status={{ icon: 'clock', emoji: '⏳' }} filled /></span>)
+    const muted = container.querySelector('[data-app-icon="emoji-muted"]')
+    expect(muted).toHaveTextContent('⏳')
+    expect(muted?.querySelector('filter')).not.toBeNull()
+    expect(muted).toHaveStyle({ fontSize: '1em' })
+    unmount()
+    const { container: c2 } = render(<StatusMark status={{ icon: 'clock', emoji: '⏳', emojiShow: 'color' }} />)
+    const color = c2.querySelector('[data-app-icon="emoji-color"]')
+    expect(color).toHaveTextContent('⏳')
+    expect(color?.querySelector('filter')).toBeNull()
+  })
+})
+
+describe('AppIcon (status glyphs, J17)', () => {
+  it('draws a status glyph at its size', () => {
+    const { container } = render(<AppIcon icon={{ kind: 'status', key: 'star' }} size={16} />)
+    const box = container.querySelector('[data-app-icon="status"]')
+    expect(box).toHaveStyle({ fontSize: '16px' })
+    expect(box?.querySelector('svg')).not.toBeNull()
   })
 })

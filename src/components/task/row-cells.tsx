@@ -1,5 +1,5 @@
 import { useMemo, type CSSProperties, type InputHTMLAttributes, type MouseEvent, type ReactNode, type RefObject } from 'react'
-import { type PersistedTodoItem, type Person, type Status, type StatusUpdate, type Tag, DEFAULT_STATUS_ICON } from '../../models'
+import { type PersistedTodoItem, type Person, type Status, type StatusUpdate, type Tag } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useSettingsStore } from '../../stores/settings-store'
 import { formatRowDate, toDateInputValue } from '../../utils/date'
@@ -13,7 +13,7 @@ import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { FlagIcon, NotesIcon, RepeatIcon } from '../shared/icons'
 import { ClockIcon } from '../shared/MarkerIcons'
 import { PriorityRing } from '../shared/PriorityRing'
-import { StatusIcon } from '../shared/StatusIcon'
+import { StatusMark } from '../shared/StatusMark'
 import { useTooltip } from '../shared/use-tooltip'
 import { tagTextWidth } from './text-width'
 import { useTaskRowColumn } from './task-row-grid-context'
@@ -467,7 +467,7 @@ export function StatusMenu({ statuses, statusId, onPick }: {
           className={`${styles.statusOption} ${statusId === s.id ? styles.statusOptionActive : ''}`}
           onClick={(e) => { e.stopPropagation(); onPick(s.id) }}
         >
-          <span style={{ color: s.color }}><StatusIcon icon={s.icon || DEFAULT_STATUS_ICON} filled /></span>
+          <span style={{ color: s.color }}><StatusMark status={s} filled /></span>
           {s.name}
         </button>
       ))}
@@ -495,7 +495,7 @@ export function StatusCell({ status, anchorRef, open, onToggle }: {
       onClick={cellClick(onToggle)}
     >
       {status
-        ? <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} filled />
+        ? <StatusMark status={status} filled />
         : <Placeholder><span className={styles.statusDot} /></Placeholder>}
     </button>
   )

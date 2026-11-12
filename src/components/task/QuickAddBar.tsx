@@ -10,8 +10,8 @@
  *
  * Each chip has a × (a mouse target, not a Tab stop) that edits the text:
  * it cuts the tokens the chip came from (`services/nlp-chip-edit`), or — on
- * the default follow-up — adds `/followup none`. A preset marker (an
- * Eisenhower quadrant's "+") is dropped from the preset instead. The focus
+ * the default follow-up — adds `/followup none`. A preset marker (a
+ * list's "+ Add task") is dropped from the preset instead. The focus
  * and the caret stay in the field.
  *
  * ⏎ always adds the task, even while the `@ # ! /` popup is open: a
@@ -40,7 +40,7 @@ import type {
   RecurrenceType,
   Status,
 } from '../../models'
-import { DEFAULT_STATUS_ICON, MARKER_KEYS, type MarkerKey } from '../../models'
+import { MARKER_KEYS, type MarkerKey } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import {
@@ -73,7 +73,7 @@ import { NlpPopup } from '../shared/NlpPopup'
 import { DialogLayerContext, MODAL_BACKDROP_ATTR } from '../shared/dialog-layer'
 import { useBackdropPress } from '../shared/use-backdrop-press'
 import { isInLayerAbove } from '../../utils/dom-layers'
-import { StatusIcon } from '../shared/StatusIcon'
+import { StatusMark } from '../shared/StatusMark'
 import styles from './QuickAddBar.module.css'
 import { shortcutScope } from '../../utils/dom-contract'
 
@@ -133,7 +133,6 @@ export interface QuickAddPreset {
   urgent?: boolean
   important?: boolean
   focus?: boolean
-  source?: string
   /** What else the task will get, in words (a converted note line's subtasks). */
   caption?: string
 }
@@ -156,10 +155,9 @@ export interface QuickAddBarProps {
    * subsequent draft changes don't re-seed. */
   initialDraft?: { rawTitle: string }
   /**
-   * What the task gets whatever is typed (e.g. an Eisenhower quadrant's
-   * "+": its Urgent / Important flags), shown as chips — a marker chip's ×
-   * drops it (`QuickAddDraft.removedPresetMarkers`) —, plus `source` —
-   * where the task is being added (`Adding to Schedule`, no ×).
+   * What the task gets whatever is typed (e.g. a list's "+ Add task": the
+   * flags its filter implies), shown as chips — a marker chip's × drops it
+   * (`QuickAddDraft.removedPresetMarkers`).
    */
   preset?: QuickAddPreset
   /**
@@ -313,19 +311,18 @@ function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
       )}
       {draft.status && (
         <span className={`${styles.chip} ${styles.statusChip}`}>
-          <span style={{ color: draft.status.color }}><StatusIcon icon={draft.status.icon || DEFAULT_STATUS_ICON} filled /></span>
+          <span style={{ color: draft.status.color }}><StatusMark status={draft.status} filled /></span>
           {draft.status.name}
           <ChipRemove label="Remove status" onRemove={() => onRemove({ kind: 'status' })} />
         </span>
       )}
-      {preset?.source && <span className={styles.chipsSource}>Adding to {preset.source}</span>}
       {preset?.caption && <span className={styles.chipsSource}>{preset.caption}</span>}
     </div>
   )
 }
 
 function hasPreset(preset: QuickAddPreset | undefined): boolean {
-  return preset != null && (preset.urgent === true || preset.important === true || preset.focus === true || !!preset.source || !!preset.caption)
+  return preset != null && (preset.urgent === true || preset.important === true || preset.focus === true || !!preset.caption)
 }
 
 /** One line per command (or `!status`) that sets nothing. */

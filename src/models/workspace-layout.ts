@@ -24,8 +24,11 @@
 
 import { emptyPredicate } from './filter-predicate'
 import {
+  DEFAULT_TREND_NAME,
   DEFAULT_TREND_RANGE,
+  DEFAULT_TREND_SHOW,
   newNumberConfig,
+  trendName,
   type NumberConfig,
   type TrendTabConfig,
 } from './glance-widgets'
@@ -34,13 +37,13 @@ import type { PulseTabConfig } from './pulse-config'
 import {
   newBreakdownConfig,
   newPivotConfig,
-  newTagMapConfig,
   type BreakdownConfig,
   type BreakdownViewState,
   type PivotConfig,
-  type TagMapConfig,
+  type PivotViewState,
 } from './chart-widgets'
-import { DEFAULT_REVIEW_BY, type ReviewBy, type ReviewSort } from './review'
+import type { ReviewSort } from './review'
+import type { IconValue, LineIconKey } from './icon'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
@@ -51,19 +54,18 @@ import { DEFAULT_REVIEW_BY, type ReviewBy, type ReviewSort } from './review'
  * (D26 P4) retired Needs follow-up, Next 7 days, Stale tasks, Recently
  * completed, What changed and Today, and made the Eisenhower summary the
  * Eisenhower's small face; P8 made People, Tags and Status Breakdowns. The
- * Status flow chart (P8) was removed after v78 shipped: a saved one is
- * dropped by the layout repair (`data/layout-shape`). `review` (item 12) is
- * the review deck in a cell.
+ * Status flow chart (P8), the Tag map and the Eisenhower were removed after v78 shipped;
+ * v79 dropped every saved one. `review` (item 12) is the Review widget.
  */
 export type WidgetKind =
-  | 'lens' | 'calendar' | 'notes' | 'review' | 'eisenhower' | 'neglect'
+  | 'lens' | 'calendar' | 'notes' | 'review' | 'neglect'
   | GlanceWidgetKind
 
 /** The glance widget kinds (D25 N): a Number, the charts and Project pulse, each a widget. */
 export type GlanceWidgetKind = 'number' | ChartWidgetKind | 'trend' | 'pulse'
 
 /** The chart widgets (D26 P8): a filter, then what it is split by — each has a name, a filter and an editor. */
-export type ChartWidgetKind = 'breakdown' | 'pivot' | 'tagMap'
+export type ChartWidgetKind = 'breakdown' | 'pivot'
 
 export type CalendarView = 'week' | 'month'
 
@@ -101,8 +103,7 @@ export interface CalendarTabConfig {
 /**
  * A widget's lens switch (G3, board BD): view state, saved at once, never
  * an unsaved edit — `true`, the top bar's lens doesn't apply here. A
- * list's is its list's (`ListDefinition.ignoreLens`); a Number's absent
- * one reads its config's old `ignoreLens` (`tabIgnoresLens`).
+ * list's is its list's (`ListDefinition.ignoreLens`).
  */
 export interface LensViewState {
   ignoreLens?: boolean
@@ -117,19 +118,6 @@ export interface CalendarTabViewState extends LensViewState {
    * map (a day tinted by its count). The week shows bars either way.
    */
   titles?: boolean
-}
-
-/**
- * The four Eisenhower quadrants, by (urgent, important): Do (both),
- * Schedule (important only), Delegate (urgent only), Drop (neither).
- */
-export type EisenhowerQuadrant = 'do' | 'schedule' | 'delegate' | 'drop'
-
-/** Quadrants in display order (also the stacked layout's order). */
-export const EISENHOWER_QUADRANTS: readonly EisenhowerQuadrant[] = ['do', 'schedule', 'delegate', 'drop']
-
-export function isEisenhowerQuadrant(v: unknown): v is EisenhowerQuadrant {
-  return typeof v === 'string' && (EISENHOWER_QUADRANTS as readonly string[]).includes(v)
 }
 
 /** The largest stored task-row details width, px (`TaskRowsViewState.detailsWidth`). */
@@ -170,15 +158,6 @@ export function isListZoom(v: unknown): v is ListZoom {
   return typeof v === 'string' && (LIST_ZOOMS as readonly string[]).includes(v)
 }
 
-/**
- * A stored zoom as a level: a level, or `strips` — a level once, a bar per
- * task, removed — as `lines`, the nearest; `undefined` for anything else.
- */
-export function readListZoom(v: unknown): ListZoom | undefined {
-  if (isListZoom(v)) return v
-  return v === 'strips' ? 'lines' : undefined
-}
-
 /** A list tab's view state: the rows' details width and its zoom. */
 export interface ListTabViewState extends TaskRowsViewState {
   /**
@@ -188,35 +167,22 @@ export interface ListTabViewState extends TaskRowsViewState {
   zoom?: ListZoom
 }
 
-/**
- * An Eisenhower tab has no settings of its own: its panes and its source are
- * app-wide settings (`models/eisenhower-settings`).
- */
-export type EisenhowerTabConfig = NoTabSettings
-
-export interface EisenhowerTabViewState extends TaskRowsViewState, LensViewState {
-  /** Sections collapsed in the stacked (narrow) layout. */
-  collapsed?: EisenhowerQuadrant[]
-}
-
 /** Config / view state of a kind that has none. */
 export type NoTabSettings = Record<string, never>
 
 /**
- * A Review widget's settings (board BM, layout config): what it reviews by —
- * people, tags, statuses or the layout's lists (`ReviewBy`). Who or what is
- * picked is temporary (`list-widget-store.picks`), never saved. Read it
- * through `models/review.reviewBy`: a config an earlier build stored (one
- * saved `pick`, or nothing) reads as that pick's kind, or Person.
+ * A Review widget's settings: none (widget feedback 2A). What it reviews is
+ * a filter typed into its field, temporary (`list-widget-store.reviewFilters`),
+ * never saved. (Board BM's kind `by` and board BK's `pick`, which earlier
+ * builds stored, were removed by schema v79.)
  */
-export interface ReviewTabConfig {
-  by: ReviewBy
-}
+export type ReviewTabConfig = NoTabSettings
 
 /**
  * A Review widget's view state (saved at once): its lens switch and the
- * rail's sort. Where it stands — the current task, the – marks — lasts as
- * long as its picks (`review-session`) and is never saved.
+ * rail's sort (absent: Priority, `DEFAULT_REVIEW_WIDGET_SORT`). Where it
+ * stands — the current task, the – marks — lasts as long as its filter
+ * (`review-session`) and is never saved.
  */
 export interface ReviewTabViewState extends LensViewState {
   sort?: ReviewSort
@@ -264,6 +230,20 @@ interface TabOf<K extends WidgetKind, C, V> {
   kind: K
   config: C
   viewState?: V
+  /**
+   * Layout config (items 11, 14): the tab's own name, for a kind without a
+   * name of its own (`tabOwnsName` false — Calendar, Notes, Review, the
+   * Neglect map, Project pulse); it replaces the kind's label wherever the
+   * tab is named. Absent or blank = the kind's label. A kind with a name of
+   * its own (a list's, a Number's or a chart's) never reads it.
+   */
+  name?: string
+  /**
+   * Layout config: the tab's picked icon. Absent = never picked — the strip
+   * shows its kind's icon (J1) and its top line none (J2); `{ kind: 'none' }`
+   * = No icon, picked.
+   */
+  icon?: IconValue
 }
 
 /** A list tab's view state: the rows' details width and its zoom (its prompt picks are temporary, not saved). */
@@ -271,23 +251,21 @@ export type LensTab = TabOf<'lens', LensTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
-export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, LensViewState>
 export type NumberTab = TabOf<'number', NumberConfig, LensViewState>
-export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
+export type TrendTab = TabOf<'trend', TrendTabConfig, LensViewState>
 export type PulseTab = TabOf<'pulse', PulseTabConfig, LensViewState>
 // ── D26 P8: the chart widgets ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
-export type PivotTab = TabOf<'pivot', PivotConfig, LensViewState>
-export type TagMapTab = TabOf<'tagMap', TagMapConfig, LensViewState>
+export type PivotTab = TabOf<'pivot', PivotConfig, PivotViewState>
 
 /** A chart widget's tab (D26 P8). */
-export type ChartTab = BreakdownTab | PivotTab | TagMapTab
+export type ChartTab = BreakdownTab | PivotTab
 
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | ReviewTab | EisenhowerTab | NeglectTab | GlanceTab
+export type LayoutTab = LensTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | GlanceTab
 
 export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -406,6 +384,15 @@ export interface WorkspaceLayout {
    * the Edit layout dialog and saved at once, as the name is.
    */
   hue?: string
+  /**
+   * The layout's icon (widget feedback 11, 15; J1): drawn before its name on
+   * its tab, in the picker and on the phone. Absent = never picked: the
+   * layout glyph (`models/icon.layoutIcon`); `{ kind: 'none' }` = No icon.
+   * A line icon and a muted emoji take the hue on the open layout's tab; a
+   * color emoji keeps its colors. Set in the Edit layout dialog and saved
+   * at once, as the name and the hue are.
+   */
+  icon?: IconValue
 }
 
 /** The six preset layout hues (D19), each a token pair (`--hue-<name>`, dark and light). */
@@ -444,11 +431,11 @@ export interface TabSeed {
 
 /**
  * The add-widget menus' groups: **Tasks** (the widgets that show tasks to
- * work on — List, Calendar, Eisenhower, Review, Notes) and **Insights** (the
+ * work on — List, Calendar, Review, Notes) and **Insights** (the
  * numbers and charts, and the Neglect map). The grouping is the menus' only:
  * nothing behavioural reads it — the glance minimums, fit rows and the
- * right-click rule read `glance` / `fitHeight`, which the Calendar, the
- * Eisenhower and the Neglect map don't have, whichever group they are in.
+ * right-click rule read `glance` / `fitHeight`, which the Calendar and the
+ * Neglect map don't have, whichever group they are in.
  */
 export type WidgetKindGroup = 'tasks' | 'insights'
 
@@ -511,24 +498,15 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'calendar', config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }),
   },
-  eisenhower: {
-    label: 'Eisenhower',
-    showsList: false,
-    group: 'tasks',
-    glance: false,
-    fitHeight: false,
-    newTab: (id) => ({ id, kind: 'eisenhower', config: {} }),
-  },
-  // Item 12: the review deck in a cell, by person, nothing picked yet (its prompt row's field).
-  review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: { by: DEFAULT_REVIEW_BY } }) },
+  // Item 12: a review in a cell, nothing to review yet (its field takes a filter).
+  review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: {} }) },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
   // Insights.
   number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
   // D26 P8: the chart widgets.
   breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
   pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
-  tagMap: glanceSpec('Tag map', (id) => ({ id, kind: 'tagMap', config: newTagMapConfig(emptyPredicate()) })),
-  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
+  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE, name: DEFAULT_TREND_NAME, show: DEFAULT_TREND_SHOW } })),
   pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
   // In Insights, but a whole widget, not a glance one (no glance minimums).
   neglect: {
@@ -568,7 +546,7 @@ export function isGlanceKind(kind: WidgetKind): kind is GlanceWidgetKind {
 
 /** A glance widget's tab. */
 /** The kinds with a lens switch of their own in their view state (G3; a list's is its list's). */
-export const LENS_SWITCH_KINDS = ['calendar', 'review', 'eisenhower', 'neglect', 'number', 'pulse', 'breakdown', 'pivot', 'tagMap'] as const
+export const LENS_SWITCH_KINDS = ['calendar', 'review', 'neglect', 'number', 'trend', 'pulse', 'breakdown', 'pivot'] as const
 export type LensSwitchKind = (typeof LENS_SWITCH_KINDS)[number]
 export type LensSwitchTab = Extract<LayoutTab, { kind: LensSwitchKind }>
 
@@ -577,14 +555,11 @@ export function isLensSwitchTab(tab: LayoutTab): tab is LensSwitchTab {
 }
 
 /**
- * Whether a widget ignores the top bar's lens: its switch (`viewState.ignoreLens`);
- * a Number without one, its config's `ignoreLens` (what its editor's
- * Follow / Ignore stored before the switch).
+ * Whether a widget ignores the top bar's lens: its switch (`viewState.ignoreLens`;
+ * v79 moved a Number's older config `ignoreLens` there).
  */
 export function tabIgnoresLens(tab: LensSwitchTab): boolean {
-  const own = tab.viewState?.ignoreLens
-  if (own !== undefined) return own
-  return tab.kind === 'number' && tab.config.ignoreLens === true
+  return tab.viewState?.ignoreLens === true
 }
 
 export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
@@ -593,17 +568,61 @@ export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
 
 /** A chart widget's tab (D26 P8). */
 export function isChartTab(tab: LayoutTab): tab is ChartTab {
-  return tab.kind === 'breakdown' || tab.kind === 'pivot' || tab.kind === 'tagMap'
+  return tab.kind === 'breakdown' || tab.kind === 'pivot'
 }
 
 /**
+ * Whether a kind has a name of its own, which Name and icon… edits: a
+ * list's (its list's name), a Number's, a chart's and Created vs
+ * completed's (`config.name`). Every other kind takes the tab's `name`.
+ */
+export function tabOwnsName(kind: WidgetKind): boolean {
+  return kind === 'lens' || kind === 'number' || kind === 'breakdown' || kind === 'pivot' || kind === 'trend'
+}
+
+/** The longest tab name kept (as a layout's). */
+export const TAB_NAME_MAX = 200
+
+/**
  * A non-list tab's title: a Number's or a chart's is its name (`Late on
- * Atlas`; a blank one reads `Number`, `Breakdown`, …), every other kind's
- * its kind's name.
+ * Atlas`; a blank one reads `Number`, `Breakdown`, …), Created vs
+ * completed's its name (`trendName`), every other kind's its tab name
+ * (items 11, 14), else its kind's name.
  */
 export function kindTabTitle(tab: LayoutTab): string {
   if (tab.kind === 'number' || isChartTab(tab)) return tab.config.name.trim() || widgetKindLabel(tab.kind)
-  return widgetKindLabel(tab.kind)
+  if (tab.kind === 'trend') return trendName(tab.config)
+  return tab.name?.trim() || widgetKindLabel(tab.kind)
+}
+
+/** Each kind's own glyph among the line icons (the strip's icon for a tab never given one, J1). */
+export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
+  lens: 'list',
+  calendar: 'calendar',
+  notes: 'notes',
+  review: 'review',
+  number: 'number',
+  trend: 'chart',
+  pulse: 'ring',
+  breakdown: 'bars',
+  pivot: 'table',
+  neglect: 'scatter',
+}
+
+/**
+ * The icon a tab's strip shows (J1): its picked one (`none` included), else
+ * its kind's glyph.
+ */
+export function tabStripIcon(tab: Pick<LayoutTab, 'kind' | 'icon'>): IconValue {
+  return tab.icon ?? { kind: 'line', key: isWidgetKind(tab.kind) ? KIND_LINE_ICON[tab.kind] : 'list' }
+}
+
+/**
+ * The icon a tab's top line leads with alone in its cell (J2): a picked one,
+ * none for a tab never given one (as before icons) or given No icon.
+ */
+export function tabTopLineIcon(tab: Pick<LayoutTab, 'icon'>): IconValue | undefined {
+  return tab.icon && tab.icon.kind !== 'none' ? tab.icon : undefined
 }
 
 /** A new tab of `kind` with that kind's default config. */
@@ -612,14 +631,12 @@ export function createTab<K extends WidgetKind>(kind: K, id: string, seed: TabSe
 }
 
 /**
- * The list a tab shows — a list tab's own list; an Eisenhower tab shows
- * the Eisenhower's own list, `eisenhowerListId` (`null` until it is
- * loaded) —, else `undefined`. A tab with a list counts as a widget showing
- * that list (its unsaved edits, the last-widget prompt).
+ * The list a tab shows — a list tab's own list —, else `undefined`. A tab
+ * with a list counts as a widget showing that list (its unsaved edits, the
+ * last-widget prompt).
  */
-export function tabListId(tab: LayoutTab, eisenhowerListId: number | null): number | undefined {
-  if (tab.kind === 'lens') return tab.config.listDefinitionId
-  return tab.kind === 'eisenhower' ? (eisenhowerListId ?? undefined) : undefined
+export function tabListId(tab: LayoutTab): number | undefined {
+  return tab.kind === 'lens' ? tab.config.listDefinitionId : undefined
 }
 
 /** A cell's active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */

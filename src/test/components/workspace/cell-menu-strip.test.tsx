@@ -85,7 +85,7 @@ describe('the cell menu', () => {
     renderCell(k)
     const menu = cellMenu()
     expect(headings(menu)).toEqual(['Notes'])
-    expect(itemLabels(menu)).toEqual(['Change widget', 'Add widget…'])
+    expect(itemLabels(menu)).toEqual(['Name and icon…', 'Change widget', 'Add widget…'])
   })
 
   it('the grip lists the table’s words under Cell in order; one widget’s close is Close cell', () => {
@@ -315,7 +315,7 @@ describe('tabs on demand (D26 AA1)', () => {
     const menu = screen.getByRole('menu', { name: 'Cell options' })
     expect(headings(menu)).toEqual(['Notes', 'Cell'])
     expect(itemLabels(menu)).toEqual([
-      'Change widget',
+      'Name and icon…', 'Change widget',
       'Add widget…', 'Split cell', 'Merge with', 'Insert', 'Collapse row', 'Close cell',
     ])
   })
@@ -463,9 +463,9 @@ describe('a cell’s widget faces (D25 R)', () => {
     expect(document.querySelector('[data-glance]')!.getAttribute('data-face')).toBe('small')
   })
 
-  it('a face with no top line of its own (the Eisenhower’s small one): the cell’s slot stands for the tab', () => {
+  it('a face with no top line of its own (the calendar’s small one): the cell’s slot stands for the tab', () => {
     stubSize(400, 80)
-    const k = cell('k', [createTab('eisenhower', 'e')])
+    const k = cell('k', [createTab('calendar', 'e')])
     open(single(k))
     renderCell(k)
     expect(cellEl('k').dataset.face).toBe('small')

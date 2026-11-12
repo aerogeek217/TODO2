@@ -24,9 +24,9 @@ Filter, group and sort each list its own way. Rows stay quiet until something ne
 
 ### Everything about a task, and a way to walk through them
 
-A task holds its priority, status, people, tags and due date beside its notes, a checklist and a dated log of status updates. Review mode steps through one person's tasks, or any list, a card at a time: type what you learned, press Enter, and the task is marked followed up and the next card opens.
+A task holds its priority, status, people, tags and due date beside its notes, a checklist and a dated log of status updates. The Review widget steps through one person's tasks, or any filter you type, a card at a time: type what you learned, press Enter, and the task is marked followed up and the next card opens.
 
-![Review mode: a queue of one person's tasks on the left and the current task's full card on the right](docs/screenshots/review.png)
+![The Review widget: a queue of one person's tasks on the left and the current task's full card on the right](docs/screenshots/review.png)
 
 ### Numbers and charts from your own filters
 
@@ -43,7 +43,7 @@ Press `Ctrl` + `Space` anywhere and type. `@` adds a person, `#` a tag, `!` a st
 ### And also
 
 - A week and month **calendar** you can drag tasks onto
-- An **Eisenhower** matrix, a **Neglect map** of what is slipping, and free-form **notes** that turn into tasks
+- A **Neglect map** of what is slipping, and free-form **notes** that turn into tasks
 - **Lenses**: named filters you switch on from the top bar to narrow the whole screen
 - **Email check-ins**: draft a status request to each person from their open tasks, then paste the reply back in
 - A **command palette** (`Ctrl` + `K`) and editable keyboard shortcuts

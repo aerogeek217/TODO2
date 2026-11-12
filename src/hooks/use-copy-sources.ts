@@ -3,7 +3,6 @@ import type { PersistedListDefinition } from '../models/list-definition'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { listAsShown, useListDraftStore } from '../stores/list-draft-store'
 import { usePersonStore } from '../stores/person-store'
-import { useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
@@ -22,7 +21,7 @@ export interface CopySource extends CopySourceRef {
 
 /**
  * Copy from's choices (`copySourceGroups`): every layout's lists by layout,
- * the open layout's first, then the Eisenhower's — each list as it shows,
+ * the open layout's first — each list as it shows,
  * with its filters in words. `excludeId`: the list being edited.
  */
 export function useCopySources(excludeId?: number): CopySourceGroup<CopySource>[] {
@@ -30,7 +29,6 @@ export function useCopySources(excludeId?: number): CopySourceGroup<CopySource>[
   const drafts = useListDraftStore((s) => s.drafts)
   const layouts = useWorkspaceStore((s) => s.layouts)
   const openLayoutId = useWorkspaceStore((s) => s.saved?.id)
-  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
@@ -48,6 +46,6 @@ export function useCopySources(excludeId?: number): CopySourceGroup<CopySource>[
         hint: listFilterHint(predicateLineItems(def.membership.predicate, names)),
       }
     })
-    return copySourceGroups({ lists, layouts, openLayoutId, eisenhowerListId, excludeId })
-  }, [defs, drafts, layouts, openLayoutId, eisenhowerListId, excludeId, people, tags, statuses])
+    return copySourceGroups({ lists, layouts, openLayoutId, excludeId })
+  }, [defs, drafts, layouts, openLayoutId, excludeId, people, tags, statuses])
 }

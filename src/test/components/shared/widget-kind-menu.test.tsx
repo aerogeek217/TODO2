@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, fireEvent, screen, cleanup } from '@testing-library/react'
 import { WidgetKindMenu } from '../../../components/shared/WidgetKindMenu'
 
@@ -36,19 +36,19 @@ describe('WidgetKindMenu', () => {
     expect(screen.getByRole('menuitem', { name: /^Change widget/ })).toHaveTextContent('Notes')
     expect(screen.queryAllByRole('menuitemradio')).toEqual([])
     openChangeWidget()
-    // The kinds are radio items by group under its caption (Tasks: List, Calendar, Eisenhower, Review, Notes; Insights the rest); the current one is checked.
+    // The kinds are radio items by group under its caption (Tasks: List, Calendar, Review, Notes; Insights the rest); the current one is checked.
     expect(panelWords(kindsMenu())).toEqual([
-      '[Tasks]', 'List', 'Calendar', 'Eisenhower', 'Review', 'Notes',
+      '[Tasks]', 'List', 'Calendar', 'Review', 'Notes',
       '—', '[Insights]',
-      'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Neglect map',
+      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map',
     ])
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
-      'List', 'Calendar', 'Eisenhower', 'Review', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Neglect map',
+      'List', 'Calendar', 'Review', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map',
     ])
     expect(screen.getByRole('menuitemradio', { name: /^List/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /^Notes/ })).toHaveAttribute('aria-checked', 'true')
     expect(screen.queryByRole('menuitemradio', { name: /Taskboard/ })).toBeNull()
-    for (const gone of [/Dashboard/, /Needs follow-up/, /Next 7 days/, /Stale tasks/, /Recently completed/, /Eisenhower summary/, /What changed/, /^Today/]) {
+    for (const gone of [/Dashboard/, /Needs follow-up/, /Next 7 days/, /Stale tasks/, /Recently completed/, /Eisenhower/, /What changed/, /^Today/]) {
       expect(screen.queryByRole('menuitemradio', { name: gone })).toBeNull()
     }
   })
@@ -118,7 +118,6 @@ describe('WidgetKindMenu', () => {
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Review/ }))
-    fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^List/ }))
@@ -277,90 +276,6 @@ describe('WidgetKindMenu', () => {
     expect(screen.queryByRole('menuitem', { name: /List options/ })).toBeNull()
     // Focus starts on Edit list….
     expect(document.activeElement).toHaveAttribute('data-menu-label', 'Edit list…')
-  })
-})
-
-describe('WidgetKindMenu — widget setting submenu', () => {
-  const onSelect = vi.fn()
-  const setting = {
-    label: 'Due date makes a task urgent',
-    value: '3 days',
-    heading: 'Due date makes a task urgent',
-    options: [
-      { key: 'off', label: 'Off', note: 'only the flag counts', checked: false, onSelect },
-      { key: '3', label: '3 days', note: 'by Tue 13', checked: true, onSelect: () => {} },
-    ],
-    footnote: 'Overdue tasks count too.',
-  }
-
-  beforeEach(() => onSelect.mockClear())
-
-  it('lists the setting first with its value; Eisenhower is a kind', () => {
-    render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={() => {}} widgetSetting={setting} />)
-    const items = screen.getAllByRole('menuitem')
-    expect(items[0]).toHaveTextContent('Due date makes a task urgent3 days')
-    // Change widget names it; in its submenu, under Tasks.
-    expect(screen.getByRole('menuitem', { name: /^Change widget/ }).textContent).toContain('Eisenhower')
-    openChangeWidget()
-    expect(screen.getByRole('menuitemradio', { name: /^Eisenhower$/ })).toHaveAttribute('aria-checked', 'true')
-  })
-
-  it('→ opens the submenu on the checked choice; picking one runs it and closes the menu', () => {
-    const onClose = vi.fn()
-    render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={onClose} widgetSetting={setting} />)
-    const row = screen.getAllByRole('menuitem')[0]!
-    row.focus()
-    fireEvent.keyDown(row, { key: 'ArrowRight' })
-    const sub = screen.getByRole('menu', { name: 'Due date makes a task urgent' })
-    expect(sub).toHaveTextContent('Overdue tasks count too.')
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /3 days/ }))
-    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Off/ }))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /Off/ }))
-    expect(onSelect).toHaveBeenCalled()
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('Esc in the submenu closes only the submenu', () => {
-    const onClose = vi.fn()
-    render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={onClose} widgetSetting={setting} />)
-    fireEvent.click(screen.getAllByRole('menuitem')[0]!)
-    fireEvent.keyDown(screen.getByRole('menuitemradio', { name: /3 days/ }), { key: 'Escape' })
-    expect(screen.queryByRole('menu', { name: 'Due date makes a task urgent' })).toBeNull()
-    expect(onClose).not.toHaveBeenCalled()
-  })
-})
-
-describe('WidgetKindMenu — an Eisenhower tab', () => {
-  const setting = {
-    label: 'Due date makes a task urgent',
-    value: '3 days',
-    heading: 'Due date makes a task urgent',
-    options: [{ key: '3', label: '3 days', checked: true, onSelect: () => {} }],
-  }
-
-  it('Edit list… (its own list) first, then Customize panes… · the setting · Change widget; no source line', () => {
-    const onEditList = vi.fn()
-    const onCustomize = vi.fn()
-    const onClose = vi.fn()
-    render(
-      <WidgetKindMenu
-        anchor={ANCHOR}
-        currentKind="eisenhower"
-        onChangeKind={() => {}}
-        onEditList={onEditList}
-        widgetSetting={setting}
-        sourceActions={[{ label: 'Customize panes…', onSelect: onCustomize }]}
-        onClose={onClose}
-      />,
-    )
-    expect(screen.getByRole('menu', { name: 'Change widget' })).not.toHaveTextContent('Shows')
-    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
-      .toEqual(['Edit list…', 'Customize panes…', 'Due date makes a task urgent', 'Change widget'])
-    expect(panelWords(screen.getByRole('menu', { name: 'Change widget' }))[0]).toBe('[Eisenhower]')
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit list…' }))
-    expect(onEditList).toHaveBeenCalledTimes(1)
-    expect(onClose).toHaveBeenCalled()
   })
 })
 

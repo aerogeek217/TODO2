@@ -41,14 +41,16 @@ export interface RuntimeFilterSpec {
 }
 
 /**
- * Who a list belongs to: one layout (whose tabs show
- * it, and whose list choosers offer it — `isListedList`), or the Eisenhower
- * (the list of tasks it sorts into its panes, offered by no chooser). Every
- * list has one; a list without (older data, or a file edited by hand) is
- * offered nowhere until Settings › Data integrity's cleanup gives it a
- * layout.
+ * Who a list belongs to: one layout (whose tabs show it, and whose list
+ * choosers offer it — `isListedList`). Every list has one; a list without
+ * (older data, or a file edited by hand) is offered nowhere until Settings ›
+ * Data integrity's cleanup gives it a layout. (The removed Eisenhower's
+ * hidden list, `owner: { eisenhower: true }`, was deleted by schema v79.)
  */
-export type ListOwner = { layoutId: number } | { eisenhower: true }
+export type ListOwner = LayoutListOwner
+
+/** A list's owner: the layout whose tabs show it. The only owner the app gives a list. */
+export type LayoutListOwner = { layoutId: number }
 
 export interface ListDefinition {
   id?: number
@@ -65,7 +67,7 @@ export interface ListDefinition {
   grouping: ListGrouping
   /** When set, the list exposes a picker at render time; see `RuntimeFilterSpec`. */
   runtimeFilter?: RuntimeFilterSpec
-  /** The layout the list belongs to, or the Eisenhower (see `ListOwner`). */
+  /** The layout the list belongs to (see `ListOwner`). */
   owner?: ListOwner
   /** `false` hides the list's filter line; absent = shown (only `false` is stored). */
   showFilterLine?: false
@@ -97,16 +99,7 @@ export type ListTabBadges = 'off' | TabBadgeRanges
 
 export type PersistedListDefinition = ListDefinition & { id: number }
 
-/** The name the Eisenhower's own list gets when it is made. */
-export const EISENHOWER_LIST_NAME = 'Eisenhower'
-
-/** Whether `owner` is the Eisenhower's. */
-export function isEisenhowerOwner(owner: ListOwner | undefined): owner is { eisenhower: true } {
-  // `typeof`: a stored row another build wrote may hold anything here.
-  return typeof owner === 'object' && owner !== null && 'eisenhower' in owner && owner.eisenhower === true
-}
-
-/** The layout a list belongs to, or `undefined` (the Eisenhower's, or a list with no owner). */
+/** The layout a list belongs to, or `undefined` (a list with no owner). */
 export function ownerLayoutId(def: Pick<ListDefinition, 'owner'>): number | undefined {
   const owner = def.owner
   return typeof owner === 'object' && owner !== null && 'layoutId' in owner ? owner.layoutId : undefined
@@ -114,7 +107,7 @@ export function ownerLayoutId(def: Pick<ListDefinition, 'owner'>): number | unde
 
 /**
  * Whether a list chooser in layout `layoutId` offers `def`: only a list that
- * layout owns — never the Eisenhower's, another layout's, or a list without
+ * layout owns — never another layout's, or a list without
  * an owner; no layout (`undefined`) offers none. The one rule every chooser
  * goes through (`listedLists`).
  */
@@ -125,20 +118,4 @@ export function isListedList(def: Pick<ListDefinition, 'owner'>, layoutId: numbe
 /** The lists a chooser offers (`isListedList`), in their given order. */
 export function listedLists<T extends Pick<ListDefinition, 'owner'>>(defs: readonly T[], layoutId: number | undefined): T[] {
   return defs.filter((d) => isListedList(d, layoutId))
-}
-
-/**
- * The Eisenhower's own list among `defs`: the one `sourceId` names when it
- * is owned by the Eisenhower, else the Eisenhower-owned list with the
- * lowest id; `undefined` when there is none.
- */
-export function findEisenhowerList<T extends Pick<PersistedListDefinition, 'id' | 'owner'>>(
-  defs: readonly T[],
-  sourceId: number | null | undefined,
-): T | undefined {
-  const named = sourceId != null ? defs.find((d) => d.id === sourceId) : undefined
-  if (named && isEisenhowerOwner(named.owner)) return named
-  let best: T | undefined
-  for (const d of defs) if (isEisenhowerOwner(d.owner) && (best === undefined || d.id < best.id)) best = d
-  return best
 }

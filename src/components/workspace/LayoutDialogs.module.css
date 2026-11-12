@@ -74,6 +74,20 @@
   border-color: var(--color-accent);
 }
 
+/* Edit layout's Icon row (the icons board): between Name and Hue. */
+.iconField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.iconCaption {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
 /* Edit layout's hue swatches (D19): None, then the six hues. */
 .hues {
   display: flex;

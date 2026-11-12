@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { ownerLayoutId } from '../../models/list-definition'
 import { breakdownPreset } from '../../models/chart-widgets'
-import { getActiveTab, kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
+import { kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
 import { zoomTargetTab } from '../../services/list-zoom'
+import { showTab } from '../../services/workspace-tabs'
 import { readingOrder } from '../../utils/workspace-grid'
-import { useChartWidgetsStore } from '../../stores/chart-widgets-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -12,7 +12,6 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { uniqueListName } from '../../utils/list-copy'
 import { registerModuleReset } from '../../utils/module-reset'
 import { panelOfTab } from '../../utils/workspace-layout-queries'
-import { cellRowTracks } from '../../utils/workspace-layout-ops'
 import { type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { afterLeavingEditors } from '../../stores/editor-leave'
 
@@ -22,7 +21,7 @@ export const DELETED_LIST_TITLE = '(Deleted list)'
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by
  * the caller; `(Deleted list)` when its list is gone), other tabs their
- * kind's name — an Eisenhower tab reads `Eisenhower`.
+ * kind's name.
  */
 export function tabTitle(tab: LayoutTab, listName: string | undefined): string {
   if (tab.kind !== 'lens' || tab.config.listDefinitionId == null) return kindTabTitle(tab)
@@ -55,7 +54,7 @@ function shownListName(
  * Edit list has it (its draft, while open on it), else as saved.
  */
 export function useTabTitle(tab: LayoutTab | undefined): string {
-  const listId = tab ? tabListId(tab, null) : undefined
+  const listId = tab ? tabListId(tab) : undefined
   const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
   const draftName = useListDraftStore((s) => (listId != null ? s.drafts[listId]?.name : undefined))
   return tab ? tabTitle(tab, shownName(savedName, draftName)) : ''
@@ -65,7 +64,7 @@ export function useTabTitle(tab: LayoutTab | undefined): string {
 export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
   const defs = useListDefinitionStore((s) => s.listDefinitions)
   const drafts = useListDraftStore((s) => s.drafts)
-  return useMemo(() => tabs.map((tab) => tabTitle(tab, shownListName(tabListId(tab, null), defs, drafts))), [tabs, defs, drafts])
+  return useMemo(() => tabs.map((tab) => tabTitle(tab, shownListName(tabListId(tab), defs, drafts))), [tabs, defs, drafts])
 }
 
 /**
@@ -94,17 +93,7 @@ function openBeside(tabId: string, open: () => void): void {
   })
 }
 
-/** Makes `tabId` its cell's active tab and expands the row tracks the cell covers, so the widget is on screen. */
-export function showTab(tabId: string): void {
-  const ws = useWorkspaceStore.getState()
-  const working = ws.working
-  const cell = working ? panelOfTab(working, tabId) : undefined
-  if (working && cell) {
-    if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
-    const collapsed = cellRowTracks(working, cell.id).filter((t) => t.collapsed === true)
-    if (collapsed.length > 0) void ws.setTrackCollapsed(collapsed.map((t) => t.id), false)
-  }
-}
+export { showTab } from '../../services/workspace-tabs'
 
 /**
  * Opens a Number's editor (Edit number…, D26 P5): the tab shown as Edit list
@@ -123,23 +112,22 @@ function freshListName(base: string, layoutId: number): string {
   return uniqueListName(base, taken)
 }
 
-/** The new list widget being made, while its list is being saved (`createListThenEdit`). */
+/** The new list widget being made, while its list is being saved (`createListAndTab`). */
 let creatingList: Promise<void> | null = null
 registerModuleReset(() => { creatingList = null })
 
 /**
  * A new list widget (adding one, a tab switched to List): saves a blank
- * list of layout `layoutId` (`New list`, `New list 2`, …; no filter;
- * Settings' new-list sort and grouping), hands its id to `show` (which puts
- * it in a tab and returns that tab's id), then opens Edit list beside that
- * tab. One at a time: a call while one is still saving its list (a
+ * list of layout `layoutId` (`New list`, `New list 2`, …; no filter, so it
+ * shows every open task; Settings' new-list sort and grouping) and hands its
+ * id to `show`, which puts it in a tab. No editor opens: Edit list is in the
+ * list's ⋯ menu. One at a time: a call while one is still saving its list (a
  * double-click on a List button or menu item) does nothing.
  */
-export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutId: number): Promise<void> {
+export function createListAndTab(show: (listDefinitionId: number) => unknown, layoutId: number): Promise<void> {
   if (creatingList) return creatingList
   const run = useListDefinitionStore.getState().add({ name: freshListName('New list', layoutId), owner: { layoutId } }).then((id) => {
-    const tabId = show(id)
-    if (tabId != null) openEditList(tabId, id)
+    show(id)
   })
   creatingList = run.finally(() => { creatingList = null })
   return creatingList
@@ -156,9 +144,10 @@ export function useListOwnerLayoutId(): number | undefined {
 
 /**
  * Adds a widget tab of `kind` at `target` (a list tab with its list).
- * Returns the new tab's id. A new Number opens its editor at once: its empty
- * filter counts every open task until one is set. So does a new chart
- * (D26 P8; `seed` its preset's config).
+ * Returns the new tab's id. No editor opens: every kind draws something by
+ * default — a new Number's empty filter counts every open task, a chart
+ * (D26 P8; `seed` its preset's config) splits them —, and its editor is in
+ * its ⋯ menu.
  */
 export function useAddWidget() {
   return addWidgetAt
@@ -166,16 +155,16 @@ export function useAddWidget() {
 
 /**
  * Adds a widget of `kind` at `target` with `add` (`addWidgetAt`): a list
- * widget gets a new blank list of layout `layoutId` and opens its Edit list
- * (`createListThenEdit`); without a stored layout (`layoutId` undefined) no
- * list is added — it can't own one yet.
+ * widget gets a new blank list of layout `layoutId` (`createListAndTab`);
+ * without a stored layout (`layoutId` undefined) no list is added — it
+ * can't own one yet.
  */
 export function addKindAt(kind: WidgetKind, target: LayoutDropTarget, add: typeof addWidgetAt, layoutId: number | undefined): void {
   if (!WIDGET_KIND_SPECS[kind].showsList) {
     add(kind, target)
     return
   }
-  if (layoutId != null) void createListThenEdit((id) => add('lens', target, id), layoutId)
+  if (layoutId != null) void createListAndTab((id) => add('lens', target, id), layoutId)
 }
 
 /**
@@ -220,12 +209,5 @@ export function addWidgetFromPalette(kind: WidgetKind): void {
 
 /** `useAddWidget`'s add, outside a component (the palette's Add Widget ›). */
 export function addWidgetAt(kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number, seed?: TabSeed): string | null {
-  const tabId = useWorkspaceStore.getState().addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
-  if (tabId != null && kind === 'number') openNumberEditor(tabId)
-  // D26 P8: a chart opens its editor too.
-  if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'tagMap')) {
-    const chartTab = tabId
-    openBeside(chartTab, () => useChartWidgetsStore.getState().openEditor(chartTab))
-  }
-  return tabId
+  return useWorkspaceStore.getState().addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
 }

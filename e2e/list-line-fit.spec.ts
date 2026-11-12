@@ -151,7 +151,7 @@ for (const by of ['none', 'screen', 'lens'] as const) {
   })
 }
 
-/** No two drawn parts of a filter line (under a strip, or the Eisenhower's) overlap; it stays one line inside its cell. */
+/** No two drawn parts of a filter line (under a strip) overlap; it stays one line inside its cell. */
 async function expectLineClear(page: Page, cellId: string, label: string) {
   const cell = page.locator(`[data-ws-cell="${cellId}"]`)
   const line = cell.getByTestId('list-filter-row')
@@ -170,7 +170,7 @@ async function expectLineClear(page: Page, cellId: string, label: string) {
   for (const [name, b] of Object.entries(p)) expect(b.x + b.width, `${label}: ${name} inside`).toBeLessThanOrEqual(c.x + c.width + 0.5)
 }
 
-test('the filter line under a tab strip and the Eisenhower’s: the words give way, nothing overlaps (narrowed)', async ({ page }) => {
+test('the filter line under a tab strip: the words give way, nothing overlaps (narrowed)', async ({ page }) => {
   test.slow()
   for (const width of [240, 320, 440]) {
     await seedWorkspace(page, seed(width, {
@@ -182,14 +182,12 @@ test('the filter line under a tab strip and the Eisenhower’s: the words give w
           cells: [
             { id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] },
             { id: 'l', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }, { id: 'notes2', kind: 'notes' }], activeTabId: 'list' },
-            { id: 'e', tabs: [{ id: 'eis', kind: 'eisenhower' }, { id: 'notes3', kind: 'notes' }], activeTabId: 'eis' },
+            { id: 'e', tabs: [{ id: 'notes3', kind: 'notes' }] },
           ],
         },
       }],
-      eisenhower: { listDefIdx: 0 },
     }))
     await screenSearch(page, 'one')
     await expectLineClear(page, 'l', `${width}px, under a strip`)
-    await expectLineClear(page, 'e', `${width}px, the Eisenhower`)
   }
 })

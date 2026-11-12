@@ -85,8 +85,8 @@ function shiftMatch(match: FuseResultMatch, by: number): FuseResultMatch {
 
 /**
  * The top level's search into the steps: each word must match a leaf's own
- * name or its step's (`aisha` finds `Review With › Aisha Rahman`, `email
- * aisha` only `Email Check-in › Aisha Rahman`), each counting where it
+ * name or its step's (`aisha` finds `Review With › Aisha Rahman` and any other leaf so named,
+ * `review aisha` only that one), each counting where it
  * matches better, and at least one word must match the leaf's own name
  * better — so words that name the step (`layout`, `go to lay`) find the
  * step, not every leaf in it. Scored as `searchCommands` scores, the

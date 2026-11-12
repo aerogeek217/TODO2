@@ -1,4 +1,4 @@
-import type { Person, RecurrenceType, Status, Tag } from '../models'
+import type { Person, RecurrenceType, Status, StatusIconKey, Tag } from '../models'
 import {
   QUICK_FOLLOWUP_INTERVALS,
   addFollowupInterval,
@@ -55,7 +55,10 @@ export interface AutocompleteItem {
   /** People: an exact initials match counts too (as the resolver does). */
   initials?: string
   /** Statuses: the status glyph. */
-  icon?: string
+  icon?: StatusIconKey
+  /** Statuses: the emoji drawn instead of the glyph (J17), and whether in its own colors. */
+  emoji?: string
+  emojiShow?: 'color'
   kind: 'person' | 'tag' | 'status'
 }
 
@@ -83,7 +86,16 @@ export type AutocompleteRow =
    * `match`: where the typed text sits in the name (absent: initials, or
    * nothing typed).
    */
-  | { kind: 'entity'; item: AutocompleteItem; resolves: boolean; match?: { at: number; length: number } }
+  | {
+    kind: 'entity'
+    item: AutocompleteItem
+    resolves: boolean
+    match?: { at: number; length: number }
+    /** Muted at the row's end: its open tasks (the Review widget's field). */
+    count?: number
+    /** The group heading the row sits under (`People`): drawn before the first row of each (the Review widget's field). */
+    section?: string
+  }
   /** Create `@name` / `#tag`: offered below the matches unless one is exactly the name; picking it creates the entity at once. */
   | { kind: 'create'; trigger: '@' | '#'; name: string }
   | { kind: 'command'; command: SlashCommandSpec; matchLength: number }
@@ -103,8 +115,11 @@ export type AutocompleteRow =
   | { kind: 'error'; text: string; hint: string }
 
 export interface AutocompleteView {
-  trigger: NlpTrigger
+  /** The trigger the text at the cursor starts with; `null` for a list of names typed bare or not typed yet (the Review widget's field). */
+  trigger: NlpTrigger | null
   mode: 'entity' | 'command' | 'argument'
+  /** People, tags and statuses in one list: each row marked by its kind (an avatar, a #, the status glyph). */
+  mixed?: boolean
   /** The command whose argument is being typed (`mode: 'argument'`). */
   command?: SlashCommandName
   header: string
@@ -115,7 +130,7 @@ export interface AutocompleteView {
   /** The `↑↓ ⏎ pick · or type the whole command` footer (unfiltered command list). */
   footer: boolean
   rows: AutocompleteRow[]
-  /** Where the popup anchors: the trigger character. */
+  /** Where the popup anchors: the trigger character (the name's first, or the cursor, without one). */
   anchor: number
   /** The text a pick replaces: `[from, to)`, `to` being the cursor. */
   from: number
@@ -144,6 +159,7 @@ export function tagItems(tags: readonly Tag[]): AutocompleteItem[] {
 export function statusItems(statuses: readonly Status[]): AutocompleteItem[] {
   return statuses.flatMap((s) => (s.id === undefined ? [] : [{
     id: s.id, name: s.name, color: s.color, icon: s.icon, kind: 'status' as const,
+    ...(s.emoji ? { emoji: s.emoji, ...(s.emojiShow === 'color' ? { emojiShow: 'color' as const } : {}) } : {}),
   }]))
 }
 
@@ -514,7 +530,7 @@ export function applyAutocompletePick(
     case 'entity': {
       // A name that isn't bare is quoted (a person's or status's space or
       // hyphen, a tag's `&` or space …), so the token reads back as the whole name.
-      insert = entityToken(view, row.item)
+      insert = entityItemToken(row.item)
       break
     }
     case 'create':
@@ -560,9 +576,10 @@ export function bestMatchCompletion(value: string, view: AutocompleteView, index
 }
 
 /** The token text picking an existing person / tag / status writes (`@Ann`, `@"Ann Lee"`, `#q4`, `#"R&D"`, `!"On Hold"`). */
-function entityToken(view: AutocompleteView, item: AutocompleteItem): string {
-  if (view.trigger === '#') return tagToken(item.name)
-  return view.trigger === '!' ? statusToken(item.name) : mentionToken(item.name)
+/** The token that names `item` by its kind: `@Ann` / `@"Ann Lee"`, `#q4` / `#"R&D"`, `!Waiting` / `!"On Hold"`. */
+export function entityItemToken(item: AutocompleteItem): string {
+  if (item.kind === 'tag') return tagToken(item.name)
+  return item.kind === 'status' ? statusToken(item.name) : mentionToken(item.name)
 }
 
 /**
@@ -598,7 +615,7 @@ export function implicitAccept(
   // Caret moved off the token (nothing typed), or a space / punctuation typed right after it.
   if (typed !== '' && !/^[^\p{L}\p{M}\p{N}_]+$/u.test(typed)) return null
   if (typed === '' && cursor >= view.from && cursor <= view.to) return null
-  const insert = entityToken(view, row.item)
+  const insert = entityItemToken(row.item)
   const completed = `${value.slice(0, view.from)}${insert}${value.slice(view.to)}`
   const delta = insert.length - (view.to - view.from)
   return { value: completed, cursor: cursor >= view.to ? cursor + delta : cursor }

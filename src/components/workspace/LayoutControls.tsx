@@ -6,7 +6,8 @@ import { ownerLayoutId } from '../../models/list-definition'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { DeleteLayoutDialog, LayoutNameDialog } from './LayoutDialogs'
 import { LayoutTabs } from './LayoutTabs'
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, HuedLayoutIcon, PencilIcon, PlusIcon, TrashIcon, WarningIcon } from '../shared/icons'
+import { LayoutGlyph } from '../shared/LayoutGlyph'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, PencilIcon, PlusIcon, TrashIcon, WarningIcon } from '../shared/icons'
 import styles from './LayoutControls.module.css'
 import { withViewTransition } from '../shared/view-transition'
 
@@ -71,6 +72,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
   const create = (layoutName: string) => { void store().createLayout(layoutName) }
   const nameOf = (id: number) => layouts.find((l) => l.id === id)?.name ?? ''
   const hueOf = (id: number) => layouts.find((l) => l.id === id)?.hue ?? null
+  const iconOf = (id: number) => layouts.find((l) => l.id === id)?.icon
   const indexOf = (id: number) => layouts.findIndex((l) => l.id === id)
   const canDelete = layouts.length > 1
 
@@ -84,7 +86,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
     ...layouts.map((l): MenuEntry => ({
       kind: 'item',
       label: l.name,
-      icon: <HuedLayoutIcon hue={l.hue} />,
+      icon: <LayoutGlyph layout={l} />,
       radio: true,
       checked: l.id === activeLayoutId,
       dragId: String(l.id),
@@ -164,7 +166,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           onClick={() => setMenuOpen((o) => !o)}
           data-testid="layout-picker"
         >
-          <span className={styles.glyph}><HuedLayoutIcon hue={working.hue} /></span>
+          <span className={styles.glyph}><LayoutGlyph layout={working} /></span>
           <span className={styles.name}>{name}</span>
           <ChevronDownIcon />
         </button>
@@ -217,7 +219,8 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           confirmLabel="Apply"
           initialName={pending.name}
           initialHue={hueOf(pending.id)}
-          onConfirm={(n, hue) => { close(); void store().rename(pending.id, n, hue) }}
+          initialIcon={iconOf(pending.id)}
+          onConfirm={(n, hue, icon) => { close(); void store().rename(pending.id, n, hue, icon) }}
           onCancel={close}
         />
       )}

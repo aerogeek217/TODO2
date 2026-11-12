@@ -24,9 +24,6 @@ import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignme
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
-import { applyPaneDrop, currentPaneContext, currentPanes } from '../services/eisenhower-drop'
-import { startOfToday } from '../utils/date'
-import { dragTasks } from '../components/workspace/eisenhower/eisenhower-drag'
 import { dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, sameDropHit } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
@@ -38,11 +35,12 @@ import { EditListHost } from '../components/workspace/list/EditList'
 import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
 import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { PulseEditorHost } from '../components/workspace/glance/PulseEditor'
+import { TrendEditorHost } from '../components/workspace/glance/TrendEditor'
 import { applyKeptListDrafts } from '../stores/list-draft-store'
 import { editorsHoldChanges, leaveOpenEditors } from '../stores/editor-leave'
 import { useLatestRef } from '../hooks/use-latest-ref'
 import { useBlocker } from 'react-router'
-import { WidgetKindIcon } from '../components/shared/icons'
+import { TabIcon } from '../components/workspace/TabIcon'
 import {
   isWorkspaceDragType,
   isWorkspacePanelDragData,
@@ -66,7 +64,6 @@ import { EntityActionHost } from '../components/settings/EntityActionHost'
 import { CheckinDialog } from '../components/checkin/CheckinDialog'
 import { CheckinImportDialog } from '../components/checkin/CheckinImportDialog'
 import { TaskDialog } from '../components/overlays/TaskDialog'
-import { ReviewDeck } from '../components/overlays/ReviewDeck'
 import { DragOverlayTask } from '../components/workspace/DragOverlayTask'
 import { createTaskDropAnimation } from '../components/workspace/task-drop-animation'
 import { TaskDropLandingContext } from '../components/task/dnd/task-drop-landing'
@@ -201,7 +198,7 @@ function useWorkspaceDragState() {
     if (!area) return true
     setDrag({
       source: tab ? { type: 'tab', tabId: tab.tabId } : { type: 'panel', panelId: panel?.panelId ?? '' },
-      tabs: tab ? [{ id: tab.tabId, kind: tab.kind, title: tab.title }] : panel?.tabs ?? [],
+      tabs: tab ? [{ id: tab.tabId, kind: tab.kind, title: tab.title, ...(tab.icon ? { icon: tab.icon } : {}) }] : panel?.tabs ?? [],
       hit: null,
       target: null,
       accepts: false,
@@ -232,7 +229,7 @@ function PanelGhost({ tabs }: { tabs: WorkspaceDragState['tabs'] }) {
       <div className={styles.panelGhostHeader}>
         {tabs.map((t, i) => (
           <span key={t.id} className={`${styles.panelGhostTab} ${i === 0 ? styles.panelGhostTabFirst : ''}`}>
-            <span className={styles.ghostIcon}><WidgetKindIcon kind={t.kind} size={11} /></span>
+            <TabIcon tab={t} size={11} className={styles.ghostIcon} />
             <span className={styles.ghostTitle}>{t.title}</span>
           </span>
         ))}
@@ -387,8 +384,8 @@ export function WorkspacePage() {
   const sensors = useSensors(isMobile ? noDragSensor : pointerSensor)
 
   // Tab and panel drags find their target from pointer geometry, not dnd-kit
-  // droppables; task drags match the widgets' droppables (calendar days,
-  // Eisenhower quadrants) under the pointer.
+  // droppables; task drags match the widgets' droppables (calendar days)
+  // under the pointer.
   const collisionDetection = useMemo(() => buildTaskCollision([
     { when: (active) => isWorkspaceDragType(active.data.current?.type), accept: () => false },
   ]), [])
@@ -413,7 +410,7 @@ export function WorkspacePage() {
       return
     }
     setActiveDrag(null)
-    // A calendar day or an Eisenhower pane: the row changes there, later.
+    // A calendar day: the row changes there, later.
     if (event.over) landDrop('in-place')
     await dispatchTaskDrop(event, {
       calendar: {
@@ -423,12 +420,6 @@ export function WorkspacePage() {
           await useTodoStore.getState().update(todoId, buildRescheduleUpdate(t, date, type))
         },
         chooseType,
-      },
-      eisenhower: {
-        tasksFor: dragTasks,
-        panes: currentPanes,
-        context: () => currentPaneContext(startOfToday()),
-        apply: applyPaneDrop,
       },
     })
   }, [tabDrag, chooseType, landDrop])
@@ -466,7 +457,7 @@ export function WorkspacePage() {
           <div className={styles.ghostWrap}>
             {drag.source.type === 'panel' ? <PanelGhost tabs={drag.tabs} /> : (
               <div className={styles.ghost} data-testid="ws-drag-ghost">
-                <span className={styles.ghostIcon}>{drag.tabs[0] && <WidgetKindIcon kind={drag.tabs[0].kind} size={12} />}</span>
+                {drag.tabs[0] && <TabIcon tab={drag.tabs[0]} size={12} className={styles.ghostIcon} />}
                 <span className={styles.ghostTitle}>{drag.tabs[0]?.title}</span>
               </div>
             )}
@@ -495,7 +486,6 @@ export function WorkspacePage() {
       )}
 
       <TaskDialog />
-      <ReviewDeck />
       <CheckinDialog />
       <CheckinImportDialog />
       <TaskEditPopupHost />
@@ -505,6 +495,7 @@ export function WorkspacePage() {
       <NumberEditorHost />
       <ChartEditorHost />
       <PulseEditorHost />
+      <TrendEditorHost />
     </DndContext>
   )
 }

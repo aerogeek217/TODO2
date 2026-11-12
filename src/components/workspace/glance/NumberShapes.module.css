@@ -85,6 +85,26 @@
   min-width: 0;
 }
 
+/* Its line and change under the percent, on one line: what doesn't fit
+ * wraps onto a second line the fixed height clips — the change first, then
+ * the line (as a count's `.figures`, widget feedback 2D). */
+.shareLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  column-gap: 10px;
+  row-gap: 0;
+  height: 20px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.shareLineLarge {
+  height: 30px;
+  column-gap: 6px;
+}
+
 .ring {
   position: relative;
   flex: none;

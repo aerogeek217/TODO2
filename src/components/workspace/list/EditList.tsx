@@ -12,7 +12,6 @@ import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { useSettingsStore } from '../../../stores/settings-store'
 import { configPatch, withConfigPatch } from '../../../utils/config-patch'
 import { withCopiedParts } from '../../../utils/list-copy'
 import { findTab, layoutTabs } from '../../../utils/workspace-layout-queries'
@@ -369,10 +368,9 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   const panelElRef = useRef<HTMLDivElement | null>(null)
   const nameRef = useRef<HTMLInputElement | null>(null)
   const working = useWorkspaceStore((s) => s.working)
-  // The tab shows another list now (an undo, an Eisenhower tab switched): this list left the screen.
-  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
+  // The tab shows another list now (an undo, its kind changed): this list left the screen.
   const tab = working ? layoutTabs(working).find((t) => t.id === tabId) : undefined
-  const tabShowsList = !working || (tab != null && tabListId(tab, eisenhowerListId) === listDefinitionId)
+  const tabShowsList = !working || (tab != null && tabListId(tab) === listDefinitionId)
   const listExists = model.def != null && model.saved != null
   const placementStore = useMemo(
     () => createPlacementStore(tabId, working ? findTab(working, tabId)?.cellId : undefined, tabShowsList && listExists),

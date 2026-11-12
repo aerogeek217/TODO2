@@ -1,4 +1,4 @@
-import { isListZoom, LIST_ZOOMS, readListZoom, type ListZoom } from '../models/workspace-layout'
+import { isListZoom, LIST_ZOOMS, type ListZoom } from '../models/workspace-layout'
 import type { TodoItem } from '../models/todo-item'
 import { formatRowDate } from './date'
 import { isDeadlinePast } from './effective-date'
@@ -15,8 +15,8 @@ import type { UrgentDueWithinDays } from './urgency'
  * draw for a task.
  *
  * Settings › Appearance › Default list zoom is the level of a tab that hasn't
- * picked one — Auto (the default, never stored) or a level. A level is stored in the `rowDensity` row, where the two densities
- * before it are read as levels: `comfortable` → `stacked`, `compact` → `rows`.
+ * picked one — Auto (the default, never stored) or a level. A level is stored in the `rowDensity` row (the two densities
+ * before the levels, `comfortable` and `compact`, v79 wrote as `stacked` and `rows`).
  * The phone's rows have one density.
  */
 
@@ -75,14 +75,10 @@ export function defaultListZoom(setting: ListZoomSetting, width = 0, previous?: 
   return setting === 'auto' ? autoListZoom(width, previous) : setting
 }
 
-/** The stored densities before the zoom levels, read as levels. */
-const LEGACY_DENSITY: Readonly<Record<string, ListZoom>> = { comfortable: 'stacked', compact: 'rows' }
 
-/** The `rowDensity` row's value as a level: a level (`strips` as `lines`), or an old density; `undefined` for anything else. */
+/** The `rowDensity` row's value as a level; `undefined` for anything else (v79 wrote the older values as levels). */
 export function parseListZoomSetting(value: unknown): ListZoom | undefined {
-  const zoom = readListZoom(value)
-  if (zoom) return zoom
-  return typeof value === 'string' ? LEGACY_DENSITY[value] : undefined
+  return isListZoom(value) ? value : undefined
 }
 
 /** Zooming in shows more of each task (towards Stacked); zooming out shows more tasks (towards Lines). */

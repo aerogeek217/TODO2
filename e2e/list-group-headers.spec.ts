@@ -99,10 +99,10 @@ test('a grouped list: 18px above every header but the first, A1 header type and 
   expect(look.countWeight).toBe('400')
   expect(look.ruleHeight).toBe(1)
   expect(look.ruleColor).toBe(await tokenColor(page, '--color-border'))
-  // The rule runs to the header's end, short of the envelope's room in a People group.
+  // The rule runs to the header's end (its own padding: no envelope's room any more, widget feedback 2B).
   expect(look.ruleWidth).toBeGreaterThan(100)
   expect(look.ruleRightGap).toBeCloseTo(look.paddingRight, 0)
-  expect(look.paddingRight).toBe(32)
+  expect(look.paddingRight).toBe(4)
 
   // No row draws its hairline.
   const contents = await rowAfterContents(widget)

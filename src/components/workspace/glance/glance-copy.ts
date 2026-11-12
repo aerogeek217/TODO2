@@ -1,9 +1,9 @@
 import type { TodoPredicate } from '../../../models'
-import type { NumberCompare, TrendRange } from '../../../models/glance-widgets'
+import type { NumberCompare, TrendRange, TrendShow } from '../../../models/glance-widgets'
 import type { HistoryField } from '../../../services/stats/filter-history'
 import { describeFilters, predicateLineItems, type FilterChipNames } from '../../../utils/filter-chips'
 import { admitsCompleted, predicateToCriteria } from '../../../utils/filter-criteria'
-import { formatFollowupDate } from '../../../utils/followup'
+import { formatFollowupDate, formatFollowupDay } from '../../../utils/followup'
 import { formatDateWith } from '../../../utils/date'
 
 /**
@@ -54,6 +54,35 @@ export function sinceLabel(start: Date, today: Date): string {
 export function trendBucketLabel(start: Date, granularity: 'day' | 'week'): string {
   if (granularity === 'day') return String(start.getDate())
   return start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+/** A trend bar in words, as its drill titles it: `Thu 8`, or `Week of Sep 28`. */
+export function trendBucketWords(start: Date, granularity: 'day' | 'week', today: Date): string {
+  return granularity === 'day' ? formatFollowupDay(start, today) : `Week of ${trendBucketLabel(start, 'week')}`
+}
+
+/** Each Show as choice's name. */
+export const TREND_SHOW_LABELS: Record<TrendShow, string> = {
+  bars: 'Bars',
+  burndown: 'Burndown',
+  cumulative: 'Cumulative',
+}
+
+/** What each Show as choice draws, in a sentence (the editor's hint). */
+export const TREND_SHOW_HINTS: Record<TrendShow, string> = {
+  bars: 'Tasks created and completed each day (each week on the longer ranges), and the net change.',
+  burndown: 'How many of its tasks were open at the end of each day.',
+  cumulative: 'Running totals of created (starting from the tasks open when the range began) and completed: the gap between the lines is what is open.',
+}
+
+/**
+ * The ≈ note on Created vs completed's stats row: `≈ before Thu 5` while
+ * the first days can't be counted exactly, `≈` alone while none can.
+ */
+export function trendApproxLabel(days: readonly Date[], exactFrom: number, today: Date): string | null {
+  if (exactFrom <= 0) return null
+  const first = days[exactFrom]
+  return first ? `≈ before ${formatFollowupDay(first, today)}` : '≈'
 }
 
 // ── The task dialog's words ──────────────────────────────────────────────────

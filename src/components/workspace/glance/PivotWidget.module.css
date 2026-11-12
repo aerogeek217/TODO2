@@ -21,19 +21,65 @@
   display: contents;
 }
 
+/* The name heading (what the rows split by), over the row heads. */
 .corner {
-  display: block;
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  padding: 3px 0;
 }
 
 .colHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
   padding: 3px 2px;
-  overflow: hidden;
+}
+
+/* A heading's sort button (item 8, as a Breakdown's): muted, the label cut
+ * with an ellipsis (its name in the tooltip), ▼ / ▲ while it is the sort. */
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 1px 3px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-bold);
-  color: var(--color-text-muted);
-  text-align: center;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.corner .sortButton {
+  margin-left: -3px;
+}
+
+.sortButton:hover,
+.sortButton:focus-visible,
+.sortButton[aria-pressed='true'] {
+  color: var(--color-text-primary);
+}
+
+.sortButton:hover {
+  background: var(--color-tint-8);
+}
+
+.sortLabel {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.sortMark {
+  flex: none;
+  font-size: var(--font-size-glyph-xs);
 }
 
 .rowHead {

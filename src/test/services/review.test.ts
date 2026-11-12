@@ -1,293 +1,228 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { emptyPredicate, type Person, type Tag } from '../../models'
+import { emptyPredicate, type FilterExpr, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../../models'
+import type { PersistedListDefinition } from '../../models/list-definition'
+import type { BreakdownSplit } from '../../models/chart-widgets'
+import { expressionResolver } from '../../services/filter-expression-field'
 import {
-  listReview,
+  breakdownReviewFilter,
+  breakdownRowTerm,
   listReviewCount,
-  openReview,
-  peopleReview,
-  personReview,
-  queueOfRowGroups,
-  queueOfSections,
-  reviewListTab,
+  listReviewFilter,
+  peopleReviewFilter,
+  personReviewFilter,
   reviewTasksLabel,
-  screenQueueNow,
-  screenReview,
-  tagReview,
-  toggleReviewLens,
+  screenReviewFilter,
+  tagReviewFilter,
 } from '../../services/review'
+import { computeBreakdown, type BreakdownRow } from '../../services/stats/breakdown'
+import type { StatsContext } from '../../services/stats/stats-context'
 import { useFilterStore } from '../../stores/filter-store'
-import { useListWidgetStore, type ShownList } from '../../stores/list-widget-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { usePersonStore } from '../../stores/person-store'
-import { useSettingsStore } from '../../stores/settings-store'
-import { useReviewStore } from '../../stores/review-store'
-import { useTagStore } from '../../stores/tag-store'
+import { useListWidgetStore, type ReviewFilter, type ShownList } from '../../stores/list-widget-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { useUIStore } from '../../stores/ui-store'
-import { makeTodo } from '../helpers'
+import { todoNameLookups } from '../../utils/filter'
+import { expressionNamesOf } from '../../utils/filter-chips'
+import { predicateToCriteria } from '../../utils/filter-criteria'
+import { parseExpression, printExpression } from '../../utils/filter-expression'
+import { matchesFilterWithLookups } from '../../utils/filter-match'
+import { withExpression } from '../../utils/predicate-expression'
+import { clearFilterStore, makePerson, makeTodo } from '../helpers'
 
-const section = (key: string, label: string, ids: number[]) => ({ key, label, todos: ids.map((id) => ({ id })) })
+/**
+ * What each Review button sends to a Review widget (widget feedback 2B):
+ * a filter built as a tree of ids, never as text.
+ */
 
-describe('queueOfSections', () => {
-  it('a flat list: its tasks in order, no dividers', () => {
-    expect(queueOfSections([section('all', 'All', [3, 1, 2])], false)).toEqual({ ids: [3, 1, 2], dividers: [] })
-  })
+const today = new Date(2026, 9, 10)
+const day = (n: number) => new Date(2026, 9, 10 + n, 9)
 
-  it('grouped: each group a divider before its first task; a task in two groups once, at its first place', () => {
-    const sections = [section('p1', 'Aisha', [1, 2]), section('p2', 'Ben', [2, 3]), section('p3', 'Chen', [1])]
-    expect(queueOfSections(sections, true)).toEqual({
-      ids: [1, 2, 3],
-      // Chen's only task is already under Aisha: no divider for an empty group.
-      dividers: [{ index: 0, label: 'Aisha' }, { index: 2, label: 'Ben' }],
-    })
+describe('reviewTasksLabel', () => {
+  it('one task, several', () => {
+    expect(reviewTasksLabel(1)).toBe('Review this task')
+    expect(reviewTasksLabel(8)).toBe('Review these 8 tasks')
   })
 })
 
+describe('people and tags', () => {
+  it('a person, a tag, several people', () => {
+    expect(personReviewFilter({ id: 3 })).toEqual({ expression: { kind: 'person', id: 3 }, showCompleted: false })
+    expect(tagReviewFilter({ id: 7 })).toEqual({ expression: { kind: 'tag', id: 7 }, showCompleted: false })
+    expect(peopleReviewFilter([{ id: 1 }, { id: 2 }])).toEqual({
+      expression: { kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 2 }] },
+      showCompleted: false,
+    })
+    expect(peopleReviewFilter([{ id: 1 }])?.expression).toEqual({ kind: 'person', id: 1 })
+    expect(peopleReviewFilter([])).toBeNull()
+  })
+
+  it('names with spaces, quotes and parentheses print as the field reads them back', () => {
+    const people: Person[] = [
+      { id: 1, name: 'Marcus Chen', initials: 'MC' },
+      { id: 2, name: 'Dana "DJ" O’Neil', initials: 'DO' },
+      { id: 3, name: 'Ops (night)', initials: 'ON' },
+    ]
+    const tags: Tag[] = [{ id: 7, name: 'q4 launch (beta)', color: '#999' }]
+    const statuses: Status[] = [{ id: 4, name: 'On hold', color: '#888', sortOrder: 1 }]
+    const names = expressionNamesOf({ people, tags, statuses })
+    const resolver = expressionResolver(people, tags, statuses)
+    const roundTrip = (f: ReviewFilter | null) => {
+      if (!f) throw new Error('no filter')
+      const text = printExpression(f.expression, f.showCompleted, names)
+      const parse = parseExpression(text, { today, names: resolver })
+      expect(parse.ok, text).toBe(true)
+      if (parse.ok) expect(parse.expression).toEqual(f.expression)
+      return text
+    }
+    expect(roundTrip(peopleReviewFilter(people))).toContain('@"Marcus Chen"')
+    roundTrip(tagReviewFilter({ id: 7 }))
+    roundTrip({ expression: { kind: 'and', items: [{ kind: 'status', id: 4 }, { kind: 'person', id: 3 }] }, showCompleted: false })
+  })
+})
+
+// ── A list tab ──────────────────────────────────────────────────────────────
+
+const def = (predicate: TodoPredicate, extra: Partial<PersistedListDefinition> = {}): PersistedListDefinition => ({
+  id: 9, name: 'Aisha 1:1', sortOrder: 0, sort: 'manual', grouping: 'none',
+  membership: { kind: 'custom', predicate }, owner: { layoutId: 1 }, ...extra,
+})
+
+const section = (key: string, label: string, ids: number[]) => ({ key, label, todos: ids.map((id) => ({ id })) })
 const shownList = (over: Partial<ShownList> = {}): ShownList => ({
   listId: 9,
   label: 'Aisha 1:1',
   description: 'list · People · Manual',
   grouped: true,
-  sections: [section('waiting', 'Waiting', [4, 5]), section('doing', 'Doing', [6])],
+  sections: [section('a', 'Aisha', [4, 5]), section('b', 'Ben', [5, 6])],
   ...over,
 })
 
-describe('listReview', () => {
-  it('reads the tab as shown (collapsed groups too: the shown sections hold them), with its name and words', () => {
-    // A collapsed group is still in the widget's sections — collapse only hides its rows.
-    useListWidgetStore.getState().setCollapsed('tab-1', ['waiting'])
-    useListWidgetStore.getState().setShown('tab-1', shownList())
-    expect(listReview('tab-1')).toMatchObject({
-      kind: 'list',
-      title: 'Aisha 1:1',
-      description: 'list · People · Manual',
-      ids: [4, 5, 6],
-      dividers: [{ index: 0, label: 'Waiting' }, { index: 2, label: 'Doing' }],
-    })
-    expect(listReviewCount('tab-1')).toBe(3)
+describe('listReviewFilter / listReviewCount', () => {
+  beforeEach(() => {
+    useTodoStore.setState({ todos: [makeTodo({ id: 4 }), makeTodo({ id: 5 }), makeTodo({ id: 6, isCompleted: true })] })
   })
 
-  it('an ungrouped list has no dividers', () => {
-    useListWidgetStore.getState().setShown('tab-1', shownList({ grouped: false, sections: [section('all', 'All', [2, 1])] }))
-    expect(listReview('tab-1')?.dividers).toEqual([])
+  it('a Graphical list: its chips as one expression; the count its open tasks shown, each once', () => {
+    useListDefinitionStore.setState({ listDefinitions: [def({ ...emptyPredicate(), personIds: [1], tags: [7] })] })
+    useListWidgetStore.getState().setShown('tab-1', shownList())
+    expect(listReviewFilter('tab-1')).toEqual({
+      expression: { kind: 'and', items: [{ kind: 'tag', id: 7 }, { kind: 'person', id: 1 }] },
+      showCompleted: false,
+    })
+    expect(listReviewCount('tab-1')).toBe(2)
+  })
+
+  it('an expression list: its expression', () => {
+    const expression: FilterExpr = { kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'tag', id: 2 }] }
+    useListDefinitionStore.setState({ listDefinitions: [def({ ...emptyPredicate(), expression })] })
+    useListWidgetStore.getState().setShown('tab-1', shownList())
+    expect(listReviewFilter('tab-1')?.expression).toEqual(expression)
+  })
+
+  it('a list with a prompt: its pick takes that field’s place, as the list applies it; nothing picked, nothing to review', () => {
+    useListDefinitionStore.setState({ listDefinitions: [def({ ...emptyPredicate(), statusIds: [3] }, { runtimeFilter: { field: 'person' } })] })
+    useListWidgetStore.getState().setShown('tab-1', shownList())
+    expect(listReviewFilter('tab-1')).toBeNull()
+    useListWidgetStore.getState().setPicks('tab-1', [1, 2])
+    expect(listReviewFilter('tab-1')?.expression).toEqual({
+      kind: 'and',
+      items: [{ kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 2 }] }, { kind: 'status', id: 3 }],
+    })
+  })
+
+  it('a list that narrows by nothing: every open task (an `and` of nothing)', () => {
+    useListDefinitionStore.setState({ listDefinitions: [def(emptyPredicate())] })
+    useListWidgetStore.getState().setShown('tab-1', shownList())
+    expect(listReviewFilter('tab-1')).toEqual({ expression: { kind: 'and', items: [] }, showCompleted: false })
   })
 
   it('a tab not on screen: nothing to review', () => {
-    expect(listReview('tab-x')).toBeNull()
+    expect(listReviewFilter('tab-x')).toBeNull()
     expect(listReviewCount('tab-x')).toBe(0)
-    expect(reviewListTab('tab-x')).toBe(false)
-    expect(useReviewStore.getState().open).toBe(false)
-  })
-
-  it('setShown(null) removes the tab', () => {
-    useListWidgetStore.getState().setShown('tab-1', shownList())
-    useListWidgetStore.getState().setShown('tab-1', null)
-    expect(useListWidgetStore.getState().shown).toEqual({})
   })
 })
 
-describe('openReview', () => {
-  it('opens the deck on the payload and clears the selection', () => {
-    useUIStore.getState().selectAll([4, 5])
-    useListWidgetStore.getState().setShown('tab-1', shownList())
-    expect(reviewListTab('tab-1')).toBe(true)
-    expect(useReviewStore.getState()).toMatchObject({
-      open: true,
-      source: { kind: 'list', title: 'Aisha 1:1', description: 'list · People · Manual' },
-      ids: [4, 5, 6],
-      index: 0,
+// ── The top bar ─────────────────────────────────────────────────────────────
+
+describe('screenReviewFilter', () => {
+  beforeEach(clearFilterStore)
+
+  it('the chips and the text search as one expression', () => {
+    useFilterStore.getState().setPersonIds(new Set([1, 2]))
+    useFilterStore.getState().setSearchText('contract')
+    expect(screenReviewFilter()).toEqual({
+      expression: {
+        kind: 'and',
+        items: [{ kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 2 }] }, { kind: 'text', text: 'contract' }],
+      },
+      showCompleted: false,
     })
-    expect(useUIStore.getState().selectedTodoIds.size).toBe(0)
   })
 
-  it('no tasks: nothing opens', () => {
-    expect(openReview({ kind: 'tag', title: '#x', description: '', ids: [] })).toBe(false)
-    expect(openReview(null)).toBe(false)
-    expect(useReviewStore.getState().open).toBe(false)
+  it('no chips: every open task', () => {
+    expect(screenReviewFilter().expression).toEqual({ kind: 'and', items: [] })
   })
 })
 
-describe('person, people and tag reviews: the task dialog’s set and order', () => {
-  const aisha: Person = { id: 1, name: 'Aisha', initials: 'A' }
-  const ben: Person = { id: 2, name: 'Ben', initials: 'B' }
-  const legal: Tag = { id: 7, name: 'legal', color: '#999' }
+// ── A Breakdown row ─────────────────────────────────────────────────────────
 
-  beforeEach(() => {
-    useTodoStore.setState({
-      todos: [
-        makeTodo({ id: 1, sortOrder: 3 }),
-        makeTodo({ id: 2, sortOrder: 1 }),
-        makeTodo({ id: 3, sortOrder: 2 }),
-        makeTodo({ id: 4, sortOrder: 4, isCompleted: true }),
-        makeTodo({ id: 5, sortOrder: 0 }),
-      ],
+describe('a Breakdown row as a filter keeps exactly the row’s tasks', () => {
+  const zed = makePerson({ id: 1, name: 'Zed Ortiz' })
+  const amy = makePerson({ id: 2, name: 'Amy' })
+  const q4: Tag & { id: number } = { id: 1, name: 'q4', color: '#111' }
+  const home: Tag & { id: number } = { id: 2, name: 'home', color: '#222' }
+  const statuses: (Status & { id: number })[] = [
+    { id: 10, name: 'Todo', color: '#888', sortOrder: 1 },
+    { id: 11, name: 'Waiting', color: '#888', sortOrder: 2 },
+  ]
+  // Every bucket of every split: due late / today / this week / later / none; created this week … long ago; each marker mix.
+  const tasks: PersistedTodoItem[] = [
+    makeTodo({ id: 1, dueDate: day(-3), createdAt: day(-2), statusId: 10, urgent: true }),
+    makeTodo({ id: 2, dueDate: day(0), createdAt: day(-6), statusId: 11, important: true }),
+    makeTodo({ id: 3, dueDate: day(1), createdAt: day(-7), focus: true, important: true }),
+    makeTodo({ id: 4, dueDate: day(7), createdAt: day(-27), urgent: true, important: true }),
+    makeTodo({ id: 5, dueDate: day(8), createdAt: day(-28), statusId: 10 }),
+    makeTodo({ id: 6, createdAt: day(-90) }),
+    makeTodo({ id: 7, dueDate: day(2), createdAt: day(-91), statusId: 11 }),
+    makeTodo({ id: 8, createdAt: day(-400), important: true, urgent: false }),
+  ]
+  const assignedPeopleMap = new Map<number, Person[]>([[1, [zed]], [2, [zed, amy]], [4, [amy]], [7, [zed]]])
+  const assignedTagsMap = new Map<number, Tag[]>([[1, [q4]], [3, [q4, home]], [5, [home]]])
+  const ctx: StatsContext = { today, weekStartsOn: 1, urgentRange: 3, assignedPeopleMap, assignedTagsMap, statuses }
+  const lookups = todoNameLookups({ assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo: new Map(), subtasksByTodo: new Map() })
+
+  const kept = (f: ReviewFilter): number[] => {
+    const criteria = predicateToCriteria(withExpression(emptyPredicate(), f.expression, f.showCompleted))
+    return tasks.filter((t) => matchesFilterWithLookups(criteria, t, lookups, today, { urgentRange: 3, weekStartsOn: 1 })).map((t) => t.id).sort((a, b) => a - b)
+  }
+  const ids = (row: BreakdownRow) => [...row.ids].sort((a, b) => a - b)
+  const rowsOf = (splitBy: BreakdownSplit, over: readonly PersistedTodoItem[] = tasks) =>
+    computeBreakdown(over, ctx, { splitBy, show: 'count', oldestBy: 'created', columns: [] }).rows
+
+  for (const splitBy of ['people', 'tags', 'status', 'priority', 'due', 'age'] as const) {
+    it(`split by ${splitBy}: every row, the none row too`, () => {
+      const rows = rowsOf(splitBy)
+      expect(rows.length).toBeGreaterThan(1)
+      for (const row of rows) {
+        expect(breakdownRowTerm(row, splitBy), row.key).not.toBeNull()
+        const filter = breakdownReviewFilter({ filter: emptyPredicate(), splitBy }, row)
+        expect(filter && kept(filter), row.key).toEqual(ids(row))
+      }
     })
-    usePersonStore.setState({
-      people: [aisha, ben],
-      assignedPeopleMap: new Map([[1, [aisha]], [2, [aisha, ben]], [3, [ben]], [4, [aisha]]]),
+  }
+
+  it('ANDed with the Breakdown’s own filter, and a count column’s filter', () => {
+    const chartFilter: TodoPredicate = { ...emptyPredicate(), tags: [1, 2] }
+    const chartTasks = tasks.filter((t) => (assignedTagsMap.get(t.id) ?? []).length > 0)
+    const zedRow = rowsOf('people', chartTasks).find((r) => r.key === 'person-1')
+    if (!zedRow) throw new Error('no row')
+    const filter = breakdownReviewFilter({ filter: chartFilter, splitBy: 'people' }, zedRow)
+    expect(filter && kept(filter)).toEqual(ids(zedRow))
+    const column = { filter: { ...emptyPredicate(), statusIds: [10] } }
+    const withColumn = breakdownReviewFilter({ filter: chartFilter, splitBy: 'people' }, zedRow, column)
+    expect(withColumn?.expression).toEqual({
+      kind: 'and',
+      items: [{ kind: 'or', items: [{ kind: 'tag', id: 1 }, { kind: 'tag', id: 2 }] }, { kind: 'person', id: 1 }, { kind: 'status', id: 10 }],
     })
-    useTagStore.setState({ tags: [legal], assignedTagsMap: new Map([[3, [legal]], [1, [legal]]]) })
-  })
-
-  it('a person: their open tasks, by sort order (a completed one left out)', () => {
-    expect(personReview(aisha)).toMatchObject({ kind: 'person', title: 'Aisha', description: 'Open tasks assigned to Aisha.', ids: [2, 1] })
-  })
-
-  it('a tag: its open tasks, by sort order', () => {
-    expect(tagReview(legal)).toMatchObject({ kind: 'tag', title: '#legal', description: 'Open tasks tagged #legal.', ids: [3, 1] })
-  })
-
-  it('several people: their open tasks together, each once', () => {
-    expect(peopleReview([aisha, ben])).toMatchObject({
-      kind: 'people',
-      title: '2 people',
-      description: 'Open tasks assigned to Aisha or Ben.',
-      ids: [2, 3, 1],
-    })
-  })
-
-  it('one person through peopleReview is that person’s review', () => {
-    const viaPeople = peopleReview([ben])
-    const viaPerson = personReview(ben)
-    expect({ ...viaPeople, lens: undefined }).toEqual({ ...viaPerson, lens: undefined })
-    expect(viaPeople.lens?.requery(true)).toEqual(viaPerson.lens?.requery(true))
-  })
-})
-
-describe('the deck’s lens switch (item 10)', () => {
-  const aisha: Person = { id: 1, name: 'Aisha', initials: 'A' }
-  const legal: Tag = { id: 7, name: 'legal', color: '#999' }
-  const store = () => useReviewStore.getState()
-  const current = () => store().order[store().index]
-
-  beforeEach(() => {
-    useTodoStore.setState({
-      todos: [makeTodo({ id: 1, sortOrder: 1 }), makeTodo({ id: 2, sortOrder: 2 }), makeTodo({ id: 3, sortOrder: 3 })],
-    })
-    usePersonStore.setState({ people: [aisha], assignedPeopleMap: new Map([[1, [aisha]], [2, [aisha]], [3, [aisha]]]) })
-    useTagStore.setState({ tags: [legal], assignedTagsMap: new Map([[2, [legal]]]) })
-    useSettingsStore.setState({ lenses: [{ id: 'l1', name: 'Legal', predicate: { ...emptyPredicate(), tags: [7] } }], activeLensId: 'l1' })
-  })
-
-  it('a person’s review opens as before, without the lens; −N is what the lens would hide there', () => {
-    expect(openReview(personReview(aisha))).toBe(true)
-    expect(store().ids).toEqual([1, 2, 3])
-    expect(store().lens).toMatchObject({ ignored: true, hides: 2, used: false })
-  })
-
-  it('a toggle takes the queue again under the lens, the current task kept while it stays; again, without it', () => {
-    openReview(personReview(aisha))
-    store().go(1)
-    toggleReviewLens()
-    expect(store()).toMatchObject({ ids: [2], order: [2], index: 0 })
-    expect(store().lens).toMatchObject({ ignored: false, hides: 2, used: true })
-    toggleReviewLens()
-    expect(store()).toMatchObject({ ids: [1, 2, 3], order: [1, 2, 3] })
-    expect(current()).toBe(2)
-  })
-
-  it('the current task left out by the lens: the next one that stays (the sort and marks kept)', () => {
-    openReview(personReview(aisha))
-    store().skip()
-    expect(current()).toBe(2)
-    store().back()
-    toggleReviewLens()
-    expect(current()).toBe(2)
-    expect(store().marks).toEqual({ 1: 'skipped' })
-  })
-
-  it('no lens picked: hides nothing', () => {
-    useSettingsStore.setState({ activeLensId: null })
-    openReview(personReview(aisha))
-    expect(store().lens).toMatchObject({ ignored: true, hides: 0 })
-  })
-
-  it('a list tab: under the lens unless the list ignores it; a toggle builds the list again without it', () => {
-    useListDefinitionStore.setState({
-      listDefinitions: [{
-        id: 9, name: 'Aisha 1:1', sortOrder: 0, owner: { layoutId: 1 },
-        membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'manual', grouping: 'none',
-      }],
-    })
-    useListWidgetStore.getState().setShown('tab-1', shownList({ grouped: false, sections: [section('all', 'All', [2])] }))
-    expect(reviewListTab('tab-1')).toBe(true)
-    expect(store().lens).toMatchObject({ ignored: false, hides: 2 })
-    toggleReviewLens()
-    expect(store().ids).toEqual([1, 2, 3])
-    expect(current()).toBe(2)
-  })
-})
-
-describe('the filtered-tasks panel’s review (the screen filter as a source)', () => {
-  const aisha: Person = { id: 1, name: 'Aisha', initials: 'A' }
-  const legal: Tag = { id: 7, name: 'legal', color: '#999' }
-  const store = () => useReviewStore.getState()
-
-  beforeEach(() => {
-    useTodoStore.setState({
-      todos: [
-        makeTodo({ id: 1, sortOrder: 1 }),
-        makeTodo({ id: 2, sortOrder: 2 }),
-        makeTodo({ id: 3, sortOrder: 3 }),
-        makeTodo({ id: 4, sortOrder: 4 }),
-      ],
-    })
-    usePersonStore.setState({ people: [aisha], assignedPeopleMap: new Map([[1, [aisha]], [2, [aisha]], [3, [aisha]]]) })
-    useTagStore.setState({ tags: [legal], assignedTagsMap: new Map([[2, [legal]], [4, [legal]]]) })
-    useSettingsStore.setState({ lenses: [{ id: 'l1', name: 'Legal', predicate: { ...emptyPredicate(), tags: [7] } }], activeLensId: null })
-    useFilterStore.getState().clearAll()
-  })
-
-  it('takes the panel’s rows in its order, each once; its headings become the dividers', () => {
-    const groups = [
-      { key: 'a', label: 'Aisha', todoIds: [3, 1] },
-      { key: 'b', label: 'Unassigned', todoIds: [1, 4] },
-    ]
-    expect(queueOfRowGroups(groups)).toEqual({ ids: [3, 1, 4], dividers: [{ index: 0, label: 'Aisha' }, { index: 2, label: 'Unassigned' }] })
-    // A flat panel: no dividers.
-    expect(queueOfRowGroups([{ key: 'all', label: null, todoIds: [2, 1] }])).toEqual({ ids: [2, 1], dividers: [] })
-    const payload = screenReview(groups)
-    expect(payload).toMatchObject({ kind: 'screen', title: 'Filtered tasks', ids: [3, 1, 4], description: 'Every open task the top bar shows.' })
-    expect(openReview(payload)).toBe(true)
-    expect(store()).toMatchObject({ open: true, source: { kind: 'screen', title: 'Filtered tasks' }, ids: [3, 1, 4] })
-  })
-
-  it('its description follows the chips', () => {
-    useFilterStore.getState().setPersonIds(new Set([1]))
-    expect(screenReview([]).description).toBe('Open tasks matching the screen filter.')
-    useFilterStore.getState().setShowCompleted(true)
-    expect(screenReview([]).description).toBe('Tasks matching the screen filter, completed ones included.')
-  })
-
-  it('the lens switch: under the lens as the panel showed it; a toggle takes the screen filter’s tasks again without it, and back', () => {
-    useFilterStore.getState().setPersonIds(new Set([1]))
-    useSettingsStore.setState({ activeLensId: 'l1' })
-    // Aisha's tasks under Legal: task 2 alone.
-    expect(screenQueueNow(false).ids).toEqual([2])
-    expect(screenQueueNow(true).ids).toEqual([1, 2, 3])
-    openReview(screenReview([{ key: 'all', label: null, todoIds: [2] }]))
-    expect(store().lens).toMatchObject({ ignored: false, hides: 2, used: false })
-    toggleReviewLens()
-    expect(store().ids).toEqual([1, 2, 3])
-    expect(store().order[store().index]).toBe(2)
-    expect(store().lens).toMatchObject({ ignored: true, hides: 2, used: true })
-    toggleReviewLens()
-    expect(store().ids).toEqual([2])
-  })
-
-  it('a lifted lens hides nothing; no tasks opens nothing', () => {
-    useSettingsStore.setState({ activeLensId: 'l1' })
-    useUIStore.setState({ lensLifted: true })
-    expect(screenQueueNow(false).ids).toEqual([1, 2, 3, 4])
-    openReview(screenReview([{ key: 'all', label: null, todoIds: [1, 2, 3, 4] }]))
-    expect(store().lens).toMatchObject({ hides: 0 })
-    store().close()
-    expect(openReview(screenReview([]))).toBe(false)
-    expect(store().open).toBe(false)
-  })
-
-  it('the entry points’ label', () => {
-    expect(reviewTasksLabel(1)).toBe('Review this task')
-    expect(reviewTasksLabel(8)).toBe('Review these 8 tasks')
+    expect(withColumn && kept(withColumn)).toEqual([1])
   })
 })

@@ -29,7 +29,7 @@ const SEED: WorkspaceSeed = {
   ],
 }
 
-type StoredList = { id: number; name: string; owner?: { layoutId?: number; eisenhower?: true }; membership: { predicate: { searchText: string } } }
+type StoredList = { id: number; name: string; owner?: { layoutId?: number }; membership: { predicate: { searchText: string } } }
 const lists = async (page: Page) => (await readListDefinitions(page)) as unknown as StoredList[]
 const layouts = async (page: Page) => readStore<{ id: number; name: string }>(page, 'layouts')
 const layoutId = async (page: Page, name: string) => (await layouts(page)).find((l) => l.name === name)!.id
@@ -49,9 +49,14 @@ test('a new list widget’s list is the open layout’s; a list tab is never poi
   await wsCell(page, 'b1').getByRole('button', { name: 'Cell options' }).click()
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
-  // A new list for this layout at once: no picker, no choice of where it goes.
+  // A new list for this layout at once: no picker, no choice of where it goes, no editor.
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect.poll(async () => (await lists(page)).find((d) => d.name === 'New list')?.owner).toEqual({ layoutId: await layoutId(page, 'Main') })
+  // Edit list… from its menu renames it.
+  const added = page.locator('[data-ws-tab]').filter({ hasText: 'New list' })
+  await added.click({ button: 'right' })
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit list…' }).click()
   const editor = page.getByRole('dialog', { name: 'Edit list New list' })
-  await expect(editor).toBeVisible()
   await editor.getByRole('textbox', { name: 'Name' }).fill('Errands')
   await page.getByRole('dialog', { name: 'Edit list Errands' }).getByRole('button', { name: 'Save', exact: true }).click()
   await expect.poll(async () => (await lists(page)).find((d) => d.name === 'Errands')?.owner).toEqual({ layoutId: await layoutId(page, 'Main') })

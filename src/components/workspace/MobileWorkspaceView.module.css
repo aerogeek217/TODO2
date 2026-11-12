@@ -390,19 +390,6 @@
   white-space: nowrap;
 }
 
-.sheetNote {
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
-}
-
-.sheetFootnote {
-  margin: 8px 12px 4px;
-  font-size: var(--font-size-meta);
-  line-height: 1.4;
-  color: var(--color-text-muted);
-}
-
 .sheetCheck {
   display: inline-flex;
   color: var(--color-accent-text);
@@ -416,10 +403,6 @@
 
 
 /* A second section's heading in a sheet. */
-.sheetSectionTitle {
-  margin-top: 16px;
-}
-
 /* A glance cell (a glance widget, or any at its small face, D25 R): a slim
    header — its tabs keep their touch target (`.touch::after`), so the tab
    sheet's long-press is still there — and a body as short as its face. */

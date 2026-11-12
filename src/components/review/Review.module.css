@@ -1,12 +1,12 @@
 /* The review's parts (D26, board BL): the queue rail, the card (the task
  * layout between its title and the footer), the footer, and the Review
- * widget's medium face. The deck and the widget lay them out in a grid
- * (`rail`, `card`, `footer`). */
+ * widget's medium face. The widget lays them out in a grid (`rail`,
+ * `card`, `footer`). */
 
 /* ── Rail ───────────────────────────────────────────────────────────────── */
 
 /* The sort stays at the top; the rows scroll under it. Its own height never sizes its host (the
- * deck is as tall as the task, not as the queue). */
+ * card does, not the queue). */
 .rail {
   grid-area: rail;
   display: flex;
@@ -411,12 +411,6 @@
 
 .secondaryBtn:focus-visible {
   box-shadow: inset 0 0 0 1px var(--color-tint-10), var(--focus-ring);
-}
-
-.key {
-  font-family: inherit;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
 }
 
 /* The footer's Mark followed up is its main button: the follow-up yellow, at the footer's height. */

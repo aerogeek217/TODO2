@@ -19,7 +19,7 @@ const weekly: WsLayoutSeed = {
     { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }), wsRow({ id: 'b2', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
     {
       id: 'colC',
-      rows: [wsRow({ id: 'c1', tabs: [{ id: 'waitTab', kind: 'lens', listDefIdx: 1 }, { id: 'eisTab', kind: 'eisenhower' }] })],
+      rows: [wsRow({ id: 'c1', tabs: [{ id: 'waitTab', kind: 'lens', listDefIdx: 1 }, { id: 'mapTab', kind: 'neglect' }] })],
     },
   ],
 }
@@ -106,13 +106,13 @@ test('tabs switch inside a cell and stay switched', async ({ page }) => {
   await wsCell(page, 'c1').scrollIntoViewIfNeeded()
   await expect(wsCell(page, 'c1').getByText('Ben', { exact: true })).toBeVisible()
 
-  await wsTab(page, 'eisTab').tap()
-  await expect(wsTab(page, 'eisTab')).toHaveAttribute('aria-selected', 'true')
-  await expect(wsCell(page, 'c1').locator('[data-eisenhower="eisTab"]')).toBeVisible()
+  await wsTab(page, 'mapTab').tap()
+  await expect(wsTab(page, 'mapTab')).toHaveAttribute('aria-selected', 'true')
+  await expect(wsCell(page, 'c1').locator('[data-neglect-map="mapTab"]')).toBeVisible()
 
   // The active tab is view state: kept across a reload, never an unsaved change.
   await page.reload()
-  await expect(wsTab(page, 'eisTab')).toHaveAttribute('aria-selected', 'true')
+  await expect(wsTab(page, 'mapTab')).toHaveAttribute('aria-selected', 'true')
   await page.getByTestId('layout-picker').tap()
   const sheet = page.getByRole('dialog', { name: 'Layouts' })
   await expect(sheet).toBeVisible()
@@ -187,7 +187,7 @@ test('the layout sheet is a bottom sheet on the dialog frame: focus on the open 
 
 test('a list tab’s sheet is on the dialog frame too: focus in, arrows move, Tab kept inside, Esc closes, focus back on the tab', async ({ page }) => {
   await seed(page)
-  // A list tab: Waiting on beside the Eisenhower (one widget has no tab, D26 AA1), made active first.
+  // A list tab: Waiting on beside the Neglect map (one widget has no tab, D26 AA1), made active first.
   const tab = wsTab(page, 'waitTab')
   await tab.tap()
   await expect(tab).toHaveAttribute('aria-selected', 'true')

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { ADD_FILTER, seedWorkspace, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, pickInReview, seedWorkspace, type WorkspaceSeed, wsRow, wsTab, expectLayoutStored } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -10,7 +10,7 @@ import { readStore } from './fixtures/db'
  * .eml method downloads an unsent draft; both record a follow-up that Undo
  * takes back. Which tasks is a filter line (no People) that narrows the row
  * counts at once and is remembered for the next dialog and the one-click
- * send.
+ * send (the Review widget's Email check-in).
  */
 
 const seed: WorkspaceSeed = {
@@ -29,7 +29,7 @@ const seed: WorkspaceSeed = {
   layouts: [
     {
       name: 'Main',
-      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, { id: 'n1', kind: 'notes' }] })] }],
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, { id: 'n1', kind: 'notes' }, { id: 'rv', kind: 'review' }] })] }],
     },
   ],
 }
@@ -217,11 +217,10 @@ test('Which tasks is a filter line: it narrows the counts, is remembered, and a 
   await again.getByRole('button', { name: 'Done' }).click()
   await expect(again).toHaveCount(0)
 
-  // A one-click send uses it: the palette counts what it picks, the email holds that one task.
-  await page.keyboard.press('Control+k')
-  await page.getByPlaceholder(/Find tasks, commands/).pressSequentially('email ada')
-  await expect(page.getByRole('option', { name: /Email Check-in › Ada Lovelace/ })).toContainText('1 of 2 open tasks')
-  await page.keyboard.press('Enter')
+  // A one-click send (the Review widget's Email check-in, widget feedback 2B) uses it: the email holds that one task.
+  await wsTab(page, 'rv').click()
+  await pickInReview(page, 'rv', 'Ada')
+  await page.locator('[data-review-widget="rv"]').getByRole('button', { name: 'Email check-in' }).click()
   await expect.poll(async () => (await anchors(page)).map((a) => a.href).filter((h) => h.startsWith('mailto:')))
     .toEqual(['mailto:ada@example.com?subject=Task%20check-in%3A%201%20open%20task'])
   const html = await page.evaluate(async () => {

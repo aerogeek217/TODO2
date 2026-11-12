@@ -19,7 +19,7 @@ import { grid, single } from '../helpers/layout-builders'
  * no tab deletes it at once, in the edit's undo step (Undo brings it back
  * with its tab), Duplicate layout copies the ones it shows (as edited, with
  * their manual order) for the new layout, Delete layout takes them with it
- * — never another layout's or the Eisenhower's.
+ * — never another layout's.
  */
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
@@ -43,13 +43,11 @@ interface World {
   mine1: number
   mine2: number
   theirs: number
-  eisenhower: number
 }
 
 /**
  * Layout A (open) shows three lists of its own; layout B shows its own
- * list; the Eisenhower has its list. A's "Mine 1" and B's list have a manual
- * order.
+ * list. A's "Mine 1" and B's list have a manual order.
  */
 async function world(): Promise<World> {
   const a = await layoutRepository.insert(layoutWith('A', []))
@@ -58,8 +56,7 @@ async function world(): Promise<World> {
   const mine1 = (await db.listDefinitions.add(def('Mine 1', { layoutId: a }))) as number
   const mine2 = (await db.listDefinitions.add(def('Mine 2', { layoutId: a }))) as number
   const theirs = (await db.listDefinitions.add(def('Theirs', { layoutId: b }))) as number
-  const eisenhower = (await db.listDefinitions.add(def('Eisenhower', { eisenhower: true }))) as number
-  await db.layouts.update(a, layoutWith('A', [lens('s', saved), lens('m1', mine1), lens('m2', mine2), createTab('eisenhower', 'e')]))
+  await db.layouts.update(a, layoutWith('A', [lens('s', saved), lens('m1', mine1), lens('m2', mine2), createTab('notes', 'e')]))
   await db.layouts.update(b, layoutWith('B', [lens('t', theirs)]))
   await db.listOrders.bulkAdd([
     { listDefinitionId: mine1, todoId: 1, rank: 1 },
@@ -69,7 +66,7 @@ async function world(): Promise<World> {
   await layoutRepository.setActiveId(a)
   await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
   await ws().init()
-  return { a, b, saved, mine1, mine2, theirs, eisenhower }
+  return { a, b, saved, mine1, mine2, theirs }
 }
 
 const settled = () => settleLayoutWrites()
@@ -99,8 +96,8 @@ describe('an edit that leaves a list shown by no tab', () => {
   it('deletes it at once — with its manual order — and nothing else', async () => {
     const w = await world()
     ws().closeTab('m1')
-    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs, w.eisenhower])
-    expect(storeListIds()).toEqual([w.saved, w.mine2, w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    expect(storeListIds()).toEqual([w.saved, w.mine2, w.theirs])
     expect(await ranksOf(w.mine1)).toEqual([])
     expect(useListOrderStore.getState().ranks.has(w.mine1)).toBe(false)
     // Another layout's list keeps its order.
@@ -157,13 +154,13 @@ describe('an edit that leaves a list shown by no tab', () => {
     const w = await world()
     ws().closeTab('m1')
     ws().closeTab('m2')
-    expect(await storedListIds()).toEqual([w.saved, w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.saved, w.theirs])
     await undo()
     expect(ws().working!.cells[0]!.tabs.map((t) => t.id)).toEqual(['s', 'm2', 'e'])
-    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
     await undo()
     const listOf = (t: LayoutTab) => (t.kind === 'lens' ? t.config.listDefinitionId : t.kind)
-    expect(ws().working!.cells[0]!.tabs.map(listOf)).toEqual([w.saved, w.mine1, w.mine2, 'eisenhower'])
+    expect(ws().working!.cells[0]!.tabs.map(listOf)).toEqual([w.saved, w.mine1, w.mine2, 'notes'])
   })
 
   it('a whole cell closed: Undo brings back its lists and the cell as it was', async () => {
@@ -174,10 +171,10 @@ describe('an edit that leaves a list shown by no tab', () => {
     useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
     await ws().init()
     ws().closeCell('k-A')
-    expect(await storedListIds()).toEqual([w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.theirs])
     expect(undoNames().at(-1)).toBe('Closed cell (4 tabs)')
     await undo()
-    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs])
     expect(ws().working!.cells.map((c) => c.id)).toEqual(['kt', 'k-A'])
   })
 
@@ -209,7 +206,7 @@ describe('an edit that leaves a list shown by no tab', () => {
     const tabId = ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: fresh })!
     expect(undoNames().at(-1)).toBe('Added “New here”')
     await undo()
-    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs])
     expect(storeListIds()).not.toContain(fresh)
     await redo()
     expect(await storedListIds()).toContain(fresh)
@@ -217,10 +214,10 @@ describe('an edit that leaves a list shown by no tab', () => {
     expect(ws().working!.cells[0]!.tabs.map((t) => t.id)).toContain(tabId)
   })
 
-  it('never touches the Eisenhower’s list or another layout’s, though no tab of this layout shows them', async () => {
+  it('never touches another layout’s list, though no tab of this layout shows them', async () => {
     const w = await world()
     ws().closeTab('e')
-    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs])
   })
 })
 
@@ -228,11 +225,9 @@ describe('a layout shows only its own lists', () => {
   const tabsOf = () => ws().working!.cells.flatMap((k) => k.tabs)
   const steps = () => useUndoStore.getState().undoStack.length
 
-  it('a new tab on another layout’s or the Eisenhower’s list is refused; on its own, added', async () => {
+  it('a new tab on another layout’s list is refused; on its own, added', async () => {
     const w = await world()
-    for (const id of [w.theirs, w.eisenhower]) {
-      expect(ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: id })).toBeNull()
-    }
+    expect(ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: w.theirs })).toBeNull()
     expect(steps()).toBe(0)
     expect(layoutListRefs(ws().working!)).toEqual(new Set([w.saved, w.mine1, w.mine2]))
     const tabId = ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: w.mine1 })
@@ -271,7 +266,7 @@ describe('page load', () => {
     const w = await world()
     const unshown = await useListDefinitionStore.getState().add({ name: 'Unshown', owner: { layoutId: w.a } })
     await reload()
-    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs])
     expect(storeListIds()).not.toContain(unshown)
   })
 
@@ -283,7 +278,7 @@ describe('page load', () => {
       kind: 'saved',
       layoutId: w.a,
       base,
-      body: layoutBodyOf(layoutWith('A', [lens('s', w.saved), lens('m1', w.mine1), lens('m2', w.mine2), createTab('eisenhower', 'e'), lens('k', kept)])),
+      body: layoutBodyOf(layoutWith('A', [lens('s', w.saved), lens('m1', w.mine1), lens('m2', w.mine2), createTab('notes', 'e'), lens('k', kept)])),
     })
     await reload()
     expect(layoutListRefs(ws().working!).has(kept)).toBe(true)
@@ -358,7 +353,7 @@ describe('page load', () => {
     await db.layouts.update(w.a, layoutWith('A', [lens('s', w.saved), lens('m1', w.mine1)]))
     await reload()
     expect(undoNames()).toEqual([])
-    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.theirs])
   })
 })
 
@@ -367,7 +362,7 @@ describe('a list of the layout another layout names (data edited by hand)', () =
     const w = await world()
     await db.layouts.update(w.b, layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1)]))
     expect(await ws().delete(w.a)).toBe(true)
-    expect(await storedListIds()).toEqual([w.mine1, w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.mine1, w.theirs])
     expect((await db.listDefinitions.get(w.mine1))?.owner).toEqual({ layoutId: w.b })
     expect(await ranksOf(w.mine1)).toEqual([[1, 1], [2, 2]])
     expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === w.mine1)?.owner).toEqual({ layoutId: w.b })
@@ -456,11 +451,11 @@ describe('Duplicate layout', () => {
 })
 
 describe('Delete layout', () => {
-  it('deletes the open layout’s own lists and their manual order; never another layout’s or the Eisenhower’s', async () => {
+  it('deletes the open layout’s own lists and their manual order; never another layout’s', async () => {
     const w = await world()
     expect(await ws().delete(w.a)).toBe(true)
-    expect(await storedListIds()).toEqual([w.theirs, w.eisenhower])
-    expect(storeListIds()).toEqual([w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.theirs])
+    expect(storeListIds()).toEqual([w.theirs])
     expect(await ranksOf(w.mine1)).toEqual([])
     expect(ws().activeLayoutId).toBe(w.b)
   })
@@ -468,7 +463,7 @@ describe('Delete layout', () => {
   it('another layout: its own lists go, the open layout’s stay', async () => {
     const w = await world()
     expect(await ws().delete(w.b)).toBe(true)
-    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2])
     expect(await ranksOf(w.theirs)).toEqual([])
     expect(ws().activeLayoutId).toBe(w.a)
   })

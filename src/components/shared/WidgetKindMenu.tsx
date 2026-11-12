@@ -5,8 +5,6 @@ export type {
   WidgetKindMenuContent,
   WidgetKindMenuProps,
   WidgetMenuAction,
-  WidgetSetting,
-  WidgetSettingOption,
 } from './widget-kind-menu-entries'
 
 /**

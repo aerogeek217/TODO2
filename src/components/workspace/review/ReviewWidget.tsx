@@ -1,22 +1,29 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, type FocusEvent, type ReactNode } from 'react'
-import { REVIEW_BY_LABEL, reviewBy, type ReviewBy } from '../../../models/review'
-import type { ReviewTab } from '../../../models/workspace-layout'
+import { DEFAULT_REVIEW_WIDGET_SORT } from '../../../models/review'
+import { kindTabTitle, type ReviewTab } from '../../../models/workspace-layout'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useReviewWidgetQueue } from '../../../hooks/use-review-widget-queue'
 import { useToday } from '../../../hooks/use-today'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { setReviewQueue } from '../../../services/review-queue'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
+import { usePersonStore } from '../../../stores/person-store'
 import {
   allReviewed,
   followedUpCount,
   reviewWidgetSession,
   shownMark,
 } from '../../../stores/review-session'
+import { useStatusStore } from '../../../stores/status-store'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
 import { useSubtaskStore } from '../../../stores/subtask-store'
+import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { expressionNamesOf } from '../../../utils/filter-chips'
+import { printExpression } from '../../../utils/filter-expression'
+import { REVIEW_WIDGET_ATTR } from '../../../utils/dom-contract'
 import { isFollowedUpToday } from '../../../utils/followup'
 import { reviewFaceFor, reviewQueueFolds } from '../../../utils/widget-face'
 import { EmptyState } from '../../shared/EmptyState'
@@ -28,32 +35,33 @@ import { ReviewSessionContext, useReviewSession } from '../../review/review-sess
 import { CellControlsContext } from '../cell-controls'
 import { TabLensSwitch } from '../LensSwitch'
 import { TopLineName, WidgetTopLine } from '../WidgetTopLine'
-import { ReviewField } from './ReviewField'
-import { REVIEW_KIND_WORDS, useReviewChoices } from './review-choices'
+import { ReviewFilterField } from './ReviewFilterField'
 import styles from './ReviewWidget.module.css'
 
 /**
- * The Review widget (item 12, board BM): the review deck in a cell. Alone in
- * its cell its top line reads `Review`, the progress (`2 followed up`, with
- * picks; under 820px wide a Queue button before it), its lens switch and the cell's ⋯; under it the prompt
- * row (`ReviewField`): the kind it reviews by as the row's label — a small
- * menu, the widget's saved setting (layout config `by`) — and the field the
- * user types in, a list's Prompt for. In a cell of several widgets there is
- * no top line: the prompt row is its first row and ends with the progress
- * and the lens switch. **The picks are temporary**, stored as a list's
- * prompt picks are (`list-widget-store.picks`, by tab id: never saved, gone
- * with a reload), one or more of the kind, OR-combined. The queue is
- * **live** (`useReviewWidgetQueue`): the picks' open tasks under the screen
- * filter and the widget's lens switch — a task leaving the picks leaves the
- * rail; the current one stays until the review moves on. Its place and –
- * marks last as long as the picks (the tab's session; ✓ is followed up
- * today, item 11); only the rail's sort and the lens switch are view state.
- * Faces (`utils/widget-face.reviewFaceFor`): large — the rail, the deck's
- * card (`components/review/ReviewCard`) and its footer; medium — the card's
+ * The Review widget (item 12; widget feedback 2A, board Review-field): a
+ * review in a cell — where every Review button jumps (2B,
+ * `services/review-jump`, which sets its filter). Alone in its cell its top line reads `Review`, the
+ * progress (`2 followed up`, with a filter; under 820px wide a Queue button
+ * before it), its lens switch and the cell's ⋯; under it the prompt row
+ * (`ReviewFilterField`): one field that takes a filter expression — no kind
+ * to choose. In a cell of several widgets there is no top line: the prompt
+ * row is its first row and ends with the progress and the lens switch.
+ * **The filter is temporary**, kept by tab id in memory
+ * (`list-widget-store.reviewFilters`: never saved, gone with a reload). The
+ * queue is **live** (`useReviewWidgetQueue`): the open tasks the filter
+ * keeps under the screen filter and the widget's lens switch — a task
+ * leaving the filter leaves the rail; the current one stays until the
+ * review moves on. Its place and – marks last as long as the filter (the
+ * tab's session; ✓ is followed up today, item 11); only the rail's sort
+ * (Priority unless one is stored) and the lens switch are view state. A
+ * double-click on a rail row opens the task in its editor. Faces
+ * (`utils/widget-face.reviewFaceFor`): large — the rail, the card
+ * (`components/review/ReviewCard`) and its footer; medium — the card's
  * essentials, the update line and the footer (the phone's face too); small
- * — `Review · <picks>` and `N left · M followed up`, a click opens the whole
- * widget over the cell. Every write is the deck's (`useReviewFollowUp`, the
- * card's fields), each its own undo step.
+ * — `Review · <filter>` and `N left · M followed up`, a click opens the
+ * whole widget over the cell. Every write is the card's
+ * (`useReviewFollowUp`, its fields), each its own undo step.
  */
 export function ReviewWidget({ tab }: { tab: ReviewTab }) {
   const [faceRef, face] = useWidgetFace(reviewFaceFor)
@@ -61,7 +69,7 @@ export function ReviewWidget({ tab }: { tab: ReviewTab }) {
   const [sizeRef, size] = useElementSize()
   const hostRef = useCallback((el: HTMLElement | null) => { faceRef(el); sizeRef(el) }, [faceRef, sizeRef])
   const storedSort = tab.viewState?.sort
-  const session = useMemo(() => reviewWidgetSession(tab.id, () => ({ sort: storedSort ?? 'queue' })), [tab.id, storedSort])
+  const session = useMemo(() => reviewWidgetSession(tab.id, () => ({ sort: storedSort ?? DEFAULT_REVIEW_WIDGET_SORT })), [tab.id, storedSort])
   // A card opening takes the focus only while the user is working in the widget: the focus is (or was, until the
   // card it was in went) inside it — not when it went elsewhere on the page, and never from the prompt row (a
   // pick there opens the first card; the next pick is typed where the focus is).
@@ -79,9 +87,8 @@ export function ReviewWidget({ tab }: { tab: ReviewTab }) {
       <div
         ref={hostRef}
         className={styles.faceHost}
-        data-review-widget={tab.id}
+        {...{ [REVIEW_WIDGET_ATTR]: tab.id }}
         data-review-face={face}
-        data-review-by={reviewBy(tab.config)}
         onFocus={() => { focusWithin.current = true }}
         onBlur={onBlur}
       >
@@ -89,14 +96,6 @@ export function ReviewWidget({ tab }: { tab: ReviewTab }) {
       </div>
     </ReviewSessionContext.Provider>
   )
-}
-
-const NO_PICKS: readonly number[] = []
-
-/** Names in words, any of them: `Aisha`, `Aisha or Ben`, `Aisha, Ben or Cy`. */
-function anyOf(names: readonly string[]): string {
-  if (names.length <= 1) return names[0] ?? ''
-  return `${names.slice(0, -1).join(', ')} or ${names.at(-1) ?? ''}`
 }
 
 function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
@@ -107,25 +106,25 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
   session: ReturnType<typeof reviewWidgetSession>
   focusOnOpen: ReviewFocusOnOpen
 }) {
-  const by = reviewBy(tab.config)
-  const choices = useReviewChoices(by)
-  // The picks: temporary, as a list's prompt picks (never saved). One that names nothing any more — a deleted
-  // person, a list that went — just drops out.
-  const stored = useListWidgetStore((s) => s.picks[tab.id]) ?? NO_PICKS
-  const picks = useMemo(() => {
-    const live = stored.filter((id) => choices.words.has(id))
-    return live.length === stored.length ? stored : live
-  }, [stored, choices.words])
-  const picked = picks.length > 0
-  const names = anyOf(picks.map((id) => choices.words.get(id) ?? ''))
-  const queue = useReviewWidgetQueue(by, picks)
+  // The filter: temporary (never saved), the last text the field read.
+  const filter = useListWidgetStore((s) => s.reviewFilters[tab.id]) ?? null
+  const picked = filter != null
+  const people = usePersonStore((s) => s.people)
+  const tags = useTagStore((s) => s.tags)
+  const statuses = useStatusStore((s) => s.statuses)
+  // A jump from a list that narrows by nothing sends a filter that prints as nothing: every open task.
+  const filterText = useMemo(
+    () => (filter ? printExpression(filter.expression, filter.showCompleted, expressionNamesOf({ people, tags, statuses })) || 'Every open task' : ''),
+    [filter, people, tags, statuses],
+  )
+  const queue = useReviewWidgetQueue(filter)
   const todos = useTodoStore((s) => s.todos)
   const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos])
   const today = useToday()
   const order = useReviewSession((s) => s.order)
   const index = useReviewSession((s) => s.index)
   const marks = useReviewSession((s) => s.marks)
-  const fieldRef = useRef<HTMLInputElement>(null)
+  const fieldRef = useRef<HTMLTextAreaElement>(null)
   // Alone in its cell (no tab strip): the widget has a top line of its own.
   const alone = useContext(CellControlsContext) != null
 
@@ -135,31 +134,21 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
     void useStatusUpdateStore.getState().ensureLoaded()
   }, [])
 
-  // The picks are of the kind they were made for: when the kind changes under them some other way than its
-  // menu (an undo of the kind's change), they go too — an id means another thing by another kind.
-  const picksBy = useRef(by)
-  useEffect(() => {
-    if (picksBy.current === by) return
-    picksBy.current = by
-    useListWidgetStore.getState().setPicks(tab.id, [])
-  }, [by, tab.id])
-
   // The live queue into the session: the place kept — the current task staying after it leaves the
-  // picks until the review moves on, except when the picks change. With no picks left, the – marks go
-  // with them (the place does with the queue).
-  const synced = useRef<{ key: string; ids: readonly number[] } | null>(null)
-  const pickKey = `${by}:${picks.join(',')}`
+  // filter until the review moves on, except when the filter changes. With no filter left, the – marks go
+  // with it (the place does with the queue).
+  const synced = useRef<{ filter: typeof filter; ids: readonly number[] } | null>(null)
   useEffect(() => {
     const last = synced.current
-    if (last && last.key === pickKey && sameIds(last.ids, queue.ids)) return
-    const first = last == null || last.key !== pickKey
-    synced.current = { key: pickKey, ids: queue.ids }
+    if (last && last.filter === filter && sameIds(last.ids, queue.ids)) return
+    const first = last == null || last.filter !== filter
+    synced.current = { filter, ids: queue.ids }
     if (!picked && Object.keys(session.getState().marks).length > 0) session.setState({ marks: {} })
     setReviewQueue(session, queue, { keepCurrent: !first })
-  }, [session, pickKey, picked, queue])
+  }, [session, filter, picked, queue])
 
   // The rail's sort is view state, saved at once.
-  const viewSort = tab.viewState?.sort ?? 'queue'
+  const viewSort = tab.viewState?.sort ?? DEFAULT_REVIEW_WIDGET_SORT
   useEffect(() => session.subscribe((s) => {
     if (s.sort !== viewSort) void useWorkspaceStore.getState().patchTabViewState(tab.id, 'review', { sort: s.sort })
   }), [session, tab.id, viewSort])
@@ -168,36 +157,29 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
     const t = todoById.get(id)
     return t != null && isFollowedUpToday(t, today)
   }, [todoById, today])
+  const openTask = useCallback((id: number) => useUIStore.getState().openEditPopup(id), [])
   const n = order.length
   const done = followedUpCount(marks, order, followedUpToday)
   const left = order.filter((id) => shownMark(marks, id, followedUpToday) == null).length
   const finished = allReviewed(marks, order, followedUpToday)
   const currentId = order[index]
   const todo = currentId != null ? todoById.get(currentId) : undefined
-  const kind = REVIEW_KIND_WORDS[by].a
 
   if (face === 'small') {
     return (
       <div className={styles.small} data-testid="review-small-face">
         <span className={styles.smallGlyph} aria-hidden="true"><ReviewIcon size={16} /></span>
         <span className={styles.smallText}>
-          <span className={styles.smallTitle}>{`Review · ${picked ? names : `Pick ${kind}`}`}</span>
+          <span className={styles.smallTitle}>{`${kindTabTitle(tab)} · ${picked ? filterText : 'Pick who or what'}`}</span>
           {picked && <span className={styles.smallCaption} data-testid="review-small-caption">{`${left} left · ${done} followed up`}</span>}
         </span>
       </div>
     )
   }
 
-  // The kind is the widget's setting (layout config: saved at once, one undo step); its picks were of the old kind.
-  const setBy = (next: ReviewBy) => {
-    if (next === by) return
-    useListWidgetStore.getState().setPicks(tab.id, [])
-    useWorkspaceStore.getState().patchTabConfig(tab.id, 'review', { by: next }, `Review by ${REVIEW_BY_LABEL[next]}`)
-  }
-
   // How many are followed up; on the large face `All N reviewed` before it once every task has a mark. No
   // place in the queue: the card is the current task.
-  const queueLabel = `Review queue: ${names}`
+  const queueLabel = `Review queue: ${filterText}`
   // The large face under 820px wide: no queue column; a Queue button opens it.
   const queueFolded = face === 'large' && !!todo && reviewQueueFolds(width)
   const status = face === 'large' && finished ? `All ${n} reviewed` : null
@@ -220,18 +202,15 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
     body = (
       <div className={styles.emptyPrompt} data-testid="review-empty">
         <EmptyState
-          illustration={by === 'person' ? 'person' : 'list'}
-          title={`Pick ${kind} to review`}
-          text={`Type in the ${REVIEW_BY_LABEL[by]} field above. The pick is temporary and isn’t saved.`}
-          action={{ label: `Pick ${kind}`, onClick: () => fieldRef.current?.focus() }}
+          illustration="person"
+          title="Pick who or what to review"
+          text="Click the field, or type @person, #tag, !status or any filter. It is temporary and isn’t saved."
+          action={{ label: 'Pick', onClick: () => fieldRef.current?.focus() }}
         />
       </div>
     )
   } else if (!todo) {
-    const { waiting } = queue
-    body = waiting.length > 0 && waiting.length === picks.length
-      ? <EmptyWords>{anyOf(waiting)} {waiting.length === 1 ? 'asks' : 'ask'} for a pick first: answer it in a list widget showing it.</EmptyWords>
-      : <EmptyWords>Nothing to review: no open tasks for {names} here.</EmptyWords>
+    body = <EmptyWords>Nothing to review: no open tasks match this filter here.</EmptyWords>
   } else if (face === 'medium') {
     body = (
       <div className={styles.medium}>
@@ -241,7 +220,7 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
   } else {
     body = (
       <div className={styles.large} data-queue-folded={queueFolded || undefined}>
-        {!queueFolded && <ReviewRail todoById={todoById} followedUpToday={followedUpToday} className={styles.rail} label={queueLabel} />}
+        {!queueFolded && <ReviewRail todoById={todoById} followedUpToday={followedUpToday} className={styles.rail} label={queueLabel} onOpenTask={openTask} />}
         <ReviewCard key={todo.id} todo={todo} focusOnOpen={focusOnOpen} />
       </div>
     )
@@ -249,16 +228,13 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
 
   return (
     <>
-      <WidgetTopLine alone className={styles.topLine} lead={<TopLineName>Review</TopLineName>}>
+      <WidgetTopLine alone className={styles.topLine} lead={<TopLineName>{kindTabTitle(tab)}</TopLineName>}>
         {progress}
         {lensSwitch}
       </WidgetTopLine>
-      <ReviewField
-        by={by}
-        options={choices.options}
-        picks={picks}
-        onPicks={(ids) => useListWidgetStore.getState().setPicks(tab.id, ids)}
-        onBy={setBy}
+      <ReviewFilterField
+        tabId={tab.id}
+        filter={filter}
         inputRef={fieldRef}
         trailing={alone ? undefined : <>{progress}{lensSwitch}</>}
       />

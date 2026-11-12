@@ -100,13 +100,12 @@ describe('the lens switch in a stored layout (view state)', () => {
     expect((tabOf(bad).viewState as { ignoreLens?: unknown } | undefined)?.ignoreLens).toBeUndefined()
   })
 
-  it('a Number without its own switch reads its config’s old ignoreLens; its switch wins', () => {
+  it('a widget ignores the lens only by its switch (v79 moved a Number’s older config ignoreLens there)', () => {
     const fresh = createTab('number', 'n')
     if (fresh.kind !== 'number') throw new Error('a Number')
-    const number = { ...fresh, config: { ...fresh.config, ignoreLens: true as const } }
     expect(tabIgnoresLens(fresh)).toBe(false)
-    expect(tabIgnoresLens(number)).toBe(true)
-    expect(tabIgnoresLens({ ...number, viewState: { ignoreLens: false } })).toBe(false)
+    expect(tabIgnoresLens({ ...fresh, viewState: { ignoreLens: true } })).toBe(true)
+    expect(tabIgnoresLens({ ...fresh, viewState: { ignoreLens: false } })).toBe(false)
     expect(tabIgnoresLens(createTab('calendar', 'c') as LensSwitchTab)).toBe(false)
   })
 })
@@ -179,11 +178,11 @@ describe('the ⋯ menu’s Apply lens “X” here', () => {
     }
   })
 
-  it('not on Created vs completed, nor a Number following a list (the list’s switch rules there)', () => {
+  it('on Created vs completed (its switch, as a chart’s); not on a Number following a list (the list’s switch rules there)', () => {
     useSettingsStore.setState({ activeLensId: LENS.id })
     const trend = createTab('trend', 't')
     inLayout(trend)
-    expect(actions(trend).find((a) => a.label.startsWith('Apply lens'))).toBeUndefined()
+    expect(actions(trend).find((a) => a.label === 'Apply lens “Q4” here')?.checked).toBe(true)
     const fresh = createTab('number', 'n')
     if (fresh.kind !== 'number') throw new Error('a Number')
     const follows: LayoutTab = { ...fresh, config: { ...fresh.config, show: 'list' } }
@@ -192,8 +191,8 @@ describe('the ⋯ menu’s Apply lens “X” here', () => {
   })
 })
 
-describe('the Eisenhower’s and the Neglect map’s', () => {
-  it('alone in their cell, on their name line; in a cell of several, the Neglect map’s floats over its corner', () => {
+describe('the Neglect map’s', () => {
+  it('alone in its cell, on its name line; in a cell of several, floating over its corner', () => {
     useSettingsStore.setState({ activeLensId: LENS.id })
     inLayout(createTab('neglect', 'w'))
     const { unmount } = render(<DndContext><CellControlsContext.Provider value={CONTROLS}><Live /></CellControlsContext.Provider></DndContext>)

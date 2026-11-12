@@ -9,10 +9,10 @@ import { runShortcutCommand, type ShortcutCallbacks } from './keyboard-shortcuts
 import { copySelectedTasks } from './task-copy'
 import { listTabZoom, stepListTabZoom, zoomTargetTab } from './list-zoom'
 import { LIST_ZOOM_LABELS, stepListZoom } from '../utils/list-zoom'
-import { listReviewCount, openReview, personReview, reviewTargetTabId } from './review'
+import { listReviewCount, personReviewFilter, reviewTargetTabId } from './review'
+import { jumpToReview, reviewJumpAvailable } from './review-jump'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useUIStore, type LayoutRequest } from '../stores/ui-store'
-import { useReviewStore } from '../stores/review-store'
 import { lensActions } from '../stores/lens-actions'
 import type { ThemeMode } from '../stores/settings-store'
 import { findLens, type Lens } from '../utils/lens'
@@ -81,20 +81,12 @@ export interface CommandContext {
   getStatuses?: () => Status[]
   /** Opens the email check-in dialog with `personIds` ticked (none = choose people there). */
   openCheckinDialog?: (personIds?: number[]) => void
-  /**
-   * Emails one person their check-in at once (`checkin-email/person-checkin`
-   * `sendPersonCheckin`). Runs inside the command's key press / click: the
-   * clipboard write needs that gesture.
-   */
-  sendPersonCheckin?: (personId: number) => void
   /** Opens the check-in reply import dialog. */
   openCheckinImport?: () => void
-  /** People, for the per-person check-in commands. */
+  /** People, for Review With ›. */
   getPeople?: () => readonly Person[]
   /** Open tasks assigned per person id (people with none may be absent). */
   getOpenTaskCounts?: () => ReadonlyMap<number, number>
-  /** Per person id, the open tasks the check-in filter picks; `null` (or absent) while there is no filter. */
-  getCheckinTaskCounts?: () => ReadonlyMap<number, number> | null
   /**
    * Adds a widget of `kind` to the open layout (Add Widget ›): the Where
    * picker on the cell last used, the kind chosen; the empty layout's way
@@ -133,38 +125,18 @@ function peopleWithOpenTasks(ctx: CommandContext): { id: number; name: string; n
 }
 
 /**
- * Email Check-in › each person with at least one open task, by name (an
- * email address isn't needed: the recipient can be added in the mail app);
- * the hint counts their open tasks — `2 of 5 open tasks` while the check-in
- * filter narrows them (what the email would hold). Running one sends that
- * person's check-in at once. None without such a person.
- */
-function personCheckinCommands(ctx: CommandContext, send: (personId: number) => void): Command[] {
-  const matching = ctx.getCheckinTaskCounts?.() ?? null
-  const people = peopleWithOpenTasks(ctx).map(({ id, name, n }): Command => ({
-    id: `email-checkin-${id}`,
-    name,
-    hint: matching ? `${matching.get(id) ?? 0} of ${openTasksLabel(n)}` : openTasksLabel(n),
-    category: 'email',
-    action: () => send(id),
-  }))
-  return people.length > 0 ? [stepCommand('email-checkin', 'Email Check-in', 'email', people)] : []
-}
-
-/**
- * Review With › each person with open tasks (their count the hint): the
- * review deck on their open tasks, as the person menu's Review with X…
- * opens it (`personReview`). Not while the deck is open: it takes one
- * review at a time.
+ * Review With › each person with open tasks (their count the hint): a jump
+ * to a Review widget with `@<name>`, as the person menu's Review with X
+ * (`services/review-jump`). None while no layout has a Review widget.
  */
 function reviewWithCommands(ctx: CommandContext): Command[] {
-  if (useReviewStore.getState().open) return []
+  if (!reviewJumpAvailable()) return []
   const people = peopleWithOpenTasks(ctx).map(({ id, name, n }): Command => ({
     id: `review-with-${id}`,
     name,
     hint: openTasksLabel(n),
     category: 'task',
-    action: () => { openReview(personReview({ id, name })) },
+    action: () => { void jumpToReview(personReviewFilter({ id })) },
   }))
   return people.length > 0 ? [stepCommand('review-with', 'Review With', 'task', people)] : []
 }
@@ -322,7 +294,6 @@ export function createCommands(
   if (ctx.openCheckinImport) {
     commands.push({ id: 'email-import-reply', name: 'Import check-in reply…', category: 'email', action: ctx.openCheckinImport })
   }
-  if (ctx.sendPersonCheckin) commands.push(...personCheckinCommands(ctx, ctx.sendPersonCheckin))
 
   // Bulk actions — only when tasks are selected
   if (ctx.selectionCount === 1) {
@@ -394,13 +365,14 @@ function listZoomCommands(): Command[] {
 }
 
 /**
- * Review List (D26): the review deck over the list tab on screen the user
- * was last in (`reviewTargetTabId`), as its key does; the hint names the
- * list and its count. None without a list tab on screen that shows a task.
+ * Review List: a jump to a Review widget with the list tab on screen the
+ * user was last in (`reviewTargetTabId`), as its key does; the hint names
+ * the list and its open tasks. None without a list tab on screen that shows
+ * an open task, or while no layout has a Review widget.
  */
 function reviewListCommands(bound: (id: string, name: string, binding: ShortcutId, category: CommandCategory) => Command): Command[] {
   const tabId = reviewTargetTabId()
-  if (!tabId) return []
+  if (!tabId || !reviewJumpAvailable()) return []
   const name = useListWidgetStore.getState().shown[tabId]?.label
   const count = tasksLabel(listReviewCount(tabId))
   return [{ ...bound('review-list', 'Review List', 'review-list', 'task'), hint: name ? `${name} · ${count}` : count }]

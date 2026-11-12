@@ -5,7 +5,6 @@ import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-st
 import { createTab, layoutBodyOf, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { writeLayoutDraft } from '../../data/draft-storage'
 import { useUndoStore } from '../../stores/undo-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -17,7 +16,7 @@ import { cell, emptyBody, grid, picture, type GridOptions } from '../helpers/lay
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
 const KA = cell('ka', [createTab('notes', 'a1'), createTab('calendar', 'a2')], { activeTabId: 'a1' })
-const KB = cell('kb', [createTab('eisenhower', 'b1')], { activeTabId: 'b1' })
+const KB = cell('kb', [createTab('lens', 'b1')], { activeTabId: 'b1' })
 
 /** ka (a1 a2) | kb (b1): column tracks A and B, one row R. */
 function twoColumns(name = 'Daily', extra: Partial<WorkspaceLayout> = {}, opts: GridOptions = {}): Omit<WorkspaceLayout, 'id'> {
@@ -200,7 +199,7 @@ describe('structural edits are saved at once, each an undo step', () => {
     ws().patchTabConfig('b1', 'notes', {}, 'Edited notes')
     expect(undoNames().at(-1)).not.toBe('Edited notes') // no change: no step
     await undo()
-    expect(cellOf(await stored(id!), 'kb')!.tabs[0]).toEqual(createTab('eisenhower', 'b1'))
+    expect(cellOf(await stored(id!), 'kb')!.tabs[0]).toEqual(createTab('lens', 'b1'))
     await undo()
     expect(cellOf(await stored(id!), 'ka')!.tabs[1]!.config).toEqual(createTab('calendar', 'a2').config)
   })
@@ -209,7 +208,7 @@ describe('structural edits are saved at once, each an undo step', () => {
     await seedAndInit(twoColumns())
     ws().changeTabKind('b1', 'trend')
     ws().patchTabConfig('b1', 'trend', { range: '4w' }, 'Edited trend')
-    expect(undoNames()).toEqual(['Changed “Eisenhower” to Created vs completed', 'Edited trend'])
+    expect(undoNames()).toEqual(['Changed “List” to Created vs completed', 'Edited trend'])
     await settleLayoutWrites()
   })
 
@@ -262,8 +261,8 @@ describe('undo of a structural edit', () => {
     ws().closeTab('b1')
     await ws().load(b!)
     await undo()
-    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Open layout “A” to undo: Closed tab “Eisenhower”.', notice: true })
-    expect(undoNames()).toEqual(['Closed tab “Eisenhower”'])
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Open layout “A” to undo: Closed tab “List”.', notice: true })
+    expect(undoNames()).toEqual(['Closed tab “List”'])
     expect(tabsOf(await stored(a!), 'kb')).toBeUndefined()
     await ws().load(a!)
     await undo()
@@ -277,7 +276,7 @@ describe('undo of a structural edit', () => {
     await ws().load(b!)
     await ws().delete(a!)
     await undo()
-    expect(useUndoStore.getState().snackbar?.description).toBe('Can’t undo: Closed tab “Eisenhower” — its layout is gone.')
+    expect(useUndoStore.getState().snackbar?.description).toBe('Can’t undo: Closed tab “List” — its layout is gone.')
     expect(undoNames()).toEqual([])
   })
 
@@ -405,55 +404,15 @@ describe('view state', () => {
 
   it('a details-width write is view state: stored at once, no undo step; clearing removes it', async () => {
     const [id] = await seedAndInit(twoColumns())
-    await ws().patchTabViewState('b1', 'eisenhower', { detailsWidth: 310 })
+    await ws().patchTabViewState('b1', 'lens', { detailsWidth: 310 })
     expect(cellOf(await stored(id!), 'kb')!.tabs[0]!.viewState).toEqual({ detailsWidth: 310 })
-    await ws().patchTabViewState('b1', 'eisenhower', { detailsWidth: undefined })
+    await ws().patchTabViewState('b1', 'lens', { detailsWidth: undefined })
     expect(cellOf(await stored(id!), 'kb')!.tabs[0]!.viewState).toEqual({})
     expect(undoNames()).toEqual([])
   })
 
-  it('a layout an earlier build stored with a lens pick opens clean — no repair — and drops the key at its next write', async () => {
-    const legacy = { lensId: 'lens-a' } as Partial<WorkspaceLayout>
-    const [id] = await seedAndInit(twoColumns('Daily', legacy))
-    expect('lensId' in (await stored(id!))).toBe(true)
-    expect(ws().repairedIds.size).toBe(0)
-    expect(useUndoStore.getState().snackbar).toBeNull()
-    expect(ws().working && 'lensId' in ws().working!).toBe(false)
-    expect(ws().layouts.every((l) => !('lensId' in l))).toBe(true)
-    await ws().setActiveTab('a2')
-    expect((await stored(id!)).cells[0]!.activeTabId).toBe('a2')
-    expect('lensId' in (await stored(id!))).toBe(false)
-  })
-
-  it('an edit drops a legacy lens pick from the stored layout', async () => {
-    const legacy = { lensId: 'lens-a' } as Partial<WorkspaceLayout>
-    const [id] = await seedAndInit(twoColumns('Daily', legacy))
-    ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })
-    expect('lensId' in (await stored(id!))).toBe(false)
-  })
-
-  it('a Review widget an earlier build stored with a pick and a place opens clean — by that pick’s kind, no repair — and takes the new shape at its next write (board BM)', async () => {
-    // As that build stored it: one saved pick, the current task, a day's skips.
-    const legacyTab = { id: 'rv', kind: 'review', config: { pick: { kind: 'tag', id: 3 } }, viewState: { sort: 'due', currentId: 7, skipped: { day: '2026-11-09', ids: [4] } } }
-    const KR = cell('kr', [legacyTab as unknown as ReturnType<typeof createTab>], { activeTabId: 'rv' })
-    const [id] = await seedAndInit({ sortOrder: 0, name: 'Daily', createdAt: T0, modifiedAt: T0, ...grid([[KA, KR]], { colIds: ['A', 'B'], rowIds: ['R'] }) })
-    expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual(legacyTab)
-    expect(ws().repairedIds.size).toBe(0)
-    expect(useUndoStore.getState().snackbar).toBeNull()
-    const opened = { id: 'rv', kind: 'review', config: { by: 'tag' }, viewState: { sort: 'due' } }
-    expect(cellOf(ws().working, 'kr')!.tabs[0]).toEqual(opened)
-    expect(cellOf(ws().saved, 'kr')!.tabs[0]).toEqual(opened)
-    // A view-state write (saved at once, no undo step) stores the row in the new shape.
-    await ws().patchTabViewState('rv', 'review', { sort: 'title' })
-    expect(undoNames()).toEqual([])
-    expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual({ id: 'rv', kind: 'review', config: { by: 'tag' }, viewState: { sort: 'title' } })
-    // Its kind is layout config: a change is saved at once as one undo step; Undo puts the kind back.
-    ws().patchTabConfig('rv', 'review', { by: 'person' }, 'Review by Person')
-    expect(undoNames()).toEqual(['Review by Person'])
-    expect(cellOf(await stored(id!), 'kr')!.tabs[0]!.config).toEqual({ by: 'person' })
-    await undo()
-    expect(cellOf(await stored(id!), 'kr')!.tabs[0]!.config).toEqual({ by: 'tag' })
-  })
+  // A layout's old lens pick (`lensId`) and a Review widget's saved kind, pick and place: v79 removed
+  // them from every stored row (`v79-upgrade.test`), so the layout read has no shim for them.
 })
 
 describe('sizes are view state', () => {
@@ -604,7 +563,7 @@ describe('layouts', () => {
     const row = await stored(id!)
     expect(row.name).toBe('Morning')
     expect(row.cells).toHaveLength(1)
-    expect(undoNames()).toEqual(['Closed tab “Eisenhower”'])
+    expect(undoNames()).toEqual(['Closed tab “List”'])
     expect(await ws().rename(id!, '')).toBe(false)
   })
 
@@ -622,6 +581,33 @@ describe('layouts', () => {
     expect(await ws().rename(id!, 'Evening', null)).toBe(true)
     expect('hue' in (await stored(id!))).toBe(false)
     expect(ws().working!.hue).toBeUndefined()
+  })
+
+  it('rename with an icon stores it with the name, no undo step; none leaves it; No icon is stored as none', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    ws().closeTab('b1')
+    expect(await ws().rename(id!, 'Home', 'green', { kind: 'emoji', emoji: '🏠' })).toBe(true)
+    expect(ws().working).toMatchObject({ name: 'Home', hue: 'green', icon: { kind: 'emoji', emoji: '🏠' } })
+    expect(ws().layouts.find((l) => l.id === id)?.icon).toEqual({ kind: 'emoji', emoji: '🏠' })
+    expect((await stored(id!)).icon).toEqual({ kind: 'emoji', emoji: '🏠' })
+    expect(undoNames()).toEqual(['Closed tab “List”'])
+    expect(await ws().rename(id!, 'Home 2', 'green')).toBe(true)
+    expect((await stored(id!)).icon).toEqual({ kind: 'emoji', emoji: '🏠' })
+    expect(await ws().rename(id!, 'Home 2', 'green', { kind: 'none' })).toBe(true)
+    expect((await stored(id!)).icon).toEqual({ kind: 'none' })
+    expect(ws().working!.icon).toEqual({ kind: 'none' })
+    // A later structural edit writes the whole layout: the icon stays.
+    ws().splitCell(ws().working!.cells[0]!.id, 'right')
+    await vi.waitFor(async () => expect((await stored(id!)).cells.length).toBe(2))
+    expect((await stored(id!)).icon).toEqual({ kind: 'none' })
+  })
+
+  it('Duplicate layout carries the icon', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    await ws().rename(id!, 'Daily', undefined, { kind: 'line', key: 'flag' })
+    const copy = await ws().duplicateLayout('Daily copy')
+    expect((await stored(copy!)).icon).toEqual({ kind: 'line', key: 'flag' })
+    expect(ws().working!.icon).toEqual({ kind: 'line', key: 'flag' })
   })
 
   it('an undo after a rename keeps the new name', async () => {
@@ -750,19 +736,5 @@ describe('an unsaved layout change an older build kept in the browser', () => {
     expect(ws().activeLayoutId).toBe(a)
     expect(ws().layouts).toHaveLength(2)
     expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
-  })
-
-  it('an Eisenhower tab holds no list (its source is a setting): a kept new layout with one is stored', async () => {
-    const listId = await db.listDefinitions.add({
-      name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none',
-      membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
-    } as never) as number
-    await seedAndInit(twoColumns('A'))
-    await useListDefinitionStore.getState().load()
-    useSettingsStore.setState({ eisenhowerListId: listId })
-    writeLayoutDraft({ kind: 'new', name: 'Matrix', body: grid([[cell('ke', [createTab('eisenhower', 'e1')])]]) })
-    await reload()
-    expect(ws().working).toMatchObject({ name: 'Matrix' })
-    expect(ws().working!.cells[0]!.tabs[0]).toMatchObject({ kind: 'eisenhower', config: {} })
   })
 })

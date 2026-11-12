@@ -16,7 +16,7 @@ test.use({ viewport: { width: 1280, height: 800 } })
 const twoColumns: WsLayoutSeed = {
   name: 'Main',
   columns: [
-    { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] })] },
+    { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'mapTab', kind: 'neglect' }] })] },
     { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
   ],
 }
@@ -41,18 +41,18 @@ async function addImportantFilter(page: Page) {
   await expect(page.getByTestId('list-filter-picker')).toBeHidden()
 }
 
-async function closeEisenhower(page: Page) {
-  await wsTab(page, 'eisTab').click()
-  await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
-  await expectLayoutStep(page, 'Closed tab “Eisenhower”')
+async function closeNeglectMap(page: Page) {
+  await wsTab(page, 'mapTab').click()
+  await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
+  await expectLayoutStep(page, 'Closed tab “Neglect map”')
 }
 
 test('a layout change is saved at once: closing the tab asks nothing, a reload keeps it, Undo puts it back', async ({ page }) => {
   await seedWorkspace(page, { layouts: [twoColumns] })
-  await closeEisenhower(page)
+  await closeNeglectMap(page)
   expect(await unloadAsks(page)).toBe(false)
   const [stored] = await readStore<{ cells: unknown[] }>(page, 'layouts')
-  expect(JSON.stringify(stored?.cells)).not.toContain('eisTab')
+  expect(JSON.stringify(stored?.cells)).not.toContain('mapTab')
   expect(await page.evaluate(() => localStorage.getItem('todo2-unsaved-layout'))).toBeNull()
 
   await page.reload()
@@ -73,8 +73,8 @@ test('a layout change is saved at once: closing the tab asks nothing, a reload k
 test('a layout change an older build kept unsaved is applied once at launch, as one undo step', async ({ page }) => {
   await seedWorkspace(page, { layouts: [twoColumns] })
   const [row] = await readStore<{ id: number; grid: unknown; cells: Array<{ id: string; tabs: Array<{ id: string }> }> }>(page, 'layouts')
-  // The older build's draft: the stored table as its base, the Eisenhower tab closed.
-  const body = row!.cells.map((c) => ({ ...c, tabs: c.tabs.filter((t) => t.id !== 'eisTab'), activeTabId: c.tabs[0]?.id }))
+  // The older build's draft: the stored table as its base, the Neglect map tab closed.
+  const body = row!.cells.map((c) => ({ ...c, tabs: c.tabs.filter((t) => t.id !== 'mapTab'), activeTabId: c.tabs[0]?.id }))
   await page.evaluate(({ id, grid, cells, base }) => {
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: id, grid, cells, baseGrid: grid, baseCells: base, schemaVersion: 78 }))
   }, { id: row!.id, grid: row!.grid, cells: body, base: row!.cells })
@@ -83,14 +83,14 @@ test('a layout change an older build kept unsaved is applied once at launch, as 
   await expectLayoutStep(page, 'Applied unsaved changes to layout “Main”')
   expect(await page.evaluate(() => localStorage.getItem('todo2-unsaved-layout'))).toBeNull()
   const [stored] = await readStore<{ cells: unknown[] }>(page, 'layouts')
-  expect(JSON.stringify(stored?.cells)).not.toContain('eisTab')
+  expect(JSON.stringify(stored?.cells)).not.toContain('mapTab')
 
   await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()
-  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab']], [['calTab']]])
   await expectLayoutStored(page)
   // Once: a reload applies nothing.
   await page.reload()
-  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab']], [['calTab']]])
 })
 
 test('an unsaved new layout an older build kept becomes a stored layout, after the others, and opens', async ({ page }) => {
@@ -161,7 +161,7 @@ test('a backup restore brings back the layout as backed up, also after a reload'
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
 
-  await closeEisenhower(page)
+  await closeNeglectMap(page)
   await openSettings(page, 'Backups')
   const manual = settings.locator('[data-trigger="manual"]')
   await manual.getByRole('button', { name: 'Restore' }).click()
@@ -172,7 +172,7 @@ test('a backup restore brings back the layout as backed up, also after a reload'
 
   await page.reload()
   await expectLayoutStored(page)
-  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab']], [['calTab']]])
 })
 
 test('a layout change never asks on closing the tab, even when the browser can’t keep anything', async ({ page }) => {
@@ -180,7 +180,7 @@ test('a layout change never asks on closing the tab, even when the browser can�
   await page.evaluate(() => {
     Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError') }
   })
-  await closeEisenhower(page)
+  await closeNeglectMap(page)
   expect(await unloadAsks(page)).toBe(false)
 })
 

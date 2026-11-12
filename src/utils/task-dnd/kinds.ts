@@ -4,7 +4,7 @@
  * any extras in `data` distinguish where the drag came from.
  */
 export const TASK_DRAG_KIND = {
-  /** Any draggable task row — list widget row (also Eisenhower and glance widget rows), calendar entry. */
+  /** Any draggable task row — list widget row (also glance widget rows), calendar entry. */
   task: 'task',
 } as const
 
@@ -18,10 +18,6 @@ export const TASK_DROP_KIND = {
    * calendar's `dateTypes` and `scope`) so the dispatcher can reschedule
    * without consulting the DOM. */
   calendarDay: 'calendar-day',
-  /** An Eisenhower quadrant (header + body, or a stacked section). The drop
-   * data carries `{ quadrant, scope }`: dropping a task gives it the
-   * quadrant's Urgent / Important flags. */
-  eisenhowerQuadrant: 'eisenhower-quadrant',
 } as const
 
 export type TaskDropKind = typeof TASK_DROP_KIND[keyof typeof TASK_DROP_KIND]

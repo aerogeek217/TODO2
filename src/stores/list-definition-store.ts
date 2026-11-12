@@ -1,18 +1,17 @@
 import { create } from 'zustand'
 import { listDefinitionRepository } from '../data/list-definition-repository'
 import {
+  type LayoutListOwner,
   type ListDefinition,
-  type ListOwner,
   type ListGrouping,
   type ListMembership,
   type ListSort,
   type PersistedListDefinition,
   type RuntimeFilterSpec,
-  isEisenhowerOwner,
 } from '../models/list-definition'
 import { emptyPredicate } from '../models'
 import { effectiveSortDirection, type TodoSortDirection } from '../models/todo-sort-group'
-import { loadFresh, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
+import { loadFresh, mutate, optimistic, makeEnsureLoaded } from './store-helpers'
 import { useListOrderStore } from './list-order-store'
 import { useSettingsStore } from './settings-store'
 import { UndoGone, useUndoStore } from './undo-store'
@@ -34,8 +33,8 @@ interface AddInput {
   grouping?: ListGrouping
   runtimeFilter?: RuntimeFilterSpec
   showFilterLine?: false
-  /** Who the list belongs to: the layout whose tab shows it (or the Eisenhower). */
-  owner: ListOwner
+  /** Who the list belongs to: the layout whose tab shows it. */
+  owner: LayoutListOwner
 }
 
 interface ListDefinitionState {
@@ -71,12 +70,6 @@ interface ListDefinitionState {
    * makes the list unsaved nor waits for its Save.
    */
   setIgnoreLens: (id: number, ignore: boolean) => Promise<void>
-  /**
-   * The Eisenhower's own list (made when there is none —
-   * `listDefinitionRepository.ensureEisenhowerList`), with the lists and
-   * `settings-store.eisenhowerListId` reloaded to name it. Returns its id.
-   */
-  ensureEisenhowerList: () => Promise<number>
   /** Drops lists the database no longer has (deleted with their layout) from the store. */
   forgetLists: (ids: readonly number[]) => void
 }
@@ -115,11 +108,8 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   async add({ name, membership, sort, sortDirection, grouping, runtimeFilter, showFilterLine, owner }) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name is required')
-    // What isn't given starts as Settings' new-list defaults (the
-    // Eisenhower's own list, whose sort and grouping nothing reads, as none).
-    const defaults = isEisenhowerOwner(owner)
-      ? { newListSort: 'manual' as const, newListSortDirection: 'asc' as const, newListGroup: 'none' as const }
-      : useSettingsStore.getState()
+    // What isn't given starts as Settings' new-list defaults.
+    const defaults = useSettingsStore.getState()
     const listSort = sort ?? defaults.newListSort
     const direction = effectiveSortDirection(listSort, sort != null ? sortDirection : defaults.newListSortDirection)
     const entry: Omit<ListDefinition, 'sortOrder'> = {
@@ -188,14 +178,6 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     const { ignoreLens: _was, ...rest } = saved
     void _was
     await get().update(ignore ? { ...rest, ignoreLens: true } : rest)
-  },
-
-  async ensureEisenhowerList() {
-    const id = await trackWrite(() => listDefinitionRepository.ensureEisenhowerList())
-    useSettingsStore.setState({ eisenhowerListId: id })
-    // After the tracked write (a load waits for writes in flight).
-    if (!get().listDefinitions.some((d) => d.id === id)) await get().load()
-    return id
   },
 
   forgetLists(ids) {

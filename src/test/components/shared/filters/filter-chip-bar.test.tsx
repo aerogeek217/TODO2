@@ -1,18 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, fireEvent, cleanup, screen, within, act } from '@testing-library/react'
+import { render, fireEvent, cleanup, screen, within, act, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { TOOLTIP_DELAY_MS } from '../../../../components/shared/use-tooltip'
 import { FilterChipBar } from '../../../../components/shared/filters/FilterChipBar'
 import { ADD_FILTER_ITEMS } from '../../../../components/shared/filters/filter-menu'
-import type { Person, TodoPredicate } from '../../../../models'
+import type { TodoPredicate } from '../../../../models'
+import { createTab } from '../../../../models/workspace-layout'
 import { useStatusStore } from '../../../../stores/status-store'
+import { useListWidgetStore } from '../../../../stores/list-widget-store'
 import { usePersonStore } from '../../../../stores/person-store'
 import { useUIStore } from '../../../../stores/ui-store'
 import { useTagStore } from '../../../../stores/tag-store'
+import { useWorkspaceStore } from '../../../../stores/workspace-store'
 import { emptyPredicate } from '../../../../models'
-import { makePerson, makeTodo } from '../../../helpers'
-import { useReviewStore } from '../../../../stores/review-store'
-import { useTodoStore } from '../../../../stores/todo-store'
+import { makePerson } from '../../../helpers'
+import { cell, grid } from '../../../helpers/layout-builders'
 import { filterMenuButton, openFilterMenu, openFilterPicker } from './filter-menu-helpers'
 
 /** A row of the Priority picker. */
@@ -450,12 +452,19 @@ describe('FilterChipBar — primitive', () => {
       })
     })
 
-    describe('People picker: Email check-in', () => {
+    describe('People picker: Review (widget feedback 2B: no check-ins here)', () => {
+      const reviewFilter = () => useListWidgetStore.getState().reviewFilters.rv
+      const withWidget = (has: boolean) => {
+        const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab(has ? 'review' : 'notes', 'rv')])]]) }
+        useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
+      }
+
       beforeEach(() => {
         useUIStore.setState({ checkinDialog: null, checkinImportOpen: false })
         usePersonStore.setState({
           people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' }), makePerson({ id: 3, name: 'Cara' })],
         })
+        withWidget(true)
       })
 
       // From its chip while on, else from the menu.
@@ -465,73 +474,29 @@ describe('FilterChipBar — primitive', () => {
         else fireEvent.click(screen.getByRole('button', { name: /^People filter/ }))
       }
 
-      // No tasks loaded here: a one-click send has nothing to send, so it opens the dialog for the person with the reason.
-      it('narrowed to one person: Email check-in to <name> sends at once (else the dialog, with the reason) and closes the picker', () => {
-        openPeople([2])
-        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Bob' }))
-        expect(useUIStore.getState().checkinDialog).toEqual({
-          personIds: [2],
-          notice: 'Bob has no open tasks, so nothing was sent.',
-        })
-        expect(screen.queryByPlaceholderText('Search...')).toBeNull()
-      })
-
-      it('narrowed to one person: Paste reply from <name>… under the send opens the reply import and closes the picker', () => {
-        openPeople([2])
+      it('narrowed to one person: Review with <name> alone (no check-ins) jumps with @<name> and closes the picker', async () => {
+        openPeople([1])
         const footer = screen.getAllByRole('button', { name: /^(Review|Email check-in|Paste reply)/ }).map((b) => b.textContent)
-        expect(footer).toEqual(['Review with Bob…', 'Email check-in to Bob', 'Paste reply from Bob…'])
-        fireEvent.click(screen.getByRole('button', { name: 'Paste reply from Bob…' }))
-        expect(useUIStore.getState().checkinImportOpen).toBe(true)
-        expect(useUIStore.getState().checkinImportPersonId).toBe(2)
+        expect(footer).toEqual(['Review with Alice'])
+        fireEvent.click(screen.getByRole('button', { name: 'Review with Alice' }))
+        await waitFor(() => expect(reviewFilter()).toEqual({ expression: { kind: 'person', id: 1 }, showCompleted: false }))
+        expect(screen.queryByPlaceholderText('Search...')).toBeNull()
         expect(useUIStore.getState().checkinDialog).toBeNull()
+      })
+
+      it('narrowed to several: Review N people’s tasks jumps with @A or @B (None ignored)', async () => {
+        openPeople([3, 0, 1])
+        expect(screen.queryByRole('button', { name: /^(Email check-in|Paste reply)/ })).toBeNull()
+        fireEvent.click(screen.getByRole('button', { name: 'Review 2 people’s tasks' }))
+        await waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 3 }] }))
         expect(screen.queryByPlaceholderText('Search...')).toBeNull()
       })
 
-      it('narrowed to several: Email check-in to N people…, ticking exactly those (None ignored); no Paste reply', () => {
-        openPeople([3, 0, 1])
-        expect(screen.queryByRole('button', { name: /^Paste reply/ })).toBeNull()
-        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to 2 people…' }))
-        expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1, 3] })
-      })
-
-      describe('Review', () => {
-        beforeEach(() => {
-          const [alice, bob, cara] = usePersonStore.getState().people as [Person, Person, Person]
-          useTodoStore.setState({ todos: [makeTodo({ id: 11, sortOrder: 2 }), makeTodo({ id: 12, sortOrder: 1 }), makeTodo({ id: 13, sortOrder: 3 })] })
-          usePersonStore.setState({ assignedPeopleMap: new Map([[11, [alice]], [12, [bob, alice]], [13, [cara]]]) })
-          useReviewStore.getState().close()
-        })
-
-        it('narrowed to one person: Review with <name>… opens the deck on their open tasks and closes the picker', () => {
-          openPeople([1])
-          fireEvent.click(screen.getByRole('button', { name: 'Review with Alice…' }))
-          expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Alice' }, ids: [12, 11] })
-          expect(screen.queryByPlaceholderText('Search...')).toBeNull()
-        })
-
-        it('narrowed to several: Review N people’s tasks… first, then Email check-in to N people…', () => {
-          openPeople([3, 1])
-          const footer = screen.getAllByRole('button', { name: /^(Review|Email check-in|Paste reply)/ }).map((b) => b.textContent)
-          expect(footer).toEqual(['Review 2 people’s tasks…', 'Email check-in to 2 people…'])
-          fireEvent.click(screen.getByRole('button', { name: 'Review 2 people’s tasks…' }))
-          expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'people', title: '2 people' }, ids: [12, 11, 13] })
-          expect(screen.queryByPlaceholderText('Search...')).toBeNull()
-        })
-
-        it('a person with no open task: Review is there but disabled', () => {
-          useTodoStore.setState({ todos: [] })
-          openPeople([2])
-          const review = screen.getByRole('button', { name: 'Review with Bob…' })
-          expect(review).toBeDisabled()
-          expect(review).toHaveAttribute('title', 'No open tasks')
-        })
-
-        it('while the deck is open: no Review, the check-ins stay', () => {
-          useReviewStore.getState().start({ source: { kind: 'list', title: 'L', description: '' }, ids: [11] })
-          openPeople([1])
-          expect(screen.queryByRole('button', { name: /^Review/ })).toBeNull()
-          expect(screen.getByRole('button', { name: 'Email check-in to Alice' })).toBeInTheDocument()
-        })
+      it('no layout has a Review widget: no footer at all', () => {
+        withWidget(false)
+        openPeople([1])
+        expect(screen.queryByRole('button', { name: /^Review/ })).toBeNull()
+        expect(screen.queryByText('Narrow to some people to review them.')).toBeNull()
       })
 
       it.each([
@@ -541,26 +506,25 @@ describe('FilterChipBar — primitive', () => {
         ['nobody', []],
       ])('%s: a hint instead of the action', (_label, personIds) => {
         openPeople(personIds)
-        expect(screen.getByText('Narrow to some people to review or email them.')).toBeInTheDocument()
+        expect(screen.getByText('Narrow to some people to review them.')).toBeInTheDocument()
         expect(screen.queryByRole('button', { name: /^(Review|Email check-in|Paste reply)/ })).toBeNull()
       })
 
-      it('from the menu: the action closes the Filter menu too', () => {
+      it('from the menu: the action closes the Filter menu too', async () => {
         render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds: [1] }} onChange={() => {}} fold />)
         openFilterPicker('People filter: Alice')
-        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Alice' }))
-        expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [1] })
+        fireEvent.click(screen.getByRole('button', { name: 'Review with Alice' }))
+        await waitFor(() => expect(reviewFilter()).toBeDefined())
         expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
       })
 
       it('Tags and Status pickers have no such footer', () => {
         render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
         openFilterPicker('Tags filter')
-        expect(screen.queryByText('Narrow to some people to review or email them.')).toBeNull()
+        expect(screen.queryByText('Narrow to some people to review them.')).toBeNull()
       })
     })
   })
-
   // ── Mobile density ───────────────────────────────────────────────────
 
   describe('mobile density', () => {

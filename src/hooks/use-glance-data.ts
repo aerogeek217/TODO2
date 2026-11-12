@@ -1,16 +1,13 @@
 import { useMemo } from 'react'
 import type { PersistedTodoItem, Tag, TodoEvent, TodoPredicate } from '../models'
-import type { PersistedListDefinition } from '../models/list-definition'
-import { TREND_RANGES, type NumberConfig, type TrendRange } from '../models/glance-widgets'
-import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
-import { filterHistory, historyExactness, type HistoryExactness } from '../services/stats/filter-history'
+import { TREND_RANGES, type NumberConfig, type TrendRange, type TrendTabConfig } from '../models/glance-widgets'
+import { emptyPredicate } from '../models/filter-predicate'
+import { filterHistory, historyExactFrom, historyExactness, type HistoryExactness, type HistoryField } from '../services/stats/filter-history'
 import { numberHistoryDays, numberIds, numberStages } from '../services/stats/number-count'
 import { computePulse, type PulseCard } from '../services/stats/pulse'
 import { pulseRuleFilter, type PulseRuleKey, type PulseTabConfig } from '../models/pulse-config'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
-import { useListDefinitionStore } from '../stores/list-definition-store'
-import { listAsShown, useListDraftStore } from '../stores/list-draft-store'
 import { usePersonStore } from '../stores/person-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
@@ -18,14 +15,8 @@ import { useStatusUpdateStore } from '../stores/status-update-store'
 import { useSubtaskStore } from '../stores/subtask-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
-import { useFilterStore } from '../stores/filter-store'
-import { currentAppliedLens } from '../stores/screen-filter'
-import { startOfToday } from '../utils/date'
-import type { PaneContext } from '../utils/eisenhower'
-import { withLens } from '../utils/lens'
-import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
+import { trendFieldsWindow } from '../utils/trend-window'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
-import { hasNarrowingFilters } from '../utils/filter-chips'
 import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
 import { applyFilter, matchesFilterWithLookups, readsText, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
@@ -135,26 +126,6 @@ export function useStatsBase(ignoreLens?: boolean): StatsBase {
   )
 }
 
-/**
- * The shared base as the stores have it now, outside a render (an action
- * taking a widget's tasks again — the review deck's lens toggle, item 10):
- * with the top bar's lens, or without it (`ignoreLens`).
- */
-export function currentStatsBase(ignoreLens: boolean): StatsBase {
-  const todos = useTodoStore.getState().todos
-  const { statuses } = useStatusStore.getState()
-  const { assignedPeopleMap } = usePersonStore.getState()
-  const { assignedTagsMap } = useTagStore.getState()
-  const { weekStartsOn, urgentDueWithinDays: urgentRange } = useSettingsStore.getState()
-  const screen = withLens(useFilterStore.getState().filters, ignoreLens ? undefined : currentAppliedLens())
-  const ctx = ctxMemo(startOfToday().getTime(), weekStartsOn, urgentRange, assignedPeopleMap, assignedTagsMap, statuses)
-  const markerSettings = settingsMemo(urgentRange, weekStartsOn)
-  const lookups = lookupsMemo(assignedPeopleMap, assignedTagsMap, statuses, useStatusUpdateStore.getState().byTodo, useSubtaskStore.getState().byTodo)
-  const shown = shownMemo(screen, todos, lookups, ctx, markerSettings)
-  const filtered = countActiveFilters({ ...screen, showCompleted: false }) > 0
-  return { ctx, todos, shown, filtered, todoById: byIdMemo(todos), screen, lookups, markerSettings }
-}
-
 const screenTasksMemo = sharedMemo((shown: PersistedTodoItem[], withCompleted: boolean): PersistedTodoItem[] => (
   withCompleted ? shown : shown.filter((t) => !t.isCompleted)
 ), 2)
@@ -200,8 +171,8 @@ export function lensHidesFor(info: LensHidden | null, ...filters: TodoPredicate[
 }
 
 /**
- * The tasks the screen filter shows, as a list, the calendar and the
- * Eisenhower show them: the shared base's `shown` (filtered once for every
+ * The tasks the screen filter shows, as a list and the calendar show
+ * them: the shared base's `shown` (filtered once for every
  * widget on screen), its completed tasks kept only while the screen filter
  * lets them through (`admitsCompleted`: Show completed, or a Completed
  * range) — the same tasks `applyFilter(screen, …)` keeps.
@@ -218,10 +189,81 @@ type Tasks = readonly PersistedTodoItem[]
 const trendMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext, range: TrendRange): TrendStats => (
   computeTrend(shown, events, ctx, range)
 ), TREND_RANGES.length)
-/** Created vs completed over `range`; `null` until the history has been read. */
+/** Created vs completed over `range`, every task the top bar shows as it is now; `null` until the history has been read. */
 export function useTrendStats(base: StatsBase, range: TrendRange): TrendStats | null {
   const events = useTrendEvents(range)
   return events ? trendMemo(base.shown, events, base.ctx, range) : null
+}
+
+/** What Created vs completed draws: its statistics, and from which day they are exact. */
+export interface TrendData {
+  stats: TrendStats
+  /** The index of the first of the window's days from which every count is exact (`days.length`: none is); the days before it are marked ≈. */
+  exactFrom: number
+  /** What reads as it is now on the days before `exactFrom` (the ≈ mark's tooltip). */
+  approximate: HistoryField[]
+  /** The screen filter narrows what it counts (its drills say so). */
+  filtered: boolean
+}
+
+/** No filter: every task (a config without one). */
+const EVERY_TASK: TodoPredicate = emptyPredicate()
+
+/** Created vs completed's filter: its own, else one keeping every task (the same object each time, so the memos keyed on it hit). */
+export function trendFilter(config: Pick<TrendTabConfig, 'filter'>): TodoPredicate {
+  return config.filter ?? EVERY_TASK
+}
+
+/** Whether a filter narrows the tasks (completion aside). */
+function narrows(f: FilterCriteria): boolean {
+  return f.expression != null || countActiveFilters({ ...f, showCompleted: false }) > 0
+}
+
+// One memo per range, each keeping a set per filter (`sharedMemoByKey`): any
+// number of these widgets on screen never evict one another, and two with the
+// same filter and range compute once.
+const filteredTrendMemos = Object.fromEntries(TREND_RANGES.map((range) => [range, sharedMemoByKey(function filteredTrend(
+  filter: FilterCriteria,
+  screen: FilterCriteria,
+  todos: Tasks,
+  events: readonly TodoEvent[],
+  ctx: StatsContext,
+  lookups: TodoNameLookups,
+  settings: FilterSettings,
+): TrendStats {
+  const stages = [statsFilter(screen), { ...filter, showCompleted: true }]
+  return computeTrend(todos, events, ctx, range, { stages, lookups, settings })
+})])) as Record<TrendRange, (filter: FilterCriteria, screen: FilterCriteria, todos: Tasks, events: readonly TodoEvent[], ctx: StatsContext, lookups: TodoNameLookups, settings: FilterSettings) => TrendStats>
+
+const trendExactMemo = sharedMemoByKey(function trendExact(stats: TrendStats, filter: FilterCriteria | null, screen: FilterCriteria, historyLogSince: Date | null) {
+  return filter ? historyExactFrom([statsFilter(screen), filter], stats.window.days, historyLogSince) : { from: 0, approximate: [] }
+})
+
+const trendDataMemo = sharedMemoByKey(function trendData(stats: TrendStats, exact: { from: number; approximate: HistoryField[] }, filtered: boolean): TrendData {
+  return { stats, exactFrom: exact.from, approximate: exact.approximate, filtered }
+})
+
+/**
+ * Created vs completed's data (its filter and range): among the tasks the
+ * top bar shows — the base's, without the lens while the widget ignores it.
+ * While neither its filter nor the screen filter narrows, every task is
+ * read as it is (`useTrendStats`'s read); else each task is replayed to
+ * each day's end and counted while the filter and the screen filter kept it
+ * then (`computeTrend`'s filter, a Number line's replay), the days the log
+ * can't say exactly marked by `exactFrom`. `null` until the history has been read.
+ */
+export function useTrend(base: StatsBase, config: Pick<TrendTabConfig, 'range' | 'filter'>): TrendData | null {
+  const range = config.range
+  const filter = numberCriteriaMemo(trendFilter(config))
+  const replay = base.filtered || narrows(filter)
+  const events = useTrendEvents(replay ? trendFieldsWindow(range) : range)
+  const historyLogSince = useSettingsStore((s) => s.historyLogSince)
+  if (!events) return null
+  const stats = replay
+    ? filteredTrendMemos[range](filter, base.screen, base.todos, events, base.ctx, lookupsFor(base, base.screen, filter), base.markerSettings)
+    : trendMemo(base.shown, events, base.ctx, range)
+  const exact = trendExactMemo(stats, replay ? filter : null, base.screen, historyLogSince)
+  return trendDataMemo(stats, exact, base.filtered)
 }
 
 // ── A Number (D26 P5) ──────────────────────────────────────────────────────
@@ -372,95 +414,3 @@ export function usePulse(base: StatsBase, config: Pick<PulseTabConfig, 'tagIds' 
   return pulseMemo(base.shown, tags, base.ctx, config.tagIds, staleAfterDays, late, stale, lookups, base.markerSettings)
 }
 
-// ── The Eisenhower's counts (its small and medium faces) ────────────────────
-
-/** The Eisenhower settings as its small and medium faces count with them. */
-export interface EisenhowerSetup {
-  /** The four panes, in position order. */
-  panes: readonly EisenhowerPane[]
-  /**
-   * The Eisenhower's list's name (as edited) when its filter narrows the
-   * tasks; `null` while it holds every task.
-   */
-  listName: string | null
-}
-
-const panesMemo = sharedMemo(resolvePanes)
-
-const eisenhowerListMemo = sharedMemo((
-  listId: number | null,
-  defs: readonly PersistedListDefinition[],
-  drafts: Readonly<Record<number, PersistedListDefinition | undefined>>,
-): PersistedListDefinition | undefined => {
-  return listAsShown(listId != null ? defs.find((d) => d.id === listId) : undefined, drafts)
-})
-
-const setupMemo = sharedMemo((
-  panes: readonly EisenhowerPane[],
-  list: PersistedListDefinition | undefined,
-  listId: number | null,
-  defs: readonly PersistedListDefinition[],
-): EisenhowerSetup => {
-  const savedName = defs.find((d) => d.id === listId)?.name
-  const narrows = list != null && hasNarrowingFilters(list.membership.predicate)
-  return { panes, listName: narrows ? (list.name.trim() || savedName || '') : null }
-})
-
-const paneCtxMemo = sharedMemo((
-  ctx: StatsContext,
-  settings: FilterSettings,
-  people: PaneContext['people'],
-  tags: PaneContext['tags'],
-  statusUpdatesByTodo: PaneContext['statusUpdatesByTodo'],
-  subtasksByTodo: PaneContext['subtasksByTodo'],
-): PaneContext => ({
-  today: ctx.today,
-  settings,
-  people,
-  assignedPeopleMap: ctx.assignedPeopleMap,
-  tags,
-  assignedTagsMap: ctx.assignedTagsMap,
-  statuses: ctx.statuses,
-  statusUpdatesByTodo,
-  subtasksByTodo,
-}))
-
-const eisenhowerMemo = sharedMemo((
-  todos: Tasks,
-  shown: Tasks,
-  screen: FilterCriteria,
-  lookups: TodoNameLookups,
-  settings: FilterSettings,
-  list: PersistedListDefinition | undefined,
-  panes: readonly EisenhowerPane[],
-  paneCtx: PaneContext,
-): ShownOfTotal<EisenhowerSummary> => {
-  const source = eisenhowerSourceTasks(todos, shown, list, { screen: statsFilter(screen), lookups, today: paneCtx.today, settings })
-  return {
-    shown: computeEisenhowerSummary(source.shown, panes, paneCtx),
-    total: computeEisenhowerSummary(source.total, panes, paneCtx),
-  }
-})
-
-/**
- * The Eisenhower's counts (its small and medium faces): its own list's members (its unsaved
- * draft included; every task until it is loaded) sorted by the app-wide
- * panes, and the setup it counts with.
- */
-export function useEisenhowerStats(base: StatsBase): { eisenhower: ShownOfTotal<EisenhowerSummary>; eisenhowerSetup: EisenhowerSetup } {
-  const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
-  const drafts = useListDraftStore((s) => s.drafts)
-  const storedPanes = useSettingsStore((s) => s.eisenhowerPanes)
-  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
-  const people = usePersonStore((s) => s.people)
-  const tags = useTagStore((s) => s.tags)
-  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
-  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
-
-  const panes = panesMemo(storedPanes)
-  const list = eisenhowerListMemo(eisenhowerListId, listDefinitions, drafts)
-  const eisenhowerSetup = setupMemo(panes, list, eisenhowerListId, listDefinitions)
-  const paneCtx = paneCtxMemo(base.ctx, base.markerSettings, people, tags, statusUpdatesByTodo, subtasksByTodo)
-  const eisenhower = eisenhowerMemo(base.todos, base.shown, base.screen, base.lookups, base.markerSettings, list, panes, paneCtx)
-  return { eisenhower, eisenhowerSetup }
-}

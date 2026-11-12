@@ -16,7 +16,7 @@ interface EntityMenuProps {
   closeOnScroll?: boolean
   /** See `MenuPopover.restoreFocus` (a picker's search field keeps the focus). */
   restoreFocus?: boolean
-  /** Runs before Show tasks, Review or a check-in item acts. */
+  /** Runs before Show tasks or Review acts. */
   onShowTasks?: () => void
   onClose: () => void
 }
@@ -24,17 +24,17 @@ interface EntityMenuProps {
 /**
  * The person / tag menu — a task row's avatar or tag, a people / tag picker's
  * option (`entityMenuEntries`) for one entity, or (a row's cell from the
- * keyboard) one submenu per entity. Inside a dialog the task dialog and the
- * deck can't show above (any tier but the workspace's overlays), Show
- * tasks, Review and the check-ins aren't offered; Review isn't either on a
- * phone or inside the review deck (`useEntityMenuOffers`).
+ * keyboard) one submenu per entity. Inside a dialog the task dialog can't
+ * show above (any tier but the workspace's overlays), Show
+ * tasks and Review aren't offered; Review — a jump to a Review
+ * widget — isn't either on a phone or while no layout has one
+ * (`useEntityMenuOffers`).
  */
 export function EntityMenu({ entities, anchorRef, point, closeOnScroll, restoreFocus, onShowTasks, onClose }: EntityMenuProps) {
   const options: EntityMenuOptions = { ...useEntityMenuOffers(), onShowTasks }
   const only = entities.length === 1 ? entities[0] : undefined
-  // A person's check-in items name them in full: room for that.
-  const wide = options.checkins && entities.some((e) => e.kind === 'person')
-  const width = wide ? 240 : 180
+  // Review names the person or the tag in full: room for that.
+  const width = options.review ? 220 : 180
   const entries: MenuEntry[] = only
     ? [{ kind: 'label', text: entityName(only) }, ...entityMenuEntries(only, options)]
     : entities.map((e): MenuEntry => ({

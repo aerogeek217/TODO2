@@ -22,8 +22,12 @@ import { cellMinHeightPx, cellMinWidthPx, isFitTrack } from './workspace-rows'
 export const WORKSPACE_GUTTER_PX = 6
 /** The height (px) of a cell's header: a collapsed row track's size. */
 export const TABLE_HEADER_PX = 32
-/** A fit row's height (px) when it can't be measured (a Number's small face, about). */
-export const FIT_TRACK_NOMINAL_PX = 76
+/**
+ * A fit row's height (px) when it can't be measured: a Number's small face as
+ * drawn (its name over its count, 58px in Chromium for a count, a Share of…
+ * and an Oldest — widget feedback 2D measured it; it was 76).
+ */
+export const FIT_TRACK_NOMINAL_PX = 58
 
 /** How a track is sized: see the module comment. */
 export type TrackSizing =

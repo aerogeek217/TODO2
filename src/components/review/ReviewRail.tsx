@@ -15,10 +15,10 @@ import { useReviewSession, useReviewSessionApi } from './review-session-context'
 import styles from './Review.module.css'
 
 /**
- * A review's queue rail (D26, board BL — the deck's and the Review
- * widget's): at its top the sort (item 7: `Sort: Queue order ▾` — Queue
- * order, Due, Next follow-up, Last follow-up, Priority, Title; the
- * session's, never saved by the deck), which stays put, then a row per task
+ * A review's queue rail (D26, board BL — the Review widget's): at its top
+ * the sort (item 7: `Sort: Queue order ▾` — Queue order, Due, Next
+ * follow-up, Last follow-up, Priority, Title; the session's, which the
+ * widget keeps as view state), which stays put, then a row per task
  * in the order shown, **on two lines**: its mark (✓ followed up today, item
  * 11; – skipped here), the box with the priority ring and the whole title
  * (cut only at the rail's width); under the title the next follow-up after
@@ -26,15 +26,18 @@ import styles from './Review.module.css'
  * rows' colours (a follow-up today or late yellow, a due date soon or late
  * magenta). The current row has the accent's tint and a 2px accent edge on
  * its left; a row followed up today dims its title. The source's group
- * dividers show in Queue order only. A click on a row jumps to it; ← / →
- * on a row go Back / Skip.
+ * dividers show in Queue order only. A click on a row jumps to it; with
+ * `onOpenTask` (the Review widget, widget feedback item 13) a double-click
+ * opens the task in its editor; ← / → on a row go Back / Skip.
  */
-export function ReviewRail({ todoById, followedUpToday, className, label = 'Review queue' }: {
+export function ReviewRail({ todoById, followedUpToday, className, label = 'Review queue', onOpenTask }: {
   todoById: ReadonlyMap<number, PersistedTodoItem>
   followedUpToday: (id: number) => boolean
   className?: string
   /** The rail's accessible name. */
   label?: string
+  /** A row double-clicked: its task (the Review widget opens it in the task editor). */
+  onOpenTask?: (id: number) => void
 }) {
   const session = useReviewSessionApi()
   const ids = useReviewSession((s) => s.ids)
@@ -115,6 +118,7 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
                 // A click doesn't take the focus: the card it opens puts it in its update line.
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => session.getState().go(i)}
+                onDoubleClick={onOpenTask ? () => onOpenTask(id) : undefined}
                 onKeyDown={onRowKeyDown}
               >
                 <span className={styles.railMark} aria-hidden="true">{mark === 'done' ? '✓' : mark === 'skipped' ? '–' : ''}</span>

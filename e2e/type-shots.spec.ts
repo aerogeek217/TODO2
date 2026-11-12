@@ -9,7 +9,7 @@ import { layoutTab, pickInReview, wsCell } from './fixtures/workspace'
  * seed, at 1440 × 900, 1920 × 1080 and 390 × 844 in both themes, for a
  * before / after comparison of a styling change (UX cleanup 5A: type and
  * targets). Runs only with `TYPE_SHOTS=<folder>`; the seed is
- * `TYPE_SHOTS_SEED` (default `dev-data/seed-v78.json`, `npm run seed:dev`).
+ * `TYPE_SHOTS_SEED` (default `dev-data/seed-v79.json`, `npm run seed:dev`).
  * Ambience is off and motion reduced, so an unchanged tree gives the same
  * pictures on the same day (the seed's dates are relative to the day it was
  * written; a fixed clock would make the app read its stored dates as foreign
@@ -22,7 +22,7 @@ test.describe.configure({ mode: 'parallel' })
 test.use({ trace: 'off' })
 test.setTimeout(15 * 60_000)
 
-const SEED_PATH = process.env.TYPE_SHOTS_SEED ?? 'dev-data/seed-v78.json'
+const SEED_PATH = process.env.TYPE_SHOTS_SEED ?? 'dev-data/seed-v79.json'
 
 /** The heavy task: people, tags, due, notes, subtasks and status updates. */
 const HEAVY_TASK = 69
@@ -63,7 +63,7 @@ function seedText(): string {
       })),
       {
         id: 's-review',
-        tabs: [{ id: 's-tab-review', kind: 'review', config: { by: 'person' } }],
+        tabs: [{ id: 's-tab-review', kind: 'review', config: {} }],
         activeTabId: 's-tab-review',
         area: { col: 0, row: 1, colSpan: 3, rowSpan: 1 },
       },
@@ -241,10 +241,6 @@ for (const size of SIZES) {
           await ui(page, 'openCreatePopup')
           await page.getByRole('dialog').first().waitFor()
         })
-        await shot('review-deck', async () => {
-          await store(page, '/src/services/review.ts', 'reviewListTab', 'tab-someday')
-          await page.getByRole('dialog').first().waitFor()
-        }, { layout: 'Planning' })
         await shot('edit-list', async () => {
           await ui(page, 'openListEditor', 5, 'tab-someday')
           await page.getByRole('dialog').first().waitFor()

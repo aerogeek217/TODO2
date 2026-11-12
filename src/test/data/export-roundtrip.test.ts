@@ -15,7 +15,6 @@ import { TODO_EVENT_TYPES } from '../../models/todo-event'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import { formatLensesSetting } from '../../data/lens-shape'
-import type { EisenhowerPanes } from '../../models/eisenhower-settings'
 import { makeTodo, resetDb } from '../helpers'
 import { cell, emptyBody, grid, numberTab } from '../helpers/layout-builders'
 
@@ -121,7 +120,7 @@ function buildSeed(): Seed {
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
       { key: 'historyLogSince', value: '2026-09-01T07:00:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
-      { key: 'rowDensity', value: 'comfortable' },
+      { key: 'rowDensity', value: 'stacked' },
       { key: 'rowDates', value: 'numeric' },
       { key: 'ambience', value: JSON.stringify({ enabled: false, place: { lat: 41.88, lon: -87.63 }, sky: 'subtle', motion: 60, seasons: false }) },
       { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...emptyPredicate(), expression: EXPRESSION } }]) },
@@ -136,12 +135,10 @@ function buildSeed(): Seed {
       { key: 'color.light.appBg', value: '#fdf6e3' },
       { key: 'activeLayoutId', value: '2' },
       { key: 'keyboardShortcuts', value: '{"command-palette":"Mod-Alt-p","open-settings":"g o"}' },
-      { key: 'eisenhowerPanes', value: JSON.stringify(SEED_PANES) },
-      { key: 'eisenhowerSource', value: 'list:2' },
     ],
     statuses: [
       { id: 1, name: 'Assigned', color: '#8a8a8a', sortOrder: 0, icon: 'person' },
-      { id: 2, name: 'Follow-up', color: '#e0a030', sortOrder: 1, icon: 'message-bubble' },
+      { id: 2, name: 'Follow-up', color: '#e0a030', sortOrder: 1, icon: 'message-bubble', emoji: '📞', emojiShow: 'color' },
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
@@ -149,10 +146,10 @@ function buildSeed(): Seed {
       sort: 'followup', grouping: 'followup',
       owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' }, ignoreLens: true,
     }, {
-      id: 3, name: 'Eisenhower', sortOrder: 2,
+      id: 3, name: 'By priority', sortOrder: 2,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
       sort: 'manual', grouping: 'priority',
-      owner: { eisenhower: true },
+      owner: { layoutId: 1 },
     }, {
       id: 1, name: 'By person', sortOrder: 0,
       membership: { kind: 'custom', predicate: { ...emptyPredicate(), showCompleted: true, expression: EXPRESSION } },
@@ -186,7 +183,7 @@ function buildSeed(): Seed {
       { id: 1, name: 'Empty', sortOrder: 1, ...emptyBody(), createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-01T09:00:00.000Z') },
       {
         id: 2, name: 'Daily', sortOrder: 0,
-        createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'), hue: 'violet',
+        createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'), hue: 'violet', icon: { kind: 'emoji', emoji: '🏠' },
         // A fixed collapsed row across the top, k3 spanning two rows (one collapsed), an empty cell, a fixed row at the bottom.
         ...(() => {
           const b1 = cell('b1-c', [{ id: 't8', kind: 'notes', config: {} }, { id: 't9', kind: 'lens', config: { listDefinitionId: 1 } }], { activeTabId: 't9' })
@@ -196,19 +193,17 @@ function buildSeed(): Seed {
           ], { activeTabId: 't2' })
           const k2 = cell('k2', [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }])
           const k3 = cell('k3', [
-            numberTab('t5', 'noFollowup', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 4 }),
+            { ...numberTab('t5', 'noFollowup', { breakdown: 'tags', litWhen: 'below', litAt: 4 }), viewState: { ignoreLens: true } },
             { id: 't6', kind: 'lens', config: {} },
-            { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
-            // Item 12: a Review widget by list, its sort and lens switch.
-            { id: 't14', kind: 'review', config: { by: 'list' }, viewState: { sort: 'next', ignoreLens: true } },
+            // Item 12: a Review widget (no settings, 2A), its sort and lens switch.
+            { id: 't14', kind: 'review', config: {}, viewState: { sort: 'next', ignoreLens: true } },
             // The glance widgets, each with a setting off its default.
             numberTab('g1', 'closedThisWeek'),
-            { id: 'g4', kind: 'trend', config: { range: '12w' } },
-            { id: 'g5', kind: 'breakdown', config: { name: 'Waiting on', filter: { ...emptyPredicate(), statusIds: [1] }, splitBy: 'people', style: 'donut', show: 'oldest', oldestBy: 'lastFollowup', showNone: false, checkins: true, badges: { due: 'overdue', followup: 7 } }, viewState: { sorts: { people: { by: 'due', reversed: true } } } },
-            { id: 'g6', kind: 'breakdown', config: { name: 'Status', filter: emptyPredicate(), splitBy: 'status', style: 'stacked', show: 'count', showNone: true, badges: 'off' } },
+            { id: 'g4', kind: 'trend', config: { range: '12w', name: 'Opened and closed', show: 'cumulative', filter: { ...emptyPredicate(), tags: [1] } } },
+            { id: 'g5', kind: 'breakdown', config: { name: 'Waiting on', filter: { ...emptyPredicate(), statusIds: [1] }, splitBy: 'people', style: 'donut', show: 'oldest', oldestBy: 'lastFollowup', showNone: false, columns: [{ id: 'due', name: 'Late', color: '#e86bf0', filter: { ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: -1 } } } }, litWhen: 'above', litAt: 0 }, { id: 'col-w', name: 'Waiting', color: '#7ec4bc', filter: { ...emptyPredicate(), statusIds: [1] }, litWhen: 'never' }] }, viewState: { sorts: { people: { by: 'due', reversed: true } } } },
+            { id: 'g6', kind: 'breakdown', config: { name: 'Status', filter: emptyPredicate(), splitBy: 'status', style: 'stacked', show: 'count', showNone: true, columns: [] } },
             { id: 'g7', kind: 'pivot', config: { name: 'Who × what', filter: { ...emptyPredicate(), statusIds: [1] }, rows: 'tags', cols: 'priority' } },
-            { id: 'g9', kind: 'tagMap', config: { name: 'Projects', filter: emptyPredicate(), tagIds: [1] } },
             { id: 'g13', kind: 'pulse', config: { tagIds: [1] } },
           ])
           const k4 = cell('k4')
@@ -233,13 +228,6 @@ function buildSeed(): Seed {
       { id: 2, listDefinitionId: 2, todoId: 1, rank: 1.5 },
     ],
   }
-}
-
-/** The seed's Eisenhower panes, in their stored form (what import keeps unchanged). */
-const SEED_PANES: EisenhowerPanes = {
-  do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: [{ values: ['focus'] }, { values: ['urgent'], not: true }], tags: [2], negate: { tags: true } } },
-  delegate: { filter: { ...emptyPredicate(), expression: { kind: 'and', items: [{ kind: 'not', item: { kind: 'status', id: 3 } }, { kind: 'priority', value: 'urgent' }, { kind: 'not', item: { kind: 'priority', value: 'important' } }] } } },
-  drop: { name: 'Someday' },
 }
 
 function tableByName(name: string): Table {
@@ -306,9 +294,8 @@ describe('export → JSON → import round-trip', () => {
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter !== undefined)).toBe(true)
-    // Both kinds of owner: a layout's list and the Eisenhower's.
+    // A layout's list (the only owner since v79).
     expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'layoutId' in d.owner)).toBe(true)
-    expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'eisenhower' in d.owner)).toBe(true)
     // A Priority filter's forms: "is" with several values, and "is not".
     const markers = seed.listDefinitions.flatMap((d) => (d.membership.kind === 'custom' ? d.membership.predicate.markers ?? [] : []))
     expect(markers.some((c) => c.values.length > 1)).toBe(true)
@@ -316,11 +303,11 @@ describe('export → JSON → import round-trip', () => {
     // Every "is not" switch.
     const negations = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.keys(d.membership.predicate.negate ?? {}) : [])
     expect(new Set(negations)).toEqual(new Set(NEGATABLE_FIELDS))
-    // Expressions: on a list, with every kind of atom and a `not`; in a lens, a pane and the check-in filter.
+    // Expressions: on a list, with every kind of atom and a `not`; in a lens and the check-in filter.
     const expressions = seed.listDefinitions.flatMap((d) => (d.membership.kind === 'custom' && d.membership.predicate.expression ? [d.membership.predicate.expression] : []))
     expect(new Set(expressions.flatMap((e) => expressionAtoms(e).map((a) => a.kind)))).toEqual(new Set(['person', 'tag', 'status', 'priority', 'text', 'date']))
     expect(JSON.stringify(expressions)).toContain('"kind":"not"')
-    for (const key of ['lenses', 'eisenhowerPanes', 'checkinTaskFilter']) {
+    for (const key of ['lenses', 'checkinTaskFilter']) {
       expect(seed.settings.find((r) => r.key === key)?.value, `${key} holds an expression`).toContain('"expression"')
     }
     // Every date type and every kind of date clause.
@@ -340,14 +327,7 @@ describe('export → JSON → import round-trip', () => {
     expect(cells.some((c) => c.area.rowSpan > 1)).toBe(true)
     expect(cells.some((c) => c.area.colSpan > 1)).toBe(true)
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
-    expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
-    // The Eisenhower panes (a setting): a pane with a name and a filter, a "not" switch, a Priority No, an expression.
-    const panesRow = seed.settings.find((r) => r.key === 'eisenhowerPanes')
-    const panes = Object.values(JSON.parse(panesRow?.value ?? '{}') as EisenhowerPanes)
-    expect(panes.some((p) => p?.name !== undefined && p.filter !== undefined)).toBe(true)
-    expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers?.some((c) => c.not === true))).toBe(true)
-    expect(panes.some((p) => p?.filter?.expression !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'number' && t.config.breakdown !== undefined)).toBe(true)
   })

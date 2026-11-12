@@ -107,7 +107,7 @@ function Select<V extends string>({ label, value, options, labels, onChange }: {
   )
 }
 
-/** A Breakdown's own fields: split by, style, show (and the date `oldest` reads), the none row, the check-ins. */
+/** A Breakdown's own fields: split by, style, show (and the date `oldest` reads), the none row. */
 function BreakdownFields({ config, patch }: { config: BreakdownConfig; patch: (p: Partial<BreakdownConfig>) => void }) {
   const noneLabel = NONE_ROW_LABELS[config.splitBy]
   return (
@@ -118,7 +118,7 @@ function BreakdownFields({ config, patch }: { config: BreakdownConfig; patch: (p
           value={config.splitBy}
           options={BREAKDOWN_SPLITS}
           labels={SPLIT_CHOICE_LABELS}
-          onChange={(splitBy) => patch(splitBy === 'people' ? { splitBy } : { splitBy, checkins: undefined })}
+          onChange={(splitBy) => patch({ splitBy })}
         />
         <Select<BreakdownStyle> label="Style" value={config.style} options={BREAKDOWN_STYLES} labels={STYLE_LABELS} onChange={(style) => patch({ style })} />
         <Select<BreakdownShow>
@@ -145,12 +145,6 @@ function BreakdownFields({ config, patch }: { config: BreakdownConfig; patch: (p
             {`Show ${noneLabel}`}
           </label>
         )}
-        {config.splitBy === 'people' && (
-          <label className={styles.check}>
-            <input type="checkbox" checked={config.checkins === true} onChange={(e) => patch({ checkins: e.target.checked ? true : undefined })} />
-            Check-in envelope on each person
-          </label>
-        )}
       </div>
     </>
   )
@@ -166,15 +160,15 @@ function freshColor(columns: readonly BreakdownColumn[]): string {
  * A Breakdown's **Count columns** (board BC): each a name, a colour, when
  * its count fills solid (Light up when, a Number's rule) and a filter
  * (Graphical / Expression), × to remove it; + Add column, up to
- * `BREAKDOWN_COLUMNS_MAX`. A config without `columns` shows the ones read
- * from its old ranges (`breakdownColumns`); the first edit writes them all
- * as `columns` and drops the old `badges`.
+ * `BREAKDOWN_COLUMNS_MAX`. A config without `columns` (a hand-made file)
+ * shows the defaults in Settings' ranges (`breakdownColumns`); the first
+ * edit writes them all as `columns`.
  */
 function CountColumnsField({ config, patch }: { config: BreakdownConfig; patch: (p: Partial<BreakdownConfig>) => void }) {
   const id = useId()
   const appRanges = useSettingsStore((s) => s.tabBadges)
   const columns = breakdownColumns(config, appRanges)
-  const write = (next: BreakdownColumn[]) => patch({ columns: next, badges: undefined })
+  const write = (next: BreakdownColumn[]) => patch({ columns: next })
   const set = (i: number, column: BreakdownColumn) => write(columns.map((c, j) => (j === i ? column : c)))
   return (
     <div className={styles.fieldset} role="group" aria-labelledby={`${id}-columns`} data-testid="chart-editor-columns">
@@ -260,7 +254,7 @@ function PivotFields({ config, patch }: { config: PivotConfig; patch: (p: Partia
 type ChartConfig = ChartTab['config']
 
 /** Each chart kind's noun, as its editor's title and close question name it. */
-const KIND_NOUNS: Record<ChartTab['kind'], string> = { breakdown: 'breakdown', pivot: 'pivot', tagMap: 'tag map' }
+const KIND_NOUNS: Record<ChartTab['kind'], string> = { breakdown: 'breakdown', pivot: 'pivot' }
 
 /**
  * What each chart kind's editor's filter is labelled and its own fields,
@@ -283,11 +277,6 @@ function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { f
         filterLabel: 'Split tasks where',
         fields: <PivotFields config={tab.config} patch={patch} />,
       }
-    case 'tagMap':
-      return {
-        filterLabel: 'Open tasks where',
-        fields: <span className={styles.hint}>Its ⋯ menu’s Tags picks the tags it maps; Every tag by default.</span>,
-      }
   }
 }
 
@@ -296,11 +285,10 @@ function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { f
  * name, the filter it splits — the Graphical / Expression filter Edit list
  * has, with Reads as — and its kind's own fields (a Breakdown's split,
  * style and what it shows). A popover under the chart's title, opened by
- * its ⋯ menu's Edit … and straight after Add widget. Its controls edit a
+ * its ⋯ menu's Edit …. Its controls edit a
  * copy of the config, which the chart draws live (`useEditorDraft`, Edit
  * list's pattern): Save writes the changes for good as one layout config
- * update — one undo step — and Discard drops them
- * (straight after Add widget, the new chart stays with its first config).
+ * update — one undo step — and Discard drops them.
  * Esc, × or a press elsewhere close it at once while nothing changed, else
  * ask Save / Discard / Keep editing.
  */

@@ -19,7 +19,6 @@ function body(cell: Locator, kind: WidgetKind): Locator {
     case 'calendar': return cell.locator('[data-calendar-widget]')
     case 'notes': return cell.locator('.cm-content')
     case 'review': return cell.locator('[data-review-widget]')
-    case 'eisenhower': return cell.locator('[data-eisenhower]')
     case 'neglect': return cell.locator('[data-neglect-map]')
     default: return cell.locator(`[data-glance="${kind}"]`)
   }
@@ -34,8 +33,11 @@ const tab = (page: Page, kind: WidgetKind) => {
   return page.getByRole('tab', { name: new RegExp(`^${mine}${longer.length > 0 ? `(?!${longer.join('|')})` : ''}`) })
 }
 /** The add-widget menu's items: the task kinds, then the Insights submenu. */
-/** The chart kinds (D26 P8): a new one opens its editor. */
-const CHART_KINDS: ReadonlySet<string> = new Set(['breakdown', 'pivot', 'tagMap'])
+/** No editor opens on add (decision 8): no Edit list, no Number or chart editor. */
+const noEditor = async (page: Page) => {
+  await expect(page.getByRole('dialog', { name: /^Edit list / })).toHaveCount(0)
+  await expect(page.locator('[data-number-editor], [data-chart-editor], [data-pulse-editor]')).toHaveCount(0)
+}
 const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindLabel), 'Insights']
 
 test.describe('desktop', () => {
@@ -56,7 +58,7 @@ test.describe('desktop', () => {
     const cell = page.locator('[data-ws-cell]').first()
     await expect(body(cell, 'notes')).toBeVisible()
 
-    // Add: every kind but Notes, from the add-tab menu (a list gets a new list, its Edit list open) —
+    // Add: every kind but Notes, from the add-tab menu (a list gets a new list; no editor opens) —
     // the first from the ⋯'s Add widget…: one widget has no strip, so no + (D26 AA1).
     for (const kind of WIDGET_KINDS.filter((k) => k !== 'notes')) {
       const plus = page.getByRole('button', { name: 'Add widget as tab' })
@@ -69,17 +71,8 @@ test.describe('desktop', () => {
       const menu = page.getByRole('menu', { name: 'Add widget' })
       await expect(menu.getByRole('menuitem')).toHaveText(MENU_ITEMS)
       await pickWidgetKind(page, 'Add widget', widgetKindLabel(kind))
-      if (kind === 'lens') {
-        await expect(page.getByRole('dialog', { name: `Edit list ${LIST}` })).toBeVisible()
-        await page.keyboard.press('Escape')
-      }
-      if (CHART_KINDS.has(kind)) {
-        // A new chart opens its editor (D26 P8).
-        await expect(page.locator('[data-chart-editor]')).toBeVisible()
-        await page.keyboard.press('Escape')
-        await expect(page.locator('[data-chart-editor]')).toHaveCount(0)
-      }
       await expect(tab(page, kind)).toHaveAttribute('aria-selected', 'true')
+      await noEditor(page)
       await expect(body(cell, kind)).toBeVisible()
     }
 
@@ -95,13 +88,10 @@ test.describe('desktop', () => {
       const kinds = await openChangeWidget(page)
       await expect(kinds.getByRole('menuitemradio', { name: widgetKindLabel(current), exact: true })).toHaveAttribute('aria-checked', 'true')
       await kinds.getByRole('menuitemradio', { name: widgetKindLabel(kind), exact: true }).click()
-      // Switched to List: a new list of the layout, its Edit list open.
-      if (kind === 'lens') {
-        await expect(page.getByRole('dialog', { name: /^Edit list / })).toBeVisible()
-        await page.keyboard.press('Escape')
-      }
+      // Switched to List: a new list of the layout; no editor opens.
       current = kind
       await expect(body(cell, kind)).toBeVisible()
+      await noEditor(page)
     }
 
     // Close: every tab; the last one — alone, no strip: its grip › Close cell — closes the cell: with no

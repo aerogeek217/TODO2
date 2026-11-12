@@ -7,7 +7,7 @@ import styles from './TaskDetails.module.css'
 /**
  * The one task layout's body (boards BJ, BL; task layout A, 2026-11-10):
  * what the task editor (`TaskEditPopup`, every mode) and the review card
- * (`ReviewDeck`, the Review widget) show between their header and footer.
+ * (the Review widget) show between their header and footer.
  * **Two columns**: on the left the **facts rail** (268px, giving way to
  * 220px in a small card; a darker ground — Priority, Status, People, Tags,
  * Due, `TaskFacts`; the editor's Created · Modified at its foot); on the

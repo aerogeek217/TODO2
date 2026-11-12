@@ -1,5 +1,6 @@
 import {
   DEFAULT_WEIGHT,
+  tabOwnsName,
   type GridAxis,
   type GridTrack,
   type LayoutBody,
@@ -28,8 +29,10 @@ import {
   type Side,
 } from './workspace-grid'
 import { findTab, layoutIds, sameArrangement } from './workspace-layout-queries'
+import { sameIcon, type IconValue } from '../models/icon'
 import { insertAllAt, insertAt, removeAt, replaceAt, setCell, withCells, withTracks } from './workspace-layout-edit'
 import { cellMinHeightPx, cellMinWidthPx, isFitTrack } from './workspace-rows'
+import { trackSizing } from './workspace-table'
 
 /**
  * Pure reducers over a layout's table (`LayoutBody`: tracks and cells).
@@ -523,6 +526,49 @@ function pairTrack(layout: LayoutBody, axis: GridAxis, i: number, size: number |
   }
 }
 
+/**
+ * `tracks` (the axis's tracks after an edit) with weighted track `i`'s
+ * weight set so it draws `size` px while every other weighted track keeps
+ * the size it had (`sizes`, measured before the edit) — the space a fixed
+ * track (a `px` track, a fit row's `fitPx`, a fit row's content) gave or
+ * took all lands in track `i`, so no other line moves (J14). The grid
+ * shares the free space by weight (`workspace-table.trackTemplate`), so the
+ * others keep their sizes when `i`'s weight is to theirs as `size` is to
+ * their summed size. Which tracks share the space is read from `layout`
+ * (`trackSizing`, the fixed / fit / collapsed ones don't); when `i` isn't
+ * one of them, or no other is, `tracks` as they are. The other weighted
+ * tracks are assumed drawn by their weights (none held at its minimum),
+ * which is what a measured size of them gives back.
+ */
+function weightedTo(layout: LayoutBody, axis: GridAxis, tracks: GridTrack[], i: number, size: number, sizes: readonly number[]): GridTrack[] {
+  const track = tracks[i]
+  if (!track || trackSizing(layout, axis, i).kind !== 'weighted' || !(size > 0)) return tracks
+  let weights = 0
+  let px = 0
+  for (let j = 0; j < tracks.length; j++) {
+    const s = j === i ? null : trackSizing(layout, axis, j)
+    if (s?.kind !== 'weighted') continue
+    weights += s.weight
+    px += Math.max(0, sizes[j] ?? 0)
+  }
+  if (!(weights > 0) || !(px > 0)) return tracks
+  return replaceAt(tracks, i, { ...track, weight: (weights * size) / px })
+}
+
+/**
+ * Weighted row track `i` re-weighted to draw `size` px, every other
+ * weighted row keeping its size in `sizes` (`weightedTo`) — after a fit
+ * row beside it changed height (a double-click clearing its `fitPx`), so
+ * only the line between them moves. The same layout when there is nothing
+ * to re-weight.
+ */
+export function withRowDrawnAt<L extends LayoutBody>(layout: L, i: number, size: number, sizes: readonly number[]): L {
+  const tracks = layout.grid.rows
+  if (sizes.length !== tracks.length) return layout
+  const next = weightedTo(layout, 'rows', tracks, i, size, sizes)
+  return next === tracks ? layout : withTracks(layout, 'rows', next)
+}
+
 /** Where a stretch's drag lands: its clamped, snapped position and what it means (`edgeTarget`). */
 interface EdgeTarget {
   /** Each line's position (px) at the drag's start. */
@@ -608,7 +654,11 @@ export function edgeSnapLine(layout: LayoutBody, stretch: EdgeStretch, delta: nu
  * - The whole line (or a stretch holding every cell edge on its line),
  *   staying between its two neighbouring lines: the two tracks beside it
  *   share their size anew (two weights; a fixed track's px; a fit row's
- *   height, its `fitPx` — `pairTrack`) — view state.
+ *   height, its `fitPx` — `pairTrack`) — view state. Only that line moves
+ *   (J14): two weighted tracks keep their summed weight, and a fixed or fit
+ *   track beside a weighted one leaves the weighted one to give or take the
+ *   px, re-weighted so every other weighted track keeps its size
+ *   (`weightedTo`).
  * - Part of a line, or a move past a neighbouring line: the stretch leaves
  *   its line. Onto another line it just moves there (a piece snapped back
  *   onto a line it left re-joins it); anywhere else the track there splits
@@ -634,8 +684,15 @@ export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, 
     const a = pairTrack(layout, axis, line - 1, sizes[line - 1])
     const b = pairTrack(layout, axis, line, sizes[line])
     if (!a || !b) return layout
-    const [na, nb] = resizedPair(a.track, b.track, target - at(line - 1), at(line + 1) - target)
-    return withTracks(layout, axis, replaceAt(replaceAt(tracks, line - 1, a.back(na)), line, b.back(nb)))
+    const sizeA = target - at(line - 1)
+    const sizeB = at(line + 1) - target
+    const [na, nb] = resizedPair(a.track, b.track, sizeA, sizeB)
+    let out = replaceAt(replaceAt(tracks, line - 1, a.back(na)), line, b.back(nb))
+    // A fixed (or fit) track beside a weighted one: the weighted one alone
+    // gives or takes the px, the other weighted tracks keeping their sizes.
+    if (a.track.px != null && b.track.px == null) out = weightedTo(layout, axis, out, line, sizeB, sizes)
+    else if (b.track.px != null && a.track.px == null) out = weightedTo(layout, axis, out, line - 1, sizeA, sizes)
+    return withTracks(layout, axis, out)
   }
 
   let next = layout
@@ -744,6 +801,48 @@ export function replaceTab<L extends LayoutBody>(layout: L, tabId: string, next:
   return updateTab(layout, tabId, () => next)
 }
 
+/**
+ * Layout config (items 11, 14): sets a tab's own name and / or its picked
+ * icon. `null` removes one (a blank name is none; no icon key = never
+ * picked, the kind's icon). The same layout when nothing changes.
+ */
+export function setTabLabel<L extends LayoutBody>(
+  layout: L,
+  tabId: string,
+  patch: { name?: string | null; icon?: IconValue | null },
+): L {
+  return updateTab(layout, tabId, (tab) => {
+    let next: LayoutTab = tab
+    if (patch.name !== undefined) {
+      const name = patch.name?.trim() || undefined
+      if (name !== tab.name) {
+        const { name: _n, ...rest } = next
+        void _n
+        next = (name ? { ...rest, name } : rest) as LayoutTab
+      }
+    }
+    if (patch.icon !== undefined && !sameIcon(patch.icon ?? undefined, tab.icon)) {
+      const { icon: _i, ...rest } = next
+      void _i
+      next = (patch.icon ? { ...rest, icon: patch.icon } : rest) as LayoutTab
+    }
+    return next
+  })
+}
+
+/**
+ * `next` (a tab of another kind, Change widget) keeping what the user gave
+ * `from`: its picked icon, and its tab name when `next`'s kind takes one
+ * (`tabOwnsName` false).
+ */
+export function withLabelOf(next: LayoutTab, from: LayoutTab | undefined): LayoutTab {
+  if (!from) return next
+  let out = next
+  if (from.icon) out = { ...out, icon: from.icon }
+  if (from.name && !tabOwnsName(next.kind)) out = { ...out, name: from.name }
+  return out
+}
+
 function shallowPatch<T extends object>(base: T, patch: Partial<T>): T {
   let changed = false
   for (const [k, v] of Object.entries(patch)) {
@@ -754,7 +853,7 @@ function shallowPatch<T extends object>(base: T, patch: Partial<T>): T {
 
 /**
  * Layout config: shallow-patches a tab's `config` — only when the tab is of
- * `kind`. A key patched to `undefined` is removed (e.g. an Eisenhower tab
+ * `kind`. A key patched to `undefined` is removed (e.g. a tab
  * back on all tasks).
  */
 export function patchTabConfig<L extends LayoutBody, K extends WidgetKind>(

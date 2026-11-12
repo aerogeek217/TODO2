@@ -518,15 +518,12 @@ describe('layouts audit', () => {
     expect((await auditData()).issues).toEqual([])
   })
 
-  it('an Eisenhower tab’s config key (its list and panes are settings) is reported; cleanup drops it', async () => {
-    const eis = (config: unknown) => oneCell([{ id: 't1', kind: 'eisenhower', config }])
-    await db.layouts.add(layout('Plain', eis({})) as any)
-    expect((await auditData()).issues).toEqual([])
-    const id = await db.layouts.add(layout('Old', eis({ listDefinitionId: 3, panes: { drop: { name: 'Someday' } } })) as any) as number
+  it('a retired Eisenhower tab is reported; cleanup drops it', async () => {
+    const id = await db.layouts.add(layout('Old', oneCell([{ id: 't1', kind: 'eisenhower', config: {} }, { id: 't2', kind: 'notes', config: {} }])) as any) as number
     const report = await auditData()
     expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
     await cleanupIssues(report.issues)
-    expect((await db.layouts.get(id))?.cells[0]?.tabs[0]).toEqual({ id: 't1', kind: 'eisenhower', config: {} })
+    expect((await db.layouts.get(id))?.cells[0]?.tabs).toEqual([{ id: 't2', kind: 'notes', config: {} }])
     expect((await auditData()).issues).toEqual([])
   })
 
@@ -662,47 +659,18 @@ describe('sanitisable settings audit (keyboard shortcuts)', () => {
   })
 })
 
-describe('Eisenhower settings audit', () => {
-  it('valid panes and source are not reported', async () => {
+describe('the retired Eisenhower rows (v79 deleted them; only a hand edit brings one back)', () => {
+  it('are reported like any unknown part, and cleanup leaves nothing to report — the list kept, given a layout', async () => {
     await db.settings.bulkPut([
-      { key: 'eisenhowerPanes', value: '{"drop":{"name":"Someday"}}' },
-      { key: 'eisenhowerSource', value: 'list:3' },
+      { key: 'eisenhowerPanes', value: '{oops' },
+      { key: 'eisenhowerSource', value: 'Team' },
     ])
-    expect((await auditData()).issues).toEqual([])
-  })
-
-  it('panes with parts import would drop are reported; cleanup drops just those', async () => {
-    await db.settings.put({ key: 'eisenhowerPanes', value: '{"later":{},"drop":{"name":"Someday","colour":"red"}}' })
+    const id = await db.listDefinitions.add({ name: 'Eisenhower', sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: emptyPredicate() }, owner: { eisenhower: true } as never })
     const report = await auditData()
-    expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', fix: 'sanitize', count: 1, keys: ['eisenhowerPanes'] })])
-    expect(report.issues[0]!.samples![0]!.note).toBe('Cleanup: 2 Eisenhower pane settings dropped')
+    expect(report.issues).toEqual(expect.arrayContaining([expect.objectContaining({ table: 'listDefinitions', fix: 'sanitize', ids: [id] })]))
     await cleanupIssues(report.issues)
-    expect(await db.settings.get('eisenhowerPanes')).toEqual({ key: 'eisenhowerPanes', value: '{"drop":{"name":"Someday"}}' })
     expect((await auditData()).issues).toEqual([])
-  })
-
-  it.each([
-    ['{oops', 'Eisenhower panes reset'],
-    ['{"do":"Now"}', 'Eisenhower pane reset'],
-  ])('panes it can’t read (%s) are reported; cleanup resets them (the defaults)', async (value, fix) => {
-    await db.settings.put({ key: 'eisenhowerPanes', value })
-    const report = await auditData()
-    expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', fix: 'sanitize', count: 1, keys: ['eisenhowerPanes'] })])
-    expect(report.issues[0]!.samples![0]!.note).toBe(`Cleanup: ${fix}`)
-    await cleanupIssues(report.issues)
-    expect(await db.settings.get('eisenhowerPanes')).toEqual({ key: 'eisenhowerPanes', value: '{}' })
-    expect((await auditData()).issues).toEqual([])
-  })
-
-  it.each([
-    ['eisenhowerSource', 'list:x'],
-    ['eisenhowerSource', 'Team'],
-  ])('an unreadable %s value (%s) is reported; cleanup deletes the row (the default)', async (key, value) => {
-    await db.settings.put({ key, value })
-    const report = await auditData()
-    expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', fix: 'delete', count: 1, keys: [key] })])
-    await cleanupIssues(report.issues)
-    expect(await db.settings.get(key)).toBeUndefined()
+    expect(await db.listDefinitions.get(id)).toMatchObject({ name: 'Eisenhower', owner: { layoutId: expect.any(Number) } })
   })
 })
 

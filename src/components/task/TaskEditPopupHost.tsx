@@ -1,6 +1,5 @@
 import { useTaskEditCallbacks } from '../../hooks/use-task-edit-callbacks'
 import { useUIStore } from '../../stores/ui-store'
-import { useReviewStore } from '../../stores/review-store'
 import { TaskEditPopup } from './TaskEditPopup'
 
 /**
@@ -16,9 +15,8 @@ export function TaskEditPopupHost() {
 
 function OpenTaskEditor() {
   const taskEdit = useTaskEditCallbacks()
-  // Opened from the task dialog or the review deck: stacked over it, which stays in view.
+  // Opened from the task dialog: stacked over it, which stays in view.
   const overTaskDialog = useUIStore((s) => s.taskDialog !== null)
-  const overReview = useReviewStore((s) => s.open)
 
   if (taskEdit.editPopupMode === 'edit' && taskEdit.editProps) {
     return (
@@ -29,7 +27,7 @@ function OpenTaskEditor() {
         allTags={taskEdit.allTags}
         onClose={taskEdit.closeEditPopup}
         {...taskEdit.entityCreators}
-        nested={overTaskDialog || overReview}
+        nested={overTaskDialog}
       />
     )
   }

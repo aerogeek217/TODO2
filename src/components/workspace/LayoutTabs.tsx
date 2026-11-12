@@ -4,7 +4,9 @@ import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dn
 import { CSS } from '@dnd-kit/utilities'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import type { PersistedWorkspaceLayout } from '../../models/workspace-layout'
-import { LayoutIcon, PlusIcon } from '../shared/icons'
+import { layoutIcon } from '../../models/icon'
+import { AppIcon } from '../shared/AppIcon'
+import { PlusIcon } from '../shared/icons'
 import { hueColor } from '../../utils/layout-hue'
 import styles from './LayoutControls.module.css'
 
@@ -133,6 +135,7 @@ interface LayoutTabViewProps {
 }
 
 function LayoutTabView({ layout, active, focusable, onActivate, onOpenMenu, onFocusSibling, setRef, sortable }: LayoutTabViewProps) {
+  const icon = layoutIcon(layout)
   return (
     <div
       ref={(el) => { sortable?.ref(el); setRef(el) }}
@@ -170,7 +173,8 @@ function LayoutTabView({ layout, active, focusable, onActivate, onOpenMenu, onFo
         e.stopPropagation()
       }}
     >
-      <span className={styles.tabIcon}><LayoutIcon size={12} /></span>
+      {/* Its icon (J1: the layout glyph until one is picked; none for No icon), in the hue while open. */}
+      {icon.kind !== 'none' && <span className={styles.tabIcon} data-layout-tab-icon=""><AppIcon icon={icon} size={12} /></span>}
       <span className={styles.tabName}>{layout.name}</span>
     </div>
   )

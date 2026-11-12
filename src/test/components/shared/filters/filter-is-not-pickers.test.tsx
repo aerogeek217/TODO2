@@ -1,15 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { FilterChipBar } from '../../../../components/shared/filters/FilterChipBar'
 import { PredicateFieldPicker } from '../../../../components/shared/filters/PredicateFieldPicker'
 import { emptyPredicate, type TodoPredicate } from '../../../../models'
-import type { ListFilterField } from '../../../../stores/list-widget-store'
+import { createTab } from '../../../../models/workspace-layout'
+import { useListWidgetStore, type ListFilterField } from '../../../../stores/list-widget-store'
+import { useWorkspaceStore } from '../../../../stores/workspace-store'
 import { usePersonStore } from '../../../../stores/person-store'
 import { useStatusStore } from '../../../../stores/status-store'
 import { useTagStore } from '../../../../stores/tag-store'
 import { useUIStore } from '../../../../stores/ui-store'
 import { makePerson } from '../../../helpers'
+import { cell, grid } from '../../../helpers/layout-builders'
 import { openFieldPicker } from './filter-menu-helpers'
 
 /**
@@ -94,30 +97,37 @@ describe('the top bar’s Status picker', () => {
   })
 })
 
-describe('the top bar’s People picker: Email check-in for an "is not" filter', () => {
+describe('the top bar’s People picker: Review for an "is not" filter', () => {
+  beforeEach(() => {
+    const layout = { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0), ...grid([[cell('a', [createTab('review', 'rv')])]]) }
+    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], activeLayoutId: 1 })
+  })
+
   const openPeople = (predicate: TodoPredicate) => {
     render(<FilterChipBar predicate={predicate} onChange={() => {}} />)
     openFieldPicker('People')
   }
 
-  it('is not Bob: emails the people not ticked', () => {
+  it('is not Bob: reviews the people not ticked', async () => {
     openPeople({ ...emptyPredicate(), personIds: [2], negate: { personIds: true } })
-    fireEvent.click(screen.getByRole('button', { name: 'Email check-in to 2 people…' }))
-    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1, 3] })
+    fireEvent.click(screen.getByRole('button', { name: 'Review 2 people’s tasks' }))
+    await waitFor(() => expect(useListWidgetStore.getState().reviewFilters.rv?.expression).toEqual({
+      kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 3 }],
+    }))
   })
 
-  it('is not everyone: nobody to email, a hint', () => {
+  it('is not everyone: nobody to review, a hint', () => {
     openPeople({ ...emptyPredicate(), personIds: [1, 2, 3], negate: { personIds: true } })
     expect(ticked()).toEqual(['Alice', 'Bob', 'Cara'])
-    expect(screen.getByText('Narrow to some people to review or email them.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Email check-in/ })).toBeNull()
+    expect(screen.getByText('Narrow to some people to review them.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Review/ })).toBeNull()
   })
 
   it('Is not picked with nothing ticked yet: no filter, a hint', () => {
     openPeople(emptyPredicate())
     choose('People', 'Is not')
     expect(ticked()).toEqual([])
-    expect(screen.getByText('Narrow to some people to review or email them.')).toBeInTheDocument()
+    expect(screen.getByText('Narrow to some people to review them.')).toBeInTheDocument()
   })
 })
 

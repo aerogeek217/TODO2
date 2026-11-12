@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
-import type { MarkerClause } from '../../../models'
-import { StatusIcon } from '../StatusIcon'
+import type { MarkerClause, StatusIconKey } from '../../../models'
+import { StatusMark } from '../StatusMark'
 import { ClearableField } from '../ClearableField'
 import { ESCAPE_CLEARS_ATTR } from '../../../hooks/use-popover-anchor'
 import { PickerEntityMenu } from '../EntityMenu'
@@ -281,7 +281,8 @@ export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAl
 
 interface EntityDropdownItemsProps {
   searchText: string
-  entities: readonly { id?: number; name: string; color?: string; icon?: string }[]
+  /** `icon` / `emoji`: a status's look (its mark is drawn); neither: a dot in its color. */
+  entities: readonly { id?: number; name: string; color?: string; icon?: StatusIconKey; emoji?: string; emojiShow?: 'color' }[]
   isChecked: (id: number) => boolean
   onToggle: (id: number) => void
   showDot?: boolean
@@ -473,9 +474,9 @@ export function EntityDropdownItems({
             const entity = byId.get(id)
             return entity && row(id, (
               <>
-                {entity.icon ? (
+                {entity.icon || entity.emoji ? (
                   <span className={picker.dotIcon} style={{ color: entity.color }} aria-hidden="true">
-                    <StatusIcon icon={entity.icon} filled />
+                    <StatusMark status={entity} filled />
                   </span>
                 ) : showDot && entity.color ? (
                   <span className={picker.dot} style={{ background: entity.color }} aria-hidden="true" />

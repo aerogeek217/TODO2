@@ -1,8 +1,6 @@
 import {
   clampCalendarOffset,
-  EISENHOWER_QUADRANTS,
-  isEisenhowerQuadrant,
-  readListZoom,
+  isListZoom,
   isWidgetKind,
   pickDetailsWidth,
   type CalendarTabViewState,
@@ -24,19 +22,20 @@ import {
   // G3: the widgets' lens switch.
   LENS_SWITCH_KINDS,
   type CalendarTab,
-  type EisenhowerTab,
   type LensSwitchTab,
   type LensViewState,
   // Item 12: the Review widget.
   type ReviewTab,
   type ReviewTabViewState,
+  TAB_NAME_MAX,
 } from '../models/workspace-layout'
-import { isLegacyReviewPick, isReviewBy, isReviewSort, reviewBy } from '../models/review'
+import { isIconValue, pickIconValue } from '../models/icon'
+import { isReviewSort } from '../models/review'
 import {
-  GLANCE_CONFIG_FIELDS,
   numberConfigProblem,
   pickNumberConfig,
   pickTrendConfig,
+  trendConfigProblem,
   type NumberConfig,
   type PickedConfig,
 } from '../models/glance-widgets'
@@ -47,12 +46,12 @@ import {
   pickBreakdownConfig,
   pickBreakdownView,
   pickPivotConfig,
-  pickTagMapConfig,
   pivotConfigProblem,
-  tagMapConfigProblem,
 } from '../models/chart-widgets'
 // G5: Project pulse's config and its rules.
 import { pickPulseConfig, pulseConfigProblem, pulseRulePredicates } from '../models/pulse-config'
+// Item 8: a Pivot's view state — its rows' sort and its lens switch.
+import { pickPivotView, pivotViewProblem } from '../models/chart-widgets'
 import type { TodoPredicate } from '../models/filter-predicate'
 import { emptyPredicate } from '../models/filter-predicate'
 import { isRecord } from '../utils/is-record'
@@ -148,7 +147,7 @@ export function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixe
 }
 
 /** The kinds whose tabs show task rows: they keep a details width (`TaskRowsViewState`). */
-const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens', 'eisenhower'])
+const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens'])
 
 /** A tab's config / view state for its kind (a case per kind: a new kind doesn't compile without one). */
 function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | string {
@@ -168,7 +167,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   switch (kind) {
     case 'lens':
       if (config.listDefinitionId !== undefined && !isFiniteNum(config.listDefinitionId)) return `${path}.config.listDefinitionId`
-      if (view?.zoom !== undefined && readListZoom(view.zoom) === undefined) return `${path}.viewState.zoom`
+      if (view?.zoom !== undefined && !isListZoom(view.zoom)) return `${path}.viewState.zoom`
       return true
     case 'calendar': {
       const types = config.dateTypes
@@ -178,14 +177,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (view?.view !== undefined && view.view !== 'week' && view.view !== 'month') return `${path}.viewState.view`
       if (view?.offset !== undefined && !isFiniteNum(view.offset)) return `${path}.viewState.offset`
       if (view?.titles !== undefined && typeof view.titles !== 'boolean') return `${path}.viewState.titles`
-      return true
-    }
-    case 'eisenhower': {
-      // No config of its own (its panes and source are settings): any key is dropped by the pick.
-      const collapsed = view?.collapsed
-      if (collapsed !== undefined && (!Array.isArray(collapsed) || !collapsed.every(isEisenhowerQuadrant))) {
-        return `${path}.viewState.collapsed`
-      }
       return true
     }
     case 'neglect':
@@ -205,10 +196,11 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       }
       return true
     }
+    // Created vs completed: its range, its optional name and Show as, then its optional filter as a Number's.
     case 'trend': {
-      // One config field, a known value.
-      const field = GLANCE_CONFIG_FIELDS[kind]
-      return field.ok(config[field.key]) ? true : `${path}.config.${field.key}`
+      const bad = trendConfigProblem(config)
+      if (bad) return `${path}.config.${bad}`
+      return config.filter === undefined ? true : checkChartFilter(config.filter, path)
     }
     // G5: Project pulse — its tag picks and rules, then each rule's filter as a Number's.
     case 'pulse': {
@@ -237,83 +229,39 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     }
     case 'pivot': {
       const bad = pivotConfigProblem(config)
-      return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
-    }
-    case 'tagMap': {
-      const bad = tagMapConfigProblem(config)
-      return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
+      if (bad) return `${path}.config.${bad}`
+      const badView = view ? pivotViewProblem(view) : null
+      if (badView) return `${path}.viewState.${badView}`
+      return checkChartFilter(config.filter, path)
     }
     case 'notes':
       return true
-    // Item 12: a Review widget — what it reviews by (or an earlier build's saved pick), and its sort.
+    // Item 12: a Review widget — no settings (its config the empty object), and its sort.
     case 'review': {
-      if (config.by !== undefined && !isReviewBy(config.by)) return `${path}.config.by`
-      if (config.pick !== undefined && !isLegacyReviewPick(config.pick)) return `${path}.config.pick`
       const bad = view ? reviewViewProblem(view) : null
       return bad ? `${path}.viewState.${bad}` : true
     }
   }
 }
 
-/**
- * The view-state keys an earlier build saved on a Review widget (board BK:
- * where it stood — the current task, a day's skips). Its place lasts only
- * as long as its picks now: the keys pass the check whatever they hold and
- * are dropped when the tab is read, never a repair.
- */
-const LEGACY_REVIEW_VIEW_KEYS = ['currentId', 'skipped'] as const
-
 /** The first field of a Review widget's view state (item 12) its read would reset, else null. */
 function reviewViewProblem(view: Obj): string | null {
   return view.sort !== undefined && !isReviewSort(view.sort) ? 'sort' : null
 }
 
-/** A Review widget's view state as read (item 12): its sort kept when it reads, else dropped (a fix). */
+/**
+ * A Review widget's view state as read (item 12): its sort kept when it
+ * reads; a sort that doesn't, or a key it doesn't have (the place an earlier
+ * build saved, `currentId` / `skipped`, which v79 removed), dropped (a fix).
+ * The lens switch is the caller's.
+ */
 function pickReviewView(view: Obj | undefined): { view: ReviewTabViewState; fixed: boolean } {
   const out: ReviewTabViewState = {}
-  let fixed = false
-  if (!view) return { view: out, fixed }
+  if (!view) return { view: out, fixed: false }
+  let fixed = Object.keys(view).some((k) => k !== 'sort' && k !== 'ignoreLens')
   if (isReviewSort(view.sort)) out.sort = view.sort
   else if (view.sort !== undefined) fixed = true
   return { view: out, fixed }
-}
-
-/** A stored tab that is a Review widget holding what an earlier build saved: a `pick`, no `by`, or where it stood. */
-function isLegacyReviewTab(tab: unknown): tab is Obj & { config: Obj } {
-  if (!isRecord(tab) || tab.kind !== 'review' || !isRecord(tab.config)) return false
-  const view = tab.viewState
-  return tab.config.by === undefined || tab.config.pick !== undefined
-    || (isRecord(view) && LEGACY_REVIEW_VIEW_KEYS.some((key) => view[key] !== undefined))
-}
-
-/**
- * `row` with its Review widgets as this build stores them (board BM): a
- * config from before (`pick`, or nothing) as the kind it reads as
- * (`reviewBy`), the saved place (`currentId`, `skipped`) gone. Not a repair
- * — the layout opens clean, and the stored row takes the new shape with its
- * next write (as `layout-repository.withoutLegacyLens`). The same object
- * when no Review widget needs it; a row whose cells or tabs don't read is
- * left to the layout repair.
- */
-export function withoutLegacyReview<T extends { cells?: unknown }>(row: T): T {
-  const cells = row.cells
-  if (!Array.isArray(cells)) return row
-  const legacy = (cell: unknown): cell is Obj & { tabs: unknown[] } => isRecord(cell) && Array.isArray(cell.tabs) && cell.tabs.some(isLegacyReviewTab)
-  if (!cells.some(legacy)) return row
-  const tabOf = (tab: unknown): unknown => {
-    if (!isLegacyReviewTab(tab)) return tab
-    const config: Obj = { ...tab.config, by: reviewBy(tab.config) }
-    delete config.pick
-    const next: Obj = { ...tab, config }
-    if (isRecord(tab.viewState)) {
-      const view = { ...tab.viewState }
-      for (const key of LEGACY_REVIEW_VIEW_KEYS) delete view[key]
-      if (Object.keys(view).length > 0) next.viewState = view
-      else delete next.viewState
-    }
-    return next
-  }
-  return { ...row, cells: cells.map((cell: unknown) => (legacy(cell) ? { ...cell, tabs: cell.tabs.map(tabOf) } : cell)) }
 }
 
 /** A chart's filter as stored: a predicate with nothing its read (`pickPredicate`) would change. */
@@ -364,16 +312,6 @@ function idTracker(): (id: string) => boolean {
   }
 }
 
-/**
- * Kinds removed while the schema stayed at v78 — the Status flow chart
- * (D26 P8, shipped in v78) —: a v78 file may hold one, and no upgrade
- * runs on it, so its tab passes the check (import, a restore and the sync
- * file take the file) and the repair drops it as an unknown kind (a fix:
- * `Fixed 1 layout`; a stored layout opens unsaved), its emptied cell
- * closing.
- */
-const REMOVED_IN_V78: ReadonlySet<unknown> = new Set(['statusFlow'])
-
 /** `true` when every tab of a strip is valid, else the path of the first bad field. */
 function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) => boolean): true | string {
   for (let t = 0; t < tabs.length; t++) {
@@ -381,12 +319,42 @@ function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) =
     const tp = `${path}.tabs[${t}]`
     if (!isRecord(tab)) return tp
     if (!isId(tab.id) || !fresh(tab.id)) return `${tp}.id`
-    if (REMOVED_IN_V78.has(tab.kind)) continue
     if (!isWidgetKind(tab.kind)) return `${tp}.kind`
     const settings = checkTabSettings(tab, tab.kind, tp)
     if (settings !== true) return settings
+    // Items 11, 14: the tab's own name and its picked icon, both optional.
+    if (tab.name !== undefined && !isTabName(tab.name)) return `${tp}.name`
+    if (tab.icon !== undefined && !isIconValue(tab.icon)) return `${tp}.icon`
   }
   return true
+}
+
+/** A tab's stored name: text of at most `TAB_NAME_MAX` characters. */
+function isTabName(v: unknown): v is string {
+  return typeof v === 'string' && v.length <= TAB_NAME_MAX
+}
+
+/**
+ * `tab` with the stored tab's name and icon (items 11, 14) when they read:
+ * a name trimmed (a blank one is none, never a fix), an icon with only the
+ * model's keys; one that doesn't read is dropped (`fix`).
+ */
+function withTabLabel(tab: LayoutTab, raw: Obj, fix: () => void): LayoutTab {
+  let out = tab
+  if (raw.name !== undefined) {
+    if (isTabName(raw.name)) {
+      const name = raw.name.trim()
+      if (name) out = { ...out, name }
+    } else {
+      fix()
+    }
+  }
+  if (raw.icon !== undefined) {
+    const icon = pickIconValue(raw.icon)
+    if (icon) out = { ...out, icon }
+    else fix()
+  }
+  return out
 }
 
 
@@ -455,7 +423,7 @@ export function checkLayoutBody(body: RawLayoutBody): true | string {
 }
 
 /** A part `pickLayoutBody` dropped or reset, counted. */
-type LayoutFix = 'grid' | 'rebuilt' | 'lines' | 'track' | 'cell' | 'tab' | 'size' | 'settings' | 'eisenhower'
+type LayoutFix = 'grid' | 'rebuilt' | 'lines' | 'track' | 'cell' | 'tab' | 'size' | 'settings'
   | 'trackLimit' | 'cellLimit' | 'tabLimit'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
@@ -467,7 +435,6 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   tab: ['tab dropped', 'tabs dropped'],
   size: ['size reset', 'sizes reset'],
   settings: ['tab or cell settings reset', 'tab or cell settings reset'],
-  eisenhower: ['Eisenhower tab setting dropped', 'Eisenhower tab settings dropped'],
   trackLimit: ['track past the limit of 1,000 dropped', 'tracks past the limit of 1,000 dropped'],
   cellLimit: ['cell past the limit of 1,000 dropped', 'cells past the limit of 1,000 dropped'],
   tabLimit: ['tab past the limit of 1,000 dropped', 'tabs past the limit of 1,000 dropped'],
@@ -493,15 +460,14 @@ interface PickedCell {
 /**
  * Rebuilds a layout body (its table) with only the model's keys. For a body
  * that passes `checkLayoutBody` (all import ever picks) nothing is dropped
- * but a stale `activeTabId` (= first tab), duplicate collapsed quadrants, an
- * out-of-range calendar offset (clamped), and any key of an Eisenhower tab's
- * config (it has none — reported in `fixes`); a details width is rounded,
+ * but a stale `activeTabId` (= first tab) and an out-of-range calendar
+ * offset (clamped); a details width is rounded,
  * and the cells come in reading order. A tab of a retired kind — `dashboard`
- * (v77 converted every one), and `followup`, `next7`, `stale`, `recent`,
+ * (v77 converted every one), `followup`, `next7`, `stale`, `recent`,
  * `changes`, `today` and `eisenhowerSummary` (v78 dropped or converted
+ * every one), and `eisenhower`, `tagMap` and `statusFlow` (v79 dropped
  * every one) — is an unknown kind, dropped like one, and a cell it leaves
- * without tabs closes. A Status flow tab (`REMOVED_IN_V78`) passes the
- * check but is dropped the same way, reported in `fixes`.
+ * without tabs closes.
  *
  * Past `LAYOUT_PART_LIMIT` tracks, cells or tabs in the layout, the rest are
  * dropped and reported in `fixes`.
@@ -574,12 +540,12 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const lensConfig: LensTabConfig = {}
         if (isFiniteNum(config.listDefinitionId)) lensConfig.listDefinitionId = config.listDefinitionId
         else if (config.listDefinitionId !== undefined) fix('settings')
-        // The zoom: one of the levels (the removed `strips` read as `lines`, view state, no
-        // repair), else dropped (the tab opens at the Settings default).
+        // The zoom: one of the levels (v79 wrote the removed `strips` as `lines`), else dropped
+        // (the tab opens at the Settings default).
         const lensView: ListTabViewState = { ...rowsView() }
-        const zoom = readListZoom(view?.zoom)
-        if (zoom) lensView.zoom = zoom
-        else if (view?.zoom !== undefined) fix('settings')
+        const zoom = view?.zoom
+        if (isListZoom(zoom)) lensView.zoom = zoom
+        else if (zoom !== undefined) fix('settings')
         return Object.keys(lensView).length > 0
           ? { id, kind: 'lens', config: lensConfig, viewState: lensView }
           : { id, kind: 'lens', config: lensConfig }
@@ -604,20 +570,6 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         }
         return withLensView(calendar)
       }
-      case 'eisenhower': {
-        const raw = view?.collapsed
-        if (raw !== undefined && (!Array.isArray(raw) || !raw.every(isEisenhowerQuadrant))) fix('settings')
-        const collapsed = Array.isArray(raw) ? new Set<unknown>(raw) : null
-        // Its panes and source are app-wide settings: a key here (none in v66
-        // data) is dropped.
-        for (let i = 0; i < Object.keys(config).length; i++) fix('eisenhower')
-        const eisenhower: EisenhowerTab = { id, kind: 'eisenhower', config: {} }
-        // Known quadrants, once each, in display order.
-        const quadrants = collapsed ? EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) : []
-        const eisenhowerView = { ...rowsView(), ...(quadrants.length > 0 ? { collapsed: quadrants } : {}) }
-        if (Object.keys(eisenhowerView).length > 0) eisenhower.viewState = eisenhowerView
-        return withLensView(eisenhower)
-      }
       case 'neglect': {
         // No view state of its own but the lens switch: any other is dropped.
         const neglect = pickNeglectConfig(config)
@@ -626,22 +578,21 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
-      // Item 12: a Review widget — what it reviews by (an earlier build's saved pick read as its kind, no
-      // fix); a kind or a saved pick that doesn't read is reset (Person, or the other's kind), any other key dropped.
+      // Item 12: a Review widget — no settings: a config key (an earlier build's kind `by` or pick
+      // `pick`, which v79 removed) is dropped, a fix; its view state's sort as checked.
       case 'review': {
-        if ((config.by !== undefined && !isReviewBy(config.by)) || (config.pick !== undefined && !isLegacyReviewPick(config.pick))) fix('settings')
         const picked = pickReviewView(view)
-        if (picked.fixed) fix('settings')
-        const review: ReviewTab = { id, kind: 'review', config: { by: reviewBy(config) } }
+        if (picked.fixed || Object.keys(config).length > 0) fix('settings')
+        const review: ReviewTab = { id, kind: 'review', config: {} }
         if (Object.keys(picked.view).length > 0) review.viewState = picked.view
         return withLensView<LensSwitchTab>(review)
       }
       // The glance kinds: a bad or missing setting is reset to its default;
-      // no view state but the lens switch (Created vs completed has none).
+      // no view state but the lens switch.
       case 'number':
         return withLensView<LensSwitchTab>({ id, kind: 'number', config: glance(numberConfigOf(config)) })
       case 'trend':
-        return { id, kind: 'trend', config: glance(pickTrendConfig(config)) }
+        return withLensView<LensSwitchTab>({ id, kind: 'trend', config: glance(pickTrendConfig(config, readNumberPredicate)) })
       case 'pulse':
         return withLensView<LensSwitchTab>({ id, kind: 'pulse', config: glance(pickPulseConfig(config, readNumberPredicate)) })
       // D26 P8: the chart widgets.
@@ -651,10 +602,13 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         if (viewState) breakdown.viewState = viewState
         return breakdown
       }
-      case 'pivot':
-        return withLensView<LensSwitchTab>({ id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) })
-      case 'tagMap':
-        return withLensView<LensSwitchTab>({ id, kind: 'tagMap', config: glance(pickTagMapConfig(config, chartFilterOf(config))) })
+      // Item 8: its view state is its rows' sort and its lens switch.
+      case 'pivot': {
+        const viewState = glance(pickPivotView(view))
+        const pivot: LayoutTab = { id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) }
+        if (viewState) pivot.viewState = viewState
+        return pivot
+      }
     }
   }
 
@@ -667,7 +621,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       const picked = pickTab(tab)
       if (!picked) continue
-      tabs.push(picked)
+      tabs.push(isRecord(tab) ? withTabLabel(picked, tab, () => fix('settings')) : picked)
       tabsKept++
     }
     return tabs

@@ -32,7 +32,7 @@ const tags: AutocompleteItem[] = [
 ]
 const statuses: AutocompleteItem[] = [
   { id: 1, name: 'To do', kind: 'status', icon: 'circle' },
-  { id: 2, name: 'In progress', kind: 'status', icon: 'half' },
+  { id: 2, name: 'In progress', kind: 'status', icon: 'clock' },
   { id: 3, name: 'Waiting', kind: 'status' },
   { id: 4, name: 'Blocked', kind: 'status' },
 ]
