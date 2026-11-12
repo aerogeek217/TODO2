@@ -19,8 +19,8 @@ export interface WsTabSeed {
   titles?: boolean
   /** List tabs: the task rows' details width (view state). */
   detailsWidth?: number
-  /** List tabs: the zoom (view state; absent = the Settings default; `strips`, a removed level, opens as `lines`). */
-  zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
+  /** List tabs: the zoom (view state; absent = the Settings default). */
+  zoom?: 'stacked' | 'rows' | 'lines'
   /**
    * Glance tabs (Number, the sections): config fields over the kind's defaults. A Number's
    * `metric` (a v77 one, e.g. `{ metric: 'open' }`) seeds the config v78 converts it to
@@ -35,13 +35,6 @@ export interface WsTabSeed {
     colourBy?: { tags: string[] } | 'people' | 'none'
     untouchedDays?: number
   }
-  /**
-   * Review tabs (widget feedback 2A): no settings — the filter is temporary,
-   * typed into its field (`pickInReview`). What earlier builds stored, for
-   * the tests that open it: `legacyBy` (board BM's kind), `legacyPick` (board
-   * BK's one person or tag, by name).
-   */
-  review?: { legacyBy?: 'person' | 'tag' | 'status' | 'list'; legacyPick?: { person?: string; tag?: string } }
 }
 
 export interface WsCellSeed {
@@ -406,12 +399,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       }
       if (tab.kind === 'pulse' && tab.tagNames) {
         config.tagIds = tab.tagNames.map((name) => tagIds.get(name)).filter((id) => id != null)
-      }
-      if (tab.kind === 'review') {
-        const legacy = tab.review?.legacyPick
-        const id = legacy?.person != null ? personIds.get(legacy.person) : legacy?.tag != null ? tagIds.get(legacy.tag) : undefined
-        if (legacy && id != null) config.pick = { kind: legacy.person != null ? 'person' : 'tag', id }
-        if (tab.review?.legacyBy) config.by = tab.review.legacyBy
       }
       if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }

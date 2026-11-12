@@ -161,7 +161,6 @@ const byPerson = (id: string) => ({
     style: 'bars',
     show: 'count',
     showNone: false,
-    checkins: true,
     columns: [
       { id: 'due', name: 'Due', color: DUE, filter: filter({ dates: { deadline: range(null, offset(3)) } }), litWhen: 'above', litAt: 0 },
       { id: 'followup', name: 'Chase', color: FOLLOWUP, filter: filter({ dates: { followup: range(null, rel('today')) } }), litWhen: 'above', litAt: 0 },

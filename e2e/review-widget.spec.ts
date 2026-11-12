@@ -317,29 +317,6 @@ test('the widget’s lens switch: quiet while the top bar’s lens hides tasks o
   await expect(railRows(page, 'rev1')).toHaveCount(5)
 })
 
-test('a tab an earlier build saved with a kind or a pick opens clean: no repair, nothing to review', async ({ page }) => {
-  await seedWorkspace(page, {
-    ...BASE,
-    layouts: [{
-      name: 'Main',
-      table: {
-        areas: ['a b'],
-        cells: [
-          { id: 'a', tabs: [{ id: 'old', kind: 'review', review: { legacyPick: { tag: 'legal' } } }] },
-          { id: 'b', tabs: [{ id: 'kind', kind: 'review', review: { legacyBy: 'tag' } }] },
-        ],
-      },
-    }],
-  })
-  await expect(widget(page, 'old').getByTestId('review-empty')).toContainText('Pick who or what to review')
-  await expect(widget(page, 'kind').getByTestId('review-empty')).toContainText('Pick who or what to review')
-  await expectLayoutStored(page)
-  await expect(page.getByText(/Repaired layout|Fixed \d+ layout/)).toHaveCount(0)
-  await pickInReview(page, 'kind', 'Ben')
-  await expect(cardTitle(page, 'kind')).toBeVisible()
-  await expect(widget(page, 'kind').getByTestId('review-widget-progress')).toContainText('0 followed up')
-})
-
 test('in a cell of several widgets: no top line — the field’s row comes first and ends with the progress', async ({ page }) => {
   await seedWorkspace(page, {
     ...BASE,
