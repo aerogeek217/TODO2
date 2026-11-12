@@ -140,7 +140,7 @@ test.describe('notes editor', () => {
     await expect(popup(page).getByRole('option')).toHaveText(['Anna', 'Andy Ross', /Create @an$/])
     await popup(page).getByRole('option', { name: 'Andy Ross' }).click({ button: 'right' })
     const menu = page.getByRole('menu', { name: '@Andy Ross' })
-    await expect(menu.getByRole('menuitem')).toHaveText(['Show tasks', 'Edit…', 'Delete…'])
+    await expect(menu.getByRole('menuitem')).toHaveText(['Review with Andy Ross', 'Show tasks', 'Edit…', 'Delete…'])
     expect(await isOnTop(menu)).toBe(true)
     // The editor lost the focus to the menu; the popup stays.
     await expect(popup(page)).toBeVisible()

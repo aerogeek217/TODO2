@@ -64,7 +64,7 @@ test('a group header’s menu copies its group under the group’s name (People 
   await groupHeader(page, 'Ann').click({ button: 'right' })
   const menu = page.getByRole('menu', { name: 'Ann group' })
   await expect(menu.getByRole('menuitem')).toHaveText([
-    'Show tasks', 'Edit…', 'Delete…', 'Copy 1 task',
+    'Review with Ann', 'Show tasks', 'Edit…', 'Delete…', 'Copy 1 task',
   ])
   await menu.getByRole('menuitem', { name: 'Copy 1 task' }).click()
   await expect.poll(() => clipboardText(page)).toBe('== Ann ==\n[ ] two @Ann')
