@@ -370,13 +370,13 @@ for (const zoom of ['stacked', 'lines'] as const) {
   })
 }
 
-test('a tab that hasn’t picked a zoom shows the Settings default; the old Comfortable density reads as Stacked', async ({ page }) => {
+test('a tab that hasn’t picked a zoom shows the Settings default; a tab’s own pick wins', async ({ page }) => {
   await open(page, { settings: { rowDensity: 'lines' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
-  await open(page, { settings: { rowDensity: 'comfortable' } })
+  await open(page, { settings: { rowDensity: 'stacked' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'stacked')
-  // A tab's own pick wins.
-  await open(page, { zoom: 'lines', settings: { rowDensity: 'comfortable' } })
+  // A tab's own pick wins. (The old Comfortable density v79 wrote as Stacked: `v79-upgrade.test`.)
+  await open(page, { zoom: 'lines', settings: { rowDensity: 'stacked' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
 })
 
