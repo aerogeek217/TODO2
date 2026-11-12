@@ -2,14 +2,14 @@ import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseE
 import { useDraggable } from '@dnd-kit/core'
 import { getActiveTab, isGlanceKind, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
+import { OPEN_LARGER_LABEL, widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
 import type { AddWhere } from './add-widget-where'
 import { useTabTitle, useTabTitles } from './widget-hooks'
 import { MenuPopover } from '../shared/MenuPopover'
-import { ChevronDownIcon, ChevronUpIcon, MoreIcon } from '../shared/icons'
+import { ChevronDownIcon, ChevronUpIcon, ExpandIcon, MoreIcon } from '../shared/icons'
 import {
   useWorkspaceDrag,
   WORKSPACE_PANEL_DRAG,
@@ -21,7 +21,9 @@ import type { WorkspaceCellProps } from './WorkspaceCell'
 import { trackScrollEdges } from '../../utils/scroll-edges'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { smallFaceClick, useCellFace } from './cell-face'
-import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
+import { SmallFaceOpener } from './CellFaceParts'
+import { openWidgetLarger } from '../../services/widget-popup'
+import { tabOpensLarger } from '../../utils/widget-face'
 import { transitionName, withViewTransition } from '../shared/view-transition'
 import { CELL_MENU_LABEL, cellMenuFor, useWidgetMenuContent, type CellMenuPart } from './cell-menu'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
@@ -162,8 +164,14 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const menuTab = menu ? cell.tabs.find((t) => t.id === menu.tabId) : undefined
   const menuTitle = useTabTitle(menuTab)
   const widgetContent = useWidgetMenuContent(menuTab, menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result : undefined)
+  // Open larger for the menu's tab: by the face it shows (the active tab's), a tab out of sight by its large face.
+  const menuOpensLarger = menuTab != null && tabOpensLarger(menuTab, menuTab.id === active?.id ? cellFace.face : 'large')
   const menuEntries = menu && menuTab
-    ? cellMenuFor(menu.part, widgetKindMenuEntries({ ...(widgetContent ?? NO_WIDGET_MENU), onNameAndIcon: () => openLabelEdit(menuTab.id, menu.at) }), {
+    ? cellMenuFor(menu.part, widgetKindMenuEntries({
+        ...(widgetContent ?? NO_WIDGET_MENU),
+        onOpenLarger: menuOpensLarger ? () => { void openWidgetLarger(menuTab.id) } : undefined,
+        onNameAndIcon: () => openLabelEdit(menuTab.id, menu.at),
+      }), {
         cell,
         tab: menuTab,
         tabTitle: menuTitle,
@@ -188,6 +196,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
 
   // A one-widget cell's controls slot, lent to its widget's top line.
   const activeId = active?.id
+  const onOpenLarger = cellFace.opensLarger ? cellFace.openLarger : undefined
   const controls = useMemo<CellControlsValue | null>(() => (stripShown || activeId == null ? null : {
     cellId: cell.id,
     tabs: cell.tabs,
@@ -199,17 +208,18 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
     moreOpen: menuOpen && !gripOpen,
     onMore: () => toggleMenu('widget', activeId),
     onGrip: () => toggleMenu('layout', activeId),
+    onOpenLarger,
     gripOpen,
     setGripButton,
     collapsed,
     onExpand: () => setRowCollapsed(false),
     claim,
-  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, gripOpen, collapsed, setRowCollapsed, claim, setMoreButton, setGripButton, toggleMenu])
+  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, gripOpen, onOpenLarger, collapsed, setRowCollapsed, claim, setMoreButton, setGripButton, toggleMenu])
 
   /** A right-click on the top line (a glance widget's: anywhere on it) opens the ⋯ menu there. */
   const onContextMenu = (e: MouseEvent<HTMLElement>) => {
     if (stripShown || e.defaultPrevented || !active) return
-    // Not one from the full widget's popover (portaled, but in this React tree).
+    // Only one from inside the cell's own element.
     if (!(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return
     if (!isGlanceKind(active.kind) && !onTopLine(e.currentTarget, e.target)) return
     e.preventDefault()
@@ -288,6 +298,19 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
                 setButton={setGripButton}
                 className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
               />
+              {onOpenLarger && (
+                <button
+                  type="button"
+                  className={styles.action}
+                  aria-label={OPEN_LARGER_LABEL}
+                  aria-haspopup="dialog"
+                  title={OPEN_LARGER_LABEL}
+                  data-testid="open-larger"
+                  onClick={onOpenLarger}
+                >
+                  <ExpandIcon />
+                </button>
+              )}
               <button
                 type="button"
                 className={styles.action}
@@ -323,10 +346,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             role={stripShown ? 'tabpanel' : undefined}
             aria-labelledby={stripShown ? `ws-tab-${active.id}` : undefined}
             data-ws-cell-body={cell.id}
-            // A small face opens its full widget (a widget's own click goes first).
+            // A small face opens its widget larger (a widget's own click goes first).
             onClick={drag || collapsed ? undefined : smallFaceClick(cellFace)}
           >
-            {smallFace && !drag && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
+            {smallFace && !drag && cellFace.opensLarger && <SmallFaceOpener title={activeTitle} open={cellFace.open} onOpen={cellFace.openLarger} />}
             <CellControlsContext.Provider value={controls}>
               <WidgetFaceContext.Provider value={cellFace.host}>
                 <WidgetBody
@@ -360,9 +383,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
           anchor={addFlow.anchor}
           onClose={() => setAddFlow(null)}
         />
-      )}
-      {cellFace.fullOpen && active && !collapsed && (
-        <WidgetFacePopover tab={active} anchorRef={cellRef} onClose={cellFace.closeFull} />
       )}
     </section>
   )

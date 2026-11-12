@@ -1,0 +1,85 @@
+/* Open larger: a widget at its large face, centred over the workspace on the
+   dialogs' overlay tier — nearly the whole window. */
+.popup {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(1400px, calc(100vw - 48px));
+  height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-modal);
+}
+
+/* The phone: the full screen. */
+.sheet {
+  width: 100vw;
+  height: 100dvh;
+  border: none;
+  border-radius: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 40px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--color-border-muted);
+  background: var(--color-header-bg);
+}
+
+.kindIcon {
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.action:hover,
+.actionPressed {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* The widget fills the body (a list scrolls inside itself, as in a cell). */
+.body > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}

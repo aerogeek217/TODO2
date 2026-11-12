@@ -1,14 +1,17 @@
 import { useCallback, useMemo, useState, type MouseEvent } from 'react'
 import type { LayoutTab } from '../../models/workspace-layout'
 import type { WidgetFaceHost } from '../../hooks/use-widget-face'
-import type { WidgetFace } from '../../utils/widget-face'
+import { openWidgetLarger } from '../../services/widget-popup'
+import { useUIStore } from '../../stores/ui-store'
+import { tabOpensLarger, type WidgetFace } from '../../utils/widget-face'
 
 /**
  * A cell's side of the widget faces (D25 R): the face its active widget
- * reports (`useWidgetFace` through `WidgetFaceContext`), and the click that
- * opens a small face's full widget (`CellFaceParts`: its keyboard opener and
- * its popover). Shared by the desktop cell and the phone's, so every widget
- * that picks a face gets them.
+ * reports (`useWidgetFace` through `WidgetFaceContext`), and whether it opens
+ * larger — the widget popup (`services/widget-popup`), which a small face's
+ * click, its keyboard opener (`CellFaceParts`), the controls slot's Open
+ * larger and the ⋯ menu open. Shared by the desktop cell and the phone's, so
+ * every widget that picks a face gets them.
  */
 
 /** How the cell measures its widget's face. */
@@ -24,50 +27,49 @@ export interface CellFace {
   face: WidgetFace
   /** For `WidgetFaceContext` around the active widget. */
   host: WidgetFaceHost
-  /** The full widget is open over the cell. */
-  fullOpen: boolean
-  openFull: () => void
-  closeFull: () => void
+  /** The widget offers Open larger at this face (`tabOpensLarger`: a Number only where its large face adds something). */
+  opensLarger: boolean
+  /** The widget is open in the popup. */
+  open: boolean
+  /** Opens it in the popup. */
+  openLarger: () => void
 }
 
 /**
  * The face of a cell's active tab (`tab`, keyed by its id and kind: a kind
- * change starts over) and its full-widget popover, which opens from the
- * small face and stays open only while the face is small: the face growing
- * (to medium or large) closes it, as does another active tab.
+ * change starts over), whether it opens larger at that face, and its opening.
  */
 export function useCellFace(tab: LayoutTab | undefined, opts: CellFaceOptions): CellFace {
   const key = tab ? `${tab.id}|${tab.kind}` : null
+  const tabId = tab?.id
   const [report, setReport] = useState<{ key: string; face: WidgetFace } | null>(null)
-  const [openKey, setOpenKey] = useState<string | null>(null)
   const onFace = useCallback((face: WidgetFace) => {
     if (key == null) return
     setReport((prev) => (prev?.key === key && prev.face === face ? prev : { key, face }))
   }, [key])
-  const openFull = useCallback(() => setOpenKey(key), [key])
-  const closeFull = useCallback(() => setOpenKey(null), [])
+  const openLarger = useCallback(() => {
+    if (tabId != null) void openWidgetLarger(tabId)
+  }, [tabId])
+  const open = useUIStore((s) => tabId != null && s.widgetPopup?.kind === 'tab' && s.widgetPopup.tabId === tabId)
   const face: WidgetFace = opts.forced ?? (report && report.key === key ? report.face : 'large')
-  const fullOpen = openKey != null && openKey === key && face === 'small'
-  // Closed for good once the face grows or another tab is active (not back when it shrinks again).
-  if (openKey != null && !fullOpen) setOpenKey(null)
+  const opensLarger = tab != null && tabOpensLarger(tab, face)
   const { forced, heightFree } = opts
   const host = useMemo<WidgetFaceHost>(
-    () => ({ forced, heightFree, onFace, openFull }),
-    [forced, heightFree, onFace, openFull],
+    () => ({ forced, heightFree, onFace, openFull: opensLarger ? openLarger : undefined }),
+    [forced, heightFree, onFace, opensLarger, openLarger],
   )
-  return { face, host, fullOpen, openFull, closeFull }
+  return { face, host, opensLarger, open, openLarger }
 }
 
 /**
- * A cell body's click at the small face: opens the full widget, or closes
- * it again — unless the widget handled the click (`preventDefault`: a
- * Number's own drill).
+ * A cell body's click at the small face: opens the widget in the popup —
+ * unless the widget handled the click (`preventDefault`: a Number's own
+ * drill) or it doesn't open larger.
  */
-export function smallFaceClick(cellFace: Pick<CellFace, 'face' | 'fullOpen' | 'openFull' | 'closeFull'>): ((e: MouseEvent) => void) | undefined {
-  if (cellFace.face !== 'small') return undefined
+export function smallFaceClick(cellFace: Pick<CellFace, 'face' | 'opensLarger' | 'openLarger'>): ((e: MouseEvent) => void) | undefined {
+  if (cellFace.face !== 'small' || !cellFace.opensLarger) return undefined
   return (e) => {
     if (e.defaultPrevented) return
-    if (cellFace.fullOpen) cellFace.closeFull()
-    else cellFace.openFull()
+    cellFace.openLarger()
   }
 }

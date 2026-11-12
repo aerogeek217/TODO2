@@ -6,9 +6,10 @@ import { readStore } from './fixtures/db'
 /**
  * Compact faces (D25 R) in a real browser: a List cell's row shrunk with the
  * row divider shows its small face, headless (its strip slides in on hover),
- * and a click opens the full list in a popover anchored to the cell (Esc
- * closes it); the calendar's medium face takes a task drop that sets the
- * due date; on the phone a fit row's Number cell is a compact glance cell.
+ * and a click opens the whole list in the widget popup (Esc closes it); a
+ * plain Number's click opens its tasks instead; the calendar's medium face
+ * takes a task drop that sets the due date; on the phone a fit row's Number
+ * cell is a compact glance cell.
  */
 
 const TASKS: WorkspaceSeed['tasks'] = [
@@ -18,12 +19,12 @@ const TASKS: WorkspaceSeed['tasks'] = [
   { title: 'Call legal' },
 ]
 
-const popover = (page: Page) => page.getByTestId('widget-face-popover')
+const popup = (page: Page) => page.getByTestId('widget-popup')
 
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('a short List row shows the small face, no strip; a click opens the full list over it, Esc closes it', async ({ page }) => {
+  test('a short List row shows the small face, no strip; a click opens the list in the widget popup, Esc closes it', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: TASKS,
       listDefinitions: [{ name: 'Everything' }],
@@ -46,28 +47,30 @@ test.describe('desktop', () => {
     await cell.hover()
     await expect(cell.getByRole('button', { name: 'Cell options' })).toBeInViewport()
 
-    // A click opens the full list in a popover under the cell, kept in the viewport.
+    // A click opens the whole list in the widget popup: centered, nearly the whole window.
     await face.click()
-    await expect(popover(page)).toBeVisible()
-    await expect(popover(page).locator('[data-todo-id]')).toHaveCount(4)
-    const p = await box(popover(page))
-    const c = await box(cell)
-    expect(Math.abs(p.y - (c.y + c.height)) <= 12 || p.y + p.height <= c.y + 12).toBe(true)
-    expect(p.width).toBeLessThanOrEqual(720)
-    expect(p.height).toBeLessThanOrEqual(520)
-    expect(p.y + p.height).toBeLessThanOrEqual(900)
+    await expect(popup(page)).toBeVisible()
+    await expect(popup(page)).toHaveAttribute('aria-label', 'Everything')
+    await expect(popup(page).locator('[data-todo-id]')).toHaveCount(4)
+    const p = await box(popup(page))
+    expect(Math.round(p.width)).toBe(1440 - 48)
+    expect(Math.round(p.height)).toBe(900 - 48)
+    expect(Math.round(p.x)).toBe(24)
     await page.keyboard.press('Escape')
-    await expect(popover(page)).toHaveCount(0)
+    await expect(popup(page)).toHaveCount(0)
 
-    // Its keyboard opener: Enter opens it too.
-    await cell.getByRole('button', { name: 'Open Everything' }).focus()
+    // Its keyboard opener: Enter opens it too, and the focus comes back to it.
+    const opener = cell.getByRole('button', { name: 'Open Everything' })
+    await opener.focus()
     await page.keyboard.press('Enter')
-    await expect(popover(page)).toBeVisible()
+    await expect(popup(page)).toBeVisible()
+    await expect.poll(() => page.evaluate(() => document.activeElement?.closest('[data-testid="widget-popup"]') != null)).toBe(true)
     await page.keyboard.press('Escape')
-    await expect(popover(page)).toHaveCount(0)
+    await expect(popup(page)).toHaveCount(0)
+    await expect(opener).toBeFocused()
   })
 
-  test('the face growing closes the popover, and focus goes to the cell’s top line (its tab), not the page (cr33 W6)', async ({ page }) => {
+  test('the popup stays open as the cell’s face grows; × closes it and the focus goes back to the cell', async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 900 })
     await seedWorkspace(page, {
       tasks: TASKS,
@@ -83,21 +86,19 @@ test.describe('desktop', () => {
     })
     const cell = wsCell(page, 'k1')
     await expect(cell).toHaveAttribute('data-face', 'small')
-    // Opened from the keyboard: focus moves into it.
     await cell.getByRole('button', { name: 'Open Everything' }).focus()
     await page.keyboard.press('Enter')
-    await expect(popover(page)).toBeVisible()
-    await expect.poll(() => page.evaluate(() => document.activeElement?.closest('[data-testid="widget-face-popover"]') != null)).toBe(true)
-
-    // The cell grows past the small face: the popover closes, the opener is gone with the small face.
+    await expect(popup(page)).toBeVisible()
     await page.setViewportSize({ width: 1800, height: 900 })
     await expect(cell).not.toHaveAttribute('data-face', 'small')
-    await expect(popover(page)).toHaveCount(0)
-    await expect(cell.getByRole('button', { name: 'Open Everything' })).toHaveCount(0)
-    await expect.poll(() => page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.wsTab ?? document.activeElement?.tagName)).toBe('list')
+    await expect(popup(page)).toBeVisible()
+    await popup(page).getByRole('button', { name: 'Close' }).click()
+    await expect(popup(page)).toHaveCount(0)
+    // The opener went with the small face: the focus lands in the cell, not on the page.
+    await expect.poll(() => page.evaluate(() => document.activeElement?.closest<HTMLElement>('[data-ws-cell]')?.dataset.wsCell ?? document.activeElement?.tagName)).toBe('k1')
   })
 
-  test('a Number’s face growing closes its popover, and focus stays in its cell (its top line is no focus target)', async ({ page }) => {
+  test('a plain Number’s small face has no opener: its click opens its tasks, not the popup', async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 900 })
     await seedWorkspace(page, {
       tasks: TASKS,
@@ -111,17 +112,15 @@ test.describe('desktop', () => {
     })
     const cell = wsCell(page, 'k1')
     await expect(cell).toHaveAttribute('data-face', 'small')
-    await cell.locator('[data-face-opener]').focus()
-    await page.keyboard.press('Enter')
-    await expect(popover(page)).toBeVisible()
-    await expect.poll(() => page.evaluate(() => document.activeElement?.closest('[data-testid="widget-face-popover"]') != null)).toBe(true)
-    await page.setViewportSize({ width: 1800, height: 900 })
-    await expect(cell).not.toHaveAttribute('data-face', 'small')
-    await expect(popover(page)).toHaveCount(0)
-    await expect.poll(() => page.evaluate(() => document.activeElement?.closest<HTMLElement>('[data-ws-cell]')?.dataset.wsCell ?? document.activeElement?.tagName)).toBe('k1')
+    await expect(cell.locator('[data-face-opener]')).toHaveCount(0)
+    await cell.hover()
+    await expect(cell.getByRole('button', { name: 'Open larger' })).toHaveCount(0)
+    await cell.locator('[data-number="num"]').click()
+    await expect(page.locator('[data-task-dialog]')).toBeVisible()
+    await expect(popup(page)).toHaveCount(0)
   })
 
-  test('a row editor inside the popover opens over it and leaves it open', async ({ page }) => {
+  test('a row editor inside the popup opens over it and leaves it open', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: TASKS,
       listDefinitions: [{ name: 'Everything' }],
@@ -137,9 +136,13 @@ test.describe('desktop', () => {
     const cell = wsCell(page, 'k1')
     await expect(cell).toHaveAttribute('data-face', 'small')
     await cell.locator('[data-list-face]').click()
-    await popover(page).locator('span[data-task-title="Call legal"]').dblclick()
-    await expect(page.getByRole('dialog', { name: 'Edit task' })).toBeVisible()
-    await expect(popover(page)).toBeVisible()
+    await popup(page).locator('span[data-task-title="Call legal"]').dblclick()
+    const editor = page.getByRole('dialog', { name: 'Edit task' })
+    await expect(editor).toBeVisible()
+    await expect(popup(page)).toBeVisible()
+    // The editor is the layer on top: its middle is its own.
+    const r = await box(editor)
+    expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[role="dialog"]')?.getAttribute('aria-label') ?? null, { x: r.x + r.width / 2, y: r.y + 30 })).toBe('Edit task')
   })
 
   test('the calendar’s medium face: a list row dropped on a day of the week sets its due date', async ({ page }) => {

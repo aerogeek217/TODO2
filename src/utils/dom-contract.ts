@@ -57,3 +57,20 @@ export function readTodoIds(root: ParentNode = document): { rows: Element[]; ids
   const rows = Array.from(root.querySelectorAll(attrSelector(TODO_ID_ATTR)))
   return { rows, ids: rows.map((el) => Number(el.getAttribute(TODO_ID_ATTR))) }
 }
+
+/** The widget popup's panel (Open larger): the id of the tab it shows. */
+export const WIDGET_POPUP_ATTR = 'data-widget-popup'
+
+/** The widget popup's panel while it shows tab `tabId`, else null. */
+export function widgetPopupOf(tabId: string): HTMLElement | null {
+  return document.querySelector<HTMLElement>(attrSelector(WIDGET_POPUP_ATTR, CSS.escape(tabId)))
+}
+
+/**
+ * The first element matching `selector` in tab `tabId`'s widget as it shows
+ * now: in the widget popup while it shows that tab (an editor opened from
+ * there opens beside it), else anywhere in the page.
+ */
+export function widgetElement(tabId: string, selector: string): HTMLElement | null {
+  return widgetPopupOf(tabId)?.querySelector<HTMLElement>(selector) ?? document.querySelector<HTMLElement>(selector)
+}

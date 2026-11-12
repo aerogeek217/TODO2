@@ -1,3 +1,6 @@
+import { DEFAULT_NUMBER_BREAKDOWN } from '../models/glance-widgets'
+import type { LayoutTab } from '../models/workspace-layout'
+
 /**
  * A widget's face (D25 R): how much of it a cell has room for, picked from
  * the cell body's measured size — never stored, never a setting.
@@ -64,4 +67,24 @@ export function reviewFaceFor(size: { width: number; height: number }): WidgetFa
   const { width, height } = size
   if (width <= 0 && height <= 0) return 'large'
   return height <= REVIEW_MEDIUM_MAX_HEIGHT_PX || width <= REVIEW_MEDIUM_MAX_WIDTH_PX ? 'medium' : 'large'
+}
+
+/**
+ * Whether a widget offers **Open larger** (its popup, drawn at its large
+ * face) while its cell shows it at `face`. Every kind does but a Number,
+ * which offers it only where its large face draws something `face` leaves
+ * out: a count's breakdown (only the large face draws it); Share of…'s ring
+ * and `N of M`, Oldest's caption, title and foot, Against a goal's state
+ * and bar, and a group's item names (all missing from the small face only).
+ * A Number that follows a list never does — its click opens that list.
+ */
+export function tabOpensLarger(tab: LayoutTab, face: WidgetFace): boolean {
+  if (tab.kind !== 'number') return true
+  if (face === 'large') return false
+  const config = tab.config
+  switch (config.show) {
+    case 'count': return (config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN) !== 'none'
+    case 'list': return false
+    default: return face === 'small'
+  }
 }

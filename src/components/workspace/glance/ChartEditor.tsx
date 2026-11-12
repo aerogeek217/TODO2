@@ -42,6 +42,7 @@ import { useEscapeCloses } from './editor-escape'
 import { useEditorDraft, usePressElsewhereCloses } from './editor-draft'
 import { EditorFooter } from './EditorFooter'
 import styles from './ChartEditor.module.css'
+import { widgetElement } from '../../../utils/dom-contract'
 
 /** The chart tab `tabId` names in the open layout, if it is one. */
 function useChartTab(tabId: string | null): ChartTab | undefined {
@@ -74,7 +75,7 @@ export function ChartEditorHost() {
     let frames = 0
     let raf = 0
     const look = () => {
-      const el = document.querySelector<HTMLElement>(`[data-chart-head="${CSS.escape(tab.id)}"]`)
+      const el = widgetElement(tab.id, `[data-chart-head="${CSS.escape(tab.id)}"]`)
       anchorRef.current = el
       setFound(el ? tab.id : null)
       if (!el && ++frames < 30) raf = requestAnimationFrame(look)

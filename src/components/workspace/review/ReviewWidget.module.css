@@ -238,7 +238,7 @@
   color: var(--color-text-primary);
 }
 
-/* The field's popup: over the cell, and over the small face's popover. */
+/* The field's popup: over the cell, and over the widget popup. */
 .popup {
   position: fixed;
   z-index: var(--z-dialog-nested);

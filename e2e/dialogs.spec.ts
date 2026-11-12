@@ -8,7 +8,7 @@ import { readStore } from './fixtures/db'
  * focused; Tab / Shift+Tab wrap inside it; focus returns to the trigger; a
  * press that starts inside the panel and ends on the backdrop keeps it open,
  * a press on the backdrop closes it. And the stacks: the editor over the
- * task dialog, the email editor over the check-in dialog (opened from the
+ * task dialog and over the widget popup, the email editor over the check-in dialog (opened from the
  * Review widget's Email check-in), the people editor over Settings, "Continue without
  * a backup?" over the append-import dialog.
  */
@@ -216,6 +216,42 @@ test('task dialog: Esc, focus trap and return, backdrop press', async ({ page })
     inside: dialog.getByRole('heading'),
     initialFocus: dialog,
   })
+})
+
+test('widget popup (Open larger): Esc, focus trap and return, backdrop press', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  const cell = page.locator('[data-ws-cell="k1"]')
+  const trigger = cell.getByRole('button', { name: 'Open larger' })
+  const dialog = page.getByTestId('widget-popup')
+  await checkContract(page, {
+    dialog,
+    open: async () => {
+      await cell.hover()
+      await trigger.click()
+      await expect(dialog).toBeVisible()
+    },
+    trigger,
+    inside: dialog.getByTestId('widget-popup-title'),
+    initialFocus: dialog,
+  })
+})
+
+test('widget popup → editor: the task editor opens over it and owns Esc; then Esc closes the popup', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  const cell = page.locator('[data-ws-cell="k1"]')
+  await cell.hover()
+  await cell.getByRole('button', { name: 'Open larger' }).click()
+  const dialog = page.getByTestId('widget-popup')
+  await expect(dialog).toBeVisible()
+  await dialog.locator('span[data-task-title="Plan the offsite"]').dblclick()
+  await expect(editorTitle(page)).toBeVisible()
+  await blurAll(page)
+  await page.keyboard.press('Escape')
+  await expect(editorTitle(page)).toHaveCount(0)
+  await expect(dialog).toBeVisible()
+  await blurAll(page)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
 })
 
 test('task dialog → editor: the editor owns Esc, focused or not; then Esc closes the dialog', async ({ page }) => {

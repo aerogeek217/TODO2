@@ -4,11 +4,12 @@ import type { LayoutTab } from '../../models/workspace-layout'
 /**
  * What a cell without a tab strip (one widget, D26 AA1) lends its widget's
  * top line (`WidgetTopLine`): the controls slot — the grip that drags the
- * whole cell and, clicked, opens its layout menu, and the ⋯ that opens the
+ * whole cell and, clicked, opens its layout menu, Open larger (the widget
+ * popup, where the widget offers it) and the ⋯ that opens the
  * widget's menu (`cell-menu`) — and the tab the
  * line stands for. `null` (the context's default) wherever the widget isn't
  * alone in a cell: a strip names it there, and its ⋯ is in the strip's header
- * (a cell of two or more widgets, the small face's popover, Settings).
+ * (a cell of two or more widgets, the widget popup, Settings).
  */
 export interface CellControlsValue {
   /** The cell: the grip drags it whole (`workspace-drag` panel drag). */
@@ -31,6 +32,8 @@ export interface CellControlsValue {
   onMore: () => void
   /** The grip was clicked (UX cleanup 4A): the cell's layout menu. No grip without it (touch has none). */
   onGrip?: () => void
+  /** Opens the widget larger (the widget popup), where it offers that; no Open larger button without it. */
+  onOpenLarger?: () => void
   /** The grip's menu is open. */
   gripOpen?: boolean
   /** Takes the grip's button (a callback ref, with its cleanup): its menu opens under it. */
