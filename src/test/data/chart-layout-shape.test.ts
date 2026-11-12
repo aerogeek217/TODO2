@@ -17,18 +17,14 @@ const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as 
 describe('a Breakdown in a stored layout (D26 P8)', () => {
   const full = {
     ...newBreakdownConfig({ ...emptyPredicate(), statusIds: [3] }),
-    name: 'Waiting on', show: 'oldest', oldestBy: 'lastFollowup', checkins: true, style: 'donut', showNone: false,
-    badges: { due: 'overdue', followup: 2 },
+    name: 'Waiting on', show: 'oldest', oldestBy: 'lastFollowup', style: 'donut', showNone: false,
   }
 
   it('every field round-trips, with its sorts (view state)', () => {
     for (const tab of [
       createTab('breakdown', 't') as unknown as Record<string, unknown>,
       { id: 't', kind: 'breakdown', config: full, viewState: { sorts: { people: { by: 'due', reversed: true }, status: { by: 'name' } } } },
-      { id: 't', kind: 'breakdown', config: { ...newBreakdownConfig(emptyPredicate()), splitBy: 'age', badges: 'off' } },
-      // One range of its own: the other follows Settings.
-      { id: 't', kind: 'breakdown', config: { ...newBreakdownConfig(emptyPredicate()), badges: { followup: 2 } } },
-      { id: 't', kind: 'breakdown', config: { ...newBreakdownConfig(emptyPredicate()), badges: { due: 'overdue' } } },
+      { id: 't', kind: 'breakdown', config: { ...newBreakdownConfig(emptyPredicate()), splitBy: 'age', columns: [] } },
     ]) {
       const row = layoutRow(tab)
       expect(validateRow('layouts', row)).toBe(true)
@@ -44,10 +40,6 @@ describe('a Breakdown in a stored layout (D26 P8)', () => {
     ['show', 'sum', { show: 'count', oldestBy: undefined }],
     ['oldestBy', 'birthday', { oldestBy: undefined }],
     ['showNone', 'yes', { showNone: true }],
-    ['checkins', false, { checkins: undefined }],
-    ['badges', { due: 'soon', followup: 0 }, { badges: undefined }],
-    ['badges', {}, { badges: undefined }],
-    ['badges', { due: 3, weekly: true }, { badges: undefined }],
   ] as const)('its %s %j is reset (a fix)', (key, value, reset) => {
     const row = layoutRow({ id: 't', kind: 'breakdown', config: { ...full, [key]: value } })
     expect(checkLayoutBody(row)).toBe(`cells[0].tabs[0].config.${key}`)
@@ -55,6 +47,15 @@ describe('a Breakdown in a stored layout (D26 P8)', () => {
     const expected: Record<string, unknown> = { ...full, ...reset }
     for (const [k, v] of Object.entries(expected)) if (v === undefined) delete expected[k]
     expect(tabOf(row)).toEqual({ id: 't', kind: 'breakdown', config: expected })
+  })
+
+  it('a `badges` or `checkins` an earlier build stored (v79 rewrote them) passes the check and is dropped (a fix)', () => {
+    for (const old of [{ checkins: true }, { badges: 'off' }, { badges: { due: 'overdue', followup: 2 } }]) {
+      const row = layoutRow({ id: 't', kind: 'breakdown', config: { ...full, ...old } })
+      expect(checkLayoutBody(row)).toBe(true)
+      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+      expect(tabOf(row)).toEqual({ id: 't', kind: 'breakdown', config: full })
+    }
   })
 
   it('an oldestBy without oldest goes; a missing filter is none (a fix); a bad sort is dropped', () => {
@@ -155,7 +156,7 @@ describe('a Pivot in a stored layout (D26 P8)', () => {
   })
 })
 
-// Kinds removed while the schema stayed at v78: the Status flow, then the Tag map.
+// Kinds removed after v78 shipped: the Status flow, then the Tag map (v79 dropped every saved one).
 describe.each([
   ['a Status flow', { id: 'gone', kind: 'statusFlow', config: { name: 'Flow', filter: emptyPredicate(), weeks: 12 } }],
   ['a Tag map', { id: 'gone', kind: 'tagMap', config: { name: 'Projects', filter: emptyPredicate(), tagIds: [1] } }],
@@ -166,10 +167,10 @@ describe.each([
     expect(isWidgetKind(removed.kind)).toBe(false)
   })
 
-  it('passes the check, so a v78 file holding one still imports; the repair drops it (a fix) and its emptied cell closes', () => {
+  it('in a v79 row (only a hand edit makes one) is an unknown kind: the check refuses it; the repair drops it (a fix) and its emptied cell closes', () => {
     const row = { id: 1, name: 'Charts', sortOrder: 0, createdAt: DATE, modifiedAt: DATE,
       ...grid([[cell('a', [removed as unknown as LayoutTab]), cell('b', [notes as LayoutTab])]]) }
-    expect(validateRow('layouts', row)).toBe(true)
+    expect(validateRow('layouts', row)).toBe('cells[0].tabs[0].kind')
     expect(rowFixes('layouts', row)).toEqual(['tab dropped'])
     const picked = sanitizeRow('layouts', row) as WorkspaceLayout
     expect(picked.cells.map((c) => c.id)).toEqual(['b'])
@@ -180,7 +181,7 @@ describe.each([
   it('beside another tab, only it goes', () => {
     const row = layoutRow(removed)
     const body = { ...row, cells: [{ ...(row.cells as WorkspaceLayout['cells'])[0]!, tabs: [notes, removed] }] }
-    expect(validateRow('layouts', body)).toBe(true)
+    expect(validateRow('layouts', body)).toBe('cells[0].tabs[1].kind')
     expect((sanitizeRow('layouts', body) as WorkspaceLayout).cells[0]!.tabs).toEqual([notes])
   })
 

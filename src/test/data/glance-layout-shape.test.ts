@@ -50,7 +50,7 @@ describe('glance widget kinds', () => {
 
   it('a new tab has its defaults; a Number counts every open task', () => {
     expect(createTab('number', 'n')).toEqual({ id: 'n', kind: 'number', config: { name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' } })
-    expect(createTab('trend', 't').config).toEqual({ range: '14d' })
+    expect(createTab('trend', 't').config).toEqual({ range: '14d', name: 'Created vs completed', show: 'bars' })
     expect(createTab('breakdown', 'b').config).toEqual({ name: 'Breakdown', filter: emptyPredicate(), splitBy: 'people', style: 'bars', show: 'count', showNone: true })
     // Project pulse reads the tags it's seeded with (the store passes the `Project: …` tags).
     expect(createTab('pulse', 'x').config).toEqual({ tagIds: [] })
@@ -149,7 +149,7 @@ describe('glance widget kinds', () => {
   it('a Number (D26 P5): every field round-trips; Auto, never and following the lens are absent', () => {
     for (const config of [
       numberTab('t').config,
-      numberTab('t', 'overdue', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 12, compare: 'none', color: '#abc' }).config,
+      numberTab('t', 'overdue', { breakdown: 'tags', litWhen: 'below', litAt: 12, compare: 'none', color: '#abc' }).config,
       // The colour while not lit (widget feedback 2D; optional, no schema step), with and without the lit one.
       numberTab('t', 'overdue', { litWhen: 'above', litAt: 0, color: '#abc', unlitColor: '#7ec4bc' }).config,
       numberTab('t', 'open', { unlitColor: '#7EC4BC' }).config,
@@ -176,7 +176,6 @@ describe('glance widget kinds', () => {
     ['litAt', -1, { litAt: 0 }],
     ['litAt', 1.5, { litAt: 0 }],
     ['compare', 'lastYear', { compare: 'yesterday' }],
-    ['ignoreLens', false, {}],
     ['breakdown', 'person', {}],
     ['breakdown', 'due', {}],
   ] as const)('a Number’s %s %j is reset (a fix)', (key, value, reset) => {
@@ -187,6 +186,16 @@ describe('glance widget kinds', () => {
     const { [key]: _gone, ...rest } = base as unknown as Record<string, unknown>
     void _gone
     expect(tabOf(row)).toEqual({ id: 't', kind: 'number', config: { ...rest, ...reset } })
+  })
+
+  it('a Number’s config `ignoreLens` (v79 moved it to the view state) passes the check and is dropped (a fix)', () => {
+    const base = numberTab('t', 'overdue').config
+    for (const value of [true, false]) {
+      const row = layoutRow({ id: 't', kind: 'number', config: { ...base, ignoreLens: value } })
+      expect(checkLayoutBody(row)).toBe(true)
+      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+      expect(tabOf(row)).toEqual({ id: 't', kind: 'number', config: base })
+    }
   })
 
   it('a Number’s threshold goes with never; a filter is read as a list’s is; a v77 metric reads as a new Number', () => {

@@ -71,9 +71,16 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/** A stored tab without name, filter or Show as (v79 wrote name and Show as on every stored one; a hand-made file may lack them). */
+const BARE: TrendTab = { id: 't', kind: 'trend', config: { range: '14d' } }
+
 describe('Created vs completed’s editor', () => {
+  it('a new one is named and shows Bars', () => {
+    expect(createTab('trend', 't').config).toEqual({ range: '14d', name: 'Created vs completed', show: 'bars' })
+  })
+
   it('Edit chart… comes before Range and opens it; a stored tab without the new fields reads as Bars, every task', async () => {
-    setup(createTab('trend', 't') as TrendTab)
+    setup(BARE)
     await waitFor(() => expect(shown()).toBe('bars'))
     expect(document.querySelector('[data-trend-head="t"]')).toHaveTextContent('Created vs completed')
     const entries = glanceMenu(current(), undefined)!.settingEntries
@@ -87,7 +94,7 @@ describe('Created vs completed’s editor', () => {
   })
 
   it('Show as and the name draw live; Save writes only them, as one undo step', async () => {
-    setup(createTab('trend', 't') as TrendTab)
+    setup(BARE)
     await waitFor(() => expect(shown()).toBe('bars'))
     act(() => { useChartWidgetsStore.getState().openTrendEditor('t') })
     fireEvent.click(within(editor()).getByRole('radio', { name: 'Burndown' }))
@@ -103,7 +110,7 @@ describe('Created vs completed’s editor', () => {
   })
 
   it('Discard drops the draft: the widget is as stored again', async () => {
-    setup(createTab('trend', 't') as TrendTab)
+    setup(BARE)
     await waitFor(() => expect(shown()).toBe('bars'))
     act(() => { useChartWidgetsStore.getState().openTrendEditor('t') })
     fireEvent.click(within(editor()).getByRole('radio', { name: 'Cumulative' }))

@@ -7,6 +7,8 @@ import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { readLayoutDraft } from '../../data/draft-storage'
 import { rowFixes, validateRow } from '../../data/import-validation'
 import { emptyPredicate } from '../../models/filter-predicate'
+import { defaultBreakdownColumns } from '../../models/chart-widgets'
+import { DEFAULT_TAB_BADGES } from '../../utils/tab-badges'
 import type { LayoutTab } from '../../models/workspace-layout'
 import { cell, grid } from '../helpers/layout-builders'
 
@@ -20,6 +22,8 @@ const v77 = (id: string, kind: string, config: Obj = {}) => ({ id, kind, config 
 const breakdown = (name: string, splitBy: string, showNone: boolean) => ({
   name, filter: emptyPredicate(), splitBy, style: 'bars', show: 'count', showNone,
 })
+/** The Breakdown after the whole chain: v79 wrote its count columns (Settings' default ranges, none stored). */
+const throughV79 = (config: Obj) => ({ ...config, columns: defaultBreakdownColumns(DEFAULT_TAB_BADGES) })
 
 describe('v78 breakdown: People, Tags and Status become Breakdowns (D26 P8)', () => {
   it.each([
@@ -100,8 +104,8 @@ describe('v78 breakdown: People, Tags and Status become Breakdowns (D26 P8)', ()
     if (!result.ok) throw new Error(result.error)
     expect(result.warnings).toEqual([])
     expect(result.data.layouts[0]!.cells.flatMap((c) => c.tabs)).toEqual([
-      { id: 't', kind: 'breakdown', config: breakdown('Tags', 'tags', false) },
-      { id: 's', kind: 'breakdown', config: breakdown('Status', 'status', true) },
+      { id: 't', kind: 'breakdown', config: throughV79(breakdown('Tags', 'tags', false)) },
+      { id: 's', kind: 'breakdown', config: throughV79(breakdown('Status', 'status', true)) },
     ])
   })
 
@@ -110,6 +114,6 @@ describe('v78 breakdown: People, Tags and Status become Breakdowns (D26 P8)', ()
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'N', schemaVersion: 77, ...body }))
     const draft = readLayoutDraft()
     const tabs = draft?.kind === 'new' ? draft.body.cells.flatMap((c) => c.tabs) : []
-    expect(tabs).toEqual([{ id: 'p', kind: 'breakdown', config: breakdown('People', 'people', true) }])
+    expect(tabs).toEqual([{ id: 'p', kind: 'breakdown', config: throughV79(breakdown('People', 'people', true)) }])
   })
 })

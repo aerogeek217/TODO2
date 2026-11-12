@@ -659,14 +659,18 @@ describe('sanitisable settings audit (keyboard shortcuts)', () => {
   })
 })
 
-describe('the retired Eisenhower rows', () => {
-  it('are carried as stored, whatever they hold: never reported', async () => {
+describe('the retired Eisenhower rows (v79 deleted them; only a hand edit brings one back)', () => {
+  it('are reported like any unknown part, and cleanup leaves nothing to report — the list kept, given a layout', async () => {
     await db.settings.bulkPut([
       { key: 'eisenhowerPanes', value: '{oops' },
       { key: 'eisenhowerSource', value: 'Team' },
     ])
-    await db.listDefinitions.add({ name: 'Eisenhower', sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: emptyPredicate() }, owner: { eisenhower: true } })
+    const id = await db.listDefinitions.add({ name: 'Eisenhower', sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: emptyPredicate() }, owner: { eisenhower: true } as never })
+    const report = await auditData()
+    expect(report.issues).toEqual(expect.arrayContaining([expect.objectContaining({ table: 'listDefinitions', fix: 'sanitize', ids: [id] })]))
+    await cleanupIssues(report.issues)
     expect((await auditData()).issues).toEqual([])
+    expect(await db.listDefinitions.get(id)).toMatchObject({ name: 'Eisenhower', owner: { layoutId: expect.any(Number) } })
   })
 })
 

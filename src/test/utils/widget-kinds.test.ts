@@ -38,8 +38,8 @@ describe('widget kinds', () => {
     expect(checkLayoutBody(layout('taskboard'))).toBe('cells[0].tabs[0].kind')
     expect(checkLayoutBody(layout('toString'))).toBe('cells[0].tabs[0].kind')
     expect(pickLayoutBody(layout('taskboard')).fixes).toEqual(['tab dropped'])
-    // A retired Eisenhower tab passes the check (a v78 file still imports) and the repair drops it.
-    expect(checkLayoutBody(layout('eisenhower'))).toBe(true)
+    // A retired Eisenhower tab (v79 dropped every saved one) is an unknown kind too.
+    expect(checkLayoutBody(layout('eisenhower'))).toBe('cells[0].tabs[0].kind')
     expect(pickLayoutBody(layout('eisenhower')).fixes).toEqual(['tab dropped'])
   })
 

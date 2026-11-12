@@ -56,7 +56,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 78
+export const DEV_SEED_SCHEMA_VERSION = 79
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -956,9 +956,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         D: cell('cell-due-today', [number('tab-due-today', 'dueToday')]),
         X: cell('cell-status', [breakdown('tab-status', 'Status', 'status', { style: 'stacked' })]),
         T: cell('cell-trend', [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }]),
-        // Waiting on (D26 P8 / Z3): the Waiting tasks by person, oldest last follow-up first, with the check-in envelope.
+        // Waiting on (D26 P8 / Z3): the Waiting tasks by person, oldest last follow-up first.
         E: cell('cell-people', [
-          breakdown('tab-waiting', 'Waiting on', 'people', { filter: filter({ statusIds: [IDS.statuses.waiting] }), show: 'oldest', oldestBy: 'lastFollowup', checkins: true }),
+          breakdown('tab-waiting', 'Waiting on', 'people', { filter: filter({ statusIds: [IDS.statuses.waiting] }), show: 'oldest', oldestBy: 'lastFollowup' }),
           breakdown('tab-people', 'People', 'people'),
         ]),
       }, [280, 220, 220, 280], [400, 250, { weight: 150, collapsed: true }, { fit: true }, { px: 240 }]),

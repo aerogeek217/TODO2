@@ -25,10 +25,10 @@ beforeEach(async () => {
 })
 
 describe('import: a list’s owner, its filter-line switch, the Priority grouping', () => {
-  it('keeps a layout’s owner or the retired Eisenhower’s (carried as stored), the hidden filter line and the Priority grouping', () => {
+  it('keeps a layout’s owner, the hidden filter line and the Priority grouping', () => {
     const rows = [
       list(1, { owner: { layoutId: 4 }, showFilterLine: false, grouping: 'priority' }),
-      list(2, { owner: { eisenhower: true } }),
+      list(2, { owner: { layoutId: 5 } }),
     ]
     const res = validateImportData({ todos: [], settings: [], listDefinitions: rows })
     if (!res.ok) throw new Error(res.error)
@@ -37,7 +37,8 @@ describe('import: a list’s owner, its filter-line switch, the Priority groupin
   })
 
   it.each([
-    [{ layoutId: 0 }], [{ layoutId: 1.5 }], [{ layoutId: '3' }], [{ eisenhower: false }],
+    // The removed Eisenhower's (v79 deleted its list) among them.
+    [{ layoutId: 0 }], [{ layoutId: 1.5 }], [{ layoutId: '3' }], [{ eisenhower: false }], [{ eisenhower: true }],
     [{ layoutId: 3, eisenhower: true }], [{ layoutId: 3, extra: 1 }], ['eisenhower'], [7],
   ])('an owner it can’t read (%j) is dropped with a warning: a list with no owner (the audit gives it a layout)', (owner) => {
     const row = list(1, { owner })
@@ -130,11 +131,11 @@ describe('layoutRepository: the layout order', () => {
 })
 
 describe('audit: lists that belong to no layout', () => {
-  it('reports them; cleanup gives each the first layout that shows it, the rest a new layout “Recovered lists” (never deletes one); a live layout’s and the retired Eisenhower’s are fine', async () => {
+  it('reports them; cleanup gives each the first layout that shows it, the rest a new layout “Recovered lists” (never deletes one); a live layout’s is fine', async () => {
     const shows4 = single({ id: 'k', tabs: [{ id: 't', kind: 'lens', config: { listDefinitionId: 4 } }] })
     await db.layouts.bulkAdd([layoutRow(1), layoutRow(2, { sortOrder: 1, ...shows4 }), layoutRow(3, { sortOrder: 2, ...shows4 })] as unknown as WorkspaceLayout[])
     await db.listDefinitions.bulkAdd([
-      list(1, { owner: { layoutId: 1 } }), list(2, { owner: { layoutId: 9 }, sortOrder: 3 }), list(3, { owner: { eisenhower: true } }),
+      list(1, { owner: { layoutId: 1 } }), list(2, { owner: { layoutId: 9 }, sortOrder: 3 }), list(3, { owner: { layoutId: 2 } }),
       list(4), list(5, { sortOrder: 1 }),
     ] as unknown as ListDefinition[])
     const report = await auditData()
@@ -144,7 +145,7 @@ describe('audit: lists that belong to no layout', () => {
     expect(report.issues[0]!.samples!.map((x) => x.note)).toEqual(['owner layout 9 not in layouts', 'no owner', 'no owner'])
     expect(await cleanupIssues(report.issues)).toBe(3)
     const lists = await db.listDefinitions.orderBy('id').toArray()
-    expect(lists.map((d) => d.owner)).toEqual([{ layoutId: 1 }, { layoutId: 4 }, { eisenhower: true }, { layoutId: 2 }, { layoutId: 4 }])
+    expect(lists.map((d) => d.owner)).toEqual([{ layoutId: 1 }, { layoutId: 4 }, { layoutId: 2 }, { layoutId: 2 }, { layoutId: 4 }])
     const recovered = await db.layouts.get(4)
     expect(recovered).toMatchObject({ name: 'Recovered lists', sortOrder: 3 })
     // One cell of list tabs, in the list order.

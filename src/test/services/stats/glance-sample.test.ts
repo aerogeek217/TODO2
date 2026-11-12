@@ -8,7 +8,7 @@ import { predicateToCriteria } from '../../../utils/filter-criteria'
 import { computeTrend } from '../../../services/stats/trend'
 import { computeBreakdown } from '../../../services/stats/breakdown'
 import { openTasks, statsFilter } from '../../../services/stats/stats-context'
-import { derivedBreakdownColumns, type BreakdownSplit } from '../../../models/chart-widgets'
+import { defaultBreakdownColumns, type BreakdownSplit } from '../../../models/chart-widgets'
 import { DEFAULT_TAB_BADGES } from '../../../utils/tab-badges'
 import { emptyFilterCriteria, testLookups } from '../../helpers'
 import {
@@ -26,9 +26,9 @@ function screened(screen: FilterCriteria) {
   return applyFilter(statsFilter(screen), SAMPLE_TASKS, lookups, SAMPLE_TODAY, markerSettings)
 }
 
-/** The derived count columns (Settings' default ranges) over `tasks`: each column's filter, as the widget runs it. */
+/** The default count columns (Settings' default ranges) over `tasks`: each column's filter, as the widget runs it. */
 function columnsOf(tasks: typeof SAMPLE_TASKS) {
-  return derivedBreakdownColumns(undefined, DEFAULT_TAB_BADGES).map((c) => ({
+  return defaultBreakdownColumns(DEFAULT_TAB_BADGES).map((c) => ({
     id: c.id,
     keep: new Set(numberIds(predicateToCriteria(c.filter), tasks, lookups, SAMPLE_TODAY, markerSettings)),
   }))

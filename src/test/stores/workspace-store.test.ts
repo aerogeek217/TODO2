@@ -411,54 +411,8 @@ describe('view state', () => {
     expect(undoNames()).toEqual([])
   })
 
-  it('a layout an earlier build stored with a lens pick opens clean — no repair — and drops the key at its next write', async () => {
-    const legacy = { lensId: 'lens-a' } as Partial<WorkspaceLayout>
-    const [id] = await seedAndInit(twoColumns('Daily', legacy))
-    expect('lensId' in (await stored(id!))).toBe(true)
-    expect(ws().repairedIds.size).toBe(0)
-    expect(useUndoStore.getState().snackbar).toBeNull()
-    expect(ws().working && 'lensId' in ws().working!).toBe(false)
-    expect(ws().layouts.every((l) => !('lensId' in l))).toBe(true)
-    await ws().setActiveTab('a2')
-    expect((await stored(id!)).cells[0]!.activeTabId).toBe('a2')
-    expect('lensId' in (await stored(id!))).toBe(false)
-  })
-
-  it('an edit drops a legacy lens pick from the stored layout', async () => {
-    const legacy = { lensId: 'lens-a' } as Partial<WorkspaceLayout>
-    const [id] = await seedAndInit(twoColumns('Daily', legacy))
-    ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })
-    expect('lensId' in (await stored(id!))).toBe(false)
-  })
-
-  it('a Review widget an earlier build stored with a pick and a place opens clean — the pick not read, no repair — and takes the new shape at its next write', async () => {
-    // As that build stored it: one saved pick, the current task, a day's skips.
-    const legacyTab = { id: 'rv', kind: 'review', config: { pick: { kind: 'tag', id: 3 } }, viewState: { sort: 'due', currentId: 7, skipped: { day: '2026-11-09', ids: [4] } } }
-    const KR = cell('kr', [legacyTab as unknown as ReturnType<typeof createTab>], { activeTabId: 'rv' })
-    const [id] = await seedAndInit({ sortOrder: 0, name: 'Daily', createdAt: T0, modifiedAt: T0, ...grid([[KA, KR]], { colIds: ['A', 'B'], rowIds: ['R'] }) })
-    expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual(legacyTab)
-    expect(ws().repairedIds.size).toBe(0)
-    expect(useUndoStore.getState().snackbar).toBeNull()
-    // 2A: no kind any more — the pick isn't read, the config is empty.
-    const opened = { id: 'rv', kind: 'review', config: {}, viewState: { sort: 'due' } }
-    expect(cellOf(ws().working, 'kr')!.tabs[0]).toEqual(opened)
-    expect(cellOf(ws().saved, 'kr')!.tabs[0]).toEqual(opened)
-    // A view-state write (saved at once, no undo step) stores the row in the new shape.
-    await ws().patchTabViewState('rv', 'review', { sort: 'title' })
-    expect(undoNames()).toEqual([])
-    expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual({ id: 'rv', kind: 'review', config: {}, viewState: { sort: 'title' } })
-  })
-
-  it('a Review widget stored with a kind (board BM’s `by`) opens clean, no repair, its kind not read (2A)', async () => {
-    const legacyTab = { id: 'rv', kind: 'review', config: { by: 'status' }, viewState: { sort: 'next' } }
-    const KR = cell('kr', [legacyTab as unknown as ReturnType<typeof createTab>], { activeTabId: 'rv' })
-    const [id] = await seedAndInit({ sortOrder: 0, name: 'Daily', createdAt: T0, modifiedAt: T0, ...grid([[KA, KR]], { colIds: ['A', 'B'], rowIds: ['R'] }) })
-    expect(ws().repairedIds.size).toBe(0)
-    expect(useUndoStore.getState().snackbar).toBeNull()
-    expect(cellOf(ws().working, 'kr')!.tabs[0]).toEqual({ id: 'rv', kind: 'review', config: {}, viewState: { sort: 'next' } })
-    // Left stored until the layout's next write (schema v79 drops it everywhere).
-    expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual(legacyTab)
-  })
+  // A layout's old lens pick (`lensId`) and a Review widget's saved kind, pick and place: v79 removed
+  // them from every stored row (`v79-upgrade.test`), so the layout read has no shim for them.
 })
 
 describe('sizes are view state', () => {

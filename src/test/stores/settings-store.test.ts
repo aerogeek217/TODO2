@@ -543,13 +543,10 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().listZoom).toBe('auto')
   })
 
-  it('reads the densities before the zoom levels as levels: comfortable is Stacked, compact is Rows', async () => {
+  it('a density from before the zoom levels (v79 wrote every stored one as a level) reads as the default', async () => {
     await db.settings.put({ key: 'rowDensity', value: 'comfortable' })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().listZoom).toBe('stacked')
-    await db.settings.put({ key: 'rowDensity', value: 'compact' })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().listZoom).toBe('rows')
+    expect(useSettingsStore.getState().listZoom).toBe('auto')
   })
 
   it('the row dates: relative by default (no row); numeric stored, relative removes the row; junk ignored on load', async () => {

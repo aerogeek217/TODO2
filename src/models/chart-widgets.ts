@@ -80,29 +80,15 @@ export interface BreakdownConfig {
   /** The none row (Unassigned / No tags / No status / No priority / No due date) shows. */
   showNone: boolean
   /**
-   * Retired (widget feedback 2B, decision 7: the check-ins live on the Review
-   * widget's field): a config an earlier build wrote may still hold `true`.
-   * Read and kept, never acted on, never written by this build; schema v79
-   * drops it.
-   */
-  checkins?: true
-  /**
    * Its count columns (board BC): up to `BREAKDOWN_COLUMNS_MAX`, each a
    * name, a colour and a filter; a row's cell counts that row's tasks the
    * filter keeps. A new Breakdown writes its two defaults here
-   * (`defaultBreakdownColumns`). Absent (a config from before): the two
-   * read from `badges` (`breakdownColumns`) — written as `columns` once
-   * they are edited.
+   * (`defaultBreakdownColumns`), and v79 wrote them on every stored one
+   * (from the older `badges`). Absent (a hand-made file): the two defaults
+   * in Settings › Tasks' ranges (`breakdownColumns`) — written as `columns`
+   * once they are edited.
    */
   columns?: BreakdownColumn[]
-  /**
-   * What stored the Due and Follow-up columns before count columns
-   * (`ChartBadges`): `off`, or its own range for either or both — a range it
-   * doesn't hold, like an absent `badges`, is Settings › Tasks' and follows
-   * it. Read only while `columns` is absent (`breakdownColumns`); dropped
-   * when they are written.
-   */
-  badges?: ChartBadges
 }
 
 /**
@@ -126,20 +112,9 @@ export interface BreakdownColumn {
 /** The most count columns a Breakdown holds. */
 export const BREAKDOWN_COLUMNS_MAX = 4
 
-/**
- * The default columns' ids (`defaultBreakdownColumns`, and what a config
- * without `columns` reads as): Due and Follow-up. A sort stored by the
- * older derived columns they combine reads as theirs (`liveBreakdownSort`).
- */
+/** The default columns' ids (`defaultBreakdownColumns`, and what a config without `columns` reads as): Due and Follow-up. */
 export const DUE_COLUMN_ID = 'due'
 export const FOLLOWUP_COLUMN_ID = 'followup'
-/** The older derived columns' sort keys (Overdue, Due soon, Follow-up late, Follow-up due) → the default column that holds their tasks. */
-const LEGACY_SORT_COLUMNS: Readonly<Record<string, string>> = {
-  overdue: DUE_COLUMN_ID,
-  'due-soon': DUE_COLUMN_ID,
-  'followup-late': FOLLOWUP_COLUMN_ID,
-  'followup-due': FOLLOWUP_COLUMN_ID,
-}
 /** The Due column's colour: the due date's magenta (the dark theme's `--color-overdue`). */
 export const DUE_COLUMN_COLOR = '#e86bf0'
 /** The Follow-up column's colour: the follow-up yellow (the dark theme's `--color-followup`). */
@@ -164,34 +139,23 @@ function rangeColumn(range: TabBadgeRange, field: 'deadline' | 'followup', id: s
 }
 
 /**
- * The count columns of a config without `columns` (every Breakdown from
- * before a new one wrote them; no schema step), from the ranges `badges`
- * says (`chartBadgeRanges`: its own, each one it doesn't hold Settings'):
- * **Due** (due by today + N, overdue included) and **Follow-up** (the next
- * follow-up likewise), each lit above 0 in its colour — a range `off`
- * drops its column, `overdue` counts only its late tasks.
+ * A new Breakdown's count columns, written as its `columns` when it is
+ * created (Add widget, every preset; Change widget): **Due** (due by today
+ * + N, overdue included) and **Follow-up** (the next follow-up likewise),
+ * each lit above 0 in its colour, in Settings › Tasks' ranges of the moment
+ * — a range `off` drops its column, `overdue` counts only its late tasks —;
+ * ordinary columns from then on, no longer following Settings.
  */
-export function derivedBreakdownColumns(badges: ChartBadges | undefined, app: TabBadgeRanges): BreakdownColumn[] {
-  const ranges = chartBadgeRanges(badges, app)
+export function defaultBreakdownColumns(app: TabBadgeRanges): BreakdownColumn[] {
   return [
-    ...rangeColumn(ranges.due, 'deadline', DUE_COLUMN_ID, 'Due', DUE_COLUMN_COLOR),
-    ...rangeColumn(ranges.followup, 'followup', FOLLOWUP_COLUMN_ID, 'Follow-up', FOLLOWUP_COLUMN_COLOR),
+    ...rangeColumn(app.due, 'deadline', DUE_COLUMN_ID, 'Due', DUE_COLUMN_COLOR),
+    ...rangeColumn(app.followup, 'followup', FOLLOWUP_COLUMN_ID, 'Follow-up', FOLLOWUP_COLUMN_COLOR),
   ]
 }
 
-/**
- * A new Breakdown's count columns, written as its `columns` when it is
- * created (Add widget, every preset; Change widget): Due and Follow-up in
- * Settings › Tasks' ranges of the moment — ordinary columns from then on,
- * no longer following Settings.
- */
-export function defaultBreakdownColumns(app: TabBadgeRanges): BreakdownColumn[] {
-  return derivedBreakdownColumns(undefined, app)
-}
-
-/** A Breakdown's count columns: its own, else the ones its `badges` say (`derivedBreakdownColumns`). */
-export function breakdownColumns(config: Pick<BreakdownConfig, 'columns' | 'badges'>, app: TabBadgeRanges): readonly BreakdownColumn[] {
-  return config.columns ?? derivedBreakdownColumns(config.badges, app)
+/** A Breakdown's count columns: its own, else the defaults in Settings' ranges (`defaultBreakdownColumns`). */
+export function breakdownColumns(config: Pick<BreakdownConfig, 'columns'>, app: TabBadgeRanges): readonly BreakdownColumn[] {
+  return config.columns ?? defaultBreakdownColumns(app)
 }
 
 /** Whether a column's count `n` fills solid (its `litWhen` rule, as a Number's). */
@@ -207,13 +171,6 @@ export function newBreakdownColumnId(columns: readonly Pick<BreakdownColumn, 'id
   while (used.has(id))
   return id
 }
-
-/**
- * A Breakdown's own Due / Follow-up ranges: `off` (both), or each range on
- * its own (at least one) — the other Settings'. A list's `tabBadges` pair
- * (what P8 stored) is one of these.
- */
-export type ChartBadges = 'off' | Partial<TabBadgeRanges>
 
 /** The Add widget presets of a Breakdown (D26 P8; Waiting on went with count columns, board BC). */
 export const BREAKDOWN_PRESETS = ['people', 'tags', 'status', 'custom'] as const
@@ -237,8 +194,7 @@ export function newBreakdownConfig(filter: TodoPredicate, patch: Partial<Breakdo
 /**
  * The fixed headings a Breakdown's rows sort by: the name and Open (or
  * Oldest). Every other heading is a count column (the fixed Priority
- * column went: a sort stored by `priority` reads as one by a column it no
- * longer has — the split's default order).
+ * column went; v79 removed the sorts stored by it).
  */
 export const BREAKDOWN_FIXED_SORT_KEYS = ['name', 'open'] as const
 
@@ -260,17 +216,13 @@ export interface BreakdownSort {
 
 /**
  * A stored sort as the headings read it, given the Breakdown's column ids:
- * a fixed heading or one of its columns as stored; an older derived
- * column's key (`overdue`, `due-soon`, `followup-late`, `followup-due`),
- * while no column has it, as the Due or Follow-up column that holds its
- * tasks, in the same direction; any other — the old Priority column's
- * `priority` too —: `undefined`, the split's default order.
+ * a fixed heading or one of its columns as stored; a column it no longer
+ * has (removed in the editor): `undefined`, the split's default order. (The
+ * older derived columns' keys and the Priority column's, v79 rewrote.)
  */
 export function liveBreakdownSort(sort: BreakdownSort | undefined, columnIds: readonly string[]): BreakdownSort | undefined {
   if (!sort) return undefined
-  if ((BREAKDOWN_FIXED_SORT_KEYS as readonly string[]).includes(sort.by) || columnIds.includes(sort.by)) return sort
-  const now = LEGACY_SORT_COLUMNS[sort.by]
-  return now != null && columnIds.includes(now) ? { ...sort, by: now } : undefined
+  return (BREAKDOWN_FIXED_SORT_KEYS as readonly string[]).includes(sort.by) || columnIds.includes(sort.by) ? sort : undefined
 }
 
 /** A Breakdown tab's view state: each split's sort, saved at once (absent = the split's default order), and its lens switch. */
@@ -294,25 +246,6 @@ function isSortKey(v: unknown): v is BreakdownSortKey {
 
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean'
 
-/** A stored badge override: `off`, or a due and / or follow-up range (`off`, `overdue` or a day count 0 – 365). */
-export function isBadgeOverride(v: unknown): v is ChartBadges {
-  if (v === 'off') return true
-  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
-  const { due, followup, ...rest } = v as Obj
-  if (Object.keys(rest).length > 0 || (due === undefined && followup === undefined)) return false
-  return (due === undefined || isBadgeRange(due)) && (followup === undefined || isBadgeRange(followup))
-}
-
-/** The ranges a Breakdown counts in: its own (`ChartBadges`), each range it doesn't hold Settings' (`app`). */
-export function chartBadgeRanges(own: ChartBadges | undefined, app: TabBadgeRanges): TabBadgeRanges {
-  if (own === 'off') return { due: 'off', followup: 'off' }
-  return { due: own?.due ?? app.due, followup: own?.followup ?? app.followup }
-}
-
-function isBadgeRange(v: unknown): boolean {
-  return v === 'off' || v === 'overdue' || (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 365)
-}
-
 /**
  * Where a stored Breakdown config goes wrong (its scalar fields — the
  * filter is the caller's: `data/predicate-shape`): the bad key, or `null`.
@@ -324,8 +257,6 @@ export function breakdownConfigProblem(raw: Obj): string | null {
   if (!includes(BREAKDOWN_SHOWS, raw.show)) return 'show'
   if (raw.oldestBy !== undefined && (raw.show !== 'oldest' || !includes(BREAKDOWN_OLDEST_BY, raw.oldestBy))) return 'oldestBy'
   if (!isBool(raw.showNone)) return 'showNone'
-  if (raw.checkins !== undefined && raw.checkins !== true) return 'checkins'
-  if (raw.badges !== undefined && !isBadgeOverride(raw.badges)) return 'badges'
   if (raw.columns !== undefined && columnsProblem(raw.columns)) return 'columns'
   return null
 }
@@ -354,8 +285,9 @@ export function breakdownColumnFilters(raw: Obj): Array<[string, unknown]> {
  * A Breakdown's config read from untrusted input, `filter` already picked:
  * a bad or missing field gets its default (`fixed`) — the name
  * `Breakdown`, split by people, bars, counts, the none row shown —; an
- * `oldestBy` that isn't one (or without `oldest`), a non-true `checkins`
- * or a bad badge override is dropped (`fixed`).
+ * `oldestBy` that isn't one (or without `oldest`), or a `badges` /
+ * `checkins` an earlier build stored (v79 rewrote them), is dropped
+ * (`fixed`).
  */
 export function pickBreakdownConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, readPredicate: NumberPredicateRead): PickedConfig<BreakdownConfig> {
   let fixed = filter.fixed
@@ -374,10 +306,8 @@ export function pickBreakdownConfig(raw: Obj, filter: PickedConfig<TodoPredicate
   }
   if (config.show === 'oldest' && includes(BREAKDOWN_OLDEST_BY, raw.oldestBy)) config.oldestBy = raw.oldestBy
   else if (raw.oldestBy !== undefined) fixed = true
-  if (raw.checkins === true) config.checkins = true
-  else if (raw.checkins !== undefined) fixed = true
-  if (isBadgeOverride(raw.badges)) config.badges = raw.badges
-  else if (raw.badges !== undefined) fixed = true
+  // What earlier builds stored and v79 rewrote (`badges` as `columns`) or removed (`checkins`): one left is dropped.
+  if (raw.badges !== undefined || raw.checkins !== undefined) fixed = true
   if (Array.isArray(raw.columns)) {
     const picked = pickColumns(raw.columns as unknown[], readPredicate)
     config.columns = picked.config

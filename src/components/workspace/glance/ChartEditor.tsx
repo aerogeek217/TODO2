@@ -160,15 +160,15 @@ function freshColor(columns: readonly BreakdownColumn[]): string {
  * A Breakdown's **Count columns** (board BC): each a name, a colour, when
  * its count fills solid (Light up when, a Number's rule) and a filter
  * (Graphical / Expression), × to remove it; + Add column, up to
- * `BREAKDOWN_COLUMNS_MAX`. A config without `columns` shows the ones read
- * from its old ranges (`breakdownColumns`); the first edit writes them all
- * as `columns` and drops the old `badges`.
+ * `BREAKDOWN_COLUMNS_MAX`. A config without `columns` (a hand-made file)
+ * shows the defaults in Settings' ranges (`breakdownColumns`); the first
+ * edit writes them all as `columns`.
  */
 function CountColumnsField({ config, patch }: { config: BreakdownConfig; patch: (p: Partial<BreakdownConfig>) => void }) {
   const id = useId()
   const appRanges = useSettingsStore((s) => s.tabBadges)
   const columns = breakdownColumns(config, appRanges)
-  const write = (next: BreakdownColumn[]) => patch({ columns: next, badges: undefined })
+  const write = (next: BreakdownColumn[]) => patch({ columns: next })
   const set = (i: number, column: BreakdownColumn) => write(columns.map((c, j) => (j === i ? column : c)))
   return (
     <div className={styles.fieldset} role="group" aria-labelledby={`${id}-columns`} data-testid="chart-editor-columns">

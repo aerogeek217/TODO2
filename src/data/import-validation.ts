@@ -13,11 +13,10 @@ import { parseUrgentDueWithinDays } from '../utils/urgency'
 import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcut-bindings'
 import { isCheckinOpenMethod } from '../utils/checkin-settings'
 import { parseStaleAfterDays } from '../utils/stale'
-import { parseListZoomSetting } from '../utils/list-zoom'
 import { isRowDates } from '../utils/row-dates'
 import { parsePurgePromptIntervalDays } from '../utils/completed-at'
 import type { WorkspaceLayout } from '../models/workspace-layout'
-import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
+import { isListZoom, LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { isLayoutHue } from '../utils/layout-hue'
 import { isEmoji, isIconValue, pickIconValue } from '../models/icon'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
@@ -395,9 +394,6 @@ function checkSetting(v: unknown): CheckResult {
   // read and resets an over-long text unread (`settingFixes` names what it
   // drops, a few at most), so what is stored is short.
   if (v.key === SETTING_KEYS.keyboardShortcuts) return true
-  // The removed Eisenhower's rows: any text, carried as stored and read by
-  // nothing (schema v79 deletes them).
-  if (v.key === SETTING_KEYS.eisenhowerPanes || v.key === SETTING_KEYS.eisenhowerSource) return true
   // The check-in filter: any text, read leniently as a list's filter is
   // (`readCheckinFilterSetting`; `settingFixes` names what it drops). Its id
   // lists have no limit of their own (the whole value has one).
@@ -460,9 +456,7 @@ function checkSetting(v: unknown): CheckResult {
     return isDateLike(v.value) ? true : 'value (historyLogSince must be a date)'
   }
   if (v.key === SETTING_KEYS.rowDensity) {
-    return parseListZoomSetting(v.value) !== undefined
-      ? true
-      : 'value (rowDensity must be stacked, rows or lines — or strips, comfortable or compact)'
+    return isListZoom(v.value) ? true : 'value (rowDensity must be stacked, rows or lines)'
   }
   if (v.key === SETTING_KEYS.ambience) {
     return parseAmbienceSettings(v.value as string) !== undefined ? true : 'value (ambience must be a JSON object)'
@@ -747,14 +741,13 @@ function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
 
 /**
  * A list's owner rebuilt from its known keys: one layout (`layoutId`, a
- * positive whole number) or the removed Eisenhower (`eisenhower: true`,
- * carried as stored — `RetiredEisenhowerOwner`), each its only key; anything
- * else is none (a list that belongs to no layout, which the audit reports).
+ * positive whole number, its only key); anything else is none (a list that
+ * belongs to no layout, which the audit reports) — the removed Eisenhower's
+ * `eisenhower: true` among them (v79 deleted that list).
  */
 function pickListOwner(v: unknown): ListOwner | undefined {
   if (!isRecord(v) || Object.keys(v).length !== 1) return undefined
   if (typeof v.layoutId === 'number' && Number.isSafeInteger(v.layoutId) && v.layoutId > 0) return { layoutId: v.layoutId }
-  if (v.eisenhower === true) return { eisenhower: true }
   return undefined
 }
 

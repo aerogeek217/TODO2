@@ -59,7 +59,7 @@ export interface NumberConfig {
   color?: string
   /**
    * Its colour while not lit (widget feedback 2D) — its label, count and line —, a hex as `color`;
-   * absent = Auto (the label muted, the count in the text colour, the line in the accent). Optional, no schema step.
+   * absent = Auto (the label muted, the count in the text colour, the line in the accent). Optional.
    */
   unlitColor?: string
   /** What it counts: a Graphical or expression filter, as a list's (an empty one keeps every open task). */
@@ -69,8 +69,7 @@ export interface NumberConfig {
   /** The threshold of `above` / `below` (a whole number); absent with `never`. */
   litAt?: number
   compare: NumberCompare
-  /** The top bar's lens doesn't apply to it (as `ListDefinition.ignoreLens`); stored only when true. */
-  ignoreLens?: true
+  // Its lens switch is the tab's view state (`LensViewState.ignoreLens`; v79 moved an older `ignoreLens` here there).
   /** Its large face's breakdown (the count's); absent = `none`. */
   breakdown?: NumberBreakdown
   // The active shape's field (D26 P6, `models/number-shapes`): only that one is kept.
@@ -127,7 +126,6 @@ export function numberConfigProblem(raw: Obj): string | null {
   if (!includes(NUMBER_LIT_WHEN, raw.litWhen)) return 'litWhen'
   if (raw.litWhen === 'never' ? raw.litAt !== undefined : !isNumberLitAt(raw.litAt)) return 'litAt'
   if (!includes(NUMBER_COMPARES, raw.compare)) return 'compare'
-  if (raw.ignoreLens !== undefined && raw.ignoreLens !== true) return 'ignoreLens'
   if (raw.breakdown !== undefined && !isNumberBreakdown(raw.breakdown)) return 'breakdown'
   return numberShapeProblem(raw)
 }
@@ -176,8 +174,8 @@ export type NumberPredicateRead = (raw: unknown) => PickedConfig<TodoPredicate>
  * caller's predicate read; `readPredicate` reads its shape's): a bad or
  * missing field gets its default (`fixed`) — the name `Number`, Auto, a
  * count, never lit (a threshold of 0 when `above` / `below` lacks one),
- * against yesterday —; an unknown colour, breakdown or a non-true
- * `ignoreLens` is dropped (`fixed`). Its shape's field is read too
+ * against yesterday —; an unknown colour or breakdown, or an `ignoreLens`
+ * (the tab's view state since v79), is dropped (`fixed`). Its shape's field is read too
  * (`pickShapeField`); another shape's is dropped (`fixed`).
  */
 export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, readPredicate: NumberPredicateRead): PickedConfig<NumberConfig> {
@@ -198,8 +196,8 @@ export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, 
   else if (raw.unlitColor !== undefined) fixed = true
   if (litWhen !== 'never') config.litAt = pick(raw.litAt, isNumberLitAt, 0)
   else if (raw.litAt !== undefined) fixed = true
-  if (raw.ignoreLens === true) config.ignoreLens = true
-  else if (raw.ignoreLens !== undefined) fixed = true
+  // The lens switch is the tab's view state (v79 moved this one there): one left here is dropped.
+  if (raw.ignoreLens !== undefined) fixed = true
   if (isNumberBreakdown(raw.breakdown)) config.breakdown = raw.breakdown
   else if (raw.breakdown !== undefined) fixed = true
   if (pickShapeField(raw, config, readPredicate)) fixed = true
@@ -312,9 +310,12 @@ export const DEFAULT_TREND_NAME = 'Created vs completed'
 
 /**
  * Created vs completed's settings (layout config). `name`, `filter` and
- * `show` came later with no schema step: absent, they read as the widget
- * was before them — its default name, every task, Bars (`trendName`,
- * `trendFilter`, `trendShow`).
+ * `show` came after v78; v79 wrote `name` and `show` on every stored tab and
+ * a new tab writes them (`WIDGET_KIND_SPECS`). All three stay optional and
+ * read with their defaults — a name renamed blank, a hand-made file: its
+ * default name, every task, Bars (`trendName`, `trendFilter`, `trendShow`).
+ * An absent `filter` reads as the empty one (`trendFilter`), so it is left
+ * absent rather than written.
  */
 export interface TrendTabConfig {
   range: TrendRange

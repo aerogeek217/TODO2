@@ -534,8 +534,7 @@ describe('validateImportData', () => {
         ['newListGroup', 'tag'], ['purgePromptIntervalDays', '1'], ['purgePromptIntervalDays', '365'],
         ['purgePromptLastAt', '2026-10-20T08:00:00.000Z'],
         ['staleAfterDays', '0'], ['staleAfterDays', '30'], ['staleAfterDays', '365'],
-        ['rowDensity', 'comfortable'], ['rowDensity', 'compact'],
-        ['rowDensity', 'stacked'], ['rowDensity', 'rows'], ['rowDensity', 'lines'], ['rowDensity', 'strips'],
+        ['rowDensity', 'stacked'], ['rowDensity', 'rows'], ['rowDensity', 'lines'],
         ['rowDates', 'relative'], ['rowDates', 'numeric'],
       ]) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
@@ -558,8 +557,11 @@ describe('validateImportData', () => {
         ['staleAfterDays', '-1', 'staleAfterDays must be a day count 0–365'],
         ['staleAfterDays', '07', 'staleAfterDays must be a day count 0–365'],
         ['staleAfterDays', '', 'staleAfterDays must be a day count 0–365'],
-        ['rowDensity', 'cosy', 'rowDensity must be stacked, rows or lines — or strips, comfortable or compact'],
-        ['rowDensity', 'Rows', 'rowDensity must be stacked, rows or lines — or strips, comfortable or compact'],
+        ['rowDensity', 'cosy', 'rowDensity must be stacked, rows or lines'],
+        ['rowDensity', 'Rows', 'rowDensity must be stacked, rows or lines'],
+        // What v79 wrote as levels.
+        ['rowDensity', 'strips', 'rowDensity must be stacked, rows or lines'],
+        ['rowDensity', 'comfortable', 'rowDensity must be stacked, rows or lines'],
         ['rowDates', 'short', 'rowDates must be relative or numeric'],
         ['rowDates', '', 'rowDates must be relative or numeric'],
       ] as const) {

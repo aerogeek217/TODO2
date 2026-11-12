@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { rowFixes, sanitizeRow, validateRow } from '../../data/import-validation'
-import { withoutLegacyReview } from '../../data/layout-shape'
 import { createTab, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import { layoutListRefs, repointLayoutLists } from '../../utils/workspace-layout-lists'
 import { single } from '../helpers/layout-builders'
@@ -9,9 +8,9 @@ import { single } from '../helpers/layout-builders'
  * Item 12 · a Review widget as stored (widget feedback 2A): no settings —
  * what it reviews is a temporary filter, never saved — and its view state
  * (lens switch, sort). What earlier builds saved — board BM's kind (`by`),
- * board BK's `pick`, where it stood (`currentId`, `skipped`) — passes the
- * import check whatever it holds and is never a repair: the config keys
- * aren't read, the place is dropped. Only a sort that doesn't read is a fix.
+ * board BK's `pick`, where it stood (`currentId`, `skipped`) — v79 removed
+ * from every stored row (`v79-upgrade.test`); one left in a v79 row (a hand
+ * edit) passes the import check and is dropped by the repair, a fix.
  */
 
 const DATE = '2026-09-01T09:00:00.000Z'
@@ -38,7 +37,7 @@ describe('a Review widget’s tab', () => {
     expect(tabOf(row)).toEqual(tab)
   })
 
-  it('a kind or a pick an earlier build saved passes the check whatever it holds — never a repair', () => {
+  it('a kind or a pick an earlier build saved (v79 removed them) passes the check whatever it holds, and is dropped — a fix', () => {
     const configs = [
       { by: 'person' }, { by: 'list' }, { by: 'project' }, { by: 3 }, { by: null },
       { pick: { kind: 'tag', id: 3 } }, { pick: 'Aisha' }, { by: 'tag', pick: { kind: 'person', id: 0 } },
@@ -46,15 +45,17 @@ describe('a Review widget’s tab', () => {
     for (const config of configs) {
       const row = layoutRow({ id: 'r', kind: 'review', config, viewState: { sort: 'due' } })
       expect(validateRow('layouts', row)).toBe(true)
-      expect(rowFixes('layouts', row)).toEqual([])
+      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+      expect(tabOf(row)).toEqual({ id: 'r', kind: 'review', config: {}, viewState: { sort: 'due' } })
     }
   })
 
-  it('a saved place passes whatever it holds (it is dropped as the layout opens)', () => {
+  it('a saved place (v79 removed it) passes whatever it holds, and is dropped — a fix', () => {
     for (const view of [{ currentId: -1 }, { skipped: { day: 'today', ids: [1] } }, { skipped: 'all' }]) {
-      const row = layoutRow({ id: 'r', kind: 'review', config: { by: 'person' }, viewState: { sort: 'due', ...view } })
+      const row = layoutRow({ id: 'r', kind: 'review', config: {}, viewState: { sort: 'due', ...view } })
       expect(validateRow('layouts', row)).toBe(true)
-      expect(rowFixes('layouts', row)).toEqual([])
+      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+      expect(tabOf(row)).toEqual({ id: 'r', kind: 'review', config: {}, viewState: { sort: 'due' } })
     }
   })
 
@@ -72,36 +73,5 @@ describe('a Review widget’s tab', () => {
     expect(repointLayoutLists(body, new Map([[5, 9]]))).toBe(body)
     const legacy = single({ id: 'k', tabs: [{ id: 'r', kind: 'review', config: { by: 'list', pick: { kind: 'list', id: 5 } } } as unknown as LayoutTab] })
     expect([...layoutListRefs(legacy)]).toEqual([])
-  })
-})
-
-describe('withoutLegacyReview (a stored row as the app opens it)', () => {
-  it('the kind and a saved pick go, so does the saved place; other tabs and keys stay as they are', () => {
-    const notes = { id: 'n', kind: 'notes', config: {} }
-    const row = {
-      id: 1, name: 'Review', cells: [
-        { id: 'a', tabs: [notes, { id: 'r', kind: 'review', config: { pick: { kind: 'status', id: 2 } }, viewState: { sort: 'due', currentId: 4, skipped: { day: '2026-11-09', ids: [1] } } }] },
-        { id: 'b', tabs: [{ id: 'q', kind: 'review', config: { by: 'tag' }, viewState: { currentId: 4 } }] },
-        { id: 'c', tabs: [{ id: 's', kind: 'review', config: { by: 'list' }, viewState: { ignoreLens: true } }] },
-      ],
-    }
-    const next = withoutLegacyReview(row)
-    expect(next).toEqual({
-      id: 1, name: 'Review', cells: [
-        { id: 'a', tabs: [notes, { id: 'r', kind: 'review', config: {}, viewState: { sort: 'due' } }] },
-        { id: 'b', tabs: [{ id: 'q', kind: 'review', config: {} }] },
-        { id: 'c', tabs: [{ id: 's', kind: 'review', config: {}, viewState: { ignoreLens: true } }] },
-      ],
-    })
-    expect(next.cells[0]?.tabs[0]).toBe(notes)
-    // The stored row itself is untouched.
-    expect(row.cells[0]?.tabs[1]?.config).toEqual({ pick: { kind: 'status', id: 2 } })
-  })
-
-  it('the same object when no Review widget holds anything from before', () => {
-    const row = { id: 1, cells: [{ id: 'a', tabs: [{ id: 'r', kind: 'review', config: {}, viewState: { sort: 'due', ignoreLens: true } }, { id: 'n', kind: 'notes', config: {} }] }] }
-    expect(withoutLegacyReview(row)).toBe(row)
-    const odd = { id: 2, cells: 'none' }
-    expect(withoutLegacyReview(odd)).toBe(odd)
   })
 })

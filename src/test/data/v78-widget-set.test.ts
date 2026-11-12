@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { upgradeV78 } from '../../data/upgrades/v78'
+import { layoutV79Of } from '../../data/upgrades/v79/layouts'
 import { layoutWidgetSetOf, upgradeWidgetSet } from '../../data/upgrades/v78/widget-set'
 import { prepareImport } from '../../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
@@ -25,16 +26,17 @@ function upgraded(matrix: Parameters<typeof grid>[0], opts?: GridOptions): Layou
 }
 
 /**
- * Holds: a valid tiling, every line an edge, and a row the current schema
- * takes as it is — but for `fixes` (an Eisenhower tab v78 made, which this
- * build's layout repair drops: the Eisenhower was removed after v78).
+ * Holds: a valid tiling, every line an edge, and — once v79 has run on it
+ * (it drops the Eisenhower tabs v78 made: the Eisenhower was removed after
+ * v78) — a row the current schema takes as it is.
  */
-function expectValid(row: Obj, fixes: string[] = []): void {
+function expectValid(row: Obj): void {
   const body = row as unknown as LayoutBody
   expect(validateTiling(body)).toBe(true)
   expect(isNormalized(body)).toBe(true)
-  expect(validateRow('layouts', row)).toBe(true)
-  expect(rowFixes('layouts', row)).toEqual(fixes)
+  const final = layoutV79Of(row)
+  expect(validateRow('layouts', final)).toBe(true)
+  expect(rowFixes('layouts', final)).toEqual([])
 }
 
 const weights = (body: LayoutBody, axis: 'columns' | 'rows') => body.grid[axis].map((t) => (t.px != null ? `${t.px}px` : t.weight))
@@ -46,7 +48,7 @@ describe('v78 widget-set: the Eisenhower summary becomes the Eisenhower; the rem
     const out = upgraded([[a]])
     expect(tabsOf(out, 'a')).toEqual([notes('n1'), { id: 's1', kind: 'eisenhower', config: {} }, notes('n2')])
     expect(out.cells[0]!.activeTabId).toBe('s1')
-    expectValid(out, ['tab dropped'])
+    expectValid(out)
   })
 
   it.each(REMOVED)('a %s tab goes; its cell keeps its other tabs', (kind) => {
@@ -224,7 +226,7 @@ describe('v78 widget-set: the contract', () => {
     const out = upgradeV78({ layouts: [v77] }).layouts![0] as unknown as LayoutBody & Obj
     expect(picture(out)).toEqual(['a', 'e', 'k'])
     expect(tabsOf(out, 'e')).toEqual([{ id: 'e1', kind: 'eisenhower', config: {} }])
-    expectValid(out, ['tab dropped'])
+    expectValid(out)
   })
 
   it('a v77 file imports through it: no removed kind arrives, nothing to repair', () => {

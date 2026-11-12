@@ -1,6 +1,6 @@
 import {
   clampCalendarOffset,
-  readListZoom,
+  isListZoom,
   isWidgetKind,
   pickDetailsWidth,
   type CalendarTabViewState,
@@ -167,7 +167,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   switch (kind) {
     case 'lens':
       if (config.listDefinitionId !== undefined && !isFiniteNum(config.listDefinitionId)) return `${path}.config.listDefinitionId`
-      if (view?.zoom !== undefined && readListZoom(view.zoom) === undefined) return `${path}.viewState.zoom`
+      if (view?.zoom !== undefined && !isListZoom(view.zoom)) return `${path}.viewState.zoom`
       return true
     case 'calendar': {
       const types = config.dateTypes
@@ -236,8 +236,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     }
     case 'notes':
       return true
-    // Item 12: a Review widget — no settings (2A: a kind `by` or a saved `pick` an earlier build stored
-    // isn't read, whatever it holds: never a repair), and its sort.
+    // Item 12: a Review widget — no settings (its config the empty object), and its sort.
     case 'review': {
       const bad = view ? reviewViewProblem(view) : null
       return bad ? `${path}.viewState.${bad}` : true
@@ -245,70 +244,24 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   }
 }
 
-/**
- * The view-state keys an earlier build saved on a Review widget (board BK:
- * where it stood — the current task, a day's skips). Its place lasts only
- * as long as its picks now: the keys pass the check whatever they hold and
- * are dropped when the tab is read, never a repair.
- */
-const LEGACY_REVIEW_VIEW_KEYS = ['currentId', 'skipped'] as const
-
 /** The first field of a Review widget's view state (item 12) its read would reset, else null. */
 function reviewViewProblem(view: Obj): string | null {
   return view.sort !== undefined && !isReviewSort(view.sort) ? 'sort' : null
 }
 
-/** A Review widget's view state as read (item 12): its sort kept when it reads, else dropped (a fix). */
+/**
+ * A Review widget's view state as read (item 12): its sort kept when it
+ * reads; a sort that doesn't, or a key it doesn't have (the place an earlier
+ * build saved, `currentId` / `skipped`, which v79 removed), dropped (a fix).
+ * The lens switch is the caller's.
+ */
 function pickReviewView(view: Obj | undefined): { view: ReviewTabViewState; fixed: boolean } {
   const out: ReviewTabViewState = {}
-  let fixed = false
-  if (!view) return { view: out, fixed }
+  if (!view) return { view: out, fixed: false }
+  let fixed = Object.keys(view).some((k) => k !== 'sort' && k !== 'ignoreLens')
   if (isReviewSort(view.sort)) out.sort = view.sort
   else if (view.sort !== undefined) fixed = true
   return { view: out, fixed }
-}
-
-/** The config keys an earlier build saved on a Review widget: board BM's kind (`by`), board BK's pick (`pick`). Not read. */
-const LEGACY_REVIEW_CONFIG_KEYS = ['by', 'pick'] as const
-
-/** A stored tab that is a Review widget holding what an earlier build saved: a kind, a pick, or where it stood. */
-function isLegacyReviewTab(tab: unknown): tab is Obj & { config: Obj } {
-  if (!isRecord(tab) || tab.kind !== 'review' || !isRecord(tab.config)) return false
-  const { config } = tab
-  const view = tab.viewState
-  return LEGACY_REVIEW_CONFIG_KEYS.some((key) => config[key] !== undefined)
-    || (isRecord(view) && LEGACY_REVIEW_VIEW_KEYS.some((key) => view[key] !== undefined))
-}
-
-/**
- * `row` with its Review widgets as this build reads them (widget feedback
- * 2A): the kind (`by`) and an older saved pick (`pick`) gone from the config
- * — the widget has no settings, only a temporary filter field —, the saved
- * place (`currentId`, `skipped`) gone from the view state. Not a repair —
- * the layout opens clean, and the stored row takes the new shape with its
- * next write (as `layout-repository.withoutLegacyLens`); schema v79 is to
- * write it for every row. The same object when no Review widget needs it; a
- * row whose cells or tabs don't read is left to the layout repair.
- */
-export function withoutLegacyReview<T extends { cells?: unknown }>(row: T): T {
-  const cells = row.cells
-  if (!Array.isArray(cells)) return row
-  const legacy = (cell: unknown): cell is Obj & { tabs: unknown[] } => isRecord(cell) && Array.isArray(cell.tabs) && cell.tabs.some(isLegacyReviewTab)
-  if (!cells.some(legacy)) return row
-  const tabOf = (tab: unknown): unknown => {
-    if (!isLegacyReviewTab(tab)) return tab
-    const config: Obj = { ...tab.config }
-    for (const key of LEGACY_REVIEW_CONFIG_KEYS) delete config[key]
-    const next: Obj = { ...tab, config }
-    if (isRecord(tab.viewState)) {
-      const view = { ...tab.viewState }
-      for (const key of LEGACY_REVIEW_VIEW_KEYS) delete view[key]
-      if (Object.keys(view).length > 0) next.viewState = view
-      else delete next.viewState
-    }
-    return next
-  }
-  return { ...row, cells: cells.map((cell: unknown) => (legacy(cell) ? { ...cell, tabs: cell.tabs.map(tabOf) } : cell)) }
 }
 
 /** A chart's filter as stored: a predicate with nothing its read (`pickPredicate`) would change. */
@@ -359,16 +312,6 @@ function idTracker(): (id: string) => boolean {
   }
 }
 
-/**
- * Kinds removed while the schema stayed at v78 — the Status flow chart
- * (D26 P8, shipped in v78), the Tag map and the Eisenhower —: a v78 file
- * may hold one, and no upgrade runs on it, so its tab passes the check
- * (import, a restore and the sync file take the file) and the repair drops
- * it as an unknown kind (a fix: `Fixed 1 layout`; a stored layout opens
- * with the notice), its emptied cell closing. Schema v79 drops them for good.
- */
-const REMOVED_IN_V78: ReadonlySet<unknown> = new Set(['statusFlow', 'tagMap', 'eisenhower'])
-
 /** `true` when every tab of a strip is valid, else the path of the first bad field. */
 function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) => boolean): true | string {
   for (let t = 0; t < tabs.length; t++) {
@@ -376,7 +319,6 @@ function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) =
     const tp = `${path}.tabs[${t}]`
     if (!isRecord(tab)) return tp
     if (!isId(tab.id) || !fresh(tab.id)) return `${tp}.id`
-    if (REMOVED_IN_V78.has(tab.kind)) continue
     if (!isWidgetKind(tab.kind)) return `${tp}.kind`
     const settings = checkTabSettings(tab, tab.kind, tp)
     if (settings !== true) return settings
@@ -521,11 +463,11 @@ interface PickedCell {
  * but a stale `activeTabId` (= first tab) and an out-of-range calendar
  * offset (clamped); a details width is rounded,
  * and the cells come in reading order. A tab of a retired kind — `dashboard`
- * (v77 converted every one), and `followup`, `next7`, `stale`, `recent`,
+ * (v77 converted every one), `followup`, `next7`, `stale`, `recent`,
  * `changes`, `today` and `eisenhowerSummary` (v78 dropped or converted
+ * every one), and `eisenhower`, `tagMap` and `statusFlow` (v79 dropped
  * every one) — is an unknown kind, dropped like one, and a cell it leaves
- * without tabs closes. A Status flow, Tag map or Eisenhower tab (`REMOVED_IN_V78`)
- * passes the check but is dropped the same way, reported in `fixes`.
+ * without tabs closes.
  *
  * Past `LAYOUT_PART_LIMIT` tracks, cells or tabs in the layout, the rest are
  * dropped and reported in `fixes`.
@@ -598,12 +540,12 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const lensConfig: LensTabConfig = {}
         if (isFiniteNum(config.listDefinitionId)) lensConfig.listDefinitionId = config.listDefinitionId
         else if (config.listDefinitionId !== undefined) fix('settings')
-        // The zoom: one of the levels (the removed `strips` read as `lines`, view state, no
-        // repair), else dropped (the tab opens at the Settings default).
+        // The zoom: one of the levels (v79 wrote the removed `strips` as `lines`), else dropped
+        // (the tab opens at the Settings default).
         const lensView: ListTabViewState = { ...rowsView() }
-        const zoom = readListZoom(view?.zoom)
-        if (zoom) lensView.zoom = zoom
-        else if (view?.zoom !== undefined) fix('settings')
+        const zoom = view?.zoom
+        if (isListZoom(zoom)) lensView.zoom = zoom
+        else if (zoom !== undefined) fix('settings')
         return Object.keys(lensView).length > 0
           ? { id, kind: 'lens', config: lensConfig, viewState: lensView }
           : { id, kind: 'lens', config: lensConfig }
@@ -636,11 +578,11 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
-      // Item 12: a Review widget — no settings (2A): any config key, an earlier build's kind or pick among
-      // them, is dropped and never a fix; its view state's sort as checked.
+      // Item 12: a Review widget — no settings: a config key (an earlier build's kind `by` or pick
+      // `pick`, which v79 removed) is dropped, a fix; its view state's sort as checked.
       case 'review': {
         const picked = pickReviewView(view)
-        if (picked.fixed) fix('settings')
+        if (picked.fixed || Object.keys(config).length > 0) fix('settings')
         const review: ReviewTab = { id, kind: 'review', config: {} }
         if (Object.keys(picked.view).length > 0) review.viewState = picked.view
         return withLensView<LensSwitchTab>(review)

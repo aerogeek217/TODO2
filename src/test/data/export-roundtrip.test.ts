@@ -120,7 +120,7 @@ function buildSeed(): Seed {
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
       { key: 'historyLogSince', value: '2026-09-01T07:00:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
-      { key: 'rowDensity', value: 'comfortable' },
+      { key: 'rowDensity', value: 'stacked' },
       { key: 'rowDates', value: 'numeric' },
       { key: 'ambience', value: JSON.stringify({ enabled: false, place: { lat: 41.88, lon: -87.63 }, sky: 'subtle', motion: 60, seasons: false }) },
       { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...emptyPredicate(), expression: EXPRESSION } }]) },
@@ -135,8 +135,6 @@ function buildSeed(): Seed {
       { key: 'color.light.appBg', value: '#fdf6e3' },
       { key: 'activeLayoutId', value: '2' },
       { key: 'keyboardShortcuts', value: '{"command-palette":"Mod-Alt-p","open-settings":"g o"}' },
-      { key: 'eisenhowerPanes', value: JSON.stringify(SEED_PANES) },
-      { key: 'eisenhowerSource', value: 'list:2' },
     ],
     statuses: [
       { id: 1, name: 'Assigned', color: '#8a8a8a', sortOrder: 0, icon: 'person' },
@@ -148,10 +146,10 @@ function buildSeed(): Seed {
       sort: 'followup', grouping: 'followup',
       owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' }, ignoreLens: true,
     }, {
-      id: 3, name: 'Eisenhower', sortOrder: 2,
+      id: 3, name: 'By priority', sortOrder: 2,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
       sort: 'manual', grouping: 'priority',
-      owner: { eisenhower: true },
+      owner: { layoutId: 1 },
     }, {
       id: 1, name: 'By person', sortOrder: 0,
       membership: { kind: 'custom', predicate: { ...emptyPredicate(), showCompleted: true, expression: EXPRESSION } },
@@ -195,16 +193,16 @@ function buildSeed(): Seed {
           ], { activeTabId: 't2' })
           const k2 = cell('k2', [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }])
           const k3 = cell('k3', [
-            numberTab('t5', 'noFollowup', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 4 }),
+            { ...numberTab('t5', 'noFollowup', { breakdown: 'tags', litWhen: 'below', litAt: 4 }), viewState: { ignoreLens: true } },
             { id: 't6', kind: 'lens', config: {} },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
             // Item 12: a Review widget (no settings, 2A), its sort and lens switch.
             { id: 't14', kind: 'review', config: {}, viewState: { sort: 'next', ignoreLens: true } },
             // The glance widgets, each with a setting off its default.
             numberTab('g1', 'closedThisWeek'),
-            { id: 'g4', kind: 'trend', config: { range: '12w' } },
-            { id: 'g5', kind: 'breakdown', config: { name: 'Waiting on', filter: { ...emptyPredicate(), statusIds: [1] }, splitBy: 'people', style: 'donut', show: 'oldest', oldestBy: 'lastFollowup', showNone: false, checkins: true, badges: { due: 'overdue', followup: 7 } }, viewState: { sorts: { people: { by: 'due', reversed: true } } } },
-            { id: 'g6', kind: 'breakdown', config: { name: 'Status', filter: emptyPredicate(), splitBy: 'status', style: 'stacked', show: 'count', showNone: true, badges: 'off' } },
+            { id: 'g4', kind: 'trend', config: { range: '12w', name: 'Opened and closed', show: 'cumulative', filter: { ...emptyPredicate(), tags: [1] } } },
+            { id: 'g5', kind: 'breakdown', config: { name: 'Waiting on', filter: { ...emptyPredicate(), statusIds: [1] }, splitBy: 'people', style: 'donut', show: 'oldest', oldestBy: 'lastFollowup', showNone: false, columns: [{ id: 'due', name: 'Late', color: '#e86bf0', filter: { ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: -1 } } } }, litWhen: 'above', litAt: 0 }, { id: 'col-w', name: 'Waiting', color: '#7ec4bc', filter: { ...emptyPredicate(), statusIds: [1] }, litWhen: 'never' }] }, viewState: { sorts: { people: { by: 'due', reversed: true } } } },
+            { id: 'g6', kind: 'breakdown', config: { name: 'Status', filter: emptyPredicate(), splitBy: 'status', style: 'stacked', show: 'count', showNone: true, columns: [] } },
             { id: 'g7', kind: 'pivot', config: { name: 'Who × what', filter: { ...emptyPredicate(), statusIds: [1] }, rows: 'tags', cols: 'priority' } },
             { id: 'g13', kind: 'pulse', config: { tagIds: [1] } },
           ])
@@ -230,16 +228,6 @@ function buildSeed(): Seed {
       { id: 2, listDefinitionId: 2, todoId: 1, rank: 1.5 },
     ],
   }
-}
-
-/**
- * The removed Eisenhower's panes as a v78 database holds them: carried as
- * stored (schema v79 deletes the row), like its list (`owner: { eisenhower: true }`).
- */
-const SEED_PANES = {
-  do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: [{ values: ['focus'] }, { values: ['urgent'], not: true }], tags: [2], negate: { tags: true } } },
-  delegate: { filter: { ...emptyPredicate(), expression: { kind: 'and', items: [{ kind: 'not', item: { kind: 'status', id: 3 } }, { kind: 'priority', value: 'urgent' }, { kind: 'not', item: { kind: 'priority', value: 'important' } }] } } },
-  drop: { name: 'Someday' },
 }
 
 function tableByName(name: string): Table {
@@ -306,9 +294,8 @@ describe('export → JSON → import round-trip', () => {
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter !== undefined)).toBe(true)
-    // Both kinds of owner: a layout's list and the retired Eisenhower's (carried as stored).
+    // A layout's list (the only owner since v79).
     expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'layoutId' in d.owner)).toBe(true)
-    expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'eisenhower' in d.owner)).toBe(true)
     // A Priority filter's forms: "is" with several values, and "is not".
     const markers = seed.listDefinitions.flatMap((d) => (d.membership.kind === 'custom' ? d.membership.predicate.markers ?? [] : []))
     expect(markers.some((c) => c.values.length > 1)).toBe(true)
