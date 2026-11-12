@@ -15,6 +15,11 @@
 }
 
 /* The widget's name at the line's start (alone in its cell). */
+/* J2: a picked icon before the name, muted as a line icon at rest. */
+.leadIcon {
+  color: var(--color-text-muted);
+}
+
 .name {
   flex: 0 1 auto;
   min-width: 0;

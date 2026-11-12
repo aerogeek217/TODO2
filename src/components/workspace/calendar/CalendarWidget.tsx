@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
-import { clampCalendarOffset, toggleCalendarDateType, type CalendarDateType, type CalendarTab, type CalendarView } from '../../../models/workspace-layout'
+import { clampCalendarOffset, kindTabTitle, toggleCalendarDateType, type CalendarDateType, type CalendarTab, type CalendarView } from '../../../models/workspace-layout'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useFilterStore } from '../../../stores/filter-store'
@@ -16,7 +16,7 @@ import { ChevronLeftIcon, ChevronRightIcon, TodayIcon } from '../../shared/icons
 import { CalendarDayPopover } from './CalendarDayPopover'
 import { useElementSize } from '../../../hooks/use-element-size'
 import styles from './CalendarWidget.module.css'
-import { WidgetTopLine } from '../WidgetTopLine'
+import { TopLineName, WidgetTopLine } from '../WidgetTopLine'
 import type { CalendarMode } from './calendar-day'
 import { useCalendarEntries, useCalendarSetup } from './calendar-data'
 import { EntryItem } from './CalendarDayParts'
@@ -215,7 +215,8 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
       data-mobile={isMobile ? 'true' : undefined}
       data-dragging={drag ? 'true' : undefined}
     >
-      <WidgetTopLine className={styles.toolbar}>
+      {/* Alone in its cell, a calendar given a name (items 11, 14) shows it first; one never named, its month header only. */}
+      <WidgetTopLine className={styles.toolbar} lead={tab.name ? <TopLineName>{kindTabTitle(tab)}</TopLineName> : undefined}>
         <button
           type="button"
           className={styles.iconButton}

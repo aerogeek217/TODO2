@@ -2,11 +2,12 @@ import { useTabBadges, type TabBadge } from '../../hooks/use-tab-badges'
 import { BadgeCapsule } from '../shared/BadgeCapsule'
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
+import type { LayoutCell, LayoutTab } from '../../models/workspace-layout'
 import { getActiveTab } from '../../models/workspace-layout'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useTabTitle, useTabTitles } from './widget-hooks'
-import { ChevronDownIcon, CloseIcon, GlassesIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
+import { ChevronDownIcon, CloseIcon, GlassesIcon, PlusIcon } from '../shared/icons'
+import { TabIcon } from './TabIcon'
 import type { ListLensMark } from './list/ListWidget'
 import { MenuPopover } from '../shared/MenuPopover'
 import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type DraggedTab, type WorkspaceTabDragData } from './workspace-drag'
@@ -111,7 +112,7 @@ interface TabProps {
 
 function Tab({ tab, badge, active, collapsed, count, lens, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef, offstage, size }: TabProps) {
   const title = useTabTitle(tab)
-  const data: WorkspaceTabDragData = { type: WORKSPACE_TAB_DRAG, tabId: tab.id, kind: tab.kind, title }
+  const data: WorkspaceTabDragData = { type: WORKSPACE_TAB_DRAG, tabId: tab.id, kind: tab.kind, title, ...(tab.icon ? { icon: tab.icon } : {}) }
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: workspaceTabDragId(tab.id), data, disabled: touch })
   const closable = !collapsed && onClose != null
 
@@ -157,7 +158,7 @@ function Tab({ tab, badge, active, collapsed, count, lens, touch, onActivate, on
         }
       }}
     >
-      <span className={styles.kindIcon}><WidgetKindIcon kind={tab.kind} size={12} /></span>
+      <TabIcon tab={tab} className={styles.kindIcon} />
       <span className={styles.title} data-tab-title="">{title}</span>
       {lens && (
         <span className={`${styles.lensMark} ${lens.ignored ? styles.lensMarkOff : ''}`} role="img" aria-label={lensLine(lens)} data-tab-lens="">
@@ -189,11 +190,11 @@ function lensLine(lens: ListLensMark): string {
 }
 
 /** Ghost tab previewing where a dragged widget lands (end of the strip). */
-function GhostTab({ kind, title }: { kind: WidgetKind; title: string }) {
+function GhostTab({ tab }: { tab: DraggedTab }) {
   return (
     <div className={`${styles.tab} ${styles.ghost}`} aria-hidden="true" data-testid="ws-ghost-tab">
-      <span className={styles.kindIcon}><WidgetKindIcon kind={kind} size={12} /></span>
-      <span className={styles.title}>{title}</span>
+      <TabIcon tab={tab} className={styles.kindIcon} />
+      <span className={styles.title}>{tab.title}</span>
     </div>
   )
 }
@@ -208,10 +209,10 @@ export function JoinPreviewStrip({ tab, ghosts }: { tab: LayoutTab; ghosts: read
   return (
     <div className={styles.joinPreview} aria-hidden="true" data-testid="ws-join-preview">
       <div className={`${styles.tab} ${styles.active}`}>
-        <span className={styles.kindIcon}><WidgetKindIcon kind={tab.kind} size={12} /></span>
+        <TabIcon tab={tab} className={styles.kindIcon} />
         <span className={styles.title}>{title}</span>
       </div>
-      {ghosts.map((g) => <GhostTab key={g.id} kind={g.kind} title={g.title} />)}
+      {ghosts.map((g) => <GhostTab key={g.id} tab={g} />)}
     </div>
   )
 }
@@ -382,7 +383,7 @@ export function CellTabStrip({
             }}
           />
         ))}
-        {ghosts?.map((g) => <GhostTab key={g.id} kind={g.kind} title={g.title} />)}
+        {ghosts?.map((g) => <GhostTab key={g.id} tab={g} />)}
       </div>
       {hidden.length > 0 && (
         <button
@@ -465,7 +466,7 @@ function OverflowMenu({ anchorRef, tabs, badges, onPick, onClose }: {
     return {
     kind: 'item' as const,
     label: titles[i] ?? '',
-    icon: <WidgetKindIcon kind={tab.kind} />,
+    icon: <TabIcon tab={tab} size={14} />,
     ...(badge ? { trailing: <TabBadgeCapsule badge={badge} /> } : {}),
     onSelect: () => onPick(tab.id),
     }

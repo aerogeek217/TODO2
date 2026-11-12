@@ -26,6 +26,7 @@ import { emptyPredicate } from './filter-predicate'
 import {
   DEFAULT_TREND_RANGE,
   newNumberConfig,
+  trendName,
   type NumberConfig,
   type TrendTabConfig,
 } from './glance-widgets'
@@ -40,6 +41,7 @@ import {
   type PivotViewState,
 } from './chart-widgets'
 import type { ReviewSort } from './review'
+import type { IconValue, LineIconKey } from './icon'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
@@ -238,6 +240,20 @@ interface TabOf<K extends WidgetKind, C, V> {
   kind: K
   config: C
   viewState?: V
+  /**
+   * Layout config (items 11, 14): the tab's own name, for a kind without a
+   * name of its own (`tabOwnsName` false — Calendar, Notes, Review, the
+   * Neglect map, Project pulse); it replaces the kind's label wherever the
+   * tab is named. Absent or blank = the kind's label. A kind with a name of
+   * its own (a list's, a Number's or a chart's) never reads it.
+   */
+  name?: string
+  /**
+   * Layout config: the tab's picked icon. Absent = never picked — the strip
+   * shows its kind's icon (J1) and its top line none (J2); `{ kind: 'none' }`
+   * = No icon, picked.
+   */
+  icon?: IconValue
 }
 
 /** A list tab's view state: the rows' details width and its zoom (its prompt picks are temporary, not saved). */
@@ -560,13 +576,57 @@ export function isChartTab(tab: LayoutTab): tab is ChartTab {
 }
 
 /**
+ * Whether a kind has a name of its own, which Name and icon… edits: a
+ * list's (its list's name), a Number's, a chart's and Created vs
+ * completed's (`config.name`). Every other kind takes the tab's `name`.
+ */
+export function tabOwnsName(kind: WidgetKind): boolean {
+  return kind === 'lens' || kind === 'number' || kind === 'breakdown' || kind === 'pivot' || kind === 'trend'
+}
+
+/** The longest tab name kept (as a layout's). */
+export const TAB_NAME_MAX = 200
+
+/**
  * A non-list tab's title: a Number's or a chart's is its name (`Late on
- * Atlas`; a blank one reads `Number`, `Breakdown`, …), every other kind's
- * its kind's name.
+ * Atlas`; a blank one reads `Number`, `Breakdown`, …), Created vs
+ * completed's its name (`trendName`), every other kind's its tab name
+ * (items 11, 14), else its kind's name.
  */
 export function kindTabTitle(tab: LayoutTab): string {
   if (tab.kind === 'number' || isChartTab(tab)) return tab.config.name.trim() || widgetKindLabel(tab.kind)
-  return widgetKindLabel(tab.kind)
+  if (tab.kind === 'trend') return trendName(tab.config)
+  return tab.name?.trim() || widgetKindLabel(tab.kind)
+}
+
+/** Each kind's own glyph among the line icons (the strip's icon for a tab never given one, J1). */
+export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
+  lens: 'list',
+  calendar: 'calendar',
+  notes: 'notes',
+  review: 'review',
+  number: 'number',
+  trend: 'chart',
+  pulse: 'ring',
+  breakdown: 'bars',
+  pivot: 'table',
+  neglect: 'scatter',
+}
+
+/**
+ * The icon a tab's strip shows (J1): its picked one (`none` included), else
+ * its kind's glyph.
+ */
+export function tabStripIcon(tab: Pick<LayoutTab, 'kind' | 'icon'>): IconValue {
+  return tab.icon ?? { kind: 'line', key: isWidgetKind(tab.kind) ? KIND_LINE_ICON[tab.kind] : 'list' }
+}
+
+/**
+ * The icon a tab's top line leads with alone in its cell (J2): a picked one,
+ * none for a tab never given one (as before icons) or given No icon.
+ */
+export function tabTopLineIcon(tab: Pick<LayoutTab, 'icon'>): IconValue | undefined {
+  return tab.icon && tab.icon.kind !== 'none' ? tab.icon : undefined
 }
 
 /** A new tab of `kind` with that kind's default config. */

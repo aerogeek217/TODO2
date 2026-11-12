@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
-import type { PulseTab } from '../../../models/workspace-layout'
+import { kindTabTitle, type PulseTab } from '../../../models/workspace-layout'
 import { lensHidesWhere, useLensHidden, usePulse, useStatsBase } from '../../../hooks/use-glance-data'
 import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
@@ -211,7 +211,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
       )
       : (
         <>
-          <span className={styles.pulseSmallName}>Project pulse</span>
+          <span className={styles.pulseSmallName}>{kindTabTitle(tab)}</span>
           <span className={styles.quiet}>{cards.length > 0 ? `Nothing ${names.late}` : picked ? 'Picked tags deleted' : 'No tags picked'}</span>
         </>
       )
@@ -229,7 +229,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
   return (
     <GlanceFrame tab={tab}>
       <div ref={faceRef} className={styles.face} data-face={face}>
-        <Panel def={PULSE_DEF} className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks" lens={<TabLensSwitch tab={tab} hides={lensHides} />} titleData={{ 'data-pulse-head': tab.id }}>
+        <Panel def={{ ...PULSE_DEF, title: kindTabTitle(tab) }}className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks" lens={<TabLensSwitch tab={tab} hides={lensHides} />} titleData={{ 'data-pulse-head': tab.id }}>
           {cards.length === 0 ? (
             <Empty
               title={picked ? 'The picked tags were deleted' : 'No tags picked'}

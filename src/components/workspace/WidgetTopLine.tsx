@@ -1,7 +1,8 @@
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
-import type { LayoutTab } from '../../models/workspace-layout'
+import { tabTopLineIcon, type LayoutTab } from '../../models/workspace-layout'
+import { AppIcon } from '../shared/AppIcon'
 import { ChevronDownIcon, GripIcon, MoreIcon } from '../shared/icons'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
 import { useTabTitles } from './widget-hooks'
@@ -50,7 +51,7 @@ export function CellGrip({ cellId, tabs, title, idSuffix = '', expanded, onMenu,
   const data: WorkspacePanelDragData = {
     type: WORKSPACE_PANEL_DRAG,
     panelId: cellId,
-    tabs: tabs.map((t, i) => ({ id: t.id, kind: t.kind, title: titles[i] ?? '' })),
+    tabs: tabs.map((t, i) => ({ id: t.id, kind: t.kind, title: titles[i] ?? '', ...(t.icon ? { icon: t.icon } : {}) })),
   }
   const { setNodeRef, listeners, isDragging } = useDraggable({ id: `${workspacePanelDragId(cellId)}${idSuffix}`, data })
   /** Where the press began, and whether it went on to drag the cell. */
@@ -183,6 +184,8 @@ interface WidgetTopLineProps {
   controls?: 'inline' | 'cell'
   /** Shown only alone in its cell: a slim name line (Notes, the Neglect map). */
   alone?: boolean
+  /** `false`: no picked icon before the lead (J2) — a line that draws the tab's icon itself (a list's small face). */
+  leadIcon?: boolean
   children?: ReactNode
   'data-testid'?: string
 }
@@ -197,7 +200,7 @@ interface WidgetTopLineProps {
  * (`data-ws-tab`) the strip would show. Elsewhere (a strip names the widget,
  * the small face's popover, Settings) it is just the line.
  */
-export function WidgetTopLine({ as = 'div', className, style, lead, controls = 'inline', alone = false, children, ...rest }: WidgetTopLineProps) {
+export function WidgetTopLine({ as = 'div', className, style, lead, controls = 'inline', alone = false, leadIcon = true, children, ...rest }: WidgetTopLineProps) {
   const value = useContext(CellControlsContext)
   const inline = value != null && controls === 'inline'
   // Before paint: the cell drops its own floating controls in the same frame.
@@ -205,6 +208,9 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
   useLayoutEffect(() => (claim ? claim(inline) : undefined), [inline, claim])
   if (alone && value == null) return null
   const Tag = as
+  // J2: alone in its cell, a picked icon leads the name; a tab never given one shows none here.
+  const lineTab = value?.tabs.find((t) => t.id === value.tabId)
+  const icon = lineTab && leadIcon ? tabTopLineIcon(lineTab) : undefined
   return (
     <Tag
       className={[styles.topLine, className ?? ''].join(' ')}
@@ -216,6 +222,7 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
       tabIndex={inline ? -1 : undefined}
       data-testid={rest['data-testid']}
     >
+      {value != null && icon && <AppIcon icon={icon} size={13} className={styles.leadIcon} />}
       {value != null && lead}
       {children}
       {inline && <CellControls value={value} />}
@@ -225,14 +232,16 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
 
 /**
  * A slim name line (Notes, the Neglect map): the widget's
- * name and `children` after it. Alone in its cell only.
+ * name — its tab's title, a name given in Name and icon… included; `name`
+ * outside a cell — and `children` after it. Alone in its cell only.
  */
 export function WidgetNameLine({ name, children }: { name: string; children?: ReactNode }) {
+  const value = useContext(CellControlsContext)
   return (
     <WidgetTopLine
       alone
       className={styles.nameLine}
-      lead={<span className={styles.name} data-testid="top-line-name">{name}</span>}
+      lead={<span className={styles.name} data-testid="top-line-name">{value?.title || name}</span>}
     >
       {children}
     </WidgetTopLine>

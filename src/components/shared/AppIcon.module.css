@@ -1,0 +1,34 @@
+/* A picked icon (items 11, 14): a line icon or an emoji, at its given size. */
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  line-height: 1;
+}
+
+.emoji {
+  position: relative;
+  font-family: var(--font-emoji);
+  font-style: normal;
+  font-weight: var(--font-weight-regular);
+}
+
+.glyph {
+  display: block;
+  line-height: 1;
+}
+
+/* The tint filter's holder: in the icon (so `currentColor` is the icon's color), taking no room. */
+.defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* A muted emoji's color: the icon's own (`currentColor`), read where the filter sits. */
+.tint {
+  flood-color: currentColor;
+}

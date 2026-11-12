@@ -26,6 +26,7 @@ import { transitionName, withViewTransition } from '../shared/view-transition'
 import { CELL_MENU_LABEL, cellMenuFor, useWidgetMenuContent, type CellMenuPart } from './cell-menu'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
 import { CellControls, CellGrip } from './WidgetTopLine'
+import { TabNameIconPopover } from './TabNameIconPopover'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
   const r = ref.current?.getBoundingClientRect()
@@ -42,7 +43,7 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
   const data: WorkspacePanelDragData = {
     type: WORKSPACE_PANEL_DRAG,
     panelId,
-    tabs: tabs.map((t, i) => ({ id: t.id, kind: t.kind, title: titles[i] ?? '' })),
+    tabs: tabs.map((t, i) => ({ id: t.id, kind: t.kind, title: titles[i] ?? '', ...(t.icon ? { icon: t.icon } : {}) })),
   }
   const { setNodeRef, listeners } = useDraggable({ id: workspacePanelDragId(panelId), data })
   return (
@@ -122,6 +123,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
   const [menu, setMenu] = useState<{ tabId: string; at: MenuAt; part: CellMenuPart } | null>(null)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number }; where: AddWhere } | null>(null)
+  /** Name and icon… (items 11, 14): the tab, and what its popover opens under (the tab, or the top line standing for it). */
+  const [labelEdit, setLabelEdit] = useState<{ tabId: string; anchor: RefObject<HTMLElement | null> | { x: number; y: number } } | null>(null)
   const [moreRef, setMoreButton] = useButtonSet()
   const [gripRef, setGripButton] = useButtonSet()
   /**
@@ -148,12 +151,19 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const ghosts = joining ? drag.tabs : null
   const isDragSource = drag?.source.type === 'panel' && drag.source.panelId === cell.id
 
+  /** Opens Name and icon… for tab `tabId`: under the element standing for it in this cell (its tab, or its top line), else where the menu was. */
+  const openLabelEdit = useCallback((tabId: string, at: MenuAt) => {
+    const cellEl = document.querySelector(`[data-ws-cell="${CSS.escape(cell.id)}"]`)
+    const el = cellEl?.querySelector<HTMLElement>(`[data-ws-tab="${CSS.escape(tabId)}"]:not([aria-hidden="true"])`) ?? null
+    setLabelEdit({ tabId, anchor: el ? { current: el } : at ?? anchorBelow(moreRef) })
+  }, [moreRef, cell.id])
+
   // ── The ⋯'s menu, the grip's, the whole one ──
   const menuTab = menu ? cell.tabs.find((t) => t.id === menu.tabId) : undefined
   const menuTitle = useTabTitle(menuTab)
   const widgetContent = useWidgetMenuContent(menuTab, menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result : undefined)
   const menuEntries = menu && menuTab
-    ? cellMenuFor(menu.part, widgetKindMenuEntries(widgetContent ?? NO_WIDGET_MENU), {
+    ? cellMenuFor(menu.part, widgetKindMenuEntries({ ...(widgetContent ?? NO_WIDGET_MENU), onNameAndIcon: () => openLabelEdit(menuTab.id, menu.at) }), {
         cell,
         tab: menuTab,
         tabTitle: menuTitle,
@@ -339,6 +349,9 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
           entries={menuEntries}
           onClose={() => setMenu(null)}
         />
+      )}
+      {labelEdit && (
+        <TabNameIconPopover tabId={labelEdit.tabId} anchor={labelEdit.anchor} onClose={() => setLabelEdit(null)} />
       )}
       {addFlow && (
         <AddWidgetFlow

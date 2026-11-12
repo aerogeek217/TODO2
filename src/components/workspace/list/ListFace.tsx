@@ -17,7 +17,7 @@ import { formatRowDate } from '../../../utils/date'
 import { daysUntil } from '../../../utils/effective-date'
 import type { WidgetFace } from '../../../utils/widget-face'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
-import { WidgetKindIcon } from '../../shared/icons'
+import { TabIcon } from '../TabIcon'
 import type { ListWidgetResult } from './ListWidget'
 import { faceCountColor, oldestDue, quickRowsShown } from './list-face'
 import { useShownListReport } from './use-shown-list'
@@ -93,9 +93,9 @@ export function ListFace({ tab, definition, face, faceRef, onResult }: {
 
   // Its top line (D26 AA1); alone in its cell, the cell's controls float over its corner.
   const line = (
-    <WidgetTopLine controls="cell" className={styles.line}>
+    <WidgetTopLine controls="cell" className={styles.line} leadIcon={false}>
       <span className={styles.name}>
-        <span className={styles.icon}><WidgetKindIcon kind="lens" size={12} /></span>
+        <TabIcon tab={tab} className={styles.icon} />
         <span className={styles.nameText}>{definition.name}</span>
       </span>
       <span className={styles.figures}>
