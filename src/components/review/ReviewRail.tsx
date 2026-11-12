@@ -28,9 +28,13 @@ import styles from './Review.module.css'
  * its left; a row followed up today dims its title. The source's group
  * dividers show in Queue order only. A click on a row jumps to it; with
  * `onOpenTask` (the Review widget, widget feedback item 13) a double-click
- * opens the task in its editor; ← / → on a row go Back / Skip.
+ * opens the task in its editor; ← / → on a row go Back / Skip. With
+ * `onToggleComplete` a row's box is a checkbox that completes its task
+ * without opening it (a tab stop after its row; a press on it never picks
+ * the row): a completed task leaves a live queue, the current one staying,
+ * checked, until the review moves on.
  */
-export function ReviewRail({ todoById, followedUpToday, className, label = 'Review queue', onOpenTask }: {
+export function ReviewRail({ todoById, followedUpToday, className, label = 'Review queue', onOpenTask, onToggleComplete }: {
   todoById: ReadonlyMap<number, PersistedTodoItem>
   followedUpToday: (id: number) => boolean
   className?: string
@@ -38,6 +42,8 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
   label?: string
   /** A row double-clicked: its task (the Review widget opens it in the task editor). */
   onOpenTask?: (id: number) => void
+  /** A row's box checked or unchecked: complete or reopen its task. With it each row's box is a checkbox; without, a picture. */
+  onToggleComplete?: (id: number) => void
 }) {
   const session = useReviewSessionApi()
   const ids = useReviewSession((s) => s.ids)
@@ -122,7 +128,10 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
                 onKeyDown={onRowKeyDown}
               >
                 <span className={styles.railMark} aria-hidden="true">{mark === 'done' ? '✓' : mark === 'skipped' ? '–' : ''}</span>
-                <StaticBox summary={markerSummary(todo, today, urgentRange)} completed={todo.isCompleted} />
+                {/* The box's place: with `onToggleComplete` the checkbox lies over it, beside the row (a button can't hold one). */}
+                {onToggleComplete
+                  ? <span className={styles.railBoxSlot} aria-hidden="true" />
+                  : <RailBox summary={markerSummary(todo, today, urgentRange)} completed={todo.isCompleted} />}
                 <span className={styles.railTitle} data-review-row-title="">{todo.title}</span>
                 {(fuText || dueText) && (
                   // The second line, under the title: the name above already says both dates.
@@ -140,6 +149,19 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
                   </span>
                 )}
               </button>
+              {onToggleComplete && (
+                <label className={styles.railCheck}>
+                  <input
+                    type="checkbox"
+                    className={styles.railCheckInput}
+                    checked={todo.isCompleted}
+                    onChange={() => onToggleComplete(id)}
+                    aria-label={`Mark “${todo.title}” ${todo.isCompleted ? 'incomplete' : 'complete'}`}
+                    data-review-row-check={id}
+                  />
+                  <RailBox summary={markerSummary(todo, today, urgentRange)} completed={todo.isCompleted} />
+                </label>
+              )}
             </li>
           )
           return label != null
@@ -184,12 +206,12 @@ function ReviewSortControl({ sort, onSort }: { sort: ReviewSort; onSort: (sort: 
   )
 }
 
-/** A rail row's box: the task's priority ring as on its checkbox (read-only), checked once completed. */
-function StaticBox({ summary, completed }: { summary: MarkerSummary; completed: boolean }) {
+/** A rail row's box: the task's priority ring as on its checkbox, checked once completed (the picture; the checkbox, where there is one, lies over it). */
+function RailBox({ summary, completed }: { summary: MarkerSummary; completed: boolean }) {
   return (
     <span className={styles.railBox} data-completed={completed || undefined} aria-hidden="true">
       {completed && (
-        <svg className={styles.railCheck} viewBox="0 0 16 16" focusable="false">
+        <svg className={styles.railCheckMark} viewBox="0 0 16 16" focusable="false">
           <path d="M3.5 8.5l3 3 6-7" />
         </svg>
       )}

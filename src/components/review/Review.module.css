@@ -33,6 +33,7 @@
 }
 
 .railItem {
+  position: relative;
   display: block;
 }
 
@@ -124,7 +125,49 @@
   border-color: var(--color-accent);
 }
 
+/* The box's place in a row whose box is a checkbox (the checkbox lies over it). */
+.railBoxSlot {
+  width: 14px;
+  height: 14px;
+}
+
+/* A row's checkbox: beside the row's button, over the box's place — the row's padding (10px), its
+ * mark (12px) and the gap (8px) from the left; centred on the title's 18px line under the row's 6px. */
 .railCheck {
+  position: absolute;
+  top: 8px;
+  left: 30px;
+  display: flex;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+/* The checkbox itself: unseen, 24px around the 14px box so it is easy to hit. */
+.railCheckInput {
+  position: absolute;
+  inset: -5px;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* The picture under it takes no press: the checkbox does. */
+.railCheck .railBox {
+  pointer-events: none;
+}
+
+.railCheck:hover .railBox:not([data-completed]):not(:has([data-priority-ring])) {
+  border-color: var(--color-accent-dim);
+}
+
+.railCheck:has(.railCheckInput:focus-visible) .railBox {
+  box-shadow: var(--focus-ring);
+}
+
+.railCheckMark {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -289,6 +332,43 @@
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
+  /* Its height is its grid area's: what the short card below is measured on. */
+  container-type: size;
+  container-name: review-card;
+}
+
+/* A short card (the widget in a short cell): no room to pin the dock under 120px of writing, so
+ * nothing is pinned — under the title the body scrolls as one, the facts beside the writing, the
+ * dock after Notes and Subtasks. The log keeps to four entries (it scrolls inside, open at its
+ * newest), so the update line stays near. 390px: the title (56px), 120px of writing and the dock
+ * with one entry (214px). */
+@container review-card (max-height: 389px) {
+  /* One row as tall as the taller column (the columns' own `min-height: 0` would hold it to the card's height). */
+  .card :global([data-task-body]) {
+    grid-template-rows: max-content;
+    align-content: start;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-tint-8) transparent;
+  }
+
+  .card :global([data-task-rail]) {
+    overflow: visible;
+  }
+
+  .card :global([data-task-writing]) {
+    display: block;
+    overflow: visible;
+  }
+
+  .card :global([data-task-writing-scroll]) {
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .card :global([data-task-dock]) :global([data-status-update-list]) {
+    max-height: 116px;
+  }
 }
 
 .empty {

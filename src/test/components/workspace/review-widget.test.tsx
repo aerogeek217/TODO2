@@ -362,6 +362,21 @@ describe('the Review widget: the progress and its faces', () => {
     fireEvent.doubleClick(row)
     expect(openEditPopup).toHaveBeenCalledWith(3)
   })
+
+  it('a rail row’s box is a checkbox beside the row: it completes the task and doesn’t pick the row', () => {
+    const toggleComplete = vi.fn(async () => {})
+    useTodoStore.setState({ toggleComplete })
+    renderAt('large')
+    setFilter(person(1))
+    const title = screen.getByTestId('review-card-title').textContent
+    const box = screen.getByRole('checkbox', { name: 'Mark “Onboarding checklist” complete' })
+    // Not inside the row's button (a button can't hold a checkbox).
+    expect(box.closest('[data-review-row]')).toBeNull()
+    expect(box.closest('li')?.querySelector('[data-review-row="3"]')).not.toBeNull()
+    fireEvent.click(box)
+    expect(toggleComplete).toHaveBeenCalledWith(3)
+    expect(screen.getByTestId('review-card-title')).toHaveTextContent(title ?? '')
+  })
 })
 
 describe('the Review widget: the queue and where it stands', () => {
@@ -423,18 +438,20 @@ describe('the Review widget: the queue and where it stands', () => {
 })
 
 describe('reviewFaceFor', () => {
-  it('small as every widget’s; medium until the rail fits beside the whole card; else large', () => {
+  it('small as every widget’s; medium while too narrow for the card’s two columns or too short for a scrolling card; else large', () => {
     expect(reviewFaceFor({ width: 0, height: 0 })).toBe('large')
     expect(reviewFaceFor({ width: 240, height: 72 })).toBe('small')
     expect(reviewFaceFor({ width: 480, height: 260 })).toBe('medium')
     expect(reviewFaceFor({ width: 1000, height: 300 })).toBe('medium')
     expect(reviewFaceFor({ width: 600, height: 800 })).toBe('medium')
-    expect(reviewFaceFor({ width: 1000, height: 500 })).toBe('medium')
+    // A short cell keeps the large face: its queue and its card scroll.
+    expect(reviewFaceFor({ width: 1000, height: 340 })).toBe('large')
+    expect(reviewFaceFor({ width: 1000, height: 500 })).toBe('large')
     expect(reviewFaceFor({ width: 1000, height: REVIEW_MEDIUM_MAX_HEIGHT_PX })).toBe('medium')
     expect(reviewFaceFor({ width: 1000, height: REVIEW_MEDIUM_MAX_HEIGHT_PX + 1 })).toBe('large')
     expect(reviewFaceFor({ width: REVIEW_MEDIUM_MAX_WIDTH_PX, height: 800 })).toBe('medium')
     expect(reviewFaceFor({ width: REVIEW_MEDIUM_MAX_WIDTH_PX + 1, height: 800 })).toBe('large')
-    expect([REVIEW_MEDIUM_MAX_HEIGHT_PX, REVIEW_MEDIUM_MAX_WIDTH_PX]).toEqual([530, 640])
+    expect([REVIEW_MEDIUM_MAX_HEIGHT_PX, REVIEW_MEDIUM_MAX_WIDTH_PX]).toEqual([320, 640])
   })
 })
 

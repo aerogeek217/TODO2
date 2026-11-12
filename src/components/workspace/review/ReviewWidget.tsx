@@ -158,6 +158,8 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
     return t != null && isFollowedUpToday(t, today)
   }, [todoById, today])
   const openTask = useCallback((id: number) => useUIStore.getState().openEditPopup(id), [])
+  // A rail row's checkbox: the task completed (or reopened) where it is — its undo in the snackbar, as a list row's.
+  const toggleComplete = useCallback((id: number) => { void useTodoStore.getState().toggleComplete(id) }, [])
   const n = order.length
   const done = followedUpCount(marks, order, followedUpToday)
   const left = order.filter((id) => shownMark(marks, id, followedUpToday) == null).length
@@ -187,7 +189,7 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
     <span className={styles.progress} data-testid="review-widget-progress" aria-live="polite">
       {queueFolded && (
         <>
-          <strong><ReviewQueueButton todoById={todoById} followedUpToday={followedUpToday} label={queueLabel} /></strong>
+          <strong><ReviewQueueButton todoById={todoById} followedUpToday={followedUpToday} label={queueLabel} onToggleComplete={toggleComplete} /></strong>
           {' · '}
         </>
       )}
@@ -220,7 +222,7 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
   } else {
     body = (
       <div className={styles.large} data-queue-folded={queueFolded || undefined}>
-        {!queueFolded && <ReviewRail todoById={todoById} followedUpToday={followedUpToday} className={styles.rail} label={queueLabel} onOpenTask={openTask} />}
+        {!queueFolded && <ReviewRail todoById={todoById} followedUpToday={followedUpToday} className={styles.rail} label={queueLabel} onOpenTask={openTask} onToggleComplete={toggleComplete} />}
         <ReviewCard key={todo.id} todo={todo} focusOnOpen={focusOnOpen} />
       </div>
     )

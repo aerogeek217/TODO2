@@ -337,6 +337,109 @@ test('in a cell of several widgets: no top line — the field’s row comes firs
   await shot(page, 'rf-tabbed', wsCell(page, 'a'))
 })
 
+/** A Review widget in a short row (the top line, the prompt row, the queue's sort and the footer leave little), over a Notes cell. */
+function shortSeed(rowPx: number): WorkspaceSeed {
+  return {
+    ...BASE,
+    layouts: [{
+      name: 'Short',
+      table: {
+        areas: ['rv', 'notes'],
+        rows: [{ px: rowPx }, 1000],
+        cells: [
+          { id: 'rv', tabs: [{ id: 'rev1', kind: 'review' }] },
+          { id: 'notes', tabs: [{ id: 'n1', kind: 'notes' }] },
+        ],
+      },
+    }],
+  }
+}
+
+test('a short cell keeps the large face: the queue scrolls, and the card’s body scrolls as one down to the update line', async ({ page }) => {
+  await seedWorkspace(page, shortSeed(340))
+  const w = widget(page, 'rev1')
+  await pickInReview(page, 'rev1', 'Aisha')
+  await expect(w).toHaveAttribute('data-review-face', 'large')
+  await expect(railRows(page, 'rev1')).toHaveCount(4)
+  await expect(cardTitle(page, 'rev1')).toBeVisible()
+  const overflow = (el: Locator) => el.evaluate((n) => ({ over: n.scrollHeight > n.clientHeight + 1, y: getComputedStyle(n).overflowY }))
+  // The queue: its rows scroll under the sort.
+  const list = w.locator('[data-review-rail] ol')
+  expect(await overflow(list)).toEqual({ over: true, y: 'auto' })
+  await railRows(page, 'rev1').last().scrollIntoViewIfNeeded()
+  await expect(railRows(page, 'rev1').last()).toBeInViewport({ ratio: 1 })
+  // The card: nothing pinned — one scroller under the title, the facts beside the writing, the dock at its end.
+  const body = w.locator('[data-task-body]')
+  expect(await overflow(body)).toEqual({ over: true, y: 'auto' })
+  for (const part of ['[data-task-rail]', '[data-task-writing]', '[data-task-writing-scroll]']) {
+    expect((await overflow(w.locator(part))).over, part).toBe(false)
+  }
+  await body.evaluate((n) => { n.scrollTop = 0 })
+  await expect(w.locator('[data-task-notes]')).toBeInViewport()
+  await expect(w.locator('[data-fact="priority"]')).toBeInViewport()
+  await shot(page, 'review-widget-short-top', wsCell(page, 'rv'))
+  // Scrolled to its end: the update line; ⏎ there still follows up.
+  const line = w.getByLabel('Status update · today')
+  await line.scrollIntoViewIfNeeded()
+  await expect(line).toBeInViewport({ ratio: 1 })
+  const last = w.getByRole('textbox', { name: 'Last follow-up' })
+  await last.scrollIntoViewIfNeeded()
+  await expect(last).toBeInViewport({ ratio: 1 })
+  await line.scrollIntoViewIfNeeded()
+  await shot(page, 'review-widget-short-dock', wsCell(page, 'rv'))
+  await line.fill('Short cell update')
+  await page.keyboard.press('Enter')
+  await expect(cardTitle(page, 'rev1')).toHaveText('Onboarding checklist')
+  // The title and the footer never scroll away.
+  await expect(cardTitle(page, 'rev1')).toBeInViewport({ ratio: 1 })
+  await expect(w.getByRole('button', { name: /^Skip/ })).toBeInViewport({ ratio: 1 })
+})
+
+test('a tall cell still pins the dock: the card’s body does not scroll', async ({ page }) => {
+  await seedWorkspace(page, largeSeed())
+  const w = widget(page, 'rev1')
+  await pickInReview(page, 'rev1', 'Aisha')
+  const body = w.locator('[data-task-body]')
+  expect(await body.evaluate((n) => getComputedStyle(n).overflowY)).not.toBe('auto')
+  await expect(w.getByLabel('Status update · today')).toBeInViewport({ ratio: 1 })
+})
+
+test('the queue’s checkboxes: a row’s box completes its task without opening it; Undo puts it back; the current one stays, checked', async ({ page }) => {
+  await seedWorkspace(page, largeSeed())
+  const w = widget(page, 'rev1')
+  await pickInReview(page, 'rev1', 'Aisha')
+  await expect(cardTitle(page, 'rev1')).toHaveText('Vendor contract renewal')
+  // The box sits where the picture was: on the title's line, between the mark and the title.
+  const row = railRows(page, 'rev1').filter({ hasText: 'Q4 headcount plan' })
+  const check = w.getByRole('checkbox', { name: 'Mark “Q4 headcount plan” complete' })
+  const [rb, cb, tb] = [await row.boundingBox(), await check.boundingBox(), await row.locator('[data-review-row-title]').boundingBox()]
+  expect(cb!.x).toBeGreaterThan(rb!.x)
+  expect(cb!.x + cb!.width).toBeLessThanOrEqual(tb!.x + 6)
+  expect(Math.abs(cb!.y + cb!.height / 2 - (tb!.y + tb!.height / 2))).toBeLessThanOrEqual(1)
+  await shot(page, 'review-widget-queue-checkboxes', wsCell(page, 'rv'))
+  // A press on it completes the task and never picks the row.
+  await check.click()
+  await expect(railRows(page, 'rev1')).toHaveCount(3)
+  await expect(cardTitle(page, 'rev1')).toHaveText('Vendor contract renewal')
+  await expect.poll(async () => (await readStore<{ title: string; isCompleted: boolean }>(page, 'todos')).find((t) => t.title === 'Q4 headcount plan')?.isCompleted).toBe(true)
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(railRows(page, 'rev1')).toHaveCount(4)
+  // The current task's box: it stays in the queue, checked, until the review moves on; its box reopens it.
+  await w.getByRole('checkbox', { name: 'Mark “Vendor contract renewal” complete' }).click()
+  const reopen = w.getByRole('checkbox', { name: 'Mark “Vendor contract renewal” incomplete' })
+  await expect(reopen).toBeChecked()
+  await expect(railRows(page, 'rev1')).toHaveCount(4)
+  await expect(w.locator('[data-review-card]').getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
+  await reopen.click()
+  await expect(w.getByRole('checkbox', { name: 'Mark “Vendor contract renewal” complete' })).not.toBeChecked()
+  // From the keyboard: Tab from a row reaches its box; Space checks it.
+  await row.focus()
+  await page.keyboard.press('Tab')
+  await expect(check).toBeFocused()
+  await page.keyboard.press('Space')
+  await expect(railRows(page, 'rev1')).toHaveCount(3)
+})
+
 test('faces by size: medium — the card’s essentials; small — the filter and what’s left, a click opens it whole with the field', async ({ page }) => {
   await seedWorkspace(page, {
     ...BASE,
