@@ -10,7 +10,7 @@ import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import type { WidgetFace } from '../../../utils/widget-face'
 import type { StatsContext } from '../../../services/stats/stats-context'
-import { slippingDrill } from '../glance/glance-drills'
+import { neglectZoneDrill, slippingDrill } from '../glance/glance-drills'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useWidgetAppliedLens, useWidgetScreenFilter } from '../../../hooks/use-widget-lens'
@@ -46,8 +46,12 @@ import { TabLensSwitch } from '../LensSwitch'
 import { CellControlsContext } from '../cell-controls'
 import styles from './NeglectMapWidget.module.css'
 
-/** At this width and wider the Slipping list sits beside the plot; narrower (and on phones) under it. */
-export const NEGLECT_SIDE_LIST_MIN_PX = 640
+/**
+ * At this width and wider the Slipping list sits beside the plot. Narrower,
+ * the plot has the whole widget and there is no list: a quadrant's word
+ * opens its tasks instead (a phone keeps the list, under the plot).
+ */
+export const NEGLECT_SIDE_LIST_MIN_PX = 900
 
 /** The Slipping list numbers this many tasks (and badges their dots); the rest open in the task dialog. */
 export const SLIPPING_LISTED = 9
@@ -89,6 +93,35 @@ function wordRect(word: string, at: 'top-left' | 'top-right' | 'bottom-left' | '
   const left = at.endsWith('left') ? 0 : w - width
   const y = at.startsWith('top') ? top : h - height
   return { left, right: left + width, top: y, bottom: y + height }
+}
+
+/**
+ * A zone's word in its corner of the plot (or along the strip's top), with
+ * how many tasks it holds: a button that opens them as a list (the task
+ * dialog) while it holds any, plain words while it holds none.
+ */
+function ZoneWord({ zone, text, count, className, onOpen, testId }: {
+  zone: NeglectZone
+  /** The words shown (`Slipping 4`, `No due date · 2`). */
+  text: string
+  count: number
+  className: string
+  onOpen: (zone: NeglectZone) => void
+  testId?: string
+}) {
+  if (count === 0) return <span className={className} aria-hidden="true" data-testid={testId}>{text}</span>
+  return (
+    <button
+      type="button"
+      className={`${className} ${styles.zoneWord}`}
+      aria-label={`${ZONE_NAMES[zone]}: show ${count} ${count === 1 ? 'task' : 'tasks'}`}
+      data-neglect-zone={zone}
+      data-testid={testId}
+      onClick={() => onOpen(zone)}
+    >
+      {text}
+    </button>
+  )
 }
 
 /** A name placed beside its dot (`placeNeglectLabels`): at the dot's spot, pushed off it by its offset. */
@@ -261,7 +294,11 @@ function xMarks(untouchedDays: number): Array<{ x: number; label: string; key: s
  * the top, today, the due-soon line, 30 days ahead at the bottom; tasks
  * without a due date in the strip under it). The top-right corner —
  * due soon or late and untouched for the tab's threshold — is Slipping,
- * listed beside the plot (under it when narrow). A dot's colour is the
+ * listed beside the plot when the widget is wide (`NEGLECT_SIDE_LIST_MIN_PX`;
+ * under it on a phone; a narrower widget has no list and its plot fills
+ * it). **Each zone's word carries its count and opens its tasks as a list**
+ * (the task dialog): Slipping, In hand, Planned and Drifting in the plot's
+ * corners, No due date and Forgotten along the strip. A dot's colour is the
  * tab's Colour by (a picked tag's, the first person's, or neutral); a
  * priority flag makes it larger, a late follow-up rings it yellow. **A
  * task's name stands beside its dot where it fits** (`utils/neglect-labels`:
@@ -358,7 +395,14 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   const map = useNeglectMap(tab)
   const openTotal = useMemo(() => todos.reduce((n, t) => n + (t.isCompleted ? 0 : 1), 0), [todos])
 
-  const badges = useMemo(() => new Map(map.slipping.slice(0, SLIPPING_LISTED).map((p, i) => [p.todo.id, i + 1])), [map])
+  // The Slipping list: beside a wide plot, under a phone's; a narrower widget has none (its plot fills it).
+  const besideList = !isMobile && size.width >= NEGLECT_SIDE_LIST_MIN_PX
+  const showList = isMobile || besideList
+  // The dots' numbers are the list's: none without it.
+  const badges = useMemo(
+    () => new Map(showList ? map.slipping.slice(0, SLIPPING_LISTED).map((p, i) => [p.todo.id, i + 1]) : []),
+    [map, showList],
+  )
 
   // Selection rows, in the order the keyboard walks them: the Slipping list's, then the rest.
   const rows = useMemo<ScopedRow[]>(() => {
@@ -388,7 +432,6 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   }, [tab.id])
   const { lasso, handlers } = useLasso(!isMobile, lassoSelect)
 
-  const besideList = !isMobile && size.width >= NEGLECT_SIDE_LIST_MIN_PX
   const screenHidesAll = map.points.length === 0 && openTotal > 0 && screenActive
   const unhide = screenUnhideAction(chipCount)
   const threshold = xPct(untouchedDays)
@@ -412,6 +455,16 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   )
   const plotted = useMemo(() => map.points.filter((p) => p.dueIn != null), [map])
   const strip = useMemo(() => map.points.filter((p) => p.dueIn == null), [map])
+  const noDueCount = map.counts.noDue + map.counts.forgotten
+  /** A zone's word pressed: its tasks as a list (the task dialog) — the strip's `No due date` every task without one. */
+  const openZone = useCallback((zone: NeglectZone) => {
+    const inZone = zone === 'slipping' ? map.slipping
+      : map.points.filter((p) => (zone === 'noDue' ? p.dueIn == null : p.zone === zone))
+        // Soonest due first (the latest of the late ones on top), then the longest untouched.
+        .sort((a, b) => (a.dueIn ?? 0) - (b.dueIn ?? 0) || b.untouched - a.untouched)
+    useUIStore.getState().showTaskDialog(neglectZoneDrill(zone, inZone.map((p) => p.todo.id), untouchedDays))
+  }, [map, untouchedDays])
+  const zoneText = (zone: NeglectZone) => `${ZONE_NAMES[zone]} ${map.counts[zone]}`
 
   // The names that fit beside their dots (`placeNeglectLabels`): the Slipping tasks first, in their list's
   // order, then the flagged ones, then the rest — on the plot and on the strip, each in its own field.
@@ -432,10 +485,11 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
     const { width: fw, height: fh } = fieldSize
     const { width: sw, height: sh } = stripSize
     const noDueCount = map.counts.noDue + map.counts.forgotten
+    const word = (zone: NeglectZone) => `${ZONE_NAMES[zone]} ${map.counts[zone]}`
     return {
       plotLabels: placeNeglectLabels(dotsOf(plotted, fw, fh, false), fieldSize, [
-        wordRect('In hand', 'top-left', fw, fh), wordRect('Slipping', 'top-right', fw, fh),
-        wordRect('Planned', 'bottom-left', fw, fh), wordRect('Drifting', 'bottom-right', fw, fh),
+        wordRect(word('inHand'), 'top-left', fw, fh), wordRect(word('slipping'), 'top-right', fw, fh),
+        wordRect(word('planned'), 'bottom-left', fw, fh), wordRect(word('drifting'), 'bottom-right', fw, fh),
       ]),
       stripLabels: placeNeglectLabels(dotsOf(strip, sw, sh, true), stripSize, [
         wordRect(`No due date · ${noDueCount}`, 'top-left', sw, sh, 3), wordRect(`Forgotten · ${map.counts.forgotten}`, 'top-right', sw, sh, 3),
@@ -452,9 +506,11 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
     </WidgetNameLine>
     <div
       ref={sizeRef}
-      className={`${styles.widget} ${besideList ? styles.beside : styles.stacked} ${isMobile ? styles.touch : ''}`}
+      // A phone stacks the plot (scaled to its width) over the list; elsewhere the plot fills the widget, beside the list when there is one.
+      className={`${styles.widget} ${isMobile ? `${styles.stacked} ${styles.touch}` : styles.beside}`}
       data-neglect-map={tab.id}
-      data-layout={besideList ? 'beside' : 'stacked'}
+      data-layout={isMobile ? 'stacked' : 'beside'}
+      data-slipping-list={showList ? 'true' : undefined}
       {...{ [SELECTION_SCOPE_ATTR]: isMobile ? undefined : tab.id }}
     >
       {/* In a cell of several widgets (no name line): its lens switch over its corner (G3). */}
@@ -478,10 +534,10 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
               <div className={styles.soonLine} style={{ top: `${nearEdge}%` }} aria-hidden="true" data-testid="neglect-soon-line" />
             )}
             <div className={styles.untouchedLine} style={{ left: `${threshold}%` }} aria-hidden="true" />
-            <span className={`${styles.corner} ${styles.cornerSlipping}`} aria-hidden="true">Slipping</span>
-            <span className={`${styles.corner} ${styles.cornerInHand}`} aria-hidden="true">In hand</span>
-            <span className={`${styles.corner} ${styles.cornerPlanned}`} aria-hidden="true">Planned</span>
-            <span className={`${styles.corner} ${styles.cornerDrifting}`} aria-hidden="true">Drifting</span>
+            <ZoneWord zone="slipping" text={zoneText('slipping')} count={map.counts.slipping} className={`${styles.corner} ${styles.cornerSlipping}`} onOpen={openZone} />
+            <ZoneWord zone="inHand" text={zoneText('inHand')} count={map.counts.inHand} className={`${styles.corner} ${styles.cornerInHand}`} onOpen={openZone} />
+            <ZoneWord zone="planned" text={zoneText('planned')} count={map.counts.planned} className={`${styles.corner} ${styles.cornerPlanned}`} onOpen={openZone} />
+            <ZoneWord zone="drifting" text={zoneText('drifting')} count={map.counts.drifting} className={`${styles.corner} ${styles.cornerDrifting}`} onOpen={openZone} />
             {plotted.map(dotFor)}
             {plotted.map((p) => {
               const label = plotLabels.get(p.todo.id)
@@ -494,11 +550,11 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
             <span key={m.key} className={styles.xMark} data-mark={m.key} style={{ left: `${xPct(m.x)}%` }}>{m.label}</span>
           ))}
         </div>
-        <div className={styles.strip} role="group" aria-label={`No due date: ${map.counts.noDue + map.counts.forgotten}`}>
+        <div className={styles.strip} role="group" aria-label={`No due date: ${noDueCount}`}>
           <div ref={stripRef} className={styles.stripField}>
             <div className={styles.forgottenPart} style={{ left: `${forgottenStart}%` }} aria-hidden="true" />
-            <span className={styles.stripLabel} aria-hidden="true">No due date · {map.counts.noDue + map.counts.forgotten}</span>
-            <span className={styles.forgottenLabel} aria-hidden="true" data-testid="neglect-forgotten">Forgotten · {map.counts.forgotten}</span>
+            <ZoneWord zone="noDue" text={`No due date · ${noDueCount}`} count={noDueCount} className={styles.stripLabel ?? ''} onOpen={openZone} />
+            <ZoneWord zone="forgotten" text={`Forgotten · ${map.counts.forgotten}`} count={map.counts.forgotten} className={styles.forgottenLabel ?? ''} onOpen={openZone} testId="neglect-forgotten" />
             {strip.map(dotFor)}
             {strip.map((p) => {
               const label = stripLabels.get(p.todo.id)
@@ -525,11 +581,13 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
         )}
       </div>
 
-      <SlippingList
-        map={map}
-        untouchedDays={untouchedDays}
-        selectedIds={inScope ? selectedIds : undefined}
-      />
+      {showList && (
+        <SlippingList
+          map={map}
+          untouchedDays={untouchedDays}
+          selectedIds={inScope ? selectedIds : undefined}
+        />
+      )}
     </div>
     {/* Docked at the foot, after the map (the face host is a column): it covers no dot. */}
     {showBulkBar && <ListBulkBar ids={[...selectedIds]} />}
