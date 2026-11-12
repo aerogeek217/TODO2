@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { emptyPredicate, type TodoPredicate } from '../../../models'
+import type { FilterAtom } from '../../../models/filter-expression'
 import { useStatsBase } from '../../../hooks/use-glance-data'
 import { useExpressionField } from '../../../hooks/use-expression-field'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
@@ -10,6 +11,7 @@ import { reviewFilterPredicate } from '../../../hooks/use-review-widget-queue'
 import { sendPersonCheckin } from '../../../services/checkin-email/person-checkin'
 import { expressionResolver } from '../../../services/filter-expression-field'
 import type { AutocompleteRow, computeAutocomplete } from '../../../services/nlp-autocomplete'
+import type { TokenTint } from '../../../services/nlp-token-tints'
 import { peopleOnly, reviewFieldAutocomplete, reviewFieldPick, type ReviewFieldCounts } from '../../../services/review-field'
 import { useListWidgetStore, type ReviewFilter } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -17,11 +19,13 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { startOfToday } from '../../../utils/date'
-import { parseExpression } from '../../../utils/filter-expression'
+import { parseExpression, printPieces, withoutAtom, type ExpressionPiece } from '../../../utils/filter-expression'
+import { withExpression } from '../../../utils/predicate-expression'
 import { EnvelopeIcon, ReplyIcon } from '../../shared/icons'
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
 import { NlpPopup } from '../../shared/NlpPopup'
 import { TintedText } from '../../shared/TintedText'
+import tintStyles from '../../shared/TintedText.module.css'
 import { useTooltip } from '../../shared/use-tooltip'
 import styles from './ReviewWidget.module.css'
 
@@ -31,6 +35,13 @@ const MAX_LINES = 3
 
 /** What the field says while empty. */
 export const REVIEW_FIELD_PLACEHOLDER = 'Who or what to review…'
+
+/** A pill's tint: the one its term has as typed text (`expressionTints`); text and dates other than due / follow-up are plain pills. */
+function pillTint(term: FilterAtom | undefined): TokenTint {
+  if (term?.kind === 'priority') return term.value === 'urgent' ? 'urgent' : term.value === 'important' ? 'followup' : term.value === 'focus' ? 'accent' : 'chip'
+  if (term?.kind === 'date') return term.field === 'deadline' ? 'due' : term.field === 'followup' || term.field === 'lastFollowup' ? 'followup' : 'chip'
+  return 'chip'
+}
 
 /**
  * Each person's, tag's and status's open tasks among those the widget's
@@ -71,6 +82,13 @@ function useReviewFieldCounts(): ReviewFieldCounts {
  * never written — the queue keeps the last filter that read; Esc puts that
  * text back (and, with nothing to put back, leaves the field). × clears it.
  *
+ * **At rest** — the field not focused, its text the filter's — each term is
+ * a pill with its own × (`printPieces`: the same words, the terms as pills):
+ * a press on one takes that term out of the filter (`withoutAtom`: with a
+ * `not` over it, and the parentheses of a group left with one term), the
+ * `done` pill Show completed. A press anywhere else in the field goes to
+ * the text under the pills, which then shows as typed text again.
+ *
  * At its end, while the filter names only people (`@A`, `@A or @B`) and only
  * on desktop: Email check-in (one person: theirs at once; several: a menu of
  * them) and Paste reply (the reply import, which reads the person from the
@@ -107,6 +125,19 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
   )
   const field = useExpressionField({ predicate, onChange, inputRef, autocomplete })
   const { text, parse, tints, ac } = field
+  // At rest: not focused, and the text is the filter's (nothing typed and unread) — its terms are pills.
+  const [focused, setFocused] = useState(false)
+  const resting = !focused && filter != null && text !== '' && text === field.stored
+  const pieces = useMemo<ExpressionPiece[]>(
+    () => (resting && filter ? printPieces(filter.expression, filter.showCompleted, field.names) : []),
+    [resting, filter, field.names],
+  )
+  /** A pill's ×: its term out of the filter (the `done` pill: Show completed off), written at once. */
+  const removePiece = (piece: ExpressionPiece) => {
+    if (!filter) return
+    if (piece.done) onChange(withExpression(predicate, filter.expression, false))
+    else if (piece.atom != null) onChange(withExpression(predicate, withoutAtom(filter.expression, piece.atom), filter.showCompleted))
+  }
   const error = parse.ok ? null : parse.error
   const errorTip = useTooltip(error?.hint ?? null)
 
@@ -120,7 +151,8 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
     input.style.height = `${Math.min(Math.max(input.scrollHeight, LINE_PX), MAX_LINES * LINE_PX)}px`
     syncMirror()
   }, [inputRef, syncMirror])
-  useLayoutEffect(() => { fitHeight() }, [text, fitHeight])
+  // Also when the pills give way to the text (a focus): the text sizes the field again.
+  useLayoutEffect(() => { fitHeight() }, [text, resting, fitHeight])
   useEffect(() => {
     const input = inputRef.current
     if (!input || typeof ResizeObserver === 'undefined') return
@@ -212,12 +244,37 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
       <div className={styles.fieldLine}>
         <div className={`${styles.field} ${error ? styles.fieldError : ''}`}>
           <div className={styles.fieldText}>
-            <div ref={mirrorRef} className={styles.mirror} aria-hidden="true">
-              <TintedText text={text} spans={tints} />
-            </div>
+            {resting ? (
+              // The pills size the field; the text field lies under them, unseen, taking every press but an ×'s.
+              <div className={styles.pills} data-testid="review-field-pills">
+                {pieces.map((piece, i) => (piece.atom == null && !piece.done ? (
+                  <span key={i} className={tintStyles.tint} data-tint="operator" aria-hidden="true">{piece.text}</span>
+                ) : (
+                  <span key={i} className={`${tintStyles.tint} ${styles.pill}`} data-tint={pillTint(piece.term)} data-review-pill={piece.text}>
+                    <span aria-hidden="true">{piece.text}</span>
+                    <button
+                      type="button"
+                      className={styles.pillRemove}
+                      tabIndex={-1}
+                      aria-label={`Remove ${piece.text}`}
+                      title={`Remove ${piece.text}`}
+                      // The press doesn't move the focus into the field.
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => removePiece(piece)}
+                    >
+                      &times;
+                    </button>
+                  </span>
+                )))}
+              </div>
+            ) : (
+              <div ref={mirrorRef} className={styles.mirror} aria-hidden="true">
+                <TintedText text={text} spans={tints} />
+              </div>
+            )}
             <textarea
               ref={inputRef}
-              className={styles.input}
+              className={`${styles.input} ${resting ? styles.inputRest : ''}`}
               rows={1}
               value={text}
               placeholder={REVIEW_FIELD_PLACEHOLDER}
@@ -237,9 +294,13 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
                 field.onSelect(e.currentTarget)
               }}
               onClick={(e) => openList(e.currentTarget)}
-              onFocus={(e) => { if (e.currentTarget.value === '') openList(e.currentTarget) }}
+              onFocus={(e) => {
+                setFocused(true)
+                if (e.currentTarget.value === '') openList(e.currentTarget)
+              }}
               onScroll={syncMirror}
               onBlur={() => {
+                setFocused(false)
                 browse.current = false
                 field.onBlur()
               }}

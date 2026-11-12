@@ -63,6 +63,68 @@ function nodeText(e: FilterExpr, names: ExpressionNames, nested: boolean): strin
   }
 }
 
+/**
+ * A stretch of a printed expression: one term (`atom`: its place among
+ * `expressionAtoms`), the last `done` (Show completed), or the words between
+ * them (`and`, `or`, `not`, parentheses, spaces).
+ */
+export interface ExpressionPiece {
+  text: string
+  /** The atom this piece is, by its index in `expressionAtoms` order. */
+  atom?: number
+  /** The atom itself (its kind picks the pill's tint). */
+  term?: FilterAtom
+  /** Show completed's `done`. */
+  done?: true
+}
+
+/** `nodeText` in pieces: the same characters, each atom a piece of its own. */
+function nodePieces(e: FilterExpr, names: ExpressionNames, nested: boolean, out: ExpressionPiece[], next: { atom: number }): void {
+  const word = (text: string) => { if (text) out.push({ text }) }
+  switch (e.kind) {
+    case 'and':
+    case 'or': {
+      if (nested) word('(')
+      e.items.forEach((item, i) => {
+        if (i > 0) word(` ${e.kind} `)
+        nodePieces(item, names, true, out, next)
+      })
+      if (nested) word(')')
+      return
+    }
+    case 'not': {
+      const any = anyText(e.item)
+      // `any person`: the "none" atom under the `not`, as one piece.
+      if (any && e.item.kind !== 'and' && e.item.kind !== 'or' && e.item.kind !== 'not') {
+        out.push({ text: any, atom: next.atom++, term: e.item })
+        return
+      }
+      // An `and` / `or` and a date that prints in parentheses bring their own; a `not` under it gets a pair.
+      const wraps = e.item.kind === 'not'
+      word(wraps ? 'not (' : 'not ')
+      nodePieces(e.item, names, true, out, next)
+      if (wraps) word(')')
+      return
+    }
+    default:
+      out.push({ text: atomText(e, names), atom: next.atom++, term: e })
+  }
+}
+
+/**
+ * The whole filter as `printExpression` writes it, in pieces — their texts
+ * joined are that text — so a host can draw each term as a pill of its own.
+ */
+export function printPieces(expression: FilterExpr | null | undefined, showCompleted: boolean, names: ExpressionNames): ExpressionPiece[] {
+  const out: ExpressionPiece[] = []
+  if (expression) nodePieces(expression, names, showCompleted && expression.kind === 'or', out, { atom: 0 })
+  if (showCompleted) {
+    if (expression) out.push({ text: ' and ' })
+    out.push({ text: 'done', done: true })
+  }
+  return out
+}
+
 /** One term as text (a top-level term, a summary's line). */
 export function printTerm(e: FilterExpr, names: ExpressionNames): string {
   return nodeText(e, names, false)

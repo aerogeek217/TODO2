@@ -63,6 +63,37 @@ export function expressionAtoms(e: FilterExpr): FilterAtom[] {
   }
 }
 
+/**
+ * `e` without its `index`-th atom (in `expressionAtoms` order), in normal
+ * form: the term goes with a `not` over it, an `and` / `or` left with one
+ * item is that item, and one left with none goes too. `null` when nothing
+ * is left; `e` itself (normalized) when it has no such atom.
+ */
+export function withoutAtom(e: FilterExpr, index: number): FilterExpr | null {
+  let at = 0
+  const strip = (node: FilterExpr): FilterExpr | null => {
+    switch (node.kind) {
+      case 'and':
+      case 'or': {
+        const items: FilterExpr[] = []
+        for (const item of node.items) {
+          const kept = strip(item)
+          if (kept) items.push(kept)
+        }
+        return items.length === 0 ? null : { kind: node.kind, items }
+      }
+      case 'not': {
+        const item = strip(node.item)
+        return item ? { kind: 'not', item } : null
+      }
+      default:
+        return at++ === index ? null : node
+    }
+  }
+  const out = strip(e)
+  return out ? normalizeExpression(out) : null
+}
+
 /** The terms of `e`'s top-level `and` (`e` itself when it isn't one). */
 export function topLevelTerms(e: FilterExpr): readonly FilterExpr[] {
   return e.kind === 'and' ? e.items : [e]

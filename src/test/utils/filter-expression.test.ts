@@ -4,10 +4,13 @@ import { emptyFilterClauses, type FilterClauses } from '../../models/filter-pred
 import {
   clausesToExpression,
   expressionToClauses,
+  expressionAtoms,
   normalizeExpression,
   parseExpression,
   printExpression,
+  printPieces,
   splitTopLevel,
+  withoutAtom,
   type ExpressionNames,
   type ExpressionParse,
 } from '../../utils/filter-expression'
@@ -287,6 +290,61 @@ describe('filter expressions — print', () => {
 
   it('names a deleted id so it reads as an error until fixed', () => {
     expect(printExpression({ kind: 'person', id: 99 }, false, names)).toBe('@"deleted person"')
+  })
+})
+
+describe('filter expressions — pieces and removing a term', () => {
+  const CASES = [
+    '(/focus or (/important and /urgent)) and not (!Assigned and followup any)',
+    '@Aisha or @"Ann Lee"',
+    '"budget review" and not "draft"',
+    'no person or any tag',
+    'no priority and any priority',
+    'due this week or no due',
+    'not (not @Ben and #q4)',
+    'due -3d..+7d and not due today',
+    '(@Aisha or @Ben) and done',
+    '@Aisha and done',
+    'done',
+  ]
+
+  it('the pieces joined are the printed text; each atom is one piece, in the atoms’ order', () => {
+    for (const text of CASES) {
+      const r = parse(text)
+      if (!r.ok) throw new Error(`${text}: ${r.error.message}`)
+      const pieces = printPieces(r.expression, r.showCompleted, names)
+      expect(pieces.map((p) => p.text).join(''), text).toBe(printExpression(r.expression, r.showCompleted, names))
+      const atoms = r.expression ? expressionAtoms(r.expression) : []
+      const terms = pieces.filter((p) => p.atom != null)
+      expect(terms.map((p) => p.atom), text).toEqual(atoms.map((_, i) => i))
+      expect(terms.map((p) => p.term), text).toEqual(atoms)
+      expect(pieces.filter((p) => p.done).length, text).toBe(r.showCompleted ? 1 : 0)
+    }
+    expect(printPieces(tree('@Aisha or not #q4'), false, names)).toEqual([
+      { text: '@Aisha', atom: 0, term: { kind: 'person', id: 1 } },
+      { text: ' or ' },
+      { text: 'not ' },
+      { text: '#q4', atom: 1, term: { kind: 'tag', id: 1 } },
+    ])
+    expect(printPieces(null, false, names)).toEqual([])
+  })
+
+  it('withoutAtom takes one term out, with what only held it', () => {
+    const drop = (text: string, index: number) => {
+      const out = withoutAtom(tree(text)!, index)
+      return out ? printExpression(out, false, names) : null
+    }
+    expect(drop('@Aisha or @Ben', 0)).toBe('@Ben')
+    expect(drop('@Aisha or @Ben', 1)).toBe('@Aisha')
+    expect(drop('@Aisha', 0)).toBeNull()
+    // A `not` goes with its term; a group left with one term loses its parentheses.
+    expect(drop('@Aisha and not #q4', 1)).toBe('@Aisha')
+    expect(drop('(@Aisha or @Ben) and #q4', 1)).toBe('@Aisha and #q4')
+    expect(drop('(@Aisha or @Ben) and #q4', 2)).toBe('@Aisha or @Ben')
+    expect(drop('not (@Aisha and #q4)', 0)).toBe('not #q4')
+    expect(drop('any person and #q4', 0)).toBe('#q4')
+    // No such atom: the same filter.
+    expect(drop('@Aisha or @Ben', 5)).toBe('@Aisha or @Ben')
   })
 })
 
