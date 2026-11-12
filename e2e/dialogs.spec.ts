@@ -8,16 +8,16 @@ import { readStore } from './fixtures/db'
  * focused; Tab / Shift+Tab wrap inside it; focus returns to the trigger; a
  * press that starts inside the panel and ends on the backdrop keeps it open,
  * a press on the backdrop closes it. And the stacks: the editor over the
- * task dialog, the email editor over the check-in dialog (opened from the
- * Review widget's Email check-in), the people editor over Settings, "Continue without
- * a backup?" over the append-import dialog.
+ * task dialog, the people editor over Settings, "Continue without a
+ * backup?" over the append-import dialog. The check-in dialog opens from the
+ * Review widget's Check-in.
  */
 
 const VIEWPORT = { width: 1440, height: 900 }
 test.use({ viewport: VIEWPORT })
 
 const SEED: WorkspaceSeed = {
-  people: [{ name: 'Alice Chen', email: 'alice@example.com' }, 'Ben Ortiz'],
+  people: ['Alice Chen', 'Ben Ortiz'],
   listDefinitions: [{ name: 'Team' }],
   tasks: [
     { title: 'Fix checkout outage', urgent: true, important: true, dueInDays: 0, people: ['Alice Chen', 'Ben Ortiz'] },
@@ -36,25 +36,13 @@ const SEED: WorkspaceSeed = {
 
 const focusTile = (page: Page) => page.locator('[data-glance-tab="dash"] [data-number]')
 const taskDialog = (page: Page) => page.locator('[data-task-dialog]')
-const checkin = (page: Page) => page.getByRole('dialog', { name: 'Email task check-ins' })
+const checkin = (page: Page) => page.getByRole('dialog', { name: 'Task check-ins' })
 const editorTitle = (page: Page) => page.getByRole('textbox', { name: 'Task title' })
 
 /** Nothing focused: the next key lands on the page itself. */
 async function blurAll(page: Page) {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
   await expect.poll(() => page.evaluate(() => document.activeElement === document.body)).toBe(true)
-}
-
-/**
- * The clipboard refuses every write: a person's Email check-in then can't
- * send at once and opens the check-in dialog instead.
- */
-async function refuseClipboard(page: Page) {
-  await page.evaluate(() => {
-    const refuse = () => Promise.reject(new DOMException('denied', 'NotAllowedError'))
-    Object.defineProperty(navigator.clipboard, 'write', { configurable: true, value: refuse })
-    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: refuse })
-  })
 }
 
 /**
@@ -246,17 +234,15 @@ test('task dialog → editor: the editor owns Esc, focused or not; then Esc clos
   await expect(dialog).toBeHidden()
 })
 
-/** The Review widget's Email check-in, its filter one person (a one-click send; refused clipboard: the dialog). */
+/** The Review widget's Check-in, its filter one person: it opens the check-in dialog for them. */
 async function widgetCheckin(page: Page, person: string): Promise<Locator> {
   // Typed by the first name: the field takes ⏎ on the first match.
   await pickInReview(page, 'rv', person.split(' ')[0] ?? person)
-  return page.locator('[data-review-widget="rv"]').getByRole('button', { name: 'Email check-in' })
+  return page.locator('[data-review-widget="rv"]').getByRole('button', { name: 'Check-in' })
 }
 
-test('check-in dialog: contract; focus back to the Review widget’s Email check-in; Esc with nothing focused closes it', async ({ page }) => {
+test('check-in dialog: contract; focus on Copy, back to the Review widget’s Check-in; Esc with nothing focused closes it', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await refuseClipboard(page)
-  // The refused clipboard sends the one-click send to the dialog.
   const trigger = await widgetCheckin(page, 'Alice Chen')
   await checkContract(page, {
     dialog: checkin(page),
@@ -265,8 +251,8 @@ test('check-in dialog: contract; focus back to the Review widget’s Email check
       await expect(checkin(page)).toBeVisible()
     },
     trigger,
-    inside: checkin(page).getByRole('heading', { name: 'Email task check-ins' }),
-    initialFocus: checkin(page),
+    inside: checkin(page).getByRole('heading', { name: 'Task check-ins' }),
+    initialFocus: checkin(page).getByRole('button', { name: 'Copy message' }),
   })
 
   await trigger.click()
@@ -276,36 +262,6 @@ test('check-in dialog: contract; focus back to the Review widget’s Email check
   await expect(checkin(page)).toBeHidden()
 })
 
-test('check-in → the email editor: Esc cancels its edit, then closes it (focused or not); the check-in dialog stays', async ({ page }) => {
-  await seedWorkspace(page, SEED)
-  await refuseClipboard(page)
-  await (await widgetCheckin(page, 'Ben Ortiz')).click()
-  const dialog = checkin(page)
-  await dialog.getByRole('button', { name: 'Add email for Ben Ortiz' }).click()
-  const email = page.getByRole('textbox', { name: 'Email' })
-  await expect(email).toBeFocused()
-
-  // Esc in the field cancels the edit, nothing else.
-  const people = page.getByRole('dialog', { name: 'People' })
-  await page.keyboard.press('Escape')
-  await expect(email).toHaveCount(0)
-  await expect(people).toBeVisible()
-  await expect(dialog).toBeVisible()
-  // The editor is the top dialog: Esc with nothing focused closes it, only it.
-  await blurAll(page)
-  await page.keyboard.press('Escape')
-  await expect(people).toBeHidden()
-  await expect(dialog).toBeVisible()
-
-  // Again from its ×; focus comes back to the check-in dialog, whose Esc closes it.
-  await dialog.getByRole('button', { name: 'Add email for Ben Ortiz' }).click()
-  await expect(people).toBeVisible()
-  await people.getByRole('button', { name: '×' }).first().click()
-  await expect(people).toBeHidden()
-  await expect.poll(() => focusInside(dialog)).toBe(true)
-  await page.keyboard.press('Escape')
-  await expect(dialog).toBeHidden()
-})
 test('check-in import: Esc, focus trap and return, backdrop press', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const dialog = page.getByRole('dialog', { name: 'Import task update' })

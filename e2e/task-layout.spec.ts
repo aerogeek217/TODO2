@@ -321,7 +321,7 @@ test.describe('the person task dialog', () => {
     await expect(dialog).toBeVisible()
     const actions = dialog.getByRole('group', { name: 'Actions for Aisha' })
     await expect(actions.getByRole('button')).toHaveText(['Review'])
-    await expect(dialog.getByRole('button', { name: /Email check-in|Paste reply/ })).toHaveCount(0)
+    await expect(dialog.getByRole('button', { name: /Check-in|Paste reply/ })).toHaveCount(0)
     await expect(dialog.getByRole('button', { name: 'Close Esc' })).toBeVisible()
 
     await actions.getByRole('button', { name: 'Review with Aisha' }).click()

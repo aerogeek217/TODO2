@@ -129,7 +129,7 @@ test('added from the cell’s ⋯: nothing to review; a click lists who or what 
   await field.press('Enter')
   await expect(field).toHaveValue('@Aisha or @Ben ')
   await expect(railRows(page, tabId)).toHaveCount(5)
-  await expect(w.getByRole('button', { name: 'Email check-in' })).toBeVisible()
+  await expect(w.getByRole('button', { name: 'Check-in' })).toBeVisible()
   await page.mouse.move(0, 0)
   await shot(page, 'rf-two-people')
 
@@ -157,7 +157,7 @@ test('a tag joins with and; @ still opens the expression popup; the field is tem
   await expect(field).toHaveValue('@Aisha and #legal ')
   await expect(railRows(page, 'rev1')).toHaveText([/Vendor contract/, /Hiring scorecard/])
   // Not only people: no check-in buttons.
-  await expect(w.getByRole('button', { name: 'Email check-in' })).toHaveCount(0)
+  await expect(w.getByRole('button', { name: 'Check-in' })).toHaveCount(0)
   // Nothing written to the layout: no undo step, and the stored row holds no filter (and no kind).
   await expect(page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true })).toHaveCount(0)
   expect((await storedReviewTab(page, 'rev1'))?.config).toEqual({})
@@ -211,17 +211,19 @@ test('names with a space round-trip: a pick writes them quoted, the queue reads 
   await expect(field).toHaveValue('@"Marcus Chen"')
 })
 
-test('check-ins: two quiet buttons while the filter names only people — several people, Email opens a menu of them; Paste reply opens the import', async ({ page }) => {
+test('check-ins: two quiet buttons while the filter names only people — Check-in opens the check-in dialog for them (no menu); Paste reply opens the import', async ({ page }) => {
   await seedWorkspace(page, largeSeed())
   const w = widget(page, 'rev1')
   await pickInReview(page, 'rev1', 'Aisha', 'Ben')
-  const email = w.getByRole('button', { name: 'Email check-in' })
-  await expect(email).toBeVisible()
-  await email.click()
-  const menu = page.getByRole('menu', { name: 'Email check-in' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Email check-in to Aisha', 'Email check-in to Ben'])
+  const checkin = w.getByRole('button', { name: 'Check-in' })
+  await expect(checkin).toBeVisible()
+  await checkin.click()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  const dialog = page.getByRole('dialog', { name: 'Task check-ins' })
+  await expect(dialog.getByRole('listbox', { name: 'People' }).getByRole('option', { selected: true })).toContainText('Aisha')
   await page.keyboard.press('Escape')
-  await expect(menu).toHaveCount(0)
+  await expect(dialog).toHaveCount(0)
+  await expect(checkin).toBeFocused()
   await w.getByRole('button', { name: 'Paste reply' }).click()
   await expect(page.getByLabel('Paste the reply here')).toBeVisible()
 })

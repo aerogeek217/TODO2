@@ -14,8 +14,8 @@ test.use({ viewport: { width: 1440, height: 900 } })
 
 const SEED: WorkspaceSeed = {
   people: [
-    { name: 'Aisha Rahman', email: 'aisha@example.com' },
-    { name: 'Ben Ortiz', email: 'ben@example.com' },
+    'Aisha Rahman',
+    'Ben Ortiz',
     'Cy Young',
   ],
   statuses: ['Waiting'],
@@ -185,7 +185,7 @@ test('no check-in envelope on a person row, and no check-in option in the editor
   const ben = row(page, 'Ben Ortiz')
   await ben.hover()
   await expect(ben.getByTestId('breakdown-review')).toBeVisible()
-  await expect(ben.getByRole('button', { name: /Email check-in/ })).toHaveCount(0)
+  await expect(ben.getByRole('button', { name: /Check-in/ })).toHaveCount(0)
   await chart(page).locator('[data-chart-head]').click({ button: 'right' })
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit breakdown…' }).click()
   const editor = page.locator('[data-chart-editor]')

@@ -234,7 +234,7 @@ test('the offline file requests nothing but itself through its main flows', asyn
   const fileUrl = pathToFileURL(join(outDir, 'offline', 'todo2.html')).href
   // The task list over a Review widget (the way into the check-in dialog).
   await seedWorkspace(page, {
-    people: [{ name: 'Ada Lovelace', email: 'ada@example.com' }, 'Grace Hopper'],
+    people: ['Ada Lovelace', 'Grace Hopper'],
     tasks: [
       { title: 'Draft the plan', people: ['Ada Lovelace'], dueInDays: 2, notes: 'First line\n- a bullet' },
       { title: 'Book the room' },
@@ -278,18 +278,13 @@ test('the offline file requests nothing but itself through its main flows', asyn
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
 
-  // The check-in dialog's preview: the email in its sandboxed srcdoc frame. The dialog opens when a
-  // one-click send can't go: the Review widget's Email check-in for Grace, who has no open tasks.
-  await pickInReview(page, 'rv', 'Grace')
-  await page.locator('[data-review-widget="rv"]').getByRole('button', { name: 'Email check-in' }).click()
-  const checkin = page.getByRole('dialog', { name: 'Email task check-ins' })
-  await expect(checkin.getByRole('status')).toHaveText('Grace Hopper has no open tasks, so nothing was sent.')
-  await checkin.locator('[data-checkin-row]').filter({ hasText: 'Grace Hopper' }).getByRole('checkbox').uncheck()
-  await checkin.locator('[data-checkin-row]').filter({ hasText: 'Ada Lovelace' }).getByRole('checkbox').check()
-  await checkin.getByRole('button', { name: 'Preview email' }).click()
-  const preview = page.getByRole('dialog', { name: 'Preview email' })
-  await expect(preview.frameLocator('iframe[title="Check-in email for Ada Lovelace"]').getByText('Draft the plan')).toBeVisible()
-  await preview.getByRole('button', { name: 'Close' }).click()
+  // The check-in dialog: the Review widget's Check-in for Ada opens it, her message in its
+  // sandboxed srcdoc frame.
+  await pickInReview(page, 'rv', 'Ada')
+  await page.locator('[data-review-widget="rv"]').getByRole('button', { name: 'Check-in' }).click()
+  const checkin = page.getByRole('dialog', { name: 'Task check-ins' })
+  await expect(checkin.getByRole('listbox', { name: 'People' }).getByRole('option', { selected: true })).toContainText('Ada Lovelace')
+  await expect(checkin.frameLocator('iframe[title="Check-in for Ada Lovelace"]').getByText('Draft the plan')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(checkin).toBeHidden()
 

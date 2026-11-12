@@ -190,8 +190,8 @@ export interface WorkspaceSeed {
    * Auto (the app's default, no row — `{ rowDensity: null }`) would draw a cell under 480px Stacked.
    */
   settings?: Record<string, string | null>
-  /** Names, or a name with initials / colour / email. */
-  people?: Array<string | { name: string; initials?: string; color?: string; email?: string }>
+  /** Names, or a name with initials / colour. */
+  people?: Array<string | { name: string; initials?: string; color?: string }>
   /** Names, or a name with its colour (default `#7ec4bc`). */
   tags?: Array<string | { name: string; color: string }>
   /** Status names, added after the app's own. */
@@ -302,7 +302,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       const p = typeof entry === 'string' ? { name: entry } : entry
       const row: Record<string, unknown> = { name: p.name, initials: p.initials ?? p.name.slice(0, 2).toUpperCase() }
       if (p.color) row.color = p.color
-      if (p.email) row.email = p.email
       personIds.set(p.name, await add(tx.objectStore('people'), row))
     }
     const tagIds = new Map<string, number>()
@@ -903,9 +902,9 @@ export function editListSave(page: Page): Locator {
 }
 
 /**
- * Opens the email check-in dialog, as the app does when a one-click send
- * can't go: no command or button opens it on purpose, so a spec about the
- * dialog itself asks the store. Returns the open dialog.
+ * Opens the check-in dialog for nobody (the first person selected), asking
+ * the store: the app opens it only from a Review widget's Check-in, so a
+ * spec without one asks the store. Returns the open dialog.
  */
 export async function openCheckinDialog(page: Page): Promise<Locator> {
   await page.evaluate(async () => {
@@ -914,7 +913,7 @@ export async function openCheckinDialog(page: Page): Promise<Locator> {
     }
     mod.useUIStore.getState().openCheckinDialog()
   })
-  const dialog = page.getByRole('dialog', { name: 'Email task check-ins' })
+  const dialog = page.getByRole('dialog', { name: 'Task check-ins' })
   await expect(dialog).toBeVisible()
   return dialog
 }
