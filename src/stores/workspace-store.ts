@@ -12,6 +12,8 @@ import { useListOrderStore } from './list-order-store'
 import { useTagStore } from './tag-store'
 import { useSettingsStore } from './settings-store'
 import { defaultBreakdownColumns } from '../models/chart-widgets'
+import { trendName } from '../models/glance-widgets'
+import type { IconValue } from '../models/icon'
 import { projectTagIds } from '../utils/neglect-map'
 import { registerModuleReset, registerModuleSettle } from '../utils/module-reset'
 import {
@@ -50,7 +52,9 @@ import {
   setActiveTab,
   setTrackCollapsed,
   setLayoutHue,
+  setTabLabel,
   splitCell,
+  withLabelOf,
   withTrackIdsOf,
   type IdGen,
   type LayoutDropTarget,
@@ -287,6 +291,15 @@ export interface WorkspaceState {
   patchTabConfig: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabConfigOf<K>>, description?: string) => void
   /** "Change widget": swaps the tab's kind in place, with the new kind's defaults. */
   changeTabKind: (tabId: string, kind: WidgetKind, seed?: TabSeed) => void
+  /**
+   * Name and icon… (items 11, 14): renames tab `tabId` — a list tab's list
+   * (as Edit list does; a blank name keeps it), a Number's or a chart's
+   * `config.name`, any other kind's tab name (blank: back to the kind's
+   * label) —, one undo step (`Renamed tab to “Inbox”`). Resolves whether it wrote.
+   */
+  renameTab: (tabId: string, name: string) => Promise<boolean>
+  /** Sets tab `tabId`'s picked icon (`null`: never picked, the kind's icon), one undo step (`Changed icon of “Inbox”`). */
+  setTabIcon: (tabId: string, icon: IconValue | null) => boolean
 
   /** View state: switch a cell's tab. */
   setActiveTab: (tabId: string) => Promise<void>
@@ -1166,9 +1179,35 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       edit((layout) => patchTabConfig(layout, tabId, kind, patch), (before) => description ?? `Changed “${tabName(before, tabId)}”`)
     },
 
+    renameTab(tabId, name) {
+      const working = get().working
+      const tab = working ? getTab(working, tabId) : undefined
+      if (!tab) return Promise.resolve(false)
+      const trimmed = name.trim()
+      if (tab.kind === 'lens') {
+        // A list tab's name is its list's (the same write as Edit list's; a blank one keeps it).
+        const listId = tab.config.listDefinitionId
+        if (listId == null || !trimmed) return Promise.resolve(false)
+        return useListDefinitionStore.getState().editList(listId, (d) => ({ ...d, name: trimmed }), `Renamed tab to “${trimmed}”`)
+      }
+      const shown = trimmed || (tab.kind === 'trend' ? trendName({}) : widgetKindLabel(tab.kind))
+      const description = `Renamed tab to “${shown}”`
+      if (tab.kind === 'number' || tab.kind === 'breakdown' || tab.kind === 'pivot') {
+        return Promise.resolve(edit((layout) => patchTabConfig(layout, tabId, tab.kind, { name: trimmed }), description))
+      }
+      if (tab.kind === 'trend') {
+        return Promise.resolve(edit((layout) => patchTabConfig(layout, tabId, 'trend', { name: trimmed || undefined }), description))
+      }
+      return Promise.resolve(edit((layout) => setTabLabel(layout, tabId, { name: trimmed || null }), description))
+    },
+
+    setTabIcon(tabId, icon) {
+      return edit((layout) => setTabLabel(layout, tabId, { icon }), (before) => `Changed icon of “${tabName(before, tabId)}”`)
+    },
+
     changeTabKind(tabId, kind, seed) {
       edit(
-        (layout) => replaceTab(layout, tabId, createTab(kind, tabId, seedFor(kind, seed))),
+        (layout) => replaceTab(layout, tabId, withLabelOf(createTab(kind, tabId, seedFor(kind, seed)), getTab(layout, tabId))),
         (before) => `Changed “${tabName(before, tabId)}” to ${widgetKindLabel(kind)}`,
       )
     },

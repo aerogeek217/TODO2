@@ -1,0 +1,100 @@
+/* Name and icon… (items 11, 14; the icons board): a tab's name, its icon. */
+.popover {
+  position: fixed;
+  z-index: var(--z-dialog-nested);
+  box-sizing: border-box;
+  width: 264px;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--color-popover-bg);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-primary);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.caption {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.input {
+  box-sizing: border-box;
+  height: 30px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-muted);
+  border-radius: 7px;
+  background: var(--color-seg-track);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-md);
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.input:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+
+.input:disabled {
+  opacity: 0.6;
+}
+
+.iconRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 30px;
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border: 1px solid var(--color-border-muted);
+  border-radius: 7px;
+  background: var(--color-seg-track);
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  color: var(--color-text-primary);
+}
+
+.iconButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.noIcon {
+  font-size: var(--font-size-sm);
+}
+
+.summary {
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}

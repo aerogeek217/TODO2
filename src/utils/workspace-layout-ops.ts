@@ -1,5 +1,6 @@
 import {
   DEFAULT_WEIGHT,
+  tabOwnsName,
   type GridAxis,
   type GridTrack,
   type LayoutBody,
@@ -28,6 +29,7 @@ import {
   type Side,
 } from './workspace-grid'
 import { findTab, layoutIds, sameArrangement } from './workspace-layout-queries'
+import { sameIcon, type IconValue } from '../models/icon'
 import { insertAllAt, insertAt, removeAt, replaceAt, setCell, withCells, withTracks } from './workspace-layout-edit'
 import { cellMinHeightPx, cellMinWidthPx, isFitTrack } from './workspace-rows'
 import { trackSizing } from './workspace-table'
@@ -797,6 +799,48 @@ export function setLayoutHue<L extends WorkspaceLayout>(layout: L, hue: string |
 export function replaceTab<L extends LayoutBody>(layout: L, tabId: string, next: LayoutTab): L {
   if (next.id !== tabId && layoutIds(layout).has(next.id)) return layout
   return updateTab(layout, tabId, () => next)
+}
+
+/**
+ * Layout config (items 11, 14): sets a tab's own name and / or its picked
+ * icon. `null` removes one (a blank name is none; no icon key = never
+ * picked, the kind's icon). The same layout when nothing changes.
+ */
+export function setTabLabel<L extends LayoutBody>(
+  layout: L,
+  tabId: string,
+  patch: { name?: string | null; icon?: IconValue | null },
+): L {
+  return updateTab(layout, tabId, (tab) => {
+    let next: LayoutTab = tab
+    if (patch.name !== undefined) {
+      const name = patch.name?.trim() || undefined
+      if (name !== tab.name) {
+        const { name: _n, ...rest } = next
+        void _n
+        next = (name ? { ...rest, name } : rest) as LayoutTab
+      }
+    }
+    if (patch.icon !== undefined && !sameIcon(patch.icon ?? undefined, tab.icon)) {
+      const { icon: _i, ...rest } = next
+      void _i
+      next = (patch.icon ? { ...rest, icon: patch.icon } : rest) as LayoutTab
+    }
+    return next
+  })
+}
+
+/**
+ * `next` (a tab of another kind, Change widget) keeping what the user gave
+ * `from`: its picked icon, and its tab name when `next`'s kind takes one
+ * (`tabOwnsName` false).
+ */
+export function withLabelOf(next: LayoutTab, from: LayoutTab | undefined): LayoutTab {
+  if (!from) return next
+  let out = next
+  if (from.icon) out = { ...out, icon: from.icon }
+  if (from.name && !tabOwnsName(next.kind)) out = { ...out, name: from.name }
+  return out
 }
 
 function shallowPatch<T extends object>(base: T, patch: Partial<T>): T {

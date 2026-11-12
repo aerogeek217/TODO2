@@ -27,7 +27,9 @@ import {
   // Item 12: the Review widget.
   type ReviewTab,
   type ReviewTabViewState,
+  TAB_NAME_MAX,
 } from '../models/workspace-layout'
+import { isIconValue, pickIconValue } from '../models/icon'
 import { isReviewSort } from '../models/review'
 import {
   numberConfigProblem,
@@ -378,8 +380,39 @@ function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) =
     if (!isWidgetKind(tab.kind)) return `${tp}.kind`
     const settings = checkTabSettings(tab, tab.kind, tp)
     if (settings !== true) return settings
+    // Items 11, 14: the tab's own name and its picked icon, both optional.
+    if (tab.name !== undefined && !isTabName(tab.name)) return `${tp}.name`
+    if (tab.icon !== undefined && !isIconValue(tab.icon)) return `${tp}.icon`
   }
   return true
+}
+
+/** A tab's stored name: text of at most `TAB_NAME_MAX` characters. */
+function isTabName(v: unknown): v is string {
+  return typeof v === 'string' && v.length <= TAB_NAME_MAX
+}
+
+/**
+ * `tab` with the stored tab's name and icon (items 11, 14) when they read:
+ * a name trimmed (a blank one is none, never a fix), an icon with only the
+ * model's keys; one that doesn't read is dropped (`fix`).
+ */
+function withTabLabel(tab: LayoutTab, raw: Obj, fix: () => void): LayoutTab {
+  let out = tab
+  if (raw.name !== undefined) {
+    if (isTabName(raw.name)) {
+      const name = raw.name.trim()
+      if (name) out = { ...out, name }
+    } else {
+      fix()
+    }
+  }
+  if (raw.icon !== undefined) {
+    const icon = pickIconValue(raw.icon)
+    if (icon) out = { ...out, icon }
+    else fix()
+  }
+  return out
 }
 
 
@@ -646,7 +679,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       const picked = pickTab(tab)
       if (!picked) continue
-      tabs.push(picked)
+      tabs.push(isRecord(tab) ? withTabLabel(picked, tab, () => fix('settings')) : picked)
       tabsKept++
     }
     return tabs

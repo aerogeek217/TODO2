@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, type FocusEvent, type ReactNode } from 'react'
 import { DEFAULT_REVIEW_WIDGET_SORT } from '../../../models/review'
-import type { ReviewTab } from '../../../models/workspace-layout'
+import { kindTabTitle, type ReviewTab } from '../../../models/workspace-layout'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useReviewWidgetQueue } from '../../../hooks/use-review-widget-queue'
 import { useToday } from '../../../hooks/use-today'
@@ -170,7 +170,7 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
       <div className={styles.small} data-testid="review-small-face">
         <span className={styles.smallGlyph} aria-hidden="true"><ReviewIcon size={16} /></span>
         <span className={styles.smallText}>
-          <span className={styles.smallTitle}>{`Review · ${picked ? filterText : 'Pick who or what'}`}</span>
+          <span className={styles.smallTitle}>{`${kindTabTitle(tab)} · ${picked ? filterText : 'Pick who or what'}`}</span>
           {picked && <span className={styles.smallCaption} data-testid="review-small-caption">{`${left} left · ${done} followed up`}</span>}
         </span>
       </div>
@@ -228,7 +228,7 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
 
   return (
     <>
-      <WidgetTopLine alone className={styles.topLine} lead={<TopLineName>Review</TopLineName>}>
+      <WidgetTopLine alone className={styles.topLine} lead={<TopLineName>{kindTabTitle(tab)}</TopLineName>}>
         {progress}
         {lensSwitch}
       </WidgetTopLine>

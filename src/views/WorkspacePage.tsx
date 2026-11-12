@@ -40,7 +40,7 @@ import { applyKeptListDrafts } from '../stores/list-draft-store'
 import { editorsHoldChanges, leaveOpenEditors } from '../stores/editor-leave'
 import { useLatestRef } from '../hooks/use-latest-ref'
 import { useBlocker } from 'react-router'
-import { WidgetKindIcon } from '../components/shared/icons'
+import { TabIcon } from '../components/workspace/TabIcon'
 import {
   isWorkspaceDragType,
   isWorkspacePanelDragData,
@@ -198,7 +198,7 @@ function useWorkspaceDragState() {
     if (!area) return true
     setDrag({
       source: tab ? { type: 'tab', tabId: tab.tabId } : { type: 'panel', panelId: panel?.panelId ?? '' },
-      tabs: tab ? [{ id: tab.tabId, kind: tab.kind, title: tab.title }] : panel?.tabs ?? [],
+      tabs: tab ? [{ id: tab.tabId, kind: tab.kind, title: tab.title, ...(tab.icon ? { icon: tab.icon } : {}) }] : panel?.tabs ?? [],
       hit: null,
       target: null,
       accepts: false,
@@ -229,7 +229,7 @@ function PanelGhost({ tabs }: { tabs: WorkspaceDragState['tabs'] }) {
       <div className={styles.panelGhostHeader}>
         {tabs.map((t, i) => (
           <span key={t.id} className={`${styles.panelGhostTab} ${i === 0 ? styles.panelGhostTabFirst : ''}`}>
-            <span className={styles.ghostIcon}><WidgetKindIcon kind={t.kind} size={11} /></span>
+            <TabIcon tab={t} size={11} className={styles.ghostIcon} />
             <span className={styles.ghostTitle}>{t.title}</span>
           </span>
         ))}
@@ -457,7 +457,7 @@ export function WorkspacePage() {
           <div className={styles.ghostWrap}>
             {drag.source.type === 'panel' ? <PanelGhost tabs={drag.tabs} /> : (
               <div className={styles.ghost} data-testid="ws-drag-ghost">
-                <span className={styles.ghostIcon}>{drag.tabs[0] && <WidgetKindIcon kind={drag.tabs[0].kind} size={12} />}</span>
+                {drag.tabs[0] && <TabIcon tab={drag.tabs[0]} size={12} className={styles.ghostIcon} />}
                 <span className={styles.ghostTitle}>{drag.tabs[0]?.title}</span>
               </div>
             )}

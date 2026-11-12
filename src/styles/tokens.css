@@ -113,6 +113,8 @@
 
   /* Typography */
   --font-family: 'Plus Jakarta Sans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  /* A picked emoji icon (items 11, 14): the platform's color emoji font. */
+  --font-emoji: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
   /* The type scale: xs 11 · sm 12 · md 13 · body 14 · lg 16 · xl 22. A
      font-size in a stylesheet takes one of these, or one of the role tokens
      below when what it sizes isn't text on the scale (`styles/font-sizes.test`). */

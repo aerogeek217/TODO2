@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import type { WidgetKind } from '../../models/workspace-layout'
+import { KIND_LINE_ICON, type WidgetKind } from '../../models/workspace-layout'
+import type { LineIconKey } from '../../models/icon'
 import { hueColor } from '../../utils/layout-hue'
 import { GLANCE_GLYPH } from '../../utils/glance-glyphs'
 
@@ -77,6 +78,39 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {
   return <Svg size={size}>{KIND_PATHS[kind]}</Svg>
+}
+
+/** The widget kind whose glyph a line icon is (the kinds' icons lead the picker, J1). */
+const KIND_OF_LINE_ICON: Partial<Record<LineIconKey, WidgetKind>> = Object.fromEntries(
+  (Object.entries(KIND_LINE_ICON) as Array<[WidgetKind, LineIconKey]>).map(([kind, key]) => [key, kind]),
+)
+
+/**
+ * One of the built-in line icons a user can pick (items 11, 14), by key: a
+ * widget kind's glyph or one of the app's generic icons — the one icon
+ * family, nothing drawn twice.
+ */
+export function LineIcon({ name, size = 14 }: { name: LineIconKey; size?: number }) {
+  const kind = KIND_OF_LINE_ICON[name]
+  if (kind) return <WidgetKindIcon kind={kind} size={size} />
+  switch (name) {
+    case 'layout': return <LayoutIcon size={size} />
+    case 'flag': return <FlagIcon size={size} />
+    case 'check': return <CheckCircleIcon size={size} />
+    case 'person': return <PersonIcon size={size} />
+    case 'at': return <AtIcon size={size} />
+    case 'hash': return <HashIcon size={size} />
+    case 'envelope': return <EnvelopeIcon size={size} />
+    case 'search': return <SearchIcon size={size} />
+    case 'file': return <FileIcon size={size} />
+    case 'lock': return <LockIcon size={size} />
+    case 'funnel': return <FunnelIcon size={size} />
+    case 'glasses': return <GlassesIcon size={size} />
+    case 'repeat': return <RepeatIcon size={size} />
+    case 'checklist': return <ChecklistIcon size={size} />
+    case 'link': return <LinkIcon size={size} />
+    default: return <WidgetKindIcon kind="lens" size={size} />
+  }
 }
 
 /** A rounded rect split into three columns: the workspace / layout glyph. */

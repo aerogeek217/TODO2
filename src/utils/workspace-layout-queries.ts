@@ -77,13 +77,13 @@ function canonical(v: unknown): unknown {
   return v
 }
 
-/** The structural part of a cell: its id, its area and its tabs' config (its active tab is view state). */
+/** The structural part of a cell: its id, its area and its tabs' config, name and icon (its active tab is view state). */
 function cellKey(cell: LayoutCell): unknown {
   const { col, row, colSpan, rowSpan } = cell.area
   return {
     id: cell.id,
     area: [col, row, colSpan, rowSpan],
-    tabs: cell.tabs.map((tab) => ({ id: tab.id, kind: tab.kind, config: canonical(tab.config) })),
+    tabs: cell.tabs.map((tab) => canonical({ id: tab.id, kind: tab.kind, config: tab.config, name: tab.name, icon: tab.icon })),
   }
 }
 

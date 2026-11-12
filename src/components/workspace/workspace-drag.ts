@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react'
 import { useUndoStore } from '../../stores/undo-store'
 import type { WidgetKind } from '../../models/workspace-layout'
+import type { IconValue } from '../../models/icon'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import type { DropGhost, WorkspaceDragSource, WorkspaceDropHit, WorkspaceGeometry } from '../../utils/workspace-drop'
 
@@ -24,6 +25,8 @@ export interface DraggedTab {
   id: string
   kind: WidgetKind
   title: string
+  /** Its picked icon (items 11, 14); absent = its kind's. */
+  icon?: IconValue
 }
 
 export interface WorkspaceTabDragData {
@@ -31,6 +34,7 @@ export interface WorkspaceTabDragData {
   tabId: string
   kind: WidgetKind
   title: string
+  icon?: IconValue
 }
 
 export interface WorkspacePanelDragData {

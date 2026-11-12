@@ -29,6 +29,8 @@ export interface WidgetKindMenuProps {
    * list tab's). The caller binds the widget's list; the menu forwards the click and closes.
    */
   onEditList?: () => void
+  /** Name and icon… (items 11, 14), just before Change widget ›: the tab's name and icon popover. */
+  onNameAndIcon?: () => void
   onClose: () => void
   /** Changing: the kind switcher's item (default "Change widget"). Adding: the menu's name ("Add widget"). */
   heading?: string
@@ -55,6 +57,9 @@ export interface WidgetKindMenuProps {
 
 const KIND_SUBMENU_WIDTH_PX = 240
 
+/** The widget menu's item that opens a tab's name and icon (items 11, 14). */
+export const NAME_AND_ICON_LABEL = 'Name and icon…'
+
 /** What {@link widgetKindMenuEntries} builds the entries from: `WidgetKindMenu`'s props but where it opens and its close. */
 export type WidgetKindMenuContent = Omit<WidgetKindMenuProps, 'anchor' | 'onClose'>
 
@@ -72,6 +77,7 @@ export function widgetKindMenuEntries({
   onChangeKind,
   unavailableKinds,
   onEditList,
+  onNameAndIcon,
   heading = 'Change widget',
   widgetActions,
   settingEntries,
@@ -132,6 +138,7 @@ export function widgetKindMenuEntries({
       onSelect: a.onSelect,
     })
   }
+  if (onNameAndIcon) entries.push({ kind: 'item', label: NAME_AND_ICON_LABEL, onSelect: () => onNameAndIcon() })
   // Change widget ›: every kind, by group under its caption.
   entries.push({
     kind: 'item',

@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import type { LayoutTab } from '../../models/workspace-layout'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { WidgetFaceContext, type WidgetFaceHost } from '../../hooks/use-widget-face'
-import { CloseIcon, WidgetKindIcon } from '../shared/icons'
+import { CloseIcon } from '../shared/icons'
+import { TabIcon } from './TabIcon'
 import { PopoverRoot } from '../shared/PopoverRoot'
 import { WidgetBody } from './WidgetBody'
 import { useTabTitle } from './widget-hooks'
@@ -121,7 +122,7 @@ export function WidgetFacePopover({ tab, anchorRef, onClose }: {
       data-face-popover={tab.id}
     >
       <div className={styles.header}>
-        <span className={styles.kindIcon}><WidgetKindIcon kind={tab.kind} size={12} /></span>
+        <TabIcon tab={tab} className={styles.kindIcon} />
         <span className={styles.title}>{title}</span>
         <button type="button" className={styles.close} aria-label="Close" title="Close" onClick={onClose}>
           <CloseIcon size={12} />
