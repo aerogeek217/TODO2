@@ -23,7 +23,7 @@ import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, widgetKindLabel, widgetKindsOf, 
  * goes in them (Go to Layout ›, Add Widget ›); `search-results` = tasks found
  * by the palette's search.
  */
-export type CommandCategory = 'navigation' | 'layout' | 'task' | 'bulk' | 'filter' | 'email' | 'search-results'
+export type CommandCategory = 'navigation' | 'layout' | 'task' | 'bulk' | 'filter' | 'search-results'
 
 export interface Command {
   id: string
@@ -79,10 +79,6 @@ export interface CommandContext {
   focusTask: (todoId: number) => void
   /** Statuses for bulk commands */
   getStatuses?: () => Status[]
-  /** Opens the email check-in dialog with `personIds` ticked (none = choose people there). */
-  openCheckinDialog?: (personIds?: number[]) => void
-  /** Opens the check-in reply import dialog. */
-  openCheckinImport?: () => void
   /** People, for Review With ›. */
   getPeople?: () => readonly Person[]
   /** Open tasks assigned per person id (people with none may be absent). */
@@ -284,15 +280,6 @@ export function createCommands(
       category: 'filter',
       action: showScreenTasks,
     })
-  }
-
-  // Email
-  const openCheckinDialog = ctx.openCheckinDialog
-  if (openCheckinDialog) {
-    commands.push({ id: 'email-checkins', name: 'Email task check-ins…', hint: 'choose people', category: 'email', action: () => openCheckinDialog() })
-  }
-  if (ctx.openCheckinImport) {
-    commands.push({ id: 'email-import-reply', name: 'Import check-in reply…', category: 'email', action: ctx.openCheckinImport })
   }
 
   // Bulk actions — only when tasks are selected

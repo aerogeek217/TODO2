@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { openCheckinDialog, openCheckinImport, seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -9,8 +9,9 @@ import { readStore } from './fixtures/db'
  * unticked, Apply writes the rest (completion, replaced notes, follow-up),
  * and Undo puts every task back — old notes included. A reply to an email
  * from before status updates (its `Progress:` label) adds a status update,
- * dated today, that Undo takes back. The dialog opens from the palette and
- * from the check-in dialog's `Paste a reply…` link.
+ * dated today, that Undo takes back. The dialog opens from the Review
+ * widget's Paste reply (`checkin-entry-points.spec.ts`) and from the
+ * check-in dialog's `Paste a reply…` link.
  */
 
 const FIXTURE = 'src/test/fixtures/checkin-replies/synthetic-new-outlook-inline'
@@ -71,19 +72,12 @@ async function pasteReply(target: Locator, html: string, plain: string) {
   }, { html, plain })
 }
 
-async function openFromPalette(page: Page, query: string, name: RegExp) {
-  await page.keyboard.press('Control+k')
-  await page.getByPlaceholder(/Find tasks, commands/).fill(query)
-  await page.getByRole('option', { name }).click()
-}
-
 test('paste a reply, untick one change, apply; Undo restores the old notes', async ({ page }) => {
   const html = await readFile(`${FIXTURE}.html`, 'utf8')
   const plain = await readFile(`${FIXTURE}.txt`, 'utf8')
   await seedWorkspace(page, seed)
 
-  await openFromPalette(page, '>import check', /Import check-in reply/)
-  const dialog = page.getByRole('dialog', { name: 'Import task update' })
+  const dialog = await openCheckinImport(page)
   await expect(dialog).toBeVisible()
   await pasteReply(dialog.getByRole('textbox', { name: 'Paste the reply here' }), html, plain)
 
@@ -164,8 +158,7 @@ test('a reply to an email sent before status updates (Progress label): Apply add
   const plain = await readFile('src/test/fixtures/checkin-replies/synthetic-progress-label-plain-quoted.txt', 'utf8')
   await seedWorkspace(page, seed)
 
-  await openFromPalette(page, '>import check', /Import check-in reply/)
-  const dialog = page.getByRole('dialog', { name: 'Import task update' })
+  const dialog = await openCheckinImport(page)
   await pasteReply(dialog.getByRole('textbox', { name: 'Paste the reply here' }), '', plain)
   await expect(dialog.getByText('4 of 4 tasks matched by Ref · 3 changes found')).toBeVisible()
   const questionnaire = dialog.getByRole('region', { name: 'Answer Northwind’s security questionnaire' })
@@ -195,9 +188,7 @@ test('a reply to an email sent before status updates (Progress label): Apply add
 
 test('opens from the check-in dialog’s Paste a reply… link', async ({ page }) => {
   await seedWorkspace(page, seed)
-  await openFromPalette(page, '>check-ins', /Email task check-ins/)
-  const checkin = page.getByRole('dialog', { name: 'Email task check-ins' })
-  await expect(checkin).toBeVisible()
+  const checkin = await openCheckinDialog(page)
   await checkin.getByRole('button', { name: 'Paste a reply…' }).click()
   await expect(checkin).toBeHidden()
   const dialog = page.getByRole('dialog', { name: 'Import task update' })

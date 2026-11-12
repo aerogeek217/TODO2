@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { ADD_FILTER, pickInReview, seedWorkspace, type WorkspaceSeed, wsRow, wsTab, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, openCheckinDialog, pickInReview, seedWorkspace, type WorkspaceSeed, wsRow, wsTab, expectLayoutStored } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -59,15 +59,6 @@ async function recordAnchorClicks(page: Page) {
 
 const anchors = (page: Page) => page.evaluate(() => (window as unknown as { __anchors: Array<{ href: string; target: string; download: string }> }).__anchors)
 
-async function openFromPalette(page: Page) {
-  await page.keyboard.press('Control+k')
-  await page.getByPlaceholder(/Find tasks, commands/).fill('>check-in')
-  await page.getByRole('option', { name: /Email task check-ins/ }).click()
-  const dialog = page.getByRole('dialog', { name: 'Email task check-ins' })
-  await expect(dialog).toBeVisible()
-  return dialog
-}
-
 test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-changes prompt, follow-up + Undo', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await recordAnchorClicks(page)
@@ -85,7 +76,7 @@ test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-change
   context.on('page', (p) => { popups.push(p.url()); void p.close().catch(() => {}) })
   await page.evaluate(() => { (window as unknown as { __alive: boolean }).__alive = true })
 
-  const dialog = await openFromPalette(page)
+  const dialog = await openCheckinDialog(page)
   const ada = dialog.locator('[data-checkin-row]').filter({ hasText: 'Ada Lovelace' })
   await expect(ada).toContainText('2 tasks')
   await ada.getByRole('checkbox').check()
@@ -138,7 +129,7 @@ test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-change
 
 test('Download .eml: an unsent draft with both bodies; one click per person', async ({ page }) => {
   await seedWorkspace(page, seed)
-  const dialog = await openFromPalette(page)
+  const dialog = await openCheckinDialog(page)
   await dialog.getByRole('radio', { name: /Download draft \(\.eml\)/ }).check()
 
   const ada = dialog.locator('[data-checkin-row]').filter({ hasText: 'Ada Lovelace' })
@@ -174,7 +165,7 @@ test('Which tasks is a filter line: it narrows the counts, is remembered, and a 
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await recordAnchorClicks(page)
   await seedWorkspace(page, seed)
-  const dialog = await openFromPalette(page)
+  const dialog = await openCheckinDialog(page)
   const row = (name: string) => dialog.locator('[data-checkin-row]').filter({ hasText: name })
   const count = (name: string) => row(name).locator('[data-checkin-count]')
   const cy = row('Cy Young')
@@ -211,7 +202,7 @@ test('Which tasks is a filter line: it narrows the counts, is remembered, and a 
   // Remembered: the next dialog, after a reload, has it.
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  const again = await openFromPalette(page)
+  const again = await openCheckinDialog(page)
   await expect(again.getByTestId('checkin-filter').getByTestId('list-filter-chip')).toContainText('review')
   await expect(again.locator('[data-checkin-row]').filter({ hasText: 'Ada Lovelace' }).locator('[data-checkin-count]')).toHaveText('1 task')
   await again.getByRole('button', { name: 'Done' }).click()

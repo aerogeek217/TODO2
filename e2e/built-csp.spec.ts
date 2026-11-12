@@ -9,7 +9,7 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 import { checkOfflineFile } from '../scripts/offline-file'
 import { taskRowByTitle } from './fixtures/seed'
 import { stubFilePermission } from './fixtures/sync-file'
-import { openSettings, seedTaskList, seedWorkspace, wsCell, wsRow } from './fixtures/workspace'
+import { openSettings, pickInReview, seedTaskList, seedWorkspace, TASK_LIST_TAB, wsCell, wsListWidget, wsRow } from './fixtures/workspace'
 
 /**
  * Both built targets start and run under their own Content-Security-Policy:
@@ -232,15 +232,22 @@ test('the offline file requests nothing but itself through its main flows', asyn
     }
   })
   const fileUrl = pathToFileURL(join(outDir, 'offline', 'todo2.html')).href
-  await seedTaskList(page, {
-    people: [{ name: 'Ada Lovelace', email: 'ada@example.com' }],
+  // The task list over a Review widget (the way into the check-in dialog).
+  await seedWorkspace(page, {
+    people: [{ name: 'Ada Lovelace', email: 'ada@example.com' }, 'Grace Hopper'],
     tasks: [
       { title: 'Draft the plan', people: ['Ada Lovelace'], dueInDays: 2, notes: 'First line\n- a bullet' },
       { title: 'Book the room' },
       { title: 'Send the agenda' },
     ],
     lenses: [{ id: 'lens-plan', name: 'Planning', predicate: { searchText: 'plan' } }],
+    listDefinitions: [{ name: 'Tasks' }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [
+      wsRow({ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] }),
+      wsRow({ id: 'review', tabs: [{ id: 'rv', kind: 'review' }] }),
+    ] }] }],
   }, { url: fileUrl })
+  await wsListWidget(page, TASK_LIST_TAB).waitFor({ state: 'visible' })
 
   // Tasks: add, rename, open the editor (CodeMirror notes), complete.
   await quickAdd(page, 'Added offline')
@@ -271,11 +278,13 @@ test('the offline file requests nothing but itself through its main flows', asyn
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
 
-  // The check-in dialog's preview: the email in its sandboxed srcdoc frame.
-  await page.keyboard.press('Control+k')
-  await page.getByPlaceholder(/Find tasks, commands/).fill('>check-in')
-  await page.getByRole('option', { name: /Email task check-ins/ }).click()
+  // The check-in dialog's preview: the email in its sandboxed srcdoc frame. The dialog opens when a
+  // one-click send can't go: the Review widget's Email check-in for Grace, who has no open tasks.
+  await pickInReview(page, 'rv', 'Grace')
+  await page.locator('[data-review-widget="rv"]').getByRole('button', { name: 'Email check-in' }).click()
   const checkin = page.getByRole('dialog', { name: 'Email task check-ins' })
+  await expect(checkin.getByRole('status')).toHaveText('Grace Hopper has no open tasks, so nothing was sent.')
+  await checkin.locator('[data-checkin-row]').filter({ hasText: 'Grace Hopper' }).getByRole('checkbox').uncheck()
   await checkin.locator('[data-checkin-row]').filter({ hasText: 'Ada Lovelace' }).getByRole('checkbox').check()
   await checkin.getByRole('button', { name: 'Preview email' }).click()
   const preview = page.getByRole('dialog', { name: 'Preview email' })

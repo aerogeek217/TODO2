@@ -98,8 +98,6 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
         useUIStore.getState().openEditPopup(todoId)
       },
       getStatuses: () => statuses,
-      openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
-      openCheckinImport: () => useUIStore.getState().openCheckinImport(),
       getPeople: () => people,
       getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
       showScreenTasks: () => useUIStore.getState().openFilterPanel(),
