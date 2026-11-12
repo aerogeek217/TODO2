@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { KIND_LINE_ICON, type WidgetKind } from '../../models/workspace-layout'
 import type { LineIconKey } from '../../models/icon'
-import { hueColor } from '../../utils/layout-hue'
 import { GLANCE_GLYPH } from '../../utils/glance-glyphs'
 
 /**
@@ -121,13 +120,6 @@ export function LayoutIcon({ size = 14 }: { size?: number }) {
       <path d="M6.5 2.5v11M10 2.5v11" />
     </Svg>
   )
-}
-
-/** The layout glyph in the layout's hue (D19); none = the surrounding colour. */
-export function HuedLayoutIcon({ hue, size = 14 }: { hue?: string; size?: number }) {
-  return hue
-    ? <span style={{ display: 'inline-flex', color: hueColor(hue) }}><LayoutIcon size={size} /></span>
-    : <LayoutIcon size={size} />
 }
 
 export function SaveIcon({ size = 14 }: { size?: number }) {

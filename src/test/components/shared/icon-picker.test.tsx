@@ -2,13 +2,13 @@ import { afterEach, describe, it, expect, vi } from 'vitest'
 import { useRef, useState } from 'react'
 import { cleanup, render, screen, fireEvent } from '@testing-library/react'
 import { IconPicker } from '../../../components/shared/IconPicker'
-import { emojiFieldHint } from '../../../components/shared/icon-picker-choices'
-import type { IconValue } from '../../../models/icon'
+import { emojiFieldHint, STATUS_GLYPH_CHOICES } from '../../../components/shared/icon-picker-choices'
+import type { DrawnIcon } from '../../../models/icon'
 
-function Harness({ initial, recent = [], onPick }: { initial?: IconValue; recent?: string[]; onPick?: (icon: IconValue) => void }) {
+function Harness({ initial, recent = [], onPick }: { initial?: DrawnIcon; recent?: string[]; onPick?: (icon: DrawnIcon) => void }) {
   const ref = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(true)
-  const [value, setValue] = useState<IconValue | undefined>(initial)
+  const [value, setValue] = useState<DrawnIcon | undefined>(initial)
   return (
     <>
       <button ref={ref} type="button" onClick={() => setOpen(true)}>Opener</button>
@@ -29,7 +29,7 @@ function Harness({ initial, recent = [], onPick }: { initial?: IconValue; recent
 
 afterEach(cleanup)
 
-const value = () => JSON.parse(screen.getByTestId('value').textContent ?? 'null') as IconValue | null
+const value = () => JSON.parse(screen.getByTestId('value').textContent ?? 'null') as DrawnIcon | null
 
 describe('IconPicker', () => {
   it('opens on Icons with the current (fallback) icon marked and focused; a pick closes it', () => {
@@ -97,6 +97,25 @@ describe('IconPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: 'No icon' }))
     expect(onPick).toHaveBeenCalledWith({ kind: 'none' })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('takes other choices (a status’s glyphs, J17) and can leave out No icon', () => {
+    const onPick = vi.fn()
+    const Status = () => {
+      const ref = useRef<HTMLButtonElement | null>(null)
+      return (
+        <>
+          <button ref={ref} type="button">Opener</button>
+          <IconPicker anchorRef={ref} value={{ kind: 'status', key: 'clock' }} choices={STATUS_GLYPH_CHOICES} recent={[]} allowNone={false} onPick={onPick} onClose={() => {}} />
+        </>
+      )
+    }
+    render(<Status />)
+    expect(screen.getByRole('button', { name: 'Clock' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Inbox' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'No icon' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Star' }))
+    expect(onPick).toHaveBeenCalledWith({ kind: 'status', key: 'star' })
   })
 
   it('Esc closes it and hands the focus back to the opener', () => {

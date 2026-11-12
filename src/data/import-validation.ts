@@ -19,6 +19,7 @@ import { parsePurgePromptIntervalDays } from '../utils/completed-at'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { isLayoutHue } from '../utils/layout-hue'
+import { isEmoji, isIconValue, pickIconValue } from '../models/icon'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
 import { formatLensesSetting, isLensId, readLensesSetting } from './lens-shape'
@@ -205,6 +206,16 @@ function isKnownStatusIcon(v: unknown): v is StatusIconKey {
   return typeof v === 'string' && (STATUS_ICON_KEYS as readonly string[]).includes(v)
 }
 
+/** Any string passes, as the glyph's key: one that isn't a single emoji is dropped by `pickStatus`, with a warning. */
+function isOptStatusEmoji(v: unknown): boolean {
+  return v === undefined || v === null || typeof v === 'string'
+}
+
+/** A status's emoji as stored (J17): one emoji, else none. */
+function statusEmoji(v: unknown): string | undefined {
+  return isEmoji(v) ? v : undefined
+}
+
 function checkStatus(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
@@ -213,7 +224,17 @@ function checkStatus(v: unknown): CheckResult {
     ['color', isValidCssColor(v.color)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
     ['icon', isOptStatusIcon(v.icon)],
+    ['emoji', isOptStatusEmoji(v.emoji)],
+    ['emojiShow', v.emojiShow === undefined || v.emojiShow === null || typeof v.emojiShow === 'string'],
   ])
+}
+
+/** What `pickStatus` drops from a status row, in words. */
+function statusFixes(row: Raw): string[] {
+  return [
+    ...(row.icon != null && !isKnownStatusIcon(row.icon) ? ['unknown icon dropped'] : []),
+    ...(row.emoji != null && statusEmoji(row.emoji) === undefined ? ['emoji dropped'] : []),
+  ]
 }
 
 function checkPerson(v: unknown): CheckResult {
@@ -337,6 +358,7 @@ function checkLayout(v: unknown): CheckResult {
     ['modifiedAt', isDateLike(v.modifiedAt)],
     ['lastUsedAt', isOptDateLike(v.lastUsedAt)],
     ['hue', v.hue === undefined || isLayoutHue(v.hue)],
+    ['icon', v.icon === undefined || isIconValue(v.icon)],
   ])
   if (fields !== true) return fields
   return checkLayoutBody(v)
@@ -538,6 +560,9 @@ function pickStatus(v: Raw): AllFields<Status> {
   return {
     id: optNum(v.id), name: v.name as string, color: v.color as string, sortOrder: v.sortOrder as number,
     icon: isKnownStatusIcon(v.icon) ? v.icon : undefined,
+    emoji: statusEmoji(v.emoji),
+    // Only with an emoji, and only `color` (absent: muted).
+    emojiShow: statusEmoji(v.emoji) !== undefined && v.emojiShow === 'color' ? 'color' : undefined,
   } satisfies AllFields<Status>
 }
 
@@ -650,6 +675,7 @@ function layoutFixes(v: Raw): string[] {
   if (!isFiniteNum(v.sortOrder)) fixes.push('order reset')
   if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
   if (v.hue !== undefined && !isLayoutHue(v.hue)) fixes.push('hue reset')
+  if (v.icon !== undefined && !isIconValue(v.icon)) fixes.push('icon reset')
   return [...fixes, ...pickLayoutBody(v).fixes]
 }
 
@@ -674,6 +700,7 @@ function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
     modifiedAt: isDateLike(v.modifiedAt) ? toDate(v.modifiedAt) : now,
     lastUsedAt: isDateLike(v.lastUsedAt) ? toDate(v.lastUsedAt) : undefined,
     hue: isLayoutHue(v.hue) ? v.hue : undefined,
+    icon: pickIconValue(v.icon),
   } satisfies AllFields<WorkspaceLayout>
 }
 
@@ -849,7 +876,7 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
     check: checkStatus,
     pick: pickStatus,
     fixer: {
-      fixes: (row) => (row.icon != null && !isKnownStatusIcon(row.icon) ? ['unknown icon dropped'] : []),
+      fixes: statusFixes,
       lead: (n) => `Fixed ${plural(n, 'status', 'statuses')}`,
     },
   },

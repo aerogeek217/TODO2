@@ -5,7 +5,7 @@ import type { StatsContext } from './stats-context'
 
 /** What leads a status or priority line: the status's glyph, the priority group's ring (people, tags and the none line have a dot). */
 export type BreakdownEntryMark =
-  | { kind: 'status'; icon?: StatusIconKey }
+  | { kind: 'status'; icon?: StatusIconKey; emoji?: string; emojiShow?: 'color' }
   | { kind: 'priority'; group: PriorityGroupKey }
 
 /** One line of a Number's breakdown: a person, a tag, a status or a priority group (or none of them) and its share of the count. */
@@ -93,7 +93,12 @@ function splitBreakdown(
   const { rows } = computeBreakdown(tasks, ctx, { splitBy: by, oldestBy: 'created', show: 'count', columns: [] })
   return rows.map((row) => {
     const e = row.entity
-    const mark: BreakdownEntryMark | undefined = e.kind === 'status' ? { kind: 'status', ...(e.status.icon ? { icon: e.status.icon } : {}) }
+    const mark: BreakdownEntryMark | undefined = e.kind === 'status'
+      ? {
+          kind: 'status',
+          ...(e.status.icon ? { icon: e.status.icon } : {}),
+          ...(e.status.emoji ? { emoji: e.status.emoji, ...(e.status.emojiShow === 'color' ? { emojiShow: 'color' as const } : {}) } : {}),
+        }
       : e.kind === 'priority' ? { kind: 'priority', group: e.group }
         : undefined
     return {

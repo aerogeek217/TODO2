@@ -1,4 +1,4 @@
-import type { Person, RecurrenceType, Status, Tag } from '../models'
+import type { Person, RecurrenceType, Status, StatusIconKey, Tag } from '../models'
 import {
   QUICK_FOLLOWUP_INTERVALS,
   addFollowupInterval,
@@ -55,7 +55,10 @@ export interface AutocompleteItem {
   /** People: an exact initials match counts too (as the resolver does). */
   initials?: string
   /** Statuses: the status glyph. */
-  icon?: string
+  icon?: StatusIconKey
+  /** Statuses: the emoji drawn instead of the glyph (J17), and whether in its own colors. */
+  emoji?: string
+  emojiShow?: 'color'
   kind: 'person' | 'tag' | 'status'
 }
 
@@ -156,6 +159,7 @@ export function tagItems(tags: readonly Tag[]): AutocompleteItem[] {
 export function statusItems(statuses: readonly Status[]): AutocompleteItem[] {
   return statuses.flatMap((s) => (s.id === undefined ? [] : [{
     id: s.id, name: s.name, color: s.color, icon: s.icon, kind: 'status' as const,
+    ...(s.emoji ? { emoji: s.emoji, ...(s.emojiShow === 'color' ? { emojiShow: 'color' as const } : {}) } : {}),
   }]))
 }
 

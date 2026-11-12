@@ -20,7 +20,9 @@ import type { ListWidgetResult } from './list/ListWidget'
 import { copyTasks } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
 import { useSettingsStore } from '../../stores/settings-store'
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon, HuedLayoutIcon, MoreIcon } from '../shared/icons'
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon, MoreIcon } from '../shared/icons'
+import { LayoutGlyph } from '../shared/LayoutGlyph'
+import type { IconValue } from '../../models/icon'
 import { useFilterStore } from '../../stores/filter-store'
 import { usePickedLens } from '../../stores/screen-filter'
 import { useScreenTaskCounts } from '../../hooks/use-screen-task-count'
@@ -83,7 +85,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
                 aria-current={current ? 'true' : undefined}
                 onClick={() => pick(l.id)}
               >
-                <span className={styles.sheetGlyph}><HuedLayoutIcon hue={l.hue} /></span>
+                <span className={styles.sheetGlyph}><LayoutGlyph layout={l} /></span>
                 <span className={styles.sheetName}>{l.name}</span>
                 {current && <span className={styles.sheetCheck}><CheckIcon /></span>}
               </button>
@@ -104,7 +106,7 @@ const SHEET_PLACEMENT: CSSProperties = { margin: 'auto 0 0', width: '100%' }
  * the storage status (`status`, shown only while a warning is active) and
  * search (opens the filter sheet).
  */
-function MobileTopBar({ name, hue, status }: { name: string; hue?: string; status?: ReactNode }) {
+function MobileTopBar({ name, hue, icon, status }: { name: string; hue?: string; icon?: IconValue; status?: ReactNode }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   return (
     <header className={styles.topBar}>
@@ -117,7 +119,7 @@ function MobileTopBar({ name, hue, status }: { name: string; hue?: string; statu
         data-testid="layout-picker"
         onClick={() => setSheetOpen(true)}
       >
-        <span className={styles.pickerGlyph}><HuedLayoutIcon hue={hue} /></span>
+        <span className={styles.pickerGlyph}><LayoutGlyph layout={{ hue, icon }} /></span>
         <span className={styles.pickerName}>{name}</span>
         <ChevronDownIcon />
       </button>
@@ -489,7 +491,7 @@ function MobileTable({ layout }: { layout: WorkspaceLayout }) {
 export function MobileWorkspaceView({ layout, status }: { layout: WorkspaceLayout; status?: ReactNode }) {
   return (
     <div className={styles.root} data-ws-mobile>
-      <MobileTopBar name={layout.name} hue={layout.hue} status={status} />
+      <MobileTopBar name={layout.name} hue={layout.hue} icon={layout.icon} status={status} />
       {layout.cells.length === 0 ? (
         <div className={styles.emptyLayout} data-ws-area>
           <p className={styles.emptyLayoutTitle}>This layout is empty</p>

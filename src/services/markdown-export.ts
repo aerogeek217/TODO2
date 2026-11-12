@@ -71,11 +71,12 @@ export async function buildMarkdownExport(): Promise<string> {
   const today = startOfToday()
 
   // The task line rich copy uses, as a Markdown list item. Unlike rich
-  // copy, the export has always named only statuses with an icon; people
-  // and tags go to the details section below instead of the line.
+  // copy, the export has always named only statuses with an icon (a glyph
+  // or an emoji; the line writes the name, never the icon); people and tags
+  // go to the details section below instead of the line.
   const formatTodoLine = (todo: PersistedTodoItem) => {
     const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
-    return `- ${formatTaskLine(taskLineParts(todo, status?.icon ? status : undefined, today))}`
+    return `- ${formatTaskLine(taskLineParts(todo, status?.icon || status?.emoji ? status : undefined, today))}`
   }
 
   const collectDetails = (todo: PersistedTodoItem) => {

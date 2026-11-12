@@ -54,45 +54,6 @@
   opacity: 0.6;
 }
 
-.iconRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.iconButton {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 30px;
-  padding: 0 var(--space-3) 0 var(--space-4);
-  border: 1px solid var(--color-border-muted);
-  border-radius: 7px;
-  background: var(--color-seg-track);
-  color: var(--color-text-secondary);
-  font: inherit;
-  cursor: pointer;
-}
-
-.iconButton:hover {
-  color: var(--color-text-primary);
-}
-
-.iconButton:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-.noIcon {
-  font-size: var(--font-size-sm);
-}
-
-.summary {
-  min-width: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
 .note {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);

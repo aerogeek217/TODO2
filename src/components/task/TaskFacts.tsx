@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { DEFAULT_STATUS_ICON, type Status } from '../../models'
+import type { Status } from '../../models'
 import { useToday } from '../../hooks/use-today'
 import { useSettingsStore } from '../../stores/settings-store'
 import { factDateWords, type FactDateKind } from '../../utils/fact-dates'
@@ -7,6 +7,7 @@ import type { UrgentMark } from '../../utils/urgency'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { UrgentClockIcon } from '../shared/MarkerIcons'
 import { StatusIcon } from '../shared/StatusIcon'
+import { StatusMark } from '../shared/StatusMark'
 import { useTooltip } from '../shared/use-tooltip'
 import styles from './TaskDetails.module.css'
 
@@ -246,7 +247,7 @@ export function StatusFacts({ statuses, statusId, onStatusChange }: StatusFactsP
           onClick={() => setOpen((v) => !v)}
         >
           {status ? (
-            <><span className={styles.statusIcon} style={{ color: status.color }}><StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} filled /></span>{status.name}</>
+            <><span className={styles.statusIcon} style={{ color: status.color }}><StatusMark status={status} filled /></span>{status.name}</>
           ) : (
             <span className={styles.statusNone}>No status</span>
           )}
@@ -270,7 +271,7 @@ export function StatusFacts({ statuses, statusId, onStatusChange }: StatusFactsP
                   className={`${styles.statusOption} ${statusId === s.id ? styles.statusOptionActive : ''}`}
                   onClick={() => pick(s.id)}
                 >
-                  <span style={{ color: s.color }}><StatusIcon icon={s.icon || DEFAULT_STATUS_ICON} filled /></span>
+                  <span style={{ color: s.color }}><StatusMark status={s} filled /></span>
                   {s.name}
                 </button>
               ))}

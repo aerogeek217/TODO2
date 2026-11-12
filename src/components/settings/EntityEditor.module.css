@@ -316,46 +316,6 @@
   border-color: var(--color-text-muted);
 }
 
-.iconPickerGrid {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 4px;
-  z-index: var(--z-dialog);
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  padding: 6px;
-  background: var(--color-popover-bg);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-dropdown);
-}
-
-.iconPickerCell {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-size-lg);
-  padding: 0;
-  color: var(--color-text-secondary);
-}
-
-.iconPickerCell:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border);
-}
-
-.iconPickerCellActive {
-  background: var(--color-accent-alpha);
-  border-color: var(--color-accent);
-}
-
 /* Icon preview in row */
 .iconPreview {
   flex-shrink: 0;

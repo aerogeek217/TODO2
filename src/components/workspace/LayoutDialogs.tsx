@@ -3,6 +3,9 @@ import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import { isHueName, LAYOUT_NAME_MAX } from '../../models/workspace-layout'
 import { HUE_PRESET_HEX, presetHueOf } from '../../utils/layout-hue'
 import { ColorPicker } from '../shared/ColorPicker'
+import { IconPickerButton } from '../shared/IconPickerButton'
+import { iconDescription, iconSummary, layoutIcon, LAYOUT_DEFAULT_ICON, sameIcon, type IconValue } from '../../models/icon'
+import { useRecentEmoji } from '../../hooks/use-recent-emoji'
 import { deleteLayoutMessage } from './delete-layout-message'
 import styles from './LayoutDialogs.module.css'
 
@@ -14,22 +17,30 @@ interface LayoutNameDialogProps {
   placeholder?: string
   /** Edit layout: the layout's hue (a preset's name or a hex colour), offered as a swatch row + a colour input under the name (`null` = none). Absent = no swatches. */
   initialHue?: string | null
-  /** `hue` only when the dialog offers the swatches. */
-  onConfirm: (name: string, hue?: string | null) => void
+  /** Edit layout (with `initialHue`): the layout's icon as stored (absent: never picked — the layout glyph, J1). */
+  initialIcon?: IconValue
+  /** `hue` only when the dialog offers the swatches; `icon` only when one was picked in it (absent: unchanged). */
+  onConfirm: (name: string, hue?: string | null, icon?: IconValue) => void
   onCancel: () => void
 }
 
 /**
  * "New layout…" / "Duplicate layout…" / "Edit…": one name field, prefilled
- * and selected; empty can't be confirmed. Edit… adds the hue swatches (D19).
+ * and selected; empty can't be confirmed. Edit… adds the Icon row (items
+ * 11, 14: the one icon picker, the layout glyph marked while none is
+ * picked) and the hue swatches (D19), in the icons board's order — Name,
+ * Icon, Hue. Nothing is written before Apply.
  */
-export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder, initialHue, onConfirm, onCancel }: LayoutNameDialogProps) {
+export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder, initialHue, initialIcon, onConfirm, onCancel }: LayoutNameDialogProps) {
   const [name, setName] = useState(initialName)
   const [hue, setHue] = useState<string | null>(initialHue ?? null)
+  const [icon, setIcon] = useState<IconValue | undefined>(initialIcon)
   const withHue = initialHue !== undefined
   const inputRef = useRef<HTMLInputElement>(null)
+  const recent = useRecentEmoji()
   const trimmed = name.trim()
-  const submit = () => { if (trimmed) onConfirm(trimmed, withHue ? hue : undefined) }
+  const iconChanged = !sameIcon(icon, initialIcon)
+  const submit = () => { if (trimmed) onConfirm(trimmed, withHue ? hue : undefined, withHue && iconChanged ? icon : undefined) }
   return (
     <Dialog open onClose={onCancel} title={title} initialFocusRef={inputRef}>
       <form
@@ -48,6 +59,21 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder
             onFocus={(e) => e.currentTarget.select()}
           />
         </label>
+        {withHue && (
+          <div className={styles.iconField}>
+            <span className={styles.iconCaption}>Icon</span>
+            <IconPickerButton
+              shown={layoutIcon({ icon })}
+              ariaLabel={`Icon: ${icon ? iconDescription(icon) : 'Layout icon (the default)'}. Change`}
+              summary={icon ? iconSummary(icon) : 'The layout icon'}
+              value={icon}
+              fallback={LAYOUT_DEFAULT_ICON}
+              recent={recent}
+              label={`Icon of “${trimmed || initialName}”`}
+              onPick={(picked) => { if (picked.kind !== 'status') setIcon(picked) }}
+            />
+          </div>
+        )}
         {withHue && <HueSwatches value={hue} onChange={setHue} />}
         <DialogActions>
           <button type="button" className={styles.ghost} onClick={onCancel}>Cancel</button>

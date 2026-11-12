@@ -1,6 +1,5 @@
 import { useMemo, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
-import { DEFAULT_STATUS_ICON } from '../../../models'
 import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
 import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
@@ -16,7 +15,7 @@ import { EntityMenu, type MenuEntity } from '../../shared/EntityMenu'
 import { ReviewIcon } from '../../shared/icons'
 import { useEntityMenuOffers } from '../../shared/person-menu-entries'
 import { PriorityRing } from '../../shared/PriorityRing'
-import { StatusIcon } from '../../shared/StatusIcon'
+import { StatusMark } from '../../shared/StatusMark'
 import { useTooltip } from '../../shared/use-tooltip'
 import {
   breakdownLines, columnHeading, rowFigure, sortHeading, SPLIT_GLYPHS,
@@ -60,7 +59,7 @@ function RowMark({ row, color }: { row: BreakdownRow; color: string }) {
         </i>
       )
     case 'status':
-      return <span className={styles.mark} style={{ color: e.status.color }} aria-hidden="true"><StatusIcon icon={e.status.icon ?? DEFAULT_STATUS_ICON} filled /></span>
+      return <span className={styles.mark} style={{ color: e.status.color }} aria-hidden="true"><StatusMark status={e.status} filled /></span>
     case 'priority':
       return (
         <span className={styles.ringBox} aria-hidden="true">

@@ -1,7 +1,8 @@
 /**
  * An icon a user picks (widget feedback items 11 and 14): one of the app's
- * own line icons by key, an emoji, or none. Stored on a widget tab (and, from
- * phase 3B, on a layout and a status); drawn by `components/shared/AppIcon`,
+ * own line icons by key, an emoji, or none. Stored on a widget tab and a
+ * layout (a status keeps its emoji beside its glyph's key, `models/status`;
+ * `StatusGlyphIcon` draws the glyph); drawn by `components/shared/AppIcon`,
  * picked in `components/shared/IconPicker`.
  *
  * An emoji is **muted** unless it says otherwise (decision 15): drawn in one
@@ -11,6 +12,8 @@
  * Nothing about emoji is bundled (decision 16): an emoji is checked by the
  * Unicode emoji property, never against a list (`isEmoji`).
  */
+
+import { DEFAULT_STATUS_ICON, type StatusIconKey, type StatusLook } from './status'
 
 /** The built-in line icons, in the picker's order: the widget kinds' glyphs first, then a generic set (the icons board). */
 export const LINE_ICON_KEYS = [
@@ -151,34 +154,91 @@ export function emojiShow(icon: Extract<IconValue, { kind: 'emoji' }>): EmojiSho
   return icon.show === 'color' ? 'color' : 'muted'
 }
 
-/** Whether two icon values are the same (absent counts as its own value). */
-export function sameIcon(a: IconValue | undefined, b: IconValue | undefined): boolean {
+/**
+ * A status glyph (J17): what a status draws when it has no emoji. Never
+ * stored as an icon value — a status keeps its glyph's key in `icon` and its
+ * emoji beside it (`models/status`) —, only drawn (`AppIcon`) and offered
+ * (the status editor's Icons tab).
+ */
+export interface StatusGlyphIcon {
+  kind: 'status'
+  key: StatusIconKey
+}
+
+/** Anything `AppIcon` draws and the icon picker offers: a stored icon value, or a status glyph. */
+export type DrawnIcon = IconValue | StatusGlyphIcon
+
+/** A status glyph's name (its picker cell's label): `Message bubble`; `snooze` draws an inbox. */
+export function statusGlyphLabel(key: StatusIconKey): string {
+  if (key === 'snooze') return 'Inbox'
+  const words = key.replace(/-/g, ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** What a status is drawn with, as an icon: its emoji (muted unless it says color), else its glyph (the default one when it has none). */
+export function statusIconValue(status: StatusLook): Extract<IconValue, { kind: 'emoji' }> | StatusGlyphIcon {
+  if (status.emoji != null && isEmoji(status.emoji)) {
+    return status.emojiShow === 'color' ? { kind: 'emoji', emoji: status.emoji, show: 'color' } : { kind: 'emoji', emoji: status.emoji }
+  }
+  return { kind: 'status', key: status.icon ?? DEFAULT_STATUS_ICON }
+}
+
+/**
+ * A status's look after the icon picker's pick: a glyph replaces the emoji
+ * (`emoji` / `emojiShow` gone); an emoji keeps the glyph's key underneath.
+ * `null` for a pick a status can't take (No icon, a line icon).
+ */
+export function statusLookAfterPick(look: StatusLook, icon: DrawnIcon): StatusLook | null {
+  if (icon.kind === 'status') return { icon: icon.key }
+  if (icon.kind !== 'emoji') return null
+  return {
+    ...(look.icon ? { icon: look.icon } : {}),
+    emoji: icon.emoji,
+    ...(icon.show === 'color' ? { emojiShow: 'color' as const } : {}),
+  }
+}
+
+/** The glyph a layout shows while it has no icon picked (J1): the layout glyph. */
+export const LAYOUT_DEFAULT_ICON: IconValue = { kind: 'line', key: 'layout' }
+
+/** What a layout's tab shows: its picked icon (`none`: nothing), else the layout glyph (J1). */
+export function layoutIcon(layout: { icon?: IconValue }): IconValue {
+  return layout.icon ?? LAYOUT_DEFAULT_ICON
+}
+
+/** Whether two icons are the same (absent counts as its own value). */
+export function sameIcon(a: DrawnIcon | undefined, b: DrawnIcon | undefined): boolean {
   if (a === b) return true
   if (!a || !b || a.kind !== b.kind) return false
   if (a.kind === 'line' && b.kind === 'line') return a.key === b.key
+  if (a.kind === 'status' && b.kind === 'status') return a.key === b.key
   if (a.kind === 'emoji' && b.kind === 'emoji') return a.emoji === b.emoji && emojiShow(a) === emojiShow(b)
   return true
 }
 
 /** An icon in words, for a control's label: `No icon`, `Flag icon`, `Emoji 📅, muted`. */
-export function iconDescription(icon: IconValue): string {
+export function iconDescription(icon: DrawnIcon): string {
   switch (icon.kind) {
     case 'none':
       return 'No icon'
     case 'line':
       return `${LINE_ICON_LABELS[icon.key]} icon`
+    case 'status':
+      return `${statusGlyphLabel(icon.key)} icon`
     case 'emoji':
       return `Emoji ${icon.emoji}, ${emojiShow(icon)}`
   }
 }
 
 /** An icon's kind and style in a few words, beside its button (the board's `Emoji · Muted`). */
-export function iconSummary(icon: IconValue): string {
+export function iconSummary(icon: DrawnIcon): string {
   switch (icon.kind) {
     case 'none':
       return 'No icon'
     case 'line':
       return `Icon · ${LINE_ICON_LABELS[icon.key]}`
+    case 'status':
+      return `Icon · ${statusGlyphLabel(icon.key)}`
     case 'emoji':
       return `Emoji · ${emojiShow(icon) === 'color' ? 'Color' : 'Muted'}`
   }
@@ -187,9 +247,9 @@ export function iconSummary(icon: IconValue): string {
 /**
  * The emoji used in `icons` (J6, the picker's Recent): each once, in the
  * order first met, at most `limit`. Callers pass every icon the app's data
- * holds (widget tabs now; layouts and statuses from 3B).
+ * holds (the layouts' own, their tabs', the statuses' — `useRecentEmoji`).
  */
-export function recentEmoji(icons: Iterable<IconValue | undefined>, limit = 24): string[] {
+export function recentEmoji(icons: Iterable<DrawnIcon | undefined>, limit = 24): string[] {
   const out: string[] = []
   for (const icon of icons) {
     if (icon?.kind !== 'emoji' || out.includes(icon.emoji)) continue

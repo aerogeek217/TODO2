@@ -9,9 +9,7 @@ import { getTab } from '../../utils/workspace-layout-queries'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useRecentEmoji } from '../../hooks/use-recent-emoji'
-import { AppIcon } from '../shared/AppIcon'
-import { ChevronDownIcon } from '../shared/icons'
-import { IconPicker } from '../shared/IconPicker'
+import { IconPickerButton } from '../shared/IconPickerButton'
 import { PopoverRoot } from '../shared/PopoverRoot'
 import { KEEP_EVENTS_INSIDE } from '../shared/keep-events-inside'
 import styles from './TabNameIconPopover.module.css'
@@ -66,8 +64,6 @@ export function TabNameIconPopover({ tabId, anchor, onClose }: {
   const listName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
   const [initial] = useState(() => (tab ? storedName(tab, listName) : ''))
   const [name, setName] = useState(initial)
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const iconButton = useRef<HTMLButtonElement | null>(null)
   const nameField = useRef<HTMLInputElement | null>(null)
   const recent = useRecentEmoji()
   const ids = useId()
@@ -140,37 +136,19 @@ export function TabNameIconPopover({ tabId, anchor, onClose }: {
         />
       </label>
       <div className={styles.field}>
-        <span className={styles.caption} id={`${ids}-icon`}>Icon</span>
-        <div className={styles.iconRow}>
-          <button
-            ref={iconButton}
-            type="button"
-            className={styles.iconButton}
-            aria-label={`Icon: ${tab.icon ? iconDescription(tab.icon) : `${widgetKindLabel(tab.kind)} icon (the default)`}. Change`}
-            aria-haspopup="dialog"
-            aria-expanded={pickerOpen}
-            onClick={() => setPickerOpen((o) => !o)}
-          >
-            {shownIcon.kind === 'none'
-              ? <span className={styles.noIcon}>None</span>
-              : <AppIcon icon={shownIcon} size={15} />}
-            <ChevronDownIcon size={10} />
-          </button>
-          <span className={styles.summary}>{tab.icon ? iconSummary(tab.icon) : 'The widget’s own icon'}</span>
-        </div>
-      </div>
-      {note && <div className={styles.note} id={`${ids}-note`}>{note}</div>}
-      {pickerOpen && (
-        <IconPicker
-          anchorRef={iconButton}
+        <span className={styles.caption}>Icon</span>
+        <IconPickerButton
+          shown={shownIcon}
+          ariaLabel={`Icon: ${tab.icon ? iconDescription(tab.icon) : `${widgetKindLabel(tab.kind)} icon (the default)`}. Change`}
+          summary={tab.icon ? iconSummary(tab.icon) : 'The widget’s own icon'}
           value={tab.icon}
           fallback={shownIcon}
           recent={recent}
           label={`Icon of “${name.trim() || defaultName(tab)}”`}
-          onPick={(icon) => { useWorkspaceStore.getState().setTabIcon(tab.id, icon) }}
-          onClose={() => setPickerOpen(false)}
+          onPick={(icon) => { if (icon.kind !== 'status') useWorkspaceStore.getState().setTabIcon(tab.id, icon) }}
         />
-      )}
+      </div>
+      {note && <div className={styles.note} id={`${ids}-note`}>{note}</div>}
     </PopoverRoot>,
     document.body,
   )

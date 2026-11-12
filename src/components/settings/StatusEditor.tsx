@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import {
   DndContext,
   closestCenter,
@@ -15,43 +14,53 @@ import {
 } from '@dnd-kit/sortable'
 import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { type Status, type StatusIconKey, DEFAULT_STATUS_ICON } from '../../models'
+import type { Status, StatusLook } from '../../models'
+import { iconDescription, statusIconValue, statusLookAfterPick } from '../../models/icon'
 import { DEFAULT_ENTITY_COLOR, DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import { ColorPicker } from '../shared/ColorPicker'
 import { ConfirmDialog } from '../shared/Dialog'
 import { DragHandle } from '../shared/DragHandle'
-import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
+import { IconPicker } from '../shared/IconPicker'
+import { STATUS_GLYPH_CHOICES } from '../shared/icon-picker-choices'
+import { StatusMark } from '../shared/StatusMark'
+import { useRecentEmoji } from '../../hooks/use-recent-emoji'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sortable-row'
 import { bySortOrder } from '../../utils/sort-order'
 import { EditorModal } from './EditorModal'
 import styles from './EntityEditor.module.css'
-import { PopoverRoot } from '../shared/PopoverRoot'
 
 interface EditState {
   id: number
   name: string
   color: string
-  icon?: StatusIconKey
+  look: StatusLook
 }
 
 interface StatusEditorProps {
   onClose: () => void
 }
 
-function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChange: (icon?: StatusIconKey) => void; color: string }) {
+/** `status` with its look replaced by `look` (a glyph pick drops the emoji). */
+function withLook<S extends Status>(status: S, look: StatusLook): S {
+  const next: S = { ...status }
+  delete next.icon
+  delete next.emoji
+  delete next.emojiShow
+  return { ...next, ...look }
+}
+
+/**
+ * A status's icon (J17): its mark in its color, opening the one icon picker
+ * (`shared/IconPicker`) — its Icons tab the status glyphs, its Emoji tab as
+ * everywhere (Show as Muted | Color, Recent). No No icon: a status always
+ * draws a mark (the default glyph while it has none).
+ */
+function StatusIconButton({ look, name, color, onChange }: { look: StatusLook; name: string; color: string; onChange: (look: StatusLook) => void }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const { panelRef, style, caret } = usePopoverAnchor({
-    anchor: { kind: 'ref', ref: triggerRef },
-    open,
-    onClose: () => setOpen(false),
-    // Esc closes the picker only, not the editor around it.
-    consumeEscape: true,
-    caret: true,
-  })
-
+  const recent = useRecentEmoji()
+  const value = statusIconValue(look)
   return (
     <div className={styles.iconPickerWrap}>
       <button
@@ -59,26 +68,28 @@ function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChang
         type="button"
         className={styles.iconPickerBtn}
         style={{ color }}
+        aria-label={`Icon: ${iconDescription(value)}. Change`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         onClick={() => setOpen(!open)}
-        title={value ? `Icon: ${value}` : 'No icon — click to pick'}
+        title={iconDescription(value)}
       >
-        <StatusIcon icon={value || DEFAULT_STATUS_ICON} />
+        <StatusMark status={look} />
       </button>
-      {open && createPortal(
-        <PopoverRoot ref={panelRef} caret={caret} className={styles.iconPickerGrid} style={{ ...style, marginTop: 0 }}>
-          {STATUS_ICON_KEYS.map(key => (
-            <button
-              key={key}
-              className={`${styles.iconPickerCell} ${(value || DEFAULT_STATUS_ICON) === key ? styles.iconPickerCellActive : ''}`}
-              style={{ color }}
-              onClick={() => { onChange(key); setOpen(false) }}
-              title={key === 'snooze' ? 'inbox' : key}
-            >
-              <StatusIcon icon={key} />
-            </button>
-          ))}
-        </PopoverRoot>,
-        document.body,
+      {open && (
+        <IconPicker
+          anchorRef={triggerRef}
+          value={value}
+          choices={STATUS_GLYPH_CHOICES}
+          recent={recent}
+          allowNone={false}
+          label={name.trim() ? `Icon of “${name.trim()}”` : 'Status icon'}
+          onPick={(icon) => {
+            const next = statusLookAfterPick(look, icon)
+            if (next) onChange(next)
+          }}
+          onClose={() => setOpen(false)}
+        />
       )}
     </div>
   )
@@ -96,7 +107,7 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
       <DragHandle className={styles.dragHandle} attributes={attributes} listeners={listeners} ariaHidden={false} />
       <div className={styles.colorSwatch} style={{ background: status.color }} onClick={() => onEdit(status)} />
       <span className={styles.iconPreview} style={{ color: status.color }} onClick={() => onEdit(status)}>
-        <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} />
+        <StatusMark status={status} />
       </span>
       <span className={styles.nameEditable} onClick={() => onEdit(status)}>{status.name}</span>
       <div className={styles.actions}>
@@ -114,7 +125,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
-  const [newIcon, setNewIcon] = useState<StatusIconKey | undefined>(undefined)
+  const [newLook, setNewLook] = useState<StatusLook>({})
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
   const [nameError, setNameError] = useState('')
@@ -123,7 +134,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   useEffect(() => { load(); ensureTodosLoaded() }, [load, ensureTodosLoaded])
 
   const startEdit = (s: Status) => {
-    setEditing({ id: s.id!, name: s.name, color: s.color, icon: s.icon })
+    setEditing({ id: s.id!, name: s.name, color: s.color, look: { icon: s.icon, ...(s.emoji ? { emoji: s.emoji, emojiShow: s.emojiShow } : {}) } })
     setAdding(false)
     setDeleteId(null)
     setNameError('')
@@ -134,7 +145,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     const existing = statuses.find(s => s.id === editing.id)
     if (!existing) return
     try {
-      await update({ ...existing, name: editing.name.trim(), color: editing.color, icon: editing.icon })
+      await update(withLook({ ...existing, name: editing.name.trim(), color: editing.color }, editing.look))
       setEditing(null)
       setNameError('')
     } catch (e) {
@@ -149,17 +160,17 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     setNameError('')
     setNewName('')
     setNewColor(DEFAULT_ENTITY_COLOR)
-    setNewIcon(undefined)
+    setNewLook({})
   }
 
   const saveAdd = async () => {
     if (!newName.trim()) return
     try {
-      await add(newName.trim(), newColor, newIcon)
+      await add(newName.trim(), newColor, newLook.icon, newLook)
       setAdding(false)
       setNewName('')
       setNewColor(DEFAULT_ENTITY_COLOR)
-      setNewIcon(undefined)
+      setNewLook({})
       setNameError('')
     } catch (e) {
       setNameError((e as Error).message)
@@ -179,13 +190,18 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     setDeleteId(null)
   }
 
+  /** A key from the row itself — not from the icon picker, portaled out of it, whose keys React bubbles here. */
+  const ownKey = (e: React.KeyboardEvent) => e.target instanceof Node && e.currentTarget.contains(e.target)
+
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (!ownKey(e)) return
     if (e.key === 'Enter') saveEdit()
     // The row's own Esc (cancel the edit): handled, so the modal stays.
     if (e.key === 'Escape') { e.preventDefault(); setEditing(null) }
   }
 
   const handleAddKeyDown = (e: React.KeyboardEvent) => {
+    if (!ownKey(e)) return
     if (e.key === 'Enter') saveAdd()
     if (e.key === 'Escape') { e.preventDefault(); setAdding(false) }
   }
@@ -248,7 +264,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                     <div key={s.id}>
                       <div className={styles.editRow} onKeyDown={handleEditKeyDown}>
                         <ColorPicker value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
-                        <IconPicker value={ed.icon} onChange={(icon) => setEditing({ ...ed, icon })} color={ed.color} />
+                        <StatusIconButton look={ed.look} name={ed.name} color={ed.color} onChange={(look) => setEditing({ ...ed, look })} />
                         <input
                           className={styles.editInput}
                           value={ed.name}
@@ -283,7 +299,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
           <div>
             <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
               <ColorPicker value={newColor} onChange={setNewColor} />
-              <IconPicker value={newIcon} onChange={setNewIcon} color={newColor} />
+              <StatusIconButton look={newLook} name={newName} color={newColor} onChange={setNewLook} />
               <input
                 className={styles.editInput}
                 value={newName}

@@ -5,8 +5,8 @@ import {
   emojiIcon,
   emojiShow,
   sameIcon,
+  type DrawnIcon,
   type EmojiShow,
-  type IconValue,
 } from '../../models/icon'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../hooks/use-latest-ref'
@@ -23,18 +23,20 @@ export interface IconPickerProps {
   /** The control that opened it: placed under it, and handed the focus back on Esc or a pick that closes it. */
   anchorRef: RefObject<HTMLElement | null>
   /** The icon picked now (absent: never picked). */
-  value: IconValue | undefined
+  value: DrawnIcon | undefined
   /** What shows while none is picked (a tab's kind icon, J1): marked as the current choice. */
-  fallback?: IconValue
-  /** The Icons tab's choices (default: the built-in line icons). */
+  fallback?: DrawnIcon
+  /** The Icons tab's choices (default: the built-in line icons; a status's: its glyphs, J17). */
   choices?: readonly IconChoice[]
   /** The emoji already used in the app's data (J6, `useRecentEmoji`); empty shows no Recent. */
   recent: readonly string[]
-  /** A pick: a line icon or No icon (the picker then closes), or an emoji or its Show as (it stays open). */
-  onPick: (icon: IconValue) => void
+  /** A pick: an Icons choice or No icon (the picker then closes), or an emoji or its Show as (it stays open). */
+  onPick: (icon: DrawnIcon) => void
   onClose: () => void
   /** Its accessible name. Default `Icon`. */
   label?: string
+  /** Whether its foot offers **No icon** (default true; a status always draws one, J17). */
+  allowNone?: boolean
 }
 
 /**
@@ -50,7 +52,7 @@ export interface IconPickerProps {
  * line icon or No icon closes it; an emoji keeps it open, its Show as beside
  * it. Esc closes it and hands the focus back to the opener.
  */
-export function IconPicker({ anchorRef, value, fallback, choices = LINE_ICON_CHOICES, recent, onPick, onClose, label = 'Icon' }: IconPickerProps) {
+export function IconPicker({ anchorRef, value, fallback, choices = LINE_ICON_CHOICES, recent, onPick, onClose, label = 'Icon', allowNone = true }: IconPickerProps) {
   const [tab, setTab] = useState<'icons' | 'emoji'>(value?.kind === 'emoji' ? 'emoji' : 'icons')
   const [show, setShow] = useState<EmojiShow>(value?.kind === 'emoji' ? emojiShow(value) : 'muted')
   const [text, setText] = useState('')
@@ -101,7 +103,7 @@ export function IconPicker({ anchorRef, value, fallback, choices = LINE_ICON_CHO
     else (gridRef.current?.querySelector<HTMLButtonElement>('[data-current]') ?? gridRef.current?.querySelector<HTMLButtonElement>('button'))?.focus()
   }, [tab])
 
-  const pickAndClose = (icon: IconValue) => {
+  const pickAndClose = (icon: DrawnIcon) => {
     onPick(icon)
     closeAndReturn()
   }
@@ -264,16 +266,18 @@ export function IconPicker({ anchorRef, value, fallback, choices = LINE_ICON_CHO
         </div>
       )}
 
-      <div className={styles.foot}>
-        <button
-          type="button"
-          className={`${styles.noIcon} ${current?.kind === 'none' ? styles.noIconOn : ''}`}
-          aria-pressed={current?.kind === 'none'}
-          onClick={() => pickAndClose({ kind: 'none' })}
-        >
-          No icon
-        </button>
-      </div>
+      {allowNone && (
+        <div className={styles.foot}>
+          <button
+            type="button"
+            className={`${styles.noIcon} ${current?.kind === 'none' ? styles.noIconOn : ''}`}
+            aria-pressed={current?.kind === 'none'}
+            onClick={() => pickAndClose({ kind: 'none' })}
+          >
+            No icon
+          </button>
+        </div>
+      )}
     </PopoverRoot>,
     document.body,
   )

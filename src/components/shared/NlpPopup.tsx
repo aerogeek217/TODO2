@@ -2,8 +2,7 @@ import { useCallback, useEffect, useId, useState, type CSSProperties, type Ref }
 import type { AutocompleteRow, AutocompleteView } from '../../services/nlp-autocomplete'
 import { CalendarIcon, CommandIcon } from './CommandIcons'
 import { FollowupFlagIcon } from './FollowupIcons'
-import { StatusIcon } from './StatusIcon'
-import { DEFAULT_STATUS_ICON } from '../../models'
+import { StatusMark } from './StatusMark'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { HashIcon } from './icons'
 import styles from './NlpPopup.module.css'
@@ -171,7 +170,7 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
           >
             {row.item.kind === 'status' ? (
               <span className={styles.icon} style={{ color: row.item.color }}>
-                <StatusIcon icon={row.item.icon || DEFAULT_STATUS_ICON} filled />
+                <StatusMark status={row.item} filled />
               </span>
             ) : view.mixed ? (
               row.item.kind === 'person' ? (

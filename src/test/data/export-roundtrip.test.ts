@@ -140,7 +140,7 @@ function buildSeed(): Seed {
     ],
     statuses: [
       { id: 1, name: 'Assigned', color: '#8a8a8a', sortOrder: 0, icon: 'person' },
-      { id: 2, name: 'Follow-up', color: '#e0a030', sortOrder: 1, icon: 'message-bubble' },
+      { id: 2, name: 'Follow-up', color: '#e0a030', sortOrder: 1, icon: 'message-bubble', emoji: '📞', emojiShow: 'color' },
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
@@ -185,7 +185,7 @@ function buildSeed(): Seed {
       { id: 1, name: 'Empty', sortOrder: 1, ...emptyBody(), createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-01T09:00:00.000Z') },
       {
         id: 2, name: 'Daily', sortOrder: 0,
-        createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'), hue: 'violet',
+        createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'), hue: 'violet', icon: { kind: 'emoji', emoji: '🏠' },
         // A fixed collapsed row across the top, k3 spanning two rows (one collapsed), an empty cell, a fixed row at the bottom.
         ...(() => {
           const b1 = cell('b1-c', [{ id: 't8', kind: 'notes', config: {} }, { id: 't9', kind: 'lens', config: { listDefinitionId: 1 } }], { activeTabId: 't9' })

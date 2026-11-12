@@ -629,6 +629,33 @@ describe('layouts', () => {
     expect(ws().working!.hue).toBeUndefined()
   })
 
+  it('rename with an icon stores it with the name, no undo step; none leaves it; No icon is stored as none', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    ws().closeTab('b1')
+    expect(await ws().rename(id!, 'Home', 'green', { kind: 'emoji', emoji: '🏠' })).toBe(true)
+    expect(ws().working).toMatchObject({ name: 'Home', hue: 'green', icon: { kind: 'emoji', emoji: '🏠' } })
+    expect(ws().layouts.find((l) => l.id === id)?.icon).toEqual({ kind: 'emoji', emoji: '🏠' })
+    expect((await stored(id!)).icon).toEqual({ kind: 'emoji', emoji: '🏠' })
+    expect(undoNames()).toEqual(['Closed tab “List”'])
+    expect(await ws().rename(id!, 'Home 2', 'green')).toBe(true)
+    expect((await stored(id!)).icon).toEqual({ kind: 'emoji', emoji: '🏠' })
+    expect(await ws().rename(id!, 'Home 2', 'green', { kind: 'none' })).toBe(true)
+    expect((await stored(id!)).icon).toEqual({ kind: 'none' })
+    expect(ws().working!.icon).toEqual({ kind: 'none' })
+    // A later structural edit writes the whole layout: the icon stays.
+    ws().splitCell(ws().working!.cells[0]!.id, 'right')
+    await vi.waitFor(async () => expect((await stored(id!)).cells.length).toBe(2))
+    expect((await stored(id!)).icon).toEqual({ kind: 'none' })
+  })
+
+  it('Duplicate layout carries the icon', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    await ws().rename(id!, 'Daily', undefined, { kind: 'line', key: 'flag' })
+    const copy = await ws().duplicateLayout('Daily copy')
+    expect((await stored(copy!)).icon).toEqual({ kind: 'line', key: 'flag' })
+    expect(ws().working!.icon).toEqual({ kind: 'line', key: 'flag' })
+  })
+
   it('an undo after a rename keeps the new name', async () => {
     const [id] = await seedAndInit(twoColumns())
     ws().closeTab('b1')

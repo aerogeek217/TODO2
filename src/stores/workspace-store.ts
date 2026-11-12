@@ -209,9 +209,10 @@ export interface WorkspaceState {
   /**
    * Renames a layout (not a structural edit: no undo step). Empty name → `false`.
    * With `hue`, sets its hue in the same write (`null` = none; D19 — the
-   * Edit layout dialog's swatches).
+   * Edit layout dialog's swatches). With `icon`, sets its icon in the same
+   * write (items 11, 14; `{ kind: 'none' }` = No icon) — absent leaves it.
    */
-  rename: (id: number, name: string, hue?: string | null) => Promise<boolean>
+  rename: (id: number, name: string, hue?: string | null, icon?: IconValue) => Promise<boolean>
   /**
    * Deletes a layout — never the last one (`false`). Deleting the open layout
    * opens the most recently used remaining one. The lists it owns go with
@@ -1005,19 +1006,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return id
     },
 
-    async rename(id, name, hue) {
+    async rename(id, name, hue, icon) {
       const clean = cleanName(name)
       if (!clean || refusedByReplaceHold()) return false
       const renamed = <L extends WorkspaceLayout>(layout: L): L => {
-        const next = { ...layout, name: clean }
+        const next = { ...layout, name: clean, ...(icon ? { icon } : {}) }
         return hue === undefined ? next : setLayoutHue(next, hue)
       }
       const read = await layoutRepository.get(id)
       if (!read) return false
-      // Only the name (and the hue): a layout repaired when read keeps its
-      // stored row. Renamed on screen once the write has landed.
+      // Only the name (and the hue, the icon): a layout repaired when read
+      // keeps its stored row. Renamed on screen once the write has landed.
       try {
-        await layoutRepository.rename(id, clean, hue)
+        await layoutRepository.rename(id, clean, hue, icon)
       } catch (err) {
         reportWriteFailure(`Couldn't rename layout "${read.layout.name}".`, err)
         return false

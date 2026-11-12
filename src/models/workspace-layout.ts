@@ -394,6 +394,15 @@ export interface WorkspaceLayout {
    * the Edit layout dialog and saved at once, as the name is.
    */
   hue?: string
+  /**
+   * The layout's icon (widget feedback 11, 15; J1): drawn before its name on
+   * its tab, in the picker and on the phone. Absent = never picked: the
+   * layout glyph (`models/icon.layoutIcon`); `{ kind: 'none' }` = No icon.
+   * A line icon and a muted emoji take the hue on the open layout's tab; a
+   * color emoji keeps its colors. Set in the Edit layout dialog and saved
+   * at once, as the name and the hue are.
+   */
+  icon?: IconValue
 }
 
 /** The six preset layout hues (D19), each a token pair (`--hue-<name>`, dark and light). */
