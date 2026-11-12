@@ -150,6 +150,9 @@ describe('glance widget kinds', () => {
     for (const config of [
       numberTab('t').config,
       numberTab('t', 'overdue', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 12, compare: 'none', color: '#abc' }).config,
+      // The colour while not lit (widget feedback 2D; optional, no schema step), with and without the lit one.
+      numberTab('t', 'overdue', { litWhen: 'above', litAt: 0, color: '#abc', unlitColor: '#7ec4bc' }).config,
+      numberTab('t', 'open', { unlitColor: '#7EC4BC' }).config,
       // The breakdowns that came later (no schema step): status and priority.
       numberTab('t', 'open', { breakdown: 'status' }).config,
       numberTab('t', 'open', { breakdown: 'priority' }).config,
@@ -166,6 +169,8 @@ describe('glance widget kinds', () => {
     ['name', 7, { name: 'Number' }],
     ['name', 'x'.repeat(81), { name: 'Number' }],
     ['color', 'teal', {}],
+    ['unlitColor', 'teal', {}],
+    ['unlitColor', 7, {}],
     ['show', 'pie', { show: 'count' }],
     ['litWhen', 'always', { litWhen: 'never', litAt: undefined }],
     ['litAt', -1, { litAt: 0 }],

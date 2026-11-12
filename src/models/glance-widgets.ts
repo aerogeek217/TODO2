@@ -55,8 +55,13 @@ export const NUMBER_LIT_AT_MAX = 1_000_000
 export interface NumberConfig {
   /** Its label and tab title (may be blank while it's being typed: the tab then reads `Number`). */
   name: string
-  /** Its colour when lit, a hex (`#rgb` / `#rrggbb`, used as it is in both themes); absent = Auto (neutral, lit in the accent). */
+  /** Its colour when lit — its label, count and line —, a hex (`#rgb` / `#rrggbb`, drawn per theme: `utils/theme-color`); absent = Auto (the accent). */
   color?: string
+  /**
+   * Its colour while not lit (widget feedback 2D) — its label, count and line —, a hex as `color`;
+   * absent = Auto (the label muted, the count in the text colour, the line in the accent). Optional, no schema step.
+   */
+  unlitColor?: string
   /** What it counts: a Graphical or expression filter, as a list's (an empty one keeps every open task). */
   filter: TodoPredicate
   show: NumberShow
@@ -117,6 +122,7 @@ export function numberIsLit(config: Pick<NumberConfig, 'litWhen' | 'litAt'>, cou
 export function numberConfigProblem(raw: Obj): string | null {
   if (!isNumberName(raw.name)) return 'name'
   if (raw.color !== undefined && !isNumberColor(raw.color)) return 'color'
+  if (raw.unlitColor !== undefined && !isNumberColor(raw.unlitColor)) return 'unlitColor'
   if (!includes(NUMBER_SHOWS, raw.show)) return 'show'
   if (!includes(NUMBER_LIT_WHEN, raw.litWhen)) return 'litWhen'
   if (raw.litWhen === 'never' ? raw.litAt !== undefined : !isNumberLitAt(raw.litAt)) return 'litAt'
@@ -188,6 +194,8 @@ export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, 
   const config: NumberConfig = { name, filter: filter.config, show, litWhen, compare }
   if (isNumberColor(raw.color)) config.color = raw.color
   else if (raw.color !== undefined) fixed = true
+  if (isNumberColor(raw.unlitColor)) config.unlitColor = raw.unlitColor
+  else if (raw.unlitColor !== undefined) fixed = true
   if (litWhen !== 'never') config.litAt = pick(raw.litAt, isNumberLitAt, 0)
   else if (raw.litAt !== undefined) fixed = true
   if (raw.ignoreLens === true) config.ignoreLens = true
