@@ -95,6 +95,40 @@ describe('glance widget kinds', () => {
     expect(tabOf(notObject)).toEqual({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { name: 'L' } } })
   })
 
+  // Widget feedback 2C: Created vs completed's name, filter and Show as (no schema step: absent = the defaults).
+  it('Created vs completed’s name, filter and Show as round-trip; absent they stay absent; a bad one is a fix and goes', () => {
+    const filter = { ...emptyPredicate(), expression: { kind: 'tag', id: 4 } }
+    const config = { range: '4w', name: 'Atlas', filter, show: 'burndown' }
+    const good = layoutRow({ id: 't', kind: 'trend', config, viewState: { ignoreLens: true } })
+    expect(validateRow('layouts', good)).toBe(true)
+    expect(rowFixes('layouts', good)).toEqual([])
+    expect(tabOf(good)).toEqual({ id: 't', kind: 'trend', config, viewState: { ignoreLens: true } })
+
+    const old = layoutRow({ id: 't', kind: 'trend', config: { range: '14d' } })
+    expect(rowFixes('layouts', old)).toEqual([])
+    expect(tabOf(old)).toEqual({ id: 't', kind: 'trend', config: { range: '14d' } })
+
+    const badShow = layoutRow({ id: 't', kind: 'trend', config: { range: '14d', show: 'pie', name: 'X' } })
+    expect(checkLayoutBody(badShow)).toBe('cells[0].tabs[0].config.show')
+    expect(rowFixes('layouts', badShow)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(badShow)).toEqual({ id: 't', kind: 'trend', config: { range: '14d', name: 'X' } })
+
+    const badName = layoutRow({ id: 't', kind: 'trend', config: { range: '14d', name: 4 } })
+    expect(checkLayoutBody(badName)).toBe('cells[0].tabs[0].config.name')
+    expect(tabOf(badName)).toEqual({ id: 't', kind: 'trend', config: { range: '14d' } })
+
+    // A filter without its required fields is read as a list's (a fix); one that isn't an object goes.
+    const badFilter = layoutRow({ id: 't', kind: 'trend', config: { range: '14d', filter: { tags: [3] } } })
+    expect(checkLayoutBody(badFilter)).toBe('cells[0].tabs[0].config.filter.showCompleted')
+    expect(rowFixes('layouts', badFilter)).toEqual(['tab or cell settings reset'])
+    const notObject = layoutRow({ id: 't', kind: 'trend', config: { range: '14d', filter: 'overdue' } })
+    expect(checkLayoutBody(notObject)).toBe('cells[0].tabs[0].config.filter')
+    expect(tabOf(notObject)).toEqual({ id: 't', kind: 'trend', config: { range: '14d' } })
+
+    const badLens = layoutRow({ id: 't', kind: 'trend', config: { range: '14d' }, viewState: { ignoreLens: 'yes' } })
+    expect(checkLayoutBody(badLens)).toBe('cells[0].tabs[0].viewState.ignoreLens')
+  })
+
   it.each(SETTINGS)('%s: a known %s round-trips; a bad or missing one is reset to its default', (kind, key, kept, bad, fallback) => {
     const good = layoutRow({ id: 't', kind, config: { [key]: kept } })
     expect(validateRow('layouts', good)).toBe(true)

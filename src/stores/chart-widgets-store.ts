@@ -4,8 +4,9 @@ import { afterLeavingEditors } from './editor-leave'
 /**
  * The chart widgets' temporary state (D26 P8), never in a layout: the open
  * chart editor (one at a time, beside its chart — `ChartEditorHost`), and
- * Project pulse's open editor (G5, `PulseEditorHost`), one at a time like
- * the chart editor's.
+ * Project pulse's open editor (G5, `PulseEditorHost`) and Created vs
+ * completed's (`TrendEditorHost`), each one at a time like the chart
+ * editor's.
  */
 interface ChartWidgetsState {
   /** The chart tab whose editor is open. */
@@ -17,6 +18,11 @@ interface ChartWidgetsState {
   pulseEditorTabId: string | null
   openPulseEditor: (tabId: string) => void
   closePulseEditor: () => void
+  // ── Created vs completed's editor ──
+  /** The Created vs completed tab whose editor is open. */
+  trendEditorTabId: string | null
+  openTrendEditor: (tabId: string) => void
+  closeTrendEditor: () => void
 }
 
 export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
@@ -44,5 +50,18 @@ export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
   closePulseEditor() {
     if (get().pulseEditorTabId === null) return
     set({ pulseEditorTabId: null })
+  },
+
+  // ── Created vs completed's editor ──
+  trendEditorTabId: null,
+
+  openTrendEditor(tabId) {
+    if (get().trendEditorTabId === tabId) return
+    afterLeavingEditors(() => set({ trendEditorTabId: tabId }))
+  },
+
+  closeTrendEditor() {
+    if (get().trendEditorTabId === null) return
+    set({ trendEditorTabId: null })
   },
 }))

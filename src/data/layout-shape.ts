@@ -30,10 +30,10 @@ import {
 } from '../models/workspace-layout'
 import { isReviewSort } from '../models/review'
 import {
-  GLANCE_CONFIG_FIELDS,
   numberConfigProblem,
   pickNumberConfig,
   pickTrendConfig,
+  trendConfigProblem,
   type NumberConfig,
   type PickedConfig,
 } from '../models/glance-widgets'
@@ -194,10 +194,11 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       }
       return true
     }
+    // Created vs completed: its range, its optional name and Show as, then its optional filter as a Number's.
     case 'trend': {
-      // One config field, a known value.
-      const field = GLANCE_CONFIG_FIELDS[kind]
-      return field.ok(config[field.key]) ? true : `${path}.config.${field.key}`
+      const bad = trendConfigProblem(config)
+      if (bad) return `${path}.config.${bad}`
+      return config.filter === undefined ? true : checkChartFilter(config.filter, path)
     }
     // G5: Project pulse — its tag picks and rules, then each rule's filter as a Number's.
     case 'pulse': {
@@ -612,11 +613,11 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         return withLensView<LensSwitchTab>(review)
       }
       // The glance kinds: a bad or missing setting is reset to its default;
-      // no view state but the lens switch (Created vs completed has none).
+      // no view state but the lens switch.
       case 'number':
         return withLensView<LensSwitchTab>({ id, kind: 'number', config: glance(numberConfigOf(config)) })
       case 'trend':
-        return { id, kind: 'trend', config: glance(pickTrendConfig(config)) }
+        return withLensView<LensSwitchTab>({ id, kind: 'trend', config: glance(pickTrendConfig(config, readNumberPredicate)) })
       case 'pulse':
         return withLensView<LensSwitchTab>({ id, kind: 'pulse', config: glance(pickPulseConfig(config, readNumberPredicate)) })
       // D26 P8: the chart widgets.

@@ -179,11 +179,11 @@ describe('the ⋯ menu’s Apply lens “X” here', () => {
     }
   })
 
-  it('not on Created vs completed, nor a Number following a list (the list’s switch rules there)', () => {
+  it('on Created vs completed (its switch, as a chart’s); not on a Number following a list (the list’s switch rules there)', () => {
     useSettingsStore.setState({ activeLensId: LENS.id })
     const trend = createTab('trend', 't')
     inLayout(trend)
-    expect(actions(trend).find((a) => a.label.startsWith('Apply lens'))).toBeUndefined()
+    expect(actions(trend).find((a) => a.label === 'Apply lens “Q4” here')?.checked).toBe(true)
     const fresh = createTab('number', 'n')
     if (fresh.kind !== 'number') throw new Error('a Number')
     const follows: LayoutTab = { ...fresh, config: { ...fresh.config, show: 'list' } }
