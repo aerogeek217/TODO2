@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { getActiveTab, isGlanceKind, type LayoutTab } from '../../models/workspace-layout'
+import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { OPEN_LARGER_LABEL, widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
@@ -115,6 +116,14 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const insertTrack = useWorkspaceStore((s) => s.insertTrack)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
   const drag = useWorkspaceDrag()
+  /**
+   * Close tab (its ×, Delete on it, the menu's entry) — and Close cell below:
+   * an open editor holding changes (Edit list, a widget editor) is asked
+   * first, Save / Discard / Keep editing (`editor-leave`), as on every other
+   * way out of it; the tab may be the one it edits. A press would have asked
+   * already: this is the keyboard's way here. With none, it closes at once.
+   */
+  const closeTabAsked = useCallback((tabId: string) => afterLeavingEditors(() => closeTab(tabId)), [closeTab])
   const setRowCollapsed = useCallback((next: boolean) => { void setTrackCollapsed(rowTrackIds, next) }, [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
@@ -195,8 +204,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         onMerge: (other) => { mergeCells(cell.id, other) },
         onInsert: (edge) => { insertTrack(edge) },
         onCollapse: setRowCollapsed,
-        onCloseTab: closeTab,
-        onCloseCell: () => closeCell(cell.id),
+        onCloseTab: closeTabAsked,
+        onCloseCell: () => afterLeavingEditors(() => closeCell(cell.id)),
       })
     : null
   /** The whole menu (a right-click, Shift+F10 / the Menu key): at a point, or under the ⋯. */
@@ -281,7 +290,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
                 if (collapsed) setRowCollapsed(false)
               })
             }}
-            onClose={closeTab}
+            onClose={closeTabAsked}
             onOpenTabMenu={(tabId, p) => openMenu(tabId, p)}
             onAddTab={(ref) => setAddFlow({ anchor: anchorBelow(ref), where: 'tab' })}
           />
