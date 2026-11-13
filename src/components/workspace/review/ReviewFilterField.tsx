@@ -40,11 +40,6 @@ export const EVERY_OPEN_TASK = 'Every open task'
 /** A review takes open tasks only: `done` and Completed dates would keep nothing, so the field refuses them and says why. */
 const OPEN_TASKS_ONLY = { allowDone: false, allowCompleted: false } as const
 
-/** The parser's hint for a Completed date speaks of the check-in (the other filter of open tasks only); here it is a review. */
-const REVIEW_HINTS: Readonly<Record<string, string>> = {
-  'A check-in takes open tasks only': 'A review takes open tasks only',
-}
-
 /** A pill's tint: the one its term has as typed text (`expressionTints`); text and dates other than due / follow-up are plain pills. */
 function pillTint(term: FilterAtom | undefined): TokenTint {
   if (term?.kind === 'priority') return term.value === 'urgent' ? 'urgent' : term.value === 'important' ? 'important' : term.value === 'focus' ? 'focus' : 'chip'
@@ -156,7 +151,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
     else if (piece.atom != null) onChange(withExpression(predicate, withoutAtom(filter.expression, piece.atom), filter.showCompleted))
   }
   const error = parse.ok ? null : parse.error
-  const errorTip = useTooltip(error?.hint != null ? REVIEW_HINTS[error.hint] ?? error.hint : null)
+  const errorTip = useTooltip(error?.hint ?? null)
 
   const syncMirror = useCallback(() => {
     if (mirrorRef.current && inputRef.current) mirrorRef.current.scrollTop = inputRef.current.scrollTop

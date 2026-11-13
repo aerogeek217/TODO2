@@ -63,7 +63,7 @@ export interface ExpressionParseOptions {
   names: ExpressionNameResolver
   /** `false`: `@`, `no person` and `any person` are refused (the check-in filter: a check-in goes to one person). */
   allowPeople?: boolean
-  /** `false`: Completed dates are refused (the check-in filter: it takes open tasks only). */
+  /** `false`: Completed dates are refused (the check-in filter, the Review widget's field: they take open tasks only). */
   allowCompleted?: boolean
   /** `false`: `done` is refused (a lens, the check-in: they never show completed tasks by it). */
   allowDone?: boolean
@@ -479,7 +479,7 @@ class Parser {
   }
 
   private dateTerm(t: Lex, field: DateField): FilterExpr {
-    if (field === 'completed' && this.opts.allowCompleted === false) fail(t.start, t.end, 'Leave completed out', 'A check-in takes open tasks only')
+    if (field === 'completed' && this.opts.allowCompleted === false) fail(t.start, t.end, 'Leave completed out', 'This filter takes open tasks only')
     const kind: ExpressionSpanKind = field === 'deadline' ? 'due' : field === 'followup' || field === 'lastFollowup' ? 'followup' : 'date'
     const startPos = this.pos
     const match = this.when(t, field)
