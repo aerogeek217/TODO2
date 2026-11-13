@@ -440,6 +440,11 @@ test('the queue’s checkboxes: a row’s box completes its task without opening
   await expect(check).toBeFocused()
   await page.keyboard.press('Space')
   await expect(railRows(page, 'rev1')).toHaveCount(3)
+  // Its row went with it: the focus is on the checkbox of the row now in its place, not lost to the page.
+  await expect(w.locator('[data-review-row-check]:focus')).toHaveCount(1)
+  await page.keyboard.press('Space')
+  await expect(railRows(page, 'rev1')).toHaveCount(2)
+  await expect(w.locator('[data-review-row-check]:focus')).toHaveCount(1)
 })
 
 test('at rest each term is a pill with its own ×: it takes that term out of the filter; a press elsewhere goes back to the text', async ({ page }) => {
