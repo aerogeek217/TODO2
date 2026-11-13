@@ -114,8 +114,33 @@ describe('layoutRepository: the layout order', () => {
     await layoutRepository.put({ ...(layoutRow(1, { sortOrder: 0, name: 'Renamed' }) as unknown as WorkspaceLayout), id: 1 })
     expect(await db.layouts.get(1)).toMatchObject({ name: 'Renamed', sortOrder: 5 })
     // A row stored without one takes the given order.
+    const { sortOrder: _order, ...noOrder } = layoutRow(2)
+    void _order
+    await db.layouts.add(noOrder as unknown as WorkspaceLayout)
     await layoutRepository.put({ ...(layoutRow(2, { sortOrder: 3 }) as unknown as WorkspaceLayout), id: 2 })
     expect((await db.layouts.get(2))?.sortOrder).toBe(3)
+  })
+
+  it('put never makes a row: a layout that is gone stays gone (cr34 D7)', async () => {
+    await db.layouts.add(layoutRow(1) as unknown as WorkspaceLayout)
+    expect(await layoutRepository.put({ ...(layoutRow(1, { name: 'Renamed' }) as unknown as WorkspaceLayout), id: 1 })).toBe(true)
+    expect(await layoutRepository.put({ ...(layoutRow(2) as unknown as WorkspaceLayout), id: 2 })).toBe(false)
+    expect(await db.layouts.get(2)).toBeUndefined()
+    expect(await db.layouts.count()).toBe(1)
+  })
+
+  it('putAndPrune of a layout that is gone writes nothing and removes nothing', async () => {
+    await db.layouts.add(layoutRow(1) as unknown as WorkspaceLayout)
+    // A list left naming the gone layout as its owner (data edited by hand): not this write's to delete.
+    await db.listDefinitions.add(list(7, { owner: { layoutId: 2 } }) as unknown as ListDefinition)
+    expect(await layoutRepository.putAndPrune({ ...(layoutRow(2) as unknown as WorkspaceLayout), id: 2 })).toBeNull()
+    expect(await db.layouts.get(2)).toBeUndefined()
+    expect(await db.listDefinitions.get(7)).toBeDefined()
+    // A stored one is written, and its unshown lists go.
+    await db.listDefinitions.add(list(8, { owner: { layoutId: 1 } }) as unknown as ListDefinition)
+    const removed = await layoutRepository.putAndPrune({ ...(layoutRow(1, { name: 'Renamed' }) as unknown as WorkspaceLayout), id: 1 })
+    expect(removed?.deleted).toEqual([8])
+    expect((await db.layouts.get(1))?.name).toBe('Renamed')
   })
 
   it('reorder numbers the given ids in order; a missing id is skipped', async () => {

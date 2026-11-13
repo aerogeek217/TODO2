@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
 import { createTab, layoutBodyOf, type LayoutTab, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
@@ -218,6 +218,154 @@ describe('an edit that leaves a list shown by no tab', () => {
     const w = await world()
     ws().closeTab('e')
     expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs])
+  })
+})
+
+describe('a layout write that fails, then Undo: the list comes back (cr34 M6 / D2)', () => {
+  /** The next layout write fails (storage full); the ones after it land. */
+  function failNextWrite(): void {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(layoutRepository, 'putAndPrune').mockRejectedValueOnce(new DOMException('full', 'QuotaExceededError'))
+  }
+  const tabIds = () => ws().working!.cells.flatMap((c) => c.tabs.map((t) => t.id))
+  /** List `id` is stored as it was — the layout's, with its manual order — and in the stores. */
+  async function expectMine1Back(w: World): Promise<void> {
+    await settled()
+    const back = await db.listDefinitions.get(w.mine1)
+    expect(back?.name).toBe('Mine 1')
+    expect(back?.owner).toEqual({ layoutId: w.a })
+    expect(await ranksOf(w.mine1)).toEqual([[1, 1], [2, 2]])
+    expect(storeListIds()).toContain(w.mine1)
+    expect(useListOrderStore.getState().ranks.get(w.mine1)?.size).toBe(2)
+  }
+
+  afterEach(() => { vi.restoreAllMocks() })
+
+  it('the failed write deletes nothing: the list stays stored until a write lands', async () => {
+    const w = await world()
+    failNextWrite()
+    ws().closeTab('m1')
+    await settled()
+    expect(ws().writeFailed).toBe(true)
+    expect(tabIds()).toEqual(['s', 'm2', 'e'])
+    expect(await storedListIds()).toContain(w.mine1)
+    // Undo before any write lands: the tab is back, its list was never gone.
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    await expectMine1Back(w)
+    expect(ws().writeFailed).toBe(false)
+  })
+
+  it('Retry lands and deletes the list; Undo of the closed tab brings back the tab and its list; Redo removes both', async () => {
+    const w = await world()
+    failNextWrite()
+    ws().closeTab('m1')
+    await settled()
+    expect(await ws().retryWrite()).toBe(true)
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    expect(storeListIds()).not.toContain(w.mine1)
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    await expectMine1Back(w)
+    expect(layoutListRefs(await stored(w.a)).has(w.mine1)).toBe(true)
+    await redo()
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    expect(tabIds()).toEqual(['s', 'm2', 'e'])
+    await undo()
+    await expectMine1Back(w)
+  })
+
+  it('a later edit lands and deletes the list; undoing both steps brings back the tab and its list', async () => {
+    const w = await world()
+    failNextWrite()
+    ws().closeTab('m1')
+    await settled()
+    ws().splitCell('k-A', 'right')
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    expect(ws().writeFailed).toBe(false)
+    expect(undoNames()).toEqual(['Closed tab “Mine 1”', 'Split cell'])
+    // The split's undo: the list isn't its to bring back (its tab is still closed).
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm2', 'e'])
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    await expectMine1Back(w)
+    // And forward again: each step removes what it removed.
+    await redo()
+    await redo()
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    await undo()
+    await undo()
+    await expectMine1Back(w)
+  })
+
+  it('a later edit that closes another list: each Undo brings back its own list', async () => {
+    const w = await world()
+    failNextWrite()
+    ws().closeTab('m1')
+    await settled()
+    ws().closeTab('m2')
+    expect(await storedListIds()).toEqual([w.saved, w.theirs])
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm2', 'e'])
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs])
+    await expectMine1Back(w)
+  })
+
+  it('leaving the layout writes it (the list goes); back on it, Undo brings the list back', async () => {
+    const w = await world()
+    failNextWrite()
+    ws().closeTab('m1')
+    await settled()
+    await ws().load(w.b)
+    expect(ws().activeLayoutId).toBe(w.b)
+    expect(await storedListIds()).not.toContain(w.mine1)
+    await ws().load(w.a)
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    await expectMine1Back(w)
+  })
+
+  it('a Redo whose write fails: once a write lands, Undo still brings the list back', async () => {
+    const w = await world()
+    ws().closeTab('m1')
+    await settled()
+    await undo()
+    await settled()
+    failNextWrite()
+    await redo()
+    await settled()
+    expect(ws().writeFailed).toBe(true)
+    expect(await storedListIds()).toContain(w.mine1)
+    expect(await ws().retryWrite()).toBe(true)
+    expect(await storedListIds()).not.toContain(w.mine1)
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    await expectMine1Back(w)
+  })
+
+  it('an Undo whose write fails (of an added list tab): once a write lands, Redo brings the tab back with its list', async () => {
+    const w = await world()
+    const fresh = await useListDefinitionStore.getState().add({ name: 'New here', owner: { layoutId: w.a } })
+    const tabId = ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: fresh })!
+    await settled()
+    failNextWrite()
+    await undo()
+    await settled()
+    expect(ws().writeFailed).toBe(true)
+    expect(tabIds()).not.toContain(tabId)
+    expect(await storedListIds()).toContain(fresh)
+    expect(await ws().retryWrite()).toBe(true)
+    expect(await storedListIds()).not.toContain(fresh)
+    await redo()
+    expect(tabIds()).toContain(tabId)
+    expect(await storedListIds()).toContain(fresh)
+    expect(storeListIds()).toContain(fresh)
+    expect((await db.listDefinitions.get(fresh))?.name).toBe('New here')
   })
 })
 

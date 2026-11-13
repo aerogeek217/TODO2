@@ -5,6 +5,7 @@ import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-st
 import { createTab, layoutBodyOf, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { registerOpenEditor } from '../../stores/editor-leave'
 import { writeLayoutDraft } from '../../data/draft-storage'
 import { useUndoStore } from '../../stores/undo-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -337,56 +338,8 @@ describe('writes run in the order they were made', () => {
   })
 })
 
-describe('a write that fails', () => {
-  function failWrites() {
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-    return vi.spyOn(layoutRepository, 'putAndPrune').mockRejectedValue(new DOMException('full', 'QuotaExceededError'))
-  }
-
-  it('keeps the edit on screen, says so and marks the layout; Retry writes it', async () => {
-    const [id] = await seedAndInit(twoColumns())
-    const put = failWrites()
-    ws().closeTab('b1')
-    await settleLayoutWrites()
-    expect(ws().writeFailed).toBe(true)
-    expect(picture(ws().working!)).toEqual(['ka'])
-    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn\'t save layout "Daily".', notice: true })
-    expect(picture(await stored(id!))).toEqual(['ka kb'])
-    expect(await ws().retryWrite()).toBe(false)
-    put.mockRestore()
-    expect(await ws().retryWrite()).toBe(true)
-    expect(ws().writeFailed).toBe(false)
-    expect(picture(await stored(id!))).toEqual(['ka'])
-  })
-
-  it('the next edit writes the whole layout, and clears it', async () => {
-    const [id] = await seedAndInit(twoColumns())
-    const put = failWrites()
-    ws().closeTab('a2')
-    await settleLayoutWrites()
-    put.mockRestore()
-    ws().closeTab('b1')
-    await settleLayoutWrites()
-    expect(ws().writeFailed).toBe(false)
-    expect(tabsOf(await stored(id!), 'ka')).toEqual(['a1'])
-    expect(picture(await stored(id!))).toEqual(['ka'])
-  })
-
-  it('leaving the layout tries again first; when that fails too, it stays and says so', async () => {
-    const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B'))
-    const put = failWrites()
-    ws().closeTab('b1')
-    await settleLayoutWrites()
-    await ws().load(b!)
-    expect(ws().activeLayoutId).toBe(a)
-    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn\'t save layout "A". Retry before leaving it, or its last changes are lost.')
-    expect(await ws().createLayout('New')).toBeNull()
-    put.mockRestore()
-    await ws().load(b!)
-    expect(ws().activeLayoutId).toBe(b)
-    expect(picture(await stored(a!))).toEqual(['ka'])
-  })
-})
+// A write that fails: `workspace-write-failures.test.tsx` (every case in one
+// place); undo after one, with a list tab: `layout-owned-lists.test.ts`.
 
 describe('view state', () => {
   it('active tab / row collapse / tab view state persist at once and are no undo step', async () => {
@@ -661,6 +614,154 @@ describe('layouts', () => {
     expect(ws().layouts.map((l) => l.name)).toEqual(['B'])
     expect(await ws().delete(b!)).toBe(false)
     expect(await db.layouts.count()).toBe(1)
+  })
+
+  it('an edit committed just after Delete layout starts does not bring the row back (cr34 D7)', async () => {
+    const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const deleting = ws().delete(a!)
+    ws().closeTab('a2')
+    expect(await deleting).toBe(true)
+    await settleLayoutWrites()
+    expect(await db.layouts.get(a!)).toBeUndefined()
+    expect(await db.layouts.count()).toBe(1)
+    expect(ws().activeLayoutId).toBe(b)
+    expect(ws().layouts.map((l) => l.name)).toEqual(['B'])
+    expect(ws().writeFailed).toBe(false)
+  })
+
+  it('an edit to a layout deleted elsewhere (another browser tab) is not written, says so, and leaves nothing to retry', async () => {
+    const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await db.layouts.delete(a!)
+    ws().closeTab('a2')
+    await settleLayoutWrites()
+    expect(await db.layouts.get(a!)).toBeUndefined()
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Layout "A" was deleted: this change wasn\'t saved.', notice: true })
+    // Not a failed write: nothing could be retried, and leaving it is free.
+    expect(ws().writeFailed).toBe(false)
+    await ws().load(b!)
+    expect(ws().activeLayoutId).toBe(b)
+    expect(await db.layouts.count()).toBe(1)
+  })
+})
+
+describe('an open editor holding changes is asked before the layout is left (cr34 T6, D3)', () => {
+  type Answer = 'save' | 'discard' | 'keep'
+  const NUMBER = cell('kn', [createTab('number', 'u1')], { activeTabId: 'u1' })
+  const withNumber = (name: string): Omit<WorkspaceLayout, 'id'> => ({
+    sortOrder: 0, name, createdAt: T0, modifiedAt: T0, ...grid([[NUMBER]], { colIds: ['A'], rowIds: ['R'] }),
+  })
+  const numberName = (l: LayoutBody | null | undefined) => {
+    const tab = l?.cells.flatMap((c) => c.tabs).find((t) => t.id === 'u1')
+    return tab?.kind === 'number' ? tab.config.name : undefined
+  }
+
+  /**
+   * A widget editor open on the Number with a changed name, as the store
+   * sees it (`registerOpenEditor`): Save writes the name as the editor's
+   * Save does (one config patch) and closes; Discard only closes; Keep
+   * editing stays open.
+   */
+  function openEditor(answer: Answer) {
+    let changed = true
+    const ask = vi.fn(() => {
+      if (answer === 'keep') return Promise.resolve(false)
+      if (answer === 'save') ws().patchTabConfig('u1', 'number', { name: 'Saved by the editor' }, 'Edited number “Open”')
+      changed = false
+      return Promise.resolve(true)
+    })
+    const off = registerOpenEditor({ changed: () => changed, ask })
+    return { ask, off }
+  }
+
+  it('Duplicate layout, Save: the copy holds what the editor saved, and so does the original', async () => {
+    const [orig] = await seedAndInit(withNumber('Daily'))
+    const { ask } = openEditor('save')
+    const copy = await ws().duplicateLayout('Daily copy')
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(copy).not.toBeNull()
+    expect(ws().activeLayoutId).toBe(copy)
+    expect(numberName(ws().working)).toBe('Saved by the editor')
+    expect(numberName(await stored(copy!))).toBe('Saved by the editor')
+    expect(numberName(await stored(orig!))).toBe('Saved by the editor')
+  })
+
+  it('Duplicate layout, Discard: the copy is of the layout as stored', async () => {
+    const [orig] = await seedAndInit(withNumber('Daily'))
+    openEditor('discard')
+    const copy = await ws().duplicateLayout('Daily copy')
+    expect(copy).not.toBeNull()
+    expect(numberName(await stored(copy!))).toBe('Open')
+    expect(numberName(await stored(orig!))).toBe('Open')
+  })
+
+  it('Duplicate layout, Keep editing: nothing happens', async () => {
+    const [orig] = await seedAndInit(withNumber('Daily'))
+    const { ask } = openEditor('keep')
+    expect(await ws().duplicateLayout('Daily copy')).toBeNull()
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(ws().activeLayoutId).toBe(orig)
+    expect(await db.layouts.count()).toBe(1)
+  })
+
+  it.each(['save', 'discard'] as const)('New layout, %s: the new layout opens; the layout left is stored as the answer left it', async (answer) => {
+    const [orig] = await seedAndInit(withNumber('Daily'))
+    const { ask } = openEditor(answer)
+    const id = await ws().createLayout('Planning')
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(id).not.toBeNull()
+    expect(ws()).toMatchObject({ activeLayoutId: id, writeFailed: false })
+    expect(ws().working).toMatchObject({ name: 'Planning', ...emptyBody() })
+    expect(numberName(await stored(orig!))).toBe(answer === 'save' ? 'Saved by the editor' : 'Open')
+  })
+
+  it('New layout, Keep editing: nothing happens', async () => {
+    const [orig] = await seedAndInit(withNumber('Daily'))
+    openEditor('keep')
+    expect(await ws().createLayout('Planning')).toBeNull()
+    expect(ws().activeLayoutId).toBe(orig)
+    expect(await db.layouts.count()).toBe(1)
+  })
+
+  it.each(['save', 'discard'] as const)('Delete of the open layout, %s: it is deleted and the next one opens', async (answer) => {
+    const [a, b] = await seedAndInit(withNumber('A'), twoColumns('B'))
+    const { ask } = openEditor(answer)
+    expect(await ws().delete(a!)).toBe(true)
+    expect(ask).toHaveBeenCalledTimes(1)
+    await settleLayoutWrites()
+    expect(await db.layouts.get(a!)).toBeUndefined()
+    expect(ws().activeLayoutId).toBe(b)
+    expect(ws().layouts.map((l) => l.name)).toEqual(['B'])
+    expect(ws().writeFailed).toBe(false)
+  })
+
+  it('Delete of the open layout, Keep editing: it stays, open and stored', async () => {
+    const [a] = await seedAndInit(withNumber('A'), twoColumns('B'))
+    openEditor('keep')
+    expect(await ws().delete(a!)).toBe(false)
+    expect(ws().activeLayoutId).toBe(a)
+    expect(await db.layouts.count()).toBe(2)
+  })
+
+  it('Delete of another layout asks nothing: the editor’s layout stays on screen', async () => {
+    const [a, b] = await seedAndInit(withNumber('A'), twoColumns('B'))
+    const { ask } = openEditor('keep')
+    expect(await ws().delete(b!)).toBe(true)
+    expect(ask).not.toHaveBeenCalled()
+    expect(ws().activeLayoutId).toBe(a)
+  })
+
+  it('a layout switch: Keep editing stays; Save switches with the change stored', async () => {
+    const [a, b] = await seedAndInit(withNumber('A'), twoColumns('B'))
+    const kept = openEditor('keep')
+    await ws().load(b!)
+    expect(ws().activeLayoutId).toBe(a)
+    kept.off()
+    openEditor('save')
+    await ws().load(b!)
+    expect(ws().activeLayoutId).toBe(b)
+    expect(numberName(await stored(a!))).toBe('Saved by the editor')
   })
 })
 
