@@ -57,7 +57,7 @@ import type { TodoPredicate } from '../models/filter-predicate'
 import { emptyPredicate } from '../models/filter-predicate'
 import { isRecord } from '../utils/is-record'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
-import { isCellEdge, normalizeGrid, validateTiling } from '../utils/workspace-grid'
+import { normalizeGrid, validateTiling } from '../utils/workspace-grid'
 import { closeCell } from '../utils/workspace-layout-ops'
 
 /**
@@ -89,9 +89,22 @@ const MAX_ID_LEN = 100
  * holding more (one a hand edit or a hostile file made, which would leave
  * the app unable to show the workspace on every launch) still loads — the
  * parts past the limit are dropped by `pickLayoutBody` and reported, never a
- * failed import (`checkLayoutBody` doesn't count them).
+ * failed import (`checkLayoutBody` doesn't count them, nor check such a
+ * table's tiling) — up to ten times as many parts in all: a layout past
+ * that the import refuses before it reads it (`layout-size`).
  */
 export const LAYOUT_PART_LIMIT = 1000
+
+/**
+ * How much closing the cells a repair emptied may cost, as cells emptied ×
+ * cells × grid lines (closing one cell walks every line against every
+ * cell): within it each closes (`closeCell`), past it they all stay as
+ * empty cells. Any layout built by hand is far within it — 100 cells over
+ * 40 lines may lose every tab —; a layout of a thousand cells whose tabs
+ * were all of an unknown kind took seconds to close one by one (and the
+ * import now repairs such a row, cr34).
+ */
+export const LAYOUT_CLOSE_WORK_MAX = 2_000_000
 
 type Obj = Record<string, unknown>
 
@@ -425,10 +438,21 @@ export function checkLayoutBody(body: RawLayoutBody): true | string {
     if (tabs !== true) return tabs
   }
   const table = { grid: grid as unknown as LayoutBody['grid'], cells: body.cells as LayoutCell[] }
+  // Past the part limit the table isn't checked: the repair drops the parts
+  // past it and restacks the rest whatever it was (`pickLayoutBody`), and
+  // the tiling check takes time with the square of the cells.
+  if (table.cells.length > LAYOUT_PART_LIMIT || table.grid.columns.length > LAYOUT_PART_LIMIT || table.grid.rows.length > LAYOUT_PART_LIMIT) return true
   if (validateTiling(table) !== true) return 'cells'
+  // Every inner line is some cell's edge: the cells' edges collected once, then each line looked up.
   for (const axis of ['columns', 'rows'] as const) {
+    const edges = new Set<number>()
+    for (const c of table.cells) {
+      const start = axis === 'columns' ? c.area.col : c.area.row
+      edges.add(start)
+      edges.add(start + (axis === 'columns' ? c.area.colSpan : c.area.rowSpan))
+    }
     for (let line = 1; line < table.grid[axis].length; line++) {
-      if (!isCellEdge(table, axis, line)) return `grid.${axis}`
+      if (!edges.has(line)) return `grid.${axis}`
     }
   }
   return true
@@ -494,7 +518,8 @@ interface PickedCell {
  * or a chart's — is cut to it, never reset (`tab name shortened`); a bad
  * `activeTabId` / `collapsed` is dropped; a
  * cell whose every tab was dropped closes (`closeCell`: a neighbour takes
- * its space, or it stays empty); an inner line no cell's edge lies on goes
+ * its space, or it stays empty — as they all do when closing them would
+ * cost past `LAYOUT_CLOSE_WORK_MAX`); an inner line no cell's edge lies on goes
  * (`normalizeGrid`). When the cells don't tile the grid any more (a bad
  * area, a dropped track or cell), the grid is rebuilt: every cell kept, in
  * its old reading order, stacked in one column (`restacked`).
@@ -748,8 +773,10 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     if (picked.length > 0) fix('rebuilt')
     else if (columns.length > 0 || rows.length > 0) fix('grid')
   }
-  // A cell the repair emptied closes; a line no cell's edge lies on goes.
-  for (const p of picked) if (p.emptied) table = closeCell(table, p.cell.id)
+  // A cell the repair emptied closes (while that stays cheap: `LAYOUT_CLOSE_WORK_MAX`); a line no cell's edge lies on goes.
+  const emptied = picked.filter((p) => p.emptied)
+  const closeWork = emptied.length * table.cells.length * (table.grid.columns.length + table.grid.rows.length)
+  if (closeWork <= LAYOUT_CLOSE_WORK_MAX) for (const p of emptied) table = closeCell(table, p.cell.id)
   const lines = table.grid.columns.length + table.grid.rows.length
   const normal = normalizeGrid(table)
   const merged = lines - (normal.grid.columns.length + normal.grid.rows.length)
