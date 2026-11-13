@@ -393,7 +393,9 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296
     }
     const pick = <T,>(list: readonly T[]): T => list[Math.floor(random() * list.length)]!
-    const JUNK: unknown[] = [null, undefined, 'x', '', -1, 0, 1, 2, 1.5, Infinity, true, [], {}, ['do'], { due: false }, 't1', 'c2', 'k1']
+    // With names of `Object.prototype` members: as an id they are bad ids (cr34 S2).
+    const JUNK: unknown[] = [null, undefined, 'x', '', -1, 0, 1, 2, 1.5, Infinity, true, [], {}, ['do'], { due: false }, 't1', 'c2', 'k1',
+      'constructor', '__proto__', 'toString', 'hasOwnProperty']
 
     /** Every (container, key) pair in a JSON tree. */
     const slots = (node: unknown, out: Array<[Record<string, unknown> | unknown[], string | number]> = []) => {
@@ -420,6 +422,83 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
       expect(validateRow('layouts', repaired), `case ${i}: ${JSON.stringify(row)}`).toBe(true)
       if (validateRow('layouts', row) === true) expect(rowFixes('layouts', row), `case ${i}`).toEqual([])
       else expect(rowFixes('layouts', row).length, `case ${i}: ${JSON.stringify(row)}`).toBeGreaterThan(0)
+      // No part of a repaired layout is named as a member of `Object.prototype`.
+      expect(partIds(repaired as WorkspaceLayout).filter((id) => id in Object.prototype), `case ${i}`).toEqual([])
+    }
+  })
+})
+
+/** Every track, cell and tab id of a layout. */
+function partIds(layout: Pick<WorkspaceLayout, 'grid' | 'cells'>): string[] {
+  return [
+    ...layout.grid.columns.map((t) => t.id),
+    ...layout.grid.rows.map((t) => t.id),
+    ...layout.cells.flatMap((c) => [c.id, ...c.tabs.map((t) => t.id)]),
+  ]
+}
+
+describe('an id naming a member of Object.prototype is no id (cr34 S2)', () => {
+  // `JSON.parse` makes `__proto__` an own property, as a file would hold it.
+  const KEYS = ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf', 'isPrototypeOf', '__defineGetter__']
+  const twoTabs = (id: string) => layoutRow(oneTab({ id, kind: 'breakdown', config: { name: 'B', filter: {}, splitBy: 'people', style: 'bars', show: 'count', showNone: true } }))
+  const withSecond = (row: Record<string, unknown>) => {
+    ;(row.cells as Array<{ tabs: unknown[] }>)[0]!.tabs.push(notes('t2'))
+    return row
+  }
+
+  it.each(KEYS)('a tab named %s is refused by the check and dropped by the repair, the tab beside it kept', (id) => {
+    const row = withSecond(twoTabs(id))
+    expect(validateRow('layouts', row)).toBe('cells[0].tabs[0].id')
+    expect(rowFixes('layouts', row)).toEqual(['tab dropped'])
+    const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
+    expect(repaired.cells[0]!.tabs.map((t) => t.id)).toEqual(['t2'])
+    // The import repairs it too, with a warning.
+    const res = validateImportData({ todos: [], settings: [], layouts: [row] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.warnings).toEqual(['Fixed 1 layout: "Daily" (tab dropped)'])
+    expect(partIds(res.data.layouts[0]!)).toEqual(['c', 'r', 'k', 't2'])
+  })
+
+  it.each(KEYS)('a cell or a track named %s is refused by the check; the repair keeps what is left', (id) => {
+    const cellRow = layoutRow(twoCells({}, [
+      { id, area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [notes('t1')] },
+      { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [notes('t2')] },
+    ]))
+    expect(validateRow('layouts', cellRow)).toBe('cells[0].id')
+    expect(partIds(sanitizeRow('layouts', cellRow) as WorkspaceLayout).filter((p) => p in Object.prototype)).toEqual([])
+    expect((sanitizeRow('layouts', cellRow) as WorkspaceLayout).cells.map((c) => c.id)).toEqual(['k2'])
+
+    const trackRow = layoutRow(twoCells({ columns: [{ id, weight: 500 }, { id: 'c2', weight: 500 }] }))
+    expect(validateRow('layouts', trackRow)).toBe('grid.columns[0].id')
+    const repaired = sanitizeRow('layouts', trackRow) as WorkspaceLayout
+    expect(partIds(repaired).filter((p) => p in Object.prototype)).toEqual([])
+    // Both cells are kept (restacked: the grid lost a track).
+    expect(repaired.cells.map((c) => c.id)).toEqual(['k1', 'k2'])
+    expect(validateRow('layouts', JSON.parse(JSON.stringify(repaired)))).toBe(true)
+  })
+
+  it('an active tab named so is a setting reset; an ordinary id is untouched', () => {
+    const row = layoutRow(oneTab(notes('t'), { activeTabId: 'constructor' }))
+    expect(validateRow('layouts', row)).toBe('cells[0].activeTabId')
+    expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+    expect(validateRow('layouts', layoutRow(oneTab(notes('constructors'))))).toBe(true)
+    expect(validateRow('layouts', layoutRow(oneTab(notes('w-a1b2c3d4'))))).toBe(true)
+  })
+
+  it('a Breakdown’s count column and a sort key named so are repaired: the column a new id, the sort dropped', () => {
+    const column = (id: string) => ({ id, name: 'A', color: '#7ec4bc', filter: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {} }, litWhen: 'never' })
+    const config = { name: 'B', filter: column('x').filter, splitBy: 'people', style: 'bars', show: 'count', showNone: true }
+    for (const id of ['constructor', '__proto__', 'toString']) {
+      const row = layoutRow(oneTab({ id: 't', kind: 'breakdown', config: { ...config, columns: [column(id)] }, viewState: { sorts: { people: { by: id } } } }))
+      expect(validateRow('layouts', row)).toBe('cells[0].tabs[0].config.columns')
+      const tab = (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0]!
+      const columns = (tab.config as { columns: Array<{ id: string }> }).columns
+      expect(columns).toHaveLength(1)
+      expect(columns[0]!.id).toMatch(/^col-/)
+      expect(tab.viewState).toBeUndefined()
+      const pivot = layoutRow(oneTab({ id: 't', kind: 'pivot', config: { name: 'P', filter: config.filter, rows: 'people', cols: 'status' }, viewState: { sort: { by: id } } }))
+      expect(validateRow('layouts', pivot)).toBe('cells[0].tabs[0].viewState.sort')
+      expect((sanitizeRow('layouts', pivot) as WorkspaceLayout).cells[0]!.tabs[0]!.viewState).toBeUndefined()
     }
   })
 })

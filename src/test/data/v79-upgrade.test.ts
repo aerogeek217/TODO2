@@ -263,6 +263,30 @@ describe('v79 leftovers: the Eisenhower’s list and rows, the Default list zoom
     expect(upgradeLeftoversV79({ settings: [{ key: 'rowDensity', value: 'comfortable' }] }).settings).toEqual([{ key: 'rowDensity', value: 'stacked' }])
     expect(upgradeLeftoversV79({ settings: [{ key: 'rowDensity', value: 'compact' }] }).settings).toEqual([{ key: 'rowDensity', value: 'rows' }])
   })
+
+  it('names of Object.prototype members are no old value and no id it knows: left as they are (cr34 S2)', () => {
+    // A zoom value naming one is no old level: the row passes through (for validation), never a function as its value.
+    for (const value of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      const data = { settings: [{ key: 'rowDensity', value }] }
+      expect(upgradeLeftoversV79(data)).toBe(data)
+    }
+    // A sort by one names no older derived column: dropped, as any sort by a column the Breakdown lacks.
+    const sorted = (by: string) => one({ id: 'b', kind: 'breakdown', config: { name: 'B', columns: [] }, viewState: { sorts: { people: { by }, tags: { by: 'name' } } } })
+    for (const by of ['constructor', '__proto__', 'valueOf']) {
+      expect(tabOf(layoutV79Of(sorted(by))).viewState).toEqual({ sorts: { tags: { by: 'name' } } })
+    }
+    // Tab, cell and track ids named so go through the tab walk untouched: a kept tab stays, a removed kind's goes.
+    const row = layout({
+      grid: { columns: [{ id: 'toString', weight: 500 }, { id: 'valueOf', weight: 500 }], rows: [{ id: 'hasOwnProperty', weight: 1000 }] },
+      cells: [
+        { id: 'constructor', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [raw({ id: '__proto__', kind: 'notes', config: {} })] },
+        { id: 'isPrototypeOf', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [raw({ id: 'propertyIsEnumerable', kind: 'eisenhower', config: {} })] },
+      ],
+    } as LayoutBody)
+    const out = layoutV79Of(row) as unknown as LayoutBody
+    expect(out.cells.map((c) => [c.id, c.tabs.map((t) => t.id)])).toEqual([['constructor', ['__proto__']]])
+    expect(out.grid).toEqual({ columns: [{ id: 'toString', weight: 1000 }], rows: [{ id: 'hasOwnProperty', weight: 1000 }] })
+  })
 })
 
 describe('v79: the contract', () => {

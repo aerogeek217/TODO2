@@ -95,9 +95,17 @@ export const LAYOUT_PART_LIMIT = 1000
 
 type Obj = Record<string, unknown>
 
-/** A layout part's id (a track, cell or tab) as stored. */
+/**
+ * A layout part's id (a track, cell or tab) as stored: text of 1 –
+ * `MAX_ID_LEN` characters that names no member of `Object.prototype`
+ * (`constructor`, `toString`, `__proto__`, …). Ids key plain records — a
+ * tab's editor preview, its prompt picks, its collapsed groups —, where such
+ * a name read the inherited member and four widget kinds threw in render
+ * (cr34 S2). It is a bad id like any other: the check rejects it and the
+ * repair drops its part.
+ */
 export function isId(v: unknown): v is string {
-  return typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LEN
+  return typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LEN && !(v in Object.prototype)
 }
 
 /**

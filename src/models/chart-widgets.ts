@@ -235,9 +235,14 @@ export interface BreakdownViewState {
 
 const COLUMN_ID = /^[A-Za-z0-9_-]{1,40}$/
 
-/** A count column's stored id (or a sort key naming one): short word characters, never a fixed heading's key. */
+/** A key that names a member of `Object.prototype` (`constructor`, `__proto__`, …): never an id — ids key plain records. */
+function isPrototypeKey(v: string): boolean {
+  return v in Object.prototype
+}
+
+/** A count column's stored id (or a sort key naming one): short word characters, never a fixed heading's key nor a prototype member's name. */
 export function isBreakdownColumnId(v: unknown): v is string {
-  return typeof v === 'string' && COLUMN_ID.test(v) && !includes(BREAKDOWN_FIXED_SORT_KEYS, v)
+  return typeof v === 'string' && COLUMN_ID.test(v) && !includes(BREAKDOWN_FIXED_SORT_KEYS, v) && !isPrototypeKey(v)
 }
 
 /** A stored sort key: a fixed heading's, or a column id. */
@@ -442,7 +447,7 @@ export interface PivotViewState {
 function isPivotSort(v: unknown): v is PivotSort {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
   const { by, reversed, ...rest } = v as Obj
-  return Object.keys(rest).length === 0 && typeof by === 'string' && COLUMN_ID.test(by) && (reversed === undefined || reversed === true)
+  return Object.keys(rest).length === 0 && typeof by === 'string' && COLUMN_ID.test(by) && !isPrototypeKey(by) && (reversed === undefined || reversed === true)
 }
 
 /** Where a stored Pivot view state goes wrong: the bad key, or `null`. */

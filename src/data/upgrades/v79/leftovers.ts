@@ -92,7 +92,10 @@ function upgradeSettings(data: DataSet): DataSet {
       changed = true
       continue
     }
-    const zoom = isRecord(row) && row.key === 'rowDensity' && typeof row.value === 'string' ? ZOOM_SETTING[row.value] : undefined
+    // An own key only: a value naming an `Object.prototype` member (`constructor`) is no old level.
+    const zoom = isRecord(row) && row.key === 'rowDensity' && typeof row.value === 'string' && Object.hasOwn(ZOOM_SETTING, row.value)
+      ? ZOOM_SETTING[row.value]
+      : undefined
     if (zoom) {
       changed = true
       next.push({ ...row, value: zoom })
