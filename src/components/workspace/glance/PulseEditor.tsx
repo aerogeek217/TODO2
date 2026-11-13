@@ -88,7 +88,9 @@ const RULE_COPY: Record<PulseRuleKey, { title: string; hint: string; addLabel: s
  * over a card's open tasks. Left as its default, Late shows its default
  * filter (`overdue`) — its first edit writes it as the rule's — and Stale
  * says it follows Settings, with Use a filter (the filter that keeps the
- * same tasks); a filter of its own offers Use the default.
+ * same tasks — or, while Settings' fading is off and no task is stale, one
+ * that starts at the default threshold, the link saying so); a filter of its
+ * own offers Use the default.
  */
 function RuleField({ ruleKey, config, write }: {
   ruleKey: PulseRuleKey
@@ -134,12 +136,14 @@ function RuleField({ ruleKey, config, write }: {
         <span className={styles.hint} data-testid="pulse-stale-default">
           {staleAfterDays > 0 ? `Follows Settings: untouched ${staleAfterDays} ${staleAfterDays === 1 ? 'day' : 'days'}` : 'Follows Settings: fading is off, so no task is stale'}
         </span>
+        {/* With fading on, the filter keeps the same tasks. With it off no task is stale and no filter says that, so the
+            link says where its filter starts — the counts change from 0 (cr34 G12). */}
         <button
           type="button"
           className={styles.addColumn}
           onClick={() => write(ruleKey, name, pulseStaleFilterFor(staleAfterDays > 0 ? staleAfterDays : DEFAULT_STALE_AFTER_DAYS))}
         >
-          Use a filter
+          {staleAfterDays > 0 ? 'Use a filter' : `Use a filter (starts at untouched ${DEFAULT_STALE_AFTER_DAYS} days)`}
         </button>
       </>
     )

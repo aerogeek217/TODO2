@@ -202,4 +202,24 @@ describe('the editor', () => {
     fireEvent.click(within(editor()).getByRole('button', { name: 'Close' }))
     expect(document.querySelector('[data-pulse-editor]')).toBeNull()
   })
+
+  it('Stale with fading off: Use a filter says where it starts, since the count then changes from 0 (cr34 G12)', () => {
+    useSettingsStore.setState({ staleAfterDays: 0 })
+    setup(pulse())
+    expect(count('stale')).toBe('0 stale')
+    open()
+    // No plain "Use a filter" that would change the count unannounced.
+    expect(within(rule('stale')).queryByRole('button', { name: 'Use a filter' })).toBeNull()
+    fireEvent.click(within(rule('stale')).getByRole('button', { name: 'Use a filter (starts at untouched 30 days)' }))
+    // The draft's filter, drawn live: the 30-day threshold's task; nothing written until Save.
+    expect(count('stale')).toBe('1 stale')
+    expect(current().config).toEqual({ tagIds: [1] })
+    save()
+    expect(current().config.stale).toEqual({ name: 'stale', filter: pulseStaleFilterFor(30) })
+    // With fading on the link is plain: its filter keeps the same tasks.
+    act(() => { useWorkspaceStore.getState().patchTabConfig('p', 'pulse', { stale: undefined }) })
+    act(() => { useSettingsStore.setState({ staleAfterDays: 14 }) })
+    open()
+    expect(within(rule('stale')).getByRole('button', { name: 'Use a filter' })).not.toBeNull()
+  })
 })
