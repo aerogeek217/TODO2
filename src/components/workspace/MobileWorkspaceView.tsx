@@ -11,8 +11,9 @@ import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { isFitCell } from '../../utils/workspace-rows'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
-import { smallFaceClick, useCellFace } from './cell-face'
+import { smallFaceClick, useCellFace, useHeldBodyHeight } from './cell-face'
 import { SmallFaceOpener } from './CellFaceParts'
+import { OpenLargerPlaceholder } from './OpenLargerPlaceholder'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { DialogFrame } from '../shared/Dialog'
@@ -291,6 +292,8 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
     heightFree: !fill,
   })
   const smallFace = cellFace.face === 'small' && !collapsed
+  // A cell sized to its content: the placeholder (its widget open larger) keeps the height the widget had, so the page doesn't move.
+  const [setHeldBody, heldHeight] = useHeldBodyHeight(active?.id, !fill || fitRow)
   /** A glance cell with tabs (a glance widget, or any at its small face): a slim header. */
   const compact = stripShown && active != null && (isGlanceKind(active.kind) || cellFace.face === 'small')
   const activeId = active?.id
@@ -390,6 +393,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
           className={styles.cellBody}
           role={stripShown ? 'tabpanel' : undefined}
           aria-labelledby={stripShown ? `ws-tab-${active.id}` : undefined}
+          ref={setHeldBody}
           data-ws-cell-body={cell.id}
           data-kind={active.kind}
           onClick={collapsed ? undefined : smallFaceClick(cellFace)}
@@ -397,11 +401,16 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
           {smallFace && cellFace.opensLarger && <SmallFaceOpener title={activeTitle} open={cellFace.open} onOpen={cellFace.openLarger} />}
           <CellControlsContext.Provider value={controls}>
             <WidgetFaceContext.Provider value={cellFace.host}>
-              <WidgetBody
-                key={active.id}
-                tab={active}
-                onResult={(result) => setLens({ tabId: active.id, result })}
-              />
+              {cellFace.open ? (
+                // The popup shows this tab: its one live widget is there.
+                <OpenLargerPlaceholder tabId={active.id} title={activeTitle} compact={smallFace} minHeight={heldHeight} />
+              ) : (
+                <WidgetBody
+                  key={active.id}
+                  tab={active}
+                  onResult={(result) => setLens({ tabId: active.id, result })}
+                />
+              )}
             </WidgetFaceContext.Provider>
           </CellControlsContext.Provider>
         </div>

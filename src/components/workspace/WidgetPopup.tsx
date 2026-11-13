@@ -35,10 +35,29 @@ const CELL_FOCUS_TARGETS = [
   '[data-cell-controls] button[aria-label="Cell options"]',
 ]
 
-function focusTabCell(tabId: string): void {
-  const cell = document.querySelector(`[data-ws-cell] [data-ws-tab="${CSS.escape(tabId)}"]`)?.closest('[data-ws-cell]')
+/** The cell showing tab `tabId` as its active widget (its top line or its tab stands for it). */
+function tabCell(tabId: string): Element | null {
+  return document.querySelector(`[data-ws-cell] [data-ws-tab="${CSS.escape(tabId)}"]`)?.closest('[data-ws-cell]') ?? null
+}
+
+/**
+ * The button of the tab's cell that had the focus when the popup opened, by
+ * its name (`Open larger`, `Cell options`): the cell's widget is away while
+ * the popup shows its tab (`OpenLargerPlaceholder`), so a button in the
+ * widget's top line is another element once it is back.
+ */
+function cellOpenerName(tabId: string): string | null {
+  const el = document.activeElement
+  if (!(el instanceof HTMLButtonElement)) return null
+  const cell = el.closest('[data-ws-cell]')
+  return cell != null && cell === tabCell(tabId) ? el.getAttribute('aria-label') : null
+}
+
+function focusTabCell(tabId: string, openerName: string | null): void {
+  const cell = tabCell(tabId)
   if (!cell) return
-  for (const selector of CELL_FOCUS_TARGETS) {
+  const targets = openerName != null ? [`button[aria-label="${CSS.escape(openerName)}"]`, ...CELL_FOCUS_TARGETS] : CELL_FOCUS_TARGETS
+  for (const selector of targets) {
     const el = cell.querySelector<HTMLElement>(selector)
     if (el) {
       el.focus({ preventScroll: true })
@@ -108,15 +127,18 @@ function WidgetPopup({ tab }: { tab: LayoutTab }) {
     [isMobile, tab.kind],
   )
   const tabId = tab.id
-  // The focus back to the tab's cell when what opened the popup is gone (a menu item): after the frame's own return.
+  // What opened it, read before the cell swaps its widget for the placeholder.
+  const [openerName] = useState(() => cellOpenerName(tabId))
+  // The focus back to the tab's cell when what opened the popup is gone (a menu item, a button of the
+  // cell's widget — mounted again by now): after the frame's own return.
   useEffect(() => () => {
     window.setTimeout(() => {
       // The page is gone by now (the popup closed with it): nothing to focus.
       if (typeof document === 'undefined') return
       const active = document.activeElement
-      if (active == null || active === document.body || !active.isConnected) focusTabCell(tabId)
+      if (active == null || active === document.body || !active.isConnected) focusTabCell(tabId, openerName)
     }, 0)
-  }, [tabId])
+  }, [tabId, openerName])
   return (
     <DialogFrame
       onClose={closeWidgetPopup}

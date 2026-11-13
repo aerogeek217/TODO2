@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import type { LayoutTab } from '../../models/workspace-layout'
 import type { WidgetFaceHost } from '../../hooks/use-widget-face'
 import { openWidgetLarger } from '../../services/widget-popup'
-import { useUIStore } from '../../stores/ui-store'
+import { useUIStore, type WidgetPopupTarget } from '../../stores/ui-store'
 import { tabOpensLarger, type WidgetFace } from '../../utils/widget-face'
 
 /**
@@ -29,7 +29,10 @@ export interface CellFace {
   host: WidgetFaceHost
   /** The widget offers Open larger at this face (`tabOpensLarger`: a Number only where its large face adds something). */
   opensLarger: boolean
-  /** The widget is open in the popup. */
+  /**
+   * The widget is open in the popup — the tab's one live widget is there, and
+   * the cell shows `OpenLargerPlaceholder` in its place (cr34 H1).
+   */
   open: boolean
   /** Opens it in the popup. */
   openLarger: () => void
@@ -59,6 +62,34 @@ export function useCellFace(tab: LayoutTab | undefined, opts: CellFaceOptions): 
     [forced, heightFree, onFace, opensLarger, openLarger],
   )
   return { face, host, opensLarger, open, openLarger }
+}
+
+const showsTab = (popup: WidgetPopupTarget | null, tabId: string): boolean => popup?.kind === 'tab' && popup.tabId === tabId
+
+/**
+ * The height a cell's body had at the moment the popup took its tab `tabId`
+ * (the cell then shows `OpenLargerPlaceholder` in its widget's place), for
+ * the placeholder's `minHeight` — where the body's height is its content's
+ * (`enabled`: a fit row, a phone cell that isn't a page), so the row and the
+ * page keep their size while the widget is away. Returns the body's ref and
+ * the height (undefined: not measured, or not `enabled`).
+ *
+ * Measured in the store's own notification, which runs before React renders
+ * the change: the widget is still in the body then.
+ */
+export function useHeldBodyHeight(tabId: string | undefined, enabled: boolean): [(el: HTMLElement | null) => void, number | undefined] {
+  const bodyRef = useRef<HTMLElement | null>(null)
+  const setBody = useCallback((el: HTMLElement | null) => { bodyRef.current = el }, [])
+  const [held, setHeld] = useState<{ tabId: string; height: number } | null>(null)
+  useEffect(() => {
+    if (!enabled || tabId == null) return undefined
+    return useUIStore.subscribe((s, prev) => {
+      if (s.widgetPopup === prev.widgetPopup || !showsTab(s.widgetPopup, tabId) || showsTab(prev.widgetPopup, tabId)) return
+      const height = bodyRef.current?.offsetHeight ?? 0
+      setHeld(height > 0 ? { tabId, height } : null)
+    })
+  }, [enabled, tabId])
+  return [setBody, enabled && held != null && held.tabId === tabId ? held.height : undefined]
 }
 
 /**
