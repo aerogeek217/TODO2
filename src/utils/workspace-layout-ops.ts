@@ -14,6 +14,7 @@ import {
 import {
   cellById,
   crossAxis,
+  expandOrphanRows,
   neighbours,
   normalizeGrid,
   rectOf,
@@ -157,7 +158,9 @@ function sideTakers(layout: LayoutBody, cell: LayoutCell, side: Side): LayoutCel
  * cover that whole edge (`sideTakers`, the sides in the same order), which
  * all grow across it; with none of those either (the centre of a pinwheel),
  * the cell stays as an empty cell (no tabs). The same layout for an unknown
- * cell, or an empty one with no taker.
+ * cell, or an empty one with no taker. A collapsed row the close leaves
+ * with no filled cell lying only in it expands (`expandOrphanRows`, as
+ * `normalizeGrid` does it).
  */
 export function closeCell<L extends LayoutBody>(layout: L, cellId: string): L {
   const cell = cellById(layout, cellId)
@@ -174,7 +177,7 @@ export function closeCell<L extends LayoutBody>(layout: L, cellId: string): L {
     return normalizeGrid(setCell(grown, cellId, null))
   }
   if (cell.tabs.length === 0) return layout
-  return setCell(layout, cellId, withStrip(cell, { tabs: [] }))
+  return expandOrphanRows(setCell(layout, cellId, withStrip(cell, { tabs: [] })))
 }
 
 /**
@@ -751,14 +754,21 @@ function updateTab<L extends LayoutBody>(layout: L, tabId: string, fn: (tab: Lay
   return setCell(layout, cell.id, withStrip(cell, { ...stripOf(cell), tabs, ...(cell.activeTabId === tab.id ? { activeTabId: next.id } : {}) }))
 }
 
-/** View state: collapse / expand a row track (by id). Column tracks don't collapse. */
+/**
+ * View state: collapse / expand a row track (by id). Column tracks don't
+ * collapse. Collapse row sets every track a cell covers, one call each, so
+ * a collapse is taken as it is; an expand also expands any collapsed row it
+ * leaves with nothing to expand it (`expandOrphanRows`): a cell that was
+ * folded over this track and another now reaches into an expanded row.
+ */
 export function setTrackCollapsed<L extends LayoutBody>(layout: L, trackId: string, collapsed: boolean): L {
   const idx = layout.grid.rows.findIndex((t) => t.id === trackId)
   const track = layout.grid.rows[idx]
   if (!track || (track.collapsed === true) === collapsed) return layout
   const { collapsed: _drop, ...rest } = track
   void _drop
-  return withTracks(layout, 'rows', replaceAt(layout.grid.rows, idx, collapsed ? { ...rest, collapsed: true } : rest))
+  const next = withTracks(layout, 'rows', replaceAt(layout.grid.rows, idx, collapsed ? { ...rest, collapsed: true } : rest))
+  return collapsed ? next : expandOrphanRows(next)
 }
 
 /** The row tracks a cell covers (its ids, top to bottom). */

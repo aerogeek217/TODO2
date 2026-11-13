@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { createTab, type LayoutBody, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { edgeBetween, edgeStretches, isNormalized, lineCrossings, validateTiling, wholeLine, type Side } from '../../utils/workspace-grid'
+import { edgeBetween, edgeStretches, isNormalized, lineCrossings, orphanCollapsedRows, validateTiling, wholeLine, type Side } from '../../utils/workspace-grid'
 import { findTab, getTab, layoutIds, layoutStructureEqual, layoutStructureKey, panelOfTab } from '../../utils/workspace-layout-queries'
 import { countListTabs } from '../../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
 import { rowDrawsFitFaces, trackSizing } from '../../utils/workspace-table'
 import {
   addTab,
+  cellRowTracks,
   closeCell,
   closeTab,
   edgeSnap,
@@ -58,6 +59,16 @@ function expectValid(body: LayoutBody): void {
 }
 
 const tabIdsOf = (body: LayoutBody, cellId: string) => body.cells.find((c) => c.id === cellId)?.tabs.map((t) => t.id)
+
+/** Collapse row, as a cell's menu does it: every row track the cell covers. */
+function collapseRow<L extends LayoutBody>(body: L, cellId: string): L {
+  return cellRowTracks(body, cellId).reduce((next, t) => setTrackCollapsed(next, t.id, true), body)
+}
+
+/** Expand row, as a cell's menu does it: every row track the cell covers. */
+function expandRow<L extends LayoutBody>(body: L, cellId: string): L {
+  return cellRowTracks(body, cellId).reduce((next, t) => setTrackCollapsed(next, t.id, false), body)
+}
 
 describe('splitCell', () => {
   it('splits a one-track cell on each side: its track halves, the cells crossing it span both halves', () => {
@@ -275,6 +286,95 @@ describe('closeTab / extractTab', () => {
     expect(one.cells[0]?.activeTabId).toBe('t1')
     expect(closeTab(base, 't1').cells[0]?.activeTabId).toBe('t2')
     expect(picture(closeTab(base, 'b-t'))).toEqual(['a'])
+  })
+})
+
+describe('a collapsed row expands once no filled cell lies only in it (cr34 M8, W4)', () => {
+  const [p, s, a, b, t1, t2, x] = ['p', 's', 'a', 'b', 't1', 't2', 'x'].map((id) => cell(id)) as [CellSpec, CellSpec, CellSpec, CellSpec, CellSpec, CellSpec, CellSpec]
+  const collapsedRows = (body: LayoutBody) => body.grid.rows.map((t) => t.collapsed === true)
+
+  it('a close or a merge that leaves a collapsed row with no cell of its own expands it (W2)', () => {
+    // p  s
+    // a  b    — Collapse row on `a`: the middle row folds (a and b)
+    // t1 t2
+    const base = collapseRow(layout(grid([[p, s], [a, b], [t1, t2]])), 'a')
+    expect(collapsedRows(base)).toEqual([false, true, false])
+    // Close t1: a, above it, takes its space and reaches into the last row. b still lies only in the folded row.
+    const closed = closeCell(base, 't1')
+    expect(picture(closed)).toEqual(['p s', 'a b', 'a t2'])
+    expect(collapsedRows(closed)).toEqual([false, true, false])
+    expect(isCellCollapsed(closed, 'b')).toBe(true)
+    // Close b: s, above it, takes it. No cell lies only in the folded row any more: it expands.
+    const out = closeCell(closed, 'b')
+    expect(picture(out)).toEqual(['p s', 'a s', 'a t2'])
+    expect(collapsedRows(out)).toEqual([false, false, false])
+    expect(out.grid.rows.map((t) => t.weight)).toEqual([1000, 1000, 1000])
+    expectValid(out)
+    // Merge s with ▸ Below, the same.
+    const merged = mergeCells(closed, 's', 'b')
+    expect(picture(merged)).toEqual(['p s', 'a s', 'a t2'])
+    expect(collapsedRows(merged)).toEqual([false, false, false])
+    expectValid(merged)
+    // Its lines can move again: both row lines have their dividers' stretches, none beside a collapsed track.
+    expect(merged.grid.rows.map((_, i) => trackSizing(merged, 'rows', i).kind)).toEqual(['weighted', 'weighted', 'weighted'])
+  })
+
+  it('an empty cell left alone in a collapsed row: the row expands (W4)', () => {
+    // a e    — `e` an empty cell (Split cell ▸ Right, then Collapse row on `a`)
+    // x x
+    const split = splitCell(layout(grid([[a], [x]])), 'a', 'right', ids('e'))
+    const base = collapseRow(split.layout, 'a')
+    expect(picture(base)).toEqual(['a e2', 'x x'])
+    expect(collapsedRows(base)).toEqual([true, false])
+    const closed = closeCell(base, 'a')
+    expect(picture(closed)).toEqual(['e2', 'x'])
+    expect(collapsedRows(closed)).toEqual([false, false])
+    expectValid(closed)
+    // Its tab moved to another cell: the same.
+    const moved = moveTab(base, 'a-t', { kind: 'cell', cellId: 'x' }, ids())
+    expect(picture(moved)).toEqual(['e2', 'x'])
+    expect(collapsedRows(moved)).toEqual([false, false])
+    expectValid(moved)
+  })
+
+  it('a pinwheel’s centre closed in its own collapsed row stays as an empty cell, the row expanded', () => {
+    // p p s
+    // a b s   — Collapse row on `b`: only it lies in the middle row
+    // a x x
+    const base = collapseRow(layout(grid([[p, p, s], [a, b, s], [a, x, x]])), 'b')
+    expect(collapsedRows(base)).toEqual([false, true, false])
+    const out = closeCell(base, 'b')
+    expect(out.cells.find((c) => c.id === 'b')?.tabs).toEqual([])
+    expect(collapsedRows(out)).toEqual([false, false, false])
+    expectValid(out)
+    expect(closeTab(base, 'b-t')).toEqual(out)
+  })
+
+  it('Expand row on one cell expands a row it leaves with nothing to expand it', () => {
+    // a s
+    // b s    — Collapse row on `s`: both its rows fold, and `a` with them; `b` reaches into the last row
+    // b x
+    const base = collapseRow(layout(grid([[a, s], [b, s], [b, x]])), 's')
+    expect(collapsedRows(base)).toEqual([true, true, false])
+    expect(orphanCollapsedRows(base)).toEqual([])
+    // Expand row on `a`: `s` now reaches into an expanded row, and no cell lies only in the second.
+    const out = expandRow(base, 'a')
+    expect(collapsedRows(out)).toEqual([false, false, false])
+    // With a filled cell of its own, the second row stays folded.
+    const own = collapseRow(layout(grid([[a, s], [t1, s], [b, x]])), 's')
+    expect(collapsedRows(expandRow(own, 'a'))).toEqual([false, true, false])
+  })
+
+  it('a collapsed row keeps its collapse while a filled cell lies only in collapsed rows over it', () => {
+    // a b
+    // a x    — both rows folded: `a` covers both and can expand them
+    const both = collapseRow(layout(grid([[a, b], [a, x]])), 'a')
+    expect(collapsedRows(closeCell(both, 'x'))).toEqual([true])
+    expect(collapsedRows(both)).toEqual([true, true])
+    expect(orphanCollapsedRows(both)).toEqual([])
+    // A structural op elsewhere leaves a held collapse alone.
+    const inserted = insertTrack(both, 'bottom', ids()).layout
+    expect(collapsedRows(inserted)).toEqual([true, true, false])
   })
 })
 
