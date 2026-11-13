@@ -346,12 +346,15 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     ])
   })
 
-  it('a retired Eisenhower tab in a v79 row (v79 dropped every saved one) is an unknown kind: refused by the check, dropped by the repair', () => {
+  it('a retired Eisenhower tab in a v79 row (v79 dropped every saved one) is an unknown kind: refused by the check, dropped by the repair — the import’s too', () => {
     const row = layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { listDefinitionId: 7 }, viewState: { collapsed: 'do' } }))
     expect(validateRow('layouts', row)).toBe('cells[0].tabs[0].kind')
     expect(rowFixes('layouts', row)).toEqual(['tab dropped'])
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })
-    expect(res.ok).toBe(false)
+    if (!res.ok) throw new Error(res.error)
+    // Alone in its layout, the cell it empties has no neighbour to take it: it stays, empty.
+    expect(res.data.layouts[0]!.cells).toEqual([{ id: 'k', area: AREA, tabs: [] }])
+    expect(res.warnings).toEqual(['Fixed 1 layout: "Daily" (tab dropped)'])
   })
 
   it('a list tab’s zoom round-trips with its details width; an unknown one is dropped (the tab opens at the Settings default)', () => {
@@ -417,6 +420,78 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
       expect(validateRow('layouts', repaired), `case ${i}: ${JSON.stringify(row)}`).toBe(true)
       if (validateRow('layouts', row) === true) expect(rowFixes('layouts', row), `case ${i}`).toEqual([])
       else expect(rowFixes('layouts', row).length, `case ${i}: ${JSON.stringify(row)}`).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('the import repairs a layout row instead of refusing the file (cr34 H2, answer 20)', () => {
+  it.each(REJECTED)('imports %s repaired, in a row the schema accepts, with a warning', (_label, row) => {
+    const res = validateImportData({ todos: [{ uid: 'u1', title: 'Kept', isCompleted: false, sortOrder: 0, createdAt: DATE, modifiedAt: DATE }], settings: [], layouts: [row] })
+    if (!res.ok) throw new Error(res.error)
+    // What is written is the repaired shape: it reads back with nothing to fix.
+    const stored = JSON.parse(JSON.stringify(res.data.layouts[0])) as Record<string, unknown>
+    expect(validateRow('layouts', stored)).toBe(true)
+    expect(rowFixes('layouts', stored)).toEqual([])
+    // (A date that doesn't read becomes the moment of the read: not compared.)
+    const undated = (r: Record<string, unknown>) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== 'createdAt' && k !== 'modifiedAt'))
+    expect(undated(stored)).toEqual(undated(JSON.parse(JSON.stringify(sanitizeRow('layouts', row))) as Record<string, unknown>))
+    expect(res.warnings).toHaveLength(1)
+    expect(res.warnings[0]).toMatch(/^Fixed 1 layout: /)
+    expect(res.warnings[0]).toContain(rowFixes('layouts', row).join(', '))
+    // The rest of the file is untouched.
+    expect(res.data.todos.map((t) => t.title)).toEqual(['Kept'])
+  })
+
+  it('a valid layout beside a repaired one is stored as it is; the warning names only the repaired one', () => {
+    const good = layoutRow(EVERY_KIND, { id: 2, name: 'Good' })
+    const bad = layoutRow(oneTab({ id: 't', kind: 'calendar', config: {} }), { name: 'Bad' })
+    const res = validateImportData({ todos: [], settings: [], layouts: [bad, good] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.warnings).toEqual(['Fixed 1 layout: "Bad" (tab or cell settings reset)'])
+    expect(res.data.layouts[1]).toEqual(sanitizeRow('layouts', good))
+    expect(res.data.layouts[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: true } } })
+  })
+
+  it('still refuses a layout row that is no object, one whose id doesn’t read, and a repeated id', () => {
+    const refused = (layouts: unknown[]) => {
+      const res = validateImportData({ todos: [], settings: [], layouts })
+      return res.ok ? null : res.error
+    }
+    expect(refused(['layout'])).toBe('Invalid "layouts" record at index 0: bad field "not an object"')
+    expect(refused([layoutRow(EMPTY, { id: 'one' })])).toBe('Invalid "layouts" record at index 0 ("Daily"): bad field "id"')
+    expect(refused([layoutRow(EMPTY, { id: 1.5 })])).toBe('Invalid "layouts" record at index 0 ("Daily"): bad field "id"')
+    // A bad id beside a part the repair would take is still the id's refusal.
+    expect(refused([layoutRow(oneTab({ id: 't', kind: 'nope', config: {} }), { id: 0 })])).toBe('Invalid "layouts" record at index 0 ("Daily"): bad field "id"')
+    expect(refused([layoutRow(EMPTY), layoutRow(EMPTY, { name: '' })])).toBe('Invalid "layouts" record at index 1 (""): duplicate id 1 (same as index 0)')
+  })
+
+  it('any corruption of a valid layout imports as its repair, with a warning exactly when the check rejects it', () => {
+    let seed = 20261112
+    const random = () => {
+      seed = (seed + 0x6d2b79f5) | 0
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+    const pick = <T,>(list: readonly T[]): T => list[Math.floor(random() * list.length)]!
+    const JUNK: unknown[] = [null, 'x', '', -1, 0, 2, 1.5, true, [], {}, 't1', 'c2', 'k1', 'x'.repeat(300)]
+    const slots = (node: unknown, out: Array<[Record<string, unknown> | unknown[], string | number]> = []) => {
+      if (Array.isArray(node)) node.forEach((v, i) => { out.push([node, i]); slots(v, out) })
+      else if (node && typeof node === 'object') {
+        for (const [k, v] of Object.entries(node)) { out.push([node as Record<string, unknown>, k]); slots(v, out) }
+      }
+      return out
+    }
+    for (let i = 0; i < 500; i++) {
+      const row = JSON.parse(JSON.stringify(layoutRow(EVERY_KIND, { lastUsedAt: DATE }))) as Record<string, unknown>
+      const [container, key] = pick(slots(row).filter(([c, k]) => !(c === row && k === 'id')))
+      const junk = pick(JUNK)
+      ;(container as Record<string | number, unknown>)[key] = junk !== null && typeof junk === 'object' ? JSON.parse(JSON.stringify(junk)) : junk
+      const res = validateImportData({ todos: [], settings: [], layouts: [row] })
+      if (!res.ok) throw new Error(`case ${i}: ${res.error}`)
+      const stored = JSON.parse(JSON.stringify(res.data.layouts[0])) as unknown
+      expect(validateRow('layouts', stored), `case ${i}: ${JSON.stringify(row)}`).toBe(true)
+      expect(res.warnings.length, `case ${i}: ${JSON.stringify(row)}`).toBe(validateRow('layouts', row) === true ? 0 : 1)
     }
   })
 })
