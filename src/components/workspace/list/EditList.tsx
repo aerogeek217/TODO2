@@ -87,9 +87,17 @@ function useEditListModel(listDefinitionId: number, tabId: string, onClose: () =
     mounted.current = true
     return () => { mounted.current = false }
   }, [])
-  const saving = useRef(false)
-  const saveNow = useCallback(() => {
-    if (saving.current) return
+  // The Save being written, as whether it landed.
+  const saving = useRef<Promise<boolean> | null>(null)
+  /**
+   * Writes the draft and closes; resolves whether nothing is left unsaved —
+   * false when the write failed or was held, Edit list then still open with
+   * its draft. The leave question waits on it (`useEditorLeave`), so a Save
+   * answered there (Settings, a layout switch, another editor) that fails
+   * cancels the leave.
+   */
+  const saveNow = useCallback((): Promise<boolean> => {
+    if (saving.current) return saving.current
     // Read now: a field's write on blur lands just before the click that saves.
     const edited = useListDraftStore.getState().drafts[listDefinitionId]
     const lists = useListDefinitionStore.getState()
@@ -99,28 +107,30 @@ function useEditListModel(listDefinitionId: number, tabId: string, onClose: () =
     // Nothing to write (no edit left, the list gone or already so): it just closes.
     if (!edited || !from || !listEditChanges(listDefinitionId, write)) {
       discard()
-      return
+      return Promise.resolve(true)
     }
     // The draft stays until the write has landed: one that fails (the
     // snackbar says so), or that a data replace holds, leaves Edit list open
     // with its edits, to save again. A surface that went meanwhile (the list
     // left the screen, another list's Edit list took its place) took its
     // draft with it — and closing then would close that other one.
-    saving.current = true
     const name = edited.name.trim() || from.name
-    void lists.editList(listDefinitionId, write, `Edited list “${name}”`).then((wrote) => {
-      saving.current = false
+    const run = lists.editList(listDefinitionId, write, `Edited list “${name}”`).then((wrote) => {
+      saving.current = null
       const open = useUIStore.getState().listEditor
       const stillOpen = mounted.current && open?.listDefinitionId === listDefinitionId && open.tabId === tabId
       if (wrote && stillOpen) discard()
+      return wrote
     })
+    saving.current = run
+    return run
   }, [base, listDefinitionId, tabId, discard])
 
   // Changes that leaving would lose: none while a Save is being written (the
   // draft is still there, but it was saved — nothing asks about it again).
   const changedNow = useLatestRef(changed)
   const changedRef = useMemo<RefObject<boolean>>(
-    () => ({ get current() { return changedNow.current && !saving.current } }),
+    () => ({ get current() { return changedNow.current && saving.current == null } }),
     [changedNow],
   )
   const listName = base?.name ?? saved?.name ?? 'List'

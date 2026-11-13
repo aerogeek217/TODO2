@@ -3,7 +3,9 @@ import { render, cleanup, fireEvent, within, screen, act } from '@testing-librar
 import { DndContext } from '@dnd-kit/core'
 import { WorkspaceCell } from '../../../components/workspace/WorkspaceCell'
 import { WidgetPopupHost } from '../../../components/workspace/WidgetPopup'
+import { registerOpenEditor } from '../../../stores/editor-leave'
 import { useUIStore } from '../../../stores/ui-store'
+import { useUndoStore } from '../../../stores/undo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { createTab, type LayoutBody, type LayoutCell, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { makeTodo, resetEntityStores } from '../../helpers'
@@ -262,6 +264,93 @@ describe('the cell menu', () => {
     renderCell(k)
     fireEvent.click(within(gripMenu()).getByRole('menuitem', { name: 'Collapse row' }))
     expect(working().grid.rows[0]?.collapsed).toBe(true)
+  })
+})
+
+describe('an open editor with changes is asked before a tab close, Close cell or Change widget (cr34 answer 17)', () => {
+  /** An editor holding changes, registered as Edit list and the widget editors are; `answer` is what its question resolves. */
+  function dirtyEditor() {
+    const editor = { answer: false, changed: true, ask: vi.fn(() => { if (editor.answer) editor.changed = false; return Promise.resolve(editor.answer) }) }
+    const unregister = registerOpenEditor({ changed: () => editor.changed, ask: editor.ask })
+    return Object.assign(editor, { unregister })
+  }
+  const tabIds = () => working().cells.flatMap((c) => c.tabs.map((t) => t.id))
+  const tabKinds = () => working().cells.flatMap((c) => c.tabs.map((t) => t.kind))
+  const undoNames = () => useUndoStore.getState().undoStack.map((e) => e.description)
+  const two = () => cell('k', [createTab('notes', 'n'), createTab('calendar', 'c')], { activeTabId: 'c' })
+  /** Runs one way of closing or changing, then lets its question's answer land. */
+  const press = async (run: () => void) => {
+    run()
+    await act(async () => {})
+  }
+
+  const PATHS: Array<[name: string, run: () => void, after: string[], undo: string]> = [
+    ['the tab’s ×', () => fireEvent.click(screen.getByRole('button', { name: /^Close .*Calendar/ })), ['n'], 'Closed tab “Calendar”'],
+    ['Delete on the tab', () => fireEvent.keyDown(document.querySelector('[data-ws-tab="c"]')!, { key: 'Delete' }), ['n'], 'Closed tab “Calendar”'],
+    ['the menu’s Close tab', () => fireEvent.click(within(cellMenu('Cell layout')).getByRole('menuitem', { name: 'Close tab “Calendar”' })), ['n'], 'Closed tab “Calendar”'],
+    ['the menu’s Close cell', () => fireEvent.click(within(cellMenu('Cell layout')).getByRole('menuitem', { name: 'Close cell (2 tabs)' })), [], 'Closed cell (2 tabs)'],
+  ]
+
+  it.each(PATHS)('%s: Keep editing closes nothing; Save or Discard then closes it, as one undo step named as ever', async (_name, run, after, undo) => {
+    const k = two()
+    open(single(k))
+    renderCell(k)
+    const editor = dirtyEditor()
+    await press(run)
+    expect(editor.ask).toHaveBeenCalledTimes(1)
+    expect(tabIds()).toEqual(['n', 'c'])
+    expect(undoNames()).toEqual([])
+    // Saved or discarded: it carries on.
+    editor.answer = true
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await press(run)
+    expect(editor.ask).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(tabIds()).toEqual(after))
+    await vi.waitFor(() => expect(undoNames()).toEqual([undo]))
+    editor.unregister()
+  })
+
+  it.each(PATHS)('%s with no editor holding changes: nothing asks, it closes in the same tick', (_name, run, after) => {
+    const k = two()
+    open(single(k))
+    renderCell(k)
+    // An open editor without changes doesn't ask either.
+    const ask = vi.fn(() => Promise.resolve(false))
+    const unregister = registerOpenEditor({ changed: () => false, ask })
+    run()
+    expect(tabIds()).toEqual(after)
+    expect(ask).not.toHaveBeenCalled()
+    unregister()
+  })
+
+  const changeTo = (kind: string) => {
+    fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: /^Change widget/ }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Change widget' })).getByRole('menuitemradio', { name: kind }))
+  }
+
+  it('Change widget: Keep editing changes nothing; Save or Discard then changes the kind; with no changes at once', async () => {
+    const k = cell('k', [createTab('notes', 'n')])
+    open(single(k))
+    renderCell(k)
+    const editor = dirtyEditor()
+    await press(() => changeTo('Calendar'))
+    expect(editor.ask).toHaveBeenCalledTimes(1)
+    expect(tabKinds()).toEqual(['notes'])
+    // The kind it already is asks nothing.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await press(() => changeTo('Notes'))
+    expect(editor.ask).toHaveBeenCalledTimes(1)
+    editor.answer = true
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await press(() => changeTo('Calendar'))
+    expect(editor.ask).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(tabKinds()).toEqual(['calendar']))
+    // No changes left: the next change is made in the same tick.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    changeTo('Neglect map')
+    expect(tabKinds()).toEqual(['neglect'])
+    expect(editor.ask).toHaveBeenCalledTimes(2)
+    editor.unregister()
   })
 })
 

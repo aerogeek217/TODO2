@@ -58,6 +58,26 @@ export function readTodoIds(root: ParentNode = document): { rows: Element[]; ids
   return { rows, ids: rows.map((el) => Number(el.getAttribute(TODO_ID_ATTR))) }
 }
 
+/**
+ * A modal's backdrop (the dialog frame's and Quick Add's scrim). Modals are
+ * added to the page in the order they open, after the app, so what comes
+ * before the last backdrop in the page is under a modal: a dialog opening
+ * then adds no second blur (`shared/Dialog`), and a task drag finds no drop
+ * target there (`task-dnd/collision`).
+ */
+export const MODAL_BACKDROP_ATTR = 'data-modal-backdrop'
+
+/** The backdrop of the modal opened last (the last in the page), or null with none open. */
+export function topModalBackdrop(): Element | null {
+  const backdrops = document.querySelectorAll(attrSelector(MODAL_BACKDROP_ATTR))
+  return backdrops[backdrops.length - 1] ?? null
+}
+
+/** Whether `node` is under a modal: before `backdrop` (default: the last modal backdrop) in the page. */
+export function underModal(node: Node, backdrop: Element | null = topModalBackdrop()): boolean {
+  return backdrop != null && (backdrop.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_PRECEDING) !== 0
+}
+
 /** The widget popup's panel (Open larger): the id of the tab it shows. */
 export const WIDGET_POPUP_ATTR = 'data-widget-popup'
 

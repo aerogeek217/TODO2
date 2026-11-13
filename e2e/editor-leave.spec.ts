@@ -114,6 +114,74 @@ test('Add Widget from the palette asks before it adds; Keep editing adds nothing
   expect(await teamSort(page)).toBe('manual')
 })
 
+/** The kinds of the tabs of layout Main, as stored. */
+async function mainTabKinds(page: Page): Promise<string[] | undefined> {
+  return (await readStore<{ name: string; cells: Array<{ tabs: Array<{ kind: string }> }> }>(page, 'layouts'))
+    .find((l) => l.name === 'Main')?.cells.flatMap((c) => c.tabs.map((t) => t.kind))
+}
+
+test('Delete on a tab asks before it closes the tab; Keep editing closes nothing; Discard closes it', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...SEED,
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, { id: 'n1', kind: 'notes' }] })] }] }],
+  })
+  await dirtyEditList(page)
+  const tab = page.locator('[data-ws-tab="t1"]')
+  await tab.focus()
+  await page.keyboard.press('Delete')
+  await expect(question(page)).toBeVisible()
+  expect(await mainTabKinds(page)).toEqual(['lens', 'notes'])
+  await answer(page, 'Keep editing')
+  await expect(editList(page)).toBeVisible()
+  await expect(wsListWidget(page, 't1').getByTestId('list-summary')).toHaveText('Name')
+  expect(await mainTabKinds(page)).toEqual(['lens', 'notes'])
+
+  await tab.focus()
+  await page.keyboard.press('Delete')
+  await answer(page, 'Discard')
+  await expect(editList(page)).toHaveCount(0)
+  await expect.poll(() => mainTabKinds(page)).toEqual(['notes'])
+  // It closed as ever: one undo step, named as ever, and no notice that an edit was dropped.
+  await expect(page.getByText('Closed tab “Team”')).toBeVisible()
+})
+
+test('Change widget and Close cell from a menu run by the keys ask first; Keep editing changes nothing', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await dirtyEditList(page)
+  const cell = page.locator('[data-ws-cell="k1"]')
+  /** Opens the cell's menu `button` and runs its `items` in turn (a submenu's after its parent), all by the keys. */
+  const pick = async (button: 'Cell options' | 'Cell layout', ...items: Array<[role: 'menuitem' | 'menuitemradio', name: string | RegExp]>) => {
+    await cell.getByRole('button', { name: button, exact: true }).focus()
+    await page.keyboard.press('Enter')
+    for (const [role, name] of items) {
+      const entry = page.getByRole('menu').last().getByRole(role, { name })
+      await expect(entry).toBeVisible()
+      await entry.focus()
+      await page.keyboard.press('Enter')
+    }
+  }
+  const changeToCalendar = () => pick('Cell options', ['menuitem', /^Change widget/], ['menuitemradio', 'Calendar'])
+
+  await changeToCalendar()
+  await expect(question(page)).toBeVisible()
+  await answer(page, 'Keep editing')
+  await expect(editList(page)).toBeVisible()
+  expect(await mainTabKinds(page)).toEqual(['lens'])
+
+  await pick('Cell layout', ['menuitem', 'Close cell'])
+  await expect(question(page)).toBeVisible()
+  await answer(page, 'Keep editing')
+  await expect(editList(page)).toBeVisible()
+  expect(await mainTabKinds(page)).toEqual(['lens'])
+  await expect(wsListWidget(page, 't1').getByTestId('list-summary')).toHaveText('Name')
+
+  // Discard: the edit is dropped, then the widget changes.
+  await changeToCalendar()
+  await answer(page, 'Discard')
+  await expect(editList(page)).toHaveCount(0)
+  await expect.poll(() => mainTabKinds(page)).toEqual(['calendar'])
+})
+
 test('a route change (the phone’s Settings tab) asks; Keep editing stays; Discard goes on to Settings', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await seedWorkspace(page, SEED)

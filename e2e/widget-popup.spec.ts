@@ -268,3 +268,101 @@ test('a row dragged inside the open popup lands once: one landing slot, one orde
   await expect.poll(() => rowTitles(list)).toEqual(['Delta', 'Bravo', 'Alpha', 'Charlie'])
   expect(await rankWrites()).toBe(2)
 })
+
+// ── A modal covers what is under it: no drop lands behind the popup (cr34 N1) ──
+
+test('a row dragged inside the popup takes no drop on a calendar day hidden behind it: it reorders, and no date is set', async ({ page }) => {
+  await seedWorkspace(page, DRAG_SEED)
+  const list = wsCell(page, 'k1')
+  const cal = wsCell(page, 'k2')
+  await expect.poll(() => rowTitles(list)).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta'])
+  await expect(cal.locator('[data-day]').first()).toBeVisible()
+
+  await openFromButton(page, list)
+  const inPopup = popup(page)
+  await expect.poll(() => rowTitles(inPopup)).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta'])
+  const from = await box(listRow(inPopup, 'Delta'))
+  const toY = await above(listRow(inPopup, 'Bravo'))
+  // A day of the cell's calendar, behind the popup, under the point the row is let go at (and inside the row's width).
+  const hidden = await cal.locator('[data-day]').evaluateAll((days, { toY, left, right }) => {
+    for (const d of days as HTMLElement[]) {
+      const r = d.getBoundingClientRect()
+      const x = r.left + r.width / 2
+      if (r.top < toY && r.bottom > toY && x > left + 80 && x < right - 80) return { key: d.dataset.day ?? '', x }
+    }
+    return null
+  }, { toY, left: from.x, right: from.x + from.width })
+  expect(hidden, 'a calendar day behind the popup, under the drop point').not.toBeNull()
+  if (!hidden) return
+
+  await drag(page, { x: hidden.x, y: from.y + from.height / 2 }, { x: hidden.x, y: toY }, {
+    during: async () => {
+      await expect(page.locator('[data-drop-slot]')).toHaveCount(1)
+      // The covered day is no drop target.
+      await expect(page.locator('[data-drop-target="true"]')).toHaveCount(0)
+    },
+  })
+  await expect.poll(() => rowTitles(inPopup)).toEqual(['Alpha', 'Delta', 'Bravo', 'Charlie'])
+  await expect.poll(() => storedOrder(page)).toEqual(['Alpha', 'Delta', 'Bravo', 'Charlie'])
+
+  await page.keyboard.press('Escape')
+  await expect(popup(page)).toHaveCount(0)
+  await expect.poll(() => rowTitles(list)).toEqual(['Alpha', 'Delta', 'Bravo', 'Charlie'])
+  // No task got a due date: nothing on the calendar, nothing stored.
+  await expect(cal.locator('[data-cal-entry]')).toHaveCount(0)
+  const dated = (await readStore<{ title: string; dueDate?: Date }>(page, 'todos')).filter((t) => t.dueDate != null).map((t) => t.title)
+  expect(dated).toEqual([])
+})
+
+test('the popup’s own calendar days still take drops: an entry moved to another day, and one dragged out of a day’s +N more', async ({ page }) => {
+  const titles = Array.from({ length: 16 }, (_, n) => `Task ${String.fromCharCode(65 + n)}`)
+  await seedWorkspace(page, {
+    listDefinitions: [{ name: 'Order' }],
+    tasks: titles.map((title) => ({ title, dueInDays: 1 })),
+    layouts: [{
+      name: 'Main',
+      columns: [
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'cal', kind: 'calendar', titles: true, dateTypes: { due: true, followup: false } }] })] },
+      ],
+    }],
+  })
+  await openFromButton(page, wsCell(page, 'k2'))
+  const inPopup = popup(page)
+  const dayIn = async (n: number) => inPopup.locator(`[data-day="${await dayKey(page, n)}"]`)
+  const day1 = await dayIn(1)
+  const titleOf = async (entry: Locator) => {
+    const id = Number(await entry.getAttribute('data-todo-id'))
+    const title = (await readStore<{ id: number; title: string }>(page, 'todos')).find((t) => t.id === id)?.title
+    if (!title) throw new Error('an entry with no task')
+    return title
+  }
+
+  // An entry of the popup's calendar to another of its days.
+  const first = day1.locator('[data-cal-entry="due"]').first()
+  await expect(first).toBeVisible()
+  const moved = await titleOf(first)
+  const day3 = await dayIn(3)
+  const entry = await box(first)
+  await drag(page, { x: entry.x + 10, y: entry.y + entry.height / 2 }, await pointIn(day3), {
+    during: async () => { await expect(day3).toContainText('Move here') },
+  })
+  await expect.poll(() => dueInDays(page, moved)).toBe(3)
+
+  // A day popover opened inside the popup: its entries drop on the popup's days too.
+  const more = day1.getByRole('button', { name: /^\+\d+ more$/ })
+  await expect(more).toBeVisible()
+  await more.click()
+  const popover = page.getByTestId('calendar-day-popover')
+  await expect(popover).toBeVisible()
+  // (Its first entry: the later ones may be scrolled out of the popover's list.)
+  const inPopover = popover.locator('[data-cal-entry]').first()
+  const fromPopover = await titleOf(inPopover)
+  const day2 = await dayIn(2)
+  const e = await box(inPopover)
+  await drag(page, { x: e.x + 10, y: e.y + e.height / 2 }, await pointIn(day2), {
+    during: async () => { await expect(day2).toContainText('Move here') },
+  })
+  await expect(popover).toHaveCount(0)
+  await expect.poll(() => dueInDays(page, fromPopover)).toBe(2)
+})

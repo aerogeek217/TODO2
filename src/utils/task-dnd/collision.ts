@@ -5,6 +5,7 @@ import {
   type UniqueIdentifier,
 } from '@dnd-kit/core'
 import { dndLog } from '../debug-flags'
+import { topModalBackdrop, underModal } from '../dom-contract'
 
 /**
  * A single rule in the per-context task-collision table. Each rule pairs a
@@ -51,19 +52,28 @@ type DetectArgs = Parameters<CollisionDetection>[0]
 
 /**
  * Keeps only the hits whose droppable shows at the pointer. dnd-kit measures
- * droppables unclipped, so a calendar day scrolled out
- * of its scroller still has a rect — over whatever lies beyond the scroller
- * (the list a row is dragged in). A hit counts only where no ancestor that
- * clips its overflow cuts the point off (cr31 W1).
+ * droppables by their rects alone, so two kinds of hidden target still
+ * collide:
+ * - a calendar day scrolled out of its scroller still has a rect — over
+ *   whatever lies beyond the scroller (the list a row is dragged in). A hit
+ *   counts only where no ancestor that clips its overflow cuts the point off
+ *   (cr31 W1);
+ * - a calendar day in a cell behind a modal (the widget popup, Open larger)
+ *   lies under the rows dragged in that modal. A hit under a modal never
+ *   counts (`underModal`, cr34 N1): the modal's own droppables, and those of
+ *   a popover opened from it, come after its backdrop in the page and do.
  */
 function withinVisible(detect: CollisionDetection): CollisionDetection {
   return (args) => {
     const hits = detect(args)
     const point = args.pointerCoordinates
-    if (!point || hits.length === 0) return hits
+    if (hits.length === 0) return hits
+    const backdrop = topModalBackdrop()
     return hits.filter((hit) => {
       const node = args.droppableContainers.find((c) => c.id === hit.id)?.node.current
-      return !node || !clippedAt(node, point.x, point.y)
+      if (!node) return true
+      if (underModal(node, backdrop)) return false
+      return !point || !clippedAt(node, point.x, point.y)
     })
   }
 }

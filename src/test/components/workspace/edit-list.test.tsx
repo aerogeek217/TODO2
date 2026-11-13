@@ -5,6 +5,7 @@ import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHos
 import { openEditList } from '../../../components/workspace/widget-hooks'
 import { listDefinitionRepository } from '../../../data/list-definition-repository'
 import { beginReplaceHold } from '../../../stores/replace-hold'
+import { editorsHoldChanges, leaveOpenEditors } from '../../../stores/editor-leave'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -196,6 +197,47 @@ describe('Edit list', () => {
       expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('people')
     })
 
+    it('Save answered in a leave question from outside (Settings) that fails cancels the leave: Edit list stays with its draft', async () => {
+      const update = failWrites()
+      editGroup(open())
+      act(() => useUIStore.getState().openSettings('lenses'))
+      await answer('Save')
+      await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: COULD_NOT_SAVE }))
+      // The write failed: Settings didn't open over it, nothing was dropped and nothing says it was.
+      expect(useUIStore.getState().settingsOpen).toBe(false)
+      expect(editorOpen()).toBe(true)
+      expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+      expect(draft()).toMatchObject({ grouping: 'status' })
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('people')
+      // Its changes still count: leaving again asks again; with the storage back, Save writes and Settings opens.
+      update.mockRestore()
+      act(() => useUIStore.getState().openSettings('lenses'))
+      await answer('Save')
+      await vi.waitFor(() => expect(useUIStore.getState().settingsOpen).toBe(true))
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
+      expect(editorOpen()).toBe(false)
+      expect(draft()).toBeUndefined()
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Edited list “Waiting on”'])
+    })
+
+    it('the same from the leave rule itself (a layout switch, another editor): it resolves false, then true once the write lands', async () => {
+      const update = failWrites()
+      editGroup(open())
+      let left: Promise<boolean> | undefined
+      act(() => { left = leaveOpenEditors() })
+      await answer('Save')
+      expect(await left).toBe(false)
+      expect(editorOpen()).toBe(true)
+      expect(draft()).toMatchObject({ grouping: 'status' })
+      expect(editorsHoldChanges()).toBe(true)
+      update.mockRestore()
+      act(() => { left = leaveOpenEditors() })
+      await answer('Save')
+      await act(async () => { expect(await left).toBe(true) })
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
+      expect(editorOpen()).toBe(false)
+    })
+
     it('a data replace holding list writes: Save says so and keeps the edits', async () => {
       const release = beginReplaceHold()
       try {
@@ -345,8 +387,9 @@ describe('Edit list', () => {
     // Save: written, then the other list's Edit list opens.
     act(() => openEditList('t2', 9))
     await answer('Save')
-    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 9, tabId: 't2' })
-    await vi.waitFor(() => expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === 7)?.name).toBe('Waiting'))
+    // The other opens once the write has landed (not in the answer's tick: a failed write would keep this one).
+    await vi.waitFor(() => expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 9, tabId: 't2' }))
+    expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === 7)?.name).toBe('Waiting')
     // Unchanged, it gives way at once; the same target again changes nothing.
     act(() => openEditList('t1', 7))
     expect(useUIStore.getState().confirmPrompts).toHaveLength(0)

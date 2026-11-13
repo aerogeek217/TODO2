@@ -215,6 +215,8 @@ describe('filter expressions — parse', () => {
       parseExpression(text, { today: TODAY, names: { person: resolver(PEOPLE), tag: resolver(TAGS), status: resolver(STATUSES) }, ...opts })
     const completed = with_('#q4 or completed this week', { allowCompleted: false })
     expect(!completed.ok && completed.error.message).toBe('Leave completed out')
+    // Its hint names no one caller: the check-in's filter and the Review widget's field both refuse them.
+    expect(!completed.ok && completed.error.hint).toBe('This filter takes open tasks only')
     const done = with_('#q4 and done', { allowDone: false })
     expect(!done.ok && done.error.message).toBe('done has no say here')
     expect(!done.ok && [done.error.start, done.error.end]).toEqual([8, 12])
