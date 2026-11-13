@@ -871,11 +871,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   }
 
   /**
-   * Before the open layout is left: when its last write failed, writes it
-   * once more. Resolves whether leaving loses nothing (on `false` the
-   * snackbar has said so and the caller stays).
+   * Before the open layout is left: waits for its writes still running (one
+   * that failed after the layout was left would only be logged, its edit
+   * lost without a word), then, when its last write failed, writes it once
+   * more. Resolves whether leaving loses nothing (on `false` the snackbar
+   * has said so and the caller stays).
    */
   async function readyToLeave(): Promise<boolean> {
+    await settleLayoutWrites()
     if (!get().writeFailed) return true
     if (await get().retryWrite()) return true
     const name = get().saved?.name ?? 'the layout'

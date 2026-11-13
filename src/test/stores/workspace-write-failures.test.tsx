@@ -212,3 +212,62 @@ describe('leaving a layout whose write failed', () => {
     expect(await storedTabs(plain)).toEqual(['p1'])
   })
 })
+
+describe('leaving a layout while its write is still running (cr34 D5)', () => {
+  const STAY = 'Couldn\'t save layout "Plain". Retry before leaving it, or its last changes are lost.'
+
+  /** The open layout with an edit whose write hasn't run yet, and a second layout to leave for. */
+  async function editInFlight(): Promise<{ plain: number; other: number }> {
+    const plain = await openPlain()
+    const other = await second()
+    await ws().init()
+    return { plain, other }
+  }
+
+  it('a switch waits for the write: when it fails (and fails again), the layout stays open, marked, with the edit on screen', async () => {
+    const { plain, other } = await editInFlight()
+    failWrites()
+    ws().closeTab('p2')
+    await ws().load(other)
+    expect(ws().activeLayoutId).toBe(plain)
+    expect(ws().writeFailed).toBe(true)
+    expect(ws().working?.cells[0]?.tabs).toHaveLength(1)
+    expect(notice()).toBe(STAY)
+  })
+
+  it('a write that fails once is written again before the switch: the edit is stored, not lost', async () => {
+    const { plain, other } = await editInFlight()
+    quiet()
+    vi.spyOn(layoutRepository, 'putAndPrune').mockRejectedValueOnce(new DOMException('full', 'QuotaExceededError'))
+    ws().closeTab('p2')
+    await ws().load(other)
+    expect(ws().activeLayoutId).toBe(other)
+    expect(ws().writeFailed).toBe(false)
+    expect(await storedTabs(plain)).toEqual(['p1'])
+  })
+
+  it('New layout and Duplicate layout wait for it too', async () => {
+    const { plain } = await editInFlight()
+    quiet()
+    const put = vi.spyOn(layoutRepository, 'putAndPrune').mockRejectedValue(new DOMException('full', 'QuotaExceededError'))
+    ws().closeTab('p2')
+    expect(await ws().createLayout('New')).toBeNull()
+    expect(notice()).toBe(STAY)
+    expect(await ws().duplicateLayout('Copy')).toBeNull()
+    expect(ws().activeLayoutId).toBe(plain)
+    expect(await db.layouts.count()).toBe(2)
+    put.mockRestore()
+    const copy = await ws().duplicateLayout('Copy')
+    expect(copy).not.toBeNull()
+    expect(await storedTabs(plain)).toEqual(['p1'])
+    expect(await storedTabs(copy!)).toEqual(['p1'])
+  })
+
+  it('a write that lands lets the switch through as before', async () => {
+    const { plain, other } = await editInFlight()
+    ws().closeTab('p2')
+    await ws().load(other)
+    expect(ws().activeLayoutId).toBe(other)
+    expect(await storedTabs(plain)).toEqual(['p1'])
+  })
+})
