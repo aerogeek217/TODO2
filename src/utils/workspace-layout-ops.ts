@@ -543,8 +543,8 @@ function pairTrack(layout: LayoutBody, axis: GridAxis, i: number, size: number |
  * their summed size. Which tracks share the space is read from `layout`
  * (`trackSizing`, the fixed / fit / collapsed ones don't); when `i` isn't
  * one of them, or no other is, `tracks` as they are. The other weighted
- * tracks are assumed drawn by their weights (none held at its minimum),
- * which is what a measured size of them gives back.
+ * tracks are assumed drawn by their weights — `drawnByWeight` makes them so
+ * first when one is held at its minimum.
  */
 function weightedTo(layout: LayoutBody, axis: GridAxis, tracks: GridTrack[], i: number, size: number, sizes: readonly number[]): GridTrack[] {
   const track = tracks[i]
@@ -561,18 +561,58 @@ function weightedTo(layout: LayoutBody, axis: GridAxis, tracks: GridTrack[], i: 
   return replaceAt(tracks, i, { ...track, weight: (weights * size) / px })
 }
 
+/** How far (px) a weighted track may be drawn from its weight's share before it counts as held at its minimum (`drawnByWeight`). */
+const WEIGHT_SHARE_TOLERANCE_PX = 0.5
+
+/**
+ * `layout` with the weights of `axis` saying what is drawn (`sizes`, the
+ * tracks as measured): when some weighted track isn't drawn by its weight —
+ * the grid holds it up at its cells' minimum (`minmax(min, n fr)`), so the
+ * others share less than their weights say — every weighted track's weight
+ * becomes its measured size's share of their summed weight. That draws the
+ * same table, and a resize computed from it moves only its own line by
+ * what was asked: computed from the stored weights, the line would lag the
+ * pointer and the other lines drift (cr34 W7). The same layout when every
+ * weighted track is drawn by its weight (within half a px), so a move among
+ * such tracks changes only its own two.
+ */
+function drawnByWeight<L extends LayoutBody>(layout: L, axis: GridAxis, sizes: readonly number[]): L {
+  const tracks = layout.grid[axis]
+  const weighted: Array<{ i: number; weight: number; size: number }> = []
+  let weights = 0
+  let px = 0
+  for (let i = 0; i < tracks.length; i++) {
+    const s = trackSizing(layout, axis, i)
+    if (s.kind !== 'weighted') continue
+    const size = sizes[i] ?? 0
+    if (!(s.weight > 0) || !(size > 0)) return layout
+    weighted.push({ i, weight: s.weight, size })
+    weights += s.weight
+    px += size
+  }
+  if (weighted.length < 2) return layout
+  if (weighted.every((t) => Math.abs(t.size - (px * t.weight) / weights) <= WEIGHT_SHARE_TOLERANCE_PX)) return layout
+  const out = [...tracks]
+  for (const t of weighted) {
+    const track = tracks[t.i]
+    if (track) out[t.i] = { ...track, weight: (weights * t.size) / px }
+  }
+  return withTracks(layout, axis, out)
+}
+
 /**
  * Weighted row track `i` re-weighted to draw `size` px, every other
- * weighted row keeping its size in `sizes` (`weightedTo`) — after a fit
- * row beside it changed height (a double-click clearing its `fitPx`), so
- * only the line between them moves. The same layout when there is nothing
- * to re-weight.
+ * weighted row keeping its size in `sizes` (`weightedTo`, over the weights
+ * as drawn — `drawnByWeight`) — after a fit row beside it changed height (a
+ * double-click clearing its `fitPx`), so only the line between them moves.
+ * The same layout when there is nothing to re-weight.
  */
 export function withRowDrawnAt<L extends LayoutBody>(layout: L, i: number, size: number, sizes: readonly number[]): L {
-  const tracks = layout.grid.rows
-  if (sizes.length !== tracks.length) return layout
-  const next = weightedTo(layout, 'rows', tracks, i, size, sizes)
-  return next === tracks ? layout : withTracks(layout, 'rows', next)
+  if (sizes.length !== layout.grid.rows.length) return layout
+  const based = drawnByWeight(layout, 'rows', sizes)
+  const tracks = based.grid.rows
+  const next = weightedTo(based, 'rows', tracks, i, size, sizes)
+  return next === tracks ? layout : withTracks(based, 'rows', next)
 }
 
 /** Where a stretch's drag lands: its clamped, snapped position and what it means (`edgeTarget`). */
@@ -693,18 +733,20 @@ export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, 
   if (snapped === line || (snapped == null && target === at(line))) return layout
 
   if (whole && snapped == null && target > at(line - 1) && target < at(line + 1)) {
-    const a = pairTrack(layout, axis, line - 1, sizes[line - 1])
-    const b = pairTrack(layout, axis, line, sizes[line])
+    // From the weights as drawn: a track held at its minimum would make the line lag and the others drift.
+    const based = drawnByWeight(layout, axis, sizes)
+    const a = pairTrack(based, axis, line - 1, sizes[line - 1])
+    const b = pairTrack(based, axis, line, sizes[line])
     if (!a || !b) return layout
     const sizeA = target - at(line - 1)
     const sizeB = at(line + 1) - target
     const [na, nb] = resizedPair(a.track, b.track, sizeA, sizeB)
-    let out = replaceAt(replaceAt(tracks, line - 1, a.back(na)), line, b.back(nb))
+    let out = replaceAt(replaceAt(based.grid[axis], line - 1, a.back(na)), line, b.back(nb))
     // A fixed (or fit) track beside a weighted one: the weighted one alone
     // gives or takes the px, the other weighted tracks keeping their sizes.
-    if (a.track.px != null && b.track.px == null) out = weightedTo(layout, axis, out, line, sizeB, sizes)
-    else if (b.track.px != null && a.track.px == null) out = weightedTo(layout, axis, out, line - 1, sizeA, sizes)
-    return withTracks(layout, axis, out)
+    if (a.track.px != null && b.track.px == null) out = weightedTo(based, axis, out, line, sizeB, sizes)
+    else if (b.track.px != null && a.track.px == null) out = weightedTo(based, axis, out, line - 1, sizeA, sizes)
+    return withTracks(based, axis, out)
   }
 
   let next = layout

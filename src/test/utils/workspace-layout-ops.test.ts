@@ -5,7 +5,7 @@ import { findTab, getTab, layoutIds, layoutStructureEqual, layoutStructureKey, p
 import { countListTabs } from '../../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
 import { FIT_ROW_PX } from '../../utils/workspace-rows'
-import { rowDrawsFitFaces, trackSizing } from '../../utils/workspace-table'
+import { rowDrawsFitFaces, tableTrackSizes, trackSizing } from '../../utils/workspace-table'
 import {
   addTab,
   cellRowTracks,
@@ -812,6 +812,78 @@ describe('only the dragged line moves (J14)', () => {
     // Nothing to re-weight: a fit or fixed track, or sizes that don't match.
     expect(withRowDrawnAt(cleared, 1, 100, before)).toBe(cleared)
     expect(withRowDrawnAt(cleared, 2, 300, [1, 2])).toBe(cleared)
+  })
+})
+
+describe('a track held at its minimum: the divider still follows the pointer, no other line moves (cr34 W7)', () => {
+  const a = cell('a')
+  const b = cell('b')
+  const c = cell('c')
+  const n1 = spec('n1', [createTab('number', 'num1')])
+  const WIDE = 2120
+  /** The axis's tracks as the grid draws them in `total` px (no gaps), each cell at least its own minimum. */
+  const drawn = (body: LayoutBody, axis: 'columns' | 'rows', total: number) => tableTrackSizes(body, axis, total, 0)
+  /** Where each inner line is drawn. */
+  const lines = (sizes: readonly number[]) => sizes.slice(0, -1).map((_, i) => sizes.slice(0, i + 1).reduce((sum, s) => sum + s, 0))
+
+  // a | b | c — a's weight is next to nothing: it is drawn at its 120px minimum, not by its weight.
+  const held = layout(grid([[a, b, c]], { cols: [1, 1000, 1000] }))
+  const sizes = drawn(held, 'columns', WIDE)
+
+  it('the fixture: the first column is held up by its minimum', () => {
+    expect(sizes).toEqual([120, 1000, 1000])
+    expect((WIDE * 1) / 2001).toBeLessThan(2)
+  })
+
+  it('a step of the line beside it moves that line by the step, and the far line stays', () => {
+    const out = moveEdge(held, wholeLine(held, 'columns', 1), 16, { sizes }, ids())
+    expect(layoutStructureEqual(out, held)).toBe(true)
+    const after = drawn(out, 'columns', WIDE)
+    expect(lines(after)[0]).toBeCloseTo(136, 6)
+    expect(lines(after)[1]).toBeCloseTo(1120, 6)
+    // The weights now say what is drawn: the next step starts from tracks drawn by their weights.
+    const total = out.grid.columns.reduce((sum, t) => sum + (t.weight ?? 0), 0)
+    expect(total).toBeCloseTo(2001, 6)
+    expect(out.grid.columns.map((t) => ((t.weight ?? 0) / total) * WIDE)).toEqual(after.map((s) => expect.closeTo(s, 6)))
+  })
+
+  it('a step of the far line: the held column keeps its 120px, only that line moves', () => {
+    const out = moveEdge(held, wholeLine(held, 'columns', 2), -40, { sizes }, ids())
+    const after = drawn(out, 'columns', WIDE)
+    expect(lines(after)[0]).toBeCloseTo(120, 6)
+    expect(lines(after)[1]).toBeCloseTo(1080, 6)
+  })
+
+  it('beside a fit row: the weighted row gives the px, a row held at its minimum elsewhere stays', () => {
+    // a  — weight next to nothing: held at 112px
+    // n1 — a fit row (58px)
+    // b
+    // c
+    const rows = layout(grid([[a], [n1], [b], [c]], { rows: [1, 1000, 1000, 1000] }))
+    const before = tableTrackSizes(rows, 'rows', 1170, 0)
+    expect(before).toEqual([112, 58, 500, 500])
+    const out = moveEdge(rows, wholeLine(rows, 'rows', 2), 30, { sizes: before }, ids())
+    expect(out.grid.rows[1]?.fitPx).toBe(88)
+    const after = tableTrackSizes(out, 'rows', 1170, 0)
+    expect(after.map((s) => Math.round(s * 1000) / 1000)).toEqual([112, 88, 470, 500])
+  })
+
+  it('a double-click clearing a fit row’s height (`withRowDrawnAt`): a row held at its minimum elsewhere stays too', () => {
+    const rows = layout(grid([[a], [n1], [b], [c]], { rows: [1, { weight: 1000, fitPx: 88 }, 1000, 1000] }))
+    const before = tableTrackSizes(rows, 'rows', 1170, 0)
+    expect(before).toEqual([112, 88, 485, 485])
+    const cleared = withoutTrackFitPx(rows, 'r2')
+    // The row below the fit row takes the 30px back.
+    const out = withRowDrawnAt(cleared, 2, 485 + 88 - 58, before)
+    expect(tableTrackSizes(out, 'rows', 1170, 0).map((s) => Math.round(s * 1000) / 1000)).toEqual([112, 58, 515, 485])
+  })
+
+  it('tracks drawn by their weights are left alone: only the pair changes, exactly', () => {
+    const three = layout(grid([[a, b, c]], { cols: [1000, 1000, 1000] }))
+    // As a browser reports them: a hair off thirds.
+    const out = moveEdge(three, wholeLine(three, 'columns', 1), 60, { sizes: [333.328, 333.344, 333.328] }, ids())
+    expect(out.grid.columns[2]).toBe(three.grid.columns[2])
+    expect((out.grid.columns[0]?.weight ?? 0) + (out.grid.columns[1]?.weight ?? 0)).toBe(2000)
   })
 })
 
