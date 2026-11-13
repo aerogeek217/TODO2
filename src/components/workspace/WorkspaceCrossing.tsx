@@ -7,7 +7,7 @@ import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
 import { trackSizing } from '../../utils/workspace-table'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { shortcutScope } from '../../utils/dom-contract'
-import { drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
+import { drawnGap, drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
 import { SnapGuide } from './WorkspaceDivider'
 import styles from './WorkspaceDivider.module.css'
 
@@ -177,7 +177,7 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
     const axis = (a: GridAxis, line: number, sizes: number[]): AxisDrag => ({
       axis: a,
       line,
-      opts: { sizes, minPx, snapHome: true },
+      opts: { sizes, minPx, snapHome: true, gap: drawnGap(table, a) },
       delta: 0,
       structural: false,
     })
@@ -244,7 +244,7 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
     if (sizes.length !== layout.grid[axis].length) return
     const line = axis === 'columns' ? col : row
     // Key steps on this handle are one undo step (when they move a line onto or past another), as a divider's.
-    void useWorkspaceStore.getState().moveEdge(wholeLine(layout, axis, line), sign * KEY_STEP_PX, { sizes, minPx: minPxIn(layout) }, { mergeKey: `crossing:${testId}` })
+    void useWorkspaceStore.getState().moveEdge(wholeLine(layout, axis, line), sign * KEY_STEP_PX, { sizes, minPx: minPxIn(layout), gap: drawnGap(table, axis) }, { mergeKey: `crossing:${testId}` })
   }
 
   /** Both lines' two tracks share their size evenly (weighted tracks only: a fixed or fit track keeps its height). */

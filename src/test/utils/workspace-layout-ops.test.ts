@@ -887,6 +887,95 @@ describe('a track held at its minimum: the divider still follows the pointer, no
   })
 })
 
+describe('a line’s place counts the gaps between tracks (cr34 W8)', () => {
+  const [a, b, c, d, x, y] = ['a', 'b', 'c', 'd', 'x', 'y'].map((id) => cell(id)) as [CellSpec, CellSpec, CellSpec, CellSpec, CellSpec, CellSpec]
+  const GAP = 6
+  /** The axis's tracks as the grid draws them in the room `sizes` took (their sum and the gaps between them). */
+  function redrawn(body: LayoutBody, axis: 'columns' | 'rows', sizes: readonly number[]): number[] {
+    const room = sizes.reduce((sum, s) => sum + s, 0) + (sizes.length - 1) * GAP
+    return tableTrackSizes(body, axis, room, GAP).map((s) => Math.round(s * 1000) / 1000)
+  }
+
+  it('part of a line made a new line in the track beside it: the gutter comes out of that track, the rest of the line stays', () => {
+    // a c x
+    // b c y — a|b is one part of the level line (x|y the other). Rows 300px each, drawn 6px apart.
+    const body = layout(grid([[a, c, x], [b, c, y]], { rows: [1000, 1000] }))
+    const sizes = [300, 300]
+    const part = edgeBetween(body, 'a', 'b')!
+    expect(part).toEqual({ axis: 'rows', line: 1, from: 0, to: 1 })
+    // The pointer went 100px down: a is 400px high, its new line's gutter under it, then b.
+    const out = moveEdge(body, part, 100, { sizes, gap: GAP }, ids())
+    expect(picture(out)).toEqual(['a c x', 'a c y', 'b c y'])
+    expect(redrawn(out, 'rows', sizes)).toEqual([300, 94, 200])
+    expectValid(out)
+    // Without the gap in the count the new gutter comes out of every row: x|y's line is pulled up 3px, a|b's drawn short of the pointer.
+    expect(redrawn(moveEdge(body, part, 100, { sizes }, ids()), 'rows', sizes)).toEqual([297, 99, 198])
+  })
+
+  it('part of a line moved across another line lands where the pointer is; the crossed line stays, the line it left gives its gutter back', () => {
+    // a a b
+    // c d d — a|b on the second upright line, c|d on the first. Columns 400px each.
+    const body = layout(grid([[a, a, b], [c, d, d]], { cols: [1000, 1000, 1000] }))
+    const sizes = [400, 400, 400]
+    const part = edgeBetween(body, 'a', 'b')!
+    expect(part).toEqual({ axis: 'columns', line: 2, from: 0, to: 1 })
+    // 556px left: over the middle track and c|d's gutter, 150px into the first track.
+    const out = moveEdge(body, part, -556, { sizes, gap: GAP }, ids())
+    expect(picture(out)).toEqual(['a b b', 'c c d'])
+    // a is 250px, then its gutter, then b; c|d's line is still 400px in; the two last tracks are one, with their gutter.
+    expect(redrawn(out, 'columns', sizes)).toEqual([250, 144, 806])
+    expectValid(out)
+    // Without the gap: a line 6px ahead of the pointer, and c|d's line moved.
+    expect(redrawn(moveEdge(body, part, -556, { sizes }, ids()), 'columns', sizes)).not.toEqual([250, 144, 806])
+  })
+
+  it('a piece snapped onto another line: the line it left gives its gutter back, fixed tracks and all', () => {
+    // a c
+    // a d — the left column's line under the second row, the right's under the first; the middle row fixed (100px)
+    // b d
+    const body = layout(grid([[a, c], [a, d], [b, d]], { rows: [300, { px: 100 }, 400] }))
+    const sizes = [300, 100, 400]
+    const piece = edgeBetween(body, 'c', 'd')!
+    // Drawn 6px apart the two lines are 106px apart: 100px down is within 8px of the other, 95px is not.
+    expect(edgeSnap(body, piece, 100, { sizes, gap: GAP })).toBe(2)
+    expect(edgeSnap(body, piece, 95, { sizes, gap: GAP })).toBeNull()
+    expect(edgeSnap(body, piece, 95, { sizes })).toBe(2)
+    const out = moveEdge(body, piece, 100, { sizes, gap: GAP }, ids())
+    expect(picture(out)).toEqual(['a c', 'b d'])
+    expect(redrawn(out, 'rows', sizes)).toEqual([406, 400])
+  })
+
+  it('the minimum counts a cell’s whole width, gaps and all', () => {
+    // a a b
+    // c d d — a spans two 200px tracks and the gutter between them: 406px. It may shrink to 120px.
+    const body = layout(grid([[a, a, b], [c, d, d]], { cols: [1000, 1000, 2000] }))
+    const sizes = [200, 200, 400]
+    const out = moveEdge(body, edgeBetween(body, 'a', 'b')!, -500, { sizes, gap: GAP }, ids())
+    expect(picture(out)).toEqual(['a b b', 'c c d'])
+    expect(redrawn(out, 'columns', sizes)).toEqual([120, 74, 606])
+  })
+
+  it('a whole line between its two neighbours moves the same with or without the gap', () => {
+    const body = layout(grid([[a, b], [x, y]], { cols: [500, 500] }))
+    const line = wholeLine(body, 'columns', 1)
+    expect(moveEdge(body, line, 100, { sizes: [400, 400], gap: GAP }, ids())).toEqual(moveEdge(body, line, 100, { sizes: [400, 400] }, ids()))
+  })
+
+  it('a double-click on part of a line evens its own cells exactly (`evenStretchDelta`)', () => {
+    // a a b
+    // c d d — a spans two tracks, b one: even is 303px each side of the new gutter.
+    const body = layout(grid([[a, a, b], [c, d, d]]))
+    const sizes = [200, 200, 200]
+    const part = edgeBetween(body, 'a', 'b')!
+    const delta = evenStretchDelta(body, part, sizes, GAP)
+    expect(delta).toBe(-103)
+    const out = moveEdge(body, part, delta ?? 0, { sizes, gap: GAP }, ids())
+    // a: 200 + 6 + 97; b: the rest, 97 + 6 + 200 (the line it left is no edge any more: one track).
+    expect(picture(out)).toEqual(['a a b', 'c d d'])
+    expect(redrawn(out, 'columns', sizes)).toEqual([200, 97, 303])
+  })
+})
+
 describe('evenStretchDelta (a divider double-click)', () => {
   it('part of a line goes midway between its own cells; a whole line has none', () => {
     const [a, b, e, c, d] = ['a', 'b', 'e', 'c', 'd'].map((id) => cell(id)) as [CellSpec, CellSpec, CellSpec, CellSpec, CellSpec]

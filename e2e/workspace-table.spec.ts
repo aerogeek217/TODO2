@@ -404,6 +404,80 @@ test.describe('dividers', () => {
     await expectDividerStep(page)
   })
 
+  test('part of a line follows the pointer into the next track and across another line: the gaps count (cr34 W8)', async ({ page }) => {
+    // a a b
+    // c d d — a|b lies on the second column line, c|d on the first: dragged left, a|b crosses c|d's line.
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        table: {
+          areas: ['a a b', 'c d d'],
+          cells: ['a', 'b', 'c', 'd'].map((id) => ({ id, tabs: [{ id: `${id}Tab`, kind: 'notes' as const }] })),
+        },
+      }],
+    })
+    const divider = wsDivider(page, 'a', 'b')
+    const d = await box(divider)
+    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const cdLine = (await edges(wsCell(page, 'c'))).right + 3
+    /** How far the a|b line, as drawn, is from the pointer at `x`. */
+    const offLine = async (x: number) => {
+      const [a, b] = await Promise.all([edges(wsCell(page, 'a')), edges(wsCell(page, 'b'))])
+      return Math.abs((a.right + b.left) / 2 - x)
+    }
+    // Into the middle track, short of c|d's line (and out of its snap's reach): its own two tracks resize.
+    const near = { x: cdLine + 120, y: from.y }
+    // Then across that line, into the first track: a new line there.
+    const far = { x: cdLine - 150, y: from.y }
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(near.x, near.y, { steps: 8 })
+    await expect.poll(() => offLine(near.x)).toBeLessThanOrEqual(1.5)
+    await page.mouse.move(far.x, far.y, { steps: 8 })
+    await expect(divider).toHaveAttribute('data-preview', '')
+    await expect.poll(() => offLine(far.x)).toBeLessThanOrEqual(1.5)
+    // c|d's own line hasn't moved under the preview.
+    expect(Math.abs((await edges(wsCell(page, 'c'))).right + 3 - cdLine)).toBeLessThanOrEqual(1)
+    await releaseDrag(page)
+    await expectDividerStep(page)
+    // Released: the line stays where the preview drew it.
+    await expect.poll(() => offLine(far.x)).toBeLessThanOrEqual(1.5)
+    expect(Math.abs((await edges(wsCell(page, 'c'))).right + 3 - cdLine)).toBeLessThanOrEqual(1)
+  })
+
+  test('part of a line made a new line in the track beside it lands under the pointer; the rest of its line stays (cr34 W8)', async ({ page }) => {
+    // a | c | x over b | c | y: a|b is one part of the level line, x|y the other.
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        table: {
+          areas: ['a c x', 'b c y'],
+          cells: ['a', 'b', 'c', 'x', 'y'].map((id) => ({ id, tabs: [{ id: `${id}Tab`, kind: 'notes' as const }] })),
+        },
+      }],
+    })
+    const divider = wsDivider(page, 'a', 'b')
+    const d = await box(divider)
+    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const xyLine = (await edges(wsCell(page, 'x'))).bottom + 3
+    const to = { x: from.x, y: from.y + 100 }
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(to.x, to.y, { steps: 8 })
+    await expect(divider).toHaveAttribute('data-preview', '')
+    const offLine = async () => {
+      const [a, b] = await Promise.all([edges(wsCell(page, 'a')), edges(wsCell(page, 'b'))])
+      return Math.abs((a.bottom + b.top) / 2 - to.y)
+    }
+    await expect.poll(offLine).toBeLessThanOrEqual(1.5)
+    // x|y, the rest of the line, is where it was: the new line's gutter came out of the row it split.
+    expect(Math.abs((await edges(wsCell(page, 'x'))).bottom + 3 - xyLine)).toBeLessThanOrEqual(1)
+    await releaseDrag(page)
+    await expectDividerStep(page)
+    await expect.poll(offLine).toBeLessThanOrEqual(1.5)
+    expect(Math.abs((await edges(wsCell(page, 'x'))).bottom + 3 - xyLine)).toBeLessThanOrEqual(1)
+  })
+
   test('a narrow window: the cells keep 120px and the table scrolls sideways', async ({ page }) => {
     await page.setViewportSize({ width: 900, height: 800 })
     const ids = ['k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7', 'k8']

@@ -107,14 +107,15 @@ function halfTrack(track: GridTrack, id: string, share = 0.5): GridTrack {
 
 /**
  * Splits track `t` of `axis` in two at `share` of its size: the first part
- * keeps its id, the second takes `id`; every cell crossing it spans both,
- * every cell after it shifts by one.
+ * keeps its id, the second takes `id` and `rest` of its size (default the
+ * remainder; less when the new line's gutter comes out of the track);
+ * every cell crossing it spans both, every cell after it shifts by one.
  */
-function splitTrack<L extends LayoutBody>(layout: L, axis: GridAxis, t: number, share: number, id: string): L {
+function splitTrack<L extends LayoutBody>(layout: L, axis: GridAxis, t: number, share: number, id: string, rest = 1 - share): L {
   const track = layout.grid[axis][t]
   if (!track) return layout
   const first = halfTrack(track, track.id, share)
-  const second = halfTrack(track, id, 1 - share)
+  const second = halfTrack(track, id, rest)
   const tracks = [...layout.grid[axis].slice(0, t), first, second, ...layout.grid[axis].slice(t + 1)]
   const cells = layout.cells.map((c) => {
     const [start, end] = spanOf(c.area, axis)
@@ -479,6 +480,13 @@ export const EDGE_SNAP_PX = 8
 export interface MoveEdgeOptions {
   /** Each track's size (px) along the stretch's axis, as measured when the drag started. */
   sizes: readonly number[]
+  /**
+   * The gap (px) the table draws between tracks (`--workspace-gutter`),
+   * default 0. A line's place is its tracks' sizes and the gaps before it,
+   * so a stretch moved into or past other tracks stays under the pointer,
+   * and a new line's gutter comes out of the track it splits (cr34 W8).
+   */
+  gap?: number
   /** Snap onto another line within this many px (default `EDGE_SNAP_PX`). */
   snapPx?: number
   /**
@@ -615,9 +623,62 @@ export function withRowDrawnAt<L extends LayoutBody>(layout: L, i: number, size:
   return next === tracks ? layout : withTracks(based, 'rows', next)
 }
 
+/**
+ * Each line's place (px) along an axis, from its tracks' measured `sizes`
+ * and the `gap` drawn between them: entry `k` is where track `k` starts —
+ * the far side of the gutter line `k` lies in —, the last one a gap past
+ * the last track's end. So every inner line is measured at the same point
+ * of its gutter, a cell from line `s` to line `e` is `[e] − [s] − gap`
+ * wide, and track `k` ends at `[k + 1] − gap`.
+ */
+function lineStarts(sizes: readonly number[], gap: number): number[] {
+  const pos = [0]
+  for (const s of sizes) pos.push((pos.at(-1) ?? 0) + Math.max(0, s) + gap)
+  return pos
+}
+
+/**
+ * `result` — a structural move's table — with the tracks of `axis` sized
+ * as the move means them drawn: every line where it was, the moved stretch
+ * where it was put. `starts` is where each track starts, by id (a merged
+ * track has its first part's id, `mergeTracks`), `end` where the last one
+ * ends. A weighted track's weight becomes its px at the weight-per-px the
+ * weighted tracks of `original` were drawn at (`sizes`), a fixed track's
+ * px its size; a fit or collapsed row is left alone. The ops' own sizes —
+ * a split's shares, a merge's sums — don't count the gutter a new line
+ * takes or a merged line gives back, nor a track held at its minimum.
+ */
+function drawnAt<L extends LayoutBody>(result: L, axis: GridAxis, starts: ReadonlyMap<string, number>, end: number, gap: number, original: LayoutBody, sizes: readonly number[]): L {
+  let weights = 0
+  let px = 0
+  original.grid[axis].forEach((_, i) => {
+    const s = trackSizing(original, axis, i)
+    if (s.kind !== 'weighted') return
+    weights += s.weight
+    px += Math.max(0, sizes[i] ?? 0)
+  })
+  const perPx = weights > 0 && px > 0 ? weights / px : null
+  const tracks = result.grid[axis]
+  const out = tracks.map((t, k) => {
+    const start = starts.get(t.id)
+    const after = tracks[k + 1]
+    const stop = after ? (starts.get(after.id) ?? NaN) - gap : end
+    if (start == null || !(stop - start > 0)) return t
+    const size = stop - start
+    const sizing = trackSizing(result, axis, k)
+    if (sizing.kind === 'weighted') return perPx != null && t.weight !== size * perPx ? { ...t, weight: size * perPx } : t
+    if (sizing.kind === 'fixed' && t.px != null) {
+      const whole = Math.max(1, Math.round(size))
+      return whole === t.px ? t : { ...t, px: whole }
+    }
+    return t
+  })
+  return out.every((t, k) => t === tracks[k]) ? result : withTracks(result, axis, out)
+}
+
 /** Where a stretch's drag lands: its clamped, snapped position and what it means (`edgeTarget`). */
 interface EdgeTarget {
-  /** Each line's position (px) at the drag's start. */
+  /** Each line's place (px) at the drag's start (`lineStarts`). */
   pos: number[]
   /** The position the stretch moves to (px). */
   target: number
@@ -641,15 +702,15 @@ interface EdgeTarget {
 function edgeTarget(layout: LayoutBody, stretch: EdgeStretch, delta: number, opts: MoveEdgeOptions): EdgeTarget | null {
   const { axis, line } = stretch
   const tracks = layout.grid[axis]
-  const { sizes, snapPx = EDGE_SNAP_PX, minPx = defaultMinPx, snapHome = false } = opts
+  const { sizes, snapPx = EDGE_SNAP_PX, minPx = defaultMinPx, snapHome = false, gap = 0 } = opts
   if (line < 1 || line >= tracks.length || sizes.length !== tracks.length || !Number.isFinite(delta)) return null
   const { before, after } = stretchCells(layout, stretch)
   if (before.length === 0 || after.length === 0) return null
-  const pos = [0]
-  for (const s of sizes) pos.push((pos.at(-1) ?? 0) + Math.max(0, s))
+  const pos = lineStarts(sizes, gap)
   const at = (i: number) => pos[i] ?? 0
-  const least = Math.max(...before.map((c) => at(spanOf(c.area, axis)[0]) + minPx(c, axis)))
-  const most = Math.min(...after.map((c) => at(spanOf(c.area, axis)[1]) - minPx(c, axis)))
+  // A cell from line s to line e is at(e) − at(s) − gap wide (`lineStarts`).
+  const least = Math.max(...before.map((c) => at(spanOf(c.area, axis)[0]) + minPx(c, axis) + gap))
+  const most = Math.min(...after.map((c) => at(spanOf(c.area, axis)[1]) - minPx(c, axis) - gap))
   if (least > most) return null
   // A cell already under its minimum (a fit row drawn a fraction short of
   // it, a fixed track set low) keeps the size it has: the clamp holds the
@@ -717,7 +778,9 @@ export function edgeSnapLine(layout: LayoutBody, stretch: EdgeStretch, delta: nu
  *   in two at that point (a new line and track; the cells crossing it gain
  *   a span). The cells beside the stretch then end / start on the new line,
  *   and a line left as no cell's edge goes (`normalizeGrid`) — layout
- *   structure.
+ *   structure. Drawn with a gap between tracks (`opts.gap`), the tracks are
+ *   then sized so every other line stays where it was and the stretch is
+ *   where it was put (`drawnAt`).
  *
  * The same layout when the stretch isn't one, the sizes don't match the
  * axis, or nothing moves.
@@ -725,21 +788,22 @@ export function edgeSnapLine(layout: LayoutBody, stretch: EdgeStretch, delta: nu
 export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, delta: number, opts: MoveEdgeOptions, genId: IdGen): L {
   const { axis, line } = stretch
   const tracks = layout.grid[axis]
-  const { sizes } = opts
+  const { sizes, gap = 0 } = opts
   const found = edgeTarget(layout, stretch, delta, opts)
   if (!found) return layout
   const { pos, target, snapped, whole, beforeIds, afterIds } = found
   const at = (i: number) => pos[i] ?? 0
   if (snapped === line || (snapped == null && target === at(line))) return layout
 
-  if (whole && snapped == null && target > at(line - 1) && target < at(line + 1)) {
+  // The two tracks beside the line, were it at `target` (`lineStarts`: a track ends a gap before the next starts).
+  const sizeA = target - at(line - 1) - gap
+  const sizeB = at(line + 1) - gap - target
+  if (whole && snapped == null && sizeA > 0 && sizeB > 0) {
     // From the weights as drawn: a track held at its minimum would make the line lag and the others drift.
     const based = drawnByWeight(layout, axis, sizes)
     const a = pairTrack(based, axis, line - 1, sizes[line - 1])
     const b = pairTrack(based, axis, line, sizes[line])
     if (!a || !b) return layout
-    const sizeA = target - at(line - 1)
-    const sizeB = at(line + 1) - target
     const [na, nb] = resizedPair(a.track, b.track, sizeA, sizeB)
     let out = replaceAt(replaceAt(based.grid[axis], line - 1, a.back(na)), line, b.back(nb))
     // A fixed (or fit) track beside a weighted one: the weighted one alone
@@ -751,12 +815,19 @@ export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, 
 
   let next = layout
   let newLine = snapped
+  // Where each track starts, by id: what the result's tracks are sized from (`drawnAt`).
+  const starts = new Map(tracks.map((t, i) => [t.id, at(i)]))
   if (newLine == null) {
     let t = 0
     while (t < tracks.length - 1 && target >= at(t + 1)) t++
     const size = sizes[t] ?? 0
-    if (size <= 0) return layout
-    next = splitTrack(next, axis, t, (target - at(t)) / size, genId())
+    // The track's two parts: up to the new line's gutter, and from the line on.
+    const first = target - gap - at(t)
+    const second = at(t) + size - target
+    if (!(size > 0) || !(first > 0) || !(second > 0)) return layout
+    const id = genId()
+    next = splitTrack(next, axis, t, first / size, id, second / size)
+    starts.set(id, target)
     newLine = t + 1
   }
   // The stretch's line and the cells beside it, in `next`'s coordinates.
@@ -769,7 +840,9 @@ export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, 
     return c
   })
   if (cells.some((c) => c.area.colSpan < 1 || c.area.rowSpan < 1)) return layout
-  return normalizeGrid(withCells(next, cells))
+  const moved = normalizeGrid(withCells(next, cells))
+  // Drawn with gaps, a new line's gutter and a merged line's are px the shares and sums above leave out.
+  return gap > 0 ? drawnAt(moved, axis, starts, at(tracks.length) - gap, gap, layout, sizes) : moved
 }
 
 /**
@@ -778,14 +851,14 @@ export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, 
  * before it and the earliest end of those after — its own cells even, as a
  * drag would move it, the rest of its line staying. `null` for a whole line
  * (its two tracks share evenly instead) or sizes that don't match the axis.
+ * `gap` as `MoveEdgeOptions.gap`: the gap drawn between tracks.
  */
-export function evenStretchDelta(layout: LayoutBody, stretch: EdgeStretch, sizes: readonly number[]): number | null {
+export function evenStretchDelta(layout: LayoutBody, stretch: EdgeStretch, sizes: readonly number[], gap = 0): number | null {
   const { axis, line } = stretch
   if (isWholeLine(layout, stretch) || sizes.length !== layout.grid[axis].length) return null
   const { before, after } = stretchCells(layout, stretch)
   if (before.length === 0 || after.length === 0) return null
-  const pos = [0]
-  for (const s of sizes) pos.push((pos.at(-1) ?? 0) + Math.max(0, s))
+  const pos = lineStarts(sizes, gap)
   const at = (i: number) => pos[i] ?? 0
   const start = Math.max(...before.map((c) => at(spanOf(c.area, axis)[0])))
   const end = Math.min(...after.map((c) => at(spanOf(c.area, axis)[1])))
