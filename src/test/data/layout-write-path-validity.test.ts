@@ -186,11 +186,9 @@ describe('every layout write path of the workspace store stores rows import acce
     await expectExportImports(`${kind} renamed`)
   })
 
-  // cr34 D1, batch C: `renameTab` writes the field's text into `config.name` unclamped, so a
-  // name of 81 – 200 characters stores a row the layout check rejects. Batch C clamps it where
-  // it is written (`stores/workspace-store.ts`, not this batch's file): once that is merged
-  // this test passes, `it.fails` then reports it — make it a plain `it.each`.
-  it.fails.each(CONFIG_NAMED)('Name and icon…: a %s tab renamed with a name of 81 – 200 characters [fails until batch C clamps the name in renameTab]', async (kind) => {
+  // cr34 D1: `renameTab` cuts a name to its kind's stored limit (`tabNameMax`), so a name of
+  // 81 – 200 characters typed into Name and icon… still stores a row the layout check accepts.
+  it.each(CONFIG_NAMED)('Name and icon…: a %s tab renamed with a name of 81 – 200 characters stores a valid row', async (kind) => {
     const layoutId = await open()
     const id = await add(kind, layoutId)
     for (const name of NAMES.filter((n) => n.length > NUMBER_NAME_MAX)) {
