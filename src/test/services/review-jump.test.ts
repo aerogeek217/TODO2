@@ -191,6 +191,26 @@ describe('focusReviewWidget', () => {
     }
   })
 
+  it('finds its widget by a tab id that holds a quote or a backslash (S5: the id is escaped in the selector)', () => {
+    vi.useFakeTimers()
+    const tabId = 'rv"\\]x'
+    const host = document.createElement('div')
+    host.setAttribute('data-review-widget', tabId)
+    const update = document.createElement('input')
+    update.setAttribute('data-review-update', '')
+    host.append(update)
+    document.body.append(host)
+    try {
+      focusReviewWidget(tabId)
+      expect(() => vi.advanceTimersByTime(100)).not.toThrow()
+      expect(update).toHaveFocus()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      host.remove()
+      vi.useRealTimers()
+    }
+  })
+
   it('gives up quietly when the page is gone by the time it looks', () => {
     vi.useFakeTimers()
     vi.stubGlobal('document', undefined)
