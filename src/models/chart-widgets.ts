@@ -13,6 +13,7 @@ import {
   NUMBER_LIT_WHEN,
   NUMBER_NAME_MAX,
   numberIsLit,
+  readStoredName,
   type NumberLitWhen,
   type NumberPredicateRead,
   type PickedConfig,
@@ -234,9 +235,14 @@ export interface BreakdownViewState {
 
 const COLUMN_ID = /^[A-Za-z0-9_-]{1,40}$/
 
-/** A count column's stored id (or a sort key naming one): short word characters, never a fixed heading's key. */
+/** A key that names a member of `Object.prototype` (`constructor`, `__proto__`, …): never an id — ids key plain records. */
+function isPrototypeKey(v: string): boolean {
+  return v in Object.prototype
+}
+
+/** A count column's stored id (or a sort key naming one): short word characters, never a fixed heading's key nor a prototype member's name. */
 export function isBreakdownColumnId(v: unknown): v is string {
-  return typeof v === 'string' && COLUMN_ID.test(v) && !includes(BREAKDOWN_FIXED_SORT_KEYS, v)
+  return typeof v === 'string' && COLUMN_ID.test(v) && !includes(BREAKDOWN_FIXED_SORT_KEYS, v) && !isPrototypeKey(v)
 }
 
 /** A stored sort key: a fixed heading's, or a column id. */
@@ -284,7 +290,8 @@ export function breakdownColumnFilters(raw: Obj): Array<[string, unknown]> {
 /**
  * A Breakdown's config read from untrusted input, `filter` already picked:
  * a bad or missing field gets its default (`fixed`) — the name
- * `Breakdown`, split by people, bars, counts, the none row shown —; an
+ * `Breakdown`, split by people, bars, counts, the none row shown —; a name
+ * past the limit is cut to it (`shortened`, `readStoredName`); an
  * `oldestBy` that isn't one (or without `oldest`), or a `badges` /
  * `checkins` an earlier build stored (v79 rewrote them), is dropped
  * (`fixed`).
@@ -296,8 +303,10 @@ export function pickBreakdownConfig(raw: Obj, filter: PickedConfig<TodoPredicate
     fixed = true
     return fallback
   }
+  const named = readStoredName(raw.name, CHART_NAME_MAX)
+  if (!named) fixed = true
   const config: BreakdownConfig = {
-    name: pick(raw.name, isChartName, DEFAULT_BREAKDOWN_NAME),
+    name: named ? named.name : DEFAULT_BREAKDOWN_NAME,
     filter: filter.config,
     splitBy: pick(raw.splitBy, (v): v is BreakdownSplit => includes(BREAKDOWN_SPLITS, v), 'people'),
     style: pick(raw.style, (v): v is BreakdownStyle => includes(BREAKDOWN_STYLES, v), 'bars'),
@@ -313,7 +322,7 @@ export function pickBreakdownConfig(raw: Obj, filter: PickedConfig<TodoPredicate
     config.columns = picked.config
     if (picked.fixed) fixed = true
   } else if (raw.columns !== undefined) fixed = true
-  return { config, fixed }
+  return named?.cut ? { config, fixed, shortened: true } : { config, fixed }
 }
 
 /**
@@ -438,7 +447,7 @@ export interface PivotViewState {
 function isPivotSort(v: unknown): v is PivotSort {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
   const { by, reversed, ...rest } = v as Obj
-  return Object.keys(rest).length === 0 && typeof by === 'string' && COLUMN_ID.test(by) && (reversed === undefined || reversed === true)
+  return Object.keys(rest).length === 0 && typeof by === 'string' && COLUMN_ID.test(by) && !isPrototypeKey(by) && (reversed === undefined || reversed === true)
 }
 
 /** Where a stored Pivot view state goes wrong: the bad key, or `null`. */
@@ -470,7 +479,7 @@ export function pivotConfigProblem(raw: Obj): string | null {
   return null
 }
 
-/** A Pivot's config from untrusted input, `filter` picked: a bad field gets its default (people × status, `fixed`). */
+/** A Pivot's config from untrusted input, `filter` picked: a bad field gets its default (people × status, `fixed`); a name past the limit is cut to it (`shortened`). */
 export function pickPivotConfig(raw: Obj, filter: PickedConfig<TodoPredicate>): PickedConfig<PivotConfig> {
   let fixed = filter.fixed
   const pick = <V,>(v: unknown, ok: (v: unknown) => v is V, fallback: V): V => {
@@ -478,13 +487,13 @@ export function pickPivotConfig(raw: Obj, filter: PickedConfig<TodoPredicate>): 
     fixed = true
     return fallback
   }
-  return {
-    config: {
-      name: pick(raw.name, isChartName, DEFAULT_PIVOT_NAME),
-      filter: filter.config,
-      rows: pick(raw.rows, isSplit, 'people'),
-      cols: pick(raw.cols, isSplit, 'status'),
-    },
-    fixed,
+  const named = readStoredName(raw.name, CHART_NAME_MAX)
+  if (!named) fixed = true
+  const config: PivotConfig = {
+    name: named ? named.name : DEFAULT_PIVOT_NAME,
+    filter: filter.config,
+    rows: pick(raw.rows, isSplit, 'people'),
+    cols: pick(raw.cols, isSplit, 'status'),
   }
+  return named?.cut ? { config, fixed, shortened: true } : { config, fixed }
 }

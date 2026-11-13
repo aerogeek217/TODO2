@@ -2,6 +2,7 @@ import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from './database'
 import { upgradeDataSet, type DataRow, type DataSet } from './schema-upgrades'
 import { MAX_IMPORT_SIZE_BYTES, MAX_RECORDS_PER_TABLE, validateImportData, type ImportData } from './import-validation'
 import { SCHEMA_VERSION_KEY, tooOldFileMessage } from './file-version'
+import { layoutSizeProblem } from './layout-size'
 import { isRecord } from '../utils/is-record'
 
 export type PrepareImportFailure =
@@ -74,8 +75,12 @@ function readSchemaVersion(raw: Record<string, unknown>): number | null {
  *      (`too-old`, `tooOldFileMessage`): nothing in it is read further.
  *    - floor ≤ v < CURRENT → upgraded through `upgradeDataSet`.
  *    - = CURRENT → validated as-is.
+ *    Before either, the size caps that bound that work: 100,000 rows a
+ *    table, and the layouts' parts (`layout-size`: a layout holding far
+ *    more parts than the app keeps is refused, with a message).
  * 2. Validates the upgraded dataset (`validateImportData`, strict except for
- *    unrecognized setting keys, which become `warnings`).
+ *    unrecognized setting keys and a layout it repairs, which become
+ *    `warnings`).
  *
  * Task archives (`kind: 'task-archive'`) take the same path — the
  * registry transforms tolerate their missing tables — but are only accepted
@@ -141,11 +146,23 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
     }
   }
 
+  // The layouts' size, likewise before the transforms (and before the layout
+  // check): a layout holding far more parts than the app keeps is refused
+  // here, with a message — reading it takes time with the square of its
+  // parts (`layout-size`).
+  const tooLarge = layoutSizeProblem(tables.layouts ?? [])
+  if (tooLarge) return { ok: false, reason: 'invalid', error: tooLarge }
+
   let upgradedTables: DataSet
   try {
     upgradedTables = upgradeDataSet(tables, fromVersion, CURRENT_DB_VERSION)
   } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err)
+    // A `RangeError` is the engine's own (`Maximum call stack size exceeded`:
+    // a transform walked parts nested thousands deep, or was handed a list
+    // too long): said in words, as the file's fault it is.
+    const detail = err instanceof RangeError
+      ? 'it holds parts nested too deeply, or a list too long, to read'
+      : err instanceof Error ? err.message : String(err)
     return {
       ok: false,
       reason: 'upgrade-failed',

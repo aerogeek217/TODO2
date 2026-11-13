@@ -77,7 +77,11 @@ describe('import: a layout’s order and the new-task follow-up setting', () => 
     expect(validateRow('layouts', { ...noOrder, sortOrder: 'first' })).toBe('sortOrder')
     expect(rowFixes('layouts', noOrder)).toEqual(['order reset'])
     expect(sanitizeRow('layouts', noOrder).sortOrder).toBe(Number.MAX_SAFE_INTEGER)
-    expect(validateImportData({ todos: [], settings: [], layouts: [noOrder] }).ok).toBe(false)
+    // The import repairs it as the database read does (cr34 answer 20), with a warning.
+    const res = validateImportData({ todos: [], settings: [], layouts: [noOrder] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]!.sortOrder).toBe(Number.MAX_SAFE_INTEGER)
+    expect(res.warnings).toEqual(['Fixed 1 layout: "L1" (order reset)'])
   })
 
   it.each([['true', true], ['false', true], ['no', false], ['', false]])('removeConvertedLines %j reads: %s', (value, ok) => {

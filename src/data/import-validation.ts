@@ -628,7 +628,7 @@ function pickNote(v: Raw): AllFields<Note> {
 /**
  * A layout's name as stored: trimmed, at most `LAYOUT_NAME_MAX` long; a
  * missing or blank one becomes `Layout`. `fix` names what changed, for a name
- * `checkLayout` rejects (only the audit picks such a row).
+ * `checkLayout` rejects (the layout repair: `readLayout`).
  */
 function layoutName(v: unknown): { name: string; fix?: string } {
   if (isStr(v, LAYOUT_NAME_MAX) && v.trim().length > 0) return { name: v }
@@ -638,36 +638,35 @@ function layoutName(v: unknown): { name: string; fix?: string } {
 }
 
 /**
- * What `pickLayout` drops or resets in a `layouts` row, in words; empty for a
- * row that passes `checkLayout` (but for parts past `LAYOUT_PART_LIMIT`,
- * which import drops with a warning). Import rejects such rows; the audit
- * repairs a stored one with `pickLayout` instead of deleting it.
- */
-function layoutFixes(v: Raw): string[] {
-  const fixes: string[] = []
-  const name = layoutName(v.name).fix
-  if (name) fixes.push(name)
-  if (!isFiniteNum(v.sortOrder)) fixes.push('order reset')
-  if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
-  if (v.hue !== undefined && !isLayoutHue(v.hue)) fixes.push('hue reset')
-  if (v.icon !== undefined && !isIconValue(v.icon)) fixes.push('icon reset')
-  return [...fixes, ...pickLayoutBody(v).fixes]
-}
-
-/**
  * The order a layout without a readable one gets when repaired: after every
  * other layout (the picker orders such layouts by creation).
  */
 const LAYOUT_ORDER_RESET = Number.MAX_SAFE_INTEGER
 
-function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
-  // Lenient past `checkLayout` (bad dates → now, a bad last use → none, a bad
-  // order → last), so the audit can repair a stored row with it; see `layoutFixes`.
+/**
+ * A `layouts` row read once: the row as it is stored (`pickLayout`) and what
+ * that drops or resets, in words (`layoutFixes`) — its body is rebuilt one
+ * time for both. Lenient past `checkLayout` (bad dates → now, a bad last use
+ * → none, a bad order → last, a bad part of the table dropped or reset:
+ * `pickLayoutBody`), so a row the check rejects is repaired, never refused:
+ * by the import (with a warning), the database read and the audit alike.
+ * The fixes are empty for a row that passes `checkLayout` (but for parts
+ * past `LAYOUT_PART_LIMIT`).
+ */
+function readLayout(v: Raw): { row: AllFields<WorkspaceLayout>; fixes: string[] } {
   const now = new Date()
   const body = pickLayoutBody(v)
-  return {
+  const name = layoutName(v.name)
+  const fixes: string[] = []
+  if (name.fix) fixes.push(name.fix)
+  if (!isFiniteNum(v.sortOrder)) fixes.push('order reset')
+  if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
+  if (v.hue !== undefined && !isLayoutHue(v.hue)) fixes.push('hue reset')
+  if (v.icon !== undefined && !isIconValue(v.icon)) fixes.push('icon reset')
+  for (const fix of body.fixes) fixes.push(fix)
+  const row = {
     id: optNum(v.id),
-    name: layoutName(v.name).name,
+    name: name.name,
     sortOrder: isFiniteNum(v.sortOrder) ? v.sortOrder : LAYOUT_ORDER_RESET,
     grid: body.grid,
     cells: body.cells,
@@ -677,6 +676,26 @@ function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
     hue: isLayoutHue(v.hue) ? v.hue : undefined,
     icon: pickIconValue(v.icon),
   } satisfies AllFields<WorkspaceLayout>
+  return { row, fixes }
+}
+
+/** What `pickLayout` drops or resets in a `layouts` row, in words (`readLayout`). */
+function layoutFixes(v: Raw): string[] {
+  return readLayout(v).fixes
+}
+
+function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
+  return readLayout(v).row
+}
+
+/**
+ * Whether the layout repair can take this row the check rejects: any row
+ * with a usable id (absent, or a whole number from 1). A layout's id is
+ * what its lists and the active-layout setting name it by, so a row whose
+ * id doesn't read is still refused — nothing the app writes.
+ */
+function isRepairableLayout(v: Raw): boolean {
+  return isOptId(v.id)
 }
 
 function pickTodoEvent(v: Raw): AllFields<TodoEvent> {
@@ -801,6 +820,17 @@ interface ImportTableRules<K extends DataTableName> {
   pick: (v: Raw) => AllFields<ImportRow<K>>
   /** For tables whose valid rows can still carry a part import drops or changes. */
   fixer?: RowFixer
+  /**
+   * For a table whose picker also repairs a row `check` rejects (`layouts`):
+   * whether it can repair this one. Import then keeps the row — rebuilt by
+   * the picker, what changed a warning — instead of refusing the file.
+   */
+  repairs?: (v: Raw) => boolean
+  /**
+   * `pick` and the fixer's `fixes` from one read of the row, where reading
+   * it twice costs (a layout's table): import uses it for both.
+   */
+  read?: (v: Raw) => { row: AllFields<ImportRow<K>>; fixes: string[] }
 }
 
 interface RowFixer {
@@ -871,6 +901,8 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
     check: checkLayout,
     pick: pickLayout,
     fixer: { fixes: layoutFixes, lead: (n) => `Fixed ${plural(n, 'layout', 'layouts')}` },
+    repairs: isRepairableLayout,
+    read: readLayout,
   },
   listOrders: { check: checkListOrder, pick: pickListOrder },
 }
@@ -946,10 +978,15 @@ export interface ValidateImportOptions {
  * pipeline — see `data/import-pipeline.ts` `prepareImport`) and reconstructs
  * typed rows via the `pick*` whitelist.
  *
- * Strict, with one leniency: a well-formed `settings` row whose key this
- * build doesn't recognize is dropped and reported in `warnings` instead of
- * failing the import. Every other bad row fails it; the error message lists
- * all failing rows (the first `MAX_REPORTED_ROW_ERRORS`, then a count).
+ * Strict, with two leniencies, each reported in `warnings` instead of
+ * failing the import: a well-formed `settings` row whose key this build
+ * doesn't recognize is dropped; and a `layouts` row the check rejects is
+ * **repaired** (`ImportTableRules.repairs`: its bad parts dropped or reset
+ * by the same repair the database read and the audit use, `pickLayout`) and
+ * stored in the repaired shape — one bad field of one layout would otherwise
+ * make every backup and the sync file unreadable (cr34 H2). Every other bad
+ * row fails it; the error message lists all failing rows (the first
+ * `MAX_REPORTED_ROW_ERRORS`, then a count).
  */
 export function validateImportData(data: unknown, options: ValidateImportOptions = {}): ValidateImportResult {
   if (!isRecord(data)) {
@@ -965,9 +1002,11 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
   const rowErrors: string[] = []
   const droppedSettingKeys: string[] = []
   const droppedSettingIdx = new Set<number>()
+  /** The rows the check rejected that their table's picker repairs (`repairs`). */
+  const repaired = new Set<unknown>()
 
   for (const key of DATA_TABLE_NAMES) {
-    const { check } = IMPORT_TABLES[key]
+    const { check, repairs } = IMPORT_TABLES[key]
     const arr = raw[key]
     if (arr === undefined || arr === null) continue
     if (!Array.isArray(arr)) {
@@ -983,6 +1022,10 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
       if (key === 'settings' && result === UNRECOGNIZED_SETTING_KEY && isRecord(row)) {
         droppedSettingIdx.add(i)
         droppedSettingKeys.push(String(row.key))
+        continue
+      }
+      if (repairs && isRecord(row) && repairs(row)) {
+        repaired.add(row)
         continue
       }
       const label = rowLabel(row) === '' ? '' : ` (${rowLabel(row)})`
@@ -1056,18 +1099,32 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
   }
 
   const warnings: string[] = []
+  /** The picked rows of the tables read once for both their warning and their data (`read`). */
+  const readRows = new Map<DataTableName, unknown[]>()
   for (const key of DATA_TABLE_NAMES) {
-    const { fixer } = IMPORT_TABLES[key]
+    const { fixer, read } = IMPORT_TABLES[key]
     const rows = raw[key]
     if (!fixer || !Array.isArray(rows)) continue
     const fixed: string[] = []
+    const picked: unknown[] = []
     for (const row of rows) {
+      // Every row is an object here: one that isn't failed its check above.
       if (!isRecord(row)) continue
-      const fixes = fixer.fixes(row)
+      let fixes: string[]
+      if (read) {
+        const once = read(row)
+        picked.push(compactRow<object>(once.row))
+        fixes = once.fixes
+      } else {
+        fixes = fixer.fixes(row)
+      }
+      // A repaired row always says so, also should its fixes name nothing.
+      if (fixes.length === 0 && repaired.has(row)) fixes = ['repaired']
       if (fixes.length === 0) continue
       const label = fixer.label ? fixer.label(row) : rowLabel(row) || 'unnamed'
       fixed.push(label ? `${label} (${fixes.join(', ')})` : fixes.join(', '))
     }
+    if (read) readRows.set(key, picked)
     if (fixed.length === 0) continue
     const shown = fixed.slice(0, MAX_REPORTED_ROW_ERRORS)
     const more = fixed.length - shown.length
@@ -1081,7 +1138,7 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
     .filter((_, i) => !droppedSettingIdx.has(i))
 
   const rows = Object.fromEntries(DATA_TABLE_NAMES.map((key) =>
-    [key, pickRows(key, key === 'settings' ? settingRows : raw[key])],
+    [key, readRows.get(key) ?? pickRows(key, key === 'settings' ? settingRows : raw[key])],
   )) as ImportData
   return { ok: true, warnings, data: rows }
 }

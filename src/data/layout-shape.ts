@@ -35,6 +35,7 @@ import {
   numberConfigProblem,
   pickNumberConfig,
   pickTrendConfig,
+  readStoredName,
   trendConfigProblem,
   type NumberConfig,
   type PickedConfig,
@@ -56,7 +57,7 @@ import type { TodoPredicate } from '../models/filter-predicate'
 import { emptyPredicate } from '../models/filter-predicate'
 import { isRecord } from '../utils/is-record'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
-import { isCellEdge, normalizeGrid, validateTiling } from '../utils/workspace-grid'
+import { normalizeGrid, validateTiling } from '../utils/workspace-grid'
 import { closeCell } from '../utils/workspace-layout-ops'
 
 /**
@@ -88,15 +89,36 @@ const MAX_ID_LEN = 100
  * holding more (one a hand edit or a hostile file made, which would leave
  * the app unable to show the workspace on every launch) still loads — the
  * parts past the limit are dropped by `pickLayoutBody` and reported, never a
- * failed import (`checkLayoutBody` doesn't count them).
+ * failed import (`checkLayoutBody` doesn't count them, nor check such a
+ * table's tiling) — up to ten times as many parts in all: a layout past
+ * that the import refuses before it reads it (`layout-size`).
  */
 export const LAYOUT_PART_LIMIT = 1000
 
+/**
+ * How much closing the cells a repair emptied may cost, as cells emptied ×
+ * cells × grid lines (closing one cell walks every line against every
+ * cell): within it each closes (`closeCell`), past it they all stay as
+ * empty cells. Any layout built by hand is far within it — 100 cells over
+ * 40 lines may lose every tab —; a layout of a thousand cells whose tabs
+ * were all of an unknown kind took seconds to close one by one (and the
+ * import now repairs such a row, cr34).
+ */
+export const LAYOUT_CLOSE_WORK_MAX = 2_000_000
+
 type Obj = Record<string, unknown>
 
-/** A layout part's id (a track, cell or tab) as stored. */
+/**
+ * A layout part's id (a track, cell or tab) as stored: text of 1 –
+ * `MAX_ID_LEN` characters that names no member of `Object.prototype`
+ * (`constructor`, `toString`, `__proto__`, …). Ids key plain records — a
+ * tab's editor preview, its prompt picks, its collapsed groups —, where such
+ * a name read the inherited member and four widget kinds threw in render
+ * (cr34 S2). It is a bad id like any other: the check rejects it and the
+ * repair drops its part.
+ */
 export function isId(v: unknown): v is string {
-  return typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LEN
+  return typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LEN && !(v in Object.prototype)
 }
 
 /**
@@ -336,15 +358,18 @@ function isTabName(v: unknown): v is string {
 
 /**
  * `tab` with the stored tab's name and icon (items 11, 14) when they read:
- * a name trimmed (a blank one is none, never a fix), an icon with only the
- * model's keys; one that doesn't read is dropped (`fix`).
+ * a name trimmed (a blank one is none, never a fix), one past
+ * `TAB_NAME_MAX` cut to it (`cut`), an icon with only the model's keys; one
+ * that doesn't read is dropped (`fix`).
  */
-function withTabLabel(tab: LayoutTab, raw: Obj, fix: () => void): LayoutTab {
+function withTabLabel(tab: LayoutTab, raw: Obj, fix: () => void, cut: () => void): LayoutTab {
   let out = tab
   if (raw.name !== undefined) {
-    if (isTabName(raw.name)) {
-      const name = raw.name.trim()
+    const named = readStoredName(raw.name, TAB_NAME_MAX)
+    if (named) {
+      const name = named.name.trim()
       if (name) out = { ...out, name }
+      if (named.cut) cut()
     } else {
       fix()
     }
@@ -413,17 +438,28 @@ export function checkLayoutBody(body: RawLayoutBody): true | string {
     if (tabs !== true) return tabs
   }
   const table = { grid: grid as unknown as LayoutBody['grid'], cells: body.cells as LayoutCell[] }
+  // Past the part limit the table isn't checked: the repair drops the parts
+  // past it and restacks the rest whatever it was (`pickLayoutBody`), and
+  // the tiling check takes time with the square of the cells.
+  if (table.cells.length > LAYOUT_PART_LIMIT || table.grid.columns.length > LAYOUT_PART_LIMIT || table.grid.rows.length > LAYOUT_PART_LIMIT) return true
   if (validateTiling(table) !== true) return 'cells'
+  // Every inner line is some cell's edge: the cells' edges collected once, then each line looked up.
   for (const axis of ['columns', 'rows'] as const) {
+    const edges = new Set<number>()
+    for (const c of table.cells) {
+      const start = axis === 'columns' ? c.area.col : c.area.row
+      edges.add(start)
+      edges.add(start + (axis === 'columns' ? c.area.colSpan : c.area.rowSpan))
+    }
     for (let line = 1; line < table.grid[axis].length; line++) {
-      if (!isCellEdge(table, axis, line)) return `grid.${axis}`
+      if (!edges.has(line)) return `grid.${axis}`
     }
   }
   return true
 }
 
 /** A part `pickLayoutBody` dropped or reset, counted. */
-type LayoutFix = 'grid' | 'rebuilt' | 'lines' | 'track' | 'cell' | 'tab' | 'size' | 'settings'
+type LayoutFix = 'grid' | 'rebuilt' | 'lines' | 'track' | 'cell' | 'tab' | 'size' | 'settings' | 'name'
   | 'trackLimit' | 'cellLimit' | 'tabLimit'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
@@ -435,6 +471,7 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   tab: ['tab dropped', 'tabs dropped'],
   size: ['size reset', 'sizes reset'],
   settings: ['tab or cell settings reset', 'tab or cell settings reset'],
+  name: ['tab name shortened', 'tab names shortened'],
   trackLimit: ['track past the limit of 1,000 dropped', 'tracks past the limit of 1,000 dropped'],
   cellLimit: ['cell past the limit of 1,000 dropped', 'cells past the limit of 1,000 dropped'],
   tabLimit: ['tab past the limit of 1,000 dropped', 'tabs past the limit of 1,000 dropped'],
@@ -477,9 +514,12 @@ interface PickedCell {
  * cell / tab that isn't an object, has a bad or repeated id (ids are unique
  * across tracks, cells and tabs), or (tab) an unknown kind is dropped; a bad
  * size is reset (a weight to the axis's average); bad tab settings fall back
- * to the kind's defaults; a bad `activeTabId` / `collapsed` is dropped; a
+ * to the kind's defaults; a name past its limit — a tab's own, a Number's
+ * or a chart's — is cut to it, never reset (`tab name shortened`); a bad
+ * `activeTabId` / `collapsed` is dropped; a
  * cell whose every tab was dropped closes (`closeCell`: a neighbour takes
- * its space, or it stays empty); an inner line no cell's edge lies on goes
+ * its space, or it stays empty — as they all do when closing them would
+ * cost past `LAYOUT_CLOSE_WORK_MAX`); an inner line no cell's edge lies on goes
  * (`normalizeGrid`). When the cells don't tile the grid any more (a bad
  * area, a dropped track or cell), the grid is rebuilt: every cell kept, in
  * its old reading order, stacked in one column (`restacked`).
@@ -530,9 +570,10 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       const lens = lensView()
       return lens.ignoreLens === undefined ? tab : { ...tab, viewState: { ...tab.viewState, ...lens } }
     }
-    /** A glance config as picked, a reset reported. */
+    /** A glance config as picked, a reset reported — and a name cut to its limit, as that. */
     const glance = <C,>(picked: PickedConfig<C>): C => {
       if (picked.fixed) fix('settings')
+      if (picked.shortened) fix('name')
       return picked.config
     }
     switch (tab.kind) {
@@ -621,7 +662,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       const picked = pickTab(tab)
       if (!picked) continue
-      tabs.push(isRecord(tab) ? withTabLabel(picked, tab, () => fix('settings')) : picked)
+      tabs.push(isRecord(tab) ? withTabLabel(picked, tab, () => fix('settings'), () => fix('name')) : picked)
       tabsKept++
     }
     return tabs
@@ -732,8 +773,10 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     if (picked.length > 0) fix('rebuilt')
     else if (columns.length > 0 || rows.length > 0) fix('grid')
   }
-  // A cell the repair emptied closes; a line no cell's edge lies on goes.
-  for (const p of picked) if (p.emptied) table = closeCell(table, p.cell.id)
+  // A cell the repair emptied closes (while that stays cheap: `LAYOUT_CLOSE_WORK_MAX`); a line no cell's edge lies on goes.
+  const emptied = picked.filter((p) => p.emptied)
+  const closeWork = emptied.length * table.cells.length * (table.grid.columns.length + table.grid.rows.length)
+  if (closeWork <= LAYOUT_CLOSE_WORK_MAX) for (const p of emptied) table = closeCell(table, p.cell.id)
   const lines = table.grid.columns.length + table.grid.rows.length
   const normal = normalizeGrid(table)
   const merged = lines - (normal.grid.columns.length + normal.grid.rows.length)

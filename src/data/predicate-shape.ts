@@ -309,8 +309,10 @@ function pickOrGroups(raw: unknown, fixes: PredicateFix[]): FilterClauses[] | un
  * clauses (`pickClauses`), Show completed and its expression
  * (`readExpression`). A required field that is missing gets its default.
  * An expression, or old or groups, make the whole filter an expression
- * (`wholeExpression`): the clauses fold into it. See the module comment for
- * what is dropped and reported.
+ * (`wholeExpression`): the clauses fold into it — unless the whole would be
+ * past the expression caps, when the expression (and the or groups) are
+ * dropped with a fix and the clauses stay clauses. See the module comment
+ * for what is dropped and reported.
  */
 export function pickPredicate(raw: unknown): PickedPredicate {
   const fixes: PredicateFix[] = []
@@ -325,7 +327,18 @@ export function pickPredicate(raw: unknown): PickedPredicate {
   const orGroups = pickOrGroups(v.orGroups, fixes) ?? []
   const expression = readExpression(v.expression, fixes)
   if (expression || orGroups.length > 0) {
-    return { predicate: withExpression(predicate, wholeExpression({ ...predicate, ...(expression ? { expression } : {}) }, orGroups)), fixes }
+    const whole = wholeExpression({ ...predicate, ...(expression ? { expression } : {}) }, orGroups)
+    // The clauses folded in can take the whole past the caps a stored
+    // expression is read within (`readExpression`): written so, the next read
+    // dropped it and the filter kept every task, unreported (cr34 S3). The
+    // expression (and the or groups) go on this read instead, reported, and
+    // the clauses stay as they are — what is stored reads back the same.
+    if (whole && (expressionSize(whole) > EXPRESSION_NODES_MAX || expressionDepth(whole) > EXPRESSION_DEPTH_MAX)) {
+      if (expression) fixes.push('expression dropped')
+      if (orGroups.length > 0) fixes.push('or groups dropped')
+      return { predicate, fixes }
+    }
+    return { predicate: withExpression(predicate, whole), fixes }
   }
   return { predicate, fixes }
 }

@@ -167,7 +167,6 @@ describe('glance widget kinds', () => {
 
   it.each([
     ['name', 7, { name: 'Number' }],
-    ['name', 'x'.repeat(81), { name: 'Number' }],
     ['color', 'teal', {}],
     ['unlitColor', 'teal', {}],
     ['unlitColor', 7, {}],
