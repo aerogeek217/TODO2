@@ -156,8 +156,8 @@ describe('the Review widget: its field', () => {
     expect(options()).toEqual(['AAisha3', 'BBen2', 'legal2', 'q42', 'Waiting2', 'Blocked1'])
   })
 
-  it('a click on a row adds it; a second person joins with or, a tag with and', () => {
-    renderAt('medium')
+  it('a click on a row adds it; picks combine as chips do: a second person joins with or, a tag narrows both', () => {
+    renderAt('large')
     fireEvent.click(field())
     fireEvent.mouseDown(screen.getByRole('option', { name: /Aisha/ }))
     expect(field()).toHaveValue('@Aisha ')
@@ -167,9 +167,51 @@ describe('the Review widget: its field', () => {
     fireEvent.mouseDown(screen.getByRole('option', { name: /Ben/ }))
     expect(field()).toHaveValue('@Aisha or @Ben ')
     expect(stored()?.expression).toEqual({ kind: 'or', items: [person(1), person(2)] })
+    expect(rowIds().sort()).toEqual(['1', '2', '3', '4'])
+    // The third pick, a tag: (Aisha or Ben) and legal — not Aisha, or Ben's legal tasks (F1).
     fireEvent.click(field())
     fireEvent.mouseDown(screen.getByRole('option', { name: /legal/ }))
-    expect(field()).toHaveValue('@Aisha or @Ben and #legal ')
+    expect(field()).toHaveValue('(@Aisha or @Ben) and #legal ')
+    expect(stored()?.expression).toEqual({ kind: 'and', items: [{ kind: 'or', items: [person(1), person(2)] }, { kind: 'tag', id: 1 }] })
+    expect(rowIds().sort()).toEqual(['1', '4'])
+    // A second tag joins the first: (Aisha or Ben) and (legal or q4).
+    fireEvent.click(field())
+    fireEvent.mouseDown(screen.getByRole('option', { name: /q4/ }))
+    expect(field()).toHaveValue('(@Aisha or @Ben) and (#legal or #q4) ')
+    expect(rowIds().sort()).toEqual(['1', '2', '4'])
+  })
+
+  it('a review takes open tasks only: `done` and a Completed date are refused, saying so, and change nothing (F6)', () => {
+    renderAt('large')
+    setFilter(person(2))
+    type('done')
+    fireEvent.keyDown(field(), { key: 'Enter' })
+    expect(screen.getByTestId('review-field-error')).toHaveTextContent('done has no say here')
+    expect(stored()?.expression).toEqual(person(2))
+    type('@Ben and completed this week')
+    fireEvent.keyDown(field(), { key: 'Enter' })
+    expect(screen.getByTestId('review-field-error')).toHaveTextContent('Leave completed out')
+    expect(stored()?.expression).toEqual(person(2))
+    expect(rowIds().sort()).toEqual(['3', '4'])
+  })
+
+  it('a filter that narrows by nothing (a jump from such a list): the field says Every open task, with its × (F12)', () => {
+    renderAt('large')
+    setFilter({ kind: 'and', items: [] })
+    expect(field()).toHaveValue('')
+    expect(screen.getByTestId('review-field-pills')).toHaveTextContent(/^Every open task$/)
+    expect(field()).toHaveAccessibleDescription('Every open task')
+    expect(rowIds().sort()).toEqual(['1', '2', '3', '4', '6'])
+    // A focus and a blur keep it (the empty text is that filter's own).
+    fireEvent.focus(field())
+    expect(screen.queryByTestId('review-field-pills')).toBeNull()
+    expect(field()).toHaveAttribute('placeholder', 'Who or what to review…')
+    fireEvent.blur(field())
+    expect(stored()?.expression).toEqual({ kind: 'and', items: [] })
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the filter' }))
+    expect(stored()).toBeUndefined()
+    expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick who or what to review')
+    expect(screen.queryByRole('button', { name: 'Clear the filter' })).toBeNull()
   })
 
   it('bare letters match people, tags and statuses at once; ⏎ takes the first', () => {
