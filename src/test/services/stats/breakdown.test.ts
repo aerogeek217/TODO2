@@ -125,6 +125,19 @@ describe('computeBreakdown — the @ / # picks narrow people and tags rows, as a
     expect(rows([[2, 3], [3]])).toEqual([['Bob', [1, 2]]])
   })
 
+  it('a row some picks name but not all says the people it leaves out; one every pick names, or no overlap, says none (cr34 G4)', () => {
+    const excludes = (restrictions: number[][]) => computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), opts('people', { restrictions }))
+      .rows.map((r) => [r.label, r.ids, r.excludes])
+    // Picks Amy-or-Bob and Bob-or-Zed: Bob is in both, so a task with Bob counts under Bob alone; Zed's row is the Zed tasks without Bob.
+    expect(excludes([[2, 3], [3, 1]])).toEqual([['Bob', [1, 2], undefined], ['Zed', [3], [3]]])
+    // No person in every pick: each row is every task of its person.
+    expect(excludes([[2], [1]])).toEqual([['Zed', [2, 3], undefined], ['Amy', [1], undefined]])
+    // One pick, and none: nothing left out; the Unassigned pick is never a person to leave out.
+    expect(excludes([[2, 3]]).every((r) => r[2] === undefined)).toBe(true)
+    expect(excludes([]).every((r) => r[2] === undefined)).toBe(true)
+    expect(excludes([[0, 2, 3], [0, 3, 1]])).toEqual([['Bob', [1, 2], undefined], ['Zed', [3], [3]], ['Unassigned', [4], undefined]])
+  })
+
   it('the Unassigned pick (0) keeps the Unassigned row while every pick has it', () => {
     expect(rows([[0, 2]])).toEqual([['Amy', [1]], ['Unassigned', [4]]])
     expect(rows([[0, 2], [2]])).toEqual([['Amy', [1]]])

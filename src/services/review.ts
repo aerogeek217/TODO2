@@ -182,17 +182,30 @@ const AGE_TERMS: Record<AgeBucket, FilterExpr> = {
 }
 
 /**
- * A Breakdown row as a filter term — the tasks the row holds among the
- * chart's (`services/stats/breakdown`): a person, a tag, a status, a
- * priority group, a due or an age bucket, or the split's none row
- * (Unassigned, No tags, No status, No priority, No due date). Every split's
- * rows are expressible; null only for a row this build doesn't know.
+ * A people (tags) row's term: its person (tag) — and, under `@` / `#` picks
+ * on both the Breakdown's filter and the top bar that overlap in part, none
+ * of the people every pick names (`BreakdownRow.excludes`): a task that has
+ * one of those counts under them alone, so `@Ben and not @Aisha` is what
+ * Ben's row holds (cr34 G4).
  */
-export function breakdownRowTerm(row: Pick<BreakdownRow, 'entity'>, splitBy: BreakdownConfig['splitBy']): FilterExpr | null {
+function apartFrom(term: FilterExpr, kind: 'person' | 'tag', excludes: readonly number[] | undefined): FilterExpr {
+  if (!excludes || excludes.length === 0) return term
+  return { kind: 'and', items: [term, ...excludes.map((id) => not({ kind, id }))] }
+}
+
+/**
+ * A Breakdown row as a filter term — the tasks the row holds among the
+ * chart's (`services/stats/breakdown`): a person, a tag (without the ones
+ * the row leaves out, `apartFrom`), a status, a priority group, a due or an
+ * age bucket, or the split's none row (Unassigned, No tags, No status, No
+ * priority, No due date). Every split's rows are expressible; null only for
+ * a row this build doesn't know.
+ */
+export function breakdownRowTerm(row: Pick<BreakdownRow, 'entity' | 'excludes'>, splitBy: BreakdownConfig['splitBy']): FilterExpr | null {
   const e = row.entity
   switch (e.kind) {
-    case 'person': return { kind: 'person', id: e.person.id }
-    case 'tag': return { kind: 'tag', id: e.tag.id }
+    case 'person': return apartFrom({ kind: 'person', id: e.person.id }, 'person', row.excludes)
+    case 'tag': return apartFrom({ kind: 'tag', id: e.tag.id }, 'tag', row.excludes)
     case 'status': return { kind: 'status', id: e.status.id }
     case 'priority': return PRIORITY_TERMS[e.group]
     case 'due': return DUE_TERMS[e.bucket]
@@ -230,7 +243,7 @@ export function breakdownReviews(config: Pick<BreakdownConfig, 'filter'>): boole
  */
 export function breakdownReviewFilter(
   config: Pick<BreakdownConfig, 'filter' | 'splitBy'>,
-  row: Pick<BreakdownRow, 'entity'>,
+  row: Pick<BreakdownRow, 'entity' | 'excludes'>,
   column?: Pick<BreakdownColumn, 'filter'>,
   ignoreLens?: boolean,
 ): ReviewJump | null {
