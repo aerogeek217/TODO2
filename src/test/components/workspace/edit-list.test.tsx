@@ -420,6 +420,41 @@ describe('Edit list', () => {
     act(() => useListDefinitionStore.setState({ listDefinitions: [] }))
     expect(useUIStore.getState().listEditor).toBeNull()
   })
+
+  it('a tab or cell id that isn’t selector-safe (an imported layout’s) is looked up as an id, not as selector text (cr34 S5)', () => {
+    // Ids the stored shape allows: a quote, a bracket, a selector of their own.
+    const tabId = 't"] , [data-ws-tab="other'
+    const cellId = 'c"1] *'
+    const odd: PersistedWorkspaceLayout = {
+      ...layout,
+      ...single({ id: cellId, tabs: [{ id: tabId, kind: 'lens', config: { listDefinitionId: 7 } }] }),
+    }
+    useWorkspaceStore.setState({ working: odd, layouts: [odd] })
+    render(
+      <>
+        <section data-ws-cell="other-cell">
+          <button type="button" data-ws-tab="other">Another tab</button>
+          <div data-list-host="other" />
+        </section>
+        <section data-ws-cell={cellId}>
+          <div data-ws-cell-header={cellId}><button type="button" data-ws-tab={tabId}>Waiting on</button></div>
+          <div data-list-host={tabId}><button type="button">A row</button></div>
+        </section>
+        <EditListHost />
+      </>,
+    )
+    const tab = screen.getByRole('button', { name: 'Waiting on' })
+    tab.focus()
+    act(() => useUIStore.getState().openListEditor(7, tabId))
+    // It opens beside its own cell (found by the tab's id) and stays open.
+    const dialog = screen.getByRole('dialog', { name: 'Edit list Waiting on' })
+    expect(dialog).toBeVisible()
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId })
+    // Focus goes back to its own tab on close.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
+    expect(editorOpen()).toBe(false)
+    expect(document.activeElement).toBe(tab)
+  })
 })
 
 describe('Edit list › Copy from…', () => {

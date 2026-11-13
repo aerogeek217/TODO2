@@ -37,6 +37,14 @@ const TOP_INSET_PX = 6
 const NAME_TO_SAVE_TITLE = 'Name the list to save it'
 
 /**
+ * `[attr="id"]` for a tab's or a cell's id, escaped: an id is stored data
+ * (an imported layout's may hold a quote or a bracket), never selector text.
+ */
+function byId(attr: string, id: string): string {
+  return `[${attr}="${CSS.escape(id)}"]`
+}
+
+/**
  * Edit list's draft and its Save / Discard — the widget editors' pattern
  * (`glance/editor-draft`): the form edits a draft of the list, which every
  * widget showing the list draws live (`list-draft-store`, in memory only),
@@ -205,7 +213,7 @@ function useFocusReturn(panelRef: React.RefObject<HTMLElement | null>, tabId: st
       const active = document.activeElement
       const focusLeft = !active || active === document.body || !active.isConnected || (panel?.contains(active) ?? false)
       if (!focusLeft) return
-      const tab = document.querySelector<HTMLElement>(`[data-ws-tab="${tabId}"]`)
+      const tab = document.querySelector<HTMLElement>(byId('data-ws-tab', tabId))
       const target = opener && opener !== document.body && opener.isConnected ? opener : tab
       target?.focus({ preventScroll: true })
     }
@@ -316,8 +324,8 @@ type Placement =
 /** What the popover sits beside: the widget popup while it shows the list's tab, else the tab's cell. */
 function cellOf(tabId: string): HTMLElement | null {
   const popup = widgetPopupOf(tabId)
-  if (popup?.querySelector(`[data-list-host="${tabId}"]`)) return popup
-  return document.querySelector<HTMLElement>(`[data-ws-tab="${tabId}"]`)?.closest<HTMLElement>('[data-ws-cell]') ?? null
+  if (popup?.querySelector(byId('data-list-host', tabId))) return popup
+  return document.querySelector<HTMLElement>(byId('data-ws-tab', tabId))?.closest<HTMLElement>('[data-ws-cell]') ?? null
 }
 
 function measurePlacement(cell: HTMLElement, tabId: string): Placement {
@@ -330,7 +338,7 @@ function measurePlacement(cell: HTMLElement, tabId: string): Placement {
     return { mode: 'beside', width: beside, rect: { left: r.left, right: r.right, top: r.top + TOP_INSET_PX, bottom: r.bottom } }
   }
   // Last resort: over the lower rows, under the filter line (else the header), right-aligned to the panel.
-  const widget = cell.querySelector(`[data-list-host="${tabId}"]`)
+  const widget = cell.querySelector(byId('data-list-host', tabId))
   const line = widget?.querySelector('[data-testid="list-filter-row"]') ?? cell.querySelector('[data-ws-cell-header]')
   const b = (line ?? cell).getBoundingClientRect()
   return { mode: 'below', width: POPOVER_WIDTH_PX, rect: { left: r.left, right: r.right - TOP_INSET_PX, top: b.top, bottom: b.bottom } }
@@ -345,7 +353,7 @@ const MISSING = 'missing'
  */
 function readPlacement(tabId: string): string {
   const cell = cellOf(tabId)
-  if (!cell?.querySelector(`[data-list-host="${tabId}"]`)) return MISSING
+  if (!cell?.querySelector(byId('data-list-host', tabId))) return MISSING
   return JSON.stringify(measurePlacement(cell, tabId))
 }
 
@@ -368,7 +376,7 @@ function createPlacementStore(tabId: string, cellId: string | undefined, shown: 
       window.addEventListener('scroll', moved, true)
       // The cell holding the tab in the layout as it is now (a layout change
       // makes a new store, so the observer follows the tab to another cell).
-      const cell = cellId != null ? document.querySelector(`[data-ws-cell="${cellId}"]`) : null
+      const cell = cellId != null ? document.querySelector(byId('data-ws-cell', cellId)) : null
       const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(moved) : null
       if (ro && cell) ro.observe(cell)
       return () => {
