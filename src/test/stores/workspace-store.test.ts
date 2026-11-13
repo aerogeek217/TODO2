@@ -338,56 +338,8 @@ describe('writes run in the order they were made', () => {
   })
 })
 
-describe('a write that fails', () => {
-  function failWrites() {
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-    return vi.spyOn(layoutRepository, 'putAndPrune').mockRejectedValue(new DOMException('full', 'QuotaExceededError'))
-  }
-
-  it('keeps the edit on screen, says so and marks the layout; Retry writes it', async () => {
-    const [id] = await seedAndInit(twoColumns())
-    const put = failWrites()
-    ws().closeTab('b1')
-    await settleLayoutWrites()
-    expect(ws().writeFailed).toBe(true)
-    expect(picture(ws().working!)).toEqual(['ka'])
-    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn\'t save layout "Daily".', notice: true })
-    expect(picture(await stored(id!))).toEqual(['ka kb'])
-    expect(await ws().retryWrite()).toBe(false)
-    put.mockRestore()
-    expect(await ws().retryWrite()).toBe(true)
-    expect(ws().writeFailed).toBe(false)
-    expect(picture(await stored(id!))).toEqual(['ka'])
-  })
-
-  it('the next edit writes the whole layout, and clears it', async () => {
-    const [id] = await seedAndInit(twoColumns())
-    const put = failWrites()
-    ws().closeTab('a2')
-    await settleLayoutWrites()
-    put.mockRestore()
-    ws().closeTab('b1')
-    await settleLayoutWrites()
-    expect(ws().writeFailed).toBe(false)
-    expect(tabsOf(await stored(id!), 'ka')).toEqual(['a1'])
-    expect(picture(await stored(id!))).toEqual(['ka'])
-  })
-
-  it('leaving the layout tries again first; when that fails too, it stays and says so', async () => {
-    const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B'))
-    const put = failWrites()
-    ws().closeTab('b1')
-    await settleLayoutWrites()
-    await ws().load(b!)
-    expect(ws().activeLayoutId).toBe(a)
-    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn\'t save layout "A". Retry before leaving it, or its last changes are lost.')
-    expect(await ws().createLayout('New')).toBeNull()
-    put.mockRestore()
-    await ws().load(b!)
-    expect(ws().activeLayoutId).toBe(b)
-    expect(picture(await stored(a!))).toEqual(['ka'])
-  })
-})
+// A write that fails: `workspace-write-failures.test.tsx` (every case in one
+// place); undo after one, with a list tab: `layout-owned-lists.test.ts`.
 
 describe('view state', () => {
   it('active tab / row collapse / tab view state persist at once and are no undo step', async () => {
