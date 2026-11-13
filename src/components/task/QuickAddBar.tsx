@@ -83,7 +83,7 @@ const TITLE_LINE_PX = 28
 const TITLE_MAX_LINES = 6
 
 /** Each marker chip's tint (`data-tint`). */
-const MARKER_CHIP_TINT: Record<MarkerKey, string> = { focus: 'accent', urgent: 'urgent', important: 'followup' }
+const MARKER_CHIP_TINT: Record<MarkerKey, string> = { focus: 'focus', urgent: 'urgent', important: 'important' }
 
 // ─── Types ────────────────────────────────────────────────────────
 

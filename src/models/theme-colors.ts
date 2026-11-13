@@ -92,6 +92,22 @@ export const THEME_COLOR_FOLLOWS: Readonly<Partial<Record<keyof ThemeColors, key
 }
 
 /**
+ * What a priority's own colour sets besides its `--color-marker-*`: the fill
+ * of its typed token's tint (`/urgent`, Quick Add's chip — the colour at
+ * `PRIORITY_TINT_FILL`) and, for Focus, the token's text. Without an
+ * override the stylesheet has them follow Danger's, Follow up's and the
+ * accent's own.
+ */
+export const PRIORITY_TINT_VARS: Readonly<Partial<Record<keyof ThemeColors, { fill: string; text?: string }>>> = {
+  focus: { fill: '--color-marker-focus-bg', text: '--color-marker-focus-text' },
+  urgent: { fill: '--color-marker-urgent-bg' },
+  important: { fill: '--color-marker-important-bg' },
+}
+
+/** How much of a priority's own colour its token's fill is. */
+export const PRIORITY_TINT_FILL = '12%'
+
+/**
  * The colour `key` is drawn in: its own value once overridden (`customized`),
  * else the value of the colour it follows, else its seed (`colors` holds the
  * seeds of the colours without an override).

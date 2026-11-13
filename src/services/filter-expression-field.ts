@@ -88,8 +88,8 @@ const SPAN_TINT: Partial<Record<ExpressionSpanKind, TokenTint>> = {
   done: 'chip',
   date: 'chip',
   urgent: 'urgent',
-  important: 'followup',
-  focus: 'accent',
+  important: 'important',
+  focus: 'focus',
   due: 'due',
   followup: 'followup',
 }

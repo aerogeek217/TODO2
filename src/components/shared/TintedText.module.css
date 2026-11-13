@@ -22,9 +22,21 @@
 }
 
 .tint[data-tint="urgent"] {
-  background: var(--color-danger-bg);
-  box-shadow: 0 0 0 2px var(--color-danger-bg);
-  color: var(--color-danger);
+  background: var(--color-marker-urgent-bg);
+  box-shadow: 0 0 0 2px var(--color-marker-urgent-bg);
+  color: var(--color-marker-urgent);
+}
+
+.tint[data-tint="important"] {
+  background: var(--color-marker-important-bg);
+  box-shadow: 0 0 0 2px var(--color-marker-important-bg);
+  color: var(--color-marker-important);
+}
+
+.tint[data-tint="focus"] {
+  background: var(--color-marker-focus-bg);
+  box-shadow: 0 0 0 2px var(--color-marker-focus-bg);
+  color: var(--color-marker-focus-text);
 }
 
 .tint[data-tint="followup"] {

@@ -217,7 +217,7 @@ const CLAUSE_TINT: Record<SearchClause['field'], TokenTint> = {
   showCompleted: 'chip',
 }
 
-const MARKER_TINT: Record<MarkerKey, TokenTint> = { urgent: 'urgent', important: 'followup', focus: 'accent' }
+const MARKER_TINT: Record<MarkerKey, TokenTint> = { urgent: 'urgent', important: 'important', focus: 'focus' }
 
 /**
  * The tinted spans of the box (Quick Add's tints): a token by what it sets,

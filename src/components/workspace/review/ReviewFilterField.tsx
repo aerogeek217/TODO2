@@ -36,7 +36,7 @@ export const REVIEW_FIELD_PLACEHOLDER = 'Who or what to review…'
 
 /** A pill's tint: the one its term has as typed text (`expressionTints`); text and dates other than due / follow-up are plain pills. */
 function pillTint(term: FilterAtom | undefined): TokenTint {
-  if (term?.kind === 'priority') return term.value === 'urgent' ? 'urgent' : term.value === 'important' ? 'followup' : term.value === 'focus' ? 'accent' : 'chip'
+  if (term?.kind === 'priority') return term.value === 'urgent' ? 'urgent' : term.value === 'important' ? 'important' : term.value === 'focus' ? 'focus' : 'chip'
   if (term?.kind === 'date') return term.field === 'deadline' ? 'due' : term.field === 'followup' || term.field === 'lastFollowup' ? 'followup' : 'chip'
   return 'chip'
 }

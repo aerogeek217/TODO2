@@ -24,6 +24,7 @@ afterEach(() => {
     '--color-danger', '--color-warning', '--color-followup',
     '--color-deadline', '--color-accent-dim',
     '--color-marker-focus', '--color-marker-urgent', '--color-marker-important',
+    '--color-marker-focus-bg', '--color-marker-urgent-bg', '--color-marker-important-bg', '--color-marker-focus-text',
   ]) root.style.removeProperty(v)
 })
 
@@ -75,6 +76,8 @@ describe('ThemeColorsEditor', () => {
     fireEvent.change(swatch('Urgent priority'), { target: { value: '#00ff00' } })
     await waitFor(() => expect(root.style.getPropertyValue('--color-marker-urgent')).toBe('#00ff00'))
     expect(swatch('Urgent priority').value).toBe('#00ff00')
+    // Its typed token's tint (`/urgent`) takes the color too.
+    expect(root.style.getPropertyValue('--color-marker-urgent-bg')).toBe('color-mix(in srgb, #00ff00 12%, transparent)')
     // Danger keeps its own.
     expect(swatch('Danger accent').value).toBe('#ff0000')
     expect(root.style.getPropertyValue('--color-danger')).toBe('#ff0000')
@@ -83,6 +86,20 @@ describe('ThemeColorsEditor', () => {
     // Reset: Urgent follows the default Danger again.
     fireEvent.click(getByText(document.body, /reset dark to defaults/i))
     await waitFor(() => expect(root.style.getPropertyValue('--color-marker-urgent')).toBe(''))
+    expect(root.style.getPropertyValue('--color-marker-urgent-bg')).toBe('')
     expect(swatch('Urgent priority').value).toBe(DEFAULT_THEMED_COLORS.dark.danger)
+  })
+
+  it('Focus’s own color is its typed token’s text and fill', async () => {
+    await useSettingsStore.getState().setColor('dark', 'focus', '#3b82f6')
+    const root = document.documentElement
+    expect(root.style.getPropertyValue('--color-marker-focus')).toBe('#3b82f6')
+    expect(root.style.getPropertyValue('--color-marker-focus-text')).toBe('#3b82f6')
+    expect(root.style.getPropertyValue('--color-marker-focus-bg')).toBe('color-mix(in srgb, #3b82f6 12%, transparent)')
+    // The accent is not Focus's to change.
+    expect(root.style.getPropertyValue('--color-accent')).toBe('')
+    await useSettingsStore.getState().resetColors('dark')
+    expect(root.style.getPropertyValue('--color-marker-focus-text')).toBe('')
+    expect(root.style.getPropertyValue('--color-marker-focus-bg')).toBe('')
   })
 })

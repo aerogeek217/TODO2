@@ -140,8 +140,18 @@
 }
 
 .chip[data-tint="urgent"] {
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
+  background: var(--color-marker-urgent-bg);
+  color: var(--color-marker-urgent);
+}
+
+.chip[data-tint="important"] {
+  background: var(--color-marker-important-bg);
+  color: var(--color-marker-important);
+}
+
+.chip[data-tint="focus"] {
+  background: var(--color-marker-focus-bg);
+  color: var(--color-marker-focus-text);
 }
 
 .chip[data-tint="followup"] {

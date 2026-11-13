@@ -6,21 +6,22 @@ import type { SlashCommandName } from './slash-commands'
  * How each recognised token is tinted where task text is typed:
  *  - `chip` — `#tag`, a known `@person`, a `!status`, a token still being typed;
  *  - `new` — an `@name` that matches nobody (created with the task);
- *  - `due` / `urgent` / `followup` (`/important`, `/followup …`) /
- *    `accent` (`/focus`, `/repeat …`) — the command's marker / pill colour;
+ *  - `due` / `followup` (`/followup …`) / `accent` (`/repeat …`) — the
+ *    command's pill colour; `urgent` / `important` / `focus` — the priority's
+ *    colour (Settings › Theme colors), as its ring;
  *  - `error` — an argument that can't be read, or a `!name` naming no status;
  *  - `ignored` — recognised but ignored (`/repeat` without `/due`, a repeat);
  *  - `operator` — a filter expression's `and` / `or` / `not` and parentheses.
  * Unknown commands get no tint: they are plain title text.
  */
-export type TokenTint = 'chip' | 'new' | 'due' | 'urgent' | 'followup' | 'accent' | 'error' | 'ignored' | 'operator'
+export type TokenTint = 'chip' | 'new' | 'due' | 'urgent' | 'important' | 'focus' | 'followup' | 'accent' | 'error' | 'ignored' | 'operator'
 
 export interface TintSpan { start: number; end: number; tint: TokenTint }
 
 const COMMAND_TINT: Record<SlashCommandName, TokenTint> = {
   urgent: 'urgent',
-  important: 'followup',
-  focus: 'accent',
+  important: 'important',
+  focus: 'focus',
   due: 'due',
   followup: 'followup',
   repeat: 'accent',

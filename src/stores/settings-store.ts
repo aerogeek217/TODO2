@@ -7,7 +7,7 @@ import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
 import type { WeekStart } from '../utils/effective-date'
 import type { FilterSettings } from '../utils/filter-match'
-import { DEFAULT_THEMED_COLORS, THEME_COLOR_VARS, parseColorSettingKey } from '../models/theme-colors'
+import { DEFAULT_THEMED_COLORS, PRIORITY_TINT_FILL, PRIORITY_TINT_VARS, THEME_COLOR_VARS, parseColorSettingKey } from '../models/theme-colors'
 import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 import {
   DEFAULT_FOLLOWUP_INTERVAL,
@@ -284,6 +284,16 @@ function applyColorOverrides(): void {
     root.style.setProperty('--color-accent-dim', dimColor(colors.accent))
   } else {
     root.style.removeProperty('--color-accent-dim')
+  }
+  // A priority's own colour tints its typed token too (`/urgent`).
+  for (const [key, vars] of Object.entries(PRIORITY_TINT_VARS) as [keyof ThemeColors, { fill: string; text?: string }][]) {
+    if (bag.includes(key)) {
+      root.style.setProperty(vars.fill, `color-mix(in srgb, ${colors[key]} ${PRIORITY_TINT_FILL}, transparent)`)
+      if (vars.text) root.style.setProperty(vars.text, colors[key])
+    } else {
+      root.style.removeProperty(vars.fill)
+      if (vars.text) root.style.removeProperty(vars.text)
+    }
   }
 }
 
