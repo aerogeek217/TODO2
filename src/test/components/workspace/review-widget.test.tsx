@@ -9,7 +9,7 @@ import type { FilterExpr, Person, Status, Tag } from '../../../models'
 import type { ReviewTab } from '../../../models/workspace-layout'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { reviewWidgetSession } from '../../../stores/review-session'
+import { clearReviewSessions, reviewWidgetSession } from '../../../stores/review-session'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -156,8 +156,8 @@ describe('the Review widget: its field', () => {
     expect(options()).toEqual(['AAisha3', 'BBen2', 'legal2', 'q42', 'Waiting2', 'Blocked1'])
   })
 
-  it('a click on a row adds it; a second person joins with or, a tag with and', () => {
-    renderAt('medium')
+  it('a click on a row adds it; picks combine as chips do: a second person joins with or, a tag narrows both', () => {
+    renderAt('large')
     fireEvent.click(field())
     fireEvent.mouseDown(screen.getByRole('option', { name: /Aisha/ }))
     expect(field()).toHaveValue('@Aisha ')
@@ -167,9 +167,51 @@ describe('the Review widget: its field', () => {
     fireEvent.mouseDown(screen.getByRole('option', { name: /Ben/ }))
     expect(field()).toHaveValue('@Aisha or @Ben ')
     expect(stored()?.expression).toEqual({ kind: 'or', items: [person(1), person(2)] })
+    expect(rowIds().sort()).toEqual(['1', '2', '3', '4'])
+    // The third pick, a tag: (Aisha or Ben) and legal — not Aisha, or Ben's legal tasks (F1).
     fireEvent.click(field())
     fireEvent.mouseDown(screen.getByRole('option', { name: /legal/ }))
-    expect(field()).toHaveValue('@Aisha or @Ben and #legal ')
+    expect(field()).toHaveValue('(@Aisha or @Ben) and #legal ')
+    expect(stored()?.expression).toEqual({ kind: 'and', items: [{ kind: 'or', items: [person(1), person(2)] }, { kind: 'tag', id: 1 }] })
+    expect(rowIds().sort()).toEqual(['1', '4'])
+    // A second tag joins the first: (Aisha or Ben) and (legal or q4).
+    fireEvent.click(field())
+    fireEvent.mouseDown(screen.getByRole('option', { name: /q4/ }))
+    expect(field()).toHaveValue('(@Aisha or @Ben) and (#legal or #q4) ')
+    expect(rowIds().sort()).toEqual(['1', '2', '4'])
+  })
+
+  it('a review takes open tasks only: `done` and a Completed date are refused, saying so, and change nothing (F6)', () => {
+    renderAt('large')
+    setFilter(person(2))
+    type('done')
+    fireEvent.keyDown(field(), { key: 'Enter' })
+    expect(screen.getByTestId('review-field-error')).toHaveTextContent('done has no say here')
+    expect(stored()?.expression).toEqual(person(2))
+    type('@Ben and completed this week')
+    fireEvent.keyDown(field(), { key: 'Enter' })
+    expect(screen.getByTestId('review-field-error')).toHaveTextContent('Leave completed out')
+    expect(stored()?.expression).toEqual(person(2))
+    expect(rowIds().sort()).toEqual(['3', '4'])
+  })
+
+  it('a filter that narrows by nothing (a jump from such a list): the field says Every open task, with its × (F12)', () => {
+    renderAt('large')
+    setFilter({ kind: 'and', items: [] })
+    expect(field()).toHaveValue('')
+    expect(screen.getByTestId('review-field-pills')).toHaveTextContent(/^Every open task$/)
+    expect(field()).toHaveAccessibleDescription('Every open task')
+    expect(rowIds().sort()).toEqual(['1', '2', '3', '4', '6'])
+    // A focus and a blur keep it (the empty text is that filter's own).
+    fireEvent.focus(field())
+    expect(screen.queryByTestId('review-field-pills')).toBeNull()
+    expect(field()).toHaveAttribute('placeholder', 'Who or what to review…')
+    fireEvent.blur(field())
+    expect(stored()?.expression).toEqual({ kind: 'and', items: [] })
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the filter' }))
+    expect(stored()).toBeUndefined()
+    expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick who or what to review')
+    expect(screen.queryByRole('button', { name: 'Clear the filter' })).toBeNull()
   })
 
   it('bare letters match people, tags and statuses at once; ⏎ takes the first', () => {
@@ -443,6 +485,177 @@ describe('the Review widget: the queue and where it stands', () => {
     expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
     expect(document.querySelector('[data-review-row="1"]')).not.toHaveAttribute('data-mark')
     expect(patchView).not.toHaveBeenCalled()
+  })
+
+  it('a different filter (a jump onto a review in progress) starts over: the first card, no – marks (F2)', () => {
+    renderAt('large', reviewTab({ viewState: { sort: 'queue' } }))
+    setFilter(person(1))
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Onboarding checklist')
+    // Review #legal tasks: tasks 1 and 4 — task 1 was skipped under the old filter, task 3 was its card.
+    setFilter({ kind: 'tag', id: 1 })
+    const session = reviewWidgetSession('rv').getState()
+    expect(session).toMatchObject({ order: [1, 4], index: 0, marks: {} })
+    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
+    expect(document.querySelector('[data-review-row="1"]')).not.toHaveAttribute('data-mark')
+    // Ben's tasks share task 3 with the first review: still from the top.
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    setFilter(person(2))
+    expect(reviewWidgetSession('rv').getState()).toMatchObject({ order: [3, 4], index: 0, marks: {} })
+  })
+
+  it('the same filter sent again resumes where it stood, with its – marks; text typed for a task stays (F2)', () => {
+    renderAt('large', reviewTab({ viewState: { sort: 'queue' } }))
+    setFilter(person(1))
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    act(() => reviewWidgetSession('rv').getState().setDraft(2, 'Waiting on legal'))
+    // Review with Aisha, again: a new filter object, the same filter.
+    setFilter(person(1))
+    expect(reviewWidgetSession('rv').getState()).toMatchObject({ order: [1, 2, 3], index: 1, marks: { 1: 'skipped' }, drafts: { 2: 'Waiting on legal' } })
+    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
+    expect(document.querySelector('[data-review-row="1"]')).toHaveAttribute('data-mark', 'skipped')
+  })
+
+  it('a review closed and opened again (the popup review) resumes under the same filter and starts over under another (F2)', () => {
+    const first = renderAt('medium', reviewTab({ viewState: { sort: 'queue' } }))
+    setFilter(person(1))
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    first.unmount()
+    renderAt('medium', reviewTab({ viewState: { sort: 'queue' } }))
+    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
+    expect(reviewWidgetSession('rv').getState().marks).toEqual({ 1: 'skipped' })
+    cleanup()
+    // Another Review button while it is closed: the next opening is a new review.
+    setFilter({ kind: 'tag', id: 1 })
+    renderAt('medium', reviewTab({ viewState: { sort: 'queue' } }))
+    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
+    expect(reviewWidgetSession('rv').getState()).toMatchObject({ order: [1, 4], index: 0, marks: {} })
+  })
+
+  it('the rail keeps its order when a task leaves: only a picked sort re-sorts (F3)', () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Vendor contract renewal', sortOrder: 1, dueDate: new Date(2030, 0, 1) }),
+        makeTodo({ id: 2, title: 'Q4 headcount plan', sortOrder: 2, dueDate: new Date(2030, 0, 2) }),
+        makeTodo({ id: 3, title: 'Onboarding checklist', sortOrder: 3, dueDate: new Date(2030, 0, 3) }),
+        makeTodo({ id: 7, title: 'Budget review', sortOrder: 7, dueDate: new Date(2030, 0, 4) }),
+      ],
+    })
+    usePersonStore.setState({ assignedPeopleMap: new Map([[1, [aisha]], [2, [aisha]], [3, [aisha]], [7, [aisha]]]) })
+    renderAt('large', reviewTab({ viewState: { sort: 'due' } }))
+    setFilter(person(1))
+    expect(rowIds()).toEqual(['1', '2', '3', '7'])
+    // The current card's due date moved after every other task's: the rail stays as it is.
+    const later = (id: number, dueDate: Date) => act(() => {
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, dueDate } : t)) })
+    })
+    later(1, new Date(2030, 0, 9))
+    expect(rowIds()).toEqual(['1', '2', '3', '7'])
+    // A task leaves the queue (completed from its checkbox): the others keep their places, the card its place.
+    act(() => {
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 7 ? { ...t, isCompleted: true } : t)) })
+    })
+    expect(rowIds()).toEqual(['1', '2', '3'])
+    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
+    // A task that joins takes its sorted place among them (after task 3, by its due date).
+    act(() => {
+      useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 8, title: 'New one', sortOrder: 8, dueDate: new Date(2030, 0, 5) })] })
+      usePersonStore.setState({ assignedPeopleMap: new Map([[1, [aisha]], [2, [aisha]], [3, [aisha]], [8, [aisha]]]) })
+    })
+    expect(rowIds()).toEqual(['1', '2', '3', '8'])
+    // Picking a sort takes the order again from the tasks as they are.
+    fireEvent.click(screen.getByTestId('review-sort'))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Sort the queue' })).getByRole('menuitemradio', { name: 'Title' }))
+    fireEvent.click(screen.getByTestId('review-sort'))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Sort the queue' })).getByRole('menuitemradio', { name: 'Due' }))
+    expect(rowIds()).toEqual(['2', '3', '8', '1'])
+  })
+
+  it('`N followed up` counts a task followed up here after it left the queue, and an undo takes it back (U8)', () => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    renderAlone('large', reviewTab({ viewState: { sort: 'queue' } }))
+    // Follow-ups due: the next follow-up today or earlier. Tasks 1 and 3 are; a follow-up moves the date on.
+    const due = new Date(2020, 0, 1)
+    act(() => {
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 1 || t.id === 3 ? { ...t, nextFollowupAt: due } : t)) })
+    })
+    setFilter({ kind: 'date', field: 'followup', match: { match: 'range', start: null, end: { kind: 'offset', days: 0 } } })
+    expect(rowIds()).toEqual(['1', '3'])
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^0 followed up$/)
+    const followUp = (id: number) => act(() => {
+      reviewWidgetSession('rv').getState().mark(id, 'done')
+      reviewWidgetSession('rv').getState().next()
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, lastFollowupAt: new Date(), nextFollowupAt: tomorrow } : t)) })
+    })
+    followUp(1)
+    expect(rowIds()).toEqual(['3'])
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
+    // The last one too: nothing left in the queue, the count still there.
+    followUp(3)
+    act(() => reviewWidgetSession('rv').getState().go(0))
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/2 followed up$/)
+    // Undone: task 1 is due again, back in the queue and not counted.
+    act(() => {
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 1 ? { ...t, lastFollowupAt: undefined, nextFollowupAt: due } : t)) })
+    })
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/1 followed up$/)
+    // Skipped after the undo, it shows its – (F8 / U7).
+    const row = document.querySelector<HTMLElement>('[data-review-row="1"]')!
+    fireEvent.click(row)
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    expect(document.querySelector('[data-review-row="1"]')).toHaveAttribute('data-mark', 'skipped')
+  })
+
+  it('completing a task from its rail checkbox moves the focus to the checkbox of the row in its place (U9)', () => {
+    renderAt('large', reviewTab({ viewState: { sort: 'queue' } }))
+    setFilter(person(1))
+    const box = (id: number) => document.querySelector<HTMLInputElement>(`[data-review-row-check="${id}"]`)!
+    const complete = (id: number) => act(() => {
+      box(id).focus()
+      fireEvent.click(box(id))
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, isCompleted: true } : t)) })
+    })
+    useTodoStore.setState({ toggleComplete: vi.fn(async () => {}) })
+    // Task 2 (not the current card) leaves the queue: the focus goes to task 3's checkbox, now in its place.
+    complete(2)
+    expect(rowIds()).toEqual(['1', '3'])
+    expect(box(3)).toHaveFocus()
+    // The last row: the focus goes to the row now last.
+    complete(3)
+    expect(rowIds()).toEqual(['1'])
+    expect(box(1)).toHaveFocus()
+    // The current card stays, checked, until the review moves on: the focus stays on its row.
+    complete(1)
+    expect(rowIds()).toEqual(['1'])
+    expect(box(1)).toBeChecked()
+    expect(box(1).closest('li')).toContainElement(document.activeElement as HTMLElement)
+  })
+
+  it('a data replace: nothing left to review, and text typed for a task doesn’t show on the task that has its id now (M5)', async () => {
+    renderAt('large', reviewTab({ viewState: { sort: 'queue' } }))
+    setFilter(person(1))
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    const update = () => screen.getByLabelText<HTMLInputElement>('Status update · today')
+    fireEvent.change(update(), { target: { value: 'typed for the old task 2' } })
+    expect(reviewWidgetSession('rv').getState().drafts).toEqual({ 2: 'typed for the old task 2' })
+    // What a data replace resets (`refresh-all`), then the stores hold the new data: task 2 is another task.
+    act(() => {
+      useListWidgetStore.getState().resetForReplacedData()
+      clearReviewSessions()
+      useTodoStore.setState({ todos: [makeTodo({ id: 2, title: 'Another task with id 2', sortOrder: 1 })] })
+      usePersonStore.setState({ assignedPeopleMap: new Map([[2, [aisha]]]) })
+    })
+    expect(stored()).toBeUndefined()
+    expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick who or what to review')
+    expect(field()).toHaveValue('')
+    setFilter(person(1))
+    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Another task with id 2')
+    expect(update()).toHaveValue('')
+    expect(reviewWidgetSession('rv').getState()).toMatchObject({ order: [2], index: 0, marks: {}, drafts: {}, nextDrafts: {} })
   })
 
   it('only the rail’s sort is view state, saved at once', () => {

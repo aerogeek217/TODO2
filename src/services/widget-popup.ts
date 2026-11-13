@@ -1,6 +1,5 @@
 import { REVIEW_POPUP_TAB_ID } from '../models/review'
-import { useChartWidgetsStore } from '../stores/chart-widgets-store'
-import { editorsHoldChanges, leaveOpenEditors } from '../stores/editor-leave'
+import { closeOpenEditors, editorsHoldChanges, leaveOpenEditors } from '../stores/editor-leave'
 import { useListWidgetStore, type ReviewFilter } from '../stores/list-widget-store'
 import { useUIStore, type WidgetPopupTarget } from '../stores/ui-store'
 
@@ -24,15 +23,9 @@ import { useUIStore, type WidgetPopupTarget } from '../stores/ui-store'
  */
 async function openPopup(target: WidgetPopupTarget, before?: () => void): Promise<boolean> {
   if (editorsHoldChanges() && !(await leaveOpenEditors())) return false
-  const ui = useUIStore.getState()
-  ui.closeListEditor()
-  ui.closeNumberEditor()
-  const charts = useChartWidgetsStore.getState()
-  charts.closeEditor()
-  charts.closePulseEditor()
-  charts.closeTrendEditor()
+  closeOpenEditors()
   before?.()
-  ui.setWidgetPopup(target)
+  useUIStore.getState().setWidgetPopup(target)
   return true
 }
 
@@ -50,9 +43,10 @@ export function openNumberList(tabId: string): Promise<boolean> {
 
 /**
  * Opens the popup review with `filter` (`null`: nothing picked), replacing
- * whatever it reviewed; resolves whether it opened. It lasts until another
- * review replaces it or a reload — closing the popup keeps it, and the next
- * opening continues where it stood.
+ * whatever it reviewed; resolves whether it opened. Its review lasts until
+ * a different filter replaces it, a data replace or a reload — closing the
+ * popup keeps it, and opening it again with the same filter continues where
+ * it stood.
  */
 export function openReviewPopup(filter: ReviewFilter | null): Promise<boolean> {
   return openPopup({ kind: 'review' }, () => useListWidgetStore.getState().setReviewFilter(REVIEW_POPUP_TAB_ID, filter))

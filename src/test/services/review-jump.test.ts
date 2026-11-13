@@ -157,6 +157,45 @@ describe('jumpToReview', () => {
     expect(useUIStore.getState().filterPanelOpen).toBe(false)
   })
 
+  it('carries the source’s lens switch to the widget’s (F4): written only when it differs, the filter kept without it', async () => {
+    const withLens = (ignoreLens: boolean | undefined) => layout(1, grid([[cell('a', [
+      { ...createTab('review', 'rv'), ...(ignoreLens == null ? {} : { viewState: { ignoreLens } }) },
+    ])]]))
+    const open = withLens(undefined)
+    useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })
+    // A list that ignores the top bar's lens: the widget ignores it too, so it shows the tasks the button counted.
+    await jumpToReview({ ...AISHA, ignoreLens: true })
+    expect(patchTabViewState).toHaveBeenCalledTimes(1)
+    expect(patchTabViewState).toHaveBeenCalledWith('rv', 'review', { ignoreLens: true })
+    expect(useListWidgetStore.getState().reviewFilters.rv).toEqual(AISHA)
+    // The widget ignores it already: nothing written.
+    const ignoring = withLens(true)
+    useWorkspaceStore.setState({ working: ignoring, saved: ignoring, layouts: [ignoring] })
+    await jumpToReview({ ...AISHA, ignoreLens: true })
+    expect(patchTabViewState).toHaveBeenCalledTimes(1)
+    // A source that follows the lens puts the widget back on it.
+    await jumpToReview({ ...AISHA, ignoreLens: false })
+    expect(patchTabViewState).toHaveBeenLastCalledWith('rv', 'review', { ignoreLens: false })
+    expect(patchTabViewState).toHaveBeenCalledTimes(2)
+    // A source with no switch of its own (a person's menu) leaves the widget's as it is.
+    await jumpToReview(AISHA)
+    expect(patchTabViewState).toHaveBeenCalledTimes(2)
+    expect(patchTabConfig).not.toHaveBeenCalled()
+  })
+
+  it('the popup review takes the source’s lens switch in memory (F4)', async () => {
+    const open = layout(1, grid([[cell('a', [notes('n')])]]))
+    useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })
+    await jumpToReview({ ...AISHA, ignoreLens: true })
+    expect(useUIStore.getState().popupReviewView).toMatchObject({ ignoreLens: true })
+    expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]).toEqual(AISHA)
+    await jumpToReview(AISHA)
+    expect(useUIStore.getState().popupReviewView).toMatchObject({ ignoreLens: true })
+    await jumpToReview({ ...AISHA, ignoreLens: false })
+    expect(useUIStore.getState().popupReviewView).toMatchObject({ ignoreLens: false })
+    expect(patchTabViewState).not.toHaveBeenCalled()
+  })
+
   it('no Review widget anywhere: the popup review, the task dialog closed', async () => {
     const open = layout(1, grid([[cell('a', [notes('n')])]]))
     useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })
@@ -187,6 +226,26 @@ describe('focusReviewWidget', () => {
       vi.advanceTimersByTime(2000)
       expect(vi.getTimerCount()).toBe(0)
     } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('finds its widget by a tab id that holds a quote or a backslash (S5: the id is escaped in the selector)', () => {
+    vi.useFakeTimers()
+    const tabId = 'rv"\\]x'
+    const host = document.createElement('div')
+    host.setAttribute('data-review-widget', tabId)
+    const update = document.createElement('input')
+    update.setAttribute('data-review-update', '')
+    host.append(update)
+    document.body.append(host)
+    try {
+      focusReviewWidget(tabId)
+      expect(() => vi.advanceTimersByTime(100)).not.toThrow()
+      expect(update).toHaveFocus()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      host.remove()
       vi.useRealTimers()
     }
   })

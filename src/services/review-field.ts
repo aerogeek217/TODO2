@@ -1,5 +1,5 @@
 import type { FilterExpr } from '../models'
-import { EXPRESSION_KEYWORDS } from '../utils/filter-expression'
+import { EXPRESSION_KEYWORDS, normalizeExpression, topLevelTerms, type ExpressionParse } from '../utils/filter-expression'
 import { expressionAutocomplete } from './filter-expression-field'
 import {
   entityItemToken,
@@ -24,10 +24,10 @@ import { NAME_MATCH_RANK, rankByName } from './nlp-resolver'
  *   the people, tags and statuses it matches (exact, initials, prefix, word
  *   start), best first.
  *
- * A pick writes the name's token (`@Aisha`, `#"R&D"`, `!Waiting`) and, after
- * a whole term, the word that joins it (`reviewFieldPick`): `or` after a
- * name of the same sort, `and` after anything else — text, so the user may
- * change the word.
+ * A pick writes the name's token (`@Aisha`, `#"R&D"`, `!Waiting`); after a
+ * whole term it joins the filter as chips combine (`reviewFieldPick`): the
+ * names of one sort `or` together, the sorts `and` — Aisha, Ben, then q4 is
+ * `(@Aisha or @Ben) and #q4`. It is text, so the user may change the words.
  */
 
 /** Each person's, tag's and status's open tasks (under the widget's screen filter), by id. */
@@ -155,20 +155,62 @@ export function reviewFieldAutocomplete(
   return rows.length > 0 ? { ...base, rows } : null
 }
 
+/** How the field reads and writes a filter's text (names as it resolves and prints them). */
+export interface ReviewFieldText {
+  parse: (text: string) => ExpressionParse
+  print: (expression: FilterExpr, showCompleted: boolean) => string
+}
+
+/** `term` as picks of `sort`: one name of that sort (its "none" too), or several joined by `or`; else null. */
+function picksOf(term: FilterExpr, sort: AutocompleteItem['kind']): FilterExpr[] | null {
+  const items = term.kind === 'or' ? term.items : [term]
+  return items.every((i) => i.kind === sort) ? [...items] : null
+}
+
+/**
+ * `expression` with `item` picked too, as filter chips combine: the names of
+ * one sort `or` together, the sorts `and`. A top-level term that is picks of
+ * the item's sort takes it (`@Aisha and #q4` + Ben: `(@Aisha or @Ben) and
+ * #q4`); with none, the item is ANDed with the whole filter (`@Aisha or
+ * @Ben` + q4: `(@Aisha or @Ben) and #q4`).
+ */
+export function withPick(expression: FilterExpr, item: Pick<AutocompleteItem, 'kind' | 'id'>): FilterExpr {
+  const atom: FilterExpr = { kind: item.kind, id: item.id }
+  const terms = [...topLevelTerms(normalizeExpression(expression))]
+  const at = terms.findIndex((t) => picksOf(t, item.kind) != null)
+  const group = terms[at]
+  const picks = group ? picksOf(group, item.kind) : null
+  if (!picks) return normalizeExpression({ kind: 'and', items: [...terms, atom] })
+  if (!picks.some((p) => 'id' in p && p.id === item.id)) terms[at] = { kind: 'or', items: [...picks, atom] }
+  return normalizeExpression({ kind: 'and', items: terms })
+}
+
 /**
  * `value` with `[from, to)` — what was typed for a name — replaced by
- * `item`'s token, joined to a whole term before it by `or` (a name of the
- * same sort) or `and` (anything else); a space after it, the cursor there.
+ * `item`. After a whole term, with the rest of the text a filter that reads,
+ * the pick joins that filter as chips combine (`withPick`) and the field
+ * shows the result as it prints, the cursor at its end. Elsewhere — after an
+ * operator or a parenthesis, where the user said how it joins — the item's
+ * token goes in as it is (after a whole term in a text that doesn't read
+ * yet: with `or` for a name of the same sort, else `and`); a space after
+ * it, the cursor there.
  */
 export function reviewFieldPick(
   value: string,
   from: number,
   to: number,
   item: AutocompleteItem,
-  reads: (text: string) => boolean,
+  text: ReviewFieldText,
 ): { value: string; cursor: number } {
   const head = value.slice(0, from)
-  const before = beforeOf(head, reads)
+  const before = beforeOf(head, (t) => text.parse(t).ok)
+  if (before.kind === 'term') {
+    const rest = text.parse(`${head.trimEnd()} ${value.slice(to).trimStart()}`)
+    if (rest.ok && rest.expression) {
+      const picked = `${text.print(withPick(rest.expression, item), rest.showCompleted)} `
+      return { value: picked, cursor: picked.length }
+    }
+  }
   const token = entityItemToken(item)
   let lead = head
   if (before.kind === 'term') lead = `${head.trimEnd()} ${before.sort === item.kind ? 'or' : 'and'} `

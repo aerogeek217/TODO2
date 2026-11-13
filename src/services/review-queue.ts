@@ -84,6 +84,39 @@ export function reviewOrder(ids: readonly number[], sort: ReviewSort, env: Revie
 }
 
 /**
+ * The rail's order once its queue becomes `ids`: the tasks already in the
+ * rail (`shown`) stay where they are — the order was taken when the sort was
+ * picked, and doesn't move while the review edits tasks —, the ones that
+ * left go, and each task that joins takes its place by `sort` among them:
+ * after the last task shown that the sort puts before it, else first (ties
+ * in the queue's order; a task not loaded last). Counted from the end, so a
+ * card the review edited — behind the current one, its key now out of
+ * order — doesn't draw the new task up to it. With nothing shown yet, the
+ * whole queue in the sort's order (`reviewOrder`).
+ */
+export function joinOrder(shown: readonly number[], ids: readonly number[], sort: ReviewSort, env: ReviewOrderEnv): number[] {
+  const member = new Set(ids)
+  const order = shown.filter((id) => member.has(id))
+  if (order.length === 0) return reviewOrder(ids, sort, env)
+  const there = new Set(order)
+  const joining = ids.filter((id) => !there.has(id))
+  if (joining.length === 0) return order
+  const queueIndex = new Map(ids.map((id, i) => [id, i]))
+  const compare = sort === 'queue' ? null : sortComparator(sort, env)
+  /** Whether the sort puts task `a` before task `b`. */
+  const goesBefore = (a: number, b: number): boolean => {
+    const ta = env.todoById.get(a)
+    const tb = env.todoById.get(b)
+    if (!ta || !tb) return ta != null
+    return ((compare?.(ta, tb) ?? 0) || (queueIndex.get(a) ?? 0) - (queueIndex.get(b) ?? 0)) < 0
+  }
+  for (const id of reviewOrder(joining, sort, env)) {
+    order.splice(order.findLastIndex((shownId) => goesBefore(shownId, id)) + 1, 0, id)
+  }
+  return order
+}
+
+/**
  * Where the review stands after its queue becomes `next`: on the current
  * task while it is still in the order — or, with `keepCurrent` (a live
  * queue), while it still exists (`exists`), kept in the order at its place
@@ -144,8 +177,11 @@ export function setReviewSort(session: SessionLike, sort: ReviewSort, env: Revie
 
 /**
  * Puts a new queue into the session (a lens toggle, a live queue's change):
- * sorted by its sort, the place kept (`keepPlace`; `keepCurrent` — a live
- * queue — keeps a current task that left it until the review moves on).
+ * the tasks already in the rail where they are, a task that joins at its
+ * sorted place (`joinOrder` — the rail re-sorts only when a sort is picked,
+ * `setReviewSort`; a new review's first queue, the rail still empty, comes
+ * in sorted), the place kept (`keepPlace`; `keepCurrent` — a live queue —
+ * keeps a current task that left it until the review moves on).
  */
 export function setReviewQueue(
   session: SessionLike,
@@ -154,8 +190,8 @@ export function setReviewQueue(
 ): void {
   const env = opts.env ?? currentReviewOrderEnv()
   const s = session.getState()
-  const sorted = reviewOrder(queue.ids, s.sort, env)
-  const { order, index } = keepPlace(s, sorted, { keepCurrent: opts.keepCurrent, exists: (id) => env.todoById.has(id) })
+  const joined = joinOrder(s.order, queue.ids, s.sort, env)
+  const { order, index } = keepPlace(s, joined, { keepCurrent: opts.keepCurrent, exists: (id) => env.todoById.has(id) })
   const place: ReviewPlace = { ids: queue.ids, dividers: queue.dividers ?? [], sort: s.sort, order, index }
   s.place(place)
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BREAKDOWN_PRESET_LABELS, BREAKDOWN_PRESETS, breakdownPreset, type BreakdownPreset } from '../../models/chart-widgets'
 import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
+import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
@@ -16,19 +17,26 @@ import styles from './AddWidgetFlow.module.css'
  * a new blank list of the open layout (`createListAndTab`) — copying another
  * list's setup is Edit list's Copy from…. Nothing for a list before the
  * workspace has opened a layout (`layoutId` undefined).
+ *
+ * An open editor holding changes (Edit list, a widget editor) is asked
+ * first — Save / Discard / Keep editing (`editor-leave`) —, as on every
+ * other way out of it: the new widget may take its tab's place in the cell.
+ * A press would have asked already; this is the keyboard's way here (the
+ * palette's Add Widget ›, a menu opened with the keys). Keep editing adds
+ * nothing.
  */
 function useAddKind(target: LayoutDropTarget): (kind: WidgetKind) => void {
   const add = useAddWidget()
   const layoutId = useListOwnerLayoutId()
-  return (kind) => addKindAt(kind, target, add, layoutId)
+  return (kind) => afterLeavingEditors(() => addKindAt(kind, target, add, layoutId))
 }
 
-/** Adds a Breakdown from a preset at `target` (D26 P8, `breakdownPreset`); no editor opens. */
+/** Adds a Breakdown from a preset at `target` (D26 P8, `breakdownPreset`); no editor opens, and an open one with changes is asked first (`useAddKind`). */
 function useAddBreakdown(target: LayoutDropTarget): (preset: BreakdownPreset) => void {
   const add = useAddWidget()
-  return (preset) => {
+  return (preset) => afterLeavingEditors(() => {
     add('breakdown', target, undefined, { breakdown: breakdownPreset(preset) })
-  }
+  })
 }
 
 /** Breakdown's presets as menu items (People · Tags · Status · Custom). */

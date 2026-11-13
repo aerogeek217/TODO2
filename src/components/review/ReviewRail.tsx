@@ -87,6 +87,23 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
     if (listRef.current?.contains(document.activeElement) && document.activeElement !== row) row.focus({ preventScroll: true })
   }, [index, order])
 
+  // A row's checkbox completes its task, which then leaves a live queue — its row, and the checkbox
+  // that held the focus, with it. The focus goes to the checkbox of the row now in its place (the last
+  // one after the last), unless it went somewhere else meanwhile. The current card's row stays (checked,
+  // until the review moves on) and keeps the focus: nothing to do for it.
+  const completedFrom = useRef<{ id: number; at: number } | null>(null)
+  useEffect(() => {
+    const last = completedFrom.current
+    if (!last || order.includes(last.id)) return
+    completedFrom.current = null
+    const next = order[Math.min(last.at, order.length - 1)]
+    const active = document.activeElement
+    if (next == null || (active != null && active !== document.body)) return
+    const box = listRef.current?.querySelector<HTMLElement>(`[data-review-row-check="${next}"]`)
+    box?.focus({ preventScroll: true })
+    if (typeof box?.scrollIntoView === 'function') box.scrollIntoView({ block: 'nearest' })
+  }, [order])
+
   const onRowKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
     if (e.key === 'ArrowLeft') session.getState().back()
@@ -155,7 +172,11 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
                     type="checkbox"
                     className={styles.railCheckInput}
                     checked={todo.isCompleted}
-                    onChange={() => onToggleComplete(id)}
+                    onChange={() => {
+                      // Completed from a row that isn't the current card: it will leave the rail.
+                      completedFrom.current = !todo.isCompleted && !current ? { id, at: i } : null
+                      onToggleComplete(id)
+                    }}
                     aria-label={`Mark “${todo.title}” ${todo.isCompleted ? 'incomplete' : 'complete'}`}
                     data-review-row-check={id}
                   />

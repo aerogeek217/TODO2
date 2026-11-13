@@ -9,8 +9,10 @@ import { useLatestRef } from './use-latest-ref'
  * (Edit list, the widget editors), and its place in the app's one rule
  * (`stores/editor-leave`):
  * - `ask()` — Save / Discard / Keep editing (the shared confirm prompt; its
- *   Esc is Keep editing); resolves true once saved or discarded. A second
- *   ask while the question is up gets the same answer.
+ *   Esc is Keep editing); resolves true once saved or discarded — for a
+ *   `save` that returns a promise, once that write landed (false when it
+ *   didn't: the editor is still open). A second ask while the question is
+ *   up, or the save in flight, gets the same answer.
  * - `requestClose()` — the dialog's own Esc, ×, a press elsewhere: closes at
  *   once while unchanged (`discard`), else asks; returns whether it held the
  *   close (asked).
@@ -27,8 +29,13 @@ export function useEditorLeave({ changedRef, title, save, discard, dropped }: {
   changedRef: RefObject<boolean>
   /** The question's title (`Save changes to list “X”?`). */
   title: string
-  /** Writes the copy and closes. */
-  save: () => void
+  /**
+   * Writes the copy and closes. It may say how the write went: a promise of
+   * `false` (or a rejection) means nothing was saved and the editor stays
+   * open — the leave question then resolves false, and a later close still
+   * counts its changes as unsaved.
+   */
+  save: () => void | Promise<boolean>
   /** Drops the copy and closes. */
   discard: () => void
   /** The notice when it is closed with changes from outside (`Edit list closed: …`). */
@@ -50,12 +57,22 @@ export function useEditorLeave({ changedRef, title, save, discard, dropped }: {
       discardLabel: 'Discard',
       cancelLabel: 'Keep editing',
     }).then((answer) => {
-      asking.current = null
       if (answer === 'confirm') {
         settled.current = true
-        saveRef.current()
-        return true
+        const saved = saveRef.current()
+        if (!(saved instanceof Promise)) {
+          asking.current = null
+          return true
+        }
+        // A save that says how it went: one that didn't land (a failed write) leaves the editor open with its
+        // changes, so whatever asked doesn't carry on — the same as Keep editing.
+        return saved.catch(() => false).then((ok) => {
+          asking.current = null
+          if (ok === false) settled.current = false
+          return ok !== false
+        })
       }
+      asking.current = null
       if (answer === 'discard') {
         settled.current = true
         discardRef.current()
@@ -86,7 +103,9 @@ export function useEditorLeave({ changedRef, title, save, discard, dropped }: {
 
   const saveNow = useCallback(() => {
     settled.current = true
-    saveRef.current()
+    const saved = saveRef.current()
+    // A save that didn't land: its changes are unsaved again.
+    if (saved instanceof Promise) void saved.catch(() => false).then((ok) => { if (ok === false) settled.current = false })
   }, [saveRef])
   const discardNow = useCallback(() => {
     settled.current = true

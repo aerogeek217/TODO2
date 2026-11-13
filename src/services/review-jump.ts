@@ -1,4 +1,4 @@
-import { getActiveTab } from '../models/workspace-layout'
+import { getActiveTab, tabIgnoresLens } from '../models/workspace-layout'
 import { REVIEW_POPUP_TAB_ID } from '../models/review'
 import { editorsHoldChanges, leaveOpenEditors } from '../stores/editor-leave'
 import type { ReviewFilter } from '../stores/list-widget-store'
@@ -6,8 +6,8 @@ import { useUIStore } from '../stores/ui-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { attrSelector, PROMPT_ROW_ATTR, REVIEW_UPDATE_ATTR, REVIEW_WIDGET_ATTR } from '../utils/dom-contract'
 import { registerModuleReset } from '../utils/module-reset'
-import { panelOfTab } from '../utils/workspace-layout-queries'
-import { listReviewFilter } from './review'
+import { getTab, panelOfTab } from '../utils/workspace-layout-queries'
+import { listReviewFilter, type ReviewJump } from './review'
 import { reviewWidgetTarget, setReviewWidgetFilter } from './review-widget'
 import { openReviewPopup } from './widget-popup'
 
@@ -22,8 +22,13 @@ import { openReviewPopup } from './widget-popup'
  * tied to no layout tab). The buttons are always there, the phone's too.
  *
  * **Nothing is saved**: the filter is the widget's temporary one, a jump
- * replaces whatever it was reviewing without asking, and it writes no layout
- * and makes no undo step.
+ * replaces whatever it was reviewing without asking — a new filter starts
+ * the review over, the same one sent again resumes it (`ReviewWidget`) —,
+ * and it writes no layout and makes no undo step. One thing follows the
+ * button: the widget's lens switch, set to the source's when the source has
+ * one (`ReviewJump.ignoreLens`: a list, a Breakdown, the top bar), so the
+ * widget shows the tasks the button counted — view state, written only when
+ * it differs (the popup review's in memory).
  */
 
 /** The jump running, so a second press while its question is up does nothing. */
@@ -41,14 +46,19 @@ registerModuleReset(() => { jumping = false })
  * dialog and the filtered-tasks panel, which would cover the widget, close.
  * Resolves whether the filter was shown.
  */
-export async function jumpToReview(filter: ReviewFilter | null): Promise<boolean> {
+export async function jumpToReview(jump: ReviewJump | null): Promise<boolean> {
   if (jumping) return false
   jumping = true
   try {
+    // The widget keeps the filter alone; the source's lens switch goes to the widget's own.
+    const filter: ReviewFilter | null = jump ? { expression: jump.expression, showCompleted: jump.showCompleted } : null
+    const ignoreLens = jump?.ignoreLens
     const target = reviewWidgetTarget()
     if (!target) {
       if (!(await openReviewPopup(filter))) return false
       closeCovers()
+      const ui = useUIStore.getState()
+      if (ignoreLens != null && (ui.popupReviewView.ignoreLens === true) !== ignoreLens) ui.patchPopupReviewView({ ignoreLens })
       focusReviewWidget(REVIEW_POPUP_TAB_ID)
       return true
     }
@@ -58,12 +68,21 @@ export async function jumpToReview(filter: ReviewFilter | null): Promise<boolean
     const ui = useUIStore.getState()
     const popup = ui.widgetPopup
     if (popup && !(popup.kind === 'tab' && popup.tabId === tabId)) ui.closeWidgetPopup()
+    if (ignoreLens != null) setWidgetLensSwitch(tabId, ignoreLens)
     setReviewWidgetFilter(tabId, filter)
     focusReviewWidget(tabId)
     return true
   } finally {
     jumping = false
   }
+}
+
+/** Sets Review tab `tabId`'s lens switch (its view state, saved at once) when it isn't `ignoreLens` already. */
+function setWidgetLensSwitch(tabId: string, ignoreLens: boolean): void {
+  const ws = useWorkspaceStore.getState()
+  const tab = ws.working ? getTab(ws.working, tabId) : undefined
+  if (tab?.kind !== 'review' || tabIgnoresLens(tab) === ignoreLens) return
+  void ws.patchTabViewState(tabId, 'review', { ignoreLens })
 }
 
 /** The task dialog and the filtered-tasks panel close: they would cover the widget. */
@@ -122,7 +141,8 @@ export function focusReviewWidget(tabId: string): void {
     focusWait = null
     // The page is gone (the wait outlived it): nothing to focus.
     if (typeof document === 'undefined') return
-    const host = document.querySelector<HTMLElement>(attrSelector(REVIEW_WIDGET_ATTR, tabId))
+    // A stored tab id is any string: escaped, so one with a quote or a backslash still makes a selector.
+    const host = document.querySelector<HTMLElement>(attrSelector(REVIEW_WIDGET_ATTR, CSS.escape(tabId)))
     if (host) {
       const update = host.querySelector<HTMLElement>(attrSelector(REVIEW_UPDATE_ATTR))
       if (update) {

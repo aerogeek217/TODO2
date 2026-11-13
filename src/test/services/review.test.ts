@@ -5,6 +5,7 @@ import type { BreakdownSplit } from '../../models/chart-widgets'
 import { expressionResolver } from '../../services/filter-expression-field'
 import {
   breakdownReviewFilter,
+  breakdownReviews,
   breakdownRowTerm,
   listReviewCount,
   listReviewFilter,
@@ -107,8 +108,17 @@ describe('listReviewFilter / listReviewCount', () => {
     expect(listReviewFilter('tab-1')).toEqual({
       expression: { kind: 'and', items: [{ kind: 'tag', id: 7 }, { kind: 'person', id: 1 }] },
       showCompleted: false,
+      ignoreLens: false,
     })
     expect(listReviewCount('tab-1')).toBe(2)
+  })
+
+  it('carries the list’s lens switch: a list that ignores the top bar’s lens says so, one that follows it too (F4)', () => {
+    useListDefinitionStore.setState({ listDefinitions: [def({ ...emptyPredicate(), personIds: [1] }, { ignoreLens: true })] })
+    useListWidgetStore.getState().setShown('tab-1', shownList())
+    expect(listReviewFilter('tab-1')?.ignoreLens).toBe(true)
+    useListDefinitionStore.setState({ listDefinitions: [def({ ...emptyPredicate(), personIds: [1] })] })
+    expect(listReviewFilter('tab-1')?.ignoreLens).toBe(false)
   })
 
   it('an expression list: its expression', () => {
@@ -132,7 +142,7 @@ describe('listReviewFilter / listReviewCount', () => {
   it('a list that narrows by nothing: every open task (an `and` of nothing)', () => {
     useListDefinitionStore.setState({ listDefinitions: [def(emptyPredicate())] })
     useListWidgetStore.getState().setShown('tab-1', shownList())
-    expect(listReviewFilter('tab-1')).toEqual({ expression: { kind: 'and', items: [] }, showCompleted: false })
+    expect(listReviewFilter('tab-1')).toEqual({ expression: { kind: 'and', items: [] }, showCompleted: false, ignoreLens: false })
   })
 
   it('a tab not on screen: nothing to review', () => {
@@ -155,7 +165,15 @@ describe('screenReviewFilter', () => {
         items: [{ kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 2 }] }, { kind: 'text', text: 'contract' }],
       },
       showCompleted: false,
+      // The panel's tasks are under the top bar's lens: the widget follows it too (F4).
+      ignoreLens: false,
     })
+  })
+
+  it('a person’s, a tag’s and several people’s reviews count nothing under a lens switch: they carry none', () => {
+    expect(personReviewFilter({ id: 3 })).not.toHaveProperty('ignoreLens')
+    expect(tagReviewFilter({ id: 7 })).not.toHaveProperty('ignoreLens')
+    expect(peopleReviewFilter([{ id: 1 }, { id: 2 }])).not.toHaveProperty('ignoreLens')
   })
 
   it('no chips: every open task', () => {
@@ -224,5 +242,29 @@ describe('a Breakdown row as a filter keeps exactly the row’s tasks', () => {
       items: [{ kind: 'or', items: [{ kind: 'tag', id: 1 }, { kind: 'tag', id: 2 }] }, { kind: 'person', id: 1 }, { kind: 'status', id: 10 }],
     })
     expect(withColumn && kept(withColumn)).toEqual([1])
+  })
+
+  it('carries the Breakdown’s lens switch (F4)', () => {
+    const row = rowsOf('people')[0]
+    if (!row) throw new Error('no row')
+    expect(breakdownReviewFilter({ filter: emptyPredicate(), splitBy: 'people' }, row, undefined, true)?.ignoreLens).toBe(true)
+    expect(breakdownReviewFilter({ filter: emptyPredicate(), splitBy: 'people' }, row, undefined, false)?.ignoreLens).toBe(false)
+    expect(breakdownReviewFilter({ filter: emptyPredicate(), splitBy: 'people' }, row)).not.toHaveProperty('ignoreLens')
+  })
+
+  it('a Breakdown that counts completed tasks has no review: a row’s tasks open in the task dialog instead (G2)', () => {
+    const row = rowsOf('people')[0]
+    if (!row) throw new Error('no row')
+    const thisWeek: TodoPredicate = { ...emptyPredicate(), dates: { completed: { match: 'range', start: { kind: 'offset', days: -7 }, end: { kind: 'offset', days: 0 } } } }
+    const shown: TodoPredicate = { ...emptyPredicate(), showCompleted: true }
+    const typed: TodoPredicate = withExpression(emptyPredicate(), { kind: 'date', field: 'completed', match: { match: 'range', start: { kind: 'offset', days: -7 }, end: null } }, false)
+    for (const filter of [thisWeek, shown, typed]) {
+      expect(breakdownReviews({ filter })).toBe(false)
+      expect(breakdownReviewFilter({ filter, splitBy: 'people' }, row)).toBeNull()
+      expect(breakdownReviewFilter({ filter, splitBy: 'people' }, row, { filter: emptyPredicate() })).toBeNull()
+    }
+    // Open tasks only: reviewed as before.
+    expect(breakdownReviews({ filter: emptyPredicate() })).toBe(true)
+    expect(breakdownReviews({ filter: { ...emptyPredicate(), tags: [1] } })).toBe(true)
   })
 })

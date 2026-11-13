@@ -158,6 +158,12 @@ test('a tag joins with and; @ still opens the expression popup; the field is tem
   await expect(railRows(page, 'rev1')).toHaveText([/Vendor contract/, /Hiring scorecard/])
   // Not only people: no check-in buttons.
   await expect(w.getByRole('button', { name: 'Check-in' })).toHaveCount(0)
+  // A third pick joins as chips combine: a person joins the person, the tag still narrows both (not Aisha's legal tasks, or all of Ben's).
+  await field.click()
+  await field.press('End')
+  await popup(page).getByRole('option').filter({ hasText: 'Ben' }).click()
+  await expect(field).toHaveValue('(@Aisha or @Ben) and #legal ')
+  await expect(railRows(page, 'rev1')).toHaveText([/Vendor contract/, /Hiring scorecard/])
   // Nothing written to the layout: no undo step, and the stored row holds no filter (and no kind).
   await expect(page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true })).toHaveCount(0)
   expect((await storedReviewTab(page, 'rev1'))?.config).toEqual({})
@@ -440,6 +446,11 @@ test('the queue’s checkboxes: a row’s box completes its task without opening
   await expect(check).toBeFocused()
   await page.keyboard.press('Space')
   await expect(railRows(page, 'rev1')).toHaveCount(3)
+  // Its row went with it: the focus is on the checkbox of the row now in its place, not lost to the page.
+  await expect(w.locator('[data-review-row-check]:focus')).toHaveCount(1)
+  await page.keyboard.press('Space')
+  await expect(railRows(page, 'rev1')).toHaveCount(2)
+  await expect(w.locator('[data-review-row-check]:focus')).toHaveCount(1)
 })
 
 test('at rest each term is a pill with its own ×: it takes that term out of the filter; a press elsewhere goes back to the text', async ({ page }) => {

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { readStore } from './fixtures/db'
 import { expectOpenLayout, readListDefinitions, seedWorkspace, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
@@ -77,6 +78,40 @@ test('Go to Layout from the palette asks; Save writes the list, then the layout 
   await answer(page, 'Save')
   await expectOpenLayout(page, 'Second')
   await expect.poll(() => teamSort(page)).toBe('name')
+})
+
+test('Add Widget from the palette asks before it adds; Keep editing adds nothing; Discard adds the widget', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await dirtyEditList(page)
+  /** The kinds of the tabs in Main's one cell, as stored. */
+  const tabKinds = async () => (await readStore<{ name: string; cells: Array<{ tabs: Array<{ kind: string }> }> }>(page, 'layouts'))
+    .find((l) => l.name === 'Main')?.cells.flatMap((c) => c.tabs.map((t) => t.kind))
+  const addNotes = async () => {
+    await page.keyboard.press('Control+k')
+    const field = page.getByPlaceholder(/Find tasks, commands/)
+    await expect(field).toBeFocused()
+    await field.pressSequentially('add widget notes')
+    await expect(page.getByRole('listbox').getByRole('option').first()).toHaveText('Add Widget › Notes')
+    await page.keyboard.press('Enter')
+    // The Where picker (a tab of the list's cell by default), then Add Notes — all by the keys.
+    const add = page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'Add Notes' })
+    await expect(add).toBeVisible()
+    await add.focus()
+    await page.keyboard.press('Enter')
+  }
+  await addNotes()
+  await expect(question(page)).toBeVisible()
+  await answer(page, 'Keep editing')
+  await expect(editList(page)).toBeVisible()
+  expect(await tabKinds()).toEqual(['lens'])
+  await expect(wsListWidget(page, 't1').getByTestId('list-summary')).toHaveText('Name')
+
+  await page.evaluate(() => { (document.activeElement as HTMLElement | null)?.blur() })
+  await addNotes()
+  await answer(page, 'Discard')
+  await expect(editList(page)).toHaveCount(0)
+  await expect.poll(tabKinds).toEqual(['lens', 'notes'])
+  expect(await teamSort(page)).toBe('manual')
 })
 
 test('a route change (the phone’s Settings tab) asks; Keep editing stays; Discard goes on to Settings', async ({ page }) => {
