@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { createTab, type LayoutBody, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { edgeBetween, edgeStretches, isNormalized, lineCrossings, orphanCollapsedRows, validateTiling, wholeLine, type Side } from '../../utils/workspace-grid'
+import { createTab, type GridAxis, type LayoutBody, type LayoutCell, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
+import { edgeBetween, edgeStretches, isNormalized, lineCrossings, orphanCollapsedRows, validateTiling, wholeLine, type EdgeStretch, type Side } from '../../utils/workspace-grid'
 import { findTab, getTab, layoutIds, layoutStructureEqual, layoutStructureKey, panelOfTab } from '../../utils/workspace-layout-queries'
 import { countListTabs } from '../../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
-import { FIT_ROW_PX } from '../../utils/workspace-rows'
-import { rowDrawsFitFaces, tableTrackSizes, trackSizing } from '../../utils/workspace-table'
+import { FIT_ROW_PX, isFitTrack } from '../../utils/workspace-rows'
+import { cellMinPx, rowDrawsFitFaces, tableTrackSizes, trackSizing } from '../../utils/workspace-table'
 import {
   addTab,
   cellRowTracks,
@@ -1079,16 +1079,92 @@ describe('random op sequences keep the table valid', () => {
     }
   }
   const SIDES: Side[] = ['left', 'top', 'right', 'bottom']
+  const STEPS = 150
+  /** The gap between tracks, as the view draws them. */
+  const GAP = 6
+  /** How many seeds run: 40 by default; `LAYOUT_FUZZ_SEEDS=3000 npx vitest run <this file> -t "random op"` for a long run. */
+  const SEED_COUNT = Math.max(1, Number(process.env.LAYOUT_FUZZ_SEEDS) || 40)
 
-  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]) {
+  /** The tables a run starts from: one cell, a fixed (former band) row, a Numbers row, a fixed column. */
+  function start(seed: number): WorkspaceLayout {
+    const number = (id: string) => spec(id, [createTab('number', `${id}-t`)], { activeTabId: `${id}-t` })
+    switch (seed % 4) {
+      case 1: return layout(grid([[cell('band'), cell('band')], [cell('sa'), cell('sb')]], { rows: [{ px: 160 }, 1000] }))
+      case 2: return layout(grid([[number('sn1'), number('sn2')], [cell('sa'), cell('sa')]]))
+      case 3: return layout(grid([[cell('sa'), cell('sf'), cell('sb')]], { cols: [1000, { px: 200 }, 1000] }))
+      default: return layout(grid([[cell('start', ['x0'])]]))
+    }
+  }
+
+  /** The axis's tracks as the view draws them: room for every cell's minimum and then some, a fit row at its 58px. */
+  function drawnSizes(body: LayoutBody, axis: GridAxis): number[] {
+    return tableTrackSizes(body, axis, body.grid[axis].length * 260 + 400, GAP)
+  }
+
+  /** Where each line of the axis is drawn (the start of the track after it; the gaps counted). */
+  function linePositions(sizes: readonly number[]): number[] {
+    const pos = [0]
+    for (const s of sizes) pos.push((pos.at(-1) ?? 0) + s + GAP)
+    return pos
+  }
+
+  /** The dividers the view draws: none beside a collapsed row; beside a Numbers-only row, the whole line. */
+  function viewStretches(body: LayoutBody): EdgeStretch[] {
+    const rowMoves = (line: number) => [line - 1, line].every((t) => trackSizing(body, 'rows', t).kind !== 'collapsed')
+    const fitBeside = (line: number) => [line - 1, line].some((t) => body.grid.rows[t]?.collapsed !== true && isFitTrack(body, t))
+    return edgeStretches(body)
+      .filter((s) => s.axis === 'columns' || rowMoves(s.line))
+      .map((s) => (s.axis === 'rows' && fitBeside(s.line) ? wholeLine(body, 'rows', s.line) : s))
+  }
+
+  /**
+   * A resize that changed no structure moved only its own line (cr34 W7),
+   * and never against the drag (W3): every other line is drawn where it
+   * was — within a px, the rounding of a fixed track's px.
+   */
+  function expectOnlyLineMoved(before: LayoutBody, after: LayoutBody, axis: GridAxis, line: number, delta: number): void {
+    const was = linePositions(drawnSizes(before, axis))
+    const now = linePositions(drawnSizes(after, axis))
+    for (let j = 0; j < was.length; j++) {
+      if (j === line) continue
+      expect(Math.abs((now[j] ?? 0) - (was[j] ?? 0)), `line ${j} of ${axis} moved with line ${line}`).toBeLessThanOrEqual(1.01)
+    }
+    const moved = (now[line] ?? 0) - (was[line] ?? 0)
+    expect(moved * Math.sign(delta), `line ${line} of ${axis} moved against the drag`).toBeGreaterThanOrEqual(-0.51)
+    expect(Math.abs(moved), `line ${line} of ${axis} moved further than the drag`).toBeLessThanOrEqual(Math.abs(delta) + 0.51)
+  }
+
+  /** What holds of every table, beyond the tiling: its view state is sound. */
+  function expectSoundViewState(body: LayoutBody): void {
+    // No collapsed row without a filled cell that can expand it (cr34 M8, W4).
+    expect(orphanCollapsedRows(body)).toEqual([])
+    for (const t of body.grid.columns) expect(t.collapsed === undefined && t.fitPx === undefined).toBe(true)
+    for (const t of [...body.grid.columns, ...body.grid.rows]) {
+      if (t.px != null) expect(Number.isInteger(t.px) && t.px >= 1).toBe(true)
+      else expect(Number.isFinite(t.weight) && (t.weight ?? 0) > 0).toBe(true)
+      if (t.fitPx != null) expect(Number.isInteger(t.fitPx) && t.fitPx >= 1).toBe(true)
+    }
+    for (const c of body.cells) {
+      if (c.tabs.length === 0) expect(c.activeTabId).toBeUndefined()
+      else expect(c.tabs.some((t) => t.id === c.activeTabId)).toBe(true)
+    }
+  }
+
+  for (let seed = 1; seed <= SEED_COUNT; seed++) {
     it(`seed ${seed}`, () => {
       const rand = rng(seed)
       const pick = <T,>(xs: readonly T[]): T | undefined => xs[Math.floor(rand() * xs.length)]
       const genId = ids(`s${seed}-`)
       let tabN = 0
-      let body: WorkspaceLayout = layout(grid([[cell('start', ['x0'])]]))
-      for (let step = 0; step < 150; step++) {
+      /** A new tab: mostly Notes, a Number one time in four (fit rows), now and then a chart (a glance cell). */
+      const newTab = (): LayoutTab => {
+        const r = rand()
+        return createTab(r < 0.65 ? 'notes' : r < 0.9 ? 'number' : 'breakdown', `x${++tabN}`)
+      }
+      let body: WorkspaceLayout = start(seed)
+      for (let step = 0; step < STEPS; step++) {
         const cellIds = body.cells.map((c) => c.id)
+        const filledIds = body.cells.filter((c) => c.tabs.length > 0).map((c) => c.id)
         const tabIds = body.cells.flatMap((c) => c.tabs.map((t) => t.id))
         const target = (): LayoutDropTarget => {
           const r = rand()
@@ -1098,27 +1174,83 @@ describe('random op sequences keep the table valid', () => {
           if (r < 0.9) return { kind: 'cell', cellId: id, index: Math.floor(rand() * 3) }
           return { kind: 'layout' }
         }
-        const op = Math.floor(rand() * 9)
+        const minPx = (c: LayoutCell, axis: GridAxis) => cellMinPx(body, c, axis)
+        /** A drag's distance: a key step, a jiggle, or a long drag either way. */
+        const delta = (): number => {
+          const r = rand()
+          if (r < 0.2) return rand() < 0.5 ? 16 : -16
+          if (r < 0.3) return rand() < 0.5 ? 1 : -1
+          return Math.round((rand() - 0.5) * 900)
+        }
+        const op = Math.floor(rand() * 13)
         const before = body
+        let added: string | null = null
+        let made: string | null = null
         switch (op) {
-          case 0: body = splitCell(body, pick(cellIds) ?? '', pick(SIDES) ?? 'right', genId).layout; break
-          case 1: body = insertTrack(body, pick(SIDES) ?? 'top', genId).layout; break
+          case 0: {
+            const out = splitCell(body, pick(cellIds) ?? '', pick(SIDES) ?? 'right', genId)
+            body = out.layout
+            made = out.cellId
+            break
+          }
+          case 1: {
+            const out = insertTrack(body, pick(SIDES) ?? 'top', genId)
+            body = out.layout
+            made = out.cellId
+            break
+          }
           case 2: body = mergeCells(body, pick(cellIds) ?? '', pick(cellIds) ?? ''); break
           case 3: body = closeCell(body, pick(cellIds) ?? ''); break
           case 4: body = moveTab(body, pick(tabIds) ?? '', target(), genId); break
           case 5: body = movePanel(body, pick(cellIds) ?? '', target(), genId); break
-          case 6: body = addTab(body, createTab('notes', `x${++tabN}`), target(), genId); break
+          case 6: {
+            const tab = newTab()
+            body = addTab(body, tab, target(), genId)
+            if (body !== before) added = tab.id
+            break
+          }
           case 7: {
-            const stretch = pick(edgeStretches(body))
+            // A divider, as the view draws and drags it.
+            const stretch = pick(viewStretches(body))
             if (stretch) {
-              const sizes = body.grid[stretch.axis].map(() => 100 + Math.floor(rand() * 200))
-              body = moveEdge(body, stretch, (rand() - 0.5) * 400, { sizes, minPx: () => 20 }, genId)
+              const by = delta()
+              body = moveEdge(body, stretch, by, { sizes: drawnSizes(body, stretch.axis), minPx, gap: GAP }, genId)
+              if (body !== before && layoutStructureEqual(body, before)) expectOnlyLineMoved(before, body, stretch.axis, stretch.line, by)
             }
             break
           }
           case 8: body = closeTab(body, pick(tabIds) ?? ''); break
+          // Collapse row / Expand row, as a cell's menu does them: every row track the cell covers.
+          case 9: body = collapseRow(body, pick(filledIds) ?? ''); break
+          case 10: body = expandRow(body, pick(filledIds.filter((id) => isCellCollapsed(body, id))) ?? ''); break
+          case 11: {
+            // A crossing handle: both whole lines, the upright one first, each snapping home.
+            const crossing = pick(lineCrossings(body).filter((x) => [x.row - 1, x.row].every((t) => trackSizing(body, 'rows', t).kind !== 'collapsed')))
+            if (crossing) {
+              const cols = { sizes: drawnSizes(body, 'columns'), minPx, snapHome: true, gap: GAP }
+              const rows = { sizes: drawnSizes(body, 'rows'), minPx, snapHome: true, gap: GAP }
+              const dx = delta()
+              const dy = delta()
+              const afterColumns = moveEdge(body, wholeLine(body, 'columns', crossing.col), dx, cols, genId)
+              if (afterColumns !== body && layoutStructureEqual(afterColumns, body)) expectOnlyLineMoved(body, afterColumns, 'columns', crossing.col, dx)
+              const out = moveEdge(afterColumns, wholeLine(afterColumns, 'rows', crossing.row), dy, rows, genId)
+              if (out !== afterColumns && layoutStructureEqual(out, afterColumns)) expectOnlyLineMoved(afterColumns, out, 'rows', crossing.row, dy)
+              body = out
+            }
+            break
+          }
+          case 12: {
+            // Change widget: a Notes tab a Number, or back — rows start and stop fitting.
+            const id = pick(tabIds)
+            const tab = id != null ? getTab(body, id) : undefined
+            if (tab) body = replaceTab(body, tab.id, createTab(tab.kind === 'number' ? 'notes' : 'number', tab.id))
+            break
+          }
         }
         expectValid(body)
+        expectSoundViewState(body)
+        // A new cell (a split's, an insert's) never comes out collapsed.
+        if (made != null) expect(isCellCollapsed(body, made)).toBe(false)
         // A close leaves an empty cell only where no side can take its space (a pinwheel's centre).
         if (op === 3 || op === 8) {
           for (const c of body.cells) {
@@ -1130,7 +1262,7 @@ describe('random op sequences keep the table valid', () => {
         // Every tab survives every op but a close.
         if (op !== 8 && op !== 3) {
           expect(body.cells.flatMap((c) => c.tabs.map((t) => t.id)).sort()).toEqual(
-            [...before.cells.flatMap((c) => c.tabs.map((t) => t.id)), ...(op === 6 && body !== before ? [`x${tabN}`] : [])].sort(),
+            [...before.cells.flatMap((c) => c.tabs.map((t) => t.id)), ...(added != null ? [added] : [])].sort(),
           )
         }
       }
