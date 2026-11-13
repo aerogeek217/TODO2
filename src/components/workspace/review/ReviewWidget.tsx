@@ -192,7 +192,8 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
   // The large face under 820px wide: no queue column; a Queue button opens it.
   const queueFolded = face === 'large' && !!todo && reviewQueueFolds(width)
   const status = face === 'large' && finished ? `All ${n} reviewed` : null
-  const progress = picked && n > 0 && (
+  // Also with nothing left in the queue: a review whose follow-ups took every task out of its filter says how many.
+  const progress = picked && (n > 0 || done > 0) && (
     <span className={styles.progress} data-testid="review-widget-progress" aria-live="polite">
       {queueFolded && (
         <>
