@@ -20,8 +20,9 @@ import styles from './WorkspaceCell.module.css'
 import type { WorkspaceCellProps } from './WorkspaceCell'
 import { trackScrollEdges } from '../../utils/scroll-edges'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
-import { smallFaceClick, useCellFace } from './cell-face'
+import { smallFaceClick, useCellFace, useHeldBodyHeight } from './cell-face'
 import { SmallFaceOpener } from './CellFaceParts'
+import { OpenLargerPlaceholder } from './OpenLargerPlaceholder'
 import { openWidgetLarger } from '../../services/widget-popup'
 import { tabOpensLarger } from '../../utils/widget-face'
 import { transitionName, withViewTransition } from '../shared/view-transition'
@@ -101,7 +102,9 @@ function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = fals
  * Either way (`cell-menu`, UX cleanup 4A) the ⋯ opens the widget's own
  * entries and Add widget…, the grip the cell's layout entries in the table's
  * words (D26 board V), and a right-click or Shift+F10 the whole menu. The
- * active widget's body shows at its face (D25 R).
+ * active widget's body shows at its face (D25 R) — while the widget popup
+ * shows that tab (Open larger), a placeholder in its place: a tab has one
+ * live widget at a time (`OpenLargerPlaceholder`).
  */
 export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
@@ -122,6 +125,16 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const cellFace = useCellFace(active, { forced: fitRow ? 'small' : collapsed && !stripShown ? 'large' : undefined })
   const smallFace = cellFace.face === 'small' && !collapsed
   const cellRef = useRef<HTMLElement | null>(null)
+  // A fit row's height is its content's: the placeholder keeps the height its widget had.
+  const [setHeldBody, heldHeight] = useHeldBodyHeight(active?.id, fitRow)
+  const setBody = useCallback((el: HTMLDivElement | null) => {
+    setHeldBody(el)
+    const stop = collapsed ? undefined : trackScrollEdges(el)
+    return () => {
+      setHeldBody(null)
+      stop?.()
+    }
+  }, [setHeldBody, collapsed])
   /** What the active tab's widget last reported (any kind): its count label, shown sections or summary. */
   const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
   const [menu, setMenu] = useState<{ tabId: string; at: MenuAt; part: CellMenuPart } | null>(null)
@@ -342,7 +355,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       {(!collapsed || !stripShown) && active && (
         <div className={styles.bodyFrame}>
           <div
-            ref={collapsed ? undefined : trackScrollEdges}
+            ref={setBody}
             className={`${styles.body} ${smallFace ? styles.bodySmall : ''}`}
             role={stripShown ? 'tabpanel' : undefined}
             aria-labelledby={stripShown ? `ws-tab-${active.id}` : undefined}
@@ -353,11 +366,16 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             {smallFace && !drag && cellFace.opensLarger && <SmallFaceOpener title={activeTitle} open={cellFace.open} onOpen={cellFace.openLarger} />}
             <CellControlsContext.Provider value={controls}>
               <WidgetFaceContext.Provider value={cellFace.host}>
-                <WidgetBody
-                  key={active.id}
-                  tab={active}
-                  onResult={(result) => setWidgetResult({ tabId: active.id, result })}
-                />
+                {cellFace.open ? (
+                  // The popup shows this tab: its one live widget is there.
+                  <OpenLargerPlaceholder tabId={active.id} title={activeTitle} compact={smallFace} minHeight={heldHeight} />
+                ) : (
+                  <WidgetBody
+                    key={active.id}
+                    tab={active}
+                    onResult={(result) => setWidgetResult({ tabId: active.id, result })}
+                  />
+                )}
               </WidgetFaceContext.Provider>
             </CellControlsContext.Provider>
           </div>

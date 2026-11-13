@@ -67,7 +67,8 @@ import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { LIST_SECTION_ATTR, LIST_WIDGET_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 import { stepListTabZoom } from '../../../services/list-zoom'
-import { autoListZoom, UNMEASURED_LIST_ZOOM } from '../../../utils/list-zoom'
+import { autoListZoom, stepListZoom, UNMEASURED_LIST_ZOOM } from '../../../utils/list-zoom'
+import { ListTabViewContext } from './list-tab-view'
 import { zoomOnCtrlWheel } from './zoom-wheel'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { transitionName, withViewTransition } from '../../shared/view-transition'
@@ -166,6 +167,10 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   useEffect(() => { if (!isMobile) setShownZoom(tab.id, zoom) }, [isMobile, setShownZoom, tab.id, zoom])
   useEffect(() => () => setShownZoom(tab.id, null), [setShownZoom, tab.id])
   const tabRef = useLatestRef(tab)
+  // Its view state's writes: the layout's list tab, or — the list a Number follows, in the
+  // widget popup — the popup's own (`ListTabViewContext`; no layout tab holds it).
+  const viewHost = useContext(ListTabViewContext)
+  const viewHostRef = useLatestRef(viewHost)
   const picks = useListWidgetStore((s) => s.picks[tab.id])
   const setPicks = useListWidgetStore((s) => s.setPicks)
   const collapsed = useListWidgetStore((s) => s.collapsed[tab.id])
@@ -198,7 +203,12 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const setWidgetEl = useCallback((el: HTMLDivElement | null) => {
     widgetRef.current = el
     faceRef(el)
-    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current != null, (dir) => void stepListTabZoom(tabRef.current, dir)) : undefined
+    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current != null, (dir) => {
+      const host = viewHostRef.current
+      const shown = zoomRef.current
+      if (host && shown) host.patch({ zoom: stepListZoom(shown, dir) })
+      else void stepListTabZoom(tabRef.current, dir)
+    }) : undefined
     const stopMeasure = measureAutoZoom(el)
     return () => {
       widgetRef.current = null
@@ -206,7 +216,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
       stopWheel?.()
       stopMeasure?.()
     }
-  }, [faceRef, zoomRef, tabRef, measureAutoZoom])
+  }, [faceRef, zoomRef, tabRef, viewHostRef, measureAutoZoom])
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)
@@ -533,7 +543,10 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
         className={styles.body}
         zoom={zoom}
         detailsWidth={tab.viewState?.detailsWidth}
-        onDetailsWidthChange={(detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'lens', { detailsWidth })}
+        onDetailsWidthChange={(detailsWidth) => {
+          if (viewHost) viewHost.patch({ detailsWidth })
+          else void useWorkspaceStore.getState().patchTabViewState(tab.id, 'lens', { detailsWidth })
+        }}
       >
         {groups}
       </TaskRowGrid>

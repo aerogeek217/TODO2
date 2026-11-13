@@ -1,18 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { REVIEW_POPUP_TAB_ID } from '../../models/review'
-import type { LayoutTab, LensTab, ReviewTab } from '../../models/workspace-layout'
+import type { LayoutTab, LensTab, ListTabViewState, ReviewTab } from '../../models/workspace-layout'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { WidgetFaceContext, type WidgetFaceHost } from '../../hooks/use-widget-face'
+import { listTabZoom } from '../../services/list-zoom'
 import { onDataReplaced } from '../../services/replace-data'
 import { closeWidgetPopup } from '../../services/widget-popup'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { stepListZoom, type ZoomDirection } from '../../utils/list-zoom'
 import { layoutTabs } from '../../utils/workspace-layout-queries'
 import { DialogFrame } from '../shared/Dialog'
 import { CloseIcon, MoreIcon } from '../shared/icons'
-import { MenuPopover } from '../shared/MenuPopover'
+import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { widgetKindMenuEntries } from '../shared/widget-kind-menu-entries'
 import { useWidgetMenuContent } from './cell-menu'
+import { ListTabViewContext, type ListTabViewHost } from './list/list-tab-view'
 import { TabIcon } from './TabIcon'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { useTabTitle } from './widget-hooks'
@@ -35,10 +38,29 @@ const CELL_FOCUS_TARGETS = [
   '[data-cell-controls] button[aria-label="Cell options"]',
 ]
 
-function focusTabCell(tabId: string): void {
-  const cell = document.querySelector(`[data-ws-cell] [data-ws-tab="${CSS.escape(tabId)}"]`)?.closest('[data-ws-cell]')
+/** The cell showing tab `tabId` as its active widget (its top line or its tab stands for it). */
+function tabCell(tabId: string): Element | null {
+  return document.querySelector(`[data-ws-cell] [data-ws-tab="${CSS.escape(tabId)}"]`)?.closest('[data-ws-cell]') ?? null
+}
+
+/**
+ * The button of the tab's cell that had the focus when the popup opened, by
+ * its name (`Open larger`, `Cell options`): the cell's widget is away while
+ * the popup shows its tab (`OpenLargerPlaceholder`), so a button in the
+ * widget's top line is another element once it is back.
+ */
+function cellOpenerName(tabId: string): string | null {
+  const el = document.activeElement
+  if (!(el instanceof HTMLButtonElement)) return null
+  const cell = el.closest('[data-ws-cell]')
+  return cell != null && cell === tabCell(tabId) ? el.getAttribute('aria-label') : null
+}
+
+function focusTabCell(tabId: string, openerName: string | null): void {
+  const cell = tabCell(tabId)
   if (!cell) return
-  for (const selector of CELL_FOCUS_TARGETS) {
+  const targets = openerName != null ? [`button[aria-label="${CSS.escape(openerName)}"]`, ...CELL_FOCUS_TARGETS] : CELL_FOCUS_TARGETS
+  for (const selector of targets) {
     const el = cell.querySelector<HTMLElement>(selector)
     if (el) {
       el.focus({ preventScroll: true })
@@ -54,6 +76,12 @@ function focusTabCell(tabId: string): void {
  * tab closed) —, the list a Number that follows a list shows, or the popup review (`REVIEW_POPUP_TAB_ID`, its view state
  * `ui-store.popupReviewView`). A data replace closes it, as does the
  * workspace leaving.
+ *
+ * A tab has one live widget at a time (cr34 H1): while the popup shows a
+ * layout tab, its cell draws `OpenLargerPlaceholder` (`cell-face.useCellFace`'s
+ * `open`). The followed list is a second widget on the same list as that
+ * list's own tab, if it has one — under the Number's tab id, so their drag
+ * ids differ; its zoom and details width are held here (`ListTabViewContext`).
  */
 export function WidgetPopupHost() {
   const target = useUIStore((s) => s.widgetPopup)
@@ -63,10 +91,24 @@ export function WidgetPopupHost() {
   ))
   // A Number that follows a list: the list as a list tab of the Number's id (its prompt picks are the Number's).
   const followedListId = layoutTab?.kind === 'number' && layoutTab.config.show === 'list' ? layoutTab.config.list?.listDefinitionId : undefined
+  // That list's zoom and details width: no layout tab holds them (the tab of that id is a Number), so
+  // the host does — for the Number last opened, while the workspace page is open; never saved.
+  const [followedView, setFollowedView] = useState<{ tabId: string; view: ListTabViewState } | null>(null)
+  const numberTabId = followedListId != null ? layoutTab?.id : undefined
+  const listView = numberTabId != null && followedView?.tabId === numberTabId ? followedView.view : undefined
   const listTab = useMemo<LensTab | undefined>(
-    () => (layoutTab && followedListId != null ? { id: layoutTab.id, kind: 'lens', config: { listDefinitionId: followedListId } } : undefined),
-    [layoutTab, followedListId],
+    () => (numberTabId != null && followedListId != null
+      ? { id: numberTabId, kind: 'lens', config: { listDefinitionId: followedListId }, ...(listView ? { viewState: listView } : {}) }
+      : undefined),
+    [numberTabId, followedListId, listView],
   )
+  const listViewHost = useMemo<ListTabViewHost | null>(() => (target?.kind === 'list' && numberTabId != null ? {
+    patch: (patch) => setFollowedView((held) => {
+      const view = { ...(held?.tabId === numberTabId ? held.view : {}), ...patch }
+      // A key patched to `undefined` is back at its default.
+      return { tabId: numberTabId, view: Object.fromEntries(Object.entries(view).filter(([, v]) => v !== undefined)) as ListTabViewState }
+    }),
+  } : null), [target?.kind, numberTabId])
   const reviewTab = useMemo<ReviewTab>(
     () => ({ id: REVIEW_POPUP_TAB_ID, kind: 'review', config: {}, viewState: reviewView }),
     [reviewView],
@@ -76,10 +118,30 @@ export function WidgetPopupHost() {
   useEffect(() => {
     if (gone) closeWidgetPopup()
   }, [gone])
-  useEffect(() => onDataReplaced(() => { closeWidgetPopup() }), [])
+  useEffect(() => onDataReplaced(() => {
+    closeWidgetPopup()
+    // The held view was another data set's tab's.
+    setFollowedView(null)
+  }), [])
   useEffect(() => () => { closeWidgetPopup() }, [])
   if (!tab) return null
-  return <WidgetPopup key={tab.id} tab={tab} />
+  return <WidgetPopup key={tab.id} tab={tab} listView={target?.kind === 'list' ? listViewHost : null} />
+}
+
+/**
+ * The followed list's menu (the popup's `list` kind): its Zoom stepper —
+ * the one stepper in a list's menu (`list/zoom-menu`) — steps the view state
+ * `host` holds, from the level the list shows; its own handlers would write
+ * to the layout's tab of that id, a Number (cr34 U3).
+ */
+function withHeldZoom(entries: MenuEntry[], tab: LayoutTab, host: ListTabViewHost): MenuEntry[] {
+  if (tab.kind !== 'lens') return entries
+  const step = (dir: ZoomDirection) => () => host.patch({ zoom: stepListZoom(listTabZoom(tab), dir) })
+  return entries.map((entry) => (entry.kind === 'stepper' ? {
+    ...entry,
+    onDecrement: entry.onDecrement && step('out'),
+    onIncrement: entry.onIncrement && step('in'),
+  } : entry))
 }
 
 /**
@@ -94,29 +156,37 @@ export function WidgetPopupHost() {
  * scrim close it; the focus goes back to what opened it (to the tab's cell
  * when that is gone).
  */
-function WidgetPopup({ tab }: { tab: LayoutTab }) {
+function WidgetPopup({ tab, listView }: {
+  tab: LayoutTab
+  /** The list a Number follows (`tab` a list tab of the Number's id): where its zoom and details width are kept. */
+  listView: ListTabViewHost | null
+}) {
   const title = useTabTitle(tab)
   const isMobile = useIsMobile()
   const [result, setResult] = useState<WidgetResult | undefined>(undefined)
   const [menuOpen, setMenuOpen] = useState(false)
   const moreRef = useRef<HTMLButtonElement | null>(null)
   const content = useWidgetMenuContent(tab, result)
-  const entries = content ? widgetKindMenuEntries({ ...content, kindSwitch: false }) : []
+  const ownEntries = content ? widgetKindMenuEntries({ ...content, kindSwitch: false }) : []
+  const entries = listView ? withHeldZoom(ownEntries, tab, listView) : ownEntries
   const hasItems = entries.some((e) => e.kind === 'item')
   const face = useMemo<WidgetFaceHost>(
     () => ({ forced: isMobile && tab.kind === 'review' ? 'medium' : 'large' }),
     [isMobile, tab.kind],
   )
   const tabId = tab.id
-  // The focus back to the tab's cell when what opened the popup is gone (a menu item): after the frame's own return.
+  // What opened it, read before the cell swaps its widget for the placeholder.
+  const [openerName] = useState(() => cellOpenerName(tabId))
+  // The focus back to the tab's cell when what opened the popup is gone (a menu item, a button of the
+  // cell's widget — mounted again by now): after the frame's own return.
   useEffect(() => () => {
     window.setTimeout(() => {
       // The page is gone by now (the popup closed with it): nothing to focus.
       if (typeof document === 'undefined') return
       const active = document.activeElement
-      if (active == null || active === document.body || !active.isConnected) focusTabCell(tabId)
+      if (active == null || active === document.body || !active.isConnected) focusTabCell(tabId, openerName)
     }, 0)
-  }, [tabId])
+  }, [tabId, openerName])
   return (
     <DialogFrame
       onClose={closeWidgetPopup}
@@ -150,7 +220,9 @@ function WidgetPopup({ tab }: { tab: LayoutTab }) {
       </div>
       <div className={styles.body}>
         <WidgetFaceContext.Provider value={face}>
-          <WidgetBody tab={tab} onResult={setResult} />
+          <ListTabViewContext.Provider value={listView}>
+            <WidgetBody tab={tab} onResult={setResult} />
+          </ListTabViewContext.Provider>
         </WidgetFaceContext.Provider>
       </div>
       {menuOpen && hasItems && (
