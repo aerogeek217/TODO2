@@ -13,6 +13,10 @@ import { useUndoStore } from '../../stores/undo-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
+import { REVIEW_POPUP_TAB_ID } from '../../models/review'
+import { useChartWidgetsStore } from '../../stores/chart-widgets-store'
+import { useListWidgetStore } from '../../stores/list-widget-store'
+import { reviewWidgetSession } from '../../stores/review-session'
 import { resetStores } from '../store-tracking'
 import { addTask } from '../add-task'
 import { lensActions } from '../../stores/lens-actions'
@@ -130,6 +134,44 @@ describe('refreshAllStores', () => {
     expect(after.editPopupMode).toBeNull()
     expect(after.selectedTodoId).toBeNull()
     expect(after.quickAddDraft).toBeNull()
+  })
+
+  it('clears every Review widget’s filter and review — its place, marks, typed update text and Next dates (M5: they name ids the new data may reuse)', async () => {
+    const lists = useListWidgetStore.getState()
+    lists.setReviewFilter('rv', { expression: { kind: 'person', id: 7 }, showCompleted: false })
+    lists.setReviewFilter(REVIEW_POPUP_TAB_ID, { expression: { kind: 'tag', id: 3 }, showCompleted: false })
+    lists.setPicks('tab-1', [7])
+    lists.setCollapsed('tab-1', ['person-7'])
+    const tabSession = reviewWidgetSession('rv', () => ({ sort: 'due' }))
+    const popupSession = reviewWidgetSession(REVIEW_POPUP_TAB_ID)
+    for (const session of [tabSession, popupSession]) {
+      session.setState({ ids: [7, 12], order: [7, 12], index: 1, marks: { 7: 'skipped' }, filterKey: '@p7' })
+      session.getState().setDraft(12, 'typed for the old task 12')
+      session.getState().setNextDraft(12, 'fri')
+    }
+
+    await refreshAllStores()
+
+    const after = useListWidgetStore.getState()
+    expect(after.reviewFilters).toEqual({})
+    expect(after.picks).toEqual({})
+    expect(after.collapsed).toEqual({})
+    // The same sessions (a widget on screen holds its own), back to nothing but the sort.
+    expect(reviewWidgetSession('rv')).toBe(tabSession)
+    for (const session of [tabSession, popupSession]) {
+      expect(session.getState()).toMatchObject({ ids: [], order: [], index: 0, marks: {}, drafts: {}, nextDrafts: {}, filterKey: null })
+    }
+    expect(tabSession.getState().sort).toBe('due')
+  })
+
+  it('closes every open editor — Edit list and each widget editor (M5: one roster)', async () => {
+    useUIStore.setState({ listEditor: { listDefinitionId: 4, tabId: 'tab-l' }, numberEditorTabId: 'tab-n' })
+    useChartWidgetsStore.setState({ editorTabId: 'tab-c', pulseEditorTabId: 'tab-p', trendEditorTabId: 'tab-t' })
+
+    await refreshAllStores()
+
+    expect(useUIStore.getState()).toMatchObject({ listEditor: null, numberEditorTabId: null })
+    expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, pulseEditorTabId: null, trendEditorTabId: null })
   })
 
   it('drops note text not saved yet, so it is not saved over the imported note', async () => {

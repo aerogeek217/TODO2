@@ -60,3 +60,42 @@ export function afterLeavingEditors(run: () => void): void {
   }
   void leaveOpenEditors().then((left) => { if (left) run() })
 }
+
+// ── Which editor is open ────────────────────────────────────────────────────
+
+/**
+ * The one roster of the stores' "which editor is open" fields (Edit list
+ * and the Number editor in `ui-store`; a chart's, Project pulse's and
+ * Created vs completed's in `chart-widgets-store`): each store registers how
+ * its fields close, beside them, so everything that closes every editor —
+ * Settings opening, the widget popup, a data replace — and the one-at-a-time
+ * rule (`openOneEditor`) go through the same list. Wiring, not state: never
+ * reset.
+ */
+const fields = new Set<() => void>()
+
+/** Registers how a store's open-editor fields close (`closeOpenEditors` runs it). */
+export function registerEditorFields(close: () => void): void {
+  fields.add(close)
+}
+
+/**
+ * Closes every open editor, asking nothing: one with changes was asked
+ * before (`leaveOpenEditors`), or is closed anyway and says so itself (its
+ * subject gone: a data replace).
+ */
+export function closeOpenEditors(): void {
+  for (const close of fields) close()
+}
+
+/**
+ * Opens an editor (`open` sets its store's field): an editor with changes is
+ * asked first (never on Keep editing), and every other one closes — one at
+ * a time, whichever store holds it.
+ */
+export function openOneEditor(open: () => void): void {
+  afterLeavingEditors(() => {
+    closeOpenEditors()
+    open()
+  })
+}
