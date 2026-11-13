@@ -6,7 +6,7 @@ import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
 import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { breakdownReviewFilter } from '../../../services/review'
+import { breakdownReviewFilter, breakdownReviews } from '../../../services/review'
 import { jumpToReview } from '../../../services/review-jump'
 import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -112,16 +112,20 @@ function ColumnCount({ n, column, label, onOpen }: {
   )
 }
 
-/** A row's Review button (board BC): a muted icon right after the row's name, shown on the row's hover or focus; jumps to a Review widget with the row as its filter. */
-function RowReview({ heading, n, onReview }: { heading: string; n: number; onReview: () => void }) {
-  const { triggerProps, tooltip } = useTooltip('Review')
+/**
+ * A row's Review button (board BC): a muted icon right after the row's name, shown on the row's hover or focus; jumps
+ * to a Review widget with the row as its filter — or (`reviews` false: a Breakdown that counts completed tasks) shows
+ * the row's tasks in the task dialog, and says so.
+ */
+function RowReview({ heading, n, reviews, onReview }: { heading: string; n: number; reviews: boolean; onReview: () => void }) {
+  const { triggerProps, tooltip } = useTooltip(reviews ? 'Review' : 'Show tasks')
   return (
     <>
       <button
         type="button"
         className={styles.rowAction}
         data-testid="breakdown-review"
-        aria-label={`Review ${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}`}
+        aria-label={`${reviews ? 'Review' : 'Show'} ${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}`}
         onClick={(e) => {
           e.stopPropagation()
           onReview()
@@ -181,10 +185,13 @@ interface TableProps {
 function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {
   const { splitBy, show } = config
   const [menu, setMenu] = useState<{ entity: MenuEntity; at: { x: number; y: number } } | null>(null)
+  // A Breakdown that counts completed tasks: a review (open tasks only) would not show them.
+  const reviews = breakdownReviews(config)
   /**
    * A row's Review (or, with `column`, a count's click): a jump to a Review
    * widget with the Breakdown's filter AND the row (AND the column's filter).
-   * A row no filter says opens its tasks in the task dialog instead.
+   * A row no filter says, and every row of a Breakdown that counts completed
+   * tasks, opens its tasks in the task dialog instead.
    */
   const reviewRow = (row: BreakdownRow, column?: BreakdownColumn) => {
     const filter = breakdownReviewFilter(config, row, column)
@@ -284,7 +291,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                 </button>
                 {review && (
                   <span className={styles.nameActions} data-testid="breakdown-row-actions">
-                    <RowReview heading={heading} n={n} onReview={() => reviewRow(row)} />
+                    <RowReview heading={heading} n={n} reviews={reviews} onReview={() => reviewRow(row)} />
                   </span>
                 )}
               </span>
@@ -307,7 +314,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                     <ColumnCount
                       n={count}
                       column={column}
-                      label={`${review ? 'Review' : 'Show'} ${heading}'s ${count} in ${name}`}
+                      label={`${review && reviews ? 'Review' : 'Show'} ${heading}'s ${count} in ${name}`}
                       onOpen={review
                         ? () => reviewRow(row, column)
                         : onDrill ? () => onDrill(breakdownColumnDrill(title, row, column.id, name)) : undefined}

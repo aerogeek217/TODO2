@@ -4,7 +4,7 @@ import { useFilterStore } from '../stores/filter-store'
 import { listAsShownNow } from '../stores/list-draft-store'
 import { useListWidgetStore, type ReviewFilter, type ShownListSection } from '../stores/list-widget-store'
 import { useTodoStore } from '../stores/todo-store'
-import { criteriaToPredicate } from '../utils/filter-criteria'
+import { admitsCompleted, criteriaToPredicate, predicateToCriteria } from '../utils/filter-criteria'
 import { normalizeExpression, wholeExpression } from '../utils/filter-expression'
 import { applyRuntimeFilter } from './build-list'
 import { zoomTargetTab } from './list-zoom'
@@ -197,16 +197,30 @@ export function breakdownRowTerm(row: Pick<BreakdownRow, 'entity'>, splitBy: Bre
 }
 
 /**
+ * Whether a Breakdown's rows can be reviewed: not while its filter lets
+ * completed tasks through (Show completed, a Completed range — "completed
+ * this week by person"). Its rows then count tasks a review, which takes
+ * open tasks only, would not show; its Review buttons open those tasks in
+ * the task dialog instead.
+ */
+export function breakdownReviews(config: Pick<BreakdownConfig, 'filter'>): boolean {
+  return !admitsCompleted(predicateToCriteria(config.filter))
+}
+
+/**
  * A Breakdown row's review (its Review button): the Breakdown's own filter
  * AND the row; with `column` (a count column's count), AND that column's
- * filter too. Null when the row can't be said as a filter (the caller then
- * opens the task dialog instead).
+ * filter too. Null
+ * when the row can't be said as a filter, or the Breakdown counts completed
+ * tasks (`breakdownReviews`) — the caller then opens the task dialog
+ * instead.
  */
 export function breakdownReviewFilter(
   config: Pick<BreakdownConfig, 'filter' | 'splitBy'>,
   row: Pick<BreakdownRow, 'entity'>,
   column?: Pick<BreakdownColumn, 'filter'>,
 ): ReviewFilter | null {
+  if (!breakdownReviews(config)) return null
   const term = breakdownRowTerm(row, config.splitBy)
   if (!term) return null
   return reviewFilterOf(allOf([wholeExpression(config.filter), term, column ? wholeExpression(column.filter) : null]))
