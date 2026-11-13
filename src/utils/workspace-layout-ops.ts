@@ -487,7 +487,7 @@ export interface MoveEdgeOptions {
   /**
    * The smallest size (px) a cell may take along the axis; default 120px
    * wide (72px for a glance cell, `cellMinWidthPx`), `CELL_MIN_PX` high (64px
-   * for a glance cell).
+   * for a glance cell, 58px for a cell of one Number — `cellMinHeightPx`).
    */
   minPx?: (cell: LayoutCell, axis: GridAxis) => number
 }
@@ -588,7 +588,8 @@ interface EdgeTarget {
 
 /**
  * Where dragging `stretch` by `delta` px lands: clamped so every cell on
- * either side keeps its minimum, then snapped onto the nearest line within
+ * either side keeps its minimum (one already under it, the size it has),
+ * then snapped onto the nearest line within
  * `snapPx` — any line of the axis, one only other columns' (rows') cells
  * lie on too; a stretch that is part of its line snaps back onto its own
  * line as well, and so does a whole line with `snapHome`. `null` when the
@@ -604,9 +605,14 @@ function edgeTarget(layout: LayoutBody, stretch: EdgeStretch, delta: number, opt
   const pos = [0]
   for (const s of sizes) pos.push((pos.at(-1) ?? 0) + Math.max(0, s))
   const at = (i: number) => pos[i] ?? 0
-  const lo = Math.max(...before.map((c) => at(spanOf(c.area, axis)[0]) + minPx(c, axis)))
-  const hi = Math.min(...after.map((c) => at(spanOf(c.area, axis)[1]) - minPx(c, axis)))
-  if (lo > hi) return null
+  const least = Math.max(...before.map((c) => at(spanOf(c.area, axis)[0]) + minPx(c, axis)))
+  const most = Math.min(...after.map((c) => at(spanOf(c.area, axis)[1]) - minPx(c, axis)))
+  if (least > most) return null
+  // A cell already under its minimum (a fit row drawn a fraction short of
+  // it, a fixed track set low) keeps the size it has: the clamp holds the
+  // line where it is, and never moves it against the drag (cr34 W3).
+  const lo = Math.min(at(line), least)
+  const hi = Math.max(at(line), most)
   let target = Math.max(lo, Math.min(hi, at(line) + delta))
   const beforeIds = new Set(before.map((c) => c.id))
   const afterIds = new Set(after.map((c) => c.id))

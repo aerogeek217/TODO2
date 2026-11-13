@@ -4,6 +4,7 @@ import { edgeBetween, edgeStretches, isNormalized, lineCrossings, orphanCollapse
 import { findTab, getTab, layoutIds, layoutStructureEqual, layoutStructureKey, panelOfTab } from '../../utils/workspace-layout-queries'
 import { countListTabs } from '../../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
+import { FIT_ROW_PX } from '../../utils/workspace-rows'
 import { rowDrawsFitFaces, trackSizing } from '../../utils/workspace-table'
 import {
   addTab,
@@ -624,6 +625,30 @@ describe('a Numbers-only (fit) row\'s divider', () => {
     // Again from there: from its height, not the drawn size.
     const again = moveEdge(out, wholeLine(out, 'rows', 1), -20, { sizes: [116, 560] }, ids())
     expect(again.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 96 })
+  })
+
+  it('its minimum is its fit height, 58px: a press, a jiggle or a drag up leaves a fitting row as it is (cr34 W3)', () => {
+    const line = wholeLine(body, 'rows', 1)
+    // The row as it fits (58px), the cells' own minimums (no `minPx`).
+    const at58 = { sizes: [FIT_ROW_PX, 600] }
+    for (const delta of [-16, -1, 0]) expect(moveEdge(body, line, delta, at58, ids())).toBe(body)
+    expect(moveEdge(body, line, 1, at58, ids()).grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 59 })
+    expect(moveEdge(body, line, 16, at58, ids()).grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 74 })
+    // Given a height, it comes back down to 58px and no further.
+    const tall = moveEdge(body, line, 16, at58, ids())
+    expect(moveEdge(tall, wholeLine(tall, 'rows', 1), -100, { sizes: [74, 584] }, ids()).grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 58 })
+    // Drawn a fraction under 58px (a zoomed page): the clamp never moves the line against the drag.
+    const short = { sizes: [57.6, 600] }
+    for (const delta of [-16, -1, 0]) expect(moveEdge(body, line, delta, short, ids())).toBe(body)
+    expect(edgeSnap(body, line, -16, short)).toBeNull()
+  })
+
+  it('a cell already under its minimum keeps its size: a drag that would shrink it holds, one that grows it moves from where it is', () => {
+    // A 40px band holding a list (minimum 112px) over a list.
+    const band = layout(grid([[l], [cell('m')]], { rows: [{ px: 40 }, 1000] }))
+    const line = wholeLine(band, 'rows', 1)
+    expect(moveEdge(band, line, -10, { sizes: [40, 600] }, ids())).toBe(band)
+    expect(moveEdge(band, line, 10, { sizes: [40, 600] }, ids()).grid.rows[0]).toEqual({ id: 'r1', px: 50 })
   })
 
   it('clearing its height lets it fit again', () => {

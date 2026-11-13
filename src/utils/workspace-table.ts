@@ -1,6 +1,6 @@
 import type { GridAxis, GridTrack, LayoutBody, LayoutCell } from '../models/workspace-layout'
 import { spanOf } from './workspace-grid'
-import { cellMinHeightPx, cellMinWidthPx, isFitTrack } from './workspace-rows'
+import { cellMinHeightPx, cellMinWidthPx, FIT_ROW_PX, isFitTrack } from './workspace-rows'
 
 /**
  * How the layout's table sizes its tracks (D26 P2), for the view's CSS grid
@@ -22,12 +22,8 @@ import { cellMinHeightPx, cellMinWidthPx, isFitTrack } from './workspace-rows'
 export const WORKSPACE_GUTTER_PX = 6
 /** The height (px) of a cell's header: a collapsed row track's size. */
 export const TABLE_HEADER_PX = 32
-/**
- * A fit row's height (px) when it can't be measured: a Number's small face as
- * drawn (its name over its count, 58px in Chromium for a count, a Share of…
- * and an Oldest — widget feedback 2D measured it; it was 76).
- */
-export const FIT_TRACK_NOMINAL_PX = 58
+/** A fit row's height (px) when it can't be measured: `workspace-rows.FIT_ROW_PX`, a Number's small face as drawn. */
+export const FIT_TRACK_NOMINAL_PX = FIT_ROW_PX
 
 /** How a track is sized: see the module comment. */
 export type TrackSizing =
@@ -72,8 +68,8 @@ export function isCellCollapsedIn(body: LayoutBody, cell: LayoutCell): boolean {
 /**
  * The smallest size (px) a cell may take along `axis`: 120px wide (a glance
  * cell 72px, `workspace-rows.cellMinWidthPx`); high,
- * `CELL_MIN_PX` (64px for a glance cell, `workspace-rows.cellMinHeightPx`),
- * or its header's height while collapsed.
+ * `CELL_MIN_PX` (64px for a glance cell, 58px for a cell of one Number —
+ * `workspace-rows.cellMinHeightPx`), or its header's height while collapsed.
  */
 export function cellMinPx(body: LayoutBody, cell: LayoutCell, axis: GridAxis): number {
   if (axis === 'columns') return cellMinWidthPx(cell)
