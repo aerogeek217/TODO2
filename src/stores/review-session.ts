@@ -39,11 +39,22 @@ export interface ReviewSessionData {
   order: readonly number[]
   /** The current card's place in `order`. */
   index: number
+  /**
+   * Each task's mark in this review: `done` — followed up here (kept after
+   * the task leaves the queue: the header's count) —, or `skipped`, which
+   * takes a `done`'s place (a follow-up undone, the card then skipped).
+   */
   marks: Readonly<Record<number, ReviewMark>>
   /** The Status update line's text per task (Back brings it back). */
   drafts: Readonly<Record<number, string>>
   /** The Next follow-up field's text per task while typed and not set (Back brings it back). */
   nextDrafts: Readonly<Record<number, string>>
+  /**
+   * The filter this review is of (`list-widget-store.reviewFilterKey`; null:
+   * none): the place and the marks last as long as it — a different filter
+   * starts a new review (`restart`), the same one sent again resumes.
+   */
+  filterKey: string | null
 }
 
 /** A new queue and its place, as `services/review-queue` computes them. */
@@ -68,6 +79,14 @@ export interface ReviewSessionActions {
   setNextDraft: (id: number, text: string | null) => void
   /** Puts in a new queue, sort, order and place (`services/review-queue`). */
   place: (place: ReviewPlace) => void
+  /**
+   * A new review, of filter `filterKey`: no queue yet, the first card, no
+   * marks. The sort stays (view state), and so does the text typed per task
+   * — the tasks are the same ones.
+   */
+  restart: (filterKey: string | null) => void
+  /** Back to nothing but the sort (a data replace: every id may now name another task). */
+  reset: () => void
 }
 
 export type ReviewSession = ReviewSessionData & ReviewSessionActions
@@ -84,6 +103,7 @@ export const EMPTY_SESSION: ReviewSessionData = {
   marks: {},
   drafts: {},
   nextDrafts: {},
+  filterKey: null,
 }
 
 const clamp = (i: number, n: number) => Math.max(0, Math.min(n - 1, i))
@@ -131,7 +151,9 @@ export function reviewSessionActions(
 
     mark(id, mark) {
       const marks = get().marks
-      if (marks[id] === mark || (mark === 'skipped' && marks[id] === 'done')) return
+      // A skip takes a `done`'s place too: `done` shows only while the task is followed up today
+      // (`shownMark`), so a follow-up undone and the card then skipped shows its –.
+      if (marks[id] === mark) return
       set({ marks: { ...marks, [id]: mark } })
     },
 
@@ -155,6 +177,14 @@ export function reviewSessionActions(
 
     place({ ids, dividers, sort, order, index }) {
       set({ ids: [...ids], dividers: [...dividers], sort, order: [...order], index: order.length === 0 ? 0 : clamp(index, order.length) })
+    },
+
+    restart(filterKey) {
+      set({ ids: [], dividers: [], order: [], index: 0, marks: {}, filterKey })
+    },
+
+    reset() {
+      set({ ...EMPTY_SESSION, sort: get().sort })
     },
   }
 }
@@ -187,6 +217,21 @@ export function reviewWidgetSession(tabId: string, initial?: () => Partial<Revie
   return session
 }
 
+/**
+ * Every widget's review back to nothing but its sort (a data replace: the
+ * queue, the marks and the typed update text and Next dates are keyed by
+ * task ids the replaced data may reuse for other tasks). In place — a
+ * mounted widget keeps its session.
+ */
+export function clearReviewSessions(): void {
+  for (const session of widgetSessions.values()) session.getState().reset()
+}
+
+/** Drops the sessions of the tabs not among `tabIds` (closed tabs: so they don't pile up over a session). */
+export function keepReviewSessions(tabIds: ReadonlySet<string>): void {
+  for (const tabId of [...widgetSessions.keys()]) if (!tabIds.has(tabId)) widgetSessions.delete(tabId)
+}
+
 // ── What the rail and the header read ──────────────────────────────────────
 
 /**
@@ -205,13 +250,23 @@ export function shownMark(
   return marks[id] === 'skipped' ? 'skipped' : undefined
 }
 
-/** The header's `N followed up`: how many tasks of the queue are followed up today (its ✓ rows), wherever that happened. */
+/**
+ * The header's `N followed up`: how many tasks of the queue are followed up
+ * today (its ✓ rows), wherever that happened — and the ones followed up in
+ * this review (`done`) that left the queue since (a review of follow-ups
+ * due: each follow-up takes its task out of the filter), while still
+ * followed up today (an undo takes it back).
+ */
 export function followedUpCount(
   marks: Readonly<Record<number, ReviewMark>>,
   ids: readonly number[],
   followedUpToday: (id: number) => boolean,
 ): number {
-  return ids.filter((id) => shownMark(marks, id, followedUpToday) === 'done').length
+  const counted = new Set(ids)
+  for (const [id, mark] of Object.entries(marks)) if (mark === 'done') counted.add(Number(id))
+  let n = 0
+  for (const id of counted) if (followedUpToday(id)) n += 1
+  return n
 }
 
 /** Every task of the review has a mark as shown (followed up today or skipped). */
