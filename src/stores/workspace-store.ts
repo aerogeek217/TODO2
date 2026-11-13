@@ -132,7 +132,9 @@ export interface EditUndoOptions {
  *   (`writeFailed`, the top bar's `Couldn't save · Retry`): the next write of
  *   the layout — any edit, or `retryWrite` — writes all of it. Leaving the
  *   layout (another layout, a new one) tries once more first and stays when
- *   that fails too.
+ *   that fails too. The lists the failed step stopped showing are deleted by
+ *   that next write, which hands them to the step (`ListClaim`): its Undo
+ *   brings them back all the same.
  * - A layout repaired when it was read opens with its repair in memory; its
  *   first edit writes it (until then view state isn't written).
  * - The first `init()` of a page load applies an unsaved layout change a
@@ -539,6 +541,57 @@ interface EditRun {
 /** Each structural step's run, by its undo entry (a merge carries it to the merged entry). */
 const runs = new WeakMap<UndoEntry, EditRun>()
 
+/**
+ * What a step is owed when its own write fails. The lists its edit stopped
+ * showing (`lists`) are then still stored, and the next write of its layout
+ * that lands — Retry, a later edit, leaving the layout — deletes them
+ * (`putAndPrune`). That write hands them to the step (`take`: a result
+ * holding just those lists; false when the step no longer waits for it), so
+ * its Undo — or Redo — brings them back as when its own write had landed.
+ */
+interface ListClaim {
+  lists: ReadonlySet<number>
+  take: (paid: Promise<WriteResult>) => boolean
+}
+
+/** The claims of steps whose write failed, by layout (`ListClaim`): settled by that layout's next write that lands. */
+const listClaims = new Map<number, ListClaim[]>()
+registerModuleReset(() => { listClaims.clear() })
+
+/** The lists `from` shows that `to` doesn't. */
+function listsDropped(from: LayoutBody, to: LayoutBody): Set<number> {
+  const kept = layoutListRefs(to)
+  return new Set([...layoutListRefs(from)].filter((id) => !kept.has(id)))
+}
+
+/** The deleted lists of `removed` that `keep` picks, with their rows. */
+function deletedWhere(removed: OwnedListsRemoved, keep: (listId: number) => boolean): Pick<OwnedListsRemoved, 'deleted' | 'rows'> {
+  return {
+    deleted: removed.deleted.filter(keep),
+    rows: { defs: removed.rows.defs.filter((d) => keep(d.id)), ranks: removed.rows.ranks.filter((r) => keep(r.listDefinitionId)) },
+  }
+}
+
+/**
+ * A write of layout `layoutId` landed and removed `removed`: hands each
+ * step waiting there the lists it stopped showing (`ListClaim`) and returns
+ * the rest — what the write's own step removed.
+ */
+function settleListClaims(layoutId: number, removed: OwnedListsRemoved): OwnedListsRemoved {
+  const claims = listClaims.get(layoutId)
+  if (!claims) return removed
+  listClaims.delete(layoutId)
+  const claimed = new Set<number>()
+  for (const { lists, take } of claims) {
+    const owed = removed.deleted.filter((id) => lists.has(id) && !claimed.has(id))
+    if (owed.length === 0) continue
+    if (take(Promise.resolve({ ok: true, removed: { ...deletedWhere(removed, (id) => owed.includes(id)), handedOver: [] } }))) {
+      for (const id of owed) claimed.add(id)
+    }
+  }
+  return claimed.size === 0 ? removed : { ...removed, ...deletedWhere(removed, (id) => !claimed.has(id)) }
+}
+
 /** Whether `entry` is the undo step of a structural layout edit (for tests and diagnostics). */
 export function isLayoutEditStep(entry: UndoEntry): boolean {
   return runs.has(entry)
@@ -572,18 +625,24 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * Writes layout `layout` (`putAndPrune`) and takes the lists it removed
    * into the stores. A failed write is reported and marks the open layout
    * `writeFailed` (only while it is still the layout written); a write that
-   * lands clears it and the layout's repair mark. Never rejects.
+   * lands clears it and the layout's repair mark. Never rejects. `claim`:
+   * what its step is owed when it fails (`ListClaim`); a write that lands
+   * settles the layout's claims, and its own result is the lists left.
    */
-  async function writeLayout(layout: Layout): Promise<WriteResult> {
+  async function writeLayout(layout: Layout, claim?: ListClaim): Promise<WriteResult> {
     const gen = generation
     try {
       const removed = await trackWrite(() => layoutRepository.putAndPrune(layout))
       if (gen !== generation) return { ok: true, removed }
+      const own = settleListClaims(layout.id, removed)
       const repairedIds = get().repairedIds.has(layout.id) ? new Set([...get().repairedIds].filter((id) => id !== layout.id)) : get().repairedIds
       set({ repairedIds, ...(get().saved?.id === layout.id ? { writeFailed: false } : {}) })
       await applyRemoved(removed)
-      return { ok: true, removed }
+      return { ok: true, removed: own }
     } catch (err) {
+      if (gen === generation && claim && claim.lists.size > 0) {
+        listClaims.set(layout.id, [...(listClaims.get(layout.id) ?? []), claim])
+      }
       if (gen === generation && get().saved?.id === layout.id) {
         set({ writeFailed: true })
         reportWriteFailure(`Couldn't save layout "${layout.name}".`, err)
@@ -594,12 +653,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     }
   }
 
-  /** Makes `next` the open layout (shown and committed) and writes it. */
-  function commit(next: Layout): Promise<WriteResult> {
+  /** Makes `next` the open layout (shown and committed) and writes it (`claim`: see `writeLayout`). */
+  function commit(next: Layout, claim?: ListClaim): Promise<WriteResult> {
     set({ working: next, saved: next, layouts: replaceLayout(get().layouts, next) })
     const gen = generation
     set({ writesPending: get().writesPending + 1 })
-    const written = writeLayout(next)
+    const written = writeLayout(next, claim)
     layoutWrites.add(written)
     void written.finally(() => {
       layoutWrites.delete(written)
@@ -622,22 +681,46 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   }
 
   /**
-   * Records a committed edit of layout `layoutId` (from `before` to
-   * `after`, its write `written`) as an undo step with the snackbar — or,
-   * under the newest step's merge key, as more of that step.
+   * A commit of one of `run`'s tables, moving the open layout from `from`
+   * to `to`, as one of the results its Undo reads (`run.removed`). Should
+   * its write fail, the lists the move stops showing are the run's when a
+   * later write deletes them (`ListClaim`) — while the failed write is still
+   * one of those results.
    */
-  function recordEdit(layoutId: number, before: LayoutBody, after: LayoutBody, written: Promise<WriteResult>, description: string, { mergeKey, quiet = false }: EditUndoOptions): void {
+  function commitInto(run: EditRun, from: LayoutBody, to: Layout): Promise<WriteResult> {
+    const written: Promise<WriteResult> = commit(to, {
+      lists: listsDropped(from, to),
+      take: (paid) => {
+        if (!run.removed.includes(written)) return false
+        run.removed.push(paid)
+        return true
+      },
+    })
+    return written
+  }
+
+  /**
+   * Commits an edit of the open layout (from `before` to `committed`) and
+   * records it as an undo step with the snackbar — or, under the newest
+   * step's merge key, as more of that step.
+   */
+  function commitEdit(before: Layout, committed: Layout, description: string, { mergeKey, quiet = false }: EditUndoOptions): void {
     const undo = useUndoStore.getState()
-    if (undo.isPerformingUndoRedo) return
+    if (undo.isPerformingUndoRedo) {
+      void commit(committed)
+      return
+    }
+    const layoutId = before.id
+    const after = layoutBodyOf(committed)
     const into = mergeKey === undefined ? null : undo.mergeTarget(mergeKey)
     const prior = into ? runs.get(into) : undefined
     // More of the newest step's run (the same key, the same layout): the run
     // takes this edit's table and removals; the merged step's undo (the
     // first's) and redo (this one's) both read the run.
     const merges = prior != null && prior.layoutId === layoutId
-    const run: EditRun = merges ? prior : { layoutId, before, after, removed: [], undone: null }
+    const run: EditRun = merges ? prior : { layoutId, before: layoutBodyOf(before), after, removed: [], undone: null }
     run.after = after
-    run.removed.push(written)
+    run.removed.push(commitInto(run, before, committed))
     const entry: UndoEntry = {
       description,
       // A key the newest step has for another layout: a step of its own, not merged into that one.
@@ -659,8 +742,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const results = await Promise.all(run.removed)
     for (const r of [...results].reverse()) await restoreLists(r.removed)
     const current = openFor(run, 'undo', description)
-    run.undone = commit(withViewStateOf(withLayoutBody(current, run.before), current))
-    await run.undone
+    const target = withViewStateOf(withLayoutBody(current, run.before), current)
+    // Should this write fail: the lists the undo stops showing (a list tab
+    // the step added) are its Redo's to bring back, once a later write
+    // deletes them.
+    const undone: Promise<WriteResult> = commit(target, {
+      lists: listsDropped(current, target),
+      take: (paid) => {
+        if (run.undone !== undone) return false
+        run.undone = paid
+        return true
+      },
+    })
+    run.undone = undone
+    await undone
   }
 
   /** Redo of a run: the lists its undo removed back, then the table after it, with the view state of now. */
@@ -668,8 +763,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     openFor(run, 'redo', description)
     await restoreLists((await run.undone)?.removed ?? null)
     const current = openFor(run, 'redo', description)
-    const written = commit(withViewStateOf(withLayoutBody(current, run.after), current))
-    run.removed = [written]
+    run.removed = []
+    const written = commitInto(run, current, withViewStateOf(withLayoutBody(current, run.after), current))
+    run.removed.push(written)
     await written
   }
 
@@ -699,8 +795,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     }
     const description = typeof describe === 'function' ? describe(working, next) : describe
     const committed: Layout = { ...next, modifiedAt: new Date() }
-    const written = commit(committed)
-    recordEdit(saved.id, layoutBodyOf(saved), layoutBodyOf(committed), written, description, opts)
+    commitEdit(saved, committed, description, opts)
     return true
   }
 
@@ -766,6 +861,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    */
   function open(read: ReadLayout, layouts: Layout[], repairedIds: ReadonlySet<number>): void {
     const { layout, fixes } = read
+    // What is on screen from here on is a stored row: no step waits on a failed write any more.
+    listClaims.clear()
     set({
       layouts, repairedIds, activeLayoutId: layout.id, working: layout, saved: layout,
       writeFailed: false, hydrated: true, resizePreview: null,
