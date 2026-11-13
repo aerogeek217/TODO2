@@ -535,6 +535,70 @@ test.describe('rows that size themselves', () => {
   })
 })
 
+test.describe('a collapsed row no filled cell lies only in expands by itself (cr34 M8)', () => {
+  const notesCells = (ids: string[]) => ids.map((id) => ({ id, tabs: [{ id: `${id}Tab`, kind: 'notes' as const }] }))
+  type StoredRows = { grid: { rows: Array<{ collapsed?: boolean }> } }
+  const storedCollapse = async (page: Page) => (await readStore<StoredRows>(page, 'layouts'))[0]?.grid.rows.map((r) => r.collapsed === true)
+
+  test('Collapse row, then its cells closed: the row comes back, with its dividers', async ({ page }) => {
+    // p  s
+    // a  b
+    // t1 t2
+    await seedWorkspace(page, { layouts: [{ name: 'Main', table: { areas: ['p s', 'a b', 't1 t2'], cells: notesCells(['p', 's', 'a', 'b', 't1', 't2']) } }] })
+    await openCellLayoutMenu(page, 'a')
+    await page.getByRole('menuitem', { name: 'Collapse row', exact: true }).click()
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).height)).toBe(32)
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'b'))).height)).toBe(32)
+    // Close t1: a, above it, takes its place and reaches into the last row; b still holds the folded row.
+    await openCellLayoutMenu(page, 't1')
+    await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
+    await expect(wsCell(page, 't1')).toHaveCount(0)
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'b'))).height)).toBe(32)
+    await expect(wsCell(page, 'b').getByRole('button', { name: 'Expand row' })).toBeVisible()
+    // Close b: s, above it, takes its place. No cell lies only in the folded row any more: it expands.
+    await openCellLayoutMenu(page, 'b')
+    await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
+    await expect(wsCell(page, 'b')).toHaveCount(0)
+    // p | a and s | t2: each row line has its divider again (none beside a folded row).
+    await expect(page.locator('[data-ws-divider][data-axis="rows"]')).toHaveCount(2)
+    await expect(page.getByRole('button', { name: 'Expand row' })).toHaveCount(0)
+    await expectLayoutStored(page)
+    await expect.poll(() => storedCollapse(page)).toEqual([false, false, false])
+    // The middle row is a row again: p's and a's line can be dragged.
+    const aTop = (await edges(wsCell(page, 'a'))).top
+    const d = await box(wsDivider(page, 'p', 'a'))
+    await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2, y: d.y + d.height / 2 + 40 })
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).top - aTop)).toBeGreaterThan(30)
+  })
+
+  test('a layout stored with such a row comes right when it is opened, and is stored so', async ({ page }) => {
+    // p s
+    // a s — the middle row folded, as an earlier build's Collapse row, Close, Close left it
+    // a t2
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        table: { areas: ['p s', 'a s', 'a t2'], rows: [1000, { weight: 1000, collapsed: true }, 1000], cells: notesCells(['p', 's', 'a', 't2']) },
+      }],
+    })
+    await expect(page.locator('[data-ws-divider][data-axis="rows"]')).toHaveCount(2)
+    await expect.poll(() => storedCollapse(page)).toEqual([false, false, false])
+    // Three rows of the same weight again: p is a third of the table's height, not most of it.
+    const area = await areaBox(page)
+    const p = await box(wsCell(page, 'p'))
+    expect(Math.abs(p.height - (area.height - 24) / 3)).toBeLessThanOrEqual(2)
+    // A folded row a filled cell lies only in is left alone.
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        table: { areas: ['p s', 'a b', 'a t2'], rows: [1000, { weight: 1000, collapsed: true }, 1000], cells: notesCells(['p', 's', 'a', 'b', 't2']) },
+      }],
+    })
+    await expect(wsCell(page, 'b').getByRole('button', { name: 'Expand row' })).toBeVisible()
+    expect(await storedCollapse(page)).toEqual([false, true, false])
+  })
+})
+
 test.describe('reload and lists', () => {
   test('a drop is saved at once and comes back after a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })

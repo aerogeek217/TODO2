@@ -279,6 +279,30 @@ test.describe('a Numbers-only row', () => {
     await expect.poll(async () => (await storedRows(page))[0]?.fitPx).toBeUndefined()
   })
 
+  test('its minimum is its fit height: a press, a jiggle, a drag up or ↑ leave it fitting; given a height it comes back down to it (cr34 W3)', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [numbers] })
+    const fit = (await box(wsCell(page, 'n1'))).height
+    const height = async () => (await box(wsCell(page, 'n1'))).height
+    const divider = page.locator('[data-ws-divider][data-axis="rows"]')
+    const from = centre(await box(divider))
+    // A press with a 1px jiggle, then a drag up: the row is as tall as it was, and still fits (no height of its own).
+    await dragHandle(page, from, { x: from.x, y: from.y - 1 })
+    expect(await height()).toBe(fit)
+    await dragHandle(page, from, { x: from.x, y: from.y - 40 })
+    expect(await height()).toBe(fit)
+    await divider.focus()
+    await page.keyboard.press('ArrowUp')
+    expect(await height()).toBe(fit)
+    await expectLayoutStored(page)
+    expect((await storedRows(page))[0]?.fitPx).toBeUndefined()
+    // ↓ gives it 16px more; a long drag up then stops at the height it fits at.
+    await page.keyboard.press('ArrowDown')
+    await expect.poll(async () => Math.round(await height())).toBe(Math.round(fit) + 16)
+    const d = centre(await box(divider))
+    await dragHandle(page, d, { x: d.x, y: d.y - 200 })
+    await expect.poll(async () => Math.round(await height())).toBe(Math.round(fit))
+  })
+
   test('collapsed, its cells keep their small face (no top line in the 32px row), given a height or not', async ({ page }) => {
     await seedWorkspace(page, { layouts: [numbers] })
     await expect(wsCell(page, 'n1')).toHaveAttribute('data-face', 'small')
