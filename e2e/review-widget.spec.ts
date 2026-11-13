@@ -158,6 +158,12 @@ test('a tag joins with and; @ still opens the expression popup; the field is tem
   await expect(railRows(page, 'rev1')).toHaveText([/Vendor contract/, /Hiring scorecard/])
   // Not only people: no check-in buttons.
   await expect(w.getByRole('button', { name: 'Check-in' })).toHaveCount(0)
+  // A third pick joins as chips combine: a person joins the person, the tag still narrows both (not Aisha's legal tasks, or all of Ben's).
+  await field.click()
+  await field.press('End')
+  await popup(page).getByRole('option').filter({ hasText: 'Ben' }).click()
+  await expect(field).toHaveValue('(@Aisha or @Ben) and #legal ')
+  await expect(railRows(page, 'rev1')).toHaveText([/Vendor contract/, /Hiring scorecard/])
   // Nothing written to the layout: no undo step, and the stored row holds no filter (and no kind).
   await expect(page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true })).toHaveCount(0)
   expect((await storedReviewTab(page, 'rev1'))?.config).toEqual({})
