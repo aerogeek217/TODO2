@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { createTab, type LayoutBody, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { edgeBetween, edgeStretches, isNormalized, lineCrossings, validateTiling, wholeLine, type Side } from '../../utils/workspace-grid'
+import { createTab, type GridAxis, type LayoutBody, type LayoutCell, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
+import { edgeBetween, edgeStretches, isNormalized, lineCrossings, orphanCollapsedRows, validateTiling, wholeLine, type EdgeStretch, type Side } from '../../utils/workspace-grid'
 import { findTab, getTab, layoutIds, layoutStructureEqual, layoutStructureKey, panelOfTab } from '../../utils/workspace-layout-queries'
 import { countListTabs } from '../../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
-import { rowDrawsFitFaces, trackSizing } from '../../utils/workspace-table'
+import { FIT_ROW_PX, isFitTrack } from '../../utils/workspace-rows'
+import { cellMinPx, rowDrawsFitFaces, tableTrackSizes, trackSizing } from '../../utils/workspace-table'
 import {
   addTab,
+  cellRowTracks,
   closeCell,
   closeTab,
   edgeSnap,
@@ -58,6 +60,16 @@ function expectValid(body: LayoutBody): void {
 }
 
 const tabIdsOf = (body: LayoutBody, cellId: string) => body.cells.find((c) => c.id === cellId)?.tabs.map((t) => t.id)
+
+/** Collapse row, as a cell's menu does it: every row track the cell covers. */
+function collapseRow<L extends LayoutBody>(body: L, cellId: string): L {
+  return cellRowTracks(body, cellId).reduce((next, t) => setTrackCollapsed(next, t.id, true), body)
+}
+
+/** Expand row, as a cell's menu does it: every row track the cell covers. */
+function expandRow<L extends LayoutBody>(body: L, cellId: string): L {
+  return cellRowTracks(body, cellId).reduce((next, t) => setTrackCollapsed(next, t.id, false), body)
+}
 
 describe('splitCell', () => {
   it('splits a one-track cell on each side: its track halves, the cells crossing it span both halves', () => {
@@ -148,6 +160,26 @@ describe('insertTrack', () => {
     const base = layout(grid([[a], [b]], { rows: [800, { px: 160 }] }))
     const out = insertTrack(base, 'bottom', ids())
     expect(out.layout.grid.rows).toEqual([{ id: 'r1', weight: 400 }, { id: 'r2', px: 160 }, { id: 'n1', weight: 400 }])
+  })
+
+  it('skips a Numbers-only (fit) row and a collapsed row too: their weights share nothing (cr34 W6)', () => {
+    const n = spec('n', [createTab('number', 'num')])
+    // A list over a Numbers row, both weight 1000: Row at the bottom takes half of the list.
+    const fit = layout(grid([[a], [n]], { rows: [1000, 1000] }))
+    expect(trackSizing(fit, 'rows', 1).kind).toBe('fit')
+    const below = insertTrack(fit, 'bottom', ids())
+    expect(picture(below.layout)).toEqual(['a', 'n', 'n2'])
+    expect(below.layout.grid.rows).toEqual([{ id: 'r1', weight: 500 }, { id: 'r2', weight: 1000 }, { id: 'n1', weight: 500 }])
+    // The Numbers row first, Row at the top: the same list gives.
+    const above = insertTrack(layout(grid([[n], [a]], { rows: [40, 1000] })), 'top', ids())
+    expect(above.layout.grid.rows).toEqual([{ id: 'n1', weight: 500 }, { id: 'r1', weight: 40 }, { id: 'r2', weight: 500 }])
+    // A collapsed row beside the edge: the next weighted row gives.
+    const folded = layout(grid([[a], [b]], { rows: [800, { weight: 1000, collapsed: true }] }))
+    const under = insertTrack(folded, 'bottom', ids())
+    expect(under.layout.grid.rows).toEqual([{ id: 'r1', weight: 400 }, { id: 'r2', weight: 1000, collapsed: true }, { id: 'n1', weight: 400 }])
+    // No weighted row at all: the new one takes the default weight, the others keep theirs.
+    const none = insertTrack(layout(grid([[n]], { rows: [700] })), 'bottom', ids())
+    expect(none.layout.grid.rows).toEqual([{ id: 'r1', weight: 700 }, { id: 'n1', weight: 1000 }])
   })
 
   it('a new column across collapsed rows expands them: its cell never comes out collapsed', () => {
@@ -275,6 +307,95 @@ describe('closeTab / extractTab', () => {
     expect(one.cells[0]?.activeTabId).toBe('t1')
     expect(closeTab(base, 't1').cells[0]?.activeTabId).toBe('t2')
     expect(picture(closeTab(base, 'b-t'))).toEqual(['a'])
+  })
+})
+
+describe('a collapsed row expands once no filled cell lies only in it (cr34 M8, W4)', () => {
+  const [p, s, a, b, t1, t2, x] = ['p', 's', 'a', 'b', 't1', 't2', 'x'].map((id) => cell(id)) as [CellSpec, CellSpec, CellSpec, CellSpec, CellSpec, CellSpec, CellSpec]
+  const collapsedRows = (body: LayoutBody) => body.grid.rows.map((t) => t.collapsed === true)
+
+  it('a close or a merge that leaves a collapsed row with no cell of its own expands it (W2)', () => {
+    // p  s
+    // a  b    — Collapse row on `a`: the middle row folds (a and b)
+    // t1 t2
+    const base = collapseRow(layout(grid([[p, s], [a, b], [t1, t2]])), 'a')
+    expect(collapsedRows(base)).toEqual([false, true, false])
+    // Close t1: a, above it, takes its space and reaches into the last row. b still lies only in the folded row.
+    const closed = closeCell(base, 't1')
+    expect(picture(closed)).toEqual(['p s', 'a b', 'a t2'])
+    expect(collapsedRows(closed)).toEqual([false, true, false])
+    expect(isCellCollapsed(closed, 'b')).toBe(true)
+    // Close b: s, above it, takes it. No cell lies only in the folded row any more: it expands.
+    const out = closeCell(closed, 'b')
+    expect(picture(out)).toEqual(['p s', 'a s', 'a t2'])
+    expect(collapsedRows(out)).toEqual([false, false, false])
+    expect(out.grid.rows.map((t) => t.weight)).toEqual([1000, 1000, 1000])
+    expectValid(out)
+    // Merge s with ▸ Below, the same.
+    const merged = mergeCells(closed, 's', 'b')
+    expect(picture(merged)).toEqual(['p s', 'a s', 'a t2'])
+    expect(collapsedRows(merged)).toEqual([false, false, false])
+    expectValid(merged)
+    // Its lines can move again: both row lines have their dividers' stretches, none beside a collapsed track.
+    expect(merged.grid.rows.map((_, i) => trackSizing(merged, 'rows', i).kind)).toEqual(['weighted', 'weighted', 'weighted'])
+  })
+
+  it('an empty cell left alone in a collapsed row: the row expands (W4)', () => {
+    // a e    — `e` an empty cell (Split cell ▸ Right, then Collapse row on `a`)
+    // x x
+    const split = splitCell(layout(grid([[a], [x]])), 'a', 'right', ids('e'))
+    const base = collapseRow(split.layout, 'a')
+    expect(picture(base)).toEqual(['a e2', 'x x'])
+    expect(collapsedRows(base)).toEqual([true, false])
+    const closed = closeCell(base, 'a')
+    expect(picture(closed)).toEqual(['e2', 'x'])
+    expect(collapsedRows(closed)).toEqual([false, false])
+    expectValid(closed)
+    // Its tab moved to another cell: the same.
+    const moved = moveTab(base, 'a-t', { kind: 'cell', cellId: 'x' }, ids())
+    expect(picture(moved)).toEqual(['e2', 'x'])
+    expect(collapsedRows(moved)).toEqual([false, false])
+    expectValid(moved)
+  })
+
+  it('a pinwheel’s centre closed in its own collapsed row stays as an empty cell, the row expanded', () => {
+    // p p s
+    // a b s   — Collapse row on `b`: only it lies in the middle row
+    // a x x
+    const base = collapseRow(layout(grid([[p, p, s], [a, b, s], [a, x, x]])), 'b')
+    expect(collapsedRows(base)).toEqual([false, true, false])
+    const out = closeCell(base, 'b')
+    expect(out.cells.find((c) => c.id === 'b')?.tabs).toEqual([])
+    expect(collapsedRows(out)).toEqual([false, false, false])
+    expectValid(out)
+    expect(closeTab(base, 'b-t')).toEqual(out)
+  })
+
+  it('Expand row on one cell expands a row it leaves with nothing to expand it', () => {
+    // a s
+    // b s    — Collapse row on `s`: both its rows fold, and `a` with them; `b` reaches into the last row
+    // b x
+    const base = collapseRow(layout(grid([[a, s], [b, s], [b, x]])), 's')
+    expect(collapsedRows(base)).toEqual([true, true, false])
+    expect(orphanCollapsedRows(base)).toEqual([])
+    // Expand row on `a`: `s` now reaches into an expanded row, and no cell lies only in the second.
+    const out = expandRow(base, 'a')
+    expect(collapsedRows(out)).toEqual([false, false, false])
+    // With a filled cell of its own, the second row stays folded.
+    const own = collapseRow(layout(grid([[a, s], [t1, s], [b, x]])), 's')
+    expect(collapsedRows(expandRow(own, 'a'))).toEqual([false, true, false])
+  })
+
+  it('a collapsed row keeps its collapse while a filled cell lies only in collapsed rows over it', () => {
+    // a b
+    // a x    — both rows folded: `a` covers both and can expand them
+    const both = collapseRow(layout(grid([[a, b], [a, x]])), 'a')
+    expect(collapsedRows(closeCell(both, 'x'))).toEqual([true])
+    expect(collapsedRows(both)).toEqual([true, true])
+    expect(orphanCollapsedRows(both)).toEqual([])
+    // A structural op elsewhere leaves a held collapse alone.
+    const inserted = insertTrack(both, 'bottom', ids()).layout
+    expect(collapsedRows(inserted)).toEqual([true, true, false])
   })
 })
 
@@ -526,6 +647,30 @@ describe('a Numbers-only (fit) row\'s divider', () => {
     expect(again.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 96 })
   })
 
+  it('its minimum is its fit height, 58px: a press, a jiggle or a drag up leaves a fitting row as it is (cr34 W3)', () => {
+    const line = wholeLine(body, 'rows', 1)
+    // The row as it fits (58px), the cells' own minimums (no `minPx`).
+    const at58 = { sizes: [FIT_ROW_PX, 600] }
+    for (const delta of [-16, -1, 0]) expect(moveEdge(body, line, delta, at58, ids())).toBe(body)
+    expect(moveEdge(body, line, 1, at58, ids()).grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 59 })
+    expect(moveEdge(body, line, 16, at58, ids()).grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 74 })
+    // Given a height, it comes back down to 58px and no further.
+    const tall = moveEdge(body, line, 16, at58, ids())
+    expect(moveEdge(tall, wholeLine(tall, 'rows', 1), -100, { sizes: [74, 584] }, ids()).grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 58 })
+    // Drawn a fraction under 58px (a zoomed page): the clamp never moves the line against the drag.
+    const short = { sizes: [57.6, 600] }
+    for (const delta of [-16, -1, 0]) expect(moveEdge(body, line, delta, short, ids())).toBe(body)
+    expect(edgeSnap(body, line, -16, short)).toBeNull()
+  })
+
+  it('a cell already under its minimum keeps its size: a drag that would shrink it holds, one that grows it moves from where it is', () => {
+    // A 40px band holding a list (minimum 112px) over a list.
+    const band = layout(grid([[l], [cell('m')]], { rows: [{ px: 40 }, 1000] }))
+    const line = wholeLine(band, 'rows', 1)
+    expect(moveEdge(band, line, -10, { sizes: [40, 600] }, ids())).toBe(band)
+    expect(moveEdge(band, line, 10, { sizes: [40, 600] }, ids()).grid.rows[0]).toEqual({ id: 'r1', px: 50 })
+  })
+
   it('clearing its height lets it fit again', () => {
     const cleared = withoutTrackFitPx(sized(), 'r1')
     expect(cleared.grid.rows[0]).toEqual({ id: 'r1', weight: 1000 })
@@ -670,6 +815,167 @@ describe('only the dragged line moves (J14)', () => {
   })
 })
 
+describe('a track held at its minimum: the divider still follows the pointer, no other line moves (cr34 W7)', () => {
+  const a = cell('a')
+  const b = cell('b')
+  const c = cell('c')
+  const n1 = spec('n1', [createTab('number', 'num1')])
+  const WIDE = 2120
+  /** The axis's tracks as the grid draws them in `total` px (no gaps), each cell at least its own minimum. */
+  const drawn = (body: LayoutBody, axis: 'columns' | 'rows', total: number) => tableTrackSizes(body, axis, total, 0)
+  /** Where each inner line is drawn. */
+  const lines = (sizes: readonly number[]) => sizes.slice(0, -1).map((_, i) => sizes.slice(0, i + 1).reduce((sum, s) => sum + s, 0))
+
+  // a | b | c — a's weight is next to nothing: it is drawn at its 120px minimum, not by its weight.
+  const held = layout(grid([[a, b, c]], { cols: [1, 1000, 1000] }))
+  const sizes = drawn(held, 'columns', WIDE)
+
+  it('the fixture: the first column is held up by its minimum', () => {
+    expect(sizes).toEqual([120, 1000, 1000])
+    expect((WIDE * 1) / 2001).toBeLessThan(2)
+  })
+
+  it('a step of the line beside it moves that line by the step, and the far line stays', () => {
+    const out = moveEdge(held, wholeLine(held, 'columns', 1), 16, { sizes }, ids())
+    expect(layoutStructureEqual(out, held)).toBe(true)
+    const after = drawn(out, 'columns', WIDE)
+    expect(lines(after)[0]).toBeCloseTo(136, 6)
+    expect(lines(after)[1]).toBeCloseTo(1120, 6)
+    // The weights now say what is drawn: the next step starts from tracks drawn by their weights.
+    const total = out.grid.columns.reduce((sum, t) => sum + (t.weight ?? 0), 0)
+    expect(total).toBeCloseTo(2001, 6)
+    expect(out.grid.columns.map((t) => ((t.weight ?? 0) / total) * WIDE)).toEqual(after.map((s) => expect.closeTo(s, 6)))
+  })
+
+  it('a step of the far line: the held column keeps its 120px, only that line moves', () => {
+    const out = moveEdge(held, wholeLine(held, 'columns', 2), -40, { sizes }, ids())
+    const after = drawn(out, 'columns', WIDE)
+    expect(lines(after)[0]).toBeCloseTo(120, 6)
+    expect(lines(after)[1]).toBeCloseTo(1080, 6)
+  })
+
+  it('beside a fit row: the weighted row gives the px, a row held at its minimum elsewhere stays', () => {
+    // a  — weight next to nothing: held at 112px
+    // n1 — a fit row (58px)
+    // b
+    // c
+    const rows = layout(grid([[a], [n1], [b], [c]], { rows: [1, 1000, 1000, 1000] }))
+    const before = tableTrackSizes(rows, 'rows', 1170, 0)
+    expect(before).toEqual([112, 58, 500, 500])
+    const out = moveEdge(rows, wholeLine(rows, 'rows', 2), 30, { sizes: before }, ids())
+    expect(out.grid.rows[1]?.fitPx).toBe(88)
+    const after = tableTrackSizes(out, 'rows', 1170, 0)
+    expect(after.map((s) => Math.round(s * 1000) / 1000)).toEqual([112, 88, 470, 500])
+  })
+
+  it('a double-click clearing a fit row’s height (`withRowDrawnAt`): a row held at its minimum elsewhere stays too', () => {
+    const rows = layout(grid([[a], [n1], [b], [c]], { rows: [1, { weight: 1000, fitPx: 88 }, 1000, 1000] }))
+    const before = tableTrackSizes(rows, 'rows', 1170, 0)
+    expect(before).toEqual([112, 88, 485, 485])
+    const cleared = withoutTrackFitPx(rows, 'r2')
+    // The row below the fit row takes the 30px back.
+    const out = withRowDrawnAt(cleared, 2, 485 + 88 - 58, before)
+    expect(tableTrackSizes(out, 'rows', 1170, 0).map((s) => Math.round(s * 1000) / 1000)).toEqual([112, 58, 515, 485])
+  })
+
+  it('tracks drawn by their weights are left alone: only the pair changes, exactly', () => {
+    const three = layout(grid([[a, b, c]], { cols: [1000, 1000, 1000] }))
+    // As a browser reports them: a hair off thirds.
+    const out = moveEdge(three, wholeLine(three, 'columns', 1), 60, { sizes: [333.328, 333.344, 333.328] }, ids())
+    expect(out.grid.columns[2]).toBe(three.grid.columns[2])
+    expect((out.grid.columns[0]?.weight ?? 0) + (out.grid.columns[1]?.weight ?? 0)).toBe(2000)
+  })
+})
+
+describe('a line’s place counts the gaps between tracks (cr34 W8)', () => {
+  const [a, b, c, d, x, y] = ['a', 'b', 'c', 'd', 'x', 'y'].map((id) => cell(id)) as [CellSpec, CellSpec, CellSpec, CellSpec, CellSpec, CellSpec]
+  const GAP = 6
+  /** The axis's tracks as the grid draws them in the room `sizes` took (their sum and the gaps between them). */
+  function redrawn(body: LayoutBody, axis: 'columns' | 'rows', sizes: readonly number[]): number[] {
+    const room = sizes.reduce((sum, s) => sum + s, 0) + (sizes.length - 1) * GAP
+    return tableTrackSizes(body, axis, room, GAP).map((s) => Math.round(s * 1000) / 1000)
+  }
+
+  it('part of a line made a new line in the track beside it: the gutter comes out of that track, the rest of the line stays', () => {
+    // a c x
+    // b c y — a|b is one part of the level line (x|y the other). Rows 300px each, drawn 6px apart.
+    const body = layout(grid([[a, c, x], [b, c, y]], { rows: [1000, 1000] }))
+    const sizes = [300, 300]
+    const part = edgeBetween(body, 'a', 'b')!
+    expect(part).toEqual({ axis: 'rows', line: 1, from: 0, to: 1 })
+    // The pointer went 100px down: a is 400px high, its new line's gutter under it, then b.
+    const out = moveEdge(body, part, 100, { sizes, gap: GAP }, ids())
+    expect(picture(out)).toEqual(['a c x', 'a c y', 'b c y'])
+    expect(redrawn(out, 'rows', sizes)).toEqual([300, 94, 200])
+    expectValid(out)
+    // Without the gap in the count the new gutter comes out of every row: x|y's line is pulled up 3px, a|b's drawn short of the pointer.
+    expect(redrawn(moveEdge(body, part, 100, { sizes }, ids()), 'rows', sizes)).toEqual([297, 99, 198])
+  })
+
+  it('part of a line moved across another line lands where the pointer is; the crossed line stays, the line it left gives its gutter back', () => {
+    // a a b
+    // c d d — a|b on the second upright line, c|d on the first. Columns 400px each.
+    const body = layout(grid([[a, a, b], [c, d, d]], { cols: [1000, 1000, 1000] }))
+    const sizes = [400, 400, 400]
+    const part = edgeBetween(body, 'a', 'b')!
+    expect(part).toEqual({ axis: 'columns', line: 2, from: 0, to: 1 })
+    // 556px left: over the middle track and c|d's gutter, 150px into the first track.
+    const out = moveEdge(body, part, -556, { sizes, gap: GAP }, ids())
+    expect(picture(out)).toEqual(['a b b', 'c c d'])
+    // a is 250px, then its gutter, then b; c|d's line is still 400px in; the two last tracks are one, with their gutter.
+    expect(redrawn(out, 'columns', sizes)).toEqual([250, 144, 806])
+    expectValid(out)
+    // Without the gap: a line 6px ahead of the pointer, and c|d's line moved.
+    expect(redrawn(moveEdge(body, part, -556, { sizes }, ids()), 'columns', sizes)).not.toEqual([250, 144, 806])
+  })
+
+  it('a piece snapped onto another line: the line it left gives its gutter back, fixed tracks and all', () => {
+    // a c
+    // a d — the left column's line under the second row, the right's under the first; the middle row fixed (100px)
+    // b d
+    const body = layout(grid([[a, c], [a, d], [b, d]], { rows: [300, { px: 100 }, 400] }))
+    const sizes = [300, 100, 400]
+    const piece = edgeBetween(body, 'c', 'd')!
+    // Drawn 6px apart the two lines are 106px apart: 100px down is within 8px of the other, 95px is not.
+    expect(edgeSnap(body, piece, 100, { sizes, gap: GAP })).toBe(2)
+    expect(edgeSnap(body, piece, 95, { sizes, gap: GAP })).toBeNull()
+    expect(edgeSnap(body, piece, 95, { sizes })).toBe(2)
+    const out = moveEdge(body, piece, 100, { sizes, gap: GAP }, ids())
+    expect(picture(out)).toEqual(['a c', 'b d'])
+    expect(redrawn(out, 'rows', sizes)).toEqual([406, 400])
+  })
+
+  it('the minimum counts a cell’s whole width, gaps and all', () => {
+    // a a b
+    // c d d — a spans two 200px tracks and the gutter between them: 406px. It may shrink to 120px.
+    const body = layout(grid([[a, a, b], [c, d, d]], { cols: [1000, 1000, 2000] }))
+    const sizes = [200, 200, 400]
+    const out = moveEdge(body, edgeBetween(body, 'a', 'b')!, -500, { sizes, gap: GAP }, ids())
+    expect(picture(out)).toEqual(['a b b', 'c c d'])
+    expect(redrawn(out, 'columns', sizes)).toEqual([120, 74, 606])
+  })
+
+  it('a whole line between its two neighbours moves the same with or without the gap', () => {
+    const body = layout(grid([[a, b], [x, y]], { cols: [500, 500] }))
+    const line = wholeLine(body, 'columns', 1)
+    expect(moveEdge(body, line, 100, { sizes: [400, 400], gap: GAP }, ids())).toEqual(moveEdge(body, line, 100, { sizes: [400, 400] }, ids()))
+  })
+
+  it('a double-click on part of a line evens its own cells exactly (`evenStretchDelta`)', () => {
+    // a a b
+    // c d d — a spans two tracks, b one: even is 303px each side of the new gutter.
+    const body = layout(grid([[a, a, b], [c, d, d]]))
+    const sizes = [200, 200, 200]
+    const part = edgeBetween(body, 'a', 'b')!
+    const delta = evenStretchDelta(body, part, sizes, GAP)
+    expect(delta).toBe(-103)
+    const out = moveEdge(body, part, delta ?? 0, { sizes, gap: GAP }, ids())
+    // a: 200 + 6 + 97; b: the rest, 97 + 6 + 200 (the line it left is no edge any more: one track).
+    expect(picture(out)).toEqual(['a a b', 'c d d'])
+    expect(redrawn(out, 'columns', sizes)).toEqual([200, 97, 303])
+  })
+})
+
 describe('evenStretchDelta (a divider double-click)', () => {
   it('part of a line goes midway between its own cells; a whole line has none', () => {
     const [a, b, e, c, d] = ['a', 'b', 'e', 'c', 'd'].map((id) => cell(id)) as [CellSpec, CellSpec, CellSpec, CellSpec, CellSpec]
@@ -773,16 +1079,92 @@ describe('random op sequences keep the table valid', () => {
     }
   }
   const SIDES: Side[] = ['left', 'top', 'right', 'bottom']
+  const STEPS = 150
+  /** The gap between tracks, as the view draws them. */
+  const GAP = 6
+  /** How many seeds run: 40 by default; `LAYOUT_FUZZ_SEEDS=3000 npx vitest run <this file> -t "random op"` for a long run. */
+  const SEED_COUNT = Math.max(1, Number(process.env.LAYOUT_FUZZ_SEEDS) || 40)
 
-  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]) {
+  /** The tables a run starts from: one cell, a fixed (former band) row, a Numbers row, a fixed column. */
+  function start(seed: number): WorkspaceLayout {
+    const number = (id: string) => spec(id, [createTab('number', `${id}-t`)], { activeTabId: `${id}-t` })
+    switch (seed % 4) {
+      case 1: return layout(grid([[cell('band'), cell('band')], [cell('sa'), cell('sb')]], { rows: [{ px: 160 }, 1000] }))
+      case 2: return layout(grid([[number('sn1'), number('sn2')], [cell('sa'), cell('sa')]]))
+      case 3: return layout(grid([[cell('sa'), cell('sf'), cell('sb')]], { cols: [1000, { px: 200 }, 1000] }))
+      default: return layout(grid([[cell('start', ['x0'])]]))
+    }
+  }
+
+  /** The axis's tracks as the view draws them: room for every cell's minimum and then some, a fit row at its 58px. */
+  function drawnSizes(body: LayoutBody, axis: GridAxis): number[] {
+    return tableTrackSizes(body, axis, body.grid[axis].length * 260 + 400, GAP)
+  }
+
+  /** Where each line of the axis is drawn (the start of the track after it; the gaps counted). */
+  function linePositions(sizes: readonly number[]): number[] {
+    const pos = [0]
+    for (const s of sizes) pos.push((pos.at(-1) ?? 0) + s + GAP)
+    return pos
+  }
+
+  /** The dividers the view draws: none beside a collapsed row; beside a Numbers-only row, the whole line. */
+  function viewStretches(body: LayoutBody): EdgeStretch[] {
+    const rowMoves = (line: number) => [line - 1, line].every((t) => trackSizing(body, 'rows', t).kind !== 'collapsed')
+    const fitBeside = (line: number) => [line - 1, line].some((t) => body.grid.rows[t]?.collapsed !== true && isFitTrack(body, t))
+    return edgeStretches(body)
+      .filter((s) => s.axis === 'columns' || rowMoves(s.line))
+      .map((s) => (s.axis === 'rows' && fitBeside(s.line) ? wholeLine(body, 'rows', s.line) : s))
+  }
+
+  /**
+   * A resize that changed no structure moved only its own line (cr34 W7),
+   * and never against the drag (W3): every other line is drawn where it
+   * was — within a px, the rounding of a fixed track's px.
+   */
+  function expectOnlyLineMoved(before: LayoutBody, after: LayoutBody, axis: GridAxis, line: number, delta: number): void {
+    const was = linePositions(drawnSizes(before, axis))
+    const now = linePositions(drawnSizes(after, axis))
+    for (let j = 0; j < was.length; j++) {
+      if (j === line) continue
+      expect(Math.abs((now[j] ?? 0) - (was[j] ?? 0)), `line ${j} of ${axis} moved with line ${line}`).toBeLessThanOrEqual(1.01)
+    }
+    const moved = (now[line] ?? 0) - (was[line] ?? 0)
+    expect(moved * Math.sign(delta), `line ${line} of ${axis} moved against the drag`).toBeGreaterThanOrEqual(-0.51)
+    expect(Math.abs(moved), `line ${line} of ${axis} moved further than the drag`).toBeLessThanOrEqual(Math.abs(delta) + 0.51)
+  }
+
+  /** What holds of every table, beyond the tiling: its view state is sound. */
+  function expectSoundViewState(body: LayoutBody): void {
+    // No collapsed row without a filled cell that can expand it (cr34 M8, W4).
+    expect(orphanCollapsedRows(body)).toEqual([])
+    for (const t of body.grid.columns) expect(t.collapsed === undefined && t.fitPx === undefined).toBe(true)
+    for (const t of [...body.grid.columns, ...body.grid.rows]) {
+      if (t.px != null) expect(Number.isInteger(t.px) && t.px >= 1).toBe(true)
+      else expect(Number.isFinite(t.weight) && (t.weight ?? 0) > 0).toBe(true)
+      if (t.fitPx != null) expect(Number.isInteger(t.fitPx) && t.fitPx >= 1).toBe(true)
+    }
+    for (const c of body.cells) {
+      if (c.tabs.length === 0) expect(c.activeTabId).toBeUndefined()
+      else expect(c.tabs.some((t) => t.id === c.activeTabId)).toBe(true)
+    }
+  }
+
+  for (let seed = 1; seed <= SEED_COUNT; seed++) {
     it(`seed ${seed}`, () => {
       const rand = rng(seed)
       const pick = <T,>(xs: readonly T[]): T | undefined => xs[Math.floor(rand() * xs.length)]
       const genId = ids(`s${seed}-`)
       let tabN = 0
-      let body: WorkspaceLayout = layout(grid([[cell('start', ['x0'])]]))
-      for (let step = 0; step < 150; step++) {
+      /** A new tab: mostly Notes, a Number one time in four (fit rows), now and then a chart (a glance cell). */
+      const newTab = (): LayoutTab => {
+        const r = rand()
+        return createTab(r < 0.65 ? 'notes' : r < 0.9 ? 'number' : 'breakdown', `x${++tabN}`)
+      }
+      let body: WorkspaceLayout = start(seed)
+      for (let step = 0; step < STEPS; step++) {
         const cellIds = body.cells.map((c) => c.id)
+        const filledIds = body.cells.filter((c) => c.tabs.length > 0).map((c) => c.id)
         const tabIds = body.cells.flatMap((c) => c.tabs.map((t) => t.id))
         const target = (): LayoutDropTarget => {
           const r = rand()
@@ -792,27 +1174,83 @@ describe('random op sequences keep the table valid', () => {
           if (r < 0.9) return { kind: 'cell', cellId: id, index: Math.floor(rand() * 3) }
           return { kind: 'layout' }
         }
-        const op = Math.floor(rand() * 9)
+        const minPx = (c: LayoutCell, axis: GridAxis) => cellMinPx(body, c, axis)
+        /** A drag's distance: a key step, a jiggle, or a long drag either way. */
+        const delta = (): number => {
+          const r = rand()
+          if (r < 0.2) return rand() < 0.5 ? 16 : -16
+          if (r < 0.3) return rand() < 0.5 ? 1 : -1
+          return Math.round((rand() - 0.5) * 900)
+        }
+        const op = Math.floor(rand() * 13)
         const before = body
+        let added: string | null = null
+        let made: string | null = null
         switch (op) {
-          case 0: body = splitCell(body, pick(cellIds) ?? '', pick(SIDES) ?? 'right', genId).layout; break
-          case 1: body = insertTrack(body, pick(SIDES) ?? 'top', genId).layout; break
+          case 0: {
+            const out = splitCell(body, pick(cellIds) ?? '', pick(SIDES) ?? 'right', genId)
+            body = out.layout
+            made = out.cellId
+            break
+          }
+          case 1: {
+            const out = insertTrack(body, pick(SIDES) ?? 'top', genId)
+            body = out.layout
+            made = out.cellId
+            break
+          }
           case 2: body = mergeCells(body, pick(cellIds) ?? '', pick(cellIds) ?? ''); break
           case 3: body = closeCell(body, pick(cellIds) ?? ''); break
           case 4: body = moveTab(body, pick(tabIds) ?? '', target(), genId); break
           case 5: body = movePanel(body, pick(cellIds) ?? '', target(), genId); break
-          case 6: body = addTab(body, createTab('notes', `x${++tabN}`), target(), genId); break
+          case 6: {
+            const tab = newTab()
+            body = addTab(body, tab, target(), genId)
+            if (body !== before) added = tab.id
+            break
+          }
           case 7: {
-            const stretch = pick(edgeStretches(body))
+            // A divider, as the view draws and drags it.
+            const stretch = pick(viewStretches(body))
             if (stretch) {
-              const sizes = body.grid[stretch.axis].map(() => 100 + Math.floor(rand() * 200))
-              body = moveEdge(body, stretch, (rand() - 0.5) * 400, { sizes, minPx: () => 20 }, genId)
+              const by = delta()
+              body = moveEdge(body, stretch, by, { sizes: drawnSizes(body, stretch.axis), minPx, gap: GAP }, genId)
+              if (body !== before && layoutStructureEqual(body, before)) expectOnlyLineMoved(before, body, stretch.axis, stretch.line, by)
             }
             break
           }
           case 8: body = closeTab(body, pick(tabIds) ?? ''); break
+          // Collapse row / Expand row, as a cell's menu does them: every row track the cell covers.
+          case 9: body = collapseRow(body, pick(filledIds) ?? ''); break
+          case 10: body = expandRow(body, pick(filledIds.filter((id) => isCellCollapsed(body, id))) ?? ''); break
+          case 11: {
+            // A crossing handle: both whole lines, the upright one first, each snapping home.
+            const crossing = pick(lineCrossings(body).filter((x) => [x.row - 1, x.row].every((t) => trackSizing(body, 'rows', t).kind !== 'collapsed')))
+            if (crossing) {
+              const cols = { sizes: drawnSizes(body, 'columns'), minPx, snapHome: true, gap: GAP }
+              const rows = { sizes: drawnSizes(body, 'rows'), minPx, snapHome: true, gap: GAP }
+              const dx = delta()
+              const dy = delta()
+              const afterColumns = moveEdge(body, wholeLine(body, 'columns', crossing.col), dx, cols, genId)
+              if (afterColumns !== body && layoutStructureEqual(afterColumns, body)) expectOnlyLineMoved(body, afterColumns, 'columns', crossing.col, dx)
+              const out = moveEdge(afterColumns, wholeLine(afterColumns, 'rows', crossing.row), dy, rows, genId)
+              if (out !== afterColumns && layoutStructureEqual(out, afterColumns)) expectOnlyLineMoved(afterColumns, out, 'rows', crossing.row, dy)
+              body = out
+            }
+            break
+          }
+          case 12: {
+            // Change widget: a Notes tab a Number, or back — rows start and stop fitting.
+            const id = pick(tabIds)
+            const tab = id != null ? getTab(body, id) : undefined
+            if (tab) body = replaceTab(body, tab.id, createTab(tab.kind === 'number' ? 'notes' : 'number', tab.id))
+            break
+          }
         }
         expectValid(body)
+        expectSoundViewState(body)
+        // A new cell (a split's, an insert's) never comes out collapsed.
+        if (made != null) expect(isCellCollapsed(body, made)).toBe(false)
         // A close leaves an empty cell only where no side can take its space (a pinwheel's centre).
         if (op === 3 || op === 8) {
           for (const c of body.cells) {
@@ -824,7 +1262,7 @@ describe('random op sequences keep the table valid', () => {
         // Every tab survives every op but a close.
         if (op !== 8 && op !== 3) {
           expect(body.cells.flatMap((c) => c.tabs.map((t) => t.id)).sort()).toEqual(
-            [...before.cells.flatMap((c) => c.tabs.map((t) => t.id)), ...(op === 6 && body !== before ? [`x${tabN}`] : [])].sort(),
+            [...before.cells.flatMap((c) => c.tabs.map((t) => t.id)), ...(added != null ? [added] : [])].sort(),
           )
         }
       }

@@ -404,6 +404,80 @@ test.describe('dividers', () => {
     await expectDividerStep(page)
   })
 
+  test('part of a line follows the pointer into the next track and across another line: the gaps count (cr34 W8)', async ({ page }) => {
+    // a a b
+    // c d d — a|b lies on the second column line, c|d on the first: dragged left, a|b crosses c|d's line.
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        table: {
+          areas: ['a a b', 'c d d'],
+          cells: ['a', 'b', 'c', 'd'].map((id) => ({ id, tabs: [{ id: `${id}Tab`, kind: 'notes' as const }] })),
+        },
+      }],
+    })
+    const divider = wsDivider(page, 'a', 'b')
+    const d = await box(divider)
+    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const cdLine = (await edges(wsCell(page, 'c'))).right + 3
+    /** How far the a|b line, as drawn, is from the pointer at `x`. */
+    const offLine = async (x: number) => {
+      const [a, b] = await Promise.all([edges(wsCell(page, 'a')), edges(wsCell(page, 'b'))])
+      return Math.abs((a.right + b.left) / 2 - x)
+    }
+    // Into the middle track, short of c|d's line (and out of its snap's reach): its own two tracks resize.
+    const near = { x: cdLine + 120, y: from.y }
+    // Then across that line, into the first track: a new line there.
+    const far = { x: cdLine - 150, y: from.y }
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(near.x, near.y, { steps: 8 })
+    await expect.poll(() => offLine(near.x)).toBeLessThanOrEqual(1.5)
+    await page.mouse.move(far.x, far.y, { steps: 8 })
+    await expect(divider).toHaveAttribute('data-preview', '')
+    await expect.poll(() => offLine(far.x)).toBeLessThanOrEqual(1.5)
+    // c|d's own line hasn't moved under the preview.
+    expect(Math.abs((await edges(wsCell(page, 'c'))).right + 3 - cdLine)).toBeLessThanOrEqual(1)
+    await releaseDrag(page)
+    await expectDividerStep(page)
+    // Released: the line stays where the preview drew it.
+    await expect.poll(() => offLine(far.x)).toBeLessThanOrEqual(1.5)
+    expect(Math.abs((await edges(wsCell(page, 'c'))).right + 3 - cdLine)).toBeLessThanOrEqual(1)
+  })
+
+  test('part of a line made a new line in the track beside it lands under the pointer; the rest of its line stays (cr34 W8)', async ({ page }) => {
+    // a | c | x over b | c | y: a|b is one part of the level line, x|y the other.
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        table: {
+          areas: ['a c x', 'b c y'],
+          cells: ['a', 'b', 'c', 'x', 'y'].map((id) => ({ id, tabs: [{ id: `${id}Tab`, kind: 'notes' as const }] })),
+        },
+      }],
+    })
+    const divider = wsDivider(page, 'a', 'b')
+    const d = await box(divider)
+    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const xyLine = (await edges(wsCell(page, 'x'))).bottom + 3
+    const to = { x: from.x, y: from.y + 100 }
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(to.x, to.y, { steps: 8 })
+    await expect(divider).toHaveAttribute('data-preview', '')
+    const offLine = async () => {
+      const [a, b] = await Promise.all([edges(wsCell(page, 'a')), edges(wsCell(page, 'b'))])
+      return Math.abs((a.bottom + b.top) / 2 - to.y)
+    }
+    await expect.poll(offLine).toBeLessThanOrEqual(1.5)
+    // x|y, the rest of the line, is where it was: the new line's gutter came out of the row it split.
+    expect(Math.abs((await edges(wsCell(page, 'x'))).bottom + 3 - xyLine)).toBeLessThanOrEqual(1)
+    await releaseDrag(page)
+    await expectDividerStep(page)
+    await expect.poll(offLine).toBeLessThanOrEqual(1.5)
+    expect(Math.abs((await edges(wsCell(page, 'x'))).bottom + 3 - xyLine)).toBeLessThanOrEqual(1)
+  })
+
   test('a narrow window: the cells keep 120px and the table scrolls sideways', async ({ page }) => {
     await page.setViewportSize({ width: 900, height: 800 })
     const ids = ['k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7', 'k8']
@@ -458,6 +532,70 @@ test.describe('rows that size themselves', () => {
     await wsCell(page, 'a').getByRole('button', { name: 'Expand row' }).click()
     await expect(wsCell(page, 'a').locator('[data-ws-cell-body]')).toBeVisible()
     await expect(page.locator('[data-ws-divider][data-axis="rows"]')).toHaveCount(1)
+  })
+})
+
+test.describe('a collapsed row no filled cell lies only in expands by itself (cr34 M8)', () => {
+  const notesCells = (ids: string[]) => ids.map((id) => ({ id, tabs: [{ id: `${id}Tab`, kind: 'notes' as const }] }))
+  type StoredRows = { grid: { rows: Array<{ collapsed?: boolean }> } }
+  const storedCollapse = async (page: Page) => (await readStore<StoredRows>(page, 'layouts'))[0]?.grid.rows.map((r) => r.collapsed === true)
+
+  test('Collapse row, then its cells closed: the row comes back, with its dividers', async ({ page }) => {
+    // p  s
+    // a  b
+    // t1 t2
+    await seedWorkspace(page, { layouts: [{ name: 'Main', table: { areas: ['p s', 'a b', 't1 t2'], cells: notesCells(['p', 's', 'a', 'b', 't1', 't2']) } }] })
+    await openCellLayoutMenu(page, 'a')
+    await page.getByRole('menuitem', { name: 'Collapse row', exact: true }).click()
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).height)).toBe(32)
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'b'))).height)).toBe(32)
+    // Close t1: a, above it, takes its place and reaches into the last row; b still holds the folded row.
+    await openCellLayoutMenu(page, 't1')
+    await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
+    await expect(wsCell(page, 't1')).toHaveCount(0)
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'b'))).height)).toBe(32)
+    await expect(wsCell(page, 'b').getByRole('button', { name: 'Expand row' })).toBeVisible()
+    // Close b: s, above it, takes its place. No cell lies only in the folded row any more: it expands.
+    await openCellLayoutMenu(page, 'b')
+    await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
+    await expect(wsCell(page, 'b')).toHaveCount(0)
+    // p | a and s | t2: each row line has its divider again (none beside a folded row).
+    await expect(page.locator('[data-ws-divider][data-axis="rows"]')).toHaveCount(2)
+    await expect(page.getByRole('button', { name: 'Expand row' })).toHaveCount(0)
+    await expectLayoutStored(page)
+    await expect.poll(() => storedCollapse(page)).toEqual([false, false, false])
+    // The middle row is a row again: p's and a's line can be dragged.
+    const aTop = (await edges(wsCell(page, 'a'))).top
+    const d = await box(wsDivider(page, 'p', 'a'))
+    await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2, y: d.y + d.height / 2 + 40 })
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).top - aTop)).toBeGreaterThan(30)
+  })
+
+  test('a layout stored with such a row comes right when it is opened, and is stored so', async ({ page }) => {
+    // p s
+    // a s — the middle row folded, as an earlier build's Collapse row, Close, Close left it
+    // a t2
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        table: { areas: ['p s', 'a s', 'a t2'], rows: [1000, { weight: 1000, collapsed: true }, 1000], cells: notesCells(['p', 's', 'a', 't2']) },
+      }],
+    })
+    await expect(page.locator('[data-ws-divider][data-axis="rows"]')).toHaveCount(2)
+    await expect.poll(() => storedCollapse(page)).toEqual([false, false, false])
+    // Three rows of the same weight again: p is a third of the table's height, not most of it.
+    const area = await areaBox(page)
+    const p = await box(wsCell(page, 'p'))
+    expect(Math.abs(p.height - (area.height - 24) / 3)).toBeLessThanOrEqual(2)
+    // A folded row a filled cell lies only in is left alone.
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        table: { areas: ['p s', 'a b', 'a t2'], rows: [1000, { weight: 1000, collapsed: true }, 1000], cells: notesCells(['p', 's', 'a', 'b', 't2']) },
+      }],
+    })
+    await expect(wsCell(page, 'b').getByRole('button', { name: 'Expand row' })).toBeVisible()
+    expect(await storedCollapse(page)).toEqual([false, true, false])
   })
 })
 

@@ -13,7 +13,9 @@ import { FIT_TRACK_NOMINAL_PX, spanPx, tableTrackSizes, trackSizing, trackStart 
  *
  * Priority (first match wins):
  * 1. The layout's left / right edge → insert a column: within
- *    {@link EDGE_ZONE_OUTER_PX} inside the workspace's outer edge.
+ *    {@link EDGE_ZONE_OUTER_PX} inside the workspace's outer edge — over a
+ *    narrow edge cell's body, no further than half of its own side zone,
+ *    so its Split left / right keeps the other half.
  * 2. The layout's top / bottom edge → insert a row: within
  *    {@link INSERT_EDGE_ZONE_PX} inside the workspace's top (bottom) edge —
  *    reaching {@link INSERT_EDGE_OUTSIDE_PX} past it too —, full width; but
@@ -180,17 +182,37 @@ function overCell(geo: WorkspaceGeometry, p: Point): boolean {
   return geometryCells(geo).some((cell) => inside(cell.rect, p))
 }
 
+/** How wide (px) a cell body's left / right split zones are (`bodyZone`): its outer share, at most `SIDE_ZONE_MAX_PX`. */
+function sideZoneWidth(body: Rect): number {
+  return Math.min((body.right - body.left) * SIDE_ZONE_SHARE, SIDE_ZONE_MAX_PX)
+}
+
+/**
+ * How far (px) the insert-column zone reaches in from the workspace's
+ * `edge` at `p`: `EDGE_ZONE_OUTER_PX` — but over a cell's body no further
+ * than half of that body's own split zone on that side, so a narrow edge
+ * cell (a 72px Number: a 14px zone the insert zone would cover whole) keeps
+ * the inner half of it for Split left / right (cr34 W10). A body 180px wide
+ * or more is as before.
+ */
+function insertColumnReach(geo: WorkspaceGeometry, p: Point, edge: 'left' | 'right'): number {
+  const body = geo.cells.find((c) => inside(c.rect, p))?.body
+  if (!body || !inside(body, p)) return EDGE_ZONE_OUTER_PX
+  const inset = edge === 'left' ? body.left - geo.area.left : geo.area.right - body.right
+  return Math.min(EDGE_ZONE_OUTER_PX, Math.max(0, inset) + sideZoneWidth(body) / 2)
+}
+
 /**
  * The insert edge `p` is in, if any: the left / right zone just inside the
- * workspace's side edges; the top / bottom zone (reaching past the edge
- * too), but never over a cell — its strip and its body's top / bottom zones
- * win.
+ * workspace's side edges (`insertColumnReach`); the top / bottom zone
+ * (reaching past the edge too), but never over a cell — its strip and its
+ * body's top / bottom zones win.
  */
 function insertEdgeAt(geo: WorkspaceGeometry, p: Point): Side | null {
   const { area } = geo
   if (p.y >= area.top && p.y <= area.bottom) {
-    if (p.x >= area.left && p.x <= area.left + EDGE_ZONE_OUTER_PX) return 'left'
-    if (p.x <= area.right && p.x >= area.right - EDGE_ZONE_OUTER_PX) return 'right'
+    if (p.x >= area.left && p.x <= area.left + insertColumnReach(geo, p, 'left')) return 'left'
+    if (p.x <= area.right && p.x >= area.right - insertColumnReach(geo, p, 'right')) return 'right'
   }
   if (p.x < area.left || p.x > area.right || overCell(geo, p)) return null
   if (p.y >= area.top - INSERT_EDGE_OUTSIDE_PX && p.y <= area.top + INSERT_EDGE_ZONE_PX) return 'top'
@@ -219,7 +241,7 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
  * middle.
  */
 export function bodyZone(body: Rect, p: Point): CellZone {
-  const zw = Math.min((body.right - body.left) * SIDE_ZONE_SHARE, SIDE_ZONE_MAX_PX)
+  const zw = sideZoneWidth(body)
   const zh = Math.min((body.bottom - body.top) * SIDE_ZONE_SHARE, SIDE_ZONE_MAX_PX)
   // How deep into each side's zone the point is: 1 at the edge, 0 at the zone's inner end, below 0 past it.
   const depth = (gap: number, zone: number) => (zone > 0 ? 1 - gap / zone : -1)

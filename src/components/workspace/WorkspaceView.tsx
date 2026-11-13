@@ -13,6 +13,7 @@ import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { useWorkspaceDrag } from './workspace-drag'
+import { useExpandOrphanRows } from './use-expand-orphan-rows'
 import { useTabTitles } from './widget-hooks'
 import { AmbienceBackdrop, AmbienceLamp } from '../ambience/AmbienceWorkspace'
 import styles from './WorkspaceView.module.css'
@@ -281,8 +282,13 @@ function Grain() {
   )
 }
 
-/** The open layout, filling the page: its table of cells, or the empty-layout tiles. */
+/**
+ * The open layout, filling the page: its table of cells, or the empty-layout
+ * tiles. A collapsed row it arrives with that nothing can expand, expands
+ * (`useExpandOrphanRows`).
+ */
 export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
+  useExpandOrphanRows(layout)
   return (
     <div
       className={styles.area}
