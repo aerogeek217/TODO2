@@ -42,7 +42,12 @@ export type NumberCompare = (typeof NUMBER_COMPARES)[number]
 /** A new Number's name: its empty filter counts every open task. */
 export const DEFAULT_NUMBER_NAME = 'Open'
 
-/** The longest Number name kept. */
+/**
+ * The longest Number name kept — a chart's too (`CHART_NAME_MAX`): what the
+ * editors' name fields take, and what a label on a glance widget has room
+ * for. Shorter than a tab's own name (`TAB_NAME_MAX`, 200): a stored name
+ * past it is cut to it when read (`readStoredName`), never reset.
+ */
 export const NUMBER_NAME_MAX = 80
 
 /** The largest `litAt` kept. */
@@ -104,6 +109,22 @@ export function isNumberLitAt(v: unknown): v is number {
 
 export function isNumberName(v: unknown): v is string {
   return typeof v === 'string' && v.length <= NUMBER_NAME_MAX
+}
+
+/**
+ * A stored name as the repair reads it: text within `max` as it is; longer
+ * text **cut** to `max` (`cut`) — what was typed is kept as far as it fits,
+ * never replaced by the default name (Name and icon… took up to 200
+ * characters and wrote them into a Number's or a chart's `name`, whose
+ * limit is `NUMBER_NAME_MAX`: cr34 D1) —; anything but text, `null`. A cut
+ * never splits a surrogate pair.
+ */
+export function readStoredName(v: unknown, max: number = NUMBER_NAME_MAX): { name: string; cut: boolean } | null {
+  if (typeof v !== 'string') return null
+  if (v.length <= max) return { name: v, cut: false }
+  const last = v.charCodeAt(max - 1)
+  const splitsPair = last >= 0xd800 && last <= 0xdbff
+  return { name: v.slice(0, splitsPair ? max - 1 : max), cut: true }
 }
 
 /** Whether `count` lights a Number up (`litWhen` against `litAt`, 0 when absent). */
@@ -174,7 +195,8 @@ export type NumberPredicateRead = (raw: unknown) => PickedConfig<TodoPredicate>
  * caller's predicate read; `readPredicate` reads its shape's): a bad or
  * missing field gets its default (`fixed`) — the name `Number`, Auto, a
  * count, never lit (a threshold of 0 when `above` / `below` lacks one),
- * against yesterday —; an unknown colour or breakdown, or an `ignoreLens`
+ * against yesterday —; a name past the limit is cut to it (`shortened`,
+ * `readStoredName`); an unknown colour or breakdown, or an `ignoreLens`
  * (the tab's view state since v79), is dropped (`fixed`). Its shape's field is read too
  * (`pickShapeField`); another shape's is dropped (`fixed`).
  */
@@ -185,7 +207,9 @@ export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, 
     fixed = true
     return fallback
   }
-  const name = pick(raw.name, isNumberName, 'Number')
+  const named = readStoredName(raw.name)
+  if (!named) fixed = true
+  const name = named ? named.name : 'Number'
   const show = pick(raw.show, (v): v is NumberShow => includes(NUMBER_SHOWS, v), 'count')
   const litWhen = pick(raw.litWhen, (v): v is NumberLitWhen => includes(NUMBER_LIT_WHEN, v), 'never')
   const compare = pick(raw.compare, (v): v is NumberCompare => includes(NUMBER_COMPARES, v), 'yesterday')
@@ -201,7 +225,7 @@ export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, 
   if (isNumberBreakdown(raw.breakdown)) config.breakdown = raw.breakdown
   else if (raw.breakdown !== undefined) fixed = true
   if (pickShapeField(raw, config, readPredicate)) fixed = true
-  return { config, fixed }
+  return named?.cut ? { config, fixed, shortened: true } : { config, fixed }
 }
 
 /**
@@ -353,6 +377,8 @@ export interface TagPicksTabConfig {
 export interface PickedConfig<C> {
   config: C
   fixed: boolean
+  /** Its name was past the limit and was cut to it (`readStoredName`): a change of its own, not counted in `fixed`. */
+  shortened?: boolean
 }
 
 const isTrendRange = (v: unknown): v is TrendRange => includes(TREND_RANGES, v)
@@ -381,13 +407,15 @@ export function trendConfigProblem(raw: Obj): string | null {
  * A Created vs completed's config read from untrusted input: a known range,
  * else 14 days (`fixed`); its optional name, filter (read as a Number's,
  * `readPredicate`) and Show as kept when they read, else dropped (`fixed`) —
- * an absent one stays absent (the defaults, no fix).
+ * an absent one stays absent (the defaults, no fix); a name past the limit
+ * is cut to it (`shortened`).
  */
 export function pickTrendConfig(raw: Obj, readPredicate: NumberPredicateRead): PickedConfig<TrendTabConfig> {
   const range = pickOne(raw.range, isTrendRange, DEFAULT_TREND_RANGE)
   let fixed = range.fixed
   const config: TrendTabConfig = { range: range.value }
-  if (isNumberName(raw.name)) config.name = raw.name
+  const named = readStoredName(raw.name)
+  if (named) config.name = named.name
   else if (raw.name !== undefined) fixed = true
   if (isTrendShow(raw.show)) config.show = raw.show
   else if (raw.show !== undefined) fixed = true
@@ -396,7 +424,7 @@ export function pickTrendConfig(raw: Obj, readPredicate: NumberPredicateRead): P
     config.filter = filter.config
     if (filter.fixed) fixed = true
   } else if (raw.filter !== undefined) fixed = true
-  return { config, fixed }
+  return named?.cut ? { config, fixed, shortened: true } : { config, fixed }
 }
 
 /**

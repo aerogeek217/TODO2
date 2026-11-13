@@ -70,6 +70,9 @@ describe('a stored layout the check rejects: export → import', () => {
     }
     // Every tab is still there, and the task beside it.
     expect(rows[0]!.cells[0]!.tabs.map((t) => t.id)).toEqual(['n1', 'n2'])
+    // The long name is cut to the limit, not replaced by the default name.
+    expect(prepared.warnings).toEqual(['Fixed 1 layout: "Numbers" (tab name shortened)'])
+    expect((rows[0]!.cells[0]!.tabs[0]!.config as { name: string }).name).toBe(LONG_NAME.slice(0, 80))
     expect((await db.todos.toArray()).map((t) => t.title)).toEqual(['Kept task'])
     // Read back, nothing is left to repair: no notice, and view state saves again.
     expect((await layoutRepository.getAll()).map((r) => r.fixes)).toEqual([[], []])

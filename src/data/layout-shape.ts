@@ -35,6 +35,7 @@ import {
   numberConfigProblem,
   pickNumberConfig,
   pickTrendConfig,
+  readStoredName,
   trendConfigProblem,
   type NumberConfig,
   type PickedConfig,
@@ -336,15 +337,18 @@ function isTabName(v: unknown): v is string {
 
 /**
  * `tab` with the stored tab's name and icon (items 11, 14) when they read:
- * a name trimmed (a blank one is none, never a fix), an icon with only the
- * model's keys; one that doesn't read is dropped (`fix`).
+ * a name trimmed (a blank one is none, never a fix), one past
+ * `TAB_NAME_MAX` cut to it (`cut`), an icon with only the model's keys; one
+ * that doesn't read is dropped (`fix`).
  */
-function withTabLabel(tab: LayoutTab, raw: Obj, fix: () => void): LayoutTab {
+function withTabLabel(tab: LayoutTab, raw: Obj, fix: () => void, cut: () => void): LayoutTab {
   let out = tab
   if (raw.name !== undefined) {
-    if (isTabName(raw.name)) {
-      const name = raw.name.trim()
+    const named = readStoredName(raw.name, TAB_NAME_MAX)
+    if (named) {
+      const name = named.name.trim()
       if (name) out = { ...out, name }
+      if (named.cut) cut()
     } else {
       fix()
     }
@@ -423,7 +427,7 @@ export function checkLayoutBody(body: RawLayoutBody): true | string {
 }
 
 /** A part `pickLayoutBody` dropped or reset, counted. */
-type LayoutFix = 'grid' | 'rebuilt' | 'lines' | 'track' | 'cell' | 'tab' | 'size' | 'settings'
+type LayoutFix = 'grid' | 'rebuilt' | 'lines' | 'track' | 'cell' | 'tab' | 'size' | 'settings' | 'name'
   | 'trackLimit' | 'cellLimit' | 'tabLimit'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
@@ -435,6 +439,7 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   tab: ['tab dropped', 'tabs dropped'],
   size: ['size reset', 'sizes reset'],
   settings: ['tab or cell settings reset', 'tab or cell settings reset'],
+  name: ['tab name shortened', 'tab names shortened'],
   trackLimit: ['track past the limit of 1,000 dropped', 'tracks past the limit of 1,000 dropped'],
   cellLimit: ['cell past the limit of 1,000 dropped', 'cells past the limit of 1,000 dropped'],
   tabLimit: ['tab past the limit of 1,000 dropped', 'tabs past the limit of 1,000 dropped'],
@@ -477,7 +482,9 @@ interface PickedCell {
  * cell / tab that isn't an object, has a bad or repeated id (ids are unique
  * across tracks, cells and tabs), or (tab) an unknown kind is dropped; a bad
  * size is reset (a weight to the axis's average); bad tab settings fall back
- * to the kind's defaults; a bad `activeTabId` / `collapsed` is dropped; a
+ * to the kind's defaults; a name past its limit — a tab's own, a Number's
+ * or a chart's — is cut to it, never reset (`tab name shortened`); a bad
+ * `activeTabId` / `collapsed` is dropped; a
  * cell whose every tab was dropped closes (`closeCell`: a neighbour takes
  * its space, or it stays empty); an inner line no cell's edge lies on goes
  * (`normalizeGrid`). When the cells don't tile the grid any more (a bad
@@ -530,9 +537,10 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       const lens = lensView()
       return lens.ignoreLens === undefined ? tab : { ...tab, viewState: { ...tab.viewState, ...lens } }
     }
-    /** A glance config as picked, a reset reported. */
+    /** A glance config as picked, a reset reported — and a name cut to its limit, as that. */
     const glance = <C,>(picked: PickedConfig<C>): C => {
       if (picked.fixed) fix('settings')
+      if (picked.shortened) fix('name')
       return picked.config
     }
     switch (tab.kind) {
@@ -621,7 +629,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       const picked = pickTab(tab)
       if (!picked) continue
-      tabs.push(isRecord(tab) ? withTabLabel(picked, tab, () => fix('settings')) : picked)
+      tabs.push(isRecord(tab) ? withTabLabel(picked, tab, () => fix('settings'), () => fix('name')) : picked)
       tabsKept++
     }
     return tabs
