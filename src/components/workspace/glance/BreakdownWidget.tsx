@@ -6,6 +6,7 @@ import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
 import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
+import { useWidgetIgnoresLens } from '../../../hooks/use-widget-lens'
 import { breakdownReviewFilter, breakdownReviews } from '../../../services/review'
 import { jumpToReview } from '../../../services/review-jump'
 import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
@@ -185,6 +186,8 @@ interface TableProps {
 function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {
   const { splitBy, show } = config
   const [menu, setMenu] = useState<{ entity: MenuEntity; at: { x: number; y: number } } | null>(null)
+  // The Breakdown's own lens switch goes with a jump, so the Review widget shows the tasks counted here.
+  const ignoresLens = useWidgetIgnoresLens()
   // A Breakdown that counts completed tasks: a review (open tasks only) would not show them.
   const reviews = breakdownReviews(config)
   /**
@@ -194,7 +197,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
    * tasks, opens its tasks in the task dialog instead.
    */
   const reviewRow = (row: BreakdownRow, column?: BreakdownColumn) => {
-    const filter = breakdownReviewFilter(config, row, column)
+    const filter = breakdownReviewFilter(config, row, column, ignoresLens)
     if (filter) {
       void jumpToReview(filter)
       return

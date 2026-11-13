@@ -30,9 +30,21 @@ function allOf(terms: readonly (FilterExpr | null | undefined)[]): FilterExpr | 
   return normalizeExpression(items.length === 1 && items[0] ? items[0] : { kind: 'and', items })
 }
 
+/**
+ * What a Review button sends (`services/review-jump.jumpToReview`): the
+ * filter, and — from a source that counts its tasks under a lens switch of
+ * its own (a list, a Breakdown, the top bar) — whether that source ignores
+ * the top bar's lens. The jump sets the Review widget's lens switch to it,
+ * so "Review these 8 tasks" opens those 8. Absent (a person's or a tag's
+ * menu, which counts nothing): the widget's switch stays as it is.
+ */
+export interface ReviewJump extends ReviewFilter {
+  ignoreLens?: boolean
+}
+
 /** A Review widget's filter of `expression` (null: every open task). The widget reviews open tasks, so never `done`. */
-function reviewFilterOf(expression: FilterExpr | null): ReviewFilter {
-  return { expression: expression ?? EVERY_TASK, showCompleted: false }
+function reviewFilterOf(expression: FilterExpr | null, ignoreLens?: boolean): ReviewJump {
+  return { expression: expression ?? EVERY_TASK, showCompleted: false, ...(ignoreLens != null ? { ignoreLens } : {}) }
 }
 
 /** A review entry point's label for `n` tasks: `Review these 8 tasks` (`Review this task` for one). */
@@ -86,10 +98,10 @@ export function openCount(ids: readonly number[]): number {
  * filter as edited (its chips or its expression as one expression,
  * `wholeExpression`), its prompt pick taking the place of that field's own
  * term as the list applies it (`applyRuntimeFilter`). Its manual order and
- * group dividers don't carry over. Null while the tab isn't on screen or its
- * prompt waits for a pick.
+ * group dividers don't carry over; its lens switch does (`ReviewJump`). Null
+ * while the tab isn't on screen or its prompt waits for a pick.
  */
-export function listReviewFilter(tabId: string): ReviewFilter | null {
+export function listReviewFilter(tabId: string): ReviewJump | null {
   const shown = useListWidgetStore.getState().shown[tabId]
   if (!shown) return null
   const definition = listAsShownNow(shown.listId)
@@ -100,7 +112,7 @@ export function listReviewFilter(tabId: string): ReviewFilter | null {
     if (!pick || pick.length === 0) return null
     predicate = applyRuntimeFilter(predicate, definition.runtimeFilter, pick)
   }
-  return reviewFilterOf(wholeExpression(predicate))
+  return reviewFilterOf(wholeExpression(predicate), definition.ignoreLens === true)
 }
 
 /**
@@ -118,10 +130,11 @@ export function reviewTargetTabId(): string | null {
 /**
  * The filtered-tasks panel's review: the top bar's chips and its text search
  * as one expression. The lens is not part of it — the widget has its own
- * lens switch.
+ * lens switch, which the jump sets to follow the lens, as the panel's tasks
+ * do.
  */
-export function screenReviewFilter(): ReviewFilter {
-  return reviewFilterOf(wholeExpression(criteriaToPredicate(useFilterStore.getState().filters)))
+export function screenReviewFilter(): ReviewJump {
+  return reviewFilterOf(wholeExpression(criteriaToPredicate(useFilterStore.getState().filters)), false)
 }
 
 // ── A Breakdown row ─────────────────────────────────────────────────────────
@@ -210,7 +223,7 @@ export function breakdownReviews(config: Pick<BreakdownConfig, 'filter'>): boole
 /**
  * A Breakdown row's review (its Review button): the Breakdown's own filter
  * AND the row; with `column` (a count column's count), AND that column's
- * filter too. Null
+ * filter too; `ignoreLens` the Breakdown's lens switch (`ReviewJump`). Null
  * when the row can't be said as a filter, or the Breakdown counts completed
  * tasks (`breakdownReviews`) — the caller then opens the task dialog
  * instead.
@@ -219,9 +232,10 @@ export function breakdownReviewFilter(
   config: Pick<BreakdownConfig, 'filter' | 'splitBy'>,
   row: Pick<BreakdownRow, 'entity'>,
   column?: Pick<BreakdownColumn, 'filter'>,
-): ReviewFilter | null {
+  ignoreLens?: boolean,
+): ReviewJump | null {
   if (!breakdownReviews(config)) return null
   const term = breakdownRowTerm(row, config.splitBy)
   if (!term) return null
-  return reviewFilterOf(allOf([wholeExpression(config.filter), term, column ? wholeExpression(column.filter) : null]))
+  return reviewFilterOf(allOf([wholeExpression(config.filter), term, column ? wholeExpression(column.filter) : null]), ignoreLens)
 }
