@@ -10,6 +10,10 @@ const origin = `http://localhost:${port}`;
 
 export default defineConfig({
   testDir: './e2e',
+  // A run empties its output folder first: one per port, so two runs at once
+  // (another checkout's, or a single probe spec beside a full run) don't
+  // delete each other's traces.
+  outputDir: `test-results/port-${port}`,
   // Every test gets its own browser context (fresh IndexedDB), so tests
   // within a spec spread across workers instead of one long spec setting
   // the suite's wall time.

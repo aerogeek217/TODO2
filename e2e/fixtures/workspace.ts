@@ -262,6 +262,31 @@ export function emptyPredicate(): Record<string, unknown> {
   }
 }
 
+/** A module the specs import in the page (`stores`, `services`, `data`), served with Vite's hot-update stamp. */
+const HOT_MODULE = /\/src\/(?:stores|services|data)\/[^?]+\?(?:[^#]*&)?t=\d+/
+
+/** The hot-updated modules each watched page has asked for. */
+const hotByPage = new WeakMap<Page, string[]>()
+
+/**
+ * The hot-updated modules `page` asks for from now on (watched once per
+ * page). After a source edit under a running dev server Vite serves the
+ * changed module and its importers as `…?t=<stamp>`: the app runs on those
+ * copies while a spec's bare `import('/src/stores/…')` gets a second one, so
+ * the spec's store calls never reach the page (`no todo alpha`, a mass of
+ * false failures). A freshly started server serves none.
+ */
+function hotModules(page: Page): string[] {
+  const known = hotByPage.get(page)
+  if (known) return known
+  const hot: string[] = []
+  hotByPage.set(page, hot)
+  page.on('request', (request) => {
+    if (HOT_MODULE.test(request.url())) hot.push(request.url())
+  })
+  return hot
+}
+
 /**
  * Seeds layouts and list definitions (replacing the app's own), people, tags and
  * tasks straight into IndexedDB, then reloads on the workspace. The app must
@@ -269,8 +294,15 @@ export function emptyPredicate(): Record<string, unknown> {
  * `url`: a built file's) first.
  */
 export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#/' }: { url?: string } = {}): Promise<void> {
+  const hot = hotModules(page)
   await page.goto(url)
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  if (hot.length > 0) {
+    throw new Error(
+      `The dev server has hot-updated modules (${hot[0]}): restart it, then run again. `
+      + 'The app now runs on those copies, while a spec’s import(\'/src/stores/…\') loads a second, empty copy — its store calls would never reach the page.',
+    )
+  }
   // Every kind's new tab, as the app makes it: the seeded tabs start from these.
   const newTabs = Object.fromEntries(WIDGET_KINDS.map((kind) => [kind, createTab(kind, '')])) as Record<WidgetKind, LayoutTab>
   const payload = { ...seed, tables: seed.layouts.map(wsTableOf).map(withNumberConfigs), predicate: emptyPredicate(), newTabs }
