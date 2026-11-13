@@ -76,12 +76,19 @@ export function cellMinPx(body: LayoutBody, cell: LayoutCell, axis: GridAxis): n
   return isCellCollapsedIn(body, cell) ? TABLE_HEADER_PX : cellMinHeightPx(cell)
 }
 
-/** A track's size (px) that doesn't share the free space, for summing what a cell spans; `null` for a weighted one. */
+/**
+ * A track's size (px) that doesn't share the free space, for summing what a
+ * cell spans; `null` for a weighted one. A fit row counts at the height it
+ * fits at (`FIT_TRACK_NOMINAL_PX`: its content is never lower), as a
+ * divider's clamp counts it from the row as drawn — counted as nothing, a
+ * weighted row under the same cell was held taller than the divider beside
+ * it could make it, and other lines moved instead (cr34 W7).
+ */
 function settledPx(sizing: TrackSizing): number | null {
   switch (sizing.kind) {
     case 'fixed': return sizing.px
     case 'collapsed': return TABLE_HEADER_PX
-    case 'fit': return 0
+    case 'fit': return FIT_TRACK_NOMINAL_PX
     case 'weighted': return null
   }
 }
@@ -91,7 +98,13 @@ function settledPx(sizing: TrackSizing): number | null {
  * weighted: the largest minimum among the cells lying only in it, then, a
  * cell spanning several tracks short of its minimum (the gaps between them
  * counted), the shortfall shared among its weighted tracks by weight —
- * narrower spans first.
+ * narrower spans first. "By weight": each track is owed its weight's share
+ * of what the cell needs of them, and the shortfall goes to the tracks
+ * still under that, in proportion to how far under — a track whose own
+ * cells already hold it above its share takes none. So tracks drawn by
+ * their weights at sizes that give every cell its minimum are never held
+ * above those sizes: weights set from the sizes as drawn draw the same
+ * table (`workspace-layout-ops.drawnByWeight`, cr34 W7).
  */
 export function trackMinimums(body: LayoutBody, axis: GridAxis, gap: number): number[] {
   const sizings = trackSizings(body, axis)
@@ -104,7 +117,9 @@ export function trackMinimums(body: LayoutBody, axis: GridAxis, gap: number): nu
   for (const cell of cells) {
     const [start, end] = spanOf(cell.area, axis)
     const weighted: number[] = []
-    let have = (end - start - 1) * gap
+    // What the cell has without its weighted tracks: the gaps and its settled tracks.
+    let settledPart = (end - start - 1) * gap
+    let have = 0
     for (let t = start; t < end; t++) {
       const sizing = sizings[t]
       const settled = sizing ? settledPx(sizing) : 0
@@ -112,20 +127,28 @@ export function trackMinimums(body: LayoutBody, axis: GridAxis, gap: number): nu
         weighted.push(t)
         have += mins[t] ?? 0
       } else {
-        have += settled
+        settledPart += settled
       }
     }
-    const short = cellMinPx(body, cell, axis) - have
+    // What the cell needs of its weighted tracks together, and how far their minimums are short of it.
+    const need = cellMinPx(body, cell, axis) - settledPart
+    const short = need - have
     if (short <= 0 || weighted.length === 0) continue
     const weightOf = (t: number) => {
       const s = sizings[t]
       return s?.kind === 'weighted' ? s.weight : 0
     }
     const total = weighted.reduce((sum, t) => sum + weightOf(t), 0)
-    for (const t of weighted) {
-      const share = total > 0 ? weightOf(t) / total : 1 / weighted.length
+    // Each track's weight's share of the need, and how far its minimum is under it (in all, at least `short`).
+    const under = weighted.map((t) => {
+      const owed = need * (total > 0 ? weightOf(t) / total : 1 / weighted.length)
+      return Math.max(0, owed - (mins[t] ?? 0))
+    })
+    const allUnder = under.reduce((sum, u) => sum + u, 0)
+    weighted.forEach((t, k) => {
+      const share = allUnder > 0 ? (under[k] ?? 0) / allUnder : 1 / weighted.length
       mins[t] = (mins[t] ?? 0) + short * share
-    }
+    })
   }
   return mins
 }

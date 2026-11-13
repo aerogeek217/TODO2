@@ -40,6 +40,27 @@ describe('trackMinimums', () => {
     expect(mins[1]).toBeCloseTo(((CELL_MIN_PX - 6) * 3) / 4)
   })
 
+  it('a spanning cell’s shortfall goes to the tracks under their weight’s share of what it needs; a track its own cell holds above its share takes none', () => {
+    // span g    — rows B, A, C of equal weight: g (a chart, 64px) lies only in B, z (112px) only in C;
+    // span w      span (112px) covers B and A: it needs 106px of them, B has 64 — over its share of 53, so
+    // z    w      the 42px it is short all go to A.
+    const body = grid([[notes('span'), cell('g', [createTab('trend', 't')])], [notes('span'), notes('w')], [notes('z'), notes('w')]])
+    expect(trackMinimums(body, 'rows', 6)).toEqual([GLANCE_ROW_MIN_PX, 42, CELL_MIN_PX])
+  })
+
+  it('tracks drawn by their weights at sizes that give every cell its minimum are never held above those sizes (cr34 W7)', () => {
+    // span span c0  — columns 100, 20 and 300px, their weights the same: one (a Number, 72px) lies only in the
+    // one  wide wide  first, c0 (120px) only in the last; span covers the first two (126px with the gap).
+    const body = grid([[notes('span'), notes('span'), notes('c0')], [number('one'), notes('wide'), notes('wide')]], { cols: [100, 20, 300] })
+    // span needs 114px of its two columns: by their weights 95 and 19. The first has 72: 23 under; the second 19 under.
+    const mins = trackMinimums(body, 'columns', 6)
+    expect(mins[0]).toBeCloseTo(95)
+    expect(mins[1]).toBeCloseTo(19)
+    expect(mins[2]).toBe(CELL_MIN_WIDTH_PX)
+    // The table draws as its weights say (sharing the 42px by weight alone held the first column at 107px).
+    expect(tableTrackSizes(body, 'columns', 432, 6).map((s) => Math.round(s * 1000) / 1000)).toEqual([100, 20, 300])
+  })
+
   it('a glance cell may go to 72px wide, so a row of Numbers needn’t scroll the table; any other keeps 120px', () => {
     const body = grid([[number('n1'), number('n2'), number('n3')], [notes('a'), notes('a'), notes('a')]])
     expect(trackMinimums(body, 'columns', 6)).toEqual([GLANCE_CELL_MIN_WIDTH_PX, GLANCE_CELL_MIN_WIDTH_PX, GLANCE_CELL_MIN_WIDTH_PX])
