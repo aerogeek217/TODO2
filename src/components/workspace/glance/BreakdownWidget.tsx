@@ -19,7 +19,7 @@ import { PriorityRing } from '../../shared/PriorityRing'
 import { StatusMark } from '../../shared/StatusMark'
 import { useTooltip } from '../../shared/use-tooltip'
 import {
-  breakdownLines, columnHeading, oldestWords, rowFigure, sortHeading, SPLIT_GLYPHS,
+  breakdownLines, columnHeading, countWordOf, oldestWords, rowFigure, sortHeading, SPLIT_GLYPHS,
 } from './breakdown-copy'
 import { breakdownColumnDrill, breakdownRowDrill, rowHeading } from './chart-drills'
 import { ChartPanel } from './chart-parts'
@@ -218,7 +218,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
   const keys: BreakdownSortKey[] = ['name', ...(figure ? ['open'] : []), ...columns.map((c) => c.id)]
   const heading = (by: BreakdownSortKey) => {
     const active = sortBy === by
-    const label = sortHeading(by, splitBy, show, columns)
+    const label = sortHeading(by, splitBy, show, columns, countWordOf(config.filter))
     // Counts go largest first, names A–Z; a second click reverses.
     const descending = by === 'name' ? reversed : !reversed
     const fixed = by === 'name' || by === 'open'
@@ -436,7 +436,8 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   // What the rows shown hold (a task in several rows once): the header, Copy and the count's drill
   // agree, a hidden none row counted in none of them.
   const total = useMemo(() => new Set(all.flatMap((r) => r.ids)).size, [all])
-  const word = data.tasks.some((t) => t.isCompleted) ? 'tasks' : 'open'
+  // `open`, or `tasks` when its filter lets completed ones through: the header, the small face, the figure heading and Copy alike (cr34 G6).
+  const word = countWordOf(config.filter)
   const oldestBy = config.oldestBy ?? DEFAULT_BREAKDOWN_OLDEST_BY
   const lines = useMemo(() => breakdownLines(title, total, word, all, config.show, data.columns, oldestBy), [title, total, word, all, config.show, data.columns, oldestBy])
   useReportLines(onResult, lines)
@@ -462,7 +463,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
         title={title}
         entry={top ? rowHeading(top) : undefined}
         value={top ? rowFigure(top, config.show, oldestBy) : '0'}
-        caption={top && config.show === 'count' ? 'open' : top ? undefined : 'open'}
+        caption={top && config.show === 'count' ? word : top ? undefined : word}
       />
     )
   } else {

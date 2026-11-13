@@ -193,6 +193,19 @@ describe('computeBreakdown — status, priority, due and age', () => {
     ])
   })
 
+  it('due: the dates before today are Overdue while every task there is open; with a completed one, Before today (cr34 G6)', () => {
+    const late = makeTodo({ id: 1, dueDate: day(-3) })
+    const done = makeTodo({ id: 2, dueDate: day(-1), isCompleted: true, completedAt: day(-1) })
+    const doneToday = makeTodo({ id: 3, dueDate: day(0), isCompleted: true, completedAt: day(0) })
+    const row = (tasks: PersistedTodoItem[]) => computeBreakdown(tasks, ctx(), opts('due')).rows.map((r) => [r.key, r.label, r.ids, r.overdue])
+    expect(row([late])).toEqual([['due-overdue', 'Overdue', [1], 1]])
+    // The same row (its key, its tasks by date); only its name changes, and its late count stays the open ones.
+    expect(row([late, done])).toEqual([['due-overdue', 'Before today', [1, 2], 1]])
+    expect(row([done])).toEqual([['due-overdue', 'Before today', [2], 0]])
+    // A completed task elsewhere changes nothing here; the other rows are named by date already.
+    expect(row([late, doneToday])).toEqual([['due-overdue', 'Overdue', [1], 1], ['due-today', 'Today', [3], 0]])
+  })
+
   it('age: by days since created, newest first; no none row', () => {
     const tasks = [
       makeTodo({ id: 1, createdAt: day(-120) }),

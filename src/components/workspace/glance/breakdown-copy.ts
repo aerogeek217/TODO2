@@ -7,7 +7,9 @@ import type {
   BreakdownSplit,
   BreakdownStyle,
 } from '../../../models/chart-widgets'
+import type { TodoPredicate } from '../../../models'
 import { columnCount, hasNaturalOrder, type BreakdownRow } from '../../../services/stats/breakdown'
+import { admitsCompleted, predicateToCriteria } from '../../../utils/filter-criteria'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import { rowHeading } from './chart-drills'
 import type { SummaryPart } from './glance-summary'
@@ -67,11 +69,31 @@ export function columnHeading(column: Pick<BreakdownColumn, 'name'>): string {
   return column.name.trim() || 'Column'
 }
 
-/** A heading's name: the split's for `name`, Oldest for `open` while it shows the oldest, a count column's its name. */
-export function sortHeading(by: BreakdownSortKey, split: BreakdownSplit, show: BreakdownShow, columns: readonly BreakdownColumn[] = []): string {
+/**
+ * What a chart's counts are of (cr34 G6): `open` — or `tasks` when its
+ * filter lets completed tasks through (Show completed, a Completed range:
+ * "completed this week by person"), since it then counts those too. One
+ * rule for a Breakdown's and a Pivot's header, small face and Copy, the
+ * Breakdown's figure heading and its ⋯ menu's Sort words.
+ */
+export type CountWord = 'open' | 'tasks'
+
+/** A chart's count word by its filter (`CountWord`). */
+export function countWordOf(filter: TodoPredicate): CountWord {
+  return admitsCompleted(predicateToCriteria(filter)) ? 'tasks' : 'open'
+}
+
+/** A heading's name: the split's for `name`; for `open`, Oldest while it shows the oldest, else Open (Tasks while it counts completed ones); a count column's its name. */
+export function sortHeading(
+  by: BreakdownSortKey,
+  split: BreakdownSplit,
+  show: BreakdownShow,
+  columns: readonly BreakdownColumn[] = [],
+  word: CountWord = 'open',
+): string {
   switch (by) {
     case 'name': return SPLIT_ROW_LABELS[split]
-    case 'open': return show === 'oldest' ? 'Oldest' : 'Open'
+    case 'open': return show === 'oldest' ? 'Oldest' : word === 'tasks' ? 'Tasks' : 'Open'
     default: {
       const column = columns.find((c) => c.id === by)
       return column ? columnHeading(column) : by
@@ -80,8 +102,8 @@ export function sortHeading(by: BreakdownSortKey, split: BreakdownSplit, show: B
 }
 
 /** The split's own order, in words (people and tags: most counted across the count columns first). */
-function defaultSortWords(split: BreakdownSplit, show: BreakdownShow, columns: readonly BreakdownColumn[]): string {
-  if (!hasNaturalOrder(split)) return show === 'oldest' ? 'Oldest first' : columns.length > 0 ? 'Most counted first' : 'Most open first'
+function defaultSortWords(split: BreakdownSplit, show: BreakdownShow, columns: readonly BreakdownColumn[], word: CountWord): string {
+  if (!hasNaturalOrder(split)) return show === 'oldest' ? 'Oldest first' : columns.length > 0 ? 'Most counted first' : `Most ${word} first`
   switch (split) {
     case 'status': return 'Settings order'
     case 'priority': return 'Priority order'
@@ -90,18 +112,24 @@ function defaultSortWords(split: BreakdownSplit, show: BreakdownShow, columns: r
   }
 }
 
-/** A sort in words, for the ⋯ menu's Sort (`Most Due first`, `A–Z`, `Fewest open first`); a sort by a column it no longer has reads as the default. */
-export function sortWords(sort: BreakdownSort | undefined, split: BreakdownSplit, show: BreakdownShow, columns: readonly BreakdownColumn[] = []): string {
+/** A sort in words, for the ⋯ menu's Sort (`Most Due first`, `A–Z`, `Fewest open first` — `Fewest tasks first` while it counts completed ones); a sort by a column it no longer has reads as the default. */
+export function sortWords(
+  sort: BreakdownSort | undefined,
+  split: BreakdownSplit,
+  show: BreakdownShow,
+  columns: readonly BreakdownColumn[] = [],
+  word: CountWord = 'open',
+): string {
   const r = sort?.reversed === true
   switch (sort?.by) {
-    case undefined: return defaultSortWords(split, show, columns)
+    case undefined: return defaultSortWords(split, show, columns, word)
     case 'name': return r ? 'Z–A' : 'A–Z'
     case 'open':
       if (show === 'oldest') return r ? 'Newest first' : 'Oldest first'
-      return r ? 'Fewest open first' : 'Most open first'
+      return `${r ? 'Fewest' : 'Most'} ${word} first`
     default: {
       const column = columns.find((c) => c.id === sort?.by)
-      if (!column) return defaultSortWords(split, show, columns)
+      if (!column) return defaultSortWords(split, show, columns, word)
       return `${r ? 'Fewest' : 'Most'} ${columnHeading(column)} first`
     }
   }

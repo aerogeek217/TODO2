@@ -45,6 +45,14 @@ export const DUE_BUCKET_LABELS: Record<DueBucket, string> = {
   later: 'Later',
 }
 
+/**
+ * The first due row's name once it holds a completed task (a chart whose
+ * filter lets them through, cr34 G6): the row is the due dates before
+ * today, and a completed task with one isn't overdue, so it is named by its
+ * dates alone. While every task in it is open it stays `Overdue`.
+ */
+export const DUE_PAST_LABEL = 'Before today'
+
 /** The age buckets (days since created), in order. */
 export type AgeBucket = 'week' | 'month' | 'quarter' | 'older'
 const AGE_BUCKETS: readonly AgeBucket[] = ['week', 'month', 'quarter', 'older']
@@ -86,6 +94,7 @@ export interface OldestTask {
 export interface BreakdownRow {
   /** Unique in the Breakdown: `person-3`, `tag-5`, `status-2`, `priority-focus`, `due-overdue`, `age-week`; `none`. */
   key: string
+  /** Its name; the `due-overdue` row's is `Overdue`, or `DUE_PAST_LABEL` once it holds a completed task. */
   label: string
   entity: BreakdownEntity
   /** Its colour (a person's, a tag's, a status's, a marker's); absent = neutral. */
@@ -321,8 +330,10 @@ export function computeBreakdown(tasks: readonly PersistedTodoItem[], ctx: Stats
     }
   }
   const rows = [...groups.values()].map((g) => {
-    const row = breakdownRow(g.head, g.tasks, ctx, opts)
     const e = g.head.entity
+    // The due dates before today: Overdue only while none of its tasks is completed.
+    const past = e.kind === 'due' && e.bucket === 'overdue' && g.tasks.some((t) => t.isCompleted)
+    const row = breakdownRow(past ? { ...g.head, label: DUE_PAST_LABEL } : g.head, g.tasks, ctx, opts)
     const id = e.kind === 'person' ? e.person.id : e.kind === 'tag' ? e.tag.id : null
     const excludes = id == null ? [] : rowExcludes(id, opts.restrictions ?? [])
     return excludes.length > 0 ? { ...row, excludes } : row

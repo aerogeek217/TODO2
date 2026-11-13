@@ -1,4 +1,4 @@
-import type { BreakdownRow } from '../../../services/stats/breakdown'
+import { DUE_BUCKET_LABELS, type BreakdownRow } from '../../../services/stats/breakdown'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import type { GlanceDrill } from './glance-types'
 
@@ -35,7 +35,8 @@ function rowWords(row: Pick<BreakdownRow, 'label' | 'entity'>): string {
     case 'tag': return `tagged #${row.label}`
     case 'status': return `with the status ${row.label}`
     case 'priority': return `with the priority ${row.label}`
-    case 'due': return `due ${row.label.toLowerCase()}`
+    // `overdue` (open tasks late), else by its dates: `due before today`, `due today`, `due next 7 days`, `due later`.
+    case 'due': return e.bucket === 'overdue' && row.label === DUE_BUCKET_LABELS.overdue ? 'overdue' : `due ${row.label.toLowerCase()}`
     case 'age': return `created ${row.label.toLowerCase()} ago`
     case 'none': return row.label.toLowerCase()
   }

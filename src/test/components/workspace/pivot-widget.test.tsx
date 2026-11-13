@@ -126,3 +126,34 @@ describe('the Pivot’s headings sort its rows (item 8)', () => {
     expect(current().viewState?.sort).toEqual({ by: 'total' })
   })
 })
+
+describe('a Pivot that counts completed tasks says tasks, not open (cr34 G6)', () => {
+  const headerCount = () => document.querySelector('[data-testid="glance-section-count"]')!.textContent
+  const everyTask = () => ({ ...pivot().config.filter, showCompleted: true })
+
+  it('open tasks only: N open — the header, Copy and an empty small face', () => {
+    let plain = ''
+    const tab = pivot()
+    render(<DndContext><WidgetFaceContext.Provider value={{ forced: 'large' }}><GlanceWidget tab={tab} onResult={(r) => { plain = r.summary.plain }} /></WidgetFaceContext.Provider></DndContext>)
+    const open = SAMPLE_TASKS.filter((t) => !t.isCompleted).length
+    expect(headerCount()).toBe(`${open} open`)
+    expect(plain.split('\n')[0]).toBe(`Pivot ${open} open`)
+    cleanup()
+    useTodoStore.setState({ todos: [] })
+    setup(pivot(), 'small')
+    expect(document.querySelector('[data-testid="glance-small-face"]')!.getAttribute('aria-label')).toBe('Pivot: 0 open')
+  })
+
+  it('a filter that lets completed tasks through: N tasks — every task counted, completed ones too', () => {
+    let plain = ''
+    const tab = pivot({ filter: everyTask() })
+    render(<DndContext><WidgetFaceContext.Provider value={{ forced: 'large' }}><GlanceWidget tab={tab} onResult={(r) => { plain = r.summary.plain }} /></WidgetFaceContext.Provider></DndContext>)
+    expect(SAMPLE_TASKS.some((t) => t.isCompleted)).toBe(true)
+    expect(headerCount()).toBe(`${SAMPLE_TASKS.length} tasks`)
+    expect(plain.split('\n')[0]).toBe(`Pivot ${SAMPLE_TASKS.length} tasks`)
+    cleanup()
+    useTodoStore.setState({ todos: [] })
+    setup(pivot({ filter: everyTask() }), 'small')
+    expect(document.querySelector('[data-testid="glance-small-face"]')!.getAttribute('aria-label')).toBe('Pivot: 0 tasks')
+  })
+})

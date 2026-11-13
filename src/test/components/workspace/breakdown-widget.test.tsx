@@ -315,6 +315,61 @@ describe('no check-in envelope (widget feedback 2B)', () => {
     expect(within(rowOf('person-4')).getByTestId('breakdown-figure').textContent).toMatch(/^\d+ d$/)
   })
 })
+describe('a Breakdown that counts completed tasks says tasks, not open (cr34 G6)', () => {
+  const everyTask = () => ({ ...current0().config.filter, showCompleted: true })
+  const headings = () => [...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)
+  const headerCount = () => document.querySelector('[data-testid="glance-section-count"]')!.textContent
+
+  it('the header, the figure heading, the small face, Copy and the Sort menu', () => {
+    let result: GlanceResult | null = null
+    const tab = breakdown({ filter: everyTask(), columns: [] })
+    inLayout(tab)
+    render(<DndContext><WidgetFaceContext.Provider value={{ forced: 'large' }}><GlanceWidget tab={tab} onResult={(r) => { result = r }} /></WidgetFaceContext.Provider></DndContext>)
+    expect(headerCount()).toMatch(/^\d+ tasks$/)
+    expect(headings()).toEqual(['Person', 'Tasks'])
+    expect((result as GlanceResult | null)?.summary.plain.split('\n')[0]).toMatch(/^People \d+ tasks$/)
+    const sort = item(glanceMenu(tab, undefined)!.settingEntries, 'Sort')
+    expect(sort.note).toBe('Most tasks first')
+    expect(sort.children!.flatMap((e) => (e.kind === 'item' ? [e.label] : []))).toEqual([
+      'Default: Most tasks first', 'Person: A–Z', 'Person: Z–A', 'Tasks: Most tasks first', 'Tasks: Fewest tasks first',
+    ])
+    cleanup()
+    setup(tab, { face: 'small' })
+    expect(document.querySelector('[data-testid="glance-small-face"]')!.getAttribute('aria-label')).toMatch(/^People: .+: \d+ tasks$/)
+  })
+
+  it('a Completed range counts as Show completed does; open tasks only still say open', () => {
+    setup(breakdown({ filter: { ...current0().config.filter, dates: { completed: { match: 'range', start: { kind: 'offset', days: -30 }, end: { kind: 'offset', days: 0 } } } }, columns: [] }))
+    expect(headerCount()).toMatch(/^\d+ tasks$/)
+    expect(headings()).toEqual(['Person', 'Tasks'])
+    cleanup()
+    setup(breakdown({ columns: [] }))
+    expect(headerCount()).toMatch(/^\d+ open$/)
+    expect(headings()).toEqual(['Person', 'Open'])
+  })
+
+  it('split by due date: the dates before today are Overdue while open, Before today once a completed task is among them', () => {
+    const due = (id: number, day: number, done = false) => makeTodo({ id, title: `Task ${id}`, dueDate: new Date(2026, 9, day), isCompleted: done, ...(done ? { completedAt: new Date(2026, 9, 9) } : {}) })
+    useTodoStore.setState({ todos: [due(1, 7), due(2, 8, true), due(3, 10), due(4, 12)] })
+    const onDrill = vi.fn()
+    // Open tasks only: task 1 is overdue.
+    setup(breakdown({ splitBy: 'due', columns: [] }), { onDrill })
+    expect(rowOf('due-overdue').querySelector('button')!.getAttribute('aria-label')).toBe('Overdue: 1 task. Show tasks')
+    fireEvent.click(rowOf('due-overdue').querySelector('button')!)
+    expect((onDrill.mock.lastCall?.[0] as GlanceDrill).description).toBe('People: the tasks overdue.')
+    cleanup()
+    // Every task: the completed one due 8 Oct is in the row, which no longer says Overdue; its late bar still counts the open one alone.
+    setup(breakdown({ splitBy: 'due', filter: everyTask(), columns: [] }), { onDrill })
+    expect(rowOf('due-overdue').querySelector('button')!.getAttribute('aria-label')).toBe('Before today: 2 tasks. Show tasks')
+    expect(document.body.textContent).not.toContain('Overdue')
+    fireEvent.click(rowOf('due-overdue').querySelector('button')!)
+    const drill = onDrill.mock.lastCall?.[0] as GlanceDrill
+    expect(drill.title).toBe('People · Before today')
+    expect(drill.description).toBe('People: the tasks due before today.')
+    expect(drill.source).toMatchObject({ kind: 'todos', todoIds: [1, 2] })
+  })
+})
+
 describe('Oldest by due date never prints a negative age (cr34 G10)', () => {
   /** Dana: due in 5 days and in 9 · Sam: 3 days late and due in 2 · Ben: due today · Priya: no due date. */
   function seed() {

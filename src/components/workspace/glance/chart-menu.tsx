@@ -13,7 +13,7 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import { showTab } from '../widget-hooks'
-import { sortHeading, sortWords, SPLIT_CHOICE_LABELS, STYLE_LABELS } from './breakdown-copy'
+import { countWordOf, sortHeading, sortWords, SPLIT_CHOICE_LABELS, STYLE_LABELS } from './breakdown-copy'
 import { settingEntry, type Choice } from './menu-entries'
 
 /**
@@ -41,9 +41,11 @@ function sortEntry(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry {
   const key = (s: BreakdownSort | undefined) => (s ? `${s.by}${s.reversed ? '-r' : ''}` : 'default')
   const keys = [...BREAKDOWN_FIXED_SORT_KEYS, ...columns.map((c) => c.id)]
   const sorts: Array<BreakdownSort | undefined> = [undefined, ...keys.flatMap((by): BreakdownSort[] => [{ by }, { by, reversed: true }])]
+  // A Breakdown whose filter lets completed tasks through counts tasks, not open ones (cr34 G6).
+  const word = countWordOf(tab.config.filter)
   const choices: Choice<string>[] = sorts.map((s) => ({
     value: key(s),
-    label: s ? `${sortHeading(s.by, splitBy, show, columns)}: ${sortWords(s, splitBy, show, columns)}` : `Default: ${sortWords(undefined, splitBy, show, columns)}`,
+    label: s ? `${sortHeading(s.by, splitBy, show, columns, word)}: ${sortWords(s, splitBy, show, columns, word)}` : `Default: ${sortWords(undefined, splitBy, show, columns, word)}`,
   }))
   const entry = settingEntry('Sort', choices, key(current), (value) => {
     const next = sorts.find((s) => key(s) === value)
@@ -52,7 +54,7 @@ function sortEntry(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry {
     else delete all[splitBy]
     void useWorkspaceStore.getState().patchTabViewState(tab.id, 'breakdown', { sorts: all })
   }, undefined, 260)
-  return entry.kind === 'item' ? { ...entry, note: sortWords(current, splitBy, show, columns) } : entry
+  return entry.kind === 'item' ? { ...entry, note: sortWords(current, splitBy, show, columns, word) } : entry
 }
 
 const SPLIT_CHOICES = BREAKDOWN_SPLITS.map((s) => ({ value: s, label: SPLIT_CHOICE_LABELS[s] }))
