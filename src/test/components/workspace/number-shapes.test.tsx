@@ -153,7 +153,8 @@ describe('Oldest', () => {
     const onDrill = vi.fn()
     setup(shape({ show: 'oldest', oldestBy: 'deadline' }, 'open'), onDrill)
     const foot = within(number()).getByTestId('number-oldest-foot').textContent!
-    expect(foot).toMatch(new RegExp(`^${dated.length} · median -?\\d+ days?$`))
+    // The median by due date is worded as the figure is, never a negative age (cr34 G10).
+    expect(foot).toMatch(new RegExp(`^${dated.length} · median (due today|\\d+ days? overdue|due in \\d+ days?)$`))
     expect(number().getAttribute('aria-label')).toContain(`${foot}.`)
     expect(lastResult?.summary.plain.split('\n').at(-1)).toBe(foot)
     fireEvent.click(number())

@@ -36,6 +36,17 @@ describe('a Number’s shapes’ words (D26 P6)', () => {
     expect(oldestFoot(0, null)).toBe('0')
   })
 
+  it('by due date the foot’s median reads as the figure does, never a negative age (cr34 G10)', () => {
+    expect(oldestFoot(5, 6, 'deadline')).toBe('5 · median 6 days overdue')
+    expect(oldestFoot(5, 1, 'deadline')).toBe('5 · median 1 day overdue')
+    expect(oldestFoot(5, 0, 'deadline')).toBe('5 · median due today')
+    expect(oldestFoot(5, -1, 'deadline')).toBe('5 · median due in 1 day')
+    expect(oldestFoot(5, -6, 'deadline')).toBe('5 · median due in 6 days')
+    expect(oldestFoot(0, null, 'deadline')).toBe('0')
+    // The other dates are plain ages.
+    expect(oldestFoot(5, 6, 'created')).toBe('5 · median 6 days')
+  })
+
   it('an oldest with nothing to age: No tasks; by due date over undated tasks, No due dates (cr34 G3)', () => {
     expect(oldestNone(0, 'deadline')).toBe('No tasks')
     expect(oldestNone(12, 'deadline')).toBe('No due dates')

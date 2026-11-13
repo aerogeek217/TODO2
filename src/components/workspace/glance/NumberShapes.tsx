@@ -237,7 +237,7 @@ export function OldestNumber({ tab, onResult, onDrill }: ShapeProps) {
   const age = top ? oldestAge(top.days, by) : null
   const colors = top ? litColors(config, numberIsLit(config, top.days), false) : litColors(config, false, true)
   // The tasks the age is over (cr34 G3): the figure, the median and the click all read them, so the foot counts them too — by due date, only the dated ones.
-  const foot = oldestFoot(oldest.ids.length, oldest.median)
+  const foot = oldestFoot(oldest.ids.length, oldest.median, by)
   const none = oldestNone(count.ids.shown.length, by)
   const small = face === 'small'
 

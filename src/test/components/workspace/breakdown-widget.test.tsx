@@ -5,6 +5,7 @@ import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import { ChartEditorHost } from '../../../components/workspace/glance/ChartEditor'
 import { AddWidgetFlow } from '../../../components/workspace/AddWidgetFlow'
 import { glanceMenu } from '../../../components/workspace/glance/glance-menu'
+import type { GlanceResult } from '../../../components/workspace/glance/glance-hooks'
 import type { GlanceDrill } from '../../../components/workspace/glance/glance-types'
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
@@ -22,7 +23,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { WidgetFace } from '../../../utils/widget-face'
-import { clearFilterStore, resetEntityStores } from '../../helpers'
+import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 import { grid, single } from '../../helpers/layout-builders'
 import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_TASKS, STATUSES, TAGS } from '../../fixtures/glance-sample'
 import { layoutSteps } from '../../helpers/layout-steps'
@@ -314,6 +315,53 @@ describe('no check-in envelope (widget feedback 2B)', () => {
     expect(within(rowOf('person-4')).getByTestId('breakdown-figure').textContent).toMatch(/^\d+ d$/)
   })
 })
+describe('Oldest by due date never prints a negative age (cr34 G10)', () => {
+  /** Dana: due in 5 days and in 9 · Sam: 3 days late and due in 2 · Ben: due today · Priya: no due date. */
+  function seed() {
+    const task = (id: number, due?: Date) => makeTodo({ id, title: `Task ${id}`, ...(due ? { dueDate: due } : {}) })
+    useTodoStore.setState({ todos: [
+      task(1, new Date(2026, 9, 15)), task(2, new Date(2026, 9, 19)),
+      task(3, new Date(2026, 9, 7)), task(4, new Date(2026, 9, 12)),
+      task(5, new Date(2026, 9, 10)),
+      task(6),
+    ] })
+    const of = (id: number) => PEOPLE.filter((p) => p.id === id)
+    usePersonStore.setState({ people: PEOPLE, assignedPeopleMap: new Map([[1, of(1)], [2, of(1)], [3, of(2)], [4, of(2)], [5, of(3)], [6, of(4)]]) })
+  }
+  const figureOf = (key: string) => within(rowOf(key)).getByTestId('breakdown-figure').textContent
+  const nameOf = (key: string) => rowOf(key).querySelector('button')!.getAttribute('aria-label')
+
+  it('a row with nothing late reads when its soonest is due; a late one how late; due today 0 d; none dated –', () => {
+    seed()
+    let result: GlanceResult | null = null
+    inLayout(breakdown({ show: 'oldest', oldestBy: 'due' }))
+    render(<DndContext><WidgetFaceContext.Provider value={{ forced: 'large' }}><GlanceWidget tab={current()} onResult={(r) => { result = r }} /></WidgetFaceContext.Provider></DndContext>)
+    expect(figureOf('person-1')).toBe('in 5 d')
+    expect(figureOf('person-2')).toBe('3 d')
+    expect(figureOf('person-3')).toBe('0 d')
+    expect(figureOf('person-4')).toBe('–')
+    expect(nameOf('person-1')).toBe('Dana Kim: 2 tasks, oldest due in 5 days. Show tasks')
+    expect(nameOf('person-2')).toBe('Sam Lee: 2 tasks, oldest 3 days overdue. Show tasks')
+    expect(nameOf('person-3')).toBe('Ben Ortiz: 1 task, oldest due today. Show tasks')
+    expect(nameOf('person-4')).toBe('Priya Nair: 1 task. Show tasks')
+    expect(document.body.textContent).not.toMatch(/-\d+ d/)
+    // Copy says the same.
+    expect((result as GlanceResult | null)?.summary.plain).toContain('Dana Kim in 5 d')
+    expect((result as GlanceResult | null)?.summary.plain).not.toMatch(/-\d/)
+  })
+
+  it('the small face’s top row too; the other dates stay plain ages', () => {
+    seed()
+    // Only Dana's tasks: the top row is hers.
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.filter((t) => t.id <= 2) })
+    setup(breakdown({ show: 'oldest', oldestBy: 'due' }), { face: 'small' })
+    expect(document.body.textContent).toContain('in 5 d')
+    cleanup()
+    setup(breakdown({ show: 'oldest', oldestBy: 'created' }), { face: 'small' })
+    expect(document.body.textContent).toContain('Dana Kim0 d')
+  })
+})
+
 describe('the table’s columns', () => {
   it('large: name · bar · Open · each count column — no Priority column; a count column is its number’s room, the name takes the rest', () => {
     setup(breakdown())

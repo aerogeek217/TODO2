@@ -107,15 +107,28 @@ export function sortWords(sort: BreakdownSort | undefined, split: BreakdownSplit
   }
 }
 
-/** `19 d` — an age in days. */
-export function daysLabel(days: number): string {
-  return `${days} d`
+/**
+ * `19 d` — an age in days. By due date the age is how late the task is, so
+ * one not yet due reads when it is due, `in 5 d`, never a negative age
+ * (cr34 G10); due today is `0 d`.
+ */
+export function daysLabel(days: number, by?: BreakdownOldestBy): string {
+  return by === 'due' && days < 0 ? `in ${-days} d` : `${days} d`
 }
 
-/** A row's figure: its task count, or its oldest's age (`–` without one). */
-export function rowFigure(row: BreakdownRow, show: BreakdownShow): string {
+/** An oldest task's age in a row's accessible name: `oldest 19 days`; by due date `oldest 3 days overdue`, `oldest due today`, `oldest due in 5 days`. */
+export function oldestWords(days: number, by: BreakdownOldestBy): string {
+  const n = Math.abs(days)
+  const unit = n === 1 ? 'day' : 'days'
+  if (by !== 'due') return `oldest ${days} ${unit}`
+  if (days === 0) return 'oldest due today'
+  return days > 0 ? `oldest ${n} ${unit} overdue` : `oldest due in ${n} ${unit}`
+}
+
+/** A row's figure: its task count, or its oldest's age by `oldestBy` (`–` without one). */
+export function rowFigure(row: BreakdownRow, show: BreakdownShow, oldestBy?: BreakdownOldestBy): string {
   if (show === 'count') return String(row.ids.length)
-  return row.oldest ? daysLabel(row.oldest.days) : '–'
+  return row.oldest ? daysLabel(row.oldest.days, oldestBy) : '–'
 }
 
 /**
@@ -130,13 +143,14 @@ export function breakdownLines(
   rows: readonly BreakdownRow[],
   show: BreakdownShow,
   columns: readonly BreakdownColumn[] = [],
+  oldestBy?: BreakdownOldestBy,
 ): SummaryPart[][] {
   const head = [{ label: title, count: `${total} ${totalWord}` }]
-  if (columns.length === 0) return [head, rows.map((r) => ({ label: rowHeading(r), count: rowFigure(r, show) }))]
+  if (columns.length === 0) return [head, rows.map((r) => ({ label: rowHeading(r), count: rowFigure(r, show, oldestBy) }))]
   return [
     head,
     ...rows.map((r) => [
-      { label: rowHeading(r), count: rowFigure(r, show) },
+      { label: rowHeading(r), count: rowFigure(r, show, oldestBy) },
       ...columns.map((c) => ({ label: columnHeading(c), count: String(columnCount(r, c.id)) })),
     ]),
   ]

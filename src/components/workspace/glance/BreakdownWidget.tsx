@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
-import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
+import { columnIsLit, DEFAULT_BREAKDOWN_OLDEST_BY, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
 import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
@@ -19,7 +19,7 @@ import { PriorityRing } from '../../shared/PriorityRing'
 import { StatusMark } from '../../shared/StatusMark'
 import { useTooltip } from '../../shared/use-tooltip'
 import {
-  breakdownLines, columnHeading, rowFigure, sortHeading, SPLIT_GLYPHS,
+  breakdownLines, columnHeading, oldestWords, rowFigure, sortHeading, SPLIT_GLYPHS,
 } from './breakdown-copy'
 import { breakdownColumnDrill, breakdownRowDrill, rowHeading } from './chart-drills'
 import { ChartPanel } from './chart-parts'
@@ -185,6 +185,7 @@ interface TableProps {
  */
 function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {
   const { splitBy, show } = config
+  const oldestBy = config.oldestBy ?? DEFAULT_BREAKDOWN_OLDEST_BY
   const [menu, setMenu] = useState<{ entity: MenuEntity; at: { x: number; y: number } } | null>(null)
   // The Breakdown's own lens switch goes with a jump, so the Review widget shows the tasks counted here.
   const ignoresLens = useWidgetIgnoresLens()
@@ -249,7 +250,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
           const value = show === 'oldest' ? Math.max(0, row.oldest?.days ?? 0) : row.ids.length
           const late = row.overdue
           const n = row.ids.length
-          const words = `${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}${show === 'oldest' && row.oldest ? `, oldest ${row.oldest.days} days` : ''}`
+          const words = `${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}${show === 'oldest' && row.oldest ? `, ${oldestWords(row.oldest.days, oldestBy)}` : ''}`
           return (
             <div
               key={row.key}
@@ -306,7 +307,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
               )}
               {figure && (
                 <span role="cell" className={styles.num} data-testid="breakdown-figure">
-                  {rowFigure(row, show)}
+                  {rowFigure(row, show, oldestBy)}
                 </span>
               )}
               {columns.map((column) => {
@@ -436,7 +437,8 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   // agree, a hidden none row counted in none of them.
   const total = useMemo(() => new Set(all.flatMap((r) => r.ids)).size, [all])
   const word = data.tasks.some((t) => t.isCompleted) ? 'tasks' : 'open'
-  const lines = useMemo(() => breakdownLines(title, total, word, all, config.show, data.columns), [title, total, word, all, config.show, data.columns])
+  const oldestBy = config.oldestBy ?? DEFAULT_BREAKDOWN_OLDEST_BY
+  const lines = useMemo(() => breakdownLines(title, total, word, all, config.show, data.columns, oldestBy), [title, total, word, all, config.show, data.columns, oldestBy])
   useReportLines(onResult, lines)
 
   const drill = glanceDrill(onDrill, data.count.filtered)
@@ -459,7 +461,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
         glyphColor="var(--color-accent)"
         title={title}
         entry={top ? rowHeading(top) : undefined}
-        value={top ? rowFigure(top, config.show) : '0'}
+        value={top ? rowFigure(top, config.show, oldestBy) : '0'}
         caption={top && config.show === 'count' ? 'open' : top ? undefined : 'open'}
       />
     )
