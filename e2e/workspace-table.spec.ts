@@ -18,7 +18,7 @@ import {
   wsShape,
   wsTab,
   type WsLayoutSeed,
-  expectLayoutStep,
+  expectDividerStep, expectLayoutStep,
   expectLayoutStored,
 } from './fixtures/workspace'
 import { box, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
@@ -337,7 +337,7 @@ test.describe('dividers', () => {
     // x and y keep their line.
     // (A new track takes one more gap from the weighted rows: a few px.)
     expect(Math.abs((await edges(wsCell(page, 'x'))).bottom - xBottom)).toBeLessThanOrEqual(4)
-    await expectLayoutStep(page)
+    await expectDividerStep(page)
     const moved = Math.round((await edges(wsCell(page, 'a'))).bottom)
     await expectLayoutStored(page)
     await page.reload()
@@ -401,7 +401,7 @@ test.describe('dividers', () => {
     await expect.poll(async () => Math.abs(Math.round((await box(wsCell(page, 'a'))).width - (await box(wsCell(page, 'b'))).width))).toBeLessThanOrEqual(8)
     // c|d stays at 600 : 400 (a new track takes one more gap: a few px).
     expect(Math.abs(Math.round((await box(wsCell(page, 'c'))).width) - cWidth)).toBeLessThanOrEqual(4)
-    await expectLayoutStep(page)
+    await expectDividerStep(page)
   })
 
   test('a narrow window: the cells keep 120px and the table scrolls sideways', async ({ page }) => {

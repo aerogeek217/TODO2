@@ -556,6 +556,15 @@ export async function expectLayoutStep(page: Page, name?: string | RegExp): Prom
 }
 
 /**
+ * A divider moved part of a line: a structural edit saved at once — an undo
+ * step with no snackbar (the table shows the move), then stored.
+ */
+export async function expectDividerStep(page: Page): Promise<void> {
+  await expectLayoutStored(page)
+  await expect(page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true })).toHaveCount(0)
+}
+
+/**
  * Picks an action for the open layout (Duplicate layout…, Edit…,
  * Delete layout…): from its tab's menu, or the picker's when the tabs are
  * folded.

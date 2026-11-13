@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { edges, expectSameEdges, openCellLayoutMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { edges, expectSameEdges, openCellLayoutMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed, expectDividerStep, expectLayoutStored } from './fixtures/workspace'
 import { box, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -63,7 +63,7 @@ test.describe('pieces and crossings', () => {
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).right - a0.right)).toBeGreaterThan(90)
     // c | d stays (a new track takes one more gap from the weighted columns: a few px).
     expect(Math.abs((await edges(wsCell(page, 'c'))).right - c0.right)).toBeLessThanOrEqual(4)
-    await expectLayoutStep(page)
+    await expectDividerStep(page)
     await expect(crossing(page)).toHaveCount(0)
   })
 
@@ -148,7 +148,7 @@ test.describe('snapping', () => {
     let from = centre(await box(wsDivider(page, 'b', 'd')))
     await dragHandle(page, from, { x: from.x, y: from.y + 80 })
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'b'))).bottom - a0.bottom)).toBeGreaterThan(70)
-    await expectLayoutStep(page)
+    await expectDividerStep(page)
     await expect(crossing(page)).toHaveCount(0)
     expect(Math.abs((await edges(wsCell(page, 'a'))).bottom - a0.bottom)).toBeLessThanOrEqual(4)
 
@@ -214,7 +214,7 @@ test.describe('a structural drag previews its result', () => {
       mid.b = await edges(wsCell(page, 'b'))
       expect(await marked()).toBe(true)
     })
-    await expectLayoutStep(page)
+    await expectDividerStep(page)
     if (!mid.a || !mid.b) throw new Error('not measured mid-drag')
     expect(mid.a.right - a0.right).toBeGreaterThan(50)
     expectSameEdges(await edges(wsCell(page, 'a')), mid.a, 1)
