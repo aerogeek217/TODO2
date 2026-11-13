@@ -234,6 +234,24 @@ describe('Against a goal', () => {
     expect(number().dataset.lit).toBe('true')
     expect(within(number()).getByTestId('number-goal-bar').querySelector('span')!.style.width).toBe('50%')
   })
+
+  it('in the week’s first minute a weekly goal with nothing counted is on pace, not lit; the next day it is behind (cr34, answer 15)', () => {
+    const nothing = { ...emptyPredicate(), searchText: 'nothing matches this' }
+    // Sun 11 Oct 00:01, the first day of a Sunday week.
+    vi.setSystemTime(new Date(2026, 9, 11, 0, 1))
+    setup(shape({ show: 'goal', goal: { atLeast: 4, period: 'week' }, filter: nothing }))
+    expect(figure()).toBe('0')
+    expect(within(number()).getByTestId('number-goal-state').textContent).toBe('On pace (Sun)')
+    expect(number().dataset.lit).toBeUndefined()
+    expect(within(number()).getByTestId('number-goal-bar').dataset.goalState).toBe('onPace')
+    // The tick still marks the day's share.
+    expect(within(number()).getByTestId('number-goal-pace').getAttribute('title')).toBe('Pace: 0.6 by the end of Sun')
+    cleanup()
+    vi.setSystemTime(new Date(2026, 9, 12, 0, 1))
+    setup(shape({ show: 'goal', goal: { atLeast: 4, period: 'week' }, filter: nothing }))
+    expect(within(number()).getByTestId('number-goal-state').textContent).toBe('Behind pace (Mon)')
+    expect(number().dataset.lit).toBe('true')
+  })
 })
 
 describe('A group', () => {
