@@ -3,6 +3,8 @@ import { render, cleanup, screen, fireEvent, act, within } from '@testing-librar
 import { EditListHost } from '../../../components/workspace/list/EditList'
 import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
 import { openEditList } from '../../../components/workspace/widget-hooks'
+import { listDefinitionRepository } from '../../../data/list-definition-repository'
+import { beginReplaceHold } from '../../../stores/replace-hold'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -133,13 +135,92 @@ describe('Edit list', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Name' }))
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save' })) })
-    expect(draft()).toBeUndefined()
     expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('name')
-    expect(editorOpen()).toBe(false)
+    // It closes, dropping its draft, once the write has landed.
+    await vi.waitFor(() => expect(editorOpen()).toBe(false))
+    expect(draft()).toBeUndefined()
     expect(useUIStore.getState().listEditor).toBeNull()
     await vi.waitFor(() => expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Edited list “Waiting on”']))
     await act(() => useUndoStore.getState().undo())
     expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('deadline')
+  })
+
+  describe('a Save whose write doesn’t land (cr34 D6)', () => {
+    const editGroup = (dialog: HTMLElement) => {
+      fireEvent.click(within(dialog).getByRole('button', { name: /^Group by/ }))
+      fireEvent.click(screen.getByRole('menuitemradio', { name: 'Status' }))
+    }
+    const save = async () => {
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
+    }
+    const failWrites = () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      return vi.spyOn(listDefinitionRepository, 'update').mockRejectedValue(new DOMException('full', 'QuotaExceededError'))
+    }
+
+    const COULD_NOT_SAVE = "Couldn't save list “Waiting on”."
+
+    afterEach(() => { vi.restoreAllMocks() })
+
+    it('a failed write says so and leaves Edit list open with its edits; Save again writes them', async () => {
+      const update = failWrites()
+      editGroup(open())
+      await save()
+      await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: COULD_NOT_SAVE }))
+      expect(editorOpen()).toBe(true)
+      expect(draft()).toMatchObject({ grouping: 'status' })
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('people')
+      expect(useUndoStore.getState().undoStack).toHaveLength(0)
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+      // The storage works again: the same Save writes the same edits.
+      update.mockRestore()
+      await save()
+      await vi.waitFor(() => expect(editorOpen()).toBe(false))
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
+      expect(draft()).toBeUndefined()
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Edited list “Waiting on”'])
+    })
+
+    it('the question’s Save that fails keeps it open too; Discard then drops the edits', async () => {
+      failWrites()
+      const dialog = open()
+      editGroup(dialog)
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
+      await answer('Save')
+      await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: COULD_NOT_SAVE }))
+      expect(editorOpen()).toBe(true)
+      expect(draft()).toMatchObject({ grouping: 'status' })
+      fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+      expect(editorOpen()).toBe(false)
+      expect(draft()).toBeUndefined()
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('people')
+    })
+
+    it('a data replace holding list writes: Save says so and keeps the edits', async () => {
+      const release = beginReplaceHold()
+      try {
+        editGroup(open())
+        await save()
+        expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Your data is being replaced — try again in a moment.' })
+        expect(editorOpen()).toBe(true)
+        expect(draft()).toMatchObject({ grouping: 'status' })
+      } finally {
+        release()
+      }
+    })
+
+    it('a second Save while the first is being written writes once', async () => {
+      const update = vi.spyOn(listDefinitionRepository, 'update')
+      editGroup(open())
+      const button = screen.getByRole('button', { name: 'Save' })
+      await act(async () => {
+        fireEvent.click(button)
+        fireEvent.click(button)
+      })
+      await vi.waitFor(() => expect(editorOpen()).toBe(false))
+      expect(update).toHaveBeenCalledTimes(1)
+      expect(useUndoStore.getState().undoStack).toHaveLength(1)
+    })
   })
 
   it('Save writes only what the draft changed: a lens switch written meanwhile stays', async () => {
@@ -206,8 +287,8 @@ describe('Edit list', () => {
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Status' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
     await answer('Save')
-    expect(editorOpen()).toBe(false)
     expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
+    await vi.waitFor(() => expect(editorOpen()).toBe(false))
   })
 
   it('× on a list with no changes closes it at once', () => {

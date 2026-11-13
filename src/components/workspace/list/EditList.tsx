@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { tabListId } from '../../../models/workspace-layout'
@@ -8,7 +8,7 @@ import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useEditorLeave } from '../../../hooks/use-editor-leave'
 import { useListWidgetCount } from '../../../hooks/use-list-widget-count'
 import { useCopySources } from '../../../hooks/use-copy-sources'
-import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import { listEditChanges, useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -43,7 +43,8 @@ const NAME_TO_SAVE_TITLE = 'Name the list to save it'
  * and nothing is written until **Save** — then, for good and as one undo
  * step (`Edited list “This week”`, `list-definition-store.editList`), only
  * the parts the draft changed since the surface opened, over the list as it
- * is then. **Discard** drops the draft. Closing with changes
+ * is then; the surface closes once that write has landed, and stays open
+ * with its draft when it fails. **Discard** drops the draft. Closing with changes
  * (`requestClose`: Esc, ×, a press elsewhere, the sheet's scrim or handle,
  * the filter line's words or summary) asks Save / Discard / Keep editing
  * (the shared confirm prompt); with none it just closes. However the
@@ -51,7 +52,7 @@ const NAME_TO_SAVE_TITLE = 'Name the list to save it'
  * filters, group, sort, prompt and filter line into the draft
  * (`withCopiedParts`: the name and the manual order stay).
  */
-function useEditListModel(listDefinitionId: number, onClose: () => void) {
+function useEditListModel(listDefinitionId: number, tabId: string, onClose: () => void) {
   const saved = useListDefinitionStore((s) => s.listDefinitions.find((d) => d.id === listDefinitionId))
   const draft = useListDraftStore((s) => s.drafts[listDefinitionId])
   // The list as the surface opened on it: Save writes what the draft changed since.
@@ -68,25 +69,52 @@ function useEditListModel(listDefinitionId: number, onClose: () => void) {
   useEffect(() => () => useListDraftStore.getState().discard(listDefinitionId), [listDefinitionId])
 
   const onCloseRef = useLatestRef(onClose)
-  const saveNow = useCallback(() => {
-    // Read now: a field's write on blur lands just before the click that saves.
-    const edited = useListDraftStore.getState().drafts[listDefinitionId]
-    const lists = useListDefinitionStore.getState()
-    const from = base ?? lists.listDefinitions.find((d) => d.id === listDefinitionId)
-    if (edited && from) {
-      const patch = configPatch(from, edited)
-      const name = edited.name.trim() || from.name
-      void lists.editList(listDefinitionId, (now) => withConfigPatch(now, patch), `Edited list “${name}”`)
-    }
-    useListDraftStore.getState().discard(listDefinitionId)
-    onCloseRef.current()
-  }, [base, listDefinitionId, onCloseRef])
   const discard = useCallback(() => {
     useListDraftStore.getState().discard(listDefinitionId)
     onCloseRef.current()
   }, [listDefinitionId, onCloseRef])
+  // Whether the surface is still there when a Save's write lands, and whether one is running.
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
+  const saving = useRef(false)
+  const saveNow = useCallback(() => {
+    if (saving.current) return
+    // Read now: a field's write on blur lands just before the click that saves.
+    const edited = useListDraftStore.getState().drafts[listDefinitionId]
+    const lists = useListDefinitionStore.getState()
+    const from = base ?? lists.listDefinitions.find((d) => d.id === listDefinitionId)
+    const patch = edited && from ? configPatch(from, edited) : null
+    const write = (now: PersistedListDefinition) => (patch ? withConfigPatch(now, patch) : now)
+    // Nothing to write (no edit left, the list gone or already so): it just closes.
+    if (!edited || !from || !listEditChanges(listDefinitionId, write)) {
+      discard()
+      return
+    }
+    // The draft stays until the write has landed: one that fails (the
+    // snackbar says so), or that a data replace holds, leaves Edit list open
+    // with its edits, to save again. A surface that went meanwhile (the list
+    // left the screen, another list's Edit list took its place) took its
+    // draft with it — and closing then would close that other one.
+    saving.current = true
+    const name = edited.name.trim() || from.name
+    void lists.editList(listDefinitionId, write, `Edited list “${name}”`).then((wrote) => {
+      saving.current = false
+      const open = useUIStore.getState().listEditor
+      const stillOpen = mounted.current && open?.listDefinitionId === listDefinitionId && open.tabId === tabId
+      if (wrote && stillOpen) discard()
+    })
+  }, [base, listDefinitionId, tabId, discard])
 
-  const changedRef = useLatestRef(changed)
+  // Changes that leaving would lose: none while a Save is being written (the
+  // draft is still there, but it was saved — nothing asks about it again).
+  const changedNow = useLatestRef(changed)
+  const changedRef = useMemo<RefObject<boolean>>(
+    () => ({ get current() { return changedNow.current && !saving.current } }),
+    [changedNow],
+  )
   const listName = base?.name ?? saved?.name ?? 'List'
   const leave = useEditorLeave({
     changedRef,
@@ -367,7 +395,7 @@ function createPlacementStore(tabId: string, cellId: string | undefined, shown: 
  * list leaving the screen closes it.
  */
 function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
-  const model = useEditListModel(listDefinitionId, onClose)
+  const model = useEditListModel(listDefinitionId, tabId, onClose)
   const panelElRef = useRef<HTMLDivElement | null>(null)
   const nameRef = useRef<HTMLInputElement | null>(null)
   const working = useWorkspaceStore((s) => s.working)
@@ -492,7 +520,7 @@ const SHEET_DRAG_PX = 40
  * or down to close.
  */
 function EditListSheet({ listDefinitionId, tabId, onClose }: SurfaceProps) {
-  const model = useEditListModel(listDefinitionId, onClose)
+  const model = useEditListModel(listDefinitionId, tabId, onClose)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   const [full, setFull] = useState(false)
   const dragFrom = useRef<number | null>(null)
