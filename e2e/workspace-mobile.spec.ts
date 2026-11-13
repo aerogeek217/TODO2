@@ -134,6 +134,43 @@ test('the ⋯ menu has the list’s items and collapses a cell’s rows (D26: Co
   await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
 })
 
+test('a Numbers row collapsed on a wide screen expands on the phone: each collapsed Number has Expand row (cr34 W5)', async ({ page }) => {
+  await seedWorkspace(page, {
+    tasks: [{ title: 'Call plumber' }, { title: 'Pay electricity bill' }],
+    layouts: [{
+      name: 'Numbers',
+      table: {
+        areas: ['n1 n2', 'k k'],
+        rows: [{ weight: 1000, collapsed: true }, 1000],
+        cells: [
+          { id: 'n1', tabs: [{ id: 'num1', kind: 'number' }] },
+          { id: 'n2', tabs: [{ id: 'num2', kind: 'number', glance: { metric: 'overdue' } }] },
+          { id: 'k', tabs: [{ id: 'notesTab', kind: 'notes' }] },
+        ],
+      },
+    }],
+  })
+  // Collapsed: the Number's figure is hidden, its Expand shows inside the cell and takes a tap across 44px.
+  const n1 = wsCell(page, 'n1')
+  await expect(n1.getByTestId('number-count')).toBeHidden()
+  const expand = n1.getByRole('button', { name: 'Expand row' })
+  await expect(expand).toBeVisible()
+  await expect(wsCell(page, 'n2').getByRole('button', { name: 'Expand row' })).toBeVisible()
+  const [cellBox, button] = [await box(n1), await box(expand)]
+  expect(button.x + button.width).toBeLessThanOrEqual(cellBox.x + cellBox.width + 1)
+  expect(button.y).toBeGreaterThanOrEqual(cellBox.y - 1)
+  expect(button.width).toBeGreaterThanOrEqual(36)
+  // The cell that isn't collapsed has none.
+  await expect(wsCell(page, 'k').getByRole('button', { name: 'Expand row' })).toHaveCount(0)
+
+  await expand.tap()
+  await expect(n1.getByTestId('number-count')).toBeVisible()
+  await expect(wsCell(page, 'n2').getByTestId('number-count')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Expand row' })).toHaveCount(0)
+  // View state, stored.
+  await expect.poll(async () => (await readStore<{ grid: { rows: Array<{ collapsed?: boolean }> } }>(page, 'layouts'))[0]?.grid.rows.some((r) => r.collapsed === true)).toBe(false)
+})
+
 test('a two-widget cell keeps its tabs; tapping a collapsed one expands it', async ({ page }) => {
   await seed(page)
   await expect(wsCell(page, 'c1').getByRole('tab')).toHaveCount(2)

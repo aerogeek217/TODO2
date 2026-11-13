@@ -192,7 +192,11 @@ function copySections(result: ListWidgetResult): void {
   void copyTasks(result.sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
 }
 
-/** The phone's top line never lends the slot back: a face without one has its row's ⋯ elsewhere. */
+/**
+ * The phone's top line never lends the slot back: a face without one has no
+ * ⋯. Only a collapsed cell counts the claims — where no top line holds the
+ * slot (and so its Expand), the cell offers Expand itself.
+ */
 function claimNothing(): () => void {
   return () => {}
 }
@@ -297,6 +301,16 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
   /** A glance cell with tabs (a glance widget, or any at its small face): a slim header. */
   const compact = stripShown && active != null && (isGlanceKind(active.kind) || cellFace.face === 'small')
   const activeId = active?.id
+  // The top lines holding the controls slot (and so its Expand), counted only while collapsed: a
+  // widget whose top line can't hold the slot (a Number's is inside its button) gets the cell's
+  // own Expand then (cr34 W5).
+  const [slots, setSlots] = useState(0)
+  const claimSlot = useCallback((holdsSlot: boolean) => {
+    if (!holdsSlot) return () => {}
+    setSlots((n) => n + 1)
+    return () => setSlots((n) => n - 1)
+  }, [])
+  const claim = collapsed ? claimSlot : claimNothing
   const controls = useMemo<CellControlsValue | null>(() => (stripShown || activeId == null ? null : {
     cellId: cell.id,
     tabs: cell.tabs,
@@ -308,8 +322,8 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
     onMore: () => setMenuOpen((o) => !o),
     collapsed,
     onExpand: () => setRowCollapsed(false),
-    claim: claimNothing,
-  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, collapsed, setRowCollapsed, setMoreButton])
+    claim,
+  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, collapsed, setRowCollapsed, setMoreButton, claim])
 
   if (cell.tabs.length === 0) {
     return (
@@ -414,6 +428,19 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
             </WidgetFaceContext.Provider>
           </CellControlsContext.Provider>
         </div>
+      )}
+      {/* Collapsed, and no top line holds the controls slot (a Number): the cell's own Expand. */}
+      {collapsed && !stripShown && active && slots === 0 && (
+        <button
+          type="button"
+          className={`${styles.cellAction} ${styles.cellExpand}`}
+          aria-label={`Expand ${rowNoun}`}
+          aria-expanded={false}
+          title={`Expand ${rowNoun}`}
+          onClick={() => setRowCollapsed(false)}
+        >
+          <ChevronDownIcon size={16} />
+        </button>
       )}
       {tabSheet && (
         <ListTabSheet
