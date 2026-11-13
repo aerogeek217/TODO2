@@ -299,6 +299,67 @@ describe('the list a Number follows, open larger (the popup’s `list` kind)', (
     expect(rowIds()).toEqual(['lw|l|all|1'])
     expect(cellEl('m').contains(dnd!.draggableNodes.get('lw|l|all|1')!.node.current)).toBe(true)
   })
+
+  // cr34 U3: the list's view state can't be written to the layout's tab of that id — it is a Number.
+  const popupList = () => popup()!.querySelector<HTMLElement>('[data-list-host="num"]')!
+  const zoomMenu = () => {
+    fireEvent.click(within(popup()!).getByRole('button', { name: 'Widget options' }))
+    return screen.getByRole('menu', { name: 'Widget options' })
+  }
+  const ctrlWheel = (el: Element, deltaY: number) => act(() => {
+    el.dispatchEvent(new WheelEvent('wheel', { deltaY, ctrlKey: true, cancelable: true, bubbles: true }))
+  })
+
+  it('its ⋯ menu’s Zoom − / + step the level the list shows, and the stepper follows', async () => {
+    renderCells(cell('k', [following()]))
+    await act(async () => { await openNumberList('num') })
+    expect(popupList().getAttribute('data-zoom')).toBe('rows')
+    const menu = zoomMenu()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Zoom out' }))
+    expect(popupList().getAttribute('data-zoom')).toBe('lines')
+    // The menu stays open on the new level: Lines is the end, so − is off.
+    expect(within(menu).getByText('Lines')).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Zoom out' })).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Zoom in' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Zoom in' }))
+    expect(popupList().getAttribute('data-zoom')).toBe('stacked')
+    // Nothing was written to the layout: the Number's tab is as it was.
+    expect(useWorkspaceStore.getState().working?.cells[0]?.tabs[0]).toEqual(following())
+  })
+
+  it('Ctrl + wheel over the list steps its zoom', async () => {
+    renderCells(cell('k', [following()]))
+    await act(async () => { await openNumberList('num') })
+    ctrlWheel(popupList(), 100)
+    expect(popupList().getAttribute('data-zoom')).toBe('lines')
+    ctrlWheel(popupList(), -100)
+    expect(popupList().getAttribute('data-zoom')).toBe('rows')
+  })
+
+  it('the row details divider moves; the width and the level last while the workspace is open', async () => {
+    renderCells(cell('k', [following()]))
+    await act(async () => { await openNumberList('num') })
+    const divider = () => within(popup()!).getByRole('separator', { name: 'Resize task names and details' })
+    const before = Number(divider().getAttribute('aria-valuenow'))
+    fireEvent.keyDown(divider(), { key: 'ArrowLeft' })
+    const after = Number(divider().getAttribute('aria-valuenow'))
+    expect(after).toBeGreaterThan(before)
+    // Closed and opened again: the same list at the same width.
+    closePopup()
+    await act(async () => { await openNumberList('num') })
+    expect(Number(divider().getAttribute('aria-valuenow'))).toBe(after)
+    // A data replace drops what was held (another data set's tab could share the id).
+    vi.spyOn(backupScheduler, 'snapshotBeforeDestructive').mockResolvedValue(undefined as never)
+    await act(async () => { await replaceData('audit-cleanup', { backup: 'best-effort', write: async () => {} }) })
+    expect(popup()).toBeNull()
+  })
+
+  it('a list tab’s own popup still writes its zoom to the tab (view state)', () => {
+    renderCells(cell('k', [listTab]))
+    act(() => { void openWidgetLarger('l') })
+    ctrlWheel(popup()!.querySelector('[data-list-host="l"]')!, 100)
+    expect(useWorkspaceStore.getState().working?.cells[0]?.tabs[0]).toMatchObject({ id: 'l', viewState: { zoom: 'lines' } })
+  })
 })
 
 describe('the level a list shows, for the zoom controls (cr34 U4)', () => {
