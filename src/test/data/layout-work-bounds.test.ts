@@ -337,6 +337,47 @@ describe('the upgrades, the check and the repair within a time bound: at the par
   })
 })
 
+describe('a long list or deep nesting in a layout row is handled, never an obscure RangeError (cr34 S4)', () => {
+  /** A v78 file with the Eisenhower's hidden list: v79 then walks every layout row for the lists it names. */
+  const withEisenhowerList = (layout: Body) => ({
+    ...file(78, layout),
+    listDefinitions: [
+      { id: 7, name: 'Matrix', sortOrder: 0, sort: 'manual', grouping: 'none', owner: { eisenhower: true }, membership: { kind: 'custom', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {} } } },
+    ],
+  })
+
+  it('a 300,000-item list in a layout row: the file imports (the list is no part of a layout, and goes)', () => {
+    const data = withEisenhowerList({ ...stack(2), stray: Array.from({ length: 300_000 }, (_, i) => i) })
+    expectWithin(2000, () => {
+      const result = prepareImport(data)
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.layouts[0]).not.toHaveProperty('stray')
+      // The Eisenhower's list went with v79, as in any v78 file.
+      expect(result.data.listDefinitions).toEqual([])
+    })
+  })
+
+  it('a list id named deep inside such a list is still found: the Eisenhower’s list it names is kept', () => {
+    const stray = Array.from({ length: 200_000 }, (_, i): unknown => i)
+    stray.push({ listDefinitionId: 7 })
+    const result = prepareImport(withEisenhowerList({ ...stack(2), stray }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.listDefinitions.map((l) => l.id)).toEqual([7])
+  })
+
+  it('parts nested thousands deep: refused, saying so in words', () => {
+    // v78's id walk recurses by depth: 20,000 levels overflow the stack.
+    let nested: Record<string, unknown> = { id: 'leaf' }
+    for (let i = 0; i < 20_000; i++) nested = { id: `n${i}`, child: nested }
+    const result = prepareImport(file(77, { columns: [{ id: 'col', weight: 1, rows: [], deep: nested }] }))
+    expect(result).toEqual({
+      ok: false,
+      reason: 'upgrade-failed',
+      error: 'Could not upgrade this file from schema v77 to v80: it holds parts nested too deeply, or a list too long, to read',
+    })
+  })
+})
+
 // ── The same output as before ───────────────────────────────────────────────
 
 /** mulberry32: a small seeded generator, so a failure reproduces. */

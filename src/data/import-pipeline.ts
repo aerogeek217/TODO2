@@ -157,7 +157,12 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
   try {
     upgradedTables = upgradeDataSet(tables, fromVersion, CURRENT_DB_VERSION)
   } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err)
+    // A `RangeError` is the engine's own (`Maximum call stack size exceeded`:
+    // a transform walked parts nested thousands deep, or was handed a list
+    // too long): said in words, as the file's fault it is.
+    const detail = err instanceof RangeError
+      ? 'it holds parts nested too deeply, or a list too long, to read'
+      : err instanceof Error ? err.message : String(err)
     return {
       ok: false,
       reason: 'upgrade-failed',

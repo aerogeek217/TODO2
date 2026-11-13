@@ -46,7 +46,8 @@ function namedListIds(layouts: readonly DataRow[] | undefined): Set<unknown> {
     if (node === null || typeof node !== 'object' || seen.has(node)) continue
     seen.add(node)
     if (Array.isArray(node)) {
-      stack.push(...(node as unknown[]))
+      // One by one: a spread passes every item as an argument, and a list of a few hundred thousand is past what a call takes (a `RangeError`, cr34 S4).
+      for (const item of node as unknown[]) stack.push(item)
       continue
     }
     for (const [key, value] of Object.entries(node)) {
