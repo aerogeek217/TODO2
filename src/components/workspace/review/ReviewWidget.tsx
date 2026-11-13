@@ -6,7 +6,7 @@ import { useReviewWidgetQueue } from '../../../hooks/use-review-widget-queue'
 import { useToday } from '../../../hooks/use-today'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { setReviewQueue } from '../../../services/review-queue'
-import { useListWidgetStore } from '../../../stores/list-widget-store'
+import { reviewFilterKey, useListWidgetStore } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
 import {
   allReviewed,
@@ -136,18 +136,21 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
     void useStatusUpdateStore.getState().ensureLoaded()
   }, [])
 
-  // The live queue into the session: the place kept — the current task staying after it leaves the
-  // filter until the review moves on, except when the filter changes. With no filter left, the – marks go
-  // with it (the place does with the queue).
+  // The live queue into the session. Where the review stands lasts as long as its filter: a different
+  // one (a jump, the field, none) starts a new review — the first card, no marks —, the same one sent again
+  // (or re-printed) resumes, also in a widget that was closed meanwhile (the popup review). Within a review
+  // the place is kept — the current task staying after it leaves the filter until the review moves on,
+  // except when the filter was just set.
+  const filterKey = useMemo(() => reviewFilterKey(filter), [filter])
   const synced = useRef<{ filter: typeof filter; ids: readonly number[] } | null>(null)
   useEffect(() => {
     const last = synced.current
     if (last && last.filter === filter && sameIds(last.ids, queue.ids)) return
     const first = last == null || last.filter !== filter
     synced.current = { filter, ids: queue.ids }
-    if (!picked && Object.keys(session.getState().marks).length > 0) session.setState({ marks: {} })
+    if (session.getState().filterKey !== filterKey) session.getState().restart(filterKey)
     setReviewQueue(session, queue, { keepCurrent: !first })
-  }, [session, filter, picked, queue])
+  }, [session, filter, filterKey, queue])
 
   // The rail's sort is view state, saved at once — the popup review's kept in memory (it has no layout).
   const viewSort = tab.viewState?.sort ?? DEFAULT_REVIEW_WIDGET_SORT
