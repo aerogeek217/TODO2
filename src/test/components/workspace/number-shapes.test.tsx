@@ -143,6 +143,41 @@ describe('Oldest', () => {
     expect(figure()).toBe('—')
     expect(number().textContent).toContain('No tasks')
   })
+
+  it('by due date the foot counts the tasks that have one: the ones its click opens (cr34 G3)', () => {
+    const open = SAMPLE_TASKS.filter((t) => !t.isCompleted)
+    const dated = open.filter((t) => t.dueDate != null)
+    // The sample has open tasks without a due date, so the two counts differ.
+    expect(dated.length).toBeGreaterThan(0)
+    expect(dated.length).toBeLessThan(open.length)
+    const onDrill = vi.fn()
+    setup(shape({ show: 'oldest', oldestBy: 'deadline' }, 'open'), onDrill)
+    const foot = within(number()).getByTestId('number-oldest-foot').textContent!
+    expect(foot).toMatch(new RegExp(`^${dated.length} · median -?\\d+ days?$`))
+    expect(number().getAttribute('aria-label')).toContain(`${foot}.`)
+    expect(lastResult?.summary.plain.split('\n').at(-1)).toBe(foot)
+    fireEvent.click(number())
+    const drill = onDrill.mock.calls[0]![0] as GlanceDrill
+    expect((drill.source as unknown as { todoIds: number[] }).todoIds.slice().sort((a, b) => a - b)).toEqual(dated.map((t) => t.id).sort((a, b) => a - b))
+  })
+
+  it('by due date, tasks but none with a due date: —, No due dates, a foot of 0 (cr34 G3)', () => {
+    useTodoStore.setState({ todos: SAMPLE_TASKS.filter((t) => !t.isCompleted && t.dueDate == null) })
+    const onDrill = vi.fn()
+    setup(shape({ show: 'oldest', oldestBy: 'deadline' }, 'open'), onDrill)
+    expect(figure()).toBe('—')
+    expect(number().textContent).toContain('No due dates')
+    expect(number().textContent).not.toContain('No tasks')
+    expect(within(number()).getByTestId('number-oldest-foot').textContent).toBe('0')
+    expect(number().getAttribute('aria-label')).toBe('Late: no due dates. Show tasks')
+    fireEvent.click(number())
+    expect((onDrill.mock.calls[0]![0] as GlanceDrill).source).toMatchObject({ kind: 'todos', todoIds: [] })
+    // No task at all still reads No tasks.
+    cleanup()
+    useTodoStore.setState({ todos: [] })
+    setup(shape({ show: 'oldest', oldestBy: 'deadline' }, 'open'))
+    expect(number().textContent).toContain('No tasks')
+  })
 })
 
 describe('the colour otherwise (widget feedback 2D)', () => {

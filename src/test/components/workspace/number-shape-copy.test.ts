@@ -3,6 +3,7 @@ import {
   goalStateLabel,
   oldestAge,
   oldestFoot,
+  oldestNone,
   paceLabel,
   percentLabel,
   shareDeltaLabel,
@@ -33,6 +34,12 @@ describe('a Number’s shapes’ words (D26 P6)', () => {
     expect(oldestFoot(12, 6)).toBe('12 · median 6 days')
     expect(oldestFoot(1, 1)).toBe('1 · median 1 day')
     expect(oldestFoot(0, null)).toBe('0')
+  })
+
+  it('an oldest with nothing to age: No tasks; by due date over undated tasks, No due dates (cr34 G3)', () => {
+    expect(oldestNone(0, 'deadline')).toBe('No tasks')
+    expect(oldestNone(12, 'deadline')).toBe('No due dates')
+    expect(oldestNone(12, 'created')).toBe('No tasks')
   })
 
   it('where a goal stands', () => {

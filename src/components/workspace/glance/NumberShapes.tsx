@@ -23,6 +23,7 @@ import {
   goalTargetLabel,
   oldestAge,
   oldestFoot,
+  oldestNone,
   OLDEST_BY_WORDS,
   paceLabel,
   percentLabel,
@@ -221,8 +222,8 @@ export function ShareNumber({ tab, onResult, onDrill }: ShapeProps) {
 /**
  * Oldest (board Y): the age in days of the stalest task its filter keeps,
  * by its date (last follow-up, created, modified or due), that task's
- * title, and `N · median D days`. Lit by the age (`litWhen` / `litAt`); a
- * click opens its tasks, oldest first.
+ * title, and `N · median D days` — N the tasks that have that date, the ones
+ * a click opens, oldest first. Lit by the age (`litWhen` / `litAt`).
  */
 export function OldestNumber({ tab, onResult, onDrill }: ShapeProps) {
   const config = tab.config
@@ -235,15 +236,16 @@ export function OldestNumber({ tab, onResult, onDrill }: ShapeProps) {
   const top = oldest.oldest
   const age = top ? oldestAge(top.days, by) : null
   const colors = top ? litColors(config, numberIsLit(config, top.days), false) : litColors(config, false, true)
-  const total = count.ids.shown.length
-  const foot = oldestFoot(total, oldest.median)
+  // The tasks the age is over (cr34 G3): the figure, the median and the click all read them, so the foot counts them too — by due date, only the dated ones.
+  const foot = oldestFoot(oldest.ids.length, oldest.median)
+  const none = oldestNone(count.ids.shown.length, by)
   const small = face === 'small'
 
   const lines = useMemo(() => [
-    [{ label: name, count: age ? `${age.figure} ${age.caption}` : 'No tasks' }],
+    [{ label: name, count: age ? `${age.figure} ${age.caption}` : none }],
     ...(top ? [[{ label: top.title, count: '' }]] : []),
     [{ label: foot, count: '' }],
-  ], [name, age, top, foot])
+  ], [name, age, top, foot, none])
   useReportLines(onResult, lines)
 
   const drill = glanceDrill(onDrill, count.filtered)
@@ -255,12 +257,12 @@ export function OldestNumber({ tab, onResult, onDrill }: ShapeProps) {
       faceRef={faceRef}
       colors={colors}
       name={name}
-      ariaLabel={age && top ? `${name}: ${age.figure} ${age.caption}, ${top.title}. ${foot}.` : `${name}: no tasks.`}
+      ariaLabel={age && top ? `${name}: ${age.figure} ${age.caption}, ${top.title}. ${foot}.` : `${name}: ${none.toLowerCase()}.`}
       onOpen={open}
     >
       <span className={styles.figureLine}>
         <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{age ? age.figure : '—'}</span>
-        {!small && <span className={styles.caption}>{age ? age.caption : 'No tasks'}</span>}
+        {!small && <span className={styles.caption}>{age ? age.caption : none}</span>}
       </span>
       {!small && top && <span className={styles.title} data-testid="number-oldest-title">{top.title}</span>}
       {!small && <span className={styles.meta} data-testid="number-oldest-foot">{foot}</span>}
