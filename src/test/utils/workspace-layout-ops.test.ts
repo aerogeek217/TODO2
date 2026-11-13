@@ -162,6 +162,26 @@ describe('insertTrack', () => {
     expect(out.layout.grid.rows).toEqual([{ id: 'r1', weight: 400 }, { id: 'r2', px: 160 }, { id: 'n1', weight: 400 }])
   })
 
+  it('skips a Numbers-only (fit) row and a collapsed row too: their weights share nothing (cr34 W6)', () => {
+    const n = spec('n', [createTab('number', 'num')])
+    // A list over a Numbers row, both weight 1000: Row at the bottom takes half of the list.
+    const fit = layout(grid([[a], [n]], { rows: [1000, 1000] }))
+    expect(trackSizing(fit, 'rows', 1).kind).toBe('fit')
+    const below = insertTrack(fit, 'bottom', ids())
+    expect(picture(below.layout)).toEqual(['a', 'n', 'n2'])
+    expect(below.layout.grid.rows).toEqual([{ id: 'r1', weight: 500 }, { id: 'r2', weight: 1000 }, { id: 'n1', weight: 500 }])
+    // The Numbers row first, Row at the top: the same list gives.
+    const above = insertTrack(layout(grid([[n], [a]], { rows: [40, 1000] })), 'top', ids())
+    expect(above.layout.grid.rows).toEqual([{ id: 'n1', weight: 500 }, { id: 'r1', weight: 40 }, { id: 'r2', weight: 500 }])
+    // A collapsed row beside the edge: the next weighted row gives.
+    const folded = layout(grid([[a], [b]], { rows: [800, { weight: 1000, collapsed: true }] }))
+    const under = insertTrack(folded, 'bottom', ids())
+    expect(under.layout.grid.rows).toEqual([{ id: 'r1', weight: 400 }, { id: 'r2', weight: 1000, collapsed: true }, { id: 'n1', weight: 400 }])
+    // No weighted row at all: the new one takes the default weight, the others keep theirs.
+    const none = insertTrack(layout(grid([[n]], { rows: [700] })), 'bottom', ids())
+    expect(none.layout.grid.rows).toEqual([{ id: 'r1', weight: 700 }, { id: 'n1', weight: 1000 }])
+  })
+
   it('a new column across collapsed rows expands them: its cell never comes out collapsed', () => {
     const base = layout(grid([[a, b]], { rows: [{ weight: 1000, collapsed: true }] }))
     const out = insertTrack(base, 'right', ids())

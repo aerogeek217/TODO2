@@ -259,7 +259,9 @@ function expandedFor<L extends LayoutBody>(layout: L, cell: LayoutCell): L {
  * A new track at the layout's `edge` (a row at the top / bottom, a column
  * at the left / right) holding one new empty cell across the whole layout.
  * It takes half the size of the nearest weighted track on that axis (which
- * keeps the other half); with none, the default weight. In an empty layout,
+ * keeps the other half) — one drawn by its weight (`trackSizing`): not a
+ * fixed track, a Numbers-only (fit) row or a collapsed row, whose weight
+ * shares nothing —; with none, the default weight. In an empty layout,
  * the first cell (one column, one row). Returns the new cell's id.
  */
 export function insertTrack<L extends LayoutBody>(layout: L, edge: Side, genId: IdGen): { layout: L; cellId: string } {
@@ -275,7 +277,8 @@ export function insertTrack<L extends LayoutBody>(layout: L, edge: Side, genId: 
   const tracks = layout.grid[axis]
   const order = tracks.map((_, i) => i)
   if (!atStart) order.reverse()
-  const heirIdx = order.find((i) => tracks[i]?.px == null)
+  // A weighted track as drawn: a fit row's or a collapsed row's weight isn't in use (cr34 W6).
+  const heirIdx = order.find((i) => trackSizing(layout, axis, i).kind === 'weighted')
   const heir = heirIdx != null ? tracks[heirIdx] : undefined
   const trackId = genId()
   let resized = tracks
