@@ -615,6 +615,35 @@ describe('layouts', () => {
     expect(await ws().delete(b!)).toBe(false)
     expect(await db.layouts.count()).toBe(1)
   })
+
+  it('an edit committed just after Delete layout starts does not bring the row back (cr34 D7)', async () => {
+    const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const deleting = ws().delete(a!)
+    ws().closeTab('a2')
+    expect(await deleting).toBe(true)
+    await settleLayoutWrites()
+    expect(await db.layouts.get(a!)).toBeUndefined()
+    expect(await db.layouts.count()).toBe(1)
+    expect(ws().activeLayoutId).toBe(b)
+    expect(ws().layouts.map((l) => l.name)).toEqual(['B'])
+    expect(ws().writeFailed).toBe(false)
+  })
+
+  it('an edit to a layout deleted elsewhere (another browser tab) is not written, says so, and leaves nothing to retry', async () => {
+    const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await db.layouts.delete(a!)
+    ws().closeTab('a2')
+    await settleLayoutWrites()
+    expect(await db.layouts.get(a!)).toBeUndefined()
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Layout "A" was deleted: this change wasn\'t saved.', notice: true })
+    // Not a failed write: nothing could be retried, and leaving it is free.
+    expect(ws().writeFailed).toBe(false)
+    await ws().load(b!)
+    expect(ws().activeLayoutId).toBe(b)
+    expect(await db.layouts.count()).toBe(1)
+  })
 })
 
 describe('an open editor holding changes is asked before the layout is left (cr34 T6, D3)', () => {

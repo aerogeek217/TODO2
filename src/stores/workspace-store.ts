@@ -625,7 +625,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * Writes layout `layout` (`putAndPrune`) and takes the lists it removed
    * into the stores. A failed write is reported and marks the open layout
    * `writeFailed` (only while it is still the layout written); a write that
-   * lands clears it and the layout's repair mark. Never rejects. `claim`:
+   * lands clears it and the layout's repair mark; one of a layout that is
+   * gone writes nothing and says so. Never rejects. `claim`:
    * what its step is owed when it fails (`ListClaim`); a write that lands
    * settles the layout's claims, and its own result is the lists left.
    */
@@ -634,6 +635,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     try {
       const removed = await trackWrite(() => layoutRepository.putAndPrune(layout))
       if (gen !== generation) return { ok: true, removed }
+      if (!removed) {
+        // The layout was deleted while the write waited (Delete layout just
+        // before the edit, another browser tab): nothing is written — the
+        // row is not made again — and there is nothing to retry.
+        console.warn(`[workspace] layout "${layout.name}" is gone: its change wasn't saved`)
+        if (get().saved?.id === layout.id) useUndoStore.getState().notify(`Layout "${layout.name}" was deleted: this change wasn't saved.`)
+        return { ok: false, removed: null }
+      }
       const own = settleListClaims(layout.id, removed)
       const repairedIds = get().repairedIds.has(layout.id) ? new Set([...get().repairedIds].filter((id) => id !== layout.id)) : get().repairedIds
       set({ repairedIds, ...(get().saved?.id === layout.id ? { writeFailed: false } : {}) })
