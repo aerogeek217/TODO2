@@ -79,6 +79,22 @@ describe('computeTrend with a filter', () => {
     expect(t.openAtStartIds).toEqual([1])
   })
 
+  it('a task done before the range and reopened in it is open, and in neither Cumulative line (cr34 G5: the gap is not the open count)', () => {
+    const tasks = [task({ id: 1 })]
+    const events = [ev(1, 'completed', wd(-10)), ev(1, 'reopened', wd(5))]
+    for (const filter of [undefined, trendFilter(emptyFilterCriteria)]) {
+      const t = computeTrend(tasks, events, ctx, '14d', filter)
+      // Bars and Burndown: open now, the net read from the open series.
+      expect(t.openAtStart).toBe(0)
+      expect(t.openSeries.at(-1)).toBe(1)
+      expect(t.net).toBe(1)
+      // Cumulative: not created in the range, not open at its start, its completion outside it.
+      expect([t.created, t.completed]).toEqual([0, 0])
+      const cumulative = trendCumulative(t)
+      expect((cumulative.created.at(-1) ?? 0) - (cumulative.completed.at(-1) ?? 0)).toBe(0)
+    }
+  })
+
   it('a tag added mid-range brings the task in from that day (the Burndown rises then)', () => {
     // Tagged on day 6; open the whole range.
     const tasks = [task({ id: 1 }), task({ id: 2 })]
