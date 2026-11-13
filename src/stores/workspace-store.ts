@@ -990,17 +990,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     async duplicateLayout(name) {
       const clean = cleanName(name)
-      const source = get().saved
-      if (!clean || !source || refusedByReplaceHold()) return null
+      const openId = get().saved?.id
+      if (!clean || openId == null || refusedByReplaceHold()) return null
       if (editorsHoldChanges() && !(await leaveOpenEditors())) return null
       if (!(await readyToLeave())) return null
+      // The lists it shows are copied for the new layout; the originals stay
+      // with the layout they came from.
+      await useListDefinitionStore.getState().ensureLoaded()
+      // Read only now: an editor's Save (the question above) and a retried
+      // write changed the open layout, and the copy is of the layout as it is.
+      const source = get().saved
+      if (!source || source.id !== openId || refusedByReplaceHold()) return null
       const now = new Date()
       const { id: _from, sortOrder: _order, ...body } = source
       void _from
       void _order
-      // The lists it shows are copied for the new layout; the originals stay
-      // with the layout they came from.
-      await useListDefinitionStore.getState().ensureLoaded()
       const copies = ownedListCopies(source.id, source)
       const original = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
       let id: number
