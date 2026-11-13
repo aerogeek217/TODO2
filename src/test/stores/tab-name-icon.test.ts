@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
-import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-store'
-import { createTab, kindTabTitle, tabStripIcon, tabTopLineIcon, type LayoutTab, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
+import { rowFixes, validateRow } from '../../data/import-validation'
+import { settleLayoutWrites, tabNameMax, useWorkspaceStore } from '../../stores/workspace-store'
+import { TAB_NAME_MAX, createTab, kindTabTitle, tabStripIcon, tabTopLineIcon, type LayoutTab, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
+import { CHART_NAME_MAX } from '../../models/chart-widgets'
+import { NUMBER_NAME_MAX } from '../../models/glance-widgets'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { getTab } from '../../utils/workspace-layout-queries'
@@ -149,5 +152,56 @@ describe('a tab’s icon (items 11, 14)', () => {
     await open([{ ...createTab('calendar', 'c1'), name: 'Deadlines' }, createTab('notes', 'n1')])
     ws().closeTab('c1')
     expect(undoNames()).toEqual(['Closed tab “Deadlines”'])
+  })
+})
+
+describe('a tab’s name is never longer than its stored shape allows (cr34 H2 / D1)', () => {
+  /** The stored row passes the import check, with nothing it would repair. */
+  async function expectImportable(id: number): Promise<void> {
+    const row = await stored(id)
+    expect(validateRow('layouts', row)).toBe(true)
+    expect(rowFixes('layouts', row)).toEqual([])
+  }
+
+  it('the limit is the kind’s own: a Number’s and a chart’s are shorter than a tab’s', () => {
+    expect(tabNameMax('number')).toBe(NUMBER_NAME_MAX)
+    expect(tabNameMax('breakdown')).toBe(CHART_NAME_MAX)
+    expect(tabNameMax('pivot')).toBe(CHART_NAME_MAX)
+    expect(tabNameMax('trend')).toBe(CHART_NAME_MAX)
+    expect(tabNameMax('notes')).toBe(TAB_NAME_MAX)
+    expect(tabNameMax('calendar')).toBe(TAB_NAME_MAX)
+    expect(tabNameMax('lens')).toBe(TAB_NAME_MAX)
+  })
+
+  it.each(['number', 'breakdown', 'pivot', 'trend'] as const)('a %s renamed past its limit is cut to it: the stored layout still imports', async (kind) => {
+    const id = await open([createTab('notes', 'n1')])
+    const tabId = ws().addWidget(kind, { kind: 'cell', cellId: 'k' })!
+    const max = tabNameMax(kind)
+    // The longest name the field took before (a tab's 200), and one longer than any field.
+    for (const [letter, length] of [['x', TAB_NAME_MAX], ['y', 500]] as const) {
+      expect(await ws().renameTab(tabId, letter.repeat(length))).toBe(true)
+      const t = tab(tabId)!
+      expect(kindTabTitle(t)).toBe(letter.repeat(max))
+      expect(t).not.toHaveProperty('name')
+      await expectImportable(id)
+    }
+    // The undo step names what was written.
+    expect(undoNames().at(-1)).toBe(`Renamed tab to “${'y'.repeat(max)}”`)
+  })
+
+  it('a name at the limit is kept whole; a cut that ends in a space is trimmed', async () => {
+    const id = await open([createTab('number', 'u1')])
+    await ws().renameTab('u1', 'n'.repeat(NUMBER_NAME_MAX))
+    expect(kindTabTitle(tab('u1')!)).toBe('n'.repeat(NUMBER_NAME_MAX))
+    await ws().renameTab('u1', `${'a'.repeat(NUMBER_NAME_MAX - 1)} tail`)
+    expect(kindTabTitle(tab('u1')!)).toBe('a'.repeat(NUMBER_NAME_MAX - 1))
+    await expectImportable(id)
+  })
+
+  it('a kind with the tab’s own name keeps up to a tab’s limit, and no more', async () => {
+    const id = await open([createTab('notes', 'n1')])
+    await ws().renameTab('n1', 'z'.repeat(TAB_NAME_MAX + 50))
+    expect(tab('n1')?.name).toBe('z'.repeat(TAB_NAME_MAX))
+    await expectImportable(id)
   })
 })

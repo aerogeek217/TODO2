@@ -11,13 +11,14 @@ import { useListDefinitionStore } from './list-definition-store'
 import { useListOrderStore } from './list-order-store'
 import { useTagStore } from './tag-store'
 import { useSettingsStore } from './settings-store'
-import { defaultBreakdownColumns } from '../models/chart-widgets'
-import { trendName } from '../models/glance-widgets'
+import { CHART_NAME_MAX, defaultBreakdownColumns } from '../models/chart-widgets'
+import { NUMBER_NAME_MAX, trendName } from '../models/glance-widgets'
 import type { IconValue } from '../models/icon'
 import { projectTagIds } from '../utils/neglect-map'
 import { registerModuleReset, registerModuleSettle } from '../utils/module-reset'
 import {
   LAYOUT_NAME_MAX,
+  TAB_NAME_MAX,
   createTab,
   kindTabTitle,
   widgetKindLabel,
@@ -298,7 +299,9 @@ export interface WorkspaceState {
    * Name and icon… (items 11, 14): renames tab `tabId` — a list tab's list
    * (as Edit list does; a blank name keeps it), a Number's or a chart's
    * `config.name`, any other kind's tab name (blank: back to the kind's
-   * label) —, one undo step (`Renamed tab to “Inbox”`). Resolves whether it wrote.
+   * label) —, one undo step (`Renamed tab to “Inbox”`). A name longer than
+   * the kind's stored name may be is cut to it (`tabNameMax`). Resolves
+   * whether it wrote.
    */
   renameTab: (tabId: string, name: string) => Promise<boolean>
   /** Sets tab `tabId`'s picked icon (`null`: never picked, the kind's icon), one undo step (`Changed icon of “Inbox”`). */
@@ -345,6 +348,20 @@ function idGenFor(layout: Layout): IdGen {
 function cleanName(name: string): string | null {
   const trimmed = name.trim()
   return trimmed.length > 0 && trimmed.length <= LAYOUT_NAME_MAX ? trimmed : null
+}
+
+/**
+ * The longest name Name and icon… keeps for a tab of `kind`: what the
+ * stored shape of the name it writes allows — a Number's `config.name`
+ * (`NUMBER_NAME_MAX`), a chart's and Created vs completed's
+ * (`CHART_NAME_MAX`), any other kind's tab name (`TAB_NAME_MAX`; a list
+ * tab's name is its list's, which has no limit of its own). A longer name
+ * would store a layout row the import check refuses.
+ */
+export function tabNameMax(kind: WidgetKind): number {
+  if (kind === 'number') return NUMBER_NAME_MAX
+  if (kind === 'breakdown' || kind === 'pivot' || kind === 'trend') return CHART_NAME_MAX
+  return TAB_NAME_MAX
 }
 
 function replaceLayout(layouts: Layout[], layout: Layout): Layout[] {
@@ -1186,13 +1203,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const working = get().working
       const tab = working ? getTab(working, tabId) : undefined
       if (!tab) return Promise.resolve(false)
-      const trimmed = name.trim()
       if (tab.kind === 'lens') {
         // A list tab's name is its list's (the same write as Edit list's; a blank one keeps it).
         const listId = tab.config.listDefinitionId
-        if (listId == null || !trimmed) return Promise.resolve(false)
-        return useListDefinitionStore.getState().editList(listId, (d) => ({ ...d, name: trimmed }), `Renamed tab to “${trimmed}”`)
+        const listName = name.trim()
+        if (listId == null || !listName) return Promise.resolve(false)
+        return useListDefinitionStore.getState().editList(listId, (d) => ({ ...d, name: listName }), `Renamed tab to “${listName}”`)
       }
+      // Never longer than the kind's stored name may be (`tabNameMax`).
+      const trimmed = name.trim().slice(0, tabNameMax(tab.kind)).trimEnd()
       const shown = trimmed || (tab.kind === 'trend' ? trendName({}) : widgetKindLabel(tab.kind))
       const description = `Renamed tab to “${shown}”`
       if (tab.kind === 'number' || tab.kind === 'breakdown' || tab.kind === 'pivot') {
