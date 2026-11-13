@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { CollisionDetection, DroppableContainer } from '@dnd-kit/core'
 import { WORKSPACE_TAB_DRAG } from '../../../components/workspace/workspace-drag'
 import { TASK_DRAG_KIND, buildTaskCollision } from '../../../utils/task-dnd'
 import { clippedAt } from '../../../utils/task-dnd/collision'
+import { MODAL_BACKDROP_ATTR, underModal } from '../../../utils/dom-contract'
 
 type DetectArgs = Parameters<CollisionDetection>[0]
 
@@ -153,5 +154,81 @@ describe('buildTaskCollision — a droppable scrolled out of view (cr31 W1)', ()
     wrap.getBoundingClientRect = () => rect(0, 10)
     expect(clippedAt(day, 10, 150)).toBe(false)
     document.body.innerHTML = ''
+  })
+})
+
+describe('buildTaskCollision — a droppable under a modal (cr34 N1)', () => {
+  afterEach(() => { document.body.innerHTML = '' })
+
+  /** Appends a `<div>` to `parent` (the page by default). */
+  function el(parent: Element = document.body, attrs: Record<string, string> = {}): HTMLElement {
+    const node = document.createElement('div')
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value)
+    parent.appendChild(node)
+    return node
+  }
+  /** A modal as the dialog frame portals it: its backdrop, then its panel, at the end of the page. */
+  function modal(): HTMLElement {
+    el(document.body, { [MODAL_BACKDROP_ATTR]: '' })
+    return el(document.body, { role: 'dialog' })
+  }
+  /** What a task drag hits among `nodes` (the spy reports every one as under the pointer, as dnd-kit's rects would). */
+  function hits(nodes: Record<string, HTMLElement | null>, pointer: { x: number; y: number } | null = { x: 10, y: 10 }): Array<string | number> {
+    const detect = buildTaskCollision([])
+    const args = {
+      ...callArgs([], { id: 'task', data: { current: { type: TASK_DRAG_KIND.task } } }),
+      droppableContainers: Object.entries(nodes).map(([id, node]) => container(id, node)),
+      pointerCoordinates: pointer,
+    } as DetectArgs
+    return detect(args).map((c) => c.id)
+  }
+
+  it('with no modal open, every droppable under the pointer counts', () => {
+    const app = el()
+    expect(hits({ day: el(app), other: el(app) })).toEqual(['day', 'other'])
+  })
+
+  it('a day in a cell behind the modal is dropped; the modal’s own day is kept', () => {
+    const behind = el(el())
+    const inside = el(modal())
+    expect(hits({ behind, inside })).toEqual(['inside'])
+    expect(underModal(behind)).toBe(true)
+    expect(underModal(inside)).toBe(false)
+  })
+
+  it('a popover opened from the modal (portaled after it) keeps its droppables', () => {
+    const behind = el(el())
+    modal()
+    const popover = el(el(document.body, { role: 'dialog' }))
+    expect(hits({ behind, popover })).toEqual(['popover'])
+  })
+
+  it('under two modals, only the top one’s droppables count', () => {
+    const behind = el(el())
+    const lower = el(modal())
+    const top = el(modal())
+    expect(hits({ behind, lower, top })).toEqual(['top'])
+  })
+
+  it('a backdrop that holds its surface (Quick Add’s scrim) covers the page, not what is inside it', () => {
+    const behind = el(el())
+    const scrim = el(document.body, { [MODAL_BACKDROP_ATTR]: '' })
+    const inside = el(scrim)
+    expect(hits({ behind, inside })).toEqual(['inside'])
+  })
+
+  it('counts without pointer coordinates too, and keeps a droppable with no node', () => {
+    const behind = el(el())
+    const inside = el(modal())
+    expect(hits({ behind, inside, unmounted: null }, null)).toEqual(['inside', 'unmounted'])
+  })
+
+  it('once the modal closes, the cell’s day takes drops again', () => {
+    const behind = el(el())
+    const panel = modal()
+    expect(hits({ behind })).toEqual([])
+    panel.previousElementSibling?.remove()
+    panel.remove()
+    expect(hits({ behind })).toEqual(['behind'])
   })
 })
