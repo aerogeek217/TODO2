@@ -16,6 +16,12 @@ interface AnchoredPickerProps {
   closeOnEscape?: boolean
   /** `false` when the anchor isn't the trigger (a click on it then closes the picker). Default `true`. */
   anchorIsInside?: boolean
+  /**
+   * The popover's name, for one that is a small dialog of its own (its
+   * trigger says `aria-haspopup="dialog"`): it is then `role="dialog"` named
+   * so. A picker whose content names itself (a search field, a list) has none.
+   */
+  dialogLabel?: string
   children: ReactNode
 }
 
@@ -36,7 +42,7 @@ interface AnchoredPickerProps {
  * later (an editor) still covers it. Opened from a dialog on a higher tier
  * (the notes convert preview's draft rows), it sits above that dialog.
  */
-export function AnchoredPicker({ anchorRef, onClose, closeOnEscape = false, anchorIsInside = true, children }: AnchoredPickerProps) {
+export function AnchoredPicker({ anchorRef, onClose, closeOnEscape = false, anchorIsInside = true, dialogLabel, children }: AnchoredPickerProps) {
   const layer = useDialogLayer()
   const aboveDialog = layer != null && layer !== 'overlay'
   const { panelRef, style, caret } = usePopoverAnchor({
@@ -52,7 +58,16 @@ export function AnchoredPicker({ anchorRef, onClose, closeOnEscape = false, anch
     caret: true,
   })
   return createPortal(
-    <PopoverRoot ref={panelRef} caret={caret} className={`${styles.picker} ${aboveDialog ? styles.aboveDialog : ''}`} data-anchored-picker="" style={{ position: style.position, left: style.left, top: style.top }} {...KEEP_EVENTS_INSIDE}>
+    <PopoverRoot
+      ref={panelRef}
+      caret={caret}
+      role={dialogLabel != null ? 'dialog' : undefined}
+      aria-label={dialogLabel}
+      className={`${styles.picker} ${aboveDialog ? styles.aboveDialog : ''}`}
+      data-anchored-picker=""
+      style={{ position: style.position, left: style.left, top: style.top }}
+      {...KEEP_EVENTS_INSIDE}
+    >
       {children}
     </PopoverRoot>,
     document.body,

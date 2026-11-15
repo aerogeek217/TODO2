@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
   emojiFromField,
@@ -61,6 +61,9 @@ export function IconPicker({ anchorRef, value, fallback, choices = LINE_ICON_CHO
   const gridRef = useRef<HTMLDivElement | null>(null)
   const hint = useMemo(() => emojiFieldHint(), [])
   const current = value ?? fallback
+  // Ids of this picker's own (two pickers, or a picker beside another's stale id, never share one).
+  const id = useId()
+  const [problemId, showAsId, recentId] = [`${id}-problem`, `${id}-show-as`, `${id}-recent`]
 
   /** Closed by Esc or a pick: the focus goes back to the opener (an outside press leaves it where it went). */
   const handBack = useRef(false)
@@ -205,7 +208,7 @@ export function IconPicker({ anchorRef, value, fallback, choices = LINE_ICON_CHO
             value={text}
             placeholder={hint}
             aria-label="Emoji"
-            aria-describedby={problem ? 'icon-picker-problem' : undefined}
+            aria-describedby={problem ? problemId : undefined}
             aria-invalid={problem ? true : undefined}
             autoComplete="off"
             spellCheck={false}
@@ -222,10 +225,10 @@ export function IconPicker({ anchorRef, value, fallback, choices = LINE_ICON_CHO
               }
             }}
           />
-          {problem && <div id="icon-picker-problem" className={styles.problem} role="alert">{problem}</div>}
+          {problem && <div id={problemId} className={styles.problem} role="alert">{problem}</div>}
           <div className={styles.showAs}>
-            <span className={styles.showAsLabel} id="icon-picker-show-as">Show as</span>
-            <span className={styles.tabs} role="radiogroup" aria-labelledby="icon-picker-show-as">
+            <span className={styles.showAsLabel} id={showAsId}>Show as</span>
+            <span className={styles.tabs} role="radiogroup" aria-labelledby={showAsId}>
               {(['muted', 'color'] as const).map((s) => (
                 <button
                   key={s}
@@ -242,8 +245,8 @@ export function IconPicker({ anchorRef, value, fallback, choices = LINE_ICON_CHO
           </div>
           {recent.length > 0 && (
             <>
-              <div className={styles.caption} id="icon-picker-recent">Recent</div>
-              <div ref={gridRef} className={styles.grid} role="group" aria-labelledby="icon-picker-recent" onKeyDown={onGridKey}>
+              <div className={styles.caption} id={recentId}>Recent</div>
+              <div ref={gridRef} className={styles.grid} role="group" aria-labelledby={recentId} onKeyDown={onGridKey}>
                 {recent.map((emoji) => {
                   const icon = emojiIcon(emoji, show)
                   const on = value?.kind === 'emoji' && value.emoji === emoji

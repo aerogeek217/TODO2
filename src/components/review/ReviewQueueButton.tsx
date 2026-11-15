@@ -60,8 +60,8 @@ export function ReviewQueueButton({ todoById, followedUpToday, label, className,
       </button>
       {tooltip}
       {open && (
-        <AnchoredPicker anchorRef={buttonRef} onClose={() => setOpen(false)} closeOnEscape>
-          {/* Not a menu: a list of rows to pick from, with its sort. */}
+        <AnchoredPicker anchorRef={buttonRef} onClose={() => setOpen(false)} closeOnEscape dialogLabel={label}>
+          {/* Not a menu: a small dialog (the button's `aria-haspopup`), named as the queue — a list of rows to pick from, with its sort. */}
           <div ref={popoverRef} className={styles.queuePopover} onClick={onClick} data-review-queue-popover="">
             <ReviewRail todoById={todoById} followedUpToday={followedUpToday} className={styles.queuePopoverRail} label={label} onToggleComplete={onToggleComplete} />
           </div>
