@@ -9,7 +9,7 @@ import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
-import { isFitCell } from '../../utils/workspace-rows'
+import { isFitCell, isNumberStripCell } from '../../utils/workspace-rows'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { smallFaceClick, useCellFace, useHeldBodyHeight } from './cell-face'
@@ -482,11 +482,11 @@ function MobileTable({ layout }: { layout: WorkspaceLayout }) {
     if (last && lastCell && isFitCell(lastCell) && isFitCell(cell)) last.push(cell)
     else groups.push([cell])
   }
-  const cellOf = (cell: LayoutCell, fitRow: boolean) => {
+  const cellOf = (cell: LayoutCell, fitRow: boolean, key = cell.id) => {
     const tracks = rows.slice(cell.area.row, cell.area.row + cell.area.rowSpan)
     return (
       <MobileCell
-        key={cell.id}
+        key={key}
         cell={cell}
         rowTrackIds={tracks.map((t) => t.id)}
         collapsed={tracks.length > 0 && tracks.every((t) => t.collapsed === true)}
@@ -510,7 +510,14 @@ function MobileTable({ layout }: { layout: WorkspaceLayout }) {
           if (!first) return null
           const fit = isFitCell(first)
           return fit
-            ? <div key={first.id} className={styles.fitRow} data-fit="true">{group.map((c) => cellOf(c, true))}</div>
+            ? (
+              <div key={first.id} className={styles.fitRow} data-fit="true">
+                {/* A strip of Numbers (flair P10) lays its Numbers out among the others: each its own two-up item. */}
+                {group.flatMap((c) => (isNumberStripCell(c)
+                  ? c.tabs.map((tab) => cellOf({ ...c, tabs: [tab], activeTabId: tab.id }, true, tab.id))
+                  : [cellOf(c, true)]))}
+              </div>
+            )
             : cellOf(first, false)
         })}
       </section>

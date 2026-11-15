@@ -32,6 +32,9 @@ import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './ce
 import { trackCellHot } from './cell-hot'
 import { CellControls, CellGrip } from './WidgetTopLine'
 import { TabNameIconPopover } from './TabNameIconPopover'
+import { NumberStrip, NUMBER_SLOT_ATTR } from './NumberStrip'
+import { isNumberStripCell } from '../../utils/workspace-rows'
+import type { WidgetFace } from '../../utils/widget-face'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
   const r = ref.current?.getBoundingClientRect()
@@ -145,8 +148,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
+  /** Only Numbers, two or more (flair P10): one strip of them, side by side, no tab strip. */
+  const numberStrip = isNumberStripCell(cell)
   /** Tabs only when there's a choice (D26 AA1): one widget's top line names it. */
-  const stripShown = cell.tabs.length > 1
+  const stripShown = cell.tabs.length > 1 && !numberStrip
   // The active widget's face (D25 R): a fit row's is small; a collapsed
   // one-widget cell shows its top line, which is its large face's first line.
   const cellFace = useCellFace(active, { forced: fitRow ? 'small' : collapsed && !stripShown ? 'large' : undefined })
@@ -172,8 +177,12 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       stop?.()
     }
   }, [setHeldBody, collapsed])
-  /** What the active tab's widget last reported (any kind): its count label, shown sections or summary. */
-  const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
+  /** What each mounted widget last reported (any kind), by tab: its count label, shown sections or summary. */
+  const [widgetResults, setWidgetResults] = useState<Readonly<Record<string, WidgetResult>>>({})
+  const setWidgetResult = useCallback((tabId: string, result: WidgetResult) => setWidgetResults((r) => (r[tabId] === result ? r : { ...r, [tabId]: result })), [])
+  /** A strip's Numbers' faces, by tab (the menu's Open larger). */
+  const [slotFaces, setSlotFaces] = useState<Readonly<Record<string, WidgetFace>>>({})
+  const setSlotFace = useCallback((tabId: string, face: WidgetFace) => setSlotFaces((f) => (f[tabId] === face ? f : { ...f, [tabId]: face })), [])
   const [menu, setMenu] = useState<{ tabId: string; at: MenuAt; part: CellMenuPart } | null>(null)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number }; where: AddWhere } | null>(null)
   /** Name and icon… (items 11, 14): the tab, and what its popover opens under (the tab, or the top line standing for it). */
@@ -192,7 +201,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
     return () => step(-1)
   }, [])
 
-  const activeResult = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result : undefined
+  const activeResult = active ? widgetResults[active.id] : undefined
   const activeCount = activeResult?.countLabel
 
 
@@ -214,9 +223,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   // ── The ⋯'s menu, the grip's, the whole one ──
   const menuTab = menu ? cell.tabs.find((t) => t.id === menu.tabId) : undefined
   const menuTitle = useTabTitle(menuTab)
-  const widgetContent = useWidgetMenuContent(menuTab, menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result : undefined)
-  // Open larger for the menu's tab: by the face it shows (the active tab's), a tab out of sight by its large face.
-  const menuOpensLarger = menuTab != null && tabOpensLarger(menuTab, menuTab.id === active?.id ? cellFace.face : 'large')
+  const widgetContent = useWidgetMenuContent(menuTab, menuTab ? widgetResults[menuTab.id] : undefined)
+  // Open larger for the menu's tab: by the face it shows (the active tab's, a strip's Number's), a tab out of sight by its large face.
+  const menuFace = menuTab == null ? 'large' : numberStrip ? (slotFaces[menuTab.id] ?? 'large') : menuTab.id === active?.id ? cellFace.face : 'large'
+  const menuOpensLarger = menuTab != null && tabOpensLarger(menuTab, menuFace)
   const menuEntries = menu && menuTab
     ? cellMenuFor(menu.part, widgetKindMenuEntries({
         ...(widgetContent ?? NO_WIDGET_MENU),
@@ -248,7 +258,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   // A one-widget cell's controls slot, lent to its widget's top line.
   const activeId = active?.id
   const onOpenLarger = cellFace.opensLarger ? cellFace.openLarger : undefined
-  const controls = useMemo<CellControlsValue | null>(() => (stripShown || activeId == null ? null : {
+  const controls = useMemo<CellControlsValue | null>(() => (stripShown || numberStrip || activeId == null ? null : {
     cellId: cell.id,
     tabs: cell.tabs,
     tabId: activeId,
@@ -265,24 +275,34 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
     collapsed,
     onExpand: () => setRowCollapsed(false),
     claim,
-  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, gripOpen, onOpenLarger, collapsed, setRowCollapsed, claim, setMoreButton, setGripButton, toggleMenu])
+  }), [stripShown, numberStrip, activeId, cell.id, cell.tabs, activeTitle, menuOpen, gripOpen, onOpenLarger, collapsed, setRowCollapsed, claim, setMoreButton, setGripButton, toggleMenu])
+
+  /** A strip's Number under an event's target (its slot), else the active tab. */
+  const eventTab = (target: EventTarget | null): LayoutTab | undefined => {
+    if (!numberStrip || !(target instanceof Element)) return active
+    const id = target.closest(`[${NUMBER_SLOT_ATTR}]`)?.getAttribute(NUMBER_SLOT_ATTR)
+    return cell.tabs.find((t) => t.id === id) ?? active
+  }
 
   /** A right-click on the top line (a glance widget's: anywhere on it) opens the ⋯ menu there. */
   const onContextMenu = (e: MouseEvent<HTMLElement>) => {
-    if (stripShown || e.defaultPrevented || !active) return
+    const tab = eventTab(e.target)
+    if (stripShown || e.defaultPrevented || !tab) return
     // Only one from inside the cell's own element.
     if (!(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return
-    if (!isGlanceKind(active.kind) && !onTopLine(e.currentTarget, e.target)) return
+    if (!isGlanceKind(tab.kind) && !onTopLine(e.currentTarget, e.target)) return
     e.preventDefault()
-    openMenu(active.id, { x: e.clientX, y: e.clientY })
+    openMenu(tab.id, { x: e.clientX, y: e.clientY })
   }
   /** Shift+F10 / the Menu key on the top line opens the ⋯ menu under the ⋯ (a widget's own menu, e.g. a row's, goes first). */
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
-    if (stripShown || e.defaultPrevented || !active) return
+    const tab = eventTab(e.target)
+    if (stripShown || e.defaultPrevented || !tab) return
     if (e.key !== 'ContextMenu' && !(e.key === 'F10' && e.shiftKey)) return
     if (!onTopLine(e.currentTarget, e.target, true)) return
     e.preventDefault()
-    openMenu(active.id, null)
+    // A strip's Number: under its own ⋯ (the cell's anchor is its first).
+    openMenu(tab.id, numberStrip ? anchorBelow({ current: (e.target as Element).closest(`[${NUMBER_SLOT_ATTR}]`)?.querySelector<HTMLElement>('[aria-label="Cell options"]') ?? null }) : null)
   }
 
   return (
@@ -390,8 +410,37 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
           )}
         </div>
       )}
-      {!stripShown && active && ghosts && <JoinPreviewStrip tab={active} ghosts={ghosts} />}
-      {(!collapsed || !stripShown) && active && (
+      {!stripShown && !numberStrip && active && ghosts && <JoinPreviewStrip tab={active} ghosts={ghosts} />}
+      {numberStrip && (
+        <div className={styles.bodyFrame} data-ws-cell-body={cell.id}>
+          <NumberStrip
+            cell={cell}
+            smallFaces={fitRow || collapsed}
+            dragging={drag != null}
+            menuTabId={menu && menu.part !== 'layout' ? menu.tabId : null}
+            onMore={(tabId, button) => setMenu((m) => (m && m.tabId === tabId && m.part === 'widget' ? null : { tabId, at: anchorBelow({ current: button }), part: 'widget' }))}
+            onClose={closeTabAsked}
+            onAdd={() => { void useWorkspaceStore.getState().addWidget('number', { kind: 'cell', cellId: cell.id }) }}
+            onResult={setWidgetResult}
+            onFace={setSlotFace}
+          />
+          {/* The strip's grip: drags the whole cell, a click its layout menu. */}
+          <span className={styles.stripGrip}>
+            <CellGrip
+              cellId={cell.id}
+              tabs={cell.tabs}
+              title={activeTitle}
+              idSuffix=":floating"
+              expanded={gripOpen}
+              onMenu={() => toggleMenu('layout', active?.id)}
+              setButton={setGripButton}
+              panelHandle
+              className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
+            />
+          </span>
+        </div>
+      )}
+      {!numberStrip && (!collapsed || !stripShown) && active && (
         <div className={styles.bodyFrame}>
           <div
             ref={setBody}
@@ -412,7 +461,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
                   <WidgetBody
                     key={active.id}
                     tab={active}
-                    onResult={(result) => setWidgetResult({ tabId: active.id, result })}
+                    onResult={(result) => setWidgetResult(active.id, result)}
                   />
                 )}
               </WidgetFaceContext.Provider>

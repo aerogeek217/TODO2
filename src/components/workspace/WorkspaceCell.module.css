@@ -276,3 +276,31 @@
   overflow: hidden;
   cursor: pointer;
 }
+
+/*
+ * A Numbers strip's grip (flair P10): over the cell's bottom-left corner
+ * (each Number's × takes its top-left, its ⋯ its top-right), shown on the
+ * cell's hover or focus; it drags the whole cell and opens its layout menu.
+ */
+.stripGrip {
+  position: absolute;
+  left: 2px;
+  bottom: 3px;
+  z-index: var(--z-above-2);
+  display: inline-flex;
+  opacity: 0;
+  pointer-events: none;
+}
+
+[data-ws-cell][data-cell-hot] .stripGrip,
+.stripGrip:has([aria-expanded='true']) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .stripGrip {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

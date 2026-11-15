@@ -1,0 +1,120 @@
+/*
+ * A cell of Numbers drawn as one strip (flair P10, `NumberStrip`): side by
+ * side, evenly divided, onto another line when each can't keep 72px
+ * (`GLANCE_CELL_MIN_WIDTH_PX`); a fit row grows with it.
+ */
+.strip {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  align-content: stretch;
+  position: relative;
+}
+
+.slot {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* A hairline between Numbers. */
+.slot + .slot {
+  box-shadow: inset 1px 0 0 var(--color-border-muted);
+}
+
+.dragSource {
+  opacity: 0.4;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.bodySmall {
+  cursor: pointer;
+}
+
+/*
+ * Each slot's controls (its Open larger and ⋯) show on its own hover or
+ * focus, not the whole cell's, nor while another slot's menu is open.
+ */
+.slot:not([data-slot-hot]) :global([data-cell-controls]:not([data-open])) > span:last-child {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* A slot's × (closes its tab): over its top-left corner, on its hover or focus. */
+.close {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: var(--z-above-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-high);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.slot[data-slot-hot] .close {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.close:hover {
+  color: var(--color-text-primary);
+}
+
+/* The + at the strip's end: over its right edge, shown with the cell's other hover controls. */
+.add {
+  position: absolute;
+  right: 2px;
+  bottom: 3px;
+  z-index: var(--z-above-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-high);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+}
+
+:global([data-ws-cell][data-cell-hot]) .add {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.add:hover {
+  color: var(--color-text-primary);
+}
+
+/* No hover: everything shown. */
+@media (hover: none) {
+  .close,
+  .add {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
