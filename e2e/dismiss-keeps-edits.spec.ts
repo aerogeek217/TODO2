@@ -268,6 +268,57 @@ test.describe('the new-task editor asks before losing the form', () => {
     await expect(newTask(page)).toBeVisible()
   })
 
+  test('its × asks as Esc does: Keep editing stays, Create task creates, Discard drops (cr34, answer 19)', async ({ page }) => {
+    await open(page, 'FIRST')
+    const close = newTask(page).getByRole('button', { name: 'Close' })
+    await close.click()
+    const ask = prompt(page, 'Keep this new task?')
+    await ask.getByRole('button', { name: /Keep editing/ }).click()
+    await expect(ask).toHaveCount(0)
+    await expect(newTask(page)).toBeVisible()
+    expect(await titles(page)).not.toContain('FIRST')
+
+    // A subtask typed and not added goes with the task, as on a click off.
+    await typeSubtask(page, newTask(page))
+    await close.click()
+    await prompt(page, 'Keep this new task?').getByRole('button', { name: 'Create task' }).click()
+    await expect(newTask(page)).toHaveCount(0)
+    await expect.poll(() => titles(page)).toContain('FIRST')
+    await expect.poll(() => subs(page)).toContain('TYPED')
+
+    await open(page, 'SECOND')
+    await newTask(page).getByRole('button', { name: 'Close' }).click()
+    await prompt(page, 'Keep this new task?').getByRole('button', { name: 'Discard' }).click()
+    await expect(newTask(page)).toHaveCount(0)
+    expect(await titles(page)).not.toContain('SECOND')
+  })
+
+  test('its × on a form with no title and a change asks Discard / Keep editing; the edit-mode × asks nothing', async ({ page }) => {
+    await page.keyboard.press('Control+Space')
+    await page.keyboard.press('Tab')
+    await expect(newTask(page)).toBeVisible()
+    // Untouched: the × just closes.
+    await newTask(page).getByRole('button', { name: 'Close' }).click()
+    await expect(newTask(page)).toHaveCount(0)
+    await expect(prompt(page, 'Discard this new task?')).toHaveCount(0)
+
+    await page.keyboard.press('Control+Space')
+    await page.keyboard.press('Tab')
+    await newTask(page).getByRole('button', { name: 'Urgent', exact: true }).click()
+    await newTask(page).getByRole('button', { name: 'Close' }).click()
+    const ask = prompt(page, 'Discard this new task?')
+    await ask.getByRole('button', { name: /Keep editing/ }).click()
+    await expect(newTask(page)).toBeVisible()
+    await newTask(page).getByRole('button', { name: 'Close' }).click()
+    await ask.getByRole('button', { name: 'Discard' }).click()
+    await expect(newTask(page)).toHaveCount(0)
+
+    await openEditor(page)
+    await editor(page).getByRole('button', { name: 'Close' }).click()
+    await expect(editor(page)).toHaveCount(0)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+
   test('its Cancel button discards without asking', async ({ page }) => {
     await open(page, 'FIRST')
     await newTask(page).getByRole('button', { name: /^Cancel/ }).click()

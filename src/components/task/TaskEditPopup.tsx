@@ -516,7 +516,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // A title handed over from Quick Add was typed; a draft's title (a note line) is where it starts.
   const [openingForm] = useState(() => createFormState(seed && !(props.mode === 'create' && props.seedTyped) ? title : '', pendingUpdates, pendingSubtasks))
   const askingToCloseRef = useRef(false)
-  /** Esc / the backdrop. In create mode, anything to lose asks first; Cancel is the plain `onClose`. */
+  /** Esc / the backdrop / the header's ×. In create mode, anything to lose asks first; Cancel is the plain `onClose`. */
   const requestClose = () => {
     const dirty = !isEdit && (
       createFormState(title, committedUpdates(), committedSubtasks()) !== openingForm
@@ -657,7 +657,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           onTitleChange={handleTitleChange}
           onTitleBlur={handleTitleBlur}
           onTitleKeyDown={handleTitleKeyDown}
-          onClose={onClose}
+          // The × closes as Esc does: a new task's form with anything to lose asks first (cr34, answer 19).
+          onClose={requestClose}
           acState={ac.state}
           onAcPick={(row) => ac.select(row, titleRef.current)}
           onAcHighlight={ac.highlight}
