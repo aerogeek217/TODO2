@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { emptyPredicate, type TodoPredicate } from '../../../models'
-import type { FilterAtom } from '../../../models/filter-expression'
 import { useStatsBase } from '../../../hooks/use-glance-data'
 import { useExpressionField } from '../../../hooks/use-expression-field'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
@@ -10,8 +9,6 @@ import { ESCAPE_OWN_ATTR } from '../../../hooks/use-popover-anchor'
 import { reviewFilterPredicate } from '../../../hooks/use-review-widget-queue'
 import { expressionResolver } from '../../../services/filter-expression-field'
 import type { AutocompleteRow, computeAutocomplete } from '../../../services/nlp-autocomplete'
-import { markerTint, type TokenTint } from '../../../services/nlp-token-tints'
-import { NO_PRIORITY } from '../../../models/filter-predicate'
 import { peopleOnly, reviewFieldAutocomplete, reviewFieldPick, type ReviewFieldCounts } from '../../../services/review-field'
 import { useListWidgetStore, type ReviewFilter } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -23,8 +20,8 @@ import { parseExpression, printExpression, printPieces, withoutAtom, type Expres
 import { withExpression } from '../../../utils/predicate-expression'
 import { EnvelopeIcon, ReplyIcon } from '../../shared/icons'
 import { NlpPopup } from '../../shared/NlpPopup'
+import { ExpressionPills } from '../../shared/filters/ExpressionPills'
 import { TintedText } from '../../shared/TintedText'
-import tintStyles from '../../shared/TintedText.module.css'
 import { useTooltip } from '../../shared/use-tooltip'
 import styles from './ReviewWidget.module.css'
 
@@ -40,13 +37,6 @@ const EVERY_OPEN_TASK = 'Every open task'
 
 /** A review takes open tasks only: `done` and Completed dates would keep nothing, so the field refuses them and says why. */
 const OPEN_TASKS_ONLY = { allowDone: false, allowCompleted: false } as const
-
-/** A pill's tint: the one its term has as typed text (`expressionTints`); text and dates other than due / follow-up are plain pills. */
-function pillTint(term: FilterAtom | undefined): TokenTint {
-  if (term?.kind === 'priority') return term.value === NO_PRIORITY ? 'chip' : markerTint(term.value)
-  if (term?.kind === 'date') return term.field === 'deadline' ? 'due' : term.field === 'followup' || term.field === 'lastFollowup' ? 'followup' : 'chip'
-  return 'chip'
-}
 
 /**
  * Each person's, tag's and status's open tasks among those the widget's
@@ -267,25 +257,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
               // The pills size the field; the text field lies under them, unseen, taking every press but an ×'s.
               <div className={styles.pills} data-testid="review-field-pills">
                 {everyTask && <span id={everyTaskId} data-review-every-task="">{EVERY_OPEN_TASK}</span>}
-                {pieces.map((piece, i) => (piece.atom == null && !piece.done ? (
-                  <span key={i} className={tintStyles.tint} data-tint="operator" aria-hidden="true">{piece.text}</span>
-                ) : (
-                  <span key={i} className={`${tintStyles.tint} ${styles.pill}`} data-tint={pillTint(piece.term)} data-review-pill={piece.text}>
-                    <span aria-hidden="true">{piece.text}</span>
-                    <button
-                      type="button"
-                      className={styles.pillRemove}
-                      tabIndex={-1}
-                      aria-label={`Remove ${piece.text}`}
-                      title={`Remove ${piece.text}`}
-                      // The press doesn't move the focus into the field.
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => removePiece(piece)}
-                    >
-                      &times;
-                    </button>
-                  </span>
-                )))}
+                <ExpressionPills pieces={pieces} onRemove={removePiece} pillAttr="data-review-pill" />
               </div>
             ) : (
               <div ref={mirrorRef} className={styles.mirror} aria-hidden="true">

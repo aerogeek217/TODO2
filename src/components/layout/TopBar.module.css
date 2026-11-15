@@ -1,12 +1,11 @@
 /* The app's one top bar (desktop), three groups: the layout tabs (or
- * picker) on the left; the screen-filter tray (the field, the Filter
- * button, the set filters' chips, the counter) in the middle, centred at
- * rest by the centring gap before it; the storage pill,
+ * picker) on the left; the screen-filter tray (the funnel, the field with
+ * the filter's pills, the Filter button, the counter) in the middle,
+ * centred at rest by the centring gap before it; the storage pill,
  * the Settings gear and New task on the right.
- * It never wraps; when it runs out of room (measured) the tray shrinks (the
- * field, then long filter values), then the chips fold into the Filter
- * button, then the layout tabs into the picker. The filtered-tasks panel
- * changes none of that. */
+ * It never wraps; when it runs out of room (measured) the field narrows,
+ * then the layout tabs fold into the picker, then the field narrows
+ * further. The filtered-tasks panel changes none of that. */
 
 .topBar {
   position: relative;
@@ -202,48 +201,69 @@
   background: var(--color-border);
 }
 
-/* ═══ Search input ═══ */
+/* ═══ The funnel: at the tray's left, red while a filter is on; a click clears them all ═══ */
+
+.funnel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0 0 0 1px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.funnel:disabled {
+  cursor: default;
+}
+
+.trayActive .funnel {
+  color: var(--color-danger);
+  opacity: 1;
+  cursor: pointer;
+}
+
+.trayActive .funnel:hover {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}
+
+/* ═══ The filter field (a typed filter; at rest its terms as pills) ═══ */
 
 .searchWrapper {
   position: relative;
   display: flex;
   align-items: center;
   flex-shrink: 0;
-}
-
-.searchIcon {
-  position: absolute;
-  left: 9px;
-  display: inline-flex;
-  color: var(--color-text-muted);
-  pointer-events: none;
+  margin-right: 2px;
 }
 
 /* Its width is the wrapper's: set by the top bar (narrowed while short of room). */
 .searchInput {
   width: 100%;
   height: 26px;
-  padding: 0 28px 0 29px;
+  padding: 0 8px;
   border: none;
   border-radius: var(--radius-md);
   background: var(--color-search-bg);
   box-shadow: inset 0 0 0 1px var(--color-border);
-  color: var(--color-text-primary);
   font-size: var(--font-size-md);
   font-family: inherit;
   outline: none;
+  /* Its own text is transparent: its mirror (`.searchMirror`, the token
+   * tints) lies over it in the same font and padding, so the caret and the
+   * selection show through. */
+  color: transparent;
+  caret-color: var(--color-text-primary);
 }
 
 .searchInput::placeholder {
   color: var(--color-text-muted);
-}
-
-/* The input's own text is transparent: its mirror (`.searchMirror`, the
- * token tints) lies over it in the same font and padding, so the caret and
- * the selection show through. */
-.searchInput {
-  color: transparent;
-  caret-color: var(--color-text-primary);
 }
 
 .searchInput::selection {
@@ -251,16 +271,56 @@
   background: var(--color-accent-bg);
 }
 
-.searchMirror {
+.searchInput:focus {
+  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
+}
+
+/* A text that doesn't read: the ring in the danger colour (its error line under it). */
+.searchWrapperError .searchInput,
+.searchWrapperError .searchInput:focus {
+  box-shadow: inset 0 0 0 1px var(--color-danger), 0 0 0 3px var(--color-danger-bg);
+}
+
+/* At rest the input lies under the pills, its caret hidden; every press but an ×'s reaches it. */
+.searchInputRest {
+  caret-color: transparent;
+}
+
+.searchMirror,
+.pills {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  padding: 0 28px 0 29px;
+  padding: 0 8px;
   font-size: var(--font-size-md);
   font-family: inherit;
   line-height: 26px;
   white-space: pre;
   color: var(--color-text-primary);
+  pointer-events: none;
+}
+
+/* Over the input (its text is the pills' own); clipped across only, so a
+ * pill's 24px × target isn't cut at the field's top and bottom. */
+.pills {
+  z-index: 1;
+  overflow: visible;
+  overflow-x: clip;
+}
+
+/* Too long: the pills fade at the field's end, before `+N more`. */
+.pillsFaded {
+  padding-right: 64px;
+  mask-image: linear-gradient(to right, #000 calc(100% - 92px), transparent calc(100% - 64px));
+}
+
+.pillsMore {
+  position: absolute;
+  right: 8px;
+  z-index: 1;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
   pointer-events: none;
 }
 
@@ -270,7 +330,7 @@
   z-index: var(--z-popover);
 }
 
-/* A name the search matched nobody to: one line under the box, or atop the results. */
+/* The line under the field: a text that doesn't read, saying why. */
 .searchNote {
   padding: 6px 10px;
   font-size: var(--font-size-sm);
@@ -278,13 +338,8 @@
   color: var(--color-text-secondary);
 }
 
-.searchNote b {
-  font-weight: 600;
-  color: var(--color-accent-text);
-}
-
-.searchNoteHint {
-  color: var(--color-text-muted);
+.searchError {
+  color: var(--color-danger-text);
 }
 
 .searchNotePopover {
@@ -297,30 +352,6 @@
   border-radius: 8px;
   box-shadow: var(--shadow-dropdown);
   z-index: var(--z-dropdown);
-}
-
-.searchInput:focus {
-  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
-}
-
-.searchClear {
-  position: absolute;
-  right: 5px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-pill);
-  background: var(--color-tint-12);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.searchClear:hover {
-  color: var(--color-text-primary);
 }
 
 /* ═══ Right zone: storage pill + Settings ═══ */

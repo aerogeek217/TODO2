@@ -194,11 +194,10 @@ export function groupRestrictions(
   const kind = field === 'personIds' ? 'person' : 'tag'
   for (const c of [predicate, screen]) {
     if (!c) continue
-    // An expression narrows by its top-level "is" terms only (as `topLevelPredicate`, its own clauses aside).
-    if (c.expression) {
-      out.push(...topLevelIdPicks(c.expression, kind))
-      continue
-    }
+    // An expression narrows by its top-level "is" terms only; its clauses
+    // too (the screen filter's chips beside the top bar's expression — a
+    // list's expression has none).
+    if (c.expression) out.push(...topLevelIdPicks(c.expression, kind))
     const ids = c[field]
     if (ids == null || isNegated(c, field)) continue
     const picks = [...ids]

@@ -168,3 +168,8 @@
   font-weight: 600;
   color: var(--color-accent-text);
 }
+
+/* A filter typed on desktop that no section says (`ScreenExpression`): its own line. */
+.expression {
+  flex: 1 1 100%;
+}

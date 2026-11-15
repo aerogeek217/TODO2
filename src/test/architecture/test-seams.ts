@@ -13,10 +13,10 @@
 export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'App.tsx': ['AppCommandPalette'],
   'components/layout/sync-status.ts': ['StoragePillInput', 'storagePillState', 'syncWarnings'],
+  'components/layout/TopBarFilterField.tsx': ['TOP_BAR_FILTER_PLACEHOLDER'],
   'components/layout/use-top-bar-centre.ts': ['CentreMeasure', 'centreOffset'],
   'components/layout/use-top-bar-fold.ts': [
-    'measureTopBar', 'SEARCH_MIN_WIDTH', 'topBarFold', 'TopBarMeasure', 'trayRoom', 'traySqueeze',
-    'VALUE_MIN_WIDTH',
+    'measureTopBar', 'SEARCH_FOLDED_MIN_WIDTH', 'SEARCH_MIN_WIDTH', 'searchWidth', 'topBarFold', 'TopBarMeasure',
   ],
   'components/overlays/filter-panel-placement.ts': ['FILTER_PANEL_GUTTER'],
   'components/shared/ChipSelector.tsx': ['ChipItem'],
@@ -114,6 +114,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'services/task-copy.ts': ['buildTasksHtml', 'buildTasksPlain', 'copiedNotice', 'CopyTaskContext'],
   'services/task-dialog.ts': ['TaskDialogEnv'],
   'services/task-draft.ts': ['newTaskStatus'],
+  'stores/filter-store.ts': ['screenFilterOf'],
   'stores/list-widget-store.ts': ['CLEARED_ON_REPLACE'],
   'stores/review-session.ts': ['createReviewSession'],
   'stores/settings-store.ts': ['SETTINGS'],

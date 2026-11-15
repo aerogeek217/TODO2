@@ -403,3 +403,42 @@ describe('filter expressions — Graphical ↔ expression', () => {
       .toEqual({ kind: 'and', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 2 }, { kind: 'tag', id: 1 }] })
   })
 })
+
+describe('filter expressions — the search box forms (`searchForms`, the top bar)', () => {
+  function loose(text: string): string {
+    const r = parseExpression(text, {
+      today: TODAY,
+      names: { person: resolver(PEOPLE), tag: resolver(TAGS), status: resolver(STATUSES) },
+      searchForms: true,
+    })
+    if (!r.ok) throw new Error(`${text}: ${r.error.message}`)
+    return printExpression(r.expression, r.showCompleted, names)
+  }
+
+  it('reads two terms side by side as an and, the words between them a phrase', () => {
+    expect(loose('@Aisha #q4 overdue')).toBe('@Aisha and #q4 and overdue')
+    expect(loose('budget @Ben weekly review')).toBe('"budget" and @Ben and "weekly review"')
+  })
+
+  it('joins side-by-side names of one kind with or, as the box made one chip of them', () => {
+    expect(loose('@Aisha @Ben #q4')).toBe('(@Aisha or @Ben) and #q4')
+    expect(loose('/urgent /focus')).toBe('/urgent or /focus')
+    expect(loose('!Assigned !Waiting @Ben')).toBe('(!Assigned or !Waiting) and @Ben')
+    // An explicit and stays an and; a typed group isn't joined to.
+    expect(loose('@Aisha and @Ben')).toBe('@Aisha and @Ben')
+    expect(loose('(@Aisha or #q4) @Ben')).toBe('(@Aisha or #q4) and @Ben')
+  })
+
+  it('reads completed alone as done, and /due, /followup as their date words', () => {
+    expect(loose('completed')).toBe('done')
+    expect(loose('completed @Ben')).toBe('@Ben and done')
+    expect(loose('completed this week')).toBe('completed this week')
+    expect(loose('/due today')).toBe('due today')
+    expect(loose('/followup none')).toBe('no followup')
+  })
+
+  it('leaves the list editors’ grammar as it was', () => {
+    expect(errorOf('@Aisha #q4')).toBe('Add and / or before “#q4”')
+    expect(errorOf('completed')).toBe('completed when?')
+  })
+})

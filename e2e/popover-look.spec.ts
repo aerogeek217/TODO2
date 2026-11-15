@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { filterChip, filterMenu, filterMenuButton, filterMenuRow } from './fixtures/filters'
+import { filterMenu, filterMenuButton, filterMenuRow } from './fixtures/filters'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
 import { ADD_FILTER, openListFilterEditor, seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
@@ -176,7 +176,7 @@ for (const theme of ['dark', 'light'] as const) {
       await expectRinged(page, chip, true)
     })
 
-    test('the top bar’s Filter button and a filter’s chip: a caret under each, ringed while open', async ({ page }) => {
+    test('the top bar’s Filter button: a caret under it, ringed while open', async ({ page }) => {
       const button = filterMenuButton(page)
       await button.click()
       await expectCaretAt(filterMenu(page), button, 'top')
@@ -190,16 +190,8 @@ for (const theme of ['dark', 'light'] as const) {
       await page.mouse.move(5, 300)
       await expectRinged(page, button, false)
 
-      // The People chip: the ring goes round its frame (the chip and its ×).
-      const people = filterChip(page, 'People')
-      const frame = people.locator('..')
-      await people.click()
-      const picker = page.locator('[data-popover-level]').filter({ hasText: 'Select all' })
-      await expectCaretAt(picker, frame, 'top')
-      await expectRinged(page, frame, true)
-      await page.keyboard.press('Escape')
-      await expectRinged(page, frame, false)
-      await page.getByRole('button', { name: 'Clear people filter' }).click()
+      // No chip any more (the field's pills are the filter); the funnel clears it.
+      await page.getByRole('button', { name: 'Clear all filters' }).click()
     })
 
     test('a filter picker with a caret only fades in: the caret stays on its edge every frame (cr33 U2)', async ({ page }) => {

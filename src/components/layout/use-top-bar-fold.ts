@@ -1,39 +1,28 @@
 import { useLayoutEffect, useState, type RefObject } from 'react'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { attrSelector } from '../../utils/dom-contract'
-import { FOLD_HIDDEN_ATTR, FOLD_HOLD_ATTR, FOLD_VALUE_ATTR, FOLD_VARIANT_ATTR, type FoldVariant } from '../shared/filters/FilterChipBar.shared'
 
 /**
  * What of the top bar is folded so that it never wraps or overflows:
- * `none`; `filters` = the chips of the filters that are on, into the Filter
- * button (which then shows their count); `both` = the layout tabs into the
- * layout picker too. Before anything folds, the tray shrinks
- * (`traySqueeze`): the field narrows, then long filter values are cut. With
- * no filter on there are no chips, so only the tabs fold.
+ * `none`; `tabs` = the layout tabs into the layout picker. Before they
+ * fold, the filter field narrows (`SEARCH_WIDTH` → `SEARCH_MIN_WIDTH`; its
+ * pills fade with `+N more`); once they have folded it may narrow further,
+ * to `SEARCH_FOLDED_MIN_WIDTH`. The filters themselves never fold: they are
+ * the field's pills (feedback P2).
  */
-type TopBarFold = 'none' | 'filters' | 'both'
-
-/** Whether the set filters' chips are folded into the Filter button. */
-export function filtersFolded(fold: TopBarFold): boolean {
-  return fold !== 'none'
-}
+type TopBarFold = 'none' | 'tabs'
 
 /** Whether the layout tabs show as the layout picker. */
 export function tabsFolded(fold: TopBarFold): boolean {
-  return fold === 'both'
+  return fold === 'tabs'
 }
 
-/** The filter field's width, and the least it narrows to (its icon and `Filter…` still show). */
-export const SEARCH_WIDTH = 200
-export const SEARCH_MIN_WIDTH = 110
-/** The least a filter value is cut to (a shorter value is never cut): its first 6–8 letters and the ellipsis. */
-export const VALUE_MIN_WIDTH = 56
-
-/** A filter value shown on its button: the field and the value's natural width, px. */
-interface TrayValue {
-  key: string
-  width: number
-}
+/** The filter field's width (board Filter-B: about twice the old 200px). */
+export const SEARCH_WIDTH = 560
+/** The least it narrows to before the layout tabs fold: two or three pills still show. */
+export const SEARCH_MIN_WIDTH = 240
+/** The least it narrows to once they have folded (its placeholder's start and a pill still show). */
+export const SEARCH_FOLDED_MIN_WIDTH = 160
 
 /** What `topBarFold` decides from: widths measured in the bar, px. */
 export interface TopBarMeasure {
@@ -41,83 +30,42 @@ export interface TopBarMeasure {
   bar: number
   /** What every fold needs besides the filter tray and the layout controls (padding, gaps, the right zone with New task). */
   base: number
-  /** The tray with the set filters' chips, at its natural width. */
-  trayOpen?: number
-  /** The same, shrunk as far as it goes (the field and the values at their least). */
-  trayOpenMin?: number
-  /** The tray with the chips folded into the Filter button, at its natural width. */
-  trayFolded?: number
-  /** The same, shrunk as far as it goes (the field at its least). */
-  trayFoldedMin?: number
-  /** The values on the chips, at their natural widths. */
-  values?: readonly TrayValue[]
+  /** The tray with the field at `SEARCH_WIDTH`. */
+  tray?: number
   /** The layout tabs, when last shown, with what they showed then (`tabsKey`). */
   tabs?: { width: number; key: string }
   /** The layout picker (the tabs folded), when last shown. */
   picker?: number
 }
 
+/** The tray with the field at `width` instead of `SEARCH_WIDTH`. */
+function trayAt(m: TopBarMeasure, width: number): number {
+  return (m.tray ?? 0) - (SEARCH_WIDTH - width)
+}
+
 /**
- * The least fold whose parts fit the bar, the tray shrunk as far as it goes:
- * the filters fold first, then the layout tabs. A part not measured yet (or
- * tabs showing other layouts since) counts as fitting — it is shown,
- * measured, and folded again on the next frame when it doesn't fit.
+ * The least fold whose parts fit the bar, the field narrowed to
+ * `SEARCH_MIN_WIDTH`. Tabs not measured yet (or showing other layouts since)
+ * count as fitting — they are shown, measured, and folded again on the next
+ * frame when they don't fit.
  */
 export function topBarFold(m: TopBarMeasure, tabsKey: string): TopBarFold {
-  if (m.bar <= 0) return 'none'
-  const folded = m.trayFoldedMin ?? m.trayFolded ?? 0
-  const open = m.trayOpenMin ?? m.trayOpen ?? folded
+  if (m.bar <= 0 || m.tray === undefined) return 'none'
   const tabs = m.tabs?.key === tabsKey ? m.tabs.width : 0
-  if (m.base + open + tabs <= m.bar) return 'none'
-  if (m.base + folded + tabs <= m.bar) return 'filters'
-  return 'both'
-}
-
-/** The room the bar leaves the tray at `fold`; `null` before it is measured. */
-export function trayRoom(m: TopBarMeasure, fold: TopBarFold): number | null {
-  if (m.bar <= 0) return null
-  return m.bar - m.base - ((tabsFolded(fold) ? m.picker : m.tabs?.width) ?? 0)
-}
-
-/** How the tray shrinks to fit: the search's width, and the width of each value that is cut (by field). */
-interface TraySqueeze {
-  search: number
-  values: Partial<Record<string, number>>
+  return m.base + trayAt(m, SEARCH_MIN_WIDTH) + tabs <= m.bar ? 'none' : 'tabs'
 }
 
 /**
- * The tray `natural` wide shrunk to `width`: the search narrows first (to
- * `SEARCH_MIN_WIDTH`), then the longest `values` are cut, evenly from the
- * top (each to no less than `VALUE_MIN_WIDTH`, a shorter one never). `null`
- * when it fits as it is. Past every least width the rest stays over.
+ * The field's width at `fold`: `SEARCH_WIDTH` where the tray fits, else as
+ * wide as the room the bar leaves it, down to the fold's least.
  */
-export function traySqueeze(natural: number, width: number, values: readonly TrayValue[] = []): TraySqueeze | null {
-  let over = Math.ceil(natural - width)
-  if (over <= 0) return null
-  const search = Math.max(SEARCH_MIN_WIDTH, SEARCH_WIDTH - over)
-  over -= SEARCH_WIDTH - search
-  const cut: Partial<Record<string, number>> = {}
-  if (over > 0 && values.length > 0) {
-    const least = (v: TrayValue) => Math.min(v.width, VALUE_MIN_WIDTH)
-    const freed = (level: number) => values.reduce((n, v) => n + Math.max(0, v.width - Math.max(level, least(v))), 0)
-    // The highest whole width that frees enough when every longer value is cut to it.
-    let level = 0
-    if (freed(0) >= over) {
-      let lo = 0
-      let hi = Math.max(...values.map((v) => v.width))
-      while (lo < hi) {
-        const mid = Math.ceil((lo + hi) / 2)
-        if (freed(mid) >= over) lo = mid
-        else hi = mid - 1
-      }
-      level = lo
-    }
-    for (const v of values) {
-      const w = Math.max(least(v), Math.min(v.width, level))
-      if (w < v.width) cut[v.key] = w
-    }
-  }
-  return { search, values: cut }
+export function searchWidth(m: TopBarMeasure, fold: TopBarFold): number {
+  if (m.bar <= 0 || m.tray === undefined) return SEARCH_WIDTH
+  const layout = (tabsFolded(fold) ? m.picker : m.tabs?.width) ?? 0
+  const room = m.bar - m.base - layout
+  const over = Math.ceil(m.tray - room)
+  if (over <= 0) return SEARCH_WIDTH
+  return Math.max(tabsFolded(fold) ? SEARCH_FOLDED_MIN_WIDTH : SEARCH_MIN_WIDTH, SEARCH_WIDTH - over)
 }
 
 /**
@@ -128,39 +76,24 @@ export function traySqueeze(natural: number, width: number, values: readonly Tra
  */
 export const FOLD_PART = { tray: 'tray', layout: 'layout', spring: 'spring', centre: 'centre' } as const
 
-/** On the tray's search box (`SEARCH_WIDTH` wide, narrowed by `traySqueeze`). */
+/** On the tray's filter field (`SEARCH_WIDTH` wide, narrowed by `searchWidth`). */
 export const FOLD_SEARCH_ATTR = 'data-fold-search'
-
-/** A box's width; for a `display: contents` one (no box), its children's span with their margins. */
-function variantWidth(el: HTMLElement): number {
-  if (el.hasAttribute(FOLD_HIDDEN_ATTR)) return el.getBoundingClientRect().width
-  let left = Infinity
-  let right = -Infinity
-  for (const child of Array.from(el.children)) {
-    const r = child.getBoundingClientRect()
-    const cs = getComputedStyle(child)
-    left = Math.min(left, r.left - (parseFloat(cs.marginLeft) || 0))
-    right = Math.max(right, r.right + (parseFloat(cs.marginRight) || 0))
-  }
-  return right > left ? right - left : 0
-}
 
 /**
  * The tray's width as its content needs it: the tray may be squeezed (its
  * box narrower, its fixed-width parts running past its edge — `scrollWidth`
  * misses a few px of that), so its padding plus the span of what is laid
- * out in it, margins included (a `display: contents` wrapper's children;
- * not the hidden folds).
+ * out in it, margins included (a `display: contents` wrapper's children).
  */
 function trayContentWidth(tray: HTMLElement): number {
   let left = Infinity
   let right = -Infinity
   const visit = (parent: Element) => {
     for (const child of Array.from(parent.children)) {
-      if (!(child instanceof HTMLElement) || child.hasAttribute(FOLD_HIDDEN_ATTR)) continue
+      if (!(child instanceof HTMLElement)) continue
       const cs = getComputedStyle(child)
       if (cs.display === 'contents') { visit(child); continue }
-      if (cs.display === 'none') continue
+      if (cs.display === 'none' || cs.position === 'fixed' || cs.position === 'absolute') continue
       // With its margins: the box the tray lays out for it.
       const r = child.getBoundingClientRect()
       left = Math.min(left, r.left - (parseFloat(cs.marginLeft) || 0))
@@ -173,49 +106,14 @@ function trayContentWidth(tray: HTMLElement): number {
   return right > left ? Math.max(tray.offsetWidth, right - left + padding) : tray.offsetWidth
 }
 
-type TrayMeasure = Pick<TopBarMeasure, 'trayOpen' | 'trayOpenMin' | 'trayFolded' | 'trayFoldedMin' | 'values'>
-
-/**
- * The tray's width with the set filters' chips and with them folded into
- * the Filter button, each natural and shrunk as far as it goes, all measured
- * now whatever is shown or cut: the filter bar lays out both folds hidden at
- * their natural widths (`FilterChipBar`'s `measureFold`), so neither goes
- * stale (a filter set or cleared, the counter come or gone) and each value's
- * natural width is known while it is cut; the field counts at
- * `SEARCH_WIDTH`. Without the hidden folds, only the shown one
- * (`shownFolded`).
- */
-function measureTray(tray: HTMLElement, shownFolded: boolean): TrayMeasure {
-  const content = trayContentWidth(tray)
+/** The tray's width with its field at `SEARCH_WIDTH`, whatever it is narrowed to now. */
+function measureTray(tray: HTMLElement): number {
   const search = tray.querySelector<HTMLElement>(attrSelector(FOLD_SEARCH_ATTR))
-  // The tray as if the search weren't narrowed.
   const searchGain = search ? SEARCH_WIDTH - search.getBoundingClientRect().width : 0
-  const searchSlack = search ? SEARCH_WIDTH - SEARCH_MIN_WIDTH : 0
-  const hidden = (v: FoldVariant) => tray.querySelector<HTMLElement>(`${attrSelector(FOLD_VARIANT_ATTR, v)}${attrSelector(FOLD_HIDDEN_ATTR)}`)
-  const shown = tray.querySelector<HTMLElement>(`${attrSelector(FOLD_VARIANT_ATTR)}:not(${attrSelector(FOLD_HIDDEN_ATTR)})`)
-  const open = hidden('open')
-  const folded = hidden('folded')
-  if (!open || !folded || !shown) {
-    const natural = Math.ceil(content + searchGain)
-    const min = natural - searchSlack
-    return shownFolded ? { trayFolded: natural, trayFoldedMin: min } : { trayOpen: natural, trayOpenMin: min }
-  }
-  const rest = content + searchGain - variantWidth(shown)
-  const values = Array.from(open.querySelectorAll<HTMLElement>(attrSelector(FOLD_VALUE_ATTR)))
-    .map((el) => ({ key: el.getAttribute(FOLD_VALUE_ATTR) ?? '', width: Math.ceil(el.getBoundingClientRect().width) }))
-  const valueSlack = values.reduce((n, v) => n + v.width - Math.min(v.width, VALUE_MIN_WIDTH), 0)
-  const openWidth = rest + variantWidth(open)
-  const foldedWidth = rest + variantWidth(folded)
-  return {
-    trayOpen: Math.ceil(openWidth),
-    trayOpenMin: Math.ceil(openWidth - searchSlack - valueSlack),
-    trayFolded: Math.ceil(foldedWidth),
-    trayFoldedMin: Math.ceil(foldedWidth - searchSlack),
-    values,
-  }
+  return Math.ceil(trayContentWidth(tray) + searchGain)
 }
 
-/** The bar as shown at `fold`: its width, the base, the tray's widths and the shown layout tabs' (or picker's) width. */
+/** The bar as shown at `fold`: its width, the base, the tray's width and the shown layout tabs' (or picker's) width. */
 export function measureTopBar(bar: HTMLElement, fold: TopBarFold, tabsKey: string): TopBarMeasure {
   const cs = getComputedStyle(bar)
   const gap = parseFloat(cs.columnGap) || 0
@@ -236,7 +134,7 @@ export function measureTopBar(bar: HTMLElement, fold: TopBarFold, tabsKey: strin
       continue
     }
     const margins = part === FOLD_PART.spring ? 0 : (parseFloat(ccs.marginLeft) || 0) + (parseFloat(ccs.marginRight) || 0)
-    // The tray's own width is what each fold decides; its place (gap, margins) is the base's.
+    // The tray's own width is what the field's width decides; its place (gap, margins) is the base's.
     const width = part === FOLD_PART.tray ? 0 : child.offsetWidth
     need += width + margins + (shown > 0 ? gap : 0)
     shown++
@@ -245,20 +143,13 @@ export function measureTopBar(bar: HTMLElement, fold: TopBarFold, tabsKey: strin
   return {
     bar: bar.clientWidth,
     base: Math.ceil(need - layout),
-    ...(tray ? measureTray(tray, filtersFolded(fold)) : {}),
+    ...(tray ? { tray: measureTray(tray) } : {}),
     ...(tabsFolded(fold) ? { picker: layout } : { tabs: { width: layout, key: tabsKey } }),
   }
 }
 
-function sameValues(a: readonly TrayValue[] | undefined, b: readonly TrayValue[] | undefined): boolean {
-  if (a === b) return true
-  if (!a || !b || a.length !== b.length) return false
-  return a.every((v, i) => v.key === b[i]?.key && v.width === b[i]?.width)
-}
-
 function sameMeasure(a: TopBarMeasure, b: TopBarMeasure): boolean {
-  return a.bar === b.bar && a.base === b.base && a.trayOpen === b.trayOpen && a.trayFolded === b.trayFolded
-    && a.trayOpenMin === b.trayOpenMin && a.trayFoldedMin === b.trayFoldedMin && sameValues(a.values, b.values)
+  return a.bar === b.bar && a.base === b.base && a.tray === b.tray
     && a.tabs?.width === b.tabs?.width && a.tabs?.key === b.tabs?.key && a.picker === b.picker
 }
 
@@ -271,20 +162,19 @@ function remeasure(bar: HTMLElement, shown: { fold: TopBarFold; tabsKey: string 
   }
 }
 
-/** The top bar's fold and how the tray shrinks at it (once measured). */
+/** The top bar's fold and the filter field's width at it (once measured). */
 interface TopBarFoldState {
   fold: TopBarFold
-  /** The tray shrunk into the room the bar leaves it at `fold`; `null` = natural. */
-  squeeze: TraySqueeze | null
+  search: number
 }
 
 /**
- * The top bar's fold, measured (never a breakpoint): the tray shrinks
- * first (the field, then long values), then the chips fold into the Filter
- * button, then the layout tabs. `barRef` = the bar, whose children carry `data-fold-part`;
- * `tabsKey` says what the tabs show (their widths depend on it, not on
- * their order); `partsKey` changes when the bar's children do. Every resize
- * of the bar or a child re-measures; the shrinking itself measures the same.
+ * The top bar's fold, measured (never a breakpoint): the filter field
+ * narrows first, then the layout tabs fold, then the field narrows further.
+ * `barRef` = the bar, whose children carry `data-fold-part`; `tabsKey` says
+ * what the tabs show (their widths depend on it, not on their order);
+ * `partsKey` changes when the bar's children do. Every resize of the bar or
+ * a child re-measures; the narrowing itself measures the same.
  */
 export function useTopBarFold(
   barRef: RefObject<HTMLElement | null>,
@@ -295,48 +185,22 @@ export function useTopBarFold(
   const fold = topBarFold(measure, tabsKey)
   const latest = useLatestRef({ fold, tabsKey })
   // Measured after each resize of the bar or one of its parts (the window,
-  // a filter's value, a renamed layout, the storage pill's state); the fold
-  // follows on the next frame. Never synchronously inside the callback: that
-  // would flush other components' pending renders while observations are
-  // delivered, and resize what this and other observers watch again.
+  // a renamed layout, the storage pill's state); the fold follows on the
+  // next frame. Never synchronously inside the callback: that would flush
+  // other components' pending renders while observations are delivered, and
+  // resize what this and other observers watch again.
   useLayoutEffect(() => {
     const bar = barRef.current
     if (!bar || typeof ResizeObserver === 'undefined') return
-    // While a filter picker is open (`FOLD_HOLD_ATTR` on its button, not in a
-    // measure-only copy) the fold holds: a pick that widens its value would
-    // otherwise fold the button, and the picker with it, away mid-pick. The
-    // bar is measured again once it closes.
-    let missed = false
-    const holding = () => Array.from(bar.querySelectorAll(attrSelector(FOLD_HOLD_ATTR)))
-      .some((el) => el.closest(attrSelector(FOLD_HIDDEN_ATTR)) == null)
-    const measureNow = () => {
-      if (holding()) {
-        missed = true
-        return
-      }
-      missed = false
-      setMeasure(remeasure(bar, latest.current))
-    }
-    const observer = new ResizeObserver(measureNow)
+    const observer = new ResizeObserver(() => setMeasure(remeasure(bar, latest.current)))
     observer.observe(bar)
-    const released = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => {
-      if (missed) measureNow()
-    })
-    released?.observe(bar, { subtree: true, attributes: true, attributeFilter: [FOLD_HOLD_ATTR] })
     // The parts and what is in them: a part that shrinks (the tray) keeps
-    // its box while its content changes; the filter bar's hidden fold.
+    // its box while its content changes.
     for (const child of Array.from(bar.children)) {
       observer.observe(child)
       for (const inner of Array.from(child.children)) observer.observe(inner)
     }
-    return () => {
-      observer.disconnect()
-      released?.disconnect()
-    }
+    return () => observer.disconnect()
   }, [barRef, latest, partsKey, fold])
-  const room = trayRoom(measure, fold)
-  const folded = filtersFolded(fold)
-  const natural = folded ? measure.trayFolded : measure.trayOpen
-  const squeeze = room === null || natural === undefined ? null : traySqueeze(natural, room, folded ? [] : measure.values)
-  return { fold, squeeze }
+  return { fold, search: searchWidth(measure, fold) }
 }

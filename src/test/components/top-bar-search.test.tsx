@@ -46,7 +46,7 @@ describe('TopBar grouped search', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
 
     await act(async () => {
       input.focus()
@@ -72,7 +72,7 @@ describe('TopBar grouped search', () => {
       todos: Array.from({ length: 7 }, (_, i) => makeTodo({ id: i + 1, title: `task ${i + 1}`, notes: '' })),
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'task' } })
@@ -100,7 +100,7 @@ describe('TopBar grouped search', () => {
       ]]]),
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'friday' } })
@@ -122,7 +122,7 @@ describe('TopBar grouped search', () => {
       ]]]),
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'travel' } })
@@ -142,7 +142,7 @@ describe('TopBar grouped search', () => {
       todos: [makeTodo({ id: 1, title: 'hello' })],
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'zzz' } })
@@ -172,7 +172,7 @@ describe('TopBar grouped search', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'urgent' } })
@@ -187,17 +187,19 @@ describe('TopBar grouped search', () => {
   // next test (after unmount) and wrote its stale query into the filter
   // store, which re-synced the new bar's input and unmounted the focused
   // option — the intermittent "roving focus" failure under full-suite load.
-  it('an unmounted bar does not write its pending search into the filter store', () => {
+  it('an unmounted bar writes its pending filter at once, leaving no write behind', () => {
     vi.useFakeTimers()
     try {
       const view = renderBar()
-      const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+      const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
       act(() => {
         input.focus()
         fireEvent.change(input, { target: { value: 'zzz' } })
       })
       view.unmount()
-      act(() => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 100) })
+      expect(useFilterStore.getState().filters.searchText).toBe('zzz')
+      act(() => useFilterStore.getState().clearAll())
+      act(() => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 1000) })
       expect(useFilterStore.getState().filters.searchText).toBe('')
     } finally {
       vi.useRealTimers()
@@ -215,7 +217,7 @@ describe('TopBar grouped search', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'urgent' } })
@@ -237,7 +239,7 @@ describe('TopBar search box and the filter store', () => {
 
   it('shows the store’s search text when it changes elsewhere (e.g. Clear all)', async () => {
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       fireEvent.change(input, { target: { value: 'budget' } })
     })
@@ -246,16 +248,17 @@ describe('TopBar search box and the filter store', () => {
     act(() => useFilterStore.getState().clearAll())
     expect(input.value).toBe('')
     act(() => useFilterStore.getState().setSearchText('from elsewhere'))
-    expect(input.value).toBe('from elsewhere')
+    // The field shows the whole filter: the text search is a quoted term.
+    expect(input.value).toBe('"from elsewhere"')
   })
 
-  it('two people of one name: a popup pick of the second makes the second’s chip (cr34 F10)', () => {
+  it('two people of one name: a popup pick of the second makes the second’s chip (cr34 F10)', async () => {
     useFilterStore.getState().clearAll()
     usePersonStore.setState({ people: [makePerson({ id: 3, name: 'Alex' }), makePerson({ id: 4, name: 'Alex' })], assignedPeopleMap: new Map() })
     useStatusStore.setState({ statuses: [] })
     useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     act(() => {
       input.focus()
       fireEvent.change(input, { target: { value: '@Al', selectionStart: 3, selectionEnd: 3 } })
@@ -263,8 +266,8 @@ describe('TopBar search box and the filter store', () => {
     const alexes = screen.getAllByRole('option', { name: 'Alex' })
     expect(alexes).toHaveLength(2)
     fireEvent.mouseDown(alexes[1] as HTMLElement, { button: 0 })
-    expect(useFilterStore.getState().filters.personIds).toEqual(new Set([4]))
-    expect(input.value).toBe('')
+    await waitFor(() => expect(useFilterStore.getState().filters.personIds).toEqual(new Set([4])))
+    expect(input.value.trim()).toBe('@Alex')
   })
 })
 
@@ -306,7 +309,7 @@ describe('TopBar renders for the tasks only while it searches them', () => {
 
   it('while the dropdown shows, it follows a task changed meanwhile', async () => {
     renderCounted()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'buy' } })

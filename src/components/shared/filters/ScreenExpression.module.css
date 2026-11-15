@@ -1,0 +1,39 @@
+/* A typed screen-filter expression on the phone (`ScreenExpression`):
+ * `Also`, the filter in words, a × that clears it. */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 36px;
+}
+
+.label {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
+.clear {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  cursor: pointer;
+}
+
+.clear:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}

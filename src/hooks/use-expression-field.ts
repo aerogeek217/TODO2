@@ -18,16 +18,21 @@ import { useLatestRef } from './use-latest-ref'
 /** How long typing rests before a reading expression is written (one undo step where each write is one). */
 export const EXPRESSION_WRITE_MS = 400
 
+/** The field's text box: a textarea (the editors, the Review widget) or a one-line input (the top bar). */
+type ExpressionInput = HTMLTextAreaElement | HTMLInputElement
+
 interface ExpressionFieldOptions {
   predicate: TodoPredicate
   onChange: (next: TodoPredicate) => void
-  inputRef: RefObject<HTMLTextAreaElement | null>
+  inputRef: RefObject<ExpressionInput | null>
   /** `false`: `@`, `no person` and `any person` are refused and `@` opens no popup (the check-in filter). */
   allowPeople?: boolean
   /** `false`: Completed dates are refused (the check-in filter). */
   allowCompleted?: boolean
   /** `false`: `done` is refused (filters that never show completed tasks by it: a pane, the check-in). */
   allowDone?: boolean
+  /** `true`: the search box's forms read too (`parseExpression`'s `searchForms`: the top bar's field). */
+  searchForms?: boolean
   /**
    * What the popup lists (default `expressionAutocomplete`: Quick Add's
    * `@ # ! /` popup cut to an expression). Keep it stable: the popup re-reads
@@ -51,7 +56,7 @@ interface ExpressionFieldOptions {
  * Hosts render a textarea over `tints` (`shared/TintedText`), the popup with
  * `ac.state`, and route the textarea's change / select / keydown / blur here.
  */
-export function useExpressionField({ predicate, onChange, inputRef, allowPeople = true, allowCompleted = true, allowDone = true, autocomplete }: ExpressionFieldOptions) {
+export function useExpressionField({ predicate, onChange, inputRef, allowPeople = true, allowCompleted = true, allowDone = true, searchForms = false, autocomplete }: ExpressionFieldOptions) {
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
@@ -88,8 +93,8 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   }
 
   const parse: ExpressionParse = useMemo(
-    () => parseExpression(text, { today: startOfToday(), names: resolver, allowPeople, allowCompleted, allowDone }),
-    [text, resolver, allowPeople, allowCompleted, allowDone],
+    () => parseExpression(text, { today: startOfToday(), names: resolver, allowPeople, allowCompleted, allowDone, searchForms }),
+    [text, resolver, allowPeople, allowCompleted, allowDone, searchForms],
   )
 
   const predicateRef = useLatestRef(predicate)
@@ -158,8 +163,8 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   /** Shows `value` and queues its reading (`names`: the resolver, `resolver` unless a pick just changed it). */
   const setAndRead = useCallback((value: string, now = false, names = resolver) => {
     setText(value)
-    queue(parseExpression(value, { today: startOfToday(), names, allowPeople, allowCompleted, allowDone }), now)
-  }, [queue, resolver, allowPeople, allowCompleted, allowDone])
+    queue(parseExpression(value, { today: startOfToday(), names, allowPeople, allowCompleted, allowDone, searchForms }), now)
+  }, [queue, resolver, allowPeople, allowCompleted, allowDone, searchForms])
 
   /**
    * Puts `value` in the field with the caret at `cursor` (a pick the host
@@ -195,7 +200,7 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   })
   const { handleInputChange, dismiss } = ac
 
-  const onTextChange = useCallback((raw: string, caret: number, input: HTMLTextAreaElement | null) => {
+  const onTextChange = useCallback((raw: string, caret: number, input: ExpressionInput | null) => {
     // A pasted line break is a space (one character for one: the caret stays).
     const value = raw.replace(/[\r\n]/g, ' ')
     if (value !== raw) pendingCaret.current = caret
@@ -203,16 +208,16 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
     handleInputChange(value, caret, input)
   }, [setAndRead, handleInputChange])
 
-  const onSelect = useCallback((input: HTMLTextAreaElement) => {
+  const onSelect = useCallback((input: ExpressionInput) => {
     handleInputChange(input.value, input.selectionStart ?? input.value.length, input)
   }, [handleInputChange])
 
   /** Shows the text that reads in its canonical form, the filter written now. */
   const settle = useCallback(() => {
-    const now = parseExpression(text, { today: startOfToday(), names: resolver, allowPeople, allowCompleted, allowDone })
+    const now = parseExpression(text, { today: startOfToday(), names: resolver, allowPeople, allowCompleted, allowDone, searchForms })
     queue(now, true)
     if (now.ok) setText(printExpression(now.expression, now.showCompleted, names))
-  }, [text, resolver, allowPeople, allowCompleted, allowDone, queue, names])
+  }, [text, resolver, allowPeople, allowCompleted, allowDone, searchForms, queue, names])
 
   const onBlur = useCallback(() => {
     dismiss()
@@ -220,7 +225,7 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   }, [dismiss, settle])
 
   /** True when the key was the field's (its default prevented, so a dialog around it doesn't take Esc). */
-  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+  const onKeyDown = useCallback((e: React.KeyboardEvent<ExpressionInput>): boolean => {
     if (ac.handleKeyDown(e, e.currentTarget)) return true
     if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       e.preventDefault()

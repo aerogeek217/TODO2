@@ -40,7 +40,7 @@ test.describe('phone row', () => {
 
 test('search results: the due pill hugs its date', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await page.getByPlaceholder('Filter…').fill('bill')
+  await page.locator('header').getByRole('textbox', { name: 'Filter tasks' }).fill('bill')
   const chip = page.getByRole('listbox', { name: 'Search results' }).locator('[class*="deadlineChip"]')
   await expect(chip).toBeVisible()
   expect(await slack(chip)).toBeLessThanOrEqual(10.5)

@@ -5,6 +5,7 @@ import { useFilterPlaceholder } from '../../hooks/use-filter-placeholder'
 import { useFilterStore } from '../../stores/filter-store'
 import { countActiveFilters, criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
+import { ScreenExpression } from '../shared/filters/ScreenExpression'
 import { CloseIcon, FunnelIcon, SearchIcon } from '../shared/icons'
 import { NlpPopup } from '../shared/NlpPopup'
 import { TintedText } from '../shared/TintedText'
@@ -15,7 +16,9 @@ import styles from './TaskDialogFilterBar.module.css'
  * filter in the top bar's tray over its filtered-tasks panel): the screen
  * filter itself, not a copy — every change here applies to every widget
  * behind at once (the dialog's rows follow it). The filter field, then the
- * filter sheet's sections under a Filters disclosure (closed at first).
+ * filter sheet's sections under a Filters disclosure (closed at first); a
+ * filter typed on desktop that no section says shows read-only under them
+ * (`ScreenExpression`).
  */
 export function TaskDialogFilterBar() {
   const filters = useFilterStore((s) => s.filters)
@@ -42,6 +45,8 @@ export function TaskDialogFilterBar() {
         {count > 0 && <span className={styles.count}>{count}</span>}
         <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} aria-hidden="true">▸</span>
       </button>
+      {/* A filter typed on desktop that no section says: read-only, with its ×. */}
+      <ScreenExpression className={styles.expression} />
       {open && (
         <div className={styles.sections}>
           <FilterChipBar predicate={predicate} onChange={onChange} density="mobile" onClearAll={clearAll} />

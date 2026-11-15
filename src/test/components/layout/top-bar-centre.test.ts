@@ -3,7 +3,7 @@ import { centreOffset, type CentreMeasure } from '../../../components/layout/use
 
 /**
  * The centring gap before the top bar's filter tray: the group at
- * rest centred in the bar; grown by chips it keeps its left edge until it
+ * rest centred in the bar; grown by the counter it keeps its left edge until it
  * would reach the right zone, then moves left, never past its start.
  */
 
@@ -18,7 +18,7 @@ describe('centreOffset', () => {
     expect(centreOffset(m({}))).toBe(220)
   })
 
-  it('a chip or the counter grows it rightwards: the left edge stays while there is room', () => {
+  it('the counter grows it rightwards: the left edge stays while there is room', () => {
     expect(centreOffset(m({ groupWidth: 600 }))).toBe(220)
     expect(centreOffset(m({ groupWidth: 780 }))).toBe(220)
   })

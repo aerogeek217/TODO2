@@ -52,8 +52,9 @@ export interface FilterCriteria {
   negate?: FilterNegation
   /**
    * The filter as an expression (`TodoPredicate.expression`): a task must
-   * pass it too. Absent = none (the top bar's chips never have one; a list's,
-   * a pane's or the check-in's may).
+   * pass it too. Absent = none. A list's, a pane's or the check-in's may have
+   * one; the screen filter holds one beside its chips while the top bar's
+   * field was typed a filter no chip says (`filter-store.applyExpression`).
    */
   expression?: FilterExpr
 }
@@ -106,7 +107,7 @@ export function fixedAnchor(d: Date): DateAnchor {
 /**
  * Number of active screen filters, one per control: people, status,
  * tags, dates (however many date types filter), markers, show completed,
- * search. The chips never hold an expression.
+ * search — and the expression the top bar's field holds beside them.
  */
 export function countActiveFilters(f: FilterCriteria): number {
   const dates = hasDateFilters(f.dates)
@@ -118,6 +119,7 @@ export function countActiveFilters(f: FilterCriteria): number {
     hasMarkers(f.markers),
     f.showCompleted,
     f.searchText !== '',
+    f.expression != null,
   ].filter(Boolean).length
 }
 

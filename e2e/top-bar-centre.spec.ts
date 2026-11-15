@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { seedWorkspace, withSpareLayouts, type WorkspaceSeed, wsRow } from './fixtures/workspace'
-import { filterChip, filterField } from './fixtures/filters'
+import { filterField, filterPills } from './fixtures/filters'
 
 /**
  * The top bar in three groups: the layout tabs on the left, the filter tray
@@ -33,7 +33,7 @@ const MIN_GAP = 20
 const geometry = (page: Page) => page.locator('header').evaluate((bar) => {
   const rect = (sel: string) => bar.querySelector(sel)!.getBoundingClientRect()
   const box = bar.getBoundingClientRect()
-  const parts = [...bar.querySelectorAll('button, input')].map((p) => p.getBoundingClientRect()).filter((r) => r.width > 0)
+  const parts = [...bar.querySelectorAll('button, input')].filter((p) => !p.closest('[data-top-bar-pill]')).map((p) => p.getBoundingClientRect()).filter((r) => r.width > 0)
   const rightControls = [...bar.querySelectorAll('[data-fold-part="spring"] > *')].map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0)
   return {
     fold: bar.dataset.fold,
@@ -87,10 +87,11 @@ async function pickAisha(page: Page) {
     }
     mod.useFilterStore.getState().setPersonIds(new Set([1]))
   })
-  await expect(filterChip(page, 'People')).toBeVisible()
+  await expect(filterPills(page)).toHaveText([/@/])
 }
 
-for (const width of [1920, 1440, 1280, 1100]) {
+// (At 1100px the 560px field leaves no room to centre: the tray sits at the tabs' least gap — the narrowing test.)
+for (const width of [1920, 1440, 1280]) {
   test(`at ${width}px, at rest, the filter tray is centred in the bar, clear of both neighbours`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await seedWorkspace(page, SEED)
@@ -101,7 +102,7 @@ for (const width of [1920, 1440, 1280, 1100]) {
   })
 }
 
-test('a filter set grows the tray rightwards: the field stays put', async ({ page }) => {
+test('a filter set grows the tray rightwards by the counter: the field stays put', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, SEED)
   const rest = await settled(page)
@@ -113,13 +114,13 @@ test('a filter set grows the tray rightwards: the field stays put', async ({ pag
   expectClear(set, 'one filter')
 })
 
-test('typing @name in the field makes a chip without sliding the field under the caret', async ({ page }) => {
+test('typing @name in the field filters without sliding the field under the caret', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, SEED)
   const rest = await settled(page)
   await filterField(page).click()
   await page.keyboard.type('@Aisha ')
-  await expect(filterChip(page, 'People')).toBeVisible()
+  await expect(page.locator('header [data-filter-row]')).toHaveAttribute('data-filtered', 'true')
   const after = await settled(page)
   expect(after.fieldLeft).toBe(rest.fieldLeft)
   expect(after.groupLeft).toBe(rest.groupLeft)

@@ -112,7 +112,7 @@ describe('TopBar search right-click — dropdown survival', () => {
         <TopBar />
       </MemoryRouter>,
     )
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     act(() => {
       input.focus()
       fireEvent.change(input, { target: { value: 'buy' } })

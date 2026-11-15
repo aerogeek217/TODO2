@@ -115,7 +115,7 @@ export function reviewTargetTabId(): string | null {
 
 // ── The top bar's filter ────────────────────────────────────────────────────
 
-/** The filtered-tasks panel's review: the top bar's chips and its text search as one expression. */
+/** The filtered-tasks panel's review: the top bar's chips, its text search and the expression typed beside them, as one expression. */
 export function screenReviewFilter(): ReviewFilter {
   return reviewFilterOf(wholeExpression(criteriaToPredicate(useFilterStore.getState().filters)))
 }
