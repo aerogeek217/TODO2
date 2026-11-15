@@ -22,6 +22,7 @@ import {
   wholeLine,
 } from '../../utils/workspace-grid'
 import { cell, emptyBody, grid, picture } from '../helpers/layout-builders'
+import { expectWithin } from '../timing'
 
 const a = cell('a')
 const b = cell('b')
@@ -109,6 +110,52 @@ describe('normalizeGrid', () => {
 
   it('drops every track of a body without cells', () => {
     expect(normalizeGrid({ grid: L.grid, cells: [] }).grid).toEqual({ columns: [], rows: [] })
+  })
+
+  it('a run of lines no edge lies on merges into one track, in order; the lines kept shift back', () => {
+    // Columns 0–2 under one cell (two lines to go), a kept line, then 3–4 under another (one to go).
+    const body: LayoutBody = {
+      grid: {
+        columns: [{ id: 'c0', weight: 100 }, { id: 'c1', weight: 200 }, { id: 'c2', px: 40 }, { id: 'c3', weight: 300 }, { id: 'c4', weight: 50 }],
+        rows: [{ id: 'r0', weight: 500 }, { id: 'r1', weight: 500 }],
+      },
+      cells: [
+        { id: 'a', area: { col: 0, row: 0, colSpan: 3, rowSpan: 2 }, tabs: [] },
+        { id: 'b', area: { col: 3, row: 0, colSpan: 2, rowSpan: 1 }, tabs: [] },
+        { id: 'c', area: { col: 3, row: 1, colSpan: 2, rowSpan: 1 }, tabs: [] },
+      ],
+    }
+    const out = normalizeGrid(body)
+    expect(out.grid.columns).toEqual([
+      mergeTracks(mergeTracks({ id: 'c0', weight: 100 }, { id: 'c1', weight: 200 }), { id: 'c2', px: 40 }),
+      { id: 'c3', weight: 350 },
+    ])
+    expect(out.grid.rows).toEqual(body.grid.rows)
+    expect(out.cells.map((x) => [x.id, x.area])).toEqual([
+      ['a', { col: 0, row: 0, colSpan: 1, rowSpan: 2 }],
+      ['b', { col: 1, row: 0, colSpan: 1, rowSpan: 1 }],
+      ['c', { col: 1, row: 1, colSpan: 1, rowSpan: 1 }],
+    ])
+    expect(validateTiling(out)).toBe(true)
+  })
+
+  it('stays linear: thousands of lines no edge lies on go in one pass (cr34 B)', () => {
+    // 2,000 cells in one column, each over two row tracks of two column tracks: 4,000 lines to drop.
+    const n = 2000
+    const body: LayoutBody = {
+      grid: {
+        columns: [{ id: 'x0', weight: 500 }, { id: 'x1', weight: 500 }],
+        rows: Array.from({ length: 2 * n }, (_, i) => ({ id: `r${i}`, weight: 1 })),
+      },
+      cells: Array.from({ length: n }, (_, i) => ({ id: `k${i}`, area: { col: 0, row: 2 * i, colSpan: 2, rowSpan: 2 }, tabs: [] })),
+    }
+    expectWithin(250, () => {
+      const out = normalizeGrid(body)
+      expect(out.grid.columns).toEqual([{ id: 'x0', weight: 1000 }])
+      expect(out.grid.rows).toHaveLength(n)
+      expect(out.grid.rows[1]).toEqual({ id: 'r2', weight: 2 })
+      expect(out.cells[n - 1]?.area).toEqual({ col: 0, row: n - 1, colSpan: 1, rowSpan: 1 })
+    })
   })
 })
 
