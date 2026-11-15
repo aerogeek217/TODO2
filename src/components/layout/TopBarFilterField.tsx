@@ -146,8 +146,10 @@ export function TopBarFilterField({ width, panelOpen, foldAttr }: {
   const wholeText = printExpression(shownFilter.expression, shownFilter.showCompleted, field.names)
   const tip = useTooltip(resting && hidden > 0 ? wholeText : null)
 
-  // A typed text that doesn't read (the filter's own text always shows, though a name in it is gone).
-  const error = !parse.ok && field.unreadable ? parse.error : null
+  // A typed text that doesn't read (the filter's own text always shows, though a name in it is gone) —
+  // not while the `@ # ! /` popup shows (a name still being picked), one at a time.
+  const popupOpen = ac.state.visible && ac.state.view !== null
+  const error = !parse.ok && field.unreadable && !popupOpen ? parse.error : null
   const errorTip = useTooltip(error?.hint ?? null)
 
   // Keep the tint mirror scrolled with the input's text.
@@ -157,7 +159,6 @@ export function TopBarFilterField({ width, panelOpen, foldAttr }: {
   useLayoutEffect(() => { syncMirror() }, [text, syncMirror])
 
   // The `@ # ! /` popup; the search results wait while it shows.
-  const popupOpen = ac.state.visible && ac.state.view !== null
   const popup = useNlpPopupAnchor(inputRef, ac.state)
 
   // The text search's matches: the words typed, among the tasks the rest of the screen filter keeps.
@@ -222,12 +223,13 @@ export function TopBarFilterField({ width, panelOpen, foldAttr }: {
     >
       {resting ? (
         // The pills over the field; the field lies under them, unseen, taking every press but an ×'s.
-        <div ref={pillsRef} className={`${styles.pills} ${hidden > 0 ? styles.pillsFaded : ''}`} data-testid="top-bar-pills">
+        // Its own element (a key of its own): the mirror's scroll never carries over.
+        <div key="pills" ref={pillsRef} className={`${styles.pills} ${hidden > 0 ? styles.pillsFaded : ''}`} data-testid="top-bar-pills">
           <ExpressionPills pieces={pieces} onRemove={removePiece} pillAttr="data-top-bar-pill" />
         </div>
       ) : (
         // The field's text with its tints, over the input's transparent text.
-        <div ref={mirrorRef} className={styles.searchMirror} aria-hidden="true" data-testid="search-mirror">
+        <div key="mirror" ref={mirrorRef} className={styles.searchMirror} aria-hidden="true" data-testid="search-mirror">
           <TintedText text={text} spans={tints} />
         </div>
       )}
