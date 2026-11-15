@@ -1,4 +1,5 @@
-import type { FilterCriteria } from '../utils/filter-criteria'
+import { useDeferredValue } from 'react'
+import { countActiveFilters, type FilterCriteria } from '../utils/filter-criteria'
 import { useFilterStore } from './filter-store'
 
 /**
@@ -9,6 +10,15 @@ import { useFilterStore } from './filter-store'
  * calendar, the Neglect map, the counter and the filtered tasks); what edits
  * the chips, counts them or seeds a new task from them reads `filter-store`
  * itself.
+ *
+ * **The hooks hand the widgets the filter deferred** (`useDeferredValue`):
+ * a change — Clear all filters above all, which mounts every task the
+ * filter hid — first renders the top bar alone (its field, pills, funnel and
+ * Filter menu read `filter-store`), which paints at once; the widgets then
+ * render the new filter in a background render React yields from, instead
+ * of holding the click's frame for the whole workspace (some 300 ms on a
+ * seeded workspace, over a second in dev). `currentScreenFilter` is never
+ * deferred.
  */
 
 /** The screen filter as it is now (the same object while nothing changed). */
@@ -22,16 +32,14 @@ interface ScreenFilterState {
   active: boolean
 }
 
-/** The screen filter (`currentScreenFilter`), kept current. */
+/** The screen filter (`currentScreenFilter`), kept current — deferred, as the module says. */
 export function useScreenFilter(): ScreenFilterState {
-  const filters = useFilterStore((s) => s.filters)
-  const active = useFilterStore((s) => s.isActive)
-  return { filters, active }
+  const filters = useDeferredValue(useFilterStore((s) => s.filters))
+  return { filters, active: countActiveFilters(filters) > 0 }
 }
 
 /** The screen filter while it narrows, else undefined — what a list composes into its own (`useBuiltList`). */
 export function useActiveScreenFilter(): FilterCriteria | undefined {
-  const filters = useFilterStore((s) => s.filters)
-  const active = useFilterStore((s) => s.isActive)
+  const { filters, active } = useScreenFilter()
   return active ? filters : undefined
 }
