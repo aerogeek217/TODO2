@@ -9,7 +9,7 @@ import { nextBreakdownSort } from '../../../services/stats/breakdown'
 import { cellKey, isLivePivotSort, sortPivotRows, type PivotHead, type PivotStats } from '../../../services/stats/pivot'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
-import { SPLIT_CHOICE_LABELS, SPLIT_ROW_LABELS } from './breakdown-copy'
+import { countWordOf, SPLIT_CHOICE_LABELS, SPLIT_ROW_LABELS, type CountWord } from './breakdown-copy'
 import { chartDrill, rowHeading } from './chart-drills'
 import { ChartPanel } from './chart-parts'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
@@ -32,10 +32,10 @@ function topCell(stats: PivotStats): { row: PivotHead; col: PivotHead; n: number
   return top
 }
 
-/** Copy: `Pivot 12 open`, then a line per row in the order shown, `Aisha: Waiting 3 · Doing 2`. */
-function pivotLines(title: string, stats: PivotStats, rows: readonly PivotHead[]): SummaryPart[][] {
+/** Copy: `Pivot 12 open` (`12 tasks` while it counts completed ones), then a line per row in the order shown, `Aisha: Waiting 3 · Doing 2`. */
+function pivotLines(title: string, stats: PivotStats, rows: readonly PivotHead[], word: CountWord): SummaryPart[][] {
   return [
-    [{ label: title, count: `${stats.ids.length} open` }],
+    [{ label: title, count: `${stats.ids.length} ${word}` }],
     ...rows.map((r) => stats.cols.flatMap((c) => {
       const n = stats.cells.get(cellKey(r.key, c.key))?.length ?? 0
       return n > 0 ? [{ label: `${rowHeading(r)} · ${rowHeading(c)}`, count: String(n) }] : []
@@ -157,7 +157,9 @@ export function PivotWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PivotT
   const stored = tab.viewState?.sort
   const sort = stored && isLivePivotSort(stored, data.stats) ? stored : undefined
   const rows = useMemo(() => sortPivotRows(data.stats, sort), [data.stats, sort])
-  const lines = useMemo(() => pivotLines(title, data.stats, rows), [title, data.stats, rows])
+  // `open`, or `tasks` when its filter lets completed ones through, as a Breakdown says it (cr34 G6).
+  const word = countWordOf(config.filter)
+  const lines = useMemo(() => pivotLines(title, data.stats, rows, word), [title, data.stats, rows, word])
   const onSort = (by: string) => {
     const next = nextBreakdownSort(sort, by)
     void useWorkspaceStore.getState().patchTabViewState(tab.id, 'pivot', { sort: next })
@@ -175,7 +177,7 @@ export function PivotWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PivotT
           title={title}
           entry={top ? `${rowHeading(top.row)} × ${rowHeading(top.col)}` : undefined}
           value={String(top?.n ?? 0)}
-          caption={top ? undefined : 'open'}
+          caption={top ? undefined : word}
         />
       ) : (
         <ChartPanel
@@ -183,7 +185,7 @@ export function PivotWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PivotT
           kind="pivot"
           title={title}
           glyph="matrix"
-          count={`${data.stats.ids.length} open`}
+          count={`${data.stats.ids.length} ${word}`}
           sub={`${SPLIT_CHOICE_LABELS[config.rows]} × ${SPLIT_CHOICE_LABELS[config.cols]}`}
           lens={<TabLensSwitch tab={tab} hides={lensHides} />}
         >

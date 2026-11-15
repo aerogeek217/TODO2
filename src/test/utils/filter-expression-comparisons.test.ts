@@ -201,6 +201,83 @@ describe('filter expressions — date printing', () => {
     expect(print('created', range(off(-1), null))).toBe('created >= yesterday')
   })
 
+  it('a stored offset of 0 or ±1 finds the shortcuts and the period names, as the named day does (cr34 F7)', () => {
+    // Before today, its end stored either way: `overdue`, `followup late` (the other dates have no such word).
+    for (const end of [rel('yesterday'), off(-1)]) {
+      expect(print('deadline', range(null, end))).toBe('overdue')
+      expect(print('followup', range(null, end))).toBe('followup late')
+      expect(print('lastFollowup', range(null, end))).toBe('followed <= yesterday')
+      expect(print('created', range(null, end))).toBe('created <= yesterday')
+    }
+    // Not before today: one day either side stays a comparison.
+    expect(print('deadline', range(null, off(-2)))).toBe('due <= -2d')
+    expect(print('deadline', range(null, off(0)))).toBe('due <= today')
+    expect(print('deadline', range(off(-1), off(-1)))).toBe('due yesterday')
+    // This week / this month: from today (to today on the dates that look back), today stored as a 0-day offset.
+    expect(print('deadline', range(off(0), rel('end-of-week')))).toBe('due this week')
+    expect(print('followup', range(off(0), rel('end-of-month')))).toBe('followup this month')
+    expect(print('completed', range(rel('start-of-week'), off(0)))).toBe('completed this week')
+    expect(print('created', range(rel('start-of-month'), off(0)))).toBe('created this month')
+    // A different day is no period.
+    expect(print('deadline', range(off(1), rel('end-of-week')))).toBe('due tomorrow..end of week')
+  })
+
+  it('what prints reads back and prints the same, so a blur rewrites nothing: every pair of day ends, stored either way (cr34 F7)', () => {
+    const ends: Array<DateAnchor | null> = [
+      null, off(-2), off(-1), off(0), off(1), off(2), rel('yesterday'), rel('today'), rel('tomorrow'),
+      rel('start-of-week'), rel('end-of-week'), rel('start-of-month'), rel('end-of-month'),
+    ]
+    const fields: DateField[] = ['deadline', 'followup', 'lastFollowup', 'created', 'modified', 'completed']
+    let checked = 0
+    for (const field of fields) {
+      for (const start of ends) {
+        for (const end of ends) {
+          if (start == null && end == null) continue
+          const text = print(field, range(start, end))
+          const r = parse(text)
+          // An inverted range (its end before its start) prints, but reads as an error (F9): nothing to settle.
+          if (!r.ok) continue
+          expect(printExpression(r.expression, r.showCompleted, names), `${field} ${JSON.stringify(start)}..${JSON.stringify(end)}: ${text}`).toBe(text)
+          checked += 1
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(500)
+  })
+
+  it('a range that ends before it starts is an error saying how it read, not a filter that keeps nothing (cr34 F9)', () => {
+    const message = 'This range ends before it starts'
+    // Fri 6 Nov: on Created each weekday is the last one — Mon 2 Nov, then the Friday before today, 30 Oct.
+    expect(errorOf('created mon..fri')).toEqual({ message, hint: 'It reads as 11/2/2026..10/30/2026: put the earlier day first', at: [8, 16] })
+    // On Due each is the next one: Sat 7 Nov, then Tue 10 Nov — in order. Tue..sat is too; sat..fri (7 Nov, then 13 Nov) too.
+    expect(match('due sat..tue')).toEqual(range(fixed(2026, 11, 7), fixed(2026, 11, 10)))
+    // Typed on a Sunday, `due sat..tue` is the Saturday after the Tuesday.
+    const onSunday = parseExpression('due sat..tue', { today: new Date(2026, 10, 8), names: { person: () => undefined, tag: () => undefined, status: () => undefined } })
+    expect(onSunday.ok ? null : [onSunday.error.message, onSunday.error.hint]).toEqual([message, 'It reads as 11/14/2026..11/10/2026: put the earlier day first'])
+    // Days from today, named or counted.
+    expect(errorOf('due +7d..-3d')).toEqual({ message, hint: 'It reads as +7d..-3d: put the earlier day first', at: [4, 12] })
+    expect(errorOf('@Aisha and due tomorrow..today')).toMatchObject({ message, at: [15, 30] })
+    expect(errorOf('followup in 3 days..yesterday')).toMatchObject({ message })
+    // Dates with their years.
+    expect(errorOf('due 11/30/2026..11/1/2026')).toMatchObject({ message, hint: 'It reads as 11/30/2026..11/1/2026: put the earlier day first' })
+    expect(errorOf('not (created 11/30/2026..11/1/2026)')).toMatchObject({ message })
+  })
+
+  it('a range in order, one day long, or of two sorts of day still reads (cr34 F9)', () => {
+    expect(match('due -3d..+7d')).toEqual(range(off(-3), off(7)))
+    expect(match('due +3d..+3d')).toEqual(range(off(3), off(3)))
+    expect(match('due today..today')).toEqual(range(rel('today'), rel('today')))
+    expect(match('due 11/30/2026..11/30/2026')).toEqual(range(fixed(2026, 11, 30), fixed(2026, 11, 30)))
+    // Two year-less days are one range, read together: across the year's end, never backwards.
+    expect(match('due 12/20..1/5')).toEqual(range(fixed(2026, 12, 20), fixed(2027, 1, 5)))
+    expect(match('created 12/20..1/5')).toEqual(range(fixed(2025, 12, 20), fixed(2026, 1, 5)))
+    // A date against a day from today, or a week / month anchor, may be in order on another day: left to read.
+    expect(match('due 11/30/2026..+3d')).toEqual(range(fixed(2026, 11, 30), off(3)))
+    expect(match('due +30d..11/7/2026')).toEqual(range(off(30), fixed(2026, 11, 7)))
+    expect(match('due end of month..today')).toEqual(range(rel('end-of-month'), rel('today')))
+    expect(match('due end of week..start of week')).toEqual(range(rel('end-of-week'), rel('start-of-week')))
+  })
+
   it('settles the older words in the new form', () => {
     for (const [typed, printed] of [
       ['due by fri', 'due <= 11/13/2026'],

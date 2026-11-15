@@ -295,6 +295,52 @@ describe('the expression field', () => {
     expect(log).toEqual([])
   })
 
+  it('a filter whose range ends on a -1 day offset shows the shortcut, and a focus and a blur write nothing (cr34 F7)', () => {
+    const log: TodoPredicate[] = []
+    // As a Breakdown's Overdue row sends it to the Review widget: due before today, its end a -1 day offset.
+    const overdue: FilterExpr = {
+      kind: 'and',
+      items: [{ kind: 'person', id: 1 }, { kind: 'date', field: 'deadline', match: { match: 'range', start: null, end: { kind: 'offset', days: -1 } } }],
+    }
+    render(<Harness initial={{ ...emptyPredicate(), expression: overdue }} log={log} />)
+    expect(field().value).toBe('@Alice and overdue')
+    fireEvent.focus(field())
+    fireEvent.blur(field())
+    expect(log).toEqual([])
+    expect(field().value).toBe('@Alice and overdue')
+    cleanup()
+    // This week from a 0-day offset, and a late follow-up likewise.
+    const more: FilterExpr = {
+      kind: 'or',
+      items: [
+        { kind: 'date', field: 'deadline', match: { match: 'range', start: { kind: 'offset', days: 0 }, end: { kind: 'relative', token: 'end-of-week' } } },
+        { kind: 'date', field: 'followup', match: { match: 'range', start: null, end: { kind: 'offset', days: -1 } } },
+      ],
+    }
+    render(<Harness initial={{ ...emptyPredicate(), expression: more }} log={log} />)
+    expect(field().value).toBe('due this week or followup late')
+    fireEvent.focus(field())
+    fireEvent.blur(field())
+    expect(log).toEqual([])
+  })
+
+  it('a range that ends before it starts is reported as text that doesn’t read, and never written (cr34 F9)', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={{ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }} log={log} />)
+    type('due +7d..-3d')
+    fireEvent.blur(field())
+    expect(log).toEqual([])
+    expect(field()).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('This range ends before it starts')).toBeInTheDocument()
+    // In order, it reads and is written.
+    type('due -3d..+7d')
+    fireEvent.blur(field())
+    expect(field()).not.toHaveAttribute('aria-invalid', 'true')
+    expect(log.at(-1)?.expression).toEqual({
+      kind: 'date', field: 'deadline', match: { match: 'range', start: { kind: 'offset', days: -3 }, end: { kind: 'offset', days: 7 } },
+    })
+  })
+
   it('keeps the person the text named when two share a name (cr33 F5)', () => {
     usePersonStore.setState({ people: [makePerson({ id: 3, name: 'Alex' }), makePerson({ id: 4, name: 'Alex' })], assignedPeopleMap: new Map() })
     const log: TodoPredicate[] = []

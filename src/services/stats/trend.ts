@@ -197,7 +197,13 @@ export interface TrendCumulative {
   completed: number[]
 }
 
-/** The Cumulative presentation's two lines: their gap is what is open (where the filter's membership didn't change). */
+/**
+ * The Cumulative presentation's two lines. Their gap is what is open only
+ * while no task re-entered the open set without being created: a task
+ * completed before the range and reopened in it is open and in neither line
+ * (cr34 G5), as is one a filter starts to keep mid-range. Nothing drawn or
+ * said promises the gap; the open count is `openSeries` (Burndown).
+ */
 export function trendCumulative(stats: Pick<TrendStats, 'daily' | 'openAtStart'>): TrendCumulative {
   let made = stats.openAtStart
   let done = 0

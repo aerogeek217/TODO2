@@ -27,6 +27,23 @@ export function restrictedRows(ids: readonly number[], restrictions: RowRestrict
   return everyPicks.length > 0 ? everyPicks : anyPicks
 }
 
+/**
+ * The people (tags) a task of row `id` has none of under `restrictions`
+ * (cr34 G4): the ones every restriction picks, while `id` isn't one of them
+ * — a task that has one of those counts under them alone (`restrictedRows`),
+ * so a row any restriction picks, but not every one, holds only the tasks
+ * that have none. Empty: the row holds every task that has `id` (no
+ * restriction, or every one picks it). The Unassigned pick (0) names no
+ * person a task has, so it is never among them.
+ */
+export function rowExcludes(id: number, restrictions: RowRestrictions): number[] {
+  const picks = restrictions.filter((r) => r.length > 0)
+  const first = picks[0]
+  if (!first) return []
+  const every = first.filter((x, i) => x !== 0 && first.indexOf(x) === i && picks.every((r) => r.includes(x)))
+  return every.includes(id) ? [] : every
+}
+
 /** Whether a task with no person (tag) keeps its Unassigned (No tag) row under `restrictions`. */
 export function keepsNoneRow(restrictions: RowRestrictions): boolean {
   return restrictions.filter((r) => r.length > 0).every((r) => r.includes(0))

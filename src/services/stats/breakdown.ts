@@ -2,7 +2,7 @@ import type { PersistedTodoItem, Person, Status, Tag } from '../../models'
 import { BREAKDOWN_FIXED_SORT_KEYS, type BreakdownOldestBy, type BreakdownShow, type BreakdownSort, type BreakdownSortKey, type BreakdownSplit } from '../../models/chart-widgets'
 import { daysUntil } from '../../utils/effective-date'
 import { NO_PRIORITY_LABEL, priorityRank, type MarkerSummary } from '../../utils/markers'
-import { keepsNoneRow, restrictedRows, type RowRestrictions } from './row-restrictions'
+import { keepsNoneRow, restrictedRows, rowExcludes, type RowRestrictions } from './row-restrictions'
 import { idsByDate, type StatsContext } from './stats-context'
 
 /**
@@ -45,6 +45,14 @@ export const DUE_BUCKET_LABELS: Record<DueBucket, string> = {
   later: 'Later',
 }
 
+/**
+ * The first due row's name once it holds a completed task (a chart whose
+ * filter lets them through, cr34 G6): the row is the due dates before
+ * today, and a completed task with one isn't overdue, so it is named by its
+ * dates alone. While every task in it is open it stays `Overdue`.
+ */
+export const DUE_PAST_LABEL = 'Before today'
+
 /** The age buckets (days since created), in order. */
 export type AgeBucket = 'week' | 'month' | 'quarter' | 'older'
 const AGE_BUCKETS: readonly AgeBucket[] = ['week', 'month', 'quarter', 'older']
@@ -86,12 +94,21 @@ export interface OldestTask {
 export interface BreakdownRow {
   /** Unique in the Breakdown: `person-3`, `tag-5`, `status-2`, `priority-focus`, `due-overdue`, `age-week`; `none`. */
   key: string
+  /** Its name; the `due-overdue` row's is `Overdue`, or `DUE_PAST_LABEL` once it holds a completed task. */
   label: string
   entity: BreakdownEntity
   /** Its colour (a person's, a tag's, a status's, a marker's); absent = neutral. */
   color?: string
   /** Its tasks, by due date then `sortOrder`. */
   ids: number[]
+  /**
+   * A people or tags row under `@` / `#` picks: the people (tags) none of
+   * its tasks has (`rowExcludes`: a task that has one counts under those
+   * rows alone). Absent: the row holds every task that has its person
+   * (tag). The row's Review filter says the same (`services/review`
+   * `breakdownRowTerm`), so its count and its review agree (cr34 G4).
+   */
+  excludes?: readonly number[]
   /** How many of its open tasks are overdue (the bar's late part). */
   overdue: number
   /** Each count column's tasks of the row, by column id, by due date (a column the options don't name: none). */
@@ -312,7 +329,15 @@ export function computeBreakdown(tasks: readonly PersistedTodoItem[], ctx: Stats
       g.tasks.push(t)
     }
   }
-  const rows = [...groups.values()].map((g) => breakdownRow(g.head, g.tasks, ctx, opts))
+  const rows = [...groups.values()].map((g) => {
+    const e = g.head.entity
+    // The due dates before today: Overdue only while none of its tasks is completed.
+    const past = e.kind === 'due' && e.bucket === 'overdue' && g.tasks.some((t) => t.isCompleted)
+    const row = breakdownRow(past ? { ...g.head, label: DUE_PAST_LABEL } : g.head, g.tasks, ctx, opts)
+    const id = e.kind === 'person' ? e.person.id : e.kind === 'tag' ? e.tag.id : null
+    const excludes = id == null ? [] : rowExcludes(id, opts.restrictions ?? [])
+    return excludes.length > 0 ? { ...row, excludes } : row
+  })
   rows.sort(defaultCompare(opts.splitBy, opts.show, ctx.statuses))
   if (none.length > 0 && opts.splitBy !== 'age') {
     rows.push(breakdownRow({ key: 'none', label: NONE_ROW_LABELS[opts.splitBy], entity: { kind: 'none' } }, none, ctx, opts))

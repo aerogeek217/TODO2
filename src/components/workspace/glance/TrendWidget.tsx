@@ -340,7 +340,7 @@ function BurndownShow({ data, name, today, onDrill, compact }: ShowProps) {
   )
 }
 
-/** Cumulative: the running totals of created (on top of what was open at the start) and of completed; the gap between them is what is open. */
+/** Cumulative: the running totals of created (on top of what was open at the start) and of completed. Their gap is not the open count after a reopen (`trendCumulative`). */
 function CumulativeShow({ data, name, rangeWords, today, onDrill, compact }: ShowProps) {
   const { stats } = data
   const columns = useColumns(data, today)

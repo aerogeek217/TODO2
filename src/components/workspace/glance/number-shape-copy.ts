@@ -45,9 +45,23 @@ export function oldestAge(days: number, by: NumberOldestBy): { figure: string; c
   }
 }
 
-/** An Oldest's foot: `12 · median 6 days` (`12` alone without a median). */
-export function oldestFoot(count: number, median: number | null): string {
-  return median == null ? String(count) : `${count} · median ${median} ${plural(median, 'day')}`
+/**
+ * An Oldest's foot: `12 · median 6 days` (`12` alone without a median) —
+ * `count` the tasks the age is over (by due date, the dated ones). By due
+ * date the median reads as the figure does — `median 6 days overdue`,
+ * `median due today`, `median due in 6 days` —, never a negative age (cr34 G10).
+ */
+export function oldestFoot(count: number, median: number | null, by?: NumberOldestBy): string {
+  if (median == null) return String(count)
+  if (by !== 'deadline') return `${count} · median ${median} ${plural(median, 'day')}`
+  const n = Math.abs(median)
+  const words = median === 0 ? 'due today' : median > 0 ? `${n} ${plural(n, 'day')} overdue` : `due in ${n} ${plural(n, 'day')}`
+  return `${count} · median ${words}`
+}
+
+/** An Oldest with no task to age: `No tasks`, or — by due date, while its filter keeps `kept` tasks and none has one — `No due dates`. */
+export function oldestNone(kept: number, by: NumberOldestBy): string {
+  return by === 'deadline' && kept > 0 ? 'No due dates' : 'No tasks'
 }
 
 /** A goal's figure after the count: `/ 12`. */

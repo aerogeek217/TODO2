@@ -205,13 +205,13 @@ test('a zone’s word opens its tasks as a list; under 900px the widget has no S
   if (process.env.NEGLECT_SHOTS) await map(page).screenshot({ path: `${process.env.NEGLECT_SHOTS}/neglect-no-list.png` })
 })
 
-test('the ⋯ menu sets Colour by and Untouched after', async ({ page }) => {
+test('the ⋯ menu sets Color by and Untouched after', async ({ page }) => {
   // Alone in its cell: its top line (its name, Slipping N) stands for the tab (D26 AA1).
   const tab = wsCell(page, 'k1').locator('[data-ws-tab]').getByTestId('top-line-name')
   await expect(tab).toHaveText('Neglect map')
   await tab.click({ button: 'right' })
   const menu = page.getByRole('menu', { name: 'Cell options' })
-  await menu.getByRole('menuitem', { name: /^Colour by/ }).click()
+  await menu.getByRole('menuitem', { name: /^Color by/ }).click()
   await page.getByRole('menuitemradio', { name: 'None' }).click()
   await expect(dot(page, 'Ship the quarterly report')).not.toHaveAttribute('data-coloured', 'true')
   // A tag ticked colours by tags again (the submenu stays open).

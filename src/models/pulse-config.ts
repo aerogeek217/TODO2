@@ -49,7 +49,9 @@ export function pulseLateDefaultFilter(): TodoPredicate {
 /**
  * The filter that keeps what the built-in staleness keeps for a threshold
  * of `days` (above 0): modified on or before `days` days ago — a Stale
- * rule's first filter, so giving it one changes no count.
+ * rule's first filter, so giving it one changes no count. With the
+ * threshold at 0 (fading off) no task is stale and no filter keeps the same;
+ * the editor then starts the rule at the default threshold and says so.
  */
 export function pulseStaleFilterFor(days: number): TodoPredicate {
   return { ...emptyPredicate(), dates: { modified: { match: 'range', start: null, end: { kind: 'offset', days: -days } } } }

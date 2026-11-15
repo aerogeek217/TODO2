@@ -4,7 +4,7 @@ import type { DateMatch } from '../../models/filter-predicate'
 import { describeDateMatch } from '../date-words'
 import { DATE_FIELD_LABELS_SHORT } from '../filter-labels'
 import { MARKER_LABELS } from '../markers'
-import { dateTypeIsOptional, periodOf } from './dates'
+import { dateTypeIsOptional, isBeforeToday, periodOf } from './dates'
 import type { ExpressionNames } from './print'
 import { normalizeExpression } from './tree'
 
@@ -84,7 +84,7 @@ function dateWords(field: DateField, m: DateMatch, orNone = false): string {
   const label = DATE_FIELD_LABELS_SHORT[field].toLowerCase()
   const none = orNone ? `, or ${field === 'lastFollowup' ? 'never' : 'none'}` : ''
   // The shortcuts the expression has words for (`overdue`, `followup late`): before today, no start.
-  const beforeToday = m.start == null && m.end?.kind === 'relative' && m.end.token === 'yesterday'
+  const beforeToday = isBeforeToday(m)
   if (beforeToday && !orNone && field === 'deadline') return 'overdue'
   if (beforeToday && !orNone && field === 'followup') return 'follow-up late'
   const period = periodOf(m, field)
