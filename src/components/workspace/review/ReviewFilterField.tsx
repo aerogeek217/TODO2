@@ -237,7 +237,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
       e.stopPropagation()
       return
     }
-    // Esc with nothing to put back leaves the field (a popover it sits in — a small face's whole widget — stays).
+    // Esc with nothing to put back leaves the field (the widget popup it may sit in stays).
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()

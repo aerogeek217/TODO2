@@ -195,8 +195,8 @@ registerModuleReset(() => { widgetSessions = new Map() })
 
 /**
  * The session of Review widget `tabId` (item 12), made on first use from
- * `initial` (its view state) and kept while the app runs — the small face's
- * popover and the cell share it, and the typed text outlives a face change.
+ * `initial` (its view state) and kept while the app runs — the widget popup
+ * and the cell share it, and the typed text outlives a face change.
  */
 export function reviewWidgetSession(tabId: string, initial?: () => Partial<ReviewSessionData>): StoreApi<ReviewSession> {
   let session = widgetSessions.get(tabId)

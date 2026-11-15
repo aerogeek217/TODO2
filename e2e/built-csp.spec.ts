@@ -315,8 +315,8 @@ test('the offline file requests nothing but itself through its main flows', asyn
 
 /**
  * The glance widgets and the Neglect map from the built file (cr33 security
- * I2): a Number's small face, its full widget in the face popover (the
- * 14-day sparkline) and its tasks in the task dialog; Tags, Status and a
+ * I2): a Number's small face and its tasks in the task dialog, the Tags
+ * Breakdown opened larger (the widget popup); Tags, Status and a
  * Project pulse card opening its tag's tasks; the Neglect map's dots,
  * one opening the editor. Nothing is requested but the file itself.
  */
