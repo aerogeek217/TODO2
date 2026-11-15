@@ -85,19 +85,19 @@ describe('sharedMemo: two input sets asked for in turn', () => {
   it('`same` finds the kept value among every kept set, not only the newest', () => {
     const a = { id: 1 }
     const b = { id: 2 }
-    // Two callers, `lensed` and `unlensed`, each with its own first input; the task array changes under both.
-    const lensed = {}
-    const unlensed = {}
+    // Two callers, `one` and `two`, each with its own first input; the task array changes under both.
+    const one = {}
+    const two = {}
     const memo = sharedMemo((_which: object, xs: readonly object[]) => xs.filter((x) => x !== b), 2, sameElements)
-    const first = memo(lensed, [a, b])
-    const other = memo(unlensed, [a, b])
+    const first = memo(one, [a, b])
+    const other = memo(two, [a, b])
     // The same elements: the two sets share one array.
     expect(other).toBe(first)
     // A write hands both a new array holding the same tasks: each gets its kept array back,
     // though the newest kept entry is the other caller's each time.
     const again = [a, b]
-    expect(memo(lensed, again)).toBe(first)
-    expect(memo(unlensed, again)).toBe(first)
+    expect(memo(one, again)).toBe(first)
+    expect(memo(two, again)).toBe(first)
   })
 
   it('`peek` returns a kept value without computing, and nothing for inputs it doesn’t hold', () => {
@@ -134,12 +134,12 @@ describe('sharedMemoByKey', () => {
     const compute = vi.fn((_key: object, screen: object, xs: readonly number[]) => ({ screen, n: xs.length }))
     const memo = sharedMemoByKey(compute, undefined, 2)
     const key = {}
-    const withLens = {}
+    const one = {}
     const without = {}
     const xs = [1, 2]
-    const a = memo(key, withLens, xs)
+    const a = memo(key, one, xs)
     const b = memo(key, without, xs)
-    expect(memo(key, withLens, xs)).toBe(a)
+    expect(memo(key, one, xs)).toBe(a)
     expect(memo(key, without, xs)).toBe(b)
     expect(compute).toHaveBeenCalledTimes(2)
   })

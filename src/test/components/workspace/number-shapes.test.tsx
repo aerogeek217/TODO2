@@ -379,7 +379,6 @@ describe('Edit number’s shape fields', () => {
 
     show(editor, 'list')
     expect(within(editor).queryByTestId('number-editor-filter')).toBeNull()
-    expect(has(editor, 'Top-bar lens')).toBe(false)
     editor = saveAndReopen(editor)
     // The layout's first list.
     expect(config()).toMatchObject({ show: 'list', list: { listDefinitionId: 1 } })

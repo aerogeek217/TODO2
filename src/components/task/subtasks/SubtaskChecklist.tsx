@@ -59,7 +59,7 @@ const ADD_PLACEHOLDER = 'Add a subtask…'
  * adds the line and keeps the focus for the next; Esc in it is the host's.
  * The checklist going away (its popover or editor closed) writes what was
  * typed: the add row's line and a rename in progress. With `onMove` the rows
- * drag to reorder (dnd-kit, the lenses' sortable row). What the callbacks
+ * drag to reorder (dnd-kit, `useSortableRow`). What the callbacks
  * write is the host's (the store in the editor's edit mode and the popover,
  * pending rows in create mode).
  */

@@ -98,10 +98,10 @@ describe('useListDefinitionStore mutations', () => {
     // An editor's part changed: something to write.
     expect(listEditChanges(id, (d) => ({ ...d, name: 'This week' }))).toBe(true)
     expect(listEditChanges(id, (d) => ({ ...d, sort: 'name' }))).toBe(true)
-    // Nothing an editor writes: the same list, a blank name (it keeps the list's), the owner, the lens switch.
+    // Nothing an editor writes: the same list, a blank name (it keeps the list's), the owner.
     expect(listEditChanges(id, (d) => d)).toBe(false)
     expect(listEditChanges(id, (d) => ({ ...d, name: '  ' }))).toBe(false)
-    expect(listEditChanges(id, (d) => ({ ...d, owner: { layoutId: 9 }, ignoreLens: true }))).toBe(false)
+    expect(listEditChanges(id, (d) => ({ ...d, owner: { layoutId: 9 } }))).toBe(false)
     // A list that is gone.
     expect(listEditChanges(id + 1, (d) => ({ ...d, name: 'X' }))).toBe(false)
     // It agrees with what editList then does.

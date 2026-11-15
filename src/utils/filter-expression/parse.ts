@@ -66,7 +66,7 @@ interface ExpressionParseOptions {
   allowPeople?: boolean
   /** `false`: Completed dates are refused (the check-in filter, the Review widget's field: they take open tasks only). */
   allowCompleted?: boolean
-  /** `false`: `done` is refused (a lens, the check-in: they never show completed tasks by it). */
+  /** `false`: `done` is refused (the check-in: it never shows completed tasks by it). */
   allowDone?: boolean
 }
 

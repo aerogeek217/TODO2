@@ -288,7 +288,7 @@ export interface WorkspaceState {
   /** Sets (or clears, `null`) the structural resize preview; a preview drawing the same table as the current one changes nothing. */
   setResizePreview: (preview: ResizePreview | null) => void
   /**
-   * Layout config of a tab (e.g. a lens tab's list, a calendar's date types,
+   * Layout config of a tab (e.g. a list tab's list, a calendar's date types,
    * an editor's Save): one undo step, `description` its name (default
    * `Changed “<tab>”`). A list tab's list must be this layout's own
    * lists: a patch naming another's changes nothing.

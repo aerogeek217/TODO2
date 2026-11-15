@@ -95,7 +95,7 @@ describe('ListWidget', () => {
   it('shows the list’s open tasks; nothing narrows it, so no count', () => {
     const { result } = setup(def())
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
-    // One number per list (2A): the tab's badge; a count only while the screen filter or the lens narrows it.
+    // One number per list (2A): the tab's badge; a count only while the screen filter narrows it.
     expect(screen.queryByTestId('list-count')).toBeNull()
     expect(result()?.countLabel).toBeUndefined()
     // No filters anywhere: the filter line reads `Every open task` in words (no chips, no + Filter),
