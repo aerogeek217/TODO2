@@ -1,14 +1,13 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useId, useRef, useState, type ReactNode } from 'react'
 import type { Status } from '../../models'
 import { useToday } from '../../hooks/use-today'
 import { useSettingsStore } from '../../stores/settings-store'
 import { factDateWords, type FactDateKind } from '../../utils/fact-dates'
 import type { UrgentMark } from '../../utils/urgency'
-import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { UrgentClockIcon } from '../shared/MarkerIcons'
-import { StatusIcon } from '../shared/StatusIcon'
 import { StatusMark } from '../shared/StatusMark'
 import { useTooltip } from '../shared/use-tooltip'
+import { StatusMenuPopover } from './StatusMenuPopover'
 import styles from './TaskDetails.module.css'
 
 /** The facts rail's sections (task layout A), top to bottom: Due is the last (the follow-up dates are the dock's). */
@@ -205,34 +204,21 @@ export interface StatusFactsProps {
 
 /**
  * Status, second in the rail (none while no status is defined): the status
- * pill and its menu — No Status, then each status. The menu is placed by
- * `AnchoredPicker` (it follows the pill and stays in the viewport, the rail
- * being a scroller); a press outside or Esc closes the menu only, Esc
- * handing the focus back to the pill — never the dialog around it (cr31 T8).
+ * pill and its menu — No Status, then each status (`StatusMenuPopover`, the
+ * app's menu: it follows the pill and stays in the viewport, the rail being
+ * a scroller). Enter, Space, ↓ or a click on the pill opens it with the
+ * focus on the current status; a press outside, Tab or Esc closes the menu
+ * only — never the dialog around it (cr31 T8) —, the focus back on the pill
+ * (cr34 U1: the menu is portaled out of the dialog, whose Tab never reaches
+ * it, so it takes the focus itself).
  */
 export function StatusFacts({ statuses, statusId, onStatusChange }: StatusFactsProps) {
   const [open, setOpen] = useState(false)
   const pillRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
-      e.preventDefault()
-      e.stopPropagation()
-      setOpen(false)
-      pillRef.current?.focus()
-    }
-    document.addEventListener('keydown', onKey, true)
-    return () => document.removeEventListener('keydown', onKey, true)
-  }, [open])
+  const close = useCallback(() => setOpen(false), [])
 
   if (statuses.length === 0) return null
   const status = statusId != null ? statuses.find((s) => s.id === statusId) : undefined
-  const pick = (id: number | undefined) => {
-    setOpen(false)
-    onStatusChange(id)
-  }
 
   return (
     <FactSection fact="status">
@@ -245,6 +231,11 @@ export function StatusFacts({ statuses, statusId, onStatusChange }: StatusFactsP
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowDown' || open) return
+            e.preventDefault()
+            setOpen(true)
+          }}
         >
           {status ? (
             <><span className={styles.statusIcon} style={{ color: status.color }}><StatusMark status={status} filled /></span>{status.name}</>
@@ -254,29 +245,13 @@ export function StatusFacts({ statuses, statusId, onStatusChange }: StatusFactsP
           <span className={styles.statusCaret} aria-hidden="true">&#x25BE;</span>
         </button>
         {open && (
-          <AnchoredPicker anchorRef={pillRef} onClose={() => setOpen(false)}>
-            <div className={styles.statusMenu}>
-              <button
-                type="button"
-                className={`${styles.statusOption} ${!statusId ? styles.statusOptionActive : ''}`}
-                onClick={() => pick(undefined)}
-              >
-                <span style={{ color: 'var(--color-text-muted)' }}><StatusIcon icon="circle" /></span>
-                No Status
-              </button>
-              {statuses.map((s) => (
-                <button
-                  type="button"
-                  key={s.id}
-                  className={`${styles.statusOption} ${statusId === s.id ? styles.statusOptionActive : ''}`}
-                  onClick={() => pick(s.id)}
-                >
-                  <span style={{ color: s.color }}><StatusMark status={s} filled /></span>
-                  {s.name}
-                </button>
-              ))}
-            </div>
-          </AnchoredPicker>
+          <StatusMenuPopover
+            anchorRef={pillRef}
+            statuses={statuses}
+            statusId={statusId}
+            onPick={onStatusChange}
+            onClose={close}
+          />
         )}
       </div>
     </FactSection>
