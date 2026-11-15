@@ -70,13 +70,17 @@ describe('a Numbers strip', () => {
     expect(within(menu).getByRole('menuitem', { name: /Edit number/ })).toBeInTheDocument()
   })
 
-  it('a lone Number’s ⋯ has Add number beside: it becomes a strip of two', () => {
-    const { refresh } = show(cell('k', [createTab('number', 'a')]))
+  it('a Number’s ⋯ has no Add number beside (the strip’s + and the grip’s Add widget… add one)', () => {
+    show(cell('k', [createTab('number', 'a')]))
     fireEvent.click(screen.getByRole('button', { name: 'Cell options' }))
-    fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: /Add number beside/ }))
-    refresh()
-    expect(placed('k').tabs.map((t) => t.kind)).toEqual(['number', 'number'])
-    expect(slots()).toHaveLength(2)
+    expect(within(screen.getByRole('menu')).queryByRole('menuitem', { name: /Add number beside/ })).toBeNull()
+  })
+
+  it('the strip’s grip sits in its right-hand gutter, beside the +, not over a Number', () => {
+    show(cell('k', [createTab('number', 'a'), createTab('number', 'b')]))
+    const grip = screen.getByRole('button', { name: 'Cell layout' })
+    expect(grip.closest('[data-number-slot]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Add number' }).closest('[data-number-slot]')).toBeNull()
   })
 
   it('a strip’s Number’s ⋯ Remove widget closes that Number alone', () => {

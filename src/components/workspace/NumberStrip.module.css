@@ -1,7 +1,9 @@
 /*
  * A cell of Numbers drawn as one strip (flair P10, `NumberStrip`): side by
  * side, evenly divided, onto another line when each can't keep 72px
- * (`GLANCE_CELL_MIN_WIDTH_PX`); a fit row grows with it.
+ * (`GLANCE_CELL_MIN_WIDTH_PX`); a fit row grows with it. Its right edge is a
+ * gutter for the cell's own controls — the grip over the + (FilledCell's
+ * `.stripGrip`) —, clear of every Number.
  */
 .strip {
   flex: 1 1 auto;
@@ -10,6 +12,7 @@
   grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
   align-content: stretch;
   position: relative;
+  padding-right: var(--strip-gutter, 26px);
 }
 
 .slot {
@@ -80,11 +83,11 @@
   color: var(--color-text-primary);
 }
 
-/* The + at the strip's end: over its right edge, shown with the cell's other hover controls. */
+/* The + at the strip's end: in its gutter under the grip, shown with the cell's other hover controls. */
 .add {
   position: absolute;
-  right: 2px;
-  bottom: 3px;
+  right: 4px;
+  bottom: 4px;
   z-index: var(--z-above-2);
   display: inline-flex;
   align-items: center;

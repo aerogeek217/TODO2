@@ -278,14 +278,15 @@
 }
 
 /*
- * A Numbers strip's grip (flair P10): over the cell's bottom-left corner
- * (each Number's × takes its top-left, its ⋯ its top-right), shown on the
- * cell's hover or focus; it drags the whole cell and opens its layout menu.
+ * A Numbers strip's grip (flair P10): at the top of the strip's right-hand
+ * gutter, over the + — where a one-widget cell keeps its grip, at its
+ * top-right, clear of every Number's × and ⋯ —, shown on the cell's hover or
+ * focus; it drags the whole cell and opens its layout menu (Layout).
  */
 .stripGrip {
   position: absolute;
-  left: 2px;
-  bottom: 3px;
+  right: 1px;
+  top: 2px;
   z-index: var(--z-above-2);
   display: inline-flex;
   opacity: 0;
