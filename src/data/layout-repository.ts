@@ -92,7 +92,8 @@ export function storedListRefs(row: unknown): Set<number> {
     if (node === null || typeof node !== 'object' || seen.has(node)) continue
     seen.add(node)
     if (Array.isArray(node)) {
-      stack.push(...node)
+      // One by one: a spread of a long array (a crafted row's) overflows the call stack (cr34 S4).
+      for (const item of node as unknown[]) stack.push(item)
       continue
     }
     for (const [key, value] of Object.entries(node)) {

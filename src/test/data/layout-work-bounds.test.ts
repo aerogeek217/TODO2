@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { prepareImport } from '../../data/import-pipeline'
+import { storedListRefs } from '../../data/layout-repository'
 import { rowFixes, sanitizeRow, validateRow } from '../../data/import-validation'
 import { LAYOUT_FILE_PART_LIMIT, LAYOUT_FILE_WORK_LIMIT, layoutPartCount, layoutSizeProblem } from '../../data/layout-size'
 import { LAYOUT_CLOSE_WORK_MAX, LAYOUT_PART_LIMIT } from '../../data/layout-shape'
@@ -524,5 +525,14 @@ describe('the one-pass loops produce what the loops before them did', () => {
       }
       expect(layoutTableOf(row), `case ${i}: ${JSON.stringify(row)}`).toEqual(layoutTableBefore(row))
     }
+  })
+})
+
+describe('the list ids a stored row names (cr34 S4, layout-repository)', () => {
+  it('a 300,000-item array in a row is walked without overflowing the call stack', () => {
+    const long: unknown[] = Array.from({ length: 300_000 }, (_, i) => i)
+    long.push({ listDefinitionId: 7 })
+    const row = { ...BASE, cells: [{ id: 'k', tabs: [{ id: 't', kind: 'lens', config: { listDefinitionId: 3 } }], junk: long }] }
+    expect([...storedListRefs(row)].sort()).toEqual([3, 7])
   })
 })
