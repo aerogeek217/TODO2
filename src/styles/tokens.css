@@ -920,10 +920,10 @@ select optgroup {
 }
 
 /*
- * View transitions (D19, `shared/view-transition`): a layout switch, a tab
- * change, a group collapse — named cells and groups slide, resize and
- * crossfade on the spring curve; the rest of the page changes at once
- * (below).
+ * View transitions (D19, `shared/view-transition`): a tab change, a group
+ * collapse — named cells and groups slide, resize and crossfade on the
+ * spring curve; the rest of the page changes at once (below). A layout
+ * switch has none (cr34 answer 26).
  */
 ::view-transition-group(*),
 ::view-transition-old(*),

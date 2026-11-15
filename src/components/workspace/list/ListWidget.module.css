@@ -19,7 +19,7 @@
 }
 
 /*
- * View transitions (a layout switch, a tab change, a group collapse): each
+ * View transitions (a tab change, a group collapse): each
  * desktop group has its own transition name (`ws-group-…`), and a named
  * element's picture is drawn over the page, unclipped — so the groups past
  * the scroll's edge used to show over the list's foot and past its cell
