@@ -29,6 +29,82 @@ function stagesOf(filter: FilterCriteria | readonly FilterCriteria[]): readonly 
   return Array.isArray(filter) ? filter : [filter as FilterCriteria]
 }
 
+/** A task as it was at one day's end: the row a filter reads, and its people and tags then. */
+export interface ReplayedTask {
+  row: PersistedTodoItem
+  personIds: number[]
+  tagIds: number[]
+}
+
+/**
+ * Every task replayed to the end of each of some days (`replayTasks`): what
+ * any filter's history over those tasks and days counts from. The replay
+ * reads no filter, so every Number on screen counts from one of these
+ * (`countReplayed`) instead of replaying every task itself (cr34 M12).
+ */
+export interface TaskReplays {
+  /** The days (local midnights, oldest first). */
+  days: readonly Date[]
+  /** Per day, the tasks that were there at its end. */
+  byDay: ReadonlyArray<readonly ReplayedTask[]>
+}
+
+/**
+ * `tasks` as they were at the end of each of `days` (local midnights,
+ * oldest first; the last may be today): each task replayed from its events
+ * (`task-history.taskFieldReplay`) backwards from its fields and its people
+ * and tags now (`assigned`), a day it wasn't there yet left out. `events`
+ * must hold every event of `FILTER_HISTORY_EVENT_TYPES` since the first day
+ * (more is fine: other tasks' and other types' events are ignored). Pure.
+ */
+export function replayTasks(
+  tasks: readonly PersistedTodoItem[],
+  events: readonly TodoEvent[],
+  days: readonly Date[],
+  assigned: Pick<TodoNameLookups, 'assignedPeopleMap' | 'assignedTagsMap'>,
+): TaskReplays {
+  const byDay: ReplayedTask[][] = days.map(() => [])
+  const origin = days[0]
+  if (!origin) return { days, byDay }
+  const offsets = days.map((d) => daysUntil(d, origin) ?? 0)
+  const byTask = eventsByTask(events, new Set(tasks.map((t) => t.id)), FILTER_HISTORY_EVENT_TYPES, origin)
+  for (const task of tasks) {
+    const assignments = {
+      personIds: (assigned.assignedPeopleMap.get(task.id) ?? []).flatMap((p) => (p.id != null ? [p.id] : [])),
+      tagIds: (assigned.assignedTagsMap.get(task.id) ?? []).flatMap((t) => (t.id != null ? [t.id] : [])),
+    }
+    const at = taskFieldReplay(task, byTask.get(task.id), assignments, origin)
+    for (const [i, list] of byDay.entries()) {
+      const fields = at(offsets[i] ?? 0)
+      if (!fields) continue
+      list.push({ row: taskAsOf(task, fields), personIds: [...fields.personIds], tagIds: [...fields.tagIds] })
+    }
+  }
+  return { days, byDay }
+}
+
+/**
+ * How many of the replayed tasks pass `filter` at each day's end, the
+ * filter evaluated with that day as today. `filter` is one filter, or
+ * several stages a task must all pass.
+ */
+export function countReplayed(
+  filter: FilterCriteria | readonly FilterCriteria[],
+  { days, byDay }: TaskReplays,
+  { lookups, settings }: FilterHistoryOptions,
+): number[] {
+  const stages = stagesOf(filter)
+  const text = stages.some(readsText)
+  return days.map((day, i) => {
+    let count = 0
+    for (const { row, personIds, tagIds } of byDay[i] ?? []) {
+      const searchCtx = text ? textMatchContextFor(row, lookups) : undefined
+      if (stages.every((f) => matchesFilter(f, row, personIds, day, searchCtx, tagIds, settings))) count++
+    }
+    return count
+  })
+}
+
 /**
  * How many of `tasks` pass `filter` at the end of each of `days` (local
  * midnights, oldest first; the last may be today, whose count is the count
@@ -36,7 +112,9 @@ function stagesOf(filter: FilterCriteria | readonly FilterCriteria[]): readonly 
  * Number's filter composed with the screen filter is
  * `composeScreenFilter(screen, number)`'s two. `events` must hold every
  * event of `FILTER_HISTORY_EVENT_TYPES` since the first day (more is fine:
- * other tasks' and other types' events are ignored). Pure.
+ * other tasks' and other types' events are ignored). Pure. One filter's
+ * count over a replay of its own: several filters over the same tasks and
+ * days share one `replayTasks` and call `countReplayed` each.
  */
 export function filterHistory(
   filter: FilterCriteria | readonly FilterCriteria[],
@@ -45,32 +123,7 @@ export function filterHistory(
   days: readonly Date[],
   { lookups, settings }: FilterHistoryOptions,
 ): number[] {
-  const counts = new Array<number>(days.length).fill(0)
-  const origin = days[0]
-  if (!origin) return counts
-  const stages = stagesOf(filter)
-  const text = stages.some(readsText)
-  const offsets = days.map((d) => daysUntil(d, origin) ?? 0)
-  const byTask = eventsByTask(events, new Set(tasks.map((t) => t.id)), FILTER_HISTORY_EVENT_TYPES, origin)
-  for (const task of tasks) {
-    const assignments = {
-      personIds: (lookups.assignedPeopleMap.get(task.id) ?? []).flatMap((p) => (p.id != null ? [p.id] : [])),
-      tagIds: (lookups.assignedTagsMap.get(task.id) ?? []).flatMap((t) => (t.id != null ? [t.id] : [])),
-    }
-    const at = taskFieldReplay(task, byTask.get(task.id), assignments, origin)
-    for (const [i, day] of days.entries()) {
-      const fields = at(offsets[i] ?? 0)
-      if (!fields) continue
-      const row = taskAsOf(task, fields)
-      const personIds = [...fields.personIds]
-      const tagIds = [...fields.tagIds]
-      const searchCtx = text ? textMatchContextFor(row, lookups) : undefined
-      if (stages.every((f) => matchesFilter(f, row, personIds, day, searchCtx, tagIds, settings))) {
-        counts[i] = (counts[i] ?? 0) + 1
-      }
-    }
-  }
-  return counts
+  return countReplayed(filter, replayTasks(tasks, events, days, lookups), { lookups, settings })
 }
 
 /**

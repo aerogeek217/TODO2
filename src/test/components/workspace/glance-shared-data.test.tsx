@@ -114,7 +114,8 @@ describe('glance widgets share their data', () => {
   })
 
   it('a screen filter change recomputes the shown half only (once per filter on screen); the every-task totals stay', () => {
-    const tabs: GlanceTab[] = [numberTab('n'), createTab('breakdown', 't', { breakdown: { splitBy: 'tags' } }) as GlanceTab]
+    // Two different filters (cr34 M12: equal ones share one computation — the next test).
+    const tabs: GlanceTab[] = [numberTab('n', 'overdue'), createTab('breakdown', 't', { breakdown: { splitBy: 'tags' } }) as GlanceTab]
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
     vi.mocked(numberIds).mockClear()
     vi.mocked(computeBreakdown).mockClear()
@@ -123,6 +124,17 @@ describe('glance widgets share their data', () => {
     expect(vi.mocked(numberIds)).toHaveBeenCalledTimes(2)
     expect(vi.mocked(numberIds).mock.calls[0]![1].length).toBeLessThan(SAMPLE_TASKS.length)
     expect(vi.mocked(computeBreakdown)).toHaveBeenCalledTimes(1)
+  })
+
+  // cr34 M12: a filter's criteria are kept by its content, so equal filters — two widgets', or one widget's
+  // read again from the database on a layout switch — are one key for every memo.
+  it('two widgets with equal filters (a new Number’s and a new Breakdown’s: every open task) compute the shown half once between them', () => {
+    const tabs: GlanceTab[] = [numberTab('n'), createTab('breakdown', 't', { breakdown: { splitBy: 'tags' } }) as GlanceTab]
+    render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
+    vi.mocked(numberIds).mockClear()
+    act(() => { useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, tags: new Set([TAGS[0]!.id]) }) })
+    expect(vi.mocked(numberIds)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(numberIds).mock.calls[0]![1].length).toBeLessThan(SAMPLE_TASKS.length)
   })
 
   it('a dozen widgets, options differing, still hit on a re-render: no part recomputes and no memo warns', () => {
