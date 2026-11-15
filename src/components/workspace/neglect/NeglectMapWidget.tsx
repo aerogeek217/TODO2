@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { memo, useCallback, useContext, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type Ref } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import { NEGLECT_UNTOUCHED_CHOICES, type NeglectTab } from '../../../models/workspace-layout'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../../constants'
@@ -159,7 +159,12 @@ interface DotProps {
   selectable: boolean
 }
 
-function Dot({ point, colour, marked, followupLate, badge, selected, onActivate, selectable }: DotProps) {
+/**
+ * A dot. Memoized (cr34 G9): its props are the point and plain values, so a
+ * render of the map — a selection change, a new size — draws again only the
+ * dots that changed, not every one with its tooltip.
+ */
+const Dot = memo(function Dot({ point, colour, marked, followupLate, badge, selected, onActivate, selectable }: DotProps) {
   const [title, meta] = pointLines(point, followupLate)
   const { triggerProps, tooltip } = useTooltip(`${title}\n${meta}`)
   const noDue = point.dueIn == null
@@ -191,7 +196,7 @@ function Dot({ point, colour, marked, followupLate, badge, selected, onActivate,
       {tooltip}
     </button>
   )
-}
+})
 
 /** The rectangle a lasso drag covers, in the chart's own px. */
 interface Lasso {
@@ -201,14 +206,42 @@ interface Lasso {
   h: number
 }
 
+/** What the lasso's drag tells its rectangle: where it is now, or `null` once it ends. */
+interface LassoBoxHandle {
+  show: (rect: Lasso | null) => void
+}
+
+/**
+ * The lasso's rectangle. Its place is its own state (cr34 G9), set by the
+ * drag through `ref`: each pointer move re-renders this one element, not the
+ * map and every dot on it.
+ */
+function LassoBox({ ref }: { ref: Ref<LassoBoxHandle> }) {
+  const [rect, setRect] = useState<Lasso | null>(null)
+  useImperativeHandle(ref, () => ({ show: setRect }), [])
+  if (!rect) return null
+  return (
+    <div
+      className={styles.lasso}
+      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
+      aria-hidden="true"
+      data-testid="neglect-lasso"
+    />
+  )
+}
+
 /**
  * Lasso selection over the chart: a drag that starts on empty plot (not on
- * a dot) draws a rectangle; on release the dots inside it are the widget's
- * selection (Ctrl / ⌘ / Shift add to it). A drag that catches none clears
- * the widget's selection, as a click outside the rows does.
+ * a dot) draws a rectangle (`LassoBox`, through `boxRef`); on release the
+ * dots inside it are the widget's selection (Ctrl / ⌘ / Shift add to it). A
+ * drag that catches none clears the widget's selection, as a click outside
+ * the rows does. The drag keeps no state in the map: nothing but the
+ * rectangle renders while it runs.
  */
 function useLasso(enabled: boolean, onSelect: (ids: number[], additive: boolean) => void) {
-  const [lasso, setLasso] = useState<Lasso | null>(null)
+  const boxRef = useRef<LassoBoxHandle>(null)
+  /** Past the drag threshold: the rectangle is drawn and the pointer captured. */
+  const draggingRef = useRef(false)
   const startRef = useRef<{ x: number; y: number; id: number } | null>(null)
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!enabled || e.button !== 0 || !(e.target instanceof Element)) return
@@ -225,20 +258,22 @@ function useLasso(enabled: boolean, onSelect: (ids: number[], additive: boolean)
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const start = startRef.current
     if (!start || start.id !== e.pointerId) return
-    if (!lasso) {
+    if (!draggingRef.current) {
       if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < DRAG_ACTIVATION_DISTANCE_PX) return
       // Captured only once it is a drag, so a plain click keeps its target.
       e.currentTarget.setPointerCapture?.(e.pointerId)
+      draggingRef.current = true
     }
-    setLasso(rectOf(e.currentTarget, e, start))
+    boxRef.current?.show(rectOf(e.currentTarget, e, start))
   }
   const end = (e: ReactPointerEvent<HTMLDivElement>, cancelled: boolean) => {
     const start = startRef.current
     startRef.current = null
     if (!start || start.id !== e.pointerId) return
-    if (!lasso) return
+    if (!draggingRef.current) return
+    draggingRef.current = false
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
-    setLasso(null)
+    boxRef.current?.show(null)
     if (cancelled) return
     const r = rectOf(e.currentTarget, e, start)
     const box = e.currentTarget.getBoundingClientRect()
@@ -255,7 +290,7 @@ function useLasso(enabled: boolean, onSelect: (ids: number[], additive: boolean)
     onSelect(ids, e.shiftKey || e.ctrlKey || e.metaKey)
   }
   return {
-    lasso,
+    boxRef,
     handlers: {
       onPointerDown,
       onPointerMove,
@@ -430,7 +465,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
     const key = rowKey(SECTION, first)
     ui.setScopedSelection(tab.id, { ids: next, anchorKey: key, cursorKey: key, cursorTodoId: first })
   }, [tab.id])
-  const { lasso, handlers } = useLasso(!isMobile, lassoSelect)
+  const { boxRef: lassoRef, handlers } = useLasso(!isMobile, lassoSelect)
 
   const screenHidesAll = map.points.length === 0 && openTotal > 0 && screenActive
   const unhide = screenUnhideAction(chipCount)
@@ -562,14 +597,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
             })}
           </div>
         </div>
-        {lasso && (
-          <div
-            className={styles.lasso}
-            style={{ left: lasso.x, top: lasso.y, width: lasso.w, height: lasso.h }}
-            aria-hidden="true"
-            data-testid="neglect-lasso"
-          />
-        )}
+        <LassoBox ref={lassoRef} />
         {screenHidesAll && (
           <div className={styles.notePanel} role="status">
             <span className={styles.noteTitle}>No tasks match</span>
