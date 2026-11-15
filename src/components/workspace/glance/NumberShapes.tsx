@@ -18,6 +18,8 @@ import { numberDrill } from './glance-drills'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { GlanceFrame } from './GlanceFrame'
 import { litColors, numberColors, type NumberColors } from './number-colors'
+import { RollingNumber } from '../../shared/RollingNumber'
+import { LightRing } from './LightRing'
 import {
   goalStateLabel,
   goalTargetLabel,
@@ -196,14 +198,14 @@ export function ShareNumber({ tab, onResult, onDrill }: ShapeProps) {
       {small ? (
         // A fit row's: the percent, its line and its change beside it wherever they fit (`.figures`).
         <span className={base.figures}>
-          <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{percentText}</span>
+          <span className={base.count} style={{ color: colors.count }} data-testid="number-count"><RollingNumber value={percentText} /><LightRing lit={colors.lit} color={litColors(config, true).count} /></span>
           {history && <ShareHistory history={history} large={false} color={colors.line} deltaText={deltaText} approximate={approximate} />}
         </span>
       ) : (
         <span className={styles.shareRow}>
           <Ring percent={percent} color={colors.lit ? colors.count : 'var(--color-text-secondary)'} size={large ? 72 : 44} />
           <span className={styles.column}>
-            <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{percentText}</span>
+            <span className={base.count} style={{ color: colors.count }} data-testid="number-count"><RollingNumber value={percentText} /><LightRing lit={colors.lit} color={litColors(config, true).count} /></span>
             <span className={styles.meta} data-testid="number-share-of">{ofText}</span>
             {history && (
               <span className={`${styles.shareLine}${large ? ` ${styles.shareLineLarge}` : ''}`}>
@@ -261,7 +263,7 @@ export function OldestNumber({ tab, onResult, onDrill }: ShapeProps) {
       onOpen={open}
     >
       <span className={styles.figureLine}>
-        <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{age ? age.figure : '—'}</span>
+        <span className={base.count} style={{ color: colors.count }} data-testid="number-count"><RollingNumber value={age ? age.figure : '—'} /><LightRing lit={colors.lit} color={litColors(config, true).count} /></span>
         {!small && <span className={styles.caption}>{age ? age.caption : none}</span>}
       </span>
       {!small && top && <span className={styles.title} data-testid="number-oldest-title">{top.title}</span>}
@@ -309,7 +311,7 @@ export function GoalNumber({ tab, onResult, onDrill }: ShapeProps) {
       onOpen={open}
     >
       <span className={styles.figureLine}>
-        <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{n}</span>
+        <span className={base.count} style={{ color: colors.count }} data-testid="number-count"><RollingNumber value={n} /><LightRing lit={colors.lit} color={litColors(config, true).count} /></span>
         {progress && <span className={styles.target} data-testid="number-goal-target">{target}</span>}
         {!small && <span className={`${styles.state}${progress?.lit ? ` ${styles.stateLit}` : ''}`} style={progress?.lit ? { color: colors.count } : undefined} data-testid="number-goal-state">{state}</span>}
       </span>
@@ -382,7 +384,7 @@ export function GroupNumber({ tab, onResult, onDrill }: ShapeProps) {
               const colors = litColors({ color: item.color }, numberIsLit(config, n), n === 0)
               const figure = (
                 <>
-                  <span className={styles.itemCount} style={{ color: colors.count }} data-testid="number-group-count">{n}</span>
+                  <span className={styles.itemCount} style={{ color: colors.count }} data-testid="number-group-count"><RollingNumber value={n} /><LightRing lit={colors.lit} color={litColors({ color: item.color }, true).count} /></span>
                   {!small && <span className={styles.itemName}>{itemName}</span>}
                 </>
               )
@@ -450,8 +452,9 @@ export function ListNumber({ tab, onResult }: ShapeProps) {
     >
       <span className={styles.figureLine}>
         <span className={base.count} style={{ color: colors.count }} data-testid="number-count">
-          {countText}
+          <RollingNumber value={countText} />
           {ofText && <span className={base.of}>{ofText}</span>}
+          <LightRing lit={colors.lit} color={litColors(config, true).count} />
         </span>
         {list.badge && <BadgeCapsule counts={list.badge.counts} label={list.badge.summary.join(', ')} data-number-badge="" />}
       </span>

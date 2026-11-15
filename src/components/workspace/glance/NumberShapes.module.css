@@ -199,6 +199,7 @@ button.item:hover {
 }
 
 .itemCount {
+  position: relative;
   font-size: var(--font-size-display-sm);
   font-weight: var(--font-weight-bold);
   line-height: 24px;

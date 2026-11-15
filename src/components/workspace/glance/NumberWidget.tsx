@@ -18,7 +18,9 @@ import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { WidgetTopLine } from '../WidgetTopLine'
 import { Sparkline } from './Sparkline'
-import { numberColors } from './number-colors'
+import { litColors, numberColors } from './number-colors'
+import { RollingNumber } from '../../shared/RollingNumber'
+import { LightRing } from './LightRing'
 import { GoalNumber, GroupNumber, ListNumber, OldestNumber, ShareNumber } from './NumberShapes'
 import styles from './NumberWidget.module.css'
 
@@ -161,8 +163,9 @@ function CountNumber({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
       </WidgetTopLine>
       <span className={styles.figures}>
         <span className={styles.count} style={{ color: colors.count }} data-testid="number-count">
-          {shown}
+          <RollingNumber value={shown} />
           {shown !== total && <span className={styles.of}>of {total}</span>}
+          <LightRing lit={colors.lit} color={litColors(config, true).count} />
         </span>
         {series && (
           <span className={styles.history}>

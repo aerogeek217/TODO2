@@ -1,0 +1,59 @@
+/* A figure whose digits roll (flair P1, `RollingNumber`). */
+.roll {
+  display: inline-flex;
+}
+
+/* Each digit is its own window: clip-path, not overflow, so the text keeps its baseline. */
+.digit {
+  position: relative;
+  display: inline-block;
+  clip-path: inset(0 -2px);
+}
+
+.glyph {
+  display: inline-block;
+}
+
+/* The old digit, leaving. */
+.digit[data-prev]::before {
+  content: attr(data-prev) / "";
+  position: absolute;
+  inset: 0;
+  text-align: center;
+}
+
+.digit[data-dir='up'] .glyph {
+  animation: rollInUp 280ms var(--spring-easing) both;
+}
+
+.digit[data-dir='up']::before {
+  animation: rollOutUp 280ms var(--spring-easing) both;
+}
+
+.digit[data-dir='down'] .glyph {
+  animation: rollInDown 280ms var(--spring-easing) both;
+}
+
+.digit[data-dir='down']::before {
+  animation: rollOutDown 280ms var(--spring-easing) both;
+}
+
+@keyframes rollInUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes rollOutUp {
+  from { transform: translateY(0); }
+  to { transform: translateY(-100%); }
+}
+
+@keyframes rollInDown {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes rollOutDown {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
