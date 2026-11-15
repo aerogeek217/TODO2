@@ -49,7 +49,9 @@
 
 /* The controls slot: an Expand button while collapsed (always shown), then
  * the grip and ⋯ — shown while the pointer is over the cell, while focus is
- * in it and while a menu of the cell is open, always on touch. Opacity only,
+ * in it (`data-cell-hot`, which the cell's element keeps by its own `:hover`
+ * and `:focus-within` — `cell-hot.ts` says why it isn't those pseudo-classes
+ * here) and while a menu of the cell is open, always on touch. Opacity only,
  * so the line never moves, and no fade (a fading control is a stacking
  * context drawn over its neighbours, UX cleanup 1A). In a top line the slot
  * is a flex item of its own at the line's end: nothing lies under it. */
@@ -68,8 +70,7 @@
   opacity: 0;
 }
 
-:global([data-ws-cell]):hover .controls,
-:global([data-ws-cell]):focus-within .controls,
+:global([data-ws-cell][data-cell-hot]) .controls,
 .slot[data-open] .controls,
 .slot[data-touch] .controls {
   opacity: 1;
@@ -82,8 +83,7 @@
   pointer-events: none;
 }
 
-:global([data-ws-cell]):hover .floating .controls,
-:global([data-ws-cell]):focus-within .floating .controls,
+:global([data-ws-cell][data-cell-hot]) .floating .controls,
 .floating[data-open] .controls,
 .floating[data-touch] .controls {
   pointer-events: auto;
