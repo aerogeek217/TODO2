@@ -40,8 +40,9 @@ registerModuleReset(() => { jumping = false })
  * layout's Review widget (`reviewWidgetTarget`), when it has one: an open
  * editor with changes asks Save / Discard / Keep editing first when showing
  * the widget would hide another tab of its cell (the editor's subject could
- * be that tab), and Keep editing cancels the jump; the widget popup closes
- * unless it shows that very widget. Else the popup review, opened with the
+ * be that tab) or close the widget popup (an editor opened from it), and
+ * Keep editing cancels the jump; the widget popup closes unless it shows
+ * that very widget. Else the popup review, opened with the
  * filter (an editor with changes asked first, as the popup asks). The task
  * dialog and the filtered-tasks panel, which would cover the widget, close.
  * Resolves whether the filter was shown.
@@ -63,11 +64,10 @@ export async function jumpToReview(jump: ReviewJump | null): Promise<boolean> {
       return true
     }
     const tabId = target.tabId
-    if (editorsHoldChanges() && hidesAnotherTab(tabId) && !(await leaveOpenEditors())) return false
+    if (editorsHoldChanges() && (hidesAnotherTab(tabId) || closesPopup(tabId)) && !(await leaveOpenEditors())) return false
     closeCovers()
     const ui = useUIStore.getState()
-    const popup = ui.widgetPopup
-    if (popup && !(popup.kind === 'tab' && popup.tabId === tabId)) ui.closeWidgetPopup()
+    if (closesPopup(tabId)) ui.closeWidgetPopup()
     if (ignoreLens != null) setWidgetLensSwitch(tabId, ignoreLens)
     setReviewWidgetFilter(tabId, filter)
     focusReviewWidget(tabId)
@@ -103,6 +103,12 @@ export function reviewListTab(tabId: string): boolean {
   if (!filter) return false
   void jumpToReview(filter)
   return true
+}
+
+/** Whether a jump to Review tab `tabId` closes the widget popup: it is open on something else (an editor opened from it would lose its widget). */
+function closesPopup(tabId: string): boolean {
+  const popup = useUIStore.getState().widgetPopup
+  return popup != null && !(popup.kind === 'tab' && popup.tabId === tabId)
 }
 
 /** Whether showing Review tab `tabId` makes it its cell's active tab in place of another. */
