@@ -46,8 +46,8 @@ function layout(cells: DataRow[][]): DataRow {
 }
 
 describe('v81: registered', () => {
-  it('is the current schema, after v80', () => {
-    expect(CURRENT_DB_VERSION).toBe(81)
+  it('is registered, after v80', () => {
+    expect(CURRENT_DB_VERSION).toBeGreaterThanOrEqual(81)
     expect(SCHEMA_UPGRADES.get(81)).toBe(upgradeV81)
   })
 })
@@ -190,7 +190,8 @@ describe('v81 through the pipeline', () => {
     const file = { ...JSON.parse(JSON.stringify(v80File())) as Record<string, unknown>, settings: [{ key: 'weekStartsOn', value: '1' }] }
     const result = prepareImport({ ...file, [SCHEMA_VERSION_KEY]: 81 })
     if (!result.ok) throw new Error(result.error)
-    expect(result.upgraded).toBe(false)
+    // Upgraded since v82 (Numbers as strips), which changes nothing here.
+    expect(result.upgraded).toBe(true)
     expect(result.warnings).toEqual([])
     expect(result.data.listDefinitions.every((d) => !('ignoreLens' in d))).toBe(true)
     expect(JSON.stringify(result.data.layouts)).not.toContain('ignoreLens')
