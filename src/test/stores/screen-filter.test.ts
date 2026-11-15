@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
-import { useFilterStore } from '../../stores/filter-store'
+import { NO_SCREEN_FILTER, useFilterStore } from '../../stores/filter-store'
 import { currentScreenFilter, useActiveScreenFilter, useScreenFilter } from '../../stores/screen-filter'
 import { clearFilterStore } from '../helpers'
 
@@ -29,5 +29,54 @@ describe('the screen filter', () => {
     useFilterStore.getState().setSearchText('budget')
     useFilterStore.getState().clearAll()
     expect(currentScreenFilter().searchText).toBe('')
+  })
+
+  describe('paused (the funnel)', () => {
+    it('composes as no screen filter: the hooks and currentScreenFilter give none, the filter itself stays', () => {
+      useFilterStore.getState().setSearchText('budget')
+      const { result, rerender } = renderHook(() => ({ state: useScreenFilter(), active: useActiveScreenFilter() }))
+      useFilterStore.getState().setPaused(true)
+      rerender()
+      expect(currentScreenFilter()).toBe(NO_SCREEN_FILTER)
+      expect(result.current.state).toEqual({ filters: NO_SCREEN_FILTER, active: false })
+      expect(result.current.active).toBeUndefined()
+      expect(useFilterStore.getState().filters.searchText).toBe('budget')
+      expect(useFilterStore.getState().isActive).toBe(true)
+      useFilterStore.getState().setPaused(false)
+      rerender()
+      expect(result.current.state.filters.searchText).toBe('budget')
+      expect(currentScreenFilter()).toBe(useFilterStore.getState().filters)
+    })
+
+    it('with no filter on there is nothing to pause', () => {
+      useFilterStore.getState().setPaused(true)
+      expect(useFilterStore.getState().paused).toBe(false)
+    })
+
+    it('any edit resumes it with the change: a chip, the typed field, a search token, Show completed', () => {
+      const edits: Array<() => void> = [
+        () => useFilterStore.getState().setTags(new Set([3])),
+        () => useFilterStore.getState().applyExpression({ kind: 'text', text: 'plan' }, false),
+        () => useFilterStore.getState().applySearchTokens([{ raw: '#q4', clause: { field: 'tags', id: 4 } }]),
+        () => useFilterStore.getState().setShowCompleted(true),
+        () => useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, searchText: 'x' }),
+      ]
+      for (const edit of edits) {
+        useFilterStore.getState().setSearchText('budget')
+        useFilterStore.getState().setPaused(true)
+        expect(useFilterStore.getState().paused).toBe(true)
+        edit()
+        expect(useFilterStore.getState().paused).toBe(false)
+        useFilterStore.getState().clearAll()
+      }
+    })
+
+    it('Clear all ends it with the filter', () => {
+      useFilterStore.getState().setSearchText('budget')
+      useFilterStore.getState().setPaused(true)
+      useFilterStore.getState().clearAll()
+      expect(useFilterStore.getState().paused).toBe(false)
+      expect(useFilterStore.getState().isActive).toBe(false)
+    })
   })
 })

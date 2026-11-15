@@ -9,7 +9,8 @@ import { filterMenu, filterMenuRow, openFilterMenu } from './fixtures/filters'
  * reads it filters every widget (the chips it can say become chips, the
  * rest is held as an expression beside them); a text that doesn't read
  * shows its error and changes nothing; Esc puts the text back. At rest each
- * term is a pill with its own ×; the funnel at the tray's left clears all.
+ * term is a pill with its own ×; the field's × clears all, and the funnel at
+ * the tray's left pauses the filter (feedback 2026-11-15) and resumes it.
  */
 
 const SEED: WorkspaceSeed = {
@@ -32,7 +33,8 @@ const SEED: WorkspaceSeed = {
 const tray = (page: Page) => page.locator('header').getByRole('group', { name: 'Screen filters — apply to every widget' })
 const field = (page: Page) => tray(page).getByRole('textbox', { name: 'Filter tasks' })
 const pills = (page: Page) => tray(page).getByTestId('top-bar-pills')
-const funnel = (page: Page) => tray(page).getByRole('button', { name: 'Clear all filters' })
+const funnel = (page: Page) => tray(page).getByRole('button', { name: 'Pause the filter' })
+const clear = (page: Page) => tray(page).getByRole('button', { name: 'Clear all filters' })
 const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
 const error = (page: Page) => page.getByTestId('top-bar-filter-error')
 const listTitles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
@@ -49,7 +51,7 @@ const screenFilter = (page: Page) => page.evaluate(async () => {
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('an or expression narrows every list and the counter; at rest its terms are pills, each × takes one out; the funnel clears', async ({ page }) => {
+test('an or expression narrows every list and the counter; at rest its terms are pills, each × takes one out; the field’s × clears', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect.poll(() => listTitles(page)).toEqual(ALL)
   await expect(funnel(page)).toBeDisabled()
@@ -74,12 +76,64 @@ test('an or expression narrows every list and the counter; at rest its terms are
   await pills(page).getByRole('button', { name: 'Remove !Waiting' }).click()
   await expect.poll(() => listTitles(page)).toEqual(['Priya vendor call'])
 
-  await funnel(page).click()
+  await clear(page).click()
   await expect.poll(() => listTitles(page)).toEqual(ALL)
   await expect(pills(page)).toHaveCount(0)
   await expect(field(page)).toHaveValue('')
   await expect(funnel(page)).toBeDisabled()
+  await expect(clear(page)).toHaveCount(0)
   await expect(counter(page)).toHaveCount(0)
+})
+
+test('the funnel pauses the filter: every list shows every task and the counter says paused; a click again narrows them; an edit resumes; the × clears', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await expect.poll(() => listTitles(page)).toEqual(ALL)
+  await field(page).click()
+  await page.keyboard.type('#q4 or !Waiting', { delay: 10 })
+  await page.keyboard.press('Enter')
+  await field(page).blur()
+  const narrowed = ['Sam waiting on legal', 'Priya q4 plan']
+  await expect.poll(() => listTitles(page)).toEqual(narrowed)
+  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'false')
+
+  // Paused: the filter stays (its pills dimmed and struck through), nothing applies it.
+  await funnel(page).hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Pause the filter: show every task · click again to resume')
+  await funnel(page).click()
+  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => listTitles(page)).toEqual(ALL)
+  await expect(counter(page)).toHaveAccessibleName('5 open tasks shown, the filter paused. Show them')
+  await expect(counter(page)).toHaveText('5open · paused')
+  await expect(tray(page)).not.toHaveAttribute('data-filtered')
+  await expect(pills(page)).toHaveAttribute('data-paused', 'true')
+  const pill = pills(page).locator('[data-top-bar-pill]').first().locator('span').first()
+  expect(await pill.evaluate((el) => getComputedStyle(el).textDecorationLine)).toBe('line-through')
+  expect(Number(await pills(page).evaluate((el) => getComputedStyle(el).opacity))).toBeCloseTo(0.55, 2)
+  await page.mouse.move(0, 400)
+  await funnel(page).hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Resume the filter')
+
+  // Again: narrowed.
+  await funnel(page).click()
+  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(() => listTitles(page)).toEqual(narrowed)
+
+  // Paused, an edit resumes it with the change: a pill's ×.
+  await funnel(page).click()
+  await expect.poll(() => listTitles(page)).toEqual(ALL)
+  await pills(page).getByRole('button', { name: 'Remove !Waiting' }).click()
+  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(() => listTitles(page)).toEqual(['Priya q4 plan'])
+
+  // Paused, the × clears it all and ends the pause.
+  await funnel(page).click()
+  await expect.poll(() => listTitles(page)).toEqual(ALL)
+  await clear(page).click()
+  await expect(pills(page)).toHaveCount(0)
+  await expect(funnel(page)).toBeDisabled()
+  await expect(funnel(page)).not.toHaveAttribute('aria-pressed')
+  await expect(clear(page)).toHaveCount(0)
+  await expect.poll(() => listTitles(page)).toEqual(ALL)
 })
 
 test('what no chip says is held as an expression beside the chips, and composes with them', async ({ page }) => {
@@ -153,4 +207,32 @@ test('a text chips can say becomes chips: the Filter menu’s pickers show them 
   await filterMenuRow(page, 'People').click()
   await expect(page.getByRole('option', { name: 'Priya Nair' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByRole('option', { name: 'Sam Ortiz' })).toHaveAttribute('aria-selected', 'true')
+})
+
+/** Calls a filter-store action in the page. */
+async function filterAction(page: Page, action: 'search' | 'pause', arg: string | boolean) {
+  await page.evaluate(async ([action, arg]) => {
+    const mod = (await import(/* @vite-ignore */ '/src/stores/filter-store.ts' as string)) as {
+      useFilterStore: { getState: () => { setSearchText: (t: string) => void; setPaused: (p: boolean) => void } }
+    }
+    const store = mod.useFilterStore.getState()
+    if (action === 'search') store.setSearchText(String(arg))
+    else store.setPaused(arg === true)
+  }, [action, arg] as const)
+}
+
+test.describe('phone', () => {
+  test.use({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true })
+
+  test('a paused filter says so on the top bar’s pill, and a tap resumes it', async ({ page }) => {
+    await seedWorkspace(page, SEED)
+    const pill = page.getByTestId('shown-of-total')
+    await filterAction(page, 'search', 'vendor')
+    await expect(pill).toHaveText(/^4 of 5/)
+    await filterAction(page, 'pause', true)
+    await expect(pill).toHaveText('5 open · paused · Resume')
+    await expect(pill).toHaveAccessibleName('Filter paused: 5 open tasks shown. Resume the filter')
+    await pill.tap()
+    await expect(pill).toHaveText(/^4 of 5/)
+  })
 })

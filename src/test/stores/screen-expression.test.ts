@@ -84,7 +84,7 @@ describe('the top bar’s typed filter — chips and an expression', () => {
     expect(fieldFilter(t.filters, t.typed)).toEqual({ expression: and(WORK, or(A, HOME)), showCompleted: true })
   })
 
-  it('clears the expression with every chip (Clear all, the funnel)', () => {
+  it('clears the expression with every chip (Clear all: the field’s ×, the Filter menu)', () => {
     useFilterStore.getState().applyExpression(and(or(A, HOME), WORK), true)
     useFilterStore.getState().clearAll()
     const s = useFilterStore.getState()

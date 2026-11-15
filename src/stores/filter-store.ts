@@ -85,6 +85,16 @@ interface FilterState {
   applyExpression: (expression: FilterExpr | null, showCompleted: boolean) => void
   /** What the field last wrote (`applyExpression`), or null. */
   typed: TypedFilter | null
+  /**
+   * The screen filter is paused (feedback 2026-11-15, the funnel): it stays
+   * — chips, the typed expression, text, Show completed — but nothing
+   * applies it (`appliedScreenFilter`: every widget, count and panel shows
+   * every task). Any edit of the filter resumes it with the change (every
+   * write goes through `commit` or `clearAll`); in memory only, never saved.
+   */
+  paused: boolean
+  /** Pauses the filter or resumes it; a pause with no filter on does nothing. */
+  setPaused: (paused: boolean) => void
 }
 
 const defaultFilters: FilterCriteria = {
@@ -99,6 +109,14 @@ const defaultFilters: FilterCriteria = {
 
 const NO_BOX_CHIPS: readonly BoxChip[] = []
 
+/** No screen filter: what a paused filter applies (one object, so readers compare by reference). */
+export const NO_SCREEN_FILTER: FilterCriteria = Object.freeze({ ...defaultFilters })
+
+/** The screen filter as it applies: none while paused (`paused`), else the store's. */
+export function appliedScreenFilter(s: Pick<FilterState, 'filters' | 'paused'>): FilterCriteria {
+  return s.paused ? NO_SCREEN_FILTER : s.filters
+}
+
 function isFilterActive(f: FilterCriteria): boolean {
   return countActiveFilters(f) > 0
 }
@@ -107,6 +125,7 @@ function isFilterActive(f: FilterCriteria): boolean {
  * Stores `filters` with its "is not" switches normalised (an "is not" with
  * nothing ticked = no filter). The box's chips are `boxChips` when given
  * (the box's own edits), else those whose field this edit leaves as it was.
+ * An edit resumes a paused filter.
  */
 function commit(
   set: (s: Partial<FilterState>) => void,
@@ -119,7 +138,7 @@ function commit(
   const kept = boxChips ?? (prev.boxChips.length === 0
     ? prev.boxChips
     : prev.boxChips.filter((c) => sameSearchField(prev.filters, normalized, c.field)))
-  set({ filters: normalized, isActive: isFilterActive(normalized), boxChips: kept })
+  set({ filters: normalized, isActive: isFilterActive(normalized), boxChips: kept, paused: false })
 }
 
 export const useFilterStore = create<FilterState>((set, get) => ({
@@ -127,6 +146,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   isActive: false,
   boxChips: NO_BOX_CHIPS,
   typed: null,
+  paused: false,
 
   setShowCompleted(showCompleted: boolean) {
     commit(set, get, { ...get().filters, showCompleted })
@@ -178,7 +198,13 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       isActive: false,
       boxChips: NO_BOX_CHIPS,
       typed: null,
+      paused: false,
     })
+  },
+
+  setPaused(paused) {
+    const next = paused && get().isActive
+    if (get().paused !== next) set({ paused: next })
   },
 
   applyExpression(expression, showCompleted) {

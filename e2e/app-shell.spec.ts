@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { openSettings, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import {
-  clearAllFilters, completedChip, filterField, filterFunnel, filterMenu, filterMenuButton, filterMenuRow, filterPills, openFilterMenu,
+  clearAllFilters, completedChip, filterClear, filterField, filterFunnel, filterMenu, filterMenuButton, filterMenuRow, filterPills, openFilterMenu,
   openFilterPicker, setShowCompleted,
 } from './fixtures/filters'
 
@@ -105,7 +105,7 @@ test('the filter tray turns red while a screen filter is on; the filter shows as
   await expect(rows(page)).toHaveCount(2)
 })
 
-test('the Filter menu’s Clear all filters and the funnel each clear every screen filter at once', async ({ page }) => {
+test('the Filter menu’s Clear all filters and the field’s × each clear every screen filter at once', async ({ page }) => {
   await seedWorkspace(page, team)
   const search = filterField(page)
   const button = filterMenuButton(page)
@@ -116,6 +116,7 @@ test('the Filter menu’s Clear all filters and the funnel each clear every scre
   expect(buttonBox && searchBox && searchBox.x + searchBox.width <= buttonBox.x).toBe(true)
   expect(funnelBox && searchBox && funnelBox.x + funnelBox.width <= searchBox.x).toBe(true)
   await expect(filterFunnel(page)).toBeDisabled()
+  await expect(filterClear(page)).toHaveCount(0)
   // No Clear all in the menu while nothing is on.
   await openFilterMenu(page)
   await expect(filterMenu(page).getByRole('button', { name: 'Clear all filters' })).toHaveCount(0)
@@ -143,15 +144,16 @@ test('the Filter menu’s Clear all filters and the funnel each clear every scre
   await expect(rows(page)).toHaveCount(2)
   await expect(button).toBeFocused()
 
-  // The funnel, one click.
+  // The field's ×, one click.
   await openFilterPicker(page, 'People')
   await page.getByRole('option', { name: 'Alice' }).click()
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(rows(page)).toHaveCount(1)
-  await filterFunnel(page).click()
+  await filterClear(page).click()
   await expect(rows(page)).toHaveCount(2)
   await expect(filterPills(page)).toHaveCount(0)
+  await expect(filterClear(page)).toHaveCount(0)
   await expect(filterFunnel(page)).toBeDisabled()
 })
 
@@ -260,8 +262,8 @@ test('at 1280px the bar fits with a filter on: the funnel, the field with its pi
   await page.setViewportSize({ width: 1280, height: 800 })
   await seedWorkspace(page, { ...team, statuses: ['Waiting'] })
   await expect(filterMenuButton(page)).toHaveText('Filter')
-  // No filter button per field any more: they are the menu's rows.
-  await expect(tray(page).getByRole('button', { name: / filter$/ })).toHaveCount(0)
+  // No filter button per field any more (`People filter`): they are the menu's rows.
+  await expect(tray(page).getByRole('button', { name: /^\w+ filter$/ })).toHaveCount(0)
   const newTask = page.getByRole('button', { name: 'New task' })
   await expect(newTask).toHaveText('')
   await expect(newTask).toHaveAttribute('title', 'New task (Ctrl+Space)')

@@ -1,6 +1,6 @@
 import { useDeferredValue } from 'react'
 import { countActiveFilters, type FilterCriteria } from '../utils/filter-criteria'
-import { useFilterStore } from './filter-store'
+import { appliedScreenFilter, useFilterStore } from './filter-store'
 
 /**
  * The screen filter as the widgets apply it: the top bar's chips and the
@@ -9,7 +9,9 @@ import { useFilterStore } from './filter-store'
  * filters by the screen filter reads it here (lists, the glance widgets, the
  * calendar, the Neglect map, the counter and the filtered tasks); what edits
  * the chips, counts them or seeds a new task from them reads `filter-store`
- * itself.
+ * itself. While the filter is paused (`filter-store.paused`, the funnel)
+ * the hooks and `currentScreenFilter` give no filter: every widget shows
+ * every task.
  *
  * **The hooks hand the widgets the filter deferred** (`useDeferredValue`):
  * a change — Clear all filters above all, which mounts every task the
@@ -21,9 +23,9 @@ import { useFilterStore } from './filter-store'
  * deferred.
  */
 
-/** The screen filter as it is now (the same object while nothing changed). */
+/** The screen filter as it applies now — none while paused (the same object while nothing changed). */
 export function currentScreenFilter(): FilterCriteria {
-  return useFilterStore.getState().filters
+  return appliedScreenFilter(useFilterStore.getState())
 }
 
 /** What a widget filters by: the screen filter, and whether anything narrows. */
@@ -34,7 +36,7 @@ interface ScreenFilterState {
 
 /** The screen filter (`currentScreenFilter`), kept current — deferred, as the module says. */
 export function useScreenFilter(): ScreenFilterState {
-  const filters = useDeferredValue(useFilterStore((s) => s.filters))
+  const filters = useDeferredValue(useFilterStore(appliedScreenFilter))
   return { filters, active: countActiveFilters(filters) > 0 }
 }
 

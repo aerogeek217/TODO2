@@ -73,19 +73,37 @@ async function filterToVendor(page: Page) {
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('the funnel clears the top bar in the click’s own frame; the list fills in after it', async ({ page }) => {
+test('the field’s × clears the top bar in the click’s own frame; the list fills in after it', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(rows(page)).toHaveCount(HIDDEN + 2)
   await filterToVendor(page)
 
-  const funnel = tray(page).getByRole('button', { name: 'Clear all filters' })
-  const firstFrame = await recordFirstFrame(funnel)
-  await funnel.click()
+  const clear = tray(page).getByRole('button', { name: 'Clear all filters' })
+  const firstFrame = await recordFirstFrame(clear)
+  await clear.click()
   // The frame the click paints already has the field and pills cleared — and
   // doesn't wait for the list to mount the 150 tasks the filter hid.
   expect(await firstFrame()).toEqual({ pills: 0, fieldValue: '', rows: 2 })
   await expect(rows(page)).toHaveCount(HIDDEN + 2)
-  await expect(funnel).toBeDisabled()
+  await expect(clear).toHaveCount(0)
+})
+
+test('so does the funnel’s pause, and its resume', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await expect(rows(page)).toHaveCount(HIDDEN + 2)
+  await filterToVendor(page)
+
+  const funnel = tray(page).getByRole('button', { name: 'Pause the filter' })
+  const paused = await recordFirstFrame(funnel)
+  await funnel.click()
+  // The pills stay (struck through); the list shows every task after the frame.
+  expect(await paused()).toEqual({ pills: 1, fieldValue: '#vendor', rows: 2 })
+  await expect(funnel).toHaveAttribute('aria-pressed', 'true')
+  await expect(rows(page)).toHaveCount(HIDDEN + 2)
+
+  await funnel.click()
+  await expect(funnel).toHaveAttribute('aria-pressed', 'false')
+  await expect(rows(page)).toHaveCount(2)
 })
 
 test('so does the Filter menu’s Clear all filters', async ({ page }) => {

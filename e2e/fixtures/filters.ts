@@ -34,9 +34,14 @@ export function filterPills(page: Page): Locator {
   return filterTray(page).locator('[data-top-bar-pill]')
 }
 
-/** The funnel at the tray's left: one click clears every screen filter. */
+/** The funnel at the tray's left: a toggle that pauses the screen filter (pressed while paused). */
 export function filterFunnel(page: Page): Locator {
-  return filterTray(page).getByRole('button', { name: 'Clear all filters' })
+  return filterTray(page).getByRole('button', { name: 'Pause the filter' })
+}
+
+/** The field's × (while a filter is on): one click clears every screen filter. */
+export function filterClear(page: Page): Locator {
+  return filterTray(page).locator('[data-clear-filters]')
 }
 
 /** Show completed's pill (`done`, at rest) — its ×. */
