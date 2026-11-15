@@ -23,7 +23,8 @@ import { PopoverRoot } from '../../shared/PopoverRoot'
 import { TagPicker } from '../../shared/TagChipSelector'
 import { useTooltip } from '../../shared/use-tooltip'
 import { PriorityMenu } from '../PriorityMenu'
-import { DatesCell, MarkerGutter, NotesCell, PeopleCell, RowCheckbox, StatusCell, StatusMenu, TagsCell } from '../row-cells'
+import { DatesCell, MarkerGutter, NotesCell, PeopleCell, RowCheckbox, StatusCell, TagsCell } from '../row-cells'
+import { StatusMenuPopover } from '../StatusMenuPopover'
 import { keepRowTextUnselected } from '../row-events'
 import { useTaskRowColumn, useTaskRowTracks } from '../task-row-grid-context'
 import rowStyles from '../TaskRow.module.css'
@@ -360,16 +361,13 @@ export function DraftTaskRow({ row, lookups, onChange, onCheck, onEdit, onRemove
           />
         )}
         {open === 'status' && (
-          <AnchoredPicker anchorRef={statusRef} onClose={close} closeOnEscape>
-            <StatusMenu
-              statuses={statuses}
-              statusId={draft.statusId}
-              onPick={(statusId) => {
-                onChange(statusId === undefined ? dropping(draft, 'statusId') : { ...draft, statusId })
-                close()
-              }}
-            />
-          </AnchoredPicker>
+          <StatusMenuPopover
+            anchorRef={statusRef}
+            statuses={statuses}
+            statusId={draft.statusId}
+            onPick={(statusId) => onChange(statusId === undefined ? dropping(draft, 'statusId') : { ...draft, statusId })}
+            onClose={close}
+          />
         )}
         {open === 'followup' && (
           <DraftFollowupPopover

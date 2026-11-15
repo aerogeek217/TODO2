@@ -181,6 +181,28 @@ describe('the Review widget: its field', () => {
     expect(rowIds().sort()).toEqual(['1', '2', '4'])
   })
 
+  it('two people of one name: a click on the second reviews the second (cr34 F10)', () => {
+    const alex1: Person = { id: 7, name: 'Alex', initials: 'A' }
+    const alex2: Person = { id: 8, name: 'Alex', initials: 'A' }
+    usePersonStore.setState({ people: [alex1, alex2], assignedPeopleMap: new Map([[1, [alex1]], [3, [alex2]], [4, [alex2]]]) })
+    renderAt('large')
+    fireEvent.click(field())
+    const alexes = screen.getAllByRole('option', { name: /Alex/ })
+    expect(alexes).toHaveLength(2)
+    // The most counted first: the second Alex (two open tasks) leads.
+    expect(alexes.map((o) => o.textContent)).toEqual(['AAlex2', 'AAlex1'])
+    fireEvent.mouseDown(alexes[0] as HTMLElement)
+    expect(field()).toHaveValue('@Alex ')
+    expect(stored()?.expression).toEqual(person(8))
+    expect(rowIds().sort()).toEqual(['3', '4'])
+    // The text emptied (which writes nothing), then the other Alex picked: the filter switches to that one.
+    type('')
+    fireEvent.click(field())
+    fireEvent.mouseDown(screen.getAllByRole('option', { name: /Alex/ })[1] as HTMLElement)
+    expect(stored()?.expression).toEqual(person(7))
+    expect(rowIds()).toEqual(['1'])
+  })
+
   it('a review takes open tasks only: `done` and a Completed date are refused, saying so, and change nothing (F6)', () => {
     renderAt('large')
     setFilter(person(2))

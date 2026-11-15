@@ -167,17 +167,43 @@ export function mergeTracks(a: GridTrack, b: GridTrack): GridTrack {
   return merged
 }
 
-/** `body` with line `line` of `axis` gone: its two tracks merged, every cell's coordinates past it shifted back. */
-function dropLine<B extends LayoutBody>(body: B, axis: GridAxis, line: number): B {
+/**
+ * `body` with every inner line of `axis` that no cell's edge lies on gone:
+ * each run of tracks between two kept lines merged into one (`mergeTracks`,
+ * in order), every cell's coordinates shifted back past the lines that
+ * went. One pass over the cells and the tracks (cr34: a line at a time,
+ * walking every cell for each, was quadratic). The same object when every
+ * inner line is an edge.
+ */
+function dropNonEdgeLines<B extends LayoutBody>(body: B, axis: GridAxis): B {
   const tracks = body.grid[axis]
-  const a = tracks[line - 1]
-  const b = tracks[line]
-  if (!a || !b) return body
-  const merged = [...tracks.slice(0, line - 1), mergeTracks(a, b), ...tracks.slice(line + 1)]
+  if (tracks.length < 2) return body
+  const edges = new Set<number>()
+  for (const c of body.cells) {
+    const [start, end] = spanOf(c.area, axis)
+    edges.add(start)
+    edges.add(end)
+  }
+  let drops = false
+  for (let line = 1; line < tracks.length && !drops; line++) drops = !edges.has(line)
+  if (!drops) return body
+  // Where each kept line lands: its index less the lines before it that go.
+  const landing = new Array<number>(tracks.length + 1)
+  const merged: GridTrack[] = []
+  let gone = 0
+  landing[0] = 0
+  tracks.forEach((track, i) => {
+    const last = merged.at(-1)
+    if (i > 0 && !edges.has(i) && last) {
+      merged[merged.length - 1] = mergeTracks(last, track)
+      gone++
+    } else merged.push(track)
+    landing[i + 1] = i + 1 - gone
+  })
   const cells = body.cells.map((c) => {
     const [start, end] = spanOf(c.area, axis)
-    const s = start >= line ? start - 1 : start
-    const e = end >= line ? end - 1 : end
+    const s = landing[start] ?? start
+    const e = landing[end] ?? end
     return s === start && e === end ? c : { ...c, area: withSpan(c.area, axis, s, e) }
   })
   return { ...body, grid: { ...body.grid, [axis]: merged }, cells }
@@ -236,13 +262,7 @@ export function normalizeGrid<B extends LayoutBody>(body: B): B {
     return { ...body, grid: { columns: [], rows: [] } }
   }
   let next = body
-  for (const axis of ['columns', 'rows'] as const) {
-    let line = 1
-    while (line < next.grid[axis].length) {
-      if (isCellEdge(next, axis, line)) line++
-      else next = dropLine(next, axis, line)
-    }
-  }
+  for (const axis of ['columns', 'rows'] as const) next = dropNonEdgeLines(next, axis)
   next = expandOrphanRows(next)
   const ordered = next.cells.every((c, i) => i === 0 || readingCompare(next.cells[i - 1] as LayoutCell, c) < 0)
   if (!ordered) next = { ...next, cells: readingOrder(next) }

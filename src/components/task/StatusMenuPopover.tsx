@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type RefObject } from 'react'
+import { useMemo, type RefObject } from 'react'
 import type { Status } from '../../models'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { StatusIcon } from '../shared/StatusIcon'
@@ -9,7 +9,7 @@ const STATUS_MENU_LABEL = 'Status'
 
 /**
  * The status menu (the task layout's Status fact: the editor and the review
- * card): No Status, then every status, as the app's menu (`MenuPopover`) —
+ * card, and a task row's status cell): No Status, then every status, as the app's menu (`MenuPopover`) —
  * radio items, the current one checked. Opening it moves the focus to the
  * current status; ↑ / ↓ / Home / End move, a letter jumps, Enter or a click
  * picks, Esc closes it alone, Tab closes it and moves on from its button —
@@ -42,18 +42,12 @@ export function StatusMenuPopover({ anchorRef, statuses, statusId, onPick, onClo
     })),
   ], [statuses, statusId, onPick])
 
-  // The menu opens with the focus on its first item (its own effect, which
-  // runs before this one: a child's); the status menu starts on the current
-  // status instead.
-  useEffect(() => {
-    document.querySelector<HTMLElement>(`[role="menu"][aria-label="${STATUS_MENU_LABEL}"] [role="menuitemradio"][aria-checked="true"]`)?.focus()
-  }, [])
-
   return (
     <MenuPopover
       anchorRef={anchorRef}
       label={STATUS_MENU_LABEL}
       entries={entries}
+      focusChecked
       onClose={onClose}
     />
   )

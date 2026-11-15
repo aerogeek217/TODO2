@@ -121,7 +121,7 @@ describe('NotesConvertPreview: Ctrl+Enter in a picker portaled from a row (cr31)
   it('on a status option, it is the picker’s: the preview doesn’t create from it', () => {
     const onCreate = renderWithCreate()
     fireEvent.click(document.querySelector('[data-row-cell="status"]')!)
-    const option = screen.getByRole('button', { name: /Waiting/ })
+    const option = screen.getByRole('menuitemradio', { name: /Waiting/ })
     expect(document.querySelector('[role="dialog"]')?.contains(option)).toBe(false)
     fireEvent.keyDown(option, { key: 'Enter', ctrlKey: true })
     expect(onCreate).not.toHaveBeenCalled()

@@ -1,7 +1,7 @@
 import type { FilterExpr, Person, Status, Tag } from '../models'
 import { expressionAtoms, type ExpressionError, type ExpressionNameResolver, type ExpressionSpan, type ExpressionSpanKind } from '../utils/filter-expression'
 import { computeAutocomplete, type AutocompleteSources, type AutocompleteView } from './nlp-autocomplete'
-import { matchPerson, matchStatus, matchTag } from './nlp-resolver'
+import { matchPerson, matchStatus, matchTag, pickedAmong, type PickedIds } from './nlp-resolver'
 import type { TintSpan, TokenTint } from './nlp-token-tints'
 
 /**
@@ -22,25 +22,6 @@ export function namedIds(e: FilterExpr | null | undefined): NamedIds {
   const out = { person: new Set<number>(), tag: new Set<number>(), status: new Set<number>() }
   for (const a of e ? expressionAtoms(e) : []) if (a.kind === 'person' || a.kind === 'tag' || a.kind === 'status') out[a.kind].add(a.id)
   return out
-}
-
-/**
- * The people, tags and statuses picked from a field's popup, newest last, by
- * kind (`expressionResolver`'s `picked`): which one of two that share a name
- * was meant — the text of a pick is the name alone (cr34 F10).
- */
-export interface PickedIds {
-  person: readonly number[]
-  tag: readonly number[]
-  status: readonly number[]
-}
-
-/** No pick yet. */
-export const NO_PICKS: PickedIds = { person: [], tag: [], status: [] }
-
-/** `picked` with `item` picked last (once: a pick made again moves to the end). */
-export function withPicked(picked: PickedIds, item: { kind: keyof PickedIds; id: number }): PickedIds {
-  return { ...picked, [item.kind]: [...picked[item.kind].filter((id) => id !== item.id), item.id] }
 }
 
 /**
@@ -67,10 +48,8 @@ export function expressionResolver(
     picks: readonly number[] | undefined,
   ): number | undefined => {
     if (!hit) return undefined
-    for (let i = (picks?.length ?? 0) - 1; i >= 0; i--) {
-      const id = picks?.[i]
-      if (id !== undefined && (id === hit.id || items.some((x) => x.id === id && x.name === hit.name))) return id
-    }
+    const chosen = pickedAmong(hit, items, picks)
+    if (chosen) return chosen.id
     if (!ids || ids.size === 0 || (hit.id !== undefined && ids.has(hit.id))) return hit.id
     return items.find((i) => i.id !== undefined && ids.has(i.id) && i.name === hit.name)?.id ?? hit.id
   }

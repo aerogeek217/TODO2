@@ -8,8 +8,9 @@ import { expressionNamesOf } from '../utils/filter-chips'
 import { parseExpression, printExpression, type ExpressionParse } from '../utils/filter-expression'
 import { expressionsEqual } from '../utils/filter-expression'
 import { withExpression } from '../utils/predicate-expression'
-import { expressionAutocomplete, expressionResolver, expressionTints, namedIds } from '../services/filter-expression-field'
-import { personItems, statusItems, tagItems, type computeAutocomplete } from '../services/nlp-autocomplete'
+import { expressionAutocomplete, expressionResolver, expressionTints, namedIds, type NamedIds } from '../services/filter-expression-field'
+import { personItems, statusItems, tagItems, type AutocompleteItem, type computeAutocomplete } from '../services/nlp-autocomplete'
+import { NO_PICKS, withPicked, type PickedIds } from '../services/nlp-resolver'
 import type { TintSpan } from '../services/nlp-token-tints'
 import { useNlpAutocomplete } from './use-nlp-autocomplete'
 import { useLatestRef } from './use-latest-ref'
@@ -55,9 +56,18 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
   const names = useMemo(() => expressionNamesOf({ people, tags, statuses }), [people, tags, statuses])
-  // The ids the filter names win over a namesake (two people called Alex).
+  // The ids the filter names win over a namesake (two people called Alex) —
+  // after the one picked from the popup (cr34 F10: a pick's text is the name alone).
   const named = useMemo(() => namedIds(predicate.expression), [predicate.expression])
-  const resolver = useMemo(() => expressionResolver(people, tags, statuses, named), [people, tags, statuses, named])
+  const [picked, setPicked] = useState<PickedIds>(NO_PICKS)
+  const resolver = useMemo(() => expressionResolver(people, tags, statuses, named, picked), [people, tags, statuses, named, picked])
+  /** The resolver once `item` is picked too (`resolver` itself with no pick). */
+  const resolverPicking = useCallback((item: AutocompleteItem | undefined) => {
+    if (!item) return resolver
+    const next = withPicked(picked, item)
+    setPicked(next)
+    return expressionResolver(people, tags, statuses, named, next)
+  }, [resolver, picked, people, tags, statuses, named])
 
   const stored = printExpression(predicate.expression, predicate.showCompleted, names)
   const [text, setText] = useState(stored)
@@ -105,9 +115,12 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
     }
     const current = predicateRef.current
     // The same filter, or one that prints the same (`today` for a 0-day
-    // offset, cr33 F4): nothing to write, so a focus and a blur change nothing.
+    // offset, cr33 F4) naming the same people, tags and statuses (two that
+    // share a name print alike, cr34 F10): nothing to write, so a focus and a
+    // blur change nothing.
     const same = p.showCompleted === current.showCompleted && (expressionsEqual(p.expression, current.expression)
-      || printExpression(p.expression, false, names) === printExpression(current.expression, false, names))
+      || (printExpression(p.expression, false, names) === printExpression(current.expression, false, names)
+        && sameNamedIds(namedIds(p.expression), namedIds(current.expression))))
     if (same) {
       pendingWrite.current = null
       return
@@ -142,16 +155,21 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
     input.setSelectionRange(caret, caret)
   }, [text, inputRef])
 
-  const setAndRead = useCallback((value: string, now = false) => {
+  /** Shows `value` and queues its reading (`names`: the resolver, `resolver` unless a pick just changed it). */
+  const setAndRead = useCallback((value: string, now = false, names = resolver) => {
     setText(value)
-    queue(parseExpression(value, { today: startOfToday(), names: resolver, allowPeople, allowCompleted, allowDone }), now)
+    queue(parseExpression(value, { today: startOfToday(), names, allowPeople, allowCompleted, allowDone }), now)
   }, [queue, resolver, allowPeople, allowCompleted, allowDone])
 
-  /** Puts `value` in the field with the caret at `cursor` (a pick the host makes itself); `now`: written at once when it reads. */
-  const apply = useCallback((value: string, cursor: number, now = false) => {
+  /**
+   * Puts `value` in the field with the caret at `cursor` (a pick the host
+   * makes itself); `now`: written at once when it reads; `picked`: the
+   * person / tag / status the pick names (of two that share a name, that one).
+   */
+  const apply = useCallback((value: string, cursor: number, now = false, picked?: AutocompleteItem) => {
     pendingCaret.current = cursor
-    setAndRead(value, now)
-  }, [setAndRead])
+    setAndRead(value, now, resolverPicking(picked))
+  }, [setAndRead, resolverPicking])
 
   const acPeople = useMemo(() => personItems(people), [people])
   const acTags = useMemo(() => tagItems(tags), [tags])
@@ -170,9 +188,9 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
     statuses: acStatuses,
     commands: true,
     compute,
-    onApply: (value, cursor) => {
+    onApply: (value, cursor, item) => {
       pendingCaret.current = cursor
-      setAndRead(value)
+      setAndRead(value, false, resolverPicking(item))
     },
   })
   const { handleInputChange, dismiss } = ac
@@ -245,4 +263,10 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   const unsettled = text !== stored
 
   return { text, stored, parse, tints, names, ac, apply, onTextChange, onSelect, onKeyDown, onBlur, closeHeld, holdClose, unsettled, unreadable }
+}
+
+/** Whether `a` and `b` name the same people, tags and statuses. */
+function sameNamedIds(a: NamedIds, b: NamedIds): boolean {
+  const same = (x: ReadonlySet<number>, y: ReadonlySet<number>) => x.size === y.size && [...x].every((id) => y.has(id))
+  return same(a.person, b.person) && same(a.tag, b.tag) && same(a.status, b.status)
 }

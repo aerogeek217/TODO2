@@ -537,7 +537,7 @@ describe('TaskRow', () => {
       fireEvent.click(status, { detail: 1 })
       fireEvent.click(status, { detail: 2 })
       fireEvent.doubleClick(status)
-      expect(screen.getByText('No Status')).toBeInTheDocument()
+      expect(screen.getByRole('menuitemradio', { name: 'No Status' })).toBeInTheDocument()
       expect(status).toHaveAttribute('aria-expanded', 'true')
       expect(onOpenDetail).not.toHaveBeenCalled()
       fireEvent.doubleClick(screen.getByText('Foo'))
@@ -550,8 +550,10 @@ describe('TaskRow', () => {
       useTodoStore.setState({ todos: [withFollowup] })
       render(<><TaskRow todo={withFollowup} /><FollowupPopoverHost /></>)
       fireEvent.click(screen.getByRole('button', { name: 'Status: Done' }))
-      fireEvent.click(screen.getByText('No Status'))
+      expect(screen.getByRole('menu', { name: 'Status' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('menuitemradio', { name: 'No Status' }))
       expect(mockBulk.setStatus).toHaveBeenCalledWith(1, undefined)
+      expect(screen.queryByRole('menu', { name: 'Status' })).toBeNull()
       const followup = screen.getByRole('button', { name: 'Follow-up: Mon 20' })
       expect(followup).toHaveAttribute('data-followup', 'upcoming')
       expect(followup.textContent).toBe('Mon')
@@ -561,6 +563,26 @@ describe('TaskRow', () => {
       fireEvent.click(within(popover).getByRole('button', { name: 'Clear next follow-up' }))
       fireEvent.click(within(popover).getByRole('button', { name: 'Mark followed up' }))
       expect(mockBulk.markFollowedUp).toHaveBeenCalledWith(1, null, undefined)
+    })
+
+    it('the status menu is the app’s menu: the focus on the current status, the arrows move, Esc hands the focus back to the cell (cr34 M9)', () => {
+      useStatusStore.setState({ statuses: [
+        { id: 10, name: 'Doing', icon: 'circle', color: '#00ff00', sortOrder: 0 },
+        { id: 11, name: 'Waiting', icon: 'circle', color: '#ffaa00', sortOrder: 1 },
+      ] })
+      render(<TaskRow todo={makeTodo({ id: 1, statusId: 10 })} />)
+      const cell = screen.getByRole('button', { name: 'Status: Doing' })
+      act(() => { cell.focus() })
+      fireEvent.click(cell)
+      const doing = screen.getByRole('menuitemradio', { name: 'Doing' })
+      expect(doing).toHaveAttribute('aria-checked', 'true')
+      expect(document.activeElement).toBe(doing)
+      fireEvent.keyDown(doing, { key: 'ArrowDown' })
+      expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Waiting' }))
+      fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'Escape' })
+      expect(screen.queryByRole('menu', { name: 'Status' })).toBeNull()
+      expect(document.activeElement).toBe(cell)
+      expect(mockBulk.setStatus).not.toHaveBeenCalled()
     })
 
     it('a late follow-up is the filled, late flag; today’s is filled', () => {

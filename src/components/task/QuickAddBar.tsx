@@ -59,7 +59,7 @@ import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { parseInput, type CommandProblem } from '../../services/natural-language-parser'
-import { resolveInput, type ResolvedInput } from '../../services/nlp-resolver'
+import { NO_PICKS, resolveInput, withPicked, type PickedIds, type ResolvedInput } from '../../services/nlp-resolver'
 import { DATE_ARGUMENT_HINT, REPEAT_FREQUENCIES } from '../../services/slash-commands'
 import { tokenTints } from '../../services/nlp-token-tints'
 import { TintedText } from '../shared/TintedText'
@@ -370,10 +370,11 @@ function runParse(
   raw: string,
   people: Person[],
   statuses: Status[],
+  picked: PickedIds,
 ): { parsed: ParsedTokens; resolved: ResolvedInput; input: ReturnType<typeof parseInput> | null } {
   if (raw.trim().length === 0) return { parsed: EMPTY_PARSED, resolved: EMPTY_RESOLVED, input: null }
   const parsedInput = parseInput(raw)
-  const resolved = resolveInput(parsedInput, people, statuses)
+  const resolved = resolveInput(parsedInput, people, statuses, picked)
 
   const peopleResolved: PersistedPerson[] = resolved.personIds
     .map((id) => people.find((p) => p.id === id))
@@ -440,10 +441,12 @@ export function QuickAddBar({
   const statuses = useStatusStore((s) => s.statuses)
   const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
   const autoFollowup = useSettingsStore((s) => s.autoFollowup)
+  /** The people and statuses picked from the popup: of two that share a name, the one a name means (cr34 F10). */
+  const [picked, setPicked] = useState<PickedIds>(NO_PICKS)
 
   const internalRun = useMemo(
-    () => runParse(raw, people, statuses),
-    [raw, people, statuses],
+    () => runParse(raw, people, statuses, picked),
+    [raw, people, statuses, picked],
   )
   const parsed = parse ? parse(raw) : internalRun.parsed
   // Test override (`parse`) only produces `ParsedTokens`; default to the live
@@ -460,7 +463,8 @@ export function QuickAddBar({
     statuses: acStatuses,
     commands: true,
     enterSubmits: true,
-    onApply: (value, cursor) => {
+    onApply: (value, cursor, item) => {
+      if (item) setPicked((p) => withPicked(p, item))
       setTitleMissing(false)
       const input = inputRef.current
       if (input && input.value === value) {
@@ -483,10 +487,10 @@ export function QuickAddBar({
     resolved,
     ...removedPreset,
   }
-  /** The draft for `text` (the current one when it's what is typed). */
-  const draftFor = (text: string): QuickAddDraft => {
-    if (text === raw) return draft
-    const run = runParse(text, people, statuses)
+  /** The draft for `text` (the current one when it's what is typed and nothing more is picked). */
+  const draftFor = (text: string, picks: PickedIds = picked): QuickAddDraft => {
+    if (text === raw && picks === picked) return draft
+    const run = runParse(text, people, statuses, picks)
     return { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved, ...removedPreset }
   }
   /** The preset without the markers whose chip was removed. */
@@ -532,6 +536,7 @@ export function QuickAddBar({
       setRaw('')
       setTitleMissing(false)
       setRemovedPresetMarkers([])
+      setPicked(NO_PICKS)
       dismissAutocomplete()
     }
   }, [open, dismissAutocomplete, initialDraftRef])
@@ -666,6 +671,9 @@ export function QuickAddBar({
   const submitTyped = () => {
     if (submittingRef.current) return
     const text = ac.completeForSubmit(raw)
+    // Completed to the highlighted row: that person / status, of two that share its name.
+    const row = ac.state.visible ? ac.state.view?.rows[ac.state.selectedIndex] : undefined
+    const picks = text !== raw && row?.kind === 'entity' ? withPicked(picked, row.item) : picked
     ac.dismiss()
     if (text !== raw) setRaw(text)
     if (ac.creating()) {
@@ -676,12 +684,12 @@ export function QuickAddBar({
       void ac.whenCreated().then(() => {
         submittingRef.current = false
         if (openingRef.current !== opening) return
-        const run = runParse(text, usePersonStore.getState().people, useStatusStore.getState().statuses)
+        const run = runParse(text, usePersonStore.getState().people, useStatusStore.getState().statuses, picks)
         submit(text, { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved, ...removedPreset })
       })
       return
     }
-    submit(text, draftFor(text))
+    submit(text, draftFor(text, picks))
   }
 
   /** Submits `submitted` (the draft for `text`); the bar closes once the task is stored. */
