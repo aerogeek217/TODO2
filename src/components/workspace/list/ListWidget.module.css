@@ -210,6 +210,38 @@
 }
 
 /*
+ * A row off screen skips its rendering (cr34 answer 27): no style, layout or
+ * paint for its parts until it nears the list's view, so a list's mount (a
+ * layout switch, Open larger, a new List) and every style pass after it cost
+ * the rows on screen, not all of them. Unrendered, it keeps the height it
+ * last had (`auto`), or a row's height at the list's zoom before it ever
+ * rendered. `content-visibility` contains the row's paint, clipping what
+ * draws past its box — the focus ring (4px out), a priority's glow round
+ * the box at Lines, the 24px hit area of a Stacked checkbox: the clip edge
+ * sits 8px out (`overflow-clip-margin`), so they draw and take presses as
+ * before. The containment also makes each row a stacking context, so the
+ * row holding the focus is lifted over its neighbours, its ring over theirs
+ * (the sticky group header, `--z-above-2`, stays over both).
+ */
+.row {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 30px;
+  overflow-clip-margin: 8px;
+}
+
+.widget[data-zoom="stacked"] .row {
+  contain-intrinsic-block-size: auto var(--task-row-stacked-height);
+}
+
+.widget[data-zoom="lines"] .row {
+  contain-intrinsic-block-size: auto var(--task-line-height);
+}
+
+.row:focus-within {
+  z-index: var(--z-above);
+}
+
+/*
  * A row just completed in a list that hides completed tasks (D19): after a
  * beat it folds to nothing (`FOLD_MS`, 180 ms), then drops out. Never under
  * reduced motion (it leaves at once).
