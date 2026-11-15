@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { DateMatch, PersistedTodoItem, Person, Tag } from '../../models'
 import {
+  currentTaskDialogEnv,
   personTaskDialog,
+  popupListView,
   resolveTaskDialog,
   screenTaskCount,
   screenTaskCounts,
@@ -19,6 +21,8 @@ import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, BEN, PEOPLE, PLANNING, PRIYA, Q4, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
 } from '../fixtures/glance-sample'
 import { useFilterStore } from '../../stores/filter-store'
+import { useSettingsStore } from '../../stores/settings-store'
+import { useUIStore } from '../../stores/ui-store'
 import { countTabBadges } from '../../utils/tab-badges'
 
 function env(over: Partial<TaskDialogEnv> = {}): TaskDialogEnv {
@@ -34,7 +38,8 @@ function env(over: Partial<TaskDialogEnv> = {}): TaskDialogEnv {
     statusUpdatesByTodo: new Map(),
     subtasksByTodo: new Map(),
     screen: { ...emptyFilterCriteria },
-    newListView: { sort: 'manual', sortDirection: 'asc', grouping: 'none' },
+    view: { sort: 'manual', sortDirection: 'asc', grouping: 'none' },
+    groupingPicked: false,
     ...over,
   }
 }
@@ -46,23 +51,66 @@ const NO_BADGES = { due: 0, dueOverdue: 0, followup: 0, followupOverdue: 0 }
 const titles = (ids: readonly number[]) => ids.map((id) => byId.get(id)?.title)
 
 describe('resolveTaskDialog', () => {
-  it('todos: one flat group, in the given order', () => {
-    expect(resolveTaskDialog({ kind: 'todos', todoIds: [5, 1, 9] }, env())).toEqual([{ key: 'all', label: null, todoIds: [5, 1, 9] }])
+  it('todos: one flat group; a Manual sort is the tasks’ sortOrder; a deleted one left out', () => {
+    expect(resolveTaskDialog({ kind: 'todos', todoIds: [5, 1, 9, 999] }, env())).toEqual([{ key: 'all', label: null, todoIds: [1, 5, 9] }])
   })
 
-  it('groups: headings in order with their colours; empty ones left out', () => {
-    const source: TaskDialogSource = {
-      kind: 'groups',
-      groups: [
-        { key: 'due', label: 'Due', color: 'red', todoIds: [1, 2] },
-        { key: 'followup', label: 'Follow-up', color: 'gold', todoIds: [] },
-        { key: 'x', label: 'Other', todoIds: [2] },
-      ],
+  it('todos: sorted and grouped by the view, completed ones kept (what was counted)', () => {
+    const ids = SAMPLE_TASKS.map((t) => t.id)
+    const view = { sort: 'deadline', sortDirection: 'desc', grouping: 'priority' } as const
+    const groups = resolveTaskDialog({ kind: 'todos', todoIds: ids }, env({ view }))
+    expect(groups.length).toBeGreaterThan(1)
+    expect(groups.every((g) => g.label != null)).toBe(true)
+    // Every task is under a heading, completed ones too.
+    expect(new Set(groups.flatMap((g) => g.todoIds))).toEqual(new Set(ids))
+    for (const g of groups) {
+      const due = g.todoIds.map((id) => byId.get(id)?.dueDate?.getTime() ?? -Infinity)
+      expect(due).toEqual([...due].sort((a, b) => b - a))
     }
-    expect(resolveTaskDialog(source, env())).toEqual([
+  })
+
+  const GROUPS: TaskDialogSource = {
+    kind: 'groups',
+    groups: [
+      { key: 'due', label: 'Due', color: 'red', todoIds: [2, 1] },
+      { key: 'followup', label: 'Follow-up', color: 'gold', todoIds: [] },
+      { key: 'x', label: 'Other', todoIds: [2] },
+    ],
+  }
+
+  it('groups: headings in order with their colours, each sorted; empty ones left out', () => {
+    expect(resolveTaskDialog(GROUPS, env())).toEqual([
       { key: 'due', label: 'Due', color: 'red', todoIds: [1, 2] },
       { key: 'x', label: 'Other', todoIds: [2] },
     ])
+  })
+
+  it('groups: keeps its own headings under a default grouping, until the user picks one', () => {
+    const byStatus = { sort: 'name', sortDirection: 'asc', grouping: 'status' } as const
+    // Settings' grouping (not picked): the source's headings stay, each sorted by the view's sort.
+    const kept = resolveTaskDialog(GROUPS, env({ view: byStatus }))
+    expect(kept.map((g) => g.label)).toEqual(['Due', 'Other'])
+    expect(titles(kept[0]?.todoIds ?? [])).toEqual(titles([1, 2]).sort((a, b) => a!.localeCompare(b!)))
+    // Picked: its tasks, each once, under the picked grouping's headings.
+    const regrouped = resolveTaskDialog(GROUPS, env({ view: byStatus, groupingPicked: true }))
+    expect(regrouped.map((g) => g.label)).not.toContain('Due')
+    expect(regrouped.flatMap((g) => g.todoIds).sort()).toEqual([1, 2])
+    // Picked "No grouping": one flat list.
+    const flat = resolveTaskDialog(GROUPS, env({ view: { ...byStatus, grouping: 'none' }, groupingPicked: true }))
+    expect(flat).toHaveLength(1)
+    expect(flat[0]?.label).toBeNull()
+    expect(titles(flat[0]?.todoIds ?? [])).toEqual(titles([1, 2]).sort((a, b) => a!.localeCompare(b!)))
+  })
+
+  it('predicate: grouped and sorted by the view', () => {
+    const view = { sort: 'name', sortDirection: 'desc', grouping: 'tag' } as const
+    const groups = resolveTaskDialog(personTaskDialog({ id: PRIYA, name: 'Priya Nair' }).source, env({ view }))
+    expect(groups.every((g) => g.label != null)).toBe(true)
+    expect(new Set(groups.flatMap((g) => titles(g.todoIds)))).toEqual(new Set(['Draft homepage copy', 'Vendor contract redlines', 'Q4 roadmap deck', 'Q4 forecast']))
+    for (const g of groups) {
+      const names = titles(g.todoIds)
+      expect(names).toEqual([...names].sort().reverse())
+    }
   })
 
   it('predicate: the matching tasks in sortOrder — a person’s open tasks (the person chip)', () => {
@@ -72,6 +120,35 @@ describe('resolveTaskDialog', () => {
     expect(titles(group?.todoIds ?? [])).toEqual(['Draft homepage copy', 'Vendor contract redlines', 'Q4 roadmap deck', 'Q4 forecast'])
   })
 
+})
+
+describe('popupListView — the popup lists’ group · sort', () => {
+  const defaults = { sort: 'deadline', sortDirection: 'desc', grouping: 'status' } as const
+
+  it('before any pick: Settings’ new-list sort, direction and grouping', () => {
+    expect(popupListView(defaults, {})).toEqual(defaults)
+  })
+
+  it('a pick overrides its part; a sort comes with its direction', () => {
+    expect(popupListView(defaults, { grouping: 'priority' })).toEqual({ ...defaults, grouping: 'priority' })
+    expect(popupListView(defaults, { sort: 'name' })).toEqual({ ...defaults, sort: 'name', sortDirection: 'asc' })
+    expect(popupListView(defaults, { sort: 'name', sortDirection: 'desc', grouping: 'none' })).toEqual({ sort: 'name', sortDirection: 'desc', grouping: 'none' })
+  })
+
+  it('every source reads the session’s pick over Settings (currentTaskDialogEnv)', () => {
+    useSettingsStore.setState({ newListSort: 'priority', newListSortDirection: 'asc', newListGroup: 'tag' })
+    expect(currentTaskDialogEnv()).toMatchObject({ view: { sort: 'priority', sortDirection: 'asc', grouping: 'tag' }, groupingPicked: false })
+    useUIStore.getState().pickPopupListView({ grouping: 'priority' })
+    useUIStore.getState().pickPopupListView({ sort: 'deadline', sortDirection: 'asc' })
+    expect(currentTaskDialogEnv()).toMatchObject({ view: { sort: 'deadline', sortDirection: 'asc', grouping: 'priority' }, groupingPicked: true })
+    // Settings changing later doesn't undo the pick.
+    useSettingsStore.setState({ newListGroup: 'people' })
+    expect(currentTaskDialogEnv().view.grouping).toBe('priority')
+  })
+
+  it('the pick is in memory only: the store starts with none (a reload brings back the defaults)', () => {
+    expect(useUIStore.getInitialState().popupListPick).toEqual({})
+  })
 })
 
 describe('resolveTaskDialog — the screen filter’s tasks', () => {
@@ -99,7 +176,7 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
 
   it('sorted and grouped by Settings’ new-list defaults (direction included), as such a list shows them', () => {
     const view = { sort: 'deadline', sortDirection: 'desc', grouping: 'status' } as const
-    const groups = resolveTaskDialog(SCREEN, env({ screen: priya, newListView: view }))
+    const groups = resolveTaskDialog(SCREEN, env({ screen: priya, view: view }))
     expect(groups.length).toBeGreaterThan(1)
     expect(groups.every((g) => g.label != null)).toBe(true)
     // Every one of Priya's open tasks once, each group latest due first (undated last).
@@ -120,19 +197,19 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
     const byPeople = { sort: 'manual', sortDirection: 'asc', grouping: 'people' } as const
     const labelled = (groups: ReturnType<typeof resolveTaskDialog>) => groups.map((g) => [g.label, titles(g.todoIds)])
     const priyaTasks = ['Draft homepage copy', 'Vendor contract redlines', 'Q4 roadmap deck', 'Q4 forecast']
-    const groups = resolveTaskDialog(SCREEN, env({ ...base, screen: priya, newListView: byPeople }))
+    const groups = resolveTaskDialog(SCREEN, env({ ...base, screen: priya, view: byPeople }))
     expect(labelled(groups)).toEqual([['Priya Nair', priyaTasks]])
     // Counts stay unique tasks.
     expect(taskDialogCount(groups)).toBe(screenTaskCount(env({ ...base, screen: priya })))
     // Without a People pick, the task shows under both of its people.
-    const unpicked = resolveTaskDialog(SCREEN, env({ ...base, newListView: byPeople }))
+    const unpicked = resolveTaskDialog(SCREEN, env({ ...base, view: byPeople }))
     expect(unpicked.filter((g) => g.todoIds.includes(14)).map((g) => g.label)).toEqual(['Ben Ortiz', 'Priya Nair'])
     // Tags likewise, the No tags pick keeping only its trailing group.
     const byTag = { ...byPeople, grouping: 'tag' } as const
     const q4 = { ...emptyFilterCriteria, tags: new Set([Q4]) }
-    expect(resolveTaskDialog(SCREEN, env({ ...base, screen: q4, newListView: byTag })).map((g) => g.label)).toEqual(['#q4'])
+    expect(resolveTaskDialog(SCREEN, env({ ...base, screen: q4, view: byTag })).map((g) => g.label)).toEqual(['#q4'])
     const untagged = { ...emptyFilterCriteria, tags: new Set([0]) }
-    expect(resolveTaskDialog(SCREEN, env({ ...base, screen: untagged, newListView: byTag })).map((g) => g.label)).toEqual(['No Tag'])
+    expect(resolveTaskDialog(SCREEN, env({ ...base, screen: untagged, view: byTag })).map((g) => g.label)).toEqual(['No Tag'])
   })
 
   it('screenTaskCount: how many rows the dialog lists', () => {

@@ -6,6 +6,7 @@ import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
 import type { ReviewTabViewState, WidgetKind } from '../models/workspace-layout'
+import type { TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models/todo-sort-group'
 
 type EditPopupMode = 'edit' | 'create' | null
 
@@ -186,6 +187,18 @@ export type TaskPickerRequest =
   | { kind: 'move-subtask'; subtaskId: number }
 
 /** A yes / no question some code is waiting on (`askConfirmation`), or a three-way one (`askChoice`). */
+/**
+ * The popup task lists' group · sort pick (`ui-store.popupListPick`): what
+ * the user picked in a task dialog or the filtered-tasks panel, shared by
+ * all of them until a reload. A part not picked follows Settings' new-list
+ * default; `sort` and `sortDirection` are picked together.
+ */
+export interface PopupListPick {
+  grouping?: TodoGroupBy
+  sort?: TodoSortBy
+  sortDirection?: TodoSortDirection
+}
+
 export interface ConfirmPrompt {
   title: string
   message: string
@@ -250,6 +263,8 @@ interface UIState {
    * person chip. `null` = closed.
    */
   taskDialog: TaskDialogPayload | null
+  /** Every popup task list's group · sort pick: in memory only, gone on a reload (`PopupListPick`). */
+  popupListPick: PopupListPick
   /** The task picker on screen (Make subtask of… / Move to another task…), or null. */
   taskPicker: TaskPickerRequest | null
   followupPopover: FollowupPopoverRequest | null
@@ -378,6 +393,8 @@ interface UIState {
   closeFollowupPopover: () => void
   showTaskDialog: (payload: TaskDialogPayload) => void
   hideTaskDialog: () => void
+  /** Picks a popup task list's grouping, or its sort with its direction, for every popup list until a reload. */
+  pickPopupListView: (pick: PopupListPick) => void
   /**
    * Opens the filtered-tasks panel and asks it for the focus (again, when
    * it is open already). Clears the selection, as the task dialog does.
@@ -443,6 +460,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   bulkConfirmation: null,
   confirmPrompts: [],
   taskDialog: null,
+  popupListPick: {},
   taskPicker: null,
   followupPopover: null,
   rowPopover: null,
@@ -597,6 +615,10 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   hideTaskDialog() {
     set({ taskDialog: null })
+  },
+
+  pickPopupListView(pick) {
+    set({ popupListPick: { ...get().popupListPick, ...pick } })
   },
 
   openFilterPanel() {

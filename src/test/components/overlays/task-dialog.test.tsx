@@ -118,6 +118,27 @@ describe('TaskDialog', () => {
     expect(within(dialog()!).getByTestId('task-dialog-count').textContent).toBe('4')
   })
 
+  it('its group · sort control shows Settings’ defaults; a pick in its popover regroups the rows, for every popup list', () => {
+    useSettingsStore.setState({ newListSort: 'manual', newListSortDirection: 'asc', newListGroup: 'none' })
+    open(HOT)
+    const control = within(dialog()!).getByTestId('popup-group-sort')
+    expect(control.textContent).toBe('Manual')
+    expect(dialog()!.querySelectorAll('[data-task-dialog-group]')).toHaveLength(0)
+    fireEvent.click(control)
+    const popover = document.querySelector<HTMLElement>('[data-popup-group-sort]')!
+    fireEvent.click(within(popover).getByRole('button', { name: /^Group by/ }))
+    fireEvent.click(within(document.body).getByRole('menuitemradio', { name: /^Status/ }))
+    expect(useUIStore.getState().popupListPick).toEqual({ grouping: 'status' })
+    expect(control.textContent).toBe('Status · Manual')
+    expect(dialog()!.querySelectorAll('[data-task-dialog-group]').length).toBeGreaterThan(0)
+    // Sort by Name, then reversed: the direction comes with the sort.
+    fireEvent.click(within(popover).getByRole('button', { name: /^Sort by/ }))
+    fireEvent.click(within(document.body).getByRole('menuitemradio', { name: /^Name/ }))
+    fireEvent.click(within(popover).getByRole('button', { name: 'Sort descending' }))
+    expect(useUIStore.getState().popupListPick).toEqual({ grouping: 'status', sort: 'name', sortDirection: 'desc' })
+    expect(control.textContent).toBe('Status · Name ↓')
+  })
+
   it('Copy tasks copies the rows as shown', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('ClipboardItem', undefined)
