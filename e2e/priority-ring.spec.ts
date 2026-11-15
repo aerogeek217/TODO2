@@ -138,11 +138,11 @@ test.describe('the priority ring and the row spine (D25 B)', () => {
     await expect(ringOf(widget, 'Urgent')).toHaveAttribute('data-priority-ring', 'split')
   })
 
-  test('the row’s type: title 500 (Important’s semibold 600), meta 11.5px tabular in the muted grey; 30px rows', async ({ page }) => {
+  test('the row’s type: title 400 (Important’s semibold 600; flair P5), meta 11.5px tabular in the muted grey; 30px rows', async ({ page }) => {
     const widget = await seedTaskList(page, { tasks: [{ title: 'Plain', dueInDays: 9, tags: ['home'] }, { title: 'Important', important: true }], tags: ['home'] })
     const title = (t: string) => widget.locator(`span[data-task-title="${t}"]`)
     await expect(title('Plain')).toBeVisible()
-    expect(await title('Plain').evaluate((el) => getComputedStyle(el).fontWeight)).toBe('500')
+    expect(await title('Plain').evaluate((el) => getComputedStyle(el).fontWeight)).toBe('400')
     expect(await title('Important').evaluate((el) => getComputedStyle(el).fontWeight)).toBe('600')
     const meta = await row(widget, 'Plain').locator('[data-row-cell="due"]').evaluate((el) => {
       const cs = getComputedStyle(el)

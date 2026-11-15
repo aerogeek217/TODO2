@@ -161,7 +161,8 @@ test.describe('priority row cues', () => {
 
   test('Settings’ switches change the rows and last across a reload', async ({ page }) => {
     await seedWorkspace(page, CUE_SEED)
-    const settings = await openSettings(page, 'Tasks')
+    // Priority cues are how a row looks: Settings › Appearance › Task rows (the Settings regroup).
+    const settings = await openSettings(page, 'Task rows')
     await settings.getByRole('switch', { name: 'Focus glow' }).click()
     await settings.getByRole('switch', { name: 'Important semibold' }).click()
     await expect.poll(() => backgroundImage(rowOf(page, 'In focus'))).toContain('radial-gradient')

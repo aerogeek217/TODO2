@@ -19,7 +19,10 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('a desktop row’s tag cell: part of a tag name, Tab, the task has the tag', async ({ page }) => {
-  await taskRowByTitle(page, 'Fix the sink').getByRole('button', { name: 'Add tag' }).click()
+  // No task has a tag: the cell is in the row's hover cluster (flair P8), shown on the row's hover.
+  const row = taskRowByTitle(page, 'Fix the sink')
+  await row.hover()
+  await row.getByRole('button', { name: 'Add tag' }).click()
   const search = page.locator('[data-anchored-picker]').getByRole('combobox')
   await expect(search).toBeFocused()
   await search.pressSequentially('err')

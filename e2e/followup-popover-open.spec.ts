@@ -85,6 +85,8 @@ test.describe('the follow-up popover stays open', () => {
       tasks: [{ title: 'Chase invoice' }, { title: 'Stays behind' }],
       layouts,
     })
+    // No task has a follow-up: the cell is in the row's hover cluster (flair P8), shown on the row's hover.
+    await rowOf(page, 'Chase invoice').hover()
     await rowOf(page, 'Chase invoice').getByRole('button', { name: 'Set follow-up' }).click()
     await expect(popover(page)).toBeVisible()
     const opened = await popover(page).boundingBox()
@@ -114,6 +116,7 @@ test.describe('the follow-up popover stays open', () => {
     })
     const last = rowOf(page, 'Task 59')
     await last.scrollIntoViewIfNeeded()
+    await last.hover()
     await last.getByRole('button', { name: 'Set follow-up' }).click()
     await followedUp(page).click()
     await expect(rowOf(page, 'Task 59')).toHaveCount(0)
