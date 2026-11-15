@@ -22,7 +22,7 @@ import {
   breakdownLines, columnHeading, countWordOf, oldestWords, rowFigure, sortHeading, SPLIT_GLYPHS,
 } from './breakdown-copy'
 import { breakdownColumnDrill, breakdownRowDrill, rowHeading } from './chart-drills'
-import { ChartPanel } from './chart-parts'
+import { ChartPanel, SortHeading } from './chart-parts'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { GlanceDrill, OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
@@ -217,23 +217,20 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
   ].filter(Boolean).join(' ')
   const keys: BreakdownSortKey[] = ['name', ...(figure ? ['open'] : []), ...columns.map((c) => c.id)]
   const heading = (by: BreakdownSortKey) => {
-    const active = sortBy === by
     const label = sortHeading(by, splitBy, show, columns, countWordOf(config.filter))
-    // Counts go largest first, names A–Z; a second click reverses.
-    const descending = by === 'name' ? reversed : !reversed
     const fixed = by === 'name' || by === 'open'
     return (
-      <span
+      <SortHeading
         key={by}
-        role="columnheader"
-        aria-sort={active ? (descending ? 'descending' : 'ascending') : 'none'}
+        by={by}
+        label={label}
+        title={fixed ? undefined : label}
+        active={sortBy === by}
+        reversed={reversed}
+        onSort={(key) => onSort(key as BreakdownSortKey)}
         className={`${styles.headCell} ${by === 'name' ? styles.headName : fixed ? styles.headNum : styles.headCount} ${by === 'name' && bars && !compact ? styles.headSpan : ''}`}
-      >
-        <button type="button" className={styles.sortButton} data-sort-key={by} aria-pressed={active} title={fixed ? undefined : label} onClick={() => onSort(by)}>
-          <span className={styles.sortLabel}>{label}</span>
-          {active && <span className={styles.sortMark} aria-hidden="true">{descending ? '▼' : '▲'}</span>}
-        </button>
-      </span>
+        classes={{ button: styles.sortButton, label: styles.sortLabel, mark: styles.sortMark }}
+      />
     )
   }
   return (

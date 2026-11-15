@@ -20,12 +20,9 @@ import {
   type NumberOldestBy,
   type NumberShow,
 } from './number-shapes'
+import { includes } from './includes'
 
 type Obj = Record<string, unknown>
-
-function includes<T extends string | number>(list: readonly T[], v: unknown): v is T {
-  return (list as readonly unknown[]).includes(v)
-}
 
 // ── Numbers ─────────────────────────────────────────────────────────────────
 

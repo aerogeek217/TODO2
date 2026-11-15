@@ -6,12 +6,9 @@
  */
 
 import type { TodoPredicate } from './filter-predicate'
+import { includes } from './includes'
 
 type Obj = Record<string, unknown>
-
-function includes<T extends string | number>(list: readonly T[], v: unknown): v is T {
-  return (list as readonly unknown[]).includes(v)
-}
 
 function isObj(v: unknown): v is Obj {
   return v !== null && typeof v === 'object' && !Array.isArray(v)
