@@ -1,11 +1,11 @@
 import { useEffect, useMemo } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import type { PersistedListDefinition } from '../../../models/list-definition'
-import type { LensTab } from '../../../models/workspace-layout'
+import type { ListTab } from '../../../models/workspace-layout'
 import { useBuiltList } from '../../../hooks/use-built-list'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { useListScreenFilter } from '../../../hooks/use-list-screen-filter'
+import { useActiveScreenFilter } from '../../../stores/screen-filter'
 import { useTabBadges } from '../../../hooks/use-tab-badges'
 import { useToday } from '../../../hooks/use-today'
 import { useOpenFullWidget } from '../../../hooks/use-widget-face'
@@ -40,22 +40,21 @@ function uniqueTodos(sections: readonly Section[]): PersistedTodoItem[] {
 
 /**
  * A list tab's small and medium faces (D25 R). Small: the list's name, its
- * count of tasks shown (under the screen filter and the lens, as the tab
- * counts them) in its tab badge's colours, the badge, and its oldest due
+ * count of tasks shown (under the screen filter, as the tab counts them) in its tab badge's colours, the badge, and its oldest due
  * date. Medium: that line over the top rows — read-only, a title and its
  * due date, a click opens the editor — and `+N more`, which opens the list
  * larger (the widget popup). No selection, drag or zoom: the full widget has them.
  */
 export function ListFace({ tab, definition, face, faceRef, onResult }: {
-  tab: LensTab
+  tab: ListTab
   definition: PersistedListDefinition
   face: Exclude<WidgetFace, 'large'>
   faceRef: (el: HTMLElement | null) => void
   onResult?: (result: ListWidgetResult) => void
 }) {
   const picks = useListWidgetStore((s) => s.picks[tab.id])
-  const screenFor = useListScreenFilter(definition.id)
-  const { list, baseCount, runtimeFilterPending, lensHides } = useBuiltList(definition, picks, screenFor.filters, undefined, screenFor.probe)
+  const screenFilter = useActiveScreenFilter()
+  const { list, baseCount, runtimeFilterPending } = useBuiltList(definition, picks, screenFilter)
   const tabs = useMemo(() => [tab], [tab])
   const badge = useTabBadges(tabs).get(tab.id)
   const today = useToday()
@@ -71,19 +70,12 @@ export function ListFace({ tab, definition, face, faceRef, onResult }: {
   const oldest = useMemo(() => oldestDue(todos), [todos])
   const oldestLate = oldest != null && (daysUntil(oldest, today) ?? 0) < 0
 
-  // What the tab menu reads: Copy tasks, the group folds and the lens switch (no tab count: the face shows it).
-  const lensName = screenFor.lens?.name
-  const lens = useMemo(
-    () => (lensName != null && !runtimeFilterPending && (screenFor.ignoresLens || lensHides > 0)
-      ? { name: lensName, ignored: screenFor.ignoresLens, hides: lensHides, listId: definition.id }
-      : undefined),
-    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides, definition.id],
-  )
+  // What the tab menu reads: Copy tasks and the group folds (no tab count: the face shows it).
   const onResultRef = useLatestRef(onResult)
   const grouped = definition.grouping !== 'none'
   useEffect(() => {
-    onResultRef.current?.({ ...(lens ? { lens } : {}), sections: sections ?? [], grouped })
-  }, [lens, sections, grouped, onResultRef])
+    onResultRef.current?.({ sections: sections ?? [], grouped })
+  }, [sections, grouped, onResultRef])
   // The tasks as shown, for a review of the tab (its menu, the shortcut, the palette).
   useShownListReport(tab.id, definition, runtimeFilterPending ? null : sections ?? null)
 

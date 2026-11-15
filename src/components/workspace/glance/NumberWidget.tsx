@@ -111,7 +111,7 @@ export function NumberWidget(props: GlanceWidgetProps<NumberTab>) {
 
 /**
  * A count (D26 P5): the tasks its filter keeps under the top
- * bar's filter (its lens too, unless the Number ignores it), as their count
+ * bar's filter, as their count
  * — `shown of total` while the top bar hides some, with its 14-day line
  * (`filter-history`; approximate while the history log doesn't hold all it
  * reads for the whole line — said in its tooltip, `NumberLine`) and its change against yesterday or the same day last

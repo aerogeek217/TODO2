@@ -77,8 +77,8 @@ interface PredicateChipsProps {
   onOpenExpression?: () => void
   /**
    * `false`: an expression's `done` is refused (an error line), for the
-   * filters that never show completed tasks by it — a lens, the
-   * check-in — which would drop it silently (cr33 F9).
+   * filters that never show completed tasks by it — the check-in —
+   * which would drop it silently (cr33 F9).
    */
   allowDone?: boolean
 }

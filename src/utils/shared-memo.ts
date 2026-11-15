@@ -23,8 +23,7 @@ import { registerModuleReset } from './module-reset'
  * that is kept, that kept value is returned again — so memos keyed on it
  * still hit (an input changed that this result doesn't show). Any kept
  * entry's, not only the newest: a memo keeping two input sets its callers
- * ask for in turn (with the top bar's lens and without it) has the other
- * set as its newest each time (cr34 G8).
+ * ask for in turn has the other set as its newest each time (cr34 G8).
  *
  * `peek`: the kept value for these inputs, without computing (`undefined`
  * when it isn't kept) — for a caller that computes off its render.
@@ -120,10 +119,9 @@ export function sameElements<E>(a: readonly E[], b: readonly E[]): boolean {
  * inputs compare by identity, as in `sharedMemo`; `same` compares a new
  * value with the ones this key kept.
  *
- * `slots`: the input sets kept per key — one, or two where callers sharing a
- * key differ by one choice (two widgets with one filter, one following the
- * top bar's lens and one ignoring it: with one slot they evicted each other
- * on every render, cr34 G8).
+ * `slots`: the input sets kept per key — one, or more where callers sharing
+ * a key differ by one choice (with one slot they would evict each other on
+ * every render, cr34 G8).
  *
  * `peek`: the kept value for this key and these inputs, without computing;
  * `last`: what this key computed last, with the inputs it was computed from

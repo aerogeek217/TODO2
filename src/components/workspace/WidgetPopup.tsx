@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { REVIEW_POPUP_TAB_ID } from '../../models/review'
-import type { LayoutTab, LensTab, ListTabViewState, ReviewTab } from '../../models/workspace-layout'
+import type { LayoutTab, ListTab, ListTabViewState, ReviewTab } from '../../models/workspace-layout'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { WidgetFaceContext, type WidgetFaceHost } from '../../hooks/use-widget-face'
 import { onDataReplaced } from '../../services/replace-data'
@@ -103,7 +103,7 @@ export function WidgetPopupHost() {
   const [followedView, setFollowedView] = useState<{ tabId: string; view: ListTabViewState } | null>(null)
   const numberTabId = followedListId != null ? layoutTab?.id : undefined
   const listView = numberTabId != null && followedView?.tabId === numberTabId ? followedView.view : undefined
-  const listTab = useMemo<LensTab | undefined>(
+  const listTab = useMemo<ListTab | undefined>(
     () => (numberTabId != null && followedListId != null
       ? { id: numberTabId, kind: 'lens', config: { listDefinitionId: followedListId }, ...(listView ? { viewState: listView } : {}) }
       : undefined),

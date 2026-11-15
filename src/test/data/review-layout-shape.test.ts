@@ -7,7 +7,7 @@ import { single } from '../helpers/layout-builders'
 /**
  * Item 12 · a Review widget as stored (widget feedback 2A): no settings —
  * what it reviews is a temporary filter, never saved — and its view state
- * (lens switch, sort). What earlier builds saved — board BM's kind (`by`),
+ * (its sort). What earlier builds saved — board BM's kind (`by`),
  * board BK's `pick`, where it stood (`currentId`, `skipped`) — v79 removed
  * from every stored row (`v79-upgrade.test`); one left in a v79 row (a hand
  * edit) passes the import check and is dropped by the repair, a fix.
@@ -30,7 +30,7 @@ describe('a Review widget’s tab', () => {
   })
 
   it('its view state passes as it is', () => {
-    const tab = { id: 'r', kind: 'review', config: {}, viewState: { ignoreLens: true, sort: 'next' } }
+    const tab = { id: 'r', kind: 'review', config: {}, viewState: { sort: 'next' } }
     const row = layoutRow(tab)
     expect(validateRow('layouts', row)).toBe(true)
     expect(rowFixes('layouts', row)).toEqual([])
@@ -60,10 +60,10 @@ describe('a Review widget’s tab', () => {
   })
 
   it('a sort that doesn’t read is dropped alone (the repair: no settings either)', () => {
-    const row = layoutRow({ id: 'r', kind: 'review', config: { by: 'tag' }, viewState: { sort: 'random', ignoreLens: true } })
+    const row = layoutRow({ id: 'r', kind: 'review', config: { by: 'tag' }, viewState: { sort: 'random' } })
     expect(validateRow('layouts', row)).toBe('cells[0].tabs[0].viewState.sort')
     expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
-    expect(tabOf(row)).toEqual({ id: 'r', kind: 'review', config: {}, viewState: { ignoreLens: true } })
+    expect(tabOf(row)).toEqual({ id: 'r', kind: 'review', config: {} })
   })
 
   it('a Review widget names no list, not even through a pick an earlier build saved', () => {

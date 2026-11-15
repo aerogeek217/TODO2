@@ -14,7 +14,6 @@ import { scrollBehavior } from '../utils/motion'
 import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import { copyTasks, tasksToCopy } from './task-copy'
-import { cycleLens, toggleLensLift } from './lenses'
 import { reviewTargetTabId } from './review'
 import { reviewListTab } from './review-jump'
 import {
@@ -293,14 +292,6 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
     if (!tabId) return
     e.preventDefault()
     reviewListTab(tabId)
-  },
-  'cycle-lens': ({ e }) => {
-    e.preventDefault()
-    cycleLens()
-  },
-  'lift-lens': ({ e }) => {
-    e.preventDefault()
-    toggleLensLift()
   },
 }
 

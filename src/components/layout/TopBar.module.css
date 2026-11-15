@@ -1,7 +1,7 @@
 /* The app's one top bar (desktop), three groups: the layout tabs (or
- * picker) on the left; the lens control and the screen-filter tray (the
- * field, the Filter button, the set filters' chips, the counter) in the
- * middle, centred at rest by the centring gap before them; the storage pill,
+ * picker) on the left; the screen-filter tray (the field, the Filter
+ * button, the set filters' chips, the counter) in the middle, centred at
+ * rest by the centring gap before it; the storage pill,
  * the Settings gear and New task on the right.
  * It never wraps; when it runs out of room (measured) the tray shrinks (the
  * field, then long filter values), then the chips fold into the Filter
@@ -82,17 +82,7 @@
   flex-shrink: 0;
 }
 
-/* ═══ The lens control (fixed: it never folds; the tray beside it shrinks) ═══ */
-
-.lensSlot {
-  display: flex;
-  align-items: center;
-  /* With the bar's two gaps round the centring gap: at least 20px from the tabs. */
-  margin-left: 12px;
-  flex-shrink: 0;
-}
-
-/* The centring gap before the lens-and-filter group (`useTopBarCentre`):
+/* The centring gap before the filter tray (`useTopBarCentre`):
  * its width set by the bar; the first thing flex gives up when the bar is
  * short (until the bar measures again). */
 .centreGap {
@@ -102,11 +92,6 @@
   align-self: stretch;
 }
 
-/* The tray right after it. */
-.lensSlot + .tray {
-  margin-left: 7px;
-}
-
 /* ═══ Screen-filter tray ═══ */
 
 .tray {
@@ -114,7 +99,8 @@
   align-items: center;
   gap: 2px;
   height: 32px;
-  margin-left: 10px;
+  /* With the bar's two gaps round the centring gap: at least 20px from the tabs. */
+  margin-left: 12px;
   padding: 0 4px 0 3px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--color-surface) 70%, transparent);
@@ -140,7 +126,7 @@
   box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
-/* ═══ The counter (61 of 109): the tray's end while a filter or the lens hides tasks ═══ */
+/* ═══ The counter (61 of 109): the tray's end while a filter hides tasks ═══ */
 
 .showTasksSeparator {
   width: 1px;
@@ -186,7 +172,7 @@
   background: color-mix(in srgb, var(--color-danger) 20%, transparent);
 }
 
-/* No chip on (the lens alone, or cleared with the panel open): the neutral tray's look. */
+/* No chip on (cleared with the panel open): the neutral tray's look. */
 .tray:not(.trayActive) .showTasks {
   color: var(--color-text-secondary);
 }

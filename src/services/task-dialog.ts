@@ -14,7 +14,7 @@ import { buildList, type ListBuildContext, type ListContents } from './build-lis
 import type { CopyTaskSection } from './task-copy'
 import type { TaskDialogPayload, TaskDialogSource } from '../stores/task-dialog-payload'
 import { useFilterStore } from '../stores/filter-store'
-import { currentAppliedLens, currentScreenFilter } from '../stores/screen-filter'
+import { currentScreenFilter } from '../stores/screen-filter'
 import { usePersonStore } from '../stores/person-store'
 import { currentFilterSettings, useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
@@ -167,7 +167,7 @@ function screenListDefinition(view: NewListView): PersistedListDefinition {
 }
 
 /** What `screenTaskCount` reads. */
-export type ScreenCountEnv = Pick<TaskDialogEnv,
+type ScreenCountEnv = Pick<TaskDialogEnv,
   'todos' | 'today' | 'weekStartsOn' | 'markerSettings' | 'assignedPeopleMap' | 'assignedTagsMap' | 'statuses' | 'statusUpdatesByTodo' | 'subtasksByTodo' | 'screen'>
 
 /** How many tasks the screen filter's dialog lists: open ones the filter matches (completed too under its Show completed). */
@@ -178,7 +178,7 @@ export function screenTaskCount(env: ScreenCountEnv): number {
   return n
 }
 
-/** The top bar's counter: what the screen filter (chips and lens) keeps of every task it can show. */
+/** The top bar's counter: what the screen filter keeps of every task it can show. */
 export interface ScreenTaskCounts {
   /** What the dialog lists (`screenTaskCount`). */
   shown: number
@@ -189,15 +189,8 @@ export interface ScreenTaskCounts {
    */
   total: number
   /**
-   * What the lens alone keeps of `total` (`total` without a lens): the open
-   * tasks it keeps, and every completed task `total` counts — so
-   * `total - lensKeeps` is the open tasks the lens hides, whatever the chips
-   * admit, the same number the lens picker shows (`lenses.lensHideCounts`).
-   */
-  lensKeeps: number
-  /**
    * Whether completed tasks count: the chips' Show completed, or a Completed
-   * range in the chips or the lens (`admitsCompleted`) — `61 of 109 tasks`
+   * range in the chips (`admitsCompleted`) — `61 of 109 tasks`
    * rather than `open tasks`.
    */
   withCompleted: boolean
@@ -215,10 +208,7 @@ const NO_BADGE_COUNTS: TabBadgeCounts = { due: 0, dueOverdue: 0, followup: 0, fo
  * Whether the screen filter admits completed task `t` — counts it in the
  * counter's total: the chips' Show completed admits every completed task; a
  * Completed range of the chips the ones it keeps, whatever the other chips (they are what the
- * count narrows by); the lens, when a Completed range of its own lets
- * completed tasks through, the ones the whole lens keeps — so it never
- * hides a completed task it admitted, and its hide count is the picker's.
- * A list's `of M` counts its completed tasks by the same rule (`useBuiltList`).
+ * count narrows by). A list's `of M` counts its completed tasks by the same rule (`useBuiltList`).
  */
 export function admitsCompletedTask(
   screen: FilterCriteria,
@@ -229,9 +219,6 @@ export function admitsCompletedTask(
   if (screen.showCompleted) return () => true
   const open = predicateToCriteria(OPEN_TASKS)
   const stages: FilterCriteria[] = completedAdmitters(screen).map((c) => ({ ...open, ...c, showCompleted: true }))
-  if (screen.lens && admitsCompleted({ ...screen.lens, showCompleted: false })) {
-    stages.push({ ...open, showCompleted: true, lens: screen.lens })
-  }
   return (t) => stages.some((s) => matchesFilterWithLookups(s, t, lookups, today, settings))
 }
 
@@ -244,17 +231,13 @@ export function screenTaskCounts(env: ScreenCountEnv, badgeRanges?: TabBadgeRang
   const settings = filterSettingsOf(env)
   const lookups = lookupsOf(env)
   const withCompleted = admitsCompleted(screen)
-  const everything: FilterCriteria = { ...predicateToCriteria(OPEN_TASKS), showCompleted: withCompleted }
   const shown = createScreenComposedEvaluator(screen, lookups, env.today, settings)
-  const lens = screen.lens ? createScreenComposedEvaluator({ ...everything, lens: screen.lens }, lookups, env.today, settings) : null
   const admitted = withCompleted ? admitsCompletedTask(screen, lookups, env.today, settings) : null
-  const counts = { shown: 0, total: 0, lensKeeps: 0, withCompleted }
+  const counts = { shown: 0, total: 0, withCompleted }
   const badged: PersistedTodoItem[] = []
   for (const t of env.todos) {
     if (t.isCompleted && !admitted?.(t)) continue
     counts.total++
-    // The lens's hide count is of open tasks (the picker's): a completed task counted here counts as kept.
-    if (!lens || t.isCompleted || lens(OPEN_TASKS, t)) counts.lensKeeps++
     if (shown(OPEN_TASKS, t)) {
       counts.shown++
       if (badgeRanges && inTabBadgeRange(t, badgeRanges, env.today)) badged.push(t)
@@ -298,11 +281,10 @@ export function personTaskDialog(person: Pick<Person, 'id' | 'name'>): TaskDialo
 
 /** The screen filter's tasks (the top bar's Show N tasks, the palette); the dialog edits that filter live. */
 export function screenTaskDialog(): TaskDialogPayload {
-  const lens = currentAppliedLens()
   return {
     title: SCREEN_DIALOG_TITLE,
     glyph: 'filter',
-    description: screenTaskDialogDescription(useFilterStore.getState().filters, lens && { name: lens.name, counts: screenTaskCounts(currentTaskDialogEnv()) }),
+    description: screenTaskDialogDescription(useFilterStore.getState().filters),
     source: { kind: 'screen' },
   }
 }
@@ -314,18 +296,9 @@ export function showTasksLabel(n: number): string {
 
 /**
  * What the screen filter's dialog shows, in words, for the filter as it is
- * (the dialog keeps it current): `chips` = the top bar's chips; `lens` = the
- * top bar's lens as it applies (its name and the counts), if any.
+ * (the dialog keeps it current): `chips` = the top bar's chips.
  */
-export function screenTaskDialogDescription(chips: FilterCriteria, lens?: { name: string; counts: ScreenTaskCounts }): string {
-  const tasks = (lens ? lens.counts.withCompleted : admitsCompleted(chips)) ? 'tasks' : 'open tasks'
-  if (lens) {
-    const { shown, total, lensKeeps } = lens.counts
-    if (countActiveFilters({ ...chips, showCompleted: false }) === 0) {
-      return `${shown} of ${total} ${tasks} shown: the lens “${lens.name}” hides ${total - lensKeeps}. A filter set here applies to every widget, on top of the lens.`
-    }
-    return `${shown} of ${total} ${tasks} match the filter under the lens “${lens.name}”. A change here applies to every widget.`
-  }
+export function screenTaskDialogDescription(chips: FilterCriteria): string {
   if (countActiveFilters(chips) === 0) return 'Every open task: no screen filter is on. A filter set here applies to every widget.'
   const what = admitsCompleted(chips) ? 'Tasks matching the screen filter, completed ones included.' : 'Open tasks matching the screen filter.'
   return `${what} A change here applies to every widget.`

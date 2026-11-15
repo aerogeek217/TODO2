@@ -10,7 +10,7 @@ import type { IconValue } from '../../models/icon'
 import type { PulseTabConfig } from '../../models/pulse-config'
 import { REVIEW_SORTS } from '../../models/review'
 import {
-  HUE_NAMES, LENS_SWITCH_KINDS, LIST_ZOOMS, TAB_NAME_MAX, WIDGET_KINDS,
+  HUE_NAMES, LIST_ZOOMS, TAB_NAME_MAX, WIDGET_KINDS,
   type PersistedWorkspaceLayout, type TabConfigOf, type WidgetKind, type WorkspaceLayout,
 } from '../../models/workspace-layout'
 import { buildJsonExport } from '../../services/data-files'
@@ -317,17 +317,11 @@ describe('every layout write path of the workspace store stores rows import acce
     await expectExportImports('settings changed')
   })
 
-  it('view state: the lens switch of every kind that has one, a list’s zoom and width, the Calendar’s view, the sorts', async () => {
+  it('view state: a list’s zoom and width, the Calendar’s view, the sorts', async () => {
     const layoutId = await open()
     const ids = new Map<WidgetKind, string>()
     for (const kind of WIDGET_KINDS) ids.set(kind, await add(kind, layoutId))
     const id = (kind: WidgetKind) => ids.get(kind)!
-    for (const kind of LENS_SWITCH_KINDS) {
-      for (const ignoreLens of [true, false]) {
-        await ws().patchTabViewState(id(kind), kind, { ignoreLens })
-        await expectStoredValid(`${kind} lens switch ${ignoreLens}`)
-      }
-    }
     for (const zoom of LIST_ZOOMS) await ws().patchTabViewState(id('lens'), 'lens', { zoom })
     for (const detailsWidth of [0, 262.4, 4000, 9000]) await ws().patchTabViewState(id('lens'), 'lens', { detailsWidth })
     await expectStoredValid('a list’s zoom and details width')

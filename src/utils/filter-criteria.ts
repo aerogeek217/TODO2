@@ -53,18 +53,9 @@ export interface FilterCriteria {
   /**
    * The filter as an expression (`TodoPredicate.expression`): a task must
    * pass it too. Absent = none (the top bar's chips never have one; a list's,
-   * a lens's, a pane's or the check-in's may).
+   * a pane's or the check-in's may).
    */
   expression?: FilterExpr
-  /**
-   * The screen filter only: the top bar's lens (`utils/lens.withLens`),
-   * a stage a task must pass as well — its own clauses and "is not"
-   * switches, ANDed under these. Its `showCompleted` is ignored (these
-   * decide completion), but a Completed range among its clauses lets
-   * completed tasks through as one of these would (`admitsCompleted`).
-   * Absent = no lens, or lifted.
-   */
-  lens?: FilterCriteria
 }
 
 /** The narrowing clauses of the runtime filter (the runtime `FilterClauses`). */
@@ -79,21 +70,20 @@ function expressionCompletedRanges(e: FilterExpr | undefined): DateMatch[] {
 /**
  * Whether completed tasks get past the completion gate: Show completed is
  * on, or a Completed date range is among the clauses or the expression's
- * top-level `and` terms — its own or its lens's. The range then keeps only
+ * top-level `and` terms. The range then keeps only
  * the tasks completed in it (an open task never has the date), so "Done
  * this week" needs no Show completed. A Completed range inside an `or` is a
  * plain date clause: it doesn't open the gate (the `or` would keep open
  * tasks by its other terms).
  */
-export function admitsCompleted(f: Pick<FilterCriteria, 'showCompleted' | 'dates' | 'lens' | 'expression'>): boolean {
+export function admitsCompleted(f: Pick<FilterCriteria, 'showCompleted' | 'dates' | 'expression'>): boolean {
   return f.showCompleted
     || isDateMatchOn(f.dates.completed)
     || expressionCompletedRanges(f.expression).length > 0
-    || (f.lens != null && admitsCompleted({ ...f.lens, showCompleted: false }))
 }
 
 /**
- * The clauses of `f` itself (not its lens) that let completed tasks through
+ * The clauses of `f` that let completed tasks through
  * (`admitsCompleted`), each as clauses of its own: its Completed range and
  * each top-level Completed range of its expression. A completed task one of
  * them keeps is one these clauses admit. Show completed isn't among them: it
@@ -116,9 +106,7 @@ export function fixedAnchor(d: Date): DateAnchor {
 /**
  * Number of active screen filters, one per control: people, status,
  * tags, dates (however many date types filter), markers, show completed,
- * search — and the lens, when the filter carries one (the composed screen
- * filter; the top bar's chips alone never do). The chips never hold an
- * expression.
+ * search. The chips never hold an expression.
  */
 export function countActiveFilters(f: FilterCriteria): number {
   const dates = hasDateFilters(f.dates)
@@ -130,7 +118,6 @@ export function countActiveFilters(f: FilterCriteria): number {
     hasMarkers(f.markers),
     f.showCompleted,
     f.searchText !== '',
-    f.lens != null,
   ].filter(Boolean).length
 }
 
@@ -146,7 +133,7 @@ export function countActiveFilters(f: FilterCriteria): number {
  *   keeps only Done.
  * - Completion ORs: completed tasks show when either side lets them through
  *   (`admitsCompleted`: its Show completed, or a Completed range in its
- *   clauses or its lens) — the Completed range then narrowing them, on
+ *   clauses or its expression) — the Completed range then narrowing them, on
  *   whichever side it is.
  */
 export function composeScreenFilter(
@@ -187,7 +174,7 @@ function clausesToCriteria(c: FilterClauses): CriteriaClauses {
  * Runtime (Sets) → serializable (arrays) for saved views / list definitions.
  * The "is not" switches are normalised (`withNormalizedNegation`): `negate`
  * is present only while some field reads "is not"; `expression` only while
- * there is one. The lens isn't part of it.
+ * there is one.
  */
 export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
   const p: TodoPredicate = withNormalizedNegation({ showCompleted: f.showCompleted, ...clausesToPredicate(f) })

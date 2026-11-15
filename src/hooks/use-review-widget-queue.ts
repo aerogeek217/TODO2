@@ -1,28 +1,25 @@
 import { useMemo } from 'react'
-import { emptyPredicate, type PersistedTodoItem, type TodoPredicate } from '../models'
+import { emptyPredicate, type TodoPredicate } from '../models'
 import type { ReviewFilter } from '../stores/list-widget-store'
 import { predicateToCriteria } from '../utils/filter-criteria'
 import { matchesFilterWithLookups } from '../utils/filter-match'
 import { withExpression } from '../utils/predicate-expression'
 import { sharedMemoByKey } from '../utils/shared-memo'
 import { bySortOrder } from '../utils/sort-order'
-import { lensHidesWhere, useLensHidden, useStatsBase, type StatsBase } from './use-glance-data'
+import { useStatsBase, type StatsBase } from './use-glance-data'
 
 /**
  * A Review widget's live queue (widget feedback 2A): the open tasks its
  * filter keeps — the expression typed into its field — under the screen
- * filter (the chips, and the top bar's lens unless the widget's lens switch
- * ignores it), in `sortOrder`. Kept current as the tasks change: a task
- * leaving the filter leaves the queue. `hides` is the switch's `−N`: what
- * the lens hides there. No dividers: the queue is one run of tasks.
+ * filter, in `sortOrder`. Kept current as the tasks change: a task leaving
+ * the filter leaves the queue. No dividers: the queue is one run of tasks.
  */
 interface ReviewWidgetQueue {
   ids: number[]
-  hides: number
 }
 
 const NO_IDS: number[] = []
-const NO_QUEUE: ReviewWidgetQueue = { ids: NO_IDS, hides: 0 }
+const NO_QUEUE: ReviewWidgetQueue = { ids: NO_IDS }
 
 /** A Review widget's filter as the predicate the queue matches (its `done` kept: the queue takes open tasks either way). */
 export function reviewFilterPredicate(filter: ReviewFilter): TodoPredicate {
@@ -46,14 +43,7 @@ function filteredIds(base: StatsBase, predicate: TodoPredicate): number[] {
 /** The queue of `filter` (none: an empty queue). Pass the same object while the filter is the same (the store's). */
 export function useReviewWidgetQueue(filter: ReviewFilter | null | undefined): ReviewWidgetQueue {
   const predicate = useMemo(() => (filter ? reviewFilterPredicate(filter) : null), [filter])
-  // The shared base's tasks (the widget's lens switch through its context).
   const base = useStatsBase()
   const ids = useMemo(() => (predicate ? filteredIds(base, predicate) : NO_IDS), [base, predicate])
-  const hidden = useLensHidden()
-  const hides = useMemo(() => {
-    if (!predicate) return 0
-    const criteria = criteriaMemo(predicate)
-    return lensHidesWhere(hidden, (t: PersistedTodoItem, b) => !t.isCompleted && matchesFilterWithLookups(criteria, t, b.lookups, b.ctx.today, b.markerSettings))
-  }, [hidden, predicate])
-  return useMemo<ReviewWidgetQueue>(() => (predicate ? { ids, hides } : NO_QUEUE), [predicate, ids, hides])
+  return useMemo<ReviewWidgetQueue>(() => (predicate ? { ids } : NO_QUEUE), [predicate, ids])
 }

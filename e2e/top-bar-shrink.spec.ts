@@ -93,12 +93,12 @@ async function pick(page: Page, field: 'People' | 'Status', ...options: string[]
 }
 
 // The storage pill is its 24px dot while all is well. Measured on this seed
-// with Aisha Rahman picked: the field narrows below 990px, her name is cut
-// below 898px, the chip folds into the Filter button below 874px and the
-// layout tabs fold below 788px.
-test.use({ viewport: { width: 885, height: 900 } })
+// with Aisha Rahman picked: the field narrows below 884px, her name is cut
+// below 794px, the chip folds into the Filter button below 770px and the
+// layout tabs fold below 684px.
+test.use({ viewport: { width: 780, height: 900 } })
 
-test('at 885px one person picked shows her chip: the field narrows, the name is cut and whole in its tooltip', async ({ page }) => {
+test('at 780px one person picked shows her chip: the field narrows, the name is cut and whole in its tooltip', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(filterMenuButton(page)).toHaveAccessibleName('Filter')
   const before = await settled(page)
@@ -126,7 +126,7 @@ test('at 885px one person picked shows her chip: the field narrows, the name is 
   await page.mouse.move(640, 600)
 
   // Too narrow even shrunk: the chip folds into the Filter button, the field wider again.
-  await page.setViewportSize({ width: 840, height: 900 })
+  await page.setViewportSize({ width: 734, height: 900 })
   await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 1 active')
   await expect(people(page)).toHaveCount(0)
   const folded = await settled(page)
@@ -147,8 +147,8 @@ test('narrowing: the field narrows first, then the value is cut, then the chips 
 
   const seen = new Set<string>()
   // 20 px steps, 5 px across the narrow band where the value is cut (about
-  // 898–874 px in this seed), so each phase is seen more than once.
-  for (let width = 1600; width >= 700; width -= width <= 910 && width > 860 ? 5 : 20) {
+  // 794–770 px in this seed), so each phase is seen more than once.
+  for (let width = 1600; width >= 660; width -= width <= 804 && width > 754 ? 5 : 20) {
     await page.setViewportSize({ width, height: 900 })
     const s = await settled(page)
     expect(s.oneLine, `at ${width}px`).toBe(true)
@@ -167,8 +167,8 @@ test('narrowing: the field narrows first, then the value is cut, then the chips 
 })
 
 test('a pick that needs the fold waits for the Filter menu to close: the menu and its picker stay put mid-pick (cr31 UI F10)', async ({ page }) => {
-  // Aisha's chip fits (the field narrowed); a Status value as well folds the chips (below 982px).
-  await page.setViewportSize({ width: 940, height: 900 })
+  // Aisha's chip fits (the field narrowed); a Status value as well folds the chips (below about 876px).
+  await page.setViewportSize({ width: 834, height: 900 })
   await seedWorkspace(page, SEED)
   await pick(page, 'People', 'Aisha Rahman')
   expect((await settled(page)).fold).toBe('none')

@@ -19,7 +19,6 @@ import { useListWidgetStore } from '../../stores/list-widget-store'
 import { reviewWidgetSession } from '../../stores/review-session'
 import { resetStores } from '../store-tracking'
 import { addTask } from '../add-task'
-import { lensActions } from '../../stores/lens-actions'
 import { emptyBody } from '../helpers/layout-builders'
 import { layoutSteps, settleLayoutWrites } from '../helpers/layout-steps'
 
@@ -188,28 +187,5 @@ describe('refreshAllStores', () => {
     expect((await db.notes.get(id))?.content).toBe('imported note')
     expect(useNoteStore.getState().notes.get(id)?.content).toBe('imported note')
     expect(useNoteStore.getState().pending).toBeNull()
-  })
-
-  it('a lifted lens: the replaced data picking another lens puts it on, not lifted; the same pick keeps the lift', async () => {
-    await lensActions.setActiveLens('lens-a')
-    useUIStore.getState().setLensLifted(true)
-
-    // The same pick in the replaced data: still the lens the user lifted.
-    await refreshAllStores()
-    expect(useSettingsStore.getState().activeLensId).toBe('lens-a')
-    expect(useUIStore.getState().lensLifted).toBe(true)
-
-    // Another device's pick, through the sync file.
-    await db.settings.put({ key: 'activeLensId', value: 'lens-b' })
-    await refreshAllStores()
-    expect(useSettingsStore.getState().activeLensId).toBe('lens-b')
-    expect(useUIStore.getState().lensLifted).toBe(false)
-
-    // No pick in the replaced data: nothing lifted either.
-    useUIStore.getState().setLensLifted(true)
-    await db.settings.delete('activeLensId')
-    await refreshAllStores()
-    expect(useSettingsStore.getState().activeLensId).toBeNull()
-    expect(useUIStore.getState().lensLifted).toBe(false)
   })
 })

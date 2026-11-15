@@ -1,4 +1,4 @@
-import type { LensTab } from '../../../models/workspace-layout'
+import type { ListTab } from '../../../models/workspace-layout'
 import { reviewTasksLabel, sectionTaskIds } from '../../../services/review'
 import { reviewListTab } from '../../../services/review-jump'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
@@ -19,7 +19,7 @@ function reviewMenuLabel(n: number): string {
  * N the open tasks the tab shows (each once), its key as the note. Offered
  * while the tab shows an open task; none otherwise (or for no tab).
  */
-export function useListReviewMenuEntries(tab: LensTab | undefined): MenuEntry[] {
+export function useListReviewMenuEntries(tab: ListTab | undefined): MenuEntry[] {
   const shown = useListWidgetStore((s) => (tab ? s.shown[tab.id] : undefined))
   const todos = useTodoStore((s) => s.todos)
   const overrides = useSettingsStore((s) => s.shortcutOverrides)

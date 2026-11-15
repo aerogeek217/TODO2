@@ -109,7 +109,8 @@ async function expectV79Data(): Promise<void> {
   })
   // The Settings due range of the data (7), the follow-up default (0).
   expect((tabs.bd2!.config as { columns: Array<{ filter: unknown }> }).columns.map((c) => c.filter)).toEqual([due(7), followup(0)])
-  expect(tabs.num).toEqual({ id: 'num', kind: 'number', config: { name: 'Open', filter: pred, show: 'count', litWhen: 'never', compare: 'yesterday' }, viewState: { ignoreLens: true } })
+  // v79 moved its config lens switch to the view state; v81 removed it.
+  expect(tabs.num).toEqual({ id: 'num', kind: 'number', config: { name: 'Open', filter: pred, show: 'count', litWhen: 'never', compare: 'yesterday' } })
   expect(tabs.tr).toEqual({ id: 'tr', kind: 'trend', config: { range: '4w', name: 'Created vs completed', show: 'bars' } })
   expect((await db.listDefinitions.toArray()).map((d) => d.id)).toEqual([1])
   expect((await db.listOrders.toArray()).map((r) => r.listDefinitionId)).toEqual([1])

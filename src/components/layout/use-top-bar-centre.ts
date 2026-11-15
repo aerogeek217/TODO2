@@ -8,21 +8,21 @@ export interface CentreMeasure {
   /** The bar's left edge and width. */
   barLeft: number
   barWidth: number
-  /** Where the group (the lens control, else the tray) starts with no centring gap: as far left as it may go. */
+  /** Where the tray starts with no centring gap: as far left as it may go. */
   start: number
-  /** The group at rest — the lens control, the field at its full width and the Filter button, no chip, no counter. */
+  /** The tray at rest — the field at its full width and the Filter button, no chip, no counter. */
   restWidth: number
-  /** The group as it is now (its chips and counter included). */
+  /** The tray as it is now (its chips and counter included). */
   groupWidth: number
   /** The right zone's left edge (its padding is the least gap before it). */
   rightLeft: number
 }
 
 /**
- * The centring gap before the top bar's lens-and-filter group: the group at
- * rest centred in the bar; a group grown by chips or the counter keeps its
- * left edge (the lens control and the field never move under the user) and
- * runs on rightwards, moving left only once it would reach the right zone;
+ * The centring gap before the top bar's filter tray: the tray at rest
+ * centred in the bar; a tray grown by chips or the counter keeps its left
+ * edge (the field never moves under the user) and runs on rightwards,
+ * moving left only once it would reach the right zone;
  * never left of `start` (the tabs' least gap — past that the fold takes over).
  * Whole px, never negative.
  */
@@ -39,16 +39,14 @@ function restButtonWidth(tray: HTMLElement): number {
 }
 
 /**
- * The centring gap for the top bar's middle group, measured (`centreOffset`)
- * after each resize of the bar or a part of it, on the next frame. `group` =
- * the group's first part (the lens control slot, else the tray), `tray` the
- * tray, `right` the right zone, `spacer` the gap's element (its laid-out
+ * The centring gap for the top bar's filter tray, measured (`centreOffset`)
+ * after each resize of the bar or a part of it, on the next frame. `tray` =
+ * the tray, `right` the right zone, `spacer` the gap's element (its laid-out
  * width is taken out of the measure, so the result doesn't depend on it).
  */
 export function useTopBarCentre(
   barRef: RefObject<HTMLElement | null>,
   spacerRef: RefObject<HTMLElement | null>,
-  groupRef: RefObject<HTMLElement | null>,
   trayRef: RefObject<HTMLElement | null>,
   rightRef: RefObject<HTMLElement | null>,
 ): number {
@@ -59,12 +57,10 @@ export function useTopBarCentre(
     let frame = 0
     const measure = () => {
       frame = 0
-      const group = groupRef.current
       const tray = trayRef.current
       const right = rightRef.current
-      if (!group || !tray || !right) return
+      if (!tray || !right) return
       const barBox = bar.getBoundingClientRect()
-      const groupBox = group.getBoundingClientRect()
       const trayBox = tray.getBoundingClientRect()
       const field = tray.querySelector<HTMLElement>(attrSelector(FOLD_SEARCH_ATTR))
       const trayCs = getComputedStyle(tray)
@@ -73,14 +69,14 @@ export function useTopBarCentre(
       // The gap as laid out (flex may have shrunk it below what was set).
       const laidOut = spacerRef.current?.getBoundingClientRect().width ?? 0
       setOffset((shown) => {
-        const start = groupBox.left - laidOut
-        const restWidth = (fieldLeft - groupBox.left) + SEARCH_WIDTH + gap + restButtonWidth(tray) + (parseFloat(trayCs.paddingRight) || 0)
+        const start = trayBox.left - laidOut
+        const restWidth = (fieldLeft - trayBox.left) + SEARCH_WIDTH + gap + restButtonWidth(tray) + (parseFloat(trayCs.paddingRight) || 0)
         const next = centreOffset({
           barLeft: barBox.left,
           barWidth: barBox.width,
           start,
           restWidth,
-          groupWidth: trayBox.right - groupBox.left,
+          groupWidth: trayBox.width,
           rightLeft: right.getBoundingClientRect().left,
         })
         return Math.abs(next - shown) <= 0.5 ? shown : next
@@ -91,7 +87,7 @@ export function useTopBarCentre(
     }
     const observer = new ResizeObserver(schedule)
     observer.observe(bar)
-    for (const el of [groupRef.current, trayRef.current, rightRef.current]) if (el) observer.observe(el)
+    for (const el of [trayRef.current, rightRef.current]) if (el) observer.observe(el)
     // The tray's parts too: a part that shrinks keeps its box while its content changes.
     for (const child of Array.from(trayRef.current?.children ?? [])) observer.observe(child)
     schedule()

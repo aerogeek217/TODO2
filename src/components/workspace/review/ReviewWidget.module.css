@@ -16,7 +16,7 @@
 
 /* ── Top line and prompt row ────────────────────────────────────────────── */
 
-/* Alone in its cell: `Review`, the progress, the lens switch, the cell's ⋯. The prompt row under it draws the hairline. */
+/* Alone in its cell: `Review`, the progress, the cell's ⋯. The prompt row under it draws the hairline. */
 .topLine {
   display: flex;
   align-items: center;
@@ -41,8 +41,8 @@
 }
 
 /* The prompt row (widget feedback 2A, board Review-field): one filter field, the check-in buttons
- * after it (people only, desktop), then — in a cell of several widgets — the progress and the lens
- * switch; a filter's error under the field. */
+ * after it (people only, desktop), then — in a cell of several widgets — the progress; a filter's
+ * error under the field. */
 .fieldRow {
   display: flex;
   flex-direction: column;

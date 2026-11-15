@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 import { filterMenuRow, openFilterPickerByKeyboard } from './fixtures/filters'
 
@@ -167,20 +167,6 @@ test('the top bar’s Priority picker takes the focus: arrows and Space tick a v
   await page.keyboard.press('Escape')
   await expect(list).toHaveCount(0)
   await expect(filterMenuRow(page, 'Priority')).toBeFocused()
-})
-
-test('a lens’s Priority picker in Settings takes the focus too', async ({ page }) => {
-  await seedWorkspace(page, { ...SEED, lenses: [{ id: 'lens-a', name: 'Mine' }] })
-  const settings = await openSettings(page, 'Tasks')
-  await settings.getByTestId('lens-list').getByRole('button', { name: /^Mine/ }).click()
-  await settings.getByTestId('lens-filter').getByRole('button', { name: 'Filter', exact: true }).click()
-  await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Priority' }).click()
-  const list = page.getByTestId('list-filter-picker').getByRole('listbox', { name: 'Priority' })
-  await expect(list.getByRole('option').first()).toBeFocused()
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('Space')
-  await expect(list.getByRole('option', { name: 'Focus' })).toHaveAttribute('aria-selected', 'true')
-  await expect(settings.getByTestId('lens-filter').getByTestId('list-filter-chip')).toHaveText(/Priority\s*Focus/)
 })
 
 test('Delete on a focused chip in Edit list: the focus goes to the next chip, then + Filter — never <body> (cr31 UI F4)', async ({ page }) => {

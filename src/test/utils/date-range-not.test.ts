@@ -162,9 +162,9 @@ describe('pickPredicate reads `not`', () => {
   })
 })
 
-describe('the user\'s lens: last follow-up not in the past week OR next follow-up not in the next two weeks', () => {
+describe('the user\'s filter: last follow-up not in the past week OR next follow-up not in the next two weeks', () => {
   // `not followed within last 7 days or not followup within 14 days`.
-  const lens = predicateToCriteria({
+  const filter = predicateToCriteria({
     ...emptyPredicate(),
     expression: { kind: 'or', items: [
       { kind: 'not', item: { kind: 'date', field: 'lastFollowup', match: { match: 'range', start: notLastWeek.start, end: notLastWeek.end } } },
@@ -181,7 +181,7 @@ describe('the user\'s lens: last follow-up not in the past week OR next follow-u
   ]
 
   it('hides only the tasks followed up lately with a follow-up soon', () => {
-    const shown = applyFilter(lens as FilterCriteria, todos, lookupsFor(), today, settings()).map((t) => t.id)
+    const shown = applyFilter(filter as FilterCriteria, todos, lookupsFor(), today, settings()).map((t) => t.id)
     expect(shown).toEqual([2, 3, 4, 5, 6])
   })
 })

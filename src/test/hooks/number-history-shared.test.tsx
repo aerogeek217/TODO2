@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../components/workspace/glance/GlanceWidget'
-import { lensHidesFor, type LensHidden, type StatsBase } from '../../hooks/use-glance-data'
 import type { GlanceTab, NumberTab } from '../../models/workspace-layout'
 import { countReplayed, replayTasks } from '../../services/stats/filter-history'
 import { usePersonStore } from '../../stores/person-store'
@@ -11,7 +10,6 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { trendEventsKey, useTrendEventsStore } from '../../stores/trend-events-store'
-import { matchesFilterWithLookups } from '../../utils/filter-match'
 import { clearFilterStore, resetEntityStores } from '../helpers'
 import { numberTab } from '../helpers/layout-builders'
 import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_EVENTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS } from '../fixtures/glance-sample'
@@ -21,17 +19,13 @@ import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_EVENTS, SAMPLE_TASKS, SA
  * from one replay of the tasks; a layout read again (equal filters, new
  * objects) computes nothing; after a task write the count is there at once
  * and the line a moment later, off the write's render (the user's answer
- * 13); and the lens switch's `−N` is matched once, not on every render.
+ * 13).
  */
 
-// Count the replays, the counts over them and the lens matches (the real ones run).
+// Count the replays and the counts over them (the real ones run).
 vi.mock('../../services/stats/filter-history', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/stats/filter-history')>()
   return { ...actual, replayTasks: vi.fn(actual.replayTasks), countReplayed: vi.fn(actual.countReplayed) }
-})
-vi.mock('../../utils/filter-match', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../utils/filter-match')>()
-  return { ...actual, matchesFilterWithLookups: vi.fn(actual.matchesFilterWithLookups) }
 })
 
 const TABS: NumberTab[] = [numberTab('a', 'open'), numberTab('b', 'overdue'), numberTab('c', 'focus'), numberTab('d', 'urgent')]
@@ -58,7 +52,6 @@ beforeEach(() => {
   })
   vi.mocked(replayTasks).mockClear()
   vi.mocked(countReplayed).mockClear()
-  vi.mocked(matchesFilterWithLookups).mockClear()
 })
 
 afterEach(() => {
@@ -106,27 +99,5 @@ describe('Numbers share one history replay', () => {
     await waitFor(() => expect(vi.mocked(replayTasks)).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(lines()[0]).not.toBe(before[0]))
     expect(vi.mocked(countReplayed)).toHaveBeenCalledTimes(4)
-  })
-})
-
-describe('the lens switch’s −N (cr34 G7)', () => {
-  it('is matched once for the same hidden tasks and filter, however often it is asked', () => {
-    const hidden = SAMPLE_TASKS.slice(0, 6)
-    const base = {
-      ctx: { today: SAMPLE_TODAY, weekStartsOn: 0, urgentRange: 3, assignedPeopleMap: ASSIGNED_PEOPLE, assignedTagsMap: ASSIGNED_TAGS, statuses: STATUSES },
-      lookups: { assignedPeopleMap: ASSIGNED_PEOPLE, assignedTagsMap: ASSIGNED_TAGS },
-      markerSettings: { urgentRange: 3, weekStartsOn: 0 },
-    } as unknown as StatsBase
-    const info: LensHidden = { hidden, base }
-    const filter = TABS[0]!.config.filter
-    const first = lensHidesFor(info, filter)
-    const calls = vi.mocked(matchesFilterWithLookups).mock.calls.length
-    expect(calls).toBe(hidden.length)
-    expect(lensHidesFor(info, filter)).toBe(first)
-    expect(lensHidesFor(info, structuredClone(filter))).toBe(first)
-    expect(vi.mocked(matchesFilterWithLookups)).toHaveBeenCalledTimes(calls)
-    // Other hidden tasks: matched again.
-    lensHidesFor({ hidden: hidden.slice(1), base }, filter)
-    expect(vi.mocked(matchesFilterWithLookups)).toHaveBeenCalledTimes(calls + hidden.length - 1)
   })
 })

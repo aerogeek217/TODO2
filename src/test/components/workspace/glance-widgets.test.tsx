@@ -6,8 +6,7 @@ import type { GlanceResult } from '../../../components/workspace/glance/glance-h
 import { glanceMenu } from '../../../components/workspace/glance/glance-menu'
 import type { GlanceDrill } from '../../../components/workspace/glance/glance-types'
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
-import { createTab, isGlanceKind, isLensSwitchTab, tabIgnoresLens, WIDGET_KINDS, type GlanceTab, type GlanceWidgetKind, type NumberTab } from '../../../models/workspace-layout'
-import { WidgetLensContext } from '../../../hooks/use-widget-lens'
+import { createTab, isGlanceKind, WIDGET_KINDS, type GlanceTab, type GlanceWidgetKind } from '../../../models/workspace-layout'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
@@ -36,10 +35,7 @@ function setup(tab: GlanceTab, onDrill?: (d: GlanceDrill) => void, face?: Widget
   return render(
     <DndContext>
       <WidgetFaceContext.Provider value={face ? { forced: face } : {}}>
-        {/* As `WidgetBody` draws it: inside its lens switch's context (G3). */}
-        <WidgetLensContext.Provider value={isLensSwitchTab(tab) && tabIgnoresLens(tab)}>
-          <GlanceWidget tab={tab} onResult={(r) => { lastResult = r }} onDrill={onDrill} />
-        </WidgetLensContext.Provider>
+        <GlanceWidget tab={tab} onResult={(r) => { lastResult = r }} onDrill={onDrill} />
       </WidgetFaceContext.Provider>
     </DndContext>,
   )
@@ -187,20 +183,6 @@ describe('Number widget', () => {
     expect((onDrill.mock.calls[0]![0] as GlanceDrill).description).toMatch(/Only tasks the top-bar filter shows\.$/)
   })
 
-  it('the top bar’s lens narrows it unless it ignores the lens, as a list can', () => {
-    const lens = { id: 'lens-q4', name: 'Q4', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: [Q4] } }
-    useSettingsStore.setState({ lenses: [lens], activeLensId: lens.id })
-    const onDrill = vi.fn()
-    setup(numberTab('n'), onDrill)
-    expect(numberCount()).toMatch(/^\d+of 19$/)
-    cleanup()
-    setup({ ...numberTab('n', 'open'), viewState: { ignoreLens: true } }, onDrill)
-    expect(numberCount()).toBe('19')
-    fireEvent.click(number())
-    // Nothing narrows it: the dialog doesn't say the top bar's filter does.
-    expect((onDrill.mock.calls[0]![0] as GlanceDrill).description).toBe('Every open task.')
-  })
-
   it('reports its lines for Copy: its name and count, then its change', () => {
     setup(numberTab('n', 'overdue'))
     expect(lastResult?.summary.plain).toMatch(/^Overdue 2\n([+−]\d+|No change) vs yesterday$/)
@@ -253,71 +235,11 @@ describe('Number widget', () => {
     expect(stored().unlitColor).toMatch(/^#/)
     expect(stored().color).toBe(lit)
     expect(layoutSteps().length).toBe(before + 1)
-    // No lens picked: no Top-bar lens row.
+    // ×, unchanged: closed at once.
     act(() => { useUIStore.getState().openNumberEditor('n') })
     editor = document.querySelector<HTMLElement>('[data-number-editor="n"]')!
-    expect(within(editor).queryByTestId('number-editor-lens')).toBeNull()
-    // ×, unchanged: closed at once.
     fireEvent.click(within(editor).getByRole('button', { name: 'Close' }))
     expect(document.querySelector('[data-number-editor]')).toBeNull()
-  })
-})
-
-describe('a Number’s lens switch (G3)', () => {
-  const lens = { id: 'lens-q4', name: 'Q4', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: [Q4] } }
-  const inLayout = (tab: GlanceTab) => {
-    const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [tab] }) }
-    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
-  }
-  const live = () => useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as NumberTab
-  function Live() {
-    const tab = useWorkspaceStore((s) => s.working!.cells[0]!.tabs[0]) as GlanceTab
-    return (
-      <WidgetLensContext.Provider value={isLensSwitchTab(tab) && tabIgnoresLens(tab)}>
-        <GlanceWidget tab={tab} />
-      </WidgetLensContext.Provider>
-    )
-  }
-
-  it('its corner switch shows what the lens hides among its tasks; a click ignores the lens there (view state, the layout still saved)', () => {
-    useSettingsStore.setState({ lenses: [lens], activeLensId: lens.id })
-    inLayout(numberTab('n'))
-    render(<DndContext><Live /></DndContext>)
-    const sw = screen.getByTestId('lens-switch')
-    const shown = Number(numberCount()!.split('of')[0])
-    // It hides some here: shown at rest with its −N (2A, as restated).
-    expect(sw).toHaveTextContent(`−${19 - shown}`)
-    expect(sw).not.toHaveAttribute('data-quiet')
-    expect(sw).toHaveAttribute('data-lens-hides', String(19 - shown))
-    expect(sw).toHaveAttribute('aria-pressed', 'true')
-    fireEvent.click(sw)
-    expect(live().viewState).toEqual({ ignoreLens: true })
-    expect(layoutSteps()).toEqual([])
-    expect(numberCount()).toBe('19')
-    expect(screen.getByTestId('lens-switch')).toHaveAttribute('aria-pressed', 'false')
-  })
-
-  it('its switch is view state (v79 moved an older config ignoreLens there): a click flips it there', () => {
-    useSettingsStore.setState({ lenses: [lens], activeLensId: lens.id })
-    inLayout({ ...numberTab('n', 'open'), viewState: { ignoreLens: true } })
-    render(<DndContext><Live /></DndContext>)
-    expect(numberCount()).toBe('19')
-    fireEvent.click(screen.getByTestId('lens-switch'))
-    expect(live().viewState).toEqual({ ignoreLens: false })
-    expect(live().config).not.toHaveProperty('ignoreLens')
-    expect(numberCount()).toMatch(/of 19$/)
-  })
-
-  it('its editor’s Top-bar lens is the same switch, writing view state', () => {
-    useSettingsStore.setState({ lenses: [lens], activeLensId: lens.id })
-    inLayout(numberTab('n'))
-    render(<DndContext><Live /><NumberEditorHost /></DndContext>)
-    act(() => { useUIStore.getState().openNumberEditor('n') })
-    const row = screen.getByTestId('number-editor-lens')
-    fireEvent.click(within(row).getByRole('button', { name: 'Apply the lens “Q4” here' }))
-    expect(live().viewState).toEqual({ ignoreLens: true })
-    expect(live().config).not.toHaveProperty('ignoreLens')
-    expect(layoutSteps()).toEqual([])
   })
 })
 

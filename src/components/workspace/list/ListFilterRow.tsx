@@ -1,14 +1,11 @@
 import { useMemo, type ReactNode } from 'react'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { TodoPredicate } from '../../../models/filter-predicate'
-import { useQuietLensSwitch } from '../../../hooks/use-widget-lens'
 import { useUIStore } from '../../../stores/ui-store'
 import { expressionNamesOf } from '../../../utils/filter-chips'
 import { printExpression, wholeExpression } from '../../../utils/filter-expression'
 import { groupSortSummary } from '../../../utils/list-options'
 import { ChevronDownIcon } from '../../shared/icons'
-import type { ListLensMark } from './ListWidget'
-import { LensSwitch } from '../../shared/LensSwitch'
 import { ExpressionWords } from '../../shared/filters/ExpressionWords'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { EDIT_LIST_KEEP_ATTR, requestEditListClose } from './edit-list-keep'
@@ -22,12 +19,8 @@ interface ListFilterRowProps {
   tabId: string
   /** The list as shown: Edit list's draft while it is open on it, else the saved list. */
   definition: PersistedListDefinition
-  /** A list widget's count (`shown of total`) while the screen filter or the lens narrows it, before group · sort. */
+  /** A list widget's count (`shown of total`) while the screen filter narrows it, before group · sort. */
   count?: string
-  /** The top bar's lens on this list (while it hides something here, or the list ignores it): its switch, at the line's end (G3). */
-  lens?: ListLensMark
-  /** Turns the lens off / on for this list (saved at once). */
-  onToggleLens?: () => void
   /**
    * It is its list widget's top line (D26 AA1): alone in its cell it starts
    * with `lead` (the list's name and badge) and ends with the
@@ -40,10 +33,8 @@ interface ListFilterRowProps {
  * A list's top line: in a widget its filter read in words (UX cleanup 2A —
  * `ListFilterWords`; a click opens Edit list, where it is edited; the top
  * bar's chips are not repeated here), then the list's count while the
- * screen filter or the lens narrows it (`22 of 23`, else none), the group ·
- * sort summary that opens Edit list; it ends with the top bar's lens switch
- * (while it hides something here, or the list ignores it; the standard
- * switch, G3, quiet in a desktop cell), before the cell's ⋯. Used by list
+ * screen filter narrows it (`22 of 23`, else none), the group · sort
+ * summary that opens Edit list, before the cell's ⋯. Used by list
  * widgets. Phones (a `data-touch-chips` ancestor) get touch sizes.
  *
  * A list set not to show it (`showFilterLine: false`) shows nothing in its
@@ -54,9 +45,8 @@ export function ListFilterRow(props: ListFilterRowProps) {
   return <FilterRowBody {...props} />
 }
 
-function FilterRowBody({ tabId, definition, count, lens, onToggleLens, topLine }: ListFilterRowProps) {
+function FilterRowBody({ tabId, definition, count, topLine }: ListFilterRowProps) {
   const editorOpen = useUIStore((s) => s.listEditor?.tabId === tabId)
-  const quietLens = useQuietLensSwitch()
   const id = definition.id
   // Opens Edit list beside the tab (asks it to close while open — Save / Discard / Keep editing with changes): the summary's and the words' click.
   const toggleEditor = () => {
@@ -83,7 +73,6 @@ function FilterRowBody({ tabId, definition, count, lens, onToggleLens, topLine }
         {groupSortSummary(definition.grouping, definition.sort, definition.sortDirection)}
         <ChevronDownIcon />
       </button>
-      {lens && onToggleLens && <LensSwitch lens={lens} onToggle={onToggleLens} noun="list" quiet={quietLens} />}
     </>
   )
   return topLine

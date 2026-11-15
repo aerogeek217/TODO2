@@ -6,7 +6,6 @@ import { NewTasksSection } from './NewTasksSection'
 import { ListsAndRowsSection } from './ListsAndRowsSection'
 import { EntitiesSection } from './EntitiesSection'
 import { CompletedTasksSection } from './CompletedTasksSection'
-import { LensesSection } from './LensesSection'
 import { FileStorageSection } from './FileStorageSection'
 import { BackupsSection } from './BackupsSection'
 import { ImportExportSection } from './ImportExportSection'
@@ -52,7 +51,6 @@ function single(id: SettingsSectionId, label: string, Icon: ComponentType, Body:
   return { id, label, Icon, parts: [{ id, label, Body, mobile }] }
 }
 
-const LENSES_HELP = 'A lens is a saved filter with a name, picked in the top bar: every widget shows only what it keeps, on every layout. Edit it like a list’s filters — the same pickers, with their “is not” switch for what to leave out. Filters set in the top bar apply on top of it.'
 
 const BACKUPS_HELP = 'Taken automatically every day, before destructive operations, and before the sync file is rewritten. Restoring one backs up the data it replaces first.'
 
@@ -95,7 +93,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     parts: [
       { id: 'new-tasks', label: 'New tasks', Body: NewTasksSection, mobile: false },
       { id: 'lists-and-rows', label: 'Lists & rows', Body: ListsAndRowsSection, mobile: false },
-      { id: 'lenses', label: 'Lenses', Body: LensesSection, mobile: false, help: LENSES_HELP },
       { id: 'completed', label: 'Completed tasks', Body: CompletedTasksSection, mobile: false },
     ],
   },

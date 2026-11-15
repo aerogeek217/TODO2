@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { centreOffset, type CentreMeasure } from '../../../components/layout/use-top-bar-centre'
 
 /**
- * The centring gap before the top bar's lens-and-filter group: the group at
+ * The centring gap before the top bar's filter tray: the group at
  * rest centred in the bar; grown by chips it keeps its left edge until it
  * would reach the right zone, then moves left, never past its start.
  */

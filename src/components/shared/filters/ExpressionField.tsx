@@ -27,7 +27,7 @@ interface ExpressionFieldProps {
   allowPeople?: boolean
   /** `false`: no Completed dates (the check-in filter). */
   allowCompleted?: boolean
-  /** `false`: no `done` (a lens, a pane, the check-in: they never show completed tasks by it). */
+  /** `false`: no `done` (a pane, the check-in: they never show completed tasks by it). */
   allowDone?: boolean
   /** Focus the field when it mounts (the switch to Expression). */
   autoFocus?: boolean

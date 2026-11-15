@@ -99,10 +99,10 @@ describe('glance widget kinds', () => {
   it('Created vs completed’s name, filter and Show as round-trip; absent they stay absent; a bad one is a fix and goes', () => {
     const filter = { ...emptyPredicate(), expression: { kind: 'tag', id: 4 } }
     const config = { range: '4w', name: 'Atlas', filter, show: 'burndown' }
-    const good = layoutRow({ id: 't', kind: 'trend', config, viewState: { ignoreLens: true } })
+    const good = layoutRow({ id: 't', kind: 'trend', config })
     expect(validateRow('layouts', good)).toBe(true)
     expect(rowFixes('layouts', good)).toEqual([])
-    expect(tabOf(good)).toEqual({ id: 't', kind: 'trend', config, viewState: { ignoreLens: true } })
+    expect(tabOf(good)).toEqual({ id: 't', kind: 'trend', config })
 
     const old = layoutRow({ id: 't', kind: 'trend', config: { range: '14d' } })
     expect(rowFixes('layouts', old)).toEqual([])
@@ -125,8 +125,13 @@ describe('glance widget kinds', () => {
     expect(checkLayoutBody(notObject)).toBe('cells[0].tabs[0].config.filter')
     expect(tabOf(notObject)).toEqual({ id: 't', kind: 'trend', config: { range: '14d' } })
 
-    const badLens = layoutRow({ id: 't', kind: 'trend', config: { range: '14d' }, viewState: { ignoreLens: 'yes' } })
-    expect(checkLayoutBody(badLens)).toBe('cells[0].tabs[0].viewState.ignoreLens')
+    // The lens switch v81 removed, whatever it holds: dropped quietly, no fix.
+    for (const ignoreLens of [true, 'yes']) {
+      const lensed = layoutRow({ id: 't', kind: 'trend', config: { range: '14d' }, viewState: { ignoreLens } })
+      expect(checkLayoutBody(lensed)).toBe(true)
+      expect(rowFixes('layouts', lensed)).toEqual([])
+      expect(tabOf(lensed)).toEqual({ id: 't', kind: 'trend', config: { range: '14d' } })
+    }
   })
 
   it.each(SETTINGS)('%s: a known %s round-trips; a bad or missing one is reset to its default', (kind, key, kept, bad, fallback) => {
@@ -146,7 +151,7 @@ describe('glance widget kinds', () => {
     expect(tabOf(layoutRow({ id: 't', kind, config: 'x' }))).toEqual({ id: 't', kind, config: { [key]: fallback } })
   })
 
-  it('a Number (D26 P5): every field round-trips; Auto, never and following the lens are absent', () => {
+  it('a Number (D26 P5): every field round-trips; Auto and never are absent', () => {
     for (const config of [
       numberTab('t').config,
       numberTab('t', 'overdue', { breakdown: 'tags', litWhen: 'below', litAt: 12, compare: 'none', color: '#abc' }).config,
@@ -185,16 +190,6 @@ describe('glance widget kinds', () => {
     const { [key]: _gone, ...rest } = base as unknown as Record<string, unknown>
     void _gone
     expect(tabOf(row)).toEqual({ id: 't', kind: 'number', config: { ...rest, ...reset } })
-  })
-
-  it('a Number’s config `ignoreLens` (v79 moved it to the view state) passes the check and is dropped (a fix)', () => {
-    const base = numberTab('t', 'overdue').config
-    for (const value of [true, false]) {
-      const row = layoutRow({ id: 't', kind: 'number', config: { ...base, ignoreLens: value } })
-      expect(checkLayoutBody(row)).toBe(true)
-      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
-      expect(tabOf(row)).toEqual({ id: 't', kind: 'number', config: base })
-    }
   })
 
   it('a Number’s threshold goes with never; a filter is read as a list’s is; a v77 metric reads as a new Number', () => {

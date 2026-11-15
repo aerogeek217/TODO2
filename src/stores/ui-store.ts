@@ -22,7 +22,6 @@ export type SettingsSectionId =
 export type SettingsPartId =
   | 'new-tasks'
   | 'lists-and-rows'
-  | 'lenses'
   | 'completed'
   | 'file-storage'
   | 'backups'
@@ -37,17 +36,11 @@ export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSect
   ambience: 'appearance',
   'new-tasks': 'tasks',
   'lists-and-rows': 'tasks',
-  lenses: 'tasks',
   completed: 'tasks',
   'file-storage': 'database',
   backups: 'database',
   'import-export': 'database',
   'data-integrity': 'database',
-}
-
-/** The `data-settings-focus` of lens `lensId`'s row (its head button) in Settings › Tasks › Lenses. */
-export function lensFocus(lensId: string): string {
-  return `lens-${lensId}`
 }
 
 /** Every section id (a stored section is read back only as one of these). */
@@ -219,31 +212,6 @@ interface PendingConfirmPrompt extends ConfirmPrompt {
 let lastPromptId = 0
 registerModuleReset(() => { lastPromptId = 0 })
 
-/**
- * Unsaved work in a Settings section that Settings must settle before it
- * closes or shows another section — a lens's filter edits
- * (`lens-draft-store` registers it when it loads; nothing else can hold
- * such work before then).
- */
-export interface SettingsLeaveGuard {
-  /** The part the work is in (its section: `SETTINGS_PART_SECTION`); Settings opens there while the work is pending. */
-  part: SettingsPartId
-  /** The control there to focus when Settings opens on the work (its `data-settings-focus`), if any. */
-  focus?: () => string | null
-  /** There is unsaved work now. */
-  pending: () => boolean
-  /** Asks about it (Save / Discard / Keep editing); resolves whether to go on. */
-  settle: () => Promise<boolean>
-}
-
-/** Wiring, not state: registered once by its module, never reset. */
-let leaveGuard: SettingsLeaveGuard | null = null
-
-/** Registers the guard `closeSettings`, `setSettingsSection` and `openSettings` ask first. */
-export function registerSettingsLeaveGuard(guard: SettingsLeaveGuard): void {
-  leaveGuard = guard
-}
-
 interface UIState {
   selectedTodoId: number | null
   selectedTodoIds: Set<number>
@@ -290,13 +258,6 @@ interface UIState {
   filterPanelOpen: boolean
   /** Counts the requests to focus the panel (each open, the palette's command while it is open). */
   filterPanelFocusKey: number
-  /**
-   * The top bar's lens is lifted for now (the lens control's glasses):
-   * every widget shows what the chips keep; the pick stays. A second
-   * click, a pick, Cycle lens, a reload and a data replace bringing another
-   * pick put the lens back — a layout switch doesn't.
-   */
-  lensLifted: boolean
   /** Mobile filter sheet open state */
   isFilterSheetOpen: boolean
   /** The filter sheet was opened from a search button: focus its search box. */
@@ -356,12 +317,6 @@ interface UIState {
   /** A part of it to scroll to (a deep link such as the storage pill's); cleared once shown. */
   settingsPart: SettingsPartId | null
   /**
-   * A control in that part to focus once shown — the one whose
-   * `data-settings-focus` it names (e.g. a lens's row);
-   * set only with a part, cleared with it (and when Settings closes).
-   */
-  settingsFocus: string | null
-  /**
    * The check-in dialog (`CheckinDialog`): the people it was opened for
    * (listed first, the first of them selected). `null` = closed.
    */
@@ -382,9 +337,9 @@ interface UIState {
   /** The widget open larger, one at a time (`WidgetPopupTarget`); `null` = none. Opened through `services/widget-popup`. */
   widgetPopup: WidgetPopupTarget | null
   /**
-   * The popup review's view state — its rail's sort and its lens switch —
-   * kept here in memory (it has no layout to save them in): Priority and
-   * Follow until changed, back to them on a reload.
+   * The popup review's view state — its rail's sort — kept here in memory
+   * (it has no layout to save it in): Priority until changed, back to it on
+   * a reload.
    */
   popupReviewView: ReviewTabViewState
 
@@ -425,8 +380,6 @@ interface UIState {
    */
   openFilterPanel: () => void
   closeFilterPanel: () => void
-  /** Lifts the top bar's lens for now, or puts it back (`lensLifted`). */
-  setLensLifted: (lifted: boolean) => void
   toggleFilterSheet: () => void
   setFilterSheetOpen: (open: boolean) => void
   /** Opens the mobile filter sheet with its search box focused. */
@@ -441,30 +394,11 @@ interface UIState {
   setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
   showRecentlyCreated: (todoId: number) => void
   clearRecentlyCreated: () => void
-  /**
-   * Opens Settings, on `target` (a section, or a part of one) when given;
-   * `focus` names a control there to focus (its `data-settings-focus`).
-   * Already open with unsaved work (`SettingsLeaveGuard`) in its section, a
-   * target in another section asks first. With unsaved work it doesn't show
-   * (a lens draft kept by `hideSettings`) it opens on that work instead —
-   * Tasks › Lenses, the drafted lens focused — whatever the target.
-   */
-  openSettings: (target?: SettingsTarget, focus?: string) => void
-  /**
-   * Closes Settings — every close (Esc, ×, the backdrop) comes here. With
-   * unsaved work (a lens draft, `SettingsLeaveGuard`) it asks first and
-   * closes after Save / Discard; Keep editing leaves Settings as it was.
-   */
+  /** Opens Settings, on `target` (a section, or a part of one) when given. */
+  openSettings: (target?: SettingsTarget) => void
+  /** Closes Settings — every close (Esc, ×, the backdrop, the phone width) comes here. */
   closeSettings: () => void
-  /**
-   * Closes Settings at once, keeping a lens draft for its next open — the
-   * phone width, where the modal isn't shown (nothing is lost, nothing asked).
-   */
-  hideSettings: () => void
-  /**
-   * Shows another section (or part). Leaving a section with unsaved work in
-   * it (a lens draft, `SettingsLeaveGuard`) asks first, as `closeSettings` does.
-   */
+  /** Shows another section (or part). */
   setSettingsSection: (target: SettingsTarget) => void
   /** The part scroll was shown: forget it. */
   clearSettingsPart: () => void
@@ -486,37 +420,10 @@ interface UIState {
   /** Shows `target` in the popup (replacing what it showed). */
   setWidgetPopup: (target: WidgetPopupTarget) => void
   closeWidgetPopup: () => void
-  /** Changes the popup review's sort or lens switch (`popupReviewView`). */
+  /** Changes the popup review's sort (`popupReviewView`). */
   patchPopupReviewView: (patch: Partial<ReviewTabViewState>) => void
 }
 
-/**
- * Showing `section` would leave unsaved work: Settings is open on the
- * guard's section with work pending, and `section` is another.
- */
-function leavesUnsavedWork(ui: Pick<UIState, 'settingsOpen' | 'settingsSection'>, section: SettingsSectionId): boolean {
-  if (!leaveGuard) return false
-  const own = SETTINGS_PART_SECTION[leaveGuard.part]
-  return ui.settingsOpen && ui.settingsSection === own && section !== own && leaveGuard.pending()
-}
-
-/**
- * Where Settings must open to show unsaved work it doesn't show now — a
- * lens draft kept while it was closed (`hideSettings`, the phone width) —
- * or null: no such work, or Settings already open on its section.
- */
-function unsavedWorkOutOfSight(ui: Pick<UIState, 'settingsOpen' | 'settingsSection'>): Pick<UIState, 'settingsSection' | 'settingsPart' | 'settingsFocus'> | null {
-  if (!leaveGuard || !leaveGuard.pending()) return null
-  const section = SETTINGS_PART_SECTION[leaveGuard.part]
-  if (ui.settingsOpen && ui.settingsSection === section) return null
-  return { settingsSection: section, settingsPart: leaveGuard.part, settingsFocus: leaveGuard.focus?.() ?? null }
-}
-
-/** Runs `go` once the guard lets Settings go on: at once without unsaved work (`needed` false), else after its answer. */
-function afterSettled(needed: boolean, go: () => void): void {
-  if (!needed || !leaveGuard) go()
-  else void leaveGuard.settle().then((ok) => { if (ok) go() })
-}
 
 export const useUIStore = create<UIState>((set, get) => ({
   selectedTodoId: null,
@@ -537,7 +444,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   rowPopover: null,
   filterPanelOpen: false,
   filterPanelFocusKey: 0,
-  lensLifted: false,
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
   listEditor: null,
@@ -548,7 +454,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   settingsOpen: false,
   settingsSection: readLastSettingsSection(),
   settingsPart: null,
-  settingsFocus: null,
   checkinDialog: null,
   checkinImportOpen: false,
   checkinImportPersonId: null,
@@ -699,10 +604,6 @@ export const useUIStore = create<UIState>((set, get) => ({
     })
   },
 
-  setLensLifted(lifted) {
-    if (get().lensLifted !== lifted) set({ lensLifted: lifted })
-  },
-
   closeFilterPanel() {
     if (get().filterPanelOpen) set({ filterPanelOpen: false })
   },
@@ -772,56 +673,37 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ recentlyCreated: null })
   },
 
-  openSettings(target, focus) {
+  openSettings(target) {
     // Edit list and the widget editors belong to the workspace under the
     // modal: one holding changes asks first (Save / Discard / Keep editing,
     // `editor-leave`) and Settings opens once it was saved or discarded; an
     // unchanged one just closes — every kind (`closeOpenEditors`, the one roster).
     if (editorsHoldChanges()) {
-      void leaveOpenEditors().then((left) => { if (left) get().openSettings(target, focus) })
+      void leaveOpenEditors().then((left) => { if (left) get().openSettings(target) })
       return
     }
     closeOpenEditors()
-    // Unsaved work Settings doesn't show (a lens draft kept at phone width):
-    // it opens on that, whatever was asked — never with the work out of sight.
-    const work = unsavedWorkOutOfSight(get())
-    if (work) {
-      rememberSettingsSection(work.settingsSection)
-      set({ settingsOpen: true, ...work })
-      return
-    }
     if (!target) {
       set({ settingsOpen: true })
       return
     }
     const { section, part } = resolveSettingsTarget(target)
-    // A control is focused only on the way to a part (the modal clears both once there).
-    const go = () => {
-      rememberSettingsSection(section)
-      set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null })
-    }
-    afterSettled(leavesUnsavedWork(get(), section), go)
+    rememberSettingsSection(section)
+    set({ settingsOpen: true, settingsSection: section, settingsPart: part })
   },
 
   closeSettings() {
-    const close = () => set({ settingsOpen: false, settingsPart: null, settingsFocus: null })
-    afterSettled(get().settingsOpen && (leaveGuard?.pending() ?? false), close)
-  },
-
-  hideSettings() {
-    set({ settingsOpen: false, settingsPart: null, settingsFocus: null })
+    set({ settingsOpen: false, settingsPart: null })
   },
 
   setSettingsSection(target) {
     const { section, part } = resolveSettingsTarget(target)
-    afterSettled(leavesUnsavedWork(get(), section), () => {
-      rememberSettingsSection(section)
-      set({ settingsSection: section, settingsPart: part, settingsFocus: null })
-    })
+    rememberSettingsSection(section)
+    set({ settingsSection: section, settingsPart: part })
   },
 
   clearSettingsPart() {
-    if (get().settingsPart !== null || get().settingsFocus !== null) set({ settingsPart: null, settingsFocus: null })
+    if (get().settingsPart !== null) set({ settingsPart: null })
   },
 
   openCheckinDialog(personIds) {

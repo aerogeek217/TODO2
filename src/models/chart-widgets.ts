@@ -223,11 +223,9 @@ export function liveBreakdownSort(sort: BreakdownSort | undefined, columnIds: re
   return (BREAKDOWN_FIXED_SORT_KEYS as readonly string[]).includes(sort.by) || columnIds.includes(sort.by) ? sort : undefined
 }
 
-/** A Breakdown tab's view state: each split's sort, saved at once (absent = the split's default order), and its lens switch. */
+/** A Breakdown tab's view state: each split's sort, saved at once (absent = the split's default order). */
 export interface BreakdownViewState {
   sorts?: Partial<Record<BreakdownSplit, BreakdownSort>>
-  /** The top bar's lens doesn't apply here (the widget's lens switch, saved at once; absent = it applies). */
-  ignoreLens?: boolean
 }
 
 const COLUMN_ID = /^[A-Za-z0-9_-]{1,40}$/
@@ -355,7 +353,6 @@ function isBreakdownSort(v: unknown): v is BreakdownSort {
 
 /** Where a stored Breakdown view state goes wrong: the bad key, or `null`. */
 export function breakdownViewProblem(raw: Obj): string | null {
-  if (raw.ignoreLens !== undefined && typeof raw.ignoreLens !== 'boolean') return 'ignoreLens'
   const sorts = raw.sorts
   if (sorts === undefined) return null
   if (typeof sorts !== 'object' || sorts === null || Array.isArray(sorts)) return 'sorts'
@@ -365,13 +362,11 @@ export function breakdownViewProblem(raw: Obj): string | null {
   return null
 }
 
-/** A Breakdown's view state read from untrusted input: each known split's valid sort and the lens switch (`fixed` when one is dropped). */
+/** A Breakdown's view state read from untrusted input: each known split's valid sort (`fixed` when one is dropped). */
 export function pickBreakdownView(raw: Obj | undefined): PickedConfig<BreakdownViewState | undefined> {
   if (raw === undefined) return { config: undefined, fixed: false }
-  let fixed = Object.keys(raw).some((k) => k !== 'sorts' && k !== 'ignoreLens')
+  let fixed = Object.keys(raw).some((k) => k !== 'sorts')
   const view: BreakdownViewState = {}
-  if (typeof raw.ignoreLens === 'boolean') view.ignoreLens = raw.ignoreLens
-  else if (raw.ignoreLens !== undefined) fixed = true
   const sorts = raw.sorts
   if (typeof sorts === 'object' && sorts !== null && !Array.isArray(sorts)) {
     const kept: Partial<Record<BreakdownSplit, BreakdownSort>> = {}
@@ -433,11 +428,9 @@ export const PIVOT_FIXED_SORT_KEYS = ['name', 'total'] as const
  */
 export type PivotSort = BreakdownSort
 
-/** A Pivot tab's view state: its rows' sort (absent = the natural order) and its lens switch, each saved at once. */
+/** A Pivot tab's view state: its rows' sort (absent = the natural order), saved at once. */
 export interface PivotViewState {
   sort?: PivotSort
-  /** The top bar's lens doesn't apply here (the widget's lens switch, saved at once; absent = it applies). */
-  ignoreLens?: boolean
 }
 
 /** A stored Pivot sort: a fixed heading's key or a column head's (short word characters), `reversed` only as `true`. */
@@ -449,18 +442,15 @@ function isPivotSort(v: unknown): v is PivotSort {
 
 /** Where a stored Pivot view state goes wrong: the bad key, or `null`. */
 export function pivotViewProblem(raw: Obj): string | null {
-  if (raw.ignoreLens !== undefined && typeof raw.ignoreLens !== 'boolean') return 'ignoreLens'
   if (raw.sort !== undefined && !isPivotSort(raw.sort)) return 'sort'
   return null
 }
 
-/** A Pivot's view state read from untrusted input: its valid sort and lens switch (`fixed` when anything is dropped). */
+/** A Pivot's view state read from untrusted input: its valid sort (`fixed` when anything is dropped). */
 export function pickPivotView(raw: Obj | undefined): PickedConfig<PivotViewState | undefined> {
   if (raw === undefined) return { config: undefined, fixed: false }
-  let fixed = Object.keys(raw).some((k) => k !== 'sort' && k !== 'ignoreLens')
+  let fixed = Object.keys(raw).some((k) => k !== 'sort')
   const view: PivotViewState = {}
-  if (typeof raw.ignoreLens === 'boolean') view.ignoreLens = raw.ignoreLens
-  else if (raw.ignoreLens !== undefined) fixed = true
   if (isPivotSort(raw.sort)) view.sort = raw.sort.reversed ? { by: raw.sort.by, reversed: true } : { by: raw.sort.by }
   else if (raw.sort !== undefined) fixed = true
   return { config: Object.keys(view).length > 0 ? view : undefined, fixed }

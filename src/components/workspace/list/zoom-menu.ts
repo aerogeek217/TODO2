@@ -1,5 +1,5 @@
 import { useContext } from 'react'
-import type { LensTab } from '../../../models/workspace-layout'
+import type { ListTab } from '../../../models/workspace-layout'
 import { listTabZoom, stepListTabZoom } from '../../../services/list-zoom'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -15,7 +15,7 @@ import { ListTabViewContext } from './list-tab-view'
  * a Number follows, in the widget popup — the layout's tab of that id is the
  * Number, cr34 U3).
  */
-export function useListZoomMenuEntries(tab: LensTab | undefined): MenuEntry[] {
+export function useListZoomMenuEntries(tab: ListTab | undefined): MenuEntry[] {
   const setting = useSettingsStore((s) => s.listZoom)
   const host = useContext(ListTabViewContext)
   // The level the list shows (Auto resolved by its width): the stepper starts there.

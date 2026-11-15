@@ -1,22 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { reviewFilterPredicate, useReviewWidgetQueue } from '../../hooks/use-review-widget-queue'
-import { WidgetLensContext } from '../../hooks/use-widget-lens'
 import { emptyPredicate, type FilterExpr, type Person, type Status, type Tag } from '../../models'
 import type { ReviewFilter } from '../../stores/list-widget-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { useUIStore } from '../../stores/ui-store'
 import { clearFilterStore, makeTodo, patchScreenFilter, resetEntityStores } from '../helpers'
 
 /**
  * A Review widget's queue (widget feedback 2A): the open tasks its filter —
- * an expression — keeps, in `sortOrder`, under the screen filter and the
- * widget's lens switch, with what the lens hides there.
+ * an expression — keeps, in `sortOrder`, under the screen filter.
  */
 
 const aisha: Person = { id: 1, name: 'Aisha', initials: 'A' }
@@ -26,8 +21,6 @@ const legal: Tag = { id: 1, name: 'legal', color: '#7ec4bc' }
 const q4: Tag = { id: 2, name: 'q4', color: '#c8743a' }
 const waiting: Status = { id: 1, name: 'Waiting', color: '#4caf50', sortOrder: 1 }
 const blocked: Status = { id: 2, name: 'Blocked', color: '#e06c75', sortOrder: 2 }
-
-const LENS = { id: 'lens-q4', name: 'Q4', predicate: { ...emptyPredicate(), tags: [2] } }
 
 const person = (id: number): FilterExpr => ({ kind: 'person', id })
 const tag = (id: number): FilterExpr => ({ kind: 'tag', id })
@@ -39,8 +32,6 @@ const f = (expression: FilterExpr): ReviewFilter => ({ expression, showCompleted
 beforeEach(() => {
   resetEntityStores()
   clearFilterStore()
-  useSettingsStore.setState({ lenses: [LENS], activeLensId: null })
-  useUIStore.setState({ lensLifted: false })
   useTodoStore.setState({
     todos: [
       // Out of `sortOrder` on purpose: the queue sorts.
@@ -60,10 +51,9 @@ beforeEach(() => {
   useStatusStore.setState({ statuses: [waiting, blocked] })
 })
 
-/** The queue of `filter` — in a widget that ignores the top bar's lens with `ignoreLens`. */
-function queueOf(filter: ReviewFilter | null, ignoreLens = false) {
-  const wrapper = ({ children }: { children: ReactNode }) => <WidgetLensContext.Provider value={ignoreLens}>{children}</WidgetLensContext.Provider>
-  return renderHook(({ value }) => useReviewWidgetQueue(value), { initialProps: { value: filter }, wrapper })
+/** The queue of `filter`. */
+function queueOf(filter: ReviewFilter | null) {
+  return renderHook(({ value }) => useReviewWidgetQueue(value), { initialProps: { value: filter } })
 }
 
 describe('reviewFilterPredicate', () => {
@@ -76,7 +66,7 @@ describe('reviewFilterPredicate', () => {
 describe('useReviewWidgetQueue', () => {
   it('no filter: an empty queue, the same one each time', () => {
     const { result, rerender } = queueOf(null)
-    expect(result.current).toEqual({ ids: [], hides: 0 })
+    expect(result.current).toEqual({ ids: [] })
     const first = result.current
     rerender({ value: null })
     expect(result.current).toBe(first)
@@ -111,15 +101,5 @@ describe('useReviewWidgetQueue', () => {
     const { result } = queueOf(f(or(person(1), person(2))))
     act(() => { patchScreenFilter({ tags: new Set([1]) }) })
     expect(result.current.ids).toEqual([1, 4])
-  })
-
-  it('the top bar’s lens narrows it, with what it hides; a widget that ignores the lens keeps every task and still says what it would hide', () => {
-    useSettingsStore.setState({ activeLensId: 'lens-q4' })
-    const lensed = queueOf(f(or(person(1), person(2)))).result.current
-    expect(lensed.ids).toEqual([2, 4])
-    expect(lensed.hides).toBe(2)
-    const ignoring = queueOf(f(or(person(1), person(2))), true).result.current
-    expect(ignoring.ids).toEqual([1, 2, 3, 4])
-    expect(ignoring.hides).toBe(2)
   })
 })

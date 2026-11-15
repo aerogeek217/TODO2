@@ -14,7 +14,7 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { createCommands, type CommandContext } from '../../../services/command-registry'
 import type { PersistedListDefinition } from '../../../models/list-definition'
-import type { LensTab, ListZoom } from '../../../models/workspace-layout'
+import type { ListTab, ListZoom } from '../../../models/workspace-layout'
 import type { Person } from '../../../models'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 import { single } from '../../helpers/layout-builders'
@@ -35,7 +35,7 @@ const def: PersistedListDefinition = {
   sort: 'manual', grouping: 'none',
 }
 
-function tabAt(zoom?: ListZoom): LensTab {
+function tabAt(zoom?: ListZoom): ListTab {
   return { id: 't1', kind: 'lens', config: { listDefinitionId: 7 }, ...(zoom ? { viewState: { zoom } } : {}) }
 }
 

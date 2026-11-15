@@ -3,9 +3,8 @@ import { DEFAULT_TREND_RANGE, trendName, trendShow, type TrendShow } from '../..
 import type { TrendTab } from '../../../models/workspace-layout'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { lensHidesFor, trendFilter, useLensHidden, useStatsBase, useTrend, type TrendData } from '../../../hooks/use-glance-data'
+import { useStatsBase, useTrend, type TrendData } from '../../../hooks/use-glance-data'
 import { trendBucketDays, trendCumulative } from '../../../services/stats/trend'
-import { TabLensSwitch } from '../LensSwitch'
 import {
   approximateNote, signed, sinceLabel, trendBucketLabel, trendBucketWords, trendRangeLabel, trendRangeWords,
 } from './glance-copy'
@@ -416,7 +415,7 @@ function smallFigures(show: TrendShow, data: TrendData | null, rangeShort: strin
 
 /**
  * The Created vs completed widget: its filter's tasks among those the top
- * bar shows (its lens switch, G3), over its range, shown as Bars, a
+ * bar shows, over its range, shown as Bars, a
  * Burndown or Cumulative lines (`config.show`), the days the history log
  * can't count exactly dimmed or dashed (their tooltip says why). Every bar,
  * point and total opens its tasks.
@@ -435,7 +434,6 @@ export function TrendWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TrendT
   const today = base.ctx.today
   const rangeLabel = trendRangeLabel(range)
   const rangeWords = trendRangeWords(range)
-  const lensHides = lensHidesFor(useLensHidden(), trendFilter(config))
   const lines = useMemo(() => {
     const window = data?.stats.window
     const bucketLabels = window ? window.bucketStarts.map((s) => trendBucketWords(s, window.granularity, today)) : []
@@ -456,7 +454,6 @@ export function TrendWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TrendT
           className={GLANCE_PANEL_CLASS}
           sub={rangeLabel}
           extras={LEGENDS[show]}
-          lens={<TabLensSwitch tab={tab} hides={lensHides} />}
         >
           <div className={styles.trendBody} data-trend-show={show}>
             {props && show === 'bars' && <BarsShow {...props} />}

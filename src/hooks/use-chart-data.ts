@@ -83,7 +83,7 @@ const columnKeepsMemo = sharedMemoByKey(function columnKeeps(
 
 /**
  * The `@` (people) or `#` (tags) picks narrowing a Breakdown's rows: its
- * own filter's and the top bar's (chips and lens), as a list grouped so
+ * own filter's and the top bar's chips, as a list grouped so
  * (`build-list.groupRestrictions`).
  */
 function restrictionsOf(filter: TodoPredicate, field: 'personIds' | 'tags' | null, screen: FilterCriteria): RowRestrictions {

@@ -87,10 +87,6 @@ describe('FilterSheet', () => {
 
     it('its section headers are buttons that say whether they are open; Enter / Space toggle them', () => {
       renderSheet()
-      const lens = screen.getByRole('button', { name: /^Lens/ })
-      expect(lens).toHaveAttribute('aria-expanded', 'true')
-      fireEvent.keyDown(lens, { key: 'Enter' })
-      expect(lens).toHaveAttribute('aria-expanded', 'false')
       const dates = screen.getByRole('button', { name: /^Dates/ })
       expect(dates).toHaveAttribute('aria-expanded', 'false')
       fireEvent.keyDown(dates, { key: ' ' })

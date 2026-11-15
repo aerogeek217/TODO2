@@ -7,7 +7,7 @@ import { layoutTab, openCellMenu, seedWorkspace, wsRow, type WorkspaceSeed, expe
  * state, kept across a reload, the layout still saved); the top bar's @
  * pick narrows the rows (no filter row of its own); the row's Review button and a count column's count
  * open the popup review (the Review widget is on another layout here) with just those tasks as its filter; the editor's count columns
- * (board BC); the lens switch (G3).
+ * (board BC).
  */
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -244,46 +244,4 @@ test('the presets: People · Tags · Status · Custom (no Waiting on)', async ({
   await page.getByRole('menuitem', { name: 'Insights' }).click()
   await page.getByRole('menuitem', { name: 'Breakdown' }).click()
   await expect(page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem')).toHaveText(['People', 'Tags', 'Status', 'Custom'])
-})
-
-test('the lens switch at the header’s end, quiet while it follows the lens (2A); a click ignores it here (saved at once)', async ({ page }) => {
-  await seedWorkspace(page, { ...SEED, lenses: [{ id: 'lens-aisha', name: 'Aisha', predicate: { personIds: [1] } }] })
-  await expect(chart(page).getByTestId('lens-switch')).toHaveCount(0)
-  const control = page.locator('header').getByRole('button', { name: /^Lens:/ })
-  await control.click()
-  await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Aisha/ }).click()
-  const sw = chart(page).getByTestId('lens-switch')
-  await expect(sw).toHaveAttribute('data-lens-hides', '7')
-  await expect(chart(page).getByTestId('glance-section-count')).toHaveText('3 open')
-  // At the header's right end: right before the cell's controls slot (shown on hover) — whatever
-  // buttons that slot holds —, one gap of the line away, the ⋯ the slot's last button.
-  await chart(page).locator('[data-chart-head]').hover()
-  await expect(chart(page).getByRole('button', { name: 'Cell options' })).toBeVisible()
-  const end = await sw.evaluate((el) => {
-    const line = el.closest('[data-widget-top-line]')
-    const slot = line?.querySelector('[data-cell-controls]')
-    const buttons = Array.from(slot?.querySelectorAll('button') ?? []).filter((b) => b.getBoundingClientRect().width > 0)
-    if (!line || !slot) throw new Error('no top line with a controls slot')
-    return {
-      switchRight: el.getBoundingClientRect().right,
-      slotLeft: slot.getBoundingClientRect().left,
-      slotRight: slot.getBoundingClientRect().right,
-      lineRight: line.getBoundingClientRect().right - parseFloat(getComputedStyle(line).paddingRight),
-      gap: parseFloat(getComputedStyle(line).columnGap) || 0,
-      buttons: buttons.length,
-      last: buttons.at(-1)?.getAttribute('aria-label'),
-    }
-  })
-  expect(end.switchRight).toBeLessThanOrEqual(end.slotLeft + 0.5)
-  expect(end.slotLeft - end.switchRight, 'the switch is one gap before the controls').toBeLessThanOrEqual(end.gap + 0.5)
-  expect(Math.abs(end.lineRight - end.slotRight), 'the controls end the line').toBeLessThanOrEqual(0.5)
-  expect(end.buttons).toBeGreaterThan(0)
-  expect(end.last).toBe('Cell options')
-  await sw.click()
-  await expect(sw).toHaveAttribute('aria-pressed', 'false')
-  await expect(chart(page).getByTestId('glance-section-count')).toHaveText('10 open')
-  await expectLayoutStored(page)
-  await page.reload()
-  await expect(chart(page).getByTestId('lens-switch')).toHaveAttribute('aria-pressed', 'false')
-  await expect(chart(page).getByTestId('glance-section-count')).toHaveText('10 open')
 })

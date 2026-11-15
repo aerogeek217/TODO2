@@ -6,7 +6,7 @@ import { edges, expectOpenLayout, layoutTab, reviewField, seedWorkspace, wsCell,
  * a step opens in place under a breadcrumb with the focus kept in the
  * field; Backspace in the empty field and Esc go back a step; the focus
  * returns to what opened the palette only when it closes or a leaf runs;
- * and each leaf does its job — Go to Layout ›, Lens ›, Add Widget › (the
+ * and each leaf does its job — Go to Layout ›, Add Widget › (the
  * Where picker on the cell last used), Review With › (a jump to the Review
  * widget), Theme ›.
  */
@@ -18,7 +18,6 @@ const SEED: WorkspaceSeed = {
     { title: 'Shared rollout plan', people: ['Ben Ortiz', 'Aisha Rahman'] },
     { title: 'Ben’s own task', people: ['Ben Ortiz'] },
   ],
-  lenses: [{ id: 'lens-ben', name: 'Ben only', predicate: { personIds: [2] } }],
   layouts: [
     {
       name: 'Main',
@@ -61,7 +60,7 @@ test('a step opens in place; Backspace and Esc go back; the focus returns to the
 
   // At rest: the step commands, not their leaves.
   const rest = await optionNames(page)
-  expect(rest).toEqual(expect.arrayContaining(['Theme', 'Go to Layout', 'Add Widget', 'Lens', 'Review With']))
+  expect(rest).toEqual(expect.arrayContaining(['Theme', 'Go to Layout', 'Add Widget', 'Review With']))
   // The check-ins live on the Review widget's field (widget feedback 2B).
   expect(rest).not.toContain('Email Check-in')
   expect(rest.filter((n) => n.includes('›'))).toEqual([])
@@ -112,26 +111,6 @@ test('a query reaches into the steps; Enter on a leaf there switches the layout 
   await page.getByRole('option', { name: 'Main', exact: true }).click()
   await expectOpenLayout(page, 'Main')
   await expect(wsCell(page, 'a')).toBeVisible()
-})
-
-test('Lens › picks the top bar’s lens; No lens takes it off', async ({ page }) => {
-  await open(page)
-  const lens = page.getByTestId('lens-control')
-  await expect(lens).toHaveAttribute('data-state', 'none')
-  await openPalette(page)
-  await page.getByRole('option', { name: 'Lens', exact: true }).click()
-  expect(await optionNames(page)).toEqual(['No lens', 'Ben only'])
-  await expect(options(page).filter({ hasText: 'No lens' })).toContainText('Current')
-  await field(page).pressSequentially('ben')
-  await page.keyboard.press('Enter')
-  await expect(field(page)).toHaveCount(0)
-  await expect(lens).toHaveAttribute('data-state', 'on')
-  await expect(lens).toContainText('Ben only')
-  await openPalette(page)
-  await field(page).pressSequentially('no lens')
-  await expect(options(page).first()).toHaveText('Lens › No lens')
-  await page.keyboard.press('Enter')
-  await expect(lens).toHaveAttribute('data-state', 'none')
 })
 
 test('Add Widget › kind opens the Where picker on the cell last used, the kind chosen', async ({ page }) => {

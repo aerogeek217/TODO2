@@ -1,7 +1,5 @@
 import {
   isGlanceTab,
-  isLensSwitchTab,
-  tabIgnoresLens,
   tabListId,
   WIDGET_KIND_SPECS,
   type LayoutCell,
@@ -10,8 +8,6 @@ import {
 } from '../../models/workspace-layout'
 import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { useAppliedLens } from '../../stores/screen-filter'
-import { setTabIgnoresLens } from '../../hooks/use-widget-lens'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListWidgetStore } from '../../stores/list-widget-store'
 import { copyTasks } from '../../services/task-copy'
@@ -188,33 +184,9 @@ export function mergedCellMenu(widget: readonly MenuEntry[], cell: readonly Menu
 }
 
 /**
- * The widget's menu switch for the top bar's lens (G3, board BD — its
- * header's lens switch in words): `Apply lens “X” here`, checked while it
- * applies; saved at once — a list's on its list, any other widget's in its
- * view state. Offered while a lens applies at the top bar, on every widget
- * the screen filter reaches.
- */
-function useLensMenuAction(tab: LayoutTab | undefined, listId: number | undefined): WidgetMenuAction | undefined {
-  const lens = useAppliedLens()
-  const listIgnores = useListDefinitionStore((s) => listId != null && s.listDefinitions.find((d) => d.id === listId)?.ignoreLens === true)
-  if (!lens || !tab) return undefined
-  if (tab.kind === 'lens') {
-    if (listId == null) return undefined
-    return {
-      label: `Apply lens “${lens.name}” here`,
-      checked: !listIgnores,
-      onSelect: () => void useListDefinitionStore.getState().setIgnoreLens(listId, !listIgnores),
-    }
-  }
-  if (!isLensSwitchTab(tab) || (tab.kind === 'number' && tab.config.show === 'list')) return undefined
-  const ignored = tabIgnoresLens(tab)
-  return { label: `Apply lens “${lens.name}” here`, checked: !ignored, onSelect: () => setTabIgnoresLens(tab, !ignored) }
-}
-
-/**
  * The widget part of the ⋯ menu for `tab` (what its tab menu had): its
- * list's Edit list…, its settings, its actions (Copy, the
- * lens switch, Collapse / Expand all groups), then Change widget.
+ * list's Edit list…, its settings, its actions (Copy, Collapse / Expand
+ * all groups), then Change widget.
  * `result` is what the cell's active widget last reported (its Copy lines,
  * a list's sections); `undefined` content when there is no tab.
  */
@@ -233,7 +205,6 @@ export function useWidgetMenuContent(
   // A list tab's Review these N tasks (D26), above its zoom.
   const reviewEntries = useListReviewMenuEntries(tab?.kind === 'lens' ? tab : undefined)
   const zoomEntries: MenuEntry[] = [...reviewEntries, ...listZoomEntries]
-  const lensAction = useLensMenuAction(tab, tab?.kind === 'lens' ? tab.config.listDefinitionId : undefined)
   if (!tab) return undefined
   // A glance widget's settings and Copy (its lines, while it is the cell's active tab).
   const glance = glanceMenu(isGlanceTab(tab) ? tab : undefined, result?.summary)
@@ -260,8 +231,6 @@ export function useWidgetMenuContent(
   const listActions = (): WidgetMenuAction[] | undefined => {
     if (tab.kind !== 'lens' || !result) return undefined
     return [
-      // The top bar's lens on this list, while one applies there: on / off here (saved at once).
-      ...(lensAction ? [lensAction] : []),
       {
         label: 'Copy tasks',
         icon: '⧉',
@@ -294,8 +263,6 @@ export function useWidgetMenuContent(
       ? () => openEditList(tab.id, listId)
       : undefined,
     settingEntries: tab.kind === 'neglect' ? neglectEntries : tab.kind === 'lens' ? zoomEntries : glance?.settingEntries,
-    widgetActions: glance
-      ? [...(lensAction ? [lensAction] : []), ...glance.actions]
-      : tab.kind === 'lens' ? listActions() : lensAction ? [lensAction] : undefined,
+    widgetActions: glance ? glance.actions : tab.kind === 'lens' ? listActions() : undefined,
   }
 }

@@ -9,7 +9,6 @@ import type { GlanceResult } from '../../../components/workspace/glance/glance-h
 import type { GlanceDrill } from '../../../components/workspace/glance/glance-types'
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
-import { WidgetLensContext } from '../../../hooks/use-widget-lens'
 import type { BreakdownConfig } from '../../../models/chart-widgets'
 import { createTab, type BreakdownTab, type LayoutTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { REVIEW_POPUP_TAB_ID } from '../../../models/review'
@@ -279,24 +278,6 @@ describe('clicks: a row drills, its Review button and a count jump', () => {
     await act(async () => { await Promise.resolve() })
     expect(reviewFilter()).toBeUndefined()
     expect(useUIStore.getState().widgetPopup).toBeNull()
-  })
-
-  it('a jump carries the Breakdown’s lens switch to the Review widget, so it shows the tasks counted (F4)', async () => {
-    const reviewTab = () => useWorkspaceStore.getState().working!.cells[1]!.tabs[0]!
-    inLayout(breakdown({ name: 'Team' }))
-    // The Breakdown ignores the top bar's lens (its switch, through the widget's context).
-    render(
-      <DndContext>
-        <WidgetLensContext.Provider value={true}><Live face="large" /></WidgetLensContext.Provider>
-      </DndContext>,
-    )
-    expect(reviewTab().viewState).toBeUndefined()
-    await act(async () => { fireEvent.click(within(rowOf('person-4')).getByTestId('breakdown-review')) })
-    await vi.waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'person', id: 4 }))
-    await vi.waitFor(() => expect(reviewTab().viewState).toMatchObject({ ignoreLens: true }))
-    // The filter kept is the filter alone.
-    expect(reviewFilter()).not.toHaveProperty('ignoreLens')
-    expect(layoutSteps()).toEqual([])
   })
 
   it('a person row’s right-click opens the person menu', () => {

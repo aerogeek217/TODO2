@@ -31,7 +31,7 @@ export interface ListSectionsSpec {
   sortDirection?: TodoSortDirection
   /**
    * The person "is" picks that narrow the People groups, each one filter's
-   * (the list's own, the screen's chips, the top bar's lens — all of which a
+   * (the list's own and the screen's chips — both of which a
    * member passes). With one, only its people's sections show, in its
    * order, and a task assigned only to other people is left out; with
    * several, a task shows under each of its people every one of them picks,

@@ -119,8 +119,7 @@ function matchesExpression(e: FilterExpr, t: ClauseTask): boolean {
  * Canonical evaluator. Takes runtime filter state (`FilterCriteria`) and a
  * single todo; returns whether the todo passes the filter: its completion
  * (`admitsCompleted`: Show completed, or a Completed range among the clauses
- * or the expression's top-level terms, its own or its lens's), the lens,
- * every clause and the expression (`matchesExpression`). A People / Status /
+ * or the expression's top-level terms), every clause and the expression (`matchesExpression`). A People / Status /
  * Tags clause with its "is not" switch passes the tasks the clause without
  * it would fail (`FilterNegation`), and an "is not" date range the dated
  * tasks outside it and every task without the date (`matchesDateMatch`).
@@ -135,20 +134,15 @@ export function matchesFilter(
   settings: FilterSettings,
 ): boolean {
   if (todo.isCompleted && !admitsCompleted(filters)) return false
-  // The lens: its own clauses under these; completion is decided above.
-  if (filters.lens && !matchesFilter({ ...filters.lens, showCompleted: true }, todo, assignedPersonIds, today, searchCtx, assignedTagIds, settings)) {
-    return false
-  }
   const t: ClauseTask = { todo, personIds: assignedPersonIds, tagIds: assignedTagIds, today, searchCtx, settings }
   if (!passesEveryClause(filters, t)) return false
   return filters.expression == null || matchesExpression(filters.expression, t)
 }
 
-/** Whether evaluating `f` reads a text filter — its own, its expression's or its lens's — so needs the task's names. */
+/** Whether evaluating `f` reads a text filter — its own or its expression's — so needs the task's names. */
 export function readsText(f: FilterCriteria): boolean {
   return !!f.searchText
     || (f.expression != null && expressionAtoms(f.expression).some((a) => a.kind === 'text'))
-    || (f.lens != null && readsText(f.lens))
 }
 
 /** The task's date of one date type, or null when it has none. */

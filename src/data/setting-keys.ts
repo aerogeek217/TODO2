@@ -86,22 +86,6 @@ export const SETTING_KEYS = {
   /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `11/20`) or `numeric` (`MM/DD`). Absent = `relative`. */
   rowDates: 'rowDates',
   /**
-   * The lenses (named screen filters, picked in the top bar — `activeLensId`): JSON array of
-   * `{ id, name, predicate }`, the predicate a list predicate with
-   * completed tasks off (`data/lens-shape`). Absent = none.
-   */
-  lenses: 'lenses',
-  /**
-   * The preset lenses were seeded (the first open of Settings › Lenses):
-   * `true`. Absent = not yet; nothing seeds them again once set.
-   */
-  lensPresetsSeeded: 'lensPresetsSeeded',
-  /**
-   * The lens picked in the top bar (app-wide, for every layout): a lens's
-   * id (`lenses`). Absent = No lens; an id no lens has reads as No lens.
-   */
-  activeLensId: 'activeLensId',
-  /**
    * Ambience (Settings › Appearance › Ambience): JSON
    * `{ enabled, place: { lat, lon } | null, sky, motion, seasons }` (`utils/ambience-settings`);
    * a field missing or out of range reads as its default. Absent = all defaults (on, place

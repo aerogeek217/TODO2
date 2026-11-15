@@ -55,41 +55,33 @@ interface ListDefinitionState {
    * An edit of list `id` (`fn` over its stored definition), written for good
    * as one undo step with the snackbar (`description`: `Edited list “This
    * week”`). Only what the list's own editors change is taken from `fn`'s
-   * result: its id, sort order, owner and lens switch stay the stored ones,
-   * and a blank name keeps the stored name. Undo puts back the keys it
-   * changed — over the list as it is then, so a later write to another part
-   * (the lens switch) stays — and Redo writes them again; either says so
+   * result: its id, sort order and owner stay the stored ones, and a blank
+   * name keeps the stored name. Undo puts back the keys it changed — over
+   * the list as it is then, so a later write to another part stays — and
+   * Redo writes them again; either says so
    * when the list is gone. Resolves whether it wrote (nothing changed, an
    * unknown list, a failed write — the snackbar says so — or a data replace
    * under way: false).
    */
   editList: (id: number, fn: (def: PersistedListDefinition) => PersistedListDefinition, description: string) => Promise<boolean>
-  /**
-   * Whether the top bar's lens applies to list `id` (`ListDefinition.ignoreLens`),
-   * saved at once on the saved list — never a draft edit, so it neither
-   * makes the list unsaved nor waits for its Save.
-   */
-  setIgnoreLens: (id: number, ignore: boolean) => Promise<void>
   /** Drops lists the database no longer has (deleted with their layout) from the store. */
   forgetLists: (ids: readonly number[]) => void
 }
 
 /**
  * `edited` as `editList` writes it over `saved`: its name trimmed (a blank
- * one keeps the saved name), and the saved list's id, sort order, owner and
- * lens switch — none of them an edit of the list's editors.
+ * one keeps the saved name), and the saved list's id, sort order and owner
+ * — none of them an edit of the list's editors.
  */
 function editedOf(edited: PersistedListDefinition, saved: PersistedListDefinition): PersistedListDefinition {
-  const { owner: _owner, ignoreLens: _lens, ...rest } = edited
+  const { owner: _owner, ...rest } = edited
   void _owner
-  void _lens
   return {
     ...rest,
     id: saved.id,
     sortOrder: saved.sortOrder,
     name: edited.name.trim() || saved.name,
     ...(saved.owner ? { owner: saved.owner } : {}),
-    ...(saved.ignoreLens ? { ignoreLens: true as const } : {}),
   }
 }
 
@@ -182,14 +174,6 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     }
     undoable(description, replay(forward), replay(back), true)
     return true
-  },
-
-  async setIgnoreLens(id, ignore) {
-    const saved = get().listDefinitions.find((d) => d.id === id)
-    if (!saved || (saved.ignoreLens === true) === ignore) return
-    const { ignoreLens: _was, ...rest } = saved
-    void _was
-    await get().update(ignore ? { ...rest, ignoreLens: true } : rest)
   },
 
   forgetLists(ids) {

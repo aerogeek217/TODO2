@@ -110,10 +110,9 @@ test('the line takes the color that applies: lit, otherwise, Auto the accent', a
   expect(await numberIn(page, 'ta').getByTestId('number-count').evaluate((e) => getComputedStyle(e).color)).toBe(await computed(page, 'var(--color-text-primary)'))
 })
 
-test('approximate under a lens: no ≈ beside the line; its tooltip says why', async ({ page }) => {
+test('approximate under a screen filter naming people: no ≈ beside the line; its tooltip says why', async ({ page }) => {
   await seedWorkspace(page, {
     people: ['Aisha'],
-    lenses: [{ id: 'lens-aisha', name: 'Aisha', predicate: { personIds: [1] } }],
     tasks: [{ title: 'A', people: ['Aisha'] }, { title: 'B' }],
     layouts: [{ name: 'M', table: { areas: ['n', 'x'], rows: [{ px: 200 }, 1000], cells: [
       { id: 'n', tabs: [number('tn', { metric: 'open', compare: 'none' })] },
@@ -123,8 +122,13 @@ test('approximate under a lens: no ≈ beside the line; its tooltip says why', a
   const line = numberIn(page, 'tn').locator('[data-number-line]')
   await expect(line).toHaveCount(1)
   await expect(line).not.toHaveAttribute('data-approximate', 'true')
-  await page.locator('header').getByRole('button', { name: /^Lens:/ }).click()
-  await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Aisha/ }).click()
+  // The top bar's @Aisha (person 1).
+  await page.evaluate(async () => {
+    const mod = (await import(/* @vite-ignore */ '/src/stores/filter-store.ts' as string)) as {
+      useFilterStore: { getState: () => { setPersonIds: (ids: Set<number>) => void } }
+    }
+    mod.useFilterStore.getState().setPersonIds(new Set([1]))
+  })
   // The history log began today, so a filter reading people is approximate over the 14 days.
   await expect(line).toHaveAttribute('data-approximate', 'true')
   await expect(numberIn(page, 'tn')).not.toContainText('≈')

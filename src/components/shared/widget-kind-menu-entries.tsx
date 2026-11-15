@@ -9,11 +9,10 @@ import type { MenuEntry, MenuItemEntry } from './MenuPopover'
  * built from.
  */
 
-/** A widget action in the tab menu: runs and closes. With `checked`, a checkbox row (a switch of the widget's). */
+/** A widget action in the tab menu: runs and closes. */
 export interface WidgetMenuAction {
   label: string
   icon?: ReactNode
-  checked?: boolean
   onSelect: () => void
 }
 
@@ -144,7 +143,6 @@ export function widgetKindMenuEntries({
       kind: 'item',
       label: a.label,
       icon: a.icon,
-      ...(a.checked !== undefined ? { checkbox: true, checked: a.checked } : {}),
       onSelect: a.onSelect,
     })
   }

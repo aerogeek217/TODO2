@@ -6,14 +6,12 @@ import { layoutTab, openLayoutTabMenu, seedWorkspace, wsListWidget, type Workspa
  * D19 · a hue per layout: picked with the name in the Edit layout dialog's
  * swatches and saved at once (the layout stays saved). The layout's
  * `--layout-hue` and the focus ring inside it take the hue, and it
- * survives a reload — the top bar's lens (D15, app-wide since cr22) picked
- * meanwhile is no layout edit and stays picked.
+ * survives a reload.
  */
 
 const SEED: WorkspaceSeed = {
   listDefinitions: [{ name: 'Everything' }],
   tasks: [{ title: 'Plan the launch' }, { title: 'Ship it' }],
-  lenses: [{ id: 'lens-plan', name: 'Plans', predicate: { searchText: 'plan' } }],
   layouts: [
     { name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] },
     { name: 'Other', columns: [] },
@@ -35,15 +33,9 @@ const cssVar = (page: Page, sel: string, name: string) =>
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
-test('a hued layout keeps its hue across a reload, the top bar’s lens with it; the focus ring inside it reads the hue', async ({ page }) => {
+test('a hued layout keeps its hue across a reload; the focus ring inside it reads the hue', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(area(page)).toHaveAttribute('data-layout-hue', 'none')
-
-  // The lens, picked in the top bar: saved at once, no layout edit.
-  await page.locator('header').getByRole('button', { name: /^Lens:/ }).click()
-  await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Plans/ }).click()
-  await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(['Plan the launch'])
-  await expectLayoutStored(page)
 
   // The hue, with the name, in Edit….
   const menu = await openLayoutTabMenu(page, 'Main')
@@ -65,8 +57,7 @@ test('a hued layout keeps its hue across a reload, the top bar’s lens with it;
   await page.reload()
   await expect(area(page)).toHaveAttribute('data-layout-hue', 'violet')
   await expect(layoutTab(page, 'Main')).toHaveAttribute('aria-selected', 'true')
-  await expect(page.locator('header').getByRole('button', { name: /^Lens: Plans/ })).toBeVisible()
-  await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(['Plan the launch'])
+  await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(['Plan the launch', 'Ship it'])
 
   // A custom colour, typed into the colour input: picked as it is, in place of the preset.
   const edit = await openLayoutTabMenu(page, 'Main')

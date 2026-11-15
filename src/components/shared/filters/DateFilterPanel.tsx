@@ -70,7 +70,7 @@ const COMPLETED_NOTE = 'Shows tasks completed in this range, even where complete
 /**
  * What a host's date panel offers, where it differs from the default (every
  * type; a Completed range that brings completed tasks in — a list, Edit
- * list, a lens, the top bar, the phone sheet).
+ * list, the top bar, the phone sheet).
  */
 export interface DateFilterHost {
   /** Date types left out of the tabs (the check-in: Completed — it only ever takes open tasks). */
@@ -131,7 +131,7 @@ interface DateFilterPanelProps {
  * …" — under Is not, a line saying those are kept — (Completed: a line
  * saying it shows completed tasks), and a footer with Clear <Type> and
  * Clear all. The same component in the top bar, a list's + Filter / date
- * chip, Edit list, Lenses, the check-in filter (`host` omits Completed) and the phone Filters sheet. With a type left out, the tabs fill the rows in reading order.
+ * chip, Edit list, the check-in filter (`host` omits Completed) and the phone Filters sheet. With a type left out, the tabs fill the rows in reading order.
  */
 export function DateFilterPanel({ dates, initialField, onChange, variant = 'popover', autoFocus = false, host }: DateFilterPanelProps) {
   const types = dateFieldsOffered(host)

@@ -16,7 +16,7 @@ import type { UrgentDueWithinDays } from '../utils/urgency'
 /**
  * A review's queue and stepping (D26), the Review widget's
  * alike: the rail's sort (item 7) and a new queue put in with the place
- * kept (a lens toggle, a deleted task, a live queue's change). Pure parts
+ * kept (a deleted task, a live queue's change). Pure parts
  * first; then the writers over a session (`review-session`).
  */
 
@@ -175,7 +175,7 @@ export function setReviewSort(session: SessionLike, sort: ReviewSort, env: Revie
 }
 
 /**
- * Puts a new queue into the session (a lens toggle, a live queue's change):
+ * Puts a new queue into the session (a live queue's change):
  * the tasks already in the rail where they are, a task that joins at its
  * sorted place (`joinOrder` — the rail re-sorts only when a sort is picked,
  * `setReviewSort`; a new review's first queue, the rail still empty, comes

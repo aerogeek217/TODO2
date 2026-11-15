@@ -8,8 +8,6 @@ import { useUIStore } from '../../stores/ui-store'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { useScreenTaskCount } from '../../hooks/use-screen-task-count'
 import { screenTaskDialog, showTasksLabel } from '../../services/task-dialog'
-import { usePickedLens } from '../../stores/screen-filter'
-import { FilterSheetLens } from './FilterSheetLens'
 import { unmatchedNote, useSearchBox } from '../../hooks/use-search-box'
 import { NlpPopup } from '../shared/NlpPopup'
 import { TintedText } from '../shared/TintedText'
@@ -22,7 +20,6 @@ export function FilterSheet() {
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
   const filters = useFilterStore((s) => s.filters)
   const isActive = useFilterStore((s) => s.isActive)
-  const lensPicked = usePickedLens() != null
   // The search: its tokens become the sections' values (the screen filter's chips), its words the text search.
   const searchRef = useRef<HTMLInputElement>(null)
   const box = useSearchBox({ inputRef: searchRef, debounce: false })
@@ -147,7 +144,6 @@ export function FilterSheet() {
             </div>
           )}
 
-          <FilterSheetLens />
           <FilterChipBar
             predicate={predicate}
             onChange={handleChange}
@@ -155,7 +151,7 @@ export function FilterSheet() {
             onClearExtra={closeSheet}
             onClearAll={() => useFilterStore.getState().clearAll()}
           />
-          {(isActive || lensPicked) && <ShowTasksButton onShow={closeSheet} />}
+          {isActive && <ShowTasksButton onShow={closeSheet} />}
         </div>
       </div>
     </>
@@ -163,8 +159,8 @@ export function FilterSheet() {
 }
 
 /**
- * The sheet's foot while a filter is on or a lens is picked, as the top
- * bar's tray end: how many tasks the filter and the lens keep; a tap closes the sheet and opens them in the
+ * The sheet's foot while a filter is on, as the top bar's tray end: how
+ * many tasks the filter keeps; a tap closes the sheet and opens them in the
  * task dialog (whose filter bar edits this filter).
  */
 function ShowTasksButton({ onShow }: { onShow: () => void }) {
