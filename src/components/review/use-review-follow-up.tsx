@@ -4,18 +4,12 @@ import { useFollowupInput } from '../../hooks/use-followup-input'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useToday } from '../../hooks/use-today'
 import { markFollowedUpWithUpdate } from '../../services/mark-followed-up'
-import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { startOfDay } from '../../utils/date'
-import { formatFollowupDate, isFollowedUpToday, nextAfterFollowup } from '../../utils/followup'
+import { isFollowedUpToday } from '../../utils/followup'
 import { statusUpdateText } from '../../utils/status-updates'
+import { followedUpWords, sameDay, useNextFollowupField } from '../shared/followup/use-next-followup-field'
 import { useTooltip } from '../shared/use-tooltip'
 import { useReviewSession, useReviewSessionApi } from './review-session-context'
-
-/** Same day, or both none. */
-function sameDay(a: Date | null, b: Date | null): boolean {
-  return (a ? startOfDay(a).getTime() : null) === (b ? startOfDay(b).getTime() : null)
-}
 
 /**
  * A review card's follow-up (the Review widget's card and its
@@ -30,18 +24,15 @@ export function useReviewFollowUp(todo: PersistedTodoItem, flushNotes: () => Pro
   const todoId = todo.id
   const session = useReviewSessionApi()
   const today = useToday()
-  const autoFollowup = useSettingsStore((s) => s.autoFollowup)
-  const followupDefaultInterval = useSettingsStore((s) => s.followupDefaultInterval)
   const draft = useReviewSession((s) => s.drafts[todoId] ?? '')
   const isLast = useReviewSession((s) => s.index >= s.order.length - 1)
 
   /** `run` after the notes typed so far (each edit its own undo step, in order). */
   const afterNotes = (run: () => unknown) => { void flushNotes().finally(run) }
 
-  const proposal = autoNextFollowup(today, { autoFollowup, followupDefaultInterval })
   const current = todo.nextFollowupAt ?? null
-  const ruled = nextAfterFollowup(current, today, proposal)
-  const input = useFollowupInput(ruled ?? undefined, 'next', today)
+  const field = useNextFollowupField(current, today)
+  const { input, untouched, fieldDate } = field
   // A date typed and not set yet is kept for the task (Back brings it back).
   const typeNext = (text: string) => {
     input.change(text)
@@ -58,10 +49,6 @@ export function useReviewFollowUp(todo: PersistedTodoItem, flushNotes: () => Pro
     const typed = session.getState().nextDrafts[todoId]
     if (typed != null) inputLatest.current.change(typed)
   }, [todoId, inputLatest, session])
-  const s = input.state
-  const untouched = s.kind === 'unchanged'
-  const fieldDate: Date | null | 'invalid' =
-    untouched ? ruled : s.kind === 'empty' ? null : s.kind === 'valid' ? s.date : 'invalid'
   const hasUpdate = statusUpdateText(draft) !== ''
   const doneToday = isFollowedUpToday(todo, today)
 
@@ -81,7 +68,7 @@ export function useReviewFollowUp(todo: PersistedTodoItem, flushNotes: () => Pro
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
     e.preventDefault()
     if (e.repeat || fieldDate === 'invalid') return
-    if (!sameDay(fieldDate, current)) apply(fieldDate)
+    if (field.differs) apply(fieldDate)
     else updateRef.current?.focus()
   }
 
@@ -93,7 +80,7 @@ export function useReviewFollowUp(todo: PersistedTodoItem, flushNotes: () => Pro
    */
   const followUp = () => {
     if (fieldDate === 'invalid') return
-    const options = untouched ? {} : { next: fieldDate }
+    const options = field.followUpNext === undefined ? {} : { next: field.followUpNext }
     const text = draft
     const nextText = session.getState().nextDrafts[todoId]
     const before = useTodoStore.getState().todos.find((t) => t.id === todoId)?.lastFollowupAt?.getTime()
@@ -172,14 +159,7 @@ export function useReviewFollowUp(todo: PersistedTodoItem, flushNotes: () => Pro
   }
 
   // What Mark followed up will do, as the follow-up popover's tooltip says it (the Next field it reads is right above it).
-  const kept = untouched && current !== null && ruled === current
-  const followUpWords = fieldDate === 'invalid'
-    ? 'Fix the next follow-up date first'
-    : kept
-      ? 'Record a follow-up today and keep the next follow-up'
-      : fieldDate === null
-        ? (current === null ? 'Record a follow-up today (no next follow-up)' : 'Record a follow-up today and clear the next follow-up')
-        : `Record a follow-up today and set the next follow-up to ${formatFollowupDate(fieldDate, today)}`
+  const followUpWords = followedUpWords({ ...field, current, today, nameDate: true })
   const { triggerProps: followUpTipProps, tooltip: followUpTip } = useTooltip(
     followUpWords + (hasUpdate && fieldDate !== 'invalid' ? ', and add the status update' : ''),
   )
