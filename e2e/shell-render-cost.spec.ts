@@ -10,7 +10,10 @@ import { seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from '.
  * - a layout change elsewhere (a tab switched in another cell) renders the
  *   workspace page, but no task row's draggable: `DndContext`'s props stay
  *   the same objects (its sensors' options, `onDragEnd`), so dnd-kit's
- *   context doesn't change and its 100+ `useDraggable` consumers don't render.
+ *   context doesn't change and its 100+ `useDraggable` consumers don't render;
+ * - opening and closing the command palette, the shortcuts list and
+ *   Settings renders neither the shell (`AppShell`) nor the workspace page:
+ *   their open flags are read by small hosts (`App.tsx`).
  */
 
 const ROWS = 24
@@ -43,5 +46,38 @@ test('a tab switched in another cell renders the page, but no row’s draggable'
   // The page did render (the layout changed): the check below means something.
   expect(counts.WorkspacePage).toBeGreaterThan(0)
   expect(counts.TaskDraggable).toBe(0)
+  expect(counts.TaskRow).toBe(0)
+})
+
+test('the palette, the shortcuts list and Settings render neither the shell nor the workspace page', async ({ page }) => {
+  await installRenderCounter(page, WATCHED)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await seedWorkspace(page, SEED)
+  await expect(wsListWidget(page, 'plain').locator('[data-todo-id]')).toHaveCount(ROWS)
+  await expectCounterLive(page, 'AppShell')
+  await expectCounterLive(page, 'WorkspacePage')
+  const palette = page.getByLabel('Command palette', { exact: true })
+  const shortcuts = page.getByRole('dialog', { name: 'Keyboard Shortcuts' })
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+
+  await resetRenderCounts(page)
+  await page.keyboard.press('Control+k')
+  await expect(palette).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(palette).toBeHidden()
+
+  await page.keyboard.press('?')
+  await expect(shortcuts).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(shortcuts).toBeHidden()
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(settings).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(settings).toBeHidden()
+
+  const counts = await readRenderCounts(page)
+  expect(counts.AppShell).toBe(0)
+  expect(counts.WorkspacePage).toBe(0)
   expect(counts.TaskRow).toBe(0)
 })
