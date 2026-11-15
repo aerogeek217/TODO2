@@ -33,8 +33,8 @@ import {
 } from './NumberShapeFields'
 import { useLayoutFirstListId } from '../../../hooks/use-number-shapes'
 import { switchShape, type ShapeStash } from './number-shape-switch'
-import { useEditorDraft, usePressElsewhereCloses } from './editor-draft'
-import { useEscapeCloses } from './editor-escape'
+import { useEditorDraft, widgetEditorElsewhere } from './editor-draft'
+import { useEscapeCloses, usePressElsewhereCloses } from '../../../hooks/use-close-events'
 import { EditorFooter } from './EditorFooter'
 import styles from './NumberEditor.module.css'
 
@@ -165,8 +165,8 @@ function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
   })
   const [panel, setPanel] = useState<HTMLDivElement | null>(null)
   const panelEl = useLatestRef(panel)
-  useEscapeCloses(panelEl, edit.requestClose)
-  usePressElsewhereCloses(panelEl, anchorRef, edit.requestClose)
+  useEscapeCloses(panelEl, edit.requestClose, { leaveLayersAbove: true })
+  usePressElsewhereCloses((t) => widgetEditorElsewhere(t, panelEl.current, anchorRef.current), edit.requestClose)
   // The other shapes' fields, kept while the editor is open (D26 P6): switching back brings them back.
   const [stash, setStash] = useState<ShapeStash>({})
   const firstListId = useLayoutFirstListId()

@@ -5,7 +5,8 @@ import { tabListId } from '../../../models/workspace-layout'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { carryOnAfterLeave, useEditorLeave } from '../../../hooks/use-editor-leave'
+import { useEditorLeave } from '../../../hooks/use-editor-leave'
+import { useEscapeCloses, usePressElsewhereCloses } from '../../../hooks/use-close-events'
 import { useListWidgetCount } from '../../../hooks/use-list-widget-count'
 import { useCopySources } from '../../../hooks/use-copy-sources'
 import { listEditChanges, useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -182,34 +183,6 @@ function sharedText(widgets: number): string {
   return widgets === 1 ? 'In 1 widget' : `Shared · ${widgets} widgets`
 }
 
-/** A key that landed on the page itself: nothing is focused. */
-function isPageTarget(target: EventTarget | null): boolean {
-  return !(target instanceof Element) || target === document.body || target === document.documentElement
-}
-
-/**
- * Esc asks the surface to close (`requestClose`) when the key comes from
- * inside it (or with nothing focused) and no layer inside handled it first
- * — a menu or a filter picker opened from it, the close question, take
- * their own Esc. Bubble phase, after those layers.
- */
-function useEscapeCloses(panelRef: React.RefObject<HTMLElement | null>, requestClose: () => boolean): void {
-  const requestRef = useLatestRef(requestClose)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
-      const panel = panelRef.current
-      const inside = panel != null && e.target instanceof Node && panel.contains(e.target)
-      if (!inside && !isPageTarget(e.target)) return
-      e.preventDefault()
-      e.stopPropagation()
-      requestRef.current()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [panelRef, requestRef])
-}
-
 /**
  * Focus goes back where it was when the surface opened — or, when that is
  * gone (the tab menu item it was opened from), to the list's tab — unless
@@ -268,65 +241,19 @@ interface SurfaceProps {
 }
 
 /**
- * A press elsewhere asks the popover to close (`requestClose`). Not
- * elsewhere: inside it, on a control that acts on its list
- * (`EDIT_LIST_KEEP_ATTR`), or in a layer portaled out of the app — the
+ * What a press elsewhere is for Edit list's popover (`usePressElsewhereCloses`):
+ * not inside it, not on a control that acts on its list
+ * (`EDIT_LIST_KEEP_ATTR`), and not in a layer portaled out of the app — the
  * menus, pickers and dialogs opened from it, the close question. A press in
- * the list's own panel counts. A press it lets close goes on to what it
- * pressed; one it holds (it asked) is swallowed, its click too — a tab's
- * alone is made again once the answer is Save or Discard (`carryOnAfterLeave`).
+ * the list's own panel counts.
  */
-function usePressElsewhereCloses(
-  panelRef: React.RefObject<HTMLElement | null>,
-  listDefinitionId: number,
-  requestClose: () => boolean,
-): void {
-  const requestRef = useLatestRef(requestClose)
-  useEffect(() => {
-    const isElsewhere = (t: EventTarget | null): boolean => {
-      if (!(t instanceof Element) || !t.isConnected) return false
-      if (panelRef.current?.contains(t)) return false
-      if (t.closest(`[${EDIT_LIST_KEEP_ATTR}="${listDefinitionId}"]`)) return false
-      const root = document.getElementById('root')
-      if (root && !root.contains(t)) return false
-      return !t.closest('[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="tooltip"]')
-    }
-    // A real press starts with pointerdown (decided there); its mousedown
-    // follows. A lone mousedown (no pointer events) is decided itself.
-    let pointerDecided = false
-    let held = false
-    const onPress = (e: Event) => {
-      if (e.type === 'mousedown' && pointerDecided) {
-        pointerDecided = false
-        if (held) {
-          e.preventDefault()
-          e.stopPropagation()
-        }
-        return
-      }
-      pointerDecided = e.type === 'pointerdown'
-      held = isElsewhere(e.target) && requestRef.current()
-      if (!held) return
-      if (e.type === 'mousedown') e.preventDefault()
-      e.stopPropagation()
-      // A tab pressed: it switches once the question was answered Save or Discard.
-      carryOnAfterLeave(e.target)
-    }
-    const onClick = (e: MouseEvent) => {
-      if (!held) return
-      held = false
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    document.addEventListener('pointerdown', onPress, true)
-    document.addEventListener('mousedown', onPress, true)
-    document.addEventListener('click', onClick, true)
-    return () => {
-      document.removeEventListener('pointerdown', onPress, true)
-      document.removeEventListener('mousedown', onPress, true)
-      document.removeEventListener('click', onClick, true)
-    }
-  }, [panelRef, listDefinitionId, requestRef])
+function isEditListElsewhere(t: EventTarget | null, panel: HTMLElement | null, listDefinitionId: number): boolean {
+  if (!(t instanceof Element) || !t.isConnected) return false
+  if (panel?.contains(t)) return false
+  if (t.closest(`[${EDIT_LIST_KEEP_ATTR}="${listDefinitionId}"]`)) return false
+  const root = document.getElementById('root')
+  if (root && !root.contains(t)) return false
+  return !t.closest('[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="tooltip"]')
 }
 
 /** Where the popover goes: beside the panel (the hook picks the side), or below its filter line when neither side fits. */
@@ -456,7 +383,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
     panelRef(el)
   }, [panelRef])
 
-  usePressElsewhereCloses(panelElRef, listDefinitionId, model.requestClose)
+  usePressElsewhereCloses((t) => isEditListElsewhere(t, panelElRef.current, listDefinitionId), model.requestClose)
   useEscapeCloses(panelElRef, model.requestClose)
   useFocusReturn(panelElRef, tabId)
 

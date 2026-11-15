@@ -25,8 +25,8 @@ import { ExpressionReportProvider } from '../../shared/filters/expression-report
 import { CloseIcon } from '../../shared/icons'
 import { PopoverRoot } from '../../shared/PopoverRoot'
 import { TREND_SHOW_HINTS, TREND_SHOW_LABELS, trendRangeLabel } from './glance-copy'
-import { useEscapeCloses } from './editor-escape'
-import { useEditorDraft, usePressElsewhereCloses } from './editor-draft'
+import { useEditorDraft, widgetEditorElsewhere } from './editor-draft'
+import { useEscapeCloses, usePressElsewhereCloses } from '../../../hooks/use-close-events'
 import { EditorFooter } from './EditorFooter'
 import styles from './ChartEditor.module.css'
 
@@ -86,8 +86,8 @@ function TrendEditor({ tab, anchorRef, onClose }: {
   })
   const [panel, setPanel] = useState<HTMLDivElement | null>(null)
   const panelEl = useLatestRef(panel)
-  useEscapeCloses(panelEl, edit.requestClose)
-  usePressElsewhereCloses(panelEl, anchorRef, edit.requestClose)
+  useEscapeCloses(panelEl, edit.requestClose, { leaveLayersAbove: true })
+  usePressElsewhereCloses((t) => widgetEditorElsewhere(t, panelEl.current, anchorRef.current), edit.requestClose)
 
   // The focus goes back to the widget when it was inside the editor as it closed.
   useEffect(() => () => {

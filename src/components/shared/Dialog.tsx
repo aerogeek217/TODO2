@@ -7,6 +7,7 @@ import { DialogLayerContext, MODAL_BACKDROP_ATTR } from './dialog-layer'
 import { useBackdropPress } from './use-backdrop-press'
 import { tabbables } from '../../utils/focusables'
 import { shortcutScope } from '../../utils/dom-contract'
+import { isPageTarget } from '../../utils/dom-layers'
 
 /**
  * Which tier a dialog (backdrop + panel) sits on, lowest first:
@@ -70,11 +71,6 @@ interface DialogFrameProps {
 function isTopmostModal(panel: HTMLElement): boolean {
   const modals = document.querySelectorAll('[aria-modal="true"]')
   return modals[modals.length - 1] === panel
-}
-
-/** A key that landed on the page itself: nothing is focused. */
-function isPageTarget(target: EventTarget | null): boolean {
-  return !(target instanceof Element) || target === document.body || target === document.documentElement
 }
 
 const LAYER_CLASS: Record<DialogLayer, string | undefined> = {
