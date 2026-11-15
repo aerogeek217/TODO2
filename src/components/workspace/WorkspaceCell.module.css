@@ -304,3 +304,16 @@
     pointer-events: auto;
   }
 }
+
+/* Where a drop lands among a Numbers strip's slots (flair P10): a line down its height. */
+.stripInsertLine {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  z-index: var(--z-above-2);
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--color-accent);
+  pointer-events: none;
+}

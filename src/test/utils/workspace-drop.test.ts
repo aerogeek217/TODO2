@@ -331,3 +331,31 @@ describe('sameDropHit', () => {
     expect(sameDropHit({ kind: 'tab-strip', cellId: 'a', index: 2, lineX: 40 }, { kind: 'tab-strip', cellId: 'a', index: 3, lineX: 40 })).toBe(false)
   })
 })
+
+describe('a strip of Numbers (flair P10)', () => {
+  const r = (left: number, top: number, right: number, bottom: number) => ({ left, top, right, bottom })
+  // One cell of three Numbers, each slot 300px wide, no header.
+  const strip: CellGeometry = {
+    id: 'k', rect: r(0, 0, 900, 60), header: null, body: r(0, 0, 900, 60), empty: false, strip: true,
+    tabs: [{ id: 'a', rect: r(0, 0, 300, 60) }, { id: 'b', rect: r(300, 0, 600, 60) }, { id: 'c', rect: r(600, 0, 900, 60) }],
+  }
+  const geo: WorkspaceGeometry = { area: r(-6, -6, 906, 66), cells: [strip] }
+  const layout = {
+    name: 'L', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0),
+    grid: { columns: [{ id: 'c1', weight: 1000 }], rows: [{ id: 'r1', weight: 1000 }] },
+    cells: [{ id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [createTab('number', 'a'), createTab('number', 'b'), createTab('number', 'c')] }],
+  } as WorkspaceLayout
+
+  it('its middle takes a drop between its slots, its sides still split', () => {
+    expect(hitTestWorkspace(geo, { x: 470, y: 30 })).toEqual({ kind: 'tab-strip', cellId: 'k', index: 2, lineX: 599 })
+    expect(hitTestWorkspace(geo, { x: 450, y: 2 })).toEqual({ kind: 'cell-body', cellId: 'k', zone: 'top' })
+  })
+
+  it('dragging a slot onto another place reorders it; the label says Add to strip', () => {
+    const hit = hitTestWorkspace(geo, { x: 650, y: 30 })!
+    const target = dropTargetForHit(layout, geo, hit, { type: 'tab', tabId: 'a' })
+    // Before c's middle: between b and c — index 1 among the other tabs (b, c).
+    expect(target).toEqual({ kind: 'cell', cellId: 'k', index: 1 })
+    expect(dropLabel(geo, target!, 1)).toBe('Add to strip')
+  })
+})

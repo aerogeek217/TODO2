@@ -48,6 +48,8 @@ export interface CellGeometry {
   rect: Rect
   /** The header (tab strip) as drawn; absent for an empty cell and a cell of one widget (it has no strip). */
   header: Rect | null
+  /** A strip of Numbers (flair P10): no header, its slots are its `tabs`, side by side in its body. */
+  strip?: boolean
   /**
    * The body below the header — a cell of one widget's is the whole card,
    * collapsed or not —; absent for a collapsed cell with a strip and an
@@ -230,7 +232,12 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
   if (cell.empty) return { kind: 'empty-cell', cellId: cell.id }
   const strip = cell.header
   if (strip && inside(strip, p)) return stripHit(cell, strip, p)
-  if (cell.body && inside(cell.body, p)) return { kind: 'cell-body', cellId: cell.id, zone: bodyZone(cell.body, p) }
+  if (cell.body && inside(cell.body, p)) {
+    const zone = bodyZone(cell.body, p)
+    // A strip of Numbers (flair P10): its middle takes the drop between its slots.
+    if (zone === 'middle' && cell.strip && cell.tabs.length > 0) return stripHit(cell, cell.body, p)
+    return { kind: 'cell-body', cellId: cell.id, zone }
+  }
   return null
 }
 
@@ -325,6 +332,9 @@ export function tabLabel(tabCount = 1): string {
   return tabCount > 1 ? `Add ${tabCount} tabs` : 'Add as tab'
 }
 
+/** A drop into a strip of Numbers (flair P10). */
+export const STRIP_LABEL = 'Add to strip'
+
 /** What a drop on `target` says: "Split Late · above", "Insert row · full width", "Add as tab". */
 export function dropLabel(geo: WorkspaceGeometry, target: LayoutDropTarget, tabCount: number): string {
   switch (target.kind) {
@@ -335,7 +345,7 @@ export function dropLabel(geo: WorkspaceGeometry, target: LayoutDropTarget, tabC
     case 'insert':
       return insertLabel(target.edge)
     case 'cell':
-      return tabLabel(tabCount)
+      return geo.cells.find((c) => c.id === target.cellId)?.strip ? STRIP_LABEL : tabLabel(tabCount)
     case 'layout':
       return 'First cell'
   }

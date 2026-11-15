@@ -424,6 +424,9 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             onResult={setWidgetResult}
             onFace={setSlotFace}
           />
+          {stripHit && drag?.insertLeft != null && (
+            <span className={styles.stripInsertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
+          )}
           {/* The strip's grip: drags the whole cell, a click its layout menu. */}
           <span className={styles.stripGrip}>
             <CellGrip
