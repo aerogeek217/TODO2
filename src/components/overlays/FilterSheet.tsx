@@ -6,6 +6,7 @@ import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-cri
 import type { TodoPredicate } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
+import { ScreenExpression } from '../shared/filters/ScreenExpression'
 import { useScreenTaskCount } from '../../hooks/use-screen-task-count'
 import { screenTaskDialog, showTasksLabel } from '../../services/task-dialog'
 import { unmatchedNote, useSearchBox } from '../../hooks/use-search-box'
@@ -144,6 +145,8 @@ export function FilterSheet() {
             </div>
           )}
 
+          {/* A filter typed on desktop that no section says: read-only, with its ×. */}
+          <ScreenExpression className={styles.expression} />
           <FilterChipBar
             predicate={predicate}
             onChange={handleChange}

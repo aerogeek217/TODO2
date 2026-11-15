@@ -387,4 +387,30 @@ describe('FilterSheet', () => {
       expect(useUIStore.getState().isFilterSheetOpen).toBe(false)
     })
   })
+
+  // ── A filter typed on desktop (feedback P2) ───────────────────────
+
+  describe('a typed expression', () => {
+    it('shows read-only in words with a × that clears it and keeps the chips', () => {
+      useFilterStore.getState().applyExpression({ kind: 'and', items: [
+        { kind: 'person', id: 1 },
+        { kind: 'or', items: [{ kind: 'person', id: 2 }, { kind: 'text', text: 'budget' }] },
+      ] }, false)
+      renderSheet()
+      const row = document.querySelector('[data-screen-expression]')
+      expect(row).not.toBeNull()
+      expect(row).toHaveTextContent('Bob')
+      expect(row).toHaveTextContent('budget')
+      fireEvent.click(screen.getByRole('button', { name: 'Clear the typed filter' }))
+      expect(useFilterStore.getState().filters.expression).toBeUndefined()
+      expect(useFilterStore.getState().filters.personIds).toEqual(new Set([1]))
+      expect(document.querySelector('[data-screen-expression]')).toBeNull()
+    })
+
+    it('shows nothing while the chips say the whole filter', () => {
+      useFilterStore.getState().applyExpression({ kind: 'person', id: 1 }, false)
+      renderSheet()
+      expect(document.querySelector('[data-screen-expression]')).toBeNull()
+    })
+  })
 })
