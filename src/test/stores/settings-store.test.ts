@@ -112,6 +112,22 @@ describe('useSettingsStore', () => {
     expect(document.documentElement.style.getPropertyValue('--color-app-bg')).toBe('#ddeeff')
   })
 
+  it('light theme: Focus’s own colour is darkened for its typed token’s text, as the accent is (cr34 U6)', async () => {
+    const inline = (name: string) => document.documentElement.style.getPropertyValue(name)
+    await useSettingsStore.getState().setColor('light', 'focus', '#3b82f6')
+    await useSettingsStore.getState().setColor('dark', 'focus', '#8ab4f8')
+    // Dark: the colour as it is (the dark theme's `--color-accent-text` is the accent itself).
+    expect(inline('--color-marker-focus')).toBe('#8ab4f8')
+    expect(inline('--color-marker-focus-text')).toBe('#8ab4f8')
+    await useSettingsStore.getState().setThemeMode('light')
+    // Light: the ring and glow take the colour as picked; the token's text is darkened.
+    expect(inline('--color-marker-focus')).toBe('#3b82f6')
+    expect(inline('--color-marker-focus-text')).toBe('color-mix(in srgb, #3b82f6 76%, black)')
+    expect(inline('--color-marker-focus-bg')).toBe('color-mix(in srgb, #3b82f6 12%, transparent)')
+    await useSettingsStore.getState().setThemeMode('dark')
+    expect(inline('--color-marker-focus-text')).toBe('#8ab4f8')
+  })
+
   it('a failed theme or colour save puts the page back too', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     await useSettingsStore.getState().load()
