@@ -4,29 +4,28 @@ import { taskRowByTitle } from './fixtures/seed'
 import { reviewField, seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * Boards BJ, BL, task layout A · the one task layout in a real browser: the
- * task editor at 760px with the facts rail (268px) on the left — Priority,
- * Status, People, Tags, Due, each under a plain heading — and the writing on
- * the right — Notes and Subtasks, then the dock: Status updates and the
- * follow-up rows (Next, Last) —; the rail and the dock stay put while Notes
- * and Subtasks scroll, so the follow-up rows and the add line are in view
- * without scrolling for a typical task and after the writing of a long one
- * is scrolled; an empty task still shows the Notes box and every heading;
- * under 600px of body the rail goes above the writing, its facts two up.
- * The header's ⋯ (Duplicate, Make subtask of…, Delete); the footer's Mark
- * followed up and Done. The review card in the same layout (the Review
- * widget, reached by a list's Review these N tasks): queue (300px), facts,
- * writing left to right; Next follow-up's quick row is 1w 2w 1m 3m (no None
- * — its × clears it); ⏎ in the update line still follows up. The person task
- * dialog's Review button (a jump; no check-in buttons, widget feedback 2B).
- * Board BL's own checks are `reviewer-layout.spec.ts`; the sizes and the
- * overlaps of task layout A, `task-layout-a.spec.ts`.
+ * Task layout B (feedback 2026-11-15) · the one task layout in a real
+ * browser: the task editor (920px) with the fact band under the title —
+ * Priority, Status, People, Tags, Due, each under a plain heading — then
+ * Subtasks and Notes on the left and Status updates on the right, the log
+ * anchored over its update line; the follow-up fields in the footer. A long
+ * task's columns scroll inside while the update line and the footer stay in
+ * view; an empty task still shows the Notes box and every heading, in a
+ * short popup; under 600px of body the columns stack. The header's ⋯
+ * (Duplicate, Make subtask of…, Delete); the footer's Mark followed up and
+ * Done. The review card in the same layout (the Review widget, reached by a
+ * list's Review these N tasks): queue (300px) beside the card; Next
+ * follow-up's quick row is 1w 2w 1m 3m (no None — its × clears it); ⏎ in the
+ * update line still follows up. The person task dialog's Review button (a
+ * jump; no check-in buttons, widget feedback 2B). Board BL's remaining checks
+ * are `reviewer-layout.spec.ts`; the sizes and the overlaps of task layout B,
+ * `task-layout-b.spec.ts`.
  */
 
 const TAB = 'l1'
 const MANY_SUBTASKS = Array.from({ length: 14 }, (_, i) => ({ title: `Step ${i + 1}`, done: i < 3 }))
 const MANY_UPDATES = Array.from({ length: 9 }, (_, i) => ({ text: `Update ${i + 1}`, inDays: -(9 - i) }))
-const RAIL_ORDER = ['priority', 'status', 'people', 'tags', 'due']
+const FACT_ORDER = ['priority', 'status', 'people', 'tags', 'due']
 
 const SEED: WorkspaceSeed = {
   people: ['Aisha', 'Ben'],
@@ -95,13 +94,6 @@ async function scrollState(el: Locator) {
   }))
 }
 
-/** `inner` lies wholly inside `outer`'s box (½px of rounding). */
-async function expectWithin(inner: Locator, outer: Locator) {
-  const [i, o] = [await box(inner), await box(outer)]
-  expect(i.y).toBeGreaterThanOrEqual(o.y - 0.5)
-  expect(i.y + i.height).toBeLessThanOrEqual(o.y + o.height + 0.5)
-}
-
 test.describe('the task editor', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -115,57 +107,55 @@ test.describe('the task editor', () => {
     expect(Math.abs(await centre(dialog.getByRole('button', { name: 'Close' })) - check)).toBeLessThanOrEqual(0.5)
   })
 
-  test('760px: the facts rail (268px) left in its order, the writing right; the follow-up rows in view without scrolling', async ({ page }) => {
+  test('920px: the fact band in its order, Subtasks and Notes left of Status updates; the footer’s fields in view without scrolling', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page)
-    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(760)
+    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(920)
 
-    const rail = dialog.locator('[data-task-rail]')
+    const band = dialog.locator('[data-task-facts]')
     const writing = dialog.locator('[data-task-writing]')
-    const [r, w] = [await box(rail), await box(writing)]
-    expect(Math.round(r.width)).toBe(268)
-    expect(r.x + r.width).toBeLessThanOrEqual(w.x + 0.5)
-    // The writing column keeps room to write in (the card stays 760px).
-    expect(w.width).toBeGreaterThanOrEqual(460)
-    // The rail's facts, top to bottom, each header in the one muted label colour (board BL).
-    const facts = rail.locator('[data-fact]')
-    expect(await facts.evaluateAll((els) => els.map((el) => el.getAttribute('data-fact')))).toEqual(RAIL_ORDER)
+    const updatesCol = dialog.locator('[data-task-updates]')
+    const [b, w, u] = [await box(band), await box(writing), await box(updatesCol)]
+    expect(w.y).toBeGreaterThanOrEqual(b.y + b.height - 1)
+    expect(w.x + w.width).toBeLessThanOrEqual(u.x + 0.5)
+    // The writing column keeps room to write in.
+    expect(w.width).toBeGreaterThanOrEqual(420)
+    // The band's facts, left to right, each header in the one muted label colour.
+    const facts = band.locator('[data-fact]')
+    expect(await facts.evaluateAll((els) => els.map((el) => el.getAttribute('data-fact')))).toEqual(FACT_ORDER)
     const colours = await facts.evaluateAll((els) => els.map((el) => getComputedStyle(el.querySelector('[id]')!).color))
     expect(new Set(colours).size).toBe(1)
-    // The writing: Notes, Subtasks, Status updates.
-    const notes = writing.locator('[data-task-notes]')
+    // The writing: Subtasks, then Notes; Status updates beside them.
     const subtasks = writing.locator('[data-subtasks]')
-    const updates = writing.locator('[data-status-updates]')
-    expect((await box(notes)).y).toBeLessThan((await box(subtasks)).y)
-    expect((await box(subtasks)).y).toBeLessThan((await box(updates)).y)
+    const notes = writing.locator('[data-task-notes]')
+    expect((await box(subtasks)).y).toBeLessThan((await box(notes)).y)
+    await expect(updatesCol.locator('[data-status-updates]')).toBeVisible()
 
-    // A typical task: nothing scrolls, the follow-up rows (in the dock) and Mark followed up (the footer's) are in view.
-    expect((await scrollState(rail)).overflows).toBe(false)
-    const followup = dialog.locator('[data-task-followup]')
-    await expectWithin(followup, dialog.locator('[data-task-dock]'))
+    // A typical task: nothing scrolls; the footer's fields and Mark followed up are in view.
+    expect((await scrollState(writing)).overflows).toBe(false)
+    const followup = dialog.locator('[data-task-footer] [data-task-followup]')
     await expect(followup).toBeInViewport({ ratio: 1 })
     await expect(dialog.getByRole('button', { name: 'Mark followed up' })).toBeInViewport({ ratio: 1 })
     // One date look: the rows' words, the full date in the tooltip.
-    await expect(rail.locator('[data-fact="due"]')).toContainText('3 days late')
+    await expect(band.locator('[data-fact="due"]')).toContainText('3 days late')
     await expect(followup.getByRole('textbox', { name: 'Last follow-up' })).toHaveValue(/.+/)
     await expect(followup).toContainText('2 weeks ago')
-    await page.screenshot({ path: test.info().outputPath('editor-bj.png') })
+    await page.screenshot({ path: test.info().outputPath('editor-b.png') })
   })
 
-  test('a long task: Notes and Subtasks scroll above the dock, the rail stays put; the checklist and the log scroll inside', async ({ page }) => {
+  test('a long task: the writing scrolls inside, the band and the footer stay put; the checklist and the log scroll inside', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page, 'Long running migration')
     const writing = dialog.locator('[data-task-writing]')
-    const scroll = writing.locator('[data-task-writing-scroll]')
-    expect((await scrollState(scroll)).overflows).toBe(true)
-    const followup = dialog.locator('[data-task-followup]')
+    expect((await scrollState(writing)).overflows).toBe(true)
+    const followup = dialog.locator('[data-task-footer] [data-task-followup]')
     const addLine = dialog.getByRole('textbox', { name: 'New status update' })
     const [before, lineBefore] = [await box(followup), await box(addLine)]
-    await scroll.evaluate((node) => { node.scrollTop = node.scrollHeight })
+    await writing.evaluate((node) => { node.scrollTop = node.scrollHeight })
     expect((await box(followup)).y).toBe(before.y)
     await expect(followup).toBeInViewport({ ratio: 1 })
     await expect(dialog.getByRole('button', { name: 'Mark followed up' })).toBeInViewport({ ratio: 1 })
-    // The dock doesn't scroll with the writing: its add line stays where it was, in view.
+    // Status updates doesn't scroll with the writing: its add line stays where it was, in view.
     expect((await box(addLine)).y).toBe(lineBefore.y)
     await expect(addLine).toBeInViewport({ ratio: 1 })
 
@@ -178,30 +168,32 @@ test.describe('the task editor', () => {
     await expect(list.locator('[data-status-update]').first()).toContainText('Update 1')
     await expect(list.locator('[data-status-update]').last()).toContainText('Update 9')
     expect((await scrollState(list)).atBottom).toBe(true)
-    await page.screenshot({ path: test.info().outputPath('editor-bj-long.png') })
+    await page.screenshot({ path: test.info().outputPath('editor-b-long.png') })
   })
 
   test('an empty task: the Notes box and every heading are there; a click in the box types into it', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page, 'Empty task')
     const writing = dialog.locator('[data-task-writing]')
+    const body = dialog.locator('[data-task-body]')
     // No one-line sections any more (board BL): the Notes box with its placeholder, and each label drawn.
     await expect(writing.getByRole('button', { name: 'Add notes' })).toHaveCount(0)
     const notes = writing.locator('[data-task-notes] .cm-content')
     await expect(notes).toBeVisible()
     await expect(writing.locator('[data-task-notes] .cm-placeholder')).toHaveText('Add notes…')
     for (const label of ['Notes', 'Subtasks', 'Status updates']) {
-      expect((await box(writing.getByText(label, { exact: true }))).height).toBeGreaterThanOrEqual(10)
+      expect((await box(body.getByText(label, { exact: true }))).height).toBeGreaterThanOrEqual(10)
     }
-    for (const line of [writing.getByPlaceholder('Add subtask'), writing.getByRole('textbox', { name: 'New status update' })]) {
+    for (const line of [writing.getByPlaceholder('Add subtask'), body.getByRole('textbox', { name: 'New status update' })]) {
       expect((await box(line)).height).toBeLessThanOrEqual(36)
     }
-    // The writing column fills the body; Notes is one line, the room to spare stays above the dock (task layout A).
-    const [rail, body, column] = [await box(dialog.locator('[data-task-rail]')), await box(dialog.locator('[data-task-body]')), await box(writing)]
-    expect(Math.abs(rail.height - body.height)).toBeLessThan(2)
-    expect(Math.abs(column.height - body.height)).toBeLessThan(2)
+    // Both columns fill the body, which is no taller than its content: Notes is one line, the popup short.
+    const [bodyBox, column, updatesCol] = [await box(dialog.locator('[data-task-body]')), await box(writing), await box(dialog.locator('[data-task-updates]'))]
+    expect(Math.abs(column.height - bodyBox.height)).toBeLessThan(2)
+    expect(Math.abs(updatesCol.height - bodyBox.height)).toBeLessThan(2)
+    expect(bodyBox.height).toBeLessThan(220)
     expect((await box(writing.locator('[data-task-notes-box]'))).height).toBeLessThan(40)
-    await page.screenshot({ path: test.info().outputPath('editor-bl-empty.png') })
+    await page.screenshot({ path: test.info().outputPath('editor-b-empty.png') })
 
     await notes.click()
     await expect(notes).toBeFocused()
@@ -210,7 +202,7 @@ test.describe('the task editor', () => {
     await expect(writing.locator('[data-task-notes] .cm-placeholder')).toHaveCount(0)
   })
 
-  test('the people picker opens under the chips, picks, and closes on Esc without closing the editor', async ({ page }) => {
+  test('the people picker opens under the pills from the +, picks, and closes on Esc without closing the editor', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page, 'Empty task')
     const add = dialog.getByRole('button', { name: 'Add person' })
@@ -225,7 +217,7 @@ test.describe('the task editor', () => {
     await expect(dialog).toBeVisible()
   })
 
-  test('the header’s ⋯: Duplicate, Make subtask of…, Delete; the footer is Mark followed up and Done', async ({ page }) => {
+  test('the header’s ⋯: Duplicate, Make subtask of…, Delete; the footer ends with Mark followed up and Done', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page)
     const footer = dialog.locator('button', { hasText: 'Done' })
@@ -245,32 +237,31 @@ test.describe('the task editor', () => {
     await expect(taskRowByTitle(page, 'Vendor contract renewal')).toHaveCount(0)
   })
 
-  test('under 600px of body the rail goes above the writing, its facts two up; the dock with the follow-up rows last', async ({ page }) => {
+  test('under 600px of body one column: Subtasks, Notes, then Status updates; the band two or more lines', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await openEditor(page)
     await page.setViewportSize({ width: 580, height: 900 })
     // The resize swaps the card's open animation for the sheet's: one it cancels settles too.
     await editor(page).evaluate((el) => Promise.allSettled(el.getAnimations({ subtree: true }).map((a) => a.finished)))
-    const rail = editor(page).locator('[data-task-rail]')
+    const band = editor(page).locator('[data-task-facts]')
     const writing = editor(page).locator('[data-task-writing]')
-    const [r, w] = [await box(rail), await box(writing)]
-    expect(w.y).toBeGreaterThanOrEqual(r.y + r.height - 1)
-    // The dock is the writing's last part there, in the one scroll.
-    const [s, d] = [await box(writing.locator('[data-task-writing-scroll]')), await box(writing.locator('[data-task-dock]'))]
-    expect(d.y).toBeGreaterThanOrEqual(s.y + s.height - 1)
-    const [line, next] = [await box(writing.getByRole('textbox', { name: 'New status update' })), await box(writing.getByRole('textbox', { name: 'Next follow-up' }))]
-    expect(next.y).toBeGreaterThan(line.y + line.height)
-    const [priority, status] = [await box(rail.locator('[data-fact="priority"]')), await box(rail.locator('[data-fact="status"]'))]
+    const updatesCol = editor(page).locator('[data-task-updates]')
+    const [b, w, u] = [await box(band), await box(writing), await box(updatesCol)]
+    expect(w.y).toBeGreaterThanOrEqual(b.y + b.height - 1)
+    expect(u.y).toBeGreaterThanOrEqual(w.y + w.height - 1)
+    const [priority, status] = [await box(band.locator('[data-fact="priority"]')), await box(band.locator('[data-fact="status"]'))]
     expect(Math.abs(priority.y - status.y)).toBeLessThan(2)
-    expect(status.x).toBeGreaterThan(priority.x + priority.width - 1)
-    await page.screenshot({ path: test.info().outputPath('editor-bj-narrow.png') })
+    expect(status.x).toBeGreaterThanOrEqual(priority.x + priority.width - 1.5)
+    const due = await box(band.locator('[data-fact="due"]'))
+    expect(due.y).toBeGreaterThan(priority.y + priority.height - 2)
+    await page.screenshot({ path: test.info().outputPath('editor-b-narrow.png') })
   })
 })
 
 test.describe('the review card', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('queue, facts and writing left to right; Next’s quick row has no None; × clears it; ⏎ follows up', async ({ page }) => {
+  test('queue beside the card, the band over the columns; Next’s quick row has no None; × clears it; ⏎ follows up', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await wsListWidget(page, TAB).waitFor({ state: 'visible' })
     await wsTab(page, TAB).click({ button: 'right' })
@@ -280,18 +271,19 @@ test.describe('the review card', () => {
     await expect(deck.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
     await deck.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
     const card = deck.locator('[data-review-card]')
-    const [queue, rail, writing] = [
+    const [queue, band, writing, updatesCol] = [
       await box(deck.locator('[data-review-rail]')),
-      await box(card.locator('[data-task-rail]')),
+      await box(card.locator('[data-task-facts]')),
       await box(card.locator('[data-task-writing]')),
+      await box(card.locator('[data-task-updates]')),
     ]
     expect(Math.round(queue.width)).toBe(300)
-    expect(Math.round(rail.width)).toBe(268)
-    expect(queue.x + queue.width).toBeLessThanOrEqual(rail.x + 0.5)
-    expect(rail.x + rail.width).toBeLessThanOrEqual(writing.x + 0.5)
-    expect(await card.locator('[data-task-rail] [data-fact]').evaluateAll((els) => els.map((el) => el.getAttribute('data-fact')))).toEqual(RAIL_ORDER)
+    expect(queue.x + queue.width).toBeLessThanOrEqual(band.x + 0.5)
+    expect(writing.y).toBeGreaterThanOrEqual(band.y + band.height - 1)
+    expect(writing.x + writing.width).toBeLessThanOrEqual(updatesCol.x + 0.5)
+    expect(await card.locator('[data-task-facts] [data-fact]').evaluateAll((els) => els.map((el) => el.getAttribute('data-fact')))).toEqual(FACT_ORDER)
 
-    const followup = card.locator('[data-task-followup]')
+    const followup = deck.locator('[data-review-footer] [data-task-followup]')
     await expect(followup.getByRole('group', { name: 'Quick follow-up intervals' }).getByRole('button')).toHaveText(['1w', '2w', '1m', '3m'])
     await expect(deck.getByRole('button', { name: 'No next follow-up' })).toHaveCount(0)
     await expect(followup.getByRole('button', { name: 'Mark followed up' })).toHaveCount(0)
@@ -300,7 +292,7 @@ test.describe('the review card', () => {
     const updateLine = deck.getByLabel('Status update · today')
     await expect(updateLine).toBeFocused()
     await expect(updateLine).toBeInViewport({ ratio: 1 })
-    await page.screenshot({ path: test.info().outputPath('review-card-bj.png') })
+    await page.screenshot({ path: test.info().outputPath('review-card-b.png') })
 
     // The field's × (shown on its hover and focus): no next follow-up (Mark followed up then leaves none).
     await followup.getByRole('textbox', { name: 'Next follow-up' }).focus()
@@ -308,7 +300,7 @@ test.describe('the review card', () => {
     await expect(followup.getByRole('textbox', { name: 'Next follow-up' })).toHaveValue('')
     // No hint over the footer any more: the field's own help says it.
     await expect(deck.getByTestId('review-hint')).toHaveCount(0)
-    await expect(followup.locator('[data-followup-row="next"] [aria-live]')).toHaveText('No next follow-up')
+    await expect(followup.locator('[data-followup-help] [aria-live]').last()).toHaveText('No next follow-up')
 
     // ⏎ keeps its meaning: the update and the follow-up, then the next card, its line focused.
     await updateLine.fill('Legal is on it')

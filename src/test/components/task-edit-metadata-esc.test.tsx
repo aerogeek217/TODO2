@@ -1,4 +1,4 @@
-// Esc in the facts rail's People / Tags search closes just that picker and
+// Esc in the fact band's People / Tags search closes just that picker and
 // goes no further, so the review deck (or a dialog) around it stays open.
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'

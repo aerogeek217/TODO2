@@ -2,10 +2,10 @@ import { formatDateWith, formatRowDate, startOfDay, MS_PER_DAY } from './date'
 import { relativeDayPhrase } from './followup'
 import type { RowDates } from './row-dates'
 
-/** Which of the task layout's dates (board BJ's facts rail): its words differ only when late. */
+/** Which of the task layout's dates (the fact band's due date, the footer's follow-up fields): its words differ only when late. */
 export type FactDateKind = 'due' | 'next' | 'last'
 
-/** A date as the facts rail shows it. */
+/** A date as the task layout shows it. */
 interface FactDateWords {
   /** As a list row writes it (`Today`, `Fri`, `11/06` — `formatRowDate`). */
   words: string

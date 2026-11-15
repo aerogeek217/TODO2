@@ -173,10 +173,11 @@
   animation: checkPop 0.2s ease;
 }
 
+/* Regular weight (flair P5): the priority's semibold cue stands out against it. */
 .title {
   display: block;
   font-size: var(--font-size-task);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-regular);
   color: var(--color-text-primary);
   min-width: 0;
   overflow: hidden;

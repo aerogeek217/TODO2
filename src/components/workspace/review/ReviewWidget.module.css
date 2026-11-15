@@ -246,13 +246,10 @@
 
 /* ── Faces ──────────────────────────────────────────────────────────────── */
 
-/* Large: the dialog's layout (board BL, task layout A) — the queue beside the card, the footer under
- * both; the card never stacks. The columns give way in a small cell: the queue from 300px down to
- * 220px, the card's facts rail (`TaskDetails.module.css` reads `--task-rail-width`; `cqw` there is
- * the card's) from 268px down to 220px, the writing taking the rest (340px at the least). */
+/* Large: the queue beside the card, the footer under both (board B-Review, task layout B). The queue
+ * gives way in a small cell, from 300px down to 220px; the card (its fact band, its two columns)
+ * takes the rest, its columns stacking under 600px. */
 .large {
-  --task-rail-width: clamp(220px, 33cqw, 268px);
-
   flex: 1;
   min-height: 0;
   display: grid;
