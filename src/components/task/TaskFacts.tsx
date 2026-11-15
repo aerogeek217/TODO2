@@ -10,7 +10,7 @@ import { useTooltip } from '../shared/use-tooltip'
 import { StatusMenuPopover } from './StatusMenuPopover'
 import styles from './TaskDetails.module.css'
 
-/** The facts rail's sections (task layout A), top to bottom: Due is the last (the follow-up dates are the dock's). */
+/** The fact band's cells (task layout B), left to right: Due is the last (the follow-up dates are the footer's). */
 type FactKind = 'priority' | 'status' | 'people' | 'tags' | 'due'
 
 const FACT_LABELS: Record<FactKind, string> = {
@@ -22,11 +22,11 @@ const FACT_LABELS: Record<FactKind, string> = {
 }
 
 /**
- * A section of the task layout's facts rail (boards BJ, BL, task layout A —
- * the task editor and the review card alike): its header — the fact's name
- * as the app's standard section label (the writing's `NOTES` / `SUBTASKS`:
- * 11px bold caps, muted; no colour, no icon — colour is the values') — then
- * its value. A hairline separates it from the section above.
+ * A cell of the task layout's fact band (task layout B — the task editor and
+ * the review card alike): its header — the fact's name as the app's standard
+ * section label (the writing's `NOTES` / `SUBTASKS`: 11px bold caps, muted;
+ * no colour, no icon — colour is the values') — over its value. A thin
+ * divider separates it from the cell before it (`TaskDetails.module.css`).
  */
 export function FactSection({ fact, children }: { fact: FactKind; children: ReactNode }) {
   const id = useId()
@@ -61,7 +61,7 @@ function FactDateWords({ date, kind, tone, empty }: {
   return (
     <>
       <span className={styles.dateWords} data-tone={tone}>{w.words}</span>
-      {w.relative && <span className={styles.dateRelative}>{w.relative}</span>}
+      {w.relative && <span className={styles.dateRelative} data-date-relative="">{w.relative}</span>}
     </>
   )
 }
@@ -74,7 +74,7 @@ function useFactDateTitle(date: Date | null | undefined, kind: FactDateKind): st
 }
 
 /**
- * A typed date field (a follow-up's, in the dock's rows) in the one date
+ * A typed date field (a follow-up's, in the footer) in the one date
  * look: at rest it shows the date's words over the field (`FactDateWords`)
  * — the field's own text hidden under them, in its quiet box —, and a click
  * or the focus shows the field as typed (`Mon 16 Nov`, typed entry such as
@@ -121,7 +121,7 @@ interface PriorityFactsProps {
 }
 
 /**
- * Priority, first in the rail: the marker toggles in display order (Focus ›
+ * Priority, first in the band: the marker toggles in display order (Focus ›
  * Urgent › Important) — off muted in a hairline, on the marker's colour on
  * its tint. The Urgent toggle shows and flips the flag only; a due date that
  * makes the task urgent anyway is a hint (the clock after the label, the
@@ -203,10 +203,9 @@ interface StatusFactsProps {
 }
 
 /**
- * Status, second in the rail (none while no status is defined): the status
+ * Status, second in the band (none while no status is defined): the status
  * pill and its menu — No Status, then each status (`StatusMenuPopover`, the
- * app's menu: it follows the pill and stays in the viewport, the rail being
- * a scroller). Enter, Space, ↓ or a click on the pill opens it with the
+ * app's menu: it follows the pill and stays in the viewport). Enter, Space, ↓ or a click on the pill opens it with the
  * focus on the current status; a press outside, Tab or Esc closes the menu
  * only — never the dialog around it (cr31 T8) —, the focus back on the pill
  * (cr34 U1: the menu is portaled out of the dialog, whose Tab never reaches

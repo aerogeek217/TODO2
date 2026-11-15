@@ -137,7 +137,7 @@ describe('TaskEditPopup — follow-up group', () => {
     expect(onCreate.mock.calls[0]![0].nextFollowupAt).toEqual(day(2026, 10, 24))
   })
 
-  it('create mode: no Mark followed up (task layout A: it is the edit footer’s); a Last date typed goes into the new task', async () => {
+  it('create mode: no Mark followed up (it is the edit footer’s); a Last date typed goes into the new task', async () => {
     const { onCreate } = renderCreate()
     expect(screen.queryByRole('button', { name: 'Mark followed up' })).toBeNull()
     fireEvent.change(lastInput(), { target: { value: 'today' } })

@@ -308,9 +308,10 @@
 
 /* ── Card ───────────────────────────────────────────────────────────────── */
 
-/* The task editor's layout (boards BJ, BL): the box and title, then the
- * shared body (`TaskDetailsBody`: the facts rail, the writing and its dock)
- * between them and the footer; on its host's ground. */
+/* The task editor's layout (task layout B): the box and title, then the
+ * shared body (`TaskDetailsBody`: the fact band, then Subtasks and Notes beside
+ * Status updates) between them and the footer; on its host's ground. It fills
+ * its grid area; the columns scroll inside. */
 .card {
   grid-area: card;
   display: flex;
@@ -324,36 +325,29 @@
   container-name: review-card;
 }
 
-/* A short card (the widget in a short cell): no room to pin the dock under 120px of writing, so
- * nothing is pinned — under the title the body scrolls as one, the facts beside the writing, the
- * dock after Notes and Subtasks. The log keeps to four entries (it scrolls inside, open at its
- * newest), so the update line stays near. 390px: the title (56px), 120px of writing and the dock
- * with one entry (214px). */
+/* A short card (the widget in a short cell): too short for the columns to scroll inside with any
+ * room, so under the title the band and the columns scroll as one — each column as tall as it is,
+ * the log keeping to four entries (it scrolls inside, open at its newest), so the update line stays
+ * near. 390px: the title (56px), the band (66px), and the columns' headings, a line of each and the
+ * update line. */
 @container review-card (max-height: 389px) {
-  /* One row as tall as the taller column (the columns' own `min-height: 0` would hold it to the card's height). */
   .card :global([data-task-body]) {
+    flex: none;
     grid-template-rows: max-content;
     align-content: start;
+  }
+
+  .card :global([data-task-frame]) {
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--color-tint-8) transparent;
   }
 
-  .card :global([data-task-rail]) {
-    overflow: visible;
-  }
-
   .card :global([data-task-writing]) {
-    display: block;
     overflow: visible;
   }
 
-  .card :global([data-task-writing-scroll]) {
-    min-height: 0;
-    overflow: visible;
-  }
-
-  .card :global([data-task-dock]) :global([data-status-update-list]) {
+  .card :global([data-task-updates]) :global([data-status-update-list]) {
     max-height: 116px;
   }
 }
@@ -440,6 +434,47 @@
   min-width: 0;
   padding: 0 20px;
   border-top: 1px solid var(--color-border-muted);
+  container-type: inline-size;
+  container-name: review-footer;
+}
+
+/* The card's footer (task layout B): ‹ Back and Skip › at its left end (last in the DOM, after Mark
+ * followed up, so the update line's Tab reaches the follow-up fields first), then the follow-up
+ * fields taking the room between, then Mark followed up ›. */
+.footerSteps {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  order: -1;
+}
+
+.footer > [data-task-followup] {
+  flex: 1 1 auto;
+  margin: 0 6px 0 12px;
+}
+
+/* As the footer narrows (the widget's cell): the quick intervals go first, then the fields' words
+ * shorten to the date (the relative part goes; the fields narrow), then the labels go. */
+@container review-footer (max-width: 999px) {
+  .footer [data-followup-quick] {
+    display: none;
+  }
+}
+
+@container review-footer (max-width: 819px) {
+  .footer [data-fact-date-field] {
+    width: 116px;
+  }
+
+  .footer [data-date-relative] {
+    display: none;
+  }
+}
+
+@container review-footer (max-width: 699px) {
+  .footer [data-followup-label] {
+    display: none;
+  }
 }
 
 .secondaryBtn {

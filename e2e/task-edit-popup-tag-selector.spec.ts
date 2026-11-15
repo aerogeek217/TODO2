@@ -22,7 +22,7 @@ test('TaskEditPopup edit mode shows registry tags in the Tags picker', async ({ 
   const taskRow = taskRowByTitle(page, 'Some task')
   await taskRow.locator('span[data-task-title="Some task"]').dblclick()
 
-  // Wait for the popup. The facts rail's Tags section has a `+` (Add tag)
+  // Wait for the popup. The fact band's Tags cell has a `+` (Add tag)
   // that toggles the chip selector.
   const editor = page.getByRole('dialog', { name: 'Edit task' })
   await expect(editor.getByRole('region', { name: 'Tags' })).toBeVisible()

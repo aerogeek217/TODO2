@@ -4,7 +4,7 @@ import { useSelectAllOnFocus } from '../../hooks/use-select-all-on-focus'
 import { useToday } from '../../hooks/use-today'
 import { addFollowupInterval, formatFollowupDate, relativeDayPhrase, QUICK_FOLLOWUP_INTERVALS } from '../../utils/followup'
 import { FactDateField, type FactDateTone } from './TaskFacts'
-import { TaskFollowupRows } from './TaskFollowupRows'
+import { TaskFollowupFields } from './TaskFollowupFields'
 import { FollowupDateButton } from '../shared/followup/FollowupDateButton'
 import { FollowupQuickButtons } from '../shared/followup/FollowupQuickButtons'
 import styles from '../shared/followup/Followup.module.css'
@@ -39,13 +39,13 @@ function HelpText({ state, today }: { state: FollowupInputState; today: Date }) 
 }
 
 /**
- * The task editor's follow-up rows, in the dock under the status update
- * line (task layout A; `TaskFollowupRows` draws them): **Next** — the date
- * in the rows' words at rest, typed entry on a click or the focus (an
- * interval or a date; × clears, the calendar picks), then the quick
- * intervals 1w 2w 1m 3m and the help line; **Last** (a date, never in the
- * future; the calendar). ⏎ / Tab / blur commit; Esc reverts; invalid input
- * keeps the old value until fixed. Mark followed up is the footer's.
+ * The task editor's follow-up fields, in its footer before Mark followed up
+ * (task layout B; `TaskFollowupFields` draws them): **Last** (a date, never
+ * in the future; the calendar), then **Next** — the date in the rows' words
+ * at rest, typed entry on a click or the focus (an interval or a date; ×
+ * clears, the calendar picks), then the quick intervals 1w 2w 1m 3m; their
+ * help lines in the footer's spare room. ⏎ / Tab / blur commit; Esc reverts;
+ * invalid input keeps the old value until fixed.
  */
 export function FollowupEditorGroup({
   next, last, onNextChange, onLastChange, nextTone, nextHint, selectNextOnFocus = false,
@@ -87,7 +87,7 @@ export function FollowupEditorGroup({
   }
 
   return (
-    <TaskFollowupRows
+    <TaskFollowupFields
       next={{
         field: (
           <FactDateField date={next} kind="next" tone={nextTone} empty="None" showWords={!nextInput.dirty}>
@@ -143,7 +143,7 @@ export function FollowupEditorGroup({
           <span className={styles.rowHelp} aria-live="polite">
             {nextInput.dirty
               ? <HelpText state={nextInput.state} today={today} />
-              : nextHint && <span className={styles.editorHint}>{nextHint}</span>}
+              : nextHint && <span className={styles.editorHint} title={nextHint}>{nextHint}</span>}
           </span>
         ),
       }}

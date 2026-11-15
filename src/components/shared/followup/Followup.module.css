@@ -276,10 +276,10 @@
   opacity: 0.75;
 }
 
-/* ═══ The task layout's follow-up rows (task layout A, `TaskFollowupRows`) ═══ */
+/* ═══ The task layout's follow-up fields (task layout B, `TaskFollowupFields`) ═══ */
 
-/* A row's help line, after its field and quick intervals: it takes the rest of the line (cut with
- * an ellipsis), and wraps under the field when less than 96px is left. Gone while it says nothing. */
+/* A field's help line, in the fields' help slot (the footer's spare room before them; after them in
+ * the medium face's row): cut with an ellipsis. Gone while it says nothing. */
 .rowHelp {
   display: block;
   flex: 1 1 96px;
