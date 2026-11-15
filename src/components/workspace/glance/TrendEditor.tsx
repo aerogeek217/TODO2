@@ -1,4 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useState, type RefObject } from 'react'
+import { WidgetEditorHost } from './WidgetEditorHost'
 import { createPortal } from 'react-dom'
 import {
   CHART_NAME_MAX,
@@ -12,15 +13,13 @@ import {
   type TrendRange,
   type TrendTabConfig,
 } from '../../../models/glance-widgets'
-import type { TrendTab } from '../../../models/workspace-layout'
+import type { LayoutTab, TrendTab } from '../../../models/workspace-layout'
 import { trendFilter } from '../../../hooks/use-glance-data'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { hasFilterClause } from '../../../utils/filter-clauses'
-import { getTab } from '../../../utils/workspace-layout-queries'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { ExpressionReportProvider } from '../../shared/filters/expression-report'
 import { CloseIcon } from '../../shared/icons'
@@ -30,54 +29,18 @@ import { useEscapeCloses } from './editor-escape'
 import { useEditorDraft, usePressElsewhereCloses } from './editor-draft'
 import { EditorFooter } from './EditorFooter'
 import styles from './ChartEditor.module.css'
-import { widgetElement } from '../../../utils/dom-contract'
-
-/** The Created vs completed tab `tabId` names in the open layout, if it is one. */
-function useTrendTab(tabId: string | null): TrendTab | undefined {
-  return useWorkspaceStore((s) => {
-    const tab = tabId != null && s.working ? getTab(s.working, tabId) : undefined
-    return tab?.kind === 'trend' ? tab : undefined
-  })
-}
 
 /**
  * Created vs completed's open editor (`chart-widgets-store.trendEditorTabId`),
- * under the widget's title (`[data-trend-head]`, found on screen). Hosted by
- * the workspace page outside the widget tree, as the chart editor
- * (`ChartEditorHost`); it closes when the widget leaves the layout or the
- * screen.
+ * under the widget's title (`[data-trend-head]`).
  */
 export function TrendEditorHost() {
   const tabId = useChartWidgetsStore((s) => s.trendEditorTabId)
-  const tab = useTrendTab(tabId)
   const close = useChartWidgetsStore((s) => s.closeTrendEditor)
-  // The layout: a change (the tab made active, a row expanded) may bring the widget on screen;
-  // the editor's live preview may draw its title anew.
-  const working = useWorkspaceStore((s) => s.working)
-  const preview = useWidgetPreviewStore((s) => (tabId != null ? s.configs[tabId] : undefined))
-  const anchorRef = useRef<HTMLElement | null>(null)
-  const [found, setFound] = useState<string | null>(null)
-  useLayoutEffect(() => {
-    if (!tab) return
-    // Looked for now, and over the next frames while the widget mounts (a tab just shown).
-    let frames = 0
-    let raf = 0
-    const look = () => {
-      const el = widgetElement(tab.id, `[data-trend-head="${CSS.escape(tab.id)}"]`)
-      anchorRef.current = el
-      setFound(el ? tab.id : null)
-      if (!el && ++frames < 30) raf = requestAnimationFrame(look)
-    }
-    look()
-    return () => cancelAnimationFrame(raf)
-  }, [tab, working, preview])
-  useEffect(() => {
-    if (tabId != null && !tab) close()
-  }, [tabId, tab, close])
-  useEffect(() => () => useChartWidgetsStore.getState().closeTrendEditor(), [])
-  if (!tab || found !== tab.id) return null
-  return <TrendEditor key={tab.id} tab={tab} anchorRef={anchorRef} onClose={close} />
+  return <WidgetEditorHost tabId={tabId} isKind={isTrendTab} anchor="data-trend-head" close={close} Editor={TrendEditor} />
 }
+
+const isTrendTab = (tab: LayoutTab): tab is TrendTab => tab.kind === 'trend'
 
 /**
  * Created vs completed's editor (the chart editor's pattern): its name, the

@@ -1,4 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useState, type ReactNode, type RefObject } from 'react'
+import { WidgetEditorHost } from './WidgetEditorHost'
 import { createPortal } from 'react-dom'
 import {
   BREAKDOWN_COLUMNS_MAX,
@@ -26,11 +27,9 @@ import { NONE_ROW_LABELS } from '../../../services/stats/breakdown'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { hasFilterClause } from '../../../utils/filter-clauses'
 import { HUE_PRESET_HEX } from '../../../utils/layout-hue'
 import { emptyPredicate } from '../../../models/filter-predicate'
-import { getTab } from '../../../utils/workspace-layout-queries'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { ExpressionReportProvider } from '../../shared/filters/expression-report'
 import { CloseIcon, PlusIcon } from '../../shared/icons'
@@ -42,53 +41,15 @@ import { useEscapeCloses } from './editor-escape'
 import { useEditorDraft, usePressElsewhereCloses } from './editor-draft'
 import { EditorFooter } from './EditorFooter'
 import styles from './ChartEditor.module.css'
-import { widgetElement } from '../../../utils/dom-contract'
-
-/** The chart tab `tabId` names in the open layout, if it is one. */
-function useChartTab(tabId: string | null): ChartTab | undefined {
-  return useWorkspaceStore((s) => {
-    const tab = tabId != null && s.working ? getTab(s.working, tabId) : undefined
-    return tab && isChartTab(tab) ? tab : undefined
-  })
-}
 
 /**
  * The open chart editor (`chart-widgets-store.editorTabId`), under its
- * chart's title (`[data-chart-head]`, found on screen). Hosted by the
- * workspace page, outside the widget tree, so no key or press in it reaches
- * the cell's handlers (React events bubble through portals) — as the
- * Number editor. It closes when the chart leaves the layout or the screen.
+ * chart's title (`[data-chart-head]`).
  */
 export function ChartEditorHost() {
   const tabId = useChartWidgetsStore((s) => s.editorTabId)
-  const tab = useChartTab(tabId)
   const close = useChartWidgetsStore((s) => s.closeEditor)
-  // The layout: a change (the tab made active, a row expanded) may bring the chart on screen;
-  // the editor's live preview may draw its title anew.
-  const working = useWorkspaceStore((s) => s.working)
-  const preview = useWidgetPreviewStore((s) => (tabId != null ? s.configs[tabId] : undefined))
-  const anchorRef = useRef<HTMLElement | null>(null)
-  const [found, setFound] = useState<string | null>(null)
-  useLayoutEffect(() => {
-    if (!tab) return
-    // Looked for now, and over the next frames while the chart mounts (a new one, a tab just shown).
-    let frames = 0
-    let raf = 0
-    const look = () => {
-      const el = widgetElement(tab.id, `[data-chart-head="${CSS.escape(tab.id)}"]`)
-      anchorRef.current = el
-      setFound(el ? tab.id : null)
-      if (!el && ++frames < 30) raf = requestAnimationFrame(look)
-    }
-    look()
-    return () => cancelAnimationFrame(raf)
-  }, [tab, working, preview])
-  useEffect(() => {
-    if (tabId != null && !tab) close()
-  }, [tabId, tab, close])
-  useEffect(() => () => useChartWidgetsStore.getState().closeEditor(), [])
-  if (!tab || found !== tab.id) return null
-  return <ChartEditor key={tab.id} tab={tab} anchorRef={anchorRef} onClose={close} />
+  return <WidgetEditorHost tabId={tabId} isKind={isChartTab} anchor="data-chart-head" close={close} Editor={ChartEditor} />
 }
 
 function Select<V extends string>({ label, value, options, labels, onChange }: {
