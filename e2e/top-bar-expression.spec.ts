@@ -209,6 +209,30 @@ test('a text chips can say becomes chips: the Filter menu’s pickers show them 
   await expect(page.getByRole('option', { name: 'Sam Ortiz' })).toHaveAttribute('aria-selected', 'true')
 })
 
+test('the palette’s Pause / Resume Filter pauses and resumes it; with no filter the snackbar says so', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await expect.poll(() => listTitles(page)).toEqual(ALL)
+  const runPause = async () => {
+    await page.keyboard.press('ControlOrMeta+k')
+    await page.getByRole('combobox').fill('pause')
+    await page.getByRole('option', { name: /Pause \/ Resume Filter/ }).click()
+  }
+  await runPause()
+  await expect(page.getByText('No filter to pause.')).toBeVisible()
+
+  await field(page).click()
+  await page.keyboard.type('#q4', { delay: 10 })
+  await page.keyboard.press('Enter')
+  await field(page).blur()
+  await expect.poll(() => listTitles(page)).toEqual(['Priya q4 plan'])
+  await runPause()
+  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => listTitles(page)).toEqual(ALL)
+  await runPause()
+  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(() => listTitles(page)).toEqual(['Priya q4 plan'])
+})
+
 /** Calls a filter-store action in the page. */
 async function filterAction(page: Page, action: 'search' | 'pause', arg: string | boolean) {
   await page.evaluate(async ([action, arg]) => {

@@ -229,6 +229,7 @@ export function createCommands(
     // Filter presets
     { id: 'filter-show-completed', name: 'Toggle Show Completed', category: 'filter', action: () => ctx.setShowCompleted(!ctx.getShowCompleted()) },
     { id: 'filter-clear', name: 'Clear All Filters', category: 'filter', action: ctx.clearAllFilters },
+    bound('filter-pause', 'Pause / Resume Filter', 'pause-filter', 'filter'),
     { id: 'filter-overdue', name: 'Show Overdue Tasks', category: 'filter', action: () => {
       ctx.clearAllFilters()
       const yesterday = new Date(startOfToday().getTime() - 1)
