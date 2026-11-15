@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
-import type { PersistedTodoItem, TodoEvent } from '../models'
+import type { PersistedTodoItem } from '../models'
 import { emptyPredicate } from '../models/filter-predicate'
 import type { NumberConfig } from '../models/glance-widgets'
 import { DEFAULT_NUMBER_OLDEST_BY, type NumberGroupItem, type NumberOldestBy } from '../models/number-shapes'
 import type { LensTab } from '../models/workspace-layout'
-import { filterHistory, historyExactness } from '../services/stats/filter-history'
+import { countReplayed, historyExactness, type TaskReplays } from '../services/stats/filter-history'
 import { numberHistoryDays } from '../services/stats/number-count'
 import { oldestOf, shareOf, shareSeries, type NumberOldest, type NumberShare } from '../services/stats/number-shapes'
 import { statsFilter } from '../services/stats/stats-context'
@@ -20,7 +20,7 @@ import type { FilterCriteria } from '../utils/filter-criteria'
 import type { FilterSettings } from '../utils/filter-match'
 import { sharedMemo, sharedMemoByKey } from '../utils/shared-memo'
 import { useBuiltList } from './use-built-list'
-import { lookupsFor, numberCountOf, type NumberCount, type NumberHistory, type StatsBase } from './use-glance-data'
+import { historyReplayMemo, lineBeforeWrite, lookupsFor, numberCountOf, useOffRender, type NumberCount, type NumberHistory, type StatsBase } from './use-glance-data'
 import { useEffectiveListDefinition } from './use-list-draft'
 import { useListScreenFilter } from './use-list-screen-filter'
 import { useTabBadges, type TabBadge } from './use-tab-badges'
@@ -32,8 +32,6 @@ import { useTrendEvents } from './use-trend-events'
  * so any number of them on screen compute once and never evict each other.
  * The statistics are the pure `services/stats/number-shapes`.
  */
-
-type Tasks = readonly PersistedTodoItem[]
 
 /** The `of` of a share that names none: every open task (one object, so its count is shared). */
 const EVERY_OPEN = emptyPredicate()
@@ -68,8 +66,7 @@ const shareHistoryMemo = sharedMemoByKey(function shareHistory(
   filter: FilterCriteria,
   of: FilterCriteria,
   screen: FilterCriteria,
-  todos: Tasks,
-  events: readonly TodoEvent[],
+  replays: TaskReplays,
   days: Date[],
   lookups: TodoNameLookups,
   settings: FilterSettings,
@@ -77,24 +74,38 @@ const shareHistoryMemo = sharedMemoByKey(function shareHistory(
 ): NumberHistory {
   const shown = statsFilter(screen)
   const opts = { lookups, settings }
-  const parts = filterHistory([shown, of, filter], todos, events, days, opts)
-  const wholes = filterHistory([shown, of], todos, events, days, opts)
+  const parts = countReplayed([shown, of, filter], replays, opts)
+  const wholes = countReplayed([shown, of], replays, opts)
   return {
     days,
     series: shareSeries(parts, wholes),
     exactness: historyExactness([shown, of, filter], days[0] ?? new Date(0), historyLogSince),
   }
-})
+}, undefined, 2)
 
-/** A share's 14-day line: each day's percent, both filters replayed (`filter-history`); `null` until the history is read. */
+/**
+ * A share's 14-day line: each day's percent, both filters counted over the
+ * one replay every Number shares (`use-glance-data.historyReplayMemo`);
+ * `null` until the history is read. After a change it shows the line it had
+ * until the new one is computed, a moment later (`useOffRender`).
+ */
 export function useShareHistory(base: StatsBase, data: NumberShareData): NumberHistory | null {
   const events = useTrendEvents('history')
   const historyLogSince = useSettingsStore((s) => s.historyLogSince)
   const days = historyDaysMemo(base.ctx.today.getTime())
-  if (!events) return null
   const { count, whole } = data
   const lookups = lookupsFor(base, count.screen, count.filter, whole.filter)
-  return shareHistoryMemo(count.filter, whole.filter, count.screen, base.todos, events, days, lookups, base.markerSettings, historyLogSince)
+  const { todos, markerSettings } = base
+  const replayed = events ? historyReplayMemo.peek(todos, events, days, lookups.assignedPeopleMap, lookups.assignedTagsMap) : undefined
+  const now = replayed ? shareHistoryMemo.peek(count.filter, whole.filter, count.screen, replayed, days, lookups, markerSettings, historyLogSince) : undefined
+  // The line it had while only a write or the screen filter came between (the same whole, day and settings).
+  const kept = events ? shareHistoryMemo.last(count.filter) : undefined
+  const last = kept && kept.deps[0] === whole.filter && lineBeforeWrite(kept.deps.slice(3), [days, lookups, markerSettings, historyLogSince]) ? kept.value : undefined
+  return useOffRender<NumberHistory | null>(now, last, () => {
+    if (!events) return null
+    const replays = historyReplayMemo(todos, events, days, lookups.assignedPeopleMap, lookups.assignedTagsMap)
+    return shareHistoryMemo(count.filter, whole.filter, count.screen, replays, days, lookups, markerSettings, historyLogSince)
+  })
 }
 
 // ── Oldest ──────────────────────────────────────────────────────────────────

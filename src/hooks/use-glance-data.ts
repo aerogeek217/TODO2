@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useReducer } from 'react'
 import type { PersistedTodoItem, Tag, TodoEvent, TodoPredicate } from '../models'
 import { TREND_RANGES, type NumberConfig, type TrendRange, type TrendTabConfig } from '../models/glance-widgets'
 import { emptyPredicate } from '../models/filter-predicate'
-import { filterHistory, historyExactFrom, historyExactness, type HistoryExactness, type HistoryField } from '../services/stats/filter-history'
+import { countReplayed, historyExactFrom, historyExactness, replayTasks, type HistoryExactness, type HistoryField, type TaskReplays } from '../services/stats/filter-history'
 import { numberHistoryDays, numberIds, numberStages } from '../services/stats/number-count'
 import { computePulse, type PulseCard } from '../services/stats/pulse'
 import { pulseRuleFilter, type PulseRuleKey, type PulseTabConfig } from '../models/pulse-config'
@@ -21,6 +21,7 @@ import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCr
 import { applyFilter, matchesFilterWithLookups, readsText, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { WeekStart } from '../utils/effective-date'
+import { registerModuleReset } from '../utils/module-reset'
 import { sameElements, sharedMemo, sharedMemoByKey } from '../utils/shared-memo'
 import { useToday } from './use-today'
 import { useTrendEvents } from './use-trend-events'
@@ -162,12 +163,29 @@ export function lensHidesWhere(info: LensHidden | null, keep: (t: PersistedTodoI
   return n
 }
 
+// Kept per (first) filter: a widget's count is matched once per change of what the lens hides, not on
+// every render of every widget (each frame of a divider drag re-renders them all — cr34 G7).
+const lensHidesMemo = sharedMemoByKey(function lensHides(
+  first: FilterCriteria,
+  hidden: PersistedTodoItem[],
+  lookups: TodoNameLookups,
+  ctx: StatsContext,
+  settings: FilterSettings,
+  ...rest: FilterCriteria[]
+): number {
+  const criteria = [first, ...rest]
+  let n = 0
+  for (const t of hidden) if (criteria.some((c) => matchesFilterWithLookups(c, t, lookups, ctx.today, settings))) n++
+  return n
+}, undefined, 2)
+
 /** How many of the tasks the lens hides `filter` keeps (as a Number counts: open ones unless it admits completed). */
 export function lensHidesFor(info: LensHidden | null, ...filters: TodoPredicate[]): number {
-  if (!info || filters.length === 0) return 0
-  const criteria = filters.map((f) => numberCriteriaMemo(f))
-  const lookups = lookupsFor(info.base, ...criteria)
-  return lensHidesWhere(info, (t, base) => criteria.some((c) => matchesFilterWithLookups(c, t, lookups, base.ctx.today, base.markerSettings)))
+  if (!info) return 0
+  const [first, ...rest] = filters.map((f) => numberCriteriaMemo(f))
+  if (!first) return 0
+  const lookups = lookupsFor(info.base, first, ...rest)
+  return lensHidesMemo(first, info.hidden, lookups, info.base.ctx, info.base.markerSettings, ...rest)
 }
 
 /**
@@ -209,6 +227,14 @@ export interface TrendData {
 /** No filter: every task (a config without one). */
 const EVERY_TASK: TodoPredicate = emptyPredicate()
 
+/**
+ * The input sets a memo keyed by a filter keeps: two — callers sharing a
+ * filter (the constants `EVERY_TASK` and a share's `EVERY_OPEN`, or two
+ * widgets with equal filters) may differ by their lens switch, and with one
+ * set kept they evicted each other on every render (cr34 G8).
+ */
+const LENS_SLOTS = 2
+
 /** Created vs completed's filter: its own, else one keeping every task (the same object each time, so the memos keyed on it hit). */
 export function trendFilter(config: Pick<TrendTabConfig, 'filter'>): TodoPredicate {
   return config.filter ?? EVERY_TASK
@@ -222,7 +248,8 @@ function narrows(f: FilterCriteria): boolean {
 // One memo per range, each keeping a set per filter (`sharedMemoByKey`): any
 // number of these widgets on screen never evict one another, and two with the
 // same filter and range compute once.
-const filteredTrendMemos = Object.fromEntries(TREND_RANGES.map((range) => [range, sharedMemoByKey(function filteredTrend(
+type FilteredTrend = (filter: FilterCriteria, screen: FilterCriteria, todos: Tasks, events: readonly TodoEvent[], ctx: StatsContext, lookups: TodoNameLookups, settings: FilterSettings) => TrendStats
+const filteredTrendMemos = Object.fromEntries(TREND_RANGES.map((range): [TrendRange, FilteredTrend] => [range, sharedMemoByKey(function filteredTrend(
   filter: FilterCriteria,
   screen: FilterCriteria,
   todos: Tasks,
@@ -233,11 +260,11 @@ const filteredTrendMemos = Object.fromEntries(TREND_RANGES.map((range) => [range
 ): TrendStats {
   const stages = [statsFilter(screen), { ...filter, showCompleted: true }]
   return computeTrend(todos, events, ctx, range, { stages, lookups, settings })
-})])) as Record<TrendRange, (filter: FilterCriteria, screen: FilterCriteria, todos: Tasks, events: readonly TodoEvent[], ctx: StatsContext, lookups: TodoNameLookups, settings: FilterSettings) => TrendStats>
+}, undefined, LENS_SLOTS)])) as Record<TrendRange, FilteredTrend>
 
 const trendExactMemo = sharedMemoByKey(function trendExact(stats: TrendStats, filter: FilterCriteria | null, screen: FilterCriteria, historyLogSince: Date | null) {
   return filter ? historyExactFrom([statsFilter(screen), filter], stats.window.days, historyLogSince) : { from: 0, approximate: [] }
-})
+}, undefined, LENS_SLOTS)
 
 const trendDataMemo = sharedMemoByKey(function trendData(stats: TrendStats, exact: { from: number; approximate: HistoryField[] }, filtered: boolean): TrendData {
   return { stats, exactFrom: exact.from, approximate: exact.approximate, filtered }
@@ -288,15 +315,44 @@ export function lookupsFor(base: StatsBase, ...filters: FilterCriteria[]): TodoN
   return filters.some(readsText) ? base.lookups : idLookupsMemo(base.ctx.assignedPeopleMap, base.ctx.assignedTagsMap, base.ctx.statuses)
 }
 
+/** How many filters' criteria are kept by their content (far more than a workspace shows). */
+const CRITERIA_KEPT = 256
+
+/**
+ * A filter's criteria by its content. A layout read again from the database
+ * (every layout switch) hands each widget a new, equal filter object: by
+ * identity alone, every memo keyed on the criteria missed and each Number
+ * replayed its history on every switch (cr34 M12). One criteria object per
+ * distinct filter keeps them hitting.
+ */
+let criteriaByContent = new Map<string, FilterCriteria>()
+registerModuleReset(() => { criteriaByContent = new Map() })
+
+/** A stored filter is plain data; should a set or a map ever sit in one, its members are its content (JSON alone writes `{}` for both). */
+function contentOf(_key: string, value: unknown): unknown {
+  if (value instanceof Set) return { set: [...(value as Set<unknown>)] }
+  if (value instanceof Map) return { map: [...(value as Map<unknown, unknown>)] }
+  return value
+}
+
 // Each Number's parts are memoized per its filter (`sharedMemoByKey`): a
 // dashboard of Numbers never evict one another.
 const numberCriteriaMemo = sharedMemoByKey(function numberCriteria(filter: TodoPredicate): FilterCriteria {
-  return predicateToCriteria(filter)
+  const content = JSON.stringify(filter, contentOf)
+  const kept = criteriaByContent.get(content)
+  if (kept) return kept
+  const criteria = predicateToCriteria(filter)
+  if (criteriaByContent.size >= CRITERIA_KEPT) {
+    const oldest = criteriaByContent.keys().next()
+    if (!oldest.done) criteriaByContent.delete(oldest.value)
+  }
+  criteriaByContent.set(content, criteria)
+  return criteria
 })
 
 const numberIdsShownMemo = sharedMemoByKey(function numberIdsShown(filter: FilterCriteria, tasks: Tasks, lookups: TodoNameLookups, ctx: StatsContext, settings: FilterSettings) {
   return numberIds(filter, tasks, lookups, ctx.today, settings)
-}, sameElements)
+}, sameElements, LENS_SLOTS)
 const numberIdsTotalMemo = sharedMemoByKey(function numberIdsTotal(filter: FilterCriteria, tasks: Tasks, lookups: TodoNameLookups, ctx: StatsContext, settings: FilterSettings) {
   return numberIds(filter, tasks, lookups, ctx.today, settings)
 }, sameElements)
@@ -315,7 +371,7 @@ export interface NumberCount {
 
 const numberCountMemo = sharedMemoByKey(function numberCount(filter: FilterCriteria, screen: FilterCriteria, shown: number[], total: number[]): NumberCount {
   return { filter, screen, filtered: countActiveFilters({ ...screen, showCompleted: false }) > 0, ids: { shown, total } }
-})
+}, undefined, LENS_SLOTS)
 
 /**
  * A Number's count (`services/stats/number-count`): its filter over the
@@ -347,11 +403,25 @@ const historyDaysMemo = sharedMemo(function historyDays(todayMs: number) {
   return numberHistoryDays(new Date(todayMs))
 })
 
+/**
+ * Every task replayed to each of the history days' ends: read by no filter,
+ * so every Number's line on screen counts from this one replay
+ * (`countReplayed`) — each replayed every task itself before (cr34 M12).
+ */
+export const historyReplayMemo = sharedMemo(function historyReplay(
+  todos: Tasks,
+  events: readonly TodoEvent[],
+  days: Date[],
+  assignedPeopleMap: TodoNameLookups['assignedPeopleMap'],
+  assignedTagsMap: TodoNameLookups['assignedTagsMap'],
+): TaskReplays {
+  return replayTasks(todos, events, days, { assignedPeopleMap, assignedTagsMap })
+})
+
 const numberHistoryMemo = sharedMemoByKey(function numberHistory(
   filter: FilterCriteria,
   screen: FilterCriteria,
-  todos: Tasks,
-  events: readonly TodoEvent[],
+  replays: TaskReplays,
   days: Date[],
   lookups: TodoNameLookups,
   settings: FilterSettings,
@@ -361,22 +431,86 @@ const numberHistoryMemo = sharedMemoByKey(function numberHistory(
   const firstDay = days[0] ?? new Date(0)
   return {
     days,
-    series: filterHistory(stages, todos, events, days, { lookups, settings }),
+    series: countReplayed(stages, replays, { lookups, settings }),
     exactness: historyExactness(stages, firstDay, historyLogSince),
   }
-})
+}, undefined, LENS_SLOTS)
+
+/** Runs `run` once the browser is idle (soon, where it can't say); returns what cancels it. */
+function whenIdle(run: () => void): () => void {
+  if (typeof requestIdleCallback === 'function') {
+    const id = requestIdleCallback(run, { timeout: IDLE_TIMEOUT_MS })
+    return () => cancelIdleCallback(id)
+  }
+  const id = setTimeout(run, 0)
+  return () => clearTimeout(id)
+}
+
+/** The longest a line waits for an idle moment before it is computed anyway. */
+const IDLE_TIMEOUT_MS = 300
+
+/**
+ * A history line computed off the render that asks for it (cr34 M12; the
+ * user's answer 13: a Number's line and its change may update a moment after
+ * a write). `now`: the line when the memos hold it for the current inputs;
+ * `last`: the line this filter had before a write or a change of the screen
+ * filter — only those (`lineBeforeWrite`); `compute`: computes and keeps it.
+ *
+ * With `now`, that. Else, while there is a `last` to show, `last` — and the
+ * current one is computed once the browser is idle, then drawn; a newer
+ * request before that replaces it, so a run of writes or keystrokes computes
+ * once. With nothing to show (the filter's first line, or anything else
+ * changed: the day, a setting, when the log began), it is computed here.
+ */
+export function useOffRender<T>(now: T | undefined, last: T | undefined, compute: () => T): T {
+  const [, redraw] = useReducer((n: number) => n + 1, 0)
+  const pending = now === undefined && last != null
+  useEffect(() => {
+    if (!pending) return undefined
+    return whenIdle(() => {
+      compute()
+      redraw()
+    })
+  })
+  return now ?? last ?? compute()
+}
+
+/**
+ * Whether a kept line differs from the one asked for only by what a write
+ * changes: `kept` and `asked` are the memo's inputs after the screen filter
+ * and the replay — the days, the lookups (which a write to a task's people,
+ * tags or text replaces), the settings, when the log began.
+ */
+export function lineBeforeWrite(kept: readonly unknown[], asked: readonly [Date[], TodoNameLookups, FilterSettings, Date | null]): boolean {
+  const [days, , settings, since] = asked
+  return kept[0] === days && kept[2] === settings && kept[3] === since
+}
 
 /**
  * A Number's 14-day line (`filter-history`): its filter under its screen
- * filter, every task replayed to each day's end; `null` until the history
- * has been read.
+ * filter, counted over every task replayed to each day's end; `null` until
+ * the history has been read. After a change (a task write, the screen
+ * filter) it shows the line it had until the new one is computed, a moment
+ * later (`useOffRender`).
  */
 export function useNumberHistory(base: StatsBase, count: NumberCount): NumberHistory | null {
   const events = useTrendEvents('history')
   const historyLogSince = useSettingsStore((s) => s.historyLogSince)
   const days = historyDaysMemo(base.ctx.today.getTime())
-  if (!events) return null
-  return numberHistoryMemo(count.filter, count.screen, base.todos, events, days, lookupsFor(base, count.screen, count.filter), base.markerSettings, historyLogSince)
+  const lookups = lookupsFor(base, count.screen, count.filter)
+  const { todos, markerSettings } = base
+  const { filter, screen } = count
+  const replayed = events ? historyReplayMemo.peek(todos, events, days, lookups.assignedPeopleMap, lookups.assignedTagsMap) : undefined
+  const now = replayed ? numberHistoryMemo.peek(filter, screen, replayed, days, lookups, markerSettings, historyLogSince) : undefined
+  // The line it had while only the tasks, their events or names, or the screen filter have changed since.
+  const kept = events ? numberHistoryMemo.last(filter) : undefined
+  const last = kept && lineBeforeWrite(kept.deps.slice(2), [days, lookups, markerSettings, historyLogSince]) ? kept.value : undefined
+  // No history read yet: nothing kept, nothing to show, and `compute` says so (`null`).
+  return useOffRender<NumberHistory | null>(now, last, () => {
+    if (!events) return null
+    const replays = historyReplayMemo(todos, events, days, lookups.assignedPeopleMap, lookups.assignedTagsMap)
+    return numberHistoryMemo(filter, screen, replays, days, lookups, markerSettings, historyLogSince)
+  })
 }
 
 // ── Project pulse (D25 L) ───────────────────────────────────────────────────

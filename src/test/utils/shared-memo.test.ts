@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { FRESH_MISSES_WARN, SHARED_MEMO_WARNING, sameElements, sharedMemo } from '../../utils/shared-memo'
+import { FRESH_MISSES_WARN, SHARED_MEMO_WARNING, sameElements, sharedMemo, sharedMemoByKey } from '../../utils/shared-memo'
 
 describe('sharedMemo', () => {
   it('computes once per set of inputs, compared by identity', () => {
@@ -77,5 +77,93 @@ describe('sharedMemo', () => {
     }
     expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
+  })
+})
+
+// cr34 G8 / M12: what the glance widgets' memos lean on.
+describe('sharedMemo: two input sets asked for in turn', () => {
+  it('`same` finds the kept value among every kept set, not only the newest', () => {
+    const a = { id: 1 }
+    const b = { id: 2 }
+    // Two callers, `lensed` and `unlensed`, each with its own first input; the task array changes under both.
+    const lensed = {}
+    const unlensed = {}
+    const memo = sharedMemo((_which: object, xs: readonly object[]) => xs.filter((x) => x !== b), 2, sameElements)
+    const first = memo(lensed, [a, b])
+    const other = memo(unlensed, [a, b])
+    // The same elements: the two sets share one array.
+    expect(other).toBe(first)
+    // A write hands both a new array holding the same tasks: each gets its kept array back,
+    // though the newest kept entry is the other caller's each time.
+    const again = [a, b]
+    expect(memo(lensed, again)).toBe(first)
+    expect(memo(unlensed, again)).toBe(first)
+  })
+
+  it('`peek` returns a kept value without computing, and nothing for inputs it doesn’t hold', () => {
+    const compute = vi.fn((xs: readonly number[]) => xs.length)
+    const memo = sharedMemo(compute)
+    const xs = [1, 2, 3]
+    expect(memo.peek(xs)).toBeUndefined()
+    expect(compute).not.toHaveBeenCalled()
+    expect(memo(xs)).toBe(3)
+    expect(memo.peek(xs)).toBe(3)
+    expect(memo.peek([1, 2, 3])).toBeUndefined()
+    expect(compute).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('sharedMemoByKey', () => {
+  it('keeps one input set per key by default: callers with different keys never evict each other', () => {
+    const compute = vi.fn((key: { n: number }, xs: readonly number[]) => key.n + xs.length)
+    const memo = sharedMemoByKey(compute)
+    const k1 = { n: 1 }
+    const k2 = { n: 2 }
+    const xs = [1, 2]
+    expect(memo(k1, xs)).toBe(3)
+    expect(memo(k2, xs)).toBe(4)
+    expect(memo(k1, xs)).toBe(3)
+    expect(compute).toHaveBeenCalledTimes(2)
+    // One slot: the same key with other inputs replaces its set.
+    memo(k1, [1])
+    memo(k1, xs)
+    expect(compute).toHaveBeenCalledTimes(4)
+  })
+
+  it('with two slots, two callers sharing a key and differing by one input both hit', () => {
+    const compute = vi.fn((_key: object, screen: object, xs: readonly number[]) => ({ screen, n: xs.length }))
+    const memo = sharedMemoByKey(compute, undefined, 2)
+    const key = {}
+    const withLens = {}
+    const without = {}
+    const xs = [1, 2]
+    const a = memo(key, withLens, xs)
+    const b = memo(key, without, xs)
+    expect(memo(key, withLens, xs)).toBe(a)
+    expect(memo(key, without, xs)).toBe(b)
+    expect(compute).toHaveBeenCalledTimes(2)
+  })
+
+  it('`peek` only looks; `last` is what the key computed last, with its inputs', () => {
+    const compute = vi.fn((key: { n: number }, xs: readonly number[]) => key.n + xs.length)
+    const memo = sharedMemoByKey(compute)
+    const key = { n: 1 }
+    const xs = [1, 2]
+    expect(memo.peek(key, xs)).toBeUndefined()
+    expect(memo.last(key)).toBeUndefined()
+    expect(compute).not.toHaveBeenCalled()
+    memo(key, xs)
+    expect(memo.peek(key, xs)).toBe(3)
+    expect(memo.peek(key, [1, 2])).toBeUndefined()
+    expect(memo.last(key)).toEqual({ deps: [xs], value: 3 })
+    expect(compute).toHaveBeenCalledTimes(1)
+  })
+
+  it('`same` returns the kept value a new input set computes again', () => {
+    const memo = sharedMemoByKey((_key: object, xs: readonly object[]) => [...xs], sameElements)
+    const key = {}
+    const a = { id: 1 }
+    const first = memo(key, [a])
+    expect(memo(key, [a])).toBe(first)
   })
 })

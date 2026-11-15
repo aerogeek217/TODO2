@@ -45,9 +45,10 @@
  * opacity transition would make a stacking context that draws over its
  * neighbours and takes their presses while it runs. Keyboard focus reaches it
  * (focus-within shows it). Only where there is hover: a touch screen keeps it
- * shown. */
+ * shown. The cell says both with `data-cell-hot` (`workspace/cell-hot.ts`;
+ * its own attribute twice: the weight the two `:not()`s had). */
 @media (hover: hover) {
-  :global([data-ws-cell]):not(:hover):not(:focus-within) .quiet {
+  :global([data-ws-cell][data-ws-cell]:not([data-cell-hot])) .quiet {
     opacity: 0;
     pointer-events: none;
   }

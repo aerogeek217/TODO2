@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Person, PersistedTodoItem, Tag, TodoEvent, TodoEventType } from '../../../models'
 import { computeMetricHistory } from '../../fixtures/v77-metrics'
-import { filterHistory, filterHistoryFields, historyExactness, type FilterHistoryOptions } from '../../../services/stats/filter-history'
+import { countReplayed, filterHistory, filterHistoryFields, historyExactness, replayTasks, type FilterHistoryOptions } from '../../../services/stats/filter-history'
 import { eventsByTask, taskAsOf, taskFieldReplay } from '../../../services/stats/task-history'
 import { composeScreenFilter, type FilterCriteria } from '../../../utils/filter-criteria'
 import { addDays } from '../../../utils/calendar-grid'
@@ -148,6 +148,34 @@ describe('filterHistory', () => {
     const events = [ev(1, 'status', hd(10), 2, 3)]
     const stages = composeScreenFilter(criteria({ personIds: new Set([ANN]) }), criteria({ statusIds: new Set([3]) }))
     expect(filterHistory(stages, tasks, events, DAYS, options({ 1: [ANN], 2: [BEN] }))).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1])
+  })
+
+  // cr34 M12: the replay reads no filter, so any number of filters count from one.
+  it('one replay serves every filter: counting over it is what each filter’s own history says', () => {
+    const tasks = [
+      task({ id: 1 }),
+      task({ id: 2, focus: true }),
+      task({ id: 3, createdAt: hd(5), modifiedAt: hd(5) }),
+      task({ id: 4, isCompleted: true, completedAt: hd(9) }),
+    ]
+    const events = [
+      ev(1, 'person', hd(4), null, ANN),
+      ev(2, 'marker', hd(6), 0, 4),
+      ev(3, 'created', hd(5)),
+      ev(4, 'completed', hd(9)),
+    ]
+    const opts = options({ 1: [ANN] })
+    const replays = replayTasks(tasks, events, DAYS, opts.lookups)
+    expect(replays.days).toBe(DAYS)
+    // Task 3 isn't there before its fifth day.
+    expect(replays.byDay.map((rows) => rows.length)).toEqual([3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4])
+    const filters: FilterCriteria[] = [
+      criteria({}),
+      criteria({ personIds: new Set([ANN]) }),
+      criteria({ showCompleted: true }),
+    ]
+    for (const f of filters) expect(countReplayed(f, replays, opts)).toEqual(filterHistory(f, tasks, events, DAYS, opts))
+    expect(countReplayed([filters[0]!, filters[1]!], replays, opts)).toEqual(filterHistory([filters[0]!, filters[1]!], tasks, events, DAYS, opts))
   })
 
   it('no days: no counts', () => {

@@ -777,7 +777,10 @@
 /*
  * The title / details divider: a 9px hit area centred on the gap left of the
  * notes column, spanning the rows. A faint line while the pointer is over
- * the list, the accent line while hovered or dragged.
+ * the list (`data-rows-hover`, which the grid keeps from its own `:hover` —
+ * a `.grid:hover` rule here had every row part styled again each time the
+ * pointer came onto the list or left it, `utils/hot-attr`), the accent line
+ * while hovered or dragged.
  */
 .divider {
   position: absolute;
@@ -801,7 +804,7 @@
   transition: opacity 0.12s;
 }
 
-.grid:hover > .divider .dividerLine {
+.grid[data-rows-hover] > .divider .dividerLine {
   opacity: 1;
 }
 

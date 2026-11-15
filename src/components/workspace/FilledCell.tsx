@@ -29,6 +29,7 @@ import { tabOpensLarger } from '../../utils/widget-face'
 import { transitionName, withViewTransition } from '../shared/view-transition'
 import { CELL_MENU_LABEL, cellMenuFor, useWidgetMenuContent, type CellMenuPart } from './cell-menu'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
+import { trackCellHot } from './cell-hot'
 import { CellControls, CellGrip } from './WidgetTopLine'
 import { TabNameIconPopover } from './TabNameIconPopover'
 
@@ -151,6 +152,16 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const cellFace = useCellFace(active, { forced: fitRow ? 'small' : collapsed && !stripShown ? 'large' : undefined })
   const smallFace = cellFace.face === 'small' && !collapsed
   const cellRef = useRef<HTMLElement | null>(null)
+  // The cell's element: kept for the focus hand-back, and marked `data-cell-hot` while hovered or holding
+  // the focus — its hover-only controls show by that (`cell-hot`).
+  const setCell = useCallback((el: HTMLElement | null) => {
+    cellRef.current = el
+    const stop = trackCellHot(el)
+    return () => {
+      cellRef.current = null
+      stop?.()
+    }
+  }, [])
   // A fit row's height is its content's: the placeholder keeps the height its widget had.
   const [setHeldBody, heldHeight] = useHeldBodyHeight(active?.id, fitRow)
   const setBody = useCallback((el: HTMLDivElement | null) => {
@@ -276,7 +287,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
 
   return (
     <section
-      ref={cellRef}
+      ref={setCell}
       className={[
         styles.cell,
         collapsed ? styles.collapsed : '',

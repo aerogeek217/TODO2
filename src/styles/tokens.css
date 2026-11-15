@@ -921,14 +921,32 @@ select optgroup {
 
 /*
  * View transitions (D19, `shared/view-transition`): a layout switch, a tab
- * change, a group collapse — named cells and groups slide and resize, the
- * rest crossfades, on the spring curve.
+ * change, a group collapse — named cells and groups slide, resize and
+ * crossfade on the spring curve; the rest of the page changes at once
+ * (below).
  */
 ::view-transition-group(*),
 ::view-transition-old(*),
 ::view-transition-new(*) {
   animation-duration: var(--spring-duration);
   animation-timing-function: var(--spring-easing);
+}
+
+/* A press made while a transition animates must land (cr34 H4). Whatever a
+ * transition takes a picture of takes no press until it ends, and by default
+ * that is the whole page (the root). So the page itself is left out: only
+ * the named parts — the cells, the list groups — are pictured and animate;
+ * the rest (the top bar, the dividers, the page behind the cells) is simply
+ * the new page from the first frame, and takes presses all through. The
+ * pictures' overlay covers the viewport: it takes no press either, so a
+ * click goes to the page under it. (The cells' own contents still take none
+ * until their pictures are gone.) */
+:root {
+  view-transition-name: none;
+}
+
+::view-transition {
+  pointer-events: none;
 }
 
 /* Reduced motion: every animation and transition finishes at once (1 ms, so

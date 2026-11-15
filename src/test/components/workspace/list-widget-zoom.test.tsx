@@ -96,6 +96,31 @@ describe('a list tab’s zoom', () => {
     expect(widget()).toHaveAttribute('data-zoom', 'lines')
   })
 
+  // cr34 M15: a list is rendered once before it can be measured. Starting every mount at Rows drew a narrow
+  // list's rows twice on each layout or tab switch.
+  it('Auto: mounted again, a list starts at the level it last showed — a narrow one is not drawn at Rows first', () => {
+    useSettingsStore.setState({ listZoom: 'auto' })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, 0, 300, 600))
+    // Every change of a drawn level: an element already in the page whose `data-zoom` is rewritten.
+    const redrawn: string[] = []
+    const watch = new MutationObserver(() => {})
+    watch.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-zoom'], attributeOldValue: true })
+    const drain = () => {
+      for (const r of watch.takeRecords()) redrawn.push(`${r.oldValue} → ${(r.target as HTMLElement).dataset.zoom}`)
+      return redrawn.splice(0)
+    }
+    const first = show()
+    expect(widget()).toHaveAttribute('data-zoom', 'stacked')
+    // Its first mount: nothing known, so Rows, then the measurement.
+    expect(drain()).toContain('rows → stacked')
+    first.unmount()
+    drain()
+    show()
+    expect(widget()).toHaveAttribute('data-zoom', 'stacked')
+    expect(drain()).toEqual([])
+    watch.disconnect()
+  })
+
   it('a tab without its own zoom shows the Settings default', () => {
     useSettingsStore.setState({ listZoom: 'lines' })
     show()
