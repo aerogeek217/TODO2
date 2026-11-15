@@ -19,6 +19,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
     'measureTopBar', 'SEARCH_FOLDED_MIN_WIDTH', 'SEARCH_MIN_WIDTH', 'searchWidth', 'topBarFold', 'TopBarMeasure',
   ],
   'components/overlays/filter-panel-placement.ts': ['FILTER_PANEL_GUTTER'],
+  'components/overlays/task-fly.ts': ['pickFlightTarget'],
   'components/shared/ChipSelector.tsx': ['ChipItem'],
   'components/shared/filters/ExpressionField.tsx': ['CLOSE_HELD', 'COMPLETED_HINT_DONE'],
   'components/shared/filters/PredicateChips.tsx': ['SWITCH_REFUSED'],

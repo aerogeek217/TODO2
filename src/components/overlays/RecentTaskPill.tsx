@@ -14,13 +14,22 @@
  *
  * Render lifetime is keyed on `recentlyCreated.key` so a fresh creation
  * remounts the pill — the CSS animation restarts cleanly.
+ *
+ * **A new task flies home** (flair P4): before the pill is first painted, a
+ * list row on screen showing the task (`findFlightRow`) takes its place —
+ * the task flies there (`flyTaskHome`) and the pill is cleared unseen. The
+ * pill shows only when no list on screen shows the task, on a phone, and
+ * under reduced motion.
  */
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { TaskRow } from '../task/TaskRow'
 import { TaskRowGrid } from '../task/TaskRowGrid'
+import { useIsMobile } from '../../hooks/use-is-mobile'
+import { prefersReducedMotion } from '../../utils/motion'
+import { findFlightRow, flyTaskHome, NOT_A_FLIGHT_TARGET_ATTR } from './task-fly'
 import styles from './RecentTaskPill.module.css'
 
 export function RecentTaskPill() {
@@ -34,6 +43,19 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
   const assignedPeople = usePersonStore((s) => s.assignedPeopleMap.get(todoId))
   const clearRecent = useUIStore((s) => s.clearRecentlyCreated)
   const openEdit = useUIStore((s) => s.openEditPopup)
+  const isMobile = useIsMobile()
+
+  // Once, before the first paint: fly to a row on screen instead of showing the pill.
+  const decided = useRef(false)
+  useLayoutEffect(() => {
+    if (decided.current || !todo) return
+    decided.current = true
+    if (isMobile || prefersReducedMotion()) return
+    const row = findFlightRow(todo.id)
+    if (!row) return
+    flyTaskHome(row, todo.title)
+    clearRecent()
+  }, [todo, isMobile, clearRecent])
 
   // Task can be deleted (or never load) while the pill is up — bail out so
   // the timer-driven fade-out animation doesn't linger on a stale row.
@@ -51,6 +73,7 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
   return (
     <div
       className={styles.pill}
+      {...{ [NOT_A_FLIGHT_TARGET_ATTR]: '' }}
       role="status"
       aria-live="polite"
       onAnimationEnd={() => clearRecent()}

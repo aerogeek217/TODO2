@@ -9,6 +9,12 @@
 
 /** A task's row (list rows, the phone row) or calendar entry: its task id. */
 export const TODO_ID_ATTR = 'data-todo-id'
+/**
+ * A creating surface that closes once its task is made (Quick Add, the New
+ * task editor): a new task's flight (`overlays/task-fly`, flair P4) is
+ * decided while it is still up, so its hit test looks through it.
+ */
+export const FLIGHT_SEE_THROUGH_ATTR = 'data-flight-see-through'
 /** The top bar's search field. */
 export const SEARCH_INPUT_ATTR = 'data-search-input'
 /** The top bar's filter tray (the field, the Filter button, the set filters' chips, the counter). */

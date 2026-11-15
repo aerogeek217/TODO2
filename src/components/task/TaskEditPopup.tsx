@@ -33,6 +33,7 @@ import { useTaskNotesSource } from './notes/use-task-notes-source'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { DialogFrame } from '../shared/Dialog'
+import { FLIGHT_SEE_THROUGH_ATTR } from '../../utils/dom-contract'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditPopupBaseProps {
@@ -663,6 +664,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       initialFocus={isEdit ? 'panel' : titleRef}
       onKeyDown={handleKeyDown}
       aria-label={isEdit ? 'Edit task' : 'New task'}
+      // Creating: a new task's flight is decided while the editor is still up (flair P4).
+      data={isEdit ? undefined : { [FLIGHT_SEE_THROUGH_ATTR.slice('data-'.length)]: '' }}
     >
         <TaskEditHeader
           isEdit={isEdit}
