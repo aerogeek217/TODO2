@@ -3,17 +3,15 @@ import { REVIEW_POPUP_TAB_ID } from '../../models/review'
 import type { LayoutTab, LensTab, ListTabViewState, ReviewTab } from '../../models/workspace-layout'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { WidgetFaceContext, type WidgetFaceHost } from '../../hooks/use-widget-face'
-import { listTabZoom } from '../../services/list-zoom'
 import { onDataReplaced } from '../../services/replace-data'
 import { closeWidgetPopup } from '../../services/widget-popup'
 import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { stepListZoom, type ZoomDirection } from '../../utils/list-zoom'
 import { layoutTabs } from '../../utils/workspace-layout-queries'
 import { DialogFrame } from '../shared/Dialog'
 import { CloseIcon, MoreIcon } from '../shared/icons'
-import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
+import { MenuPopover } from '../shared/MenuPopover'
 import { widgetKindMenuEntries } from '../shared/widget-kind-menu-entries'
 import { useWidgetMenuContent } from './cell-menu'
 import { ListTabViewContext, type ListTabViewHost } from './list/list-tab-view'
@@ -134,23 +132,12 @@ export function WidgetPopupHost() {
   }), [])
   useEffect(() => () => { closeWidgetPopup() }, [])
   if (!tab) return null
-  return <WidgetPopup key={tab.id} tab={tab} listView={target?.kind === 'list' ? listViewHost : null} />
-}
-
-/**
- * The followed list's menu (the popup's `list` kind): its Zoom stepper —
- * the one stepper in a list's menu (`list/zoom-menu`) — steps the view state
- * `host` holds, from the level the list shows; its own handlers would write
- * to the layout's tab of that id, a Number (cr34 U3).
- */
-function withHeldZoom(entries: MenuEntry[], tab: LayoutTab, host: ListTabViewHost): MenuEntry[] {
-  if (tab.kind !== 'lens') return entries
-  const step = (dir: ZoomDirection) => () => host.patch({ zoom: stepListZoom(listTabZoom(tab), dir) })
-  return entries.map((entry) => (entry.kind === 'stepper' ? {
-    ...entry,
-    onDecrement: entry.onDecrement && step('out'),
-    onIncrement: entry.onIncrement && step('in'),
-  } : entry))
+  // The followed list's view state is held here: the widget and its menu (its Zoom stepper, `list/zoom-menu`) write it.
+  return (
+    <ListTabViewContext.Provider value={target?.kind === 'list' ? listViewHost : null}>
+      <WidgetPopup key={tab.id} tab={tab} />
+    </ListTabViewContext.Provider>
+  )
 }
 
 /**
@@ -165,19 +152,14 @@ function withHeldZoom(entries: MenuEntry[], tab: LayoutTab, host: ListTabViewHos
  * scrim close it (`leavePopup`: an editor with changes asks first); the
  * focus goes back to what opened it (to the tab's cell when that is gone).
  */
-function WidgetPopup({ tab, listView }: {
-  tab: LayoutTab
-  /** The list a Number follows (`tab` a list tab of the Number's id): where its zoom and details width are kept. */
-  listView: ListTabViewHost | null
-}) {
+function WidgetPopup({ tab }: { tab: LayoutTab }) {
   const title = useTabTitle(tab)
   const isMobile = useIsMobile()
   const [result, setResult] = useState<WidgetResult | undefined>(undefined)
   const [menuOpen, setMenuOpen] = useState(false)
   const moreRef = useRef<HTMLButtonElement | null>(null)
   const content = useWidgetMenuContent(tab, result)
-  const ownEntries = content ? widgetKindMenuEntries({ ...content, kindSwitch: false }) : []
-  const entries = listView ? withHeldZoom(ownEntries, tab, listView) : ownEntries
+  const entries = content ? widgetKindMenuEntries({ ...content, kindSwitch: false }) : []
   const hasItems = entries.some((e) => e.kind === 'item')
   const face = useMemo<WidgetFaceHost>(
     () => ({ forced: isMobile && tab.kind === 'review' ? 'medium' : 'large' }),
@@ -229,9 +211,7 @@ function WidgetPopup({ tab, listView }: {
       </div>
       <div className={styles.body}>
         <WidgetFaceContext.Provider value={face}>
-          <ListTabViewContext.Provider value={listView}>
-            <WidgetBody tab={tab} onResult={setResult} />
-          </ListTabViewContext.Provider>
+          <WidgetBody tab={tab} onResult={setResult} />
         </WidgetFaceContext.Provider>
       </div>
       {menuOpen && hasItems && (
