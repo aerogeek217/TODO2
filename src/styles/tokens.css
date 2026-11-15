@@ -429,6 +429,8 @@
   --cal-on-followup: #111110;
   --cal-overdue-day: rgba(232, 107, 240, 0.10);
   --cal-followup-day: rgba(245, 200, 66, 0.08);
+  /* An upcoming calendar entry's tick (flair P6): 3 : 1 on a day cell and the day popover. */
+  --cal-tick: #77726b;
   /* Calendar heat map (D18): a day's tint per step (1–2 · 3–5 · 6+ entries),
      the due / follow-up colour mixed into the surface */
   --cal-heat-due-1: color-mix(in srgb, var(--color-overdue) 12%, var(--color-surface));
@@ -708,6 +710,7 @@
   --cal-on-followup: #1a1917;
   --cal-overdue-day: rgba(163, 44, 171, 0.07);
   --cal-followup-day: rgba(245, 200, 66, 0.14);
+  --cal-tick: #8a857e;
   /* Calendar heat map (D18). The follow-up steps mix the bright fill yellow:
      the darker text yellow reads brown as a fill. */
   --cal-heat-due-1: color-mix(in srgb, var(--color-overdue) 12%, var(--color-surface));

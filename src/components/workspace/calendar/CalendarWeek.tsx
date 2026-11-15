@@ -3,7 +3,7 @@ import { dayLabel, dayOverflow, weekRowsFit } from '../../../utils/calendar-grid
 import { dayKey } from '../../../utils/date'
 import { useElementSize } from '../../../hooks/use-element-size'
 import styles from './CalendarWidget.module.css'
-import { type DayContext, useDayTarget, dayClasses, washClass } from './calendar-day'
+import { type DayContext, useDayTarget, dayClasses } from './calendar-day'
 import { DropLabel, EntryItem, MoreButton } from './CalendarDayParts'
 
 /** The calendar's week: as rows (narrow) or seven columns. */
@@ -26,7 +26,7 @@ function WeekRow({ day, entries, fit, ctx, onMore, moreOpen }: {
   return (
     <div
       ref={setNodeRef}
-      className={dayClasses(styles.weekRow, ctx, highlighted, [isToday && styles.dayToday, washClass(entries, day, ctx.today)])}
+      className={dayClasses(styles.weekRow, ctx, highlighted, [isToday && styles.dayToday])}
       data-day={dayKey(day)}
       data-today={isToday ? 'true' : undefined}
       data-drop-target={highlighted ? 'true' : undefined}
@@ -85,7 +85,7 @@ export function WeekColumn({ day, entries, ctx }: { day: Date; entries: Calendar
   return (
     <div
       ref={setNodeRef}
-      className={dayClasses(styles.weekColumn, ctx, highlighted, [isToday && styles.dayToday, washClass(entries, day, ctx.today)])}
+      className={dayClasses(styles.weekColumn, ctx, highlighted, [isToday && styles.dayToday])}
       data-day={dayKey(day)}
       data-today={isToday ? 'true' : undefined}
       data-drop-target={highlighted ? 'true' : undefined}

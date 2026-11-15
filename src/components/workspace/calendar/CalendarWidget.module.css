@@ -695,7 +695,12 @@ button.heatDay {
 
 /* ── Entries ─────────────────────────────────────────────────────────────── */
 
+/* A line with a 2px tick at its left edge, no fill (flair P6): the tick is
+   neutral for an upcoming date, the deadline colour for a late due date, the
+   follow-up colour for a follow-up today or late. The text never changes colour. */
 .entry {
+  --entry-tick: var(--cal-tick);
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -703,17 +708,28 @@ button.heatDay {
   width: 100%;
   min-width: 0;
   height: var(--cal-entry-sm);
-  padding: 0 4px;
+  padding: 0 4px 0 7px;
   border: none;
   border-radius: var(--radius-sm);
-  background: var(--color-overdue-bg);
+  background: none;
   color: var(--color-text-primary);
   font-family: inherit;
   font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
   text-align: left;
   cursor: pointer;
   touch-action: manipulation;
+}
+
+.entry::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--entry-tick);
 }
 
 .entry:hover {
@@ -722,7 +738,7 @@ button.heatDay {
 
 .entryMd {
   height: var(--cal-entry-md);
-  padding: 0 6px;
+  padding: 0 6px 0 9px;
   gap: 6px;
   border-radius: var(--radius-md);
   font-size: var(--font-size-task);
@@ -731,20 +747,30 @@ button.heatDay {
 
 .entryTouch {
   height: var(--cal-entry-touch);
-  padding: 0 12px;
+  padding: 0 12px 0 14px;
   gap: 8px;
   border-radius: var(--radius-chip);
   font-size: var(--font-size-task);
   font-weight: var(--font-weight-regular);
 }
 
+.entryMd::before {
+  top: 4px;
+  bottom: 4px;
+}
+
+.entryTouch::before {
+  top: 10px;
+  bottom: 10px;
+}
+
 /* Week columns: the title wraps to two lines. */
 .entryWrap {
   height: auto;
   align-items: flex-start;
-  padding: 4px 5px;
+  padding: 2px 5px 2px 7px;
   font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 .entryWrap .entryTitle {
@@ -764,7 +790,7 @@ button.heatDay {
 .entryRepeat {
   display: inline-flex;
   flex-shrink: 0;
-  color: var(--color-overdue);
+  color: var(--color-text-muted);
 }
 
 .entryTitle {
@@ -783,40 +809,14 @@ button.heatDay {
   flex-shrink: 0;
 }
 
-.entry[data-state='due-today'] {
-  background: var(--color-overdue-bg-strong);
-}
-
+/* A due date today keeps the neutral tick: today's column is marked already. */
 .entry[data-state='due-overdue'] {
-  background: var(--cal-overdue-solid);
-  color: var(--cal-on-overdue);
-  font-weight: var(--font-weight-bold);
+  --entry-tick: var(--color-overdue);
 }
 
-.entry[data-state='followup'] {
-  background: var(--color-followup-bg);
-}
-
-.entry[data-state='followup'] .entryGlyph {
-  color: var(--color-followup);
-}
-
+.entry[data-state='followup-today'],
 .entry[data-state='followup-overdue'] {
-  background: var(--cal-followup-solid);
-  color: var(--cal-on-followup);
-  font-weight: var(--font-weight-bold);
-}
-
-.entryMd[data-state$='-overdue'],
-.entryTouch[data-state$='-overdue'],
-.entryWrap[data-state$='-overdue'] {
-  font-weight: var(--font-weight-semibold);
-}
-
-.entry[data-state$='-overdue'] .entryGlyph,
-.entry[data-state$='-overdue'] .entryRepeat,
-.entry[data-state$='-overdue'] .entryMeta {
-  color: currentColor;
+  --entry-tick: var(--color-followup);
 }
 
 /* A recurring occurrence: faded, italic, and it doesn't drag. */

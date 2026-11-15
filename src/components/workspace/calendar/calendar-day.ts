@@ -54,6 +54,11 @@ export function useTaskDrag(): TaskDragInfo | null {
   return drag
 }
 
+/** Entries carry their date-type glyph only while both types show: with one, every entry is that type. */
+export function calendarShowsKind(types: CalendarDateTypes): boolean {
+  return types.due && types.followup
+}
+
 /** The hovered day's label: what a drop there does. */
 export function dropLabel(drag: TaskDragInfo | null, types: CalendarDateTypes): string {
   if (drag?.entryMove) return 'Move here'
@@ -82,6 +87,7 @@ export function dayClasses(base: string | undefined, ctx: DayContext, highlighte
   ].filter(Boolean).join(' ')
 }
 
+/** The compact month's past-day wash: its dots don't say what is late (month and week entries' ticks do). */
 export function washClass(entries: readonly CalendarEntry[], day: Date, today: Date): string | false {
   if (day.getTime() >= today.getTime()) return false
   const wash = dayOverdueWash(entries, today)
