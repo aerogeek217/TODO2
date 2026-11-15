@@ -26,6 +26,14 @@
   opacity: 0.6;
   cursor: pointer;
   pointer-events: auto;
+  position: relative;
+}
+
+/* A 24px target round it (as a filter chip's ×, UX cleanup 5A): 5px each way. */
+.pillRemove::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
 }
 
 .pillRemove:hover {

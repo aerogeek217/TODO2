@@ -125,8 +125,11 @@ export function TopBarFilterField({ width, panelOpen, foldAttr }: {
     }
     const measure = () => {
       let n = 0
-      if (box.scrollWidth > box.clientWidth + 1) {
-        const edge = box.getBoundingClientRect().right - FADE_PX
+      // Past its right edge (clipped across: the last piece's right, not a scroll width).
+      const right = box.getBoundingClientRect().right
+      const last = box.lastElementChild?.getBoundingClientRect().right ?? 0
+      if (last > right + 1) {
+        const edge = right - FADE_PX
         const seen = new Set<number>()
         box.querySelectorAll<HTMLElement>('[data-top-bar-pill]').forEach((pill, i) => {
           const term = terms[i] ?? i

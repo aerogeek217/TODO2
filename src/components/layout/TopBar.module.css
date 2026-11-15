@@ -300,9 +300,12 @@
   pointer-events: none;
 }
 
-/* Over the input (its text is the pills' own). */
+/* Over the input (its text is the pills' own); clipped across only, so a
+ * pill's 24px × target isn't cut at the field's top and bottom. */
 .pills {
   z-index: 1;
+  overflow: visible;
+  overflow-x: clip;
 }
 
 /* Too long: the pills fade at the field's end, before `+N more`. */

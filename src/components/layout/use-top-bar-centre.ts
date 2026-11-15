@@ -31,9 +31,18 @@ export function centreOffset(m: CentreMeasure): number {
   return Math.max(0, Math.round(left - m.start))
 }
 
-/** The Filter button's width. */
-function filterButtonWidth(tray: HTMLElement): number {
-  return tray.querySelector<HTMLElement>(attrSelector(FILTER_MENU_ATTR))?.getBoundingClientRect().width ?? 0
+/**
+ * The tray's width at rest: from its left to the Filter button's right (the
+ * last part but the counter) and its padding — the field as wide as it is
+ * drawn (narrowed, the tray at rest is that much narrower).
+ */
+function restTrayWidth(tray: HTMLElement, trayBox: DOMRect): number {
+  const cs = getComputedStyle(tray)
+  const padding = parseFloat(cs.paddingRight) || 0
+  const button = tray.querySelector<HTMLElement>(attrSelector(FILTER_MENU_ATTR))
+  if (button) return button.getBoundingClientRect().right - trayBox.left + padding
+  const field = tray.querySelector<HTMLElement>(attrSelector(FOLD_SEARCH_ATTR))
+  return (field?.getBoundingClientRect().left ?? trayBox.left) - trayBox.left + SEARCH_WIDTH + padding
 }
 
 /**
@@ -60,15 +69,11 @@ export function useTopBarCentre(
       if (!tray || !right) return
       const barBox = bar.getBoundingClientRect()
       const trayBox = tray.getBoundingClientRect()
-      const field = tray.querySelector<HTMLElement>(attrSelector(FOLD_SEARCH_ATTR))
-      const trayCs = getComputedStyle(tray)
-      const gap = parseFloat(trayCs.columnGap) || 0
-      const fieldLeft = field?.getBoundingClientRect().left ?? trayBox.left
       // The gap as laid out (flex may have shrunk it below what was set).
       const laidOut = spacerRef.current?.getBoundingClientRect().width ?? 0
       setOffset((shown) => {
         const start = trayBox.left - laidOut
-        const restWidth = (fieldLeft - trayBox.left) + SEARCH_WIDTH + gap + filterButtonWidth(tray) + (parseFloat(trayCs.paddingRight) || 0)
+        const restWidth = restTrayWidth(tray, trayBox)
         const next = centreOffset({
           barLeft: barBox.left,
           barWidth: barBox.width,
