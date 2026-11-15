@@ -843,3 +843,57 @@ describe('TaskRow', () => {
     })
   })
 })
+
+describe('TaskRow — the fields its list has no column for (flair P8)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(TODAY)
+    resetStores()
+  })
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  const all = { notes: true, people: true, tags: true, due: true, followup: true, status: true }
+  const inList = (used: typeof all, todo = makeTodo({ id: 1 })) => (
+    <TaskRowColumnsContext.Provider value={createValueStore(taskRowColumns(528, undefined, used))}>
+      <TaskRow todo={todo} />
+    </TaskRowColumnsContext.Provider>
+  )
+  const cluster = () => document.querySelector('[data-row-cluster]')
+
+  it('every field used: every cell in its column, no cluster', () => {
+    render(inList(all))
+    expect(cluster()).toBeNull()
+    for (const name of ['Add status or notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    }
+  })
+
+  it('unused fields leave their columns for the cluster, each its empty cell; the used ones stay in their columns', () => {
+    render(inList({ ...all, notes: false, tags: false, followup: false, status: false }))
+    const box = cluster()!
+    expect(box).not.toBeNull()
+    expect(within(box as HTMLElement).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Add status or notes', 'Add tag', 'Set follow-up', 'Set status'])
+    for (const name of ['Assign people', 'Set due date']) {
+      const cell = screen.getByRole('button', { name })
+      expect(box.contains(cell)).toBe(false)
+    }
+  })
+
+  it('the cluster sits at the title’s end, left of the remaining details', () => {
+    const used = { ...all, notes: false, status: false }
+    render(inList(used))
+    const { laidOut } = taskRowColumns(528, undefined, used)
+    expect((cluster() as HTMLElement).style.right).toBe(`${8 + laidOut + 5}px`)
+  })
+
+  it('a cluster cell opens its picker: the status menu from Set status', () => {
+    useStatusStore.setState({ statuses: [{ id: 2, name: 'Waiting', color: '#888', sortOrder: 1 }] as never })
+    render(inList({ ...all, status: false }))
+    fireEvent.click(within(cluster() as HTMLElement).getByRole('button', { name: 'Set status' }))
+    expect(screen.getByText('Waiting')).toBeInTheDocument()
+  })
+})

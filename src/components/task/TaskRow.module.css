@@ -320,6 +320,41 @@
   opacity: 1;
 }
 
+/*
+ * The hover cluster (flair P8): the empty cells of the fields the list has no
+ * column for, over the title's end (`right` from the store), on the row's
+ * hover fill with a soft edge that fades the title out under it. Shown as
+ * the placeholders are, by opacity only; it takes no press while hidden.
+ */
+.fieldCluster {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 8px;
+  z-index: var(--z-above);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 18px;
+  background: linear-gradient(to right, transparent, var(--color-surface-high) 16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.fieldCluster > .cell {
+  flex: none;
+  width: 22px;
+  justify-content: center;
+}
+
+.row:hover .fieldCluster,
+.row:focus-within .fieldCluster,
+.rowDropdownOpen .fieldCluster {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* The add-subtasks mark of a task with no checklist (`SubtaskAddButton`): revealed as the placeholders are, and while its popover is open. */
 .subtaskAdd {
   opacity: 0;
@@ -620,6 +655,11 @@
   .subtaskAdd,
   .gutterFlag {
     opacity: 1;
+  }
+
+  .fieldCluster {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 

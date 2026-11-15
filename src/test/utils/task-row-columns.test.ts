@@ -150,3 +150,48 @@ describe('tagsFit', () => {
     expect(tagsFit([200], 40, more)).toEqual({ shown: 1, more: 0 })
   })
 })
+
+describe('taskRowColumns — only the fields a list uses (flair P8)', () => {
+  const all = { notes: true, people: true, tags: true, due: true, followup: true, status: true }
+  const tracks = (template: string) => template.split(' ').slice(4)
+
+  it('every field used: the same columns as passing nothing', () => {
+    expect(taskRowColumns(528, undefined, all)).toEqual(taskRowColumns(528))
+  })
+
+  it('no notes and no status: those tracks go, the details shrink by them and their gaps; people and tags keep their widths', () => {
+    const full = taskRowColumns(528)
+    const cols = taskRowColumns(528, undefined, { ...all, notes: false, status: false })
+    expect(cols.notes).toBe(0)
+    expect(cols.status).toBe(0)
+    expect(cols.people).toBe(full.people)
+    expect(cols.tags).toBe(full.tags)
+    expect(cols.laidOut).toBe(full.laidOut - TASK_ROW.notes - TASK_ROW.status - 2 * TASK_ROW.gap)
+    expect(tracks(cols.template)).toEqual([`${full.people}px`, `${full.tags}px`, `${full.dates}px`])
+  })
+
+  it('no follow-ups: the dates track is the due part alone; no due dates: the follow-up part alone', () => {
+    const full = taskRowColumns(528)
+    const parts = datesParts(full.datesTier)
+    const noFollowup = taskRowColumns(528, undefined, { ...all, followup: false })
+    expect(noFollowup).toMatchObject({ due: parts.due, followup: 0, dates: parts.due })
+    const noDue = taskRowColumns(528, undefined, { ...all, due: false })
+    expect(noDue).toMatchObject({ due: 0, followup: parts.followup, dates: parts.followup })
+  })
+
+  it('people unused: no people track, and tags don’t grow into its room', () => {
+    const full = taskRowColumns(528)
+    const cols = taskRowColumns(528, undefined, { ...all, people: false })
+    expect(cols.people).toBe(0)
+    expect(cols.tags).toBe(full.tags)
+    expect(cols.laidOut).toBe(full.laidOut - full.people - TASK_ROW.gap)
+  })
+
+  it('nothing used: no details at all, the title takes the row', () => {
+    const none = { notes: false, people: false, tags: false, due: false, followup: false, status: false }
+    const cols = taskRowColumns(528, undefined, none)
+    expect(cols.laidOut).toBe(0)
+    expect(cols.template).toBe(`${TASK_ROW.gutter}px ${TASK_ROW.checkbox}px minmax(0, 1fr)`)
+    expect(cols.used).toBe(none)
+  })
+})

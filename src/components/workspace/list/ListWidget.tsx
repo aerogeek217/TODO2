@@ -4,6 +4,7 @@ import type { ListTab, ListZoom } from '../../../models/workspace-layout'
 import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
+import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useKeptTodos, useLeavingRows } from '../../../hooks/use-leaving-rows'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useActiveScreenFilter } from '../../../stores/screen-filter'
@@ -227,6 +228,9 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
 
   const sections = list?.sections ?? EMPTY_SECTIONS
   const shown = useMemo(() => uniqueCount(sections), [sections])
+  // The row fields the list's tasks use (flair P8; collapsed groups too, so expanding one moves nothing): a field none has gets no column.
+  const fieldTodos = useMemo(() => sections.flatMap((s) => s.todos.map((built) => keptTodos?.get(built.id) ?? built)), [sections, keptTodos])
+  const rowFields = useRowFieldsUsed(fieldTodos)
   const total = list?.todos.length ?? 0
   // One number per list (UX cleanup 2A): the tab's badge says what is due; a
   // count shows only while the screen filter narrows the list.
@@ -511,6 +515,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
       <TaskRowGrid
         className={styles.body}
         zoom={zoom}
+        used={rowFields}
         detailsWidth={tab.viewState?.detailsWidth}
         onDetailsWidthChange={(detailsWidth) => {
           if (viewHost) viewHost.patch({ detailsWidth })

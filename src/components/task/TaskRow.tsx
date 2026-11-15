@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useMemo, memo, type CSSProperties, type MouseEvent } from 'react'
+import { useRef, useState, useCallback, useMemo, memo, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { type PersistedTodoItem, type Person, type Tag } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -16,7 +16,7 @@ import { PriorityMenu } from './PriorityMenu'
 import { StatusMenuPopover } from './StatusMenuPopover'
 import { EntityMenu, type MenuEntity } from '../shared/EntityMenu'
 import { useTaskRowPickers } from './use-task-row-pickers'
-import { useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
+import { useTaskRowClusterEnd, useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
 import { keepRowTextUnselected } from './row-events'
 import { statusNotesPreview } from '../../utils/notes-preview'
 import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
@@ -76,6 +76,9 @@ export const TaskRow = memo(function TaskRow({
   // column change (the tracks go straight to its style, the avatar / tag fit is the cells' own).
   const hasPeople = useTaskRowColumn((c) => c.people > 0)
   const hasTags = useTaskRowColumn((c) => c.tags > 0)
+  // The fields the list uses (flair P8): the rest have no column and show in the hover cluster.
+  const used = useTaskRowColumn((c) => c.used)
+  const anyUnused = !used.notes || !used.people || !used.tags || !used.due || !used.followup || !used.status
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [markersOpen, setMarkersOpen] = useState(false)
   /**
@@ -113,8 +116,8 @@ export const TaskRow = memo(function TaskRow({
     peoplePickerClassName: styles.chipDropdown,
     // With its column removed, the people picker (Assign people…) opens at the row.
     fallbackPeopleAnchorRef: rowRef,
-    // A stacked row always has its people part.
-    useFallbackPeopleAnchor: !stacked && !hasPeople,
+    // A stacked row always has its people part; an unused field's cell is in the hover cluster.
+    useFallbackPeopleAnchor: !stacked && !hasPeople && used.people,
     // Without a checklist there is no count: the popover (Add subtask…) opens at the row.
     fallbackSubtasksAnchorRef: rowRef,
     useFallbackSubtasksAnchor: count === null && !canAddSubtasks,
@@ -305,7 +308,7 @@ export const TaskRow = memo(function TaskRow({
           : null
       ) : (
         <>
-          <NotesCell update={newestUpdate} notes={todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />
+          {used.notes && <NotesCell update={newestUpdate} notes={todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />}
           {hasPeople && (
             <PeopleCell
               people={people}
@@ -326,19 +329,63 @@ export const TaskRow = memo(function TaskRow({
               onCellContextMenu={onCellContextMenu('tags', assignedTags.map((t) => ({ kind: 'tag', entity: t })))}
             />
           )}
-          <DatesCell
-            todo={todo}
-            today={today}
-            deadlineInputRef={deadlineInputRef}
-            onOpenDue={openDeadlinePicker}
-            onClearDue={() => bulk.setDeadline(todo.id, null)}
-            onDueInputChange={onDeadlineInputChange}
-            followupAnchorRef={followupAnchorRef}
-            followupOpen={followupOpen}
-            onToggleFollowup={toggleFollowup}
-            onClearFollowup={() => bulk.setFollowup(todo.id, null)}
-          />
-          <StatusCell status={status} anchorRef={statusRef} open={showStatusMenu} onToggle={() => setShowStatusMenu((v) => !v)} />
+          {(used.due || used.followup) && (
+            <DatesCell
+              todo={todo}
+              today={today}
+              deadlineInputRef={deadlineInputRef}
+              onOpenDue={openDeadlinePicker}
+              onClearDue={() => bulk.setDeadline(todo.id, null)}
+              onDueInputChange={onDeadlineInputChange}
+              followupAnchorRef={followupAnchorRef}
+              followupOpen={followupOpen}
+              onToggleFollowup={toggleFollowup}
+              onClearFollowup={() => bulk.setFollowup(todo.id, null)}
+            />
+          )}
+          {used.status && <StatusCell status={status} anchorRef={statusRef} open={showStatusMenu} onToggle={() => setShowStatusMenu((v) => !v)} />}
+          {anyUnused && !isEditing && (
+            // The fields the list has no column for, on hover / focus at the title's end (each its empty cell).
+            <RowFieldCluster>
+              {!used.notes && <NotesCell update={newestUpdate} notes={todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />}
+              {!used.people && (
+                <PeopleCell
+                  people={people}
+                  anchorRef={peopleRef}
+                  open={peopleOpen}
+                  onToggle={togglePeople}
+                  onPersonContextMenu={onPersonContextMenu}
+                  onCellContextMenu={onCellContextMenu('people', [])}
+                />
+              )}
+              {!used.tags && (
+                <TagsCell
+                  tags={assignedTags}
+                  anchorRef={tagsRef}
+                  open={tagPickerOpen}
+                  onToggle={toggleTagPicker}
+                  onTagContextMenu={onTagContextMenu}
+                  onCellContextMenu={onCellContextMenu('tags', [])}
+                />
+              )}
+              {(!used.due || !used.followup) && (
+                <DatesCell
+                  todo={todo}
+                  today={today}
+                  deadlineInputRef={deadlineInputRef}
+                  onOpenDue={openDeadlinePicker}
+                  onClearDue={() => bulk.setDeadline(todo.id, null)}
+                  onDueInputChange={onDeadlineInputChange}
+                  followupAnchorRef={followupAnchorRef}
+                  followupOpen={followupOpen}
+                  onToggleFollowup={toggleFollowup}
+                  onClearFollowup={() => bulk.setFollowup(todo.id, null)}
+                  inCluster
+                />
+              )}
+              {!used.status && <StatusCell status={status} anchorRef={statusRef} open={showStatusMenu} onToggle={() => setShowStatusMenu((v) => !v)} />}
+            </RowFieldCluster>
+          )}
         </>
       )}
 
@@ -348,8 +395,8 @@ export const TaskRow = memo(function TaskRow({
       {!ghost && tagPickerOpen && (
         <TagPicker
           // With its column removed, the tag picker (Add tag…) opens at the row.
-          anchorRef={hasTags || stacked ? tagsRef : rowRef}
-          anchorIsInside={hasTags || stacked}
+          anchorRef={hasTags || stacked || !used.tags ? tagsRef : rowRef}
+          anchorIsInside={hasTags || stacked || !used.tags}
           assignedTags={assignedTags}
           allTags={allTags}
           onToggle={toggleTag}
@@ -399,3 +446,15 @@ export const TaskRow = memo(function TaskRow({
     </div>
   )
 })
+
+/**
+ * A desktop row's hover cluster (flair P8): the empty cells of the fields its
+ * list has no column for, over the title's end just left of the remaining
+ * details (`useTaskRowClusterEnd`); shown with the placeholders — row hover,
+ * focus, an open picker — by opacity only, so nothing moves.
+ */
+function RowFieldCluster({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  useTaskRowClusterEnd(ref)
+  return <span ref={ref} className={styles.fieldCluster} data-row-cluster="">{children}</span>
+}

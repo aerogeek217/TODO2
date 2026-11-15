@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
-import { taskRowColumns, TASK_ROW } from '../../utils/task-row-columns'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { ALL_ROW_FIELDS, sameRowFields, taskRowColumns, TASK_ROW, type RowFieldsUsed } from '../../utils/task-row-columns'
 import type { ListZoom } from '../../models/workspace-layout'
 import { createValueStore, type ValueStore } from '../../utils/value-store'
 import { TaskRowColumnsContext, UNMEASURED_LIST_WIDTH } from './task-row-grid-context'
@@ -33,6 +33,11 @@ interface TaskRowGridProps {
    * no details columns.
    */
   zoom?: ListZoom
+  /**
+   * The fields the list's shown rows use (flair P8): an unused one gets no
+   * column (its rows show it on hover). Without it every column is there.
+   */
+  used?: RowFieldsUsed
   className?: string
   style?: CSSProperties
   children: ReactNode
@@ -53,9 +58,10 @@ interface TaskRowGridProps {
  * other list of rows is at `rows`.
  */
 export function TaskRowGrid({
-  detailsWidth, onDetailsWidthChange, liveDetailsWidth, zoom = 'rows', className, style, children,
+  detailsWidth, onDetailsWidthChange, liveDetailsWidth, zoom = 'rows', used, className, style, children,
 }: TaskRowGridProps) {
   const ref = useRef<HTMLDivElement>(null)
+  const fields = useShownFields(ref, used ?? ALL_ROW_FIELDS)
   const [box, setBox] = useState<{ width: number; padRight: number }>({ width: 0, padRight: 0 })
   /** The width while a divider is dragged (not stored yet): the tab's shared one, or this list's own. */
   const [ownLive] = useState(() => createValueStore<number | null>(null))
@@ -90,8 +96,8 @@ export function TaskRowGrid({
   }, [])
 
   const cols = useMemo(
-    () => taskRowColumns(box.width > 0 ? box.width : UNMEASURED_LIST_WIDTH, live ?? detailsWidth),
-    [box.width, live, detailsWidth],
+    () => taskRowColumns(box.width > 0 ? box.width : UNMEASURED_LIST_WIDTH, live ?? detailsWidth, fields),
+    [box.width, live, detailsWidth, fields],
   )
   /** The columns for the rows: published after each change (they re-render where what they show changed). */
   const [columns] = useState(() => createValueStore(cols))
@@ -104,7 +110,8 @@ export function TaskRowGrid({
     setLive(null)
   }
 
-  const divider = onDetailsWidthChange && zoom === 'rows' && (
+  // No details columns at all (the list uses none of the fields): nothing to resize.
+  const divider = onDetailsWidthChange && zoom === 'rows' && cols.laidOut > 0 && (
     <div
       className={`${styles.divider} ${dragging ? styles.dividerDragging : ''}`}
       style={{ right: box.padRight + TASK_ROW.padRight + cols.laidOut + TASK_ROW.gap / 2 - HIT / 2 }}
@@ -183,4 +190,57 @@ export function TaskRowGrid({
       </div>
     </TaskRowColumnsContext.Provider>
   )
+}
+
+/** Every field either set uses. */
+function unionFields(a: RowFieldsUsed, b: RowFieldsUsed): RowFieldsUsed {
+  return {
+    notes: a.notes || b.notes, people: a.people || b.people, tags: a.tags || b.tags,
+    due: a.due || b.due, followup: a.followup || b.followup, status: a.status || b.status,
+  }
+}
+
+/** The list is in use: the pointer over it, the focus in it, or one of its rows' pickers open. */
+function listBusy(el: HTMLElement): boolean {
+  return el.matches(':hover') || el.contains(document.activeElement) || el.querySelector('[aria-expanded="true"]') !== null
+}
+
+/**
+ * The fields the columns are laid out for: a field the rows start using
+ * gets its column at once; one they stop using keeps it until the list is
+ * no longer in use (`listBusy`), so a column never leaves under the pointer
+ * or from beneath an open picker — the titles re-flow once, after.
+ */
+function useShownFields(ref: RefObject<HTMLDivElement | null>, wanted: RowFieldsUsed): RowFieldsUsed {
+  const [shown, setShown] = useState(wanted)
+  const grown = unionFields(shown, wanted)
+  // A field to add: now, during render.
+  if (!sameRowFields(grown, shown)) setShown(grown)
+  const dropPending = sameRowFields(grown, shown) && !sameRowFields(shown, wanted)
+  useEffect(() => {
+    const el = ref.current
+    if (!dropPending || !el) return
+    let frame = 0
+    const settle = () => {
+      cancelAnimationFrame(frame)
+      // After a focusout the focus has not moved yet: look on the next frame.
+      frame = requestAnimationFrame(() => { if (!listBusy(el)) setShown(wanted) })
+    }
+    if (!listBusy(el)) {
+      setShown(wanted)
+      return
+    }
+    el.addEventListener('pointerleave', settle)
+    el.addEventListener('focusout', settle)
+    // A picker closing (its cell's aria-expanded) while the pointer is elsewhere.
+    const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(settle)
+    mo?.observe(el, { subtree: true, attributes: true, attributeFilter: ['aria-expanded'] })
+    return () => {
+      cancelAnimationFrame(frame)
+      el.removeEventListener('pointerleave', settle)
+      el.removeEventListener('focusout', settle)
+      mo?.disconnect()
+    }
+  }, [ref, dropPending, wanted])
+  return shown
 }

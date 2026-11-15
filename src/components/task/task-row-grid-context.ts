@@ -1,5 +1,5 @@
 import { createContext, useContext, useLayoutEffect, useSyncExternalStore, type RefObject } from 'react'
-import { taskRowColumns, type TaskRowColumns } from '../../utils/task-row-columns'
+import { taskRowColumns, TASK_ROW, type TaskRowColumns } from '../../utils/task-row-columns'
 import { createValueStore, type ValueStore } from '../../utils/value-store'
 
 /** The width rows are laid out for outside a `TaskRowGrid` (the drag overlay's copy, a row on its own). */
@@ -24,6 +24,25 @@ export const TaskRowColumnsContext = createContext<ValueStore<TaskRowColumns>>(c
 export function useTaskRowColumn<T>(select: (columns: TaskRowColumns) => T): T {
   const store = useContext(TaskRowColumnsContext)
   return useSyncExternalStore(store.subscribe, () => select(store.get()))
+}
+
+/**
+ * Keeps the row's hover cluster (flair P8: the fields its list has no
+ * column for) at the title's end, just left of the details columns that
+ * remain: its `right` written straight from the store, as the tracks are.
+ */
+export function useTaskRowClusterEnd(ref: RefObject<HTMLElement | null>): void {
+  const store = useContext(TaskRowColumnsContext)
+  useLayoutEffect(() => {
+    const apply = () => {
+      const node = ref.current
+      if (!node) return
+      const { laidOut } = store.get()
+      node.style.right = `${TASK_ROW.padRight + laidOut + (laidOut > 0 ? TASK_ROW.gap : 0)}px`
+    }
+    apply()
+    return store.subscribe(apply)
+  }, [ref, store])
 }
 
 /**

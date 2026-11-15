@@ -286,7 +286,7 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
  */
 export function DatesCell({
   todo, today, deadlineInputRef, onOpenDue, onClearDue, onDueInputChange,
-  followupAnchorRef, followupOpen, onToggleFollowup, onClearFollowup,
+  followupAnchorRef, followupOpen, onToggleFollowup, onClearFollowup, inCluster = false,
 }: {
   todo: PersistedTodoItem
   today: Date
@@ -298,12 +298,22 @@ export function DatesCell({
   followupOpen: boolean
   onToggleFollowup: (e: MouseEvent) => void
   onClearFollowup: () => void
+  /**
+   * In the row's hover cluster (flair P8): only the parts the list doesn't
+   * use, as icons. Else the parts it does use, in its dates column.
+   */
+  inCluster?: boolean
 }) {
-  const tier = useTaskRowColumn((c) => c.datesTier)
+  const columnTier = useTaskRowColumn((c) => c.datesTier)
+  const dueUsed = useTaskRowColumn((c) => c.due > 0)
+  const followupUsed = useTaskRowColumn((c) => c.followup > 0)
+  const tier = inCluster ? 'icons' : columnTier
+  const showDue = inCluster ? !dueUsed : dueUsed
+  const showFollowup = inCluster ? !followupUsed : followupUsed
   const parts = datesParts(tier)
   return (
     <div className={styles.datesCell} style={{ gap: parts.gap }} data-row-cell="dates" data-dates-tier={tier}>
-      <DuePart
+      {showDue && <DuePart
         todo={todo}
         today={today}
         width={parts.due}
@@ -312,8 +322,8 @@ export function DatesCell({
         onOpen={onOpenDue}
         onClear={onClearDue}
         onInputChange={onDueInputChange}
-      />
-      <FollowupPart
+      />}
+      {showFollowup && <FollowupPart
         todo={todo}
         today={today}
         width={parts.followup}
@@ -322,7 +332,7 @@ export function DatesCell({
         open={followupOpen}
         onToggle={onToggleFollowup}
         onClear={onClearFollowup}
-      />
+      />}
     </div>
   )
 }
