@@ -23,7 +23,7 @@ export type TaskSurfaceKey =
  *    (the entry's slot): a task shows once per date type, and again in an
  *    open day popover.
  */
-export interface TaskDragIdExtras {
+interface TaskDragIdExtras {
   scope?: string
   sectionKey?: string
 }

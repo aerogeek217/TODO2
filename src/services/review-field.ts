@@ -37,7 +37,7 @@ export interface ReviewFieldCounts {
   status: ReadonlyMap<number, number>
 }
 
-export interface ReviewFieldOptions {
+interface ReviewFieldOptions {
   counts: ReviewFieldCounts
   /** The field was clicked (or focused while empty): an empty place for a term lists everything. */
   browse: boolean

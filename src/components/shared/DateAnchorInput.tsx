@@ -29,7 +29,7 @@ const COUNT_WORDS: Record<DayCount, { one: string; many: string }> = {
 }
 const MENU_WIDTH_PX = 220
 
-export interface DateAnchorInputProps {
+interface DateAnchorInputProps {
   /** Calendar: a date + Set to…; Relative: a number + what it counts, or a rolling day. */
   mode: DateEntryMode
   /** Which end: its presets (From: starts and past days; To: ends and future days) and its open end's name. */

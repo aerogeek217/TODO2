@@ -58,7 +58,7 @@ export function droppedFields(todoId: number): string[] {
 }
 
 /** Whether `title` is longer than a subtask's can be, so Make subtask of… would cut it (`subtaskTitle`). */
-export function titleTooLongForSubtask(title: string): boolean {
+function titleTooLongForSubtask(title: string): boolean {
   return collapseWhitespace(title).length > SUBTASK_TITLE_MAX
 }
 

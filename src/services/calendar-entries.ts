@@ -16,7 +16,7 @@ export interface CalendarEntry {
   status: Status | undefined
 }
 
-export interface BuildEntriesOptions {
+interface BuildEntriesOptions {
   assignedPeopleMap?: Map<number, Person[]>
   statuses?: readonly Status[]
   /** Which dates to place. */
@@ -26,7 +26,7 @@ export interface BuildEntriesOptions {
 const KIND_ORDER: Record<CalendarDateType, number> = { due: 0, followup: 1 }
 
 /** Order within a day: due entries before follow-up entries, then the task's `sortOrder`. */
-export function compareCalendarEntries(a: CalendarEntry, b: CalendarEntry): number {
+function compareCalendarEntries(a: CalendarEntry, b: CalendarEntry): number {
   return KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
     || a.todo.sortOrder - b.todo.sortOrder
     || a.todo.id - b.todo.id
@@ -124,7 +124,7 @@ export function dayOverdueWash(entries: readonly CalendarEntry[], today: Date): 
 }
 
 /** How an entry looks: by date type, and whether its date is today or overdue. */
-export type CalendarEntryState = 'due' | 'due-today' | 'due-overdue' | 'followup' | 'followup-overdue'
+type CalendarEntryState = 'due' | 'due-today' | 'due-overdue' | 'followup' | 'followup-overdue'
 
 export function calendarEntryState(entry: CalendarEntry, today: Date): CalendarEntryState {
   const overdue = isEntryOverdue(entry, today)
@@ -134,7 +134,7 @@ export function calendarEntryState(entry: CalendarEntry, today: Date): CalendarE
 }
 
 /** A compact-month day dot. */
-export type CalendarDot = 'due' | 'followup' | 'occurrence' | 'due-done' | 'followup-done'
+type CalendarDot = 'due' | 'followup' | 'occurrence' | 'due-done' | 'followup-done'
 
 /**
  * Up to three dots for a compact-month day, in entry order. A day with any

@@ -2,7 +2,6 @@ import { db, Todo2Database } from './database'
 import { SCHEMA_VERSION_KEY } from './file-version'
 import type { ImportData } from './import-validation'
 import { restoreFromImportData } from './restore'
-import { clearUnsavedDrafts } from './draft-storage'
 
 const DB_NAME = 'todo2'
 
@@ -64,8 +63,7 @@ export function readRawDatabaseExport(now: Date = new Date()): Promise<{ json: s
  * creates a fresh one at this build's version, and restores `data` into it.
  * The fresh database goes through its own `Todo2Database` instance: an open
  * the floor refused leaves the app's `db` holding the floor's tables only.
- * The unsaved layout and list edits kept for a reload go too (they name the
- * old data's ids). The caller reloads the page after.
+ * The caller reloads the page after.
  */
 export async function replaceUnreadableDatabase(data: ImportData): Promise<void> {
   await db.delete()
@@ -76,5 +74,4 @@ export async function replaceUnreadableDatabase(data: ImportData): Promise<void>
   } finally {
     fresh.close()
   }
-  clearUnsavedDrafts()
 }

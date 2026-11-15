@@ -19,7 +19,7 @@ export interface CalendarDropChoiceRequest {
  * Calendar side of {@link dispatchTaskDrop}. Callers supply the store
  * plumbing (typically `useTodoStore` + `buildRescheduleUpdate`).
  */
-export interface CalendarOps {
+interface CalendarOps {
   /** Moves the task's `type` date to `targetDate`'s day. */
   reschedule: (todoId: number, targetDate: Date, type: CalendarDateType) => Promise<void>
   /**
@@ -31,7 +31,7 @@ export interface CalendarOps {
   chooseType?: (request: CalendarDropChoiceRequest) => Promise<CalendarDateType | null>
 }
 
-export interface TaskDropDispatchDeps {
+interface TaskDropDispatchDeps {
   /** Optional — required by surfaces that host calendar day droppables (the
    * workspace). When omitted, calendar-day drops fall through to the
    * caller's own handler. */

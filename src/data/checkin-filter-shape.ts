@@ -16,7 +16,7 @@ import { checkPredicateShape, pickPredicate } from './predicate-shape'
  */
 
 /** A check-in filter read from its stored text, and what was dropped on the way (empty when nothing). */
-export interface ReadCheckinFilter {
+interface ReadCheckinFilter {
   filter: CheckinTaskFilter
   fixes: string[]
 }
@@ -26,7 +26,7 @@ export interface ReadCheckinFilter {
  * lenses): a filter's id lists have no cap of their own below the
  * table size, so this bounds the whole value.
  */
-export const CHECKIN_FILTER_SETTING_MAX_LEN = 1_000_000
+const CHECKIN_FILTER_SETTING_MAX_LEN = 1_000_000
 
 const LABEL = 'check-in filter'
 

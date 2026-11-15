@@ -8,7 +8,7 @@ import { UndoGone } from './undo-store'
  * notice instead of "undoing" nothing (cr31 stores L6). Resolves the ones
  * that exist.
  */
-export async function requireTasks(todoIds: Iterable<number>): Promise<number[]> {
+async function requireTasks(todoIds: Iterable<number>): Promise<number[]> {
   const ids = [...new Set(todoIds)]
   if (ids.length === 0) return []
   const present = await todoRepository.existingIds(ids)

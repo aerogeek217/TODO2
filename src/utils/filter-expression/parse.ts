@@ -58,7 +58,7 @@ export interface ExpressionNameResolver {
   status: (name: string) => number | undefined
 }
 
-export interface ExpressionParseOptions {
+interface ExpressionParseOptions {
   /** Today, for the day words that are fixed dates (`fri`, `11/30`: the next one on Due / Next follow-up, on the others the last weekday and this year's day). */
   today: Date
   names: ExpressionNameResolver

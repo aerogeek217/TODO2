@@ -93,7 +93,7 @@ function addWidgetEntry(a: CellMenuActions): MenuEntry {
  * Insert ▸, Collapse row, then Close tab (with two or more widgets; one
  * widget's is Close cell's) and Close cell.
  */
-export function cellLayoutEntries(a: CellMenuActions): MenuEntry[] {
+function cellLayoutEntries(a: CellMenuActions): MenuEntry[] {
   const mergeWith = a.mergeWith ?? mergeTarget
   const several = a.cell.tabs.length > 1
   return [

@@ -15,7 +15,7 @@
  *   permission needed, failed save, or simply the 500 ms debounce window).
  *   `null` = everything in the browser is in the file.
  */
-export interface FileSyncState {
+interface FileSyncState {
   fileSavedAt: string | null
   dirtySince: string | null
 }

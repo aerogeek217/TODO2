@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from 'react'
 import styles from './EmptyState.module.css'
 
 /** The empty states' line drawings (D19): the icon family's 1.6 stroke, round, at 48px. */
-export type EmptyIllustration = 'list' | 'layout' | 'person'
+type EmptyIllustration = 'list' | 'layout' | 'person'
 
 const ILLUSTRATIONS: Record<EmptyIllustration, ReactElement> = {
   // A list sheet with a tick badge: nothing left to show.
@@ -32,7 +32,7 @@ const ILLUSTRATIONS: Record<EmptyIllustration, ReactElement> = {
   ),
 }
 
-export interface EmptyStateAction {
+interface EmptyStateAction {
   label: string
   onClick: () => void
 }

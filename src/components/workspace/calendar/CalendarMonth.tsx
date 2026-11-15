@@ -110,7 +110,7 @@ function MonthHeatDay({ day, month, entries, ctx, onMore, moreOpen }: {
  * Under the heat map: what the tint counts, the four steps, and — when the
  * month holds one — a late day's number in its colour (the latest).
  */
-export function HeatLegend({ types, lateDay }: { types: CalendarDateTypes; lateDay: LateDay | null }) {
+function HeatLegend({ types, lateDay }: { types: CalendarDateTypes; lateDay: LateDay | null }) {
   return (
     <div className={styles.heatLegend} data-cal-legend="">
       <span>{heatLegendLabel(types)}:</span>

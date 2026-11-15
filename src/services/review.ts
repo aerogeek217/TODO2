@@ -88,7 +88,7 @@ export function listReviewCount(tabId: string): number {
 }
 
 /** How many of `ids` are open tasks. */
-export function openCount(ids: readonly number[]): number {
+function openCount(ids: readonly number[]): number {
   const open = new Set(useTodoStore.getState().todos.filter((t) => !t.isCompleted).map((t) => t.id))
   return ids.filter((id) => open.has(id)).length
 }

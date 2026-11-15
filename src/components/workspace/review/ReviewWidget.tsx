@@ -23,7 +23,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { expressionNamesOf } from '../../../utils/filter-chips'
 import { printExpression } from '../../../utils/filter-expression'
-import { REVIEW_WIDGET_ATTR } from '../../../utils/dom-contract'
+import { PROMPT_ROW_ATTR, REVIEW_WIDGET_ATTR } from '../../../utils/dom-contract'
 import { isFollowedUpToday } from '../../../utils/followup'
 import { reviewFaceFor, reviewQueueFolds } from '../../../utils/widget-face'
 import { EmptyState } from '../../shared/EmptyState'
@@ -78,8 +78,8 @@ export function ReviewWidget({ tab }: { tab: ReviewTab }) {
   const focusWithin = useRef(false)
   const focusOnOpen = useCallback(() => {
     const active = document.activeElement
-    if (active?.closest('[data-prompt-row]') != null) return false
-    return focusWithin.current && (active == null || active === document.body || active.closest('[data-review-widget]') != null)
+    if (active?.closest(`[${PROMPT_ROW_ATTR}]`) != null) return false
+    return focusWithin.current && (active == null || active === document.body || active.closest(`[${REVIEW_WIDGET_ATTR}]`) != null)
   }, [])
   const onBlur = (e: FocusEvent) => {
     if (e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget)) focusWithin.current = false

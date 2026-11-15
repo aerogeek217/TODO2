@@ -33,7 +33,7 @@ export const LINE_ICON_LABELS: Readonly<Record<LineIconKey, string>> = {
   link: 'Link',
 }
 
-export function isLineIconKey(v: unknown): v is LineIconKey {
+function isLineIconKey(v: unknown): v is LineIconKey {
   return typeof v === 'string' && (LINE_ICON_KEYS as readonly string[]).includes(v)
 }
 
@@ -66,7 +66,7 @@ const RGI_EMOJI: RegExp | null = (() => {
 const PICTOGRAPHIC = /\p{Extended_Pictographic}|\p{Regional_Indicator}{2}|⃣/u
 
 /** The graphemes of `text` (user-perceived characters). */
-export function graphemes(text: string): string[] {
+function graphemes(text: string): string[] {
   if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
     return Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text), (s) => s.segment)
   }
@@ -160,7 +160,7 @@ export function emojiShow(icon: Extract<IconValue, { kind: 'emoji' }>): EmojiSho
  * emoji beside it (`models/status`) —, only drawn (`AppIcon`) and offered
  * (the status editor's Icons tab).
  */
-export interface StatusGlyphIcon {
+interface StatusGlyphIcon {
   kind: 'status'
   key: StatusIconKey
 }

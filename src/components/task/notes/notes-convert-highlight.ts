@@ -7,7 +7,7 @@ import { Decoration, EditorView, type DecorationSet } from '@codemirror/view'
  * the left). Set with `setConvertHighlight` (1-based line numbers; an empty
  * list clears it); edits map the marks along.
  */
-export const setConvertHighlight = StateEffect.define<readonly number[]>()
+const setConvertHighlight = StateEffect.define<readonly number[]>()
 
 const scopeLine = Decoration.line({ class: 'cm-convert-scope' })
 

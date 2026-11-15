@@ -40,14 +40,14 @@ export interface ShortcutCallbacks {
 }
 
 /** What a handler reads of the key press: a `KeyboardEvent`, or `NO_KEY_PRESS` from the palette. */
-export type ShortcutInput = Pick<KeyboardEvent, 'key' | 'shiftKey' | 'preventDefault'> & { defaultPrevented?: boolean }
+type ShortcutInput = Pick<KeyboardEvent, 'key' | 'shiftKey' | 'preventDefault'> & { defaultPrevented?: boolean }
 
 export interface ShortcutCtx {
   e: ShortcutInput
   callbacks: ShortcutCallbacks
 }
 
-export type ShortcutHandler = (ctx: ShortcutCtx) => void | Promise<void>
+type ShortcutHandler = (ctx: ShortcutCtx) => void | Promise<void>
 
 /** A palette command's run: no key, no Shift, nothing to prevent. */
 const NO_KEY_PRESS: ShortcutInput = { key: '', shiftKey: false, preventDefault: () => {} }

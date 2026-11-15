@@ -72,7 +72,7 @@ export type ChartWidgetKind = 'breakdown' | 'pivot'
 export type CalendarView = 'week' | 'month'
 
 /** Max absolute calendar offset (weeks in week view, months in month view). */
-export const CALENDAR_OFFSET_MAX = 104
+const CALENDAR_OFFSET_MAX = 104
 
 export function clampCalendarOffset(n: number): number {
   if (!Number.isFinite(n)) return 0
@@ -98,7 +98,7 @@ export interface LensTabConfig {
   listDefinitionId?: number
 }
 
-export interface CalendarTabConfig {
+interface CalendarTabConfig {
   dateTypes: CalendarDateTypes
 }
 
@@ -123,7 +123,7 @@ export interface CalendarTabViewState extends LensViewState {
 }
 
 /** The largest stored task-row details width, px (`TaskRowsViewState.detailsWidth`). */
-export const DETAILS_WIDTH_MAX = 4000
+const DETAILS_WIDTH_MAX = 4000
 
 /**
  * A stored details width as it is kept: a finite number ≥ 0, rounded and
@@ -170,7 +170,7 @@ export interface ListTabViewState extends TaskRowsViewState {
 }
 
 /** Config / view state of a kind that has none. */
-export type NoTabSettings = Record<string, never>
+type NoTabSettings = Record<string, never>
 
 /**
  * A Review widget's settings: none (widget feedback 2A). What it reviews is
@@ -178,7 +178,7 @@ export type NoTabSettings = Record<string, never>
  * never saved. (Board BM's kind `by` and board BK's `pick`, which earlier
  * builds stored, were removed by schema v79.)
  */
-export type ReviewTabConfig = NoTabSettings
+type ReviewTabConfig = NoTabSettings
 
 /**
  * A Review widget's view state (saved at once): its lens switch and the
@@ -214,7 +214,7 @@ export const DEFAULT_NEGLECT_UNTOUCHED_DAYS = 14
 export const NEGLECT_UNTOUCHED_CHOICES: readonly number[] = [7, 14, 21, 30, 45]
 
 /** The largest threshold kept: below the map's 60-day cap, so its line stays on the plot. */
-export const NEGLECT_UNTOUCHED_MAX = 59
+const NEGLECT_UNTOUCHED_MAX = 59
 
 /** A threshold the tab keeps: a whole number of days, 1 – `NEGLECT_UNTOUCHED_MAX`. */
 export function isNeglectUntouchedDays(v: unknown): v is number {
@@ -222,7 +222,7 @@ export function isNeglectUntouchedDays(v: unknown): v is number {
 }
 
 /** A new Neglect map's config: colour by `tagIds` (the `Project: …` tags, which the caller picks), 14 days. */
-export function defaultNeglectConfig(tagIds: readonly number[] = []): NeglectTabConfig {
+function defaultNeglectConfig(tagIds: readonly number[] = []): NeglectTabConfig {
   return { colourBy: { kind: 'tags', tagIds: [...tagIds] }, untouchedDays: DEFAULT_NEGLECT_UNTOUCHED_DAYS }
 }
 
@@ -251,7 +251,7 @@ interface TabOf<K extends WidgetKind, C, V> {
 /** A list tab's view state: the rows' details width and its zoom (its prompt picks are temporary, not saved). */
 export type LensTab = TabOf<'lens', LensTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
-export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
+type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, LensViewState>
 export type NumberTab = TabOf<'number', NumberConfig, LensViewState>
@@ -269,7 +269,7 @@ export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
 
 export type LayoutTab = LensTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | GlanceTab
 
-export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
+type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
 export type TabViewStateOf<K extends WidgetKind> = NonNullable<TabOfKind<K>['viewState']>
 
@@ -304,7 +304,7 @@ export interface GridTrack {
 }
 
 /** The layout's grid: its column tracks left to right and its row tracks top to bottom. */
-export interface LayoutGrid {
+interface LayoutGrid {
   columns: GridTrack[]
   rows: GridTrack[]
 }
@@ -439,7 +439,7 @@ export interface TabSeed {
  * right-click rule read `glance` / `fitHeight`, which the Calendar and the
  * Neglect map don't have, whichever group they are in.
  */
-export type WidgetKindGroup = 'tasks' | 'insights'
+type WidgetKindGroup = 'tasks' | 'insights'
 
 /** The groups in menu order, with their headings. */
 export const WIDGET_KIND_GROUPS: ReadonlyArray<{ group: WidgetKindGroup; label: string }> = [
@@ -448,7 +448,7 @@ export const WIDGET_KIND_GROUPS: ReadonlyArray<{ group: WidgetKindGroup; label: 
 ]
 
 /** What the app knows about one widget kind. */
-export interface WidgetKindSpec<K extends WidgetKind> {
+interface WidgetKindSpec<K extends WidgetKind> {
   /** Its name in menus, the add-widget tiles and tab titles. */
   label: string
   /** A new tab of this kind shows a list (one of the layout's), picked before the tab is added. */
@@ -549,7 +549,7 @@ export function isGlanceKind(kind: WidgetKind): kind is GlanceWidgetKind {
 /** A glance widget's tab. */
 /** The kinds with a lens switch of their own in their view state (G3; a list's is its list's). */
 export const LENS_SWITCH_KINDS = ['calendar', 'review', 'neglect', 'number', 'trend', 'pulse', 'breakdown', 'pivot'] as const
-export type LensSwitchKind = (typeof LENS_SWITCH_KINDS)[number]
+type LensSwitchKind = (typeof LENS_SWITCH_KINDS)[number]
 export type LensSwitchTab = Extract<LayoutTab, { kind: LensSwitchKind }>
 
 export function isLensSwitchTab(tab: LayoutTab): tab is LensSwitchTab {

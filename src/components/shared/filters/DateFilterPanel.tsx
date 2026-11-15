@@ -102,7 +102,7 @@ function rangeMatch({ start, end, includeNoDate, not }: PanelRange): DateRangeMa
   return { match: 'range', start, end, ...(not ? { not: true } : includeNoDate ? { includeNoDate: true } : {}) }
 }
 
-export interface DateFilterPanelProps {
+interface DateFilterPanelProps {
   /** The date filters edited: one clause per date type (AND). */
   dates: DateFilters
   /** The tab selected when the panel opens; default the first type that filters, else Due. */

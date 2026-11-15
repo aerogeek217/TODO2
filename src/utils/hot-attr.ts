@@ -22,7 +22,7 @@
  */
 
 /** Which of the element's pseudo-classes the attribute stands for (either one matching sets it). */
-export interface HotStates {
+interface HotStates {
   hover?: boolean
   focus?: boolean
 }

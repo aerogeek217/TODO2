@@ -32,7 +32,7 @@ interface DraggableRenderArgs {
   isDragging: boolean
 }
 
-export interface TaskDraggableProps extends SharedProps {
+interface TaskDraggableProps extends SharedProps {
   children: (args: DraggableRenderArgs) => ReactNode
 }
 

@@ -17,7 +17,7 @@ import {
   type AutocompleteView,
 } from '../services/nlp-autocomplete'
 
-export { NLP_TRIGGERS, type NlpTrigger, type AutocompleteItem, type AutocompleteRow } from '../services/nlp-autocomplete'
+export { type AutocompleteRow } from '../services/nlp-autocomplete'
 
 export interface AutocompleteState {
   visible: boolean

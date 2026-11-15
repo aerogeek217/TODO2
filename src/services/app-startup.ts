@@ -7,12 +7,12 @@ import { db, findDatabaseTooNew, findDatabaseTooOld } from '../data/database'
 import { useFileStorageStore } from './file-storage-store'
 import { expiredCompletedUids } from './purge-completed'
 
-export interface AppStartupResult {
+interface AppStartupResult {
   /** uids of the completed tasks past retention once the data is settled (the purge prompt's list), or null (none, or not asked again yet). */
   expiredUids: ReadonlySet<string> | null
 }
 
-export interface AppStartupOptions {
+interface AppStartupOptions {
   /** Called just before the completed-task check reads the database. */
   onPurgeCheck?: () => void
 }

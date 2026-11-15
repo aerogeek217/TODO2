@@ -87,12 +87,6 @@ function fold(e: FilterExpr): Folded {
   }
 }
 
-/** Whether `predicate` (or its expression) has a Completed date clause, which a check-in drops. */
-export function hasCompletedDateClause(predicate: TodoPredicate): boolean {
-  return predicate.dates.completed !== undefined
-    || (predicate.expression != null && expressionAtoms(predicate.expression).some((a) => a.kind === 'date' && a.field === 'completed'))
-}
-
 /**
  * The check-in filter as it is kept: no people filter (nor its "is not"
  * switch) and no Completed date range (a check-in only takes open tasks, so

@@ -8,7 +8,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { entityTaskUse, filterReferences, findUnused, type FilterSources, type UnusedEntry } from '../utils/unused-entities'
 import { usePersonAssignmentsForLoadedTodos, useTagAssignmentsForLoadedTodos } from './use-entity-assignments-for-todos'
 
-export interface UnusedEntities {
+interface UnusedEntities {
   /** Every task and its people and tags are loaded: until then nothing is listed (everyone would look unused). */
   ready: boolean
   people: UnusedEntry<Person>[]

@@ -13,7 +13,6 @@ import {
   describeAnchor,
   describeFilters,
   describeDateMatch,
-  describeRange,
   filterChips,
   hasNarrowingFilters,
   orValue,
@@ -21,6 +20,7 @@ import {
   removeChip,
   type FilterChipNames,
 } from '../../utils/filter-chips'
+import { describeRange } from '../../utils/date-words'
 import { choicesWith, groupSortSummary, sortOrderWords, withListSort, withSortDirection } from '../../utils/list-options'
 import { isTodoSortBy, sortDirectionOnPick, sortHasDirection } from '../../models/todo-sort-group'
 

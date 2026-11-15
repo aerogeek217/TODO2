@@ -41,7 +41,7 @@ function px(value: string): number {
  * gap, and each row track's drawn height by id (`data-ws-row-tracks`, the
  * ids in order; the sizes from its computed `grid-template-rows`).
  */
-export function measureTableElement(table: HTMLElement): TableMetrics {
+function measureTableElement(table: HTMLElement): TableMetrics {
   const r = table.getBoundingClientRect()
   const style = getComputedStyle(table)
   const padL = px(style.paddingLeft)

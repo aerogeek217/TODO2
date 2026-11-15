@@ -29,7 +29,7 @@ export function addWhereTarget(cellId: string, where: AddWhere): LayoutDropTarge
 }
 
 /** Each choice's words, in the drag ghost's (`workspace-drop.dropLabel`): an insert also says which edge. */
-export function addWhereLabel(where: AddWhere): string {
+function addWhereLabel(where: AddWhere): string {
   const target = addWhereTarget('', where)
   switch (target.kind) {
     case 'split': return splitLabel(target.side)
@@ -60,9 +60,9 @@ const PLACES: ReadonlyArray<Omit<MenuPictureOption, 'description'> & { value: Ad
 ]
 
 /** Every choice, in the picture's reading order. */
-export const ADD_WHERE_OPTIONS: readonly AddWhere[] = PLACES.map((p) => p.value)
+const ADD_WHERE_OPTIONS: readonly AddWhere[] = PLACES.map((p) => p.value)
 
-export function isAddWhere(value: string): value is AddWhere {
+function isAddWhere(value: string): value is AddWhere {
   return (ADD_WHERE_OPTIONS as readonly string[]).includes(value)
 }
 

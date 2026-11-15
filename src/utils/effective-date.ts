@@ -111,18 +111,6 @@ export function daysUntil(d: Date | null | undefined, today: Date): number | nul
 }
 
 /**
- * Proximity factor in [0.15, 1] — used to fade chip color from greyscale (far)
- * toward the full color (at or past the date). Linear ramp over 14 days, with
- * a floor so distant chips stay legible rather than becoming invisible.
- */
-export function dateIntensity(days: number | null | undefined): number {
-  if (days == null) return 1
-  if (days <= 0) return 1
-  const f = 1 - days / 14
-  return Math.max(0.15, f)
-}
-
-/**
  * The due column's tooltip: the full date with weekday and year, how far off
  * it is (`In 3 days`, `Due today`, `2 days overdue`), and the repeat rule.
  * Empty without a due date.

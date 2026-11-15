@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { emptyPredicate, type PersistedTodoItem, type TodoPredicate } from '../models'
 import type { ReviewFilter } from '../stores/list-widget-store'
-import type { ReviewDivider } from '../stores/review-session'
 import { predicateToCriteria } from '../utils/filter-criteria'
 import { matchesFilterWithLookups } from '../utils/filter-match'
 import { withExpression } from '../utils/predicate-expression'
@@ -17,15 +16,13 @@ import { lensHidesWhere, useLensHidden, useStatsBase, type StatsBase } from './u
  * leaving the filter leaves the queue. `hides` is the switch's `−N`: what
  * the lens hides there. No dividers: the queue is one run of tasks.
  */
-export interface ReviewWidgetQueue {
+interface ReviewWidgetQueue {
   ids: number[]
-  dividers: ReviewDivider[]
   hides: number
 }
 
-const NO_DIVIDERS: ReviewDivider[] = []
 const NO_IDS: number[] = []
-const NO_QUEUE: ReviewWidgetQueue = { ids: NO_IDS, dividers: NO_DIVIDERS, hides: 0 }
+const NO_QUEUE: ReviewWidgetQueue = { ids: NO_IDS, hides: 0 }
 
 /** A Review widget's filter as the predicate the queue matches (its `done` kept: the queue takes open tasks either way). */
 export function reviewFilterPredicate(filter: ReviewFilter): TodoPredicate {
@@ -58,5 +55,5 @@ export function useReviewWidgetQueue(filter: ReviewFilter | null | undefined): R
     const criteria = criteriaMemo(predicate)
     return lensHidesWhere(hidden, (t: PersistedTodoItem, b) => !t.isCompleted && matchesFilterWithLookups(criteria, t, b.lookups, b.ctx.today, b.markerSettings))
   }, [hidden, predicate])
-  return useMemo<ReviewWidgetQueue>(() => (predicate ? { ids, dividers: NO_DIVIDERS, hides } : NO_QUEUE), [predicate, ids, hides])
+  return useMemo<ReviewWidgetQueue>(() => (predicate ? { ids, hides } : NO_QUEUE), [predicate, ids, hides])
 }

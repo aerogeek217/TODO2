@@ -8,7 +8,7 @@ import { CELL_MIN_PX, CELL_MIN_WIDTH_PX } from './workspace-resize'
  */
 
 /** Whether a widget kind has a given flag (`glance`, `fitHeight`). */
-export type KindFlag = (kind: WidgetKind) => boolean
+type KindFlag = (kind: WidgetKind) => boolean
 
 /** A glance widget (`WidgetKindSpec.glance`, `models/workspace-layout.isGlanceKind`); an unknown kind is not. */
 export const isGlanceKind: KindFlag = (kind) => isGlanceWidgetKind(kind)
@@ -57,7 +57,7 @@ export function isFitTrack(body: LayoutBody, row: number, fit: KindFlag = isFitH
 }
 
 /** Whether a cell holds only glance widgets (at least one tab, every tab a glance kind). */
-export function isGlanceCell(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): boolean {
+function isGlanceCell(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): boolean {
   return cell.tabs.length > 0 && cell.tabs.every((tab) => glance(tab.kind))
 }
 

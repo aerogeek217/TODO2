@@ -11,6 +11,7 @@ import { listOrderRepository } from '../../data/list-order-repository'
 import { personRepository } from '../../data/person-repository'
 import { backupRepository } from '../../data/backup-repository'
 import { resetModuleState } from '../../utils/module-reset'
+import { requestEditListClose, setEditListCloseRequest } from '../../components/workspace/list/edit-list-keep'
 
 // Every module with state outside its store registers how to go back to a
 // fresh import's state; `resetModuleState` (what the test setups call) runs
@@ -144,5 +145,14 @@ describe('singletons', () => {
     resetModuleState()
     expect(vi.getTimerCount()).toBe(0)
     await vi.runAllTimersAsync()
+  })
+})
+
+describe('Edit list’s close request (cr34 A9)', () => {
+  it('is forgotten, as on a fresh page: nothing asks to close an Edit list a test left open', () => {
+    setEditListCloseRequest(() => true)
+    expect(requestEditListClose()).toBe(true)
+    resetModuleState()
+    expect(requestEditListClose()).toBe(false)
   })
 })

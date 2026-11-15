@@ -12,24 +12,16 @@ import { registerModuleReset } from '../utils/module-reset'
  * `place`.
  */
 
-/** A group header of the source list, as a divider in the queue before task `index`. */
-export interface ReviewDivider {
-  index: number
-  label: string
-}
-
 /** A task's mark: followed up (today, here or elsewhere — `shownMark`), or skipped in this review. */
-export type ReviewMark = 'done' | 'skipped'
+type ReviewMark = 'done' | 'skipped'
 
 // The rail's sort (item 7) is stored by a Review widget: its type lives with the models.
-export { REVIEW_SORTS, isReviewSort, reviewSortLabel, type ReviewSort } from '../models/review'
+export { REVIEW_SORTS, reviewSortLabel, type ReviewSort } from '../models/review'
 
 /** What a session holds. */
 export interface ReviewSessionData {
   /** The queue in its source's order, each task once. */
   ids: readonly number[]
-  /** The source's group headers, over `ids`. */
-  dividers: readonly ReviewDivider[]
   sort: ReviewSort
   /**
    * The tasks as the rail shows them: `ids` in the sort's order — and, in a
@@ -60,13 +52,12 @@ export interface ReviewSessionData {
 /** A new queue and its place, as `services/review-queue` computes them. */
 export interface ReviewPlace {
   ids: readonly number[]
-  dividers: readonly ReviewDivider[]
   sort: ReviewSort
   order: readonly number[]
   index: number
 }
 
-export interface ReviewSessionActions {
+interface ReviewSessionActions {
   /** Jumps to card `i` of `order` (clamped); moving off a current task no longer in the queue drops it from the rail. */
   go: (i: number) => void
   next: () => void
@@ -94,9 +85,8 @@ export type ReviewSession = ReviewSessionData & ReviewSessionActions
 /** What the review components read a session through (a widget's). */
 export type ReviewSessionApi = Pick<StoreApi<ReviewSession>, 'getState' | 'getInitialState' | 'subscribe'>
 
-export const EMPTY_SESSION: ReviewSessionData = {
+const EMPTY_SESSION: ReviewSessionData = {
   ids: [],
-  dividers: [],
   sort: 'queue',
   order: [],
   index: 0,
@@ -114,7 +104,7 @@ export function currentReviewId(s: Pick<ReviewSessionData, 'order' | 'index'>): 
 }
 
 /** The session's actions over its data, for a store whose state holds it. */
-export function reviewSessionActions(
+function reviewSessionActions(
   set: (partial: Partial<ReviewSessionData>) => void,
   get: () => ReviewSessionData & Pick<ReviewSessionActions, 'go' | 'next' | 'mark'>,
 ): ReviewSessionActions {
@@ -175,12 +165,12 @@ export function reviewSessionActions(
       set({ nextDrafts: next })
     },
 
-    place({ ids, dividers, sort, order, index }) {
-      set({ ids: [...ids], dividers: [...dividers], sort, order: [...order], index: order.length === 0 ? 0 : clamp(index, order.length) })
+    place({ ids, sort, order, index }) {
+      set({ ids: [...ids], sort, order: [...order], index: order.length === 0 ? 0 : clamp(index, order.length) })
     },
 
     restart(filterKey) {
-      set({ ids: [], dividers: [], order: [], index: 0, marks: {}, filterKey })
+      set({ ids: [], order: [], index: 0, marks: {}, filterKey })
     },
 
     reset() {
@@ -205,8 +195,8 @@ registerModuleReset(() => { widgetSessions = new Map() })
 
 /**
  * The session of Review widget `tabId` (item 12), made on first use from
- * `initial` (its view state) and kept while the app runs — the small face's
- * popover and the cell share it, and the typed text outlives a face change.
+ * `initial` (its view state) and kept while the app runs — the widget popup
+ * and the cell share it, and the typed text outlives a face change.
  */
 export function reviewWidgetSession(tabId: string, initial?: () => Partial<ReviewSessionData>): StoreApi<ReviewSession> {
   let session = widgetSessions.get(tabId)

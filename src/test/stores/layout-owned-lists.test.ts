@@ -10,7 +10,6 @@ import { useListDraftStore } from '../../stores/list-draft-store'
 import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
-import { writeLayoutDraft } from '../../data/draft-storage'
 import { resetDb } from '../helpers'
 import { grid, single } from '../helpers/layout-builders'
 
@@ -402,7 +401,7 @@ describe('a layout shows only its own lists', () => {
 })
 
 describe('page load', () => {
-  /** A reload: the stores start afresh and the workspace opens again (applying an older build's kept draft). */
+  /** A reload: the stores start afresh and the workspace opens again. */
   async function reload(): Promise<void> {
     await settled()
     useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
@@ -416,92 +415,6 @@ describe('page load', () => {
     await reload()
     expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs])
     expect(storeListIds()).not.toContain(unshown)
-  })
-
-  it('a kept draft that shows a list made for it is applied with it', async () => {
-    const w = await world()
-    const kept = await useListDefinitionStore.getState().add({ name: 'Kept', owner: { layoutId: w.a } })
-    const base = layoutBodyOf(await stored(w.a))
-    writeLayoutDraft({
-      kind: 'saved',
-      layoutId: w.a,
-      base,
-      body: layoutBodyOf(layoutWith('A', [lens('s', w.saved), lens('m1', w.mine1), lens('m2', w.mine2), createTab('notes', 'e'), lens('k', kept)])),
-    })
-    await reload()
-    expect(layoutListRefs(ws().working!).has(kept)).toBe(true)
-    expect(layoutListRefs(await stored(w.a)).has(kept)).toBe(true)
-    expect(await storedListIds()).toContain(kept)
-  })
-
-  it('a kept new layout (an older build’s) that shows a list is not taken back (every list is a stored layout’s), and says so', async () => {
-    const w = await world()
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [lens('n', w.theirs)])) })
-    await reload()
-    expect(ws().saved?.id).toBe(w.a)
-    expect(await db.layouts.count()).toBe(2)
-    expect(useUndoStore.getState().snackbar?.description).toBe('The unsaved new layout “Untitled layout” was dropped: a layout shows only its own lists, and it wasn’t stored yet.')
-  })
-
-  it('a kept new layout that shows no list is stored and opened', async () => {
-    const w = await world()
-    writeLayoutDraft({ kind: 'new', name: 'Plain', body: layoutBodyOf(layoutWith('N', [createTab('notes', 'n')])) })
-    await reload()
-    expect(ws().working?.name).toBe('Plain')
-    expect(ws().saved?.id).not.toBe(w.a)
-    expect(await db.layouts.count()).toBe(3)
-  })
-
-  it('a kept draft made before its layout got copies of the lists it shared (an upgrade) is applied on the copies', async () => {
-    const w = await world()
-    // The draft (made at v67) adds a notes tab; B showed A's "Mine 1" then, and the upgrade gave B a copy.
-    const base = layoutBodyOf(layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1)]))
-    const body = layoutBodyOf(layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1), createTab('notes', 'nb')]))
-    const copy = (await db.listDefinitions.add(def('Mine 1', { layoutId: w.b }))) as number
-    await db.layouts.update(w.b, layoutWith('B', [lens('t', w.theirs), lens('m1b', copy)]))
-    writeLayoutDraft({ kind: 'saved', layoutId: w.b, base, body })
-    await layoutRepository.setActiveId(w.b)
-    await reload()
-    expect(ws().saved?.id).toBe(w.b)
-    expect([...layoutListRefs(ws().working!)].sort((x, y) => x - y)).toEqual([w.theirs, copy].sort((x, y) => x - y))
-    expect(ws().working!.cells[0]!.tabs.map((t) => t.id)).toEqual(['t', 'm1b', 'nb'])
-    expect((await stored(w.b)).cells[0]!.tabs.map((t) => t.id)).toEqual(['t', 'm1b', 'nb'])
-  })
-
-  it('a kept draft that shows another layout’s list is dropped, and says so', async () => {
-    const w = await world()
-    const base = layoutBodyOf(layoutWith('B', [lens('t', w.theirs)]))
-    writeLayoutDraft({ kind: 'saved', layoutId: w.b, base, body: layoutBodyOf(layoutWith('B', [lens('t', w.theirs), lens('x', w.mine1)])) })
-    await layoutRepository.setActiveId(w.b)
-    await reload()
-    expect(ws().saved?.id).toBe(w.b)
-    expect(layoutListRefs(ws().working!)).toEqual(new Set([w.theirs]))
-    expect(useUndoStore.getState().snackbar?.description).toBe('Unsaved changes to layout “B” were dropped: they showed another layout’s list.')
-  })
-
-  it('a kept draft of another layout than the one opening is dropped, and so are the lists only it showed', async () => {
-    const w = await world()
-    const fresh = await useListDefinitionStore.getState().add({ name: 'Fresh', owner: { layoutId: w.a } })
-    const base = layoutBodyOf(await stored(w.a))
-    writeLayoutDraft({ kind: 'saved', layoutId: w.a, base, body: layoutBodyOf(layoutWith('A', [lens('s', w.saved), lens('f', fresh)])) })
-    // Layout B was opened elsewhere since.
-    await layoutRepository.setActiveId(w.b)
-    await reload()
-    expect(ws().activeLayoutId).toBe(w.b)
-    expect(await storedListIds()).not.toContain(fresh)
-    expect(await storedListIds()).toContain(w.mine1)
-  })
-
-  it('a kept draft that no longer matches the stored layout is forgotten, and so are the lists only it showed', async () => {
-    const w = await world()
-    const fresh = await useListDefinitionStore.getState().add({ name: 'Fresh', owner: { layoutId: w.a } })
-    const base = layoutBodyOf(await stored(w.a))
-    writeLayoutDraft({ kind: 'saved', layoutId: w.a, base, body: layoutBodyOf(layoutWith('A', [lens('s', w.saved), lens('f', fresh)])) })
-    // The stored layout changed meanwhile (e.g. saved from another tab).
-    await db.layouts.update(w.a, layoutWith('A', [lens('s', w.saved), lens('m1', w.mine1)]))
-    await reload()
-    expect(undoNames()).toEqual([])
-    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.theirs])
   })
 })
 

@@ -7,14 +7,14 @@
 
 import { attrSelector, LIST_SECTION_ATTR, ROW_KEY_ATTR, ROW_TODO_ATTR } from './dom-contract'
 
-export interface ListRowGeom {
+interface ListRowGeom {
   key: string
   todoId: number
   /** Vertical midpoint. */
   mid: number
 }
 
-export interface ListSectionGeom {
+interface ListSectionGeom {
   key: string
   top: number
   bottom: number

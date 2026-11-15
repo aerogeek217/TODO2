@@ -20,7 +20,7 @@ function renderButton() {
   const session = createReviewSession({ ids: [1, 2], order: [1, 2] })
   render(
     <ReviewSessionContext.Provider value={session}>
-      <ReviewQueueButton todoById={new Map(TODOS.map((t) => [t.id, t]))} followedUpToday={() => false} label="Review queue · Aisha" />
+      <ReviewQueueButton todoById={new Map(TODOS.map((t) => [t.id, t]))} followedUpToday={() => false} label="Review queue · Aisha" onToggleComplete={() => {}} />
     </ReviewSessionContext.Provider>,
   )
   return screen.getByRole('button', { name: 'Queue' })

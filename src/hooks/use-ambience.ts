@@ -28,7 +28,7 @@ function useMinute(active: boolean): Date {
   return now
 }
 
-export interface Ambience {
+interface Ambience {
   scene: SkyScene
   /** The system asks for reduced motion: nothing falls, twinkles, drifts or ripples (the sky still follows the clock). */
   still: boolean

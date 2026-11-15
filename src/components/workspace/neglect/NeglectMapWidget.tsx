@@ -51,7 +51,7 @@ import styles from './NeglectMapWidget.module.css'
  * the plot has the whole widget and there is no list: a quadrant's word
  * opens its tasks instead (a phone keeps the list, under the plot).
  */
-export const NEGLECT_SIDE_LIST_MIN_PX = 900
+const NEGLECT_SIDE_LIST_MIN_PX = 900
 
 /** The Slipping list numbers this many tasks (and badges their dots); the rest open in the task dialog. */
 export const SLIPPING_LISTED = 9

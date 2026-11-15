@@ -38,7 +38,7 @@ const EVERY_OPEN = emptyPredicate()
 
 // ── Share of… ───────────────────────────────────────────────────────────────
 
-export interface NumberShareData {
+interface NumberShareData {
   /** Its own filter's count. */
   count: NumberCount
   /** The second filter's count: the whole. */
@@ -144,7 +144,7 @@ export function useLayoutFirstListId(): number | undefined {
   return useListDefinitionStore((s) => listedLists([...s.listDefinitions].sort(bySortOrder), layoutId)[0]?.id)
 }
 
-export interface NumberListData {
+interface NumberListData {
   /** The list as edited (its draft); absent when none is picked or it was deleted. */
   name: string | null
   /** The list as a list tab of the Number's id (its prompt picks are the Number's), for the popover; absent with no list. */

@@ -18,7 +18,7 @@
 
 import { subtaskTitle } from '../utils/subtasks'
 
-export type NoteLineKind = 'candidate' | 'done' | 'converted' | 'other'
+type NoteLineKind = 'candidate' | 'done' | 'converted' | 'other'
 
 /** A list line's marker within it, spaces after it included: a bullet, an open box or a done box. */
 export interface ListMarker {
@@ -27,7 +27,7 @@ export interface ListMarker {
   kind: 'bullet' | 'open' | 'done'
 }
 
-export interface NoteLine {
+interface NoteLine {
   kind: NoteLineKind
   /** Leading whitespace, kept when the line is rewritten as `✓ <title>`. */
   indent: string
@@ -36,7 +36,7 @@ export interface NoteLine {
 }
 
 /** An indented list line under a bullet: a subtask of that bullet's task (its title is plain text). */
-export interface SubtaskLine {
+interface SubtaskLine {
   line: number
   text: string
   title: string

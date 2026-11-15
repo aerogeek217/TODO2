@@ -3,10 +3,19 @@ import { buildExportData, selfCheckExportJson } from '../../data/export-data'
 import { buildMarkdownExport } from '../../services/markdown-export'
 import { buildTasksPlain } from '../../services/task-copy'
 import { ALL_DATA_TABLES, db } from '../../data/database'
-import { parseAndRestore } from '../../data/restore'
+import { restoreFromImportData } from '../../data/restore'
+import { prepareImportText } from '../../data/import-pipeline'
 import { resetDb, makeTodo, makePerson } from '../helpers'
 import type { PersistedTodoItem } from '../../models'
 import { single } from '../helpers/layout-builders'
+
+/** A JSON string through the import pipeline and restored, as Settings › Import does (`prepareImportText` → `restoreFromImportData`). */
+async function parseAndRestore(jsonString: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = prepareImportText(jsonString)
+  if (!result.ok) return { ok: false, error: result.error }
+  await restoreFromImportData(result.data)
+  return { ok: true }
+}
 
 beforeEach(async () => {
   await resetDb()

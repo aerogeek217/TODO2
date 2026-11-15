@@ -42,7 +42,7 @@ export function dateAnchorsEqual(a: DateAnchor | null, b: DateAnchor | null): bo
 }
 
 /** Labels of the relative date tokens (sentence case; the words and the Relative list lower-case them). */
-export const RELATIVE_TOKEN_LABELS: Record<RelativeDateToken, string> = {
+const RELATIVE_TOKEN_LABELS: Record<RelativeDateToken, string> = {
   'yesterday': 'Yesterday',
   'today': 'Today',
   'tomorrow': 'Tomorrow',
@@ -179,7 +179,7 @@ export function switchAnchorMode(
 }
 
 /** A named number of days (a month is 30): Relative's Fill in items, Calendar's Set to… offsets. */
-export interface DayPreset {
+interface DayPreset {
   days: number
   label: string
 }
@@ -205,7 +205,7 @@ export const ROLLING_DAYS: Record<DateAnchorSide, readonly RelativeDateToken[]> 
 }
 
 /** A Calendar end's Set to… item: picking it fills the date with its day today. */
-export interface CalendarPreset {
+interface CalendarPreset {
   label: string
   day: (today: Date, weekStartsOn: WeekStart) => Date
 }

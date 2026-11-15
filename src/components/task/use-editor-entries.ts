@@ -28,9 +28,9 @@ interface EditorEntriesOptions {
 }
 
 /** A pending status update: its day, text and when it was written. */
-export type PendingStatusUpdate = StatusUpdateEntry & { createdAt: Date }
+type PendingStatusUpdate = StatusUpdateEntry & { createdAt: Date }
 
-export interface EditorStatusUpdates {
+interface EditorStatusUpdates {
   /** What the section shows: the stored entries, or the pending ones (newest first). */
   entries: readonly (PersistedStatusUpdate | PendingStatusUpdate)[]
   /** The pending entries as rendered (create mode). */
@@ -102,7 +102,7 @@ export function useEditorStatusUpdates(
   }
 }
 
-export interface EditorSubtasks {
+interface EditorSubtasks {
   /** What the section shows: the stored checklist, or the pending one (in order). */
   items: readonly (PersistedSubtask | ChecklistItem)[]
   /** The pending subtasks (create mode). */

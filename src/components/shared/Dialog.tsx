@@ -7,6 +7,7 @@ import { DialogLayerContext, MODAL_BACKDROP_ATTR } from './dialog-layer'
 import { useBackdropPress } from './use-backdrop-press'
 import { tabbables } from '../../utils/focusables'
 import { shortcutScope } from '../../utils/dom-contract'
+import { isPageTarget } from '../../utils/dom-layers'
 
 /**
  * Which tier a dialog (backdrop + panel) sits on, lowest first:
@@ -21,7 +22,7 @@ export type DialogLayer = 'overlay' | 'dialog' | 'raised' | 'nested'
 /** Where focus goes when the dialog opens. */
 export type DialogInitialFocus = 'first' | 'panel' | RefObject<HTMLElement | null>
 
-export interface DialogFrameProps {
+interface DialogFrameProps {
   onClose: () => void
   children: ReactNode
   /** The panel's look and size; the frame only centres it. */
@@ -70,11 +71,6 @@ export interface DialogFrameProps {
 function isTopmostModal(panel: HTMLElement): boolean {
   const modals = document.querySelectorAll('[aria-modal="true"]')
   return modals[modals.length - 1] === panel
-}
-
-/** A key that landed on the page itself: nothing is focused. */
-function isPageTarget(target: EventTarget | null): boolean {
-  return !(target instanceof Element) || target === document.body || target === document.documentElement
 }
 
 const LAYER_CLASS: Record<DialogLayer, string | undefined> = {
@@ -259,7 +255,7 @@ export function DialogFrame({
   return inline ? frame : createPortal(frame, document.body)
 }
 
-export interface DialogProps {
+interface DialogProps {
   open: boolean
   onClose: () => void
   /** Renders into the chrome's title bar. Used as `aria-labelledby` target. */
@@ -324,7 +320,7 @@ export function DialogActions({ children, className }: { children: ReactNode; cl
   return <div className={`${styles.actions} ${className ?? ''}`}>{children}</div>
 }
 
-export interface ConfirmDialogProps {
+interface ConfirmDialogProps {
   open: boolean
   title: ReactNode
   message: ReactNode

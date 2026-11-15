@@ -2,26 +2,15 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import { WidgetTopLine } from '../WidgetTopLine'
-import type { OnGlanceDrill } from './glance-types'
-import type { SectionMeta } from './section-meta'
 import styles from './GlanceSections.module.css'
 
-/**
- * What every section is rendered with, as its glance widget. `D` is the
- * part of the glance data it reads; a section with options also takes its
- * widget's typed config (`PeopleTabConfig` …).
- */
-export interface SectionProps<D> {
-  data: D
-  onDrill?: OnGlanceDrill
-  /** Extra style for its panel. */
-  style?: CSSProperties
-  /** A glance widget's look for the panel (no card: it fills the cell). */
-  className?: string
+/** What a panel's header names (Created vs completed, Project pulse). */
+export interface PanelDef {
+  id: string
+  title: string
+  glyph: GlanceGlyphName
+  glyphColor: string
 }
-
-/** What a panel's header names: a section's meta, or a glance widget's own (Project pulse). */
-export type PanelDef = Pick<SectionMeta, 'title' | 'glyph' | 'glyphColor'> & { id: string }
 
 export function Panel({ def, count, onCount, sub, extras, lens, titleData, style, className, children }: {
   def: PanelDef
@@ -95,9 +84,4 @@ export function Clickable({ as, className, label, title, onClick, children, ...r
   }
   const Tag = as
   return <Tag className={className} title={title} {...rest}>{children}</Tag>
-}
-
-/** A count in `color`, or a muted dash for none. */
-export function Count({ n, color }: { n: number; color: string }) {
-  return <span className={styles.num} style={{ color: n > 0 ? color : 'var(--color-text-muted)' }}>{n > 0 ? n : '–'}</span>
 }

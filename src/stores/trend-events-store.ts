@@ -15,7 +15,7 @@ import { dayKey } from '../utils/date'
  * marks every entry stale; a stale entry keeps its events on show until the
  * re-read lands, so the chart never blanks.
  */
-export interface TrendEventsEntry {
+interface TrendEventsEntry {
   /** The events read for the entry's window; `null` before the first read. */
   events: readonly TodoEvent[] | null
   /** Needs a (re-)read: never read, or invalidated since. */

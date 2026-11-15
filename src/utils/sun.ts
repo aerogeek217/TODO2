@@ -73,11 +73,6 @@ export function moonAge(d: Date): number {
   return ((days % SYNODIC_MONTH) + SYNODIC_MONTH) % SYNODIC_MONTH
 }
 
-/** The lit share of the moon's disc at `age` (0 new – 1 full). */
-export function moonIllumination(age: number): number {
-  return (1 - Math.cos(2 * Math.PI * age / SYNODIC_MONTH)) / 2
-}
-
 /** The season at `lat` in `d`'s month (meteorological: whole months; the south six months on). */
 export function seasonAt(d: Date, lat: number): Season {
   const month = lat < 0 ? (d.getMonth() + 6) % 12 : d.getMonth()
@@ -164,7 +159,7 @@ export function placeForTimeZone(timeZone: string): (AmbiencePlace & { name: str
 }
 
 /** This browser's time zone (`''` when it can't say). */
-export function currentTimeZone(): string {
+function currentTimeZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || ''
   } catch {

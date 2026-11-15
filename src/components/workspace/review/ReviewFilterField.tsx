@@ -10,7 +10,8 @@ import { ESCAPE_OWN_ATTR } from '../../../hooks/use-popover-anchor'
 import { reviewFilterPredicate } from '../../../hooks/use-review-widget-queue'
 import { expressionResolver } from '../../../services/filter-expression-field'
 import type { AutocompleteRow, computeAutocomplete } from '../../../services/nlp-autocomplete'
-import type { TokenTint } from '../../../services/nlp-token-tints'
+import { markerTint, type TokenTint } from '../../../services/nlp-token-tints'
+import { NO_PRIORITY } from '../../../models/filter-predicate'
 import { peopleOnly, reviewFieldAutocomplete, reviewFieldPick, type ReviewFieldCounts } from '../../../services/review-field'
 import { useListWidgetStore, type ReviewFilter } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -32,17 +33,17 @@ const LINE_PX = 20
 const MAX_LINES = 3
 
 /** What the field says while empty. */
-export const REVIEW_FIELD_PLACEHOLDER = 'Who or what to review…'
+const REVIEW_FIELD_PLACEHOLDER = 'Who or what to review…'
 
 /** What the field says at rest on a filter that prints as nothing (a jump from a list that narrows by nothing). */
-export const EVERY_OPEN_TASK = 'Every open task'
+const EVERY_OPEN_TASK = 'Every open task'
 
 /** A review takes open tasks only: `done` and Completed dates would keep nothing, so the field refuses them and says why. */
 const OPEN_TASKS_ONLY = { allowDone: false, allowCompleted: false } as const
 
 /** A pill's tint: the one its term has as typed text (`expressionTints`); text and dates other than due / follow-up are plain pills. */
 function pillTint(term: FilterAtom | undefined): TokenTint {
-  if (term?.kind === 'priority') return term.value === 'urgent' ? 'urgent' : term.value === 'important' ? 'important' : term.value === 'focus' ? 'focus' : 'chip'
+  if (term?.kind === 'priority') return term.value === NO_PRIORITY ? 'chip' : markerTint(term.value)
   if (term?.kind === 'date') return term.field === 'deadline' ? 'due' : term.field === 'followup' || term.field === 'lastFollowup' ? 'followup' : 'chip'
   return 'chip'
 }
@@ -236,7 +237,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
       e.stopPropagation()
       return
     }
-    // Esc with nothing to put back leaves the field (a popover it sits in — a small face's whole widget — stays).
+    // Esc with nothing to put back leaves the field (the widget popup it may sit in stays).
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()

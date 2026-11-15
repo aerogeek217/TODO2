@@ -9,7 +9,7 @@ import styles from './Review.module.css'
  * **Queue ▾** while the review's queue is folded away (task layout A: a
  * Review widget under 820px wide): a button that opens the queue — `ReviewRail`, with its sort — in a popover under it
  * (`AnchoredPicker` over `PopoverRoot`: level 1 in a cell, level 2 in the
- * small face's popover). Picking a row goes to it and closes the popover; Esc or a press
+ * widget popup). Picking a row goes to it and closes the popover; Esc or a press
  * outside closes it. ‹ Back and Skip › in the footer still step.
  */
 export function ReviewQueueButton({ todoById, followedUpToday, label, className, onToggleComplete }: {
@@ -19,7 +19,7 @@ export function ReviewQueueButton({ todoById, followedUpToday, label, className,
   label: string
   className?: string
   /** The rail's: a row's box checked or unchecked (the popover stays open). */
-  onToggleComplete?: (id: number) => void
+  onToggleComplete: (id: number) => void
 }) {
   const [open, setOpen] = useState(false)
   const { triggerProps: tipProps, tooltip } = useTooltip('Show the review queue')

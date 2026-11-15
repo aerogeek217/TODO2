@@ -18,9 +18,9 @@ import type { DateMatch, MarkerValue } from './filter-predicate'
  */
 export type FilterExpr = FilterExprAnd | FilterExprOr | FilterExprNot | FilterAtom
 
-export interface FilterExprAnd { kind: 'and'; items: FilterExpr[] }
-export interface FilterExprOr { kind: 'or'; items: FilterExpr[] }
-export interface FilterExprNot { kind: 'not'; item: FilterExpr }
+interface FilterExprAnd { kind: 'and'; items: FilterExpr[] }
+interface FilterExprOr { kind: 'or'; items: FilterExpr[] }
+interface FilterExprNot { kind: 'not'; item: FilterExpr }
 
 export type FilterAtom =
   | { kind: 'person'; id: number }
@@ -29,8 +29,6 @@ export type FilterAtom =
   | { kind: 'priority'; value: MarkerValue }
   | { kind: 'text'; text: string }
   | { kind: 'date'; field: DateField; match: DateMatch }
-
-export type FilterAtomKind = FilterAtom['kind']
 
 /** The atoms that name an entity by id. */
 export type IdAtomKind = 'person' | 'tag' | 'status'

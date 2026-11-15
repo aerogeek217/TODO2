@@ -79,5 +79,3 @@ export const AvatarStack = memo(function AvatarStack({
     </button>
   )
 })
-
-export type { AvatarEntity }

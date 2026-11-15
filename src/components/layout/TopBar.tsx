@@ -43,7 +43,7 @@ const CARET_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End'])
  * The most layouts shown as tabs: more than a bar can hold anyway, so past
  * it the picker shows from the start and no tab per layout is mounted.
  */
-export const MAX_LAYOUT_TABS = 30
+const MAX_LAYOUT_TABS = 30
 
 /**
  * What the layout tabs show, for their width (not their order): the names,

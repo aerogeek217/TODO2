@@ -4,7 +4,7 @@ import { computeBreakdown, type PriorityGroupKey } from './breakdown'
 import type { StatsContext } from './stats-context'
 
 /** What leads a status or priority line: the status's glyph, the priority group's ring (people, tags and the none line have a dot). */
-export type BreakdownEntryMark =
+type BreakdownEntryMark =
   | { kind: 'status'; icon?: StatusIconKey; emoji?: string; emojiShow?: 'color' }
   | { kind: 'priority'; group: PriorityGroupKey }
 

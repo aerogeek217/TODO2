@@ -29,7 +29,7 @@ export function parseStaleAfterDays(value: string): number | undefined {
 }
 
 /** The fields a staleness check reads. */
-export type StaleFields = Pick<TodoItem, 'modifiedAt' | 'isCompleted'>
+type StaleFields = Pick<TodoItem, 'modifiedAt' | 'isCompleted'>
 
 /**
  * Days since `todo` last changed, by local day (a task changed on the

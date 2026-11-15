@@ -3,7 +3,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-export interface SortableRowProps {
+interface SortableRowProps {
   setNodeRef: ReturnType<typeof useSortable>['setNodeRef']
   attributes: ReturnType<typeof useSortable>['attributes']
   listeners: ReturnType<typeof useSortable>['listeners']

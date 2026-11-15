@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { db } from '../../../data/database'
 import { layoutRepository } from '../../../data/layout-repository'
-import { writeLayoutDraft } from '../../../data/draft-storage'
 import { createTab, type WorkspaceLayout } from '../../../models/workspace-layout'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import { LayoutControls } from '../../../components/workspace/LayoutControls'
@@ -10,7 +9,7 @@ import { settleLayoutWrites, useWorkspaceStore } from '../../../stores/workspace
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { resetDb } from '../../helpers'
-import { emptyBody, single } from '../../helpers/layout-builders'
+import { single } from '../../helpers/layout-builders'
 
 /**
  * The top bar's layout controls: the layouts as tabs (click opens one, the
@@ -150,17 +149,6 @@ describe('LayoutControls — tabs', () => {
     await waitFor(() => expect(tabNames()).toEqual(['Main', 'Planning']))
     expect(tab('Planning')).toHaveAttribute('aria-selected', 'true')
     expect(ws()).toMatchObject({ writeFailed: false })
-    expect(await db.layouts.count()).toBe(2)
-  })
-
-  it('a kept new layout from an older build is a stored layout’s tab, open', async () => {
-    await seed('Main')
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: { ...emptyBody() } })
-    useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
-    await ws().init()
-    render(<LayoutControls mode="tabs" />)
-    expect(tabNames()).toEqual(['Main', 'Untitled layout'])
-    expect(tab('Untitled layout')).toHaveAttribute('aria-selected', 'true')
     expect(await db.layouts.count()).toBe(2)
   })
 })

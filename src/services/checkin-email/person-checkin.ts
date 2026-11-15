@@ -14,7 +14,7 @@ import { createTaskRefLookup } from './ref'
 import { selectCheckinTasks, type CheckinSelectContext } from './select'
 
 /** What the email includes besides the tasks (the dialog's Include boxes). */
-export interface CheckinIncludeOptions {
+interface CheckinIncludeOptions {
   /** Each task's Notes row. */
   includeNotes: boolean
   /** The task's other assignees. */
@@ -25,13 +25,13 @@ export interface CheckinIncludeOptions {
 export const CHECKIN_INCLUDE_DEFAULTS: CheckinIncludeOptions = { includeNotes: true, includeOthers: true }
 
 /** What building a person's check-in needs: the task selection's context plus the refs. */
-export interface CheckinBuildContext extends CheckinSelectContext {
+interface CheckinBuildContext extends CheckinSelectContext {
   /** The ref printed per task uid (`createTaskRefLookup` over every task's uid). */
   refOf: (uid: string) => string
 }
 
 /** A person's check-in, built: the email and the ids of the tasks it covers. */
-export interface PreparedCheckin {
+interface PreparedCheckin {
   email: CheckinEmail
   taskIds: number[]
 }
@@ -58,7 +58,7 @@ export function prepareCheckin(
 }
 
 /** What a check-in's build context is made of: the data, plus the filter settings (urgent range, week start). */
-export interface CheckinContextSources {
+interface CheckinContextSources {
   todos: readonly PersistedTodoItem[]
   today: Date
   assignedPeopleMap: ReadonlyMap<number, readonly Person[]>

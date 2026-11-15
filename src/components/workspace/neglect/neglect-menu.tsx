@@ -13,14 +13,14 @@ import { knownTagCount, settingEntry, TAG_PICKS_MAX_HEIGHT_PX, TAG_PICKS_WIDTH_P
 const UNTOUCHED_WIDTH_PX = 200
 
 /** `Tags (2)` / `People` / `None`: the Color by item's value (the picked tags that still exist). */
-export function colourByLabel(colourBy: NeglectColourBy, tags: readonly Tag[]): string {
+function colourByLabel(colourBy: NeglectColourBy, tags: readonly Tag[]): string {
   if (colourBy.kind === 'people') return 'People'
   if (colourBy.kind === 'none') return 'None'
   return `Tags (${knownTagCount(colourBy.tagIds, tags)})`
 }
 
 /** `14 days` (`1 day`). */
-export function untouchedLabel(days: number): string {
+function untouchedLabel(days: number): string {
   return days === 1 ? '1 day' : `${days} days`
 }
 

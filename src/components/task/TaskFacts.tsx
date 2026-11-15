@@ -11,7 +11,7 @@ import { StatusMenuPopover } from './StatusMenuPopover'
 import styles from './TaskDetails.module.css'
 
 /** The facts rail's sections (task layout A), top to bottom: Due is the last (the follow-up dates are the dock's). */
-export type FactKind = 'priority' | 'status' | 'people' | 'tags' | 'due'
+type FactKind = 'priority' | 'status' | 'people' | 'tags' | 'due'
 
 const FACT_LABELS: Record<FactKind, string> = {
   priority: 'Priority',
@@ -47,7 +47,7 @@ export type FactDateTone = 'due-past' | 'due-soon' | 'followup-late' | 'followup
  * when the words don't say it (`3 days late`, `2 weeks ago`), and the full
  * date in the tooltip.
  */
-export function FactDateWords({ date, kind, tone, empty }: {
+function FactDateWords({ date, kind, tone, empty }: {
   date: Date | null | undefined
   kind: FactDateKind
   tone?: FactDateTone
@@ -107,7 +107,7 @@ export function FactDateField({ date, kind, tone, empty, showWords = true, testI
 
 // ── Priority ───────────────────────────────────────────────────────────────
 
-export interface PriorityFactsProps {
+interface PriorityFactsProps {
   focusOn: boolean
   urgentOn: boolean
   importantOn: boolean
@@ -195,7 +195,7 @@ function MarkerToggle({ pressed, marker, onClick, tooltip, children, ...rest }: 
 
 // ── Status ─────────────────────────────────────────────────────────────────
 
-export interface StatusFactsProps {
+interface StatusFactsProps {
   statuses: readonly Status[]
   statusId: number | undefined
   /** A status picked (undefined: No Status). */

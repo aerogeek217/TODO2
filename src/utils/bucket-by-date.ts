@@ -27,7 +27,7 @@ export function isDateBucketKey(key: string): key is DateBucketKey {
   return (DATE_BUCKET_ORDER as readonly string[]).includes(key)
 }
 
-export interface DateBucketBoundaries {
+interface DateBucketBoundaries {
   /** Today's midnight. */
   base: number
   /** Tomorrow's midnight. */

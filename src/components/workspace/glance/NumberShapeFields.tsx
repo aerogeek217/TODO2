@@ -39,7 +39,7 @@ type Patch = (p: Partial<NumberConfig>) => void
 export const AUTO_SHOWN = '#8a7cf0'
 
 /** A radio before the presets that stands for Auto (neutral, lit in the accent). */
-export function AutoSwatch({ name, checked, onPick, className }: { name: string; checked: boolean; onPick: () => void; className?: string }) {
+function AutoSwatch({ name, checked, onPick, className }: { name: string; checked: boolean; onPick: () => void; className?: string }) {
   return (
     <input
       type="radio"
@@ -67,7 +67,7 @@ export function ShowField({ value, onShow }: { value: NumberShow; onShow: (show:
 }
 
 /** A whole-number field (0 – `max`), written once it reads as one (blank or bad text isn't written). */
-export function WholeNumberField({ value, onChange, label, max }: { value: number; onChange: (n: number) => void; label: string; max: number }) {
+function WholeNumberField({ value, onChange, label, max }: { value: number; onChange: (n: number) => void; label: string; max: number }) {
   const [text, setText] = useState(String(value))
   const [shown, setShown] = useState(value)
   if (shown !== value) {

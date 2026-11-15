@@ -83,18 +83,18 @@ export interface WorkspaceGeometry {
 }
 
 /** Width of the insert-column zone just inside the workspace's left / right edge. */
-export const EDGE_ZONE_OUTER_PX = 24
+const EDGE_ZONE_OUTER_PX = 24
 /** Height of the insert-row zone just inside the workspace's top / bottom edge. */
-export const INSERT_EDGE_ZONE_PX = 24
+const INSERT_EDGE_ZONE_PX = 24
 /** How far the insert-row zones reach past the workspace's top edge (over the top bar) and its bottom edge. */
-export const INSERT_EDGE_OUTSIDE_PX = 16
+const INSERT_EDGE_OUTSIDE_PX = 16
 /** A cell body's split zones: this share of its width (height) on each side … */
-export const SIDE_ZONE_SHARE = 0.2
+const SIDE_ZONE_SHARE = 0.2
 /** … but no deeper than this (px), so a big cell's middle stays the bigger part. */
-export const SIDE_ZONE_MAX_PX = 120
+const SIDE_ZONE_MAX_PX = 120
 
 /** A cell body's zones: a split on that side (`left` / `right` / `top` / `bottom`), or joining it. */
-export type CellZone = Side | 'middle'
+type CellZone = Side | 'middle'
 
 export type WorkspaceDropHit =
   /** The layout's edge: insert a row / column there. */
@@ -122,7 +122,7 @@ export function sameDropHit(a: WorkspaceDropHit | null, b: WorkspaceDropHit | nu
   }
 }
 
-export interface Point {
+interface Point {
   x: number
   y: number
 }

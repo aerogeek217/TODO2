@@ -1,4 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useState, type RefObject } from 'react'
+import { WidgetEditorHost } from './WidgetEditorHost'
 import { createPortal } from 'react-dom'
 import {
   PULSE_RULE_DEFAULT_NAMES,
@@ -10,85 +11,47 @@ import {
   type PulseTabConfig,
 } from '../../../models/pulse-config'
 import type { TodoPredicate } from '../../../models/filter-predicate'
-import type { PulseTab } from '../../../models/workspace-layout'
+import type { LayoutTab, PulseTab } from '../../../models/workspace-layout'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { hasFilterClause } from '../../../utils/filter-clauses'
 import { DEFAULT_STALE_AFTER_DAYS } from '../../../utils/stale'
-import { getTab } from '../../../utils/workspace-layout-queries'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { ExpressionReportProvider } from '../../shared/filters/expression-report'
 import { CloseIcon } from '../../shared/icons'
 import { PopoverRoot } from '../../shared/PopoverRoot'
-import { useEscapeCloses } from './editor-escape'
-import { useEditorDraft, usePressElsewhereCloses } from './editor-draft'
+import { useEditorDraft, widgetEditorElsewhere } from './editor-draft'
+import { useEscapeCloses, usePressElsewhereCloses } from '../../../hooks/use-close-events'
 import { EditorFooter } from './EditorFooter'
 import styles from './ChartEditor.module.css'
-import { widgetElement } from '../../../utils/dom-contract'
-
-/** The Project pulse tab `tabId` names in the open layout, if it is one. */
-function usePulseTab(tabId: string | null): PulseTab | undefined {
-  return useWorkspaceStore((s) => {
-    const tab = tabId != null && s.working ? getTab(s.working, tabId) : undefined
-    return tab?.kind === 'pulse' ? tab : undefined
-  })
-}
 
 /**
  * Project pulse's open editor (G5, `chart-widgets-store.pulseEditorTabId`),
- * under the widget's title (`[data-pulse-head]`, found on screen; at the
- * small face, the face). Hosted by the workspace page outside the widget
- * tree, as the chart editor (`ChartEditorHost`); it closes when the widget
- * leaves the layout or the screen.
+ * under the widget's title (`[data-pulse-head]`; at the small face, the face).
  */
 export function PulseEditorHost() {
   const tabId = useChartWidgetsStore((s) => s.pulseEditorTabId)
-  const tab = usePulseTab(tabId)
   const close = useChartWidgetsStore((s) => s.closePulseEditor)
-  // The layout: a change (the tab made active, a row expanded) may bring the widget on screen;
-  // the editor's live preview may draw its title anew.
-  const working = useWorkspaceStore((s) => s.working)
-  const preview = useWidgetPreviewStore((s) => (tabId != null ? s.configs[tabId] : undefined))
-  const anchorRef = useRef<HTMLElement | null>(null)
-  const [found, setFound] = useState<string | null>(null)
-  useLayoutEffect(() => {
-    if (!tab) return
-    // Looked for now, and over the next frames while the widget mounts (a tab just shown).
-    let frames = 0
-    let raf = 0
-    const look = () => {
-      const el = widgetElement(tab.id, `[data-pulse-head="${CSS.escape(tab.id)}"]`)
-      anchorRef.current = el
-      setFound(el ? tab.id : null)
-      if (!el && ++frames < 30) raf = requestAnimationFrame(look)
-    }
-    look()
-    return () => cancelAnimationFrame(raf)
-  }, [tab, working, preview])
-  useEffect(() => {
-    if (tabId != null && !tab) close()
-  }, [tabId, tab, close])
-  useEffect(() => () => useChartWidgetsStore.getState().closePulseEditor(), [])
-  if (!tab || found !== tab.id) return null
-  return <PulseEditor key={tab.id} tab={tab} anchorRef={anchorRef} onClose={close} />
+  return <WidgetEditorHost tabId={tabId} isKind={isPulseTab} anchor="data-pulse-head" close={close} Editor={PulseEditor} />
 }
+
+const isPulseTab = (tab: LayoutTab): tab is PulseTab => tab.kind === 'pulse'
 
 /** What each rule's box says it does. */
 const RULE_COPY: Record<PulseRuleKey, { title: string; hint: string; addLabel: string }> = {
-  late: { title: 'Late', hint: 'A card’s ring is the share of its open tasks this keeps.', addLabel: 'Late when' },
-  stale: { title: 'Stale', hint: 'Counted among a card’s open tasks.', addLabel: 'Stale when' },
+  late: { title: 'Late', hint: 'A cardâ€™s ring is the share of its open tasks this keeps.', addLabel: 'Late when' },
+  stale: { title: 'Stale', hint: 'Counted among a cardâ€™s open tasks.', addLabel: 'Stale when' },
 }
 
 /**
  * One rule's box: its name (as a card's counts read it) and its filter
  * over a card's open tasks. Left as its default, Late shows its default
- * filter (`overdue`) — its first edit writes it as the rule's — and Stale
+ * filter (`overdue`) â€” its first edit writes it as the rule's â€” and Stale
  * says it follows Settings, with Use a filter (the filter that keeps the
- * same tasks — or, while Settings' fading is off and no task is stale, one
+ * same tasks â€” or, while Settings' fading is off and no task is stale, one
  * that starts at the default threshold, the link saying so); a filter of its
  * own offers Use the default.
  */
@@ -116,7 +79,7 @@ function RuleField({ ruleKey, config, write }: {
         addLabel={copy.addLabel}
         layout="stack"
         inDialog
-        before={hasFilterClause(filter) || filter.expression ? undefined : <span className={styles.noFilter}>No filter — every open task</span>}
+        before={hasFilterClause(filter) || filter.expression ? undefined : <span className={styles.noFilter}>No filter â€” every open task</span>}
       />
     </div>
   )
@@ -137,7 +100,7 @@ function RuleField({ ruleKey, config, write }: {
           {staleAfterDays > 0 ? `Follows Settings: untouched ${staleAfterDays} ${staleAfterDays === 1 ? 'day' : 'days'}` : 'Follows Settings: fading is off, so no task is stale'}
         </span>
         {/* With fading on, the filter keeps the same tasks. With it off no task is stale and no filter says that, so the
-            link says where its filter starts — the counts change from 0 (cr34 G12). */}
+            link says where its filter starts â€” the counts change from 0 (cr34 G12). */}
         <button
           type="button"
           className={styles.addColumn}
@@ -170,18 +133,18 @@ function RuleField({ ruleKey, config, write }: {
 }
 
 /**
- * Project pulse's editor (G5, the chart editor's pattern): its two rules —
- * what counts as late (a card's ring and late count) and as stale — each
+ * Project pulse's editor (G5, the chart editor's pattern): its two rules â€”
+ * what counts as late (a card's ring and late count) and as stale â€” each
  * a name and a Graphical / Expression filter over a card's open tasks. The
- * tags it follows stay in its ⋯ menu's Tags. A popover under the widget's
- * title, opened by its ⋯ menu's Edit project pulse…. Its controls edit a
+ * tags it follows stay in its â‹¯ menu's Tags. A popover under the widget's
+ * title, opened by its â‹¯ menu's Edit project pulseâ€¦. Its controls edit a
  * copy of the config, which the widget draws live (`useEditorDraft`, Edit
  * list's pattern): Save writes the changed rules for good as one layout
- * config update — one undo step — and Discard drops them; Tags, written from the ⋯ menu meanwhile, stay. Esc, × or a
+ * config update â€” one undo step â€” and Discard drops them; Tags, written from the â‹¯ menu meanwhile, stay. Esc, Ã— or a
  * press elsewhere close it at once while nothing changed, else ask Save /
  * Discard / Keep editing.
  */
-export function PulseEditor({ tab, anchorRef, onClose }: {
+function PulseEditor({ tab, anchorRef, onClose }: {
   tab: PulseTab
   /** The widget's title it sits under. */
   anchorRef: RefObject<HTMLElement | null>
@@ -212,8 +175,8 @@ export function PulseEditor({ tab, anchorRef, onClose }: {
   })
   const [panel, setPanel] = useState<HTMLDivElement | null>(null)
   const panelEl = useLatestRef(panel)
-  useEscapeCloses(panelEl, edit.requestClose)
-  usePressElsewhereCloses(panelEl, anchorRef, edit.requestClose)
+  useEscapeCloses(panelEl, edit.requestClose, { leaveLayersAbove: true })
+  usePressElsewhereCloses((t) => widgetEditorElsewhere(t, panelEl.current, anchorRef.current), edit.requestClose)
 
   // The focus goes back to the widget when it was inside the editor as it closed.
   useEffect(() => () => {
@@ -242,7 +205,7 @@ export function PulseEditor({ tab, anchorRef, onClose }: {
       </div>
       <ExpressionReportProvider value={edit.reportExpression}>
         <div className={styles.body}>
-          <span className={styles.hint}>Its ⋯ menu’s Tags picks the tags it follows, a card each.</span>
+          <span className={styles.hint}>Its â‹¯ menuâ€™s Tags picks the tags it follows, a card each.</span>
           <RuleField ruleKey="late" config={edit.draft} write={write} />
           <RuleField ruleKey="stale" config={edit.draft} write={write} />
         </div>

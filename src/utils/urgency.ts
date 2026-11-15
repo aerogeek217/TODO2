@@ -22,10 +22,10 @@ export const DEFAULT_URGENT_DUE_WITHIN_DAYS = 3
 export const URGENT_DUE_WITHIN_CHOICES: readonly UrgentDueWithinDays[] = [null, 0, 1, 2, 3, 7, 14]
 
 /** Largest range accepted from storage / import. */
-export const MAX_URGENT_DUE_WITHIN_DAYS = 365
+const MAX_URGENT_DUE_WITHIN_DAYS = 365
 
 /** Stored form of the Off choice in the settings row. */
-export const URGENT_RANGE_OFF = 'off'
+const URGENT_RANGE_OFF = 'off'
 
 /** Settings row value → range; `undefined` when the value isn't valid. */
 export function parseUrgentDueWithinDays(value: string): UrgentDueWithinDays | undefined {

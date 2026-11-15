@@ -37,7 +37,7 @@ export const SHORTCUT_CATEGORIES: ReadonlyArray<{ id: ShortcutCategory; label: s
   { id: 'notes', label: 'Notes' },
 ]
 
-export interface ShortcutSpec {
+interface ShortcutSpec {
   /** What it does — the list's text and the name a conflict message uses. */
   description: string
   category: ShortcutCategory
@@ -61,7 +61,7 @@ export interface ShortcutSpec {
 const one = (combo: KeyCombo): ShortcutChord => [combo]
 
 /** Every binding, in list order within its category. */
-export const SHORTCUT_SPECS = {
+const SHORTCUT_SPECS = {
   'quick-add': {
     description: 'Quick Add task', category: 'general', editable: true, allowInInput: true,
     chord: one({ key: 'Space', mod: true }),
@@ -176,7 +176,7 @@ export function shortcutSpec(id: ShortcutId): ShortcutSpec {
 export type ShortcutOverrides = Readonly<Partial<Record<ShortcutId, ShortcutChord>>>
 
 /** A row of the lists that is no binding of its own: keys other surfaces own (fixed). */
-export interface ShortcutInfoRow {
+interface ShortcutInfoRow {
   category: ShortcutCategory
   /** A `formatShortcut` spec (`Alt-T`). */
   label: string

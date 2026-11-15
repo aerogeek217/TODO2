@@ -36,9 +36,9 @@ import styles from './ListEditorBody.module.css'
  * popover; `sheet` — the phone's half sheet (touch sizes, choices as rows
  * that open a list of choices).
  */
-export type ListEditorVariant = 'popover' | 'sheet'
+type ListEditorVariant = 'popover' | 'sheet'
 
-export interface ListEditorBodyProps {
+interface ListEditorBodyProps {
   draft: PersistedListDefinition
   onChange: (next: PersistedListDefinition) => void
   /** The saved list: rows whose value differs from it are marked changed. */

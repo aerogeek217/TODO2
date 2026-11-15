@@ -74,7 +74,7 @@ const reopenNotesPopup = StateEffect.define<null>()
 /** Moves the active row. */
 const setNotesPopupIndex = StateEffect.define<number>()
 /** The sources changed: re-read them (tints, an open popup). */
-export const refreshNotesNlp = StateEffect.define<null>()
+const refreshNotesNlp = StateEffect.define<null>()
 /**
  * A row's person / tag menu opened (`true`): the popup stays open though the
  * editor loses the focus to the menu, or to the editor / confirm it opens,

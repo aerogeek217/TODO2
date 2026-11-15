@@ -117,7 +117,7 @@ type Obj = Record<string, unknown>
  * (cr34 S2). It is a bad id like any other: the check rejects it and the
  * repair drops its part.
  */
-export function isId(v: unknown): v is string {
+function isId(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LEN && !(v in Object.prototype)
 }
 
@@ -151,7 +151,7 @@ function isNeglectColourBy(v: unknown): boolean {
  * threshold becomes the default; a repeated tag is kept once. `fixed` says
  * whether anything but a repeat or a stray key was dropped or reset.
  */
-export function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixed: boolean } {
+function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixed: boolean } {
   let fixed = !isNeglectColourBy(config.colourBy)
   let colourBy: NeglectColourBy = { kind: 'none' }
   const raw = config.colourBy
@@ -477,7 +477,7 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   tabLimit: ['tab past the limit of 1,000 dropped', 'tabs past the limit of 1,000 dropped'],
 }
 
-export interface PickedLayoutBody extends LayoutBody {
+interface PickedLayoutBody extends LayoutBody {
   /**
    * The parts `checkLayoutBody` rejects that were dropped or reset, and the
    * parts past `LAYOUT_PART_LIMIT`, in words (`2 tabs dropped`, `grid lines

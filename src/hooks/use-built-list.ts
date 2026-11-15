@@ -16,7 +16,7 @@ import { useToday } from './use-today'
 import { useFilterSettings } from './use-filter-settings'
 import { keptOf, restoreLeaving, type LeavingRows } from './use-leaving-rows'
 
-export interface BuiltList {
+interface BuiltList {
   /** The list's members and sections; `null` without a definition or while its prompt is unanswered. */
   list: ListContents | null
   /**

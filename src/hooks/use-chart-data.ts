@@ -31,13 +31,13 @@ const tasksOfMemo = sharedMemoByKey(function tasksOf(ids: readonly number[], byI
 })
 
 /** The tasks a chart's filter keeps among the ones the top bar shows, and its count (as a Number's). */
-export interface ChartTasks {
+interface ChartTasks {
   count: NumberCount
   tasks: PersistedTodoItem[]
 }
 
 /** A chart's tasks: its filter over the screen-filtered tasks (`useNumberCount`). */
-export function useChartTasks(base: StatsBase, filter: TodoPredicate): ChartTasks {
+function useChartTasks(base: StatsBase, filter: TodoPredicate): ChartTasks {
   const count = useNumberCount(base, { filter })
   const tasks = tasksOfMemo(count.ids.shown, base.todoById)
   return { count, tasks }
@@ -110,7 +110,7 @@ const breakdownMemo = sharedMemoByKey(function breakdown(
 })
 
 /** What a Breakdown shows. */
-export interface BreakdownData extends ChartTasks {
+interface BreakdownData extends ChartTasks {
   stats: BreakdownStats
   /** Its count columns, in order (its own, or the two read from its old `badges`). */
   columns: readonly BreakdownColumn[]

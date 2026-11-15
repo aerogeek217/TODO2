@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useS
  * written (`pending` — it writes after a pause, on blur or Enter), and
  * whether that text doesn't read (`unreadable` — it is never written).
  */
-export interface ExpressionFieldState {
+interface ExpressionFieldState {
   pending: boolean
   unreadable: boolean
 }

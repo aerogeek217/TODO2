@@ -50,3 +50,33 @@ export function ChartPanel({ tabId, kind, title, glyph, count, onCount, sub, ext
     </section>
   )
 }
+
+/**
+ * A chart table's sortable heading (a Breakdown's, a Pivot's; item 8): a
+ * button — a click sorts the rows by it, counts largest first and names A–Z,
+ * a second reverses (`reversed`) — with ▼ / ▲ while it is the sort
+ * (`active`). Each widget styles it (`classes`).
+ */
+export function SortHeading({ by, label, title, active, reversed, onSort, className, classes, data }: {
+  by: string
+  label: string
+  title?: string
+  active: boolean
+  reversed: boolean
+  onSort: (by: string) => void
+  className: string | undefined
+  classes: { button: string | undefined; label: string | undefined; mark: string | undefined }
+  /** Data attributes on the heading. */
+  data?: Record<`data-${string}`, string>
+}) {
+  // Counts go largest first, names A–Z; a second click reverses.
+  const descending = by === 'name' ? reversed : !reversed
+  return (
+    <span role="columnheader" className={className} aria-sort={active ? (descending ? 'descending' : 'ascending') : 'none'} {...data}>
+      <button type="button" className={classes.button} data-sort-key={by} aria-pressed={active} title={title} onClick={() => onSort(by)}>
+        <span className={classes.label}>{label}</span>
+        {active && <span className={classes.mark} aria-hidden="true">{descending ? '▼' : '▲'}</span>}
+      </button>
+    </span>
+  )
+}

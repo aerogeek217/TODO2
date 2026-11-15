@@ -17,7 +17,7 @@ import { type DayContext, useTaskDrag } from './calendar-day'
  * start, and the context every day cell takes — its drag, its pending drop,
  * its date types and the editor it opens.
  */
-export interface CalendarSetup {
+interface CalendarSetup {
   ctx: DayContext
   today: Date
   weekStartsOn: WeekStart

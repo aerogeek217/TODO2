@@ -20,12 +20,9 @@ import {
 } from './glance-widgets'
 import type { TabBadgeRange, TabBadgeRanges } from './list-definition'
 import { emptyPredicate, type TodoPredicate } from './filter-predicate'
+import { includes } from './includes'
 
 type Obj = Record<string, unknown>
-
-function includes<T extends string | number>(list: readonly T[], v: unknown): v is T {
-  return (list as readonly unknown[]).includes(v)
-}
 
 /** The longest chart name kept (as a Number's). */
 export const CHART_NAME_MAX = NUMBER_NAME_MAX
@@ -114,8 +111,8 @@ export interface BreakdownColumn {
 export const BREAKDOWN_COLUMNS_MAX = 4
 
 /** The default columns' ids (`defaultBreakdownColumns`, and what a config without `columns` reads as): Due and Follow-up. */
-export const DUE_COLUMN_ID = 'due'
-export const FOLLOWUP_COLUMN_ID = 'followup'
+const DUE_COLUMN_ID = 'due'
+const FOLLOWUP_COLUMN_ID = 'followup'
 /** The Due column's colour: the due date's magenta (the dark theme's `--color-overdue`). */
 export const DUE_COLUMN_COLOR = '#e86bf0'
 /** The Follow-up column's colour: the follow-up yellow (the dark theme's `--color-followup`). */
@@ -185,7 +182,7 @@ export const BREAKDOWN_PRESET_LABELS: Record<BreakdownPreset, string> = {
 }
 
 /** A new Breakdown's name. */
-export const DEFAULT_BREAKDOWN_NAME = 'Breakdown'
+const DEFAULT_BREAKDOWN_NAME = 'Breakdown'
 
 /** A new Breakdown: its filter as given, split by people, bars, counts, the none row shown. */
 export function newBreakdownConfig(filter: TodoPredicate, patch: Partial<BreakdownConfig> = {}): BreakdownConfig {
@@ -414,7 +411,7 @@ export interface PivotConfig {
   cols: PivotDim
 }
 
-export const DEFAULT_PIVOT_NAME = 'Pivot'
+const DEFAULT_PIVOT_NAME = 'Pivot'
 
 /** A new Pivot: people × status. */
 export function newPivotConfig(filter: TodoPredicate): PivotConfig {

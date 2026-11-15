@@ -51,7 +51,7 @@ function datePart(withDate: boolean): number {
 export const REPEAT_DATE_PART = datePart(true) + DATE_ICON
 
 /** Which dates the dates track shows beside their icons. */
-export type DatesTier = 'both' | 'due' | 'icons'
+type DatesTier = 'both' | 'due' | 'icons'
 
 /** The dates track per tier, widest first, px. */
 export const DATES_TIERS: Readonly<Record<DatesTier, number>> = {
@@ -89,7 +89,7 @@ export const TASK_ROW = {
 export const DEFAULT_DETAILS_WIDTH = 300
 
 /** The details' share of the row's inner width while nothing is stored, so the title always gets the larger part. */
-export const DEFAULT_DETAILS_SHARE = 0.45
+const DEFAULT_DETAILS_SHARE = 0.45
 
 /**
  * The details width nothing is stored for in rows `inner` px wide (inside
@@ -185,9 +185,9 @@ function fixedSum(dates: number): number {
 }
 
 /** Avatar size, the step between overlapping avatars and the `+N` text's width, px. */
-export const AVATAR = { size: 16, step: 12, more: 16 } as const
+const AVATAR = { size: 16, step: 12, more: 16 } as const
 /** A cell's horizontal padding (both sides), px. */
-export const CELL_PADDING = 6
+const CELL_PADDING = 6
 
 export interface PeopleFit {
   /** Avatars shown. */
@@ -215,9 +215,9 @@ export function peopleFit(count: number, track: number): PeopleFit {
 }
 
 /** The gap between tags in the tags cell, px. */
-export const TAG_GAP = 5
+const TAG_GAP = 5
 
-export interface TagsFit {
+interface TagsFit {
   /** Tags shown (the last may ellipsize). */
   shown: number
   /** Tags not shown (`+N`). */

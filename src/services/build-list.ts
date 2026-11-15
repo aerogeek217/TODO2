@@ -22,7 +22,7 @@ import type { ListRanks } from '../utils/list-order'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 
 /** Whether a task passes a predicate (closes over assignment maps, statuses, the screen filter). */
-export type PredicateEvaluator = (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean
+type PredicateEvaluator = (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean
 
 export interface ListBuildContext {
   today: Date

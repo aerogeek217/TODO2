@@ -15,7 +15,7 @@ import { NUMBER_NAME_MAX, pickTagPicksConfig, type NumberPredicateRead, type Pic
 type Obj = Record<string, unknown>
 
 /** Project pulse's rules, in the order a card shows them. */
-export const PULSE_RULE_KEYS = ['late', 'stale'] as const
+const PULSE_RULE_KEYS = ['late', 'stale'] as const
 export type PulseRuleKey = (typeof PULSE_RULE_KEYS)[number]
 
 /**
@@ -24,7 +24,7 @@ export type PulseRuleKey = (typeof PULSE_RULE_KEYS)[number]
  * over a card's open tasks; no filter = the built-in default. A name of its
  * own needn't give up the default (a Stale renamed still follows Settings).
  */
-export interface PulseRule {
+interface PulseRule {
   name: string
   filter?: TodoPredicate
 }

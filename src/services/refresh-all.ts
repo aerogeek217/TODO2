@@ -18,7 +18,6 @@ import { useTrendEventsStore } from '../stores/trend-events-store'
 import { useUIStore } from '../stores/ui-store'
 import { closeOpenEditors } from '../stores/editor-leave'
 import { clearReviewSessions } from '../stores/review-session'
-import { clearUnsavedDrafts } from '../data/draft-storage'
 
 /**
  * Reloads every store from IndexedDB after a data replace (import, backup
@@ -33,12 +32,6 @@ import { clearUnsavedDrafts } from '../data/draft-storage'
 export async function refreshAllStores() {
   useUndoStore.getState().clear()
   useFilterStore.getState().clearAll()
-  // Prompt picks and collapsed groups are keyed by ids the replaced data may
-  // reuse for other lists / tabs. The unsaved layout and list edits an older
-  // build kept go too — once the workspace has opened (before that, at
-  // launch, they're from the last visit and are checked against the loaded
-  // data when it opens; after it, launch has removed them already).
-  if (useWorkspaceStore.getState().hydrated) clearUnsavedDrafts()
   // A lens's unsaved filter edits name a lens the replaced data may not have.
   useLensDraftStore.getState().discard()
   // Prompt picks, collapsed groups and each Review widget's filter (the store knows which of its fields

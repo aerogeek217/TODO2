@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { carryOnAfterLeave, useEditorLeave } from '../../../hooks/use-editor-leave'
+import { useEditorLeave } from '../../../hooks/use-editor-leave'
 import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { configPatch, sameConfigValue } from '../../../utils/config-patch'
 import { isInLayerAbove } from '../../../utils/dom-layers'
@@ -119,61 +119,12 @@ export function useEditorDraft<C extends object>({ tabId, stored, write, onClose
 }
 
 /**
- * A press elsewhere asks the editor to close (`requestClose`). Not
- * elsewhere: inside it, on its anchor (the widget it edits), or in a layer
- * stacked above it (a picker, a menu, the close question). A press the
- * editor holds (it asked) is swallowed — its click too — so it doesn't go
- * on to what it pressed (a tab's alone is made again once the answer is
- * Save or Discard, `carryOnAfterLeave`); one it lets close goes on. Capture phase on the
- * document, after an expression field's own hold (on the window), which
- * stops the press first.
+ * What a press elsewhere is for a widget editor (`usePressElsewhereCloses`):
+ * not inside it, not on its anchor (the widget it edits), and not in a layer
+ * stacked above it (a picker, a menu, the close question).
  */
-export function usePressElsewhereCloses(
-  panel: RefObject<HTMLElement | null>,
-  anchorRef: RefObject<HTMLElement | null>,
-  requestClose: () => boolean,
-): void {
-  const requestRef = useLatestRef(requestClose)
-  useEffect(() => {
-    const elsewhere = (t: EventTarget | null): boolean => {
-      if (!(t instanceof Node) || !t.isConnected) return false
-      const el = panel.current
-      if (!el || el.contains(t) || isInLayerAbove(el, t)) return false
-      return !anchorRef.current?.contains(t)
-    }
-    // A real press starts with pointerdown (decided there); its mousedown follows.
-    let pointerDecided = false
-    let held = false
-    const onPress = (e: Event) => {
-      if (e.type === 'mousedown' && pointerDecided) {
-        pointerDecided = false
-        if (held) {
-          e.preventDefault()
-          e.stopPropagation()
-        }
-        return
-      }
-      pointerDecided = e.type === 'pointerdown'
-      held = elsewhere(e.target) && requestRef.current()
-      if (!held) return
-      if (e.type === 'mousedown') e.preventDefault()
-      e.stopPropagation()
-      // A tab pressed: it switches once the question was answered Save or Discard.
-      carryOnAfterLeave(e.target)
-    }
-    const onClick = (e: MouseEvent) => {
-      if (!held) return
-      held = false
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    document.addEventListener('pointerdown', onPress, true)
-    document.addEventListener('mousedown', onPress, true)
-    document.addEventListener('click', onClick, true)
-    return () => {
-      document.removeEventListener('pointerdown', onPress, true)
-      document.removeEventListener('mousedown', onPress, true)
-      document.removeEventListener('click', onClick, true)
-    }
-  }, [panel, anchorRef, requestRef])
+export function widgetEditorElsewhere(t: EventTarget | null, panel: HTMLElement | null, anchor: HTMLElement | null): boolean {
+  if (!(t instanceof Node) || !t.isConnected) return false
+  if (!panel || panel.contains(t) || isInLayerAbove(panel, t)) return false
+  return !anchor?.contains(t)
 }

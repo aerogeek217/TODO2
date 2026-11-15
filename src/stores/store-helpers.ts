@@ -28,7 +28,7 @@ import { registerModuleReset, registerModuleSettle } from '../utils/module-reset
 import { withOrphanedRuleDropped } from '../utils/todo-changes'
 import { stampAfter, undoStamps, type Stamp, type StampChanges } from '../utils/task-stamps'
 
-export type SetFn = (partial: Record<string, unknown>) => void
+type SetFn = (partial: Record<string, unknown>) => void
 
 // ── Load vs. write ──────────────────────────────────────────────────────────
 //
@@ -112,7 +112,7 @@ registerModuleSettle(settleWrites)
  * Test hook: forgets writes still in flight — only those that never settled
  * (`settleWrites` ran after the test), e.g. under a test's fake timers.
  */
-export function resetWriteTracking(): void {
+function resetWriteTracking(): void {
   writesInFlight.clear()
 }
 registerModuleReset(resetWriteTracking)

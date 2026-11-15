@@ -24,7 +24,7 @@ export function isLensId(v: unknown): v is string {
 }
 
 /** The lenses read from their stored text, and what was dropped on the way (empty when nothing). */
-export interface ReadLenses {
+interface ReadLenses {
   lenses: Lens[]
   fixes: string[]
 }

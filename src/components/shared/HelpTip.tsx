@@ -4,7 +4,7 @@ import { TooltipBubble } from './TooltipBubble'
 import styles from './HelpTip.module.css'
 
 /** How long the pointer rests on the ⓘ before its description opens (shorter than a label tooltip's: the icon is there to be read). */
-export const HELP_TIP_DELAY_MS = 200
+const HELP_TIP_DELAY_MS = 200
 
 /**
  * An ⓘ after a label that shows its description: on hover (after

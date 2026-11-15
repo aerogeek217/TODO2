@@ -12,7 +12,7 @@ import {
   type AutocompleteView,
 } from './nlp-autocomplete'
 import { parseCommandDate } from './slash-commands'
-import type { TintSpan, TokenTint } from './nlp-token-tints'
+import { markerTint, type TintSpan, type TokenTint } from './nlp-token-tints'
 
 /**
  * The search box's grammar (D16): what typed into the top bar's search (or
@@ -46,7 +46,7 @@ export interface SearchSources {
 }
 
 /** A recognised token: the clause it sets, as typed. */
-export interface SearchToken {
+interface SearchToken {
   raw: string
   start: number
   end: number
@@ -224,7 +224,6 @@ const CLAUSE_TINT: Record<SearchClause['field'], TokenTint> = {
   showCompleted: 'chip',
 }
 
-const MARKER_TINT: Record<MarkerKey, TokenTint> = { urgent: 'urgent', important: 'important', focus: 'focus' }
 
 /**
  * The tinted spans of the box (Quick Add's tints): a token by what it sets,
@@ -236,7 +235,7 @@ export function searchTints(parse: SearchParse, active?: { start: number; end: n
     ...parse.tokens.map((t) => ({
       start: t.start,
       end: t.end,
-      tint: t.clause.field === 'markers' ? MARKER_TINT[t.clause.marker] : CLAUSE_TINT[t.clause.field],
+      tint: t.clause.field === 'markers' ? markerTint(t.clause.marker) : CLAUSE_TINT[t.clause.field],
     })),
     ...parse.names.filter((n) => n.unmatched).map((n) => ({ start: n.start, end: n.end, tint: 'new' as const })),
     ...parse.errors.map((e) => ({ ...e, tint: 'error' as const })),

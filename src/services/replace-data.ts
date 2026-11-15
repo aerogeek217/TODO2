@@ -36,7 +36,7 @@ import { refreshAllStores, refreshTaskStores } from './refresh-all'
  */
 
 /** What replaced the data; `onDataReplaced` listeners get it. */
-export type DataReplaceSource = 'import' | 'backup-restore' | 'audit-cleanup' | 'sync-file' | 'append-import'
+type DataReplaceSource = 'import' | 'backup-restore' | 'audit-cleanup' | 'sync-file' | 'append-import'
 
 /**
  * The backup taken first. `{ operation }`: the safety snapshot (`operation`
@@ -44,14 +44,14 @@ export type DataReplaceSource = 'import' | 'backup-restore' | 'audit-cleanup' | 
  * is only logged — for a replace that can't lose anything (the browser
  * already holds the incoming data).
  */
-export type ReplaceBackup = { operation: string } | 'best-effort'
+type ReplaceBackup = { operation: string } | 'best-effort'
 
 /**
  * `done`: written and reloaded (`noBackup`: without the backup snapshot — the
  * user chose to continue); `cancelled`: the snapshot failed and the user
  * cancelled — nothing changed.
  */
-export type ReplaceOutcome<T> =
+type ReplaceOutcome<T> =
   | { status: 'done'; result: T; noBackup: boolean }
   | { status: 'cancelled' }
 
@@ -132,15 +132,15 @@ export async function replaceData<T>(
  * A replace from Settings: `done` (`noBackup` — it ran without the backup
  * snapshot, the user chose to continue) or `cancelled` — nothing changed.
  */
-export type ImportOutcome =
+type ImportOutcome =
   | { status: 'done'; noBackup: boolean }
   | { status: 'cancelled' }
 
 /** A backup restore: an import's outcome, or the backup is missing / unreadable. */
-export type RestoreOutcome = ImportOutcome | { status: 'error'; error: string }
+type RestoreOutcome = ImportOutcome | { status: 'error'; error: string }
 
 /** Audit cleanup: `cleaned` records fixed or deleted, or `cancelled` — nothing changed. */
-export type CleanupOutcome =
+type CleanupOutcome =
   | { status: 'done'; cleaned: number; noBackup: boolean }
   | { status: 'cancelled' }
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import { StatusIcon, STATUS_ICON_KEYS } from '../../../components/shared/StatusIcon'
+import { StatusIcon } from '../../../components/shared/StatusIcon'
+import { STATUS_ICON_KEYS } from '../../../models/status'
 import { StatusMark } from '../../../components/shared/StatusMark'
 import { AppIcon } from '../../../components/shared/AppIcon'
 

@@ -5,7 +5,7 @@
  */
 
 /** One step of a sequence diff: `=` kept (both indexes), `-` removed (from `a`), `+` added (from `b`). */
-export type SequenceOp = { op: '='; a: number; b: number } | { op: '-'; a: number } | { op: '+'; b: number }
+type SequenceOp = { op: '='; a: number; b: number } | { op: '-'; a: number } | { op: '+'; b: number }
 
 /** The middle of `a` and `b` past their common prefix and suffix: `[start, endA)` / `[start, endB)`. */
 function middle(a: readonly string[], b: readonly string[]) {

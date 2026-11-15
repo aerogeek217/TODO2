@@ -26,3 +26,8 @@ export function isInLayerAbove(panel: Node, target: Node): boolean {
 export function hasModalAbove(panel: Node): boolean {
   return Array.from(document.querySelectorAll('[aria-modal="true"]')).some((modal) => isInLayerAbove(panel, modal))
 }
+
+/** A key that landed on the page itself: nothing is focused. */
+export function isPageTarget(target: EventTarget | null): boolean {
+  return !(target instanceof Element) || target === document.body || target === document.documentElement
+}

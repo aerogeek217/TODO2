@@ -6,7 +6,7 @@ import type { RowDates } from './row-dates'
 export type FactDateKind = 'due' | 'next' | 'last'
 
 /** A date as the facts rail shows it. */
-export interface FactDateWords {
+interface FactDateWords {
   /** As a list row writes it (`Today`, `Fri`, `11/06` — `formatRowDate`). */
   words: string
   /**

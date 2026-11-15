@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import { LIST_ZOOMS, isListZoom } from '../../models/workspace-layout'
 import {
   autoListZoom,
-  canStepListZoom,
   DEFAULT_LIST_ZOOM,
   defaultListZoom,
   isListZoomSetting,
@@ -71,9 +70,6 @@ describe('the zoom step (D25 C + I1)', () => {
   it('is clamped at the ends', () => {
     expect(stepListZoom('stacked', 'in')).toBe('stacked')
     expect(stepListZoom('lines', 'out')).toBe('lines')
-    expect(canStepListZoom('stacked', 'in')).toBe(false)
-    expect(canStepListZoom('stacked', 'out')).toBe(true)
-    expect(canStepListZoom('lines', 'out')).toBe(false)
   })
 })
 

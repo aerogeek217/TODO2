@@ -3,7 +3,6 @@ import { useSettingsStore } from '../stores/settings-store'
 import { useTodoStore } from '../stores/todo-store'
 import {
   currentReviewId,
-  type ReviewDivider,
   type ReviewPlace,
   type ReviewSession,
   type ReviewSessionData,
@@ -150,7 +149,7 @@ export function keepPlace(
 }
 
 /** The order env as the stores have it now. */
-export function currentReviewOrderEnv(): ReviewOrderEnv {
+function currentReviewOrderEnv(): ReviewOrderEnv {
   return {
     todoById: new Map(useTodoStore.getState().todos.map((t) => [t.id, t])),
     today: startOfToday(),
@@ -172,7 +171,7 @@ export function setReviewSort(session: SessionLike, sort: ReviewSort, env: Revie
   const sorted = reviewOrder(s.ids, sort, env)
   // A current task kept after it left a live queue stays kept.
   const { order, index } = keepPlace(s, sorted, { keepCurrent: true, exists: (id) => s.order.includes(id) })
-  s.place({ ids: s.ids, dividers: s.dividers, sort, order, index })
+  s.place({ ids: s.ids, sort, order, index })
 }
 
 /**
@@ -185,13 +184,13 @@ export function setReviewSort(session: SessionLike, sort: ReviewSort, env: Revie
  */
 export function setReviewQueue(
   session: SessionLike,
-  queue: { ids: readonly number[]; dividers?: readonly ReviewDivider[] },
+  queue: { ids: readonly number[] },
   opts: { keepCurrent?: boolean; env?: ReviewOrderEnv } = {},
 ): void {
   const env = opts.env ?? currentReviewOrderEnv()
   const s = session.getState()
   const joined = joinOrder(s.order, queue.ids, s.sort, env)
   const { order, index } = keepPlace(s, joined, { keepCurrent: opts.keepCurrent, exists: (id) => env.todoById.has(id) })
-  const place: ReviewPlace = { ids: queue.ids, dividers: queue.dividers ?? [], sort: s.sort, order, index }
+  const place: ReviewPlace = { ids: queue.ids, sort: s.sort, order, index }
   s.place(place)
 }

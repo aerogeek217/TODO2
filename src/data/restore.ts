@@ -1,6 +1,5 @@
 import { db, ensureSeededStatuses, type Todo2Database } from './database'
 import type { ImportData } from './import-validation'
-import { prepareImportText } from './import-pipeline'
 import { DATA_TABLE_NAMES } from './tables'
 
 /**
@@ -25,16 +24,3 @@ export async function restoreFromImportData(v: ImportData, database: Todo2Databa
   })
 }
 
-/**
- * Parse a JSON string, run it through the unified import pipeline
- * (`prepareImport`: version check → schema upgrade → validation), and restore
- * all data tables. Returns an error string on failure — also for a file
- * below the floor or newer than this build, which restores nothing.
- */
-export async function parseAndRestore(jsonString: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const result = prepareImportText(jsonString)
-  if (!result.ok) return { ok: false, error: result.error }
-
-  await restoreFromImportData(result.data)
-  return { ok: true }
-}

@@ -12,7 +12,7 @@ import { registerModuleReset } from '../../utils/module-reset'
 import { PopoverRoot } from './PopoverRoot'
 
 /** A person / tag row's menu (Show tasks · Edit… · Delete…) on the popup's rows. */
-export interface NlpEntityMenuOptions {
+interface NlpEntityMenuOptions {
   /**
    * The text field the popup belongs to: Shift+F10 / the context-menu key
    * there (a `contextmenu` without the right button) opens the active row's

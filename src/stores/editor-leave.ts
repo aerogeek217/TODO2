@@ -2,8 +2,8 @@ import { registerModuleReset } from '../utils/module-reset'
 
 /**
  * The open editor dialogs that hold a copy until their Save — Edit list and
- * the widget editors (a Number's, a chart's, Project pulse's) — as the rest
- * of the app sees them: the one rule that nothing leaves one with changes
+ * the widget editors (a Number's, a chart's, Project pulse's, Created vs
+ * completed's) — as the rest of the app sees them: the one rule that nothing leaves one with changes
  * without its Save / Discard / Keep editing question. Each registers itself
  * while it is mounted (`registerOpenEditor`); whatever would close one or
  * take its subject off the screen from outside it — opening Settings or
@@ -16,7 +16,7 @@ import { registerModuleReset } from '../utils/module-reset'
  * so itself: only where nothing could ask — a data replace, an undo, a hash
  * typed in, a cell resized too small to show its widget.
  */
-export interface OpenEditor {
+interface OpenEditor {
   /** Whether it holds changes that leaving would lose. */
   changed: () => boolean
   /**

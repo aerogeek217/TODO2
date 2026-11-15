@@ -93,7 +93,7 @@ export interface CheckinTaskDiff {
   changes: CheckinChange[]
 }
 
-export interface CheckinUnmatchedRef {
+interface CheckinUnmatchedRef {
   ref: string
   /** The task title as written in the reply, when there was one. */
   title?: string
@@ -115,7 +115,7 @@ export interface CheckinReplyDiff {
   changeCount: number
 }
 
-export interface CheckinDiffContext {
+interface CheckinDiffContext {
   /** Every task (completed ones too), to match refs against. */
   todos: readonly PersistedTodoItem[]
   /** Each task's status updates, newest first: the reply's update is compared with the newest's text. */
@@ -263,7 +263,7 @@ const PAIR_MAX_CELLS = 2_500
  * dialog for seconds on long rewritten lines (cr31 L1). A 50-line note of
  * 20-word lines rewritten whole stays under it.
  */
-export const PAIR_MAX_TOKEN_CELLS = 5_000_000
+const PAIR_MAX_TOKEN_CELLS = 5_000_000
 
 const tokenCount = (lines: readonly NotesDiffLine[]) => lines.reduce((n, l) => n + wordTokens(l.text).length, 0)
 
@@ -366,7 +366,7 @@ export function notesPreviewLines(lines: readonly NotesDiffLine[], exact = true)
  * The status update change for a reply's Status value, or null when it
  * proposes none: empty, or the newest entry's text (compared as stored).
  */
-export function diffStatusUpdate(
+function diffStatusUpdate(
   value: string | undefined,
   newest: Pick<StatusUpdate, 'date' | 'text'> | undefined,
 ): Extract<CheckinChange, { field: 'statusUpdate' }> | null {

@@ -31,13 +31,13 @@ export interface GroupingContext {
   urgentRange?: UrgentDueWithinDays
 }
 
-export interface PartitionGroup<T extends PersistedTodoItem> {
+interface PartitionGroup<T extends PersistedTodoItem> {
   key: string
   label: string
   todos: T[]
 }
 
-export interface PartitionResult<T extends PersistedTodoItem> {
+interface PartitionResult<T extends PersistedTodoItem> {
   ungrouped: T[]
   groups: PartitionGroup<T>[]
 }

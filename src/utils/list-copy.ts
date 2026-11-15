@@ -63,7 +63,7 @@ export function copySourceGroups<T extends CopySourceRef>({
  * completed with them), group, sort and its direction, the prompt and Show
  * filter line. Never the name, the owner or the manual order.
  */
-export type CopiedListParts = Pick<ListDefinition, 'membership' | 'sort' | 'sortDirection' | 'grouping' | 'runtimeFilter' | 'showFilterLine' | 'tabBadges'>
+type CopiedListParts = Pick<ListDefinition, 'membership' | 'sort' | 'sortDirection' | 'grouping' | 'runtimeFilter' | 'showFilterLine' | 'tabBadges'>
 
 /** `source`'s copied parts (`CopiedListParts`), its filter cloned; parts it doesn't set are absent. */
 export function copiedListParts(source: ListDefinition): CopiedListParts {

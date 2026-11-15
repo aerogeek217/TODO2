@@ -27,7 +27,7 @@ export { BARE_MENTION_NAME, BARE_TAG_NAME, mentionToken, statusToken, tagToken }
  * text. The parser is store-free; `nlp-resolver.resolveInput` matches names.
  */
 
-export interface ParsedToken {
+interface ParsedToken {
   type: 'person' | 'tag' | 'status' | 'command'
   /** The command, for `type: 'command'`. */
   command?: SlashCommandName

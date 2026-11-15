@@ -15,7 +15,7 @@ import type { CellArea, GridAxis, GridTrack, LayoutBody, LayoutCell } from '../m
  */
 
 /** A cell's rectangle as the lines it lies between (ends exclusive). */
-export interface CellRect {
+interface CellRect {
   c0: number
   r0: number
   c1: number
@@ -42,7 +42,7 @@ export function rectOf(area: CellArea): CellRect {
   return { c0: area.col, r0: area.row, c1: area.col + area.colSpan, r1: area.row + area.rowSpan }
 }
 
-export function areaOf(rect: CellRect): CellArea {
+function areaOf(rect: CellRect): CellArea {
   return { col: rect.c0, row: rect.r0, colSpan: rect.c1 - rect.c0, rowSpan: rect.r1 - rect.r0 }
 }
 
@@ -138,24 +138,9 @@ export function unionArea(a: CellArea, b: CellArea): CellArea | null {
   return null
 }
 
-/** Whether cells `aId` and `bId` merge into a rectangle (`unionArea`). */
-export function canMerge(body: LayoutBody, aId: string, bId: string): boolean {
-  const a = cellById(body, aId)
-  const b = cellById(body, bId)
-  return a != null && b != null && a !== b && unionArea(a.area, b.area) != null
-}
-
 /** The neighbour across `side` that cell `cellId` merges with into a rectangle (Merge with ▸ Right / Below), if any. */
 export function mergeNeighbour(body: LayoutBody, cellId: string, side: Side): LayoutCell | undefined {
   return wholeEdgeNeighbour(body, cellId, side)
-}
-
-/** Whether line `line` of `axis` (an inner one) is some cell's edge. */
-export function isCellEdge(body: LayoutBody, axis: GridAxis, line: number): boolean {
-  return body.cells.some((c) => {
-    const [start, end] = spanOf(c.area, axis)
-    return start === line || end === line
-  })
 }
 
 /** The track a run of two tracks makes when the line between them goes: the first's id, the sizes added, collapsed only when both were. */
@@ -351,7 +336,7 @@ function extendStretch(body: LayoutBody, axis: GridAxis, line: number, from: num
  * and row line `row` (a level one), each a cell edge on both sides of the
  * other — four cells meet there.
  */
-export interface LineCrossing {
+interface LineCrossing {
   col: number
   row: number
 }

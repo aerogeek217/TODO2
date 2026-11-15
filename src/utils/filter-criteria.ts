@@ -1,5 +1,5 @@
 import type { DateAnchor, DateFilters, DateMatch, FilterClauses, FilterExpr, FilterNegation, MarkersFilter, TodoPredicate } from '../models'
-import { splitTopLevel, topLevelTerms } from './filter-expression'
+import { topLevelTerms } from './filter-expression'
 import { hasDateFilters, isDateMatchOn, normalizeDateFilters, readDateFilters } from './date-filters'
 import { withNormalizedNegation } from './filter-negation'
 import { hasMarkers, normalizeMarkersFilter } from './markers'
@@ -198,15 +198,4 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
 export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
   const f: FilterCriteria = { showCompleted: p.showCompleted, ...clausesToCriteria(p) }
   return p.expression ? { ...f, expression: p.expression } : f
-}
-
-/**
- * `f` as a reader of its top level reads it: an expression's top-level
- * terms that are chips as its clauses, the expression itself gone (`f`
- * itself when it has none). See `utils/predicate-expression.topLevelPredicate`.
- */
-export function topLevelCriteria(f: FilterCriteria): FilterCriteria {
-  if (!f.expression) return f
-  const { expression, ...rest } = f
-  return { ...rest, ...clausesToCriteria(splitTopLevel(expression).clauses) }
 }

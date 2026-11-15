@@ -8,7 +8,7 @@ import { shortcutLabel } from '../../../utils/shortcut-bindings'
 import type { MenuEntry } from '../../shared/MenuPopover'
 
 /** The tab menu item's label: `Review these 8 tasks` (`Review this task` for one). */
-export function reviewMenuLabel(n: number): string {
+function reviewMenuLabel(n: number): string {
   return reviewTasksLabel(n)
 }
 

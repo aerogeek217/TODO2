@@ -52,9 +52,9 @@ export const LIST_ZOOM_LABELS: Readonly<Record<ListZoom, string>> = {
 export const LIST_ZOOM_SETTING_LABELS: Readonly<Record<ListZoomSetting, string>> = { auto: 'Auto', ...LIST_ZOOM_LABELS }
 
 /** Auto: a list narrower than this (its measured width, px) is Stacked, from it Rows. */
-export const AUTO_ZOOM_BREAKPOINT = 480
+const AUTO_ZOOM_BREAKPOINT = 480
 /** Auto changes level only once the width is this far past the breakpoint (px), so a divider drag across it doesn't flicker. */
-export const AUTO_ZOOM_HYSTERESIS = 16
+const AUTO_ZOOM_HYSTERESIS = 16
 
 /**
  * The level Auto shows in a list `width` px wide: Stacked under
@@ -91,11 +91,6 @@ export function stepListZoom(zoom: ListZoom, dir: ZoomDirection): ListZoom {
   return LIST_ZOOMS[Math.max(0, Math.min(LIST_ZOOMS.length - 1, next))] ?? zoom
 }
 
-/** Whether `zoom` can step `dir` (it isn't already at that end). */
-export function canStepListZoom(zoom: ListZoom, dir: ZoomDirection): boolean {
-  return stepListZoom(zoom, dir) !== zoom
-}
-
 /**
  * A task's state as a Lines row's box fills with it (the box's ring is its
  * priority, as on a row's checkbox), the first that holds: `late` (due date
@@ -103,9 +98,9 @@ export function canStepListZoom(zoom: ListZoom, dir: ZoomDirection): boolean {
  * follow-up late), `stale` (untouched for the Settings threshold), else
  * `none` (a completed task too).
  */
-export type RowTone = 'late' | 'soon' | 'followup' | 'stale' | 'none'
+type RowTone = 'late' | 'soon' | 'followup' | 'stale' | 'none'
 
-export interface RowToneSettings {
+interface RowToneSettings {
   urgentRange: UrgentDueWithinDays
   staleAfterDays: number
 }
@@ -132,7 +127,7 @@ export function rowTone(
  * (it asks for action now), else the due date, else the next follow-up; a
  * completed task's, or none, is null.
  */
-export interface LineDate {
+interface LineDate {
   kind: 'due' | 'followup'
   text: string
   tone: 'late' | 'soon' | 'followup' | 'plain'
@@ -155,7 +150,7 @@ export function lineDate(
 }
 
 /** What a Lines row's tooltip says beside the title. */
-export interface RowSummaryParts {
+interface RowSummaryParts {
   people: readonly string[]
   tags: readonly string[]
   count: SubtaskCount | null
