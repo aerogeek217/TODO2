@@ -17,7 +17,8 @@ import { expect, test, type Browser, type CDPSession, type Page } from '@playwri
  * (`settled`), the press's Event Timing duration (press → next paint), the
  * main thread's script / style / layout time, long frames, and — for the
  * small interactions, from a trace — how many elements one style recalc
- * visited. Each scenario runs `PERF_RUNS` times (default 5) after a
+ * visited; and how many React components rendered and mounted (a stand-in
+ * for the DevTools hook counts the fibers that did work in each commit). Each scenario runs `PERF_RUNS` times (default 5) after a
  * discarded warm-up; the table shows the median and the range.
  *
  * Runs only with `PERF=1`, on its own headless Chromium on the machine's GPU
@@ -37,7 +38,8 @@ import { expect, test, type Browser, type CDPSession, type Page } from '@playwri
  * the ambience's costliest part — whatever the hour), `PERF_MOTION=reduce`,
  * `PERF_DROP_RULES=<regex>` (an experiment: every style rule whose selector
  * matches is deleted from the page before measuring — what a rule costs,
- * without a rebuild), `PERF_TRACE_DIR=<folder>` (the traced scenarios' raw
+ * without a rebuild), `PERF_ADD_CSS=<css>` (the other way: a stylesheet
+ * added to the page), `PERF_TRACE_DIR=<folder>` (the traced scenarios' raw
  * traces, with invalidation tracking and selector statistics, saved there).
  */
 
@@ -53,6 +55,7 @@ const ONLY = (process.env.PERF_ONLY ?? '').split(',').map((s) => s.trim()).filte
 const AMBIENCE = process.env.PERF_AMBIENCE ?? 'night'
 const REDUCED = process.env.PERF_MOTION === 'reduce'
 const DROP_RULES = process.env.PERF_DROP_RULES ?? ''
+const ADD_CSS = process.env.PERF_ADD_CSS ?? ''
 const TRACE_DIR = process.env.PERF_TRACE_DIR ?? ''
 const TRACE_CATEGORIES = TRACE_DIR === ''
   ? ['devtools.timeline']
@@ -149,6 +152,7 @@ interface FrameRecord { start: number; duration: number; blocking: number }
 interface EventRecord { name: string; start: number; duration: number }
 interface PressRecord { at: number; type: string; target: string }
 interface WatchRecord { hit?: number; shown?: number }
+interface ReactRecord { commits: number; renders: number; mounts: number }
 
 interface Probe {
   presses: PressRecord[]
@@ -156,6 +160,7 @@ interface Probe {
   frames: FrameRecord[]
   events: EventRecord[]
   watch: WatchRecord | null
+  react: ReactRecord
   reset(): void
   arm(selector: string, mode: 'present' | 'absent'): void
   settled(): Promise<void>
@@ -182,6 +187,7 @@ function installProbe(): void {
     frames: [],
     events: [],
     watch: null,
+    react: { commits: 0, renders: 0, mounts: 0 },
     reset() {
       probe.flush()
       probe.presses = []
@@ -189,6 +195,7 @@ function installProbe(): void {
       probe.frames = []
       probe.events = []
       probe.watch = null
+      probe.react = { commits: 0, renders: 0, mounts: 0 }
     },
     // From now on, each frame: is `selector` there (or gone)? `hit` is the first frame it is, `shown` the frame after — the change is on screen.
     arm(selector, mode) {
@@ -224,6 +231,48 @@ function installProbe(): void {
     },
   }
   window.__perf = probe
+
+  // React's renders, with no app code: a stand-in for the DevTools hook walks each committed fiber tree as
+  // DevTools does (`e2e/fixtures/render-count.ts`) — a component rendered when it is new (a mount), or when
+  // it was redone in this commit and did work; a subtree whose child list wasn't redone was skipped.
+  interface Fiber { tag: number; flags: number; child: Fiber | null; sibling: Fiber | null; alternate: Fiber | null }
+  const PERFORMED_WORK = 1
+  // Function, class, forwardRef, memo and simple-memo components (React's work tags).
+  const COMPONENT_TAGS = new Set([0, 1, 11, 14, 15])
+  const visit = (next: Fiber, prev: Fiber | null) => {
+    if (COMPONENT_TAGS.has(next.tag)) {
+      if (prev === null) {
+        probe.react.mounts++
+        probe.react.renders++
+      } else if (next !== prev && (next.flags & PERFORMED_WORK) !== 0) {
+        probe.react.renders++
+      }
+    }
+    if (prev !== null && next.child === prev.child) return
+    for (let c = next.child; c; c = c.sibling) visit(c, prev === null ? null : c.alternate)
+  }
+  const renderers = new Map<number, unknown>()
+  Object.defineProperty(window, '__REACT_DEVTOOLS_GLOBAL_HOOK__', {
+    configurable: true,
+    value: {
+      renderers,
+      supportsFiber: true,
+      isDisabled: false,
+      checkDCE() {},
+      inject(internals: unknown) {
+        const id = renderers.size + 1
+        renderers.set(id, internals)
+        return id
+      },
+      onCommitFiberRoot(_id: number, root: { current: Fiber }) {
+        probe.react.commits++
+        visit(root.current, root.current.alternate)
+      },
+      onCommitFiberUnmount() {},
+      onPostCommitFiberRoot() {},
+      setStrictMode() {},
+    },
+  })
 
   const press = (e: Event) => {
     if (!e.isTrusted) return
@@ -281,8 +330,19 @@ interface Sample {
   /** View transition phases, ms: the update callback (the old frame frozen), the animation. */
   vtUpdate: number | null
   vtAnim: number | null
-  /** From a trace: the largest style recalc's element count, every recalc's elements summed, the recalc time. */
+  /** Press → the view transition's start (what the switch awaits first), ms. */
+  vtStart: number | null
+  /** React: commits, components rendered, components mounted. */
+  commits: number
+  renders: number
+  mounts: number
+  /**
+   * From a trace: the largest style recalc's element count and its own time (what the interaction itself asked
+   * for — the ambience's stars are styled on their own clock all through the window), every recalc's elements
+   * summed, and all the recalc time.
+   */
   maxElements?: number
+  maxRecalcMs?: number
   elements?: number
   recalcMs?: number
   note?: string
@@ -318,7 +378,7 @@ async function measure(rig: Rig, act: () => Promise<void>, { watch, trace = fals
   await page.evaluate(() => window.__perf!.settled())
   await page.waitForTimeout(idle)
   const after = await metrics(cdp)
-  let recalc: Pick<Sample, 'maxElements' | 'elements' | 'recalcMs'> = {}
+  let recalc: Pick<Sample, 'maxElements' | 'maxRecalcMs' | 'elements' | 'recalcMs'> = {}
   if (trace) {
     const raw = await browser.stopTracing()
     if (TRACE_DIR !== '' && typeof trace === 'string') {
@@ -328,8 +388,10 @@ async function measure(rig: Rig, act: () => Promise<void>, { watch, trace = fals
     const events = (JSON.parse(raw.toString('utf8')) as { traceEvents: TraceEvent[] }).traceEvents
     const recalcs = events.filter((e) => e.name === 'UpdateLayoutTree' && e.ph === 'X')
     const counts = recalcs.map((e) => e.args?.elementCount ?? 0)
+    const largest = recalcs.reduce<TraceEvent | undefined>((a, e) => ((e.args?.elementCount ?? 0) > (a?.args?.elementCount ?? -1) ? e : a), undefined)
     recalc = {
       maxElements: Math.max(0, ...counts),
+      maxRecalcMs: Math.round((largest?.dur ?? 0) / 100) / 10,
       elements: counts.reduce((a, b) => a + b, 0),
       recalcMs: Math.round(recalcs.reduce((a, e) => a + (e.dur ?? 0), 0) / 100) / 10,
     }
@@ -337,7 +399,7 @@ async function measure(rig: Rig, act: () => Promise<void>, { watch, trace = fals
   const probe = await page.evaluate(() => {
     const p = window.__perf!
     p.flush()
-    return { presses: p.presses, vt: p.vt, frames: p.frames, events: p.events, watch: p.watch }
+    return { presses: p.presses, vt: p.vt, frames: p.frames, events: p.events, watch: p.watch, react: p.react }
   })
   const press = probe.presses[0]?.at ?? null
   const since = (t: number | undefined) => (press != null && t != null ? Math.round(t - press) : null)
@@ -362,6 +424,10 @@ async function measure(rig: Rig, act: () => Promise<void>, { watch, trace = fals
     longSum: Math.round(frames.reduce((a, f) => a + f.duration, 0)),
     vtUpdate: lastVt?.updated != null ? Math.round(lastVt.updated - lastVt.start) : null,
     vtAnim: lastVt?.finished != null && lastVt.ready != null ? Math.round(lastVt.finished - lastVt.ready) : null,
+    vtStart: since(lastVt?.start),
+    commits: probe.react.commits,
+    renders: probe.react.renders,
+    mounts: probe.react.mounts,
     ...recalc,
   }
 }
@@ -378,7 +444,7 @@ function stat(values: Array<number | null | undefined>): Stat | null {
 
 const show = (s: Stat | null) => (s ? `${s.median} (${s.min}–${s.max})` : '–')
 
-const NUMERIC = ['shown', 'settled', 'event', 'script', 'style', 'layout', 'styleCount', 'layoutCount', 'longest', 'longSum', 'vtUpdate', 'vtAnim', 'maxElements', 'elements', 'recalcMs'] as const
+const NUMERIC = ['shown', 'settled', 'event', 'script', 'style', 'layout', 'styleCount', 'layoutCount', 'longest', 'longSum', 'vtUpdate', 'vtAnim', 'vtStart', 'commits', 'renders', 'mounts', 'maxElements', 'maxRecalcMs', 'elements', 'recalcMs'] as const
 
 interface Results {
   meta: Record<string, unknown>
@@ -525,7 +591,8 @@ test('the built offline file at about 145 tasks and seven cells', async ({ playw
       for (const sheet of document.styleSheets) walk(sheet)
       return dropped
     }, DROP_RULES)
-    if (DROP_RULES !== '') {
+    if (ADD_CSS !== '') await page.addStyleTag({ content: ADD_CSS })
+    if (DROP_RULES !== '' || ADD_CSS !== '') {
       // An element remembers that a hover or focus rule once looked at it: the cells are mounted
       // afresh (a layout switch away and back), so only the rules left are in play.
       await settle(page, 500)
@@ -559,6 +626,7 @@ test('the built offline file at about 145 tasks and seven cells', async ({ playw
       userAgent: await page.evaluate(() => navigator.userAgent),
       firstFramesAfterMs,
       droppedRules,
+      addedCss: ADD_CSS,
       viewport: '1440x900',
       ...shape,
     }
