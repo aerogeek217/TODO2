@@ -97,16 +97,6 @@ export interface ResizePreview {
   handle: ResizeHandle
 }
 
-/**
- * How a layout switch puts the new layout on screen: called once, after
- * everything the switch awaits (its read and writes), with `apply` — the
- * synchronous state change — to run inside whatever animates it
- * (`shared/view-transition.viewTransition`); the switch goes on once what it
- * returns has settled. A view transition freezes the page and loses presses
- * for as long as its update runs, so only `apply` goes in it (cr34 H4).
- */
-export type ShowLayout = (apply: () => void) => void | Promise<void>
-
 /** What an undo step of a structural edit says to do with its undo / redo: a key that merges a run of steps into one. */
 export interface EditUndoOptions {
   /** Steps passing the same key one after another stay one undo step (a divider stepped by the arrow keys). */
@@ -198,11 +188,11 @@ export interface WorkspaceState {
   /**
    * Opens a layout. Unknown id → no-op. Never rejects: a failure is
    * reported, the open layout kept — as it is when the open layout's
-   * failed write fails again (`writeFailed`). `show` (`ShowLayout`): what
-   * runs the change on screen — a view transition, say; absent, it just
-   * happens.
+   * failed write fails again (`writeFailed`). No view transition (cr34
+   * answer 26): every cell is new, nothing morphs, and a transition held
+   * the page — losing presses — while the new layout mounted.
    */
-  load: (id: number, show?: ShowLayout) => Promise<void>
+  load: (id: number) => Promise<void>
   /**
    * Stores a new, empty layout named `name` (after the others) and opens
    * it. Resolves its id, or `null` for an empty name or a failed write (the
@@ -1015,10 +1005,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * Opens layout `id` (unknown id: nothing). Never rejects: a failed read or
    * write is reported (the snackbar) and resolves false, the open layout
    * staying as it was. The read and the writes come first; the change on
-   * screen is one synchronous step after them, run through `show` when given
-   * (`ShowLayout`).
+   * screen is one synchronous step after them.
    */
-  async function openLayout(id: number, show?: ShowLayout): Promise<boolean> {
+  async function openLayout(id: number): Promise<boolean> {
     try {
       const read = await layoutRepository.get(id)
       if (!read) return true
@@ -1027,14 +1016,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       // Only the last-used time: the rest of the row stays as stored.
       await layoutRepository.touch(id, now)
       await layoutRepository.setActiveId(id)
-      const apply = () => {
-        const repairedIds = new Set(get().repairedIds)
-        if (read.fixes.length > 0) repairedIds.add(id)
-        else repairedIds.delete(id)
-        open({ layout, fixes: read.fixes }, replaceLayout(get().layouts, layout), repairedIds)
-      }
-      if (show) await show(apply)
-      else apply()
+      const repairedIds = new Set(get().repairedIds)
+      if (read.fixes.length > 0) repairedIds.add(id)
+      else repairedIds.delete(id)
+      open({ layout, fixes: read.fixes }, replaceLayout(get().layouts, layout), repairedIds)
       return true
     } catch (err) {
       const name = get().layouts.find((l) => l.id === id)?.name ?? 'the layout'
@@ -1063,11 +1048,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return firstInit
     },
 
-    async load(id, show) {
+    async load(id) {
       if (refusedByReplaceHold()) return
       // An open editor holding changes (Edit list, a widget editor) asks first (`editor-leave`).
       if (id !== get().activeLayoutId && editorsHoldChanges() && !(await leaveOpenEditors())) return
-      if (id === get().activeLayoutId || await readyToLeave()) await openLayout(id, show)
+      if (id === get().activeLayoutId || await readyToLeave()) await openLayout(id)
     },
 
     async createLayout(name) {

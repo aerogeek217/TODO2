@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo, lazy, Suspense } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo, useSyncExternalStore, lazy, Suspense } from 'react'
 import { createHashRouter, RouterProvider, Routes, Route, Navigate, useLocation } from 'react-router'
 import { useTodoStore } from './stores/todo-store'
 import { usePersonStore } from './stores/person-store'
@@ -22,6 +22,7 @@ import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
 import { useStatusStore } from './stores/status-store'
 import { useShortcutLabel } from './hooks/use-shortcut-label'
+import { createValueStore, type ValueStore } from './utils/value-store'
 import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
@@ -244,6 +245,29 @@ function SettingsDeepLink() {
   return <Navigate to={ROUTE_WORKSPACE} replace />
 }
 
+/** The command palette while `open` says so: the flag is read here, not by the shell, so opening it renders nothing else. */
+function PaletteHost({ open, shortcuts }: { open: ValueStore<boolean>; shortcuts: ShortcutCallbacks }) {
+  const shown = useSyncExternalStore(open.subscribe, open.get)
+  return shown ? <AppCommandPalette onClose={shortcuts.closePalette} shortcuts={shortcuts} /> : null
+}
+
+/** The keyboard shortcuts list while `open` says so (as `PaletteHost`). */
+function ShortcutsModalHost({ open }: { open: ValueStore<boolean> }) {
+  const shown = useSyncExternalStore(open.subscribe, open.get)
+  return shown ? <KeyboardShortcutsModal onClose={() => open.set(false)} /> : null
+}
+
+/** The Settings modal while `ui-store.settingsOpen` (as `PaletteHost`: the shell doesn't read the flag). */
+function SettingsModalHost() {
+  const settingsOpen = useUIStore((s) => s.settingsOpen)
+  if (!settingsOpen) return null
+  return (
+    <Suspense fallback={null}>
+      <SettingsModal />
+    </Suspense>
+  )
+}
+
 function AppShell() {
   const isMobile = useIsMobile()
   const [initialized, setInitialized] = useState(false)
@@ -252,8 +276,8 @@ function AppShell() {
   const [initTooNew, setInitTooNew] = useState<TooNewDBInfo | null>(null)
   /** Launch stopped because the database is below the floor (where the version check before it couldn't see that). */
   const [initTooOld, setInitTooOld] = useState<{ storedVersion: number | null } | null>(null)
-  const [showPalette, setShowPalette] = useState(false)
-  const [showShortcuts, setShowShortcuts] = useState(false)
+  // The palette's and the shortcuts list's open flags: read by their hosts only, so opening one doesn't render the shell.
+  const [overlays] = useState(() => ({ palette: createValueStore(false), shortcuts: createValueStore(false) }))
   /** Set once launch's completed-task check began reading: a sync-file load from then on gets its own check. */
   const purgeCheckStartedRef = useRef(false)
   /** While launch waits for the sync file's permission answer the start screen shows no spinner. */
@@ -277,7 +301,6 @@ function AppShell() {
       ui.closeFilterPanel()
     }
   }, [isMobile])
-  const settingsOpen = useUIStore((s) => s.settingsOpen)
 
   const lastPathRef = useRef(location.pathname)
   useEffect(() => {
@@ -330,11 +353,11 @@ function AppShell() {
 
   // What the shortcut handlers call — from a key press or a palette command.
   const shortcutCallbacks = useMemo<ShortcutCallbacks>(() => ({
-    openPalette: () => setShowPalette(true),
-    closePalette: () => setShowPalette(false),
+    openPalette: () => overlays.palette.set(true),
+    closePalette: () => overlays.palette.set(false),
     openSettings: () => useUIStore.getState().openSettings(),
-    openShortcutsModal: () => setShowShortcuts(true),
-  }), [])
+    openShortcutsModal: () => overlays.shortcuts.set(true),
+  }), [overlays])
 
   // Global keyboard shortcuts
   useKeyboardShortcuts({
@@ -401,14 +424,10 @@ function AppShell() {
           </button>
         </div>
       )}
-      {!isMobile && showPalette && <AppCommandPalette onClose={shortcutCallbacks.closePalette} shortcuts={shortcutCallbacks} />}
+      {!isMobile && <PaletteHost open={overlays.palette} shortcuts={shortcutCallbacks} />}
       {!isMobile && <AddWidgetRequestHost />}
-      {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
-      {!isMobile && settingsOpen && (
-        <Suspense fallback={null}>
-          <SettingsModal />
-        </Suspense>
-      )}
+      {!isMobile && <ShortcutsModalHost open={overlays.shortcuts} />}
+      {!isMobile && <SettingsModalHost />}
 
       <AppBulkConfirmDialog />
       <PurgeNoticeHost />

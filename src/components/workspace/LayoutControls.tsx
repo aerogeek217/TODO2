@@ -9,7 +9,6 @@ import { LayoutTabs } from './LayoutTabs'
 import { LayoutGlyph } from '../shared/LayoutGlyph'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, PencilIcon, PlusIcon, TrashIcon, WarningIcon } from '../shared/icons'
 import styles from './LayoutControls.module.css'
-import { viewTransition } from '../shared/view-transition'
 
 /** How the top bar shows the layouts: one tab each, or folded into the picker's drop-down. */
 export type LayoutControlsMode = 'tabs' | 'menu'
@@ -49,8 +48,8 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
 
   const switchTo = (id: number) => {
     if (id === activeLayoutId) return
-    // The switch's read and writes first; only the change on screen runs in the transition (`ShowLayout`).
-    void store().load(id, viewTransition)
+    // No view transition (cr34 answer 26): presses made while the new layout mounts land.
+    void store().load(id)
   }
 
   // A layout action asked for elsewhere (the palette, `ui-store.requestLayout`): run as the tabs and the picker run it.

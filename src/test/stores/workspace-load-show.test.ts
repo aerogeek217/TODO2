@@ -6,11 +6,10 @@ import { resetDb } from '../helpers'
 import { emptyBody, single } from '../helpers/layout-builders'
 
 /**
- * A layout switch's `show` (cr34 H4): the read and the writes are awaited
- * first, and the change on screen is one synchronous step handed to `show` —
- * what a view transition wraps. Before, the whole switch ran inside the
- * transition, whose update freezes the page and loses every press made
- * while it runs.
+ * A layout switch (`workspace-store.load`): the read and the writes are
+ * awaited first, then the new layout is put on screen in one synchronous
+ * step. No view transition wraps it (cr34 answer 26: a transition froze the
+ * page and lost presses while the new layout mounted; `e2e/layout-switch-presses`).
  */
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
@@ -35,60 +34,37 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('workspace-store.load with a `show`', () => {
-  it('runs the writes first, then hands `show` one synchronous step that opens the layout', async () => {
+describe('workspace-store.load', () => {
+  it('runs the writes first, then opens the layout', async () => {
     const { plain, other } = await twoLayouts()
     const touch = vi.spyOn(layoutRepository, 'touch')
     const setActiveId = vi.spyOn(layoutRepository, 'setActiveId')
-    const seen: Array<{ written: boolean; openBefore: number | null; openAfter: number | null; returned: unknown }> = []
-    await ws().load(other, (apply) => {
-      const written = touch.mock.calls.length === 1 && setActiveId.mock.calls.length === 1
-      const openBefore = ws().activeLayoutId
-      const returned: unknown = apply()
-      seen.push({ written, openBefore, openAfter: ws().activeLayoutId, returned })
+    const seen: Array<{ open: number | null; written: boolean }> = []
+    const unsubscribe = useWorkspaceStore.subscribe((s, prev) => {
+      if (s.activeLayoutId !== prev.activeLayoutId) {
+        seen.push({ open: s.activeLayoutId, written: touch.mock.calls.length === 1 && setActiveId.mock.calls.length === 1 })
+      }
     })
-    // Called once, after both writes; `apply` is synchronous (it returns nothing to wait for).
-    expect(seen).toEqual([{ written: true, openBefore: plain, openAfter: other, returned: undefined }])
+    expect(ws().activeLayoutId).toBe(plain)
+    await ws().load(other)
+    unsubscribe()
+    // One change on screen, after both writes.
+    expect(seen).toEqual([{ open: other, written: true }])
     expect(ws().working?.id).toBe(other)
     expect(await layoutRepository.getActiveId()).toBe(other)
   })
 
-  it('waits for what `show` returns before it resolves', async () => {
-    const { other } = await twoLayouts()
-    let release: () => void = () => {}
-    const shown = new Promise<void>((resolve) => { release = resolve })
-    let resolved = false
-    const loading = ws().load(other, (apply) => shown.then(apply)).then(() => { resolved = true })
-    // Let the switch's own awaits run: it is then waiting on `show`, the old layout still open.
-    await vi.waitFor(() => expect(layoutRepository.getActiveId()).resolves.toBe(other))
-    expect(resolved).toBe(false)
-    expect(ws().activeLayoutId).not.toBe(other)
-    release()
-    await loading
-    expect(ws().activeLayoutId).toBe(other)
-  })
-
-  it('a switch whose write fails never calls `show`: the open layout stays', async () => {
+  it('a switch whose write fails leaves the open layout as it was', async () => {
     const { plain, other } = await twoLayouts()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.spyOn(layoutRepository, 'touch').mockRejectedValue(new Error('full'))
-    const show = vi.fn((apply: () => void) => apply())
-    await ws().load(other, show)
-    expect(show).not.toHaveBeenCalled()
-    expect(ws().activeLayoutId).toBe(plain)
-  })
-
-  it('the layout that is open already: nothing to show, nothing asked of `show` but the same step', async () => {
-    const { plain } = await twoLayouts()
-    const show = vi.fn((apply: () => void) => apply())
-    await ws().load(plain, show)
-    expect(show).toHaveBeenCalledTimes(1)
-    expect(ws().activeLayoutId).toBe(plain)
-  })
-
-  it('without `show` the layout just opens', async () => {
-    const { other } = await twoLayouts()
     await ws().load(other)
-    expect(ws().activeLayoutId).toBe(other)
+    expect(ws().activeLayoutId).toBe(plain)
+  })
+
+  it('the layout that is open already opens again in place', async () => {
+    const { plain } = await twoLayouts()
+    await ws().load(plain)
+    expect(ws().activeLayoutId).toBe(plain)
   })
 })

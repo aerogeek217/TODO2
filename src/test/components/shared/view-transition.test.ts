@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { transitionName, viewTransition, withViewTransition } from '../../../components/shared/view-transition'
+import { transitionName, withViewTransition } from '../../../components/shared/view-transition'
 
 function stubReducedMotion(reduce: boolean) {
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: reduce && query.includes('reduce'), media: query }))
@@ -38,36 +38,18 @@ describe('withViewTransition (D19)', () => {
     expect(update).toHaveBeenCalledTimes(1)
   })
 
-  // cr34 H4: a caller with work to do after the change shows (a layout switch) waits on `viewTransition`.
-  it('viewTransition resolves once the change has run inside the transition, not before', async () => {
+  // cr34 H4: the page is frozen while the update runs, so it runs at once, nothing awaited in it.
+  it('the change runs inside the transition’s update, synchronously', () => {
     stubReducedMotion(false)
     const order: string[] = []
-    let run: () => Promise<void> = async () => {}
-    const start = vi.fn((cb: () => Promise<void>) => { run = cb })
+    const start = vi.fn((cb: () => unknown) => {
+      order.push('start')
+      const returned = cb()
+      order.push(returned === undefined ? 'returned' : 'returned something to wait on')
+    })
     Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start })
-    const done = viewTransition(() => { order.push('update') }).then(() => { order.push('resolved') })
-    await Promise.resolve()
-    expect(order).toEqual([])
-    await run()
-    await done
-    expect(order).toEqual(['update', 'resolved'])
-  })
-
-  it('viewTransition resolves even when the change throws (the error stays the transition’s)', async () => {
-    stubReducedMotion(false)
-    let failed: unknown
-    const start = vi.fn((cb: () => Promise<void>) => { cb().catch((err: unknown) => { failed = err }) })
-    Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start })
-    await viewTransition(() => { throw new Error('boom') })
-    await Promise.resolve()
-    expect(failed).toEqual(new Error('boom'))
-  })
-
-  it('viewTransition without the API runs the change at once and resolves', async () => {
-    const update = vi.fn()
-    const done = viewTransition(update)
-    expect(update).toHaveBeenCalledTimes(1)
-    await expect(done).resolves.toBeUndefined()
+    withViewTransition(() => { order.push('update') })
+    expect(order).toEqual(['start', 'update', 'returned'])
   })
 
   it('names are custom idents built from the ids', () => {

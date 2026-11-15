@@ -81,6 +81,14 @@ class NoDragSensor implements SensorInstance {
   autoScrollEnabled = false
 }
 
+/**
+ * The pointer sensor's options, one object for the page's life: `useSensor`
+ * memoizes on it, and a new sensor list changes dnd-kit's internal context —
+ * every `useDraggable` (each list row, each calendar entry) would render
+ * again on every render of the page (cr34 M16).
+ */
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }
+
 /** Offset of a tab / panel ghost from the pointer (px). */
 const GHOST_OFFSET = { x: 12, y: 10 }
 
@@ -104,6 +112,9 @@ const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, overlayNode
     y: transform.y + (e.clientY - draggingNodeRect.top) + (flipY ? -GHOST_OFFSET.y - h : GHOST_OFFSET.y),
   }
 }
+
+/** The drag overlay's modifiers, one array for the page's life. */
+const OVERLAY_MODIFIERS = [followPointer]
 
 /**
  * Loads everything the workspace's widgets read, whatever route the app was
@@ -380,7 +391,7 @@ export function WorkspacePage() {
     void applyKeptListDrafts()
   }, [])
 
-  const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } })
+  const pointerSensor = useSensor(PointerSensor, POINTER_SENSOR_OPTIONS)
   const noDragSensor = useSensor(NoDragSensor)
   const sensors = useSensors(isMobile ? noDragSensor : pointerSensor)
 
@@ -391,9 +402,11 @@ export function WorkspacePage() {
     { when: (active) => isWorkspaceDragType(active.data.current?.type), accept: () => false },
   ]), [])
 
+  // The handlers depend only on stable callbacks, so `DndContext` gets the same ones on every render.
+  const { start: startTabDrag, end: endTabDrag } = tabDrag
   const handleDragStart = useCallback((event: DragStartEvent) => {
     landDrop('settle')
-    if (tabDrag.start(event)) {
+    if (startTabDrag(event)) {
       setLiftedDrag(false)
       return
     }
@@ -402,12 +415,12 @@ export function WorkspacePage() {
     const calendarEntry = isCalendarEntryDragData(data) ? data.calendarEntry : undefined
     setLiftedDrag(todo != null && !calendarEntry)
     if (todo) setActiveDrag({ todo, calendarEntry })
-  }, [tabDrag, landDrop])
+  }, [startTabDrag, landDrop])
 
   const chooseType = calendarChoice.choose
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     if (isWorkspaceDragType(event.active.data.current?.type)) {
-      tabDrag.end(true)
+      endTabDrag(true)
       return
     }
     setActiveDrag(null)
@@ -423,12 +436,13 @@ export function WorkspacePage() {
         chooseType,
       },
     })
-  }, [tabDrag, chooseType, landDrop])
+  }, [endTabDrag, chooseType, landDrop])
+  const onDragEnd = useCallback((event: DragEndEvent) => { void runDrop(() => handleDragEnd(event)) }, [handleDragEnd])
 
   const handleDragCancel = useCallback(() => {
-    tabDrag.end(false)
+    endTabDrag(false)
     setActiveDrag(null)
-  }, [tabDrag])
+  }, [endTabDrag])
 
   const drag = tabDrag.drag
 
@@ -438,7 +452,7 @@ export function WorkspacePage() {
       collisionDetection={collisionDetection}
       autoScroll={autoScroll}
       onDragStart={handleDragStart}
-      onDragEnd={(e) => { void runDrop(() => handleDragEnd(e)) }}
+      onDragEnd={onDragEnd}
       onDragCancel={handleDragCancel}
     >
       <WorkspaceDragContext.Provider value={drag}>
@@ -453,7 +467,7 @@ export function WorkspacePage() {
         </PendingCalendarDropContext.Provider>
       </WorkspaceDragContext.Provider>
 
-      <DragOverlay dropAnimation={liftedDrag ? taskDrop.animation : null} modifiers={[followPointer]}>
+      <DragOverlay dropAnimation={liftedDrag ? taskDrop.animation : null} modifiers={OVERLAY_MODIFIERS}>
         {drag ? (
           <div className={styles.ghostWrap}>
             {drag.source.type === 'panel' ? <PanelGhost tabs={drag.tabs} /> : (
