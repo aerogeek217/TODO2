@@ -1,5 +1,5 @@
-import { useMemo, type CSSProperties } from 'react'
-import { getActiveTab, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
+import { memo, useMemo, type CSSProperties } from 'react'
+import { getActiveTab, type LayoutCell, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import { cellAtTrack, cellById, edgeBetween, edgeStretches, lineCrossings, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
 import { previewedLayout } from '../../utils/workspace-preview'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
@@ -194,6 +194,29 @@ function Dividers({ layout, handle }: { layout: WorkspaceLayout; handle: ResizeH
 }
 
 /**
+ * One cell of the table, rendered again only when something of its own
+ * changed: its `cell` (the layout ops keep an untouched cell's object), the
+ * row tracks it covers, its collapse, its fit row or its place. Before, every
+ * change of the layout object — a tab switched in another cell, a divider's
+ * end, a widget added — and every render of the page above (Settings or the
+ * palette opening) rendered every cell and every widget in it (cr34 M16).
+ * The props a cell takes as objects are rebuilt from plain values here, so
+ * they stay the same objects between renders.
+ */
+const TableCell = memo(function TableCell({ cell, rowTracks, collapsed, fitRow, gridArea }: {
+  cell: LayoutCell
+  /** The ids of the row tracks it covers, as JSON (a string compares by its content; an id may hold any character). */
+  rowTracks: string
+  collapsed: boolean
+  fitRow: boolean
+  gridArea: string
+}) {
+  const rowTrackIds = useMemo(() => JSON.parse(rowTracks) as string[], [rowTracks])
+  const style = useMemo<CSSProperties>(() => ({ gridArea }), [gridArea])
+  return <WorkspaceCell cell={cell} rowTrackIds={rowTrackIds} collapsed={collapsed} fitRow={fitRow} style={style} />
+})
+
+/**
  * The layout's table as one CSS grid (D26): each track sized by
  * `workspace-table.trackTemplate` (weights as `fr` never under the cells'
  * minimums — the table scrolls when they don't fit —, px, a fit row
@@ -222,13 +245,13 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
         const { col, row, colSpan, rowSpan } = cell.area
         const tracks = rows.slice(row, row + rowSpan)
         return (
-          <WorkspaceCell
+          <TableCell
             key={cell.id}
             cell={cell}
-            rowTrackIds={tracks.map((t) => t.id)}
+            rowTracks={JSON.stringify(tracks.map((t) => t.id))}
             collapsed={isCellCollapsedIn(layout, cell)}
             fitRow={rowSpan === 1 && rowDrawsFitFaces(layout, row)}
-            style={{ gridArea: `${row + 1} / ${col + 1} / span ${rowSpan} / span ${colSpan}` }}
+            gridArea={`${row + 1} / ${col + 1} / span ${rowSpan} / span ${colSpan}`}
           />
         )
       })}
