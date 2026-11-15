@@ -324,6 +324,23 @@ describe('the expression field', () => {
     expect(log).toEqual([])
   })
 
+  it('a range that ends before it starts is reported as text that doesn’t read, and never written (cr34 F9)', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={{ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }} log={log} />)
+    type('due +7d..-3d')
+    fireEvent.blur(field())
+    expect(log).toEqual([])
+    expect(field()).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('This range ends before it starts')).toBeInTheDocument()
+    // In order, it reads and is written.
+    type('due -3d..+7d')
+    fireEvent.blur(field())
+    expect(field()).not.toHaveAttribute('aria-invalid', 'true')
+    expect(log.at(-1)?.expression).toEqual({
+      kind: 'date', field: 'deadline', match: { match: 'range', start: { kind: 'offset', days: -3 }, end: { kind: 'offset', days: 7 } },
+    })
+  })
+
   it('keeps the person the text named when two share a name (cr33 F5)', () => {
     usePersonStore.setState({ people: [makePerson({ id: 3, name: 'Alex' }), makePerson({ id: 4, name: 'Alex' })], assignedPeopleMap: new Map() })
     const log: TodoPredicate[] = []

@@ -13,6 +13,7 @@ import {
   PERIOD_WORDS,
   dateTypeIsOptional,
   dayAnchor,
+  dayOffsetOf,
   fixedAnchorOf,
   looksBack,
   periodRange,
@@ -554,9 +555,31 @@ class Parser {
         )
         if (days) return range(fixedAnchorOf(days.start), fixedAnchorOf(days.end))
       }
+      this.refuseInverted(from, to)
       return range(from.anchor, to.anchor)
     }
     return range(from.anchor, from.anchor)
+  }
+
+  /**
+   * A range that ends before it starts keeps nothing, so it is an error, not
+   * a filter (cr34 F9): `created mon..fri` on a Thursday (each the last one:
+   * Monday, then the Friday before it), `due +7d..-3d`. Told where both ends
+   * are days of one sort — two dates, or two days from today — which no later
+   * day changes; a date against a day from today, or a week / month anchor,
+   * may be in order on another day and is left to read. The hint shows how
+   * the two days were read.
+   */
+  private refuseInverted(from: { anchor: DateAnchor; start: number }, to: { anchor: DateAnchor; end: number }): void {
+    const a = from.anchor
+    const b = to.anchor
+    const fromDay = dayOffsetOf(a)
+    const toDay = dayOffsetOf(b)
+    const inverted = fromDay != null && toDay != null ? toDay < fromDay
+      : a.kind === 'fixed' && b.kind === 'fixed' && new Date(b.iso).getTime() < new Date(a.iso).getTime()
+    if (inverted) {
+      fail(from.start, to.end, 'This range ends before it starts', `It reads as ${anchorWords(a)}..${anchorWords(b)}: put the earlier day first`)
+    }
   }
 
   /**
