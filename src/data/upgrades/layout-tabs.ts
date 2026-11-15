@@ -23,7 +23,10 @@ import type { DataRow } from '../schema-upgrades'
  *
  * Holds its own copy of everything it reads — the close rule and the line
  * merge — so the steps go on meaning what they meant whatever later builds
- * do (moved here unchanged from `upgrades/v78/widget-set`). Defensive: a cell
+ * do (moved here unchanged from `upgrades/v78/widget-set`; cr34 made the
+ * close's neighbour search and the line merge one pass each — what they
+ * produce is unchanged, `upgrade-work-bounds.test` holds them to the copy
+ * from before). Defensive: a cell
  * that isn't an object or has no list of tabs, a tab that isn't an object,
  * is left as it is (for the layout repair); when the table doesn't read (no
  * track lists, a cell without a whole-number area), the tabs are still
@@ -131,43 +134,52 @@ function readTable(row: Obj, cells: unknown[]): Table | null {
   return { columns: grid.columns, rows: grid.rows, cells: objs, rects }
 }
 
-/** The index of the cell across `side` of cell `i` sharing the whole of that edge, if any. */
-function wholeEdgeTaker(t: Table, i: number, side: Side): number {
-  const r = t.rects[i]
-  if (!r) return -1
-  return t.rects.findIndex((q, j) => {
-    if (j === i) return false
-    switch (side) {
-      case 'left': return q.c1 === r.c0 && q.r0 === r.r0 && q.r1 === r.r1
-      case 'right': return q.c0 === r.c1 && q.r0 === r.r0 && q.r1 === r.r1
-      case 'top': return q.r1 === r.r0 && q.c0 === r.c0 && q.c1 === r.c1
-      case 'bottom': return q.r0 === r.r1 && q.c0 === r.c0 && q.c1 === r.c1
-    }
-    return false
-  })
+/** A cell touching a side of the one being closed: its index and its span along that edge. */
+interface Touching {
+  j: number
+  s: number
+  e: number
+}
+
+/** What lies across one side of a cell: the first cell sharing the whole of that edge (-1: none), and every cell touching it. */
+interface SideNeighbours {
+  whole: number
+  along: Touching[]
 }
 
 /**
- * The indices of the cells along `side` of cell `i` that together cover
- * that whole edge — every cell touching the edge lies within it, the first
- * starting where it starts and the last ending where it ends (the cells
- * tile, so they meet end to end) —, or `null` when they don't.
+ * The neighbours of cell `i` across each of its sides, in `SIDES`' order,
+ * from **one pass** over the cells (a pass per side and per question — eight
+ * of them — made a crafted file's close take seconds, cr34 S1): per side,
+ * the first cell in the list sharing the whole of that edge, and the cells
+ * touching the edge within reach of it, in list order.
  */
-function sideTakers(t: Table, i: number, side: Side): number[] | null {
-  const r = t.rects[i]
-  if (!r) return null
-  const across: Axis = side === 'left' || side === 'right' ? 'rows' : 'columns'
-  const [start, end] = spanOf(r, across)
-  const along: Array<{ j: number; s: number; e: number }> = []
-  t.rects.forEach((q, j) => {
-    if (j === i) return
-    const touches = side === 'left' ? q.c1 === r.c0
-      : side === 'right' ? q.c0 === r.c1
-        : side === 'top' ? q.r1 === r.r0
-          : q.r0 === r.r1
-    const [s, e] = spanOf(q, across)
-    if (touches && s < end && e > start) along.push({ j, s, e })
-  })
+function neighboursOf(t: Table, i: number, r: Rect): SideNeighbours[] {
+  const sides: SideNeighbours[] = SIDES.map(() => ({ whole: -1, along: [] }))
+  const [left, top, right, bottom] = sides as [SideNeighbours, SideNeighbours, SideNeighbours, SideNeighbours]
+  const note = (side: SideNeighbours, j: number, whole: boolean, s: number, e: number, start: number, end: number) => {
+    if (whole && side.whole < 0) side.whole = j
+    if (s < end && e > start) side.along.push({ j, s, e })
+  }
+  for (let j = 0; j < t.rects.length; j++) {
+    const q = t.rects[j]
+    if (j === i || !q) continue
+    if (q.c1 === r.c0) note(left, j, q.r0 === r.r0 && q.r1 === r.r1, q.r0, q.r1, r.r0, r.r1)
+    if (q.r1 === r.r0) note(top, j, q.c0 === r.c0 && q.c1 === r.c1, q.c0, q.c1, r.c0, r.c1)
+    if (q.c0 === r.c1) note(right, j, q.r0 === r.r0 && q.r1 === r.r1, q.r0, q.r1, r.r0, r.r1)
+    if (q.r0 === r.r1) note(bottom, j, q.c0 === r.c0 && q.c1 === r.c1, q.c0, q.c1, r.c0, r.c1)
+  }
+  return sides
+}
+
+/**
+ * The indices of the cells along a side (`along`, the cells touching it)
+ * that together cover that whole edge `[start, end)` — every cell touching
+ * the edge lies within it, the first starting where it starts and the last
+ * ending where it ends (the cells tile, so they meet end to end) —, or
+ * `null` when they don't.
+ */
+function sideTakers(along: Touching[], start: number, end: number): number[] | null {
   if (along.length === 0 || along.some((a) => a.s < start || a.e > end)) return null
   along.sort((a, b) => a.s - b.s)
   if (along[0]?.s !== start || along.at(-1)?.e !== end) return null
@@ -197,16 +209,17 @@ function closeInto(t: Table, i: number): boolean {
     t.rects.splice(i, 1)
     t.cells.splice(i, 1)
   }
-  for (const side of SIDES) {
-    const j = wholeEdgeTaker(t, i, side)
+  const neighbours = neighboursOf(t, i, r)
+  for (const { whole: j } of neighbours) {
     const q = t.rects[j]
     if (j < 0 || !q) continue
     t.rects[j] = { c0: Math.min(q.c0, r.c0), c1: Math.max(q.c1, r.c1), r0: Math.min(q.r0, r.r0), r1: Math.max(q.r1, r.r1) }
     drop()
     return true
   }
-  for (const side of SIDES) {
-    const takers = sideTakers(t, i, side)
+  for (const [k, side] of SIDES.entries()) {
+    const [start, end] = spanOf(r, side === 'left' || side === 'right' ? 'rows' : 'columns')
+    const takers = sideTakers(neighbours[k]?.along ?? [], start, end)
     if (!takers) continue
     for (const j of takers) {
       const q = t.rects[j]
@@ -232,25 +245,47 @@ function mergedTrack(a: unknown, b: unknown): unknown {
   return merged
 }
 
-/** Drops every inner line of `axis` no cell's edge lies on. */
+/**
+ * Drops every inner line of `axis` no cell's edge lies on: the tracks
+ * between two kept lines merge left to right (`mergedTrack`), and each
+ * cell's edges move down by the lines dropped before them.
+ *
+ * One pass over the tracks and one over the cells: the lines that are some
+ * cell's edge are collected first. (Dropping the lines one at a time — each
+ * drop a copy of the track list and of every cell, after a scan of the
+ * cells — was quadratic: 40,000 tracks in an 80 KB file took 28 s, cr34 S1.
+ * The result is the same.)
+ */
 function mergeLines(t: Table, axis: Axis): void {
-  let tracks = axis === 'columns' ? t.columns : t.rows
-  let line = 1
-  while (line < tracks.length) {
-    if (t.rects.some((r) => spanOf(r, axis).includes(line))) {
-      line++
-      continue
-    }
-    tracks = [...tracks.slice(0, line - 1), mergedTrack(tracks[line - 1], tracks[line]), ...tracks.slice(line + 1)]
-    t.rects = t.rects.map((r) => {
-      const [s, e] = spanOf(r, axis)
-      const s2 = s >= line ? s - 1 : s
-      const e2 = e >= line ? e - 1 : e
-      return axis === 'columns' ? { ...r, c0: s2, c1: e2 } : { ...r, r0: s2, r1: e2 }
-    })
+  const tracks = axis === 'columns' ? t.columns : t.rows
+  const edges = new Set<number>()
+  for (const r of t.rects) {
+    const [s, e] = spanOf(r, axis)
+    edges.add(s)
+    edges.add(e)
   }
-  if (axis === 'columns') t.columns = tracks
-  else t.rows = tracks
+  const merged: unknown[] = []
+  /** `droppedUpTo[line]`: how many of the inner lines `1 … line` are dropped. */
+  const droppedUpTo: number[] = [0]
+  let dropped = 0
+  for (let line = 0; line < tracks.length; line++) {
+    if (line === 0 || edges.has(line)) {
+      merged.push(tracks[line])
+    } else {
+      merged[merged.length - 1] = mergedTrack(merged[merged.length - 1], tracks[line])
+      dropped++
+    }
+    droppedUpTo[line] = dropped
+  }
+  if (dropped === 0) return
+  // An edge is never a dropped line, so it moves down by the dropped lines before it; one past the last track, by them all.
+  const moved = (edge: number) => edge - (droppedUpTo[edge] ?? dropped)
+  t.rects = t.rects.map((r) => {
+    const [s, e] = spanOf(r, axis)
+    return axis === 'columns' ? { ...r, c0: moved(s), c1: moved(e) } : { ...r, r0: moved(s), r1: moved(e) }
+  })
+  if (axis === 'columns') t.columns = merged
+  else t.rows = merged
 }
 
 /** A layout row (or a kept draft's body) with its tabs through `step` and the cells it empties closed; the row itself when nothing changes. */

@@ -13,7 +13,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
-import { openNumberEditor, showTab } from '../widget-hooks'
+import { openBeside, openNumberEditor } from '../widget-hooks'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { trendRangeLabel } from './glance-copy'
 import type { GlanceSummary } from './glance-summary'
@@ -48,14 +48,14 @@ function tagPicksEntry(tab: Extract<GlanceTab, { kind: 'pulse' }>, note: string)
 
 /** Opens Project pulse's editor beside it (G5; its tab shown first, as a chart's). */
 function openPulseEditor(tabId: string): void {
-  showTab(tabId)
-  useChartWidgetsStore.getState().openPulseEditor(tabId)
+  if (useChartWidgetsStore.getState().pulseEditorTabId === tabId) return
+  openBeside(tabId, () => useChartWidgetsStore.getState().openPulseEditor(tabId))
 }
 
 /** Opens Created vs completed's editor beside it (its tab shown first, as a chart's). */
 function openTrendEditor(tabId: string): void {
-  showTab(tabId)
-  useChartWidgetsStore.getState().openTrendEditor(tabId)
+  if (useChartWidgetsStore.getState().trendEditorTabId === tabId) return
+  openBeside(tabId, () => useChartWidgetsStore.getState().openTrendEditor(tabId))
 }
 
 /** A glance tab's settings, as its tab menu lists them first (each its section's options, as Customize had them). */
@@ -92,7 +92,7 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
 }
 
 /** What a glance tab's menu adds: its settings (first) and its actions (Copy). */
-export interface GlanceMenu {
+interface GlanceMenu {
   settingEntries: MenuEntry[]
   actions: WidgetMenuAction[]
 }

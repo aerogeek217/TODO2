@@ -11,7 +11,8 @@ import { emptyBody, single } from '../helpers/layout-builders'
 // A layout write that fails (e.g. browser storage full) must not pass
 // silently (the Couldn't save · Retry control, the notice), lose what is on
 // screen, nor reject into the `void` callers (edits, layout menu, rename /
-// duplicate dialogs, tab clicks).
+// duplicate dialogs, tab clicks). Every failed-write case of the store is
+// here (undo after one, with a list tab: `layout-owned-lists.test.ts`).
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 const ws = () => useWorkspaceStore.getState()
@@ -27,9 +28,27 @@ async function openPlain(): Promise<number> {
   return id
 }
 
-function failWrites() {
+/** A second, empty layout (not open). */
+async function second(): Promise<number> {
+  return layoutRepository.insert({ name: 'Second', createdAt: T0, modifiedAt: T0, ...emptyBody() })
+}
+
+/** Layout `id` as stored, once the writes in flight have run. */
+async function storedLayout(id: number): Promise<PersistedWorkspaceLayout> {
+  await settleLayoutWrites()
+  return (await db.layouts.get(id)) as PersistedWorkspaceLayout
+}
+
+/** The tab ids of layout `id`'s cell `kp`, as stored. */
+const storedTabs = async (id: number) => (await storedLayout(id)).cells.find((c) => c.id === 'kp')?.tabs.map((t) => t.id)
+
+function quiet() {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
+}
+
+function failWrites() {
+  quiet()
   const err = new DOMException('full', 'QuotaExceededError')
   vi.spyOn(layoutRepository, 'putAndPrune').mockRejectedValue(err)
   vi.spyOn(layoutRepository, 'insert').mockRejectedValue(err)
@@ -53,8 +72,8 @@ describe('workspace layout writes that fail', () => {
     await settleLayoutWrites()
     expect(ws().writeFailed).toBe(true)
     expect(ws().working?.cells[0]?.tabs).toHaveLength(1)
-    expect(notice()).toBe('Couldn\'t save layout "Plain".')
-    expect(((await db.layouts.get(id)) as PersistedWorkspaceLayout).cells[0]?.tabs).toHaveLength(2)
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn\'t save layout "Plain".', notice: true })
+    expect(await storedTabs(id)).toEqual(['p1', 'p2'])
   })
 
   it('an edit whose write lands leaves the layout unmarked', async () => {
@@ -74,7 +93,20 @@ describe('workspace layout writes that fail', () => {
     vi.mocked(layoutRepository.putAndPrune).mockRestore()
     await expect(ws().retryWrite()).resolves.toBe(true)
     expect(ws().writeFailed).toBe(false)
-    expect(((await db.layouts.get(id)) as PersistedWorkspaceLayout).cells[0]?.tabs).toHaveLength(1)
+    expect(await storedTabs(id)).toEqual(['p1'])
+  })
+
+  it('the next edit that lands writes the whole layout, and clears the mark', async () => {
+    const id = await openPlain()
+    failWrites()
+    ws().closeTab('p2')
+    await settleLayoutWrites()
+    vi.mocked(layoutRepository.putAndPrune).mockRestore()
+    ws().splitCell('kp', 'right')
+    await settleLayoutWrites()
+    expect(ws().writeFailed).toBe(false)
+    expect((await storedLayout(id)).cells).toHaveLength(2)
+    expect(await storedTabs(id)).toEqual(['p1'])
   })
 
   it('Duplicate layout resolves null and says so; the open layout stays as it was', async () => {
@@ -103,10 +135,6 @@ describe('workspace layout writes that fail', () => {
 })
 
 describe('switching or deleting a layout when a write fails (cr31 L10)', () => {
-  async function second(): Promise<number> {
-    return layoutRepository.insert({ name: 'Second', createdAt: T0, modifiedAt: T0, ...emptyBody() })
-  }
-
   it('a switch that fails does not reject, says so, and keeps the open layout', async () => {
     const plain = await openPlain()
     const other = await second()
@@ -143,11 +171,13 @@ describe('switching or deleting a layout when a write fails (cr31 L10)', () => {
 })
 
 describe('leaving a layout whose write failed', () => {
+  const STAY = 'Couldn\'t save layout "Plain". Retry before leaving it, or its last changes are lost.'
+
   it('stays on it instead of switching (which would drop its last changes), and says so; the layout tab shows Couldn’t save · Retry', async () => {
     const { render, screen, fireEvent, waitFor } = await import('@testing-library/react')
     const { LayoutControls } = await import('../../components/workspace/LayoutControls')
     const plain = await openPlain()
-    const other = await layoutRepository.insert({ name: 'Second', createdAt: T0, modifiedAt: T0, ...emptyBody() })
+    const other = await second()
     await ws().init()
     failWrites()
     ws().closeTab('p2')
@@ -157,10 +187,87 @@ describe('leaving a layout whose write failed', () => {
     expect(retry).toHaveTextContent('Couldn’t save·Retry')
     await ws().load(other)
     expect(ws().activeLayoutId).toBe(plain)
-    expect(notice()).toBe('Couldn\'t save layout "Plain". Retry before leaving it, or its last changes are lost.')
+    expect(notice()).toBe(STAY)
     vi.mocked(layoutRepository.putAndPrune).mockRestore()
     fireEvent.click(retry)
     await waitFor(() => expect(screen.queryByTestId('layout-write-failed')).toBeNull())
     expect(ws().writeFailed).toBe(false)
+  })
+
+  it('a switch and a new layout try the write again first; once it lands, the switch goes through with the edit stored', async () => {
+    const plain = await openPlain()
+    const other = await second()
+    await ws().init()
+    failWrites()
+    ws().closeTab('p2')
+    await settleLayoutWrites()
+    await ws().load(other)
+    expect(ws().activeLayoutId).toBe(plain)
+    expect(notice()).toBe(STAY)
+    expect(await ws().createLayout('New')).toBeNull()
+    expect(ws().activeLayoutId).toBe(plain)
+    vi.restoreAllMocks()
+    await ws().load(other)
+    expect(ws().activeLayoutId).toBe(other)
+    expect(await storedTabs(plain)).toEqual(['p1'])
+  })
+})
+
+describe('leaving a layout while its write is still running (cr34 D5)', () => {
+  const STAY = 'Couldn\'t save layout "Plain". Retry before leaving it, or its last changes are lost.'
+
+  /** The open layout with an edit whose write hasn't run yet, and a second layout to leave for. */
+  async function editInFlight(): Promise<{ plain: number; other: number }> {
+    const plain = await openPlain()
+    const other = await second()
+    await ws().init()
+    return { plain, other }
+  }
+
+  it('a switch waits for the write: when it fails (and fails again), the layout stays open, marked, with the edit on screen', async () => {
+    const { plain, other } = await editInFlight()
+    failWrites()
+    ws().closeTab('p2')
+    await ws().load(other)
+    expect(ws().activeLayoutId).toBe(plain)
+    expect(ws().writeFailed).toBe(true)
+    expect(ws().working?.cells[0]?.tabs).toHaveLength(1)
+    expect(notice()).toBe(STAY)
+  })
+
+  it('a write that fails once is written again before the switch: the edit is stored, not lost', async () => {
+    const { plain, other } = await editInFlight()
+    quiet()
+    vi.spyOn(layoutRepository, 'putAndPrune').mockRejectedValueOnce(new DOMException('full', 'QuotaExceededError'))
+    ws().closeTab('p2')
+    await ws().load(other)
+    expect(ws().activeLayoutId).toBe(other)
+    expect(ws().writeFailed).toBe(false)
+    expect(await storedTabs(plain)).toEqual(['p1'])
+  })
+
+  it('New layout and Duplicate layout wait for it too', async () => {
+    const { plain } = await editInFlight()
+    quiet()
+    const put = vi.spyOn(layoutRepository, 'putAndPrune').mockRejectedValue(new DOMException('full', 'QuotaExceededError'))
+    ws().closeTab('p2')
+    expect(await ws().createLayout('New')).toBeNull()
+    expect(notice()).toBe(STAY)
+    expect(await ws().duplicateLayout('Copy')).toBeNull()
+    expect(ws().activeLayoutId).toBe(plain)
+    expect(await db.layouts.count()).toBe(2)
+    put.mockRestore()
+    const copy = await ws().duplicateLayout('Copy')
+    expect(copy).not.toBeNull()
+    expect(await storedTabs(plain)).toEqual(['p1'])
+    expect(await storedTabs(copy!)).toEqual(['p1'])
+  })
+
+  it('a write that lands lets the switch through as before', async () => {
+    const { plain, other } = await editInFlight()
+    ws().closeTab('p2')
+    await ws().load(other)
+    expect(ws().activeLayoutId).toBe(other)
+    expect(await storedTabs(plain)).toEqual(['p1'])
   })
 })

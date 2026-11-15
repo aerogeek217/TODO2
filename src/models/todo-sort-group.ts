@@ -75,7 +75,7 @@ export function sortHasDirection(sortBy: TodoSortBy): boolean {
  * their own: Completed newest first, Last followed up oldest first (D22).
  * Any other sort keeps the direction it is picked with (`Due ↓` → `Name ↓`).
  */
-export const SORT_DIRECTION_ON_PICK: Partial<Record<TodoSortBy, TodoSortDirection>> = {
+const SORT_DIRECTION_ON_PICK: Partial<Record<TodoSortBy, TodoSortDirection>> = {
   lastFollowup: 'asc',
   completed: 'desc',
 }

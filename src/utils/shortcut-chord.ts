@@ -18,14 +18,14 @@ const NAMED_KEYS = [
 const NAMED_BY_LOWER = new Map<string, string>(NAMED_KEYS.map((k) => [k.toLowerCase(), k]))
 
 /** `name` in its stored spelling: a printable character lowercased, or a named key; null otherwise. */
-export function canonicalKey(name: string): string | null {
+function canonicalKey(name: string): string | null {
   if (name === ' ') return 'Space'
   if ([...name].length === 1) return /\s/.test(name) || name < ' ' ? null : name.toLowerCase()
   return NAMED_BY_LOWER.get(name.toLowerCase()) ?? null
 }
 
 /** A key that types a character (letter, digit, punctuation). */
-export function isCharacterKey(key: string): boolean {
+function isCharacterKey(key: string): boolean {
   return [...key].length === 1
 }
 

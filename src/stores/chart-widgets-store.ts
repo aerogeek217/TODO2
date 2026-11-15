@@ -1,12 +1,12 @@
 import { create } from 'zustand'
-import { afterLeavingEditors } from './editor-leave'
+import { openOneEditor, registerEditorFields } from './editor-leave'
 
 /**
  * The chart widgets' temporary state (D26 P8), never in a layout: the open
- * chart editor (one at a time, beside its chart — `ChartEditorHost`), and
- * Project pulse's open editor (G5, `PulseEditorHost`) and Created vs
- * completed's (`TrendEditorHost`), each one at a time like the chart
- * editor's.
+ * chart editor (beside its chart — `ChartEditorHost`), and Project pulse's
+ * open editor (G5, `PulseEditorHost`) and Created vs completed's
+ * (`TrendEditorHost`). One editor at a time, across every kind
+ * (`editor-leave.openOneEditor`, which these fields are registered with).
  */
 interface ChartWidgetsState {
   /** The chart tab whose editor is open. */
@@ -30,8 +30,8 @@ export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
 
   openEditor(tabId) {
     if (get().editorTabId === tabId) return
-    // An editor with changes is asked first (`editor-leave`).
-    afterLeavingEditors(() => set({ editorTabId: tabId }))
+    // An editor with changes is asked first, and any other closes (`editor-leave`).
+    openOneEditor(() => set({ editorTabId: tabId }))
   },
 
   closeEditor() {
@@ -44,7 +44,7 @@ export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
 
   openPulseEditor(tabId) {
     if (get().pulseEditorTabId === tabId) return
-    afterLeavingEditors(() => set({ pulseEditorTabId: tabId }))
+    openOneEditor(() => set({ pulseEditorTabId: tabId }))
   },
 
   closePulseEditor() {
@@ -57,7 +57,7 @@ export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
 
   openTrendEditor(tabId) {
     if (get().trendEditorTabId === tabId) return
-    afterLeavingEditors(() => set({ trendEditorTabId: tabId }))
+    openOneEditor(() => set({ trendEditorTabId: tabId }))
   },
 
   closeTrendEditor() {
@@ -65,3 +65,10 @@ export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
     set({ trendEditorTabId: null })
   },
 }))
+
+registerEditorFields(() => {
+  const s = useChartWidgetsStore.getState()
+  s.closeEditor()
+  s.closePulseEditor()
+  s.closeTrendEditor()
+})

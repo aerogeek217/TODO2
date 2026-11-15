@@ -343,6 +343,57 @@ describe('stored expressions past the caps (cr33 M1, S3)', () => {
   })
 })
 
+describe('chips beside an expression that fold into one past the caps (cr34 S3)', () => {
+  const tag = (id: number) => ({ kind: 'tag', id })
+  /** 2,500 tag ids as a chip — within what a chip holds — beside a one-term expression. */
+  const stored = () => ({ ...emptyPredicate(), tags: Array.from({ length: 2500 }, (_, i) => i + 1), personIds: [4], expression: { kind: 'status', id: 2 } })
+
+  it('the fold within the caps is unchanged: the chips join the expression, no fix', () => {
+    const picked = pickPredicate({ ...emptyPredicate(), tags: [1, 2], expression: tag(9) })
+    expect(picked.fixes).toEqual([])
+    expect(picked.predicate.tags ?? null).toBeNull()
+    expect(picked.predicate.expression).toEqual({ kind: 'and', items: [{ kind: 'or', items: [tag(1), tag(2)] }, tag(9)] })
+  })
+
+  it('past them, the expression goes on this read with a fix and the chips stay chips', () => {
+    const picked = pickPredicate(stored())
+    expect(picked.fixes).toEqual(['expression dropped'])
+    expect(picked.predicate.expression).toBeUndefined()
+    expect(picked.predicate.tags).toHaveLength(2500)
+    expect(picked.predicate.personIds).toEqual([4])
+  })
+
+  it('what the first read stores reads back the same, with nothing more to fix', () => {
+    const first = pickPredicate(stored())
+    const again = pickPredicate(JSON.parse(JSON.stringify(first.predicate)))
+    expect(again.fixes).toEqual([])
+    expect(again.predicate).toEqual(first.predicate)
+  })
+
+  it('old or groups that take the fold past the caps go the same way', () => {
+    const groups = Array.from({ length: 3 }, (_, g) => ({ ...emptyFilterClauses(), tags: Array.from({ length: 900 }, (_, i) => g * 1000 + i + 1) }))
+    const picked = pickPredicate({ ...emptyPredicate(), statusIds: [1], orGroups: groups })
+    expect(picked.fixes).toEqual(['or groups dropped'])
+    expect(picked.predicate).toEqual({ ...emptyPredicate(), statusIds: [1] })
+    expect(pickPredicate(picked.predicate).fixes).toEqual([])
+  })
+
+  it('an import of a file holding one warns, and the list it stores is one the next read leaves alone', () => {
+    const file = {
+      [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
+      todos: [],
+      settings: [],
+      listDefinitions: [{ id: 1, name: 'Wide', sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: stored() } }],
+    }
+    const result = prepareImport(file)
+    if (!result.ok) throw new Error(result.error)
+    expect(result.warnings).toEqual(['Fixed 1 list: "Wide" (expression dropped)'])
+    const predicate = (result.data.listDefinitions[0]!.membership as { predicate: TodoPredicate }).predicate
+    expect(predicate.tags).toHaveLength(2500)
+    expect(pickPredicate(JSON.parse(JSON.stringify(predicate))).fixes).toEqual([])
+  })
+})
+
 describe('checkPredicateShape', () => {
   it.each([
     ['showCompleted', { showCompleted: 'yes' }],

@@ -3,9 +3,8 @@ import { db } from '../../data/database'
 import { rowFixes, sanitizeRow, validateImportData, validateRow } from '../../data/import-validation'
 import { layoutRepository } from '../../data/layout-repository'
 import { auditData, cleanupIssues } from '../../data/audit'
-import { readListDrafts, writeListDrafts } from '../../data/draft-storage'
 import { emptyPredicate } from '../../models/filter-predicate'
-import type { ListDefinition, PersistedListDefinition } from '../../models/list-definition'
+import type { ListDefinition } from '../../models/list-definition'
 import type { WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 import { emptyBody, single } from '../helpers/layout-builders'
@@ -77,7 +76,11 @@ describe('import: a layout’s order and the new-task follow-up setting', () => 
     expect(validateRow('layouts', { ...noOrder, sortOrder: 'first' })).toBe('sortOrder')
     expect(rowFixes('layouts', noOrder)).toEqual(['order reset'])
     expect(sanitizeRow('layouts', noOrder).sortOrder).toBe(Number.MAX_SAFE_INTEGER)
-    expect(validateImportData({ todos: [], settings: [], layouts: [noOrder] }).ok).toBe(false)
+    // The import repairs it as the database read does (cr34 answer 20), with a warning.
+    const res = validateImportData({ todos: [], settings: [], layouts: [noOrder] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]!.sortOrder).toBe(Number.MAX_SAFE_INTEGER)
+    expect(res.warnings).toEqual(['Fixed 1 layout: "L1" (order reset)'])
   })
 
   it.each([['true', true], ['false', true], ['no', false], ['', false]])('removeConvertedLines %j reads: %s', (value, ok) => {
@@ -114,8 +117,33 @@ describe('layoutRepository: the layout order', () => {
     await layoutRepository.put({ ...(layoutRow(1, { sortOrder: 0, name: 'Renamed' }) as unknown as WorkspaceLayout), id: 1 })
     expect(await db.layouts.get(1)).toMatchObject({ name: 'Renamed', sortOrder: 5 })
     // A row stored without one takes the given order.
+    const { sortOrder: _order, ...noOrder } = layoutRow(2)
+    void _order
+    await db.layouts.add(noOrder as unknown as WorkspaceLayout)
     await layoutRepository.put({ ...(layoutRow(2, { sortOrder: 3 }) as unknown as WorkspaceLayout), id: 2 })
     expect((await db.layouts.get(2))?.sortOrder).toBe(3)
+  })
+
+  it('put never makes a row: a layout that is gone stays gone (cr34 D7)', async () => {
+    await db.layouts.add(layoutRow(1) as unknown as WorkspaceLayout)
+    expect(await layoutRepository.put({ ...(layoutRow(1, { name: 'Renamed' }) as unknown as WorkspaceLayout), id: 1 })).toBe(true)
+    expect(await layoutRepository.put({ ...(layoutRow(2) as unknown as WorkspaceLayout), id: 2 })).toBe(false)
+    expect(await db.layouts.get(2)).toBeUndefined()
+    expect(await db.layouts.count()).toBe(1)
+  })
+
+  it('putAndPrune of a layout that is gone writes nothing and removes nothing', async () => {
+    await db.layouts.add(layoutRow(1) as unknown as WorkspaceLayout)
+    // A list left naming the gone layout as its owner (data edited by hand): not this write's to delete.
+    await db.listDefinitions.add(list(7, { owner: { layoutId: 2 } }) as unknown as ListDefinition)
+    expect(await layoutRepository.putAndPrune({ ...(layoutRow(2) as unknown as WorkspaceLayout), id: 2 })).toBeNull()
+    expect(await db.layouts.get(2)).toBeUndefined()
+    expect(await db.listDefinitions.get(7)).toBeDefined()
+    // A stored one is written, and its unshown lists go.
+    await db.listDefinitions.add(list(8, { owner: { layoutId: 1 } }) as unknown as ListDefinition)
+    const removed = await layoutRepository.putAndPrune({ ...(layoutRow(1, { name: 'Renamed' }) as unknown as WorkspaceLayout), id: 1 })
+    expect(removed?.deleted).toEqual([8])
+    expect((await db.layouts.get(1))?.name).toBe('Renamed')
   })
 
   it('reorder numbers the given ids in order; a missing id is skipped', async () => {
@@ -160,14 +188,5 @@ describe('audit: lists that belong to no layout', () => {
     await db.settings.put({ key: 'newTaskFollowup', value: 'maybe' })
     const report = await auditData()
     expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', keys: ['newTaskFollowup'], fix: 'delete' })])
-  })
-})
-
-describe('kept list drafts carry the new parts', () => {
-  it('a draft with an owner, a hidden filter line and the Priority grouping is read back as it was kept', () => {
-    const base = list(4, { owner: { layoutId: 2 } }) as unknown as PersistedListDefinition
-    const draft = { ...base, grouping: 'priority', showFilterLine: false } as PersistedListDefinition
-    writeListDrafts(new Map([[4, { draft, base }]]))
-    expect(readListDrafts().get(4)).toEqual({ draft, base })
   })
 })

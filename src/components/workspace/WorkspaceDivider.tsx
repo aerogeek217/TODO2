@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { registerModuleReset } from '../../utils/module-reset'
 import { flushSync } from 'react-dom'
 import type { GridAxis, LayoutBody } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -9,7 +10,7 @@ import { trackSizing } from '../../utils/workspace-table'
 import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { shortcutScope } from '../../utils/dom-contract'
-import { drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
+import { drawnGap, drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
 import styles from './WorkspaceDivider.module.css'
 
 /** A divider's `aria-valuenow`, with its `aria-valuemax` (none for a px size) and `aria-valuetext`. */
@@ -60,6 +61,7 @@ interface DragState {
  * identity takes it back once drawn. Cleared on the next frame.
  */
 let refocusAfterKey: string | null = null
+registerModuleReset(() => { refocusAfterKey = null })
 
 /** A divider's identity: its axis and the first cells on either side (unique; kept across a move). */
 function dividerIdentity(axis: GridAxis, beforeId: string, afterId: string): string {
@@ -239,7 +241,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
       start: axisX ? e.clientX : e.clientY,
       layout,
       moved: movedIn(layout),
-      opts: { sizes, minPx: minPxIn(layout) },
+      opts: { sizes, minPx: minPxIn(layout), gap: drawnGap(table, stretch.axis) },
       structural: false,
       delta: 0,
     }
@@ -260,7 +262,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     refocusAfterKey = identity
     requestAnimationFrame(() => { if (refocusAfterKey === identity) refocusAfterKey = null })
     // Key steps on this divider are one undo step (when they move part of a line).
-    void useWorkspaceStore.getState().moveEdge(movedIn(layout), e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, { sizes, minPx: minPxIn(layout) }, { mergeKey: `divider:${identity}` })
+    void useWorkspaceStore.getState().moveEdge(movedIn(layout), e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, { sizes, minPx: minPxIn(layout), gap: drawnGap(table, stretch.axis) }, { mergeKey: `divider:${identity}` })
   }
 
   /**
@@ -308,8 +310,9 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     if (layout && !isWholeLine(layout, stretch)) {
       const table = e.currentTarget.closest<HTMLElement>('[data-ws-table]')
       const sizes = table ? drawnSizes(table, stretch.axis) : []
-      const delta = evenStretchDelta(layout, stretch, sizes)
-      if (delta != null) void useWorkspaceStore.getState().moveEdge(stretch, delta, { sizes, minPx: minPxIn(layout) })
+      const gap = table ? drawnGap(table, stretch.axis) : 0
+      const delta = evenStretchDelta(layout, stretch, sizes, gap)
+      if (delta != null) void useWorkspaceStore.getState().moveEdge(stretch, delta, { sizes, minPx: minPxIn(layout), gap })
       return
     }
     const tracks = layout?.grid[stretch.axis]

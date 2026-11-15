@@ -7,7 +7,7 @@ import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
 import type { WeekStart } from '../utils/effective-date'
 import type { FilterSettings } from '../utils/filter-match'
-import { DEFAULT_THEMED_COLORS, THEME_COLOR_VARS, parseColorSettingKey } from '../models/theme-colors'
+import { DEFAULT_THEMED_COLORS, PRIORITY_TINT_FILL, PRIORITY_TINT_VARS, THEME_COLOR_VARS, parseColorSettingKey, priorityTintText } from '../models/theme-colors'
 import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 import {
   DEFAULT_FOLLOWUP_INTERVAL,
@@ -83,15 +83,12 @@ import {
 import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
-
-export type { ListZoom } from '../models/workspace-layout'
 export type { RowDates } from '../utils/row-dates'
 
-export type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
-export { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
+export type { ThemeColors, ThemeName } from '../models/theme-colors'
 
 /** The colours the user set per theme (their `color.<theme>.<key>` rows exist); the rest fall through to `tokens.css`. */
-export type CustomizedColors = Readonly<Record<ThemeName, readonly (keyof ThemeColors)[]>>
+type CustomizedColors = Readonly<Record<ThemeName, readonly (keyof ThemeColors)[]>>
 
 /** The settings as the store holds them — each one entry of {@link SETTINGS}. */
 interface SettingsData {
@@ -172,6 +169,12 @@ interface SettingsState extends SettingsData {
   load: () => Promise<void>
   /** No undo step (a colour picker writes on every move). */
   setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
+  /**
+   * One colour of `theme` back to its default: its override removed, so a
+   * priority follows the accent / Danger / Follow up again. No undo step
+   * (as every colour write); nothing is written for a colour with no override.
+   */
+  resetColor: (theme: ThemeName, key: keyof ThemeColors) => Promise<void>
   /** When `theme` is omitted, both bags reset; otherwise only the specified bag. */
   resetColors: (theme?: ThemeName) => Promise<void>
   /** No undo step. */
@@ -285,9 +288,21 @@ function applyColorOverrides(): void {
   } else {
     root.style.removeProperty('--color-accent-dim')
   }
+  // A priority's own colour tints its typed token too (`/urgent`); the
+  // token's text is that colour as the theme draws a colour as text (the
+  // light theme darkens it, as it does the accent the token follows).
+  for (const [key, vars] of Object.entries(PRIORITY_TINT_VARS) as [keyof ThemeColors, { fill: string; text?: string }][]) {
+    if (bag.includes(key)) {
+      root.style.setProperty(vars.fill, `color-mix(in srgb, ${colors[key]} ${PRIORITY_TINT_FILL}, transparent)`)
+      if (vars.text) root.style.setProperty(vars.text, priorityTintText(resolvedTheme, colors[key]))
+    } else {
+      root.style.removeProperty(vars.fill)
+      if (vars.text) root.style.removeProperty(vars.text)
+    }
+  }
 }
 
-export function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
+function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
   if (mode === 'system') {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   }
@@ -331,7 +346,7 @@ function applyTheme(): void {
  * (the store's state — the colours customised among it — is reset
  * separately).
  */
-export function resetSettingsModuleState(): void {
+function resetSettingsModuleState(): void {
   mediaQueryCleanup?.()
   mediaQueryCleanup = null
 }
@@ -656,6 +671,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     })
   },
 
+  async resetColor(theme, key) {
+    const { colors, customizedColors: custom } = get()
+    if (!custom[theme].includes(key)) return
+    await SETTINGS.colors.write({
+      colors: { ...colors, [theme]: { ...colors[theme], [key]: DEFAULT_THEMED_COLORS[theme][key] } },
+      customizedColors: { ...custom, [theme]: custom[theme].filter((k) => k !== key) },
+    })
+  },
+
   async resetColors(theme) {
     const targets = theme == null ? THEMES : [theme]
     const colors = { ...get().colors }
@@ -802,7 +826,7 @@ export function currentFilterSettings(): FilterSettings {
 }
 
 /** The two settings the automatic next follow-up is read from. */
-export type AutoFollowupSettings = Pick<SettingsState, 'autoFollowup' | 'followupDefaultInterval'>
+type AutoFollowupSettings = Pick<SettingsState, 'autoFollowup' | 'followupDefaultInterval'>
 
 /**
  * The interval the automatic next follow-up is set by, or `null` while it is

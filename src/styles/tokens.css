@@ -349,6 +349,12 @@
   --color-marker-important-fill: color-mix(in srgb, var(--color-marker-important) 8%, transparent);
   /* Focus's glow around a task's checkbox (D25 B; `PriorityRing`): the Focus colour at 80 %. */
   --color-marker-focus-glow: color-mix(in srgb, var(--color-marker-focus) 80%, transparent);
+  /* A priority's typed token (`/urgent`, Quick Add's chip): its tint's fill, and Focus's text. The colours
+     they follow; a priority given its own colour gets these from it (`settings-store`). */
+  --color-marker-urgent-bg: var(--color-danger-bg);
+  --color-marker-important-bg: var(--color-followup-bg);
+  --color-marker-focus-bg: var(--color-accent-bg-medium);
+  --color-marker-focus-text: var(--color-accent-text);
   /* A priority's row glow (D19's Ember, `utils/priority-cues`). */
   --priority-glow-strength: 11%;
 
@@ -625,6 +631,12 @@
   --color-marker-important-fill: color-mix(in srgb, var(--color-marker-important) 8%, transparent);
   /* Focus's glow around a task's checkbox (D25 B; `PriorityRing`): the Focus colour at 80 %. */
   --color-marker-focus-glow: color-mix(in srgb, var(--color-marker-focus) 80%, transparent);
+  /* A priority's typed token (`/urgent`, Quick Add's chip): its tint's fill, and Focus's text. The colours
+     they follow; a priority given its own colour gets these from it (`settings-store`). */
+  --color-marker-urgent-bg: var(--color-danger-bg);
+  --color-marker-important-bg: var(--color-followup-bg);
+  --color-marker-focus-bg: var(--color-accent-bg-medium);
+  --color-marker-focus-text: var(--color-accent-text);
   /* Stronger than the dark theme's 11 %: on a light surface a tint shows
      less, and at 7 % it didn't show at all (cr31 M5). As visible as dark's. */
   --priority-glow-strength: 12%;
@@ -908,15 +920,33 @@ select optgroup {
 }
 
 /*
- * View transitions (D19, `shared/view-transition`): a layout switch, a tab
- * change, a group collapse — named cells and groups slide and resize, the
- * rest crossfades, on the spring curve.
+ * View transitions (D19, `shared/view-transition`): a tab change, a group
+ * collapse — named cells and groups slide, resize and crossfade on the
+ * spring curve; the rest of the page changes at once (below). A layout
+ * switch has none (cr34 answer 26).
  */
 ::view-transition-group(*),
 ::view-transition-old(*),
 ::view-transition-new(*) {
   animation-duration: var(--spring-duration);
   animation-timing-function: var(--spring-easing);
+}
+
+/* A press made while a transition animates must land (cr34 H4). Whatever a
+ * transition takes a picture of takes no press until it ends, and by default
+ * that is the whole page (the root). So the page itself is left out: only
+ * the named parts — the cells, the list groups — are pictured and animate;
+ * the rest (the top bar, the dividers, the page behind the cells) is simply
+ * the new page from the first frame, and takes presses all through. The
+ * pictures' overlay covers the viewport: it takes no press either, so a
+ * click goes to the page under it. (The cells' own contents still take none
+ * until their pictures are gone.) */
+:root {
+  view-transition-name: none;
+}
+
+::view-transition {
+  pointer-events: none;
 }
 
 /* Reduced motion: every animation and transition finishes at once (1 ms, so

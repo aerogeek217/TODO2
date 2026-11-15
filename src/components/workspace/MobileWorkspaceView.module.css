@@ -432,3 +432,18 @@
 .cellCollapsed .cellBody [data-glance] {
   height: auto;
 }
+
+/* A collapsed cell whose widget's top line holds no controls (a Number's
+   label is inside its button): the cell's own Expand, over its right end. */
+.cellCollapsed {
+  position: relative;
+}
+
+.cellExpand {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  height: auto;
+  margin: 0;
+}

@@ -1,7 +1,7 @@
 import type { ZoomDirection } from '../../../utils/list-zoom'
 
 /** Wheel travel (px) that steps the zoom one level: one notch of a mouse wheel; a trackpad pinch gathers it. */
-export const ZOOM_WHEEL_STEP_PX = 50
+const ZOOM_WHEEL_STEP_PX = 50
 /** A pause this long (ms) starts the gathering afresh. */
 const ZOOM_WHEEL_IDLE_MS = 300
 /** One line of a line-mode wheel, px. */

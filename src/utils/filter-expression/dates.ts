@@ -68,12 +68,32 @@ export function periodRange(period: PeriodWord, field: DateField): DateMatch {
   }
 }
 
+/**
+ * Whether two range ends are the same day however each is stored: the same
+ * anchor, or the same day from today — `yesterday` / `today` / `tomorrow`
+ * and a -1 / 0 / 1 day offset (what the Relative panel, a Breakdown row's
+ * filter and the default count columns store) are one day (cr34 F7). The
+ * shortcuts and the period names are found through it, so a stored offset
+ * prints as the text the parser reads back to the same words.
+ */
+function anchorsSameDay(a: DateAnchor | null, b: DateAnchor | null): boolean {
+  if (dateAnchorsEqual(a, b)) return true
+  if (a == null || b == null) return false
+  const day = dayOffsetOf(a)
+  return day != null && day === dayOffsetOf(b)
+}
+
+/** Whether `m` is every day before today (`overdue`, `followup late`), its end stored either way. */
+export function isBeforeToday(m: DateMatch): boolean {
+  return m.match === 'range' && m.start == null && m.end != null && dayOffsetOf(m.end) === -1
+}
+
 /** The named period `m` is on `field`, if it is one. */
 export function periodOf(m: DateMatch, field: DateField): PeriodWord | null {
   if (m.match !== 'range') return null
   return PERIOD_WORDS.find((p) => {
     const r = periodRange(p, field)
-    return r.match === 'range' && dateAnchorsEqual(r.start, m.start) && dateAnchorsEqual(r.end, m.end)
+    return r.match === 'range' && anchorsSameDay(r.start, m.start) && anchorsSameDay(r.end, m.end)
   }) ?? null
 }
 
@@ -192,7 +212,7 @@ export function anchorWords(a: DateAnchor): string {
 }
 
 /** How `field` says it has no date: `no due`, `no followup`, `never followed`. */
-export function noDateWords(field: DateField): string {
+function noDateWords(field: DateField): string {
   return field === 'lastFollowup' ? 'never followed' : `no ${DATE_WORD[field]}`
 }
 
@@ -211,7 +231,7 @@ export function dateClauseWords(field: DateField, m: DateMatch): string {
   if (m.match === 'set') return `${word} any`
   if (m.match === 'unset') return noDateWords(field)
   const { start, end } = m
-  if (start == null && end != null && dateAnchorsEqual(end, rel('yesterday'))) {
+  if (isBeforeToday(m)) {
     if (field === 'deadline') return 'overdue'
     if (field === 'followup') return 'followup late'
   }

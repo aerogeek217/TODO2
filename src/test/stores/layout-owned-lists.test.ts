@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
 import { createTab, layoutBodyOf, type LayoutTab, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
@@ -10,7 +10,6 @@ import { useListDraftStore } from '../../stores/list-draft-store'
 import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
-import { writeLayoutDraft } from '../../data/draft-storage'
 import { resetDb } from '../helpers'
 import { grid, single } from '../helpers/layout-builders'
 
@@ -221,6 +220,154 @@ describe('an edit that leaves a list shown by no tab', () => {
   })
 })
 
+describe('a layout write that fails, then Undo: the list comes back (cr34 M6 / D2)', () => {
+  /** The next layout write fails (storage full); the ones after it land. */
+  function failNextWrite(): void {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(layoutRepository, 'putAndPrune').mockRejectedValueOnce(new DOMException('full', 'QuotaExceededError'))
+  }
+  const tabIds = () => ws().working!.cells.flatMap((c) => c.tabs.map((t) => t.id))
+  /** List `id` is stored as it was — the layout's, with its manual order — and in the stores. */
+  async function expectMine1Back(w: World): Promise<void> {
+    await settled()
+    const back = await db.listDefinitions.get(w.mine1)
+    expect(back?.name).toBe('Mine 1')
+    expect(back?.owner).toEqual({ layoutId: w.a })
+    expect(await ranksOf(w.mine1)).toEqual([[1, 1], [2, 2]])
+    expect(storeListIds()).toContain(w.mine1)
+    expect(useListOrderStore.getState().ranks.get(w.mine1)?.size).toBe(2)
+  }
+
+  afterEach(() => { vi.restoreAllMocks() })
+
+  it('the failed write deletes nothing: the list stays stored until a write lands', async () => {
+    const w = await world()
+    failNextWrite()
+    ws().closeTab('m1')
+    await settled()
+    expect(ws().writeFailed).toBe(true)
+    expect(tabIds()).toEqual(['s', 'm2', 'e'])
+    expect(await storedListIds()).toContain(w.mine1)
+    // Undo before any write lands: the tab is back, its list was never gone.
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    await expectMine1Back(w)
+    expect(ws().writeFailed).toBe(false)
+  })
+
+  it('Retry lands and deletes the list; Undo of the closed tab brings back the tab and its list; Redo removes both', async () => {
+    const w = await world()
+    failNextWrite()
+    ws().closeTab('m1')
+    await settled()
+    expect(await ws().retryWrite()).toBe(true)
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    expect(storeListIds()).not.toContain(w.mine1)
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    await expectMine1Back(w)
+    expect(layoutListRefs(await stored(w.a)).has(w.mine1)).toBe(true)
+    await redo()
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    expect(tabIds()).toEqual(['s', 'm2', 'e'])
+    await undo()
+    await expectMine1Back(w)
+  })
+
+  it('a later edit lands and deletes the list; undoing both steps brings back the tab and its list', async () => {
+    const w = await world()
+    failNextWrite()
+    ws().closeTab('m1')
+    await settled()
+    ws().splitCell('k-A', 'right')
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    expect(ws().writeFailed).toBe(false)
+    expect(undoNames()).toEqual(['Closed tab “Mine 1”', 'Split cell'])
+    // The split's undo: the list isn't its to bring back (its tab is still closed).
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm2', 'e'])
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    await expectMine1Back(w)
+    // And forward again: each step removes what it removed.
+    await redo()
+    await redo()
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    await undo()
+    await undo()
+    await expectMine1Back(w)
+  })
+
+  it('a later edit that closes another list: each Undo brings back its own list', async () => {
+    const w = await world()
+    failNextWrite()
+    ws().closeTab('m1')
+    await settled()
+    ws().closeTab('m2')
+    expect(await storedListIds()).toEqual([w.saved, w.theirs])
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm2', 'e'])
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs])
+    await expectMine1Back(w)
+  })
+
+  it('leaving the layout writes it (the list goes); back on it, Undo brings the list back', async () => {
+    const w = await world()
+    failNextWrite()
+    ws().closeTab('m1')
+    await settled()
+    await ws().load(w.b)
+    expect(ws().activeLayoutId).toBe(w.b)
+    expect(await storedListIds()).not.toContain(w.mine1)
+    await ws().load(w.a)
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    await expectMine1Back(w)
+  })
+
+  it('a Redo whose write fails: once a write lands, Undo still brings the list back', async () => {
+    const w = await world()
+    ws().closeTab('m1')
+    await settled()
+    await undo()
+    await settled()
+    failNextWrite()
+    await redo()
+    await settled()
+    expect(ws().writeFailed).toBe(true)
+    expect(await storedListIds()).toContain(w.mine1)
+    expect(await ws().retryWrite()).toBe(true)
+    expect(await storedListIds()).not.toContain(w.mine1)
+    await undo()
+    expect(tabIds()).toEqual(['s', 'm1', 'm2', 'e'])
+    await expectMine1Back(w)
+  })
+
+  it('an Undo whose write fails (of an added list tab): once a write lands, Redo brings the tab back with its list', async () => {
+    const w = await world()
+    const fresh = await useListDefinitionStore.getState().add({ name: 'New here', owner: { layoutId: w.a } })
+    const tabId = ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: fresh })!
+    await settled()
+    failNextWrite()
+    await undo()
+    await settled()
+    expect(ws().writeFailed).toBe(true)
+    expect(tabIds()).not.toContain(tabId)
+    expect(await storedListIds()).toContain(fresh)
+    expect(await ws().retryWrite()).toBe(true)
+    expect(await storedListIds()).not.toContain(fresh)
+    await redo()
+    expect(tabIds()).toContain(tabId)
+    expect(await storedListIds()).toContain(fresh)
+    expect(storeListIds()).toContain(fresh)
+    expect((await db.listDefinitions.get(fresh))?.name).toBe('New here')
+  })
+})
+
 describe('a layout shows only its own lists', () => {
   const tabsOf = () => ws().working!.cells.flatMap((k) => k.tabs)
   const steps = () => useUndoStore.getState().undoStack.length
@@ -254,7 +401,7 @@ describe('a layout shows only its own lists', () => {
 })
 
 describe('page load', () => {
-  /** A reload: the stores start afresh and the workspace opens again (applying an older build's kept draft). */
+  /** A reload: the stores start afresh and the workspace opens again. */
   async function reload(): Promise<void> {
     await settled()
     useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
@@ -268,92 +415,6 @@ describe('page load', () => {
     await reload()
     expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs])
     expect(storeListIds()).not.toContain(unshown)
-  })
-
-  it('a kept draft that shows a list made for it is applied with it', async () => {
-    const w = await world()
-    const kept = await useListDefinitionStore.getState().add({ name: 'Kept', owner: { layoutId: w.a } })
-    const base = layoutBodyOf(await stored(w.a))
-    writeLayoutDraft({
-      kind: 'saved',
-      layoutId: w.a,
-      base,
-      body: layoutBodyOf(layoutWith('A', [lens('s', w.saved), lens('m1', w.mine1), lens('m2', w.mine2), createTab('notes', 'e'), lens('k', kept)])),
-    })
-    await reload()
-    expect(layoutListRefs(ws().working!).has(kept)).toBe(true)
-    expect(layoutListRefs(await stored(w.a)).has(kept)).toBe(true)
-    expect(await storedListIds()).toContain(kept)
-  })
-
-  it('a kept new layout (an older build’s) that shows a list is not taken back (every list is a stored layout’s), and says so', async () => {
-    const w = await world()
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [lens('n', w.theirs)])) })
-    await reload()
-    expect(ws().saved?.id).toBe(w.a)
-    expect(await db.layouts.count()).toBe(2)
-    expect(useUndoStore.getState().snackbar?.description).toBe('The unsaved new layout “Untitled layout” was dropped: a layout shows only its own lists, and it wasn’t stored yet.')
-  })
-
-  it('a kept new layout that shows no list is stored and opened', async () => {
-    const w = await world()
-    writeLayoutDraft({ kind: 'new', name: 'Plain', body: layoutBodyOf(layoutWith('N', [createTab('notes', 'n')])) })
-    await reload()
-    expect(ws().working?.name).toBe('Plain')
-    expect(ws().saved?.id).not.toBe(w.a)
-    expect(await db.layouts.count()).toBe(3)
-  })
-
-  it('a kept draft made before its layout got copies of the lists it shared (an upgrade) is applied on the copies', async () => {
-    const w = await world()
-    // The draft (made at v67) adds a notes tab; B showed A's "Mine 1" then, and the upgrade gave B a copy.
-    const base = layoutBodyOf(layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1)]))
-    const body = layoutBodyOf(layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1), createTab('notes', 'nb')]))
-    const copy = (await db.listDefinitions.add(def('Mine 1', { layoutId: w.b }))) as number
-    await db.layouts.update(w.b, layoutWith('B', [lens('t', w.theirs), lens('m1b', copy)]))
-    writeLayoutDraft({ kind: 'saved', layoutId: w.b, base, body })
-    await layoutRepository.setActiveId(w.b)
-    await reload()
-    expect(ws().saved?.id).toBe(w.b)
-    expect([...layoutListRefs(ws().working!)].sort((x, y) => x - y)).toEqual([w.theirs, copy].sort((x, y) => x - y))
-    expect(ws().working!.cells[0]!.tabs.map((t) => t.id)).toEqual(['t', 'm1b', 'nb'])
-    expect((await stored(w.b)).cells[0]!.tabs.map((t) => t.id)).toEqual(['t', 'm1b', 'nb'])
-  })
-
-  it('a kept draft that shows another layout’s list is dropped, and says so', async () => {
-    const w = await world()
-    const base = layoutBodyOf(layoutWith('B', [lens('t', w.theirs)]))
-    writeLayoutDraft({ kind: 'saved', layoutId: w.b, base, body: layoutBodyOf(layoutWith('B', [lens('t', w.theirs), lens('x', w.mine1)])) })
-    await layoutRepository.setActiveId(w.b)
-    await reload()
-    expect(ws().saved?.id).toBe(w.b)
-    expect(layoutListRefs(ws().working!)).toEqual(new Set([w.theirs]))
-    expect(useUndoStore.getState().snackbar?.description).toBe('Unsaved changes to layout “B” were dropped: they showed another layout’s list.')
-  })
-
-  it('a kept draft of another layout than the one opening is dropped, and so are the lists only it showed', async () => {
-    const w = await world()
-    const fresh = await useListDefinitionStore.getState().add({ name: 'Fresh', owner: { layoutId: w.a } })
-    const base = layoutBodyOf(await stored(w.a))
-    writeLayoutDraft({ kind: 'saved', layoutId: w.a, base, body: layoutBodyOf(layoutWith('A', [lens('s', w.saved), lens('f', fresh)])) })
-    // Layout B was opened elsewhere since.
-    await layoutRepository.setActiveId(w.b)
-    await reload()
-    expect(ws().activeLayoutId).toBe(w.b)
-    expect(await storedListIds()).not.toContain(fresh)
-    expect(await storedListIds()).toContain(w.mine1)
-  })
-
-  it('a kept draft that no longer matches the stored layout is forgotten, and so are the lists only it showed', async () => {
-    const w = await world()
-    const fresh = await useListDefinitionStore.getState().add({ name: 'Fresh', owner: { layoutId: w.a } })
-    const base = layoutBodyOf(await stored(w.a))
-    writeLayoutDraft({ kind: 'saved', layoutId: w.a, base, body: layoutBodyOf(layoutWith('A', [lens('s', w.saved), lens('f', fresh)])) })
-    // The stored layout changed meanwhile (e.g. saved from another tab).
-    await db.layouts.update(w.a, layoutWith('A', [lens('s', w.saved), lens('m1', w.mine1)]))
-    await reload()
-    expect(undoNames()).toEqual([])
-    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.theirs])
   })
 })
 

@@ -11,7 +11,7 @@ import { WORKSPACE_PANEL_DRAG, workspacePanelDragId, type WorkspacePanelDragData
 import styles from './WidgetTopLine.module.css'
 
 /** The grip's name (its button's and its menu's: `cell-menu.CELL_MENU_LABEL.layout`). */
-export const CELL_GRIP_LABEL = 'Cell layout'
+const CELL_GRIP_LABEL = 'Cell layout'
 
 interface CellGripProps {
   cellId: string

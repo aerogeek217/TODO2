@@ -3,8 +3,6 @@ import { backupRepository, type BackupSummary } from '../data/backup-repository'
 import { auditData, type AuditReport } from '../data/audit'
 import { backupScheduler } from '../data/backup-scheduler'
 
-export type { BackupSummary, AuditReport }
-
 /**
  * Settings' backups and data-integrity state: the backup list, the audit
  * report, the Backup warning. The data replaces they lead to (restore a

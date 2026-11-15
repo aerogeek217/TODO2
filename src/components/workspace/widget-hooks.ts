@@ -18,7 +18,7 @@ import { type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { afterLeavingEditors } from '../../stores/editor-leave'
 
 /** A deleted list's name where its name would show (a tab title). */
-export const DELETED_LIST_TITLE = '(Deleted list)'
+const DELETED_LIST_TITLE = '(Deleted list)'
 
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by
@@ -86,16 +86,16 @@ export function openEditList(tabId: string, listDefinitionId: number): void {
  * Shows tab `tabId` (`showTab`) and opens an editor beside it (`open`) —
  * once an open editor holding changes was saved or discarded (its question
  * asked first, `editor-leave`), never on Keep editing: showing the tab
- * could take that editor's subject off the screen.
+ * could take that editor's subject off the screen. Every editor opens
+ * through it (Edit list, a Number's, a chart's, Project pulse's, Created vs
+ * completed's).
  */
-function openBeside(tabId: string, open: () => void): void {
+export function openBeside(tabId: string, open: () => void): void {
   afterLeavingEditors(() => {
     showTab(tabId)
     open()
   })
 }
-
-export { showTab } from '../../services/workspace-tabs'
 
 /**
  * Opens a Number's editor (Edit number…, D26 P5): the tab shown as Edit list

@@ -23,6 +23,17 @@ export function drawnSizes(table: HTMLElement, axis: GridAxis): number[] {
   return template.split(' ').map((v) => Number.parseFloat(v)).filter((n) => Number.isFinite(n))
 }
 
+/**
+ * The gap (px) the table draws between its tracks along `axis`, from its
+ * computed style (`--workspace-gutter`); 0 when it reads as none. A line's
+ * place counts the gaps before it (`MoveEdgeOptions.gap`).
+ */
+export function drawnGap(table: HTMLElement, axis: GridAxis): number {
+  const style = getComputedStyle(table)
+  const gap = Number.parseFloat(axis === 'columns' ? style.columnGap : style.rowGap)
+  return Number.isFinite(gap) && gap > 0 ? gap : 0
+}
+
 /** Each cell's minimum along an axis (`workspace-table.cellMinPx`: a collapsed cell's is its header). */
 export function minPxIn(layout: LayoutBody): MoveEdgeOptions['minPx'] {
   return (cell, axis) => cellMinPx(layout, cell, axis)

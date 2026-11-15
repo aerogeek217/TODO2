@@ -8,7 +8,7 @@ import { urgentMark, type UrgentDueWithinDays } from './urgency'
  * glow from the row's left edge, and a semibold title. Several glowing
  * priorities blend into each other along the row.
  */
-export interface PriorityCue {
+interface PriorityCue {
   glow: boolean
   semibold: boolean
 }
@@ -60,7 +60,7 @@ export function rowGlow(colours: readonly string[]): string | undefined {
   return `linear-gradient(to right, ${stops}, transparent ${colours.length * BLEND_STEP_PX + BLEND_STEP_PX}px)`
 }
 
-export interface RowCue {
+interface RowCue {
   /** The row's background; absent = none. */
   glow?: string
   semibold: boolean

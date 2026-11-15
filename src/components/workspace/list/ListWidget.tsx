@@ -67,10 +67,12 @@ import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { LIST_SECTION_ATTR, LIST_WIDGET_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 import { stepListTabZoom } from '../../../services/list-zoom'
-import { autoListZoom, UNMEASURED_LIST_ZOOM } from '../../../utils/list-zoom'
+import { autoListZoom, stepListZoom, UNMEASURED_LIST_ZOOM } from '../../../utils/list-zoom'
+import { ListTabViewContext } from './list-tab-view'
 import { zoomOnCtrlWheel } from './zoom-wheel'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { transitionName, withViewTransition } from '../../shared/view-transition'
+import { registerModuleReset } from '../../../utils/module-reset'
 
 /** The top bar's lens on one list (its switch, and its tab's mark while the filter line is hidden); `ignored` is `ListDefinition.ignoreLens`. */
 export type ListLensMark = LensMark
@@ -157,7 +159,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   // The tab's zoom (D25 C + I1): its own, else the Settings default — Auto by
   // the list's measured width (`autoListZoom`). The phone has one density.
   const zoomSetting = useSettingsStore((s) => s.listZoom)
-  const [autoZoom, measureAutoZoom] = useAutoListZoom()
+  const [autoZoom, measureAutoZoom] = useAutoListZoom(tab.id)
   const ownZoom = tab.viewState?.zoom
   const zoom: ListZoom = isMobile ? 'rows' : ownZoom ?? (zoomSetting === 'auto' ? autoZoom : zoomSetting)
   const zoomRef = useLatestRef(isMobile ? null : zoom)
@@ -166,6 +168,10 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   useEffect(() => { if (!isMobile) setShownZoom(tab.id, zoom) }, [isMobile, setShownZoom, tab.id, zoom])
   useEffect(() => () => setShownZoom(tab.id, null), [setShownZoom, tab.id])
   const tabRef = useLatestRef(tab)
+  // Its view state's writes: the layout's list tab, or — the list a Number follows, in the
+  // widget popup — the popup's own (`ListTabViewContext`; no layout tab holds it).
+  const viewHost = useContext(ListTabViewContext)
+  const viewHostRef = useLatestRef(viewHost)
   const picks = useListWidgetStore((s) => s.picks[tab.id])
   const setPicks = useListWidgetStore((s) => s.setPicks)
   const collapsed = useListWidgetStore((s) => s.collapsed[tab.id])
@@ -198,7 +204,12 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const setWidgetEl = useCallback((el: HTMLDivElement | null) => {
     widgetRef.current = el
     faceRef(el)
-    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current != null, (dir) => void stepListTabZoom(tabRef.current, dir)) : undefined
+    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current != null, (dir) => {
+      const host = viewHostRef.current
+      const shown = zoomRef.current
+      if (host && shown) host.patch({ zoom: stepListZoom(shown, dir) })
+      else void stepListTabZoom(tabRef.current, dir)
+    }) : undefined
     const stopMeasure = measureAutoZoom(el)
     return () => {
       widgetRef.current = null
@@ -206,7 +217,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
       stopWheel?.()
       stopMeasure?.()
     }
-  }, [faceRef, zoomRef, tabRef, measureAutoZoom])
+  }, [faceRef, zoomRef, tabRef, viewHostRef, measureAutoZoom])
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)
@@ -533,7 +544,10 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
         className={styles.body}
         zoom={zoom}
         detailsWidth={tab.viewState?.detailsWidth}
-        onDetailsWidthChange={(detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'lens', { detailsWidth })}
+        onDetailsWidthChange={(detailsWidth) => {
+          if (viewHost) viewHost.patch({ detailsWidth })
+          else void useWorkspaceStore.getState().patchTabViewState(tab.id, 'lens', { detailsWidth })
+        }}
       >
         {groups}
       </TaskRowGrid>
@@ -644,32 +658,45 @@ async function applyCrossGroup(listDefinitionId: number, mutation: CrossGroupMut
 }
 
 /**
+ * The level Auto last showed for each list tab (by tab id): where the tab's
+ * next mount starts, before it is measured. A list is rendered once before
+ * its element can be measured; starting every mount at Rows meant a narrow
+ * list (Stacked) rendered every row twice on each layout or tab switch
+ * (cr34 M15).
+ */
+const lastAutoZoom = new Map<string, ListZoom>()
+registerModuleReset(() => { lastAutoZoom.clear() })
+
+/**
  * The level Auto shows for a list widget (Settings › Appearance › Default
  * list zoom): measured on the widget element `measure(el)` is handed — once
  * before the first paint, then on every resize — through `autoListZoom`, the
  * first measurement plain, later ones with hysteresis from the level shown.
- * Unmeasured (JSDOM, a zero width), Rows. `measure` returns the observer's
- * removal.
+ * Until measured it is the level the tab last showed (`lastAutoZoom`), else
+ * Rows — which it stays where nothing measures (JSDOM, a zero width). A
+ * measurement that settles on the level already shown renders nothing.
+ * `measure` returns the observer's removal.
  */
-function useAutoListZoom(): [ListZoom, (el: HTMLElement | null) => (() => void) | undefined] {
-  const [auto, setAuto] = useState<{ zoom: ListZoom; measured: boolean }>({ zoom: UNMEASURED_LIST_ZOOM, measured: false })
+function useAutoListZoom(tabId: string): [ListZoom, (el: HTMLElement | null) => (() => void) | undefined] {
+  const [auto, setAuto] = useState<ListZoom>(() => lastAutoZoom.get(tabId) ?? UNMEASURED_LIST_ZOOM)
   const measure = useCallback((el: HTMLElement | null) => {
     if (!el) return undefined
+    // The level this element's measurements settled on: none before its first.
+    let measured: ListZoom | undefined
     const update = () => {
       const width = el.getBoundingClientRect().width
       if (!(width > 0)) return
-      setAuto((prev) => {
-        const zoom = autoListZoom(width, prev.measured ? prev.zoom : undefined)
-        return prev.measured && prev.zoom === zoom ? prev : { zoom, measured: true }
-      })
+      measured = autoListZoom(width, measured)
+      lastAutoZoom.set(tabId, measured)
+      setAuto(measured)
     }
     update()
     if (typeof ResizeObserver === 'undefined') return undefined
     const ro = new ResizeObserver(update)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
-  return [auto.zoom, measure]
+  }, [tabId])
+  return [auto, measure]
 }
 
 /** How a row looks while a row of its widget is dragged. */

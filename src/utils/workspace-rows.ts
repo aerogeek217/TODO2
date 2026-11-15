@@ -8,7 +8,7 @@ import { CELL_MIN_PX, CELL_MIN_WIDTH_PX } from './workspace-resize'
  */
 
 /** Whether a widget kind has a given flag (`glance`, `fitHeight`). */
-export type KindFlag = (kind: WidgetKind) => boolean
+type KindFlag = (kind: WidgetKind) => boolean
 
 /** A glance widget (`WidgetKindSpec.glance`, `models/workspace-layout.isGlanceKind`); an unknown kind is not. */
 export const isGlanceKind: KindFlag = (kind) => isGlanceWidgetKind(kind)
@@ -18,6 +18,15 @@ export const isFitHeightKind: KindFlag = (kind) => isWidgetKind(kind) && WIDGET_
 
 /** The smallest height (px) of a row track whose cells hold only glance widgets. */
 export const GLANCE_ROW_MIN_PX = 64
+/**
+ * The height (px) a Numbers-only (fit) row fits at: a Number's small face as
+ * drawn (its name over its count; 58px in Chromium for a count, a Share of…
+ * and an Oldest — widget feedback 2D measured it; it was 76). Also the
+ * smallest height of a cell holding one Number (`cellMinHeightPx`): the
+ * minimum follows the fit height, so a divider beside a fitting row never
+ * pushes it taller than it is (cr34 W3).
+ */
+export const FIT_ROW_PX = 58
 /** The smallest width (px) of a glance cell: a Number's small face reads in it, so a row of them needn't scroll the table. */
 export const GLANCE_CELL_MIN_WIDTH_PX = 72
 
@@ -48,12 +57,17 @@ export function isFitTrack(body: LayoutBody, row: number, fit: KindFlag = isFitH
 }
 
 /** Whether a cell holds only glance widgets (at least one tab, every tab a glance kind). */
-export function isGlanceCell(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): boolean {
+function isGlanceCell(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): boolean {
   return cell.tabs.length > 0 && cell.tabs.every((tab) => glance(tab.kind))
 }
 
-/** The smallest height (px) a cell may take: `GLANCE_ROW_MIN_PX` for a glance cell, else `CELL_MIN_PX`. */
-export function cellMinHeightPx(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): number {
+/**
+ * The smallest height (px) a cell may take: `FIT_ROW_PX` for a cell of one
+ * Number (`isFitCell` — a fit row's height), `GLANCE_ROW_MIN_PX` for any
+ * other glance cell, else `CELL_MIN_PX`.
+ */
+export function cellMinHeightPx(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind, fit: KindFlag = isFitHeightKind): number {
+  if (isFitCell(cell, fit)) return FIT_ROW_PX
   return isGlanceCell(cell, glance) ? GLANCE_ROW_MIN_PX : CELL_MIN_PX
 }
 

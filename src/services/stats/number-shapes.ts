@@ -100,10 +100,11 @@ export function oldestOf(
 
 /**
  * Where a count stands against its goal: an at-least goal is `met`, `onPace`
- * (a weekly one at or past where the week should be by today's end) or
- * `behind`; an at-most one is `within` or `over`.
+ * (a weekly one at or past where the week should be by today's end — on the
+ * week's first day, always: that day is compared with 0, where the week
+ * stood when it began) or `behind`; an at-most one is `within` or `over`.
  */
-export type GoalState = 'met' | 'onPace' | 'behind' | 'within' | 'over'
+type GoalState = 'met' | 'onPace' | 'behind' | 'within' | 'over'
 
 export interface GoalProgress {
   way: 'atMost' | 'atLeast'
@@ -134,6 +135,10 @@ export function goalProgress(count: number, goal: NumberGoal, today: Date, weekS
     const over = count > target
     return { way, target, fraction, pace, paceFraction, state: over ? 'over' : 'within', lit: over }
   }
-  const state: GoalState = count >= target ? 'met' : pace != null && count >= pace ? 'onPace' : 'behind'
+  // What the count must reach to be on pace: the pace by the end of today —
+  // but on the week's first day, where the week stood when it began (0), so a
+  // week doesn't open behind before anything could count (cr34, answer 15).
+  const due = pace == null ? null : weekDaysGone(today, weekStartsOn) === 1 ? 0 : pace
+  const state: GoalState = count >= target ? 'met' : due != null && count >= due ? 'onPace' : 'behind'
   return { way, target, fraction, pace, paceFraction, state, lit: state === 'behind' }
 }

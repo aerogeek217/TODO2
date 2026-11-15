@@ -27,9 +27,9 @@ export const CALENDAR_BREAKPOINTS = {
 } as const
 
 /** A month view always shows six weeks. */
-export const MONTH_GRID_DAYS = 42
+const MONTH_GRID_DAYS = 42
 
-export interface CalendarRange {
+interface CalendarRange {
   view: CalendarView
   /** The days shown, in order (42 in month view, 7 in week view). */
   days: Date[]
@@ -57,11 +57,11 @@ export function weekdayLabels(weekStartsOn: WeekStart): string[] {
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-export function shortMonth(d: Date): string {
+function shortMonth(d: Date): string {
   return SHORT_MONTHS[d.getMonth()] ?? ''
 }
 
-export function longMonth(d: Date): string {
+function longMonth(d: Date): string {
   return LONG_MONTHS[d.getMonth()] ?? ''
 }
 
@@ -120,7 +120,7 @@ export function convertCalendarOffset(
 }
 
 /** Month-cell geometry (px): padding top + bottom, day-number line, entry height, gap. */
-export const MONTH_CELL = { padding: 4, number: 18, entry: 18, gap: 1 } as const
+const MONTH_CELL = { padding: 4, number: 18, entry: 18, gap: 1 } as const
 
 /**
  * The least height a month row gets: the heat map's day its number line; with
@@ -157,7 +157,7 @@ export function dayOverflow(count: number, fit: number): { shown: number; more: 
  * a row's vertical padding (both sides), minimum height and date block; the
  * 24px entry and the gap between entries.
  */
-export const WEEK_ROWS = { padding: 6, gap: 2, rowPadding: 12, rowMin: 40, dateBlock: 28, entry: 24, entryGap: 2 } as const
+const WEEK_ROWS = { padding: 6, gap: 2, rowPadding: 12, rowMin: 40, dateBlock: 28, entry: 24, entryGap: 2 } as const
 
 /** Height of a week row whose entry column holds `slots` 24px slots (an empty day's `—` takes one). */
 function weekRowHeight(slots: number): number {

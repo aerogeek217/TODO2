@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { allReviewed, createReviewSession, followedUpCount, shownMark } from '../../stores/review-session'
+import {
+  allReviewed,
+  clearReviewSessions,
+  createReviewSession,
+  followedUpCount,
+  keepReviewSessions,
+  reviewWidgetSession,
+  shownMark,
+} from '../../stores/review-session'
 
 function sessionOf(ids: number[]) {
   const session = createReviewSession({ ids, order: ids })
@@ -28,14 +36,63 @@ describe('review-session', () => {
     expect(store().index).toBe(0)
   })
 
-  it('marks: a task followed up stays done, a later skip does not take it back', () => {
+  it('marks: the last one made stands — a skip takes a follow-up’s place, a follow-up a skip’s', () => {
     const store = sessionOf([1, 2])
     store().mark(1, 'done')
     store().mark(1, 'skipped')
     store().mark(2, 'skipped')
-    expect(store().marks).toEqual({ 1: 'done', 2: 'skipped' })
+    expect(store().marks).toEqual({ 1: 'skipped', 2: 'skipped' })
     store().mark(2, 'done')
-    expect(store().marks).toEqual({ 1: 'done', 2: 'done' })
+    expect(store().marks).toEqual({ 1: 'skipped', 2: 'done' })
+  })
+
+  it('followed up here, undone, then skipped: the task shows its – and counts as reviewed (F8 / U7)', () => {
+    const store = sessionOf([1, 2])
+    // Mark followed up on card 1 (the review moves on), then its undo: no longer followed up today.
+    store().mark(1, 'done')
+    store().next()
+    const today = () => false
+    expect(shownMark(store().marks, 1, today)).toBeUndefined()
+    store().back()
+    store().skip()
+    expect(shownMark(store().marks, 1, today)).toBe('skipped')
+    store().skip()
+    expect(allReviewed(store().marks, store().order, today)).toBe(true)
+    // While it is followed up today the ✓ shows, whatever the mark.
+    expect(shownMark(store().marks, 1, (id) => id === 1)).toBe('done')
+  })
+
+  it('a new review (`restart`): no queue, the first card, no marks — the sort and the typed text stay; `reset` keeps only the sort', () => {
+    const session = createReviewSession({ ids: [1, 2, 3], order: [1, 2, 3], index: 2, sort: 'title', marks: { 1: 'skipped' }, filterKey: '@p1' })
+    session.getState().setDraft(2, 'typed')
+    session.getState().setNextDraft(2, '2w')
+    session.getState().restart('#t1')
+    expect(session.getState()).toMatchObject({ ids: [], order: [], index: 0, marks: {}, sort: 'title', filterKey: '#t1', drafts: { 2: 'typed' }, nextDrafts: { 2: '2w' } })
+    session.getState().reset()
+    expect(session.getState()).toMatchObject({ ids: [], order: [], index: 0, marks: {}, sort: 'title', filterKey: null, drafts: {}, nextDrafts: {} })
+  })
+
+  it('the widgets’ sessions: cleared in place on a data replace; a closed tab’s is dropped', () => {
+    const a = reviewWidgetSession('tab-a', () => ({ sort: 'due' }))
+    a.setState({ ids: [7], order: [7], marks: { 7: 'skipped' }, drafts: { 7: 'typed for task 7' }, nextDrafts: { 7: 'fri' }, filterKey: '@p7' })
+    const b = reviewWidgetSession('tab-b')
+    clearReviewSessions()
+    // The same session object (a mounted widget holds it), back to nothing but its sort.
+    expect(reviewWidgetSession('tab-a')).toBe(a)
+    expect(a.getState()).toMatchObject({ ids: [], order: [], marks: {}, drafts: {}, nextDrafts: {}, filterKey: null, sort: 'due' })
+    keepReviewSessions(new Set(['tab-a']))
+    expect(reviewWidgetSession('tab-a')).toBe(a)
+    expect(reviewWidgetSession('tab-b')).not.toBe(b)
+  })
+
+  it('`N followed up` counts a task followed up here that left the queue, while it is still followed up today (U8)', () => {
+    // Task 1 was followed up here and left the queue; task 2 is in the queue, followed up elsewhere today.
+    const marks = { 1: 'done', 3: 'skipped' } as const
+    expect(followedUpCount(marks, [2, 3], (id) => id === 1 || id === 2)).toBe(2)
+    // Its follow-up undone: not counted, though the mark is still there.
+    expect(followedUpCount(marks, [2, 3], (id) => id === 2)).toBe(1)
+    // Still in the queue and marked: counted once.
+    expect(followedUpCount({ 2: 'done' }, [2, 3], (id) => id === 2)).toBe(1)
   })
 
   it('drafts: kept per task, an empty one removed', () => {

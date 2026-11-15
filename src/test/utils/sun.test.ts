@@ -1,7 +1,7 @@
 // The sun's day for ambience, checked against published sunrise / sunset times
 // in a daylight-saving zone (US Central). Runs with TZ pinned to Chicago.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { dayOfYear, guessPlace, moonAge, moonIllumination, placeForTimeZone, seasonAt, solarNoon, sunDay } from '../../utils/sun'
+import { dayOfYear, guessPlace, moonAge, placeForTimeZone, seasonAt, solarNoon, sunDay } from '../../utils/sun'
 
 // Node re-reads TZ when it is assigned; put back this worker's zone by name (shared workers).
 const originalZone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -59,10 +59,6 @@ describe('sunDay', () => {
 })
 
 describe('the moon', () => {
-  it('is full on 24 Nov 2026 and new on 9 Nov 2026', () => {
-    expect(moonIllumination(moonAge(new Date(Date.UTC(2026, 10, 24, 15))))).toBeGreaterThan(0.97)
-    expect(moonIllumination(moonAge(new Date(Date.UTC(2026, 10, 9, 7))))).toBeLessThan(0.03)
-  })
 
   it('ages within one synodic month', () => {
     const age = moonAge(new Date(1990, 0, 1))

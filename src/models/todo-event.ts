@@ -49,12 +49,6 @@ export const TODO_EVENT_TYPES: readonly TodoEventType[] = [
   'followup', 'followedUp', 'marker', 'person', 'tag',
 ]
 
-/**
- * The event types the history log H3 added (D26): the fields a replay knows
- * exactly only from the `historyLogSince` day on.
- */
-export const H3_EVENT_TYPES: readonly TodoEventType[] = ['followup', 'followedUp', 'marker', 'person', 'tag']
-
 export interface TodoEvent {
   id?: number
   todoId: number

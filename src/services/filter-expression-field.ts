@@ -1,8 +1,8 @@
 import type { FilterExpr, Person, Status, Tag } from '../models'
 import { expressionAtoms, type ExpressionError, type ExpressionNameResolver, type ExpressionSpan, type ExpressionSpanKind } from '../utils/filter-expression'
 import { computeAutocomplete, type AutocompleteSources, type AutocompleteView } from './nlp-autocomplete'
-import { matchPerson, matchStatus, matchTag } from './nlp-resolver'
-import type { TintSpan, TokenTint } from './nlp-token-tints'
+import { matchPerson, matchStatus, matchTag, pickedAmong, type PickedIds } from './nlp-resolver'
+import { markerTint, type TintSpan, type TokenTint } from './nlp-token-tints'
 
 /**
  * What the filter expression field (`components/shared/filters/ExpressionField`)
@@ -26,25 +26,37 @@ export function namedIds(e: FilterExpr | null | undefined): NamedIds {
 
 /**
  * Names → ids as Quick Add reads a typed `@` / `#` / `!` name (exact,
- * initials, a prefix). Two people may share a name: a name that matches one
- * the filter already names (`prefer`, its ids) stays that one, so `@Alex`
- * naming the second Alex doesn't switch to the first on the next write
- * (cr33 F5).
+ * initials, a prefix). Two people may share a name, and the text can't say
+ * which one it names, so the name goes, in this order, to: the one last
+ * picked from the popup among them (`picked` — a click on the second Alex
+ * names the second, cr34 F10); else the one the filter already names
+ * (`prefer`, its ids), so `@Alex` naming the second Alex doesn't switch to
+ * the first on the next write (cr33 F5); else the first that matches. One
+ * text never names two namesakes: both `@Alex` are the same person.
  */
 export function expressionResolver(
   people: readonly Person[],
   tags: readonly Tag[],
   statuses: readonly Status[],
   prefer?: NamedIds,
+  picked?: PickedIds,
 ): ExpressionNameResolver {
-  const pick = <T extends { id?: number; name: string }>(hit: T | undefined, items: readonly T[], ids: ReadonlySet<number> | undefined): number | undefined => {
-    if (!hit || !ids || ids.size === 0 || (hit.id !== undefined && ids.has(hit.id))) return hit?.id
+  const pick = <T extends { id?: number; name: string }>(
+    hit: T | undefined,
+    items: readonly T[],
+    ids: ReadonlySet<number> | undefined,
+    picks: readonly number[] | undefined,
+  ): number | undefined => {
+    if (!hit) return undefined
+    const chosen = pickedAmong(hit, items, picks)
+    if (chosen) return chosen.id
+    if (!ids || ids.size === 0 || (hit.id !== undefined && ids.has(hit.id))) return hit.id
     return items.find((i) => i.id !== undefined && ids.has(i.id) && i.name === hit.name)?.id ?? hit.id
   }
   return {
-    person: (name) => pick(matchPerson(name, people), people, prefer?.person),
-    tag: (name) => pick(matchTag(name, tags), tags, prefer?.tag),
-    status: (name) => pick(matchStatus(name, statuses), statuses, prefer?.status),
+    person: (name) => pick(matchPerson(name, people), people, prefer?.person, picked?.person),
+    tag: (name) => pick(matchTag(name, tags), tags, prefer?.tag, picked?.tag),
+    status: (name) => pick(matchStatus(name, statuses), statuses, prefer?.status, picked?.status),
   }
 }
 
@@ -87,9 +99,9 @@ const SPAN_TINT: Partial<Record<ExpressionSpanKind, TokenTint>> = {
   none: 'chip',
   done: 'chip',
   date: 'chip',
-  urgent: 'urgent',
-  important: 'followup',
-  focus: 'accent',
+  urgent: markerTint('urgent'),
+  important: markerTint('important'),
+  focus: markerTint('focus'),
   due: 'due',
   followup: 'followup',
 }

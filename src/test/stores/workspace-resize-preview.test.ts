@@ -1,15 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { layoutBodyOf } from '../../models/workspace-layout'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
-import { readLayoutDraft } from '../../data/draft-storage'
 import { resetDb } from '../helpers'
 import { layoutSteps } from '../helpers/layout-steps'
 
 /**
  * A structural resize drag's preview (`resizePreview`, layout feedback item
  * 3): transient — set and cleared by the handle, a preview drawing the same
- * table changing nothing — and never an edit: the working copy, its unsaved
- * state and the kept draft stay as they are.
+ * table changing nothing — and never an edit: the working copy and its
+ * unsaved state stay as they are.
  */
 
 const ws = () => useWorkspaceStore.getState()
@@ -21,16 +20,14 @@ describe('workspace-store resizePreview', () => {
     await ws().init()
   })
 
-  it('is set and cleared without touching the working copy, its unsaved state or the kept draft', () => {
+  it('is set and cleared without touching the working copy or its unsaved state', () => {
     const working = ws().working
     if (!working) throw new Error('no layout open')
-    const draft = readLayoutDraft()
     const body = layoutBodyOf(working)
     ws().setResizePreview({ layoutId: working.id, body, handle })
     expect(ws().resizePreview?.body).toBe(body)
     expect(ws().working).toBe(working)
     expect(layoutSteps()).toEqual([])
-    expect(readLayoutDraft()).toEqual(draft)
     ws().setResizePreview(null)
     expect(ws().resizePreview).toBeNull()
     expect(ws().working).toBe(working)

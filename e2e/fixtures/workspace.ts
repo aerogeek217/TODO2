@@ -262,6 +262,39 @@ export function emptyPredicate(): Record<string, unknown> {
   }
 }
 
+/** A module the specs import in the page (`stores`, `services`, `data`), served with Vite's hot-update stamp. */
+const HOT_MODULE = /\/src\/(?:stores|services|data)\/[^?]+\?(?:[^#]*&)?t=\d+/
+
+/** The hot-updated modules each watched page has asked for. */
+const hotByPage = new WeakMap<Page, string[]>()
+
+/**
+ * The hot-updated modules `page` asks for from now on (watched once per
+ * page). After a source edit under a running dev server Vite serves the
+ * changed module and its importers as `…?t=<stamp>`: the app runs on those
+ * copies while a spec's bare `import('/src/stores/…')` gets a second one, so
+ * the spec's store calls never reach the page (`no todo alpha`, a mass of
+ * false failures). A freshly started server serves none.
+ */
+export function hotModules(page: Page): string[] {
+  const known = hotByPage.get(page)
+  if (known) return known
+  const hot: string[] = []
+  hotByPage.set(page, hot)
+  page.on('request', (request) => {
+    if (HOT_MODULE.test(request.url())) hot.push(request.url())
+  })
+  return hot
+}
+
+/** What a test fails with when its page ran on hot-updated modules (`hotModules`): what happened, and what to do. */
+export function staleServerError(hotModule: string): Error {
+  return new Error(
+    `The dev server has hot-updated modules (${hotModule}): restart it, then run again. `
+    + 'The app now runs on those copies, while a spec’s import(\'/src/stores/…\') loads a second, empty copy — its store calls would never reach the page.',
+  )
+}
+
 /**
  * Seeds layouts and list definitions (replacing the app's own), people, tags and
  * tasks straight into IndexedDB, then reloads on the workspace. The app must
@@ -269,8 +302,11 @@ export function emptyPredicate(): Record<string, unknown> {
  * `url`: a built file's) first.
  */
 export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#/' }: { url?: string } = {}): Promise<void> {
+  const hot = hotModules(page)
   await page.goto(url)
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  const stale = hot[0]
+  if (stale !== undefined) throw staleServerError(stale)
   // Every kind's new tab, as the app makes it: the seeded tabs start from these.
   const newTabs = Object.fromEntries(WIDGET_KINDS.map((kind) => [kind, createTab(kind, '')])) as Record<WidgetKind, LayoutTab>
   const payload = { ...seed, tables: seed.layouts.map(wsTableOf).map(withNumberConfigs), predicate: emptyPredicate(), newTabs }
@@ -556,6 +592,48 @@ export async function expectLayoutStep(page: Page, name?: string | RegExp): Prom
 }
 
 /**
+ * A divider moved part of a line: a structural edit saved at once — the
+ * newest undo step (`Moved divider`), with no snackbar (the table shows the
+ * move), then stored. A drag that did nothing leaves no such step.
+ */
+export async function expectDividerStep(page: Page): Promise<void> {
+  await expectLayoutStored(page)
+  await expect.poll(() => newestUndoStep(page)).toBe('Moved divider')
+  await expect(page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true })).toHaveCount(0)
+}
+
+/** The name of the newest step on the undo stack (what Ctrl+Z would undo), `null` with none. */
+export async function newestUndoStep(page: Page): Promise<string | null> {
+  return page.evaluate(async () => {
+    const mod = (await import(/* @vite-ignore */ '/src/stores/undo-store.ts' as string)) as {
+      useUndoStore: { getState: () => { undoStack: Array<{ description: string }> } }
+    }
+    return mod.useUndoStore.getState().undoStack.at(-1)?.description ?? null
+  })
+}
+
+/**
+ * Records what the undo snackbar says from now on (its live region's text
+ * at every change): the returned reader gives every text so far — empty
+ * while no snackbar has shown, however briefly.
+ */
+export async function watchSnackbar(page: Page): Promise<() => Promise<string[]>> {
+  await page.evaluate(() => {
+    const region = document.querySelector('[data-snackbar-live]')
+    if (!region) throw new Error('no snackbar region')
+    const said: string[] = []
+    const note = () => {
+      const text = region.textContent?.trim() ?? ''
+      if (text !== '' && said.at(-1) !== text) said.push(text)
+    }
+    note()
+    new MutationObserver(note).observe(region, { childList: true, subtree: true, characterData: true })
+    ;(window as unknown as { __snackbarSaid: string[] }).__snackbarSaid = said
+  })
+  return () => page.evaluate(() => (window as unknown as { __snackbarSaid: string[] }).__snackbarSaid.slice())
+}
+
+/**
  * Picks an action for the open layout (Duplicate layout…, Edit…,
  * Delete layout…): from its tab's menu, or the picker's when the tabs are
  * folded.
@@ -604,6 +682,16 @@ export async function wsShape(page: Page): Promise<string[][][]> {
  */
 export async function releaseDrag(page: Page): Promise<void> {
   await page.mouse.up()
+  await clicksGetThrough(page)
+}
+
+/**
+ * Resolves once a click reaches its target again: dnd-kit's stop on every
+ * click at the document, 50 ms long after a drag ends or is cancelled, is
+ * over (`releaseDrag` has the reason and the probe's how). Also while the
+ * mouse is still down — after a drag cancelled with Esc, before letting go.
+ */
+export async function clicksGetThrough(page: Page): Promise<void> {
   await page.waitForFunction(() => {
     const probe = document.createElement('div')
     let reached = false

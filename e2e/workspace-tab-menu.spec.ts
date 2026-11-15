@@ -100,8 +100,8 @@ test('a widget setting’s submenu (the Neglect map’s Untouched after): → op
   await wsTab(page, 'mapTab').click({ button: 'right' })
   const menu = tabMenu(page)
   const item = menu.getByRole('menuitem', { name: /Untouched after/ })
-  // First Colour by, then Untouched after.
-  await expect(menu.getByRole('menuitem', { name: /Colour by/ })).toBeFocused()
+  // First Color by, then Untouched after.
+  await expect(menu.getByRole('menuitem', { name: /Color by/ })).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(item).toBeFocused()
   await expect(item).toContainText('14 days')

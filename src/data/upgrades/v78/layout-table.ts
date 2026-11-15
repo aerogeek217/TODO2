@@ -137,13 +137,26 @@ function linesOf(positions: readonly number[]): number[] {
   return lines
 }
 
-/** The index of the line nearest `p`. */
+/**
+ * The index of the line nearest `p` (the first of two equally near), in
+ * `lines` as `linesOf` makes them: ascending, each more than `EPSILON` past
+ * the one before. A binary search for the first line at or past `p`, then
+ * the nearer of it and the line before it — the one a scan of every line
+ * finds, without the scan (four scans per cell took 12.8 s on a crafted
+ * file of 32,000 cells, cr34 S1).
+ */
 function lineIndex(lines: readonly number[], p: number): number {
-  let best = 0
-  for (let i = 1; i < lines.length; i++) {
-    if (Math.abs((lines[i] ?? 0) - p) < Math.abs((lines[best] ?? 0) - p)) best = i
+  let lo = 0
+  let hi = lines.length
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if ((lines[mid] ?? 0) < p) lo = mid + 1
+    else hi = mid
   }
-  return best
+  // `lo`: the first line at or past `p` (one past the last line when none is).
+  if (lo === 0) return 0
+  if (lo >= lines.length) return lines.length - 1
+  return Math.abs((lines[lo] ?? 0) - p) < Math.abs((lines[lo - 1] ?? 0) - p) ? lo : lo - 1
 }
 
 /** `shares` (summing to 1) as whole numbers summing to `WEIGHT_TOTAL` (largest remainder), each at least 1. */

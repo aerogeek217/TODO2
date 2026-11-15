@@ -5,6 +5,7 @@ import { createValueStore, type ValueStore } from '../../utils/value-store'
 import { TaskRowColumnsContext, UNMEASURED_LIST_WIDTH } from './task-row-grid-context'
 import styles from './TaskRow.module.css'
 import { KEEPS_SELECTION_ATTR, shortcutScope } from '../../utils/dom-contract'
+import { trackHot } from '../../utils/hot-attr'
 
 /** One arrow-key step of the divider, px. */
 const KEY_STEP = 8
@@ -95,6 +96,8 @@ export function TaskRowGrid({
   /** The columns for the rows: published after each change (they re-render where what they show changed). */
   const [columns] = useState(() => createValueStore(cols))
   useLayoutEffect(() => { columns.set(cols) }, [columns, cols])
+  // `data-rows-hover` while the pointer is over the list: the divider's faint line shows by it (`utils/hot-attr`).
+  useLayoutEffect(() => trackHot(ref.current, 'data-rows-hover', { hover: true }), [])
 
   const commit = (width: number | undefined) => {
     onDetailsWidthChange?.(width)

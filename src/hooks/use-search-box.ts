@@ -6,6 +6,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { startOfToday } from '../utils/date'
 import { personItems, statusItems, tagItems } from '../services/nlp-autocomplete'
+import { NO_PICKS, withPicked, type PickedIds } from '../services/nlp-resolver'
 import type { TintSpan } from '../services/nlp-token-tints'
 import {
   parseSearch,
@@ -50,6 +51,9 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
   const [shownStoreText, setShownStoreText] = useState(storeText)
   /** `@` / `#` / `!` tokens Esc kept as words, as typed. */
   const [kept, setKept] = useState<readonly string[]>([])
+  /** Picked from the popup: which of two that share a name a name means (cr34 F10). Read as a pick's change is (`commit`), so a ref; `picked` for the render's own read. */
+  const [picked, setPicked] = useState<PickedIds>(NO_PICKS)
+  const pickedRef = useRef<PickedIds>(NO_PICKS)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Where the caret goes once the box's text has changed under it (a new object each time: the box may read the same as before while the field does not). */
   const [caretAt, setCaretAt] = useState<{ at: number } | null>(null)
@@ -68,7 +72,10 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
     }
   }
 
-  const sourcesNow = useCallback((): SearchSources => ({ people, tags, statuses, today: startOfToday() }), [people, tags, statuses])
+  const sourcesNow = useCallback(
+    (picks: PickedIds = picked): SearchSources => ({ people, tags, statuses, today: startOfToday(), picked: picks }),
+    [people, tags, statuses, picked],
+  )
   const parse: SearchParse = useMemo(() => parseSearch(text, sourcesNow(), kept), [text, sourcesNow, kept])
   const words = useMemo(() => searchWords(parse), [parse])
 
@@ -90,7 +97,7 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
 
   /** The box shows `value`, its complete tokens (with `all`, every token) made chips. */
   const commit = useCallback((value: string, caret: number, all = false) => {
-    const sources = sourcesNow()
+    const sources = sourcesNow(pickedRef.current)
     const keptNow = kept.filter((raw) => value.includes(raw))
     if (keptNow.length !== kept.length) setKept(keptNow)
     const read = parseSearch(value, sources, keptNow)
@@ -112,7 +119,11 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
     statuses: acStatuses,
     commands: true,
     compute: searchAutocomplete,
-    onApply: (value, cursor) => {
+    onApply: (value, cursor, item) => {
+      if (item) {
+        pickedRef.current = withPicked(pickedRef.current, item)
+        setPicked(pickedRef.current)
+      }
       // Typed on past a token: read with the rest of the change. A pick: now
       // (it ends with a space, so its token becomes a chip).
       if (changingRef.current) changingRef.current = { value, caret: cursor }

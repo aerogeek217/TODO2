@@ -23,7 +23,7 @@ import {
  * as typed, and its field as it was before — what Backspace in the empty
  * box puts back (`unwindSearchToken`).
  */
-export interface BoxChip {
+interface BoxChip {
   token: string
   field: SearchField
   before: SearchFieldValue

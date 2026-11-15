@@ -134,7 +134,7 @@ function locateConvertLines(text: string, lines: readonly ConvertLine[]): { pare
   return { parents, children, missing: parents.filter((n) => n == null).length }
 }
 
-export interface NotesConvertOptions {
+interface NotesConvertOptions {
   viewRef: { current: EditorView | null }
   /** The note's text and a writer, used when the editor is gone. */
   getText: () => string

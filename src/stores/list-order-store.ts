@@ -49,7 +49,7 @@ let inflight: Promise<void> | null = null
  * Forgets the load in flight, for tests that share one module instance (the
  * store's state is reset separately). That load finishes on its own.
  */
-export function resetListOrderLoad(): void {
+function resetListOrderLoad(): void {
   inflight = null
 }
 registerModuleReset(resetListOrderLoad)

@@ -16,7 +16,7 @@ import { useUIStore } from './ui-store'
  */
 
 /** The top bar's lens as it applies now: picked, still there, not lifted. */
-export function appliedLensOf(lenses: readonly Lens[], lensId: string | null, lifted: boolean): Lens | undefined {
+function appliedLensOf(lenses: readonly Lens[], lensId: string | null, lifted: boolean): Lens | undefined {
   return lifted ? undefined : findLens(lenses, lensId)
 }
 

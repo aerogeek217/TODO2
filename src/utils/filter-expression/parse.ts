@@ -13,6 +13,7 @@ import {
   PERIOD_WORDS,
   dateTypeIsOptional,
   dayAnchor,
+  dayOffsetOf,
   fixedAnchorOf,
   looksBack,
   periodRange,
@@ -57,13 +58,13 @@ export interface ExpressionNameResolver {
   status: (name: string) => number | undefined
 }
 
-export interface ExpressionParseOptions {
+interface ExpressionParseOptions {
   /** Today, for the day words that are fixed dates (`fri`, `11/30`: the next one on Due / Next follow-up, on the others the last weekday and this year's day). */
   today: Date
   names: ExpressionNameResolver
   /** `false`: `@`, `no person` and `any person` are refused (the check-in filter: a check-in goes to one person). */
   allowPeople?: boolean
-  /** `false`: Completed dates are refused (the check-in filter: it takes open tasks only). */
+  /** `false`: Completed dates are refused (the check-in filter, the Review widget's field: they take open tasks only). */
   allowCompleted?: boolean
   /** `false`: `done` is refused (a lens, the check-in: they never show completed tasks by it). */
   allowDone?: boolean
@@ -479,7 +480,7 @@ class Parser {
   }
 
   private dateTerm(t: Lex, field: DateField): FilterExpr {
-    if (field === 'completed' && this.opts.allowCompleted === false) fail(t.start, t.end, 'Leave completed out', 'A check-in takes open tasks only')
+    if (field === 'completed' && this.opts.allowCompleted === false) fail(t.start, t.end, 'Leave completed out', 'This filter takes open tasks only')
     const kind: ExpressionSpanKind = field === 'deadline' ? 'due' : field === 'followup' || field === 'lastFollowup' ? 'followup' : 'date'
     const startPos = this.pos
     const match = this.when(t, field)
@@ -554,9 +555,31 @@ class Parser {
         )
         if (days) return range(fixedAnchorOf(days.start), fixedAnchorOf(days.end))
       }
+      this.refuseInverted(from, to)
       return range(from.anchor, to.anchor)
     }
     return range(from.anchor, from.anchor)
+  }
+
+  /**
+   * A range that ends before it starts keeps nothing, so it is an error, not
+   * a filter (cr34 F9): `created mon..fri` on a Thursday (each the last one:
+   * Monday, then the Friday before it), `due +7d..-3d`. Told where both ends
+   * are days of one sort — two dates, or two days from today — which no later
+   * day changes; a date against a day from today, or a week / month anchor,
+   * may be in order on another day and is left to read. The hint shows how
+   * the two days were read.
+   */
+  private refuseInverted(from: { anchor: DateAnchor; start: number }, to: { anchor: DateAnchor; end: number }): void {
+    const a = from.anchor
+    const b = to.anchor
+    const fromDay = dayOffsetOf(a)
+    const toDay = dayOffsetOf(b)
+    const inverted = fromDay != null && toDay != null ? toDay < fromDay
+      : a.kind === 'fixed' && b.kind === 'fixed' && new Date(b.iso).getTime() < new Date(a.iso).getTime()
+    if (inverted) {
+      fail(from.start, to.end, 'This range ends before it starts', `It reads as ${anchorWords(a)}..${anchorWords(b)}: put the earlier day first`)
+    }
   }
 
   /**

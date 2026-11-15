@@ -29,7 +29,7 @@ export interface FilterModeProps {
 }
 
 /** One segment of a `SegmentedToggle`. */
-export interface SegmentChoice<T> {
+interface SegmentChoice<T> {
   value: T
   label: string
   /** Picked, it reads in the accent (a choice that hides tasks: Is not, No). */
@@ -50,7 +50,7 @@ interface SegmentedToggleProps<T> {
  * A segmented radio group: one segment per choice, arrow keys move between
  * them (wrapping). The filter pickers' Is / Is not toggle.
  */
-export function SegmentedToggle<T>({ label, choices, value, onChange, touch = false }: SegmentedToggleProps<T>) {
+function SegmentedToggle<T>({ label, choices, value, onChange, touch = false }: SegmentedToggleProps<T>) {
   const refs = useRef<Array<HTMLButtonElement | null>>([])
   const at = Math.max(0, choices.findIndex((c) => c.value === value))
   const onKeyDown = (e: KeyboardEvent) => {

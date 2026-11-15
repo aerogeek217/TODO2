@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { getActiveTab, isGlanceKind, type LayoutTab } from '../../models/workspace-layout'
+import { afterLeavingEditors, editorsHoldChanges } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { OPEN_LARGER_LABEL, widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
@@ -20,13 +21,15 @@ import styles from './WorkspaceCell.module.css'
 import type { WorkspaceCellProps } from './WorkspaceCell'
 import { trackScrollEdges } from '../../utils/scroll-edges'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
-import { smallFaceClick, useCellFace } from './cell-face'
+import { smallFaceClick, useCellFace, useHeldBodyHeight } from './cell-face'
 import { SmallFaceOpener } from './CellFaceParts'
+import { OpenLargerPlaceholder } from './OpenLargerPlaceholder'
 import { openWidgetLarger } from '../../services/widget-popup'
 import { tabOpensLarger } from '../../utils/widget-face'
 import { transitionName, withViewTransition } from '../shared/view-transition'
 import { CELL_MENU_LABEL, cellMenuFor, useWidgetMenuContent, type CellMenuPart } from './cell-menu'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
+import { trackCellHot } from './cell-hot'
 import { CellControls, CellGrip } from './WidgetTopLine'
 import { TabNameIconPopover } from './TabNameIconPopover'
 
@@ -51,6 +54,20 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
   return (
     <div ref={setNodeRef} {...listeners} className={styles.fill} data-ws-panel-handle={panelId} data-strip-room="" aria-hidden="true" />
   )
+}
+
+/**
+ * After a tab switch that waited on an editor's question: the focus, back on
+ * the strip's tab the key was pressed on (the question took it, so the
+ * strip's own move to the new tab found it elsewhere), goes to the new tab —
+ * where an arrow key leaves it when nothing asks. Only from another tab of
+ * this cell's strip: a click's focus, or one that went elsewhere, stays.
+ */
+function focusSwitchedTab(cell: HTMLElement | null, tabId: string): void {
+  const focused = document.activeElement
+  if (!cell || !(focused instanceof HTMLElement) || focused.getAttribute('role') !== 'tab' || !cell.contains(focused)) return
+  const next = document.getElementById(`ws-tab-${tabId}`)
+  if (next && next !== focused && cell.contains(next) && !next.hasAttribute('data-ws-tab-folded')) next.focus()
 }
 
 /** Before any menu is open: the widget part builds nothing. */
@@ -101,7 +118,9 @@ function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = fals
  * Either way (`cell-menu`, UX cleanup 4A) the ⋯ opens the widget's own
  * entries and Add widget…, the grip the cell's layout entries in the table's
  * words (D26 board V), and a right-click or Shift+F10 the whole menu. The
- * active widget's body shows at its face (D25 R).
+ * active widget's body shows at its face (D25 R) — while the widget popup
+ * shows that tab (Open larger), a placeholder in its place: a tab has one
+ * live widget at a time (`OpenLargerPlaceholder`).
  */
 export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
@@ -112,7 +131,18 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const insertTrack = useWorkspaceStore((s) => s.insertTrack)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
   const drag = useWorkspaceDrag()
-  const setRowCollapsed = useCallback((next: boolean) => { void setTrackCollapsed(rowTrackIds, next) }, [setTrackCollapsed, rowTrackIds])
+  /**
+   * Whatever here can take a widget off the screen — a tab switched or
+   * closed, the row collapsed (or expanded: its neighbours shrink), the
+   * menu's split, merge, insert and Close cell — asks an open editor holding
+   * changes first (Edit list, a widget editor): Save / Discard / Keep editing
+   * (`editor-leave`), as on every other way out of it; Save or Discard, then
+   * it is done; Keep editing, nothing. With none it runs at once, in the same
+   * tick. A press elsewhere has asked already (the editors' own rule): this
+   * is the keyboard's way here, and a menu's.
+   */
+  const closeTabAsked = useCallback((tabId: string) => afterLeavingEditors(() => closeTab(tabId)), [closeTab])
+  const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   /** Tabs only when there's a choice (D26 AA1): one widget's top line names it. */
@@ -122,6 +152,26 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const cellFace = useCellFace(active, { forced: fitRow ? 'small' : collapsed && !stripShown ? 'large' : undefined })
   const smallFace = cellFace.face === 'small' && !collapsed
   const cellRef = useRef<HTMLElement | null>(null)
+  // The cell's element: kept for the focus hand-back, and marked `data-cell-hot` while hovered or holding
+  // the focus — its hover-only controls show by that (`cell-hot`).
+  const setCell = useCallback((el: HTMLElement | null) => {
+    cellRef.current = el
+    const stop = trackCellHot(el)
+    return () => {
+      cellRef.current = null
+      stop?.()
+    }
+  }, [])
+  // A fit row's height is its content's: the placeholder keeps the height its widget had.
+  const [setHeldBody, heldHeight] = useHeldBodyHeight(active?.id, fitRow)
+  const setBody = useCallback((el: HTMLDivElement | null) => {
+    setHeldBody(el)
+    const stop = collapsed ? undefined : trackScrollEdges(el)
+    return () => {
+      setHeldBody(null)
+      stop?.()
+    }
+  }, [setHeldBody, collapsed])
   /** What the active tab's widget last reported (any kind): its count label, shown sections or summary. */
   const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
   const [menu, setMenu] = useState<{ tabId: string; at: MenuAt; part: CellMenuPart } | null>(null)
@@ -178,12 +228,12 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         tabTitle: menuTitle,
         collapsed,
         onAddWidget: () => setAddFlow({ anchor: menu.at ?? anchorBelow(moreRef), where: 'tab' }),
-        onSplit: (side) => { splitCell(cell.id, side) },
-        onMerge: (other) => { mergeCells(cell.id, other) },
-        onInsert: (edge) => { insertTrack(edge) },
+        onSplit: (side) => afterLeavingEditors(() => { splitCell(cell.id, side) }),
+        onMerge: (other) => afterLeavingEditors(() => { mergeCells(cell.id, other) }),
+        onInsert: (edge) => afterLeavingEditors(() => { insertTrack(edge) }),
         onCollapse: setRowCollapsed,
-        onCloseTab: closeTab,
-        onCloseCell: () => closeCell(cell.id),
+        onCloseTab: closeTabAsked,
+        onCloseCell: () => afterLeavingEditors(() => closeCell(cell.id)),
       })
     : null
   /** The whole menu (a right-click, Shift+F10 / the Menu key): at a point, or under the ⋯. */
@@ -237,7 +287,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
 
   return (
     <section
-      ref={cellRef}
+      ref={setCell}
       className={[
         styles.cell,
         collapsed ? styles.collapsed : '',
@@ -263,12 +313,15 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             activeLens={activeResult?.tabLens}
             ghosts={ghosts}
             onActivate={(tabId) => {
-              withViewTransition(() => {
+              const show = () => withViewTransition(() => {
                 void setActiveTab(tabId)
                 if (collapsed) setRowCollapsed(false)
               })
+              // The tab already shown changes nothing: nothing to ask about.
+              if ((tabId === active?.id && !collapsed) || !editorsHoldChanges()) show()
+              else afterLeavingEditors(() => { show(); focusSwitchedTab(cellRef.current, tabId) })
             }}
-            onClose={closeTab}
+            onClose={closeTabAsked}
             onOpenTabMenu={(tabId, p) => openMenu(tabId, p)}
             onAddTab={(ref) => setAddFlow({ anchor: anchorBelow(ref), where: 'tab' })}
           />
@@ -342,7 +395,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       {(!collapsed || !stripShown) && active && (
         <div className={styles.bodyFrame}>
           <div
-            ref={collapsed ? undefined : trackScrollEdges}
+            ref={setBody}
             className={`${styles.body} ${smallFace ? styles.bodySmall : ''}`}
             role={stripShown ? 'tabpanel' : undefined}
             aria-labelledby={stripShown ? `ws-tab-${active.id}` : undefined}
@@ -353,11 +406,16 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             {smallFace && !drag && cellFace.opensLarger && <SmallFaceOpener title={activeTitle} open={cellFace.open} onOpen={cellFace.openLarger} />}
             <CellControlsContext.Provider value={controls}>
               <WidgetFaceContext.Provider value={cellFace.host}>
-                <WidgetBody
-                  key={active.id}
-                  tab={active}
-                  onResult={(result) => setWidgetResult({ tabId: active.id, result })}
-                />
+                {cellFace.open ? (
+                  // The popup shows this tab: its one live widget is there.
+                  <OpenLargerPlaceholder tabId={active.id} title={activeTitle} compact={smallFace} minHeight={heldHeight} />
+                ) : (
+                  <WidgetBody
+                    key={active.id}
+                    tab={active}
+                    onResult={(result) => setWidgetResult({ tabId: active.id, result })}
+                  />
+                )}
               </WidgetFaceContext.Provider>
             </CellControlsContext.Provider>
           </div>

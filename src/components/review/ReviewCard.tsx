@@ -336,7 +336,7 @@ function useFocusUpdateLineOnOpen(updateRef: RefObject<HTMLInputElement | null>,
 }
 
 /** The update line, last in Status updates: ⏎ is Mark followed up with its text. */
-export function ReviewUpdateLine({ followUp: f, inputRef, id, compact = false }: {
+function ReviewUpdateLine({ followUp: f, inputRef, id, compact = false }: {
   followUp: ReviewFollowUp
   inputRef: RefObject<HTMLInputElement | null>
   id?: string
@@ -372,7 +372,7 @@ export function ReviewUpdateLine({ followUp: f, inputRef, id, compact = false }:
  * dock). `onOpenCard`: the medium face's Open card ↗ (the task in its
  * editor).
  */
-export function ReviewFooter({ followUp: f, compact = false, onOpenCard }: {
+function ReviewFooter({ followUp: f, compact = false, onOpenCard }: {
   followUp: ReviewFollowUp
   compact?: boolean
   onOpenCard?: () => void

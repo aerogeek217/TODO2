@@ -32,11 +32,6 @@ export function topLevelPredicate(p: TodoPredicate): TodoPredicate {
   return withNormalizedNegation({ ...withoutClauses(rest), ...clauses })
 }
 
-/** `p`'s top-level terms that aren't chips (none for a Graphical predicate). */
-export function expressionRest(p: Pick<TodoPredicate, 'expression'>): FilterExpr[] {
-  return p.expression ? splitTopLevel(p.expression).rest : []
-}
-
 /**
  * `p` written as an expression: everything it narrows by — its clauses and
  * expression — as one tree; Show completed kept. A predicate

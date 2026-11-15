@@ -46,7 +46,7 @@ describe('one tag-pick submenu for the glance widgets and the Neglect map', () =
     const pulse = createTab('pulse', 'p', { tagIds: [1, 2] }) as GlanceTab
     expect(item(glanceMenu(pulse, undefined)!.settingEntries, 'Tags').note).toBe('1')
     const { result } = renderHook(() => useNeglectMenuEntries(neglectTab({ colourBy: { kind: 'tags', tagIds: [1, 2] } })))
-    const colourBy = item(result.current, 'Colour by')
+    const colourBy = item(result.current, 'Color by')
     expect(colourBy.note).toBe('Tags (1)')
     expect(item(colourBy.children, 'Project: Beta').checked).toBe(true)
   })
@@ -56,8 +56,16 @@ describe('one tag-pick submenu for the glance widgets and the Neglect map', () =
     useWorkspaceStore.setState({ patchTabConfig })
     useTagStore.setState({ tags: [ATLAS, BETA] })
     const { result } = renderHook(() => useNeglectMenuEntries(neglectTab({ colourBy: { kind: 'people' } })))
-    const colourBy = item(result.current, 'Colour by')
+    const colourBy = item(result.current, 'Color by')
     expect(colourBy.note).toBe('People')
+    // American spelling in every string of the menu (cr34 G11).
+    const words = (entries: readonly MenuEntry[]): string[] => entries.flatMap((e) => (
+      e.kind === 'item' ? [e.label, ...words(e.children ?? [])] : e.kind === 'label' || e.kind === 'note' ? [e.text] : []
+    ))
+    const all = words(result.current)
+    expect(all).toContain('Color dots by')
+    expect(all).toContain('A task with several picked tags takes the first one’s color.')
+    expect(all.filter((w) => /colour/i.test(w))).toEqual([])
     expect(item(colourBy.children, 'Project: Atlas').checked).toBe(false)
     item(colourBy.children, 'Project: Beta').onSelect!()
     expect(patchTabConfig).toHaveBeenLastCalledWith('map', 'neglect', { colourBy: { kind: 'tags', tagIds: [2] } })

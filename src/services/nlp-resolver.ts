@@ -51,7 +51,7 @@ function matchByName<T>(name: string, items: readonly T[], getKey: (item: T) => 
  * `alp` → `Project: Alpha`), the text anywhere in the name.
  */
 export const NAME_MATCH_RANK = { exact: 0, initials: 1, prefix: 2, wordStart: 3, substring: 4 } as const
-export type NameMatchRank = (typeof NAME_MATCH_RANK)[keyof typeof NAME_MATCH_RANK]
+type NameMatchRank = (typeof NAME_MATCH_RANK)[keyof typeof NAME_MATCH_RANK]
 
 /**
  * The worst rank a name typed without picking resolves to (exact, initials,
@@ -60,7 +60,7 @@ export type NameMatchRank = (typeof NAME_MATCH_RANK)[keyof typeof NAME_MATCH_RAN
  */
 export const TYPED_NAME_MAX_RANK: NameMatchRank = NAME_MATCH_RANK.prefix
 
-export interface NameMatch {
+interface NameMatch {
   rank: NameMatchRank
   /** Where the typed text sits in the name (-1: an initials match the name doesn't start with). */
   at: number
@@ -126,6 +126,46 @@ export function matchPerson(name: string, people: readonly Person[]): Person | u
 /** The status a `!` name resolves to: the exact name, else the first it starts (any case). */
 export function matchStatus<T extends { name: string }>(name: string, statuses: readonly T[]): T | undefined {
   return matchByName(name, statuses, (s) => s.name)
+}
+
+/**
+ * The people, tags and statuses picked from a field's `@ # ! /` popup, newest
+ * last, by kind: which one of two that share a name was meant — a pick writes
+ * the name alone, which can't say (cr34 F10).
+ */
+export interface PickedIds {
+  person: readonly number[]
+  tag: readonly number[]
+  status: readonly number[]
+}
+
+/** No pick yet. */
+export const NO_PICKS: PickedIds = { person: [], tag: [], status: [] }
+
+/** `picked` with `item` picked last (once: a pick made again moves to the end). */
+export function withPicked(picked: PickedIds, item: { kind: keyof PickedIds; id: number }): PickedIds {
+  return { ...picked, [item.kind]: [...picked[item.kind].filter((id) => id !== item.id), item.id] }
+}
+
+/**
+ * Of `hit` (what a typed name matched) and its namesakes in `items`, the one
+ * picked last (`picks`, newest last) — `hit` itself when it was; undefined
+ * when none of them was picked.
+ */
+export function pickedAmong<T extends { id?: number; name: string }>(
+  hit: T | undefined,
+  items: readonly T[],
+  picks: readonly number[] | undefined,
+): T | undefined {
+  if (!hit || !picks) return undefined
+  for (let i = picks.length - 1; i >= 0; i--) {
+    const id = picks[i]
+    if (id === undefined) continue
+    if (id === hit.id) return hit
+    const twin = items.find((x) => x.id === id && x.name === hit.name)
+    if (twin) return twin
+  }
+  return undefined
 }
 
 /**
@@ -201,7 +241,7 @@ export async function resolveTags(
 /**
  * Minimal shape of the person-store needed by `resolveUnmatchedPeople`.
  */
-export interface PersonStoreLike {
+interface PersonStoreLike {
   /** Lookup-or-create by name (case-insensitive); returns the person's id. */
   getOrCreate: (name: string) => Promise<number>
 }
@@ -242,15 +282,22 @@ export async function resolveUnmatchedPeople(
  * as `matchPerson` (exact name, exact initials, then prefix); the `!` status
  * matches the status registry case-insensitively, exact then prefix
  * (`matchStatus`). A status name that matches nothing stays in the title and
- * is reported as an `unmatched` problem.
+ * is reported as an `unmatched` problem. Of two people (statuses) that
+ * share a name, the one picked last from the popup (`picked`), else the
+ * first (cr34 F10).
  */
 export function resolveInput(
   parsed: ParsedInput,
   people: Person[],
   statuses: Status[] = [],
+  picked?: PickedIds,
 ): ResolvedInput {
-  const persons = resolveNames(parsed.persons, (name) => matchPerson(name, people))
-  const status = parsed.status !== undefined ? matchStatus(parsed.status, statuses) : undefined
+  const persons = resolveNames(parsed.persons, (name) => {
+    const hit = matchPerson(name, people)
+    return pickedAmong(hit, people, picked?.person) ?? hit
+  })
+  const statusHit = parsed.status !== undefined ? matchStatus(parsed.status, statuses) : undefined
+  const status = pickedAmong(statusHit, statuses, picked?.status) ?? statusHit
   const unknownStatus = parsed.status !== undefined && status?.id === undefined
     ? parsed.tokens.find((t) => t.type === 'status')
     : undefined

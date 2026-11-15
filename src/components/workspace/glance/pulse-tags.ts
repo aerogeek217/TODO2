@@ -20,7 +20,7 @@ function pickedTagIds(tabId: string): readonly number[] | null {
 }
 
 /** Adds `tag`'s card after the last one (nothing when it is already picked). */
-export function addPulseTag(tabId: string, tag: Pick<Tag, 'id' | 'name'>): void {
+function addPulseTag(tabId: string, tag: Pick<Tag, 'id' | 'name'>): void {
   const picked = pickedTagIds(tabId)
   if (picked == null || tag.id == null || picked.includes(tag.id)) return
   useWorkspaceStore.getState().patchTabConfig(tabId, 'pulse', { tagIds: [...picked, tag.id] }, `Added “${tag.name}” to project pulse`)

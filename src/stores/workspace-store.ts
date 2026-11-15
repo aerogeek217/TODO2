@@ -1,8 +1,8 @@
 import { create } from 'zustand'
-import { byLayoutOrder, layoutRepository, type ListCopy, type OwnedListsRemoved, type ReadLayout } from '../data/layout-repository'
+import { byLayoutOrder, layoutRepository, type OwnedListsRemoved, type ReadLayout } from '../data/layout-repository'
 import { trackWrite } from './store-helpers'
-import { clearLayoutDraft, readLayoutDraft, type LayoutDraftRecord } from '../data/draft-storage'
-import { ownerLayoutId } from '../models/list-definition'
+import { applyRemoved, foreignListRefs, ownedListCopies, pruneOwnedLists, restoreLists } from './layout-lists'
+import { closeCellDescription, tabName } from './layout-step-names'
 import { UndoGone, UndoRefused, useUndoStore, type UndoEntry } from './undo-store'
 import { undoable } from './undoable'
 import { editorsHoldChanges, leaveOpenEditors } from './editor-leave'
@@ -19,10 +19,10 @@ import { registerModuleReset, registerModuleSettle } from '../utils/module-reset
 import {
   LAYOUT_NAME_MAX,
   createTab,
-  kindTabTitle,
   widgetKindLabel,
   emptyLayoutBody,
   layoutBodyOf,
+  tabNameMax,
   withLayoutBody,
   type GridAxis,
   type LayoutBody,
@@ -34,7 +34,7 @@ import {
   type WorkspaceLayout,
 } from '../models/workspace-layout'
 import { getTab, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
-import { layoutListRefs, listIdChanges, repointLayoutLists } from '../utils/workspace-layout-lists'
+import { layoutListRefs, repointLayoutLists } from '../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../utils/workspace-layout-sizes'
 import { withViewStateOf } from '../utils/workspace-layout-view'
 import {
@@ -71,7 +71,7 @@ function sameHandle(a: ResizeHandle, b: ResizeHandle): boolean {
 }
 
 /** A resize from a divider: `live` = one frame of a drag (see `setTrackSizes`). */
-export interface ResizeOptions {
+interface ResizeOptions {
   live?: boolean
 }
 
@@ -90,14 +90,14 @@ export type ResizeHandle =
  * (`moveEdge`'s probe, throwaway track ids), drawn instead of the working
  * copy's grid while the drag runs (`utils/workspace-preview`).
  */
-export interface ResizePreview {
+interface ResizePreview {
   layoutId: number
   body: LayoutBody
   handle: ResizeHandle
 }
 
 /** What an undo step of a structural edit says to do with its undo / redo: a key that merges a run of steps into one. */
-export interface EditUndoOptions {
+interface EditUndoOptions {
   /** Steps passing the same key one after another stay one undo step (a divider stepped by the arrow keys). */
   mergeKey?: string
   /** No undo snackbar: the step is on the undo stack all the same (a divider moved — the table shows it). */
@@ -131,13 +131,13 @@ export interface EditUndoOptions {
  *   (`writeFailed`, the top bar's `Couldn't save · Retry`): the next write of
  *   the layout — any edit, or `retryWrite` — writes all of it. Leaving the
  *   layout (another layout, a new one) tries once more first and stays when
- *   that fails too.
+ *   that fails too. The lists the failed step stopped showing are deleted by
+ *   that next write, which hands them to the step (`ListClaim`): its Undo
+ *   brings them back all the same.
  * - A layout repaired when it was read opens with its repair in memory; its
  *   first edit writes it (until then view state isn't written).
- * - The first `init()` of a page load applies an unsaved layout change a
- *   build before autosave kept in the browser, once (`data/draft-storage`):
- *   as one undo step while the stored layout is still the one it was made
- *   against, else dropped; a kept new layout becomes a stored one.
+ * - The first `init()` of a page load deletes the lists the open layout
+ *   owns but doesn't show (`pruneOwnedLists`).
  * - `load(id)` switches layouts; `createLayout(name)` stores a new, empty
  *   layout at once and opens it.
  * - While a data replace holds layout and list writes (`replace-hold`: from
@@ -185,7 +185,9 @@ export interface WorkspaceState {
   /**
    * Opens a layout. Unknown id → no-op. Never rejects: a failure is
    * reported, the open layout kept — as it is when the open layout's
-   * failed write fails again (`writeFailed`).
+   * failed write fails again (`writeFailed`). No view transition (cr34
+   * answer 26): every cell is new, nothing morphs, and a transition held
+   * the page — losing presses — while the new layout mounted.
    */
   load: (id: number) => Promise<void>
   /**
@@ -298,7 +300,9 @@ export interface WorkspaceState {
    * Name and icon… (items 11, 14): renames tab `tabId` — a list tab's list
    * (as Edit list does; a blank name keeps it), a Number's or a chart's
    * `config.name`, any other kind's tab name (blank: back to the kind's
-   * label) —, one undo step (`Renamed tab to “Inbox”`). Resolves whether it wrote.
+   * label) —, one undo step (`Renamed tab to “Inbox”`). A name longer than
+   * the kind's stored name may be is cut to it (`tabNameMax`). Resolves
+   * whether it wrote.
    */
   renameTab: (tabId: string, name: string) => Promise<boolean>
   /** Sets tab `tabId`'s picked icon (`null`: never picked, the kind's icon), one undo step (`Changed icon of “Inbox”`). */
@@ -388,115 +392,9 @@ function reportWriteFailure(message: string, err: unknown): void {
 let firstInit: Promise<void> | null = null
 registerModuleReset(() => { firstInit = null })
 
-/**
- * Whether a kept new layout can become a stored one: it shows no list (no
- * list tab) — every list belongs to a stored layout, so
- * a layout not stored yet can't show one.
- */
-function showsNoList(body: LayoutBody): boolean {
-  return layoutListRefs(body).size === 0
-}
-
-/** Whether every list `body` names that still exists belongs to layout `layoutId` (a deleted one shows as such). */
-function showsOnlyOwnLists(body: LayoutBody, layoutId: number): boolean {
-  const defs = useListDefinitionStore.getState().listDefinitions
-  return [...layoutListRefs(body)].every((id) => {
-    const def = defs.find((d) => d.id === id)
-    return def == null || ownerLayoutId(def) === layoutId
-  })
-}
-
-/**
- * The lists `next` names that `before` didn't and that belong elsewhere —
- * another layout, or no layout. A layout shows only its own
- * lists, so an edit that would show one of these is refused. A list that
- * doesn't exist (any more) isn't anyone's: a tab on it shows it as deleted.
- */
-function foreignListRefs(before: LayoutBody, next: LayoutBody, layoutId: number): number[] {
-  const had = layoutListRefs(before)
-  const added = [...layoutListRefs(next)].filter((id) => !had.has(id))
-  if (added.length === 0) return []
-  const defs = useListDefinitionStore.getState().listDefinitions
-  return added.filter((id) => {
-    const def = defs.find((d) => d.id === id)
-    return def != null && ownerLayoutId(def) !== layoutId
-  })
-}
-
-/**
- * Takes a removal of a layout's lists into the stores: the deleted ones
- * forgotten (an Edit list open on one closes, dropping its draft), the ones
- * handed to another layout read again (their owner changed).
- */
-async function applyRemoved({ deleted, handedOver }: OwnedListsRemoved): Promise<void> {
-  useListDefinitionStore.getState().forgetLists(deleted)
-  if (handedOver.length > 0) await useListDefinitionStore.getState().load()
-}
-
-/**
- * Deletes the lists layout `layoutId` owns that none of `bodies` shows,
- * nor its stored row (`layoutRepository.pruneOwnedLists`) — at launch, the
- * lists edits a reload dropped had made. A failed delete only leaves them
- * in place (hidden, unshown) until the layout's next edit.
- */
-async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promise<void> {
-  const shown = new Set(bodies.flatMap((b) => [...layoutListRefs(b)]))
-  try {
-    await applyRemoved(await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shown)))
-  } catch (err) {
-    console.warn('[workspace] removing the layout\'s unshown lists failed', err)
-  }
-}
-
-/**
- * Brings back lists a committed edit removed (with their manual order) and
- * reads the list stores again. Rejects when the write fails (the undo store
- * keeps the step); `UndoGone` when their layout is gone.
- */
-async function restoreLists(removed: OwnedListsRemoved | null): Promise<void> {
-  if (!removed || removed.rows.defs.length === 0) return
-  const back = await trackWrite(() => layoutRepository.restoreLists(removed.rows))
-  if (!back) throw new UndoGone('The lists can’t come back: their layout is gone.')
-  await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
-}
-
-/** The lists of layout `layoutId` that `body` shows, as copies for a new layout (each as saved). */
-function ownedListCopies(layoutId: number, body: LayoutBody): ListCopy[] {
-  const shown = layoutListRefs(body)
-  const copies: ListCopy[] = []
-  for (const saved of useListDefinitionStore.getState().listDefinitions) {
-    if (!shown.has(saved.id) || ownerLayoutId(saved) !== layoutId) continue
-    const { id: _id, sortOrder: _order, owner: _owner, ...def } = saved
-    void _id
-    void _order
-    void _owner
-    copies.push({ from: saved.id, def })
-  }
-  return copies
-}
-
 /** The ids of the read layouts that were repaired. */
 function repairedOf(reads: readonly ReadLayout[]): Set<number> {
   return new Set(reads.filter((r) => r.fixes.length > 0).map((r) => r.layout.id))
-}
-
-/** A tab's name in an undo step: a list tab's list (as saved), else its kind's or its own (`kindTabTitle`). */
-function tabName(layout: LayoutBody, tabId: string): string {
-  const tab = getTab(layout, tabId)
-  if (!tab) return 'widget'
-  if (tab.kind === 'lens' && tab.config.listDefinitionId != null) {
-    const id = tab.config.listDefinitionId
-    return useListDefinitionStore.getState().listDefinitions.find((d) => d.id === id)?.name ?? 'List'
-  }
-  return kindTabTitle(tab)
-}
-
-/** `Closed cell`, `Closed cell “Notes”`, `Closed cell (3 tabs)`. */
-function closeCellDescription(layout: LayoutBody, cellId: string): string {
-  const cell = layout.cells.find((c) => c.id === cellId)
-  const [first] = cell?.tabs ?? []
-  if (!cell || !first) return 'Closed cell'
-  return cell.tabs.length === 1 ? `Closed cell “${tabName(layout, first.id)}”` : `Closed cell (${cell.tabs.length} tabs)`
 }
 
 /** What one write of a layout did: whether it landed, and the lists it removed (`putAndPrune`). */
@@ -521,6 +419,57 @@ interface EditRun {
 
 /** Each structural step's run, by its undo entry (a merge carries it to the merged entry). */
 const runs = new WeakMap<UndoEntry, EditRun>()
+
+/**
+ * What a step is owed when its own write fails. The lists its edit stopped
+ * showing (`lists`) are then still stored, and the next write of its layout
+ * that lands — Retry, a later edit, leaving the layout — deletes them
+ * (`putAndPrune`). That write hands them to the step (`take`: a result
+ * holding just those lists; false when the step no longer waits for it), so
+ * its Undo — or Redo — brings them back as when its own write had landed.
+ */
+interface ListClaim {
+  lists: ReadonlySet<number>
+  take: (paid: Promise<WriteResult>) => boolean
+}
+
+/** The claims of steps whose write failed, by layout (`ListClaim`): settled by that layout's next write that lands. */
+const listClaims = new Map<number, ListClaim[]>()
+registerModuleReset(() => { listClaims.clear() })
+
+/** The lists `from` shows that `to` doesn't. */
+function listsDropped(from: LayoutBody, to: LayoutBody): Set<number> {
+  const kept = layoutListRefs(to)
+  return new Set([...layoutListRefs(from)].filter((id) => !kept.has(id)))
+}
+
+/** The deleted lists of `removed` that `keep` picks, with their rows. */
+function deletedWhere(removed: OwnedListsRemoved, keep: (listId: number) => boolean): Pick<OwnedListsRemoved, 'deleted' | 'rows'> {
+  return {
+    deleted: removed.deleted.filter(keep),
+    rows: { defs: removed.rows.defs.filter((d) => keep(d.id)), ranks: removed.rows.ranks.filter((r) => keep(r.listDefinitionId)) },
+  }
+}
+
+/**
+ * A write of layout `layoutId` landed and removed `removed`: hands each
+ * step waiting there the lists it stopped showing (`ListClaim`) and returns
+ * the rest — what the write's own step removed.
+ */
+function settleListClaims(layoutId: number, removed: OwnedListsRemoved): OwnedListsRemoved {
+  const claims = listClaims.get(layoutId)
+  if (!claims) return removed
+  listClaims.delete(layoutId)
+  const claimed = new Set<number>()
+  for (const { lists, take } of claims) {
+    const owed = removed.deleted.filter((id) => lists.has(id) && !claimed.has(id))
+    if (owed.length === 0) continue
+    if (take(Promise.resolve({ ok: true, removed: { ...deletedWhere(removed, (id) => owed.includes(id)), handedOver: [] } }))) {
+      for (const id of owed) claimed.add(id)
+    }
+  }
+  return claimed.size === 0 ? removed : { ...removed, ...deletedWhere(removed, (id) => !claimed.has(id)) }
+}
 
 /** Whether `entry` is the undo step of a structural layout edit (for tests and diagnostics). */
 export function isLayoutEditStep(entry: UndoEntry): boolean {
@@ -555,18 +504,33 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * Writes layout `layout` (`putAndPrune`) and takes the lists it removed
    * into the stores. A failed write is reported and marks the open layout
    * `writeFailed` (only while it is still the layout written); a write that
-   * lands clears it and the layout's repair mark. Never rejects.
+   * lands clears it and the layout's repair mark; one of a layout that is
+   * gone writes nothing and says so. Never rejects. `claim`:
+   * what its step is owed when it fails (`ListClaim`); a write that lands
+   * settles the layout's claims, and its own result is the lists left.
    */
-  async function writeLayout(layout: Layout): Promise<WriteResult> {
+  async function writeLayout(layout: Layout, claim?: ListClaim): Promise<WriteResult> {
     const gen = generation
     try {
       const removed = await trackWrite(() => layoutRepository.putAndPrune(layout))
       if (gen !== generation) return { ok: true, removed }
+      if (!removed) {
+        // The layout was deleted while the write waited (Delete layout just
+        // before the edit, another browser tab): nothing is written — the
+        // row is not made again — and there is nothing to retry.
+        console.warn(`[workspace] layout "${layout.name}" is gone: its change wasn't saved`)
+        if (get().saved?.id === layout.id) useUndoStore.getState().notify(`Layout "${layout.name}" was deleted: this change wasn't saved.`)
+        return { ok: false, removed: null }
+      }
+      const own = settleListClaims(layout.id, removed)
       const repairedIds = get().repairedIds.has(layout.id) ? new Set([...get().repairedIds].filter((id) => id !== layout.id)) : get().repairedIds
       set({ repairedIds, ...(get().saved?.id === layout.id ? { writeFailed: false } : {}) })
       await applyRemoved(removed)
-      return { ok: true, removed }
+      return { ok: true, removed: own }
     } catch (err) {
+      if (gen === generation && claim && claim.lists.size > 0) {
+        listClaims.set(layout.id, [...(listClaims.get(layout.id) ?? []), claim])
+      }
       if (gen === generation && get().saved?.id === layout.id) {
         set({ writeFailed: true })
         reportWriteFailure(`Couldn't save layout "${layout.name}".`, err)
@@ -577,12 +541,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     }
   }
 
-  /** Makes `next` the open layout (shown and committed) and writes it. */
-  function commit(next: Layout): Promise<WriteResult> {
+  /** Makes `next` the open layout (shown and committed) and writes it (`claim`: see `writeLayout`). */
+  function commit(next: Layout, claim?: ListClaim): Promise<WriteResult> {
     set({ working: next, saved: next, layouts: replaceLayout(get().layouts, next) })
     const gen = generation
     set({ writesPending: get().writesPending + 1 })
-    const written = writeLayout(next)
+    const written = writeLayout(next, claim)
     layoutWrites.add(written)
     void written.finally(() => {
       layoutWrites.delete(written)
@@ -605,22 +569,46 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   }
 
   /**
-   * Records a committed edit of layout `layoutId` (from `before` to
-   * `after`, its write `written`) as an undo step with the snackbar — or,
-   * under the newest step's merge key, as more of that step.
+   * A commit of one of `run`'s tables, moving the open layout from `from`
+   * to `to`, as one of the results its Undo reads (`run.removed`). Should
+   * its write fail, the lists the move stops showing are the run's when a
+   * later write deletes them (`ListClaim`) — while the failed write is still
+   * one of those results.
    */
-  function recordEdit(layoutId: number, before: LayoutBody, after: LayoutBody, written: Promise<WriteResult>, description: string, { mergeKey, quiet = false }: EditUndoOptions): void {
+  function commitInto(run: EditRun, from: LayoutBody, to: Layout): Promise<WriteResult> {
+    const written: Promise<WriteResult> = commit(to, {
+      lists: listsDropped(from, to),
+      take: (paid) => {
+        if (!run.removed.includes(written)) return false
+        run.removed.push(paid)
+        return true
+      },
+    })
+    return written
+  }
+
+  /**
+   * Commits an edit of the open layout (from `before` to `committed`) and
+   * records it as an undo step with the snackbar — or, under the newest
+   * step's merge key, as more of that step.
+   */
+  function commitEdit(before: Layout, committed: Layout, description: string, { mergeKey, quiet = false }: EditUndoOptions): void {
     const undo = useUndoStore.getState()
-    if (undo.isPerformingUndoRedo) return
+    if (undo.isPerformingUndoRedo) {
+      void commit(committed)
+      return
+    }
+    const layoutId = before.id
+    const after = layoutBodyOf(committed)
     const into = mergeKey === undefined ? null : undo.mergeTarget(mergeKey)
     const prior = into ? runs.get(into) : undefined
     // More of the newest step's run (the same key, the same layout): the run
     // takes this edit's table and removals; the merged step's undo (the
     // first's) and redo (this one's) both read the run.
     const merges = prior != null && prior.layoutId === layoutId
-    const run: EditRun = merges ? prior : { layoutId, before, after, removed: [], undone: null }
+    const run: EditRun = merges ? prior : { layoutId, before: layoutBodyOf(before), after, removed: [], undone: null }
     run.after = after
-    run.removed.push(written)
+    run.removed.push(commitInto(run, before, committed))
     const entry: UndoEntry = {
       description,
       // A key the newest step has for another layout: a step of its own, not merged into that one.
@@ -642,8 +630,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const results = await Promise.all(run.removed)
     for (const r of [...results].reverse()) await restoreLists(r.removed)
     const current = openFor(run, 'undo', description)
-    run.undone = commit(withViewStateOf(withLayoutBody(current, run.before), current))
-    await run.undone
+    const target = withViewStateOf(withLayoutBody(current, run.before), current)
+    // Should this write fail: the lists the undo stops showing (a list tab
+    // the step added) are its Redo's to bring back, once a later write
+    // deletes them.
+    const undone: Promise<WriteResult> = commit(target, {
+      lists: listsDropped(current, target),
+      take: (paid) => {
+        if (run.undone !== undone) return false
+        run.undone = paid
+        return true
+      },
+    })
+    run.undone = undone
+    await undone
   }
 
   /** Redo of a run: the lists its undo removed back, then the table after it, with the view state of now. */
@@ -651,8 +651,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     openFor(run, 'redo', description)
     await restoreLists((await run.undone)?.removed ?? null)
     const current = openFor(run, 'redo', description)
-    const written = commit(withViewStateOf(withLayoutBody(current, run.after), current))
-    run.removed = [written]
+    run.removed = []
+    const written = commitInto(run, current, withViewStateOf(withLayoutBody(current, run.after), current))
+    run.removed.push(written)
     await written
   }
 
@@ -682,8 +683,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     }
     const description = typeof describe === 'function' ? describe(working, next) : describe
     const committed: Layout = { ...next, modifiedAt: new Date() }
-    const written = commit(committed)
-    recordEdit(saved.id, layoutBodyOf(saved), layoutBodyOf(committed), written, description, opts)
+    commitEdit(saved, committed, description, opts)
     return true
   }
 
@@ -749,6 +749,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    */
   function open(read: ReadLayout, layouts: Layout[], repairedIds: ReadonlySet<number>): void {
     const { layout, fixes } = read
+    // What is on screen from here on is a stored row: no step waits on a failed write any more.
+    listClaims.clear()
     set({
       layouts, repairedIds, activeLayoutId: layout.id, working: layout, saved: layout,
       writeFailed: false, hydrated: true, resizePreview: null,
@@ -757,11 +759,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   }
 
   /**
-   * Before the open layout is left: when its last write failed, writes it
-   * once more. Resolves whether leaving loses nothing (on `false` the
-   * snackbar has said so and the caller stays).
+   * Before the open layout is left: waits for its writes still running (one
+   * that failed after the layout was left would only be logged, its edit
+   * lost without a word), then, when its last write failed, writes it once
+   * more. Resolves whether leaving loses nothing (on `false` the snackbar
+   * has said so and the caller stays).
    */
   async function readyToLeave(): Promise<boolean> {
+    await settleLayoutWrites()
     if (!get().writeFailed) return true
     if (await get().retryWrite()) return true
     const name = get().saved?.name ?? 'the layout'
@@ -769,76 +774,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     return false
   }
 
-  /**
-   * After the page load's first open: the unsaved change a build before
-   * layout autosave kept in the browser (`readLayoutDraft`), once — then the
-   * key goes.
-   * - Of the open layout, made against its stored table (repointed onto
-   *   the copies of lists it shared when an upgrade gave it its own):
-   *   applied as one undo step (`Applied unsaved changes …`) — unless it
-   *   shows another layout's list (dropped, and said).
-   * - A kept new layout that shows no list: stored as a layout and opened
-   *   (one that shows a list can't be: dropped, and said).
-   * - Anything else is dropped. The lists only dropped edits showed go (the
-   *   open layout's, and the draft's layout's).
-   */
-  async function applyKeptDraft(draft: LayoutDraftRecord | null): Promise<void> {
-    clearLayoutDraft()
-    const { working, saved } = get()
-    if (!working || !saved) return
-    let applied = false
-    if (draft?.kind === 'saved' && draft.layoutId === saved.id) {
-      const changes = listIdChanges(draft.base, saved)
-      const base = changes && repointLayoutLists(draft.base, changes)
-      if (changes && base && layoutStructureEqual(base, saved)) {
-        const body = repointLayoutLists(draft.body, changes)
-        await useListDefinitionStore.getState().ensureLoaded()
-        // A newer open (a layout switch, a data replace) took over meanwhile.
-        if (get().saved !== saved) return
-        if (showsOnlyOwnLists(body, saved.id)) {
-          applied = edit((layout) => withLayoutBody(layout, body), `Applied unsaved changes to layout “${saved.name}”`)
-        } else {
-          useUndoStore.getState().notify(`Unsaved changes to layout “${saved.name}” were dropped: they showed another layout’s list.`)
-        }
-      }
-    }
-    if (!applied) await pruneOwnedLists(saved.id, saved)
-    if (draft?.kind === 'saved' && draft.layoutId !== saved.id && get().layouts.some((l) => l.id === draft.layoutId)) {
-      await pruneOwnedLists(draft.layoutId)
-    }
-    if (draft?.kind === 'new') {
-      await useListDefinitionStore.getState().ensureLoaded()
-      if (get().saved !== saved) return
-      if (!showsNoList(draft.body)) {
-        useUndoStore.getState().notify(`The unsaved new layout “${draft.name}” was dropped: a layout shows only its own lists, and it wasn’t stored yet.`)
-      } else {
-        await storeKeptNewLayout(draft.name, draft.body)
-      }
-    }
-  }
-
-  /** A kept new layout (an older build's) stored after the others and opened. */
-  async function storeKeptNewLayout(name: string, body: LayoutBody): Promise<void> {
-    const now = new Date()
-    const record = { name, ...body, createdAt: now, modifiedAt: now, lastUsedAt: now }
-    let id: number
-    try {
-      id = await layoutRepository.insert(record)
-    } catch (err) {
-      reportWriteFailure(`Couldn't keep the unsaved new layout "${name}".`, err)
-      return
-    }
-    await layoutRepository.setActiveId(id).catch((err: unknown) => {
-      console.warn('[workspace] remembering the open layout failed', err)
-    })
-    const sortOrder = (await layoutRepository.get(id).catch(() => undefined))?.layout.sortOrder ?? orderAfter(get().layouts)
-    const layout: Layout = { ...record, id, sortOrder }
-    open({ layout, fixes: [] }, [...get().layouts.filter((l) => l.id !== id), layout], get().repairedIds)
-    useUndoStore.getState().notify(`Kept the unsaved new layout “${name}”.`)
-  }
-
-  /** Opens the active layout (`init`); `kept` = the older build's kept draft, on the first open. */
-  async function openActive(kept: LayoutDraftRecord | null): Promise<void> {
+  /** Opens the active layout (`init`); the page load's first open prunes its unshown lists. */
+  async function openActive(): Promise<void> {
     const first = !get().hydrated
     await layoutRepository.ensureDefault()
     const reads = await layoutRepository.getAll()
@@ -848,7 +785,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const read = reads.find((r) => r.layout === active)
     if (!read) return
     open(read, layouts, repairedOf(reads))
-    if (first) await applyKeptDraft(kept)
+    const { saved } = get()
+    if (first && saved) await pruneOwnedLists(saved.id, saved)
   }
 
   /**
@@ -890,7 +828,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   /**
    * Opens layout `id` (unknown id: nothing). Never rejects: a failed read or
    * write is reported (the snackbar) and resolves false, the open layout
-   * staying as it was.
+   * staying as it was. The read and the writes come first; the change on
+   * screen is one synchronous step after them.
    */
   async function openLayout(id: number): Promise<boolean> {
     try {
@@ -925,11 +864,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     resizePreview: null,
 
     init() {
-      if (get().hydrated) return openActive(null)
-      // The page load's first open applies a kept draft. Concurrent first
-      // calls (StrictMode's double effects) share it, so the draft is read
-      // once.
-      firstInit ??= openActive(readLayoutDraft()).finally(() => { firstInit = null })
+      if (get().hydrated) return openActive()
+      // Concurrent first calls (StrictMode's double effects) share the page
+      // load's first open, so its unshown lists are pruned once.
+      firstInit ??= openActive().finally(() => { firstInit = null })
       return firstInit
     },
 
@@ -973,17 +911,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     async duplicateLayout(name) {
       const clean = cleanName(name)
-      const source = get().saved
-      if (!clean || !source || refusedByReplaceHold()) return null
+      const openId = get().saved?.id
+      if (!clean || openId == null || refusedByReplaceHold()) return null
       if (editorsHoldChanges() && !(await leaveOpenEditors())) return null
       if (!(await readyToLeave())) return null
+      // The lists it shows are copied for the new layout; the originals stay
+      // with the layout they came from.
+      await useListDefinitionStore.getState().ensureLoaded()
+      // Read only now: an editor's Save (the question above) and a retried
+      // write changed the open layout, and the copy is of the layout as it is.
+      const source = get().saved
+      if (!source || source.id !== openId || refusedByReplaceHold()) return null
       const now = new Date()
       const { id: _from, sortOrder: _order, ...body } = source
       void _from
       void _order
-      // The lists it shows are copied for the new layout; the originals stay
-      // with the layout they came from.
-      await useListDefinitionStore.getState().ensureLoaded()
       const copies = ownedListCopies(source.id, source)
       const original = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
       let id: number
@@ -1186,13 +1128,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const working = get().working
       const tab = working ? getTab(working, tabId) : undefined
       if (!tab) return Promise.resolve(false)
-      const trimmed = name.trim()
       if (tab.kind === 'lens') {
         // A list tab's name is its list's (the same write as Edit list's; a blank one keeps it).
         const listId = tab.config.listDefinitionId
-        if (listId == null || !trimmed) return Promise.resolve(false)
-        return useListDefinitionStore.getState().editList(listId, (d) => ({ ...d, name: trimmed }), `Renamed tab to “${trimmed}”`)
+        const listName = name.trim()
+        if (listId == null || !listName) return Promise.resolve(false)
+        return useListDefinitionStore.getState().editList(listId, (d) => ({ ...d, name: listName }), `Renamed tab to “${listName}”`)
       }
+      // Never longer than the kind's stored name may be (`tabNameMax`).
+      const trimmed = name.trim().slice(0, tabNameMax(tab.kind)).trimEnd()
       const shown = trimmed || (tab.kind === 'trend' ? trendName({}) : widgetKindLabel(tab.kind))
       const description = `Renamed tab to “${shown}”`
       if (tab.kind === 'number' || tab.kind === 'breakdown' || tab.kind === 'pivot') {

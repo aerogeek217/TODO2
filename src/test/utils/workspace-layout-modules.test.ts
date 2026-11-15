@@ -15,9 +15,9 @@ const MODULES = { edit, lists, ops, queries, sizes }
 
 /** Every function the layout modules export (bar the shared setters). */
 const ALL = [
-  'addTab', 'cellRowTracks', 'closeCell', 'closeTab', 'copySizes', 'countListTabs', 'extractTab', 'findCell', 'findTab', 'getTab',
-  'insertTrack', 'isCellCollapsed', 'layoutIds', 'layoutListRefs', 'layoutPanels', 'layoutStructureEqual', 'layoutStructureKey',
-  'layoutTabs', 'listIdChanges', 'mergeCells', 'moveEdge', 'movePanel', 'moveTab', 'panelOfTab', 'patchTabConfig', 'patchTabViewState',
+  'addTab', 'cellRowTracks', 'closeCell', 'closeTab', 'copySizes', 'countListTabs', 'extractTab', 'findTab', 'getTab',
+  'insertTrack', 'isCellCollapsed', 'layoutIds', 'layoutListRefs', 'layoutStructureEqual', 'layoutStructureKey',
+  'layoutTabs', 'mergeCells', 'moveEdge', 'movePanel', 'moveTab', 'panelOfTab', 'patchTabConfig', 'patchTabViewState',
   'repointLayoutLists', 'replaceTab', 'setActiveTab', 'setLayoutHue', 'setTrackCollapsed', 'setTrackSizes', 'splitCell', 'trackAxes',
 ]
 
@@ -31,9 +31,9 @@ describe('the layout modules (A10)', () => {
 
   it('each seam holds its own kind: queries read, lists name lists, sizes size, ops reduce', () => {
     expect(Object.keys(queries).sort()).toEqual([
-      'findCell', 'findTab', 'getTab', 'layoutIds', 'layoutPanels', 'layoutStructureEqual', 'layoutStructureKey', 'layoutTabs', 'panelOfTab', 'sameArrangement',
+      'findTab', 'getTab', 'layoutIds', 'layoutStructureEqual', 'layoutStructureKey', 'layoutTabs', 'panelOfTab', 'sameArrangement',
     ])
-    expect(Object.keys(lists).sort()).toEqual(['countListTabs', 'layoutListRefs', 'listIdChanges', 'repointLayoutLists'])
+    expect(Object.keys(lists).sort()).toEqual(['countListTabs', 'layoutListRefs', 'repointLayoutLists'])
     expect(Object.keys(sizes).sort()).toEqual(['GRID_AXES', 'copySizes', 'sameTrackIn', 'setTrackSizes', 'trackAxes', 'withoutTrackFitPx'])
     expect(Object.keys(ops)).not.toContain('findCell')
     expect(Object.keys(edit).sort()).toEqual(['insertAllAt', 'insertAt', 'isPositive', 'removeAt', 'replaceAt', 'setCell', 'withCells', 'withTracks'])

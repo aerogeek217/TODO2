@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expect, test } from './fixtures/test'
 import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
 import { readStore, readStores, writeStores } from './fixtures/db'
 import { dismissPurgeNotice, openPurgeNotice, purgeDialog, reviewPurge } from './fixtures/purge-notice'

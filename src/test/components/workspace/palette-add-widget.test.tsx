@@ -1,9 +1,10 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { AddWidgetRequestHost } from '../../../components/workspace/AddWidgetFlow'
 import { addWidgetAt, addWidgetFromPalette } from '../../../components/workspace/widget-hooks'
 import { createTab, WIDGET_KIND_SPECS, WIDGET_KINDS, type LayoutBody, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
+import { registerOpenEditor } from '../../../stores/editor-leave'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { cell, emptyBody, grid } from '../../helpers/layout-builders'
@@ -91,6 +92,37 @@ describe('AddWidgetRequestHost', () => {
     act(() => useUIStore.getState().requestAddWidget({ cellId: 'left', kind: 'breakdown', anchor: { x: 10, y: 10 } }))
     const menu = screen.getByRole('menu', { name: 'Add widget' })
     expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent?.trim())).toEqual(['People', 'Tags', 'Status', 'Custom'])
+  })
+
+  it('an open editor with changes is asked before the widget is added: Keep editing adds nothing, Save or Discard adds it (answer 17)', async () => {
+    open(two())
+    render(<AddWidgetRequestHost />)
+    let answer = false
+    let changed = true
+    const ask = vi.fn(() => { if (answer) changed = false; return Promise.resolve(answer) })
+    const unregister = registerOpenEditor({ changed: () => changed, ask })
+    const add = async (item: string) => {
+      act(() => useUIStore.getState().requestAddWidget({ cellId: 'left', kind: item === 'Add Notes' ? 'notes' : 'breakdown', anchor: { x: 10, y: 10 } }))
+      await act(async () => { fireEvent.click(within(screen.getByRole('menu', { name: 'Add widget' })).getByRole('menuitem', { name: item })) })
+    }
+    // Keep editing: nothing is added, the editor stays as it was.
+    await add('Add Notes')
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(ws().cells.flatMap((c) => c.tabs)).toHaveLength(2)
+    // A Breakdown's preset asks the same way.
+    await add('People')
+    expect(ask).toHaveBeenCalledTimes(2)
+    expect(ws().cells.flatMap((c) => c.tabs)).toHaveLength(2)
+    // Save or Discard: the widget is added once the editor was left.
+    answer = true
+    await add('Add Notes')
+    expect(ask).toHaveBeenCalledTimes(3)
+    await vi.waitFor(() => expect(ws().cells.flatMap((c) => c.tabs).map((t) => t.kind)).toEqual(['notes', 'notes', 'notes']))
+    // No editor holding changes: added at once, nothing asked.
+    await add('People')
+    expect(ask).toHaveBeenCalledTimes(3)
+    expect(ws().cells.flatMap((c) => c.tabs)).toHaveLength(4)
+    unregister()
   })
 
   it('nothing for a cell no longer in the open layout', () => {

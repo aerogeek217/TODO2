@@ -16,7 +16,8 @@ import { useFilterStore } from '../stores/filter-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { useTrendEventsStore } from '../stores/trend-events-store'
 import { useUIStore } from '../stores/ui-store'
-import { clearUnsavedDrafts } from '../data/draft-storage'
+import { closeOpenEditors } from '../stores/editor-leave'
+import { clearReviewSessions } from '../stores/review-session'
 
 /**
  * Reloads every store from IndexedDB after a data replace (import, backup
@@ -31,15 +32,12 @@ import { clearUnsavedDrafts } from '../data/draft-storage'
 export async function refreshAllStores() {
   useUndoStore.getState().clear()
   useFilterStore.getState().clearAll()
-  // Prompt picks and collapsed groups are keyed by ids the replaced data may
-  // reuse for other lists / tabs. The unsaved layout and list edits an older
-  // build kept go too — once the workspace has opened (before that, at
-  // launch, they're from the last visit and are checked against the loaded
-  // data when it opens; after it, launch has removed them already).
-  if (useWorkspaceStore.getState().hydrated) clearUnsavedDrafts()
   // A lens's unsaved filter edits name a lens the replaced data may not have.
   useLensDraftStore.getState().discard()
-  useListWidgetStore.setState({ picks: {}, collapsed: {} })
+  // Prompt picks, collapsed groups and each Review widget's filter (the store knows which of its fields
+  // name ids), and every review: its queue, marks and typed text are by task id.
+  useListWidgetStore.getState().resetForReplacedData()
+  clearReviewSessions()
   // The replaced history (a table clear doesn't fire the event hooks).
   useTrendEventsStore.getState().invalidate()
   // Selected / edited task ids and a Quick Add draft's people / tags may now
@@ -48,9 +46,11 @@ export async function refreshAllStores() {
   useUIStore.getState().closeEditPopup()
   // The task picker names a task or a subtask by id too.
   useUIStore.getState().closeTaskPicker()
-  // Edit list names a list and a tab by id; its draft goes at once (the
-  // list's id may name another list in the replaced data).
-  useUIStore.getState().closeListEditor()
+  // Edit list and the widget editors name a list or a tab by id and hold a
+  // copy of the old data: every one closes (`closeOpenEditors`; one with
+  // changes says so). Edit list's draft goes at once (the list's id may name
+  // another list in the replaced data).
+  closeOpenEditors()
   useListDraftStore.setState({ drafts: {} })
   // Note text typed before the replace would be saved over the new note.
   useNoteStore.getState().discardPending()

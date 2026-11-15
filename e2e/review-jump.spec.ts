@@ -76,6 +76,39 @@ test('on the same layout: the list’s Review these N tasks sets the widget’s 
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
+test('a jump onto a review in progress: the same filter again resumes where it stood; a different one starts over, its marks gone', async ({ page }) => {
+  // The Review widget alone (its large face: the rail shows the marks); one task is both people's.
+  await seedWorkspace(page, {
+    ...SAME,
+    tasks: [...TASKS ?? [], { title: 'Shared sync', people: ['Ana Lima', 'Bo Chen'] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'rv', kind: 'review' }] })] }] }],
+  })
+  const reviewWith = async (name: string) => {
+    await page.keyboard.press('Control+k')
+    await page.getByPlaceholder(/Find tasks, commands/).pressSequentially(`review with ${name}`)
+    await page.keyboard.press('Enter')
+  }
+  const rows = widget(page).locator('[data-review-row]')
+  const title = widget(page).getByTestId('review-card-title')
+  await reviewWith('ana')
+  await expect(rows).toHaveText([/Ana report/, /Ana call/, /Shared sync/])
+  await widget(page).getByRole('button', { name: /^Skip/ }).click()
+  await widget(page).getByRole('button', { name: /^Skip/ }).click()
+  await expect(title).toHaveText('Shared sync')
+  await expect(widget(page).locator('[data-review-row][data-mark="skipped"]')).toHaveCount(2)
+  // Review with Ana, again: the same review, where it stood.
+  await reviewWith('ana')
+  await expect(reviewField(page, 'rv')).toHaveValue('@"Ana Lima"')
+  await expect(title).toHaveText('Shared sync')
+  await expect(widget(page).locator('[data-review-row][data-mark="skipped"]')).toHaveCount(2)
+  // Review with Bo: a new review — from its first card (not the shared task the old one stood on), no marks.
+  await reviewWith('bo')
+  await expect(rows).toHaveText([/Bo plan/, /Shared sync/])
+  await expect(title).toHaveText('Bo plan')
+  await expect(widget(page).locator('[data-review-row][data-mark]')).toHaveCount(0)
+  await expect(widget(page).getByLabel('Status update · today')).toBeFocused()
+})
+
 const popup = (page: Page) => page.getByTestId('widget-popup')
 const popupReview = (page: Page) => page.locator('[data-review-widget="review-popup"]')
 

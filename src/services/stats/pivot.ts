@@ -36,7 +36,7 @@ export function cellKey(row: string, col: string): string {
   return `${row}|${col}`
 }
 
-export interface PivotOptions {
+interface PivotOptions {
   rows: PivotDim
   cols: PivotDim
   /** The `@` / `#` picks narrowing a people / tags axis. */

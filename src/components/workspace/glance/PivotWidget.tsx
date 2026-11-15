@@ -9,9 +9,9 @@ import { nextBreakdownSort } from '../../../services/stats/breakdown'
 import { cellKey, isLivePivotSort, sortPivotRows, type PivotHead, type PivotStats } from '../../../services/stats/pivot'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
-import { SPLIT_CHOICE_LABELS, SPLIT_ROW_LABELS } from './breakdown-copy'
+import { countWordOf, SPLIT_CHOICE_LABELS, SPLIT_ROW_LABELS, type CountWord } from './breakdown-copy'
 import { chartDrill, rowHeading } from './chart-drills'
-import { ChartPanel } from './chart-parts'
+import { ChartPanel, SortHeading } from './chart-parts'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { SummaryPart } from './glance-summary'
 import type { OnGlanceDrill } from './glance-types'
@@ -32,10 +32,10 @@ function topCell(stats: PivotStats): { row: PivotHead; col: PivotHead; n: number
   return top
 }
 
-/** Copy: `Pivot 12 open`, then a line per row in the order shown, `Aisha: Waiting 3 · Doing 2`. */
-function pivotLines(title: string, stats: PivotStats, rows: readonly PivotHead[]): SummaryPart[][] {
+/** Copy: `Pivot 12 open` (`12 tasks` while it counts completed ones), then a line per row in the order shown, `Aisha: Waiting 3 · Doing 2`. */
+function pivotLines(title: string, stats: PivotStats, rows: readonly PivotHead[], word: CountWord): SummaryPart[][] {
   return [
-    [{ label: title, count: `${stats.ids.length} open` }],
+    [{ label: title, count: `${stats.ids.length} ${word}` }],
     ...rows.map((r) => stats.cols.flatMap((c) => {
       const n = stats.cells.get(cellKey(r.key, c.key))?.length ?? 0
       return n > 0 ? [{ label: `${rowHeading(r)} · ${rowHeading(c)}`, count: String(n) }] : []
@@ -49,12 +49,8 @@ function heat(n: number, max: number): CSSProperties | undefined {
   return { background: `color-mix(in srgb, var(--color-accent) ${Math.round(12 + 50 * (n / max))}%, transparent)` }
 }
 
-/**
- * A sortable heading (item 8, as a Breakdown's): a button — a click sorts
- * the rows by it, largest first (names A–Z), a second reverses, a third
- * puts the natural order back — with ▼ / ▲ while it is the sort.
- */
-function SortHeading({ by, label, className, title, sort, onSort }: {
+/** A Pivot heading: the chart tables' `SortHeading` in the Pivot's look. */
+function PivotHeading({ by, label, className, title, sort, onSort }: {
   by: string
   label: string
   className: string | undefined
@@ -62,16 +58,12 @@ function SortHeading({ by, label, className, title, sort, onSort }: {
   sort: PivotSort | undefined
   onSort: (by: string) => void
 }) {
-  const active = sort?.by === by
-  // Counts go largest first, names A–Z; a second click reverses.
-  const descending = by === 'name' ? sort?.reversed === true : sort?.reversed !== true
   return (
-    <span role="columnheader" className={className} aria-sort={active ? (descending ? 'descending' : 'ascending') : 'none'} data-pivot-head={by}>
-      <button type="button" className={styles.sortButton} data-sort-key={by} aria-pressed={active} title={title} onClick={() => onSort(by)}>
-        <span className={styles.sortLabel}>{label}</span>
-        {active && <span className={styles.sortMark} aria-hidden="true">{descending ? '▼' : '▲'}</span>}
-      </button>
-    </span>
+    <SortHeading
+      by={by} label={label} title={title} className={className} active={sort?.by === by} reversed={sort?.reversed === true} onSort={onSort}
+      classes={{ button: styles.sortButton, label: styles.sortLabel, mark: styles.sortMark }}
+      data={{ 'data-pivot-head': by }}
+    />
   )
 }
 
@@ -114,9 +106,9 @@ function HeatTable({ title, nameLabel, stats, rows, sort, onSort, onDrill }: {
         style={{ gridTemplateColumns: `minmax(72px, 140px) repeat(${cols.length}, minmax(44px, 140px)) minmax(44px, auto)` }}
       >
         <div role="row" className={styles.row}>
-          <SortHeading by="name" label={nameLabel} className={styles.corner} sort={sort} onSort={onSort} />
-          {cols.map((c) => <SortHeading key={c.key} by={c.key} label={rowHeading(c)} title={rowHeading(c)} className={styles.colHead} sort={sort} onSort={onSort} />)}
-          <SortHeading by="total" label="Total" className={styles.colHead} sort={sort} onSort={onSort} />
+          <PivotHeading by="name" label={nameLabel} className={styles.corner} sort={sort} onSort={onSort} />
+          {cols.map((c) => <PivotHeading key={c.key} by={c.key} label={rowHeading(c)} title={rowHeading(c)} className={styles.colHead} sort={sort} onSort={onSort} />)}
+          <PivotHeading by="total" label="Total" className={styles.colHead} sort={sort} onSort={onSort} />
         </div>
         {rows.map((r) => (
           <div key={r.key} role="row" className={styles.row} data-pivot-row={r.key}>
@@ -157,7 +149,9 @@ export function PivotWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PivotT
   const stored = tab.viewState?.sort
   const sort = stored && isLivePivotSort(stored, data.stats) ? stored : undefined
   const rows = useMemo(() => sortPivotRows(data.stats, sort), [data.stats, sort])
-  const lines = useMemo(() => pivotLines(title, data.stats, rows), [title, data.stats, rows])
+  // `open`, or `tasks` when its filter lets completed ones through, as a Breakdown says it (cr34 G6).
+  const word = countWordOf(config.filter)
+  const lines = useMemo(() => pivotLines(title, data.stats, rows, word), [title, data.stats, rows, word])
   const onSort = (by: string) => {
     const next = nextBreakdownSort(sort, by)
     void useWorkspaceStore.getState().patchTabViewState(tab.id, 'pivot', { sort: next })
@@ -175,7 +169,7 @@ export function PivotWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PivotT
           title={title}
           entry={top ? `${rowHeading(top.row)} × ${rowHeading(top.col)}` : undefined}
           value={String(top?.n ?? 0)}
-          caption={top ? undefined : 'open'}
+          caption={top ? undefined : word}
         />
       ) : (
         <ChartPanel
@@ -183,7 +177,7 @@ export function PivotWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PivotT
           kind="pivot"
           title={title}
           glyph="matrix"
-          count={`${data.stats.ids.length} open`}
+          count={`${data.stats.ids.length} ${word}`}
           sub={`${SPLIT_CHOICE_LABELS[config.rows]} × ${SPLIT_CHOICE_LABELS[config.cols]}`}
           lens={<TabLensSwitch tab={tab} hides={lensHides} />}
         >

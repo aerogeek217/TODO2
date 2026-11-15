@@ -173,45 +173,6 @@
   animation: checkPop 0.2s ease;
 }
 
-.statusMenu {
-  composes: menu from '../shared/dropdown.module.css';
-  min-width: 150px;
-  border-radius: 12px;
-  padding: 4px;
-}
-
-.statusOption {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 12px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  font-family: inherit;
-  cursor: pointer;
-  border-radius: 8px;
-  white-space: nowrap;
-}
-
-.statusOption:hover {
-  background: var(--color-tint-5);
-}
-
-.statusOptionActive {
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-semibold);
-}
-
-.statusOptionDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
 .title {
   display: block;
   font-size: var(--font-size-task);
@@ -658,10 +619,6 @@
   .gutterFlag {
     opacity: 1;
   }
-
-  .gutterDot {
-    opacity: 0;
-  }
 }
 
 /* ── Stacked (a list tab's zoom, D25 C: `TaskRow stacked`) ────────────────── */
@@ -777,7 +734,10 @@
 /*
  * The title / details divider: a 9px hit area centred on the gap left of the
  * notes column, spanning the rows. A faint line while the pointer is over
- * the list, the accent line while hovered or dragged.
+ * the list (`data-rows-hover`, which the grid keeps from its own `:hover` —
+ * a `.grid:hover` rule here had every row part styled again each time the
+ * pointer came onto the list or left it, `utils/hot-attr`), the accent line
+ * while hovered or dragged.
  */
 .divider {
   position: absolute;
@@ -801,7 +761,7 @@
   transition: opacity 0.12s;
 }
 
-.grid:hover > .divider .dividerLine {
+.grid[data-rows-hover] > .divider .dividerLine {
   opacity: 1;
 }
 

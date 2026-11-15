@@ -42,7 +42,7 @@ export interface LoadAssignmentsOptions {
   refetch?: boolean
 }
 
-export interface AssignmentActions {
+interface AssignmentActions {
   loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
   assign: (todoId: number, entityId: number) => Promise<void>
   unassign: (todoId: number, entityId: number) => Promise<void>

@@ -5,14 +5,16 @@ import {
   type LayoutCell,
   type WorkspaceLayout,
 } from '../../models/workspace-layout'
+import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { isFitCell } from '../../utils/workspace-rows'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
-import { smallFaceClick, useCellFace } from './cell-face'
+import { smallFaceClick, useCellFace, useHeldBodyHeight } from './cell-face'
 import { SmallFaceOpener } from './CellFaceParts'
+import { OpenLargerPlaceholder } from './OpenLargerPlaceholder'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { DialogFrame } from '../shared/Dialog'
@@ -54,7 +56,8 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
 
   const pick = (id: number) => {
     if (id === activeLayoutId) { onClose(); return }
-    withViewTransition(() => useWorkspaceStore.getState().load(id))
+    // No view transition (cr34 answer 26), as the desktop's layout tabs.
+    void useWorkspaceStore.getState().load(id)
     onClose()
   }
 
@@ -191,7 +194,11 @@ function copySections(result: ListWidgetResult): void {
   void copyTasks(result.sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
 }
 
-/** The phone's top line never lends the slot back: a face without one has its row's ⋯ elsewhere. */
+/**
+ * The phone's top line never lends the slot back: a face without one has no
+ * ⋯. Only a collapsed cell counts the claims — where no top line holds the
+ * slot (and so its Expand), the cell offers Expand itself.
+ */
 function claimNothing(): () => void {
   return () => {}
 }
@@ -259,7 +266,9 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
   const rowNoun = 'row'
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
-  const setRowCollapsed = useCallback((next: boolean) => { void setTrackCollapsed(rowTrackIds, next) }, [setTrackCollapsed, rowTrackIds])
+  // A tab switch and a collapse can take a widget off the screen: an open editor holding changes (the Edit list
+  // sheet) is asked first, as on desktop (`editor-leave`); with none they run at once.
+  const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
@@ -291,9 +300,21 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
     heightFree: !fill,
   })
   const smallFace = cellFace.face === 'small' && !collapsed
+  // A cell sized to its content: the placeholder (its widget open larger) keeps the height the widget had, so the page doesn't move.
+  const [setHeldBody, heldHeight] = useHeldBodyHeight(active?.id, !fill || fitRow)
   /** A glance cell with tabs (a glance widget, or any at its small face): a slim header. */
   const compact = stripShown && active != null && (isGlanceKind(active.kind) || cellFace.face === 'small')
   const activeId = active?.id
+  // The top lines holding the controls slot (and so its Expand), counted only while collapsed: a
+  // widget whose top line can't hold the slot (a Number's is inside its button) gets the cell's
+  // own Expand then (cr34 W5).
+  const [slots, setSlots] = useState(0)
+  const claimSlot = useCallback((holdsSlot: boolean) => {
+    if (!holdsSlot) return () => {}
+    setSlots((n) => n + 1)
+    return () => setSlots((n) => n - 1)
+  }, [])
+  const claim = collapsed ? claimSlot : claimNothing
   const controls = useMemo<CellControlsValue | null>(() => (stripShown || activeId == null ? null : {
     cellId: cell.id,
     tabs: cell.tabs,
@@ -305,8 +326,8 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
     onMore: () => setMenuOpen((o) => !o),
     collapsed,
     onExpand: () => setRowCollapsed(false),
-    claim: claimNothing,
-  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, collapsed, setRowCollapsed, setMoreButton])
+    claim,
+  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, collapsed, setRowCollapsed, setMoreButton, claim])
 
   if (cell.tabs.length === 0) {
     return (
@@ -354,10 +375,12 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
               if (tab?.kind === 'lens' && tab.config.listDefinitionId != null) setTabSheet({ tabId, listDefinitionId: tab.config.listDefinitionId })
             }}
             onActivate={(tabId) => {
-              withViewTransition(() => {
+              const show = () => withViewTransition(() => {
                 void setActiveTab(tabId)
                 if (collapsed) setRowCollapsed(false)
               })
+              if (tabId === active?.id && !collapsed) show()
+              else afterLeavingEditors(show)
             }}
           />
           {collapsed ? (
@@ -390,6 +413,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
           className={styles.cellBody}
           role={stripShown ? 'tabpanel' : undefined}
           aria-labelledby={stripShown ? `ws-tab-${active.id}` : undefined}
+          ref={setHeldBody}
           data-ws-cell-body={cell.id}
           data-kind={active.kind}
           onClick={collapsed ? undefined : smallFaceClick(cellFace)}
@@ -397,14 +421,32 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
           {smallFace && cellFace.opensLarger && <SmallFaceOpener title={activeTitle} open={cellFace.open} onOpen={cellFace.openLarger} />}
           <CellControlsContext.Provider value={controls}>
             <WidgetFaceContext.Provider value={cellFace.host}>
-              <WidgetBody
-                key={active.id}
-                tab={active}
-                onResult={(result) => setLens({ tabId: active.id, result })}
-              />
+              {cellFace.open ? (
+                // The popup shows this tab: its one live widget is there.
+                <OpenLargerPlaceholder tabId={active.id} title={activeTitle} compact={smallFace} minHeight={heldHeight} />
+              ) : (
+                <WidgetBody
+                  key={active.id}
+                  tab={active}
+                  onResult={(result) => setLens({ tabId: active.id, result })}
+                />
+              )}
             </WidgetFaceContext.Provider>
           </CellControlsContext.Provider>
         </div>
+      )}
+      {/* Collapsed, and no top line holds the controls slot (a Number): the cell's own Expand. */}
+      {collapsed && !stripShown && active && slots === 0 && (
+        <button
+          type="button"
+          className={`${styles.cellAction} ${styles.cellExpand}`}
+          aria-label={`Expand ${rowNoun}`}
+          aria-expanded={false}
+          title={`Expand ${rowNoun}`}
+          onClick={() => setRowCollapsed(false)}
+        >
+          <ChevronDownIcon size={16} />
+        </button>
       )}
       {tabSheet && (
         <ListTabSheet

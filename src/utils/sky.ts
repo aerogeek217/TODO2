@@ -13,13 +13,13 @@ import type { AmbiencePlace, AmbienceSettings, Season, SkyStrength, WeatherKind 
 import { moonAge, seasonAt, sunDay, SYNODIC_MONTH, type SunDay } from './sun'
 
 /** A CSS colour: an `--ambience-*` token, or a `color-mix()` over them. */
-export type CssColor = string
+type CssColor = string
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 const clamp01 = (v: number): number => clamp(v, 0, 1)
 
 /** The top bar's height the sun and moon move in (`--topbar-height`). */
-export const BAR_HEIGHT = 40
+const BAR_HEIGHT = 40
 
 const share = (v: number): string => `${Number((v * 100).toFixed(3))}%`
 
@@ -152,7 +152,7 @@ export interface SkyScene {
 }
 
 /** Local clock hours of `d` (fractional). */
-export function clockHours(d: Date): number {
+function clockHours(d: Date): number {
   return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600
 }
 

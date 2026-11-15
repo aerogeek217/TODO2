@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  countOf, deltaLabel, numberDescription, signed, trendBucketLabel,
+  countOf, deltaLabel, numberDescription, signed, TREND_SHOW_HINTS, trendBucketLabel,
 } from '../../../components/workspace/glance/glance-copy'
 import { filterChips, listFilterHint, predicateLineItems } from '../../../utils/filter-chips'
 import { emptyPredicate } from '../../../models'
@@ -35,6 +35,11 @@ describe('glance copy', () => {
   it('bar labels', () => {
     expect(trendBucketLabel(new Date(2026, 8, 27), 'day')).toBe('27')
     expect(trendBucketLabel(new Date(2026, 8, 27), 'week')).toBe('Sep 27')
+  })
+
+  it('Cumulative’s hint says what its lines total, and promises nothing about their gap (cr34 G5)', () => {
+    expect(TREND_SHOW_HINTS.cumulative).toBe('Running totals of created (starting from the tasks open when the range began) and completed.')
+    expect(TREND_SHOW_HINTS.cumulative).not.toMatch(/gap|is open/)
   })
 
   it('a list’s filter hint: people as @, tags as #, the rest as Label: value', () => {

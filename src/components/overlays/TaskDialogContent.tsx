@@ -43,7 +43,7 @@ function resolve(payload: TaskDialogPayload): Resolved {
   return { payload, screen: env.screen, groups: resolveTaskDialog(payload.source, env) }
 }
 
-export interface TaskDialogContentProps {
+interface TaskDialogContentProps {
   payload: TaskDialogPayload
   /** The heading's id (the surface's `aria-labelledby`). */
   titleId: string

@@ -6,7 +6,7 @@ import {
   relativeDayPhrase,
 } from '../utils/followup'
 
-export type FollowupInputMode = 'next' | 'last'
+type FollowupInputMode = 'next' | 'last'
 
 /** What the input currently means. `unchanged` = showing the stored value. */
 export type FollowupInputState =
@@ -16,12 +16,12 @@ export type FollowupInputState =
   | { kind: 'invalid'; message: string }
 
 export const NEXT_FOLLOWUP_PLACEHOLDER = '2w, 1m, fri or a date'
-export const NEXT_FOLLOWUP_INVALID = 'Try 2w, 10d, 1m, fri, 24 Oct or 10/24'
+const NEXT_FOLLOWUP_INVALID = 'Try 2w, 10d, 1m, fri, 24 Oct or 10/24'
 const LAST_FOLLOWUP_INVALID = 'Try a date like 24 Sep, 9/24 or yesterday'
 const LAST_FOLLOWUP_FUTURE = "Last follow-up can't be in the future"
 
 /** What a `last`-mode field says to a day after today (default: the Last follow-up's words). */
-export interface FollowupInputOptions {
+interface FollowupInputOptions {
   futureMessage?: string
 }
 

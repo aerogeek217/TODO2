@@ -37,19 +37,6 @@
   display: block;
 }
 
-.railDivider {
-  padding: 10px 10px 4px;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-.railDivider:first-child {
-  padding-top: 4px;
-}
-
 /* A row, on two lines: mark · box · title, then the dates under the title. */
 .railRow {
   display: grid;
@@ -369,17 +356,6 @@
   .card :global([data-task-dock]) :global([data-status-update-list]) {
     max-height: 116px;
   }
-}
-
-.empty {
-  grid-area: card;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-body);
 }
 
 .cardTop {

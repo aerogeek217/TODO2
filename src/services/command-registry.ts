@@ -100,7 +100,7 @@ export interface CommandContext {
 }
 
 /** The layouts as the palette offers them: by name in their order, the open one, and whether it is stored (it can own lists). */
-export interface LayoutChoices {
+interface LayoutChoices {
   layouts: readonly { id: number; name: string }[]
   activeLayoutId: number | null
   stored: boolean

@@ -4,7 +4,6 @@ import {
   daysUntil,
   pickTodoDate,
   compareTodosByDate,
-  dateIntensity,
   resolveDateAnchor,
   resolveRelativeToken,
   dueTooltip,
@@ -53,30 +52,6 @@ describe('daysUntil', () => {
 
   it('returns negative for past dates', () => {
     expect(daysUntil(d('2026-04-13'), today)).toBe(-3)
-  })
-})
-
-describe('dateIntensity', () => {
-  it('returns 1 when null (no date = full color, treated as Someday-neutral caller responsibility)', () => {
-    expect(dateIntensity(null)).toBe(1)
-    expect(dateIntensity(undefined)).toBe(1)
-  })
-
-  it('returns 1 for today or past dates', () => {
-    expect(dateIntensity(0)).toBe(1)
-    expect(dateIntensity(-3)).toBe(1)
-    expect(dateIntensity(-100)).toBe(1)
-  })
-
-  it('fades linearly over the 14-day window', () => {
-    expect(dateIntensity(7)).toBeCloseTo(0.5, 3)
-    expect(dateIntensity(3)).toBeCloseTo(1 - 3 / 14, 3)
-  })
-
-  it('floors at 0.15 for distant future dates', () => {
-    expect(dateIntensity(14)).toBe(0.15)
-    expect(dateIntensity(30)).toBe(0.15)
-    expect(dateIntensity(365)).toBe(0.15)
   })
 })
 

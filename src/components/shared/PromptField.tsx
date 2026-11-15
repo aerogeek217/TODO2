@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FocusEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { ESCAPE_OWN_ATTR, usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
@@ -61,7 +61,8 @@ const NO_REFS: RefObject<HTMLElement | null>[] = []
  * while a query is typed, else the last one moved to or picked (none until
  * then); ↑ / ↓ move it (wrapping), Enter toggles it, Tab with a query typed
  * adds it (never removes) and keeps the focus in the field. Tab / Shift+Tab
- * with no query move on as usual.
+ * with no query move on as usual, and the option list closes behind the
+ * focus (cr34 U10): it is open only while the focus is in the field.
  *
  * The options come in as props: the field itself reads no store and never
  * the database (its callers read cached Zustand stores only — it is mounted
@@ -142,6 +143,23 @@ export function PromptField({
     extraInsideRefs: rowIsInside ? [wrapperRef] : NO_REFS,
     caret: true,
   })
+  const panelElRef = useRef<HTMLElement | null>(null)
+  const setPanelRef = useCallback((el: HTMLDivElement | null) => {
+    panelElRef.current = el
+    panelRef(el)
+  }, [panelRef])
+
+  // The focus moved on (Tab, Shift+Tab, a control focused from elsewhere):
+  // the list closes once it is outside the field's part of the row and the
+  // list itself. A blur to nowhere (a press on the list's scrollbar, the
+  // window losing the focus) leaves it; a press outside is the popover's.
+  const handleBlur = (e: FocusEvent<HTMLDivElement>) => {
+    const to = e.relatedTarget
+    if (!open || !(to instanceof Node)) return
+    const inside = rowIsInside ? wrapperRef.current : fieldRef.current
+    if (inside?.contains(to) || panelElRef.current?.contains(to)) return
+    handleClose()
+  }
 
   // A pick with search text clears it: the whole list shows again (the
   // picks stay chips above, in pick order; the list keeps its order).
@@ -202,7 +220,7 @@ export function PromptField({
   }
 
   return (
-    <div ref={wrapperRef} className={styles.row} data-prompt-row="">
+    <div ref={wrapperRef} className={styles.row} data-prompt-row="" onBlur={handleBlur}>
       <span className={styles.label}>{label}</span>
       <div
         ref={fieldRef}
@@ -267,7 +285,7 @@ export function PromptField({
       {trailing}
       {open && createPortal(
         <PopoverRoot
-          ref={panelRef}
+          ref={setPanelRef}
           caret={caret}
           className={styles.panel}
           style={style}

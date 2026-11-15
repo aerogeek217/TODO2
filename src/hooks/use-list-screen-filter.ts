@@ -7,7 +7,7 @@ import { withLens, type Lens } from '../utils/lens'
 import type { LensProbe } from './use-built-list'
 
 /** The screen filter as one list applies it (`useListScreenFilter`). */
-export interface ListScreenFilter {
+interface ListScreenFilter {
   /** What the list filters by: the chips, with the lens unless the list ignores it; undefined while nothing narrows. */
   filters: FilterCriteria | undefined
   /** The top bar's lens as it applies now (picked, not lifted), whether or not this list ignores it. */

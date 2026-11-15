@@ -76,7 +76,7 @@ describe('reviewFilterPredicate', () => {
 describe('useReviewWidgetQueue', () => {
   it('no filter: an empty queue, the same one each time', () => {
     const { result, rerender } = queueOf(null)
-    expect(result.current).toEqual({ ids: [], dividers: [], hides: 0 })
+    expect(result.current).toEqual({ ids: [], hides: 0 })
     const first = result.current
     rerender({ value: null })
     expect(result.current).toBe(first)
@@ -88,7 +88,6 @@ describe('useReviewWidgetQueue', () => {
     // Task 3 is both Aisha's and Ben's: once. The completed task 5 is no one's to review.
     const both = queueOf(f(or(person(2), person(1)))).result.current
     expect(both.ids).toEqual([1, 2, 3, 4])
-    expect(both.dividers).toEqual([])
   })
 
   it('any expression: tags, statuses, and / not', () => {

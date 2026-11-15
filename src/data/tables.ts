@@ -67,7 +67,7 @@ const DATA_TABLE_ORDER: Record<DataTableName, true> = {
 export const DATA_TABLE_NAMES: readonly DataTableName[] = Object.keys(DATA_TABLE_ORDER) as DataTableName[]
 
 /** The tables whose row type belongs to one task (a `todoId`). */
-export type TaskChildTableName = {
+type TaskChildTableName = {
   [K in DataTableName]: DataTableRows[K] extends { todoId: number } ? K : never
 }[DataTableName]
 

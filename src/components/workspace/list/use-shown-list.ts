@@ -7,7 +7,7 @@ import { registerModuleReset } from '../../../utils/module-reset'
 import { useChipNames } from '../../shared/filters/filter-menu'
 
 /** A list in words for a review's header: `list · Status Waiting · People · Due date`. */
-export function shownListDescription(definition: PersistedListDefinition, filters: string): string {
+function shownListDescription(definition: PersistedListDefinition, filters: string): string {
   const parts = ['list', filters, groupSortSummary(definition.grouping, definition.sort, definition.sortDirection)]
   return parts.filter((p) => p !== '').join(' · ')
 }
@@ -32,7 +32,7 @@ function publish(tabId: string): void {
  * .shown`), for a review of the tab (its menu's Review, the shortcut, the
  * palette) — next to the widget's own report to its cell. `sections` null
  * (the prompt not answered yet): nothing to review. With two widgets on
- * the tab (a face and its popover), the latest report shows; when one goes,
+ * the tab (the cell's and the widget popup's), the latest report shows; when one goes,
  * the other's report is the tab's again; the last one going removes it.
  */
 export function useShownListReport(

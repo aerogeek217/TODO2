@@ -2,9 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { emptyPredicate, type FilterExpr, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import type { BreakdownSplit } from '../../models/chart-widgets'
+import { groupRestrictions } from '../../services/build-list'
 import { expressionResolver } from '../../services/filter-expression-field'
 import {
   breakdownReviewFilter,
+  breakdownReviews,
   breakdownRowTerm,
   listReviewCount,
   listReviewFilter,
@@ -107,8 +109,17 @@ describe('listReviewFilter / listReviewCount', () => {
     expect(listReviewFilter('tab-1')).toEqual({
       expression: { kind: 'and', items: [{ kind: 'tag', id: 7 }, { kind: 'person', id: 1 }] },
       showCompleted: false,
+      ignoreLens: false,
     })
     expect(listReviewCount('tab-1')).toBe(2)
+  })
+
+  it('carries the list’s lens switch: a list that ignores the top bar’s lens says so, one that follows it too (F4)', () => {
+    useListDefinitionStore.setState({ listDefinitions: [def({ ...emptyPredicate(), personIds: [1] }, { ignoreLens: true })] })
+    useListWidgetStore.getState().setShown('tab-1', shownList())
+    expect(listReviewFilter('tab-1')?.ignoreLens).toBe(true)
+    useListDefinitionStore.setState({ listDefinitions: [def({ ...emptyPredicate(), personIds: [1] })] })
+    expect(listReviewFilter('tab-1')?.ignoreLens).toBe(false)
   })
 
   it('an expression list: its expression', () => {
@@ -132,7 +143,7 @@ describe('listReviewFilter / listReviewCount', () => {
   it('a list that narrows by nothing: every open task (an `and` of nothing)', () => {
     useListDefinitionStore.setState({ listDefinitions: [def(emptyPredicate())] })
     useListWidgetStore.getState().setShown('tab-1', shownList())
-    expect(listReviewFilter('tab-1')).toEqual({ expression: { kind: 'and', items: [] }, showCompleted: false })
+    expect(listReviewFilter('tab-1')).toEqual({ expression: { kind: 'and', items: [] }, showCompleted: false, ignoreLens: false })
   })
 
   it('a tab not on screen: nothing to review', () => {
@@ -155,7 +166,15 @@ describe('screenReviewFilter', () => {
         items: [{ kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 2 }] }, { kind: 'text', text: 'contract' }],
       },
       showCompleted: false,
+      // The panel's tasks are under the top bar's lens: the widget follows it too (F4).
+      ignoreLens: false,
     })
+  })
+
+  it('a person’s, a tag’s and several people’s reviews count nothing under a lens switch: they carry none', () => {
+    expect(personReviewFilter({ id: 3 })).not.toHaveProperty('ignoreLens')
+    expect(tagReviewFilter({ id: 7 })).not.toHaveProperty('ignoreLens')
+    expect(peopleReviewFilter([{ id: 1 }, { id: 2 }])).not.toHaveProperty('ignoreLens')
   })
 
   it('no chips: every open task', () => {
@@ -224,5 +243,116 @@ describe('a Breakdown row as a filter keeps exactly the row’s tasks', () => {
       items: [{ kind: 'or', items: [{ kind: 'tag', id: 1 }, { kind: 'tag', id: 2 }] }, { kind: 'person', id: 1 }, { kind: 'status', id: 10 }],
     })
     expect(withColumn && kept(withColumn)).toEqual([1])
+  })
+
+  describe('under @ / # picks on both the Breakdown and the top bar (cr34 G4 / F5)', () => {
+    const [A, B, C] = [1, 2, 3]
+    const people = [A, B, C].map((id) => makePerson({ id, name: `P${id}` }))
+    const tags: (Tag & { id: number })[] = [A, B, C].map((id) => ({ id, name: `t${id}`, color: '#111' }))
+    /** One open task per set of people (tags): task 1 has none, …, task 8 all three. */
+    const subsets = [[], [A], [B], [C], [A, B], [A, C], [B, C], [A, B, C]]
+    const all = subsets.map((_, i) => makeTodo({ id: i + 1 }))
+    const peopleMap = new Map<number, Person[]>(subsets.map((s, i) => [i + 1, people.filter((p) => s.includes(p.id!))]))
+    const tagsMap = new Map<number, Tag[]>(subsets.map((s, i) => [i + 1, tags.filter((t) => s.includes(t.id))]))
+
+    /** Every row of a Breakdown split by `field` with `chartPicks`, under a top bar with `barPicks`: its tasks against what its Review keeps there. */
+    function rowsAgainstReviews(field: 'personIds' | 'tags', chartPicks: number[], barPicks: number[]) {
+      const maps = field === 'personIds'
+        ? { assignedPeopleMap: peopleMap, assignedTagsMap: new Map<number, Tag[]>() }
+        : { assignedPeopleMap: new Map<number, Person[]>(), assignedTagsMap: tagsMap }
+      const stats: StatsContext = { today, weekStartsOn: 1, urgentRange: 3, statuses: [], ...maps }
+      const names = todoNameLookups({ ...maps, statuses: [], statusUpdatesByTodo: new Map(), subtasksByTodo: new Map() })
+      const settings = { urgentRange: 3 as const, weekStartsOn: 1 as const }
+      const chartFilter: TodoPredicate = { ...emptyPredicate(), [field]: chartPicks }
+      const chart = predicateToCriteria(chartFilter)
+      const bar = predicateToCriteria({ ...emptyPredicate(), [field]: barPicks })
+      const passes = (c: typeof chart, t: PersistedTodoItem) => matchesFilterWithLookups(c, t, names, today, settings)
+      // The chart's tasks: its filter over the ones the top bar shows.
+      const chartTasks = all.filter((t) => passes(bar, t) && passes(chart, t))
+      const splitBy = field === 'personIds' ? 'people' as const : 'tags' as const
+      const rows = computeBreakdown(chartTasks, stats, {
+        splitBy, show: 'count', oldestBy: 'created', columns: [], restrictions: groupRestrictions(field, chartFilter, bar),
+      }).rows
+      return rows.map((row) => {
+        const filter = breakdownReviewFilter({ filter: chartFilter, splitBy }, row)
+        if (!filter) throw new Error(`no review for ${row.key}`)
+        const review = predicateToCriteria(withExpression(emptyPredicate(), filter.expression, filter.showCompleted))
+        // The Review widget's queue: the filter over the tasks the top bar shows.
+        const queue = all.filter((t) => passes(bar, t) && passes(review, t)).map((t) => t.id)
+        return { key: row.key, row: ids(row), queue, expression: filter.expression }
+      })
+    }
+
+    it('the report’s case: chart A or B, top bar B or C — row A counts and reviews the same tasks', () => {
+      const rows = rowsAgainstReviews('personIds', [A, B], [B, C])
+      // A task of A and B counts under B alone (the person both pick): row A holds only A-and-C tasks.
+      expect(rows.map((r) => [r.key, r.row])).toEqual([['person-2', [3, 5, 7, 8]], ['person-1', [6]], ['person-3', [6]]])
+      for (const r of rows) expect(r.queue, r.key).toEqual(r.row)
+      // Row A's filter says what it leaves out; row B's is the plain person.
+      expect(rows.find((r) => r.key === 'person-1')?.expression).toEqual({
+        kind: 'and',
+        items: [
+          { kind: 'or', items: [{ kind: 'person', id: A }, { kind: 'person', id: B }] },
+          { kind: 'person', id: A },
+          { kind: 'not', item: { kind: 'person', id: B } },
+        ],
+      })
+      expect(rows.find((r) => r.key === 'person-2')?.expression).toEqual({
+        kind: 'and',
+        items: [{ kind: 'or', items: [{ kind: 'person', id: A }, { kind: 'person', id: B }] }, { kind: 'person', id: B }],
+      })
+    })
+
+    it('every pair of picks, people and tags, Unassigned / No tags among them: each row’s count is its review’s queue', () => {
+      const pickSets = [0, A, B, C].reduce<number[][]>((sets, id) => [...sets, ...sets.map((s) => [...s, id])], [[]])
+      let checked = 0
+      for (const field of ['personIds', 'tags'] as const) {
+        for (const chartPicks of pickSets) {
+          for (const barPicks of pickSets) {
+            for (const r of rowsAgainstReviews(field, chartPicks, barPicks)) {
+              expect(r.queue, `${field} chart [${chartPicks}] bar [${barPicks}] ${r.key}`).toEqual(r.row)
+              checked += 1
+            }
+          }
+        }
+      }
+      expect(checked).toBeGreaterThan(500)
+    })
+
+    it('one side picking, or no pick: a row is every task of its person (no `not` term)', () => {
+      for (const [chartPicks, barPicks] of [[[], []], [[A, B], []], [[], [A, B]], [[A, B], [A, B]]] as const) {
+        const stats: StatsContext = { today, weekStartsOn: 1, urgentRange: 3, statuses: [], assignedPeopleMap: peopleMap, assignedTagsMap: new Map() }
+        const chartFilter: TodoPredicate = { ...emptyPredicate(), personIds: [...chartPicks] }
+        const rows = computeBreakdown(all, stats, {
+          splitBy: 'people', show: 'count', oldestBy: 'created', columns: [],
+          restrictions: groupRestrictions('personIds', chartFilter, predicateToCriteria({ ...emptyPredicate(), personIds: [...barPicks] })),
+        }).rows
+        expect(rows.every((r) => r.excludes === undefined)).toBe(true)
+      }
+    })
+  })
+
+  it('carries the Breakdown’s lens switch (F4)', () => {
+    const row = rowsOf('people')[0]
+    if (!row) throw new Error('no row')
+    expect(breakdownReviewFilter({ filter: emptyPredicate(), splitBy: 'people' }, row, undefined, true)?.ignoreLens).toBe(true)
+    expect(breakdownReviewFilter({ filter: emptyPredicate(), splitBy: 'people' }, row, undefined, false)?.ignoreLens).toBe(false)
+    expect(breakdownReviewFilter({ filter: emptyPredicate(), splitBy: 'people' }, row)).not.toHaveProperty('ignoreLens')
+  })
+
+  it('a Breakdown that counts completed tasks has no review: a row’s tasks open in the task dialog instead (G2)', () => {
+    const row = rowsOf('people')[0]
+    if (!row) throw new Error('no row')
+    const thisWeek: TodoPredicate = { ...emptyPredicate(), dates: { completed: { match: 'range', start: { kind: 'offset', days: -7 }, end: { kind: 'offset', days: 0 } } } }
+    const shown: TodoPredicate = { ...emptyPredicate(), showCompleted: true }
+    const typed: TodoPredicate = withExpression(emptyPredicate(), { kind: 'date', field: 'completed', match: { match: 'range', start: { kind: 'offset', days: -7 }, end: null } }, false)
+    for (const filter of [thisWeek, shown, typed]) {
+      expect(breakdownReviews({ filter })).toBe(false)
+      expect(breakdownReviewFilter({ filter, splitBy: 'people' }, row)).toBeNull()
+      expect(breakdownReviewFilter({ filter, splitBy: 'people' }, row, { filter: emptyPredicate() })).toBeNull()
+    }
+    // Open tasks only: reviewed as before.
+    expect(breakdownReviews({ filter: emptyPredicate() })).toBe(true)
+    expect(breakdownReviews({ filter: { ...emptyPredicate(), tags: [1] } })).toBe(true)
   })
 })

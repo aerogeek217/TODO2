@@ -19,15 +19,21 @@ import { registerModuleReset } from './module-reset'
  * the tests fail on it (`src/test/utils/shared-memo.test.ts`, and the glance
  * widgets' shared-data test renders every memo's callers).
  *
- * `same` (optional): when a new input set computes a value `same` as the
- * newest one kept, that kept value is returned again — so memos keyed on
- * it still hit (an input changed that this result doesn't show).
+ * `same` (optional): when a new input set computes a value `same` as one
+ * that is kept, that kept value is returned again — so memos keyed on it
+ * still hit (an input changed that this result doesn't show). Any kept
+ * entry's, not only the newest: a memo keeping two input sets its callers
+ * ask for in turn (with the top bar's lens and without it) has the other
+ * set as its newest each time (cr34 G8).
+ *
+ * `peek`: the kept value for these inputs, without computing (`undefined`
+ * when it isn't kept) — for a caller that computes off its render.
  */
 export function sharedMemo<D extends readonly unknown[], T>(
   compute: (...deps: D) => T,
   size = 1,
   same?: (kept: T, next: T) => boolean,
-): (...deps: D) => T {
+): SharedMemo<D, T> {
   let entries: Array<{ deps: D; value: T }> = []
   let freshMisses = 0
   let warned = false
@@ -36,8 +42,9 @@ export function sharedMemo<D extends readonly unknown[], T>(
     freshMisses = 0
     warned = false
   })
-  return (...deps: D): T => {
-    const hit = entries.find((e) => e.deps.length === deps.length && e.deps.every((d, i) => Object.is(d, deps[i])))
+  const find = (deps: D) => entries.find((e) => sameDeps(e.deps, deps))
+  const memo = (...deps: D): T => {
+    const hit = find(deps)
     if (hit) {
       freshMisses = 0
       // Most recent first, so the oldest goes when the cache is full.
@@ -51,12 +58,29 @@ export function sharedMemo<D extends readonly unknown[], T>(
         console.warn(`${SHARED_MEMO_WARNING} (${compute.name || 'anonymous'}): an input is a fresh object equal to the last one — pass a store value or a shared memo's result.`)
       }
     }
-    const computed = compute(...deps)
-    const newest = entries[0]
-    const value = newest && same?.(newest.value, computed) ? newest.value : computed
+    const value = keptSame(entries, compute(...deps), same)
     entries = [{ deps, value }, ...entries].slice(0, size)
     return value
   }
+  memo.peek = (...deps: D): T | undefined => find(deps)?.value
+  return memo
+}
+
+/** A shared memo: called, it computes or returns the kept value; `peek` only looks. */
+interface SharedMemo<D extends readonly unknown[], T> {
+  (...deps: D): T
+  peek(...deps: D): T | undefined
+}
+
+function sameDeps(a: readonly unknown[], b: readonly unknown[]): boolean {
+  return a.length === b.length && a.every((d, i) => Object.is(d, b[i]))
+}
+
+/** `computed`, or the kept value it is `same` as. */
+function keptSame<T>(entries: ReadonlyArray<{ value: T }>, computed: T, same: ((kept: T, next: T) => boolean) | undefined): T {
+  if (!same) return computed
+  const kept = entries.find((e) => same(e.value, computed))
+  return kept ? kept.value : computed
 }
 
 /** Misses in a row on equal-but-not-identical inputs before a development warning. */
@@ -90,26 +114,50 @@ export function sameElements<E>(a: readonly E[], b: readonly E[]): boolean {
 }
 
 /**
- * `sharedMemo` with one input set kept per `key` (an object, held weakly):
+ * `sharedMemo` with its input sets kept per `key` (an object, held weakly):
  * for a statistic each caller asks with its own key — a Number's filter —
  * so any number of them on screen never evict one another. The rest of the
  * inputs compare by identity, as in `sharedMemo`; `same` compares a new
- * value with the one this key kept.
+ * value with the ones this key kept.
+ *
+ * `slots`: the input sets kept per key — one, or two where callers sharing a
+ * key differ by one choice (two widgets with one filter, one following the
+ * top bar's lens and one ignoring it: with one slot they evicted each other
+ * on every render, cr34 G8).
+ *
+ * `peek`: the kept value for this key and these inputs, without computing;
+ * `last`: what this key computed last, with the inputs it was computed from
+ * (what a caller may show while it computes the current one off its render).
  */
 export function sharedMemoByKey<K extends object, D extends readonly unknown[], T>(
   compute: (key: K, ...deps: D) => T,
   same?: (kept: T, next: T) => boolean,
-): (key: K, ...deps: D) => T {
-  let entries = new WeakMap<K, { deps: D; value: T }>()
+  slots = 1,
+): SharedMemoByKey<K, D, T> {
+  let entries = new WeakMap<K, Array<{ deps: D; value: T }>>()
   registerModuleReset(() => {
     entries = new WeakMap()
   })
-  return (key: K, ...deps: D): T => {
-    const kept = entries.get(key)
-    if (kept && kept.deps.length === deps.length && kept.deps.every((d, i) => Object.is(d, deps[i]))) return kept.value
-    const computed = compute(key, ...deps)
-    const value = kept && same?.(kept.value, computed) ? kept.value : computed
-    entries.set(key, { deps, value })
+  const memo = (key: K, ...deps: D): T => {
+    const kept = entries.get(key) ?? []
+    const hit = kept.find((e) => sameDeps(e.deps, deps))
+    if (hit) {
+      // Most recent first, so the oldest goes when the key's slots are full.
+      if (kept[0] !== hit) entries.set(key, [hit, ...kept.filter((e) => e !== hit)])
+      return hit.value
+    }
+    const value = keptSame(kept, compute(key, ...deps), same)
+    entries.set(key, [{ deps, value }, ...kept].slice(0, slots))
     return value
   }
+  memo.peek = (key: K, ...deps: D): T | undefined => entries.get(key)?.find((e) => sameDeps(e.deps, deps))?.value
+  memo.last = (key: K): { deps: D; value: T } | undefined => entries.get(key)?.[0]
+  return memo
+}
+
+/** A shared memo by key: called, it computes or returns the kept value; `peek` and `last` only look. */
+interface SharedMemoByKey<K extends object, D extends readonly unknown[], T> {
+  (key: K, ...deps: D): T
+  peek(key: K, ...deps: D): T | undefined
+  last(key: K): { deps: D; value: T } | undefined
 }

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { iconDescription, iconSummary } from '../../models/icon'
-import { tabStripIcon, TAB_NAME_MAX, widgetKindLabel, type LayoutTab } from '../../models/workspace-layout'
+import { tabNameMax, tabStripIcon, widgetKindLabel, type LayoutTab } from '../../models/workspace-layout'
 import { trendName } from '../../models/glance-widgets'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -122,7 +122,8 @@ export function TabNameIconPopover({ tabId, anchor, onClose }: {
           className={styles.input}
           type="text"
           value={name}
-          maxLength={TAB_NAME_MAX}
+          // The longest name the tab's kind stores (a Number's and a chart's are shorter than a tab's own).
+          maxLength={tabNameMax(tab.kind)}
           placeholder={defaultName(tab)}
           disabled={listGone}
           aria-describedby={note ? `${ids}-note` : undefined}

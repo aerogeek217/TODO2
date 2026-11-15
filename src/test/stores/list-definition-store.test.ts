@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { listDefinitionRepository } from '../../data/list-definition-repository'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { listEditChanges, useListDefinitionStore } from '../../stores/list-definition-store'
 import { emptyPredicate } from '../../models'
 import { useUndoStore } from '../../stores/undo-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -91,6 +91,23 @@ describe('useListDefinitionStore mutations', () => {
     const byPeople = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'People' })
     expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === byPeople)).toMatchObject({ sort: 'people', grouping: 'none' })
     expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === byPeople)).not.toHaveProperty('sortDirection')
+  })
+
+  it('listEditChanges says whether editList has something to write, as editList decides it (cr34 D6)', async () => {
+    const id = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'Inbox' })
+    // An editor's part changed: something to write.
+    expect(listEditChanges(id, (d) => ({ ...d, name: 'This week' }))).toBe(true)
+    expect(listEditChanges(id, (d) => ({ ...d, sort: 'name' }))).toBe(true)
+    // Nothing an editor writes: the same list, a blank name (it keeps the list's), the owner, the lens switch.
+    expect(listEditChanges(id, (d) => d)).toBe(false)
+    expect(listEditChanges(id, (d) => ({ ...d, name: '  ' }))).toBe(false)
+    expect(listEditChanges(id, (d) => ({ ...d, owner: { layoutId: 9 }, ignoreLens: true }))).toBe(false)
+    // A list that is gone.
+    expect(listEditChanges(id + 1, (d) => ({ ...d, name: 'X' }))).toBe(false)
+    // It agrees with what editList then does.
+    expect(await useListDefinitionStore.getState().editList(id, (d) => ({ ...d, name: '  ' }), 'Edited list')).toBe(false)
+    expect(await useListDefinitionStore.getState().editList(id, (d) => ({ ...d, name: 'This week' }), 'Edited list')).toBe(true)
+    expect(listEditChanges(id, (d) => ({ ...d, name: 'This week' }))).toBe(false)
   })
 })
 

@@ -342,8 +342,8 @@ test.describe('notes → tasks', () => {
       await expect(r.getByRole('checkbox')).toHaveCSS('border-top-style', 'solid')
       // A real click, so hit-testing proves the status menu is on top.
       await r.locator('[data-row-cell="status"]').click()
-      await page.getByRole('button', { name: 'No Status' }).click()
-      await expect(page.getByRole('button', { name: 'No Status' })).toHaveCount(0)
+      await page.getByRole('menuitemradio', { name: 'No Status' }).click()
+      await expect(page.getByRole('menuitemradio', { name: 'No Status' })).toHaveCount(0)
       await expect(preview(page)).toBeVisible()
     })
 

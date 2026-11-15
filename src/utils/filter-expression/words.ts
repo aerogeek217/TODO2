@@ -4,7 +4,7 @@ import type { DateMatch } from '../../models/filter-predicate'
 import { describeDateMatch } from '../date-words'
 import { DATE_FIELD_LABELS_SHORT } from '../filter-labels'
 import { MARKER_LABELS } from '../markers'
-import { dateTypeIsOptional, periodOf } from './dates'
+import { dateTypeIsOptional, isBeforeToday, periodOf } from './dates'
 import type { ExpressionNames } from './print'
 import { normalizeExpression } from './tree'
 
@@ -34,7 +34,7 @@ import { normalizeExpression } from './tree'
  */
 
 /** A name chip's kind. */
-export type WordNameKind = 'person' | 'tag' | 'status' | 'priority'
+type WordNameKind = 'person' | 'tag' | 'status' | 'priority'
 
 /**
  * One piece of the reading: a name chip, a word term or a joining word
@@ -46,7 +46,7 @@ export type WordPiece =
   | { kind: 'word'; text: string; term: number }
   | { kind: 'joiner'; text: string; term: number }
 
-export interface ExpressionWords {
+interface ExpressionWords {
   pieces: WordPiece[]
   /** How many top-level terms there are (1 unless the expression is an `and`). */
   terms: number
@@ -84,7 +84,7 @@ function dateWords(field: DateField, m: DateMatch, orNone = false): string {
   const label = DATE_FIELD_LABELS_SHORT[field].toLowerCase()
   const none = orNone ? `, or ${field === 'lastFollowup' ? 'never' : 'none'}` : ''
   // The shortcuts the expression has words for (`overdue`, `followup late`): before today, no start.
-  const beforeToday = m.start == null && m.end?.kind === 'relative' && m.end.token === 'yesterday'
+  const beforeToday = isBeforeToday(m)
   if (beforeToday && !orNone && field === 'deadline') return 'overdue'
   if (beforeToday && !orNone && field === 'followup') return 'follow-up late'
   const period = periodOf(m, field)
@@ -280,7 +280,7 @@ export function pieceSpaces(pieces: readonly WordPiece[]): string[] {
 }
 
 /** The pieces as plain text. */
-export function wordsText(pieces: readonly WordPiece[]): string {
+function wordsText(pieces: readonly WordPiece[]): string {
   const spaces = pieceSpaces(pieces)
   return pieces.map((p, i) => `${spaces[i] ?? ''}${p.text}`).join('')
 }

@@ -260,6 +260,29 @@ describe('closing a widget editor', () => {
     expect(numberEditor()).not.toBeNull()
   })
 
+  it('changed, a press on a strip’s tab asks once; Save or Discard then makes the tab’s click, Keep editing doesn’t', async () => {
+    setup(numberTab('n', 'overdue'))
+    const switched = vi.fn()
+    const tab = document.createElement('div')
+    tab.setAttribute('role', 'tab')
+    tab.setAttribute('data-ws-tab', 'other')
+    tab.addEventListener('click', switched)
+    document.body.appendChild(tab)
+    const title = 'Save changes to number “Overdue”?'
+    rename(openNumber(), 'Late')
+    press(tab)
+    expect(useUIStore.getState().confirmPrompts).toHaveLength(1)
+    await answer(title, 'Keep editing')
+    expect(switched).not.toHaveBeenCalled()
+    press(tab)
+    await answer(title, 'Save')
+    expect(switched).toHaveBeenCalledTimes(1)
+    expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
+    expect(numberEditor()).toBeNull()
+    expect((stored('n') as { config: { name?: string } }).config.name).toBe('Late')
+    tab.remove()
+  })
+
   it('a chart’s question names its kind and name', async () => {
     setup(createTab('breakdown', 'b'))
     act(() => { useChartWidgetsStore.getState().openEditor('b') })

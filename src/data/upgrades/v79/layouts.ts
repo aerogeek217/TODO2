@@ -119,7 +119,7 @@ const OLD_SORT_COLUMNS: Readonly<Record<string, string>> = {
 /** A split's stored sort as the headings read it, given the column ids: kept, moved to the column holding its tasks, or `null` (none). */
 function liveSort(sort: Obj, columnIds: ReadonlySet<unknown>): Obj | null {
   if (FIXED_SORT_KEYS.has(sort.by) || columnIds.has(sort.by)) return sort
-  const now = typeof sort.by === 'string' ? OLD_SORT_COLUMNS[sort.by] : undefined
+  const now = typeof sort.by === 'string' && Object.hasOwn(OLD_SORT_COLUMNS, sort.by) ? OLD_SORT_COLUMNS[sort.by] : undefined
   return now != null && columnIds.has(now) ? { ...sort, by: now } : null
 }
 

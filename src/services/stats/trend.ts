@@ -9,16 +9,7 @@ import { matchesFilter, readsText, type FilterSettings } from '../../utils/filte
 import { textMatchContextFor, type TodoNameLookups } from '../../utils/filter'
 import { FILTER_HISTORY_EVENT_TYPES, TREND_EVENT_TYPES, trendWindow, type TrendWindow } from '../../utils/trend-window'
 
-/**
- * Created vs completed, and the open-task count over time, rebuilt from the
- * `todoEvents` history. History only covers tasks still in the database
- * (deleting or purging a task deletes its events).
- */
-
-/** A trend range: 14 days (daily bars) or 4 / 12 weeks (weekly bars) — `TREND_RANGES`. */
-export type { TrendRange }
-
-export interface TrendBucket {
+interface TrendBucket {
   /** First day of the bar (local midnight). */
   start: Date
   /** Tasks created in the bar's days. */
@@ -31,7 +22,7 @@ export interface TrendBucket {
 }
 
 /** One day of the window: what was created and completed in it, and what was open at its end. */
-export interface TrendDay {
+interface TrendDay {
   createdIds: number[]
   /** Net of reopening, as a bar's. */
   completedIds: number[]
@@ -190,14 +181,20 @@ export function trendBucketDays(window: TrendWindow): Array<{ first: number; las
 }
 
 /** The running totals at each day's end (Cumulative): created since the window began, on top of what was open then, and completed. */
-export interface TrendCumulative {
+interface TrendCumulative {
   /** Open at the start plus created through each day. */
   created: number[]
   /** Completed through each day. */
   completed: number[]
 }
 
-/** The Cumulative presentation's two lines: their gap is what is open (where the filter's membership didn't change). */
+/**
+ * The Cumulative presentation's two lines. Their gap is what is open only
+ * while no task re-entered the open set without being created: a task
+ * completed before the range and reopened in it is open and in neither line
+ * (cr34 G5), as is one a filter starts to keep mid-range. Nothing drawn or
+ * said promises the gap; the open count is `openSeries` (Burndown).
+ */
 export function trendCumulative(stats: Pick<TrendStats, 'daily' | 'openAtStart'>): TrendCumulative {
   let made = stats.openAtStart
   let done = 0

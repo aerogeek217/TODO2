@@ -38,6 +38,20 @@ describe('withViewTransition (D19)', () => {
     expect(update).toHaveBeenCalledTimes(1)
   })
 
+  // cr34 H4: the page is frozen while the update runs, so it runs at once, nothing awaited in it.
+  it('the change runs inside the transition’s update, synchronously', () => {
+    stubReducedMotion(false)
+    const order: string[] = []
+    const start = vi.fn((cb: () => unknown) => {
+      order.push('start')
+      const returned = cb()
+      order.push(returned === undefined ? 'returned' : 'returned something to wait on')
+    })
+    Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start })
+    withViewTransition(() => { order.push('update') })
+    expect(order).toEqual(['start', 'update', 'returned'])
+  })
+
   it('names are custom idents built from the ids', () => {
     expect(transitionName('ws-cell', 'cell-1')).toBe('ws-cell-cell-1')
     expect(transitionName('ws-group', 't 1', 'status:3')).toBe('ws-group-t_1-status_3')

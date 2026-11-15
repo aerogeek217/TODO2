@@ -93,6 +93,18 @@ function editedOf(edited: PersistedListDefinition, saved: PersistedListDefinitio
   }
 }
 
+/**
+ * Whether `editList(id, fn, …)` has something to write now: list `id`
+ * exists and `fn` changes one of its editors' parts. `editList` resolves
+ * false both for nothing to write and for a write that failed; a caller
+ * that keeps a draft until its write has landed (Edit list's Save) tells
+ * the two apart with this.
+ */
+export function listEditChanges(id: number, fn: (def: PersistedListDefinition) => PersistedListDefinition): boolean {
+  const saved = useListDefinitionStore.getState().listDefinitions.find((d) => d.id === id)
+  return saved != null && !defsEqual(editedOf(fn(saved), saved), saved)
+}
+
 export const useListDefinitionStore = create<ListDefinitionState>((set, get) => {
   const defEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
   return {

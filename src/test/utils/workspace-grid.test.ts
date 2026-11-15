@@ -1,17 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import type { LayoutBody } from '../../models/workspace-layout'
+import { createTab, type LayoutBody } from '../../models/workspace-layout'
 import {
-  canMerge,
   cellAtTrack,
   edgeBetween,
   edgeStretches,
-  isCellEdge,
+  expandOrphanRows,
   isNormalized,
   isWholeLine,
   lineCrossings,
   mergeTracks,
   neighbours,
   normalizeGrid,
+  orphanCollapsedRows,
   readingOrder,
   stretchCells,
   unionArea,
@@ -20,6 +20,7 @@ import {
   wholeLine,
 } from '../../utils/workspace-grid'
 import { cell, emptyBody, grid, picture } from '../helpers/layout-builders'
+import { expectWithin } from '../timing'
 
 const a = cell('a')
 const b = cell('b')
@@ -50,17 +51,8 @@ describe('queries', () => {
     expect(wholeEdgeNeighbour(L, 'd', 'left')?.id).toBe('c')
   })
 
-  it('merges two cells only into a rectangle', () => {
-    expect(canMerge(L, 'c', 'd')).toBe(true)
-    expect(canMerge(L, 'a', 'b')).toBe(false)
-    expect(canMerge(L, 'a', 'c')).toBe(false)
+  it('unions two areas into a rectangle', () => {
     expect(unionArea({ col: 0, row: 1, colSpan: 1, rowSpan: 1 }, { col: 1, row: 1, colSpan: 1, rowSpan: 1 })).toEqual({ col: 0, row: 1, colSpan: 2, rowSpan: 1 })
-  })
-
-  it('knows which lines are cell edges', () => {
-    expect(isCellEdge(L, 'columns', 1)).toBe(true)
-    expect(isCellEdge(L, 'columns', 2)).toBe(true)
-    expect(isCellEdge(L, 'rows', 1)).toBe(true)
   })
 })
 
@@ -107,6 +99,98 @@ describe('normalizeGrid', () => {
 
   it('drops every track of a body without cells', () => {
     expect(normalizeGrid({ grid: L.grid, cells: [] }).grid).toEqual({ columns: [], rows: [] })
+  })
+
+  it('a run of lines no edge lies on merges into one track, in order; the lines kept shift back', () => {
+    // Columns 0–2 under one cell (two lines to go), a kept line, then 3–4 under another (one to go).
+    const body: LayoutBody = {
+      grid: {
+        columns: [{ id: 'c0', weight: 100 }, { id: 'c1', weight: 200 }, { id: 'c2', px: 40 }, { id: 'c3', weight: 300 }, { id: 'c4', weight: 50 }],
+        rows: [{ id: 'r0', weight: 500 }, { id: 'r1', weight: 500 }],
+      },
+      cells: [
+        { id: 'a', area: { col: 0, row: 0, colSpan: 3, rowSpan: 2 }, tabs: [] },
+        { id: 'b', area: { col: 3, row: 0, colSpan: 2, rowSpan: 1 }, tabs: [] },
+        { id: 'c', area: { col: 3, row: 1, colSpan: 2, rowSpan: 1 }, tabs: [] },
+      ],
+    }
+    const out = normalizeGrid(body)
+    expect(out.grid.columns).toEqual([
+      mergeTracks(mergeTracks({ id: 'c0', weight: 100 }, { id: 'c1', weight: 200 }), { id: 'c2', px: 40 }),
+      { id: 'c3', weight: 350 },
+    ])
+    expect(out.grid.rows).toEqual(body.grid.rows)
+    expect(out.cells.map((x) => [x.id, x.area])).toEqual([
+      ['a', { col: 0, row: 0, colSpan: 1, rowSpan: 2 }],
+      ['b', { col: 1, row: 0, colSpan: 1, rowSpan: 1 }],
+      ['c', { col: 1, row: 1, colSpan: 1, rowSpan: 1 }],
+    ])
+    expect(validateTiling(out)).toBe(true)
+  })
+
+  it('stays linear: thousands of lines no edge lies on go in one pass (cr34 B)', () => {
+    // 2,000 cells in one column, each over two row tracks of two column tracks: 4,000 lines to drop.
+    const n = 2000
+    const body: LayoutBody = {
+      grid: {
+        columns: [{ id: 'x0', weight: 500 }, { id: 'x1', weight: 500 }],
+        rows: Array.from({ length: 2 * n }, (_, i) => ({ id: `r${i}`, weight: 1 })),
+      },
+      cells: Array.from({ length: n }, (_, i) => ({ id: `k${i}`, area: { col: 0, row: 2 * i, colSpan: 2, rowSpan: 2 }, tabs: [] })),
+    }
+    expectWithin(250, () => {
+      const out = normalizeGrid(body)
+      expect(out.grid.columns).toEqual([{ id: 'x0', weight: 1000 }])
+      expect(out.grid.rows).toHaveLength(n)
+      expect(out.grid.rows[1]).toEqual({ id: 'r2', weight: 2 })
+      expect(out.cells[n - 1]?.area).toEqual({ col: 0, row: n - 1, colSpan: 1, rowSpan: 1 })
+    })
+  })
+})
+
+describe('collapsed rows nothing can expand (cr34 M8)', () => {
+  const filled = (id: string) => cell(id, [createTab('notes', `${id}-t`)])
+  const [p, q, r, s] = [filled('p'), filled('q'), filled('r'), filled('s')]
+  const folded = { weight: 1000, collapsed: true }
+
+  it('a collapsed row is held by a filled cell lying wholly in collapsed rows over it', () => {
+    // p q — the row folded, both cells in it
+    expect(orphanCollapsedRows(grid([[p, q]], { rows: [folded] }))).toEqual([])
+    // p q
+    // p r — p covers both folded rows: it holds them; q and r each their own
+    expect(orphanCollapsedRows(grid([[p, q], [p, r]], { rows: [folded, folded] }))).toEqual([])
+    // No collapsed row: nothing to do, the same object.
+    const plain = grid([[p, q]])
+    expect(orphanCollapsedRows(plain)).toEqual([])
+    expect(expandOrphanRows(plain)).toBe(plain)
+  })
+
+  it('one with only cells that reach into an expanded row, or only an empty cell, is an orphan', () => {
+    // p s
+    // q s — the middle row folded: q and s both reach out of it
+    // q r
+    const spanned = grid([[p, s], [q, s], [q, r]], { rows: [1000, folded, 1000] })
+    expect(orphanCollapsedRows(spanned)).toEqual([1])
+    // e e — e an empty cell alone in the folded row
+    // q q
+    const lone = grid([[e, e], [q, q]], { rows: [folded, 1000] })
+    expect(orphanCollapsedRows(lone)).toEqual([0])
+    // Beside a filled cell of the same row it is held (by that cell).
+    expect(orphanCollapsedRows(grid([[e, p], [q, q]], { rows: [folded, 1000] }))).toEqual([])
+  })
+
+  it('expandOrphanRows expands them and only them; normalizeGrid ends with it', () => {
+    // p s
+    // e s — the last two rows folded: r holds the last; the middle one has an empty cell, and s reaches up out of it
+    // r r
+    const body = grid([[p, s], [e, s], [r, r]], { rows: [1000, { px: 80, collapsed: true }, folded] })
+    const out = expandOrphanRows(body)
+    expect(out.grid.rows).toEqual([{ id: 'r1', weight: 1000 }, { id: 'r2', px: 80 }, { id: 'r3', weight: 1000, collapsed: true }])
+    expect(out.cells).toBe(body.cells)
+    expect(expandOrphanRows(out)).toBe(out)
+    expect(isNormalized(body)).toBe(false)
+    expect(normalizeGrid(body)).toEqual(out)
+    expect(isNormalized(out)).toBe(true)
   })
 })
 

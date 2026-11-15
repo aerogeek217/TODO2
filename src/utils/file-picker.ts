@@ -8,27 +8,27 @@
  * callers (Settings sections) stay cast-free.
  */
 
-export interface FilePickerAcceptType {
+interface FilePickerAcceptType {
   description?: string
   accept: Record<string, string[]>
 }
 
-export interface ShowSaveFilePickerOptions {
+interface ShowSaveFilePickerOptions {
   suggestedName?: string
   types?: FilePickerAcceptType[]
   startIn?: FileSystemHandle | string
   excludeAcceptAllOption?: boolean
 }
 
-export interface ShowOpenFilePickerOptions {
+interface ShowOpenFilePickerOptions {
   multiple?: boolean
   types?: FilePickerAcceptType[]
   startIn?: FileSystemHandle | string
   excludeAcceptAllOption?: boolean
 }
 
-export type ShowSaveFilePicker = (opts: ShowSaveFilePickerOptions) => Promise<FileSystemFileHandle>
-export type ShowOpenFilePicker = (opts: ShowOpenFilePickerOptions) => Promise<FileSystemFileHandle[]>
+type ShowSaveFilePicker = (opts: ShowSaveFilePickerOptions) => Promise<FileSystemFileHandle>
+type ShowOpenFilePicker = (opts: ShowOpenFilePickerOptions) => Promise<FileSystemFileHandle[]>
 
 interface FSAWindow {
   showSaveFilePicker?: ShowSaveFilePicker

@@ -1,5 +1,5 @@
 /** The most characters a person's initials hold (the made ones, and an imported file's). */
-export const INITIALS_MAX = 3
+const INITIALS_MAX = 3
 
 export function generateInitials(name: string): string {
   return name.split(/\s+/).filter(Boolean).map((w) => w[0]).join('').toUpperCase().slice(0, INITIALS_MAX)

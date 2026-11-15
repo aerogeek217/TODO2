@@ -27,7 +27,7 @@ function takeSnapshot(
   return { text, selected, known: new Set(ids) }
 }
 
-export interface PickerOrder {
+interface PickerOrder {
   /** Whether row `id` sits in the selected block at the top. */
   onTop: (id: number) => boolean
   /**

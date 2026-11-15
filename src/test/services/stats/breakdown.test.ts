@@ -125,6 +125,19 @@ describe('computeBreakdown — the @ / # picks narrow people and tags rows, as a
     expect(rows([[2, 3], [3]])).toEqual([['Bob', [1, 2]]])
   })
 
+  it('a row some picks name but not all says the people it leaves out; one every pick names, or no overlap, says none (cr34 G4)', () => {
+    const excludes = (restrictions: number[][]) => computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), opts('people', { restrictions }))
+      .rows.map((r) => [r.label, r.ids, r.excludes])
+    // Picks Amy-or-Bob and Bob-or-Zed: Bob is in both, so a task with Bob counts under Bob alone; Zed's row is the Zed tasks without Bob.
+    expect(excludes([[2, 3], [3, 1]])).toEqual([['Bob', [1, 2], undefined], ['Zed', [3], [3]]])
+    // No person in every pick: each row is every task of its person.
+    expect(excludes([[2], [1]])).toEqual([['Zed', [2, 3], undefined], ['Amy', [1], undefined]])
+    // One pick, and none: nothing left out; the Unassigned pick is never a person to leave out.
+    expect(excludes([[2, 3]]).every((r) => r[2] === undefined)).toBe(true)
+    expect(excludes([]).every((r) => r[2] === undefined)).toBe(true)
+    expect(excludes([[0, 2, 3], [0, 3, 1]])).toEqual([['Bob', [1, 2], undefined], ['Zed', [3], [3]], ['Unassigned', [4], undefined]])
+  })
+
   it('the Unassigned pick (0) keeps the Unassigned row while every pick has it', () => {
     expect(rows([[0, 2]])).toEqual([['Amy', [1]], ['Unassigned', [4]]])
     expect(rows([[0, 2], [2]])).toEqual([['Amy', [1]]])
@@ -178,6 +191,19 @@ describe('computeBreakdown — status, priority, due and age', () => {
     expect(computeBreakdown(tasks, ctx(), opts('due')).rows.map((r) => [r.label, r.ids])).toEqual([
       ['Overdue', [4]], ['Today', [3]], ['Next 7 days', [2]], ['Later', [1]], ['No due date', [5]],
     ])
+  })
+
+  it('due: the dates before today are Overdue while every task there is open; with a completed one, Before today (cr34 G6)', () => {
+    const late = makeTodo({ id: 1, dueDate: day(-3) })
+    const done = makeTodo({ id: 2, dueDate: day(-1), isCompleted: true, completedAt: day(-1) })
+    const doneToday = makeTodo({ id: 3, dueDate: day(0), isCompleted: true, completedAt: day(0) })
+    const row = (tasks: PersistedTodoItem[]) => computeBreakdown(tasks, ctx(), opts('due')).rows.map((r) => [r.key, r.label, r.ids, r.overdue])
+    expect(row([late])).toEqual([['due-overdue', 'Overdue', [1], 1]])
+    // The same row (its key, its tasks by date); only its name changes, and its late count stays the open ones.
+    expect(row([late, done])).toEqual([['due-overdue', 'Before today', [1, 2], 1]])
+    expect(row([done])).toEqual([['due-overdue', 'Before today', [2], 0]])
+    // A completed task elsewhere changes nothing here; the other rows are named by date already.
+    expect(row([late, doneToday])).toEqual([['due-overdue', 'Overdue', [1], 1], ['due-today', 'Today', [3], 0]])
   })
 
   it('age: by days since created, newest first; no none row', () => {

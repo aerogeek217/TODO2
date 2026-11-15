@@ -92,7 +92,8 @@ export function storedListRefs(row: unknown): Set<number> {
     if (node === null || typeof node !== 'object' || seen.has(node)) continue
     seen.add(node)
     if (Array.isArray(node)) {
-      stack.push(...node)
+      // One by one: a spread of a long array (a crafted row's) overflows the call stack (cr34 S4).
+      for (const item of node as unknown[]) stack.push(item)
       continue
     }
     for (const [key, value] of Object.entries(node)) {
@@ -194,15 +195,20 @@ export const layoutRepository = {
   },
 
   /**
-   * Writes the layout. Its position stays as stored (only `insert` and
-   * `reorder` set it), so a save never undoes a reorder made meanwhile.
+   * Writes the layout over its stored row. Its position stays as stored
+   * (only `insert` and `reorder` set it), so a save never undoes a reorder
+   * made meanwhile. Never a new row (only `insert` makes one): a layout
+   * that is gone — deleted while the write waited — stays gone, and nothing
+   * is written. Resolves whether it wrote.
    */
-  async put(layout: PersistedWorkspaceLayout): Promise<void> {
-    await db.transaction('rw', db.layouts, async () => {
+  async put(layout: PersistedWorkspaceLayout): Promise<boolean> {
+    return db.transaction('rw', db.layouts, async () => {
       const stored = (await db.layouts.get(layout.id)) as Partial<WorkspaceLayout> | undefined
-      const order = stored?.sortOrder
+      if (!stored) return false
+      const order = stored.sortOrder
       const sortOrder = typeof order === 'number' && Number.isFinite(order) ? order : layout.sortOrder
       await db.layouts.put({ ...layout, sortOrder })
+      return true
     })
   },
 
@@ -212,10 +218,11 @@ export const layoutRepository = {
    * no longer names (`storedListRefs`) — each one another stored layout
    * names handed to it, the others deleted with their manual order
    * (`OwnedListsRemoved`, what an undo brings back with `restoreLists`).
+   * `null` when the layout is gone: nothing was written or removed.
    */
-  async putAndPrune(layout: PersistedWorkspaceLayout): Promise<OwnedListsRemoved> {
+  async putAndPrune(layout: PersistedWorkspaceLayout): Promise<OwnedListsRemoved | null> {
     return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, async () => {
-      await layoutRepository.put(layout)
+      if (!(await layoutRepository.put(layout))) return null
       const named = storedListRefs(layout)
       return removeLists(layout.id, (await ownedListIds(layout.id)).filter((id) => !named.has(id)))
     })

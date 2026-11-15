@@ -2,23 +2,30 @@ import { flushSync } from 'react-dom'
 import { prefersReducedMotion } from '../../utils/motion'
 
 /**
- * Runs a workspace change inside a View Transition (D19): a layout switch, a
- * tab change, a group collapse. Named parts (`viewTransitionName`: each cell,
- * each list group) slide and resize to their new place, the rest crossfades —
- * 220 ms on the spring curve (`tokens.css`). Where the API is missing, or
- * under reduced motion, the change just happens.
+ * Runs a workspace change inside a View Transition (D19): a cell's tab
+ * change, a list group's collapse. Named parts (`viewTransitionName`: each
+ * cell, each list group) slide and resize to their new place and crossfade —
+ * 220 ms on the spring curve; the rest of the page is left out and changes
+ * at once (`tokens.css`). Where the API is missing, or under reduced motion,
+ * the change just happens.
  *
- * `update` may be async (a layout switch reads the layout first): the new
- * picture is taken once it has settled and React has rendered it.
+ * A layout switch runs none (cr34 answer 26): every cell is new, so nothing
+ * morphs, and from a transition's start until its update has rendered the
+ * browser shows the old picture frozen and sends every press to the root —
+ * a layout's mount is long enough for that to lose presses.
+ *
+ * **Keep `update` synchronous** (cr34 H4): the page is frozen for as long as
+ * it runs. While the animation itself runs, everything but the pictured
+ * cells' contents takes presses as ever (`tokens.css`).
  */
-export function withViewTransition(update: () => unknown): void {
+export function withViewTransition(update: () => void): void {
   // Feature-detected: older engines (and JSDOM) have no `startViewTransition`.
   if (typeof (document as Partial<Document>).startViewTransition !== 'function' || prefersReducedMotion()) {
-    void update()
+    update()
     return
   }
-  document.startViewTransition(async () => {
-    await update()
+  document.startViewTransition(() => {
+    update()
     flushSync(() => {})
   })
 }

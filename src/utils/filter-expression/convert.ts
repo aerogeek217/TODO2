@@ -154,7 +154,7 @@ function dateChip(term: FilterExpr, not: boolean): [DateField, DateMatch] | null
   return rangeOf && rangeOf.match === 'range' ? [a.field, { ...rangeOf, includeNoDate: true }] : null
 }
 
-export interface SplitExpression {
+interface SplitExpression {
   /** The top-level terms that are chips, as clauses. */
   clauses: FilterClauses
   /** The other top-level terms. */
@@ -204,7 +204,7 @@ export function expressionToClauses(e: FilterExpr | null | undefined): FilterCla
 }
 
 /** An or group as one term: any of its clauses. Null when it has none. */
-export function orGroupTerm(group: FilterClauses): FilterExpr | null {
+function orGroupTerm(group: FilterClauses): FilterExpr | null {
   const e = clausesToExpression(group)
   if (!e) return null
   return e.kind === 'and' ? { kind: 'or', items: e.items } : e

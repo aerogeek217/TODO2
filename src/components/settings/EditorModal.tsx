@@ -2,7 +2,7 @@ import { useId, type ReactNode } from 'react'
 import { DialogFrame, type DialogInitialFocus, type DialogLayer } from '../shared/Dialog'
 import styles from './EntityEditor.module.css'
 
-export interface EditorModalProps {
+interface EditorModalProps {
   title: ReactNode
   onClose: () => void
   children: ReactNode

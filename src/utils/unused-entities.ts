@@ -11,7 +11,7 @@ import { expressionAtoms } from './filter-expression'
  */
 
 /** The tasks carrying one person / tag: how many are open, and the completed ones' ids. */
-export interface EntityTaskUse {
+interface EntityTaskUse {
   open: number
   completedTodoIds: number[]
 }
@@ -38,7 +38,7 @@ export function entityTaskUse<E extends { id?: number }>(
 }
 
 /** Where one person / tag is named in a filter: how many lists, the check-in filter. */
-export interface FilterRefs {
+interface FilterRefs {
   lists: number
   checkin: boolean
 }
@@ -86,7 +86,7 @@ export function filterReferences(sources: FilterSources, kind: 'person' | 'tag')
   return refs
 }
 
-export function isNamedInFilter(refs: FilterRefs | undefined): boolean {
+function isNamedInFilter(refs: FilterRefs | undefined): boolean {
   return refs != null && (refs.lists > 0 || refs.checkin)
 }
 

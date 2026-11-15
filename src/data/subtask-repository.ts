@@ -4,7 +4,7 @@ import { createTaskChildRepository } from './task-child-repository'
 import { presentTodoIds, touchTodoIds, type TaskTouch } from './touch-todos'
 
 /** The fields a subtask write may change. */
-export type SubtaskChanges = Partial<Pick<Subtask, 'title' | 'isCompleted' | 'sortOrder' | 'todoId'>>
+type SubtaskChanges = Partial<Pick<Subtask, 'title' | 'isCompleted' | 'sortOrder' | 'todoId'>>
 
 /** One row's changes (`updateMany`). */
 export interface SubtaskPatch {

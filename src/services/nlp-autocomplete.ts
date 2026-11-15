@@ -45,8 +45,7 @@ import { byName } from '../utils/sort-order'
  *    (date suggestions / live parse / error, frequencies).
  */
 
-export const NLP_TRIGGERS = ['@', '#', '!', '/'] as const
-export type NlpTrigger = (typeof NLP_TRIGGERS)[number]
+type NlpTrigger = '@' | '#' | '!' | '/'
 
 export interface AutocompleteItem {
   id: number
@@ -511,7 +510,7 @@ export function computeAutocomplete(
 
 // ─── Picking ────────────────────────────────────────────────────────
 
-export interface AutocompletePick {
+interface AutocompletePick {
   value: string
   cursor: number
   /** The pick began an argument command: the popup goes on to its argument. */

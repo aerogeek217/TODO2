@@ -10,10 +10,10 @@ import { startOfDay } from './date'
  */
 
 /** 0 = no entries · 1 = 1–2 · 2 = 3–5 · 3 = 6 or more. */
-export type HeatStep = 0 | 1 | 2 | 3
+type HeatStep = 0 | 1 | 2 | 3
 
 /** The lowest count of steps 1, 2 and 3. */
-export const HEAT_STEP_MIN = [1, 3, 6] as const
+const HEAT_STEP_MIN = [1, 3, 6] as const
 
 export function heatStep(count: number): HeatStep {
   if (count >= HEAT_STEP_MIN[2]) return 3
@@ -35,7 +35,7 @@ export interface HeatEntry {
   todo: { isCompleted: boolean }
 }
 
-export interface DayHeat {
+interface DayHeat {
   count: number
   step: HeatStep
   due: number

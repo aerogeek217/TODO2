@@ -63,7 +63,7 @@ function commonPrefix(a: string, b: string | undefined): number {
   return n
 }
 
-export type ResolvedTaskRef<T> =
+type ResolvedTaskRef<T> =
   | { status: 'found'; todo: T }
   | { status: 'not-found' }
   | { status: 'ambiguous'; matches: T[] }

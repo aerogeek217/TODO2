@@ -43,14 +43,16 @@ async function open(page: Page, tasks: WorkspaceSeed['tasks']): Promise<Locator>
 }
 
 const picker = (page: Page) => page.locator('[data-anchored-picker]')
+/** The row's status menu (`StatusMenuPopover`, the app's menu). */
+const statusMenu = (page: Page) => page.getByRole('menu', { name: 'Status' })
 
 test.describe('status menu', () => {
   test('near the right edge it ends at the status pill; the pill toggles it, Esc and an outside click close it', async ({ page }) => {
     await open(page, [{ title: 'Top task', status: 'Doing' }])
     const trigger = taskRowByTitle(page, 'Top task').getByRole('button', { name: 'Status: Doing' })
     await trigger.click()
-    const menu = picker(page)
-    await expect(menu.getByRole('button', { name: 'No Status' })).toBeVisible()
+    const menu = statusMenu(page)
+    await expect(menu.getByRole('menuitemradio', { name: 'No Status' })).toBeVisible()
     await expectInsideViewport(page, menu)
     const t = await box(trigger)
     const m = await box(menu)
@@ -80,13 +82,38 @@ test.describe('status menu', () => {
     await row.locator('[data-task-title]').hover()
     const trigger = row.getByRole('button', { name: 'Set status' })
     await trigger.click()
-    const menu = picker(page)
+    const menu = statusMenu(page)
     await expect(menu).toBeVisible()
     await expectInsideViewport(page, menu)
     expect((await box(menu)).y + (await box(menu)).height).toBeLessThanOrEqual((await box(trigger)).y)
-    await menu.getByRole('button', { name: 'Waiting' }).click()
+    await menu.getByRole('menuitemradio', { name: 'Waiting' }).click()
     await expect(menu).toHaveCount(0)
     await expect(row.getByRole('button', { name: 'Status: Waiting' })).toBeVisible()
+  })
+
+  test('by keyboard: Enter opens it on the current status, the arrows move, Enter picks and the focus returns to the cell (cr34 M9)', async ({ page }) => {
+    await open(page, [{ title: 'Keyed task', status: 'Doing' }])
+    const row = taskRowByTitle(page, 'Keyed task')
+    const trigger = row.getByRole('button', { name: 'Status: Doing' })
+    await trigger.focus()
+    await page.keyboard.press('Enter')
+    const menu = statusMenu(page)
+    await expect(menu.getByRole('menuitemradio', { name: 'Doing' })).toBeFocused()
+    await expect(menu.getByRole('menuitemradio', { name: 'Doing' })).toHaveAttribute('aria-checked', 'true')
+    await page.keyboard.press('ArrowDown')
+    await expect(menu.getByRole('menuitemradio', { name: 'Waiting' })).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(menu).toHaveCount(0)
+    const picked = row.getByRole('button', { name: 'Status: Waiting' })
+    await expect(picked).toBeVisible()
+    await expect(picked).toBeFocused()
+
+    // Esc closes it alone, the focus back on the cell.
+    await page.keyboard.press('Enter')
+    await expect(menu.getByRole('menuitemradio', { name: 'Waiting' })).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveCount(0)
+    await expect(picked).toBeFocused()
   })
 })
 

@@ -270,3 +270,15 @@ describe('search-tokens: the popup', () => {
     expect(searchAutocomplete('/status w', 9, ac)).toBeNull()
   })
 })
+
+describe('search-tokens: namesakes picked from the popup (cr34 F10)', () => {
+  const alexes: Person[] = [{ id: 3, name: 'Alex', initials: 'A' }, { id: 4, name: 'Alex', initials: 'A' }]
+  const twinTags: Tag[] = [{ id: 30, name: 'q4', color: '#888' }, { id: 31, name: 'q4', color: '#888' }]
+  const base: SearchSources = { people: alexes, tags: twinTags, statuses, today }
+
+  it('with nothing picked, the first that matches; picked, the one picked', () => {
+    expect(parseSearch('@Alex #q4 ', base).tokens.map((t) => t.clause)).toEqual([{ field: 'personIds', id: 3 }, { field: 'tags', id: 30 }])
+    const picked: SearchSources = { ...base, picked: { person: [4], tag: [31], status: [] } }
+    expect(parseSearch('@Alex #q4 ', picked).tokens.map((t) => t.clause)).toEqual([{ field: 'personIds', id: 4 }, { field: 'tags', id: 31 }])
+  })
+})

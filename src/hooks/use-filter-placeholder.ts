@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
  * (the empty field has the focus) the token examples in turn (D16), so the
  * grammar can be found.
  */
-export const FILTER_PLACEHOLDERS = ['Filter…', 'Filter… @person', 'Filter… #tag', 'Filter… !status', 'Filter… overdue', 'Filter… due fri'] as const
+const FILTER_PLACEHOLDERS = ['Filter…', 'Filter… @person', 'Filter… #tag', 'Filter… !status', 'Filter… overdue', 'Filter… due fri'] as const
 const PLACEHOLDER_MS = 2500
 
 export function useFilterPlaceholder(cycling: boolean): string {

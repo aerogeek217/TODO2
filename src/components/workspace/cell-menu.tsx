@@ -8,6 +8,7 @@ import {
   type LayoutTab,
   type WidgetKind,
 } from '../../models/workspace-layout'
+import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useAppliedLens } from '../../stores/screen-filter'
 import { setTabIgnoresLens } from '../../hooks/use-widget-lens'
@@ -92,7 +93,7 @@ function addWidgetEntry(a: CellMenuActions): MenuEntry {
  * Insert ▸, Collapse row, then Close tab (with two or more widgets; one
  * widget's is Close cell's) and Close cell.
  */
-export function cellLayoutEntries(a: CellMenuActions): MenuEntry[] {
+function cellLayoutEntries(a: CellMenuActions): MenuEntry[] {
   const mergeWith = a.mergeWith ?? mergeTarget
   const several = a.cell.tabs.length > 1
   return [
@@ -239,16 +240,21 @@ export function useWidgetMenuContent(
 
   /**
    * Changes the tab's kind. Switched to List, it shows a new blank list of
-   * the layout (no editor opens).
+   * the layout (no editor opens). An open editor holding changes (Edit list,
+   * a widget editor — this tab's, maybe) is asked first, Save / Discard /
+   * Keep editing (`editor-leave`): Keep editing changes nothing. A press
+   * would have asked already; this is the keyboard's way here.
    */
   const changeKind = (kind: WidgetKind) => {
     if (kind === tab.kind) return
-    if (WIDGET_KIND_SPECS[kind].showsList) {
-      if (layoutId == null) return
-      void createListAndTab((id) => changeTabKind(tab.id, 'lens', { listDefinitionId: id }), layoutId)
-      return
-    }
-    changeTabKind(tab.id, kind)
+    afterLeavingEditors(() => {
+      if (WIDGET_KIND_SPECS[kind].showsList) {
+        if (layoutId == null) return
+        void createListAndTab((id) => changeTabKind(tab.id, 'lens', { listDefinitionId: id }), layoutId)
+        return
+      }
+      changeTabKind(tab.id, kind)
+    })
   }
 
   const listActions = (): WidgetMenuAction[] | undefined => {

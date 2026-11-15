@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
+import { installClock, tooltipDelayPassed } from './fixtures/clock'
 
 /**
  * The app tooltip (`useTooltip` → `TooltipBubble`, placed by
@@ -36,6 +37,7 @@ async function hoverForTooltip(page: Page, trigger: Locator): Promise<Locator> {
 }
 
 test('no tooltip opens beside an open popover for a trigger outside it; once it closes, the tooltip opens', async ({ page }) => {
+  await installClock(page)
   const widget = await open(page, [{ title: 'Alpha', urgent: true }, { title: 'Bravo' }], 2)
   const marker = taskRowByTitle(page, 'Alpha').getByRole('button', { name: 'Priority: Urgent' })
   // The cell's ⋯ menu (a popover) open from the list's top line.
@@ -44,11 +46,16 @@ test('no tooltip opens beside an open popover for a trigger outside it; once it 
   await expect(menu).toBeVisible()
   expect(await menu.evaluate((el) => el.closest('[data-popover-level]') != null)).toBe(true)
   await marker.hover()
-  // Well past the 400 ms delay: nothing opens.
-  await page.waitForTimeout(800)
+  // Past the delay (the page's clock run on, the hover's timer fired): nothing opened.
+  await tooltipDelayPassed(page)
   await expect(page.getByRole('tooltip')).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()
+  // The same hover with no popover open: the same wait finds the tooltip open.
+  await page.mouse.move(2, 2)
+  await marker.hover()
+  await tooltipDelayPassed(page)
+  await expect(page.getByRole('tooltip')).toHaveCount(1)
   await page.mouse.move(2, 2)
   await hoverForTooltip(page, marker)
 })

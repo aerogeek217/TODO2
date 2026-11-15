@@ -18,7 +18,7 @@ export type RowRef = { kind: 'chip'; chip: ChipRef }
 export type RowOrder = readonly RowRef[]
 
 /** The row `item` is. */
-export function rowOf(item: GraphicalLineItem): RowRef {
+function rowOf(item: GraphicalLineItem): RowRef {
   return { kind: 'chip', chip: { field: item.chip.field, dateField: item.chip.dateField, markerIndex: item.chip.markerIndex } }
 }
 

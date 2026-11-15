@@ -33,12 +33,12 @@ export const NEGLECT_Y_MAX = 30
 export const NEGLECT_JITTER = 0.45
 
 /** Tags named this way are what a new map colours by. */
-export const PROJECT_TAG_PREFIX = 'Project:'
+const PROJECT_TAG_PREFIX = 'Project:'
 
 /** The task fields the map reads. */
 export type NeglectFields = Pick<TodoItem, 'modifiedAt' | 'dueDate' | 'isCompleted'> & { id: number }
 
-export interface NeglectOptions {
+interface NeglectOptions {
   today: Date
   /** The tab's threshold: untouched this many days or more counts. */
   untouchedDays: number

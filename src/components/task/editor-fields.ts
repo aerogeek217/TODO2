@@ -34,7 +34,7 @@ export function editorFieldsOf(
 }
 
 /** The fields the user changed in the editor since the last sync. */
-export function editedFields(form: EditorFields, baseline: EditorFields): Set<EditorField> {
+function editedFields(form: EditorFields, baseline: EditorFields): Set<EditorField> {
   return new Set(FIELDS.filter((f) => !sameFieldValue(form[f], baseline[f])))
 }
 

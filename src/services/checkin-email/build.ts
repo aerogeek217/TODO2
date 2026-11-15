@@ -85,7 +85,7 @@ export const CHECKIN_META_LABELS = {
 } as const
 
 /** The empty Completed box. */
-export const CHECKIN_COMPLETED_BOX = '[ ]'
+const CHECKIN_COMPLETED_BOX = '[ ]'
 
 /** The sign-off line (exact; a reply reader stops a task's notes at it). */
 export const CHECKIN_SIGN_OFF = 'Thanks,'

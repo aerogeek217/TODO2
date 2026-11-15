@@ -69,6 +69,28 @@ describe('hitTestWorkspace', () => {
     expect(hitTestWorkspace(geo, { x: 990, y: 300 })).toEqual({ kind: 'insert', edge: 'right' })
   })
 
+  it('a narrow edge cell keeps the inner half of its side zone for a split: the insert zone takes only the outer half (cr34 W10)', () => {
+    // Two 72px Numbers at the layout's sides (one widget each: the card is the body), a wide cell between.
+    const card = (id: string, x0: number, x1: number): CellGeometry => ({ id, rect: rect(x0, 6, x1, 76), header: null, body: rect(x0, 6, x1, 76), empty: false, tabs: [] })
+    const g: WorkspaceGeometry = { area: rect(0, 0, 1006, 82), cells: [card('n1', 6, 78), card('mid', 84, 922), card('n2', 928, 1000)] }
+    // A 72px body's side zone is 14.4px: its outer 7.2px insert a column, its inner 7.2px split it.
+    expect(hitTestWorkspace(g, { x: 10, y: 41 })).toEqual({ kind: 'insert', edge: 'left' })
+    expect(hitTestWorkspace(g, { x: 16, y: 41 })).toEqual({ kind: 'cell-body', cellId: 'n1', zone: 'left' })
+    expect(hitTestWorkspace(g, { x: 22, y: 41 })).toEqual({ kind: 'cell-body', cellId: 'n1', zone: 'middle' })
+    expect(hitTestWorkspace(g, { x: 996, y: 41 })).toEqual({ kind: 'insert', edge: 'right' })
+    expect(hitTestWorkspace(g, { x: 990, y: 41 })).toEqual({ kind: 'cell-body', cellId: 'n2', zone: 'right' })
+    // The padding beside it is the insert zone, as ever.
+    expect(hitTestWorkspace(g, { x: 3, y: 41 })).toEqual({ kind: 'insert', edge: 'left' })
+    // A body of 180px or more is unchanged: 24px in from the area's edge (18px of the cell).
+    const wide: WorkspaceGeometry = { area: rect(0, 0, 1006, 82), cells: [card('w', 6, 186), card('rest', 192, 1000)] }
+    expect(hitTestWorkspace(wide, { x: 24, y: 41 })).toEqual({ kind: 'insert', edge: 'left' })
+    expect(hitTestWorkspace(wide, { x: 25, y: 41 })).toEqual({ kind: 'cell-body', cellId: 'w', zone: 'left' })
+    // Over a strip (no side zones there) the insert zone keeps its 24px.
+    const strip: WorkspaceGeometry = { area: rect(0, 0, 1006, 706), cells: [cellGeo('s', 6, 78, 6, 700, ['t1']), cellGeo('rest', 84, 1000, 6, 700, ['t2'])] }
+    expect(hitTestWorkspace(strip, { x: 22, y: 20 })).toEqual({ kind: 'insert', edge: 'left' })
+    expect(hitTestWorkspace(strip, { x: 16, y: 300 })).toEqual({ kind: 'cell-body', cellId: 's', zone: 'left' })
+  })
+
   it('within the top / bottom zone, where no cell is → insert a row (reaching 16px past the edge)', () => {
     expect(hitTestWorkspace(geo, { x: 300, y: 3 })).toEqual({ kind: 'insert', edge: 'top' })
     expect(hitTestWorkspace(geo, { x: 300, y: -10 })).toEqual({ kind: 'insert', edge: 'top' })

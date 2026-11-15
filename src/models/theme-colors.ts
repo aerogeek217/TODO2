@@ -92,6 +92,36 @@ export const THEME_COLOR_FOLLOWS: Readonly<Partial<Record<keyof ThemeColors, key
 }
 
 /**
+ * What a priority's own colour sets besides its `--color-marker-*`: the fill
+ * of its typed token's tint (`/urgent`, Quick Add's chip — the colour at
+ * `PRIORITY_TINT_FILL`) and, for Focus, the token's text (`priorityTintText`). Without an
+ * override the stylesheet has them follow Danger's, Follow up's and the
+ * accent's own.
+ */
+export const PRIORITY_TINT_VARS: Readonly<Partial<Record<keyof ThemeColors, { fill: string; text?: string }>>> = {
+  focus: { fill: '--color-marker-focus-bg', text: '--color-marker-focus-text' },
+  urgent: { fill: '--color-marker-urgent-bg' },
+  important: { fill: '--color-marker-important-bg' },
+}
+
+/** How much of a priority's own colour its token's fill is. */
+export const PRIORITY_TINT_FILL = '12%'
+
+/**
+ * How much of a priority's own colour its token's text is in each theme, the
+ * rest black (`null`: the colour as it is) — what the stylesheet does to the
+ * accent for text (`--color-accent-text`, which Focus's token follows with
+ * no override: the light theme darkens it for contrast on its tint).
+ */
+const PRIORITY_TINT_TEXT_SHARE: Readonly<Record<ThemeName, string | null>> = { dark: null, light: '76%' }
+
+/** The text colour of a priority's typed token in `theme`, from the priority's own `color`. */
+export function priorityTintText(theme: ThemeName, color: string): string {
+  const share = PRIORITY_TINT_TEXT_SHARE[theme]
+  return share === null ? color : `color-mix(in srgb, ${color} ${share}, black)`
+}
+
+/**
  * The colour `key` is drawn in: its own value once overridden (`customized`),
  * else the value of the colour it follows, else its seed (`colors` holds the
  * seeds of the colours without an override).

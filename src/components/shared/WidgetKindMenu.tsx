@@ -1,11 +1,7 @@
 import { MenuPopover } from './MenuPopover'
 import { widgetKindMenuEntries, type WidgetKindMenuProps } from './widget-kind-menu-entries'
 
-export type {
-  WidgetKindMenuContent,
-  WidgetKindMenuProps,
-  WidgetMenuAction,
-} from './widget-kind-menu-entries'
+export type { WidgetMenuAction } from './widget-kind-menu-entries'
 
 /**
  * A tab's menu (right-click or Shift+F10 / the Menu key on a tab) and the

@@ -3,8 +3,9 @@ import type { CellArea, GridAxis, GridTrack, LayoutBody, LayoutCell } from '../m
 /**
  * The layout's table (D26): its tracks, its lines and where its cells are.
  * Pure reads plus the two checks every layout op ends with —
- * `normalizeGrid` (merges a line no cell's edge lies on, keeps the cells in
- * reading order) and `validateTiling` (the cells cover the grid exactly).
+ * `normalizeGrid` (merges a line no cell's edge lies on, expands a collapsed
+ * row nothing can expand, keeps the cells in reading order) and
+ * `validateTiling` (the cells cover the grid exactly).
  *
  * Coordinates are track indices. A cell covers the columns `col …
  * col + colSpan - 1` and the rows `row … row + rowSpan - 1`; as a
@@ -14,7 +15,7 @@ import type { CellArea, GridAxis, GridTrack, LayoutBody, LayoutCell } from '../m
  */
 
 /** A cell's rectangle as the lines it lies between (ends exclusive). */
-export interface CellRect {
+interface CellRect {
   c0: number
   r0: number
   c1: number
@@ -41,7 +42,7 @@ export function rectOf(area: CellArea): CellRect {
   return { c0: area.col, r0: area.row, c1: area.col + area.colSpan, r1: area.row + area.rowSpan }
 }
 
-export function areaOf(rect: CellRect): CellArea {
+function areaOf(rect: CellRect): CellArea {
   return { col: rect.c0, row: rect.r0, colSpan: rect.c1 - rect.c0, rowSpan: rect.r1 - rect.r0 }
 }
 
@@ -137,24 +138,9 @@ export function unionArea(a: CellArea, b: CellArea): CellArea | null {
   return null
 }
 
-/** Whether cells `aId` and `bId` merge into a rectangle (`unionArea`). */
-export function canMerge(body: LayoutBody, aId: string, bId: string): boolean {
-  const a = cellById(body, aId)
-  const b = cellById(body, bId)
-  return a != null && b != null && a !== b && unionArea(a.area, b.area) != null
-}
-
 /** The neighbour across `side` that cell `cellId` merges with into a rectangle (Merge with ▸ Right / Below), if any. */
 export function mergeNeighbour(body: LayoutBody, cellId: string, side: Side): LayoutCell | undefined {
   return wholeEdgeNeighbour(body, cellId, side)
-}
-
-/** Whether line `line` of `axis` (an inner one) is some cell's edge. */
-export function isCellEdge(body: LayoutBody, axis: GridAxis, line: number): boolean {
-  return body.cells.some((c) => {
-    const [start, end] = spanOf(c.area, axis)
-    return start === line || end === line
-  })
 }
 
 /** The track a run of two tracks makes when the line between them goes: the first's id, the sizes added, collapsed only when both were. */
@@ -166,27 +152,94 @@ export function mergeTracks(a: GridTrack, b: GridTrack): GridTrack {
   return merged
 }
 
-/** `body` with line `line` of `axis` gone: its two tracks merged, every cell's coordinates past it shifted back. */
-function dropLine<B extends LayoutBody>(body: B, axis: GridAxis, line: number): B {
+/**
+ * `body` with every inner line of `axis` that no cell's edge lies on gone:
+ * each run of tracks between two kept lines merged into one (`mergeTracks`,
+ * in order), every cell's coordinates shifted back past the lines that
+ * went. One pass over the cells and the tracks (cr34: a line at a time,
+ * walking every cell for each, was quadratic). The same object when every
+ * inner line is an edge.
+ */
+function dropNonEdgeLines<B extends LayoutBody>(body: B, axis: GridAxis): B {
   const tracks = body.grid[axis]
-  const a = tracks[line - 1]
-  const b = tracks[line]
-  if (!a || !b) return body
-  const merged = [...tracks.slice(0, line - 1), mergeTracks(a, b), ...tracks.slice(line + 1)]
+  if (tracks.length < 2) return body
+  const edges = new Set<number>()
+  for (const c of body.cells) {
+    const [start, end] = spanOf(c.area, axis)
+    edges.add(start)
+    edges.add(end)
+  }
+  let drops = false
+  for (let line = 1; line < tracks.length && !drops; line++) drops = !edges.has(line)
+  if (!drops) return body
+  // Where each kept line lands: its index less the lines before it that go.
+  const landing = new Array<number>(tracks.length + 1)
+  const merged: GridTrack[] = []
+  let gone = 0
+  landing[0] = 0
+  tracks.forEach((track, i) => {
+    const last = merged.at(-1)
+    if (i > 0 && !edges.has(i) && last) {
+      merged[merged.length - 1] = mergeTracks(last, track)
+      gone++
+    } else merged.push(track)
+    landing[i + 1] = i + 1 - gone
+  })
   const cells = body.cells.map((c) => {
     const [start, end] = spanOf(c.area, axis)
-    const s = start >= line ? start - 1 : start
-    const e = end >= line ? end - 1 : end
+    const s = landing[start] ?? start
+    const e = landing[end] ?? end
     return s === start && e === end ? c : { ...c, area: withSpan(c.area, axis, s, e) }
   })
   return { ...body, grid: { ...body.grid, [axis]: merged }, cells }
 }
 
 /**
+ * The collapsed row tracks (their indices) that nothing can expand: no
+ * filled cell lies wholly in collapsed tracks over them. Only such a cell
+ * draws folded and offers Expand row — a cell spanning on into an expanded
+ * row doesn't, and an empty cell has no Expand at all — so a collapsed track
+ * without one is a header's height of table with no way back (and no
+ * divider on either side of it).
+ */
+export function orphanCollapsedRows(body: LayoutBody): number[] {
+  const rows = body.grid.rows
+  if (!rows.some((t) => t.collapsed === true)) return []
+  const held = new Set<number>()
+  for (const c of body.cells) {
+    if (c.tabs.length === 0) continue
+    const [start, end] = spanOf(c.area, 'rows')
+    let folded = end > start
+    for (let r = start; r < end && folded; r++) folded = rows[r]?.collapsed === true
+    if (folded) for (let r = start; r < end; r++) held.add(r)
+  }
+  return rows.flatMap((t, r) => (t.collapsed === true && !held.has(r) ? [r] : []))
+}
+
+/**
+ * `body` with every collapsed row track nothing can expand
+ * (`orphanCollapsedRows`) expanded: a collapsed row expands by itself once
+ * no filled cell lies only in it (its cell closed, moved away, or grown on
+ * into an expanded row). The same object when there is none.
+ */
+export function expandOrphanRows<B extends LayoutBody>(body: B): B {
+  const orphans = new Set(orphanCollapsedRows(body))
+  if (orphans.size === 0) return body
+  const rows = body.grid.rows.map((t, r) => {
+    if (!orphans.has(r)) return t
+    const { collapsed: _c, ...rest } = t
+    void _c
+    return rest
+  })
+  return { ...body, grid: { ...body.grid, rows } }
+}
+
+/**
  * The body in its normal form: every inner line some cell's edge (a line
- * that is none goes — its two tracks merge, `mergeTracks`), no tracks when
- * there are no cells, and the cells in reading order. Assumes a valid
- * tiling (`validateTiling`). The same object when it already is.
+ * that is none goes — its two tracks merge, `mergeTracks`), no collapsed row
+ * that nothing can expand (`expandOrphanRows`), no tracks when there are no
+ * cells, and the cells in reading order. Assumes a valid tiling
+ * (`validateTiling`). The same object when it already is.
  */
 export function normalizeGrid<B extends LayoutBody>(body: B): B {
   if (body.cells.length === 0) {
@@ -194,13 +247,8 @@ export function normalizeGrid<B extends LayoutBody>(body: B): B {
     return { ...body, grid: { columns: [], rows: [] } }
   }
   let next = body
-  for (const axis of ['columns', 'rows'] as const) {
-    let line = 1
-    while (line < next.grid[axis].length) {
-      if (isCellEdge(next, axis, line)) line++
-      else next = dropLine(next, axis, line)
-    }
-  }
+  for (const axis of ['columns', 'rows'] as const) next = dropNonEdgeLines(next, axis)
+  next = expandOrphanRows(next)
   const ordered = next.cells.every((c, i) => i === 0 || readingCompare(next.cells[i - 1] as LayoutCell, c) < 0)
   if (!ordered) next = { ...next, cells: readingOrder(next) }
   return next
@@ -288,7 +336,7 @@ function extendStretch(body: LayoutBody, axis: GridAxis, line: number, from: num
  * and row line `row` (a level one), each a cell edge on both sides of the
  * other — four cells meet there.
  */
-export interface LineCrossing {
+interface LineCrossing {
   col: number
   row: number
 }

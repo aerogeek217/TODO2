@@ -103,7 +103,7 @@ test('dragging a task urgent by its due date out of Urgent is refused, saying wh
   expect((await stored(page, 'Renewal'))?.important).toBeUndefined()
 })
 
-test('a hidden filter line comes back while the list is unsaved and leaves after Save', async ({ page }) => {
+test('a hidden filter line stays hidden through an Edit list edit and its Save; ticking Show filter line brings it back', async ({ page }) => {
   await seedWorkspace(page, seed({ showFilterLine: false, grouping: 'none' }))
   const line = widget(page).getByTestId('list-filter-row')
   await expect(widget(page).locator('[data-task-title="Someday"]')).toBeVisible()

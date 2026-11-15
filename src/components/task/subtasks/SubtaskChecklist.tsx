@@ -22,9 +22,9 @@ export interface ChecklistItem {
   isCompleted: boolean
 }
 
-export type ChecklistDensity = 'editor' | 'tight' | 'touch'
+type ChecklistDensity = 'editor' | 'tight' | 'touch'
 
-export interface SubtaskChecklistProps {
+interface SubtaskChecklistProps {
   items: readonly ChecklistItem[]
   /** Row height: `editor` (28px), `tight` (26px, the row's popover), `touch` (44px, the phone's sheet). */
   density: ChecklistDensity

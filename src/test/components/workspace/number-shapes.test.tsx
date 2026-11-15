@@ -143,6 +143,42 @@ describe('Oldest', () => {
     expect(figure()).toBe('—')
     expect(number().textContent).toContain('No tasks')
   })
+
+  it('by due date the foot counts the tasks that have one: the ones its click opens (cr34 G3)', () => {
+    const open = SAMPLE_TASKS.filter((t) => !t.isCompleted)
+    const dated = open.filter((t) => t.dueDate != null)
+    // The sample has open tasks without a due date, so the two counts differ.
+    expect(dated.length).toBeGreaterThan(0)
+    expect(dated.length).toBeLessThan(open.length)
+    const onDrill = vi.fn()
+    setup(shape({ show: 'oldest', oldestBy: 'deadline' }, 'open'), onDrill)
+    const foot = within(number()).getByTestId('number-oldest-foot').textContent!
+    // The median by due date is worded as the figure is, never a negative age (cr34 G10).
+    expect(foot).toMatch(new RegExp(`^${dated.length} · median (due today|\\d+ days? overdue|due in \\d+ days?)$`))
+    expect(number().getAttribute('aria-label')).toContain(`${foot}.`)
+    expect(lastResult?.summary.plain.split('\n').at(-1)).toBe(foot)
+    fireEvent.click(number())
+    const drill = onDrill.mock.calls[0]![0] as GlanceDrill
+    expect((drill.source as unknown as { todoIds: number[] }).todoIds.slice().sort((a, b) => a - b)).toEqual(dated.map((t) => t.id).sort((a, b) => a - b))
+  })
+
+  it('by due date, tasks but none with a due date: —, No due dates, a foot of 0 (cr34 G3)', () => {
+    useTodoStore.setState({ todos: SAMPLE_TASKS.filter((t) => !t.isCompleted && t.dueDate == null) })
+    const onDrill = vi.fn()
+    setup(shape({ show: 'oldest', oldestBy: 'deadline' }, 'open'), onDrill)
+    expect(figure()).toBe('—')
+    expect(number().textContent).toContain('No due dates')
+    expect(number().textContent).not.toContain('No tasks')
+    expect(within(number()).getByTestId('number-oldest-foot').textContent).toBe('0')
+    expect(number().getAttribute('aria-label')).toBe('Late: no due dates. Show tasks')
+    fireEvent.click(number())
+    expect((onDrill.mock.calls[0]![0] as GlanceDrill).source).toMatchObject({ kind: 'todos', todoIds: [] })
+    // No task at all still reads No tasks.
+    cleanup()
+    useTodoStore.setState({ todos: [] })
+    setup(shape({ show: 'oldest', oldestBy: 'deadline' }, 'open'))
+    expect(number().textContent).toContain('No tasks')
+  })
 })
 
 describe('the colour otherwise (widget feedback 2D)', () => {
@@ -198,6 +234,24 @@ describe('Against a goal', () => {
     expect(within(number()).getByTestId('number-goal-state').textContent).toBe('Behind pace (Sat)')
     expect(number().dataset.lit).toBe('true')
     expect(within(number()).getByTestId('number-goal-bar').querySelector('span')!.style.width).toBe('50%')
+  })
+
+  it('in the week’s first minute a weekly goal with nothing counted is on pace, not lit; the next day it is behind (cr34, answer 15)', () => {
+    const nothing = { ...emptyPredicate(), searchText: 'nothing matches this' }
+    // Sun 11 Oct 00:01, the first day of a Sunday week.
+    vi.setSystemTime(new Date(2026, 9, 11, 0, 1))
+    setup(shape({ show: 'goal', goal: { atLeast: 4, period: 'week' }, filter: nothing }))
+    expect(figure()).toBe('0')
+    expect(within(number()).getByTestId('number-goal-state').textContent).toBe('On pace (Sun)')
+    expect(number().dataset.lit).toBeUndefined()
+    expect(within(number()).getByTestId('number-goal-bar').dataset.goalState).toBe('onPace')
+    // The tick still marks the day's share.
+    expect(within(number()).getByTestId('number-goal-pace').getAttribute('title')).toBe('Pace: 0.6 by the end of Sun')
+    cleanup()
+    vi.setSystemTime(new Date(2026, 9, 12, 0, 1))
+    setup(shape({ show: 'goal', goal: { atLeast: 4, period: 'week' }, filter: nothing }))
+    expect(within(number()).getByTestId('number-goal-state').textContent).toBe('Behind pace (Mon)')
+    expect(number().dataset.lit).toBe('true')
   })
 })
 

@@ -29,13 +29,6 @@
   border-color: var(--color-border);
 }
 
-.sep {
-  width: 1px;
-  height: 14px;
-  margin: 0 4px;
-  background: var(--color-border);
-}
-
 .spacer {
   margin-left: auto;
 }

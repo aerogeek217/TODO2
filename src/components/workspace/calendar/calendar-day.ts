@@ -21,7 +21,7 @@ export const MONTH_LEGEND_HEIGHT = 20
 export type CalendarMode = 'month' | 'compact' | 'rows' | 'columns'
 
 /** A task drag in progress anywhere in the workspace. */
-export interface TaskDragInfo {
+interface TaskDragInfo {
   /** A calendar entry (moves its own date), not a list row. */
   entryMove: boolean
 }

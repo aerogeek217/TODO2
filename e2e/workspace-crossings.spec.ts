@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { edges, expectSameEdges, openCellLayoutMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { edges, expectSameEdges, openCellLayoutMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed, expectDividerStep, expectLayoutStored } from './fixtures/workspace'
 import { box, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -54,7 +54,7 @@ test.describe('pieces and crossings', () => {
     await expect(crossing(page)).toHaveAccessibleName('Resize row and column')
   })
 
-  test('dragging a piece moves it alone: a new line, unsaved', async ({ page }) => {
+  test('dragging a piece moves it alone: a new line, saved at once', async ({ page }) => {
     await seedWorkspace(page, { layouts: [quad] })
     const a0 = await edges(wsCell(page, 'a'))
     const c0 = await edges(wsCell(page, 'c'))
@@ -63,7 +63,7 @@ test.describe('pieces and crossings', () => {
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).right - a0.right)).toBeGreaterThan(90)
     // c | d stays (a new track takes one more gap from the weighted columns: a few px).
     expect(Math.abs((await edges(wsCell(page, 'c'))).right - c0.right)).toBeLessThanOrEqual(4)
-    await expectLayoutStep(page)
+    await expectDividerStep(page)
     await expect(crossing(page)).toHaveCount(0)
   })
 
@@ -148,7 +148,7 @@ test.describe('snapping', () => {
     let from = centre(await box(wsDivider(page, 'b', 'd')))
     await dragHandle(page, from, { x: from.x, y: from.y + 80 })
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'b'))).bottom - a0.bottom)).toBeGreaterThan(70)
-    await expectLayoutStep(page)
+    await expectDividerStep(page)
     await expect(crossing(page)).toHaveCount(0)
     expect(Math.abs((await edges(wsCell(page, 'a'))).bottom - a0.bottom)).toBeLessThanOrEqual(4)
 
@@ -214,7 +214,7 @@ test.describe('a structural drag previews its result', () => {
       mid.b = await edges(wsCell(page, 'b'))
       expect(await marked()).toBe(true)
     })
-    await expectLayoutStep(page)
+    await expectDividerStep(page)
     if (!mid.a || !mid.b) throw new Error('not measured mid-drag')
     expect(mid.a.right - a0.right).toBeGreaterThan(50)
     expectSameEdges(await edges(wsCell(page, 'a')), mid.a, 1)
@@ -277,6 +277,30 @@ test.describe('a Numbers-only row', () => {
     await page.mouse.dblclick(d.x, d.y)
     await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBe(fit)
     await expect.poll(async () => (await storedRows(page))[0]?.fitPx).toBeUndefined()
+  })
+
+  test('its minimum is its fit height: a press, a jiggle, a drag up or ↑ leave it fitting; given a height it comes back down to it (cr34 W3)', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [numbers] })
+    const fit = (await box(wsCell(page, 'n1'))).height
+    const height = async () => (await box(wsCell(page, 'n1'))).height
+    const divider = page.locator('[data-ws-divider][data-axis="rows"]')
+    const from = centre(await box(divider))
+    // A press with a 1px jiggle, then a drag up: the row is as tall as it was, and still fits (no height of its own).
+    await dragHandle(page, from, { x: from.x, y: from.y - 1 })
+    expect(await height()).toBe(fit)
+    await dragHandle(page, from, { x: from.x, y: from.y - 40 })
+    expect(await height()).toBe(fit)
+    await divider.focus()
+    await page.keyboard.press('ArrowUp')
+    expect(await height()).toBe(fit)
+    await expectLayoutStored(page)
+    expect((await storedRows(page))[0]?.fitPx).toBeUndefined()
+    // ↓ gives it 16px more; a long drag up then stops at the height it fits at.
+    await page.keyboard.press('ArrowDown')
+    await expect.poll(async () => Math.round(await height())).toBe(Math.round(fit) + 16)
+    const d = centre(await box(divider))
+    await dragHandle(page, d, { x: d.x, y: d.y - 200 })
+    await expect.poll(async () => Math.round(await height())).toBe(Math.round(fit))
   })
 
   test('collapsed, its cells keep their small face (no top line in the 32px row), given a height or not', async ({ page }) => {

@@ -16,7 +16,7 @@ import { notesPopupField } from './notes-nlp'
  * typing or caret move), so the keyboard is never trapped on a list.
  */
 
-export const INDENT = '  '
+const INDENT = '  '
 
 /** A list line: optional indent, then a bullet, a box or a number, then a space (or the end). */
 const LIST_LINE_RE = /^\s*(?:[-*•](?:\s+\[[ xX]\])?|\[[ xX]\]|\d+[.)])(?:\s|$)/

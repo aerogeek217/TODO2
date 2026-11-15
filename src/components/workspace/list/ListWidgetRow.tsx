@@ -43,7 +43,7 @@ export function DropSlot({ sorted, children }: { sorted?: boolean; children?: Re
   )
 }
 
-export interface ListRowSelectMods {
+interface ListRowSelectMods {
   shift: boolean
   ctrl: boolean
 }

@@ -32,11 +32,6 @@ export function statsFilter(screen: FilterCriteria): FilterCriteria {
   return { ...screen, showCompleted: true }
 }
 
-/** The open tasks of `tasks`. */
-export function openTasks(tasks: readonly PersistedTodoItem[]): PersistedTodoItem[] {
-  return tasks.filter((t) => !t.isCompleted)
-}
-
 /**
  * Task ids in dialog order: by `field` ascending (so overdue first), tasks
  * without that date last, ties by `sortOrder`.

@@ -244,7 +244,7 @@ test('month navigation is view state: saved across reload, never unsaved', async
   await expectLayoutStored(page)
 })
 
-test('date-type toggles are layout config: unsaved until saved; both can be off', async ({ page }) => {
+test('date-type toggles are layout config: saved at once as an undo step; both can be off', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [TASK_LIST],
     tasks: [{ title: 'Both dates', dueInDays: 1, followupInDays: 1 }],

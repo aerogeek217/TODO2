@@ -5,7 +5,7 @@ import { shortTitle as short } from '../utils/text'
 import { listMarker, type ConvertLine } from './note-lines'
 
 /** One subtask a converted note line makes: a plain title (no parsing) and its done state. */
-export interface NoteSubtaskDraft {
+interface NoteSubtaskDraft {
   title: string
   done: boolean
 }

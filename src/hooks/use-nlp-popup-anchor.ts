@@ -4,7 +4,7 @@ import { usePopoverAnchor, type PopoverAnchor } from './use-popover-anchor'
 const POPUP_GAP_PX = 4
 
 /** The `@ # ! /` popup's width where a field hosts it (`NlpPopup`). */
-export const NLP_POPUP_WIDTH_PX = 280
+const NLP_POPUP_WIDTH_PX = 280
 
 interface AnchorRect { left: number; top: number; right: number; bottom: number }
 

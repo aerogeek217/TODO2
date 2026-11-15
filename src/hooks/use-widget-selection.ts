@@ -7,12 +7,12 @@ import { useScopedSelectionRelease } from './use-scoped-selection-release'
 const NO_IDS: ReadonlySet<number> = new Set()
 
 /** The modifier keys of a row click. */
-export interface RowSelectMods {
+interface RowSelectMods {
   shift: boolean
   ctrl: boolean
 }
 
-export interface WidgetSelection {
+interface WidgetSelection {
   /** This widget owns the selection. */
   inScope: boolean
   /** The selected tasks while this widget owns the selection, else none. */

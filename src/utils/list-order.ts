@@ -19,7 +19,7 @@ export interface RankWrite {
 export type ListRanks = ReadonlyMap<number, number>
 
 /** Gap between neighbouring ranks when ranks are assigned in a row. */
-export const RANK_STEP = 1
+const RANK_STEP = 1
 
 function createdMs(t: PersistedTodoItem): number {
   const ms = t.createdAt instanceof Date ? t.createdAt.getTime() : new Date(t.createdAt).getTime()
@@ -73,7 +73,7 @@ export function placeInOrder(order: readonly number[], move: MoveTarget): number
 }
 
 /** Ranks `RANK_STEP, 2·RANK_STEP, …` in `order`. */
-export function ranksInOrder(order: readonly number[]): RankWrite[] {
+function ranksInOrder(order: readonly number[]): RankWrite[] {
   return order.map((todoId, i) => ({ todoId, rank: (i + 1) * RANK_STEP }))
 }
 

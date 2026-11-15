@@ -8,7 +8,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { resolveTags, resolveUnmatchedPeople } from './nlp-resolver'
 import { draftToTodo, type TaskDraft } from './task-draft'
 
-export interface CreatedTask {
+interface CreatedTask {
   id: number
   title: string
 }

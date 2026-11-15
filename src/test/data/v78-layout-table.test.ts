@@ -4,7 +4,6 @@ import { layoutTableOf } from '../../data/upgrades/v78/layout-table'
 import { upgradeDataSet, SCHEMA_UPGRADES } from '../../data/schema-upgrades'
 import { CURRENT_DB_VERSION } from '../../data/database'
 import { rowFixes, validateRow } from '../../data/import-validation'
-import { readLayoutDraft } from '../../data/draft-storage'
 import { LAYOUT_PART_LIMIT } from '../../data/layout-shape'
 import { isNormalized, validateTiling } from '../../utils/workspace-grid'
 import { isFitTrack } from '../../utils/workspace-rows'
@@ -180,29 +179,5 @@ describe('v78 layout-table: columns, rows and bands become a table', () => {
     expect(SCHEMA_UPGRADES.get(78)).toBe(upgradeV78)
     const out = upgradeDataSet({ layouts: [layout({ columns: [col('A', [rowOf('A1', [cellOf('a')])])] })] }, 77, 78)
     expect(picture(out.layouts![0] as unknown as LayoutBody)).toEqual(['a'])
-  })
-})
-
-describe('a kept v77 layout draft reads back upgraded', () => {
-  it('its body and base become tables, the base matching what the stored layout upgrades to', () => {
-    const base = { columns: [col('A', [rowOf('A1', [cellOf('a')])])], bottom: { id: 'bot', height: 100, cells: [cellOf('z')] } }
-    const body = { columns: [col('A', [rowOf('A1', [cellOf('a')]), rowOf('A2', [cellOf('b')])])], bottom: base.bottom }
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({
-      kind: 'saved', layoutId: 1, schemaVersion: 77,
-      ...body, baseColumns: base.columns, baseBottom: base.bottom,
-    }))
-    const draft = readLayoutDraft()
-    expect(draft?.kind).toBe('saved')
-    if (draft?.kind !== 'saved') return
-    expect(picture(draft.body)).toEqual(['a', 'b', 'z'])
-    expect(picture(draft.base)).toEqual(['a', 'z'])
-    const stored = layoutTableOf(layout(base)) as unknown as LayoutBody
-    expect(draft.base).toEqual({ grid: stored.grid, cells: stored.cells })
-  })
-
-  it('a new layout’s draft too', () => {
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'N', schemaVersion: 76, columns: [col('A', [rowOf('A1', [cellOf('a')])])] }))
-    const draft = readLayoutDraft()
-    expect(draft?.kind === 'new' && picture(draft.body)).toEqual(['a'])
   })
 })

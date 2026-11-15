@@ -11,7 +11,7 @@ export async function getPickerStartIn(): Promise<FileSystemHandle | 'documents'
   return 'documents'
 }
 
-export interface SaveTextFileOptions {
+interface SaveTextFileOptions {
   text: string
   suggestedName: string
   /** Picker file-type label, e.g. "JSON". */
@@ -25,7 +25,7 @@ export interface SaveTextFileOptions {
  * the browser as a download (no File System Access API, or the picker
  * failed); `cancelled` — the user dismissed the picker, nothing was written.
  */
-export type SaveTextFileResult = 'saved' | 'downloaded' | 'cancelled'
+type SaveTextFileResult = 'saved' | 'downloaded' | 'cancelled'
 
 /**
  * Saves text to a user-chosen file: the File System Access save picker

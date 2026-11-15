@@ -6,7 +6,6 @@ import { CURRENT_DB_VERSION } from '../../data/database'
 import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
-import { readLayoutDraft, readListDrafts } from '../../data/draft-storage'
 import { rowFixes, validateRow } from '../../data/import-validation'
 import { emptyPredicate, type TodoPredicate } from '../../models/filter-predicate'
 import { defaultBreakdownColumns } from '../../models/chart-widgets'
@@ -263,6 +262,30 @@ describe('v79 leftovers: the Eisenhower’s list and rows, the Default list zoom
     expect(upgradeLeftoversV79({ settings: [{ key: 'rowDensity', value: 'comfortable' }] }).settings).toEqual([{ key: 'rowDensity', value: 'stacked' }])
     expect(upgradeLeftoversV79({ settings: [{ key: 'rowDensity', value: 'compact' }] }).settings).toEqual([{ key: 'rowDensity', value: 'rows' }])
   })
+
+  it('names of Object.prototype members are no old value and no id it knows: left as they are (cr34 S2)', () => {
+    // A zoom value naming one is no old level: the row passes through (for validation), never a function as its value.
+    for (const value of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      const data = { settings: [{ key: 'rowDensity', value }] }
+      expect(upgradeLeftoversV79(data)).toBe(data)
+    }
+    // A sort by one names no older derived column: dropped, as any sort by a column the Breakdown lacks.
+    const sorted = (by: string) => one({ id: 'b', kind: 'breakdown', config: { name: 'B', columns: [] }, viewState: { sorts: { people: { by }, tags: { by: 'name' } } } })
+    for (const by of ['constructor', '__proto__', 'valueOf']) {
+      expect(tabOf(layoutV79Of(sorted(by))).viewState).toEqual({ sorts: { tags: { by: 'name' } } })
+    }
+    // Tab, cell and track ids named so go through the tab walk untouched: a kept tab stays, a removed kind's goes.
+    const row = layout({
+      grid: { columns: [{ id: 'toString', weight: 500 }, { id: 'valueOf', weight: 500 }], rows: [{ id: 'hasOwnProperty', weight: 1000 }] },
+      cells: [
+        { id: 'constructor', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [raw({ id: '__proto__', kind: 'notes', config: {} })] },
+        { id: 'isPrototypeOf', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [raw({ id: 'propertyIsEnumerable', kind: 'eisenhower', config: {} })] },
+      ],
+    } as LayoutBody)
+    const out = layoutV79Of(row) as unknown as LayoutBody
+    expect(out.cells.map((c) => [c.id, c.tabs.map((t) => t.id)])).toEqual([['constructor', ['__proto__']]])
+    expect(out.grid).toEqual({ columns: [{ id: 'toString', weight: 1000 }], rows: [{ id: 'hasOwnProperty', weight: 1000 }] })
+  })
 })
 
 describe('v79: the contract', () => {
@@ -373,27 +396,6 @@ describe('v79 through the pipeline', () => {
     // The same through the registry alone.
     const chained = upgradeDataSet(JSON.parse(JSON.stringify(file)) as DataSet, 68, CURRENT_DB_VERSION)
     expect(chained.listDefinitions!.map((d) => d.id)).toEqual([1])
-  })
-
-  it('a layout draft kept at v78 reads back in the v79 shape, its base as the stored layout upgrades to', () => {
-    const k = cell('k', [raw({ id: 'l', kind: 'lens', config: { listDefinitionId: 4 }, viewState: { zoom: 'strips' } }), raw({ id: 'e', kind: 'eisenhower', config: {} })])
-    const body = grid([[k]])
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 1, schemaVersion: 78, grid: body.grid, cells: body.cells, baseGrid: body.grid, baseCells: body.cells }))
-    const draft = readLayoutDraft()
-    expect(draft?.kind).toBe('saved')
-    if (draft?.kind !== 'saved') return
-    expect(draft.body.cells.flatMap((c) => c.tabs)).toEqual([{ id: 'l', kind: 'lens', config: { listDefinitionId: 4 }, viewState: { zoom: 'lines' } }])
-    const stored = layoutV79Of(layout(body)) as unknown as LayoutBody
-    expect(draft.base).toEqual({ grid: stored.grid, cells: stored.cells })
-  })
-
-  it('a list draft of the Eisenhower’s list kept at v78 is dropped (nothing shows that list); another reads back', () => {
-    const def = (id: number, owner: unknown) => ({ id, name: `L${id}`, sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: emptyPredicate() }, owner })
-    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({
-      2: { draft: def(2, { eisenhower: true }), base: def(2, { eisenhower: true }), schemaVersion: 78 },
-      4: { draft: def(4, { layoutId: 1 }), base: def(4, { layoutId: 1 }), schemaVersion: 78 },
-    }))
-    expect([...readListDrafts().keys()]).toEqual([4])
   })
 })
 

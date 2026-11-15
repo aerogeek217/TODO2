@@ -89,6 +89,35 @@ describe('Against a goal', () => {
     expect(goalProgress(20, goal, TODAY, 0).fraction).toBe(1)
   })
 
+  it('at least, weekly: the week’s first day is compared with 0, so the week never opens behind (cr34, answer 15)', () => {
+    const goal = { atLeast: 14, period: 'week' as const }
+    // Sun 11 Oct, a week starting on Sunday: nothing counted yet, and not behind; the pace tick still marks the day's share.
+    const sun = new Date(2026, 9, 11)
+    expect(goalProgress(0, goal, sun, 0)).toMatchObject({ state: 'onPace', lit: false, pace: 2, paceFraction: 2 / 14, fraction: 0 })
+    expect(goalProgress(1, goal, sun, 0)).toMatchObject({ state: 'onPace', lit: false })
+    expect(goalProgress(14, goal, sun, 0)).toMatchObject({ state: 'met', lit: false })
+    // The second day compares with its own pace again: 2 days' share by the end of Monday.
+    const mon = new Date(2026, 9, 12)
+    expect(goalProgress(0, goal, mon, 0)).toMatchObject({ state: 'behind', lit: true, pace: 4 })
+    expect(goalProgress(3, goal, mon, 0)).toMatchObject({ state: 'behind', lit: true })
+    expect(goalProgress(4, goal, mon, 0)).toMatchObject({ state: 'onPace', lit: false })
+    // A week starting on Monday: Monday is its first day, that Sunday its last (the whole target is due).
+    expect(goalProgress(0, goal, mon, 1)).toMatchObject({ state: 'onPace', lit: false, pace: 2 })
+    expect(goalProgress(13, goal, sun, 1)).toMatchObject({ state: 'behind', lit: true, pace: 14 })
+    // The days the clocks change (Sun 8 Mar and Sun 1 Nov 2026 in the US) are first days like any other.
+    expect(goalProgress(0, goal, new Date(2026, 2, 8), 0)).toMatchObject({ state: 'onPace', lit: false })
+    expect(goalProgress(0, goal, new Date(2026, 10, 1), 0)).toMatchObject({ state: 'onPace', lit: false })
+    expect(goalProgress(0, goal, new Date(2026, 10, 2), 0)).toMatchObject({ state: 'behind', lit: true })
+    // A target of 0 is met at once, on any day.
+    expect(goalProgress(0, { atLeast: 0, period: 'week' }, sun, 0)).toMatchObject({ state: 'met', lit: false })
+  })
+
+  it('at most, weekly: the first day changes nothing — over the limit is over on any day', () => {
+    const sun = new Date(2026, 9, 11)
+    expect(goalProgress(8, { atMost: 7, period: 'week' }, sun, 0)).toMatchObject({ state: 'over', lit: true, pace: 1 })
+    expect(goalProgress(0, { atMost: 7, period: 'week' }, sun, 0)).toMatchObject({ state: 'within', lit: false })
+  })
+
   it('at least, no period: behind (lit) until met; no pace', () => {
     expect(goalProgress(3, { atLeast: 5 }, TODAY, 0)).toMatchObject({ state: 'behind', lit: true, pace: null, paceFraction: null })
     expect(goalProgress(5, { atLeast: 5 }, TODAY, 0)).toMatchObject({ state: 'met', lit: false })

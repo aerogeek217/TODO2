@@ -32,7 +32,7 @@ export function completionOf(task: Pick<PersistedTodoItem, 'completedAt' | 'modi
   return new Date(task.completedAt ?? task.modifiedAt)
 }
 
-export type TaskState = 'absent' | 'open' | 'done'
+type TaskState = 'absent' | 'open' | 'done'
 
 /** The event types that move a task's state. */
 const STATE_TYPES: ReadonlySet<TodoEventType> = new Set(['created', 'completed', 'reopened'])
@@ -57,7 +57,7 @@ export interface DatedEvent {
 }
 
 /** One task's events, oldest first: all of them, its state events, its `deadline` events. */
-export interface TaskEvents {
+interface TaskEvents {
   all: readonly DatedEvent[]
   states: readonly DatedEvent[]
   deadlines: readonly DatedEvent[]
@@ -106,7 +106,7 @@ export function eventsByTask(
 }
 
 /** A task at a day's end. */
-export interface TaskAtDayEnd {
+interface TaskAtDayEnd {
   state: TaskState
   /** When a done task was completed (`null` when the log doesn't say); `null` unless done. */
   completed: Date | null
@@ -167,7 +167,7 @@ export interface TaskFields {
 }
 
 /** A task's people and tags now: where the replay of its assignments starts. */
-export interface TaskAssignmentsNow {
+interface TaskAssignmentsNow {
   personIds: readonly number[]
   tagIds: readonly number[]
 }

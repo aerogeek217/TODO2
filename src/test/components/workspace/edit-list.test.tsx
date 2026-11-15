@@ -3,6 +3,9 @@ import { render, cleanup, screen, fireEvent, act, within } from '@testing-librar
 import { EditListHost } from '../../../components/workspace/list/EditList'
 import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
 import { openEditList } from '../../../components/workspace/widget-hooks'
+import { listDefinitionRepository } from '../../../data/list-definition-repository'
+import { beginReplaceHold } from '../../../stores/replace-hold'
+import { editorsHoldChanges, leaveOpenEditors } from '../../../stores/editor-leave'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -133,13 +136,133 @@ describe('Edit list', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Name' }))
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save' })) })
-    expect(draft()).toBeUndefined()
     expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('name')
-    expect(editorOpen()).toBe(false)
+    // It closes, dropping its draft, once the write has landed.
+    await vi.waitFor(() => expect(editorOpen()).toBe(false))
+    expect(draft()).toBeUndefined()
     expect(useUIStore.getState().listEditor).toBeNull()
     await vi.waitFor(() => expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Edited list “Waiting on”']))
     await act(() => useUndoStore.getState().undo())
     expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('deadline')
+  })
+
+  describe('a Save whose write doesn’t land (cr34 D6)', () => {
+    const editGroup = (dialog: HTMLElement) => {
+      fireEvent.click(within(dialog).getByRole('button', { name: /^Group by/ }))
+      fireEvent.click(screen.getByRole('menuitemradio', { name: 'Status' }))
+    }
+    const save = async () => {
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
+    }
+    const failWrites = () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      return vi.spyOn(listDefinitionRepository, 'update').mockRejectedValue(new DOMException('full', 'QuotaExceededError'))
+    }
+
+    const COULD_NOT_SAVE = "Couldn't save list “Waiting on”."
+
+    afterEach(() => { vi.restoreAllMocks() })
+
+    it('a failed write says so and leaves Edit list open with its edits; Save again writes them', async () => {
+      const update = failWrites()
+      editGroup(open())
+      await save()
+      await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: COULD_NOT_SAVE }))
+      expect(editorOpen()).toBe(true)
+      expect(draft()).toMatchObject({ grouping: 'status' })
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('people')
+      expect(useUndoStore.getState().undoStack).toHaveLength(0)
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+      // The storage works again: the same Save writes the same edits.
+      update.mockRestore()
+      await save()
+      await vi.waitFor(() => expect(editorOpen()).toBe(false))
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
+      expect(draft()).toBeUndefined()
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Edited list “Waiting on”'])
+    })
+
+    it('the question’s Save that fails keeps it open too; Discard then drops the edits', async () => {
+      failWrites()
+      const dialog = open()
+      editGroup(dialog)
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
+      await answer('Save')
+      await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: COULD_NOT_SAVE }))
+      expect(editorOpen()).toBe(true)
+      expect(draft()).toMatchObject({ grouping: 'status' })
+      fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+      expect(editorOpen()).toBe(false)
+      expect(draft()).toBeUndefined()
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('people')
+    })
+
+    it('Save answered in a leave question from outside (Settings) that fails cancels the leave: Edit list stays with its draft', async () => {
+      const update = failWrites()
+      editGroup(open())
+      act(() => useUIStore.getState().openSettings('lenses'))
+      await answer('Save')
+      await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: COULD_NOT_SAVE }))
+      // The write failed: Settings didn't open over it, nothing was dropped and nothing says it was.
+      expect(useUIStore.getState().settingsOpen).toBe(false)
+      expect(editorOpen()).toBe(true)
+      expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+      expect(draft()).toMatchObject({ grouping: 'status' })
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('people')
+      // Its changes still count: leaving again asks again; with the storage back, Save writes and Settings opens.
+      update.mockRestore()
+      act(() => useUIStore.getState().openSettings('lenses'))
+      await answer('Save')
+      await vi.waitFor(() => expect(useUIStore.getState().settingsOpen).toBe(true))
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
+      expect(editorOpen()).toBe(false)
+      expect(draft()).toBeUndefined()
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Edited list “Waiting on”'])
+    })
+
+    it('the same from the leave rule itself (a layout switch, another editor): it resolves false, then true once the write lands', async () => {
+      const update = failWrites()
+      editGroup(open())
+      let left: Promise<boolean> | undefined
+      act(() => { left = leaveOpenEditors() })
+      await answer('Save')
+      expect(await left).toBe(false)
+      expect(editorOpen()).toBe(true)
+      expect(draft()).toMatchObject({ grouping: 'status' })
+      expect(editorsHoldChanges()).toBe(true)
+      update.mockRestore()
+      act(() => { left = leaveOpenEditors() })
+      await answer('Save')
+      await act(async () => { expect(await left).toBe(true) })
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
+      expect(editorOpen()).toBe(false)
+    })
+
+    it('a data replace holding list writes: Save says so and keeps the edits', async () => {
+      const release = beginReplaceHold()
+      try {
+        editGroup(open())
+        await save()
+        expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Your data is being replaced — try again in a moment.' })
+        expect(editorOpen()).toBe(true)
+        expect(draft()).toMatchObject({ grouping: 'status' })
+      } finally {
+        release()
+      }
+    })
+
+    it('a second Save while the first is being written writes once', async () => {
+      const update = vi.spyOn(listDefinitionRepository, 'update')
+      editGroup(open())
+      const button = screen.getByRole('button', { name: 'Save' })
+      await act(async () => {
+        fireEvent.click(button)
+        fireEvent.click(button)
+      })
+      await vi.waitFor(() => expect(editorOpen()).toBe(false))
+      expect(update).toHaveBeenCalledTimes(1)
+      expect(useUndoStore.getState().undoStack).toHaveLength(1)
+    })
   })
 
   it('Save writes only what the draft changed: a lens switch written meanwhile stays', async () => {
@@ -206,8 +329,8 @@ describe('Edit list', () => {
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Status' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
     await answer('Save')
-    expect(editorOpen()).toBe(false)
     expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
+    await vi.waitFor(() => expect(editorOpen()).toBe(false))
   })
 
   it('× on a list with no changes closes it at once', () => {
@@ -240,6 +363,77 @@ describe('Edit list', () => {
     expect(draft()).toMatchObject({ name: 'Waiting' })
   })
 
+  describe('a press on a strip’s tab that the question held', () => {
+    let switched = 0
+    let closed = 0
+    /** Edit list open with a change, beside a strip tab (with its ×) as `CellTabStrip` draws one. */
+    function openBesideTab() {
+      switched = 0
+      closed = 0
+      render(
+        <>
+          <Cell />
+          <div role="tab" data-ws-tab="t2" onClick={() => { switched++ }}>
+            Notes
+            <button type="button" aria-label="Close Notes" onClick={(e) => { e.stopPropagation(); closed++ }}>×</button>
+          </div>
+          <EditListHost />
+          <ConfirmPromptHost />
+        </>,
+      )
+      act(() => useUIStore.getState().openListEditor(7, 't1'))
+      fireEvent.change(within(screen.getByRole('dialog', { name: 'Edit list Waiting on' })).getByLabelText('Name'), { target: { value: 'Waiting' } })
+    }
+    const press = (el: Element) => {
+      fireEvent.pointerDown(el)
+      fireEvent.mouseDown(el)
+      fireEvent.click(el)
+    }
+
+    it('asks once and goes no further; Keep editing leaves the tab alone', async () => {
+      openBesideTab()
+      press(screen.getByRole('tab'))
+      expect(useUIStore.getState().confirmPrompts).toHaveLength(1)
+      expect(switched).toBe(0)
+      await answer('Keep editing')
+      expect(switched).toBe(0)
+      expect(editorOpen()).toBe(true)
+      expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
+    })
+
+    it.each(['Save', 'Discard'] as const)('%s: the tab’s click is then made, once, with no second question', async (label) => {
+      openBesideTab()
+      press(screen.getByRole('tab'))
+      await answer(label)
+      await vi.waitFor(() => expect(switched).toBe(1))
+      expect(editorOpen()).toBe(false)
+      expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.name).toBe(label === 'Save' ? 'Waiting' : 'Waiting on')
+    })
+
+    it('a Save whose write fails makes no click: Edit list is still open', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.spyOn(listDefinitionRepository, 'update').mockRejectedValue(new DOMException('full', 'QuotaExceededError'))
+      openBesideTab()
+      press(screen.getByRole('tab'))
+      await answer('Save')
+      await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: "Couldn't save list “Waiting on”." }))
+      expect(switched).toBe(0)
+      expect(editorOpen()).toBe(true)
+      vi.restoreAllMocks()
+    })
+
+    it('the tab’s × is pressed again by the user: its press is not made for them', async () => {
+      openBesideTab()
+      press(screen.getByRole('button', { name: 'Close Notes' }))
+      expect(useUIStore.getState().confirmPrompts).toHaveLength(1)
+      await answer('Discard')
+      await act(async () => {})
+      expect(closed).toBe(0)
+      expect(switched).toBe(0)
+    })
+  })
+
   it('a press on a control acting on its own list (the line’s words or summary) is not a press elsewhere', () => {
     render(<><Cell /><button type="button" data-edit-list-keep="7">Words</button><button type="button" data-edit-list-keep="8">Other list</button><EditListHost /></>)
     act(() => useUIStore.getState().openListEditor(7, 't1'))
@@ -264,8 +458,9 @@ describe('Edit list', () => {
     // Save: written, then the other list's Edit list opens.
     act(() => openEditList('t2', 9))
     await answer('Save')
-    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 9, tabId: 't2' })
-    await vi.waitFor(() => expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === 7)?.name).toBe('Waiting'))
+    // The other opens once the write has landed (not in the answer's tick: a failed write would keep this one).
+    await vi.waitFor(() => expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 9, tabId: 't2' }))
+    expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === 7)?.name).toBe('Waiting')
     // Unchanged, it gives way at once; the same target again changes nothing.
     act(() => openEditList('t1', 7))
     expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
@@ -338,6 +533,41 @@ describe('Edit list', () => {
     open()
     act(() => useListDefinitionStore.setState({ listDefinitions: [] }))
     expect(useUIStore.getState().listEditor).toBeNull()
+  })
+
+  it('a tab or cell id that isn’t selector-safe (an imported layout’s) is looked up as an id, not as selector text (cr34 S5)', () => {
+    // Ids the stored shape allows: a quote, a bracket, a selector of their own.
+    const tabId = 't"] , [data-ws-tab="other'
+    const cellId = 'c"1] *'
+    const odd: PersistedWorkspaceLayout = {
+      ...layout,
+      ...single({ id: cellId, tabs: [{ id: tabId, kind: 'lens', config: { listDefinitionId: 7 } }] }),
+    }
+    useWorkspaceStore.setState({ working: odd, layouts: [odd] })
+    render(
+      <>
+        <section data-ws-cell="other-cell">
+          <button type="button" data-ws-tab="other">Another tab</button>
+          <div data-list-host="other" />
+        </section>
+        <section data-ws-cell={cellId}>
+          <div data-ws-cell-header={cellId}><button type="button" data-ws-tab={tabId}>Waiting on</button></div>
+          <div data-list-host={tabId}><button type="button">A row</button></div>
+        </section>
+        <EditListHost />
+      </>,
+    )
+    const tab = screen.getByRole('button', { name: 'Waiting on' })
+    tab.focus()
+    act(() => useUIStore.getState().openListEditor(7, tabId))
+    // It opens beside its own cell (found by the tab's id) and stays open.
+    const dialog = screen.getByRole('dialog', { name: 'Edit list Waiting on' })
+    expect(dialog).toBeVisible()
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId })
+    // Focus goes back to its own tab on close.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
+    expect(editorOpen()).toBe(false)
+    expect(document.activeElement).toBe(tab)
   })
 })
 

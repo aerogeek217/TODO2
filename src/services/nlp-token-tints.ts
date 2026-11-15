@@ -1,26 +1,38 @@
 import type { ParsedInput } from './natural-language-parser'
 import type { ResolvedInput } from './nlp-resolver'
 import type { SlashCommandName } from './slash-commands'
+import type { MarkerKey } from '../models/filter-predicate'
 
 /**
  * How each recognised token is tinted where task text is typed:
  *  - `chip` — `#tag`, a known `@person`, a `!status`, a token still being typed;
  *  - `new` — an `@name` that matches nobody (created with the task);
- *  - `due` / `urgent` / `followup` (`/important`, `/followup …`) /
- *    `accent` (`/focus`, `/repeat …`) — the command's marker / pill colour;
+ *  - `due` / `followup` (`/followup …`) / `accent` (`/repeat …`) — the
+ *    command's pill colour; `urgent` / `important` / `focus` — the priority's
+ *    colour (Settings › Theme colors), as its ring;
  *  - `error` — an argument that can't be read, or a `!name` naming no status;
  *  - `ignored` — recognised but ignored (`/repeat` without `/due`, a repeat);
  *  - `operator` — a filter expression's `and` / `or` / `not` and parentheses.
  * Unknown commands get no tint: they are plain title text.
  */
-export type TokenTint = 'chip' | 'new' | 'due' | 'urgent' | 'followup' | 'accent' | 'error' | 'ignored' | 'operator'
+export type TokenTint = 'chip' | 'new' | 'due' | 'urgent' | 'important' | 'focus' | 'followup' | 'accent' | 'error' | 'ignored' | 'operator'
 
 export interface TintSpan { start: number; end: number; tint: TokenTint }
 
+/**
+ * A priority's tint: its own, named as the marker (cr34 A5) — wherever a
+ * priority is typed or shown as a token (Quick Add's text and chips, the
+ * notes editor, the top bar's filter field, a filter expression, the Review
+ * field's pills).
+ */
+export function markerTint(marker: MarkerKey): TokenTint {
+  return marker
+}
+
 const COMMAND_TINT: Record<SlashCommandName, TokenTint> = {
-  urgent: 'urgent',
-  important: 'followup',
-  focus: 'accent',
+  urgent: markerTint('urgent'),
+  important: markerTint('important'),
+  focus: markerTint('focus'),
   due: 'due',
   followup: 'followup',
   repeat: 'accent',

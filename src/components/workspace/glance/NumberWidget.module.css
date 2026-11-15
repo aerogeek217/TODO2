@@ -120,16 +120,6 @@ button.number:hover {
   font-variant-numeric: tabular-nums;
 }
 
-.sub {
-  max-width: 100%;
-  font-size: var(--font-size-sm);
-  line-height: 16px;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* A big cell: the count and its line grow; the layout stays centred. */
 .large {
   gap: 6px;

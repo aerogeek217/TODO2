@@ -3,6 +3,7 @@ import { createTab, WIDGET_KINDS, type WidgetKind } from '../../models/workspace
 import {
   cellMinHeightPx,
   cellsOnlyInRow,
+  FIT_ROW_PX,
   GLANCE_ROW_MIN_PX,
   isFitCell,
   isFitHeightKind,
@@ -53,8 +54,12 @@ describe('fit tracks', () => {
     expect(isFitTrack(spanning, 0)).toBe(false)
   })
 
-  it('a glance cell may shrink to 64px, any other to CELL_MIN_PX', () => {
-    expect(cellMinHeightPx(n1)).toBe(GLANCE_ROW_MIN_PX)
+  it('a cell of one Number may shrink to its fit height (58px), any other glance cell to 64px, the rest to CELL_MIN_PX', () => {
+    expect(FIT_ROW_PX).toBe(58)
+    expect(cellMinHeightPx(n1)).toBe(FIT_ROW_PX)
+    expect(cellMinHeightPx(cell('g', [createTab('trend', 'g1')]))).toBe(GLANCE_ROW_MIN_PX)
+    // Two Numbers in one cell have a tab strip: a glance cell, not a fit one.
+    expect(cellMinHeightPx(cell('nn', [number('x3'), number('x4')]))).toBe(GLANCE_ROW_MIN_PX)
     expect(cellMinHeightPx(L)).toBe(CELL_MIN_PX)
   })
 })

@@ -10,7 +10,7 @@ import { URGENT_BY_DATE_HINT, urgentByDateSentence, type UrgentDueWithinDays } f
  */
 
 /** A Priority group (No priority is the list's trailing ungrouped section). */
-export type PriorityGroup = MarkerKey
+type PriorityGroup = MarkerKey
 
 /** The groups in list order. */
 export const PRIORITY_GROUPS: readonly PriorityGroup[] = MARKER_KEYS
@@ -60,7 +60,7 @@ export interface PriorityFlags {
 }
 
 /** A task as a Priority drop reads it. */
-export type PriorityDropTask = MarkerFields & { id: number; title: string }
+type PriorityDropTask = MarkerFields & { id: number; title: string }
 
 /**
  * What a row dragged from one Priority group to another does:

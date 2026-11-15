@@ -131,7 +131,7 @@ test('a row’s status menu and notes popover open above the task dialog', async
   // A click is refused if anything covers the target, so these prove the
   // portaled menu / popover are on top of the dialog.
   await row.getByRole('button', { name: 'Set status' }).click()
-  await page.getByRole('button', { name: 'Waiting' }).click()
+  await page.getByRole('menuitemradio', { name: 'Waiting' }).click()
   await expect(row.getByRole('button', { name: 'Status: Waiting' })).toBeVisible()
 
   await row.getByRole('button', { name: 'Edit status and notes' }).click()
@@ -154,8 +154,8 @@ test('Esc in a row’s status menu or people picker over the task dialog closes 
   const row = dialogRow(page, 'Call the plumber')
 
   await row.getByRole('button', { name: 'Set status' }).click()
-  const statusMenu = page.locator('[data-anchored-picker]')
-  await expect(statusMenu.getByRole('button', { name: 'Waiting' })).toBeVisible()
+  const statusMenu = page.getByRole('menu', { name: 'Status' })
+  await expect(statusMenu.getByRole('menuitemradio', { name: 'Waiting' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(statusMenu).toHaveCount(0)
   await expect(dialog(page)).toBeVisible()

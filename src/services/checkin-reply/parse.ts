@@ -82,7 +82,7 @@ export interface ParsedCheckinReply {
   orphanUpdates: number
 }
 
-export type ParseCheckinReplyResult =
+type ParseCheckinReplyResult =
   | { ok: true; reply: ParsedCheckinReply }
   | { ok: false; error: 'too-large'; limit: number }
 
@@ -158,7 +158,7 @@ const STATUS_DATE_PREFIX = /^\(\s*\d{1,2}\s*\/\s*\d{1,2}(?:\s*\/\s*\d{2,4})?\s*\
  * email put before the newest update's text (kept or not, it is never part
  * of the new text).
  */
-export function replyStatusValue(value: string): string {
+function replyStatusValue(value: string): string {
   return collapseWhitespace(value).replace(STATUS_DATE_PREFIX, '')
 }
 

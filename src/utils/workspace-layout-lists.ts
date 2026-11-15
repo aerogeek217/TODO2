@@ -83,26 +83,3 @@ export function repointLayoutLists<B extends LayoutBody>(layout: B, ids: Readonl
     return tabs.every((t, i) => t === cell.tabs[i]) ? cell : { ...cell, tabs }
   })
 }
-
-/**
- * The lists `after` shows where `before` showed other ones at the same tab
- * (matched by tab id): old id → new id, e.g. a layout given its own copies of the
- * lists it shared with another one. `null` when an old id would become two
- * different ones.
- */
-export function listIdChanges(before: LayoutBody, after: LayoutBody): Map<number, number> | null {
-  const afterTabs = new Map(layoutTabs(after).map((t) => [t.id, t]))
-  const changes = new Map<number, number>()
-  const note = (from: number | undefined, to: number | undefined): boolean => {
-    if (from == null || to == null || from === to) return true
-    const known = changes.get(from)
-    if (known != null && known !== to) return false
-    changes.set(from, to)
-    return true
-  }
-  for (const tab of layoutTabs(before)) {
-    const other = afterTabs.get(tab.id)
-    if (other?.kind === tab.kind && !note(namedListId(tab), namedListId(other))) return null
-  }
-  return changes
-}

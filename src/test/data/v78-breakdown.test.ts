@@ -4,7 +4,6 @@ import { breakdownConfigOfKind, layoutBreakdownsOf, upgradeBreakdown } from '../
 import { numberConfigOfMetric } from '../../data/upgrades/v78/number-metrics'
 import { prepareImport } from '../../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
-import { readLayoutDraft } from '../../data/draft-storage'
 import { rowFixes, validateRow } from '../../data/import-validation'
 import { emptyPredicate } from '../../models/filter-predicate'
 import { defaultBreakdownColumns } from '../../models/chart-widgets'
@@ -107,13 +106,5 @@ describe('v78 breakdown: People, Tags and Status become Breakdowns (D26 P8)', ()
       { id: 't', kind: 'breakdown', config: throughV79(breakdown('Tags', 'tags', false)) },
       { id: 's', kind: 'breakdown', config: throughV79(breakdown('Status', 'status', true)) },
     ])
-  })
-
-  it('a kept v77 layout draft reads back with its People as a Breakdown', () => {
-    const body = { columns: [{ id: 'A', weight: 1, rows: [{ id: 'A1', weight: 1, cells: [{ id: 'a', weight: 1, tabs: [v77('p', 'people', { showUnassigned: true })] }] }] }] }
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'N', schemaVersion: 77, ...body }))
-    const draft = readLayoutDraft()
-    const tabs = draft?.kind === 'new' ? draft.body.cells.flatMap((c) => c.tabs) : []
-    expect(tabs).toEqual([{ id: 'p', kind: 'breakdown', config: throughV79(breakdown('People', 'people', true)) }])
   })
 })

@@ -449,8 +449,8 @@ describe('tokenTints', () => {
   it('tints each recognised token in its colour', () => {
     expect(tintsOf('Call #contracts @Priya @Marco /due fri /urgent /important /focus /followup 2w /repeat weekly !waiting'))
       .toEqual([
-        '#contracts:chip', '@Priya:chip', '@Marco:new', '/due fri:due', '/urgent:urgent', '/important:followup',
-        '/focus:accent', '/followup 2w:followup', '/repeat weekly:accent', '!waiting:chip',
+        '#contracts:chip', '@Priya:chip', '@Marco:new', '/due fri:due', '/urgent:urgent', '/important:important',
+        '/focus:focus', '/followup 2w:followup', '/repeat weekly:accent', '!waiting:chip',
       ])
   })
 

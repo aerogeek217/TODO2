@@ -10,7 +10,8 @@ import { ESCAPE_OWN_ATTR } from '../../../hooks/use-popover-anchor'
 import { reviewFilterPredicate } from '../../../hooks/use-review-widget-queue'
 import { expressionResolver } from '../../../services/filter-expression-field'
 import type { AutocompleteRow, computeAutocomplete } from '../../../services/nlp-autocomplete'
-import type { TokenTint } from '../../../services/nlp-token-tints'
+import { markerTint, type TokenTint } from '../../../services/nlp-token-tints'
+import { NO_PRIORITY } from '../../../models/filter-predicate'
 import { peopleOnly, reviewFieldAutocomplete, reviewFieldPick, type ReviewFieldCounts } from '../../../services/review-field'
 import { useListWidgetStore, type ReviewFilter } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -18,7 +19,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { startOfToday } from '../../../utils/date'
-import { parseExpression, printPieces, withoutAtom, type ExpressionPiece } from '../../../utils/filter-expression'
+import { parseExpression, printExpression, printPieces, withoutAtom, type ExpressionPiece } from '../../../utils/filter-expression'
 import { withExpression } from '../../../utils/predicate-expression'
 import { EnvelopeIcon, ReplyIcon } from '../../shared/icons'
 import { NlpPopup } from '../../shared/NlpPopup'
@@ -32,11 +33,17 @@ const LINE_PX = 20
 const MAX_LINES = 3
 
 /** What the field says while empty. */
-export const REVIEW_FIELD_PLACEHOLDER = 'Who or what to review…'
+const REVIEW_FIELD_PLACEHOLDER = 'Who or what to review…'
+
+/** What the field says at rest on a filter that prints as nothing (a jump from a list that narrows by nothing). */
+const EVERY_OPEN_TASK = 'Every open task'
+
+/** A review takes open tasks only: `done` and Completed dates would keep nothing, so the field refuses them and says why. */
+const OPEN_TASKS_ONLY = { allowDone: false, allowCompleted: false } as const
 
 /** A pill's tint: the one its term has as typed text (`expressionTints`); text and dates other than due / follow-up are plain pills. */
 function pillTint(term: FilterAtom | undefined): TokenTint {
-  if (term?.kind === 'priority') return term.value === 'urgent' ? 'urgent' : term.value === 'important' ? 'followup' : term.value === 'focus' ? 'accent' : 'chip'
+  if (term?.kind === 'priority') return term.value === NO_PRIORITY ? 'chip' : markerTint(term.value)
   if (term?.kind === 'date') return term.field === 'deadline' ? 'due' : term.field === 'followup' || term.field === 'lastFollowup' ? 'followup' : 'chip'
   return 'chip'
 }
@@ -67,18 +74,22 @@ function useReviewFieldCounts(): ReviewFieldCounts {
  * The Review widget's prompt row (widget feedback 2A, board Review-field):
  * one field that takes a filter expression — what a list's Expression filter
  * takes (`@person`, `#tag`, `!status`, `/urgent`, date words, `and` / `or` /
- * `not`, parentheses), tinted as it is typed (`useExpressionField`). **The
+ * `not`, parentheses) but `done` and Completed dates (a review takes open
+ * tasks only), tinted as it is typed (`useExpressionField`). **The
  * filter is temporary**: kept per tab in memory (`list-widget-store
  * .reviewFilters`), never written to the layout, gone with a reload.
  *
  * A click on the field (or a focus while it is empty) lists people, tags and
  * statuses with their open tasks; bare letters match all three; `@ # ! /`
  * open the expression field's popup (`services/review-field`). A pick writes
- * the name's token, joined to a whole term before it by `or` (the same sort)
- * or `and`. ⏎ in a list of matches takes the first; ⏎ elsewhere settles the
- * text. A text that doesn't read shows its error under the field and is
- * never written — the queue keeps the last filter that read; Esc puts that
- * text back (and, with nothing to put back, leaves the field). × clears it.
+ * the name's token; after a whole term it joins the filter as chips combine
+ * (one sort's names `or` together, the sorts `and`). ⏎ in a list of matches
+ * takes the first; ⏎ elsewhere settles the text. A text that doesn't read
+ * shows its error under the field and is never written — the queue keeps
+ * the last filter that read; Esc puts that text back (and, with nothing to
+ * put back, leaves the field). × clears it — also a filter that prints as
+ * nothing (a jump from a list that narrows by nothing), which the field
+ * shows at rest as `Every open task`.
  *
  * **At rest** — the field not focused, its text the filter's — each term is
  * a pill with its own × (`printPieces`: the same words, the terms as pills):
@@ -101,6 +112,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
 }) {
   const mirrorRef = useRef<HTMLDivElement>(null)
   const errorId = useId()
+  const everyTaskId = useId()
   const predicate = useMemo<TodoPredicate>(() => (filter ? reviewFilterPredicate(filter) : emptyPredicate()), [filter])
   const onChange = useCallback((next: TodoPredicate) => {
     useListWidgetStore.getState().setReviewFilter(tabId, next.expression ? { expression: next.expression, showCompleted: next.showCompleted } : null)
@@ -109,10 +121,12 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
-  const reads = useMemo(() => {
+  // The field as it reads a text (a review takes open tasks only: no `done`, no Completed dates).
+  const readText = useMemo(() => {
     const names = expressionResolver(people, tags, statuses)
-    return (text: string) => parseExpression(text, { today: startOfToday(), names }).ok
+    return (text: string) => parseExpression(text, { today: startOfToday(), names, ...OPEN_TASKS_ONLY })
   }, [people, tags, statuses])
+  const reads = useCallback((text: string) => readText(text).ok, [readText])
   const counts = useReviewFieldCounts()
   /** The field was clicked (or focused while empty): an empty place for a term lists everything. Typing disarms it. */
   const browse = useRef(false)
@@ -120,11 +134,13 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
     (value, cursor, sources) => reviewFieldAutocomplete(value, cursor, sources, { counts, browse: browse.current, reads }),
     [counts, reads],
   )
-  const field = useExpressionField({ predicate, onChange, inputRef, autocomplete })
+  const field = useExpressionField({ predicate, onChange, inputRef, autocomplete, ...OPEN_TASKS_ONLY })
   const { text, parse, tints, ac } = field
   // At rest: not focused, and the text is the filter's (nothing typed and unread) — its terms are pills.
   const [focused, setFocused] = useState(false)
-  const resting = !focused && filter != null && text !== '' && text === field.stored
+  // A filter that prints as nothing (a jump from a list that narrows by nothing): every open task.
+  const everyTask = filter != null && field.stored === ''
+  const resting = !focused && filter != null && text === field.stored
   const pieces = useMemo<ExpressionPiece[]>(
     () => (resting && filter ? printPieces(filter.expression, filter.showCompleted, field.names) : []),
     [resting, filter, field.names],
@@ -186,9 +202,13 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
       ac.select(row, input)
       return
     }
-    const next = reviewFieldPick(input.value, view.from, view.to, row.item, reads)
+    const next = reviewFieldPick(input.value, view.from, view.to, row.item, {
+      parse: readText,
+      print: (expression, showCompleted) => printExpression(expression, showCompleted, field.names),
+    })
     ac.dismiss()
-    field.apply(next.value, next.cursor, true)
+    // The row's person / tag / status, so a namesake's pick names that one (cr34 F10).
+    field.apply(next.value, next.cursor, true, row.item)
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -217,7 +237,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
       e.stopPropagation()
       return
     }
-    // Esc with nothing to put back leaves the field (a popover it sits in — a small face's whole widget — stays).
+    // Esc with nothing to put back leaves the field (the widget popup it may sit in stays).
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
@@ -230,6 +250,8 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
     browse.current = false
     ac.dismiss()
     field.apply('', 0, true)
+    // "Every open task" prints as nothing, as no filter does: the field has no text to write, so it goes here.
+    if (everyTask) useListWidgetStore.getState().setReviewFilter(tabId, null)
     inputRef.current?.focus()
   }
 
@@ -244,6 +266,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
             {resting ? (
               // The pills size the field; the text field lies under them, unseen, taking every press but an ×'s.
               <div className={styles.pills} data-testid="review-field-pills">
+                {everyTask && <span id={everyTaskId} data-review-every-task="">{EVERY_OPEN_TASK}</span>}
                 {pieces.map((piece, i) => (piece.atom == null && !piece.done ? (
                   <span key={i} className={tintStyles.tint} data-tint="operator" aria-hidden="true">{piece.text}</span>
                 ) : (
@@ -274,10 +297,11 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
               className={`${styles.input} ${resting ? styles.inputRest : ''}`}
               rows={1}
               value={text}
-              placeholder={REVIEW_FIELD_PLACEHOLDER}
+              // At rest on every open task the field says so (over the empty text): no placeholder under it.
+              placeholder={resting && everyTask ? '' : REVIEW_FIELD_PLACEHOLDER}
               aria-label="Review filter"
               aria-invalid={error ? true : undefined}
-              aria-describedby={error ? errorId : undefined}
+              aria-describedby={error ? errorId : resting && everyTask ? everyTaskId : undefined}
               aria-autocomplete="list"
               spellCheck={false}
               data-testid="review-field"
@@ -304,7 +328,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
               onKeyDown={onKeyDown}
             />
           </div>
-          {text !== '' && (
+          {(text !== '' || everyTask) && (
             <button
               type="button"
               className={styles.clear}

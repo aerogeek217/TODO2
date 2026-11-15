@@ -7,7 +7,7 @@ import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
 import { trackSizing } from '../../utils/workspace-table'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { shortcutScope } from '../../utils/dom-contract'
-import { drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
+import { drawnGap, drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
 import { SnapGuide } from './WorkspaceDivider'
 import styles from './WorkspaceDivider.module.css'
 
@@ -38,6 +38,8 @@ interface DragState {
   layout: LayoutBody
   columns: AxisDrag
   rows: AxisDrag
+  /** This drag's undo merge key: its two structural moves (one per axis) are one undo step. */
+  mergeKey: string
 }
 
 /** The axis's whole line, as `moveEdge` takes it. */
@@ -63,12 +65,14 @@ function crossingPlacement(col: number, row: number): CSSProperties {
  * vertical drag leaves the upright line where it was, and onto any other
  * line of its axis within reach (a structural edit, made on release — the
  * table meanwhile drawn as it will be, `workspace-store.resizePreview`;
- * Esc puts it back as it was). A faint guide runs along a line while it
- * holds. ↑/↓ move the level line, ←/→ the upright one, 16px; a double-click
- * evens both lines' tracks.
+ * Esc puts it back as it was; one drag is one undo step, also when both
+ * lines land on another). A faint guide runs along a line while it
+ * holds. ↑/↓ move the level line, ←/→ the upright one, 16px (a run of them
+ * one undo step); a double-click evens both lines' tracks.
  */
 export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCrossingProps) {
   const dragRef = useRef<DragState | null>(null)
+  const dragCountRef = useRef(0)
   const elRef = useRef<HTMLDivElement | null>(null)
   const rafRef = useRef<number | null>(null)
   const pendingRef = useRef<{ dx: number; dy: number } | null>(null)
@@ -173,7 +177,7 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
     const axis = (a: GridAxis, line: number, sizes: number[]): AxisDrag => ({
       axis: a,
       line,
-      opts: { sizes, minPx, snapHome: true },
+      opts: { sizes, minPx, snapHome: true, gap: drawnGap(table, a) },
       delta: 0,
       structural: false,
     })
@@ -200,9 +204,10 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
     void store.endResize()
     if (e.type === 'pointerup') {
       // A structural axis's move, made on the layout as it now stands (the other axis's lines are unchanged by it).
+      // Both under the drag's merge key: one drag is one undo step.
       for (const a of [drag.columns, drag.rows]) {
         const working = useWorkspaceStore.getState().working
-        if (a.structural && working) void store.moveEdge(lineOf(working, a), a.delta, a.opts)
+        if (a.structural && working) void store.moveEdge(lineOf(working, a), a.delta, a.opts, { mergeKey: drag.mergeKey })
       }
     }
     // In the same event: the move's table replaces the preview's in one render.
@@ -218,7 +223,10 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
     if (!axes) return
     e.preventDefault()
     e.currentTarget.setPointerCapture?.(e.pointerId)
-    dragRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, layout, ...axes }
+    // The press's own time and count in the key: a later drag of this handle (or of one remounted in its place) is a step of its own.
+    dragCountRef.current += 1
+    const mergeKey = `crossing-drag:${testId}@${e.timeStamp}#${dragCountRef.current}`
+    dragRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, layout, ...axes, mergeKey }
     pointer.listen(onPointerMove, onPointerUp)
     setDragging(true)
   }
@@ -235,7 +243,8 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
     const sizes = drawnSizes(table, axis)
     if (sizes.length !== layout.grid[axis].length) return
     const line = axis === 'columns' ? col : row
-    void useWorkspaceStore.getState().moveEdge(wholeLine(layout, axis, line), sign * KEY_STEP_PX, { sizes, minPx: minPxIn(layout) })
+    // Key steps on this handle are one undo step (when they move a line onto or past another), as a divider's.
+    void useWorkspaceStore.getState().moveEdge(wholeLine(layout, axis, line), sign * KEY_STEP_PX, { sizes, minPx: minPxIn(layout), gap: drawnGap(table, axis) }, { mergeKey: `crossing:${testId}` })
   }
 
   /** Both lines' two tracks share their size evenly (weighted tracks only: a fixed or fit track keeps its height). */

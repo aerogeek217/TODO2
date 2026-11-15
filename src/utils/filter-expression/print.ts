@@ -125,11 +125,6 @@ export function printPieces(expression: FilterExpr | null | undefined, showCompl
   return out
 }
 
-/** One term as text (a top-level term, a summary's line). */
-export function printTerm(e: FilterExpr, names: ExpressionNames): string {
-  return nodeText(e, names, false)
-}
-
 /** The whole filter as text (see the module comment); `''` for no filter. */
 export function printExpression(expression: FilterExpr | null | undefined, showCompleted: boolean, names: ExpressionNames): string {
   if (!expression) return showCompleted ? 'done' : ''

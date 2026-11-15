@@ -24,14 +24,14 @@ import { compareStatusUpdates } from '../utils/status-updates'
 import { stampAfter, undoStamps, type Stamp, type StampChanges } from '../utils/task-stamps'
 
 /** A task to create with the people and tags it starts with (`addMany`). */
-export interface NewTaskWithAssignments {
+interface NewTaskWithAssignments {
   todo: Omit<NewTodoItem, 'sortOrder'>
   personIds: readonly number[]
   tagIds: readonly number[]
 }
 
 /** One task's Urgent / Important / Focus writes (`setMarkerFlags`): only the flags that change. */
-export interface MarkerFlagChange {
+interface MarkerFlagChange {
   todoId: number
   urgent?: boolean
   important?: boolean
@@ -72,12 +72,12 @@ export function followedUpName(count: number, kept: number, next: Date | null, n
  * user didn't continue without one — nothing was deleted. `noBackup`: deleted
  * without that snapshot (the user chose to continue).
  */
-export type PurgeOutcome =
+type PurgeOutcome =
   | { status: 'done'; deleted: number; noBackup: boolean }
   | { status: 'cancelled' }
 
 /** A bulk delete of more tasks than this is backed up first. */
-export const BULK_DELETE_SNAPSHOT_MIN = 5
+const BULK_DELETE_SNAPSHOT_MIN = 5
 
 const NO_ASSIGNMENTS: CapturedAssignments = { personIds: [], tagIds: [] }
 

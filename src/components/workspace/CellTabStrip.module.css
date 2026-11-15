@@ -247,16 +247,18 @@
  * context, painted over its earlier siblings — in a cramped strip the + then
  * took the press meant to drag the tab clipped beside it; at 1 they stack
  * and hit-test exactly as before. A device that can't hover, and the
- * phone's strip (its tabs are `.touch`), keep them shown.
+ * phone's strip (its tabs are `.touch`), keep them shown. The cell says
+ * "hovered or holding the focus" with `data-cell-hot` (`cell-hot.ts`; its
+ * own attribute twice: the weight the two `:not()`s had).
  */
 @media (hover: hover) {
-  :global([data-ws-cell]):not(:hover):not(:focus-within) .strip:not(:has(.touch)) .active .close,
-  :global([data-ws-cell]):not(:hover):not(:focus-within) .strip:not(:has(.touch)) .add {
+  :global([data-ws-cell][data-ws-cell]:not([data-cell-hot])) .strip:not(:has(.touch)) .active .close,
+  :global([data-ws-cell][data-ws-cell]:not([data-cell-hot])) .strip:not(:has(.touch)) .add {
     opacity: 0;
   }
 
   /* Hidden, the × takes no more presses than its 16px circle did. */
-  :global([data-ws-cell]):not(:hover):not(:focus-within) .strip:not(:has(.touch)) .active .close::after {
+  :global([data-ws-cell][data-ws-cell]:not([data-cell-hot])) .strip:not(:has(.touch)) .active .close::after {
     pointer-events: none;
   }
 }

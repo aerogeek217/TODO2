@@ -9,7 +9,7 @@ import type { GlanceGlyphName } from '../utils/glance-glyphs'
  */
 
 /** One heading of a grouped source: its tasks in display order. */
-export interface TaskDialogGroup {
+interface TaskDialogGroup {
   key: string
   label: string
   /** The group header's dot. */

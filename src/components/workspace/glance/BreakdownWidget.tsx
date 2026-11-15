@@ -1,12 +1,13 @@
 import { useMemo, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
-import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
+import { columnIsLit, DEFAULT_BREAKDOWN_OLDEST_BY, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
 import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
 import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { breakdownReviewFilter } from '../../../services/review'
+import { useWidgetIgnoresLens } from '../../../hooks/use-widget-lens'
+import { breakdownReviewFilter, breakdownReviews } from '../../../services/review'
 import { jumpToReview } from '../../../services/review-jump'
 import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -18,10 +19,10 @@ import { PriorityRing } from '../../shared/PriorityRing'
 import { StatusMark } from '../../shared/StatusMark'
 import { useTooltip } from '../../shared/use-tooltip'
 import {
-  breakdownLines, columnHeading, rowFigure, sortHeading, SPLIT_GLYPHS,
+  breakdownLines, columnHeading, countWordOf, oldestWords, rowFigure, sortHeading, SPLIT_GLYPHS,
 } from './breakdown-copy'
 import { breakdownColumnDrill, breakdownRowDrill, rowHeading } from './chart-drills'
-import { ChartPanel } from './chart-parts'
+import { ChartPanel, SortHeading } from './chart-parts'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { GlanceDrill, OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
@@ -112,16 +113,20 @@ function ColumnCount({ n, column, label, onOpen }: {
   )
 }
 
-/** A row's Review button (board BC): a muted icon right after the row's name, shown on the row's hover or focus; jumps to a Review widget with the row as its filter. */
-function RowReview({ heading, n, onReview }: { heading: string; n: number; onReview: () => void }) {
-  const { triggerProps, tooltip } = useTooltip('Review')
+/**
+ * A row's Review button (board BC): a muted icon right after the row's name, shown on the row's hover or focus; jumps
+ * to a Review widget with the row as its filter — or (`reviews` false: a Breakdown that counts completed tasks) shows
+ * the row's tasks in the task dialog, and says so.
+ */
+function RowReview({ heading, n, reviews, onReview }: { heading: string; n: number; reviews: boolean; onReview: () => void }) {
+  const { triggerProps, tooltip } = useTooltip(reviews ? 'Review' : 'Show tasks')
   return (
     <>
       <button
         type="button"
         className={styles.rowAction}
         data-testid="breakdown-review"
-        aria-label={`Review ${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}`}
+        aria-label={`${reviews ? 'Review' : 'Show'} ${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}`}
         onClick={(e) => {
           e.stopPropagation()
           onReview()
@@ -180,14 +185,20 @@ interface TableProps {
  */
 function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {
   const { splitBy, show } = config
+  const oldestBy = config.oldestBy ?? DEFAULT_BREAKDOWN_OLDEST_BY
   const [menu, setMenu] = useState<{ entity: MenuEntity; at: { x: number; y: number } } | null>(null)
+  // The Breakdown's own lens switch goes with a jump, so the Review widget shows the tasks counted here.
+  const ignoresLens = useWidgetIgnoresLens()
+  // A Breakdown that counts completed tasks: a review (open tasks only) would not show them.
+  const reviews = breakdownReviews(config)
   /**
    * A row's Review (or, with `column`, a count's click): a jump to a Review
    * widget with the Breakdown's filter AND the row (AND the column's filter).
-   * A row no filter says opens its tasks in the task dialog instead.
+   * A row no filter says, and every row of a Breakdown that counts completed
+   * tasks, opens its tasks in the task dialog instead.
    */
   const reviewRow = (row: BreakdownRow, column?: BreakdownColumn) => {
-    const filter = breakdownReviewFilter(config, row, column)
+    const filter = breakdownReviewFilter(config, row, column, ignoresLens)
     if (filter) {
       void jumpToReview(filter)
       return
@@ -206,23 +217,20 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
   ].filter(Boolean).join(' ')
   const keys: BreakdownSortKey[] = ['name', ...(figure ? ['open'] : []), ...columns.map((c) => c.id)]
   const heading = (by: BreakdownSortKey) => {
-    const active = sortBy === by
-    const label = sortHeading(by, splitBy, show, columns)
-    // Counts go largest first, names A–Z; a second click reverses.
-    const descending = by === 'name' ? reversed : !reversed
+    const label = sortHeading(by, splitBy, show, columns, countWordOf(config.filter))
     const fixed = by === 'name' || by === 'open'
     return (
-      <span
+      <SortHeading
         key={by}
-        role="columnheader"
-        aria-sort={active ? (descending ? 'descending' : 'ascending') : 'none'}
+        by={by}
+        label={label}
+        title={fixed ? undefined : label}
+        active={sortBy === by}
+        reversed={reversed}
+        onSort={(key) => onSort(key as BreakdownSortKey)}
         className={`${styles.headCell} ${by === 'name' ? styles.headName : fixed ? styles.headNum : styles.headCount} ${by === 'name' && bars && !compact ? styles.headSpan : ''}`}
-      >
-        <button type="button" className={styles.sortButton} data-sort-key={by} aria-pressed={active} title={fixed ? undefined : label} onClick={() => onSort(by)}>
-          <span className={styles.sortLabel}>{label}</span>
-          {active && <span className={styles.sortMark} aria-hidden="true">{descending ? '▼' : '▲'}</span>}
-        </button>
-      </span>
+        classes={{ button: styles.sortButton, label: styles.sortLabel, mark: styles.sortMark }}
+      />
     )
   }
   return (
@@ -239,7 +247,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
           const value = show === 'oldest' ? Math.max(0, row.oldest?.days ?? 0) : row.ids.length
           const late = row.overdue
           const n = row.ids.length
-          const words = `${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}${show === 'oldest' && row.oldest ? `, oldest ${row.oldest.days} days` : ''}`
+          const words = `${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}${show === 'oldest' && row.oldest ? `, ${oldestWords(row.oldest.days, oldestBy)}` : ''}`
           return (
             <div
               key={row.key}
@@ -284,7 +292,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                 </button>
                 {review && (
                   <span className={styles.nameActions} data-testid="breakdown-row-actions">
-                    <RowReview heading={heading} n={n} onReview={() => reviewRow(row)} />
+                    <RowReview heading={heading} n={n} reviews={reviews} onReview={() => reviewRow(row)} />
                   </span>
                 )}
               </span>
@@ -296,7 +304,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
               )}
               {figure && (
                 <span role="cell" className={styles.num} data-testid="breakdown-figure">
-                  {rowFigure(row, show)}
+                  {rowFigure(row, show, oldestBy)}
                 </span>
               )}
               {columns.map((column) => {
@@ -307,7 +315,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                     <ColumnCount
                       n={count}
                       column={column}
-                      label={`${review ? 'Review' : 'Show'} ${heading}'s ${count} in ${name}`}
+                      label={`${review && reviews ? 'Review' : 'Show'} ${heading}'s ${count} in ${name}`}
                       onOpen={review
                         ? () => reviewRow(row, column)
                         : onDrill ? () => onDrill(breakdownColumnDrill(title, row, column.id, name)) : undefined}
@@ -425,8 +433,10 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   // What the rows shown hold (a task in several rows once): the header, Copy and the count's drill
   // agree, a hidden none row counted in none of them.
   const total = useMemo(() => new Set(all.flatMap((r) => r.ids)).size, [all])
-  const word = data.tasks.some((t) => t.isCompleted) ? 'tasks' : 'open'
-  const lines = useMemo(() => breakdownLines(title, total, word, all, config.show, data.columns), [title, total, word, all, config.show, data.columns])
+  // `open`, or `tasks` when its filter lets completed ones through: the header, the small face, the figure heading and Copy alike (cr34 G6).
+  const word = countWordOf(config.filter)
+  const oldestBy = config.oldestBy ?? DEFAULT_BREAKDOWN_OLDEST_BY
+  const lines = useMemo(() => breakdownLines(title, total, word, all, config.show, data.columns, oldestBy), [title, total, word, all, config.show, data.columns, oldestBy])
   useReportLines(onResult, lines)
 
   const drill = glanceDrill(onDrill, data.count.filtered)
@@ -449,8 +459,8 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
         glyphColor="var(--color-accent)"
         title={title}
         entry={top ? rowHeading(top) : undefined}
-        value={top ? rowFigure(top, config.show) : '0'}
-        caption={top && config.show === 'count' ? 'open' : top ? undefined : 'open'}
+        value={top ? rowFigure(top, config.show, oldestBy) : '0'}
+        caption={top && config.show === 'count' ? word : top ? undefined : word}
       />
     )
   } else {

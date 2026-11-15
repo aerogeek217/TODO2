@@ -68,11 +68,16 @@ export const TREND_SHOW_LABELS: Record<TrendShow, string> = {
   cumulative: 'Cumulative',
 }
 
-/** What each Show as choice draws, in a sentence (the editor's hint). */
+/**
+ * What each Show as choice draws, in a sentence (the editor's hint).
+ * Cumulative's says nothing about the gap between its lines (cr34 G5): a task
+ * completed before the range and reopened in it is open and in neither line,
+ * so the gap is not always what is open — Burndown is the open count.
+ */
 export const TREND_SHOW_HINTS: Record<TrendShow, string> = {
   bars: 'Tasks created and completed each day (each week on the longer ranges), and the net change.',
   burndown: 'How many of its tasks were open at the end of each day.',
-  cumulative: 'Running totals of created (starting from the tasks open when the range began) and completed: the gap between the lines is what is open.',
+  cumulative: 'Running totals of created (starting from the tasks open when the range began) and completed.',
 }
 
 // ── The task dialog's words ──────────────────────────────────────────────────
