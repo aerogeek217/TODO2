@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expect, test } from './fixtures/test'
 import { readStore, readStores, writeStores } from './fixtures/db'
 import { answerPermission, attachSyncHandle, readSyncFile, setPermissionAnswer, stubFilePermission } from './fixtures/sync-file'
 import { dismissPurgeNotice, reviewPurge } from './fixtures/purge-notice'

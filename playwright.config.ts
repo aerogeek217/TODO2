@@ -8,8 +8,18 @@ if (!Number.isInteger(port) || port <= 0 || port > 65535) {
 }
 const origin = `http://localhost:${port}`;
 
+// Each test's time limit in ms (Playwright's default is 30 s). `PW_TIMEOUT`
+// raises it for a machine whose Chromium draws no frame for minutes after
+// launch (`npm run test:e2e:local` sets 300 s); a `--timeout` flag still wins.
+const DEFAULT_TIMEOUT_MS = 30_000;
+const timeout = Number(process.env.PW_TIMEOUT || DEFAULT_TIMEOUT_MS);
+if (!Number.isInteger(timeout) || timeout < 0) {
+  throw new Error(`PW_TIMEOUT must be a whole number of milliseconds (0 = no limit), got "${process.env.PW_TIMEOUT}"`);
+}
+
 export default defineConfig({
   testDir: './e2e',
+  timeout,
   // A run empties its output folder first: one per port, so two runs at once
   // (another checkout's, or a single probe spec beside a full run) don't
   // delete each other's traces.

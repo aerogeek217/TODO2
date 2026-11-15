@@ -17,6 +17,7 @@
     "test:shuffle": "vitest run --sequence.shuffle",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:local": "playwright test --workers=4 --timeout=300000",
     "test:e2e:ui": "playwright test --ui",
     "seed:dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/generate-dev-seed.ts"
   },

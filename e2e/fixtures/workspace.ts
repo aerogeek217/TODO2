@@ -276,7 +276,7 @@ const hotByPage = new WeakMap<Page, string[]>()
  * the spec's store calls never reach the page (`no todo alpha`, a mass of
  * false failures). A freshly started server serves none.
  */
-function hotModules(page: Page): string[] {
+export function hotModules(page: Page): string[] {
   const known = hotByPage.get(page)
   if (known) return known
   const hot: string[] = []
@@ -285,6 +285,14 @@ function hotModules(page: Page): string[] {
     if (HOT_MODULE.test(request.url())) hot.push(request.url())
   })
   return hot
+}
+
+/** What a test fails with when its page ran on hot-updated modules (`hotModules`): what happened, and what to do. */
+export function staleServerError(hotModule: string): Error {
+  return new Error(
+    `The dev server has hot-updated modules (${hotModule}): restart it, then run again. `
+    + 'The app now runs on those copies, while a spec’s import(\'/src/stores/…\') loads a second, empty copy — its store calls would never reach the page.',
+  )
 }
 
 /**
@@ -297,12 +305,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
   const hot = hotModules(page)
   await page.goto(url)
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  if (hot.length > 0) {
-    throw new Error(
-      `The dev server has hot-updated modules (${hot[0]}): restart it, then run again. `
-      + 'The app now runs on those copies, while a spec’s import(\'/src/stores/…\') loads a second, empty copy — its store calls would never reach the page.',
-    )
-  }
+  const stale = hot[0]
+  if (stale !== undefined) throw staleServerError(stale)
   // Every kind's new tab, as the app makes it: the seeded tabs start from these.
   const newTabs = Object.fromEntries(WIDGET_KINDS.map((kind) => [kind, createTab(kind, '')])) as Record<WidgetKind, LayoutTab>
   const payload = { ...seed, tables: seed.layouts.map(wsTableOf).map(withNumberConfigs), predicate: emptyPredicate(), newTabs }
