@@ -5,6 +5,7 @@ import { MARKER_KEYS } from '../../../models'
 import { MARKER_LABELS } from '../../../utils/markers'
 import { PriorityRing } from '../../shared/PriorityRing'
 import { SettingRow } from './SettingRow'
+import { SettingSwitch } from './SettingSwitch'
 import styles from './sections.module.css'
 
 const DATES_OPTIONS: ReadonlyArray<{ dates: RowDates; label: string }> = [
@@ -14,20 +15,6 @@ const DATES_OPTIONS: ReadonlyArray<{ dates: RowDates; label: string }> = [
 
 /** The sample checkbox beside each priority's name, px. */
 const CUE_RING_SIZE = 16
-
-/** An on / off switch row's control. */
-function Switch({ label, on, onFlip }: { label: string; on: boolean; onFlip: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      className={`${styles.switch} ${on ? styles.switchOn : ''}`}
-      onClick={onFlip}
-    />
-  )
-}
 
 /** What each priority adds to a task's row, beside its ring on the checkbox (D25 B; each name shows its ring). */
 function PriorityCuesSetting() {
@@ -51,8 +38,8 @@ function PriorityCuesSetting() {
               </span>
               {MARKER_LABELS[key]}
             </span>
-            <Switch label={`${MARKER_LABELS[key]} glow`} on={cues[key].glow} onFlip={() => void setCues({ ...cues, [key]: { ...cues[key], glow: !cues[key].glow } })} />
-            <Switch label={`${MARKER_LABELS[key]} semibold`} on={cues[key].semibold} onFlip={() => void setCues({ ...cues, [key]: { ...cues[key], semibold: !cues[key].semibold } })} />
+            <SettingSwitch label={`${MARKER_LABELS[key]} glow`} on={cues[key].glow} onFlip={() => void setCues({ ...cues, [key]: { ...cues[key], glow: !cues[key].glow } })} />
+            <SettingSwitch label={`${MARKER_LABELS[key]} semibold`} on={cues[key].semibold} onFlip={() => void setCues({ ...cues, [key]: { ...cues[key], semibold: !cues[key].semibold } })} />
           </Fragment>
         ))}
       </div>
@@ -122,10 +109,10 @@ export function TaskRowsSection() {
       </SettingRow>
       <PriorityCuesSetting />
       <SettingRow label="Fade stale tasks" help={`A stale task's row is drawn faded until you point at it. ${staleWords(staleAfterDays)}`}>
-        <Switch label="Fade stale tasks" on={staleFade} onFlip={() => void setStaleFade(!staleFade)} />
+        <SettingSwitch label="Fade stale tasks" on={staleFade} onFlip={() => void setStaleFade(!staleFade)} />
       </SettingRow>
       <SettingRow label="Cobwebs on stale tasks" help="A stale task gathers a small cobweb in its checkbox.">
-        <Switch label="Cobwebs on stale tasks" on={staleCobwebs} onFlip={() => void setStaleCobwebs(!staleCobwebs)} />
+        <SettingSwitch label="Cobwebs on stale tasks" on={staleCobwebs} onFlip={() => void setStaleCobwebs(!staleCobwebs)} />
       </SettingRow>
     </div>
   )

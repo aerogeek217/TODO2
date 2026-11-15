@@ -4,6 +4,7 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { ThemeColorsEditor } from '../ThemeColorsEditor'
 import { NlpSyntaxModal } from '../NlpSyntaxModal'
 import { SettingRow } from './SettingRow'
+import { SettingSwitch } from './SettingSwitch'
 import { useStackedLayer } from './settings-layer'
 import styles from './sections.module.css'
 
@@ -13,10 +14,15 @@ const THEME_OPTIONS: ReadonlyArray<{ mode: ThemeMode; label: string }> = [
   { mode: 'dark', label: 'Dark' },
 ]
 
-/** Appearance › Theme: the theme (the only place it is set), its colors, and on the phone the quick-add syntax. */
+/**
+ * Appearance › Theme: the theme (the only place it is set), its colors, the
+ * top bar's tally (desktop: the phone has no top bar), and on the phone the
+ * quick-add syntax.
+ */
 export function ThemeSection() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
+  const tallyMarks = useSettingsStore((s) => s.tallyMarks)
   const isMobile = useIsMobile()
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showNlpSyntax, setShowNlpSyntax] = useState(false)
@@ -45,6 +51,11 @@ export function ThemeSection() {
           Customize colors…
         </button>
       </SettingRow>
+      {!isMobile && (
+        <SettingRow label="Tally of today’s tasks" help="A mark in the top bar for each task you finish today, in fives. Wiped at midnight.">
+          <SettingSwitch label="Tally of today’s tasks" on={tallyMarks} onFlip={() => void useSettingsStore.getState().setTallyMarks(!tallyMarks)} />
+        </SettingRow>
+      )}
       {/* On desktop the syntax lives with the keyboard shortcuts. */}
       {isMobile && (
         <SettingRow label="Quick-add syntax" help="People, tags and slash commands you can type into a new task.">

@@ -431,6 +431,10 @@
   --cal-followup-day: rgba(245, 200, 66, 0.08);
   /* An upcoming calendar entry's tick (flair P6): 3 : 1 on a day cell and the day popover. */
   --cal-tick: #77726b;
+  /* The top bar's tally (flair P3): a pale scratch, its dark lower edge, a faint light rim. */
+  --tally-mark: #d6d1ca;
+  --tally-edge: rgba(0, 0, 0, 0.7);
+  --tally-light: rgba(255, 255, 255, 0.3);
   /* Calendar heat map (D18): a day's tint per step (1–2 · 3–5 · 6+ entries),
      the due / follow-up colour mixed into the surface */
   --cal-heat-due-1: color-mix(in srgb, var(--color-overdue) 12%, var(--color-surface));
@@ -711,6 +715,10 @@
   --cal-overdue-day: rgba(163, 44, 171, 0.07);
   --cal-followup-day: rgba(245, 200, 66, 0.14);
   --cal-tick: #8a857e;
+  /* The top bar's tally (flair P3): a dark scratch with a light lower edge. */
+  --tally-mark: #5a5650;
+  --tally-edge: rgba(255, 255, 255, 0.85);
+  --tally-light: rgba(0, 0, 0, 0.15);
   /* Calendar heat map (D18). The follow-up steps mix the bright fill yellow:
      the darker text yellow reads brown as a fill. */
   --cal-heat-due-1: color-mix(in srgb, var(--color-overdue) 12%, var(--color-surface));

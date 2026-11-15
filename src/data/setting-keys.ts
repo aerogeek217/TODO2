@@ -97,6 +97,11 @@ export const SETTING_KEYS = {
    */
   staleFade: 'staleFade',
   /**
+   * "Tally of today’s tasks" (Settings › Appearance › Theme, flair P3): the top bar
+   * scratches a mark for each task completed today. `false` = off; absent (or `true`) = on.
+   */
+  tallyMarks: 'tallyMarks',
+  /**
    * Ambience (Settings › Appearance › Ambience): JSON
    * `{ enabled, place: { lat, lon } | null, sky, motion, seasons }` (`utils/ambience-settings`);
    * a field missing or out of range reads as its default. Absent = all defaults (on, place

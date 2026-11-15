@@ -21,6 +21,7 @@ import { FILTER_ROW_ATTR } from '../../utils/dom-contract'
 import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
 import { tabAcross } from '../../utils/focusables'
 import { AmbienceSky } from '../ambience/AmbienceSky'
+import { TallyMarks } from './TallyMarks'
 
 /**
  * The most layouts shown as tabs: more than a bar can hold anyway, so past
@@ -129,6 +130,9 @@ export function TopBar() {
           />
           {showTasksButton && <ShowFilteredTasksButton open={panelOpen} />}
         </div>
+
+        {/* Today's tally: in the free stretch after the tray (absolute: the fold and the centring skip it). */}
+        <TallyMarks barRef={barRef} spacerRef={spacerRef} trayRef={trayRef} rightRef={rightRef} />
 
         <div ref={rightRef} className={styles.right} data-fold-part={FOLD_PART.spring}>
           <StoragePill />

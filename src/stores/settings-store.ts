@@ -115,6 +115,8 @@ interface SettingsData {
   staleCobwebs: boolean
   /** "Fade stale tasks": a stale row is drawn faded until hovered (the `staleAfterDays` threshold). On by default. */
   staleFade: boolean
+  /** "Tally of today’s tasks": the top bar scratches a mark per task completed today. On by default. */
+  tallyMarks: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
   /**
@@ -182,6 +184,7 @@ interface SettingsState extends SettingsData {
   setRemoveConvertedLines: (on: boolean) => Promise<void>
   setStaleCobwebs: (on: boolean) => Promise<void>
   setStaleFade: (on: boolean) => Promise<void>
+  setTallyMarks: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /**
    * Remembers the check-in filter (kept without people; no filter = the row
@@ -508,6 +511,14 @@ export const SETTINGS = {
     failure: 'Couldn’t save whether stale tasks are faded.',
     undo: ({ staleFade: on }) => (on ? 'Fade stale tasks' : 'Don’t fade stale tasks'),
   }),
+  tallyMarks: setting(['tallyMarks'], {
+    read: (rows) => ({ tallyMarks: rows.get(K.tallyMarks) !== 'false' }),
+    // Stored only when off: absent = on.
+    rows: ({ tallyMarks: on }) => rowUnlessDefault(K.tallyMarks, 'false', on),
+    label: 'whether the top bar shows a tally of today’s tasks',
+    failure: 'Couldn’t save whether the top bar shows a tally of today’s tasks.',
+    undo: ({ tallyMarks: on }) => (on ? 'Tally of today’s tasks on' : 'Tally of today’s tasks off'),
+  }),
   urgentDueWithinDays: setting(['urgentDueWithinDays'], {
     read: (rows) => ({
       urgentDueWithinDays: rowOr(rows, K.urgentDueWithinDays, DEFAULT_URGENT_DUE_WITHIN_DAYS, (v) => {
@@ -722,6 +733,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setStaleFade(on) {
     await SETTINGS.staleFade.write({ staleFade: on })
+  },
+
+  async setTallyMarks(on) {
+    await SETTINGS.tallyMarks.write({ tallyMarks: on })
   },
 
   async setUrgentDueWithinDays(range) {

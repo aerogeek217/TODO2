@@ -474,6 +474,9 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === SETTING_KEYS.staleFade) {
     return v.value === 'true' || v.value === 'false' ? true : 'value (staleFade must be true or false)'
   }
+  if (v.key === SETTING_KEYS.tallyMarks) {
+    return v.value === 'true' || v.value === 'false' ? true : 'value (tallyMarks must be true or false)'
+  }
   if (v.key === SETTING_KEYS.newTaskFollowup) {
     return v.value === 'true' || v.value === 'false' ? true : 'value (newTaskFollowup must be true or false)'
   }

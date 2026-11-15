@@ -89,6 +89,10 @@ describe('import: a layout’s order and the new-task follow-up setting', () => 
     expect(validateRow('settings', { key: 'staleFade', value }) === true).toBe(ok)
   })
 
+  it.each([['true', true], ['false', true], ['no', false], ['', false]])('tallyMarks %j reads: %s', (value, ok) => {
+    expect(validateRow('settings', { key: 'tallyMarks', value }) === true).toBe(ok)
+  })
+
   it.each([['true', true], ['false', true], ['no', false], ['', false]])('staleCobwebs %j reads: %s', (value, ok) => {
     expect(validateRow('settings', { key: 'staleCobwebs', value }) === true).toBe(ok)
   })

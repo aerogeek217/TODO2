@@ -38,6 +38,7 @@ const CASES: Record<string, Case> = {
   removeConvertedLines: { value: { removeConvertedLines: true }, undo: 'Remove note lines after converting', failure: 'Couldn’t save what converted note lines become.' },
   staleCobwebs: { value: { staleCobwebs: false }, undo: 'No cobwebs on stale tasks', failure: 'Couldn’t save whether stale tasks show cobwebs.' },
   staleFade: { value: { staleFade: false }, undo: 'Don’t fade stale tasks', failure: 'Couldn’t save whether stale tasks are faded.' },
+  tallyMarks: { value: { tallyMarks: false }, undo: 'Tally of today’s tasks off', failure: 'Couldn’t save whether the top bar shows a tally of today’s tasks.' },
   urgentDueWithinDays: { value: { urgentDueWithinDays: 7 }, undo: 'Due within 1 week makes a task urgent', failure: 'Couldn’t save when a due date makes a task urgent.' },
   checkinTaskFilter: { value: { checkinTaskFilter: checkinFilterOf({ ...emptyPredicate(), tags: [4] }) }, undo: null, failure: 'Couldn’t save the check-in filter.' },
   newListSort: { value: { newListSort: 'deadline', newListSortDirection: 'desc' }, undo: 'New lists sort by Due date ↓', failure: 'Couldn’t save how new lists sort.' },

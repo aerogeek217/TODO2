@@ -159,6 +159,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/sky.ts': ['mixColor', 'planetTonight', 'skyColors', 'sunColor'],
   'utils/sun.ts': ['dayOfYear', 'placeForTimeZone', 'solarNoon'],
   'utils/tags.ts': ['TAG_MAX_LEN'],
+  'utils/tally.ts': ['TALLY_GROUP_PITCH_PX', 'TALLY_GROUP_WIDTH_PX'],
   'utils/task-dnd/collision.ts': ['clippedAt'],
   'utils/task-dnd/index.ts': ['resolveCalendarDropType', 'TaskDropKind'],
   'utils/task-grouping.ts': ['getGroupKey', 'getGroupLabel'],
