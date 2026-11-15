@@ -187,7 +187,7 @@ test('Space on a focused row control is the control’s; on the page it toggles 
   await status.focus()
   await page.keyboard.press(' ')
   await expect(status).toHaveAttribute('aria-expanded', 'true')
-  await expect(page.getByRole('button', { name: 'No Status' })).toBeVisible()
+  await expect(page.getByRole('menuitemradio', { name: 'No Status' })).toBeFocused()
   await expect(row.getByRole('checkbox', { name: 'Mark complete' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(status).toHaveAttribute('aria-expanded', 'false')

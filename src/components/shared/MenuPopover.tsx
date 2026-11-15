@@ -152,6 +152,8 @@ interface MenuPopoverProps {
    * it). Default false.
    */
   restoreFocus?: boolean
+  /** Open with the focus on the checked item (a radio menu's current choice), else the first. Default false. */
+  focusChecked?: boolean
   /**
    * A drag of a `dragId` item dropped at `toIndex` among the `dragId` items
    * (in their order). The menu stays open; the caller reorders its entries.
@@ -196,7 +198,7 @@ function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
  * reach the app's shortcuts (`data-shortcut-scope="none"`).
  */
 export function MenuPopover({
-  anchorRef, point, placement = 'bottom-start', caret: caretProp, entries, label, width, closeOnScroll = false, restoreFocus = false, onReorder, onClose,
+  anchorRef, point, placement = 'bottom-start', caret: caretProp, entries, label, width, closeOnScroll = false, restoreFocus = false, focusChecked = false, onReorder, onClose,
 }: MenuPopoverProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
@@ -228,27 +230,30 @@ export function MenuPopover({
     panelRef(el)
   }, [panelRef])
 
-  // Focus the first item on open; on close hand focus back to the trigger —
+  // Focus the first item (`focusChecked`: the checked one) on open; on close hand focus back to the trigger —
   // for a menu at the pointer (no trigger), back to what had it before, but
   // only on Esc — unless something else took it.
   const escapedRef = useRef(false)
   // What had the focus when the menu opened — kept from the first run, so a
   // re-run (StrictMode's mount check) doesn't record the menu's own item.
   const previousRef = useRef<HTMLElement | null | undefined>(undefined)
+  // Read once, on open: the effect below runs only then.
+  const focusCheckedRef = useLatestRef(focusChecked)
   useEffect(() => {
     if (previousRef.current === undefined) {
       previousRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     }
     const previous = previousRef.current
     const trigger = anchorRef?.current ?? null
-    enabledItems(menuRef.current)[0]?.focus()
+    if (focusCheckedRef.current) focusFirstChoice(menuRef.current)
+    else enabledItems(menuRef.current)[0]?.focus()
     return () => {
       const target = trigger ?? (escapedRef.current || restoreFocus ? previous : null)
       const active = document.activeElement
       const focusLeft = !active || active === document.body || !active.isConnected
       if (target && target.isConnected && focusLeft) target.focus({ preventScroll: true })
     }
-  }, [anchorRef, restoreFocus])
+  }, [anchorRef, restoreFocus, focusCheckedRef])
 
   const focusParentItem = useCallback((index: number) => {
     menuRef.current?.querySelector<HTMLButtonElement>(`:scope > button[data-menu-index="${index}"]`)?.focus()

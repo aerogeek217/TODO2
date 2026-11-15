@@ -10,10 +10,10 @@ import { rowCue } from '../../utils/priority-cues'
 import { markerSummary } from '../../utils/markers'
 import { isStale, staleTooltipLine } from '../../utils/stale'
 import { TagPicker } from '../shared/TagChipSelector'
-import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { useTooltip } from '../shared/use-tooltip'
 import { TaskMenu } from './TaskMenu'
 import { PriorityMenu } from './PriorityMenu'
+import { StatusMenuPopover } from './StatusMenuPopover'
 import { EntityMenu, type MenuEntity } from '../shared/EntityMenu'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
@@ -25,7 +25,7 @@ import { subtaskCount } from '../../utils/subtasks'
 import { SubtaskAddButton, SubtaskCountButton, SubtaskCountStatic } from './subtasks/SubtaskCountButton'
 import { StackedDetails } from './StackedDetails'
 import {
-  DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, RowCheckbox, StatusCell, TagsCell, StatusMenu } from './row-cells'
+  DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, RowCheckbox, StatusCell, TagsCell } from './row-cells'
 import styles from './TaskRow.module.css'
 import { TODO_ID_ATTR } from '../../utils/dom-contract'
 
@@ -355,13 +355,13 @@ export const TaskRow = memo(function TaskRow({
       )}
 
       {!ghost && showStatusMenu && (
-        <AnchoredPicker anchorRef={statusRef} onClose={closeStatus} closeOnEscape>
-          <StatusMenu
-            statuses={statuses}
-            statusId={todo.statusId}
-            onPick={(statusId) => { bulk.setStatus(todo.id, statusId); setShowStatusMenu(false) }}
-          />
-        </AnchoredPicker>
+        <StatusMenuPopover
+          anchorRef={statusRef}
+          statuses={statuses}
+          statusId={todo.statusId}
+          onPick={(statusId) => bulk.setStatus(todo.id, statusId)}
+          onClose={closeStatus}
+        />
       )}
 
       {markersOpen && (

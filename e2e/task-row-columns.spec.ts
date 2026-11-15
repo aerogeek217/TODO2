@@ -240,7 +240,7 @@ test('a click on a cell opens its picker anchored to the cell', async ({ page })
     ['people', page.locator('[data-anchored-picker]')],
     ['tags', page.locator('[data-anchored-picker]')],
     ['followup', page.getByRole('dialog', { name: 'Follow-up' })],
-    ['status', page.locator('[data-anchored-picker]')],
+    ['status', page.getByRole('menu', { name: 'Status' })],
   ]
   for (const [name, panel] of panels) {
     const cell = r.locator(`[data-row-cell="${name}"]`)
@@ -354,7 +354,7 @@ test('a drag can start on a cell; a click there without moving opens its picker;
 
   // A double-click on a cell: its picker opens (once) and the editor doesn't.
   await row(list, 'Plain task').getByRole('button', { name: 'Set status' }).dblclick()
-  await expect(page.locator('[data-anchored-picker]')).toBeVisible()
+  await expect(page.getByRole('menu', { name: 'Status' })).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Edit task' })).toHaveCount(0)
   await page.keyboard.press('Escape')
   // On the title's text it opens the editor (its middle may be past the text, on the hover-revealed Add subtasks mark).
