@@ -381,7 +381,7 @@ test('a list with Completed this week shows the tasks completed this week, witho
   await expect(page.getByRole('button', { name: /^1 of 2 tasks shown/ })).toBeVisible()
 })
 
-test('Last follow-up "14+ days ago, or never": in a list, and as a lens in the top bar', async ({ page }) => {
+test('Last follow-up "14+ days ago, or never" in a list', async ({ page }) => {
   const stale = { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true }
   await seedWorkspace(page, {
     listDefinitions: [
@@ -394,7 +394,6 @@ test('Last follow-up "14+ days ago, or never": in a list, and as a lens in the t
       { title: 'Chased a month ago', lastFollowupInDays: -30 },
       { title: 'Never chased' },
     ],
-    lenses: [{ id: 'lens-stale', name: 'Stale follow-ups', predicate: { dates: { lastFollowup: stale } } }],
     layouts: [{
       name: 'Main',
       columns: [
@@ -415,10 +414,6 @@ test('Last follow-up "14+ days ago, or never": in a list, and as a lens in the t
   await expect(page.getByRole('tooltip')).toHaveText(`Last follow-up: 14+ days ago, or neverLast followed up on or before ${dayWords(-14)}, or never`)
   await page.mouse.move(0, 0)
   await closeListFilterEditor(page)
-
-  await page.getByRole('button', { name: /^Lens:/ }).click()
-  await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Stale follow-ups/ }).click()
-  await expect(rows(page, 't1')).toHaveText([/Chased 20 days ago/, /Chased a month ago/, /Never chased/])
 })
 
 test.describe('phone', () => {

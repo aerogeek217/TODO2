@@ -12,8 +12,8 @@ import { expectLayoutStored, openCellMenu, pickInReview, pickWidgetKind, reviewF
  * expression popup; a filter that doesn't read keeps the queue on the last
  * one that did, Esc putting its text back; the check-in buttons while the
  * filter names only people; the default Priority sort and a row's
- * double-click; a follow-up from the widget, the live queue, the lens
- * switch, and its faces by the cell's size. With `REVIEW_SHOTS=<folder>` it
+ * double-click; a follow-up from the widget, the live queue, and its
+ * faces by the cell's size. With `REVIEW_SHOTS=<folder>` it
  * also saves screenshots (dark, 1440 × 900) for the design review.
  */
 
@@ -61,7 +61,6 @@ async function shot(page: Page, name: string, target: Locator | Page = page) {
 function largeSeed(): WorkspaceSeed {
   return {
     ...BASE,
-    lenses: [{ id: 'lens-urgent', name: 'Urgent', predicate: { markers: [{ values: ['urgent'] }] } }],
     layouts: [{
       name: 'Main',
       table: {
@@ -85,7 +84,7 @@ test('added from the cell’s ⋯: nothing to review; a click lists who or what 
   await pickWidgetKind(page, 'Change widget', 'Review')
   const w = page.locator('[data-review-widget]')
   const tabId = await w.getAttribute('data-review-widget') ?? ''
-  // Its own top line (alone in the cell): the name — no progress, no lens switch yet — over the field's row; no kind.
+  // Its own top line (alone in the cell): the name — no progress yet — over the field's row; no kind.
   await expect(w.locator('[data-widget-top-line]')).toContainText('Review')
   await expect(w.getByTestId('review-widget-progress')).toHaveCount(0)
   await expect(w.getByTestId('review-by')).toHaveCount(0)
@@ -306,23 +305,6 @@ test('the live queue: a task leaving the filter leaves the rail — the current 
   await w.getByRole('button', { name: /^Skip/ }).click()
   await expect(cardTitle(page, 'rev1')).toHaveText('Onboarding checklist')
   await expect(railRows(page, 'rev1')).toHaveCount(3)
-})
-
-test('the widget’s lens switch: quiet while the top bar’s lens hides tasks of the filter; off, all of them', async ({ page }) => {
-  await seedWorkspace(page, largeSeed())
-  const control = page.locator('header').getByRole('button', { name: /^Lens:/ })
-  await control.click()
-  await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Urgent/ }).click()
-  const w = widget(page, 'rev1')
-  await expect(w.getByTestId('lens-switch')).toHaveCount(0)
-  await pickInReview(page, 'rev1', 'Aisha', 'Ben')
-  await expect(railRows(page, 'rev1')).toHaveCount(1)
-  const sw = w.getByTestId('lens-switch')
-  await expect(sw).toHaveAttribute('data-lens-hides', '4')
-  await w.hover()
-  await sw.click()
-  await expect(sw).toHaveAttribute('aria-pressed', 'false')
-  await expect(railRows(page, 'rev1')).toHaveCount(5)
 })
 
 test('in a cell of several widgets: no top line — the field’s row comes first and ends with the progress', async ({ page }) => {

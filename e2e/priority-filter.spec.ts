@@ -1,8 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { filterChip, filterMenu, filterMenuRow, filterTray, openFilterPicker } from './fixtures/filters'
-import { ADD_FILTER, openListFilterEditor, openSettings, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, openListFilterEditor, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
-import { readStore } from './fixtures/db'
 
 /**
  * The Priority filter reads as a Status filter: Is / Is not, several values
@@ -126,24 +125,6 @@ test.describe('desktop', () => {
     await expect.poll(() => sorted(page)).toEqual(['Both', 'Due tomorrow', 'Flagged urgent'])
   })
 
-  test('a lens holds the AND the top bar can\'t', async ({ page }) => {
-    await seedWorkspace(page, {
-      ...SEED,
-      lenses: [{ id: 'both', name: 'Both', predicate: { markers: [{ values: ['urgent'] }, { values: ['important'] }] } }],
-      layouts: [{ name: 'Main', columns: [
-        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
-        { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n', kind: 'notes' }] })] },
-      ] }],
-    })
-    await page.locator('header').getByRole('button', { name: /^Lens:/ }).click()
-    await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Both/ }).click()
-    await expect.poll(() => titles(page)).toEqual(['Both'])
-    await wsTab(page, 't1').click({ button: 'right' })
-    await page.keyboard.press('Escape')
-    const settings = await openSettings(page, 'Tasks')
-    await expect(settings.getByTestId('lens-list').getByRole('button', { name: /^Both/ })).toBeVisible()
-    expect((await readStore(page, 'settings')).length).toBeGreaterThan(0)
-  })
 })
 
 test.describe('narrow window', () => {

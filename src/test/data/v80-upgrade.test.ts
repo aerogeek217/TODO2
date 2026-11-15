@@ -20,8 +20,8 @@ const DATE = '2026-11-01T09:00:00.000Z'
 const FILTER = formatCheckinFilterSetting({ ...emptyPredicate(), searchText: 'review' })
 
 describe('v80: registered', () => {
-  it('is the current schema, after v79', () => {
-    expect(CURRENT_DB_VERSION).toBe(80)
+  it('is registered, after v79', () => {
+    expect(CURRENT_DB_VERSION).toBeGreaterThanOrEqual(80)
     expect(SCHEMA_UPGRADES.get(80)).toBe(upgradeV80)
   })
 })
@@ -126,12 +126,12 @@ describe('v80 through the pipeline', () => {
     expect(result.data.settings.map((s) => s.key)).toEqual(['checkinTaskFilter'])
   })
 
-  it('a v80 file holding an email on a person reads without it, as any key the row doesn’t have', () => {
-    const result = prepareImport({ ...JSON.parse(JSON.stringify(v79File())) as object, [SCHEMA_VERSION_KEY]: 80 })
+  it('a current file holding an email on a person reads without it, as any key the row doesn’t have', () => {
+    const result = prepareImport({ ...JSON.parse(JSON.stringify(v79File())) as object, [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION })
     if (!result.ok) throw new Error(result.error)
     expect(result.upgraded).toBe(false)
     expect(result.data.people.every((p) => !('email' in p))).toBe(true)
-    // An open method row in a v80 file is a key this build doesn't know: dropped.
+    // An open method row in a current file is a key this build doesn't know: dropped.
     expect(result.data.settings.map((s) => s.key)).toEqual(['checkinTaskFilter'])
   })
 

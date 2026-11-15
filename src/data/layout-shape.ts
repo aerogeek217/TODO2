@@ -10,7 +10,7 @@ import {
   type TaskRowsViewState,
   type LayoutCell,
   type LayoutTab,
-  type LensTabConfig,
+  type ListTabConfig,
   type ListTabViewState,
   type WidgetKind,
   DEFAULT_CALENDAR_DATE_TYPES,
@@ -19,11 +19,7 @@ import {
   isNeglectUntouchedDays,
   type NeglectColourBy,
   type NeglectTabConfig,
-  // G3: the widgets' lens switch.
-  LENS_SWITCH_KINDS,
   type CalendarTab,
-  type LensSwitchTab,
-  type LensViewState,
   // Item 12: the Review widget.
   type ReviewTab,
   type ReviewTabViewState,
@@ -51,7 +47,7 @@ import {
 } from '../models/chart-widgets'
 // G5: Project pulse's config and its rules.
 import { pickPulseConfig, pulseConfigProblem, pulseRulePredicates } from '../models/pulse-config'
-// Item 8: a Pivot's view state — its rows' sort and its lens switch.
+// Item 8: a Pivot's view state — its rows' sort.
 import { pickPivotView, pivotViewProblem } from '../models/chart-widgets'
 import type { TodoPredicate } from '../models/filter-predicate'
 import { emptyPredicate } from '../models/filter-predicate'
@@ -168,6 +164,18 @@ function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixed: bool
   return { config: { colourBy, untouchedDays }, fixed }
 }
 
+/**
+ * A tab's stored view state without the lens switch (`ignoreLens`) lenses
+ * had: v81 removed it from the data, and one a file still holds is dropped
+ * quietly — never a repair (lenses are gone, so it has nothing to say).
+ */
+function withoutLensSwitch(view: Obj): Obj {
+  if (!('ignoreLens' in view)) return view
+  const { ignoreLens: _i, ...rest } = view
+  void _i
+  return rest
+}
+
 /** The kinds whose tabs show task rows: they keep a details width (`TaskRowsViewState`). */
 const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens'])
 
@@ -177,10 +185,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   if (!isRecord(config)) return `${path}.config`
   const view = tab.viewState
   if (view !== undefined && !isRecord(view)) return `${path}.viewState`
-  // A widget's lens switch (G3): a boolean.
-  if ((LENS_SWITCH_KINDS as readonly string[]).includes(kind) && view?.ignoreLens !== undefined && typeof view.ignoreLens !== 'boolean') {
-    return `${path}.viewState.ignoreLens`
-  }
   // Tabs showing task rows: the details width, a number in range.
   if (ROWS_KINDS.has(kind)
     && view?.detailsWidth !== undefined && pickDetailsWidth(view.detailsWidth) === undefined) {
@@ -275,12 +279,11 @@ function reviewViewProblem(view: Obj): string | null {
  * A Review widget's view state as read (item 12): its sort kept when it
  * reads; a sort that doesn't, or a key it doesn't have (the place an earlier
  * build saved, `currentId` / `skipped`, which v79 removed), dropped (a fix).
- * The lens switch is the caller's.
  */
 function pickReviewView(view: Obj | undefined): { view: ReviewTabViewState; fixed: boolean } {
   const out: ReviewTabViewState = {}
   if (!view) return { view: out, fixed: false }
-  let fixed = Object.keys(view).some((k) => k !== 'sort' && k !== 'ignoreLens')
+  let fixed = Object.keys(view).some((k) => k !== 'sort')
   if (isReviewSort(view.sort)) out.sort = view.sort
   else if (view.sort !== undefined) fixed = true
   return { view: out, fixed }
@@ -550,25 +553,13 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     if (isRecord(tab.config)) config = tab.config
     else fix('settings')
     let view: Obj | undefined
-    if (isRecord(tab.viewState)) view = tab.viewState
+    if (isRecord(tab.viewState)) view = withoutLensSwitch(tab.viewState)
     else if (tab.viewState !== undefined) fix('settings')
     /** The task rows' view state (`detailsWidth`), or none; a bad width is dropped. */
     const rowsView = (): TaskRowsViewState | undefined => {
       const width = pickDetailsWidth(view?.detailsWidth)
       if (width === undefined && view?.detailsWidth !== undefined) fix('settings')
       return width === undefined ? undefined : { detailsWidth: width }
-    }
-    /** A widget's lens switch (G3, view state): a boolean, else dropped (a fix). */
-    const lensView = (): LensViewState => {
-      const v = view?.ignoreLens
-      if (typeof v === 'boolean') return { ignoreLens: v }
-      if (v !== undefined) fix('settings')
-      return {}
-    }
-    /** `tab` with the lens switch as its view state, when it has one (no view state otherwise). */
-    const withLensView = <T extends LensSwitchTab>(tab: T): T => {
-      const lens = lensView()
-      return lens.ignoreLens === undefined ? tab : { ...tab, viewState: { ...tab.viewState, ...lens } }
     }
     /** A glance config as picked, a reset reported — and a name cut to its limit, as that. */
     const glance = <C,>(picked: PickedConfig<C>): C => {
@@ -578,18 +569,18 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     }
     switch (tab.kind) {
       case 'lens': {
-        const lensConfig: LensTabConfig = {}
-        if (isFiniteNum(config.listDefinitionId)) lensConfig.listDefinitionId = config.listDefinitionId
+        const listConfig: ListTabConfig = {}
+        if (isFiniteNum(config.listDefinitionId)) listConfig.listDefinitionId = config.listDefinitionId
         else if (config.listDefinitionId !== undefined) fix('settings')
         // The zoom: one of the levels (v79 wrote the removed `strips` as `lines`), else dropped
         // (the tab opens at the Settings default).
-        const lensView: ListTabViewState = { ...rowsView() }
+        const listView: ListTabViewState = { ...rowsView() }
         const zoom = view?.zoom
-        if (isListZoom(zoom)) lensView.zoom = zoom
+        if (isListZoom(zoom)) listView.zoom = zoom
         else if (zoom !== undefined) fix('settings')
-        return Object.keys(lensView).length > 0
-          ? { id, kind: 'lens', config: lensConfig, viewState: lensView }
-          : { id, kind: 'lens', config: lensConfig }
+        return Object.keys(listView).length > 0
+          ? { id, kind: 'lens', config: listConfig, viewState: listView }
+          : { id, kind: 'lens', config: listConfig }
       }
       case 'calendar': {
         const types = config.dateTypes
@@ -609,13 +600,13 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
           else if (view.titles !== undefined) fix('settings')
           if (Object.keys(viewState).length > 0) calendar.viewState = viewState
         }
-        return withLensView(calendar)
+        return calendar
       }
       case 'neglect': {
-        // No view state of its own but the lens switch: any other is dropped.
+        // No view state: any is dropped.
         const neglect = pickNeglectConfig(config)
         if (neglect.fixed) fix('settings')
-        return withLensView<LensSwitchTab>({ id, kind: 'neglect', config: neglect.config })
+        return { id, kind: 'neglect', config: neglect.config }
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
@@ -626,16 +617,16 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         if (picked.fixed || Object.keys(config).length > 0) fix('settings')
         const review: ReviewTab = { id, kind: 'review', config: {} }
         if (Object.keys(picked.view).length > 0) review.viewState = picked.view
-        return withLensView<LensSwitchTab>(review)
+        return review
       }
       // The glance kinds: a bad or missing setting is reset to its default;
-      // no view state but the lens switch.
+      // no view state.
       case 'number':
-        return withLensView<LensSwitchTab>({ id, kind: 'number', config: glance(numberConfigOf(config)) })
+        return { id, kind: 'number', config: glance(numberConfigOf(config)) }
       case 'trend':
-        return withLensView<LensSwitchTab>({ id, kind: 'trend', config: glance(pickTrendConfig(config, readNumberPredicate)) })
+        return { id, kind: 'trend', config: glance(pickTrendConfig(config, readNumberPredicate)) }
       case 'pulse':
-        return withLensView<LensSwitchTab>({ id, kind: 'pulse', config: glance(pickPulseConfig(config, readNumberPredicate)) })
+        return { id, kind: 'pulse', config: glance(pickPulseConfig(config, readNumberPredicate)) }
       // D26 P8: the chart widgets.
       case 'breakdown': {
         const viewState = glance(pickBreakdownView(view))
@@ -643,7 +634,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         if (viewState) breakdown.viewState = viewState
         return breakdown
       }
-      // Item 8: its view state is its rows' sort and its lens switch.
+      // Item 8: its view state is its rows' sort.
       case 'pivot': {
         const viewState = glance(pickPivotView(view))
         const pivot: LayoutTab = { id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) }

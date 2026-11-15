@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
-import { createTab, type LensTab, type WorkspaceLayout } from '../../models/workspace-layout'
+import { createTab, type ListTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import { listTabZoom, setListTabZoom, stepListTabZoom } from '../../services/list-zoom'
 import { useListWidgetStore } from '../../stores/list-widget-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -24,9 +24,9 @@ async function open(): Promise<number> {
   return id
 }
 
-async function storedTab(id: number): Promise<LensTab> {
+async function storedTab(id: number): Promise<ListTab> {
   const row = await db.layouts.get(id)
-  return row!.cells[0]!.tabs[0] as LensTab
+  return row!.cells[0]!.tabs[0] as ListTab
 }
 
 beforeEach(async () => {

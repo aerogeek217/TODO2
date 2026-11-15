@@ -53,13 +53,11 @@ describe('import: a list’s owner, its filter-line switch, the Priority groupin
     expect(rowFixes('listDefinitions', list(1, { owner: null, showFilterLine: null }))).toEqual([])
   })
 
-  it('a list ignoring the lens keeps `ignoreLens: true`; `false` is the default (dropped silently), another value with a warning', () => {
-    expect(rowFixes('listDefinitions', list(1, { ignoreLens: true }))).toEqual([])
-    expect(sanitizeRow('listDefinitions', list(1, { ignoreLens: true }))).toMatchObject({ ignoreLens: true })
-    expect(rowFixes('listDefinitions', list(1, { ignoreLens: false }))).toEqual([])
-    expect('ignoreLens' in sanitizeRow('listDefinitions', list(1, { ignoreLens: false }))).toBe(false)
-    expect(rowFixes('listDefinitions', list(1, { ignoreLens: 'yes' }))).toEqual(['unknown lens setting dropped'])
-    expect('ignoreLens' in sanitizeRow('listDefinitions', list(1, { ignoreLens: 'yes' }))).toBe(false)
+  it('a list’s lens switch (v81 removed it) is dropped quietly, whatever it holds', () => {
+    for (const ignoreLens of [true, false, 'yes']) {
+      expect(rowFixes('listDefinitions', list(1, { ignoreLens }))).toEqual([])
+      expect('ignoreLens' in sanitizeRow('listDefinitions', list(1, { ignoreLens }))).toBe(false)
+    }
   })
 
   it('a grouping it doesn’t know still fails the row', () => {

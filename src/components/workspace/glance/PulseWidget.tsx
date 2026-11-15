@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { kindTabTitle, type PulseTab } from '../../../models/workspace-layout'
-import { lensHidesWhere, useLensHidden, usePulse, useStatsBase } from '../../../hooks/use-glance-data'
-import { TabLensSwitch } from '../LensSwitch'
+import { usePulse, useStatsBase } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { cumulative, lateShareText, momentumText, worstPulseCard, type PulseCard } from '../../../services/stats/pulse'
 import { tagRowDrill } from './glance-drills'
@@ -195,10 +194,8 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
   const drill = glanceDrill(onDrill, base.filtered)
   const openTag = (card: PulseCard) => drill?.(tagRowDrill(card.tag, card.openIds))
   // Picks that make no card: the picked tags were deleted since.
-  const picked = tab.config.tagIds.length > 0
-  // What the lens hides here: open tasks with a picked tag.
   const tagIds = tab.config.tagIds
-  const lensHides = lensHidesWhere(useLensHidden(), (t, b) => !t.isCompleted && (b.ctx.assignedTagsMap.get(t.id) ?? []).some((tag) => tag.id != null && tagIds.includes(tag.id)))
+  const picked = tagIds.length > 0
 
   if (face === 'small') {
     const worst = worstPulseCard(cards)
@@ -229,7 +226,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
   return (
     <GlanceFrame tab={tab}>
       <div ref={faceRef} className={styles.face} data-face={face}>
-        <Panel def={{ ...PULSE_DEF, title: kindTabTitle(tab) }}className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks" lens={<TabLensSwitch tab={tab} hides={lensHides} />} titleData={{ 'data-pulse-head': tab.id }}>
+        <Panel def={{ ...PULSE_DEF, title: kindTabTitle(tab) }}className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks" titleData={{ 'data-pulse-head': tab.id }}>
           {cards.length === 0 ? (
             <Empty
               title={picked ? 'The picked tags were deleted' : 'No tags picked'}

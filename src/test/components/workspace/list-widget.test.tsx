@@ -21,7 +21,7 @@ import { addFollowupInterval, formatFollowupDate } from '../../../utils/followup
 import { SHORTCUT_HANDLERS, type ShortcutCtx } from '../../../services/keyboard-shortcuts'
 import { createCommands, type CommandContext } from '../../../services/command-registry'
 import type { PersistedListDefinition } from '../../../models/list-definition'
-import { createTab, type LensTab } from '../../../models/workspace-layout'
+import { createTab, type ListTab } from '../../../models/workspace-layout'
 import type { Person, TodoPredicate } from '../../../models'
 import { db } from '../../../data/database'
 import { clearFilterStore, makeTodo, resetEntityStores, stubClipboard } from '../../helpers'
@@ -39,7 +39,7 @@ function def(over: Partial<PersistedListDefinition> = {}, predicate: Partial<Tod
   }
 }
 
-const tab: LensTab = { id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }
+const tab: ListTab = { id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }
 
 function setup(d: PersistedListDefinition) {
   useListDefinitionStore.setState({ listDefinitions: [d] })

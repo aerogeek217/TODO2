@@ -25,7 +25,7 @@ import { registerModuleReset } from '../utils/module-reset'
 import { sameElements, sharedMemo, sharedMemoByKey } from '../utils/shared-memo'
 import { useToday } from './use-today'
 import { useTrendEvents } from './use-trend-events'
-import { useWidgetScreenFilter } from './use-widget-lens'
+import { useScreenFilter } from '../stores/screen-filter'
 
 /**
  * The glance widgets' data, a hook per part over one
@@ -60,7 +60,7 @@ export interface StatsBase {
   /** The screen filter narrows the tasks (Show completed alone doesn't). */
   filtered: boolean
   todoById: ReadonlyMap<number, PersistedTodoItem>
-  /** The screen filter (with the lens, unless the widget ignores it: `useWidgetScreenFilter`). */
+  /** The screen filter (`stores/screen-filter`). */
   screen: FilterCriteria
   lookups: TodoNameLookups
   markerSettings: FilterSettings
@@ -87,23 +87,18 @@ const lookupsMemo = sharedMemo((
 
 // The same tasks as last time (a status update or subtask write the text
 // search doesn't change the outcome of) keep the same array, so no part keyed on it recomputes.
-// Two sets: with the top bar's lens and without it (a widget that ignores it, G3).
 const shownMemo = sharedMemo((
   screen: FilterCriteria,
   todos: readonly PersistedTodoItem[],
   lookups: TodoNameLookups,
   ctx: StatsContext,
   settings: FilterSettings,
-) => applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings), 2, sameElements)
+) => applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings), 1, sameElements)
 
 const byIdMemo = sharedMemo((todos: readonly PersistedTodoItem[]) => new Map(todos.map((t) => [t.id, t])))
 
-/**
- * The shared base: the context and the screen-filtered tasks, the same
- * objects in every widget — the top bar's lens left out while the widget
- * being drawn ignores it (`WidgetLensContext`), or as `ignoreLens` says.
- */
-export function useStatsBase(ignoreLens?: boolean): StatsBase {
+/** The shared base: the context and the screen-filtered tasks, the same objects in every widget. */
+export function useStatsBase(): StatsBase {
   const today = useToday()
   const todos = useTodoStore((s) => s.todos)
   const statuses = useStatusStore((s) => s.statuses)
@@ -113,7 +108,7 @@ export function useStatsBase(ignoreLens?: boolean): StatsBase {
   const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
-  const screen = useWidgetScreenFilter(ignoreLens).filters
+  const screen = useScreenFilter().filters
 
   const ctx = ctxMemo(today.getTime(), weekStartsOn, urgentRange, assignedPeopleMap, assignedTagsMap, statuses)
   const markerSettings = settingsMemo(urgentRange, weekStartsOn)
@@ -130,63 +125,6 @@ export function useStatsBase(ignoreLens?: boolean): StatsBase {
 const screenTasksMemo = sharedMemo((shown: PersistedTodoItem[], withCompleted: boolean): PersistedTodoItem[] => (
   withCompleted ? shown : shown.filter((t) => !t.isCompleted)
 ), 2)
-
-const hiddenMemo = sharedMemo(function lensHidden(unlensed: PersistedTodoItem[], lensed: PersistedTodoItem[]): PersistedTodoItem[] {
-  const kept = new Set(lensed)
-  return unlensed.filter((t) => !kept.has(t))
-})
-
-/** What the top bar's lens hides from the widgets: the tasks shown without it but not with it (completed included), and the base with it. */
-export interface LensHidden {
-  hidden: PersistedTodoItem[]
-  /** The shared base with the lens (its lookups and context, for matching the hidden tasks). */
-  base: StatsBase
-}
-
-/**
- * What the top bar's lens hides (`LensHidden`), whether or not the widget
- * being drawn ignores it — its switch's `−N` counts its own share of
- * these; `null` while no lens applies.
- */
-export function useLensHidden(): LensHidden | null {
-  const lensed = useStatsBase(false)
-  const unlensed = useStatsBase(true)
-  const hidden = hiddenMemo(unlensed.shown, lensed.shown)
-  return useMemo(() => (lensed.screen.lens == null ? null : { hidden, base: lensed }), [hidden, lensed])
-}
-
-/** How many of the tasks the lens hides `keep` keeps (0 with no lens). */
-export function lensHidesWhere(info: LensHidden | null, keep: (t: PersistedTodoItem, base: StatsBase) => boolean): number {
-  if (!info) return 0
-  let n = 0
-  for (const t of info.hidden) if (keep(t, info.base)) n++
-  return n
-}
-
-// Kept per (first) filter: a widget's count is matched once per change of what the lens hides, not on
-// every render of every widget (each frame of a divider drag re-renders them all — cr34 G7).
-const lensHidesMemo = sharedMemoByKey(function lensHides(
-  first: FilterCriteria,
-  hidden: PersistedTodoItem[],
-  lookups: TodoNameLookups,
-  ctx: StatsContext,
-  settings: FilterSettings,
-  ...rest: FilterCriteria[]
-): number {
-  const criteria = [first, ...rest]
-  let n = 0
-  for (const t of hidden) if (criteria.some((c) => matchesFilterWithLookups(c, t, lookups, ctx.today, settings))) n++
-  return n
-}, undefined, 2)
-
-/** How many of the tasks the lens hides `filter` keeps (as a Number counts: open ones unless it admits completed). */
-export function lensHidesFor(info: LensHidden | null, ...filters: TodoPredicate[]): number {
-  if (!info) return 0
-  const [first, ...rest] = filters.map((f) => numberCriteriaMemo(f))
-  if (!first) return 0
-  const lookups = lookupsFor(info.base, first, ...rest)
-  return lensHidesMemo(first, info.hidden, lookups, info.base.ctx, info.base.markerSettings, ...rest)
-}
 
 /**
  * The tasks the screen filter shows, as a list and the calendar show
@@ -222,14 +160,6 @@ export interface TrendData {
 /** No filter: every task (a config without one). */
 const EVERY_TASK: TodoPredicate = emptyPredicate()
 
-/**
- * The input sets a memo keyed by a filter keeps: two — callers sharing a
- * filter (the constants `EVERY_TASK` and a share's `EVERY_OPEN`, or two
- * widgets with equal filters) may differ by their lens switch, and with one
- * set kept they evicted each other on every render (cr34 G8).
- */
-const LENS_SLOTS = 2
-
 /** Created vs completed's filter: its own, else one keeping every task (the same object each time, so the memos keyed on it hit). */
 export function trendFilter(config: Pick<TrendTabConfig, 'filter'>): TodoPredicate {
   return config.filter ?? EVERY_TASK
@@ -255,11 +185,11 @@ const filteredTrendMemos = Object.fromEntries(TREND_RANGES.map((range): [TrendRa
 ): TrendStats {
   const stages = [statsFilter(screen), { ...filter, showCompleted: true }]
   return computeTrend(todos, events, ctx, range, { stages, lookups, settings })
-}, undefined, LENS_SLOTS)])) as Record<TrendRange, FilteredTrend>
+})])) as Record<TrendRange, FilteredTrend>
 
 const trendExactMemo = sharedMemoByKey(function trendExact(stats: TrendStats, filter: FilterCriteria | null, screen: FilterCriteria, historyLogSince: Date | null) {
   return filter ? historyExactFrom([statsFilter(screen), filter], stats.window.days, historyLogSince) : { from: 0, approximate: [] }
-}, undefined, LENS_SLOTS)
+})
 
 const trendDataMemo = sharedMemoByKey(function trendData(stats: TrendStats, exact: { from: number; approximate: HistoryField[] }, filtered: boolean): TrendData {
   return { stats, exactFrom: exact.from, approximate: exact.approximate, filtered }
@@ -267,8 +197,7 @@ const trendDataMemo = sharedMemoByKey(function trendData(stats: TrendStats, exac
 
 /**
  * Created vs completed's data (its filter and range): among the tasks the
- * top bar shows — the base's, without the lens while the widget ignores it.
- * While neither its filter nor the screen filter narrows, every task is
+ * top bar shows — the base's. While neither its filter nor the screen filter narrows, every task is
  * read as it is; else each task is replayed to
  * each day's end and counted while the filter and the screen filter kept it
  * then (`computeTrend`'s filter, a Number line's replay), the days the log
@@ -347,7 +276,7 @@ const numberCriteriaMemo = sharedMemoByKey(function numberCriteria(filter: TodoP
 
 const numberIdsShownMemo = sharedMemoByKey(function numberIdsShown(filter: FilterCriteria, tasks: Tasks, lookups: TodoNameLookups, ctx: StatsContext, settings: FilterSettings) {
   return numberIds(filter, tasks, lookups, ctx.today, settings)
-}, sameElements, LENS_SLOTS)
+}, sameElements)
 const numberIdsTotalMemo = sharedMemoByKey(function numberIdsTotal(filter: FilterCriteria, tasks: Tasks, lookups: TodoNameLookups, ctx: StatsContext, settings: FilterSettings) {
   return numberIds(filter, tasks, lookups, ctx.today, settings)
 }, sameElements)
@@ -356,7 +285,7 @@ const numberIdsTotalMemo = sharedMemoByKey(function numberIdsTotal(filter: Filte
 export interface NumberCount {
   /** Its filter (`NumberConfig.filter`) as criteria. */
   filter: FilterCriteria
-  /** The screen filter it counts under: the base's (without the lens when the widget ignores it). */
+  /** The screen filter it counts under: the base's. */
   screen: FilterCriteria
   /** That screen filter narrows the tasks. */
   filtered: boolean
@@ -366,12 +295,11 @@ export interface NumberCount {
 
 const numberCountMemo = sharedMemoByKey(function numberCount(filter: FilterCriteria, screen: FilterCriteria, shown: number[], total: number[]): NumberCount {
   return { filter, screen, filtered: countActiveFilters({ ...screen, showCompleted: false }) > 0, ids: { shown, total } }
-}, undefined, LENS_SLOTS)
+})
 
 /**
  * A Number's count (`services/stats/number-count`): its filter over the
- * tasks the top bar shows — the base's, which leaves the lens out while
- * the widget ignores it (its lens switch, G3) — and over every task.
+ * tasks the top bar shows — the base's — and over every task.
  */
 export function useNumberCount(base: StatsBase, config: Pick<NumberConfig, 'filter'>): NumberCount {
   return numberCountOf(base, config)
@@ -429,7 +357,7 @@ const numberHistoryMemo = sharedMemoByKey(function numberHistory(
     series: countReplayed(stages, replays, { lookups, settings }),
     exactness: historyExactness(stages, firstDay, historyLogSince),
   }
-}, undefined, LENS_SLOTS)
+})
 
 /** Runs `run` once the browser is idle (soon, where it can't say); returns what cancels it. */
 function whenIdle(run: () => void): () => void {

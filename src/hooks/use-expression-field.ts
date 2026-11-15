@@ -26,7 +26,7 @@ interface ExpressionFieldOptions {
   allowPeople?: boolean
   /** `false`: Completed dates are refused (the check-in filter). */
   allowCompleted?: boolean
-  /** `false`: `done` is refused (filters that never show completed tasks by it: a lens, a pane, the check-in). */
+  /** `false`: `done` is refused (filters that never show completed tasks by it: a pane, the check-in). */
   allowDone?: boolean
   /**
    * What the popup lists (default `expressionAutocomplete`: Quick Add's

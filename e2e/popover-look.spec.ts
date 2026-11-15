@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { filterChip, filterMenu, filterMenuButton, filterMenuRow } from './fixtures/filters'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
-import { ADD_FILTER, openListFilterEditor, openSettings, seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, openListFilterEditor, seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Popovers stand off the page (D21): a popover over the page (level 1) and
@@ -22,7 +22,6 @@ import { ADD_FILTER, openListFilterEditor, openSettings, seedWorkspace, wsCell, 
 
 const SEED: WorkspaceSeed = {
   people: ['Ann', 'Bob'],
-  lenses: [{ id: 'l1', name: 'Has a person' }],
   listDefinitions: [{ name: 'Team', people: ['Ann'] }],
   tasks: [
     { title: 'Ann one', people: ['Ann'] },
@@ -177,14 +176,7 @@ for (const theme of ['dark', 'light'] as const) {
       await expectRinged(page, chip, true)
     })
 
-    test('a menu in Settings is level 2', async ({ page }) => {
-      const settings = await openSettings(page, 'Tasks')
-      await settings.getByTestId('lens-list').getByRole('button', { name: /^Has a person/ }).click()
-      await settings.getByRole('button', { name: ADD_FILTER }).first().click()
-      await expectLevel(page, page.getByRole('menu', { name: 'Add a filter' }), 2, theme)
-    })
-
-    test('the top bar’s Filter button, a filter’s chip and the lens name: a caret under each, ringed while open', async ({ page }) => {
+    test('the top bar’s Filter button and a filter’s chip: a caret under each, ringed while open', async ({ page }) => {
       const button = filterMenuButton(page)
       await button.click()
       await expectCaretAt(filterMenu(page), button, 'top')
@@ -208,19 +200,6 @@ for (const theme of ['dark', 'light'] as const) {
       await page.keyboard.press('Escape')
       await expectRinged(page, frame, false)
       await page.getByRole('button', { name: 'Clear people filter' }).click()
-
-      // No lens: the control neutral, the name ringed while its picker is open.
-      const none = page.getByRole('button', { name: 'Lens: none' })
-      await none.click()
-      const lensMenu = page.getByRole('menu', { name: 'Lens' })
-      await expectCaretAt(lensMenu, none, 'top')
-      await expectRinged(page, none, true)
-      // A lens on (the control lit): closed, no ring; open, the ring reads on it.
-      await lensMenu.getByRole('menuitemradio', { name: /Has a person/ }).click()
-      const lit = page.getByRole('button', { name: 'Lens: Has a person' })
-      await expectRinged(page, lit, false)
-      await lit.click()
-      await expectRinged(page, lit, true)
     })
 
     test('a filter picker with a caret only fades in: the caret stays on its edge every frame (cr33 U2)', async ({ page }) => {

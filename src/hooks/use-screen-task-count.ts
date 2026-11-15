@@ -12,10 +12,9 @@ import { useFilterSettings } from './use-filter-settings'
 import { useToday } from './use-today'
 
 /**
- * What the screen filter (the chips with the top bar's lens) keeps —
- * what its task dialog lists (open ones, completed too under Show
- * completed) — of every such task, and what the lens alone keeps
- * (`screenTaskCounts`), and its badge — the open tasks it shows that are
+ * What the screen filter (the top bar's chips) keeps — what its task
+ * dialog lists (open ones, completed too under Show completed) — of every
+ * such task (`screenTaskCounts`), and its badge — the open tasks it shows that are
  * due / due for a follow-up inside the tab badge ranges — kept current.
  */
 export function useScreenTaskCounts(): ScreenTaskCounts {

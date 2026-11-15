@@ -5,7 +5,6 @@ import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useNoteStore } from '../stores/note-store'
 import { useListDraftStore } from '../stores/list-draft-store'
-import { useLensDraftStore } from '../stores/lens-draft-store'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListOrderStore } from '../stores/list-order-store'
@@ -32,8 +31,6 @@ import { clearReviewSessions } from '../stores/review-session'
 export async function refreshAllStores() {
   useUndoStore.getState().clear()
   useFilterStore.getState().clearAll()
-  // A lens's unsaved filter edits name a lens the replaced data may not have.
-  useLensDraftStore.getState().discard()
   // Prompt picks, collapsed groups and each Review widget's filter (the store knows which of its fields
   // name ids), and every review: its queue, marks and typed text are by task id.
   useListWidgetStore.getState().resetForReplacedData()
@@ -54,11 +51,7 @@ export async function refreshAllStores() {
   useListDraftStore.setState({ drafts: {} })
   // Note text typed before the replace would be saved over the new note.
   useNoteStore.getState().discardPending()
-  const lensBefore = useSettingsStore.getState().activeLensId
   await useSettingsStore.getState().load()
-  // The lift is the lens the user lifted: a pick the replaced data brings
-  // (another device's, through the sync file) comes in on, not lifted.
-  if (useSettingsStore.getState().activeLensId !== lensBefore) useUIStore.getState().setLensLifted(false)
   // Data from before the history log H3 (an older file) starts its log now.
   await useSettingsStore.getState().stampHistoryLogSince()
   await Promise.all([

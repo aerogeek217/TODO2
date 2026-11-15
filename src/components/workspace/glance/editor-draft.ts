@@ -40,9 +40,8 @@ export interface EditorDraft<C extends object> {
  * as one undo step, only the keys that changed (`configPatch`), so a write
  * made meanwhile elsewhere (a ⋯ menu's Tags) stays; Discard drops the copy and the widget is as stored
  * again. Nothing is kept across a reload.
- * Closing with changes asks first, as Settings' lens editor does (the
- * shared confirm prompt: Save / Discard / Keep editing; its Esc is Keep
- * editing).
+ * Closing with changes asks first, as Edit list does (the shared confirm
+ * prompt: Save / Discard / Keep editing; its Esc is Keep editing).
  */
 export function useEditorDraft<C extends object>({ tabId, stored, write, onClose, promptTitle, droppedNotice = 'The editor closed: its changes weren’t saved.' }: {
   /** The widget's tab (its live preview). */

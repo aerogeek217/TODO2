@@ -14,9 +14,7 @@ import styles from './SettingsModal.module.css'
  * section scrolled to it. Opening or closing it never changes
  * the route, so it never triggers the unsaved-layout prompt. Esc, × or a
  * backdrop click closes it — unless an editor or dialog a section opened is
- * on top (that layer owns Esc). With a lens's unsaved filter edits, closing
- * or another section asks Save / Discard / Keep editing first (`ui-store`'s
- * `closeSettings` / `setSettingsSection`; the prompt owns Esc while up).
+ * on top (that layer owns Esc).
  */
 export function SettingsModal() {
   const open = useUIStore((s) => s.settingsOpen)
@@ -36,7 +34,6 @@ function anotherLayerIsOpen(): boolean {
 function SettingsModalFrame() {
   const sectionId = useUIStore((s) => s.settingsSection)
   const part = useUIStore((s) => s.settingsPart)
-  const focus = useUIStore((s) => s.settingsFocus)
   const setSection = useUIStore((s) => s.setSettingsSection)
   const contentRef = useRef<HTMLElement | null>(null)
   const close = useUIStore((s) => s.closeSettings)
@@ -58,19 +55,17 @@ function SettingsModalFrame() {
   }, [sectionId])
   useLayoutEffect(updateInView, [updateInView])
 
-  // A deep link to a part: show the section scrolled to it (and focus the
-  // control it names, before the frame takes the focus), then forget it.
+  // A deep link to a part: show the section scrolled to it, then forget it.
   useLayoutEffect(() => {
     if (!part) return
     const content = contentRef.current
     if (content) {
       jumpedRef.current = part
       scrollToSettingsPart(content, part)
-      if (focus) content.querySelector<HTMLElement>(`[data-settings-focus="${focus}"]`)?.focus()
     }
     useUIStore.getState().clearSettingsPart()
     updateInView()
-  }, [part, focus, sectionId, updateInView])
+  }, [part, sectionId, updateInView])
 
   // A section's editor or dialog, or another overlay, owns Esc while open.
   const escapeBelongsElsewhere = useCallback(() => layers.current > 0 || anotherLayerIsOpen(), [])

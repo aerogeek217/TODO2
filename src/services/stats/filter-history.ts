@@ -154,7 +154,7 @@ const H3_FIELDS: ReadonlySet<HistoryField> = new Set(['followup', 'lastFollowup'
 /** The fields no event logs. */
 const UNLOGGED_FIELDS: ReadonlySet<HistoryField> = new Set(['text', 'modified'])
 
-/** Every field `filter` (its clauses, its expression, its lens) reads; completion (`state`) always. */
+/** Every field `filter` (its clauses, its expression) reads; completion (`state`) always. */
 export function filterHistoryFields(filter: FilterCriteria | readonly FilterCriteria[]): Set<HistoryField> {
   const out = new Set<HistoryField>(['state'])
   const visit = (f: FilterCriteria) => {
@@ -179,7 +179,6 @@ export function filterHistoryFields(filter: FilterCriteria | readonly FilterCrit
         }
       }
     }
-    if (f.lens) visit(f.lens)
   }
   for (const f of stagesOf(filter)) visit(f)
   return out

@@ -12,15 +12,13 @@ export interface PanelDef {
   glyphColor: string
 }
 
-export function Panel({ def, count, onCount, sub, extras, lens, titleData, style, className, children }: {
+export function Panel({ def, count, onCount, sub, extras, titleData, style, className, children }: {
   def: PanelDef
   count?: string
   /** Opens the tasks behind the count; absent = plain text. */
   onCount?: () => void
   sub?: string
   extras?: ReactNode
-  /** The widget's lens switch (G3): at the line's end, before the cell's ⋯. */
-  lens?: ReactNode
   /** Data attributes on its title (G5: Project pulse's editor anchors there, `data-pulse-head`). */
   titleData?: Record<`data-${string}`, string>
   style?: CSSProperties
@@ -41,7 +39,6 @@ export function Panel({ def, count, onCount, sub, extras, lens, titleData, style
           : <span className={styles.panelCount} data-testid="glance-section-count">{count}</span>)}
         {sub && <span className={styles.panelSub}>{sub}</span>}
         {extras && <span className={styles.panelExtras}>{extras}</span>}
-        {lens}
       </WidgetTopLine>
       {children}
     </section>

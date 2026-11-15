@@ -68,10 +68,11 @@ describe('a data replace holds layout and list writes until the stores have relo
       write: async () => {
         await writeNewData()
         heldDuringWrite = replaceHoldActive()
-        // The user closes a tab, switches a list's lens, undoes, renames the layout — on the old data in memory.
+        // The user closes a tab, hides a list's filter line, undoes, renames the layout — on the old data in memory.
         ws().closeTab('a')
         await ws().setActiveTab('b')
-        await useListDefinitionStore.getState().setIgnoreLens(11, true)
+        const old = useListDefinitionStore.getState().listDefinitions.find((d) => d.id === 11)!
+        await useListDefinitionStore.getState().update({ ...old, showFilterLine: false })
         await useListDefinitionStore.getState().editList(10, (d) => ({ ...d, name: 'Renamed' }), 'Edited list')
         await ws().rename(1, 'Renamed layout')
         await useUndoStore.getState().undo()
@@ -82,7 +83,7 @@ describe('a data replace holds layout and list writes until the stores have relo
     const stored = (await layoutRepository.get(1))!.layout
     expect(stored.name).toBe('New')
     expect([...layoutListRefs(stored)]).toEqual([20])
-    expect((await layoutLists()).map((d) => [d.id, d.name, d.ignoreLens ?? false])).toEqual([[20, 'New', false]])
+    expect((await layoutLists()).map((d) => [d.id, d.name, d.showFilterLine ?? true])).toEqual([[20, 'New', true]])
     // The stores show the new data.
     expect(ws().saved?.name).toBe('New')
     expect(heldDuringWrite).toBe(true)

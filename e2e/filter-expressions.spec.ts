@@ -9,8 +9,7 @@ import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtur
  * says why and writes nothing, Esc puts the written text back; Graphical over
  * an expression no chip says is locked (Edit expression / Clear), over a
  * plain `and` it is chips again. On the list's filter line an expression
- * reads in words and opens Edit list. A lens holding an expression filters every
- * list under the top bar.
+ * reads in words and opens Edit list.
  */
 
 const SEED: WorkspaceSeed = {
@@ -161,20 +160,4 @@ test('the field settles while its popup is open: no render loop (cr33 wave 2)', 
   expect(await measured()).toBe(before)
   await field.press('Tab')
   await expect(field).toHaveValue(/^@Ann and \/focus\s*$/)
-})
-
-test('a lens holding an expression filters the lists under the top bar', async ({ page }) => {
-  await seedWorkspace(page, {
-    ...SEED,
-    listDefinitions: [{ name: 'Everything' }],
-    // Status 1 is Waiting.
-    lenses: [{ id: 'wf', name: 'Waiting or focus', predicate: { expression: { kind: 'or', items: [{ kind: 'status', id: 1 }, { kind: 'priority', value: 'focus' }] } } }],
-  })
-  await expect.poll(() => sorted(page)).toEqual(['Ann active', 'Ann waiting', 'Bob urgent', 'Bob waiting', 'Focus plain'])
-  const header = page.locator('header')
-  await header.getByRole('button', { name: /^Lens:/ }).click()
-  await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Waiting or focus/ }).click()
-  await expect.poll(() => sorted(page)).toEqual(['Ann waiting', 'Bob waiting', 'Focus plain'])
-  const tray = header.getByRole('group', { name: 'Screen filters — apply to every widget' })
-  await expect(tray.getByRole('button', { name: /^3 of 5 open tasks shown/ })).toBeVisible()
 })

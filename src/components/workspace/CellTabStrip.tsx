@@ -6,9 +6,8 @@ import type { LayoutCell, LayoutTab } from '../../models/workspace-layout'
 import { getActiveTab } from '../../models/workspace-layout'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useTabTitle, useTabTitles } from './widget-hooks'
-import { ChevronDownIcon, CloseIcon, GlassesIcon, PlusIcon } from '../shared/icons'
+import { ChevronDownIcon, CloseIcon, PlusIcon } from '../shared/icons'
 import { TabIcon } from './TabIcon'
-import type { ListLensMark } from './list/ListWidget'
 import { MenuPopover } from '../shared/MenuPopover'
 import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type DraggedTab, type WorkspaceTabDragData } from './workspace-drag'
 import { fitTabs, shownTabs, type TabFit, type TabSize } from '../../utils/tab-strip-fit'
@@ -95,8 +94,6 @@ interface TabProps {
   active: boolean
   collapsed: boolean
   count?: string
-  /** The top bar's lens on the tab's list, before its count (while the list's filter line is hidden and it ignores the lens). */
-  lens?: ListLensMark
   /** Touch layout: taller tabs, no close ×, not draggable. */
   touch: boolean
   onActivate: () => void
@@ -110,7 +107,7 @@ interface TabProps {
   size?: CSSProperties
 }
 
-function Tab({ tab, badge, active, collapsed, count, lens, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef, offstage, size }: TabProps) {
+function Tab({ tab, badge, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef, offstage, size }: TabProps) {
   const title = useTabTitle(tab)
   const data: WorkspaceTabDragData = { type: WORKSPACE_TAB_DRAG, tabId: tab.id, kind: tab.kind, title, ...(tab.icon ? { icon: tab.icon } : {}) }
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: workspaceTabDragId(tab.id), data, disabled: touch })
@@ -138,7 +135,7 @@ function Tab({ tab, badge, active, collapsed, count, lens, touch, onActivate, on
         badge ? styles.hasBadge : '',
       ].join(' ')}
       style={size}
-      title={[title, ...(lens ? [lensLine(lens)] : []), ...(badge?.summary ?? [])].join('\n')}
+      title={[title, ...(badge?.summary ?? [])].join('\n')}
       onClick={onActivate}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -160,11 +157,6 @@ function Tab({ tab, badge, active, collapsed, count, lens, touch, onActivate, on
     >
       <TabIcon tab={tab} className={styles.kindIcon} />
       <span className={styles.title} data-tab-title="">{title}</span>
-      {lens && (
-        <span className={`${styles.lensMark} ${lens.ignored ? styles.lensMarkOff : ''}`} role="img" aria-label={lensLine(lens)} data-tab-lens="">
-          <GlassesIcon size={12} slashed={lens.ignored} />
-        </span>
-      )}
       {count != null && <span className={styles.count}>{count}</span>}
       {badge && <TabBadgeCapsule badge={badge} />}
       {closable && (
@@ -182,11 +174,6 @@ function Tab({ tab, badge, active, collapsed, count, lens, touch, onActivate, on
       )}
     </div>
   )
-}
-
-/** The lens on a tab's list, in words: `“This month” hides 8 here` / `Ignores the lens “This month”`. */
-function lensLine(lens: ListLensMark): string {
-  return lens.ignored ? `Ignores the lens “${lens.name}”` : `“${lens.name}” hides ${lens.hides} here`
 }
 
 /** Ghost tab previewing where a dragged widget lands (end of the strip). */
@@ -221,10 +208,8 @@ interface CellTabStripProps {
   /** The cell whose tabs these are. */
   cell: Pick<LayoutCell, 'tabs' | 'activeTabId'>
   collapsed: boolean
-  /** Task count of the active tab (a list: `shown of total`, only while the screen filter or the lens narrows it). */
+  /** Task count of the active tab (a list: `shown of total`, only while the screen filter narrows it). */
   activeCount?: string
-  /** The top bar's lens on the active tab's list: slashed, while a list whose filter line is hidden ignores it. */
-  activeLens?: ListLensMark
   /** While a tab or a panel is dragged over this panel's middle: the ghost tab(s), at the end of the strip. */
   ghosts?: readonly DraggedTab[] | null
   /**
@@ -250,7 +235,6 @@ export function CellTabStrip({
   cell,
   collapsed,
   activeCount,
-  activeLens,
   ghosts,
   touch = false,
   onActivate,
@@ -384,7 +368,6 @@ export function CellTabStrip({
             collapsed={collapsed}
             touch={touch}
             count={tab.id === active?.id ? activeCount : undefined}
-            lens={tab.id === active?.id ? activeLens : undefined}
             badge={badges.get(tab.id)}
             onActivate={() => onActivate(tab.id)}
             onClose={onClose ? () => onClose(tab.id) : undefined}

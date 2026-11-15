@@ -1,14 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { openSettings, seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 
 /**
  * "Is not" on a date range (cr25 P4, schema v71), as the user asked for it:
- * a lens that hides the tasks followed up lately that also have a next
- * follow-up soon. Built in Settings › Lenses — Last follow-up is not 1 week
- * ago – Today as a chip, then in Expression mode `or` Next follow-up is not
- * Today – In 2 weeks — and saved (a lens's filter edits wait for Save, cr25 P3) before
- * the top bar uses it. A task without the date passes an "is not" range.
+ * a filter that hides the tasks followed up lately that also have a next
+ * follow-up soon. Built in Edit list — Last follow-up is not 1 week ago –
+ * Today as a chip, then in Expression mode `or` Next follow-up is not
+ * Today – In 2 weeks — and saved. A task without the date passes an "is
+ * not" range.
  */
 
 const SEED = {
@@ -19,16 +19,12 @@ const SEED = {
     { title: 'Long ago, next soon', lastFollowupInDays: -20, followupInDays: 5 },
     { title: 'Never followed up' },
   ],
-  lenses: [{ id: 'lens-chase', name: 'Chase', predicate: {} }],
   layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens' as const, listDefIdx: 0 }] })] }] }],
 }
 
 const ALL = ['Lately, next soon', 'Lately, next overdue', 'Long ago, next soon', 'Never followed up']
 const KEPT = ['Lately, next overdue', 'Long ago, next soon', 'Never followed up']
 
-const header = (page: Page) => page.locator('header')
-const tray = (page: Page) => header(page).getByRole('group', { name: 'Screen filters — apply to every widget' })
-const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
 const titles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
 const datePanel = (page: Page) => page.getByTestId('list-filter-picker')
 
@@ -50,19 +46,14 @@ async function setNotRange(page: Page, type: string, from: string, to: string) {
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('the user\'s lens: hides only the tasks followed up lately with a next follow-up soon, once saved', async ({ page }) => {
+test('the user\'s filter: hides only the tasks followed up lately with a next follow-up soon, once saved', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await header(page).getByRole('button', { name: /^Lens:/ }).click()
-  await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Chase/ }).click()
   await expect.poll(() => titles(page)).toEqual(ALL)
 
-  const settings = await openSettings(page, 'Tasks')
-  const lenses = settings.getByTestId('lens-list')
-  await lenses.getByRole('button', { name: /^Chase/ }).click()
-  const editor = settings.getByTestId('lens-filter')
+  const editor = await openListFilterEditor(page, wsListWidget(page, 't1'))
 
   // + Filter › Dates: Last follow-up is not 1 week ago – Today.
-  await editor.getByRole('button', { name: 'Filter', exact: true }).click()
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Dates' }).click()
   await setNotRange(page, 'Last follow-up', '1 week ago', 'today')
   await expect(datePanel(page).getByLabel('From: number of days')).toHaveValue('7')
@@ -84,21 +75,12 @@ test('the user\'s lens: hides only the tasks followed up lately with a next foll
   await field.press('End')
   await field.pressSequentially(' or not followup within next 14 days')
   await field.blur()
-  await expect(settings.getByTestId('lens-keeps')).toContainText('Keeps 3 of 4 open tasks')
-  await expect(lenses.getByRole('button', { name: /^Chase/ })).toContainText(/not last follow-up .+, or not next follow-up /)
-
-  // Unsaved: the top bar keeps the saved lens (every task).
-  await expect.poll(() => titles(page)).toEqual(ALL)
-  await settings.getByRole('button', { name: 'Save lens Chase' }).click()
-  await expect(settings.getByTestId('save-lens')).toHaveCount(0)
-  await settings.getByRole('button', { name: 'Close settings' }).click()
+  await closeListFilterEditor(page)
 
   await expect.poll(() => titles(page)).toEqual(KEPT)
-  await expect(counter(page)).toHaveAccessibleName('3 of 4 open tasks shown, 1 follow-up: overdue. Show them')
 
   // Kept across a reload.
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect.poll(() => titles(page)).toEqual(KEPT)
-  await expect(counter(page)).toHaveAccessibleName('3 of 4 open tasks shown, 1 follow-up: overdue. Show them')
 })

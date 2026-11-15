@@ -123,7 +123,7 @@
   color: var(--color-accent-text);
 }
 
-/* A merged section's part (Tasks › Lenses, …): a jump link under the
+/* A merged section's part (Tasks › Completed tasks, …): a jump link under the
    section, indented past its icon; the part in view gets a bar. */
 .navPart {
   position: relative;

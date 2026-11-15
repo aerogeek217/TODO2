@@ -418,7 +418,7 @@ export function GroupNumber({ tab, onResult, onDrill }: ShapeProps) {
 
 /**
  * Follow a list (board Y): what one of the layout's lists shows — its
- * filter as edited, its own lens switch, its prompt and the screen filter
+ * filter as edited, its prompt and the screen filter
  * (`use-built-list`) — as a count, with its tab badge. A click opens the
  * list in the widget popup (`services/widget-popup`); its prompt is answered
  * there. Lit by its count (`litWhen` / `litAt`).
@@ -429,10 +429,10 @@ export function ListNumber({ tab, onResult }: ShapeProps) {
   const [faceRef, face] = useWidgetFace()
   const name = nameOf(tab, list.name ?? 'Number')
   const n = list.ids.length
-  const colors = list.pending || !list.lensTab ? litColors(config, false, true) : numberColors(config, n)
-  const countText = list.pending || !list.lensTab ? '—' : String(n)
-  const ofText = !list.pending && list.lensTab && n < list.baseCount ? `of ${list.baseCount}` : null
-  const note = !list.lensTab
+  const colors = list.pending || !list.listTab ? litColors(config, false, true) : numberColors(config, n)
+  const countText = list.pending || !list.listTab ? '—' : String(n)
+  const ofText = !list.pending && list.listTab && n < list.baseCount ? `of ${list.baseCount}` : null
+  const note = !list.listTab
     ? (config.list ? 'This list was deleted' : 'No list picked')
     : list.pending ? 'Pick to count' : null
   const lines = useMemo(() => [[{ label: name, count: ofText ? `${countText} ${ofText}` : countText }]], [name, countText, ofText])
@@ -446,7 +446,7 @@ export function ListNumber({ tab, onResult }: ShapeProps) {
       colors={colors}
       name={name}
       ariaLabel={`${name}: ${countText}${ofText ? ` ${ofText}` : ''}${list.badge ? `, ${list.badge.summary.join(', ')}` : ''}${note ? `. ${note}` : ''}.`}
-      onOpen={list.lensTab ? () => { void openNumberList(tab.id) } : undefined}
+      onOpen={list.listTab ? () => { void openNumberList(tab.id) } : undefined}
     >
       <span className={styles.figureLine}>
         <span className={base.count} style={{ color: colors.count }} data-testid="number-count">

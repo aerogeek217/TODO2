@@ -60,8 +60,6 @@ import {
   parseAmbienceSettings,
   roundCoordinate,
 } from '../utils/ambience-settings'
-import type { Lens } from '../utils/lens'
-import { formatLensesSetting, isLensId, readLensesSetting } from '../data/lens-shape'
 import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import {
   formatShortcutOverrides,
@@ -149,15 +147,6 @@ interface SettingsData {
   rowDates: RowDates
   /** Ambience: the time of day and the season in the chrome (Settings › Appearance › Ambience; `models/ambience`). */
   ambience: AmbienceSettings
-  /** The lenses (named screen filters, picked in the top bar — `utils/lens`), in Settings' order. */
-  lenses: readonly Lens[]
-  /** The preset lenses were seeded once (`seedLensPresets`); nothing seeds them again. */
-  lensPresetsSeeded: boolean
-  /**
-   * The lens picked in the top bar, for every layout (a lens's id); `null` =
-   * No lens. An id no lens has (a lens deleted since) reads as No lens.
-   */
-  activeLensId: string | null
   /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
   shortcutOverrides: ShortcutOverrides
 }
@@ -228,7 +217,6 @@ interface SettingsState extends SettingsData {
    * passing the same `mergeKey` (the Header motion slider as it moves) stay one.
    */
   setAmbience: (changes: Partial<AmbienceSettings>, options?: Pick<SettingWriteOptions, 'mergeKey'>) => Promise<void>
-  // The lens edits and the top bar's pick are `stores/lens-actions`' (cr31 A5).
   /**
    * Gives `id` new keys (no undo step). Resolves the reason when they are
    * refused (a reserved key, or another binding's — nothing is written),
@@ -381,7 +369,7 @@ function setting<K extends keyof SettingsData>(
   return { ...spec, ...settingWriter(store, spec) }
 }
 
-/** A setting only read here (written elsewhere: the status seed, the lens seed). */
+/** A setting only read here (written elsewhere: the status seed, the history log's start). */
 function stored<K extends keyof SettingsData>(fields: readonly K[], read: (rows: StoredRows) => Pick<SettingsState, K>): StoredSetting<SettingsState, K> {
   return { fields, read }
 }
@@ -617,20 +605,6 @@ export const SETTINGS = {
     label: 'the ambience',
     failure: 'Couldn’t save the ambience settings.',
     undo: ({ ambience: a }) => (!a.enabled ? 'Ambience off' : `Ambience: ${SKY_STRENGTH_LABELS[a.sky]}, ${a.seasons ? 'with' : 'without'} seasons`),
-  }),
-  // The lenses and the pick are written by `stores/lens-actions` (its undo names are the edit's).
-  lenses: setting(['lenses'], {
-    read: (rows) => ({ lenses: rowOr<readonly Lens[]>(rows, K.lenses, [], (v) => readLensesSetting(v).lenses) }),
-    rows: ({ lenses }) => ({ [K.lenses]: lenses.length === 0 ? null : formatLensesSetting(lenses) }),
-    label: 'the lenses',
-    failure: 'Couldn’t save the lenses.',
-  }),
-  lensPresetsSeeded: stored(['lensPresetsSeeded'], (rows) => ({ lensPresetsSeeded: rows.get(K.lensPresetsSeeded) === 'true' })),
-  activeLensId: setting(['activeLensId'], {
-    read: (rows) => ({ activeLensId: rowOr(rows, K.activeLensId, null, (v) => (isLensId(v) ? v : null)) }),
-    rows: ({ activeLensId: id }) => ({ [K.activeLensId]: id }),
-    label: 'the lens pick',
-    failure: 'Couldn’t save the lens pick.',
   }),
   shortcutOverrides: setting(['shortcutOverrides'], {
     read: (rows) => ({ shortcutOverrides: rowOr<ShortcutOverrides>(rows, K.keyboardShortcuts, {}, (v) => readShortcutOverrides(v).overrides) }),

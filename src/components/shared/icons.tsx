@@ -122,15 +122,6 @@ export function LayoutIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-export function SaveIcon({ size = 14 }: { size?: number }) {
-  return (
-    <Svg size={size}>
-      <path d="M3 3.5A1 1 0 0 1 4 2.5h6.5l2.5 2.5v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />
-      <path d="M5.5 2.5v3h4v-3M5 13.5V9.5h6v4" />
-    </Svg>
-  )
-}
-
 export function ChevronDownIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M4 6l4 4 4-4" /></Svg>
 }
@@ -242,15 +233,6 @@ export function CopyIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-export function RevertIcon({ size = 14 }: { size?: number }) {
-  return (
-    <Svg size={size}>
-      <path d="M3 6.5h7a3.5 3.5 0 0 1 0 7H6" />
-      <path d="M5.5 4L3 6.5 5.5 9" />
-    </Svg>
-  )
-}
-
 export function PencilIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M10.5 2.5l3 3L6 13H3v-3z" /></Svg>
 }
@@ -304,14 +286,13 @@ export function FunnelIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /></Svg>
 }
 
-/** Glasses: a lens (a saved screen filter picked in the top bar); `slashed` = lifted for now. */
-export function GlassesIcon({ size = 16, slashed = false }: { size?: number; slashed?: boolean }) {
+/** Glasses: one of the pickable line icons (`LineIcon`). */
+function GlassesIcon({ size = 16 }: { size?: number }) {
   return (
     <Svg size={size}>
       <circle cx="4.5" cy="10" r="3" />
       <circle cx="11.5" cy="10" r="3" />
       <path d="M7.5 10h1M1.5 9.5 3.5 4h2M14.5 9.5 12.5 4h-2" />
-      {slashed && <path d="M2.5 14 13.5 3" />}
     </Svg>
   )
 }

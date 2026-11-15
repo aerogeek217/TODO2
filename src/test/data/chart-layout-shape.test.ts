@@ -70,12 +70,12 @@ describe('a Breakdown in a stored layout (D26 P8)', () => {
     expect(tabOf(sorts)).toEqual({ id: 't', kind: 'breakdown', config: full, viewState: { sorts: { tags: { by: 'open' } } } })
   })
 
-  it('its count columns (board BC) and its lens switch (view state) round-trip; a column sort is any column id', () => {
+  it('its count columns (board BC) and its sorts (view state) round-trip; a column sort is any column id', () => {
     const columns = [
       { id: 'col-a', name: 'Waiting', color: '#7ec4bc', filter: { ...emptyPredicate(), statusIds: [3] }, litWhen: 'above', litAt: 2 },
       { id: 'due', name: '', color: '#e86bf0', filter: emptyPredicate(), litWhen: 'never' },
     ]
-    const tab = { id: 't', kind: 'breakdown', config: { ...full, columns }, viewState: { sorts: { people: { by: 'col-a' } }, ignoreLens: true } }
+    const tab = { id: 't', kind: 'breakdown', config: { ...full, columns }, viewState: { sorts: { people: { by: 'col-a' } } } }
     const row = layoutRow(tab)
     expect(validateRow('layouts', row)).toBe(true)
     expect(rowFixes('layouts', row)).toEqual([])
@@ -111,10 +111,13 @@ describe('a Breakdown in a stored layout (D26 P8)', () => {
     expect(checkLayoutBody(row)).toMatch(/^cells\[0\]\.tabs\[0\]\.config\.columns\.0\.filter/)
   })
 
-  it('a lens switch that is no boolean is dropped (a fix)', () => {
-    const row = layoutRow({ id: 't', kind: 'breakdown', config: full, viewState: { ignoreLens: 'yes' } })
-    expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].viewState.ignoreLens')
-    expect(tabOf(row)).toEqual({ id: 't', kind: 'breakdown', config: full })
+  it('the lens switch v81 removed is dropped quietly, whatever it holds (no fix)', () => {
+    for (const ignoreLens of [true, 'yes']) {
+      const row = layoutRow({ id: 't', kind: 'breakdown', config: full, viewState: { ignoreLens, sorts: { tags: { by: 'open' } } } })
+      expect(checkLayoutBody(row)).toBe(true)
+      expect(rowFixes('layouts', row)).toEqual([])
+      expect(tabOf(row)).toEqual({ id: 't', kind: 'breakdown', config: full, viewState: { sorts: { tags: { by: 'open' } } } })
+    }
   })
 
   it('its tab reads its name, Breakdown while blank', () => {
@@ -137,19 +140,19 @@ describe('a Pivot in a stored layout (D26 P8)', () => {
     }
   })
 
-  // Item 8: its rows' sort is view state, beside its lens switch.
-  it('its sort and lens switch round-trip as view state; a bad sort is dropped (a fix)', () => {
+  // Item 8: its rows' sort is view state.
+  it('its sort round-trips as view state; a bad sort is dropped (a fix)', () => {
     const config = { name: 'Pivot', filter: emptyPredicate(), rows: 'people', cols: 'status' }
-    for (const viewState of [{ sort: { by: 'status-3' } }, { sort: { by: 'total', reversed: true }, ignoreLens: true }, { sort: { by: 'name' } }, { ignoreLens: false }]) {
+    for (const viewState of [{ sort: { by: 'status-3' } }, { sort: { by: 'total', reversed: true } }, { sort: { by: 'name' } }]) {
       const tab = { id: 't', kind: 'pivot', config, viewState }
       expect(validateRow('layouts', layoutRow(tab))).toBe(true)
       expect(tabOf(layoutRow(tab))).toEqual(tab)
     }
     for (const sort of [{ by: 'a height' }, { by: 'total', reversed: false }, { by: 'name', extra: 1 }, 'total']) {
-      const row = layoutRow({ id: 't', kind: 'pivot', config, viewState: { sort, ignoreLens: true } })
+      const row = layoutRow({ id: 't', kind: 'pivot', config, viewState: { sort } })
       expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].viewState.sort')
       expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
-      expect(tabOf(row)).toEqual({ id: 't', kind: 'pivot', config, viewState: { ignoreLens: true } })
+      expect(tabOf(row)).toEqual({ id: 't', kind: 'pivot', config })
     }
     // A tab without one reads as it did: no view state.
     expect(tabOf(layoutRow({ id: 't', kind: 'pivot', config }))).toEqual({ id: 't', kind: 'pivot', config })

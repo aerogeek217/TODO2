@@ -50,7 +50,7 @@ function pillTint(term: FilterAtom | undefined): TokenTint {
 
 /**
  * Each person's, tag's and status's open tasks among those the widget's
- * screen filter shows (its lens switch through its context), from the
+ * screen filter shows, from the
  * shared stats base — no database read on render or keystroke.
  */
 function useReviewFieldCounts(): ReviewFieldCounts {
@@ -100,7 +100,7 @@ function useReviewFieldCounts(): ReviewFieldCounts {
  *
  * At its end, while the filter names only people (`@A`, `@A or @B`) and only
  * on desktop: Check-in (the check-in dialog for those people) and Paste reply
- * (the reply import, which reads the person from the reply). `trailing` follows (the progress and the lens switch, in a cell of
+ * (the reply import, which reads the person from the reply). `trailing` follows (the progress, in a cell of
  * several widgets).
  */
 export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {

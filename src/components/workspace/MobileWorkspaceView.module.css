@@ -86,7 +86,7 @@
   background: var(--color-tint-8);
 }
 
-/* `61 of 109` (D15): neutral with a lens alone, red while a chip is on. */
+/* `61 of 109` (D15): red, as a chip is on while it shows. */
 .shownPill {
   display: inline-flex;
   align-items: center;
@@ -96,8 +96,8 @@
   padding: 0 10px;
   border: none;
   border-radius: 999px;
-  background: var(--color-tint-8);
-  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: color-mix(in srgb, var(--color-danger-text) 70%, var(--color-text-muted));
   font-family: inherit;
   font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
@@ -108,15 +108,6 @@
 
 .shownPill b {
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-}
-
-.shownPillFiltered {
-  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
-  color: color-mix(in srgb, var(--color-danger-text) 70%, var(--color-text-muted));
-}
-
-.shownPillFiltered b {
   color: var(--color-danger-text);
 }
 

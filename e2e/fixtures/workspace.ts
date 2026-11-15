@@ -180,11 +180,6 @@ export interface WorkspaceSeed {
   /** The first layout is opened. */
   layouts: WsLayoutSeed[]
   /**
-   * Lenses (the `lenses` settings row, the presets marked seeded so none are
-   * added): each predicate merged over the empty one.
-   */
-  lenses?: Array<{ id: string; name: string; predicate?: Record<string, unknown> }>
-  /**
    * Settings rows to store as they are (`key` → stored `value`), e.g. `{ rowDensity: 'lines' }`;
    * `null` stores none. The Default list zoom is seeded as Rows (`rowDensity: 'rows'`) unless given:
    * Auto (the app's default, no row — `{ rowDensity: null }`) would draw a cell under 480px Stacked.
@@ -208,8 +203,6 @@ export interface WorkspaceSeed {
     runtimeFilter?: { field: 'person' | 'status' | 'tag' }
     /** `false` hides the list's filter line. */
     showFilterLine?: false
-    /** The top bar's lens doesn't apply to the list. */
-    ignoreLens?: true
     /** The layout (index into `layouts`) that owns the list; default: the first that shows it, else the first. */
     layoutIdx?: number
   }>
@@ -366,7 +359,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         grouping: def.grouping ?? 'none',
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
         ...(def.showFilterLine === false ? { showFilterLine: false } : {}),
-        ...(def.ignoreLens ? { ignoreLens: true } : {}),
       }))
     }
     let taskOrder = 0
@@ -467,11 +459,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     for (const [key, value] of Object.entries({ rowDensity: 'rows', ...seed.settings })) {
       if (value === null) tx.objectStore('settings').delete(key)
       else tx.objectStore('settings').put({ key, value })
-    }
-    if (seed.lenses) {
-      const lenses = seed.lenses.map((l) => ({ id: l.id, name: l.name, predicate: { ...seed.predicate, ...(l.predicate ?? {}) } }))
-      tx.objectStore('settings').put({ key: 'lenses', value: JSON.stringify(lenses) })
-      tx.objectStore('settings').put({ key: 'lensPresetsSeeded', value: 'true' })
     }
     await done
     idb.close()

@@ -711,8 +711,8 @@ describe('buildList — restrict-mode grouping', () => {
   })
 })
 
-// The screen filter's People / Tags "is" picks — the chips and the top
-// bar's lens — narrow a list's groups as the list's own filter does.
+// The screen filter's People / Tags "is" picks narrow a list's groups as the
+// list's own filter does.
 describe('buildList — the screen filter narrows the groups', () => {
   const ALICE: Person = { id: 1, name: 'Alice', initials: 'A' }
   const BOB: Person = { id: 2, name: 'Bob', initials: 'B' }
@@ -753,10 +753,10 @@ describe('buildList — the screen filter narrows the groups', () => {
     expect(sections('people', undefined, { ...emptyPredicate(), personIds: [ALICE.id!] })).toEqual(expected)
   })
 
-  it('the top bar’s lens narrows them too; a pick inside an or of its expression doesn’t', () => {
-    expect(sections('people', chips({ lens: chips({ personIds: alice }) }))).toEqual([['Alice', [101, 102, 105]]])
+  it('a screen filter’s expression narrows them by its top-level picks; a pick inside an or doesn’t', () => {
+    expect(sections('people', chips({ expression: { kind: 'person', id: ALICE.id! } }))).toEqual([['Alice', [101, 102, 105]]])
     // People is Alice OR Status is none: the or may keep a task by its status, so no group narrows.
-    const either = chips({ lens: chips({ expression: { kind: 'or', items: [{ kind: 'person', id: ALICE.id! }, { kind: 'status', id: 0 }] } }) })
+    const either = chips({ expression: { kind: 'or', items: [{ kind: 'person', id: ALICE.id! }, { kind: 'status', id: 0 }] } })
     expect(sections('people', either).map(([label]) => label)).toEqual(['Alice', 'Bob', 'Carol', 'Unassigned'])
   })
 
@@ -774,9 +774,6 @@ describe('buildList — the screen filter narrows the groups', () => {
   it('the list and the screen both picking: a task shows under the people both pick', () => {
     const listAliceBob = { ...emptyPredicate(), personIds: [ALICE.id!, BOB.id!] }
     expect(sections('people', chips({ personIds: alice }), listAliceBob)).toEqual([['Alice', [101, 102, 105]]])
-    // The chips and the lens intersect the same way.
-    expect(sections('people', chips({ personIds: new Set([ALICE.id!, BOB.id!]), lens: chips({ personIds: alice }) })))
-      .toEqual([['Alice', [101, 102, 105]]])
   })
 
   it('a task none of whose people every pick has shows under each one any picks — no member drops out', () => {

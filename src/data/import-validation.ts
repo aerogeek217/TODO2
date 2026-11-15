@@ -20,7 +20,6 @@ import { isLayoutHue } from '../utils/layout-hue'
 import { isEmoji, isIconValue, pickIconValue } from '../models/icon'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
-import { formatLensesSetting, isLensId, readLensesSetting } from './lens-shape'
 import { normalizeInitials } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
@@ -395,10 +394,6 @@ function checkSetting(v: unknown): CheckResult {
   // (`readCheckinFilterSetting`; `settingFixes` names what it drops). Its id
   // lists have no limit of their own (the whole value has one).
   if (v.key === SETTING_KEYS.checkinTaskFilter) return true
-  // The lenses: any text, read leniently as the check-in filter is
-  // (`readLensesSetting`; `settingFixes` names what it drops). Their
-  // filters' id lists have no limit of their own (the whole value has one).
-  if (v.key === SETTING_KEYS.lenses) return true
   if ((v.value as string).length > SETTING_VALUE_MAX_LEN) return 'value'
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
     return isValidCssColor(v.value) ? true : 'value (invalid color)'
@@ -469,12 +464,6 @@ function checkSetting(v: unknown): CheckResult {
     return parseStaleAfterDays(v.value as string) !== undefined
       ? true
       : 'value (staleAfterDays must be a day count 0–365)'
-  }
-  if (v.key === SETTING_KEYS.activeLensId) {
-    return isLensId(v.value) ? true : 'value (activeLensId must be a lens id)'
-  }
-  if (v.key === SETTING_KEYS.lensPresetsSeeded) {
-    return v.value === 'true' ? true : 'value (lensPresetsSeeded must be true)'
   }
   if (v.key === SETTING_KEYS.removeConvertedLines) {
     return v.value === 'true' || v.value === 'false' ? true : 'value (removeConvertedLines must be true or false)'
@@ -593,10 +582,6 @@ function pickSetting(v: Raw): AllFields<SettingRow> {
     // Stored rebuilt: known filter parts only, no people, completed tasks off.
     return { key, value: formatCheckinFilterSetting(readCheckinFilterSetting(value).filter) } satisfies AllFields<SettingRow>
   }
-  if (key === SETTING_KEYS.lenses) {
-    // Stored rebuilt: the readable lenses, their known filter parts, completed tasks off.
-    return { key, value: formatLensesSetting(readLensesSetting(value).lenses) } satisfies AllFields<SettingRow>
-  }
   return { key, value } satisfies AllFields<SettingRow>
 }
 
@@ -605,14 +590,12 @@ function settingFixes(row: Raw): string[] {
   if (typeof row.value !== 'string') return []
   if (row.key === SETTING_KEYS.keyboardShortcuts) return readShortcutOverrides(row.value).dropped
   if (row.key === SETTING_KEYS.checkinTaskFilter) return readCheckinFilterSetting(row.value).fixes
-  if (row.key === SETTING_KEYS.lenses) return readLensesSetting(row.value).fixes
   return []
 }
 
 /** How an import warning names a settings row `pickSetting` fixed. */
 function settingLabel(row: Raw): string {
   if (row.key === SETTING_KEYS.checkinTaskFilter) return 'check-in filter'
-  if (row.key === SETTING_KEYS.lenses) return 'lenses'
   return 'keyboard shortcuts'
 }
 
@@ -765,8 +748,6 @@ function listDefinitionFixes(row: Raw): string[] {
   const line = row.showFilterLine
   if (row.tabBadges !== undefined && row.tabBadges !== null && pickListTabBadges(row.tabBadges) === undefined) fixes.push('unknown tab badges dropped')
   if (line !== undefined && line !== null && typeof line !== 'boolean') fixes.push('unknown filter line setting dropped')
-  const lens = row.ignoreLens
-  if (lens !== undefined && lens !== null && typeof lens !== 'boolean') fixes.push('unknown lens setting dropped')
   return fixes
 }
 
@@ -785,8 +766,6 @@ function pickListDefinition(v: Raw): AllFields<ListDefinition> {
     // Only `false` is stored: shown is the default.
     showFilterLine: v.showFilterLine === false ? false : undefined,
     tabBadges: pickListTabBadges(v.tabBadges),
-    // Only `true` is stored: the lens applies by default.
-    ignoreLens: v.ignoreLens === true ? true : undefined,
   } satisfies AllFields<ListDefinition>
 }
 

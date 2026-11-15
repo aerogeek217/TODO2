@@ -147,15 +147,6 @@ const SHORTCUT_SPECS = {
     description: 'Review list', category: 'task', editable: true, blockedByEditPopup: true,
     chord: one({ key: 'r' }),
   },
-  // The top bar's lens (D15, cr22): no keys by default.
-  'cycle-lens': {
-    description: 'Cycle lens', category: 'general', editable: true,
-    chord: null,
-  },
-  'lift-lens': {
-    description: 'Lift lens / put it back', category: 'general', editable: true,
-    chord: null,
-  },
 } as const satisfies Record<string, ShortcutSpec>
 
 export type ShortcutId = keyof typeof SHORTCUT_SPECS

@@ -374,7 +374,7 @@ describe('a long list or deep nesting in a layout row is handled, never an obscu
     expect(result).toEqual({
       ok: false,
       reason: 'upgrade-failed',
-      error: 'Could not upgrade this file from schema v77 to v80: it holds parts nested too deeply, or a list too long, to read',
+      error: 'Could not upgrade this file from schema v77 to v81: it holds parts nested too deeply, or a list too long, to read',
     })
   })
 })

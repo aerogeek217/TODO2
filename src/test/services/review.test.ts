@@ -109,17 +109,8 @@ describe('listReviewFilter / listReviewCount', () => {
     expect(listReviewFilter('tab-1')).toEqual({
       expression: { kind: 'and', items: [{ kind: 'tag', id: 7 }, { kind: 'person', id: 1 }] },
       showCompleted: false,
-      ignoreLens: false,
     })
     expect(listReviewCount('tab-1')).toBe(2)
-  })
-
-  it('carries the list’s lens switch: a list that ignores the top bar’s lens says so, one that follows it too (F4)', () => {
-    useListDefinitionStore.setState({ listDefinitions: [def({ ...emptyPredicate(), personIds: [1] }, { ignoreLens: true })] })
-    useListWidgetStore.getState().setShown('tab-1', shownList())
-    expect(listReviewFilter('tab-1')?.ignoreLens).toBe(true)
-    useListDefinitionStore.setState({ listDefinitions: [def({ ...emptyPredicate(), personIds: [1] })] })
-    expect(listReviewFilter('tab-1')?.ignoreLens).toBe(false)
   })
 
   it('an expression list: its expression', () => {
@@ -143,7 +134,7 @@ describe('listReviewFilter / listReviewCount', () => {
   it('a list that narrows by nothing: every open task (an `and` of nothing)', () => {
     useListDefinitionStore.setState({ listDefinitions: [def(emptyPredicate())] })
     useListWidgetStore.getState().setShown('tab-1', shownList())
-    expect(listReviewFilter('tab-1')).toEqual({ expression: { kind: 'and', items: [] }, showCompleted: false, ignoreLens: false })
+    expect(listReviewFilter('tab-1')).toEqual({ expression: { kind: 'and', items: [] }, showCompleted: false })
   })
 
   it('a tab not on screen: nothing to review', () => {
@@ -166,15 +157,7 @@ describe('screenReviewFilter', () => {
         items: [{ kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 2 }] }, { kind: 'text', text: 'contract' }],
       },
       showCompleted: false,
-      // The panel's tasks are under the top bar's lens: the widget follows it too (F4).
-      ignoreLens: false,
     })
-  })
-
-  it('a person’s, a tag’s and several people’s reviews count nothing under a lens switch: they carry none', () => {
-    expect(personReviewFilter({ id: 3 })).not.toHaveProperty('ignoreLens')
-    expect(tagReviewFilter({ id: 7 })).not.toHaveProperty('ignoreLens')
-    expect(peopleReviewFilter([{ id: 1 }, { id: 2 }])).not.toHaveProperty('ignoreLens')
   })
 
   it('no chips: every open task', () => {
@@ -330,14 +313,6 @@ describe('a Breakdown row as a filter keeps exactly the row’s tasks', () => {
         expect(rows.every((r) => r.excludes === undefined)).toBe(true)
       }
     })
-  })
-
-  it('carries the Breakdown’s lens switch (F4)', () => {
-    const row = rowsOf('people')[0]
-    if (!row) throw new Error('no row')
-    expect(breakdownReviewFilter({ filter: emptyPredicate(), splitBy: 'people' }, row, undefined, true)?.ignoreLens).toBe(true)
-    expect(breakdownReviewFilter({ filter: emptyPredicate(), splitBy: 'people' }, row, undefined, false)?.ignoreLens).toBe(false)
-    expect(breakdownReviewFilter({ filter: emptyPredicate(), splitBy: 'people' }, row)).not.toHaveProperty('ignoreLens')
   })
 
   it('a Breakdown that counts completed tasks has no review: a row’s tasks open in the task dialog instead (G2)', () => {

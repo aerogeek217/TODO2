@@ -200,7 +200,7 @@ describe('Edit list', () => {
     it('Save answered in a leave question from outside (Settings) that fails cancels the leave: Edit list stays with its draft', async () => {
       const update = failWrites()
       editGroup(open())
-      act(() => useUIStore.getState().openSettings('lenses'))
+      act(() => useUIStore.getState().openSettings('completed'))
       await answer('Save')
       await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: COULD_NOT_SAVE }))
       // The write failed: Settings didn't open over it, nothing was dropped and nothing says it was.
@@ -211,7 +211,7 @@ describe('Edit list', () => {
       expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('people')
       // Its changes still count: leaving again asks again; with the storage back, Save writes and Settings opens.
       update.mockRestore()
-      act(() => useUIStore.getState().openSettings('lenses'))
+      act(() => useUIStore.getState().openSettings('completed'))
       await answer('Save')
       await vi.waitFor(() => expect(useUIStore.getState().settingsOpen).toBe(true))
       expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
@@ -265,12 +265,13 @@ describe('Edit list', () => {
     })
   })
 
-  it('Save writes only what the draft changed: a lens switch written meanwhile stays', async () => {
+  it('Save writes only what the draft changed: another part written meanwhile stays', async () => {
     const dialog = open()
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
-    await act(() => useListDefinitionStore.getState().setIgnoreLens(7, true))
+    const stored = useListDefinitionStore.getState().listDefinitions[0]!
+    await act(() => useListDefinitionStore.getState().update({ ...stored, showFilterLine: false }))
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save' })) })
-    expect(useListDefinitionStore.getState().listDefinitions[0]).toMatchObject({ name: 'Waiting', ignoreLens: true, sort: 'deadline' })
+    expect(useListDefinitionStore.getState().listDefinitions[0]).toMatchObject({ name: 'Waiting', showFilterLine: false, sort: 'deadline' })
   })
 
   it('Discard drops the draft and closes it, writing nothing', () => {
@@ -472,13 +473,13 @@ describe('Edit list', () => {
   it('opening Settings with changes asks: Keep editing stays; Discard drops the draft, then Settings opens', async () => {
     const dialog = open()
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
-    act(() => useUIStore.getState().openSettings('lenses'))
+    act(() => useUIStore.getState().openSettings('completed'))
     expect(question()).toBeInTheDocument()
     expect(useUIStore.getState().settingsOpen).toBe(false)
     await answer('Keep editing')
     expect(useUIStore.getState().settingsOpen).toBe(false)
     expect(editorOpen()).toBe(true)
-    act(() => useUIStore.getState().openSettings('lenses'))
+    act(() => useUIStore.getState().openSettings('completed'))
     await answer('Discard')
     expect(useUIStore.getState().settingsOpen).toBe(true)
     expect(useUIStore.getState().listEditor).toBeNull()

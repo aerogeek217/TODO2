@@ -22,8 +22,7 @@ import styles from './TopBar.module.css'
 import { filtersFolded, FOLD_PART, FOLD_SEARCH_ATTR, SEARCH_WIDTH, tabsFolded, useTopBarFold } from './use-top-bar-fold'
 import { useTopBarCentre } from './use-top-bar-centre'
 import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
-import { LensControl } from '../shared/filters/LensControl'
-import { usePickedLens, useScreenFilter } from '../../stores/screen-filter'
+import { useScreenFilter } from '../../stores/screen-filter'
 import { matchesFilterWithLookups } from '../../utils/filter-match'
 import { unmatchedNote, useSearchBox } from '../../hooks/use-search-box'
 import { useNlpPopupAnchor } from '../../hooks/use-nlp-popup-anchor'
@@ -104,8 +103,8 @@ export function TopBar() {
     subtasksByTodo,
   }), [assignedPeopleMap, statusesById, statusUpdatesByTodo, subtasksByTodo])
 
-  // The dropdown lists the words' matches among the tasks the chips and the
-  // lens keep (completed ones too, last, as before the chips).
+  // The dropdown lists the words' matches among the tasks the chips keep
+  // (completed ones too, last, as before the chips).
   const screenFilter = useScreenFilter()
   const filterSettings = useFilterSettings()
   const miniListGroups = useMemo(() => {
@@ -159,21 +158,17 @@ export function TopBar() {
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
   const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
-  // The counter shows while a chip is on or a lens is picked (lifted
-  // too: 109 of 109), or the panel is open (it stays the panel's toggle when
-  // Clear all empties the filter).
-  const lensPicked = usePickedLens() != null
-  const showTasksButton = isActive || lensPicked || panelOpen
+  // The counter shows while a chip is on, or the panel is open (it stays
+  // the panel's toggle when Clear all empties the filter).
+  const showTasksButton = isActive || panelOpen
   // The tray gains or loses Show N tasks: measured again then.
-  const { fold, squeeze, lensName } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}`)
-  // The lens control, the tray and their chips: one group in the middle of
-  // the bar at rest; grown by chips or the counter it keeps its left edge
-  // (nothing moves under the caret) until it would reach the right zone.
+  const { fold, squeeze } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}`)
+  // The tray and its chips: in the middle of the bar at rest; grown by
+  // chips or the counter it keeps its left edge (nothing moves under the
+  // caret) until it would reach the right zone.
   const spacerRef = useRef<HTMLDivElement>(null)
-  const lensRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
-  const groupRef = isWorkspace ? lensRef : trayRef
-  const centre = useTopBarCentre(barRef, spacerRef, groupRef, trayRef, rightRef)
+  const centre = useTopBarCentre(barRef, spacerRef, trayRef, rightRef)
 
   const clearSearch = box.clear
   const handleOpenTodo = useCallback((todoId: number) => {
@@ -220,16 +215,9 @@ export function TopBar() {
             <LayoutControls mode={tabsFolded(fold) || manyLayouts ? 'menu' : 'tabs'} />
           </div>
         )}
-        {/* The centring gap: puts the lens-and-filter group in the middle of
-            the bar (`useTopBarCentre`); free space to the fold. */}
+        {/* The centring gap: puts the filter tray in the middle of the bar
+            (`useTopBarCentre`); free space to the fold. */}
         <div ref={spacerRef} className={styles.centreGap} style={{ width: centre }} data-fold-part={FOLD_PART.centre} aria-hidden="true" />
-        {/* The top bar's lens: its own part, outside the tray, a fixed width
-            the fold counts in its base. */}
-        {isWorkspace && (
-          <div ref={lensRef} className={styles.lensSlot} data-fold-part={FOLD_PART.lens}>
-            <LensControl nameWidth={lensName} />
-          </div>
-        )}
 
         <div
           ref={trayRef}

@@ -215,12 +215,12 @@ describe('historyExactness', () => {
   const since = new Date(2026, 8, 20, 10) // Sun 20 Sep, mid-morning
   const people = criteria({ personIds: new Set([ANN]) })
 
-  it('what a filter reads: its clauses, its expression and its lens', () => {
+  it('what a filter reads: its clauses and its expression', () => {
     expect([...filterHistoryFields(emptyFilterCriteria)]).toEqual(['state'])
     const f = criteria({
       statusIds: new Set([1]),
+      searchText: 'call',
       expression: { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'date', field: 'lastFollowup', match: { match: 'set' } }] },
-      lens: criteria({ searchText: 'call' }),
     })
     expect([...filterHistoryFields(f)].sort()).toEqual(['due', 'lastFollowup', 'markers', 'state', 'status', 'text'])
   })

@@ -6,7 +6,7 @@
 
 /**
  * The person (or tag) "is" picks that narrow the People (Tags) rows, one
- * list per filter — the top bar's chips and its lens
+ * list per filter — the top bar's chips
  * (`build-list.groupRestrictions`) —, as they narrow a list grouped by
  * People or Tag. Id `0` is the Unassigned (No tags) pick.
  */

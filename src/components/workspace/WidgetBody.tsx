@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react'
-import { isLensSwitchTab, tabIgnoresLens, type LayoutTab } from '../../models/workspace-layout'
-import { WidgetLensContext } from '../../hooks/use-widget-lens'
+import type { LayoutTab } from '../../models/workspace-layout'
 import { useUIStore } from '../../stores/ui-store'
 import { NotesWidget } from './NotesWidget'
 import { ReviewWidget } from './review/ReviewWidget'
@@ -29,18 +28,10 @@ interface WidgetBodyProps {
 const NO_SECTIONS: ListWidgetResult['sections'] = []
 
 /**
- * The body of a cell's active tab, by widget kind. A widget with a lens
- * switch of its own (G3) is drawn inside `WidgetLensContext`: while it
- * ignores the top bar's lens, everything in it filters without it.
+ * The body of a cell's active tab, by widget kind: a case per kind (a new
+ * kind doesn't compile without one); an unknown stored kind gets a note.
  */
 export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
-  const body = <KindBody tab={tab} onResult={onResult} />
-  if (!isLensSwitchTab(tab)) return body
-  return <WidgetLensContext.Provider value={tabIgnoresLens(tab)}>{body}</WidgetLensContext.Provider>
-}
-
-/** A case per kind: a new kind doesn't compile without one; an unknown stored kind gets a note. */
-function KindBody({ tab, onResult }: WidgetBodyProps): ReactElement {
   switch (tab.kind) {
     case 'lens':
       return <ListWidget tab={tab} onResult={onResult} />

@@ -7,7 +7,7 @@ import { useUIStore, type WidgetPopupTarget } from '../stores/ui-store'
  * The widget popup (**Open larger**): one widget at a time drawn at its large
  * face over the workspace (`WidgetPopupHost`, its state `ui-store.widgetPopup`)
  * — a tab of the open layout (the same tab, not a copy: its filter, sort,
- * zoom, lens switch and edits are the cell's), or the popup review, a Review
+ * zoom and edits are the cell's), or the popup review, a Review
  * widget tied to no layout tab (`REVIEW_POPUP_TAB_ID`), where a Review button
  * goes when the open layout has none (`services/review-jump`).
  *

@@ -59,8 +59,7 @@ import './styles/tokens.css'
 /**
  * The command palette, mounted while it shows (so the shell never re-renders
  * for a task write or a selection click). The command list is built from the
- * tasks, people, their assignments, statuses, the layouts, the lenses and
- * the theme, and is rebuilt when they change: a palette opened while the
+ * tasks, people, their assignments, statuses, the layouts and the theme, and is rebuilt when they change: a palette opened while the
  * app is still loading gains Review With › as the tasks and their people
  * arrive. Commands that act read
  * the stores when they run (`getState`).
@@ -72,13 +71,11 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const statuses = useStatusStore((s) => s.statuses)
-  // What the second steps list (Go to Layout ›, Lens ›, Theme ›) and mark.
+  // What the second steps list (Go to Layout ›, Theme ›) and mark.
   const layouts = useWorkspaceStore((s) => s.layouts)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
   const layoutOpen = useWorkspaceStore((s) => s.working != null)
   const layoutStored = useWorkspaceStore((s) => s.saved?.id != null)
-  const lenses = useSettingsStore((s) => s.lenses)
-  const activeLensId = useSettingsStore((s) => s.activeLensId)
   const themeMode = useSettingsStore((s) => s.themeMode)
 
   const commandCtx = useMemo(
@@ -106,11 +103,10 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
       addWidget: addWidgetFromPalette,
       openWidgetLarger: openWidgetLargerFromPalette,
       getLayouts: () => (layoutOpen ? { layouts, activeLayoutId, stored: layoutStored } : null),
-      getLenses: () => ({ lenses, activeLensId }),
       getThemeMode: () => themeMode,
     }),
     [selectionCount, shortcuts, todos, people, assignedPeopleMap, statuses,
-      layouts, activeLayoutId, layoutOpen, layoutStored, lenses, activeLensId, themeMode],
+      layouts, activeLayoutId, layoutOpen, layoutStored, themeMode],
   )
 
   // The palette's key hints follow the user's shortcut changes.
@@ -296,8 +292,8 @@ function AppShell() {
       ui.setFilterSheetOpen(false)
       if (ui.taskDialog?.source.kind === 'screen') ui.hideTaskDialog()
     } else {
-      // Not shown on a phone: closed at once, a lens draft kept for the next open.
-      ui.hideSettings()
+      // Not shown on a phone (the Settings page is).
+      ui.closeSettings()
       ui.closeFilterPanel()
     }
   }, [isMobile])
