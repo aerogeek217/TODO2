@@ -63,9 +63,9 @@ test.describe('tab badges', () => {
     const ann = wsTab(page, 'ann')
     await expect(badge(ann).locator('span')).toHaveText(['2', '1'])
 
-    await page.getByPlaceholder('Filter…').fill('soon')
+    await page.locator('header').getByRole('textbox', { name: 'Filter tasks' }).fill('soon')
     await expect(badge(ann).locator('span')).toHaveText(['1'])
-    await page.getByPlaceholder('Filter…').fill('')
+    await page.locator('header').getByRole('textbox', { name: 'Filter tasks' }).fill('')
     await expect(badge(ann).locator('span')).toHaveText(['2', '1'])
 
     const settings = await openSettings(page, 'Tasks')

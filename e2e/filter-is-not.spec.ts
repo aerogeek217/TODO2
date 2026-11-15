@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { openListFilterEditor, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 import { rowTitles } from './fixtures/seed'
-import { filterChip, filterMenu, filterMenuButton, filterMenuRow, openFilterPicker } from './fixtures/filters'
+import { filterMenu, filterMenuButton, filterMenuRow, filterPills, openFilterMenu, openFilterPicker } from './fixtures/filters'
 
 /**
  * Is / Is not on the People, Status and Tags filters: a toggle at the top of
@@ -60,15 +60,17 @@ test.describe('desktop', () => {
     await page.keyboard.press('Escape')
     await expect(filterMenu(page)).toHaveCount(0)
 
-    const button = filterChip(page, 'Status')
-    await expect(button).toHaveAccessibleName('Status filter: not Waiting')
-    await button.hover()
-    await expect(page.getByRole('tooltip')).toHaveText(/Status: not Waiting\s*Hides tasks with that status/)
+    // The field's pill reads the term; the menu's row the value.
+    await expect(filterPills(page)).toHaveText([/^!Waiting/])
+    await expect(page.locator('header [data-top-bar-pill]').locator('xpath=preceding-sibling::*[1]')).toHaveText('not ')
     // The list's line doesn't repeat the top bar's filter (J13): its count says it narrows it.
     await expect(wsListWidget(page, 't1').getByText('not Waiting')).toHaveCount(0)
     await expect(wsListWidget(page, 't1').getByTestId('list-count')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Clear status filter' }).click()
+    await openFilterMenu(page)
+    await expect(filterMenuRow(page, 'Status')).toHaveAccessibleName('Status filter: not Waiting')
+    await filterMenu(page).getByRole('button', { name: 'Clear status filter' }).click()
+    await page.keyboard.press('Escape')
     await expect.poll(() => titles(page)).toEqual(ALL)
     // Cleared with its switch: the picker opens on Is.
     await openFilterPicker(page, 'Status')

@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 import {
-  clearAllFilters, completedChip, filterChip, filterField, filterMenu, filterMenuButton, filterMenuRow, openFilterMenu, openFilterPicker,
+  clearAllFilters, completedChip, filterField, filterPills, filterMenu, filterMenuButton, filterMenuRow, openFilterMenu, openFilterPicker,
   setShowCompleted,
 } from './fixtures/filters'
 
@@ -53,7 +53,7 @@ async function onTop(locator: Locator): Promise<boolean> {
 /** The top bar on one line: its height, its overflow and how many of its controls lie outside it. */
 const fit = (page: Page) => header(page).evaluate((bar) => {
   const box = bar.getBoundingClientRect()
-  const parts = [...bar.querySelectorAll('button, input')].map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0)
+  const parts = [...bar.querySelectorAll('button, input')].filter((el) => !el.closest('[data-top-bar-pill]')).map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0)
   return {
     height: box.height,
     overflow: bar.scrollWidth - bar.clientWidth,
@@ -106,7 +106,7 @@ test.describe('desktop', () => {
     await expect.poll(() => workspaceTitles(page)).toEqual(ALL)
     await expect(showTasks(page)).toHaveCount(0)
     await filterToAnn(page)
-    await expect(filterChip(page, 'People')).toBeVisible()
+    await expect(filterPills(page)).toHaveText([/@Ann/])
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
     const closed = await bar(page)
     expect(closed).toMatchObject({ fold: 'none', tabs: 2 })
@@ -121,9 +121,9 @@ test.describe('desktop', () => {
     await expect(panel(page).getByRole('heading')).toHaveText('Filtered tasks')
     await expect(panel(page).getByTestId('task-dialog-count')).toHaveText('2')
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Ann call'])
-    // Open: the bar exactly as it was — the tabs, the tray where it was, its chip.
+    // Open: the bar exactly as it was — the tabs, the tray where it was, its pill.
     expect(await bar(page)).toEqual(closed)
-    await expect(filterChip(page, 'People')).toBeVisible()
+    await expect(filterPills(page)).toHaveText([/@Ann/])
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
     // Joined: its top on the tray's bottom border, its left on the tray's left.
     await expect.poll(() => joint(page)).toMatchObject({ top: -1, left: 0 })
@@ -136,17 +136,15 @@ test.describe('desktop', () => {
     expect(await bar(page)).toEqual(closed)
   })
 
-  test('with the chips folded the panel changes nothing in the bar; the Filter menu over it edits the filter — every time', async ({ page }) => {
-    // Measured with one spare layout and Ann picked: the chip folds below about 754px, the layout tabs below about 700px.
+  test('in a narrow bar the panel changes nothing in the bar; the Filter menu over it edits the filter — every time', async ({ page }) => {
     await page.setViewportSize({ width: 724, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await filterToAnn(page)
-    // Closed: the chip folded into the Filter button.
-    await expect(filterChip(page, 'People')).toHaveCount(0)
+    // Closed: the field narrowed, its pill in it; the Filter button counts it.
+    await expect(filterPills(page)).toHaveText([/@Ann/])
     await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 1 active')
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
     const closed = await bar(page)
-    expect(closed.fold).not.toBe('none')
 
     const show = tray(page).getByRole('button', { name: /^\d of 4 open tasks shown\. Show them$/ })
     for (const close of ['scrim', 'toggle', 'escape'] as const) {
@@ -200,7 +198,7 @@ test.describe('desktop', () => {
     await clearAllFilters(page)
     await page.keyboard.press('Escape')
     await expect(panel(page)).toHaveCount(0)
-    await expect(filterChip(page, 'People')).toHaveCount(0)
+    await expect(filterPills(page)).toHaveCount(0)
     await expect(filterMenuButton(page)).toHaveAccessibleName('Filter')
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
   })
@@ -210,9 +208,9 @@ test.describe('desktop', () => {
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     const none = await bar(page)
     await filterToAnn(page)
-    await expect(filterChip(page, 'People')).toBeVisible()
+    await expect(filterPills(page)).toHaveText([/@Ann/])
     await clearAllFilters(page)
-    await expect(filterChip(page, 'People')).toHaveCount(0)
+    await expect(filterPills(page)).toHaveCount(0)
     await expect.poll(() => bar(page)).toEqual(none)
   })
 
@@ -240,8 +238,8 @@ test.describe('desktop', () => {
     await expect(filterMenu(page)).toHaveCount(0)
     await expect(panel(page)).toBeVisible()
     await expect(filterMenuButton(page)).toBeFocused()
-    // Its chip is in the tray now; it reopens the picker too.
-    await expect(filterChip(page, 'Tags')).toHaveAccessibleName('Tags filter: q4')
+    // Its pill is in the field now, beside Ann's.
+    await expect(filterPills(page)).toHaveText([/#q4/, /@Ann/])
     await page.keyboard.press('Escape')
     await expect(panel(page)).toHaveCount(0)
     await expect(tray(page).getByRole('button', { name: '1 of 4 open tasks shown. Show them' })).toBeFocused()
@@ -273,7 +271,7 @@ test.describe('desktop', () => {
     await expect(panel(page)).toHaveCount(0)
   })
 
-  test('the tray and the panel are one Tab cycle: the field, the Filter button, the chips, the counter, then the panel', async ({ page }) => {
+  test('the tray and the panel are one Tab cycle: the funnel, the field, the Filter button, the counter, then the panel', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await filterToAnn(page)
     await setShowCompleted(page, true)
@@ -290,10 +288,14 @@ test.describe('desktop', () => {
         return el.getAttribute('aria-label') ?? el.textContent ?? ''
       }))
     }
-    expect(order.slice(0, 5)).toEqual([
-      'Filter, 2 active', 'People filter: Ann', 'Clear people filter', 'Show completed', expect.stringMatching(/^\d of 4 tasks shown\. Show them$/),
-    ])
-    expect(order[5]).toBe('panel')
+    expect(order.slice(0, 2)).toEqual(['Filter, 2 active', expect.stringMatching(/^\d of 4 tasks shown\. Show them$/)])
+    expect(order[2]).toBe('panel')
+    // Shift+Tab from the field goes back to the funnel (the pills' × are no tab stops).
+    await filterField(page).focus()
+    await page.keyboard.press('Shift+Tab')
+    await expect(tray(page).getByRole('button', { name: 'Clear all filters' })).toBeFocused()
+    await show.focus()
+    await page.keyboard.press('Tab')
     // Shift+Tab from the panel's first control goes back to the counter.
     await page.keyboard.press('Shift+Tab')
     await expect(show).toBeFocused()
@@ -383,7 +385,7 @@ test.describe('desktop', () => {
     await expect(tray(page).getByRole('button', { name: '4 of 4 open tasks shown. Show them' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  test('in the narrowest bar the chips stay folded with the panel open, and the panel still fits', async ({ page }) => {
+  test('in the narrowest bar the panel still fits, the bar as it was', async ({ page }) => {
     await page.setViewportSize({ width: 740, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED))
     await filterToAnn(page)
@@ -391,7 +393,6 @@ test.describe('desktop', () => {
     await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect(panel(page)).toBeVisible()
     await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 1 active')
-    await expect(filterChip(page, 'People')).toHaveCount(0)
     expect(await bar(page)).toEqual(closed)
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
     const j = await joint(page)

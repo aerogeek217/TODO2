@@ -3,12 +3,14 @@ import { rowTitles } from './fixtures/seed'
 import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
- * D16 Search tokens as chips: what is typed in the top bar's search box
- * becomes the tray's own filter chips as each token completes, the box
- * keeping only the plain words — the text search — and the results
- * dropdown lists the words' matches among the tasks the chips keep.
- * Backspace in the empty box takes the last chip back as its token. `!`
- * names a status as `@` a person.
+ * The search box's forms in the top bar's typed filter (D16, feedback P2):
+ * `@person`, `#tag`, `!status`, `/urgent`…, `overdue`, `due fri`, `done`
+ * read in the field as they did in the search box — side by side they
+ * `and`, names of one kind `or` — and the words left are the text search,
+ * whose matches the results dropdown lists among the tasks the rest of the
+ * filter keeps. `@` and `!` open the popup under the field; a name that
+ * matches nobody is an error (never applied). The rest of the typed filter
+ * (`or`, pills, the funnel): `top-bar-expression.spec.ts`.
  */
 
 const SEED: WorkspaceSeed = {
@@ -34,17 +36,18 @@ const listTitles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('overdue #northwind budget: two chips, the word in the box, the dropdown narrowed', async ({ page }) => {
+test('overdue #northwind budget: the filter as typed, the dropdown narrowed by the rest of it', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect.poll(() => listTitles(page)).toHaveLength(4)
 
   await search(page).click()
-  await page.keyboard.type('overdue #northwind budget', { delay: 20 })
+  await page.keyboard.type('overdue #northwind', { delay: 20 })
+  // The `#` popup closes on the next word.
+  await page.keyboard.type(' budget', { delay: 20 })
 
-  // The tokens left the box; the word is the text search.
-  await expect(search(page)).toHaveValue('budget')
-  await expect(tray(page)).toContainText('before today')
-  await expect(tray(page)).toContainText('northwind')
+  // The text stays as typed; the widgets and the counter follow it once it rests.
+  await expect(search(page)).toHaveValue('overdue #northwind budget')
+  await expect.poll(() => listTitles(page)).toEqual(['Approve the budget revision'])
   await expect(counter(page)).toHaveAccessibleName('1 of 4 open tasks shown, 1 due: overdue. Show them')
 
   // The dropdown: "budget" among the overdue #northwind tasks only.
@@ -52,22 +55,14 @@ test('overdue #northwind budget: two chips, the word in the box, the dropdown na
   await expect(options).toHaveCount(1)
   await expect(options.first()).toContainText('Approve the budget revision')
 
-  // The widgets follow the chips and the word.
-  await expect.poll(() => listTitles(page)).toEqual(['Approve the budget revision'])
-
-  // Esc clears the box only; the chips stay.
-  await page.keyboard.press('Escape')
-  await expect(search(page)).toHaveValue('')
-  await expect.poll(() => listTitles(page)).toEqual(['Approve the budget revision', 'Northwind kickoff'])
-
-  // Backspace in the empty box takes the last chip back as its token.
-  await search(page).click()
-  await page.keyboard.press('Backspace')
-  await expect(search(page)).toHaveValue('#northwind')
-  await expect.poll(() => listTitles(page)).toEqual(['Approve the budget revision', 'Budget memo', 'Northwind kickoff'])
+  // Settled: the canonical text; at rest, a pill per term.
+  await page.keyboard.press('Enter')
+  await expect(search(page)).toHaveValue('overdue and #northwind and "budget"')
+  await search(page).blur()
+  await expect(tray(page).getByTestId('top-bar-pills').locator('[data-top-bar-pill]')).toHaveText([/overdue/, /#northwind/, /"budget"/])
 })
 
-test('@ opens the people popup under the box; ⏎ makes the chip; an unknown name gets a note', async ({ page }) => {
+test('@ opens the people popup under the field; ⏎ picks; a name matching nobody is an error, never applied', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect.poll(() => listTitles(page)).toHaveLength(4)
 
@@ -76,22 +71,22 @@ test('@ opens the people popup under the box; ⏎ makes the chip; an unknown nam
   const popup = page.getByRole('listbox', { name: 'People' })
   await expect(popup.getByRole('option', { name: 'Aisha Rahman' })).toBeVisible()
   await expect(popup.getByText(/Create/)).toHaveCount(0)
-  // Under the box.
+  // Under the field.
   const box = await search(page).boundingBox()
   const list = await popup.boundingBox()
   expect(list && box && list.y >= box.y + box.height - 1).toBe(true)
 
   await page.keyboard.press('Enter')
   await expect(popup).toHaveCount(0)
-  await expect(search(page)).toHaveValue('')
-  await expect(tray(page)).toContainText('Aisha Rahman')
+  await expect(search(page)).toHaveValue(/^@"Aisha Rahman" ?$/)
 
+  await page.keyboard.press('Control+A')
   await page.keyboard.type('@nobody report', { delay: 20 })
-  await expect(page.getByRole('status').filter({ hasText: 'No person named nobody' })).toBeVisible()
-  await expect(search(page)).toHaveValue('@nobody report')
+  await expect(page.getByTestId('top-bar-filter-error')).toContainText('No person named nobody')
+  await expect.poll(() => listTitles(page)).toHaveLength(4)
 })
 
-test('! opens the statuses under the box; a space makes the Status chip, a second ! ORs in it', async ({ page }) => {
+test('! opens the statuses under the field; side by side, two statuses or', async ({ page }) => {
   await seedWorkspace(page, {
     ...SEED,
     statuses: ['Waiting', 'On Hold'],
@@ -111,19 +106,13 @@ test('! opens the statuses under the box; a space makes the Status chip, a secon
   const list = await popup.boundingBox()
   expect(list && box && list.y >= box.y + box.height - 1).toBe(true)
 
-  // A space completes the token: the Status chip, the box empty.
-  await page.keyboard.type(' ', { delay: 20 })
+  await page.keyboard.press('Enter')
   await expect(popup).toHaveCount(0)
-  await expect(search(page)).toHaveValue('')
-  await expect(tray(page)).toContainText('Waiting')
   await expect.poll(() => listTitles(page)).toEqual(['Chase the invoice'])
 
-  // A second status ORs with the first.
-  await page.keyboard.type('!"On Hold" ', { delay: 20 })
-  await expect(search(page)).toHaveValue('')
+  // A second status side by side ORs with the first.
+  await page.keyboard.type(' !"On Hold"', { delay: 20 })
   await expect.poll(() => listTitles(page)).toEqual(['Chase the invoice', 'Paused rollout'])
-
-  // `/waiting` is plain words now: the text search.
-  await page.keyboard.type('/waiting', { delay: 20 })
-  await expect(search(page)).toHaveValue('/waiting')
+  await search(page).blur()
+  await expect(tray(page).getByTestId('top-bar-pills')).toHaveText('!Waiting× or !"On Hold"×')
 })

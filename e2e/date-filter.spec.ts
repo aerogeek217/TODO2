@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { ADD_FILTER, closeListFilterEditor, editListSave, openListFilterEditor, seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 import { box, expectInsideViewport } from './fixtures/geometry'
-import { completedChip, filterChip, filterMenu, filterMenuButton, filterMenuRow, openFilterPicker } from './fixtures/filters'
+import { completedChip, filterMenu, filterMenuButton, filterMenuRow, filterPills, openFilterMenu, openFilterPicker } from './fixtures/filters'
 
 /**
  * The date panel in a real browser: one clause per date type (Due · Next
@@ -136,24 +136,20 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await page.keyboard.press('Escape')
   await expect(filterMenu(page)).toHaveCount(0)
 
-  // Its chip reads both names; its tooltip lists each type.
-  const button = filterChip(page, 'Dates')
-  await expect(button).toHaveAccessibleName('Dates filter: Due in 14 days or earlier; Modified 7+ days ago')
-  await expect(button).toHaveText('Due + Modified')
-  await button.hover()
-  const tip = page.getByRole('tooltip')
-  // Each range's words, then its exact days (cr25 P7).
-  await expect(tip).toContainText(`Due: in 14 days or earlier · on or before ${dayWords(14)}`)
-  await expect(tip).toContainText(`Modified: 7+ days ago · on or before ${dayWords(-7)}`)
-  await expect(tip).toContainText('Tasks must match both · × clears both')
+  // The field's pills: a term per date type; the menu's row reads both names.
+  await expect(filterPills(page)).toHaveText([/^due <= \+14d/, /^modified <= -7d/])
+  await openFilterMenu(page)
+  const row = filterMenuRow(page, 'Dates')
+  await expect(row).toHaveAccessibleName('Dates filter: Due in 14 days or earlier; Modified 7+ days ago')
+  await expect(row).toContainText('Due + Modified')
   // A list's line doesn't repeat the top bar's filters (J13): its count says they narrow it.
   await expect(wsListWidget(page, 't1').getByTestId('list-filter-row')).not.toContainText('Modified')
   await expect(wsListWidget(page, 't1').getByTestId('list-count')).toHaveText('1 of 4')
 
-  // The × clears every date type.
-  await page.getByRole('button', { name: 'Clear date filters' }).click()
+  // The row's × clears every date type.
+  await filterMenu(page).getByRole('button', { name: 'Clear date filters' }).click()
   await expect(rows(page, 't1')).toHaveCount(4)
-  await expect(filterChip(page, 'Dates')).toHaveCount(0)
+  await expect(filterPills(page)).toHaveCount(0)
 })
 
 test('keyboard: Enter opens the panel on Due; arrows move between tabs without writing; Tab enters the body', async ({ page }) => {
@@ -192,7 +188,7 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await expect(panel.getByRole('button', { name: 'From: No start' })).toBeFocused()
   // Nothing written so far.
   await expect(filterMenuRow(page, 'Dates')).toHaveAccessibleName('Dates filter')
-  await expect(filterChip(page, 'Dates')).toHaveCount(0)
+  await expect(filterPills(page)).toHaveCount(0)
   // Its menu by keyboard: Enter opens it, ↓ / Enter pick, Esc closes only the menu.
   await page.keyboard.press('Enter')
   const menu = page.getByRole('menu', { name: 'From' })
@@ -234,8 +230,9 @@ test('a saved Calendar date emptied from the keyboard keeps Calendar and the foc
     st.setAllFilters({ ...st.filters, dates: { deadline: { match: 'range', start: null, end: { kind: 'fixed', iso: d.toISOString() } } } })
     return d.getMonth() + 1
   })
-  await expect(filterChip(page, 'Dates')).toHaveAccessibleName(/^Dates filter: Due on or before /)
-  await filterChip(page, 'Dates').click()
+  await openFilterMenu(page)
+  await expect(filterMenuRow(page, 'Dates')).toHaveAccessibleName(/^Dates filter: Due on or before /)
+  await filterMenuRow(page, 'Dates').click()
   const panel = dialog(page)
   const calendar = panel.getByRole('radiogroup', { name: 'Which tasks' }).getByRole('radio', { name: 'Calendar' })
   await expect(calendar).toHaveAttribute('aria-checked', 'true')
@@ -323,7 +320,7 @@ test('the six types sit in two rows of three at 336px; no label clips, every typ
     layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   await lightEveryDateType(page)
-  await filterChip(page, 'Dates').click()
+  await openFilterPicker(page, 'Dates')
   const panel = dialog(page)
   expect(Math.round((await box(panel)).width)).toBe(336)
   for (const name of ['Due', 'Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified']) {

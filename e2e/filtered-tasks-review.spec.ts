@@ -68,7 +68,7 @@ test('Review these 3 tasks opens the popup review with the top bar’s filter (n
 
 test('the text search comes along as a quoted phrase', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await page.locator('header').getByPlaceholder('Filter…').fill('report')
+  await page.locator('header').getByRole('textbox', { name: 'Filter tasks' }).fill('report')
   await page.locator('header').getByRole('button', { name: /^1 of 4 open tasks shown/ }).click()
   await expect(panel(page)).toBeVisible()
   await reviewButton(page).or(panel(page).getByRole('button', { name: 'Review this task' })).click()
