@@ -363,7 +363,7 @@ function shortSeed(rowPx: number): WorkspaceSeed {
   }
 }
 
-test('a short cell keeps the large face: the queue scrolls, and the card’s body scrolls as one down to the update line', async ({ page }) => {
+test('a short cell keeps the large face: the queue scrolls, and the card’s band and columns scroll as one down to the update line', async ({ page }) => {
   await seedWorkspace(page, shortSeed(340))
   const w = widget(page, 'rev1')
   await pickInReview(page, 'rev1', 'Aisha')
@@ -376,25 +376,24 @@ test('a short cell keeps the large face: the queue scrolls, and the card’s bod
   expect(await overflow(list)).toEqual({ over: true, y: 'auto' })
   await railRows(page, 'rev1').last().scrollIntoViewIfNeeded()
   await expect(railRows(page, 'rev1').last()).toBeInViewport({ ratio: 1 })
-  // The card: nothing pinned — one scroller under the title, the facts beside the writing, the dock at its end.
-  const body = w.locator('[data-task-body]')
+  // The card: one scroller under the title — the fact band, then the columns side by side, each as tall as it is.
+  const body = w.locator('[data-task-frame]')
   expect(await overflow(body)).toEqual({ over: true, y: 'auto' })
-  for (const part of ['[data-task-rail]', '[data-task-writing]', '[data-task-writing-scroll]']) {
+  for (const part of ['[data-task-writing]', '[data-task-updates]']) {
     expect((await overflow(w.locator(part))).over, part).toBe(false)
   }
   await body.evaluate((n) => { n.scrollTop = 0 })
-  await expect(w.locator('[data-task-notes]')).toBeInViewport()
+  await expect(w.locator('[data-subtasks]')).toBeInViewport()
   await expect(w.locator('[data-fact="priority"]')).toBeInViewport()
   await shot(page, 'review-widget-short-top', wsCell(page, 'rv'))
   // Scrolled to its end: the update line; ⏎ there still follows up.
   const line = w.getByLabel('Status update · today')
   await line.scrollIntoViewIfNeeded()
   await expect(line).toBeInViewport({ ratio: 1 })
-  const last = w.getByRole('textbox', { name: 'Last follow-up' })
-  await last.scrollIntoViewIfNeeded()
-  await expect(last).toBeInViewport({ ratio: 1 })
-  await line.scrollIntoViewIfNeeded()
-  await shot(page, 'review-widget-short-dock', wsCell(page, 'rv'))
+  // The follow-up fields are the footer's: in view without scrolling.
+  await expect(w.getByRole('textbox', { name: 'Last follow-up' })).toBeInViewport({ ratio: 1 })
+  await expect(w.getByRole('textbox', { name: 'Next follow-up' })).toBeInViewport({ ratio: 1 })
+  await shot(page, 'review-widget-short-end', wsCell(page, 'rv'))
   await line.fill('Short cell update')
   await page.keyboard.press('Enter')
   await expect(cardTitle(page, 'rev1')).toHaveText('Onboarding checklist')
@@ -403,12 +402,13 @@ test('a short cell keeps the large face: the queue scrolls, and the card’s bod
   await expect(w.getByRole('button', { name: /^Skip/ })).toBeInViewport({ ratio: 1 })
 })
 
-test('a tall cell still pins the dock: the card’s body does not scroll', async ({ page }) => {
+test('a tall cell: the card’s band and body do not scroll as one; the update line in view', async ({ page }) => {
   await seedWorkspace(page, largeSeed())
   const w = widget(page, 'rev1')
   await pickInReview(page, 'rev1', 'Aisha')
-  const body = w.locator('[data-task-body]')
-  expect(await body.evaluate((n) => getComputedStyle(n).overflowY)).not.toBe('auto')
+  for (const part of ['[data-task-frame]', '[data-task-body]']) {
+    expect(await w.locator(part).evaluate((n) => getComputedStyle(n).overflowY), part).not.toBe('auto')
+  }
   await expect(w.getByLabel('Status update · today')).toBeInViewport({ ratio: 1 })
 })
 

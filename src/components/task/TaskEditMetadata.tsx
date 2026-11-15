@@ -33,16 +33,17 @@ interface TaskEditMetadataProps {
 }
 
 /**
- * The facts rail's People, Tags and Due (board BJ — the task editor and the
- * review card alike), in that order between Status and Follow-up. A chip's
- * name opens its picker, its × unassigns; + opens the picker. The picker
- * is placed by `AnchoredPicker` under the section's chips (flipped above
- * near the bottom, clamped inside the viewport, following them as the rail
- * scrolls); a press outside closes it — not one in a layer stacked above
- * (a person's / tag's menu or the dialog it opened), and not one on the
- * chips, whose own toggle runs. Due: the date in the rows' words (its
- * tooltip the full date), a click opens the date picker, × clears it; its
- * repeat beside it.
+ * The fact band's People, Tags and Due cells (task layout B — the task
+ * editor and the review card alike), in that order after Status. Each person
+ * and tag is a pill: its name opens the picker, its own × unassigns. After
+ * them a dashed round **+** — always shown, so where to add one is never a
+ * hover away — opens the picker too. The picker is placed by
+ * `AnchoredPicker` under the cell's pills (flipped above near the bottom,
+ * clamped inside the viewport); a press outside closes it — not one in a
+ * layer stacked above (a person's / tag's menu or the dialog it opened), and
+ * not one on the pills, whose own toggle runs. Due: the date in the rows'
+ * words (its tooltip the full date), a click opens the date picker, ×
+ * clears it; its repeat after it.
  */
 export function TaskEditMetadata({
   deadline, recurrenceType, dueTone,
@@ -64,7 +65,7 @@ export function TaskEditMetadata({
     <>
       <FactSection fact="people">
         <div className={styles.chipArea} ref={peopleRef} data-task-people="">
-          {/* A chip: its name opens the picker, its × (a button of its own, beside it) unassigns. */}
+          {/* A pill: its name opens the picker, its × (a button of its own, beside it) unassigns. */}
           {assignedPeople.map((person) => (
             <span key={`p-${person.id}`} className={styles.personChip}>
               <button type="button" className={styles.chipOpen}
@@ -81,8 +82,7 @@ export function TaskEditMetadata({
           <button type="button" className={styles.chipAdd} aria-label="Add person" title="Add person"
             aria-expanded={openDropdown === 'people'}
             onClick={() => toggleDropdown('people')}>
-            <PlusIcon size={12} strokeWidth={2} />
-            {assignedPeople.length === 0 && <span>Add</span>}
+            <PlusIcon size={11} strokeWidth={2} />
           </button>
           {openDropdown === 'people' && (
             <AnchoredPicker anchorRef={peopleRef} onClose={close}>
@@ -118,8 +118,7 @@ export function TaskEditMetadata({
           <button type="button" className={styles.chipAdd} aria-label="Add tag" title="Add tag"
             aria-expanded={openDropdown === 'tags'}
             onClick={() => toggleDropdown('tags')}>
-            <PlusIcon size={12} strokeWidth={2} />
-            {assignedTags.length === 0 && <span>Add</span>}
+            <PlusIcon size={11} strokeWidth={2} />
           </button>
           {openDropdown === 'tags' && (
             <AnchoredPicker anchorRef={tagsRef} onClose={close}>

@@ -18,7 +18,7 @@ import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
 import { taskLayoutClasses } from './task-layout-classes'
-import { TaskDetailsBody, TaskNotesSection, TaskRailFoot } from './TaskDetailsBody'
+import { TaskDetailsBody, TaskNotesSection } from './TaskDetailsBody'
 import { PriorityFacts, StatusFacts } from './TaskFacts'
 import { FollowupEditorGroup } from './FollowupEditorGroup'
 import { CopyIcon, IndentIcon, TrashIcon } from '../shared/icons'
@@ -633,6 +633,23 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     { kind: 'item', label: 'Delete', icon: <TrashIcon />, danger: true, onSelect: afterNotes(props.onDelete) },
   ] : undefined
 
+  // The footer's follow-up fields: Last, then Next and its quick intervals (a draft has no Last).
+  const followupFields = (
+    <FollowupEditorGroup
+      next={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
+      last={isEdit ? todo?.lastFollowupAt : draftLastWithUpdates}
+      nextTone={nextTone}
+      nextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
+        ? `Default · ${describeFollowupInterval(followupInterval)}`
+        : undefined}
+      // The untouched default is a proposal: focus selects it, so typing replaces it.
+      selectNextOnFocus={!isEdit && nextFollowupIsDefault && !!draftNextFollowup}
+      onNextChange={handleNextFollowupChange}
+      onLastChange={handleLastFollowupChange}
+      hideLast={isDraft}
+    />
+  )
+
   return (
     // The shared dialog frame: Esc (after a text field's first), a backdrop
     // press, focus in / kept inside / back to the opener, no app shortcuts
@@ -664,10 +681,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           onAcHighlight={ac.highlight}
           isDraft={isDraft}
           menuEntries={menuEntries}
+          meta={isEdit && todo
+            ? <>Created {formatDate(todo.createdAt)} · Modified {formatRelativeTime(todo.modifiedAt)}</>
+            : undefined}
         />
 
         <TaskDetailsBody
-          rail={(
+          facts={(
             <>
               <PriorityFacts
                 focusOn={focusOn}
@@ -695,27 +715,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                 onCreatePerson={handleCreatePerson}
                 onCreateTag={handleCreateTag}
               />
-              {isEdit && todo && (
-                <TaskRailFoot>
-                  Created {formatDate(todo.createdAt)} · Modified {formatRelativeTime(todo.modifiedAt)}
-                </TaskRailFoot>
-              )}
             </>
-          )}
-          followup={(
-            <FollowupEditorGroup
-              next={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
-              last={isEdit ? todo?.lastFollowupAt : draftLastWithUpdates}
-              nextTone={nextTone}
-              nextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
-                ? `Default · ${describeFollowupInterval(followupInterval)}`
-                : undefined}
-              // The untouched default is a proposal: focus selects it, so typing replaces it.
-              selectNextOnFocus={!isEdit && nextFollowupIsDefault && !!draftNextFollowup}
-              onNextChange={handleNextFollowupChange}
-              onLastChange={handleLastFollowupChange}
-              hideLast={isDraft}
-            />
           )}
           subtasks={(
             // Keyed by the task: Duplicate switches the editor to the copy, and a
@@ -750,9 +750,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         />
 
         {isEdit && todo ? (
-          <TaskEditFooter mode="edit" todo={todo} onClose={onClose} onFollowedUp={handleFollowedUp} />
+          <TaskEditFooter mode="edit" todo={todo} onClose={onClose} onFollowedUp={handleFollowedUp} followup={followupFields} />
         ) : (
-          <TaskEditFooter mode="create" onClose={onClose} onCreate={handleCreate} titleValid={!!title.trim()} isDraft={isDraft} />
+          <TaskEditFooter mode="create" onClose={onClose} onCreate={handleCreate} titleValid={!!title.trim()} isDraft={isDraft} followup={followupFields} />
         )}
     </DialogFrame>
   )

@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, type ChangeEvent as ReactChangeEvent, type RefObject } from 'react'
+import { useId, useLayoutEffect, useRef, type ChangeEvent as ReactChangeEvent, type ReactNode, type RefObject } from 'react'
 import { STATUS_UPDATE_TEXT_MAX, type Person, type PersistedTodoItem, type RecurrenceType, type Tag, type TodoChanges } from '../../models'
 import { NEXT_FOLLOWUP_PLACEHOLDER } from '../../hooks/use-followup-input'
 import { useLatestRef } from '../../hooks/use-latest-ref'
@@ -30,7 +30,7 @@ import { storedSubtaskMenuEntries } from '../task/subtasks/subtask-menu'
 import { TaskDetailsBody, TaskNotesSection } from '../task/TaskDetailsBody'
 import { taskLayoutClasses } from '../task/task-layout-classes'
 import { FactDateField, PriorityFacts, StatusFacts, type FactDateTone } from '../task/TaskFacts'
-import { TaskFollowupRows, type FollowupRowParts } from '../task/TaskFollowupRows'
+import { TaskFollowupFields, type FollowupFieldParts } from '../task/TaskFollowupFields'
 import { TaskEditMetadata } from '../task/TaskEditMetadata'
 import { useEditorStatusUpdates, useEditorSubtasks } from '../task/use-editor-entries'
 import { useReviewSessionApi } from './review-session-context'
@@ -41,17 +41,17 @@ const NO_PEOPLE: Person[] = []
 const NO_TAGS: Tag[] = []
 
 /**
- * The review card (D26; the Review widget's large face): the
- * task editor's layout (boards BJ, BL, task layout A — the shared
- * `TaskDetailsBody`) for one task, every edit written at once, each its own
- * undo step after the notes typed so far — the box and title; the facts
- * rail (Priority, Status, People, Tags, Due + repeat); the writing (Notes
- * and Subtasks above the dock: Status updates oldest first with the
- * review's update line last, then the follow-up rows — Next, the field Mark
- * followed up reads, and Last, a field too —, so that line is in the same
- * place on every card). One task only, never the selection. Then the footer
- * (`ReviewFooter`): ‹ Back, Skip › and Mark followed up ›. The host lays the
- * card and the footer out (`data-review-card`, `data-review-footer`).
+ * The review card (D26; the Review widget's large face): the task editor's
+ * layout (task layout B — the shared `TaskDetailsBody`) for one task, every
+ * edit written at once, each its own undo step after the notes typed so far
+ * — the box and title; the fact band (Priority, Status, People, Tags, Due +
+ * repeat); Subtasks and Notes on the left, Status updates on the right,
+ * oldest first with the review's update line last. One task only, never the
+ * selection. Then the footer (`ReviewFooter`): ‹ Back and Skip › at its left
+ * end; at its right the follow-up fields — Last, then Next (the field Mark
+ * followed up reads) and its quick intervals — and Mark followed up ›. The
+ * host lays the card and the footer out (`data-review-card`,
+ * `data-review-footer`).
  */
 export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; focusOnOpen?: ReviewFocusOnOpen }) {
   const todoId = todo.id
@@ -135,7 +135,7 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
           <h3 className={`${styles.cardTitle} ${todo.isCompleted ? styles.cardTitleDone : ''}`} data-testid="review-card-title">{todo.title}</h3>
         </div>
         <TaskDetailsBody
-          rail={(
+          facts={(
             <>
               <PriorityFacts
                 focusOn={todo.focus === true}
@@ -165,47 +165,6 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
               />
             </>
           )}
-          followup={(
-            <TaskFollowupRows
-              next={reviewNextParts(f, `${uid}-next`, selectOnFocus)}
-              last={{
-                field: (
-                  <FactDateField date={last.stored} kind="last" empty="Never" showWords={!last.input.dirty} testId="review-last-followup">
-                    <div className={`${followupStyles.editorInputWrap} ${ls.kind === 'invalid' ? followupStyles.inputWrapError : ''}`}>
-                      <input
-                        aria-label="Last follow-up"
-                        className={followupStyles.input}
-                        value={last.input.text}
-                        placeholder="Never"
-                        onChange={(e) => last.input.change(e.target.value)}
-                        onFocus={last.onFocus}
-                        onBlur={last.onBlur}
-                        onKeyDown={last.onKeyDown}
-                        aria-invalid={ls.kind === 'invalid'}
-                        aria-describedby={`${uid}-last-help`}
-                        data-review-last=""
-                        autoComplete="off"
-                        spellCheck={false}
-                      />
-                      <FollowupDateButton
-                        label="Pick last follow-up date"
-                        value={last.stored}
-                        max={today}
-                        onPick={last.pick}
-                      />
-                    </div>
-                  </FactDateField>
-                ),
-                help: (
-                  <span id={`${uid}-last-help`} className={followupStyles.rowHelp} aria-live="polite">
-                    {ls.kind === 'valid' && <>→ {formatFollowupDate(ls.date, today)} · {relativeDayPhrase(ls.date, today)} · ⏎ to set</>}
-                    {ls.kind === 'invalid' && <span className={followupStyles.helpError}>{ls.message}</span>}
-                    {ls.kind === 'empty' && last.stored ? 'Never followed up · ⏎ to clear' : null}
-                  </span>
-                ),
-              }}
-            />
-          )}
           subtasks={(
             <SubtasksSection
               items={subtasks.items}
@@ -233,19 +192,62 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
           )}
         />
       </div>
-      <ReviewFooter followUp={f} />
+      <ReviewFooter
+        followUp={f}
+        followup={(
+          <TaskFollowupFields
+            last={{
+              field: (
+                <FactDateField date={last.stored} kind="last" empty="Never" showWords={!last.input.dirty} testId="review-last-followup">
+                  <div className={`${followupStyles.editorInputWrap} ${ls.kind === 'invalid' ? followupStyles.inputWrapError : ''}`}>
+                    <input
+                      aria-label="Last follow-up"
+                      className={followupStyles.input}
+                      value={last.input.text}
+                      placeholder="Never"
+                      onChange={(e) => last.input.change(e.target.value)}
+                      onFocus={last.onFocus}
+                      onBlur={last.onBlur}
+                      onKeyDown={last.onKeyDown}
+                      aria-invalid={ls.kind === 'invalid'}
+                      aria-describedby={`${uid}-last-help`}
+                      data-review-last=""
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <FollowupDateButton
+                      label="Pick last follow-up date"
+                      value={last.stored}
+                      max={today}
+                      onPick={last.pick}
+                    />
+                  </div>
+                </FactDateField>
+              ),
+              help: (
+                <span id={`${uid}-last-help`} className={followupStyles.rowHelp} aria-live="polite">
+                  {ls.kind === 'valid' && <>→ {formatFollowupDate(ls.date, today)} · {relativeDayPhrase(ls.date, today)} · ⏎ to set</>}
+                  {ls.kind === 'invalid' && <span className={followupStyles.helpError}>{ls.message}</span>}
+                  {ls.kind === 'empty' && last.stored ? 'Never followed up · ⏎ to clear' : null}
+                </span>
+              ),
+            }}
+            next={reviewNextParts(f, `${uid}-next`, selectOnFocus)}
+          />
+        )}
+      />
     </>
   )
 }
 
 /**
- * The review's Next follow-up row (the card's and the medium face's): the
+ * The review's Next follow-up field (the card's footer and the medium face's row): the
  * field — starting on what Mark followed up would leave; ⏎ or a quick button
  * sets the date at once and hands the focus back to the update line; ×
  * clears it —, the quick intervals 1w 2w 1m 3m, then what the typed text
  * means (`aria-live`).
  */
-function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnType<typeof useSelectAllOnFocus>): FollowupRowParts {
+function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnType<typeof useSelectAllOnFocus>): FollowupFieldParts {
   const { input, fieldDate, current, today, todo } = f
   const s = input.state
   // The field's words at rest: the date it holds, coloured as a row's follow-up date.
@@ -367,17 +369,33 @@ function ReviewUpdateLine({ followUp: f, inputRef, id, compact = false }: {
 }
 
 /**
- * The review's footer: ‹ Back, Skip › and Mark followed up › (its tooltip
- * says what it will do; the Next field it reads is right above it, in the
- * dock). `onOpenCard`: the medium face's Open card ↗ (the task in its
- * editor).
+ * The review's footer. With the follow-up fields (the card, task layout B):
+ * ‹ Back and Skip › at its left end, then the fields — Last, Next and its
+ * quick intervals — and Mark followed up › (its tooltip says what it will
+ * do; the Next field it reads is right beside it). In the DOM the fields
+ * and Mark followed up come first, so the update line's Tab reaches Last,
+ * then Next, before Back and Skip (which the rail's ← / → also do). Without
+ * them (the medium face): Open card ↗ (`onOpenCard`, the task in its
+ * editor), then Back, Skip and Mark followed up ›.
  */
-function ReviewFooter({ followUp: f, compact = false, onOpenCard }: {
+function ReviewFooter({ followUp: f, compact = false, onOpenCard, followup }: {
   followUp: ReviewFollowUp
   compact?: boolean
   onOpenCard?: () => void
+  /** The follow-up fields (`TaskFollowupFields`), before Mark followed up. */
+  followup?: ReactNode
 }) {
   const session = useReviewSessionApi()
+  const steps = (
+    <>
+      <button type="button" className={styles.secondaryBtn} onClick={() => session.getState().back()}>
+        <ChevronLeftIcon /> Back
+      </button>
+      <button type="button" className={styles.secondaryBtn} onClick={() => session.getState().skip()}>
+        Skip <ChevronRightIcon />
+      </button>
+    </>
+  )
   return (
     <footer className={`${styles.footer} ${compact ? styles.footerCompact : ''}`} data-review-footer="">
       {onOpenCard && (
@@ -385,13 +403,8 @@ function ReviewFooter({ followUp: f, compact = false, onOpenCard }: {
           Open card <OpenIcon size={12} />
         </button>
       )}
-      <span className={styles.spacer} />
-      <button type="button" className={styles.secondaryBtn} onClick={() => session.getState().back()}>
-        <ChevronLeftIcon /> Back
-      </button>
-      <button type="button" className={styles.secondaryBtn} onClick={() => session.getState().skip()}>
-        Skip <ChevronRightIcon />
-      </button>
+      {followup ?? <span className={styles.spacer} />}
+      {!followup && steps}
       <MarkFollowedUpButton
         className={styles.markBtn}
         doneToday={f.doneToday}
@@ -402,6 +415,7 @@ function ReviewFooter({ followUp: f, compact = false, onOpenCard }: {
         onClick={f.followUp}
       />
       {f.followUpTip}
+      {followup && <div className={styles.footerSteps} data-review-steps="">{steps}</div>}
     </footer>
   )
 }
@@ -411,7 +425,7 @@ const COMPACT_UPDATES = 2
 
 /**
  * The review card's essentials (the Review widget's medium face, item 12;
- * board BM, task layout A): the box and title, a one-line summary of the
+ * board BM): the box and title, a one-line summary of the
  * facts (due, status, priority, next and last follow-up), then the **updates
  * dock** — the Status updates heading (with the count once there is an
  * entry), the latest two entries oldest first (read-only: Open card ↗ edits
@@ -498,7 +512,7 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
           )}
           <ReviewUpdateLine followUp={f} inputRef={updateRef} compact />
           <div className={styles.compactNext} data-review-compact-next="">
-            <TaskFollowupRows next={reviewNextParts(f, `${headingId}-next`, selectOnFocus)} labels="short" />
+            <TaskFollowupFields next={reviewNextParts(f, `${headingId}-next`, selectOnFocus)} placement="row" />
           </div>
         </section>
       </div>
