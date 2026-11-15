@@ -1,4 +1,4 @@
-import type { GridAxis, GridTrack, LayoutBody, LayoutCell } from '../models/workspace-layout'
+import type { GridAxis, LayoutBody, LayoutCell } from '../models/workspace-layout'
 import { spanOf } from './workspace-grid'
 import { cellMinHeightPx, cellMinWidthPx, FIT_ROW_PX, isFitTrack } from './workspace-rows'
 
@@ -255,9 +255,4 @@ export function spanPx(sizes: readonly number[], start: number, end: number, gap
   let px = 0
   for (let t = start; t < end; t++) px += sizes[t] ?? 0
   return px + Math.max(0, end - start - 1) * gap
-}
-
-/** A track list's ids, for `MeasuredTracks`. */
-export function trackIds(tracks: readonly GridTrack[]): string[] {
-  return tracks.map((t) => t.id)
 }

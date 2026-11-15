@@ -12,12 +12,6 @@ import { registerModuleReset } from '../utils/module-reset'
  * `place`.
  */
 
-/** A group header of the source list, as a divider in the queue before task `index`. */
-export interface ReviewDivider {
-  index: number
-  label: string
-}
-
 /** A task's mark: followed up (today, here or elsewhere — `shownMark`), or skipped in this review. */
 export type ReviewMark = 'done' | 'skipped'
 
@@ -28,8 +22,6 @@ export { REVIEW_SORTS, isReviewSort, reviewSortLabel, type ReviewSort } from '..
 export interface ReviewSessionData {
   /** The queue in its source's order, each task once. */
   ids: readonly number[]
-  /** The source's group headers, over `ids`. */
-  dividers: readonly ReviewDivider[]
   sort: ReviewSort
   /**
    * The tasks as the rail shows them: `ids` in the sort's order — and, in a
@@ -60,7 +52,6 @@ export interface ReviewSessionData {
 /** A new queue and its place, as `services/review-queue` computes them. */
 export interface ReviewPlace {
   ids: readonly number[]
-  dividers: readonly ReviewDivider[]
   sort: ReviewSort
   order: readonly number[]
   index: number
@@ -96,7 +87,6 @@ export type ReviewSessionApi = Pick<StoreApi<ReviewSession>, 'getState' | 'getIn
 
 export const EMPTY_SESSION: ReviewSessionData = {
   ids: [],
-  dividers: [],
   sort: 'queue',
   order: [],
   index: 0,
@@ -175,12 +165,12 @@ export function reviewSessionActions(
       set({ nextDrafts: next })
     },
 
-    place({ ids, dividers, sort, order, index }) {
-      set({ ids: [...ids], dividers: [...dividers], sort, order: [...order], index: order.length === 0 ? 0 : clamp(index, order.length) })
+    place({ ids, sort, order, index }) {
+      set({ ids: [...ids], sort, order: [...order], index: order.length === 0 ? 0 : clamp(index, order.length) })
     },
 
     restart(filterKey) {
-      set({ ids: [], dividers: [], order: [], index: 0, marks: {}, filterKey })
+      set({ ids: [], order: [], index: 0, marks: {}, filterKey })
     },
 
     reset() {

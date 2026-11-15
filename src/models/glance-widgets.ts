@@ -313,10 +313,6 @@ export type TrendRange = (typeof TREND_RANGES)[number]
 
 export const DEFAULT_TREND_RANGE: TrendRange = '14d'
 
-/** The sections, in catalog order: each a glance kind (People, Tags and Status are Breakdowns since D26 P8). */
-export const SECTION_IDS = ['trend'] as const
-export type SectionId = (typeof SECTION_IDS)[number]
-
 // ── The glance widget kinds' configs ────────────────────────────────────────
 
 /**

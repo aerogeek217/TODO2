@@ -207,11 +207,6 @@ type Tasks = readonly PersistedTodoItem[]
 const trendMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext, range: TrendRange): TrendStats => (
   computeTrend(shown, events, ctx, range)
 ), TREND_RANGES.length)
-/** Created vs completed over `range`, every task the top bar shows as it is now; `null` until the history has been read. */
-export function useTrendStats(base: StatsBase, range: TrendRange): TrendStats | null {
-  const events = useTrendEvents(range)
-  return events ? trendMemo(base.shown, events, base.ctx, range) : null
-}
 
 /** What Created vs completed draws: its statistics, and from which day they are exact. */
 export interface TrendData {
@@ -274,7 +269,7 @@ const trendDataMemo = sharedMemoByKey(function trendData(stats: TrendStats, exac
  * Created vs completed's data (its filter and range): among the tasks the
  * top bar shows — the base's, without the lens while the widget ignores it.
  * While neither its filter nor the screen filter narrows, every task is
- * read as it is (`useTrendStats`'s read); else each task is replayed to
+ * read as it is; else each task is replayed to
  * each day's end and counted while the filter and the screen filter kept it
  * then (`computeTrend`'s filter, a Number line's replay), the days the log
  * can't say exactly marked by `exactFrom`. `null` until the history has been read.

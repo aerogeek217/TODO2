@@ -150,14 +150,6 @@ export function mergeNeighbour(body: LayoutBody, cellId: string, side: Side): La
   return wholeEdgeNeighbour(body, cellId, side)
 }
 
-/** Whether line `line` of `axis` (an inner one) is some cell's edge. */
-export function isCellEdge(body: LayoutBody, axis: GridAxis, line: number): boolean {
-  return body.cells.some((c) => {
-    const [start, end] = spanOf(c.area, axis)
-    return start === line || end === line
-  })
-}
-
 /** The track a run of two tracks makes when the line between them goes: the first's id, the sizes added, collapsed only when both were. */
 export function mergeTracks(a: GridTrack, b: GridTrack): GridTrack {
   const merged: GridTrack = { id: a.id }

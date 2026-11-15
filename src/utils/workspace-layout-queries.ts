@@ -15,16 +15,6 @@ export interface TabLocation {
   tabIdx: number
 }
 
-/** The index in `body.cells` of the cell with id `cellId`, or -1. */
-export function findCell(layout: LayoutBody, cellId: string): number {
-  return layout.cells.findIndex((c) => c.id === cellId)
-}
-
-/** Every cell, in the body's order (reading order: by top track, then left). */
-export function layoutPanels(layout: LayoutBody): LayoutCell[] {
-  return layout.cells
-}
-
 export function findTab(layout: LayoutBody, tabId: string): TabLocation | null {
   for (let cellIdx = 0; cellIdx < layout.cells.length; cellIdx++) {
     const cell = layout.cells[cellIdx]

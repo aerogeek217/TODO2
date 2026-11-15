@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { PersistedTodoItem } from '../../models'
 import { useToday } from '../../hooks/use-today'
 import { setReviewSort } from '../../services/review-queue'
@@ -25,11 +25,10 @@ import styles from './Review.module.css'
  * a small flag and the due date after a small clock, in words and in the
  * rows' colours (a follow-up today or late yellow, a due date soon or late
  * magenta). The current row has the accent's tint and a 2px accent edge on
- * its left; a row followed up today dims its title. The source's group
- * dividers show in Queue order only. A click on a row jumps to it; with
+ * its left; a row followed up today dims its title. A click on a row jumps to it; with
  * `onOpenTask` (the Review widget, widget feedback item 13) a double-click
- * opens the task in its editor; ← / → on a row go Back / Skip. With
- * `onToggleComplete` a row's box is a checkbox that completes its task
+ * opens the task in its editor; ← / → on a row go Back / Skip. A row's
+ * box is a checkbox (`onToggleComplete`) that completes its task
  * without opening it (a tab stop after its row; a press on it never picks
  * the row): a completed task leaves a live queue, the current one staying,
  * checked, until the review moves on.
@@ -42,13 +41,11 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
   label?: string
   /** A row double-clicked: its task (the Review widget opens it in the task editor). */
   onOpenTask?: (id: number) => void
-  /** A row's box checked or unchecked: complete or reopen its task. With it each row's box is a checkbox; without, a picture. */
-  onToggleComplete?: (id: number) => void
+  /** A row's box checked or unchecked: complete or reopen its task. */
+  onToggleComplete: (id: number) => void
 }) {
   const session = useReviewSessionApi()
-  const ids = useReviewSession((s) => s.ids)
   const order = useReviewSession((s) => s.order)
-  const dividers = useReviewSession((s) => s.dividers)
   const sort = useReviewSession((s) => s.sort)
   const index = useReviewSession((s) => s.index)
   const marks = useReviewSession((s) => s.marks)
@@ -56,27 +53,6 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const rowDates = useSettingsStore((s) => s.rowDates)
   const listRef = useRef<HTMLOListElement>(null)
-
-  /** The divider before each task (by id: a kept current task in a live queue doesn't shift them) — Queue order only. */
-  const dividerBefore = useMemo(() => {
-    if (sort !== 'queue') return new Map<number, string>()
-    const out = new Map<number, string>()
-    for (const d of dividers) {
-      const id = ids[d.index]
-      if (id != null) out.set(id, d.label)
-    }
-    return out
-  }, [sort, dividers, ids])
-  /** Each row's group (the label of the divider before it), for its accessible name. */
-  const groupOf = useMemo(() => {
-    const out = new Map<number, string>()
-    let label: string | null = null
-    for (const id of order) {
-      label = dividerBefore.get(id) ?? label
-      if (label != null) out.set(id, label)
-    }
-    return out
-  }, [order, dividerBefore])
 
   // The current row stays in view as the review moves on; the focus in the
   // rail (stepping with J / K, ← / → there) moves with it.
@@ -119,8 +95,6 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
         {order.flatMap((id, i) => {
           const todo = todoById.get(id)
           if (!todo) return []
-          const label = dividerBefore.get(id)
-          const group = groupOf.get(id) ?? null
           const mark = shownMark(marks, id, followedUpToday)
           const current = i === index
           const followup = todo.nextFollowupAt
@@ -135,7 +109,7 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
                 type="button"
                 className={styles.railRow}
                 aria-current={current ? 'true' : undefined}
-                aria-label={`${todo.title}${fuText ? `, follow-up ${fuText}` : ''}${dueText ? `, due ${dueText}` : ''}${todo.isCompleted ? ', completed' : ''}${markWords}${group != null ? `, in ${group}` : ''}`}
+                aria-label={`${todo.title}${fuText ? `, follow-up ${fuText}` : ''}${dueText ? `, due ${dueText}` : ''}${todo.isCompleted ? ', completed' : ''}${markWords}`}
                 data-review-row={id}
                 data-mark={mark}
                 // A click doesn't take the focus: the card it opens puts it in its update line.
@@ -145,10 +119,8 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
                 onKeyDown={onRowKeyDown}
               >
                 <span className={styles.railMark} aria-hidden="true">{mark === 'done' ? '✓' : mark === 'skipped' ? '–' : ''}</span>
-                {/* The box's place: with `onToggleComplete` the checkbox lies over it, beside the row (a button can't hold one). */}
-                {onToggleComplete
-                  ? <span className={styles.railBoxSlot} aria-hidden="true" />
-                  : <RailBox summary={markerSummary(todo, today, urgentRange)} completed={todo.isCompleted} />}
+                {/* The box's place: the checkbox lies over it, beside the row (a button can't hold one). */}
+                <span className={styles.railBoxSlot} aria-hidden="true" />
                 <span className={styles.railTitle} data-review-row-title="">{todo.title}</span>
                 {(fuText || dueText) && (
                   // The second line, under the title: the name above already says both dates.
@@ -166,29 +138,24 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
                   </span>
                 )}
               </button>
-              {onToggleComplete && (
-                <label className={styles.railCheck}>
-                  <input
-                    type="checkbox"
-                    className={styles.railCheckInput}
-                    checked={todo.isCompleted}
-                    onChange={() => {
-                      // Completed from a row that isn't the current card: it will leave the rail.
-                      completedFrom.current = !todo.isCompleted && !current ? { id, at: i } : null
-                      onToggleComplete(id)
-                    }}
-                    aria-label={`Mark “${todo.title}” ${todo.isCompleted ? 'incomplete' : 'complete'}`}
-                    data-review-row-check={id}
-                  />
-                  <RailBox summary={markerSummary(todo, today, urgentRange)} completed={todo.isCompleted} />
-                </label>
-              )}
+              <label className={styles.railCheck}>
+                <input
+                  type="checkbox"
+                  className={styles.railCheckInput}
+                  checked={todo.isCompleted}
+                  onChange={() => {
+                    // Completed from a row that isn't the current card: it will leave the rail.
+                    completedFrom.current = !todo.isCompleted && !current ? { id, at: i } : null
+                    onToggleComplete(id)
+                  }}
+                  aria-label={`Mark “${todo.title}” ${todo.isCompleted ? 'incomplete' : 'complete'}`}
+                  data-review-row-check={id}
+                />
+                <RailBox summary={markerSummary(todo, today, urgentRange)} completed={todo.isCompleted} />
+              </label>
             </li>
           )
-          return label != null
-            // The group is in each row's name (`, in Aisha`); the divider is its picture.
-            ? [<li key={`divider-${id}`} className={styles.railDivider} aria-hidden="true">{label}</li>, row]
-            : [row]
+          return [row]
         })}
       </ol>
     </nav>

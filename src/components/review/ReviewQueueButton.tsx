@@ -19,7 +19,7 @@ export function ReviewQueueButton({ todoById, followedUpToday, label, className,
   label: string
   className?: string
   /** The rail's: a row's box checked or unchecked (the popover stays open). */
-  onToggleComplete?: (id: number) => void
+  onToggleComplete: (id: number) => void
 }) {
   const [open, setOpen] = useState(false)
   const { triggerProps: tipProps, tooltip } = useTooltip('Show the review queue')

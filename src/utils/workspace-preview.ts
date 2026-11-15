@@ -1,4 +1,5 @@
-import type { CellArea, GridTrack, LayoutBody, LayoutCell } from '../models/workspace-layout'
+import type { GridTrack, LayoutBody, LayoutCell } from '../models/workspace-layout'
+import { sameArea } from './workspace-grid'
 
 /**
  * A resize handle's preview of a structural move (a divider or crossing drag
@@ -7,10 +8,6 @@ import type { CellArea, GridTrack, LayoutBody, LayoutCell } from '../models/work
  * their order (so none remounts or moves in the DOM); only the grid and
  * their areas change.
  */
-
-function sameArea(a: CellArea, b: CellArea): boolean {
-  return a.col === b.col && a.row === b.row && a.colSpan === b.colSpan && a.rowSpan === b.rowSpan
-}
 
 function sameTracks(a: readonly GridTrack[], b: readonly GridTrack[]): boolean {
   return a.length === b.length && a.every((t, i) => {

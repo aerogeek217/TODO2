@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Person, Status, Tag } from '../../models'
 import { createTab, type LayoutTab, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
-import { firstReviewTab, reviewWidgetTarget, setReviewWidgetFilter, setReviewWidgetFilterText } from '../../services/review-widget'
+import { firstReviewTab, reviewWidgetTarget, setReviewWidgetFilter } from '../../services/review-widget'
 import { useListWidgetStore } from '../../stores/list-widget-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -80,7 +80,7 @@ describe('reviewWidgetTarget', () => {
   })
 })
 
-describe('setReviewWidgetFilter / setReviewWidgetFilterText', () => {
+describe('setReviewWidgetFilter', () => {
   beforeEach(() => {
     const open = layout(1, grid([[cell('a', [notes('n'), review('rv')], { activeTabId: 'n' })]], { rows: [{ weight: 1000, collapsed: true }] }))
     useWorkspaceStore.setState({ working: open, saved: open, layouts: [open] })
@@ -93,30 +93,11 @@ describe('setReviewWidgetFilter / setReviewWidgetFilterText', () => {
     expect(setTrackCollapsed).toHaveBeenCalledWith(['r1'], false)
   })
 
-  it('from text, names read as the field reads them (a quoted name with a space)', () => {
-    const parse = setReviewWidgetFilterText('rv', '@"Aisha Rahman" or @Ben and !Waiting')
-    expect(parse.ok).toBe(true)
-    expect(useListWidgetStore.getState().reviewFilters.rv).toEqual({
-      expression: { kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'and', items: [{ kind: 'person', id: 2 }, { kind: 'status', id: 4 }] }] },
-      showCompleted: false,
-    })
-    expect(setActiveTab).toHaveBeenCalledWith('rv')
-  })
-
-  it('a text that doesn’t read changes nothing and says why; an empty one clears the filter', () => {
-    setReviewWidgetFilterText('rv', '#q4')
-    const parse = setReviewWidgetFilterText('rv', '@Ben and')
-    expect(parse.ok).toBe(false)
-    expect(useListWidgetStore.getState().reviewFilters.rv).toEqual({ expression: { kind: 'tag', id: 3 }, showCompleted: false })
-    expect(setReviewWidgetFilterText('rv', '').ok).toBe(true)
-    expect(useListWidgetStore.getState().reviewFilters.rv).toBeUndefined()
-  })
-
   it('nothing is written to the layout', () => {
     const patchTabConfig = vi.fn()
     const patchTabViewState = vi.fn()
     useWorkspaceStore.setState({ patchTabConfig: patchTabConfig as never, patchTabViewState: patchTabViewState as never })
-    setReviewWidgetFilterText('rv', '@Ben')
+    setReviewWidgetFilter('rv', { expression: { kind: 'person', id: 2 }, showCompleted: false })
     expect(patchTabConfig).not.toHaveBeenCalled()
     expect(patchTabViewState).not.toHaveBeenCalled()
   })

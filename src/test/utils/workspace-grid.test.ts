@@ -6,7 +6,6 @@ import {
   edgeBetween,
   edgeStretches,
   expandOrphanRows,
-  isCellEdge,
   isNormalized,
   isWholeLine,
   lineCrossings,
@@ -58,12 +57,6 @@ describe('queries', () => {
     expect(canMerge(L, 'a', 'b')).toBe(false)
     expect(canMerge(L, 'a', 'c')).toBe(false)
     expect(unionArea({ col: 0, row: 1, colSpan: 1, rowSpan: 1 }, { col: 1, row: 1, colSpan: 1, rowSpan: 1 })).toEqual({ col: 0, row: 1, colSpan: 2, rowSpan: 1 })
-  })
-
-  it('knows which lines are cell edges', () => {
-    expect(isCellEdge(L, 'columns', 1)).toBe(true)
-    expect(isCellEdge(L, 'columns', 2)).toBe(true)
-    expect(isCellEdge(L, 'rows', 1)).toBe(true)
   })
 })
 
