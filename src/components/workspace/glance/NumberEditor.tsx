@@ -62,7 +62,7 @@ function NumberColorField({ name, legend, value, onChange, autoLabel, hint }: {
       checked={auto}
       onChange={() => onChange(undefined)}
       aria-label={autoLabel}
-      title={autoLabel}
+      data-tooltip={autoLabel}
       data-hue="auto"
     />
   )

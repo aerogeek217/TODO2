@@ -14,6 +14,7 @@ import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
 import { QuickAddBar, type QuickAddDraft, type QuickAddPreset } from './components/task/QuickAddBar'
 import { RecentTaskPill } from './components/overlays/RecentTaskPill'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
+import { TooltipHost } from './components/shared/TooltipHost'
 import { ConfirmPromptHost } from './components/overlays/ConfirmPromptHost'
 import { FollowupPopoverHost } from './components/overlays/FollowupPopoverHost'
 import { RowPopoverHost } from './components/overlays/RowPopoverHost'
@@ -412,7 +413,7 @@ function AppShell() {
       </div>
       {showFab && (
         <div className={styles.fabGroup}>
-          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} aria-label="Quick add" title={`Quick add (${quickAddKeys})`}>
+          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} aria-label="Quick add" data-tooltip={`Quick add (${quickAddKeys})`}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <line x1="9" y1="3" x2="9" y2="15" />
               <line x1="3" y1="9" x2="15" y2="9" />
@@ -430,6 +431,8 @@ function AppShell() {
       <AppQuickAddBar />
       <RecentTaskPill />
       <UndoSnackbar />
+      {/* Every `data-tooltip` hover text, as the app's tooltip (flair P9). */}
+      <TooltipHost />
       {isMobile && <FilterSheet />}
       {isMobile && <BottomTabBar />}
     </div>

@@ -201,7 +201,7 @@ function ChipRemove({ label, onRemove }: { label: string; onRemove: () => void }
       className={styles.chipRemove}
       tabIndex={-1}
       aria-label={label}
-      title={label}
+      data-tooltip={label}
       onMouseDown={(e) => e.preventDefault()}
       onClick={(e) => {
         e.stopPropagation()

@@ -20,7 +20,7 @@ export function FollowupQuickButtons({ intervals, labelStyle, onPick }: Followup
             type="button"
             className={styles.quickButton}
             onClick={() => onPick(i)}
-            title={`Follow up in ${long}`}
+            data-tooltip={`Follow up in ${long}`}
             aria-label={`Follow up in ${long}`}
           >
             {labelStyle === 'long' ? long : formatFollowupInterval(i)}

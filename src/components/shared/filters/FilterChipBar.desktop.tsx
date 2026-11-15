@@ -133,7 +133,7 @@ function PeopleReviewAction({ people, onDone }: { people: readonly { id: number;
             type="button"
             className={styles.reviewAction}
             disabled={item.disabled}
-            title={item.title}
+            data-tooltip={item.title}
             onClick={item.onSelect}
           >
             {item.icon}

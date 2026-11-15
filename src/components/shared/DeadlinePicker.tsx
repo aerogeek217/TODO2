@@ -41,7 +41,7 @@ export function DeadlinePicker({ value, onChange, tone }: DeadlinePickerProps) {
         type="button"
         className={styles.trigger}
         onClick={(e) => { e.stopPropagation(); open() }}
-        title={words ? `Due ${words.full}` : 'Set due date'}
+        data-tooltip={words ? `Due ${words.full}` : 'Set due date'}
         aria-label={words ? `Due date: ${words.full}` : 'Set due date'}
       >
         {words ? (
@@ -58,7 +58,7 @@ export function DeadlinePicker({ value, onChange, tone }: DeadlinePickerProps) {
           type="button"
           className={styles.clearButton}
           onClick={(e) => { e.stopPropagation(); onChange(null) }}
-          title="Clear due date"
+          data-tooltip="Clear due date"
           aria-label="Clear due date"
         >&times;</button>
       )}

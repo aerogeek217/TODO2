@@ -95,7 +95,7 @@ function PulseCardView({ tabId, card, names, onDrill }: { tabId: string; card: P
         className={styles.remove}
         data-pulse-remove={card.tag.id}
         aria-label={`Remove “${name}” from project pulse`}
-        title="Remove from project pulse"
+        data-tooltip="Remove from project pulse"
         onClick={() => removePulseTag(tabId, card.tag)}
       >
         <span aria-hidden="true">×</span>

@@ -79,7 +79,7 @@ export function TaskEditMetadata({
                 onClick={() => { if (person.id != null) onTogglePerson(person.id) }}>&times;</button>
             </span>
           ))}
-          <button type="button" className={styles.chipAdd} aria-label="Add person" title="Add person"
+          <button type="button" className={styles.chipAdd} aria-label="Add person" data-tooltip="Add person"
             aria-expanded={openDropdown === 'people'}
             onClick={() => toggleDropdown('people')}>
             <PlusIcon size={11} strokeWidth={2} />
@@ -115,7 +115,7 @@ export function TaskEditMetadata({
                 onClick={() => { if (tag.id != null) onToggleTag(tag.id) }}>&times;</button>
             </span>
           ))}
-          <button type="button" className={styles.chipAdd} aria-label="Add tag" title="Add tag"
+          <button type="button" className={styles.chipAdd} aria-label="Add tag" data-tooltip="Add tag"
             aria-expanded={openDropdown === 'tags'}
             onClick={() => toggleDropdown('tags')}>
             <PlusIcon size={11} strokeWidth={2} />

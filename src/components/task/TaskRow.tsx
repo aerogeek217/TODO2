@@ -304,7 +304,7 @@ export const TaskRow = memo(function TaskRow({
       ) : ghost ? (
         // The drag overlay's copy: the title and a notes mark only.
         statusNotesPreview(newestUpdate, todo.notes)
-          ? <span className={`${styles.cell} ${styles.cellCenter}`} title="Has a status or notes"><NotesGlyph /></span>
+          ? <span className={`${styles.cell} ${styles.cellCenter}`} role="img" aria-label="Has a status or notes" data-tooltip="Has a status or notes"><NotesGlyph /></span>
           : null
       ) : (
         <>

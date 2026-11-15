@@ -31,7 +31,7 @@ describe('DeadlinePicker', () => {
       const trigger = getTrigger(container)
       expect(trigger.textContent).toBe('11/063 days late')
       expect(trigger.querySelector('[data-tone="past"]')?.textContent).toBe('11/06')
-      expect(trigger).toHaveAttribute('title', 'Due Friday, November 6, 2026')
+      expect(trigger).toHaveAttribute('data-tooltip', 'Due Friday, November 6, 2026')
       // Within the week: the weekday, nothing more.
       rerender(<DeadlinePicker value={new Date(2026, 10, 12)} onChange={() => {}} />)
       expect(getTrigger(container).textContent).toBe('Thu')
@@ -70,7 +70,7 @@ describe('DeadlinePicker', () => {
   it('renders a clear affordance when a value is set, and emits null when clicked', () => {
     const onChange = vi.fn()
     const { container } = render(<DeadlinePicker value={new Date(2026, 3, 20)} onChange={onChange} />)
-    const clearBtn = container.querySelector('[title="Clear due date"]') as HTMLElement
+    const clearBtn = container.querySelector('[data-tooltip="Clear due date"]') as HTMLElement
     expect(clearBtn).toBeInTheDocument()
     fireEvent.click(clearBtn)
     expect(onChange).toHaveBeenCalledWith(null)
@@ -78,6 +78,6 @@ describe('DeadlinePicker', () => {
 
   it('does not render a clear affordance when value is null', () => {
     const { container } = render(<DeadlinePicker value={null} onChange={() => {}} />)
-    expect(container.querySelector('[title="Clear due date"]')).toBeNull()
+    expect(container.querySelector('[data-tooltip="Clear due date"]')).toBeNull()
   })
 })

@@ -236,7 +236,7 @@ export function PromptField({
               className={styles.chipRemove}
               onClick={(e) => { e.stopPropagation(); removeChip(opt.id) }}
               aria-label={`Remove ${opt.name}`}
-              title={`Remove ${opt.name}`}
+              data-tooltip={`Remove ${opt.name}`}
             >
               ×
             </button>
@@ -269,7 +269,7 @@ export function PromptField({
             className={styles.clearAll}
             tabIndex={-1}
             aria-label={`Clear ${label}`}
-            title={`Clear ${label}`}
+            data-tooltip={`Clear ${label}`}
             // The press keeps the focus (and the caret) in the field.
             onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {

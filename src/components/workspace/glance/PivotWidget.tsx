@@ -111,7 +111,7 @@ function HeatTable({ title, nameLabel, stats, rows, sort, onSort, onDrill }: {
         </div>
         {rows.map((r) => (
           <div key={r.key} role="row" className={styles.row} data-pivot-row={r.key}>
-            <span role="rowheader" className={styles.rowHead} title={rowHeading(r)}>{rowHeading(r)}</span>
+            <span role="rowheader" className={styles.rowHead} data-tooltip={rowHeading(r)}>{rowHeading(r)}</span>
             {cols.map((c) => {
               const ids = cells.get(cellKey(r.key, c.key)) ?? []
               return cell(cellKey(r.key, c.key), ids, `${rowHeading(r)} × ${rowHeading(c)}`, styles.cell, heat(ids.length, max))

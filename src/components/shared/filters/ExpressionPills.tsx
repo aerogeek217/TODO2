@@ -39,7 +39,7 @@ export function ExpressionPills({ pieces, onRemove, pillAttr }: {
             className={styles.pillRemove}
             tabIndex={-1}
             aria-label={`Remove ${piece.text}`}
-            title={`Remove ${piece.text}`}
+            data-tooltip={`Remove ${piece.text}`}
             // The press doesn't move the focus into the field.
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => onRemove(piece)}

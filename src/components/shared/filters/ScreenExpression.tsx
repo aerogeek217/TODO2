@@ -26,7 +26,7 @@ export function ScreenExpression({ className }: { className?: string }) {
         type="button"
         className={styles.clear}
         aria-label="Clear the typed filter"
-        title="Clear the typed filter"
+        data-tooltip="Clear the typed filter"
         onClick={() => {
           const { filters, setAllFilters } = useFilterStore.getState()
           const { expression: _expression, ...chips } = filters

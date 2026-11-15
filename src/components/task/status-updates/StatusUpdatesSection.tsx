@@ -154,7 +154,7 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
               ref={(el) => { if (el) editButtons.current.set(entry.id, el); else editButtons.current.delete(entry.id) }}
               className={styles.iconButton}
               aria-label={`Edit status update: ${formatDateNumeric(entry.date)} ${entry.text}`}
-              title="Edit"
+              data-tooltip="Edit"
               onClick={() => setEditingId(entry.id)}
             >
               <PencilIcon size={13} />
@@ -163,7 +163,7 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
               type="button"
               className={`${styles.iconButton} ${styles.iconButtonDanger}`}
               aria-label={`Delete status update: ${formatDateNumeric(entry.date)} ${entry.text}`}
-              title="Delete"
+              data-tooltip="Delete"
               onClick={() => remove(entry.id)}
             >
               <TrashIcon size={13} />

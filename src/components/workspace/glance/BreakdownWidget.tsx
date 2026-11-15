@@ -100,7 +100,7 @@ function ColumnCount({ n, column, label, onOpen }: {
       style={style}
       {...marks}
       aria-label={label}
-      title={label}
+      data-tooltip={label}
       onClick={(e) => {
         e.stopPropagation()
         onOpen()
@@ -344,7 +344,7 @@ function StackedBar({ title, rows, onDrill }: { title: string; rows: readonly Br
           style={{ flex: `${r.ids.length} 1 0`, background: rowColor(r, i) }}
           data-segment={r.key}
           aria-label={`${rowHeading(r)}: ${r.ids.length}. Show tasks`}
-          title={`${rowHeading(r)}: ${r.ids.length}`}
+          data-tooltip={`${rowHeading(r)}: ${r.ids.length}`}
           disabled={!onDrill}
           onClick={() => onDrill?.(breakdownRowDrill(title, r))}
         />

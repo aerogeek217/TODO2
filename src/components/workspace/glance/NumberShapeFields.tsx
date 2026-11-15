@@ -48,7 +48,7 @@ function AutoSwatch({ name, checked, onPick, className }: { name: string; checke
       checked={checked}
       onChange={onPick}
       aria-label="Auto (neutral, lit in the accent)"
-      title="Auto: neutral, lit in the accent"
+      data-tooltip="Auto: neutral, lit in the accent"
       data-hue="auto"
     />
   )
@@ -218,7 +218,7 @@ export function GroupItemsField({ config, patch }: { config: NumberConfig; patch
               onChange={(e) => set(i, { ...item, name: e.target.value.slice(0, NUMBER_NAME_MAX) })}
             />
             {items.length > 1 && (
-              <button type="button" className={styles.close} aria-label={`Remove count ${i + 1}`} title="Remove" onClick={() => write(items.filter((_, j) => j !== i))}>
+              <button type="button" className={styles.close} aria-label={`Remove count ${i + 1}`} data-tooltip="Remove" onClick={() => write(items.filter((_, j) => j !== i))}>
                 <CloseIcon size={12} />
               </button>
             )}

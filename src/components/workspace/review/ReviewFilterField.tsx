@@ -306,7 +306,7 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
               className={styles.clear}
               tabIndex={-1}
               aria-label="Clear the filter"
-              title="Clear the filter"
+              data-tooltip="Clear the filter"
               // The press keeps the focus (and the caret) in the field.
               onMouseDown={(e) => e.preventDefault()}
               onClick={clear}

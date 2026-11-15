@@ -158,7 +158,7 @@ describe('TaskEditPopup — follow-up group', () => {
     expect(nextInput().value).toBe('Tue 13 Oct')
     // At rest it reads as a row's date (the weekday within the week), the full date in the tooltip.
     expect(nextInput().closest('[data-words]')).toHaveTextContent('Tue')
-    expect(nextInput().closest('[data-words]')).toHaveAttribute('title', 'Tuesday, October 13, 2026')
+    expect(nextInput().closest('[data-words]')).toHaveAttribute('data-tooltip', 'Tuesday, October 13, 2026')
 
     fireEvent.change(nextInput(), { target: { value: 'whenever' } })
     expect(screen.getByText('Try 2w, 10d, 1m, fri, 24 Oct or 10/24')).toBeInTheDocument()

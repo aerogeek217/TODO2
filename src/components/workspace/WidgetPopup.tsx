@@ -199,13 +199,13 @@ function WidgetPopup({ tab }: { tab: LayoutTab }) {
             aria-label={WIDGET_POPUP_MENU_LABEL}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            title={WIDGET_POPUP_MENU_LABEL}
+            data-tooltip={WIDGET_POPUP_MENU_LABEL}
             onClick={() => setMenuOpen((o) => !o)}
           >
             <MoreIcon />
           </button>
         )}
-        <button type="button" className={styles.action} aria-label="Close" title="Close" onClick={leavePopup}>
+        <button type="button" className={styles.action} aria-label="Close" data-tooltip="Close" onClick={leavePopup}>
           <CloseIcon size={12} />
         </button>
       </div>

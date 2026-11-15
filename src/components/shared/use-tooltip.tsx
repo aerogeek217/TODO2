@@ -15,7 +15,7 @@ export const TOOLTIP_DELAY_MS = 400
  * the one opened last — a choice menu from the popup lists' group · sort
  * popover — is the one in use, and its items' tooltips open.
  */
-function popoverOpenElsewhere(anchor: HTMLElement): boolean {
+export function popoverOpenElsewhere(anchor: HTMLElement): boolean {
   const own = anchor.closest(`[${POPOVER_LEVEL_ATTR}]`)
   for (const popover of document.querySelectorAll(`[${POPOVER_LEVEL_ATTR}]`)) {
     if (popover.contains(anchor)) continue

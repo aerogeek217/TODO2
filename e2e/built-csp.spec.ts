@@ -436,7 +436,7 @@ test('the sync file works from the offline file under its CSP: create, write, re
     await settings.getByRole('button', { name: 'Create New File' }).click()
     const pill = page.getByTestId('storage-pill')
     await expect(pill).toHaveText('Synced')
-    await expect(pill).toHaveAttribute('title', `Syncing to ${SYNC_FILE}`)
+    await expect(pill).toHaveAttribute('data-tooltip', `Syncing to ${SYNC_FILE}`)
     await expect.poll(syncedTitles).toEqual(['Before the sync file'])
 
     // Edits land in the file.

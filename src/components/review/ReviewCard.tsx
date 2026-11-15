@@ -278,7 +278,7 @@ function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnTyp
               type="button"
               className={followupStyles.inputClear}
               aria-label="Clear next follow-up"
-              title="Clear next follow-up"
+              data-tooltip="Clear next follow-up"
               onMouseDown={(e) => e.preventDefault()}
               onClick={f.clearNext}
             >
@@ -501,7 +501,7 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
                     data-status-update=""
                     data-newest={newest ? 'true' : undefined}
                     data-testid={newest ? 'review-newest-update' : undefined}
-                    title={`${formatDateNumeric(entry.date)} ${entry.text}`}
+                    data-tooltip={`${formatDateNumeric(entry.date)} ${entry.text}`}
                   >
                     <span className={styles.compactDay}>{formatDateNumeric(entry.date)}</span>
                     <span className={styles.compactText}>{entry.text}</span>

@@ -84,7 +84,7 @@ export function ListFilterChip({ chip, open, disclosure, rowKey, owner, onPress,
           type="button"
           className={styles.chipRemove}
           aria-label="Remove filter"
-          title="Remove filter"
+          data-tooltip="Remove filter"
           onClick={(e) => {
             e.stopPropagation()
             const el = chipOf(e.currentTarget)

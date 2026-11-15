@@ -25,7 +25,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'components/shared/filters/PredicateChips.tsx': ['SWITCH_REFUSED'],
   'components/shared/PopoverRoot.tsx': ['POPOVER_CARET_ATTR'],
   'components/shared/TaskPillBar.tsx': ['TaskPillDates', 'TaskPillFollowup', 'TaskPillPeople'],
-  'components/shared/use-tooltip.tsx': ['TOOLTIP_DELAY_MS', 'UseTooltipResult'],
+  'components/shared/use-tooltip.tsx': ['UseTooltipResult'],
   'components/task/notes/notes-indent.ts': [
     'armTabLeave', 'indentLines', 'indentListLines', 'isListLine', 'outdentLines', 'outdentListLines', 'tabLeavesField',
   ],

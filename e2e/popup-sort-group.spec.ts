@@ -112,7 +112,7 @@ test('what the control and each choice mean are tooltips, as in Settings, not li
   await openPanel(page)
 
   // The button's own explanation: the app's tooltip (no native title).
-  await expect(control(panel(page))).not.toHaveAttribute('title')
+  await expect(control(panel(page))).not.toHaveAttribute('data-tooltip')
   await expect(control(panel(page))).toHaveAccessibleDescription('Group and sort these tasks: Every task list that opens over the workspace, until a reload')
   await control(panel(page)).hover()
   await expect(page.getByRole('tooltip')).toHaveText(/Group and sort these tasks\s*Every task list that opens over the workspace, until a reload/)

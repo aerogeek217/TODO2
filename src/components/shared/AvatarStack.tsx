@@ -45,7 +45,7 @@ export const AvatarStack = memo(function AvatarStack({
             key={p.id}
             className={styles.avatar}
             style={style}
-            title={p.name}
+            data-tooltip={p.name}
             onContextMenu={onPersonContextMenu ? (e) => onPersonContextMenu(e, p) : undefined}
           >
             {p.initials || p.name.slice(0, 2).toUpperCase()}
@@ -53,7 +53,7 @@ export const AvatarStack = memo(function AvatarStack({
         )
       })}
       {overflow > 0 && (
-        <span className={`${styles.avatar} ${styles.overflow}`} title={`${overflow} more`}>
+        <span className={`${styles.avatar} ${styles.overflow}`} data-tooltip={`${overflow} more`}>
           +{overflow}
         </span>
       )}

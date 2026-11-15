@@ -70,7 +70,7 @@ export function ThemeColorsEditor({ onClose }: ThemeColorsEditorProps) {
                   type="button"
                   className={editorStyles.rowReset}
                   aria-label={`Reset ${colorLabels[key]}`}
-                  title={follows ? `Use the ${colorLabels[follows]} color again` : 'Use the default color again'}
+                  data-tooltip={follows ? `Use the ${colorLabels[follows]} color again` : 'Use the default color again'}
                   onClick={(e) => {
                     // The button goes with the override: the focus moves to the row's swatch first.
                     e.currentTarget.closest('[data-color-row]')?.querySelector<HTMLInputElement>('input[type="color"]')?.focus()

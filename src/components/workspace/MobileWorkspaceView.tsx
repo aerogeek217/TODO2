@@ -460,7 +460,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
           className={`${styles.cellAction} ${styles.cellExpand}`}
           aria-label={`Expand ${rowNoun}`}
           aria-expanded={false}
-          title={`Expand ${rowNoun}`}
+          data-tooltip={`Expand ${rowNoun}`}
           onClick={() => setRowCollapsed(false)}
         >
           <ChevronDownIcon size={16} />

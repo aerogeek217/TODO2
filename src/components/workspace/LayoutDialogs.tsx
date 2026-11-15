@@ -106,7 +106,7 @@ function HueSwatches({ value, onChange }: { value: string | null; onChange: (hue
       checked={value == null}
       onChange={() => onChange(null)}
       aria-label="None (the accent)"
-      title="None (the accent)"
+      data-tooltip="None (the accent)"
       data-hue="none"
     />
   )

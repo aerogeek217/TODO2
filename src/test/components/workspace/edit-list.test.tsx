@@ -292,7 +292,7 @@ describe('Edit list', () => {
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: ' ' } })
     expect(within(dialog).getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true')
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
-    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveAttribute('title', 'Name the list to save it')
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveAttribute('data-tooltip', 'Name the list to save it')
   })
 
   it('Esc closes a list with no changes at once; an Esc that closes a menu inside only closes the menu', () => {

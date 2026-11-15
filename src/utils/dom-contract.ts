@@ -107,3 +107,12 @@ export function widgetPopupOf(tabId: string): HTMLElement | null {
 export function widgetElement(tabId: string, selector: string): HTMLElement | null {
   return widgetPopupOf(tabId)?.querySelector<HTMLElement>(selector) ?? document.querySelector<HTMLElement>(selector)
 }
+
+/**
+ * An element's hover text (flair P9, one tooltip everywhere): `TooltipHost`
+ * shows it as the app's tooltip. Elements write it as `data-tooltip="…"`;
+ * the native `title` attribute is banned (ESLint).
+ */
+export const TOOLTIP_ATTR = 'data-tooltip'
+/** An optional muted key after a `data-tooltip`'s label (`Settings G S`). */
+export const TOOLTIP_SHORTCUT_ATTR = 'data-tooltip-shortcut'

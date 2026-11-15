@@ -32,7 +32,7 @@ describe('ColorPicker — the six preset hues, then the colour input', () => {
   it('the custom swatch is named, after a divider, and shows the colour wheel alone while a preset is picked', () => {
     const { getByRole, getByLabelText, rerender } = render(<ColorPicker value={HUE_PRESET_HEX.rose} onChange={() => {}} />)
     const ring = getByLabelText('Custom colour').parentElement!
-    expect(ring).toHaveAttribute('title', 'Custom colour')
+    expect(ring).toHaveAttribute('data-tooltip', 'Custom colour')
     expect(ring).toHaveClass(inputStyles.wheel!)
     expect(getByRole('radiogroup', { name: 'Preset colours' }).nextElementSibling).toHaveAttribute('aria-hidden', 'true')
     rerender(<ColorPicker value="#123456" onChange={() => {}} />)

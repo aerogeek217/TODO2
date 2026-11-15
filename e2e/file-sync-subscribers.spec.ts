@@ -75,7 +75,7 @@ test('another subscriber hears the sync events without taking them from the app'
   const pill = page.getByTestId('storage-pill')
   await expect(pill).toHaveAttribute('data-state', 'syncing')
   await expect(pill).toHaveText('Synced')
-  await expect(pill).toHaveAttribute('title', `Syncing to ${SYNC_FILE}`)
+  await expect(pill).toHaveAttribute('data-tooltip', `Syncing to ${SYNC_FILE}`)
   await expect.poll(() => recorded(page)).toContain(`status ${SYNC_FILE} true`)
 
   // Retry re-runs the load: the file now matches this browser, so it is

@@ -574,7 +574,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
           <button
             type="button"
             className={styles.addTask}
-            title="Add a task to this list"
+            data-tooltip="Add a task to this list"
             onClick={() => {
               if (!mergedPredicate) return
               useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate) })

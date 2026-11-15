@@ -171,7 +171,7 @@ test('a count column is its number’s room: the heading is cut short (its name 
   await seedWorkspace(page, SEED)
   const heads = chart(page).locator('[role="columnheader"]')
   const followup = chart(page).locator('[data-sort-key="followup"]')
-  await expect(followup).toHaveAttribute('title', 'Follow-up')
+  await expect(followup).toHaveAttribute('data-tooltip', 'Follow-up')
   const fb = (await chart(page).getByRole('columnheader', { name: 'Follow-up' }).boundingBox())!
   expect(Math.round(fb.width)).toBe(40)
   // Its label overflows into an ellipsis rather than widening the column.

@@ -7,7 +7,7 @@ import {
   TaskPillStatus,
 } from '../../../components/shared/TaskPillBar'
 import type { Status } from '../../../models'
-import { makeTodo, makePerson } from '../../helpers'
+import { getByTooltip, makePerson, makeTodo } from '../../helpers'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 
 const today = new Date(2026, 3, 16) // Apr 16, 2026 (Thursday)
@@ -39,7 +39,7 @@ describe('<TaskPillBar>', () => {
         />,
       )
       expect(screen.getByText('AL')).toBeInTheDocument()
-      expect(screen.getByTitle('Due — click to change')).toBeInTheDocument()
+      expect(getByTooltip(document.body, 'Due — click to change')).toBeInTheDocument()
       expect(screen.getByLabelText('Status: In Progress')).toBeInTheDocument()
     })
 
@@ -331,14 +331,14 @@ describe('<TaskPillDates>', () => {
   it('renders the due date', () => {
     const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 25) })
     render(<TaskPillDates todo={todo} today={today} interactive={false} />)
-    expect(screen.getByTitle('Due')).toBeInTheDocument()
+    expect(getByTooltip(document.body, 'Due')).toBeInTheDocument()
   })
 })
 
 describe('<TaskPillStatus>', () => {
   it('renders the status name as title when interactive=false', () => {
     render(<TaskPillStatus status={inProgress} interactive={false} />)
-    expect(screen.getByTitle('In Progress')).toBeInTheDocument()
+    expect(getByTooltip(document.body, 'In Progress')).toBeInTheDocument()
   })
 
   it('renders the empty status dot when no status', () => {

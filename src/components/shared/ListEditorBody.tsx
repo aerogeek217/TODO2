@@ -190,7 +190,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
   const filterLineShown = draft.showFilterLine !== false
   const filterLineSwitch = variant === 'sheet'
     ? (
-      <label className={styles.switchRow} title={FILTER_LINE_HINT}>
+      <label className={styles.switchRow} data-tooltip={FILTER_LINE_HINT}>
         <span className={`${styles.switchLabel} ${changed.has('filterLine') ? styles.labelChanged : ''}`} data-changed={changed.has('filterLine') || undefined}>
           {changed.has('filterLine') && <span className={styles.changedDot} aria-hidden="true" />}
           Show filter line
@@ -207,7 +207,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
     : (
       <div className={styles.row}>
         {label('filterLine')}
-        <label className={styles.check} title={FILTER_LINE_HINT}>
+        <label className={styles.check} data-tooltip={FILTER_LINE_HINT}>
           <input
             type="checkbox"
             aria-label="Show filter line"
@@ -547,7 +547,7 @@ function CopyFromButton({ groups, onPick }: {
         className={`${styles.copyFrom} ${open ? styles.selectOpen : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Take the filters, group, sort, prompt and filter line of another list"
+        data-tooltip="Take the filters, group, sort, prompt and filter line of another list"
         // The menu leaves a press on its own button to the button: it toggles.
         onClick={() => setOpen((o) => !o)}
       >

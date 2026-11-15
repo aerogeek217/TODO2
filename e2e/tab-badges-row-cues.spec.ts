@@ -37,7 +37,7 @@ test.describe('tab badges', () => {
     const ann = wsTab(page, 'ann')
     await expect(badge(ann).locator('span')).toHaveText(['2', '1'])
     await expect(badge(wsTab(page, 'all')).locator('span')).toHaveText(['3', '1'])
-    await expect(ann).toHaveAttribute('title', /2 due: 1 overdue, 1 within 3 days\n1 follow-up: today/)
+    await expect(ann).toHaveAttribute('data-tooltip', /2 due: 1 overdue, 1 within 3 days\n1 follow-up: today/)
 
     const solid = await badge(ann).locator('span').first().evaluate((el) => getComputedStyle(el).backgroundColor)
     const tinted = await badge(ann).locator('span').nth(1).evaluate((el) => getComputedStyle(el).backgroundColor)

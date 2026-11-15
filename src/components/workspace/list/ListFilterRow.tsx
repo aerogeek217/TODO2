@@ -64,7 +64,7 @@ function FilterRowBody({ tabId, definition, count, topLine }: ListFilterRowProps
         sortDirection={definition.sortDirection}
         open={editorOpen}
         aria-haspopup="dialog"
-        title={`Edit list “${definition.name.trim() || 'List'}”`}
+        data-tooltip={`Edit list “${definition.name.trim() || 'List'}”`}
         data-testid="list-summary"
         {...{ [EDIT_LIST_KEEP_ATTR]: id }}
         onClick={toggleEditor}
@@ -91,7 +91,7 @@ function ListFilterWords({ predicate, onOpen }: { predicate: TodoPredicate; onOp
   if (expression) return <ExpressionWords expression={expression} text={text} onOpen={onOpen} />
   const label = predicate.showCompleted === true ? 'Every task' : 'Every open task'
   return onOpen
-    ? <button type="button" className={styles.everyTask} title="Click to edit" data-testid="list-filter-every" onClick={onOpen}>{label}</button>
+    ? <button type="button" className={styles.everyTask} data-tooltip="Click to edit" data-testid="list-filter-every" onClick={onOpen}>{label}</button>
     : <span className={styles.everyTask} data-testid="list-filter-every">{label}</span>
 }
 

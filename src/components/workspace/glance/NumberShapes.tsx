@@ -322,7 +322,7 @@ export function GoalNumber({ tab, onResult, onDrill }: ShapeProps) {
             <span
               className={styles.tick}
               style={{ left: `${Math.min(100, Math.round(progress.paceFraction * 100))}%` }}
-              title={paceLabel(progress.pace, stats.ctx.today)}
+              data-tooltip={paceLabel(progress.pace, stats.ctx.today)}
               data-testid="number-goal-pace"
             />
           )}
@@ -394,7 +394,7 @@ export function GroupNumber({ tab, onResult, onDrill }: ShapeProps) {
                   key={i}
                   type="button"
                   className={styles.item}
-                  title={small ? itemName : undefined}
+                  data-tooltip={small ? itemName : undefined}
                   data-group-item={i}
                   data-lit={colors.lit ? 'true' : undefined}
                   aria-label={`${label}. Show tasks`}
@@ -406,7 +406,7 @@ export function GroupNumber({ tab, onResult, onDrill }: ShapeProps) {
                   {figure}
                 </button>
               ) : (
-                <span key={i} className={styles.item} title={small ? itemName : undefined} data-group-item={i} data-lit={colors.lit ? 'true' : undefined} aria-label={label}>{figure}</span>
+                <span key={i} className={styles.item} data-tooltip={small ? itemName : undefined} data-group-item={i} data-lit={colors.lit ? 'true' : undefined} aria-label={label}>{figure}</span>
               )
             })}
           </span>

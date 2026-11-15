@@ -28,7 +28,7 @@ export function FollowupDateButton({ label, value, max, onPick }: FollowupDateBu
         type="button"
         className={styles.inputClear}
         aria-label={label}
-        title="Pick a date"
+        data-tooltip="Pick a date"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => {
           try { pickerRef.current?.showPicker?.() } catch { pickerRef.current?.focus() }

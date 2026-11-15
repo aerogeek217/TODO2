@@ -112,7 +112,7 @@ export function FollowupEditorGroup({
                   type="button"
                   className={styles.inputClear}
                   aria-label="Clear next follow-up"
-                  title="Clear next follow-up"
+                  data-tooltip="Clear next follow-up"
                   // Keep the input's blur from committing the text we're about to clear.
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => { onNextChange(null); nextInput.settle(null) }}
@@ -143,7 +143,7 @@ export function FollowupEditorGroup({
           <span className={styles.rowHelp} aria-live="polite">
             {nextInput.dirty
               ? <HelpText state={nextInput.state} today={today} />
-              : nextHint && <span className={styles.editorHint} title={nextHint}>{nextHint}</span>}
+              : nextHint && <span className={styles.editorHint} data-tooltip={nextHint}>{nextHint}</span>}
           </span>
         ),
       }}

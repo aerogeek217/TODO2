@@ -306,7 +306,7 @@ function CheckinImportPanel() {
           type="button"
           className={styles.applyBtn}
           disabled={!reply || applyBlocked !== undefined || applying}
-          title={applyBlocked}
+          data-tooltip={applyBlocked}
           onClick={() => { void apply() }}
           data-checkin-apply=""
         >

@@ -101,7 +101,7 @@ export function ListBulkBar({ ids }: { ids: readonly number[] }) {
         <button
           type="button"
           className={styles.bulkButton}
-          title="Set due date"
+          data-tooltip="Set due date"
           aria-label="Set due date"
           onClick={() => {
             try { dateRef.current?.showPicker?.() } catch { dateRef.current?.focus() }
@@ -126,7 +126,7 @@ export function ListBulkBar({ ids }: { ids: readonly number[] }) {
         ref={followupRef}
         type="button"
         className={`${styles.bulkButton} ${open === 'followup' ? styles.bulkButtonOpen : ''}`}
-        title="Set follow-up"
+        data-tooltip="Set follow-up"
         aria-label="Set follow-up"
         onClick={() => toggle('followup')}
       >
@@ -136,7 +136,7 @@ export function ListBulkBar({ ids }: { ids: readonly number[] }) {
         ref={peopleRef}
         type="button"
         className={`${styles.bulkButton} ${open === 'people' ? styles.bulkButtonOpen : ''}`}
-        title="Assign people"
+        data-tooltip="Assign people"
         aria-label="Assign people"
         onClick={() => toggle('people')}
       >
@@ -146,7 +146,7 @@ export function ListBulkBar({ ids }: { ids: readonly number[] }) {
         ref={tagsRef}
         type="button"
         className={`${styles.bulkButton} ${open === 'tags' ? styles.bulkButtonOpen : ''}`}
-        title="Add tag"
+        data-tooltip="Add tag"
         aria-label="Add tag"
         onClick={() => toggle('tags')}
       >
@@ -155,7 +155,7 @@ export function ListBulkBar({ ids }: { ids: readonly number[] }) {
       <button
         type="button"
         className={styles.bulkButton}
-        title={`${allCompleted ? 'Reopen' : 'Complete'} (Space)`}
+        data-tooltip={`${allCompleted ? 'Reopen' : 'Complete'} (Space)`}
         aria-label={allCompleted ? 'Reopen' : 'Complete'}
         onClick={() => useUIStore.getState().showBulkConfirmation(allCompleted ? 'uncomplete' : 'complete', list)}
       >
@@ -165,7 +165,7 @@ export function ListBulkBar({ ids }: { ids: readonly number[] }) {
         ref={moreRef}
         type="button"
         className={`${styles.bulkButton} ${open === 'more' ? styles.bulkButtonOpen : ''}`}
-        title="More"
+        data-tooltip="More"
         aria-label="More"
         aria-haspopup="menu"
         aria-expanded={open === 'more'}
@@ -176,7 +176,7 @@ export function ListBulkBar({ ids }: { ids: readonly number[] }) {
       <button
         type="button"
         className={`${styles.bulkButton} ${styles.bulkDanger}`}
-        title="Delete (Del)"
+        data-tooltip="Delete (Del)"
         aria-label="Delete"
         onClick={() => useUIStore.getState().showBulkConfirmation('delete', list)}
       >
@@ -186,7 +186,7 @@ export function ListBulkBar({ ids }: { ids: readonly number[] }) {
       <button
         type="button"
         className={styles.bulkButton}
-        title="Clear selection (Esc)"
+        data-tooltip="Clear selection (Esc)"
         aria-label="Clear selection"
         onClick={() => useUIStore.getState().clearSelection()}
       >

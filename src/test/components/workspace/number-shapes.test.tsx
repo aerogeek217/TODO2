@@ -229,7 +229,7 @@ describe('Against a goal', () => {
   it('a weekly goal marks its pace (Saturday, the last day of a Sunday week: the whole goal)', () => {
     setup(shape({ show: 'goal', goal: { atLeast: 4, period: 'week' } }))
     const tick = within(number()).getByTestId('number-goal-pace')
-    expect(tick.getAttribute('title')).toBe('Pace: 4 by the end of Sat')
+    expect(tick.getAttribute('data-tooltip')).toBe('Pace: 4 by the end of Sat')
     expect(tick.style.left).toBe('100%')
     expect(within(number()).getByTestId('number-goal-state').textContent).toBe('Behind pace (Sat)')
     expect(number().dataset.lit).toBe('true')
@@ -246,7 +246,7 @@ describe('Against a goal', () => {
     expect(number().dataset.lit).toBeUndefined()
     expect(within(number()).getByTestId('number-goal-bar').dataset.goalState).toBe('onPace')
     // The tick still marks the day's share.
-    expect(within(number()).getByTestId('number-goal-pace').getAttribute('title')).toBe('Pace: 0.6 by the end of Sun')
+    expect(within(number()).getByTestId('number-goal-pace').getAttribute('data-tooltip')).toBe('Pace: 0.6 by the end of Sun')
     cleanup()
     vi.setSystemTime(new Date(2026, 9, 12, 0, 1))
     setup(shape({ show: 'goal', goal: { atLeast: 4, period: 'week' }, filter: nothing }))
@@ -281,7 +281,7 @@ describe('A group', () => {
     setup(numberTab('n', 'open', { name: 'Due', show: 'group', items }), undefined, 'small')
     expect(within(number()).getAllByTestId('number-group-count')).toHaveLength(2)
     expect(number().textContent).not.toContain('Open')
-    expect(number().querySelector('[data-group-item="0"]')!.getAttribute('title')).toBe('Open')
+    expect(number().querySelector('[data-group-item="0"]')!.getAttribute('data-tooltip')).toBe('Open')
   })
 })
 

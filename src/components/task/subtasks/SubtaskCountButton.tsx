@@ -79,7 +79,7 @@ export function SubtaskAddButton({ open, buttonRef, onClick, className }: {
       data-subtask-add=""
       data-open={open ? '' : undefined}
       aria-label="Add subtasks"
-      title="Add subtasks"
+      data-tooltip="Add subtasks"
       aria-haspopup="dialog"
       aria-expanded={open}
       onClick={(e) => {

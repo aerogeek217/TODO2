@@ -216,7 +216,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
           type="button"
           className={styles.iconButton}
           aria-label={`Previous ${unit}`}
-          title={`Previous ${unit}`}
+          data-tooltip={`Previous ${unit}`}
           onClick={() => setOffset(offset - 1)}
         >
           <ChevronLeftIcon size={14} />
@@ -225,14 +225,14 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
           type="button"
           className={styles.iconButton}
           aria-label={`Next ${unit}`}
-          title={`Next ${unit}`}
+          data-tooltip={`Next ${unit}`}
           onClick={() => setOffset(offset + 1)}
         >
           <ChevronRightIcon size={14} />
         </button>
         <span className={styles.rangeLabel} aria-live="polite" data-testid="calendar-range-label">{label}</span>
         {narrow && !isMobile ? (
-          <button type="button" className={styles.iconButton} aria-label="Today" title="Today" onClick={() => setOffset(0)}>
+          <button type="button" className={styles.iconButton} aria-label="Today" data-tooltip="Today" onClick={() => setOffset(0)}>
             <TodayIcon size={14} />
           </button>
         ) : (

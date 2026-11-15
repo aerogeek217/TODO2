@@ -198,7 +198,7 @@ test('a recurring occurrence does not drag; clicking it opens the task', async (
   })
   const occurrence = (await day(page, 0)).locator('[data-cal-entry="due"][data-virtual="true"]')
   await expect(occurrence).toContainText('1:1 with Ben')
-  await expect(occurrence).toHaveAttribute('title', /Occurrences can’t be dragged/)
+  await expect(occurrence).toHaveAttribute('data-tooltip', /Occurrences can’t be dragged/)
   const target = calendar(page).locator('[data-day]:not([data-today])').first()
   await dragOnto(page, occurrence, target, async () => {
     await expect(page.locator('[data-drag-overlay]')).toHaveCount(0)

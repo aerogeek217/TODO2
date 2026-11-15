@@ -61,7 +61,7 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
       data-state={state}
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-virtual={entry.isVirtual ? 'true' : undefined}
-      title={ghost ? undefined : calendarEntryTitle(entry, today)}
+      data-tooltip={ghost ? undefined : calendarEntryTitle(entry, today)}
       onClick={(e) => {
         e.stopPropagation()
         onOpen?.(todo.id)

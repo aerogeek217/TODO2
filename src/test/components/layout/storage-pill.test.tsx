@@ -177,7 +177,7 @@ describe('StoragePill', () => {
     render(<StoragePill />)
     const pill = screen.getByRole('button', { name: 'Storage: Synced' })
     expect(pill).toHaveTextContent(/^Synced$/)
-    expect(pill).toHaveAttribute('title', 'Syncing to todo2.json')
+    expect(pill).toHaveAttribute('data-tooltip', 'Syncing to todo2.json')
     fireEvent.click(pill)
     const popover = screen.getByRole('dialog', { name: 'Syncing to todo2.json' })
     expect(popover).toHaveTextContent('Last saved 2m ago.')

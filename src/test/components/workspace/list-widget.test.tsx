@@ -24,7 +24,7 @@ import type { PersistedListDefinition } from '../../../models/list-definition'
 import { createTab, type ListTab } from '../../../models/workspace-layout'
 import type { Person, TodoPredicate } from '../../../models'
 import { db } from '../../../data/database'
-import { clearFilterStore, makeTodo, resetEntityStores, stubClipboard } from '../../helpers'
+import { clearFilterStore, getByTooltip, makeTodo, queryByTooltip, resetEntityStores, stubClipboard } from '../../helpers'
 import { WidgetFaceContext, type WidgetFaceHost } from '../../../hooks/use-widget-face'
 
 const alice: Person = { id: 1, name: 'Alice', initials: 'AL', color: '#c33' }
@@ -354,10 +354,10 @@ describe('ListWidget', () => {
 
   it('Add task shows only when the merged predicate names people / status / tags', () => {
     setup(def())
-    expect(screen.queryByTitle('Add a task to this list')).toBeNull()
+    expect(queryByTooltip(document.body, 'Add a task to this list')).toBeNull()
     cleanup()
     setup(def({}, { personIds: [1] }))
-    expect(screen.getByTitle('Add a task to this list')).toBeInTheDocument()
+    expect(getByTooltip(document.body, 'Add a task to this list')).toBeInTheDocument()
   })
 })
 
@@ -626,7 +626,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     const urgent = screen.getByRole('menuitemcheckbox', { name: /Urgent/ })
     expect(urgent).toHaveAttribute('aria-checked', 'false')
     expect(urgent).toHaveTextContent('By due date')
-    expect(urgent).toHaveAttribute('title', '1 of 2 tasks is urgent by its due date, flagged or not.')
+    expect(urgent).toHaveAttribute('data-tooltip', '1 of 2 tasks is urgent by its due date, flagged or not.')
     await act(async () => { fireEvent.click(urgent) })
     expect(useTodoStore.getState().todos.map((t) => t.urgent)).toEqual([true, true])
     openMore()

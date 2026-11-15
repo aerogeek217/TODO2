@@ -339,7 +339,7 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
         <div className={styles.header}>
           <span className={styles.title}>{DATE_FIELD_LABELS[field]}</span>
           {on && clause
-            ? <span className={styles.words} title={describeDateMatch(clause, field)}>{describeDateMatch(clause, field)}</span>
+            ? <span className={styles.words} data-tooltip={describeDateMatch(clause, field)}>{describeDateMatch(clause, field)}</span>
             : <span className={styles.off}>Not filtering</span>}
         </div>
         <div className={styles.showRow}>

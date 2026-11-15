@@ -94,7 +94,7 @@ export function FactDateField({ date, kind, tone, empty, showWords = true, testI
 }) {
   const title = useFactDateTitle(date, kind)
   return (
-    <div className={styles.dateField} data-fact-date-field="" data-words={showWords || undefined} data-testid={testId} title={title}>
+    <div className={styles.dateField} data-fact-date-field="" data-words={showWords || undefined} data-testid={testId} data-tooltip={title}>
       {children}
       {showWords && (
         <span className={styles.dateFieldWords} aria-hidden="true">

@@ -77,8 +77,8 @@ export function Clickable({ as, className, label, title, onClick, children, ...r
   children: ReactNode
 } & Record<`data-${string}`, string | undefined>) {
   if (onClick) {
-    return <button type="button" className={className} aria-label={label} title={title} onClick={onClick} {...rest}>{children}</button>
+    return <button type="button" className={className} aria-label={label} data-tooltip={title} onClick={onClick} {...rest}>{children}</button>
   }
   const Tag = as
-  return <Tag className={className} title={title} {...rest}>{children}</Tag>
+  return <Tag className={className} data-tooltip={title} {...rest}>{children}</Tag>
 }

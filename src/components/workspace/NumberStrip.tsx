@@ -67,7 +67,7 @@ export function NumberStrip({ cell, smallFaces, dragging, menuTabId, onMore, onC
         type="button"
         className={styles.add}
         aria-label="Add number"
-        title="Add number"
+        data-tooltip="Add number"
         onClick={(e) => {
           e.preventDefault()
           onAdd()
@@ -158,7 +158,7 @@ function NumberSlot({ cell, tab, smallFaces, dragging, menuOpen, onMore, onClose
         type="button"
         className={styles.close}
         aria-label={`Close “${title}”`}
-        title={`Close “${title}”`}
+        data-tooltip={`Close “${title}”`}
         onClick={(e) => {
           e.preventDefault()
           onClose(tab.id)

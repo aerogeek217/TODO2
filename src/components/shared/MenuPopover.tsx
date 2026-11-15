@@ -633,7 +633,7 @@ function StepButton({ label, onStep, children }: { label: string; onStep?: () =>
       role="menuitem"
       className={styles.stepButton}
       aria-label={label}
-      title={label}
+      data-tooltip={label}
       aria-disabled={onStep ? undefined : true}
       onClick={() => onStep?.()}
     >
@@ -711,7 +711,7 @@ function MenuItemButton({ entry, index: i, expanded, gutter, onSelect, onHoverIt
         data-menu-index={i}
         data-menu-label={entry.label}
         data-menu-drag={entry.dragId}
-        title={entry.title}
+        data-tooltip={entry.title}
         className={[
           styles.item,
           entry.danger ? styles.danger : '',

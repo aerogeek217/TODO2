@@ -141,7 +141,8 @@ export function TopBar() {
             className={`${styles.gear} ${settingsOpen ? styles.gearOpen : ''}`}
             onClick={() => useUIStore.getState().openSettings()}
             aria-label="Settings"
-            title={`Settings (${settingsKeys})`}
+            data-tooltip="Settings"
+            data-tooltip-shortcut={settingsKeys}
           >
             <GearIcon />
           </button>
@@ -150,7 +151,8 @@ export function TopBar() {
             className={styles.newTask}
             onClick={() => useUIStore.getState().openQuickAdd()}
             aria-label="New task"
-            title={`New task (${quickAddKeys})`}
+            data-tooltip="New task"
+            data-tooltip-shortcut={quickAddKeys}
           >
             <PlusIcon size={14} strokeWidth={2} />
           </button>

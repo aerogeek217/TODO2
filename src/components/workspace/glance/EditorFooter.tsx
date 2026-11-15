@@ -19,7 +19,7 @@ export function EditorFooter({ draft }: { draft: Pick<EditorDraft<object>, 'chan
         type="button"
         className={`${styles.button} ${styles.save}`}
         disabled={!draft.canSave}
-        title={unreadable ? SAVE_UNREADABLE_TITLE : undefined}
+        data-tooltip={unreadable ? SAVE_UNREADABLE_TITLE : undefined}
         onClick={draft.save}
       >
         Save

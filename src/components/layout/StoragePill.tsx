@@ -129,7 +129,7 @@ export function StoragePill() {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={storagePillLabel(state)}
-        title={state.kind === 'syncing' ? `Syncing to ${fileName ?? 'file'}` : state.text}
+        data-tooltip={state.kind === 'syncing' ? `Syncing to ${fileName ?? 'file'}` : state.text}
         onClick={() => setOpen((o) => !o)}
         data-testid="storage-pill"
         data-state={state.kind}

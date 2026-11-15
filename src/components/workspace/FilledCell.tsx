@@ -358,7 +358,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
               className={styles.expand}
               aria-label="Expand row"
               aria-expanded={false}
-              title="Expand row"
+              data-tooltip="Expand row"
               onClick={() => setRowCollapsed(false)}
             >
               <ChevronDownIcon size={14} />
@@ -381,7 +381,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
                   className={`${styles.action} ${styles.openLarger}`}
                   aria-label={OPEN_LARGER_LABEL}
                   aria-haspopup="dialog"
-                  title={OPEN_LARGER_LABEL}
+                  data-tooltip={OPEN_LARGER_LABEL}
                   data-testid="open-larger"
                   onClick={onOpenLarger}
                 >
@@ -393,7 +393,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
                 className={styles.action}
                 aria-label="Collapse row"
                 aria-expanded={true}
-                title="Collapse"
+                data-tooltip="Collapse"
                 onClick={() => setRowCollapsed(true)}
               >
                 <ChevronUpIcon />
@@ -405,7 +405,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
                 aria-label="Cell options"
                 aria-haspopup="menu"
                 aria-expanded={menu != null && !gripOpen}
-                title="Cell options"
+                data-tooltip="Cell options"
                 onClick={() => toggleMenu('widget', active?.id)}
               >
                 <MoreIcon />

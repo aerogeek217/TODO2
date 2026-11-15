@@ -84,10 +84,10 @@ export function AppendImportDialog({ fileName, candidates, busy, error, onConfir
             return (
               <li key={uid} className={styles.row} data-testid="append-import-row" data-duplicate={c.duplicate ? c.duplicate.reason : 'none'}>
                 <div className={styles.rowMain}>
-                  <span className={styles.rowTitle} title={c.incoming.title}>
+                  <span className={styles.rowTitle} data-tooltip={c.incoming.title}>
                     {c.incoming.isCompleted ? '✓ ' : ''}{c.incoming.title}
                   </span>
-                  <span className={styles.rowMeta} title={matchLabel(c)}>{matchLabel(c)}</span>
+                  <span className={styles.rowMeta} data-tooltip={matchLabel(c)}>{matchLabel(c)}</span>
                 </div>
                 {c.duplicate ? (
                   <div className={styles.choice} role="group" aria-label={`What to do with “${c.incoming.title}”`}>

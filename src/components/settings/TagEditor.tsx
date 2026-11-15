@@ -166,7 +166,7 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
         <span className={styles.nameEditable} onClick={() => startEdit(tag)}>{tag.name}</span>
         <TaskCount count={count} />
         <div className={styles.actions}>
-          <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDelete(tag.id!)} title="Delete">&times;</button>
+          <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDelete(tag.id!)} aria-label="Delete" data-tooltip="Delete">&times;</button>
         </div>
       </div>
     )

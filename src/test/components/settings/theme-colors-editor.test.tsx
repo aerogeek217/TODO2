@@ -103,8 +103,8 @@ describe('ThemeColorsEditor', () => {
       expect(document.querySelectorAll('button[aria-label^="Reset "]')).toHaveLength(2)
       expect(reset('Urgent priority')).toHaveTextContent(/^Reset$/)
       // What it does, in the tooltip: a priority follows a color; any other has a default.
-      expect(reset('Urgent priority')).toHaveAttribute('title', 'Use the Danger accent color again')
-      expect(reset('Surface')).toHaveAttribute('title', 'Use the default color again')
+      expect(reset('Urgent priority')).toHaveAttribute('data-tooltip', 'Use the Danger accent color again')
+      expect(reset('Surface')).toHaveAttribute('data-tooltip', 'Use the default color again')
     })
 
     it('a color set in the editor gets its Reset at once', async () => {

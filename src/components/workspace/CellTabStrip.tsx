@@ -135,7 +135,7 @@ function Tab({ tab, badge, active, collapsed, count, touch, onActivate, onClose,
         badge ? styles.hasBadge : '',
       ].join(' ')}
       style={size}
-      title={[title, ...(badge?.summary ?? [])].join('\n')}
+      data-tooltip={[title, ...(badge?.summary ?? [])].join('\n')}
       onClick={onActivate}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -164,7 +164,7 @@ function Tab({ tab, badge, active, collapsed, count, touch, onActivate, onClose,
           type="button"
           className={styles.close}
           aria-label={`Close ${title}`}
-          title="Close tab"
+          data-tooltip="Close tab"
           tabIndex={-1}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onClose?.() }}
@@ -401,7 +401,7 @@ export function CellTabStrip({
           type="button"
           className={styles.add}
           aria-label="Add widget as tab"
-          title="Add widget as tab"
+          data-tooltip="Add widget as tab"
           aria-haspopup="menu"
           onClick={() => onAddTab(addRef)}
         >

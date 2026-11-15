@@ -171,7 +171,7 @@ export function SubtaskChecklist({
           type="button"
           ref={(el) => { if (el) titleButtons.current.set(item.id, el); else titleButtons.current.delete(item.id) }}
           className={styles.title}
-          title={item.title}
+          data-tooltip={item.title}
           onClick={() => setRenaming(item.id)}
           aria-label={`Rename ${item.title}`}
         >

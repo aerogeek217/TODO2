@@ -175,7 +175,7 @@ export function PredicateChips(props: PredicateChipsProps) {
     body = (
       <div className={styles.expressionLocked} data-testid="expression-locked">
         <span className={styles.expressionLockedTitle}>This filter is an expression</span>
-        <span className={styles.expressionLockedText} title={text}>{text}</span>
+        <span className={styles.expressionLockedText} data-tooltip={text}>{text}</span>
         <div className={styles.expressionLockedButtons}>
           <button
             type="button"

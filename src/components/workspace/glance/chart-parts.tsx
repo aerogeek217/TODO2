@@ -70,7 +70,7 @@ export function SortHeading({ by, label, title, active, reversed, onSort, classN
   const descending = by === 'name' ? reversed : !reversed
   return (
     <span role="columnheader" className={className} aria-sort={active ? (descending ? 'descending' : 'ascending') : 'none'} {...data}>
-      <button type="button" className={classes.button} data-sort-key={by} aria-pressed={active} title={title} onClick={() => onSort(by)}>
+      <button type="button" className={classes.button} data-sort-key={by} aria-pressed={active} data-tooltip={title} onClick={() => onSort(by)}>
         <span className={classes.label}>{label}</span>
         {active && <span className={classes.mark} aria-hidden="true">{descending ? '▼' : '▲'}</span>}
       </button>

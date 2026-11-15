@@ -414,7 +414,7 @@ describe('the table’s columns', () => {
     setup(breakdown({ columns: [{ id: 'col-a', name: 'Waiting on someone else', color: '#7ec4bc', filter: { ...current0().config.filter }, litWhen: 'never' }] }))
     const table = document.querySelector<HTMLElement>('[role="table"]')!
     expect(table.style.getPropertyValue('--bd-cols')).toBe('minmax(0, 1fr) 84px 44px 40px')
-    expect(document.querySelector<HTMLElement>('[data-sort-key="col-a"]')!.title).toBe('Waiting on someone else')
+    expect(document.querySelector<HTMLElement>('[data-sort-key="col-a"]')!.getAttribute('data-tooltip')).toBe('Waiting on someone else')
   })
 
   it('a priority split keeps its rings on the row names', () => {

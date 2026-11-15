@@ -100,7 +100,7 @@ export function PurgeCompletedDialog({ tasks, retentionDays, onDone, onDismiss }
           {tasks.map((t) => (
             <li key={t.id} className={styles.row}>
               <div className={styles.rowMain}>
-                <span className={styles.rowTitle} title={t.title}>{t.title}</span>
+                <span className={styles.rowTitle} data-tooltip={t.title}>{t.title}</span>
                 <span className={styles.rowMeta}>{completedLabel(t)}</span>
               </div>
             </li>

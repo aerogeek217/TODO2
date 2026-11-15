@@ -42,7 +42,8 @@ describe('TopBar — app shell', () => {
   it('the gear opens Settings, without leaving the route', () => {
     renderBar()
     const gear = screen.getByRole('button', { name: 'Settings' })
-    expect(gear).toHaveAttribute('title', 'Settings (G then S)')
+    expect(gear).toHaveAttribute('data-tooltip', 'Settings')
+    expect(gear).toHaveAttribute('data-tooltip-shortcut', 'G then S')
     fireEvent.click(gear)
     expect(useUIStore.getState().settingsOpen).toBe(true)
   })

@@ -121,7 +121,7 @@ describe('CalendarWidget', () => {
     expect(own.getAttribute('aria-roledescription')).toBe('draggable')
     expect(occurrence.getAttribute('data-virtual')).toBe('true')
     expect(occurrence.getAttribute('aria-roledescription')).toBeNull()
-    expect(occurrence.getAttribute('title')).toContain('Repeats every Monday')
+    expect(occurrence.getAttribute('data-tooltip')).toContain('Repeats every Monday')
   })
 
   it('clicking an entry (or an occurrence) opens the task', () => {
