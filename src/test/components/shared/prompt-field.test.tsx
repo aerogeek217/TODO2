@@ -106,6 +106,54 @@ describe('PromptField', () => {
     expect(screen.getByRole('listbox')).toBeInTheDocument()
   })
 
+  describe('the option list closes behind the focus (cr34 U10)', () => {
+    /** The focus moving from the field's input to `to` (Tab, Shift+Tab, a control focused from elsewhere). */
+    const moveFocus = (to: Element | null) => fireEvent.blur(input(), { relatedTarget: to })
+
+    it('the focus moving on to a control outside the row closes it; coming back opens it again', () => {
+      render(<><Field /><button type="button">After</button></>)
+      fireEvent.focus(input())
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
+      moveFocus(screen.getByRole('button', { name: 'After' }))
+      expect(screen.queryByRole('listbox')).toBeNull()
+      expect(input()).toHaveAttribute('aria-expanded', 'false')
+      fireEvent.focus(input())
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
+    })
+
+    it('typed text goes with the list, as on Esc or a press outside', () => {
+      render(<><Field /><button type="button">After</button></>)
+      fireEvent.change(input(), { target: { value: 'mar' } })
+      // Shift+Tab with a query typed moves on too (only Tab accepts the match).
+      moveFocus(screen.getByRole('button', { name: 'After' }))
+      expect(screen.queryByRole('listbox')).toBeNull()
+      expect(input()).toHaveValue('')
+    })
+
+    it('the focus staying in the field (a chip’s ×) or going into the list leaves it open', () => {
+      render(<Field initial={[1]} />)
+      fireEvent.focus(input())
+      moveFocus(screen.getByRole('button', { name: 'Remove Marcus Chen' }))
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
+      moveFocus(screen.getAllByRole('option')[0]!)
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
+    })
+
+    it('content at the row’s end is outside the field: the focus going there closes it', () => {
+      render(<Field trailing={<button type="button">Switch</button>} />)
+      fireEvent.focus(input())
+      moveFocus(screen.getByRole('button', { name: 'Switch' }))
+      expect(screen.queryByRole('listbox')).toBeNull()
+    })
+
+    it('a blur to nowhere (the list’s scrollbar pressed, the window left) leaves it open', () => {
+      render(<Field />)
+      fireEvent.focus(input())
+      moveFocus(null)
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
+    })
+  })
+
   it('Esc is the field’s own — it closes the option list — so a popover the row sits in stays open', () => {
     render(<Field />)
     expect(input()).toHaveAttribute(ESCAPE_OWN_ATTR)
