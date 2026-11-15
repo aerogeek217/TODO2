@@ -13,7 +13,7 @@ import { useTagStore } from '../../../../stores/tag-store'
 import { useUIStore } from '../../../../stores/ui-store'
 import { makePerson } from '../../../helpers'
 import { cell, grid } from '../../../helpers/layout-builders'
-import { openFieldPicker } from './filter-menu-helpers'
+import { openFieldPicker, openFilterMenu } from './filter-menu-helpers'
 
 /**
  * The Is / Is not toggle in the People / Status / Tags pickers — the top
@@ -67,7 +67,7 @@ describe('the top bar’s Status picker', () => {
   it('Is not keeps the ticks and writes the switch; Is takes it back', () => {
     const updates: TodoPredicate[] = []
     render(<TopBar initial={{ ...emptyPredicate(), statusIds: [2] }} updates={updates} />)
-    fireEvent.click(screen.getByRole('button', { name: /^Status filter/ }))
+    openFieldPicker('Status')
     choose('Status', 'Is not')
     expect(updates.at(-1)).toMatchObject({ statusIds: [2], negate: { statusIds: true } })
     expect(screen.getByRole('button', { name: /^Status filter: not Waiting/ })).toBeInTheDocument()
@@ -79,7 +79,7 @@ describe('the top bar’s Status picker', () => {
   it('in Is not, Select all ticks every value and Deselect all is no filter', () => {
     const updates: TodoPredicate[] = []
     render(<TopBar initial={{ ...emptyPredicate(), statusIds: [2], negate: { statusIds: true } }} updates={updates} />)
-    fireEvent.click(screen.getByRole('button', { name: /^Status filter/ }))
+    openFieldPicker('Status')
     fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
     expect(updates.at(-1)).toMatchObject({ statusIds: [0, 1, 2], negate: { statusIds: true } })
     fireEvent.click(screen.getByRole('button', { name: 'Deselect all' }))
@@ -90,6 +90,7 @@ describe('the top bar’s Status picker', () => {
   it('the field’s × clears it and its switch, replacing the filter rather than patching it', () => {
     const updates: TodoPredicate[] = []
     render(<TopBar initial={{ ...emptyPredicate(), statusIds: [2], tags: [10], negate: { statusIds: true } }} updates={updates} />)
+    openFilterMenu()
     fireEvent.click(screen.getByRole('button', { name: 'Clear status filter' }))
     expect(updates.at(-1)?.statusIds).toBeNull()
     expect(updates.at(-1)?.tags).toEqual([10])
@@ -175,8 +176,8 @@ describe('the Tags pickers’ No tags row', () => {
     expect(updates.at(-1)).toMatchObject({ tags: [0] })
     choose('Tags', 'Is not')
     expect(updates.at(-1)).toMatchObject({ tags: [0], negate: { tags: true } })
-    // The menu's row and the chip in the bar.
-    expect(screen.getAllByRole('button', { name: /^Tags filter: has a tag/ })).toHaveLength(2)
+    // The menu's row (no chip in the bar: the field's pills are).
+    expect(screen.getAllByRole('button', { name: /^Tags filter: has a tag/ })).toHaveLength(1)
   })
 
   it('a list’s Tags picker offers it too, and a search for “no” finds it', () => {

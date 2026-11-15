@@ -58,8 +58,8 @@ describe('TopBar — app shell', () => {
     expect(tray).not.toHaveAttribute('data-filtered')
     act(() => useFilterStore.getState().setShowCompleted(true))
     expect(tray).toHaveAttribute('data-filtered', 'true')
-    // Show completed's chip: a click hides them again.
-    fireEvent.click(within(tray).getByRole('button', { name: 'Show completed' }))
+    // Show completed's pill (`done`): its × hides them again.
+    fireEvent.click(within(tray).getByRole('button', { name: 'Remove done' }))
     expect(tray).not.toHaveAttribute('data-filtered')
   })
 
@@ -70,21 +70,29 @@ describe('TopBar — app shell', () => {
     expect(search).not.toHaveAttribute('aria-controls')
   })
 
-  it('the Filter button follows the field; its menu’s Clear all filters clears every screen filter; no Clear all in the bar', () => {
+  it('the funnel leads the tray: dim and inert with no filter, one click clears every one; the Filter button follows the field', () => {
     renderBar()
     const tray = screen.getByRole('group', { name: 'Screen filters — apply to every widget' })
+    const funnel = within(tray).getByRole('button', { name: 'Clear all filters' })
     const search = within(tray).getByRole('textbox', { name: 'Filter tasks' })
     const filter = within(tray).getByRole('button', { name: 'Filter' })
+    expect(tray.firstElementChild).toBe(funnel)
     expect(search.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(within(tray).queryByRole('button', { name: 'Clear all filters' })).toBeNull()
+    expect(funnel).toBeDisabled()
     act(() => {
       useFilterStore.getState().setPersonIds(new Set([1]))
       useFilterStore.getState().setShowCompleted(true)
+      useFilterStore.getState().applyExpression({ kind: 'or', items: [{ kind: 'tag', id: 1 }, { kind: 'tag', id: 2 }] }, true)
     })
-    expect(within(tray).queryByRole('button', { name: 'Clear all filters' })).toBeNull()
-    fireEvent.click(within(tray).getByRole('button', { name: /^Filter, \d+ active$/ }))
-    fireEvent.click(within(screen.getByRole('group', { name: 'Screen filters' })).getByRole('button', { name: 'Clear all filters' }))
+    expect(funnel).toBeEnabled()
+    fireEvent.click(funnel)
     expect(useFilterStore.getState().isActive).toBe(false)
+    expect(useFilterStore.getState().filters.expression).toBeUndefined()
+    expect(funnel).toBeDisabled()
+    // The Filter menu keeps its own Clear all filters.
+    act(() => useFilterStore.getState().setPersonIds(new Set([1])))
+    fireEvent.click(within(tray).getByRole('button', { name: /^Filter/ }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Screen filters' })).getByRole('button', { name: 'Clear all filters' }))
     expect(useFilterStore.getState().filters.personIds).toBeNull()
     expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
   })

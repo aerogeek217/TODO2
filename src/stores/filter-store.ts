@@ -31,7 +31,7 @@ interface BoxChip {
 }
 
 /** The screen filter as one expression: what the top bar's field shows and edits (`fieldFilter`). */
-export interface ScreenFieldFilter {
+interface ScreenFieldFilter {
   expression: FilterExpr | null
   showCompleted: boolean
 }

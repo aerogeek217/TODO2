@@ -8,7 +8,6 @@ import {
   chipKey,
   clearChipField,
   datesSpokenValue,
-  datesTooltip,
   datesValue,
   describeAnchor,
   describeFilters,
@@ -317,19 +316,6 @@ describe('a date range chip’s tooltip spells its exact days (cr25 P7)', () => 
     expect(filterChips({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: 7 } } } }, names)[0]?.tooltip).toBeUndefined()
   })
 
-  it('the Dates button: one type → the chip’s tooltip; from two on, each range’s days after a ·', () => {
-    const due = { match: 'range' as const, start: { kind: 'relative' as const, token: 'today' as const }, end: { kind: 'offset' as const, days: 14 } }
-    const notLastWeek = { match: 'range' as const, start: { kind: 'offset' as const, days: -7 }, end: { kind: 'relative' as const, token: 'today' as const }, not: true as const }
-    expect(plain(datesTooltip({ deadline: due }, day))).toBe('Due: within the next 14 days\nDue from Mon 2 Nov through Mon 16 Nov')
-    expect(datesTooltip({ deadline: { match: 'set' } }, day)).toBeNull()
-    expect(datesTooltip({ deadline: due })).toBeNull()
-    expect(plain(datesTooltip({ deadline: due, lastFollowup: notLastWeek, followup: { match: 'set' } }, day))).toBe([
-      'Due: within the next 14 days · from Mon 2 Nov through Mon 16 Nov',
-      'Next follow-up: any date',
-      'Last follow-up: not within the last 7 days · not from 10/26 through Mon 2 Nov',
-      'Tasks must match all · × clears all',
-    ].join('\n'))
-  })
 })
 
 describe('an "is not" date range in words (cr25 P4)', () => {
@@ -356,13 +342,10 @@ describe('an "is not" date range in words (cr25 P4)', () => {
     ])
   })
 
-  it('every summary built from the chips says it: the line, the hint, the Dates button', () => {
+  it('every summary built from the chips says it: the line, the Dates value', () => {
     const p: TodoPredicate = { ...emptyPredicate(), dates: { lastFollowup: notLastWeek, followup: notNext2Weeks } }
     expect(describeFilters(predicateLineItems(p, names))).toBe('Next follow-up not within the next 14 days · Last follow-up not within the last 7 days')
     expect(datesValue({ followup: notNext2Weeks })).toBe('Next follow-up not within the next 14 days')
-    expect(datesTooltip({ lastFollowup: notLastWeek, followup: notNext2Weeks })).toBe(
-      'Next follow-up: not within the next 14 days\nLast follow-up: not within the last 7 days\nTasks must match both · × clears both',
-    )
     expect(datesSpokenValue({ followup: notNext2Weeks })).toBe('Next follow-up not within the next 14 days')
   })
 })
@@ -408,7 +391,6 @@ describe('the Dates value (top-bar button, Filters menu, phone sheet)', () => {
   it('is null when no date type filters', () => {
     expect(datesValue({})).toBeNull()
     expect(datesValue({ deadline: { match: 'range', start: null, end: null } })).toBeNull()
-    expect(datesTooltip({})).toBeNull()
   })
 
   it('one type → its clause in words', () => {
@@ -429,13 +411,6 @@ describe('the Dates value (top-bar button, Filters menu, phone sheet)', () => {
   it('three or four → the first + N', () => {
     expect(datesValue({ created, deadline: due, modified: created })).toBe('Due + 2')
     expect(datesValue({ followup: { match: 'set' }, created, deadline: due, modified: created })).toBe('Due + 3')
-  })
-
-  it('the tooltip lists each type from two on, then how they combine', () => {
-    expect(datesTooltip({ deadline: due })).toBeNull()
-    expect(datesTooltip({ deadline: due, created })).toBe('Due: today – end of next week\nCreated: on or after start of month\nTasks must match both · × clears both')
-    expect(datesTooltip({ deadline: due, created, followup: { match: 'set' } }))
-      .toBe('Due: today – end of next week\nNext follow-up: any date\nCreated: on or after start of month\nTasks must match all · × clears all')
   })
 
   it('the spoken value lists every type', () => {

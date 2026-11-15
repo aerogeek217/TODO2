@@ -240,29 +240,6 @@ export function datesValue(dates: DateFilters): string | null {
   return `${name(first.field)} + ${clauses.length - 1}`
 }
 
-/**
- * The Dates button's tooltip. One date type: given `day`, its range's chip
- * tooltip (its words, then its exact days); else `null`. From two on: a line
- * per type (`Due: within the next 14 days`; given `day`, a range's days
- * after a `·` — `· from Mon 2 Nov through Mon 16 Nov`, `· not from …`),
- * then how they combine.
- */
-export function datesTooltip(dates: DateFilters, day?: ChipDay): string | null {
-  const clauses = dateClauses(dates)
-  const [first, second] = clauses
-  if (!first) return null
-  if (!second) return day ? dateRangeTooltip(first.field, first.match, day) ?? null : null
-  const both = clauses.length === 2 ? 'both' : 'all'
-  const days = (m: DateMatch) => {
-    if (!day || m.match !== 'range') return ''
-    return ` · ${m.not === true ? 'not ' : ''}${rangeDaysWords(m.start, m.end, day)}`
-  }
-  return [
-    ...clauses.map((c) => `${DATE_FIELD_LABELS_SHORT[c.field]}: ${c.words}${days(c.match)}`),
-    `Tasks must match ${both} · × clears ${both}`,
-  ].join('\n')
-}
-
 /** Every date type's clause for a screen reader: `Due within the next 14 days; Created on or after start of month`. */
 export function datesSpokenValue(dates: DateFilters): string | null {
   const clauses = dateClauses(dates)
