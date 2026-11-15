@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import { byLayoutOrder, layoutRepository, type ListCopy, type OwnedListsRemoved, type ReadLayout } from '../data/layout-repository'
+import { byLayoutOrder, layoutRepository, type OwnedListsRemoved, type ReadLayout } from '../data/layout-repository'
 import { trackWrite } from './store-helpers'
-import { ownerLayoutId } from '../models/list-definition'
+import { applyRemoved, foreignListRefs, ownedListCopies, pruneOwnedLists, restoreLists } from './layout-lists'
+import { closeCellDescription, tabName } from './layout-step-names'
 import { UndoGone, UndoRefused, useUndoStore, type UndoEntry } from './undo-store'
 import { undoable } from './undoable'
 import { editorsHoldChanges, leaveOpenEditors } from './editor-leave'
@@ -18,7 +19,6 @@ import { registerModuleReset, registerModuleSettle } from '../utils/module-reset
 import {
   LAYOUT_NAME_MAX,
   createTab,
-  kindTabTitle,
   widgetKindLabel,
   emptyLayoutBody,
   layoutBodyOf,
@@ -392,97 +392,9 @@ function reportWriteFailure(message: string, err: unknown): void {
 let firstInit: Promise<void> | null = null
 registerModuleReset(() => { firstInit = null })
 
-/**
- * The lists `next` names that `before` didn't and that belong elsewhere —
- * another layout, or no layout. A layout shows only its own
- * lists, so an edit that would show one of these is refused. A list that
- * doesn't exist (any more) isn't anyone's: a tab on it shows it as deleted.
- */
-function foreignListRefs(before: LayoutBody, next: LayoutBody, layoutId: number): number[] {
-  const had = layoutListRefs(before)
-  const added = [...layoutListRefs(next)].filter((id) => !had.has(id))
-  if (added.length === 0) return []
-  const defs = useListDefinitionStore.getState().listDefinitions
-  return added.filter((id) => {
-    const def = defs.find((d) => d.id === id)
-    return def != null && ownerLayoutId(def) !== layoutId
-  })
-}
-
-/**
- * Takes a removal of a layout's lists into the stores: the deleted ones
- * forgotten (an Edit list open on one closes, dropping its draft), the ones
- * handed to another layout read again (their owner changed).
- */
-async function applyRemoved({ deleted, handedOver }: OwnedListsRemoved): Promise<void> {
-  useListDefinitionStore.getState().forgetLists(deleted)
-  if (handedOver.length > 0) await useListDefinitionStore.getState().load()
-}
-
-/**
- * Deletes the lists layout `layoutId` owns that none of `bodies` shows,
- * nor its stored row (`layoutRepository.pruneOwnedLists`) — at launch, the
- * lists an interrupted edit left behind. A failed delete only leaves them
- * in place (hidden, unshown) until the layout's next edit.
- */
-async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promise<void> {
-  const shown = new Set(bodies.flatMap((b) => [...layoutListRefs(b)]))
-  try {
-    await applyRemoved(await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shown)))
-  } catch (err) {
-    console.warn('[workspace] removing the layout\'s unshown lists failed', err)
-  }
-}
-
-/**
- * Brings back lists a committed edit removed (with their manual order) and
- * reads the list stores again. Rejects when the write fails (the undo store
- * keeps the step); `UndoGone` when their layout is gone.
- */
-async function restoreLists(removed: OwnedListsRemoved | null): Promise<void> {
-  if (!removed || removed.rows.defs.length === 0) return
-  const back = await trackWrite(() => layoutRepository.restoreLists(removed.rows))
-  if (!back) throw new UndoGone('The lists can’t come back: their layout is gone.')
-  await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
-}
-
-/** The lists of layout `layoutId` that `body` shows, as copies for a new layout (each as saved). */
-function ownedListCopies(layoutId: number, body: LayoutBody): ListCopy[] {
-  const shown = layoutListRefs(body)
-  const copies: ListCopy[] = []
-  for (const saved of useListDefinitionStore.getState().listDefinitions) {
-    if (!shown.has(saved.id) || ownerLayoutId(saved) !== layoutId) continue
-    const { id: _id, sortOrder: _order, owner: _owner, ...def } = saved
-    void _id
-    void _order
-    void _owner
-    copies.push({ from: saved.id, def })
-  }
-  return copies
-}
-
 /** The ids of the read layouts that were repaired. */
 function repairedOf(reads: readonly ReadLayout[]): Set<number> {
   return new Set(reads.filter((r) => r.fixes.length > 0).map((r) => r.layout.id))
-}
-
-/** A tab's name in an undo step: a list tab's list (as saved), else its kind's or its own (`kindTabTitle`). */
-function tabName(layout: LayoutBody, tabId: string): string {
-  const tab = getTab(layout, tabId)
-  if (!tab) return 'widget'
-  if (tab.kind === 'lens' && tab.config.listDefinitionId != null) {
-    const id = tab.config.listDefinitionId
-    return useListDefinitionStore.getState().listDefinitions.find((d) => d.id === id)?.name ?? 'List'
-  }
-  return kindTabTitle(tab)
-}
-
-/** `Closed cell`, `Closed cell “Notes”`, `Closed cell (3 tabs)`. */
-function closeCellDescription(layout: LayoutBody, cellId: string): string {
-  const cell = layout.cells.find((c) => c.id === cellId)
-  const [first] = cell?.tabs ?? []
-  if (!cell || !first) return 'Closed cell'
-  return cell.tabs.length === 1 ? `Closed cell “${tabName(layout, first.id)}”` : `Closed cell (${cell.tabs.length} tabs)`
 }
 
 /** What one write of a layout did: whether it landed, and the lists it removed (`putAndPrune`). */
