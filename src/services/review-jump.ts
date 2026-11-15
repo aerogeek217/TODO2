@@ -147,8 +147,8 @@ export function focusReviewWidget(tabId: string): void {
     focusWait = null
     // The page is gone (the wait outlived it): nothing to focus.
     if (typeof document === 'undefined') return
-    // A stored tab id is any string: escaped, so one with a quote or a backslash still makes a selector.
-    const host = document.querySelector<HTMLElement>(attrSelector(REVIEW_WIDGET_ATTR, CSS.escape(tabId)))
+    // A stored tab id is any string: `attrSelector` escapes it, so one with a quote or a backslash still makes a selector.
+    const host = document.querySelector<HTMLElement>(attrSelector(REVIEW_WIDGET_ATTR, tabId))
     if (host) {
       const update = host.querySelector<HTMLElement>(attrSelector(REVIEW_UPDATE_ATTR))
       if (update) {

@@ -47,9 +47,13 @@ export function shortcutScope(scope: ShortcutScope): { [SHORTCUT_SCOPE_ATTR]: Sh
   return { [SHORTCUT_SCOPE_ATTR]: scope }
 }
 
-/** `[attr]`, or `[attr="value"]`. */
+/**
+ * `[attr]`, or `[attr="value"]` — `value` escaped (`CSS.escape`): pass it
+ * as it is stored. An id is any string (a quote, a backslash), which would
+ * make a selector `querySelector` throws on (cr34 S5).
+ */
 export function attrSelector(attr: string, value?: string): string {
-  return value === undefined ? `[${attr}]` : `[${attr}="${value}"]`
+  return value === undefined ? `[${attr}]` : `[${attr}="${CSS.escape(value)}"]`
 }
 
 /** The task ids of the task rows / entries under `root`, in document order. */
@@ -86,7 +90,7 @@ export const WIDGET_POPUP_ATTR = 'data-widget-popup'
 
 /** The widget popup's panel while it shows tab `tabId`, else null. */
 export function widgetPopupOf(tabId: string): HTMLElement | null {
-  return document.querySelector<HTMLElement>(attrSelector(WIDGET_POPUP_ATTR, CSS.escape(tabId)))
+  return document.querySelector<HTMLElement>(attrSelector(WIDGET_POPUP_ATTR, tabId))
 }
 
 /**
