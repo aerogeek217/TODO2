@@ -26,12 +26,16 @@ export interface FilterDefaults {
  * (the new task simply has none of the excluded values).
  */
 export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
-  const seeds = (field: 'personIds' | 'tags') => {
+  // The chips' "is" picks, and those of an expression's top-level terms (the
+  // screen filter's typed one beside its chips: `@a and @b` seeds both).
+  const seeds = (field: 'personIds' | 'tags', kind: 'person' | 'tag') => {
     const ids = filters[field]
-    return ids && !isNegated(filters, field) ? [...ids].filter(id => id !== 0) : []
+    const own = ids && !isNegated(filters, field) ? [...ids] : []
+    const typed = filters.expression ? topLevelIdPicks(filters.expression, kind).flat() : []
+    return [...new Set([...own, ...typed])].filter(id => id !== 0)
   }
-  const personIds = seeds('personIds')
-  const tagIds = seeds('tags')
+  const personIds = seeds('personIds', 'person')
+  const tagIds = seeds('tags', 'tag')
 
   let statusId: number | undefined
   if (filters.statusIds && filters.statusIds.size === 1 && !isNegated(filters, 'statusIds')) {

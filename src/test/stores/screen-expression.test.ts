@@ -6,6 +6,7 @@ import { screenReviewFilter } from '../../services/review'
 import { fieldFilter, screenFilterOf, useFilterStore } from '../../stores/filter-store'
 import { currentFilterSettings } from '../../stores/settings-store'
 import { countActiveFilters, predicateToCriteria } from '../../utils/filter-criteria'
+import { getFilterDefaults } from '../../utils/filter-defaults'
 import { matchesComposedFilter } from '../../utils/filter-match'
 import type { TodoNameLookups } from '../../utils/filter'
 import { lookupsFor, makeTodo } from '../helpers'
@@ -101,5 +102,10 @@ describe('the top bar’s typed filter — chips and an expression', () => {
     expect(groupRestrictions('personIds', undefined, useFilterStore.getState().filters)).toEqual([[2], [1]])
     useFilterStore.getState().applyExpression(and(WORK, or(A, HOME)), false)
     expect(groupRestrictions('personIds', undefined, useFilterStore.getState().filters)).toEqual([])
+  })
+
+  it('seeds a new task from the chips and the expression’s top-level picks, not its or', () => {
+    useFilterStore.getState().applyExpression(and(A, B, or(WORK, A)), false)
+    expect(getFilterDefaults(useFilterStore.getState().filters)).toMatchObject({ personIds: [1, 2], tagIds: [] })
   })
 })

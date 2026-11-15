@@ -2,11 +2,13 @@ import type { FilterCriteria } from '../utils/filter-criteria'
 import { useFilterStore } from './filter-store'
 
 /**
- * The screen filter as the widgets apply it: the top bar's chips
- * (`filter-store`). Everything that filters by the screen filter reads it
- * here (lists, the glance widgets, the calendar, the Neglect map, the
- * counter and the filtered tasks); what edits the chips, counts them or
- * seeds a new task from them reads `filter-store` itself.
+ * The screen filter as the widgets apply it: the top bar's chips and the
+ * expression typed beside them (`filter-store`; `FilterCriteria.expression`,
+ * ANDed with the chips wherever the criteria are matched). Everything that
+ * filters by the screen filter reads it here (lists, the glance widgets, the
+ * calendar, the Neglect map, the counter and the filtered tasks); what edits
+ * the chips, counts them or seeds a new task from them reads `filter-store`
+ * itself.
  */
 
 /** The screen filter as it is now (the same object while nothing changed). */
