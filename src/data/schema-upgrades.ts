@@ -105,7 +105,7 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * people without their email and the check-in open method's settings row
  * deleted (`upgrades/v80/index.ts`), and v81, the lenses' settings rows and
  * shortcuts deleted and every list's and tab's lens switch removed
- * (`upgrades/v81/index.ts`), and v82, each fit row's runs of side-by-side
+ * (`upgrades/v81/index.ts`), and v82, each row track's runs of side-by-side
  * Number cells merged into one strip cell (`upgrades/v82/index.ts`). Each
  * transform lives in `data/upgrades/v<N>-*.ts` (or `v<N>/`, by parts); the
  * tab walk v78 and v79 share is `upgrades/layout-tabs.ts`.

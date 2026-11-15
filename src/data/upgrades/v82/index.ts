@@ -4,16 +4,18 @@ import { isRecord, type Obj } from '../layout-tabs'
 /**
  * v82 — Numbers as a strip (flair P10, user 2026-11-15: existing rows are
  * converted automatically): a cell of only Numbers now draws them side by
- * side, evenly divided. In every layout, in each row track that fits today —
- * every cell lying only in it holds exactly one Number —, each run of two
- * or more side-by-side Number cells becomes one cell holding those Numbers
- * in left-to-right order: the first cell's id and active tab, the first
- * Number in front. Then every inner column line no cell's edge lies on goes
- * (its two tracks merge: the first's id, the sizes added — two fixed
- * tracks' px, else the weights —, collapsed only when both were), and the
- * cells are put in reading order. A lone Number cell, a row holding any
- * other kind, and the row tracks themselves (their sizes, `fitPx`) are left
- * as they were.
+ * side, evenly divided. In every layout, in each row track, each run of two
+ * or more side-by-side cells lying only in it and holding exactly one Number
+ * each becomes one cell holding those Numbers in left-to-right order: the
+ * first cell's id and active tab, the first Number in front. A row's other
+ * widgets stay where they are and part the runs (user, 2026-11-15: a
+ * Numbers row beside a list had been left as separate cells at their 72px
+ * minimum, the dividers between them unable to move). Then every inner
+ * column line no cell's edge lies on goes (its two tracks merge: the first's
+ * id, the sizes added — two fixed tracks' px, else the weights —, collapsed
+ * only when both were), and the cells are put in reading order. A lone
+ * Number cell, a Number cell spanning rows, and the row tracks themselves
+ * (their sizes, `fitPx`) are left as they were.
  *
  * Holds its own copy of what it reads (the line merge), so it goes on
  * meaning what it means whatever later builds do. Follows the transform
@@ -107,10 +109,10 @@ function stripsOf(row: DataRow): DataRow {
   const gone = new Set<number>()
   let merged = false
   for (let track = 0; track < grid.rows.length; track++) {
-    const own = rects.map((r, i) => ({ r, i })).filter(({ r }) => r.r0 === track && r.r1 === track + 1)
-    if (own.length === 0 || !own.every(({ i }) => isOneNumber(cells[i] as Obj))) continue
+    const own = rects.map((r, i) => ({ r, i })).filter(({ r, i }) => r.r0 === track && r.r1 === track + 1 && isOneNumber(cells[i] as Obj))
+    if (own.length < 2) continue
     own.sort((a, b) => a.r.c0 - b.r.c0)
-    // Runs of cells side by side (one's right edge the next's left).
+    // Runs of Number cells side by side (one's right edge the next's left; anything else between them parts the run).
     let run: number[] = []
     const flush = () => {
       const [first, ...rest] = run

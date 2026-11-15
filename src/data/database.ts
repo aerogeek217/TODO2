@@ -268,7 +268,7 @@ export class Todo2Database extends Dexie {
     // changes.
     this.version(81).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 81))
 
-    // v82: Numbers as a strip — each fit row's runs of side-by-side Number
+    // v82: Numbers as a strip — each row track's runs of side-by-side Number
     // cells merged into one cell holding those Numbers (`upgrades/v82`); no
     // store changes.
     this.version(82).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 82))

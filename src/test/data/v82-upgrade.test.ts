@@ -7,10 +7,9 @@ import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { pickLayoutBody } from '../../data/layout-shape'
 
 /**
- * v82 — Numbers as a strip (flair P10): in each row track that fits (every
- * cell lying only in it holds one Number), each run of side-by-side Number
- * cells becomes one cell holding those Numbers, and the column lines nothing
- * else uses go. The transform's own tests, then the pipeline.
+ * v82 — Numbers as a strip (flair P10): in each row track, each run of
+ * side-by-side cells of one Number becomes one cell holding those Numbers
+ * (a row's other widgets stay), and the column lines nothing else uses go. The transform's own tests, then the pipeline.
  */
 
 const DATE = '2026-11-01T09:00:00.000Z'
@@ -82,14 +81,26 @@ describe('v82: strips', () => {
     expect((out.grid as { columns: Array<{ weight: number }> }).columns.map((c) => c.weight)).toEqual([300, 300, 900])
   })
 
-  it('a row holding another kind beside its Numbers, and a lone Number, are left alone (the same array)', () => {
-    const mixed = layout(3, [{ id: 'r0', weight: 1000 }], [
+  it('Numbers beside another kind in their row still merge; the other widget stays, and parts runs', () => {
+    const mixed = layout(5, [{ id: 'r0', weight: 1000 }], [
       { id: 'a', col: 0, row: 0, tabs: [num('na')] },
       { id: 'b', col: 1, row: 0, tabs: [num('nb')] },
       { id: 'x', col: 2, row: 0, tabs: [notes('t')] },
+      { id: 'c', col: 3, row: 0, tabs: [num('nc')] },
+      { id: 'd', col: 4, row: 0, tabs: [num('nd')] },
+    ])
+    const out = upgradeV82({ layouts: [mixed] }).layouts![0]!
+    expect(cellsOf(out).map((c) => [c.id, c.tabs])).toEqual([['a', ['na', 'nb']], ['x', ['t']], ['c', ['nc', 'nd']]])
+  })
+
+  it('a lone Number, and Numbers parted by another widget, are left alone (the same array)', () => {
+    const parted = layout(3, [{ id: 'r0', weight: 1000 }], [
+      { id: 'a', col: 0, row: 0, tabs: [num('na')] },
+      { id: 'x', col: 1, row: 0, tabs: [notes('t')] },
+      { id: 'b', col: 2, row: 0, tabs: [num('nb')] },
     ])
     const lone = layout(1, [{ id: 'r0', weight: 1000 }], [{ id: 'a', col: 0, row: 0, tabs: [num('na')] }])
-    const data: DataSet = { layouts: [mixed, lone] }
+    const data: DataSet = { layouts: [parted, lone] }
     expect(upgradeV82(data)).toBe(data)
   })
 
