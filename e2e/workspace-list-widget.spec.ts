@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { installClock, tooltipDelayPassed } from './fixtures/clock'
 import { openFilterPicker, setShowCompleted } from './fixtures/filters'
 import { closeListFilterEditor, editListSave, expectOpenLayout, layoutTab, openListFilterEditor, ADD_FILTER, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep } from './fixtures/workspace'
 
@@ -169,8 +170,11 @@ test('a list’s date filters: a due-date range and Next follow-up Any both narr
 })
 
 test('Edit list from the tab menu groups the list; the edit is shared by every widget showing it', async ({ page }) => {
+  await installClock(page)
   await seedWorkspace(page, {
     ...team,
+    // A task with a follow-up: its date cell, at the row's far end from Edit list, has the app's tooltip.
+    tasks: [{ title: 'Alice task', people: ['Alice'], followupInDays: 3 }, { title: 'Bob task', people: ['Bob'] }],
     layouts: [{
       name: 'Main',
       columns: [
@@ -188,12 +192,21 @@ test('Edit list from the tab menu groups the list; the edit is shared by every w
   }
   // Hovering isn't a press: Edit list stays open — and no tooltip opens beside it (UX cleanup 1A).
   await wsCell(page, 'k2').getByTestId('list-summary').hover()
-  await page.waitForTimeout(700)
+  await expect(page.getByTestId('edit-list')).toBeVisible()
+  const marker = rows(page, 't2').filter({ hasText: 'Alice task' }).locator('[data-row-cell="followup"]')
+  await marker.hover({ timeout: 15_000 })
+  // The tooltip's delay passed on the page's clock: none opened.
+  await tooltipDelayPassed(page)
   await expect(page.getByTestId('edit-list')).toBeVisible()
   await expect(page.getByRole('tooltip')).toHaveCount(0)
   // Saved for both.
   await editListSave(page).click()
   await expect(page.getByTestId('edit-list')).toHaveCount(0)
+  // With Edit list closed the same hover, after the same wait, has its tooltip.
+  await marker.hover()
+  await tooltipDelayPassed(page)
+  await expect(page.getByRole('tooltip')).toHaveCount(1)
+  await page.mouse.move(2, 2)
   await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team')?.grouping).toBe('people')
   for (const tabId of ['t1', 't2']) {
     await expect(wsListWidget(page, tabId).getByTestId('list-group-name')).toHaveText(['Alice', 'Bob'])

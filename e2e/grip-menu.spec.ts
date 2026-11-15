@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, releaseDrag, seedWorkspace, wsCell, wsGrip, wsPanelHandle, wsShape, type WsLayoutSeed } from './fixtures/workspace'
+import { clicksGetThrough, drag, releaseDrag, seedWorkspace, wsCell, wsGrip, wsPanelHandle, wsShape, type WsLayoutSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
@@ -125,8 +125,8 @@ test('a drag cancelled with Esc and let go on the grip opens no menu', async ({ 
   await page.mouse.move(from.x, from.y + 30, { steps: 4 })
   await page.keyboard.press('Escape')
   await page.mouse.move(from.x, from.y, { steps: 4 })
-  // Long past dnd-kit's own 50ms click guard.
-  await page.waitForTimeout(150)
+  // Past dnd-kit's own click guard (50 ms after the cancel): the click this mouse-up makes reaches the grip.
+  await clicksGetThrough(page)
   await page.mouse.up()
   await expect(layoutMenu(page)).toHaveCount(0)
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])

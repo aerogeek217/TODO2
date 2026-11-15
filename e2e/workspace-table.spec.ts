@@ -20,6 +20,7 @@ import {
   type WsLayoutSeed,
   expectDividerStep, expectLayoutStep,
   expectLayoutStored,
+  watchSnackbar,
 } from './fixtures/workspace'
 import { box, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -30,7 +31,8 @@ import { readStore } from './fixtures/db'
  * strip, each previewed by one labelled ghost that matches the cell the drop
  * makes (within 2px); whole-cell drags; Merge with, Insert, Close with and
  * without a taker; dividers over a whole line (view state, kept over a
- * reload) and over part of one (a new line, unsaved); the minimums and the
+ * reload) and over part of one (a new line, saved at once: an undo step
+ * with no snackbar, which Ctrl+Z undoes); the minimums and the
  * sideways scroll; a fixed (former band) row; a fit row of Numbers; and
  * Collapse row.
  */
@@ -307,7 +309,7 @@ test.describe('dividers', () => {
     await expect.poll(async () => Math.round((await box(a)).width)).toBe(120)
   })
 
-  test('part of a line previews where it goes, and on release makes a new line (unsaved); Save keeps it', async ({ page }) => {
+  test('part of a line previews where it goes, and on release makes a new line, saved at once: a reload keeps it', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -342,6 +344,64 @@ test.describe('dividers', () => {
     await expectLayoutStored(page)
     await page.reload()
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom)).toBe(moved)
+  })
+
+  test('moving part of a line shows no snackbar, and Ctrl+Z puts the table back; redo moves it again (each stored)', async ({ page }) => {
+    const ids = ['a', 'b', 'c', 'x', 'y']
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        table: {
+          areas: ['a c x', 'b c y'],
+          cells: ids.map((id) => ({ id, tabs: [{ id: `${id}Tab`, kind: 'notes' as const }] })),
+        },
+      }],
+    })
+    const shape = async () => Object.fromEntries(await Promise.all(ids.map(async (id) => [id, await edges(wsCell(page, id))] as const)))
+    const expectShape = async (want: Awaited<ReturnType<typeof shape>>, label: string) => {
+      await expect.poll(async () => {
+        const now = await shape()
+        return ids.every((id) => (['left', 'top', 'right', 'bottom'] as const).every((k) => Math.abs(now[id]![k] - want[id]![k]) <= 1))
+      }, { message: label }).toBe(true)
+    }
+    const before = await shape()
+    // One line under a and x (c, between them, spans both rows).
+    expect(Math.abs(before.a!.bottom - before.x!.bottom)).toBeLessThanOrEqual(1)
+    const said = await watchSnackbar(page)
+
+    const d = await box(wsDivider(page, 'a', 'b'))
+    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    await drag(page, from, { x: from.x, y: from.y + 100 })
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - before.a!.bottom)).toBeGreaterThan(90)
+    // An undo step, stored — and the snackbar never showed: the table shows the move.
+    await expectDividerStep(page)
+    expect(await said()).toEqual([])
+    const moved = await shape()
+    // a | b left the line x | y keeps.
+    expect(moved.a!.bottom - moved.x!.bottom).toBeGreaterThan(80)
+
+    // Ctrl+Z: every cell back where it was, a | b on the x | y line again.
+    await page.keyboard.press('Control+z')
+    await expectShape(before, 'undone: the table as it was')
+    await expectLayoutStored(page)
+    await page.reload()
+    await expect(wsCell(page, 'a')).toBeVisible()
+    await expectShape(before, 'undone, after a reload')
+
+    // The move again, undone and then redone: stored as moved.
+    const d2 = await box(wsDivider(page, 'a', 'b'))
+    const from2 = { x: d2.x + d2.width / 2, y: d2.y + d2.height / 2 }
+    await drag(page, from2, { x: from2.x, y: from2.y + 100 })
+    await expectDividerStep(page)
+    await expectShape(moved, 'moved again')
+    await page.keyboard.press('Control+z')
+    await expectShape(before, 'undone again')
+    await page.keyboard.press('Control+Shift+z')
+    await expectShape(moved, 'redone')
+    await expectLayoutStored(page)
+    await page.reload()
+    await expect(wsCell(page, 'a')).toBeVisible()
+    await expectShape(moved, 'redone, after a reload')
   })
 
   test('a fixed row (a former band) keeps its px; its divider sets them, saved at once', async ({ page }) => {
