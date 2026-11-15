@@ -29,14 +29,9 @@ let setTrackCollapsed: ReturnType<typeof vi.fn>
 let patchTabConfig: ReturnType<typeof vi.fn>
 let patchTabViewState: ReturnType<typeof vi.fn>
 
-/** `load` as the store's: it switches unless an editor's question is answered Keep editing. */
-function stubLoad(layouts: PersistedWorkspaceLayout[]) {
-  const load = vi.fn(async (id: number) => {
-    const { editorsHoldChanges, leaveOpenEditors } = await import('../../stores/editor-leave')
-    if (editorsHoldChanges() && !(await leaveOpenEditors())) return
-    const next = layouts.find((l) => l.id === id)
-    if (next) useWorkspaceStore.setState({ activeLayoutId: id, working: next, saved: next })
-  })
+/** The store's `load` (a layout switch) as a spy: a jump never switches layouts. */
+function spyOnLoad() {
+  const load = vi.fn(() => Promise.resolve())
   useWorkspaceStore.setState({ load: load as never })
   return load
 }
@@ -58,7 +53,7 @@ describe('jumpToReview', () => {
   it('on the open layout: sets the widget’s filter and shows its tab; nothing written to the layout', async () => {
     const open = layout(1, grid([[cell('a', [notes('n'), review('rv')], { activeTabId: 'n' })]], { rows: [{ weight: 1000, collapsed: true }] }))
     useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })
-    const load = stubLoad([open])
+    const load = spyOnLoad()
     expect(await jumpToReview(AISHA)).toBe(true)
     expect(useListWidgetStore.getState().reviewFilters.rv).toEqual(AISHA)
     expect(setActiveTab).toHaveBeenCalledWith('rv')
@@ -82,7 +77,7 @@ describe('jumpToReview', () => {
     const open = layout(1, grid([[cell('a', [notes('n')])]]))
     const other = layout(3, grid([[cell('a', [review('rv3')])]]))
     useWorkspaceStore.setState({ working: open, saved: open, layouts: [open, other], activeLayoutId: 1 })
-    const load = stubLoad([open, other])
+    const load = spyOnLoad()
     expect(await jumpToReview(AISHA)).toBe(true)
     expect(load).not.toHaveBeenCalled()
     expect(useWorkspaceStore.getState().activeLayoutId).toBe(1)
