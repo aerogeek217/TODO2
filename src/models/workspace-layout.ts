@@ -28,6 +28,7 @@ import {
   DEFAULT_TREND_RANGE,
   DEFAULT_TREND_SHOW,
   newNumberConfig,
+  NUMBER_NAME_MAX,
   trendName,
   type NumberConfig,
   type TrendTabConfig,
@@ -35,6 +36,7 @@ import {
 // G5: Project pulse's config, its rules among it.
 import type { PulseTabConfig } from './pulse-config'
 import {
+  CHART_NAME_MAX,
   newBreakdownConfig,
   newPivotConfig,
   type BreakdownConfig,
@@ -582,6 +584,20 @@ export function tabOwnsName(kind: WidgetKind): boolean {
 
 /** The longest tab name kept (as a layout's). */
 export const TAB_NAME_MAX = 200
+
+/**
+ * The longest name Name and icon… keeps for a tab of `kind`: what the
+ * stored shape of the name it writes allows — a Number's `config.name`
+ * (`NUMBER_NAME_MAX`), a chart's and Created vs completed's
+ * (`CHART_NAME_MAX`), any other kind's tab name (`TAB_NAME_MAX`; a list
+ * tab's name is its list's, which has no limit of its own). A longer name
+ * would store a layout row the import check refuses.
+ */
+export function tabNameMax(kind: WidgetKind): number {
+  if (kind === 'number') return NUMBER_NAME_MAX
+  if (kind === 'breakdown' || kind === 'pivot' || kind === 'trend') return CHART_NAME_MAX
+  return TAB_NAME_MAX
+}
 
 /**
  * A non-list tab's title: a Number's or a chart's is its name (`Late on
