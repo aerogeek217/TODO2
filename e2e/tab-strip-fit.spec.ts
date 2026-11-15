@@ -180,6 +180,8 @@ test('the +N menu lists the folded tabs, and picking one shows it', async ({ pag
   await items.last().click()
   await expect(cell.locator('[data-ws-tab="c2"]')).toHaveAttribute('aria-selected', 'true')
   await expect(cell.locator('[data-ws-tab="c2"]:not([data-ws-tab-folded])')).toBeVisible()
+  // The picked tab takes the focus, as a tab an arrow key moves to does.
+  await expect(cell.locator('[data-ws-tab="c2"]')).toBeFocused()
   expectFits(await stripState(page, 'k1'), 'after picking')
 })
 

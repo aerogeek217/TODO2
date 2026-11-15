@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { expectOpenLayout, readListDefinitions, seedWorkspace, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 
@@ -171,6 +171,69 @@ test('a tab switched by the arrow keys asks; Keep editing stays on the list; Dis
   await expect(editList(page)).toHaveCount(0)
   await expect(droppedNotice(page)).toHaveCount(0)
   expect(await teamSort(page)).toBe('manual')
+})
+
+/** Team's list and twelve Notes in half the width: most fold into +N (the list's filter line still shows). */
+const FOLDED_TABS: WorkspaceSeed = {
+  ...SEED,
+  layouts: [{
+    name: 'Main',
+    columns: [
+      { id: 'c1', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, ...Array.from({ length: 12 }, (_, i) => ({ id: `n${i + 1}`, kind: 'notes' as const }))], activeTabId: 't1' })] },
+      { id: 'c2', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'm1', kind: 'notes' }] })] },
+    ],
+  }],
+}
+
+/** Seeds FOLDED_TABS, dirties Edit list, and returns the strip's last tab (a folded one: the shown tabs come first). */
+async function foldedTarget(page: Page) {
+  await seedWorkspace(page, FOLDED_TABS)
+  const cell = page.locator('[data-ws-cell="k1"]')
+  await expect(cell.locator('[role="tab"][data-ws-tab-folded]').first()).toBeAttached()
+  await dirtyEditList(page)
+  const lastId = (await cell.locator('[role="tab"]').last().getAttribute('data-ws-tab')) ?? ''
+  const target = stripTab(page, lastId)
+  await expect(target).toHaveAttribute('data-ws-tab-folded', '')
+  return { cell, target }
+}
+
+async function expectShownAndFocused(target: Locator) {
+  await expect(target).toHaveAttribute('aria-selected', 'true')
+  await expect(target).not.toHaveAttribute('data-ws-tab-folded')
+  await expect(target).toBeFocused()
+}
+
+test('a tab folded into +N, switched to by the keys, asks; after Discard it shows with the focus on it (cr34 X)', async ({ page }) => {
+  const { target } = await foldedTarget(page)
+  await stripTab(page, 't1').focus()
+  await page.keyboard.press('End')
+  await expect(question(page)).toBeVisible()
+  await answer(page, 'Discard')
+  await expectShownAndFocused(target)
+  await expect(editList(page)).toHaveCount(0)
+})
+
+test('a tab picked from the +N menu by the keys asks; Keep editing stays; after Discard it shows with the focus on it (cr34 X)', async ({ page }) => {
+  const { cell, target } = await foldedTarget(page)
+  const pick = async () => {
+    await cell.getByRole('button', { name: /more tabs$/ }).focus()
+    await page.keyboard.press('Enter')
+    const menu = page.getByRole('menu', { name: 'More tabs' })
+    await expect(menu.getByRole('menuitem').first()).toBeFocused()
+    await page.keyboard.press('End')
+    await page.keyboard.press('Enter')
+    await expect(question(page)).toBeVisible()
+  }
+  await pick()
+  await answer(page, 'Keep editing')
+  await expect(editList(page)).toBeVisible()
+  await expect(stripTab(page, 't1')).toHaveAttribute('aria-selected', 'true')
+  await expect(target).not.toBeFocused()
+
+  await pick()
+  await answer(page, 'Discard')
+  await expectShownAndFocused(target)
+  await expect(editList(page)).toHaveCount(0)
 })
 
 test('a click on another tab asks once; Keep editing stays; Save writes the list, then the tab switches', async ({ page }) => {
