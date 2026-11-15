@@ -4,7 +4,7 @@ import { filterField, filterMenu, filterMenuButton, filterPills, openFilterPicke
 
 /**
  * The top bar shrinks its filter field before it folds anything (feedback
- * P2): short of room, the field narrows first (560px down to 240px; its
+ * P2): short of room, the field narrows first (440px down to 240px; its
  * pills fade with `+N more`), then the layout tabs fold into the picker,
  * then the field narrows further (down to 160px). The filters never fold —
  * they are the field's pills, and the Filter button only counts them in its
@@ -91,14 +91,14 @@ async function pick(page: Page, field: 'People' | 'Status', ...options: string[]
 
 test.use({ viewport: { width: 1600, height: 900 } })
 
-test('wide, the field is 560px; a filter picked is its pill, the Filter button counts it, nothing folds', async ({ page }) => {
+test('wide, the field is 440px; a filter picked is its pill, the Filter button counts it, nothing folds', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(filterMenuButton(page)).toHaveAccessibleName('Filter')
-  expect(await settled(page)).toMatchObject({ fold: 'none', search: 560, oneLine: true })
+  expect(await settled(page)).toMatchObject({ fold: 'none', search: 440, oneLine: true })
   await pick(page, 'People', 'Aisha Rahman')
   await expect(filterPills(page)).toHaveText([/@"Aisha Rahman"/])
   await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 1 active')
-  expect(await settled(page)).toMatchObject({ fold: 'none', search: 560, oneLine: true })
+  expect(await settled(page)).toMatchObject({ fold: 'none', search: 440, oneLine: true })
 })
 
 test('narrowing: the field narrows first, then the tabs fold, then the field narrows further; never a wrap, never a flicker', async ({ page }) => {
@@ -118,7 +118,7 @@ test('narrowing: the field narrows first, then the tabs fold, then the field nar
     expect(s.trayRight, `at ${width}px`).toBeLessThanOrEqual(s.springLeft)
     // Never narrower than the fold allows.
     expect(s.search, `at ${width}px`).toBeGreaterThanOrEqual(s.fold === 'none' ? 240 : 160)
-    const phase = s.fold === 'none' ? (s.search < 560 ? 'field narrowed' : 'natural') : s.search < 560 ? `${s.fold}, field narrowed` : s.fold!
+    const phase = s.fold === 'none' ? (s.search < 440 ? 'field narrowed' : 'natural') : s.search < 440 ? `${s.fold}, field narrowed` : s.fold!
     if (seen.at(-1) !== phase) seen.push(phase)
   }
   // Every step on the way, in order (the tabs fold while the field is already narrowed).

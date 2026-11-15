@@ -1,6 +1,6 @@
 import type { FilterExpr, Person, Tag, TodoPredicate } from '../models'
 import type { BreakdownColumn, BreakdownConfig } from '../models/chart-widgets'
-import { useFilterStore } from '../stores/filter-store'
+import { currentScreenFilter } from '../stores/screen-filter'
 import { listAsShownNow } from '../stores/list-draft-store'
 import { useListWidgetStore, type ReviewFilter, type ShownListSection } from '../stores/list-widget-store'
 import { useTodoStore } from '../stores/todo-store'
@@ -115,9 +115,9 @@ export function reviewTargetTabId(): string | null {
 
 // ── The top bar's filter ────────────────────────────────────────────────────
 
-/** The filtered-tasks panel's review: the top bar's chips, its text search and the expression typed beside them, as one expression. */
+/** The filtered-tasks panel's review: the top bar's chips, its text search and the expression typed beside them, as one expression (none while the filter is paused). */
 export function screenReviewFilter(): ReviewFilter {
-  return reviewFilterOf(wholeExpression(criteriaToPredicate(useFilterStore.getState().filters)))
+  return reviewFilterOf(wholeExpression(criteriaToPredicate(currentScreenFilter())))
 }
 
 // ── A Breakdown row ─────────────────────────────────────────────────────────

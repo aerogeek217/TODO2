@@ -13,7 +13,7 @@ import {
   type TaskDialogRowGroup,
 } from '../../services/task-dialog'
 import type { TaskDialogPayload } from '../../stores/task-dialog-payload'
-import { useFilterStore } from '../../stores/filter-store'
+import { appliedScreenFilter, useFilterStore } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -83,9 +83,9 @@ interface TaskDialogContentProps {
 export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterBar, onReview }: TaskDialogContentProps) {
   const [resolved, setResolved] = useState<Resolved>(() => resolve(payload))
   const isScreen = payload.source.kind === 'screen'
-  // The screen filter, only for its own tasks (no other re-renders on a
+  // The screen filter as it applies (none while paused), only for its own tasks (no other re-renders on a
   // chip change).
-  const chips = useFilterStore((s) => (isScreen ? s.filters : null))
+  const chips = useFilterStore((s) => (isScreen ? appliedScreenFilter(s) : null))
   const pick = useUIStore((s) => s.popupListPick)
   const pickPopupListView = useUIStore((s) => s.pickPopupListView)
   const newListSort = useSettingsStore((s) => s.newListSort)

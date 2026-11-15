@@ -12,7 +12,7 @@ import {
  * are measured. The filtered-tasks panel has no say in the fold.
  */
 
-/** A tray of 700 (the field 560 of it), base 200, tabs 250, picker 90. */
+/** A tray of 700 (the field `SEARCH_WIDTH` of it), base 200, tabs 250, picker 90. */
 const m = (extra: Partial<TopBarMeasure>): TopBarMeasure => ({
   bar: 1200, base: 200, tray: 700, tabs: { width: 250, key: 'k' }, picker: 90, ...extra,
 })
@@ -80,7 +80,7 @@ describe('measureTopBar', () => {
 
   /**
    * A bar 1200 wide: New task (28), the layout tabs (300), the tray (at 400)
-   * with the funnel (24), the field (560 — or narrowed to `search`) and the
+   * with the funnel (24), the field (`SEARCH_WIDTH` — or narrowed to `search`) and the
    * Filter button (60); the right zone (120).
    */
   function bar(opts: { search?: number } = {}) {

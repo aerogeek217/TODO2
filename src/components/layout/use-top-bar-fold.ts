@@ -17,8 +17,8 @@ export function tabsFolded(fold: TopBarFold): boolean {
   return fold === 'tabs'
 }
 
-/** The filter field's width (board Filter-B: about twice the old 200px). */
-export const SEARCH_WIDTH = 560
+/** The filter field's width (board Filter-B had 560px; narrowed to 440px, feedback 2026-11-15). */
+export const SEARCH_WIDTH = 440
 /** The least it narrows to before the layout tabs fold: two or three pills still show. */
 export const SEARCH_MIN_WIDTH = 240
 /** The least it narrows to once they have folded (its placeholder's start and a pill still show). */

@@ -160,7 +160,7 @@ describe('TopBar typed filter (P2)', () => {
     expect(options[0]).toHaveTextContent('Approve the budget')
   })
 
-  it('the funnel clears the typed expression and its text with every chip', () => {
+  it('the field’s × clears the typed expression and its text with every chip', () => {
     renderBar()
     type('@Aisha or #q4')
     rest()

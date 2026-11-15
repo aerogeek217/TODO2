@@ -6,14 +6,21 @@ import { POPOVER_LEVEL_ATTR } from './popover-level'
 export const TOOLTIP_DELAY_MS = 400
 
 /**
- * A popover is open (`data-popover-level`, every popover's root) that
- * `anchor` isn't inside: a tooltip for something behind it (a row resting
- * under the pointer beside Edit list, an Add widget menu) would sit beside
- * the popover the user is working in, so it doesn't open (UX cleanup 1A).
+ * A popover is open (`data-popover-level`, every popover's root) over
+ * `anchor`: a tooltip for something behind it (a row resting under the
+ * pointer beside Edit list, an Add widget menu) would sit beside the popover
+ * the user is working in, so it doesn't open (UX cleanup 1A). A popover
+ * counts as over the anchor unless it holds it or comes before the
+ * popover that does: popovers portal to the end of `<body>` as they open, so
+ * the one opened last — a choice menu from the popup lists' group · sort
+ * popover — is the one in use, and its items' tooltips open.
  */
 function popoverOpenElsewhere(anchor: HTMLElement): boolean {
+  const own = anchor.closest(`[${POPOVER_LEVEL_ATTR}]`)
   for (const popover of document.querySelectorAll(`[${POPOVER_LEVEL_ATTR}]`)) {
-    if (!popover.contains(anchor)) return true
+    if (popover.contains(anchor)) continue
+    if (own && own.compareDocumentPosition(popover) & Node.DOCUMENT_POSITION_PRECEDING) continue
+    return true
   }
   return false
 }
@@ -46,7 +53,12 @@ export interface UseTooltipResult {
  * Returns props for the trigger plus the tooltip node; while open the trigger
  * is `aria-describedby` the tooltip (`role="tooltip"`).
  */
-export function useTooltip(text: string | null | undefined, opts: { shortcut?: string; labelLines?: number } = {}): UseTooltipResult {
+export function useTooltip(text: string | null | undefined, opts: {
+  shortcut?: string
+  labelLines?: number
+  /** A description in sentences (`TooltipBubble`'s `prose`, as Settings' ⓘ shows one): no label line. */
+  prose?: boolean
+} = {}): UseTooltipResult {
   const id = useId()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLElement | null>(null)
@@ -95,6 +107,6 @@ export function useTooltip(text: string | null | undefined, opts: { shortcut?: s
   return {
     triggerProps,
     // Escape, a scroll or a resize closes it (the bubble's `usePopoverAnchor`).
-    tooltip: open ? <TooltipBubble id={id} anchorRef={anchorRef} text={text} shortcut={opts.shortcut} labelLines={opts.labelLines} onClose={hide} /> : null,
+    tooltip: open ? <TooltipBubble id={id} anchorRef={anchorRef} text={text} shortcut={opts.shortcut} labelLines={opts.labelLines} prose={opts.prose} onClose={hide} /> : null,
   }
 }

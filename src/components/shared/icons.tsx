@@ -286,6 +286,11 @@ export function FunnelIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /></Svg>
 }
 
+/** The funnel struck through: the screen filter paused (the top bar's funnel). */
+export function FunnelOffIcon({ size = 12 }: { size?: number }) {
+  return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /><path d="M2 1.5 14 14.5" /></Svg>
+}
+
 /** Glasses: one of the pickable line icons (`LineIcon`). */
 function GlassesIcon({ size = 16 }: { size?: number }) {
   return (

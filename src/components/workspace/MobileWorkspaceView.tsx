@@ -145,13 +145,33 @@ function MobileTopBar({ name, hue, icon, status }: { name: string; hue?: string;
 /**
  * The phone top bar's `61 of 109` (D15): what the screen filter's chips
  * keep of every open task, while a chip is on; a tap lists them in the task
- * dialog (whose filter bar edits the chips). Its own component, so only it
+ * dialog (whose filter bar edits the chips). While the filter is paused (the
+ * desktop funnel, the palette's Pause / Resume Filter) it says so —
+ * `109 open · paused` — and a tap resumes it. Its own component, so only it
  * renders for a task write.
  */
 function ShownOfTotalPill() {
   const chipsOn = useFilterStore((s) => s.isActive)
+  const paused = useFilterStore((s) => s.paused)
   if (!chipsOn) return null
-  return <ShownOfTotalCount />
+  return paused ? <PausedFilterPill /> : <ShownOfTotalCount />
+}
+
+/** The pill while the filter is paused: every open task shows; a tap resumes the filter. */
+function PausedFilterPill() {
+  const { total } = useScreenTaskCounts()
+  return (
+    <button
+      type="button"
+      className={styles.shownPill}
+      aria-label={`Filter paused: ${total} open ${total === 1 ? 'task' : 'tasks'} shown. Resume the filter`}
+      data-testid="shown-of-total"
+      data-paused=""
+      onClick={() => useFilterStore.getState().setPaused(false)}
+    >
+      <b>{total}</b> open · paused · Resume
+    </button>
+  )
 }
 
 function ShownOfTotalCount() {

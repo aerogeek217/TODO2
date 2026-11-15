@@ -107,6 +107,35 @@ test('the popup lists open on Settings’ grouping; a pick is every popup list�
   await expect.poll(() => grouped(dialog(page))).toEqual([['#q4', ['Alpha', 'Charlie']], ['No Tag', ['Bravo', 'Delta']]])
 })
 
+test('what the control and each choice mean are tooltips, as in Settings, not lines in the popover', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await openPanel(page)
+
+  // The button's own explanation: the app's tooltip (no native title).
+  await expect(control(panel(page))).not.toHaveAttribute('title')
+  await expect(control(panel(page))).toHaveAccessibleDescription('Group and sort these tasks: Every task list that opens over the workspace, until a reload')
+  await control(panel(page)).hover()
+  await expect(page.getByRole('tooltip')).toHaveText(/Group and sort these tasks\s*Every task list that opens over the workspace, until a reload/)
+
+  await control(panel(page)).click()
+  await expect(popover(page)).toBeVisible()
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+  await popover(page).getByRole('button', { name: /^Sort by/ }).click()
+  const menu = page.getByRole('menu', { name: 'Sort by' })
+  // Each choice is its name alone; its note is its description and, on hover, its tooltip.
+  const priority = menu.getByRole('menuitemradio', { name: 'Priority', exact: true })
+  await expect(priority).toHaveText('Priority')
+  await expect(menu).not.toContainText('ties by due date', { useInnerText: true })
+  await expect(priority).toHaveAccessibleDescription('Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date')
+  await priority.hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date')
+  // A choice with no note has no tooltip.
+  await menu.getByRole('menuitemradio', { name: 'Due date', exact: true }).hover()
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+  await menu.getByRole('menuitemradio', { name: 'Manual', exact: true }).hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Your drag order (per list)')
+})
+
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true })
 
@@ -115,7 +144,11 @@ test.describe('phone', () => {
     await openNumberDrill(page)
     await expect(control(dialog(page))).toHaveText('Tag · Manual')
     await control(dialog(page)).click()
-    await pick(page, 'Group by', 'No grouping')
+    // No hover here: a choice's note is a line under its name, as Settings' phone rows show theirs.
+    await popover(page).getByRole('button', { name: /^Group by/ }).click()
+    const groupMenu = page.getByRole('menu', { name: 'Group by' })
+    await expect(groupMenu.getByRole('menuitemradio', { name: /^Priority/ })).toContainText('a task shows in each of its groups')
+    await groupMenu.getByRole('menuitemradio', { name: /^No grouping/ }).click()
     await expect(control(dialog(page))).toHaveText('Manual')
     await expect(dialog(page).locator('[data-task-dialog-group]')).toHaveCount(0)
     // The phone's rows: each title a button carrying it.

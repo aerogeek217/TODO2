@@ -9,14 +9,14 @@ import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { LayoutControls } from '../workspace/LayoutControls'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { StoragePill } from './StoragePill'
-import { FunnelIcon, GearIcon, PlusIcon } from '../shared/icons'
+import { GearIcon, PlusIcon } from '../shared/icons'
 import { useShortcutLabel } from '../../hooks/use-shortcut-label'
-import { useTooltip } from '../shared/use-tooltip'
 import styles from './TopBar.module.css'
 import { FOLD_PART, FOLD_SEARCH_ATTR, tabsFolded, useTopBarFold } from './use-top-bar-fold'
 import { useTopBarCentre } from './use-top-bar-centre'
 import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
 import { TopBarFilterField } from './TopBarFilterField'
+import { FilterPauseButton } from './FilterPauseButton'
 import { FILTER_ROW_ATTR } from '../../utils/dom-contract'
 import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
 import { tabAcross } from '../../utils/focusables'
@@ -40,36 +40,14 @@ function layoutTabsKey(s: ReturnType<typeof useWorkspaceStore.getState>): string
   return `${s.layouts.length}|${names}|${open}|${s.writeFailed ? 'failed' : ''}`
 }
 
-/**
- * The tray's funnel, at its left (feedback P2, as before the Filter menu):
- * red while any screen filter is on — chips, the typed expression, text,
- * Show completed —, one click clears them all; dim and inert with none.
- */
-function ClearFiltersButton({ active }: { active: boolean }) {
-  const { triggerProps, tooltip } = useTooltip(active ? 'Clear all filters' : null)
-  return (
-    <>
-      <button
-        type="button"
-        className={styles.funnel}
-        aria-label="Clear all filters"
-        disabled={!active}
-        onClick={() => useFilterStore.getState().clearAll()}
-        data-clear-filters=""
-        {...triggerProps}
-      >
-        <FunnelIcon size={14} />
-      </button>
-      {tooltip}
-    </>
-  )
-}
-
 export function TopBar() {
   const quickAddKeys = useShortcutLabel('quick-add')
   const settingsKeys = useShortcutLabel('open-settings')
   const filters = useFilterStore((s) => s.filters)
   const isActive = useFilterStore((s) => s.isActive)
+  // Paused (the funnel), the filter stays but applies nothing: the tray isn't red.
+  const paused = useFilterStore((s) => s.paused)
+  const filtering = isActive && !paused
   // The filtered-tasks panel: while it is open the tray — the field, the
   // Filter menu — is its filter editor.
   const panelOpen = useUIStore((s) => s.filterPanelOpen)
@@ -94,8 +72,8 @@ export function TopBar() {
   // The counter shows while a filter is on, or the panel is open (it stays
   // the panel's toggle when Clear all empties the filter).
   const showTasksButton = isActive || panelOpen
-  // The tray gains or loses Show N tasks: measured again then.
-  const { fold, search } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}`)
+  // The tray gains or loses Show N tasks, or its counter says paused: measured again then.
+  const { fold, search } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${paused}`)
   // The tray: in the middle of the bar at rest; grown by the counter it
   // keeps its left edge (nothing moves under the caret) until it would
   // reach the right zone.
@@ -132,15 +110,16 @@ export function TopBar() {
 
         <div
           ref={trayRef}
-          className={`${styles.tray} ${isActive ? styles.trayActive : ''} ${panelOpen ? styles.trayPanelOpen : ''}`}
+          className={`${styles.tray} ${filtering ? styles.trayActive : ''} ${panelOpen ? styles.trayPanelOpen : ''}`}
           data-fold-part={FOLD_PART.tray}
           role="group"
           aria-label="Screen filters — apply to every widget"
           {...{ [FILTER_ROW_ATTR]: '' }}
-          data-filtered={isActive || undefined}
+          data-filtered={filtering || undefined}
+          data-filter-paused={paused || undefined}
           onKeyDown={panelOpen ? (e) => tabAcross(e, trayRef.current, panelRef.current) : undefined}
         >
-          <ClearFiltersButton active={isActive} />
+          <FilterPauseButton active={isActive} />
           <TopBarFilterField width={search} panelOpen={panelOpen} foldAttr={FOLD_SEARCH_ATTR} />
           <FilterChipBar
             predicate={filterPredicate}
