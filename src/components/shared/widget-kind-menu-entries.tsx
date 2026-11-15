@@ -62,7 +62,7 @@ export interface WidgetKindMenuProps {
 const KIND_SUBMENU_WIDTH_PX = 240
 
 /** The widget menu's item that opens a tab's name and icon (items 11, 14). */
-export const NAME_AND_ICON_LABEL = 'Name and icon…'
+const NAME_AND_ICON_LABEL = 'Name and icon…'
 
 /** The action that opens a widget in the widget popup: the menu item's and the controls slot button's name. */
 export const OPEN_LARGER_LABEL = 'Open larger'

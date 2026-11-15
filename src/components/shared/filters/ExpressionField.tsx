@@ -200,7 +200,7 @@ export const CLOSE_HELD = 'This doesn’t read, so it isn’t saved — close ag
 
 /** A Completed date inside an `or` / `not` keeps no open task, and completed tasks aren't let in (cr33 F10). */
 export const COMPLETED_HINT_DONE = 'A Completed date inside or / not matches completed tasks only — add “and done” to show them'
-export const COMPLETED_HINT = 'A Completed date inside or / not matches completed tasks only; one of its own (… and completed …) lets them in'
+const COMPLETED_HINT = 'A Completed date inside or / not matches completed tasks only; one of its own (… and completed …) lets them in'
 
 // ── Reads as ────────────────────────────────────────────────────────────────
 

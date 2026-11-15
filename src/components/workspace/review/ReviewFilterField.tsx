@@ -32,10 +32,10 @@ const LINE_PX = 20
 const MAX_LINES = 3
 
 /** What the field says while empty. */
-export const REVIEW_FIELD_PLACEHOLDER = 'Who or what to review…'
+const REVIEW_FIELD_PLACEHOLDER = 'Who or what to review…'
 
 /** What the field says at rest on a filter that prints as nothing (a jump from a list that narrows by nothing). */
-export const EVERY_OPEN_TASK = 'Every open task'
+const EVERY_OPEN_TASK = 'Every open task'
 
 /** A review takes open tasks only: `done` and Completed dates would keep nothing, so the field refuses them and says why. */
 const OPEN_TASKS_ONLY = { allowDone: false, allowCompleted: false } as const

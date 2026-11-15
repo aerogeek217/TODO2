@@ -9,7 +9,7 @@ import { isNegated, withIdFilter } from '../../../utils/filter-negation'
 import { hasMarkers } from '../../../utils/markers'
 import { byName } from '../../../utils/sort-order'
 
-export type FilterChipDensity = 'desktop' | 'mobile'
+type FilterChipDensity = 'desktop' | 'mobile'
 
 export interface FilterChipBarProps {
   predicate: TodoPredicate
@@ -65,7 +65,7 @@ export const FOLD_VALUE_ATTR = 'data-fold-value'
  */
 export const FOLD_HOLD_ATTR = 'data-fold-hold'
 
-export const DEFAULT_PREDICATE: TodoPredicate = {
+const DEFAULT_PREDICATE: TodoPredicate = {
   showCompleted: false,
   personIds: null,
   statusIds: null,
@@ -84,7 +84,7 @@ export const ENTITY_ID_FIELD: Record<EntityKey, NegatableField> = {
   tags: 'tags',
 }
 
-export function hasAnyFilter(p: TodoPredicate): boolean {
+function hasAnyFilter(p: TodoPredicate): boolean {
   return (
     p.showCompleted ||
     p.personIds !== null ||
@@ -112,7 +112,7 @@ export function narrowedPeople(
   return picked.sort(byName)
 }
 
-export interface FilterChipBarSharedState {
+interface FilterChipBarSharedState {
   p: TodoPredicate
   people: ReturnType<typeof usePersonStore.getState>['people']
   statuses: ReturnType<typeof useStatusStore.getState>['statuses']

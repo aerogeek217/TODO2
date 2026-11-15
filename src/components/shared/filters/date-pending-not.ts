@@ -6,7 +6,7 @@ import { registerModuleReset } from '../../../utils/module-reset'
 export type PendingNot = Partial<Record<DateField, true>>
 
 /** Keeps a date panel's pending Is not across the panel closing and opening again. */
-export interface PendingNotMemory {
+interface PendingNotMemory {
   get: () => PendingNot
   set: (pending: PendingNot) => void
 }

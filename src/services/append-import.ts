@@ -5,9 +5,9 @@ import { appendImportTasks, nameKey, type AppendChoice, type AppendImportResult 
 import { replaceData } from './replace-data'
 import { useSettingsStore } from '../stores/settings-store'
 
-export type { AppendChoice, AppendImportResult }
+export type { AppendChoice }
 
-export interface AppendDuplicate {
+interface AppendDuplicate {
   /** `uid`: the same task (by identity) is already in the database. `title`: an active task has the same title. */
   reason: 'uid' | 'title'
   existing: PersistedTodoItem
@@ -59,7 +59,7 @@ export function defaultAppendChoices(candidates: readonly AppendCandidate[]): Ma
  * An append import's outcome. `cancelled`: the backup snapshot failed and the
  * user didn't continue without one — nothing was imported.
  */
-export type RunAppendImportOutcome =
+type RunAppendImportOutcome =
   | (AppendImportResult & { status: 'done'; noBackup: boolean })
   | { status: 'cancelled' }
 

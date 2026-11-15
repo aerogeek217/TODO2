@@ -5,7 +5,7 @@
  */
 
 /** Slug rule — mirrors the `#foo` NLP capture group. */
-export const TAG_SLUG_RE = /^[a-z0-9_-]+$/
+const TAG_SLUG_RE = /^[a-z0-9_-]+$/
 
 /** Max tag length — keeps stored tags compact; matches import-validation. */
 export const TAG_MAX_LEN = 64

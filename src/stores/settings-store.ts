@@ -83,15 +83,12 @@ import {
 import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
-
-export type { ListZoom } from '../models/workspace-layout'
 export type { RowDates } from '../utils/row-dates'
 
-export type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
-export { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
+export type { ThemeColors, ThemeName } from '../models/theme-colors'
 
 /** The colours the user set per theme (their `color.<theme>.<key>` rows exist); the rest fall through to `tokens.css`. */
-export type CustomizedColors = Readonly<Record<ThemeName, readonly (keyof ThemeColors)[]>>
+type CustomizedColors = Readonly<Record<ThemeName, readonly (keyof ThemeColors)[]>>
 
 /** The settings as the store holds them — each one entry of {@link SETTINGS}. */
 interface SettingsData {
@@ -305,7 +302,7 @@ function applyColorOverrides(): void {
   }
 }
 
-export function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
+function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
   if (mode === 'system') {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   }
@@ -349,7 +346,7 @@ function applyTheme(): void {
  * (the store's state — the colours customised among it — is reset
  * separately).
  */
-export function resetSettingsModuleState(): void {
+function resetSettingsModuleState(): void {
   mediaQueryCleanup?.()
   mediaQueryCleanup = null
 }
@@ -829,7 +826,7 @@ export function currentFilterSettings(): FilterSettings {
 }
 
 /** The two settings the automatic next follow-up is read from. */
-export type AutoFollowupSettings = Pick<SettingsState, 'autoFollowup' | 'followupDefaultInterval'>
+type AutoFollowupSettings = Pick<SettingsState, 'autoFollowup' | 'followupDefaultInterval'>
 
 /**
  * The interval the automatic next follow-up is set by, or `null` while it is

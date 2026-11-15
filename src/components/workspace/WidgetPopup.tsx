@@ -21,7 +21,7 @@ import { useTabTitle } from './widget-hooks'
 import styles from './WidgetPopup.module.css'
 
 /** The popup's ⋯ menu's name (and its button's). */
-export const WIDGET_POPUP_MENU_LABEL = 'Widget options'
+const WIDGET_POPUP_MENU_LABEL = 'Widget options'
 
 /** The task editor on top owns Esc while it's open. */
 const editorIsOpen = () => useUIStore.getState().editPopupMode != null

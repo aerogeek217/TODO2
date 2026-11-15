@@ -4,14 +4,14 @@ import { useTodoStore } from '../stores/todo-store'
 import { prefersReducedMotion } from '../utils/motion'
 
 /** How long a just-completed row stays put before it folds away (D19). */
-export const LEAVE_DELAY_MS = 500
+const LEAVE_DELAY_MS = 500
 /** How long the fold takes; the row drops out of the list when it ends. */
-export const FOLD_MS = 180
+const FOLD_MS = 180
 
 /** A leaving row: still shown (`stay`), then folding to nothing (`fold`). */
 export type LeavingPhase = 'stay' | 'fold'
 
-export interface LeavingRow {
+interface LeavingRow {
   phase: LeavingPhase
   /** The task as it was just before it was completed — what keeps its row in place. */
   before: PersistedTodoItem
@@ -24,7 +24,7 @@ export interface LeavingRow {
 }
 
 /** What a leaving row shows while it lingers: the task as it is, or a finished occurrence. */
-export function leavingShownAs(todo: PersistedTodoItem, row: LeavingRow | undefined): PersistedTodoItem {
+function leavingShownAs(todo: PersistedTodoItem, row: LeavingRow | undefined): PersistedTodoItem {
   return row?.advanced ? { ...row.before, isCompleted: true } : todo
 }
 

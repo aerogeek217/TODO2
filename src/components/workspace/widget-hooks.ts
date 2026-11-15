@@ -18,7 +18,7 @@ import { type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { afterLeavingEditors } from '../../stores/editor-leave'
 
 /** A deleted list's name where its name would show (a tab title). */
-export const DELETED_LIST_TITLE = '(Deleted list)'
+const DELETED_LIST_TITLE = '(Deleted list)'
 
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by
@@ -96,8 +96,6 @@ export function openBeside(tabId: string, open: () => void): void {
     open()
   })
 }
-
-export { showTab } from '../../services/workspace-tabs'
 
 /**
  * Opens a Number's editor (Edit number…, D26 P5): the tab shown as Edit list

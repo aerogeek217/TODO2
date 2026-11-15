@@ -2,7 +2,7 @@ import type { PersistedTodoItem, TodoChanges } from '../models'
 import type { CalendarDateType } from '../models/workspace-layout'
 
 /** The task field a calendar date type sets. */
-export const CALENDAR_DATE_FIELD = {
+const CALENDAR_DATE_FIELD = {
   due: 'dueDate',
   followup: 'nextFollowupAt',
 } as const satisfies Record<CalendarDateType, keyof PersistedTodoItem>

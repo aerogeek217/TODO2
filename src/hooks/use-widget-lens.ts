@@ -94,7 +94,7 @@ export function useQuietLensSwitch(): boolean {
 }
 
 /** A widget's switch: its mark (while shown) and its toggle. */
-export interface WidgetLensSwitch {
+interface WidgetLensSwitch {
   mark: LensMark | undefined
   toggle: () => void
 }

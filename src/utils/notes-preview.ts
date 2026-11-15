@@ -63,7 +63,7 @@ export function notesPreviewLines(notes: string | undefined): string[] {
 }
 
 /** A task's newest status update as the preview's first line: `MM/DD text`, cut like a note line. */
-export function statusUpdateLine(update: Pick<StatusUpdate, 'date' | 'text'>): string {
+function statusUpdateLine(update: Pick<StatusUpdate, 'date' | 'text'>): string {
   return clip(`${formatDateNumeric(update.date)} ${collapseWhitespace(update.text.slice(0, RAW_LINE_LIMIT))}`, NOTES_PREVIEW_MAX_CHARS)
 }
 

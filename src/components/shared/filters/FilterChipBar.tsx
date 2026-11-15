@@ -1,8 +1,6 @@
 import { FilterChipBarDesktop } from './FilterChipBar.desktop'
 import { FilterChipBarMobile } from './FilterChipBar.mobile'
-import type { FilterChipBarProps, FilterChipDensity } from './FilterChipBar.shared'
-
-export type { FilterChipBarProps, FilterChipDensity }
+import type { FilterChipBarProps } from './FilterChipBar.shared'
 
 /**
  * Dispatcher that routes to the desktop or mobile variant based on the

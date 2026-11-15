@@ -46,7 +46,7 @@ export interface SearchSources {
 }
 
 /** A recognised token: the clause it sets, as typed. */
-export interface SearchToken {
+interface SearchToken {
   raw: string
   start: number
   end: number

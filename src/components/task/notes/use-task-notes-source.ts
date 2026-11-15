@@ -9,7 +9,7 @@ import type { NotesSource } from './NotesBody'
  * Writes a task's notes (`undefined` = none). Resolves false when the write
  * failed (it was rolled back); `void` counts as written.
  */
-export type TaskNotesWrite = (todoId: number, notes: string | undefined) => void | Promise<boolean>
+type TaskNotesWrite = (todoId: number, notes: string | undefined) => void | Promise<boolean>
 
 const storeWrite: TaskNotesWrite = (todoId, notes) => useTodoStore.getState().update(todoId, { notes })
 
@@ -22,7 +22,7 @@ interface TaskNotesSourceOptions {
   write?: TaskNotesWrite
 }
 
-export interface TaskNotesSession {
+interface TaskNotesSession {
   /** `NotesBody`'s source: the text typed, written debounced; `flush` writes it now. */
   source: NotesSource
   /**

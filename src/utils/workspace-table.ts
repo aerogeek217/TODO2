@@ -26,7 +26,7 @@ export const TABLE_HEADER_PX = 32
 export const FIT_TRACK_NOMINAL_PX = FIT_ROW_PX
 
 /** How a track is sized: see the module comment. */
-export type TrackSizing =
+type TrackSizing =
   | { kind: 'fixed'; px: number }
   | { kind: 'collapsed' }
   | { kind: 'fit' }
@@ -54,7 +54,7 @@ export function rowDrawsFitFaces(body: LayoutBody, row: number): boolean {
 }
 
 /** Every track of `axis`: how it is sized. */
-export function trackSizings(body: LayoutBody, axis: GridAxis): TrackSizing[] {
+function trackSizings(body: LayoutBody, axis: GridAxis): TrackSizing[] {
   return body.grid[axis].map((_, i) => trackSizing(body, axis, i))
 }
 
@@ -176,7 +176,7 @@ export function trackTemplate(body: LayoutBody, axis: GridAxis, gap: number): st
 }
 
 /** A track to lay out: a settled size (px), or a share of the free space no smaller than `min`. */
-export type SolveTrack = { px: number } | { weight: number; min: number }
+type SolveTrack = { px: number } | { weight: number; min: number }
 
 /**
  * The tracks' sizes (px) in `available` px with `gap` between them, as CSS
@@ -223,7 +223,7 @@ export function solveTracks(tracks: readonly SolveTrack[], available: number, ga
 }
 
 /** A size measured when the drag started, by track id (a fit row's content height). */
-export type MeasuredTracks = ReadonlyMap<string, number>
+type MeasuredTracks = ReadonlyMap<string, number>
 
 /**
  * The tracks of `axis` sized in `available` px (`solveTracks`), a fit row

@@ -76,7 +76,7 @@ export function closePurgeReview(): void {
  * `unconfirmed`: it went out as a plain download and the user didn't confirm
  * it saved; `no-backup`: the backup snapshot failed and the user cancelled.
  */
-export type ExportAndPurgeResult =
+type ExportAndPurgeResult =
   | { status: 'done'; deleted: number; saved: 'saved' | 'downloaded'; fileName: string; noBackup: boolean }
   | { status: 'kept'; reason: 'unconfirmed' | 'no-backup'; fileName: string }
   | { status: 'cancelled' }

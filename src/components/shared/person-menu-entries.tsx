@@ -39,7 +39,7 @@ export function useEntityMenuOffers(): EntityMenuOffers {
   return { showTasks: outside, review: outside }
 }
 
-export interface PersonMenuOptions {
+interface PersonMenuOptions {
   /** Offer the Review item. */
   review: boolean
   /** Runs first in the item's select (e.g. a picker closing). */
@@ -68,14 +68,14 @@ export function personReviewLabel(name: string): string {
 }
 
 /** A person's item: Review with X (when `review`). */
-export function personMenuEntries(person: Named, opts: PersonMenuOptions): MenuItemEntry[] {
+function personMenuEntries(person: Named, opts: PersonMenuOptions): MenuItemEntry[] {
   const id = person.id
   if (id == null || !opts.review) return []
   return [reviewItem(personReviewLabel(person.name), () => personReviewFilter({ id }), opts)]
 }
 
 /** A tag's item: Review #tag tasks (when `review`). */
-export function tagMenuEntries(tag: Pick<Tag, 'id' | 'name'>, opts: PersonMenuOptions): MenuItemEntry[] {
+function tagMenuEntries(tag: Pick<Tag, 'id' | 'name'>, opts: PersonMenuOptions): MenuItemEntry[] {
   const id = tag.id
   if (id == null || !opts.review) return []
   return [reviewItem(`Review #${tag.name} tasks`, () => tagReviewFilter({ id }), opts)]

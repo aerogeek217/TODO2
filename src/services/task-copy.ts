@@ -48,7 +48,7 @@ function subtasksOf(todo: PersistedTodoItem, ctx: CopyTaskContext): Subtask[] {
  * `[ ] title [Status] (due …) (follow-up …)`; each part after the title
  * starts with its space, or is empty.
  */
-export interface TaskLineParts {
+interface TaskLineParts {
   check: '[ ]' | '[x]'
   title: string
   statusStr: string

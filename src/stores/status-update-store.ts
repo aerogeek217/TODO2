@@ -14,7 +14,7 @@ import { undoable } from './undoable'
 const NO_UPDATES: readonly PersistedStatusUpdate[] = []
 
 /** A new entry: its day (a later one is today), its text and whether it came with a Mark followed up. */
-export interface NewStatusUpdate {
+interface NewStatusUpdate {
   date: Date
   text: string
   followedUp?: boolean

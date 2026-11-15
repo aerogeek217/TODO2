@@ -7,7 +7,7 @@ import { registerModuleReset } from '../../../utils/module-reset'
 import { useChipNames } from '../../shared/filters/filter-menu'
 
 /** A list in words for a review's header: `list · Status Waiting · People · Due date`. */
-export function shownListDescription(definition: PersistedListDefinition, filters: string): string {
+function shownListDescription(definition: PersistedListDefinition, filters: string): string {
   const parts = ['list', filters, groupSortSummary(definition.grouping, definition.sort, definition.sortDirection)]
   return parts.filter((p) => p !== '').join(' · ')
 }

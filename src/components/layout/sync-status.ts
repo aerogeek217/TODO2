@@ -11,10 +11,10 @@ import type { SyncPauseReason } from '../../services/file-storage'
  * urgent first — Permission needed › Sync paused › Sync error › Backup
  * warning › the purge notice (`17 old completed`) › Synced / Local only.
  */
-export type StoragePillKind = 'local' | 'syncing' | 'permission' | 'paused' | 'error' | 'backup' | 'purge'
+type StoragePillKind = 'local' | 'syncing' | 'permission' | 'paused' | 'error' | 'backup' | 'purge'
 
 /** The purge notice, as the pill reads it: how many completed tasks are past the retention, and the settings its words name. */
-export interface PurgeNoticeInput {
+interface PurgeNoticeInput {
   count: number
   retentionDays: number
   intervalDays: number
@@ -41,7 +41,7 @@ export type SyncWarning =
   | { kind: 'backup'; message: string }
   | ({ kind: 'purge' } & PurgeNoticeInput)
 
-export interface StoragePillState {
+interface StoragePillState {
   kind: StoragePillKind
   text: string
   /** How many warnings are active (the pill's count badge from two on). */
@@ -120,7 +120,7 @@ export function warningTone(kind: StoragePillKind): 'danger' | 'warning' | 'noti
 }
 
 /** A warning in words: its title, why it shows, an optional flag line and what it means. */
-export interface SyncWarningCopy {
+interface SyncWarningCopy {
   title: string
   why: string
   flag: string | null
@@ -153,7 +153,7 @@ function pausedBody(reason: SyncPauseReason | null): string | null {
 }
 
 /** A backup warning that a saved backup would not restore (the others say none was saved). */
-export function isUnrestorableBackupWarning(message: string): boolean {
+function isUnrestorableBackupWarning(message: string): boolean {
   return message.startsWith('Backup snapshot (')
 }
 
@@ -196,7 +196,7 @@ export function syncWarningCopy(w: SyncWarning): SyncWarningCopy {
 }
 
 /** The storage state from the stores, as `storagePillState` reads it. */
-export function useStoragePillInput(): StoragePillInput {
+function useStoragePillInput(): StoragePillInput {
   const isConnected = useFileStorageStore((s) => s.isConnected)
   const fileName = useFileStorageStore((s) => s.fileName)
   const needsPermission = useFileStorageStore((s) => s.needsPermission)

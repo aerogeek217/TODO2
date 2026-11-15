@@ -23,7 +23,7 @@ import type {
  * schema changes, as long as its version is at or above the floor
  * (`OLDEST_SUPPORTED_DB_VERSION`); one from below it is refused.
  */
-export interface TaskArchive {
+interface TaskArchive {
   [SCHEMA_VERSION_KEY]: number
   kind: typeof TASK_ARCHIVE_KIND
   exportedAt: string

@@ -79,7 +79,7 @@ let saveGeneration = 0
  * instance (the store's state is reset separately). A save already running
  * finishes on its own; the next one doesn't wait for it.
  */
-export function resetNoteSaves(): void {
+function resetNoteSaves(): void {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = undefined
   editSeq = 0

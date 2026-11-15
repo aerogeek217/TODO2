@@ -76,7 +76,7 @@ export function periodRange(period: PeriodWord, field: DateField): DateMatch {
  * shortcuts and the period names are found through it, so a stored offset
  * prints as the text the parser reads back to the same words.
  */
-export function anchorsSameDay(a: DateAnchor | null, b: DateAnchor | null): boolean {
+function anchorsSameDay(a: DateAnchor | null, b: DateAnchor | null): boolean {
   if (dateAnchorsEqual(a, b)) return true
   if (a == null || b == null) return false
   const day = dayOffsetOf(a)
@@ -212,7 +212,7 @@ export function anchorWords(a: DateAnchor): string {
 }
 
 /** How `field` says it has no date: `no due`, `no followup`, `never followed`. */
-export function noDateWords(field: DateField): string {
+function noDateWords(field: DateField): string {
   return field === 'lastFollowup' ? 'never followed' : `no ${DATE_WORD[field]}`
 }
 

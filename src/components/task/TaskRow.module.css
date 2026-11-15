@@ -619,10 +619,6 @@
   .gutterFlag {
     opacity: 1;
   }
-
-  .gutterDot {
-    opacity: 0;
-  }
 }
 
 /* ── Stacked (a list tab's zoom, D25 C: `TaskRow stacked`) ────────────────── */

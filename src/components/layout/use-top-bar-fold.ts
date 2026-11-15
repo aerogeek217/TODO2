@@ -12,7 +12,7 @@ import { LENS_NAME_ATTR, LENS_NAME_MAX_WIDTH } from '../shared/filters/lens-fold
  * (`traySqueeze`): the field narrows, then long filter values are cut. With
  * no filter on there are no chips, so only the tabs fold.
  */
-export type TopBarFold = 'none' | 'filters' | 'both'
+type TopBarFold = 'none' | 'filters' | 'both'
 
 /** Whether the set filters' chips are folded into the Filter button. */
 export function filtersFolded(fold: TopBarFold): boolean {
@@ -33,7 +33,7 @@ export const VALUE_MIN_WIDTH = 56
 export const LENS_NAME_MIN_WIDTH = 56
 
 /** A filter value shown on its button: the field and the value's natural width, px. */
-export interface TrayValue {
+interface TrayValue {
   key: string
   width: number
 }
@@ -100,7 +100,7 @@ export function lensNameSqueeze(m: TopBarMeasure, fold: TopBarFold): number | nu
 }
 
 /** How the tray shrinks to fit: the search's width, and the width of each value that is cut (by field). */
-export interface TraySqueeze {
+interface TraySqueeze {
   search: number
   values: Partial<Record<string, number>>
 }
@@ -304,7 +304,7 @@ function remeasure(bar: HTMLElement, shown: { fold: TopBarFold; tabsKey: string 
 }
 
 /** The top bar's fold and how the tray shrinks at it (once measured). */
-export interface TopBarFoldState {
+interface TopBarFoldState {
   fold: TopBarFold
   /** The tray shrunk into the room the bar leaves it at `fold`; `null` = natural. */
   squeeze: TraySqueeze | null

@@ -72,7 +72,7 @@ export type PopoverPlacement =
    */
   | 'right-start' | 'left-start'
 
-export interface UsePopoverAnchorOptions {
+interface UsePopoverAnchorOptions {
   /**
    * Where the popover should attach. `ref` reads `getBoundingClientRect()`
    * from the trigger element each compute pass; `point` pins to viewport
@@ -166,7 +166,7 @@ export interface UsePopoverAnchorOptions {
 }
 
 /** Which edge of the popover faces its anchor. */
-export type PopoverCaretSide = 'top' | 'bottom' | 'left' | 'right'
+type PopoverCaretSide = 'top' | 'bottom' | 'left' | 'right'
 
 /**
  * Where a popover's caret sits: on its `side` edge, `offset` px from that
@@ -180,7 +180,7 @@ export interface PopoverCaret {
   readonly y: number
 }
 
-export interface PopoverStyle {
+interface PopoverStyle {
   readonly position: 'fixed'
   readonly left: number
   readonly top: number
@@ -188,7 +188,7 @@ export interface PopoverStyle {
   readonly maxHeight: number
 }
 
-export interface UsePopoverAnchorResult {
+interface UsePopoverAnchorResult {
   /** Apply to the panel root via `<div ref={panelRef} style={style} />`. */
   panelRef: (el: HTMLElement | null) => void
   /** Inline style for the panel root. Spread or apply directly. */
@@ -209,7 +209,7 @@ export interface AnchorRect {
 }
 
 /** A popover's placed box, in viewport px. */
-export interface PanelBox {
+interface PanelBox {
   left: number
   top: number
   width: number

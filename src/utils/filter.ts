@@ -23,7 +23,7 @@ export function toggleItem<T>(current: Set<T> | null, item: T, allItems: T[]): S
 /** Field kinds that a text search can hit. Ordered so UI groupings render consistently. */
 export type TextMatchField = 'title' | 'notes' | 'statusUpdate' | 'subtask' | 'person' | 'status' | 'tag'
 
-export const TEXT_MATCH_FIELDS: readonly TextMatchField[] = [
+const TEXT_MATCH_FIELDS: readonly TextMatchField[] = [
   'title', 'notes', 'statusUpdate', 'subtask', 'person', 'status', 'tag',
 ] as const
 
@@ -95,7 +95,7 @@ export function textMatchContextFor(
   }
 }
 
-export interface TextMatchResult {
+interface TextMatchResult {
   matched: boolean
   fields: TextMatchField[]
 }

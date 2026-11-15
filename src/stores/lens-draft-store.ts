@@ -10,7 +10,7 @@ import { undoable } from './undoable'
 import { lensActions } from './lens-actions'
 
 /** The open lens's filter as edited, not saved yet. */
-export interface LensDraft {
+interface LensDraft {
   lensId: string
   predicate: TodoPredicate
 }

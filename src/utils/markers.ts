@@ -75,7 +75,7 @@ export function markerSummary(
  * a ring or without (the box keeping its plain border). A completed task
  * has neither.
  */
-export interface PriorityRingSpec {
+interface PriorityRingSpec {
   kind: 'none' | 'urgent' | 'important' | 'split'
   /** The urgent ring (or the split's urgent half) is dashed: urgent only by the due date. */
   urgentDashed: boolean
@@ -119,10 +119,10 @@ export interface MarkerSettings {
 export const NO_PRIORITY_LABEL = 'No priority'
 
 /** A Priority condition's values, in display order (Focus › Urgent › Important › No priority). */
-export const MARKER_VALUES: readonly MarkerValue[] = [...MARKER_KEYS, NO_PRIORITY]
+const MARKER_VALUES: readonly MarkerValue[] = [...MARKER_KEYS, NO_PRIORITY]
 
 /** The display name of a value a Priority condition can name. */
-export function markerValueLabel(v: MarkerValue): string {
+function markerValueLabel(v: MarkerValue): string {
   return v === NO_PRIORITY ? NO_PRIORITY_LABEL : MARKER_LABELS[v]
 }
 

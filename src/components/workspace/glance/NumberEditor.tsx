@@ -177,7 +177,7 @@ export function NumberEditorHost() {
  * The Top-bar lens switch is view state, written at once as on the
  * Number's corner.
  */
-export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
+function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
   const id = useId()
   const edit = useEditorDraft<NumberConfig>({
     tabId: tab.id,

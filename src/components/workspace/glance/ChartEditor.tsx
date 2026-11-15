@@ -293,7 +293,7 @@ function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { f
  * Esc, × or a press elsewhere close it at once while nothing changed, else
  * ask Save / Discard / Keep editing.
  */
-export function ChartEditor({ tab, anchorRef, onClose }: {
+function ChartEditor({ tab, anchorRef, onClose }: {
   tab: ChartTab
   /** The chart's title it sits under. */
   anchorRef: RefObject<HTMLElement | null>

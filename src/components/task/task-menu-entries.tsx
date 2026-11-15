@@ -46,7 +46,7 @@ export interface TaskMenuHandlers {
   onDelete: () => void
 }
 
-export interface BuildTaskMenuOpts {
+interface BuildTaskMenuOpts {
   /** The task the menu was opened on. */
   todo: PersistedTodoItem
   /** The tasks the menu acts on: the selection the task is part of, or just the task. */

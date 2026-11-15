@@ -51,7 +51,7 @@ function matchByName<T>(name: string, items: readonly T[], getKey: (item: T) => 
  * `alp` → `Project: Alpha`), the text anywhere in the name.
  */
 export const NAME_MATCH_RANK = { exact: 0, initials: 1, prefix: 2, wordStart: 3, substring: 4 } as const
-export type NameMatchRank = (typeof NAME_MATCH_RANK)[keyof typeof NAME_MATCH_RANK]
+type NameMatchRank = (typeof NAME_MATCH_RANK)[keyof typeof NAME_MATCH_RANK]
 
 /**
  * The worst rank a name typed without picking resolves to (exact, initials,
@@ -60,7 +60,7 @@ export type NameMatchRank = (typeof NAME_MATCH_RANK)[keyof typeof NAME_MATCH_RAN
  */
 export const TYPED_NAME_MAX_RANK: NameMatchRank = NAME_MATCH_RANK.prefix
 
-export interface NameMatch {
+interface NameMatch {
   rank: NameMatchRank
   /** Where the typed text sits in the name (-1: an initials match the name doesn't start with). */
   at: number
@@ -241,7 +241,7 @@ export async function resolveTags(
 /**
  * Minimal shape of the person-store needed by `resolveUnmatchedPeople`.
  */
-export interface PersonStoreLike {
+interface PersonStoreLike {
   /** Lookup-or-create by name (case-insensitive); returns the person's id. */
   getOrCreate: (name: string) => Promise<number>
 }

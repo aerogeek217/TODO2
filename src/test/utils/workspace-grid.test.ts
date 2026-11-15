@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createTab, type LayoutBody } from '../../models/workspace-layout'
 import {
-  canMerge,
   cellAtTrack,
   edgeBetween,
   edgeStretches,
@@ -52,10 +51,7 @@ describe('queries', () => {
     expect(wholeEdgeNeighbour(L, 'd', 'left')?.id).toBe('c')
   })
 
-  it('merges two cells only into a rectangle', () => {
-    expect(canMerge(L, 'c', 'd')).toBe(true)
-    expect(canMerge(L, 'a', 'b')).toBe(false)
-    expect(canMerge(L, 'a', 'c')).toBe(false)
+  it('unions two areas into a rectangle', () => {
     expect(unionArea({ col: 0, row: 1, colSpan: 1, rowSpan: 1 }, { col: 1, row: 1, colSpan: 1, rowSpan: 1 })).toEqual({ col: 0, row: 1, colSpan: 2, rowSpan: 1 })
   })
 })

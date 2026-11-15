@@ -14,7 +14,7 @@ import { topModalBackdrop, underModal } from '../dom-contract'
  * task drop target (calendar days) must be under the
  * pointer, so the accepted droppables go through dnd-kit's `pointerWithin`.
  */
-export interface TaskCollisionRule {
+interface TaskCollisionRule {
   /**
    * Returns true when this rule applies to the current active drag. Consult
    * `active.id` for sortable-style active ids and `active.data.current?.type`
@@ -31,7 +31,7 @@ export interface TaskCollisionRule {
  * `DataRef<Data>` shape — the live payload lives at `data.current`, not on
  * `data` itself, so callers must always read `active.data.current?.type`.
  */
-export interface CollisionActive {
+interface CollisionActive {
   id: UniqueIdentifier
   data: { current: (({ type?: unknown } & Record<string, unknown>) | null) }
 }

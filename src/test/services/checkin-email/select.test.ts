@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { Person, PersistedTodoItem, Status, Tag, TodoPredicate } from '../../../models'
 import {
   checkinTaskCount,
-  checkinTaskCounts,
   compareCheckinTasks,
   selectCheckinTasks,
   type CheckinSelectContext,
@@ -161,24 +160,5 @@ describe('selectCheckinTasks', () => {
   it('a person with no tasks gets empty sections', () => {
     const out = selectCheckinTasks(ada, ALL, context([makeTodo({ id: 1 })], { 1: [bob] }))
     expect(out).toEqual({ overdue: [], comingUp: [] })
-  })
-})
-
-describe('checkinTaskCounts', () => {
-  it('per person, the open tasks the filter picks — the same as selecting each one’s tasks', () => {
-    const todos = [
-      makeTodo({ id: 1, dueDate: day(-1) }),
-      makeTodo({ id: 2, dueDate: day(3) }),
-      makeTodo({ id: 3, dueDate: day(30) }),
-      makeTodo({ id: 4, dueDate: day(1), isCompleted: true }),
-      makeTodo({ id: 5, dueDate: day(2) }),
-    ]
-    const ctx = context(todos, { 1: [ada], 2: [ada, bob], 3: [bob], 4: [bob], 5: [] })
-    const counts = checkinTaskCounts(dueSoonCheckinFilter(), ctx)
-    expect([...counts].sort()).toEqual([[1, 2], [2, 1]])
-    for (const p of [ada, bob]) {
-      expect(counts.get(p.id) ?? 0).toBe(checkinTaskCount(selectCheckinTasks(p, dueSoonCheckinFilter(), ctx)))
-    }
-    expect([...checkinTaskCounts(ALL, ctx)].sort()).toEqual([[1, 2], [2, 2]])
   })
 })

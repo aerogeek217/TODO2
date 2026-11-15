@@ -13,7 +13,7 @@ let cachedDB: IDBDatabase | null = null
  * Closes and forgets the cached connection, for tests that share one module
  * instance (e.g. before deleting the database). The next call reopens it.
  */
-export function resetFileHandleCache(): void {
+function resetFileHandleCache(): void {
   cachedDB?.close()
   cachedDB = null
 }

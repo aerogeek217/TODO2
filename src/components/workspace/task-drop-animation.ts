@@ -59,7 +59,7 @@ function fadeInPlace(): void {
 }
 
 /** The page's task drop animation and what its drop handlers tell it. */
-export interface TaskDropAnimation {
+interface TaskDropAnimation {
   /** For `DragOverlay`'s `dropAnimation`. */
   animation: DropAnimationFunction
   /**

@@ -61,7 +61,7 @@ export interface TaskDialogEnv {
 }
 
 /** Settings' new-list sort, its direction and grouping (`newListSort` / `newListSortDirection` / `newListGroup`). */
-export interface NewListView {
+interface NewListView {
   sort: TodoSortBy
   sortDirection: TodoSortDirection
   grouping: TodoGroupBy

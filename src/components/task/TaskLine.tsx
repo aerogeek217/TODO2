@@ -22,7 +22,7 @@ import styles from './TaskLine.module.css'
 import rowStyles from './TaskRow.module.css'
 
 /** Modifier keys of a click that selects. */
-export interface LineSelectMods {
+interface LineSelectMods {
   shift: boolean
   ctrl: boolean
 }

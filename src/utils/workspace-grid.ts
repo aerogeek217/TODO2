@@ -15,7 +15,7 @@ import type { CellArea, GridAxis, GridTrack, LayoutBody, LayoutCell } from '../m
  */
 
 /** A cell's rectangle as the lines it lies between (ends exclusive). */
-export interface CellRect {
+interface CellRect {
   c0: number
   r0: number
   c1: number
@@ -42,7 +42,7 @@ export function rectOf(area: CellArea): CellRect {
   return { c0: area.col, r0: area.row, c1: area.col + area.colSpan, r1: area.row + area.rowSpan }
 }
 
-export function areaOf(rect: CellRect): CellArea {
+function areaOf(rect: CellRect): CellArea {
   return { col: rect.c0, row: rect.r0, colSpan: rect.c1 - rect.c0, rowSpan: rect.r1 - rect.r0 }
 }
 
@@ -136,13 +136,6 @@ export function unionArea(a: CellArea, b: CellArea): CellArea | null {
     return areaOf({ r0: Math.min(p.r0, q.r0), r1: Math.max(p.r1, q.r1), c0: p.c0, c1: p.c1 })
   }
   return null
-}
-
-/** Whether cells `aId` and `bId` merge into a rectangle (`unionArea`). */
-export function canMerge(body: LayoutBody, aId: string, bId: string): boolean {
-  const a = cellById(body, aId)
-  const b = cellById(body, bId)
-  return a != null && b != null && a !== b && unionArea(a.area, b.area) != null
 }
 
 /** The neighbour across `side` that cell `cellId` merges with into a rectangle (Merge with ▸ Right / Below), if any. */
@@ -343,7 +336,7 @@ function extendStretch(body: LayoutBody, axis: GridAxis, line: number, from: num
  * and row line `row` (a level one), each a cell edge on both sides of the
  * other — four cells meet there.
  */
-export interface LineCrossing {
+interface LineCrossing {
   col: number
   row: number
 }

@@ -4,7 +4,7 @@ import type { TabBadgeCounts } from '../../../utils/tab-badges'
 /** A list tab's faces (D25 R, `ListFace`): what their lines read. */
 
 /** A quick row's height (px): the medium face fits as many as its room takes. */
-export const LIST_FACE_ROW_PX = 24
+const LIST_FACE_ROW_PX = 24
 
 /** The earliest due date among the open tasks, or null. */
 export function oldestDue(todos: readonly Pick<PersistedTodoItem, 'isCompleted' | 'dueDate'>[]): Date | null {

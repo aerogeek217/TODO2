@@ -4,5 +4,3 @@ export interface Tag {
   color: string
 }
 
-/** Tag with guaranteed id (post-insert from DB) */
-export type PersistedTag = Tag & { id: number }

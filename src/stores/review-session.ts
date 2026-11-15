@@ -13,10 +13,10 @@ import { registerModuleReset } from '../utils/module-reset'
  */
 
 /** A task's mark: followed up (today, here or elsewhere — `shownMark`), or skipped in this review. */
-export type ReviewMark = 'done' | 'skipped'
+type ReviewMark = 'done' | 'skipped'
 
 // The rail's sort (item 7) is stored by a Review widget: its type lives with the models.
-export { REVIEW_SORTS, isReviewSort, reviewSortLabel, type ReviewSort } from '../models/review'
+export { REVIEW_SORTS, reviewSortLabel, type ReviewSort } from '../models/review'
 
 /** What a session holds. */
 export interface ReviewSessionData {
@@ -57,7 +57,7 @@ export interface ReviewPlace {
   index: number
 }
 
-export interface ReviewSessionActions {
+interface ReviewSessionActions {
   /** Jumps to card `i` of `order` (clamped); moving off a current task no longer in the queue drops it from the rail. */
   go: (i: number) => void
   next: () => void
@@ -85,7 +85,7 @@ export type ReviewSession = ReviewSessionData & ReviewSessionActions
 /** What the review components read a session through (a widget's). */
 export type ReviewSessionApi = Pick<StoreApi<ReviewSession>, 'getState' | 'getInitialState' | 'subscribe'>
 
-export const EMPTY_SESSION: ReviewSessionData = {
+const EMPTY_SESSION: ReviewSessionData = {
   ids: [],
   sort: 'queue',
   order: [],
@@ -104,7 +104,7 @@ export function currentReviewId(s: Pick<ReviewSessionData, 'order' | 'index'>): 
 }
 
 /** The session's actions over its data, for a store whose state holds it. */
-export function reviewSessionActions(
+function reviewSessionActions(
   set: (partial: Partial<ReviewSessionData>) => void,
   get: () => ReviewSessionData & Pick<ReviewSessionActions, 'go' | 'next' | 'mark'>,
 ): ReviewSessionActions {

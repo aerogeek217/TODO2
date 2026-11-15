@@ -68,7 +68,7 @@ export interface MenuItemEntry {
  * A value stepped in place with − and + (e.g. a list's zoom): the menu
  * stays open; a step without its handler is disabled (the value's end).
  */
-export interface MenuStepperEntry {
+interface MenuStepperEntry {
   kind: 'stepper'
   label: string
   icon?: ReactNode
@@ -82,7 +82,7 @@ export interface MenuStepperEntry {
 }
 
 /** A place on a picture's grid: its first row and column lines (1-based) and how many tracks it spans (default 1). */
-export interface MenuGridArea {
+interface MenuGridArea {
   row: number
   col: number
   rowSpan?: number

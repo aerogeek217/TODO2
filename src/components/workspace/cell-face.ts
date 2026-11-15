@@ -15,14 +15,14 @@ import { tabOpensLarger, type WidgetFace } from '../../utils/widget-face'
  */
 
 /** How the cell measures its widget's face. */
-export interface CellFaceOptions {
+interface CellFaceOptions {
   /** A fit row: its content sets its height, so it is always the small face. */
   forced?: WidgetFace
   /** The body's height is its content's (`WidgetFaceHost.heightFree`). */
   heightFree?: boolean
 }
 
-export interface CellFace {
+interface CellFace {
   /** The face the active widget shows (`large` for a widget that has none, and until it reports). */
   face: WidgetFace
   /** For `WidgetFaceContext` around the active widget. */

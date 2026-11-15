@@ -11,7 +11,7 @@ import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, PencilIco
 import styles from './LayoutControls.module.css'
 
 /** How the top bar shows the layouts: one tab each, or folded into the picker's drop-down. */
-export type LayoutControlsMode = 'tabs' | 'menu'
+type LayoutControlsMode = 'tabs' | 'menu'
 
 type Pending =
   | { kind: 'new-name' }

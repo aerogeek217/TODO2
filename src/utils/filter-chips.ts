@@ -10,7 +10,7 @@ import { formatFollowupDate } from './followup'
 import { hasMarkers, MARKERS_LABEL, markerClauseNames, markersHideLine, withMarkerClause } from './markers'
 import { expressionWords, printExpression, type ExpressionNames } from './filter-expression'
 
-export { describeAnchor, describeDateMatch, describeRange } from './date-words'
+export { describeAnchor, describeDateMatch } from './date-words'
 
 /** The filter fields a chip stands for. */
 export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'markers' | 'text' | 'completed'
@@ -55,7 +55,7 @@ export interface FilterChipNames {
  * Narrowing clauses of a filter, in the shape predicates and screen
  * criteria share.
  */
-export interface ChipClauses {
+interface ChipClauses {
   showCompleted?: boolean
   personIds: IdList | null
   statusIds: IdList | null
@@ -76,7 +76,7 @@ function allNames(ids: Iterable<number>, nameOf: (id: number) => string | undefi
 }
 
 /** The most names an "is not" tooltip spells out; the rest are counted. */
-export const TOOLTIP_NAMES_MAX = 10
+const TOOLTIP_NAMES_MAX = 10
 
 /** `a, b or c`; past `TOOLTIP_NAMES_MAX` names, `a, b, … j and 5 more`. */
 function orList(names: readonly string[]): string {
@@ -344,7 +344,7 @@ export function expressionText(p: Pick<TodoPredicate, 'expression'>, names: Pick
  * tooltip) and the same read back in words (`words`, D26 board BF —
  * `filter-expression/words`), which every summary shows.
  */
-export type LineItem =
+type LineItem =
   | { kind: 'chip'; chip: FilterChip }
   | { kind: 'expression'; text: string; words: string }
 

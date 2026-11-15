@@ -32,7 +32,7 @@ import { isRecord } from './is-record'
 import { formatShortcut } from './platform'
 
 /** Every binding's keys; `null` for one without keys (none by default, none set). */
-export type ResolvedBindings = Readonly<Record<ShortcutId, ShortcutChord | null>>
+type ResolvedBindings = Readonly<Record<ShortcutId, ShortcutChord | null>>
 
 /** Every binding's keys: the user's override, else the default. */
 export function resolveBindings(overrides: ShortcutOverrides): ResolvedBindings {
@@ -48,7 +48,7 @@ export function shortcutLabel(id: ShortcutId, overrides: ShortcutOverrides): str
 }
 
 /** How the lists show a binding without keys. */
-export const NO_KEYS_LABEL = 'Not set'
+const NO_KEYS_LABEL = 'Not set'
 
 interface ReservedCombo {
   combo: KeyCombo
@@ -241,7 +241,7 @@ export function formatShortcutOverrides(overrides: ShortcutOverrides): string {
   return JSON.stringify(Object.fromEntries(entries))
 }
 
-export interface ReadShortcutOverrides {
+interface ReadShortcutOverrides {
   overrides: ShortcutOverrides
   /** What was dropped, in words (empty when the text was clean). */
   dropped: string[]
@@ -345,7 +345,7 @@ export interface ShortcutListRow {
   changed: boolean
 }
 
-export interface ShortcutListSection {
+interface ShortcutListSection {
   category: ShortcutCategory
   label: string
   rows: ShortcutListRow[]

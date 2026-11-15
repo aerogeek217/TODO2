@@ -2,7 +2,7 @@ import { parseInput } from './natural-language-parser'
 import { resolveInput, type ResolvedInput } from './nlp-resolver'
 import type { Person, Status } from '../models'
 
-export interface NlpCreateResult {
+interface NlpCreateResult {
   title: string
   resolved: ResolvedInput
 }

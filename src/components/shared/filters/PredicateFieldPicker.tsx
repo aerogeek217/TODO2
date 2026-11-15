@@ -38,7 +38,7 @@ interface PickerBodyProps<T extends FilterClauses> {
   onClose: () => void
 }
 
-export interface PredicateFieldPickerProps<T extends FilterClauses> extends PickerBodyProps<T> {
+interface PredicateFieldPickerProps<T extends FilterClauses> extends PickerBodyProps<T> {
   /** Viewport point the panel hangs from. */
   at: PopoverPoint
   /** Esc closes the picker only, not what it was opened from (e.g. a dialog). Default: it goes on. */

@@ -90,7 +90,7 @@ export function TrendEditorHost() {
  * elsewhere close it at once while nothing changed, else ask Save / Discard
  * / Keep editing.
  */
-export function TrendEditor({ tab, anchorRef, onClose }: {
+function TrendEditor({ tab, anchorRef, onClose }: {
   tab: TrendTab
   /** The widget's title it sits under. */
   anchorRef: RefObject<HTMLElement | null>

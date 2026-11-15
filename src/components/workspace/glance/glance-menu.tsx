@@ -92,7 +92,7 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
 }
 
 /** What a glance tab's menu adds: its settings (first) and its actions (Copy). */
-export interface GlanceMenu {
+interface GlanceMenu {
   settingEntries: MenuEntry[]
   actions: WidgetMenuAction[]
 }

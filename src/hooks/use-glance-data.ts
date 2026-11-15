@@ -45,7 +45,7 @@ import { useWidgetScreenFilter } from './use-widget-lens'
 const OPTION_SLOTS = 8
 
 /** A statistic over the screen-filtered tasks, and over every task (the `of N`). */
-export interface ShownOfTotal<T> {
+interface ShownOfTotal<T> {
   shown: T
   total: T
 }

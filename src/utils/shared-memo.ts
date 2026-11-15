@@ -67,7 +67,7 @@ export function sharedMemo<D extends readonly unknown[], T>(
 }
 
 /** A shared memo: called, it computes or returns the kept value; `peek` only looks. */
-export interface SharedMemo<D extends readonly unknown[], T> {
+interface SharedMemo<D extends readonly unknown[], T> {
   (...deps: D): T
   peek(...deps: D): T | undefined
 }
@@ -156,7 +156,7 @@ export function sharedMemoByKey<K extends object, D extends readonly unknown[], 
 }
 
 /** A shared memo by key: called, it computes or returns the kept value; `peek` and `last` only look. */
-export interface SharedMemoByKey<K extends object, D extends readonly unknown[], T> {
+interface SharedMemoByKey<K extends object, D extends readonly unknown[], T> {
   (key: K, ...deps: D): T
   peek(key: K, ...deps: D): T | undefined
   last(key: K): { deps: D; value: T } | undefined

@@ -31,7 +31,7 @@ function Placeholder({ children }: { children: ReactNode }) {
   return <span className={styles.ph} aria-hidden="true">{children}</span>
 }
 
-export interface StackedDetailsProps {
+interface StackedDetailsProps {
   todo: PersistedTodoItem
   today: Date
   people: readonly Person[]

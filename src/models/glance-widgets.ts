@@ -21,8 +21,6 @@ import {
   type NumberShow,
 } from './number-shapes'
 
-export { NUMBER_SHOWS, type NumberShow } from './number-shapes'
-
 type Obj = Record<string, unknown>
 
 function includes<T extends string | number>(list: readonly T[], v: unknown): v is T {
@@ -36,11 +34,11 @@ export const NUMBER_LIT_WHEN = ['never', 'above', 'below'] as const
 export type NumberLitWhen = (typeof NUMBER_LIT_WHEN)[number]
 
 /** What a Number's change is against: yesterday's end, the same point of last week, or nothing (no change shown). */
-export const NUMBER_COMPARES = ['yesterday', 'lastWeek', 'none'] as const
+const NUMBER_COMPARES = ['yesterday', 'lastWeek', 'none'] as const
 export type NumberCompare = (typeof NUMBER_COMPARES)[number]
 
 /** A new Number's name: its empty filter counts every open task. */
-export const DEFAULT_NUMBER_NAME = 'Open'
+const DEFAULT_NUMBER_NAME = 'Open'
 
 /**
  * The longest Number name kept — a chart's too (`CHART_NAME_MAX`): what the
@@ -107,7 +105,7 @@ export function isNumberLitAt(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= NUMBER_LIT_AT_MAX
 }
 
-export function isNumberName(v: unknown): v is string {
+function isNumberName(v: unknown): v is string {
   return typeof v === 'string' && v.length <= NUMBER_NAME_MAX
 }
 
@@ -357,7 +355,7 @@ export function trendShow(config: Pick<TrendTabConfig, 'show'>): TrendShow {
   return config.show ?? DEFAULT_TREND_SHOW
 }
 
-export function isTrendShow(v: unknown): v is TrendShow {
+function isTrendShow(v: unknown): v is TrendShow {
   return includes(TREND_SHOWS, v)
 }
 

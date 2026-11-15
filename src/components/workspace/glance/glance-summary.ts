@@ -20,7 +20,7 @@ export interface SummaryPart {
 // line its count makes, or its parts.
 
 /** What Created vs completed's Copy reads. */
-export interface TrendLinesInput {
+interface TrendLinesInput {
   /** Its title. */
   name: string
   /** `Last 14 days`. */

@@ -7,7 +7,7 @@ import styles from './RefusalTooltip.module.css'
 const REFUSAL_OFFSET = { x: 4, y: 26 }
 
 /** A point in the viewport. */
-export interface ViewportPoint {
+interface ViewportPoint {
   x: number
   y: number
 }

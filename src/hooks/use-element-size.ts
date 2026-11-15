@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useState } from 'react'
 
-export interface ElementSize {
+interface ElementSize {
   width: number
   height: number
 }

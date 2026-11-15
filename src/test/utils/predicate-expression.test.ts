@@ -6,7 +6,7 @@ import { applyFilter, createPredicateEvaluator } from '../../utils/filter-match'
 import { predicateToFilterDefaults } from '../../utils/filter-defaults'
 import { describeFilters, hasNarrowingFilters, predicateLineItems } from '../../utils/filter-chips'
 import { predicatesEqual } from '../../utils/list-def-equal'
-import { checkinFilterOf, hasCompletedDateClause } from '../../utils/checkin-settings'
+import { checkinFilterOf } from '../../utils/checkin-settings'
 import { filterReferences } from '../../utils/unused-entities'
 import { asExpression, asGraphical, topLevelPredicate, withExpression } from '../../utils/predicate-expression'
 import { pickPredicate } from '../../data/predicate-shape'
@@ -204,7 +204,6 @@ describe('an expression elsewhere', () => {
       { kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'tag', id: 1 }] },
       { kind: 'or', items: [{ kind: 'tag', id: 2 }, { kind: 'date', field: 'completed', match: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } } }] },
     ] }, { showCompleted: true })
-    expect(hasCompletedDateClause(filter)).toBe(true)
     expect(checkinFilterOf(filter)).toEqual(expr({ kind: 'and', items: [{ kind: 'priority', value: 'focus' }, { kind: 'tag', id: 2 }] }))
   })
 

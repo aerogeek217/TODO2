@@ -104,7 +104,7 @@ export function oldestOf(
  * week's first day, always: that day is compared with 0, where the week
  * stood when it began) or `behind`; an at-most one is `within` or `over`.
  */
-export type GoalState = 'met' | 'onPace' | 'behind' | 'within' | 'over'
+type GoalState = 'met' | 'onPace' | 'behind' | 'within' | 'over'
 
 export interface GoalProgress {
   way: 'atMost' | 'atLeast'

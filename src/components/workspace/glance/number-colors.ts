@@ -15,7 +15,7 @@ export interface NumberColors {
 }
 
 /** The two colours a Number may be given (widget feedback 2D): lit, and otherwise. */
-export type NumberColorPicks = Pick<NumberConfig, 'color' | 'unlitColor'>
+type NumberColorPicks = Pick<NumberConfig, 'color' | 'unlitColor'>
 
 /**
  * A Number's colours at `count` (D18): lit (`numberIsLit`) or not, by

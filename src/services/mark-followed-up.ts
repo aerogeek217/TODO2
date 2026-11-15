@@ -6,7 +6,7 @@ import { registerModuleReset } from '../utils/module-reset'
 import { statusUpdateDay, statusUpdateText } from '../utils/status-updates'
 
 /** The undo step's name for a follow-up recorded with a status update (`at`: dated back, that day). */
-export function followedUpWithUpdateName(count: number, at?: Date): string {
+function followedUpWithUpdateName(count: number, at?: Date): string {
   const day = at ? ` ${formatDateNumeric(at)}` : ''
   return count === 1 ? `Followed up${day} · status update added` : `Followed up ${count} tasks${day} · status update added`
 }

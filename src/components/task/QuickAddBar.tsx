@@ -92,7 +92,7 @@ const MARKER_CHIP_TINT: Record<MarkerKey, string> = { focus: 'focus', urgent: 'u
  * strings — the tag-store resolve-or-create runs at submit so the registry is
  * the single source of truth for color/id.
  */
-export type ParsedTokens = {
+type ParsedTokens = {
   /** Title with every recognised token stripped. */
   title: string
   status?: PersistedStatus
@@ -137,7 +137,7 @@ export interface QuickAddPreset {
   caption?: string
 }
 
-export interface QuickAddBarProps {
+interface QuickAddBarProps {
   open: boolean
   onClose: () => void
   /**

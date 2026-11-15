@@ -8,9 +8,9 @@ import { convertActionLabel, plural } from './convert-action-label'
 import { DraftTaskRow, type PreviewLookups, type PreviewRow } from './DraftTaskRow'
 import styles from './NotesConvert.module.css'
 
-export type { PreviewLookups, PreviewRow } from './DraftTaskRow'
+export type { PreviewRow } from './DraftTaskRow'
 
-export interface NotesConvertPreviewProps {
+interface NotesConvertPreviewProps {
   rows: readonly PreviewRow[]
   lookups: PreviewLookups
   /** The note's heading, when it has one. */

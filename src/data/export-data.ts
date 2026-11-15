@@ -4,7 +4,7 @@ import { SCHEMA_VERSION_KEY } from './file-version'
 import type { DataTableArrays } from './tables'
 
 /** `buildExportData`'s return: every data table (`tables.ts`) by name, plus `__schemaVersion`. */
-export type ExportData = { [SCHEMA_VERSION_KEY]: number } & DataTableArrays
+type ExportData = { [SCHEMA_VERSION_KEY]: number } & DataTableArrays
 
 /**
  * Reads every data table (`ALL_DATA_TABLES`, the registry in `tables.ts`)

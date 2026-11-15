@@ -1,106 +1,15 @@
-import { useState, useRef, useCallback, type RefObject } from 'react'
+import { type RefObject } from 'react'
 import type { Tag } from '../../models'
 import { ChipSelector } from './ChipSelector'
 import { AnchoredPicker } from './AnchoredPicker'
 import styles from './TagChipSelector.module.css'
 import { byName } from '../../utils/sort-order'
 
-export interface TagChipSelectorProps {
-  /** Tags currently assigned to this todo. Pre-resolved by the consumer. */
-  assignedTags: readonly Tag[]
-  /** Full tag registry — populates the lookup-or-create dropdown. */
-  allTags: readonly Tag[]
-  /** Toggle a tag's assignment by id. */
-  onToggle: (tagId: number) => void
-  /** Lookup-or-create-and-assign a tag by name. */
-  onCreate: (name: string) => Promise<void> | void
-  /** Controlled popover state (the task menu's "Add tag…" opens it). Uncontrolled when omitted. */
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
-}
-
-/**
- * Inline tag chip row + lookup-or-create popover (the phone row): the empty
- * state shows a `#` trigger, the populated state clickable `#tag` chips.
- * Click any chip (or the trigger) to open `TagPicker`.
- *
- * Pre-resolution rule (mirrors `TaskPillBar`): the consumer threads
- * `assignedTags` and `allTags` in. This component does NOT subscribe to
- * `tag-store` — keeps per-row spam bounded on dense surfaces.
- */
-export function TagChipSelector({
-  assignedTags, allTags, onToggle, onCreate,
-  open: openProp, onOpenChange,
-}: TagChipSelectorProps) {
-  const [innerOpen, setInnerOpen] = useState(false)
-  const open = openProp ?? innerOpen
-  const anchorRef = useRef<HTMLDivElement>(null)
-
-  const setOpen = useCallback((next: boolean) => {
-    if (onOpenChange) onOpenChange(next)
-    else setInnerOpen(next)
-  }, [onOpenChange])
-  const close = useCallback(() => setOpen(false), [setOpen])
-  const toggleOpen = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    setOpen(!open)
-  }, [open, setOpen])
-
-  const hasTags = assignedTags.length > 0
-
-  return (
-    <>
-      <div ref={anchorRef} className={styles.chipGroup} data-tag-chips="">
-        {assignedTags.map((tag) => (
-          <button
-            key={`tag-${tag.id}`}
-            type="button"
-            className={styles.tagChip}
-            data-tag-chip=""
-            style={tag.color ? { color: tag.color, borderColor: tag.color } : undefined}
-            onClick={toggleOpen}
-            title="Edit tags"
-          >
-            #{tag.name}
-          </button>
-        ))}
-        {assignedTags.length > 1 && (
-          // Narrow rows show only the first tag and this count.
-          <button
-            type="button"
-            className={styles.tagMore}
-            data-tag-more=""
-            onClick={toggleOpen}
-            title={assignedTags.slice(1).map((t) => `#${t.name}`).join(' ')}
-            aria-label={`${assignedTags.length - 1} more ${assignedTags.length === 2 ? 'tag' : 'tags'}`}
-          >
-            +{assignedTags.length - 1}
-          </button>
-        )}
-        {!hasTags && (
-          <button
-            type="button"
-            className={styles.chipTrigger}
-            onClick={toggleOpen}
-            title="Add tag"
-            aria-label="Add tag"
-          >
-            #
-          </button>
-        )}
-      </div>
-      {open && (
-        <TagPicker anchorRef={anchorRef} assignedTags={assignedTags} allTags={allTags} onToggle={onToggle} onCreate={onCreate} onClose={close} />
-      )}
-    </>
-  )
-}
-
 /**
  * The tag lookup-or-create popover over the full tag registry, anchored to
  * `anchorRef` (`anchorIsInside`: the anchor is the trigger, so a click on it
- * is left to the trigger's own toggle). Shared by the chip row above, the
- * desktop task row's tags cell and Project pulse's + card (which picks
+ * is left to the trigger's own toggle). Shared by the desktop task row's
+ * tags cell (and the other rows') and Project pulse's + card (which picks
  * among the tags there are: no `onCreate`, no Create row).
  */
 export function TagPicker({ anchorRef, anchorIsInside = true, assignedTags, allTags, onToggle, onCreate, onClose }: {

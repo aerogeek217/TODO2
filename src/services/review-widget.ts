@@ -32,7 +32,7 @@ export function firstReviewTab(layout: LayoutBody): string | null {
 }
 
 /** The Review widget a jump sets: its layout (the open one) and its tab. */
-export interface ReviewWidgetTarget {
+interface ReviewWidgetTarget {
   layoutId: number
   tabId: string
 }

@@ -71,7 +71,7 @@ function sameHandle(a: ResizeHandle, b: ResizeHandle): boolean {
 }
 
 /** A resize from a divider: `live` = one frame of a drag (see `setTrackSizes`). */
-export interface ResizeOptions {
+interface ResizeOptions {
   live?: boolean
 }
 
@@ -90,14 +90,14 @@ export type ResizeHandle =
  * (`moveEdge`'s probe, throwaway track ids), drawn instead of the working
  * copy's grid while the drag runs (`utils/workspace-preview`).
  */
-export interface ResizePreview {
+interface ResizePreview {
   layoutId: number
   body: LayoutBody
   handle: ResizeHandle
 }
 
 /** What an undo step of a structural edit says to do with its undo / redo: a key that merges a run of steps into one. */
-export interface EditUndoOptions {
+interface EditUndoOptions {
   /** Steps passing the same key one after another stay one undo step (a divider stepped by the arrow keys). */
   mergeKey?: string
   /** No undo snackbar: the step is on the undo stack all the same (a divider moved — the table shows it). */

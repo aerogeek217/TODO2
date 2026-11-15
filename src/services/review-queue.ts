@@ -149,7 +149,7 @@ export function keepPlace(
 }
 
 /** The order env as the stores have it now. */
-export function currentReviewOrderEnv(): ReviewOrderEnv {
+function currentReviewOrderEnv(): ReviewOrderEnv {
   return {
     todoById: new Map(useTodoStore.getState().todos.map((t) => [t.id, t])),
     today: startOfToday(),

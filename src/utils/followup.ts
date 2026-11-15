@@ -8,7 +8,7 @@ import { formatDateNumeric, formatDateWith, MS_PER_DAY, startOfDay } from './dat
  * Settings default interval is stored as the compact string form (`1m`).
  */
 
-export type FollowupUnit = 'd' | 'w' | 'm' | 'y'
+type FollowupUnit = 'd' | 'w' | 'm' | 'y'
 
 export interface FollowupInterval {
   count: number
@@ -26,7 +26,7 @@ export const QUICK_FOLLOWUP_INTERVALS: readonly FollowupInterval[] = [
 ]
 
 /** Largest count accepted in an interval (`999d` … `999y`). */
-export const MAX_FOLLOWUP_INTERVAL_COUNT = 999
+const MAX_FOLLOWUP_INTERVAL_COUNT = 999
 
 const INTERVAL_PATTERN = /^\s*(\d{1,3})\s*([dwmy])\s*$/i
 
@@ -89,7 +89,7 @@ function buildDate(year: number, month: number, day: number): Date | null {
 }
 
 /** Which way a year-less date resolves: the next occurrence, or the latest one up to today. */
-export type FollowupDateDirection = 'future' | 'past'
+type FollowupDateDirection = 'future' | 'past'
 
 function resolveYearless(month: number, day: number, today: Date, direction: FollowupDateDirection): Date | null {
   const base = startOfDay(today)
@@ -141,7 +141,7 @@ function parseCalendarDate(text: string, today: Date, direction: FollowupDateDir
   return resolveYearless(month, dayOfMonth, today, direction)
 }
 
-export type FollowupInputResult =
+type FollowupInputResult =
   | { kind: 'empty' }
   | { kind: 'invalid' }
   | { kind: 'date'; date: Date; interval?: FollowupInterval }

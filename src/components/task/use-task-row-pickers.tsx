@@ -8,12 +8,11 @@ import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person
 import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { usePopoverLevel } from '../shared/popover-level'
 import { ChipSelector } from '../shared/ChipSelector'
-import type { TagChipSelectorProps } from '../shared/TagChipSelector'
 import type { TaskMenuHandlers } from './task-menu-entries'
 
 const NO_PEOPLE: Person[] = []
 
-export interface TaskRowPickersOptions {
+interface TaskRowPickersOptions {
   todo: PersistedTodoItem
   assignedPeople: Person[] | undefined
   /** A drag-overlay copy of the row: no pickers, and its menu leaves the picker items out. */
@@ -161,15 +160,6 @@ export function useTaskRowPickers({
     bulk.quickAssignTag(todo.id, id)
   }, [ghost, bulk, todo.id])
 
-  const tagSelectorProps: TagChipSelectorProps = {
-    assignedTags,
-    allTags,
-    onToggle: toggleTag,
-    onCreate: createTag,
-    open: tagPickerOpen,
-    onOpenChange: setTagPickerOpen,
-  }
-
   const menuHandlers: TaskMenuHandlers = {
     onOpen: onOpenDetail ? () => onOpenDetail(todo.id) : undefined,
     onToggleComplete: handleToggleComplete,
@@ -212,7 +202,6 @@ export function useTaskRowPickers({
     handleToggleComplete,
     assignedTags,
     allTags,
-    tagSelectorProps,
     tagPickerOpen,
     toggleTagPicker,
     closeTagPicker,

@@ -927,7 +927,7 @@ export function validateRow(table: DataTableName, row: unknown): true | string {
 }
 
 /** Max individual row errors spelled out in a validation failure message. */
-export const MAX_REPORTED_ROW_ERRORS = 10
+const MAX_REPORTED_ROW_ERRORS = 10
 
 /**
  * What import would drop or change in a row that passes `validateRow`, in
@@ -959,11 +959,11 @@ function rowLabel(row: unknown): string {
   return `"${text.length > LABEL_MAX ? `${text.slice(0, LABEL_MAX)}…` : text}"`
 }
 
-export type ValidateImportResult =
+type ValidateImportResult =
   | { ok: true; data: ImportData; warnings: string[] }
   | { ok: false; error: string }
 
-export interface ValidateImportOptions {
+interface ValidateImportOptions {
   /**
    * Require a whole database (default true) — the "is this a TODO2
    * database" check for restores: `todos` and `settings` are present

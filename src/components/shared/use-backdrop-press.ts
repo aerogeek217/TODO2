@@ -1,6 +1,6 @@
 import { useRef, type MouseEvent as ReactMouseEvent } from 'react'
 
-export interface BackdropPressOptions {
+interface BackdropPressOptions {
   /** `false` — the press closes nothing (a dialog that must be answered). */
   enabled?: boolean
   /** The press doesn't take the focus (Quick Add keeps its input's). */

@@ -7,14 +7,20 @@ import { numberIds } from '../../../services/stats/number-count'
 import { predicateToCriteria } from '../../../utils/filter-criteria'
 import { computeTrend } from '../../../services/stats/trend'
 import { computeBreakdown } from '../../../services/stats/breakdown'
-import { openTasks, statsFilter } from '../../../services/stats/stats-context'
+import { statsFilter } from '../../../services/stats/stats-context'
 import { defaultBreakdownColumns, type BreakdownSplit } from '../../../models/chart-widgets'
 import { DEFAULT_TAB_BADGES } from '../../../utils/tab-badges'
 import { emptyFilterCriteria, testLookups } from '../../helpers'
+import type { PersistedTodoItem } from '../../../models/todo-item'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, DESIGN_TREND, DESIGN_TREND_Q4, Q4, SAMPLE_CTX, SAMPLE_EVENTS,
   SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
 } from '../../fixtures/glance-sample'
+
+/** The open tasks of `tasks`. */
+function openTasks(tasks: readonly PersistedTodoItem[]): PersistedTodoItem[] {
+  return tasks.filter((t) => !t.isCompleted)
+}
 
 const markerSettings = { urgentRange: SAMPLE_CTX.urgentRange, weekStartsOn: SAMPLE_CTX.weekStartsOn }
 const lookups = testLookups({ assignedPeopleMap: ASSIGNED_PEOPLE, assignedTagsMap: ASSIGNED_TAGS, statuses: STATUSES })

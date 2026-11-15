@@ -16,7 +16,7 @@ import { registerModuleReset } from '../utils/module-reset'
  * so itself: only where nothing could ask — a data replace, an undo, a hash
  * typed in, a cell resized too small to show its widget.
  */
-export interface OpenEditor {
+interface OpenEditor {
   /** Whether it holds changes that leaving would lose. */
   changed: () => boolean
   /**

@@ -21,7 +21,7 @@ export type DialogLayer = 'overlay' | 'dialog' | 'raised' | 'nested'
 /** Where focus goes when the dialog opens. */
 export type DialogInitialFocus = 'first' | 'panel' | RefObject<HTMLElement | null>
 
-export interface DialogFrameProps {
+interface DialogFrameProps {
   onClose: () => void
   children: ReactNode
   /** The panel's look and size; the frame only centres it. */
@@ -259,7 +259,7 @@ export function DialogFrame({
   return inline ? frame : createPortal(frame, document.body)
 }
 
-export interface DialogProps {
+interface DialogProps {
   open: boolean
   onClose: () => void
   /** Renders into the chrome's title bar. Used as `aria-labelledby` target. */
@@ -324,7 +324,7 @@ export function DialogActions({ children, className }: { children: ReactNode; cl
   return <div className={`${styles.actions} ${className ?? ''}`}>{children}</div>
 }
 
-export interface ConfirmDialogProps {
+interface ConfirmDialogProps {
   open: boolean
   title: ReactNode
   message: ReactNode

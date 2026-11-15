@@ -181,7 +181,7 @@ function RuleField({ ruleKey, config, write }: {
  * press elsewhere close it at once while nothing changed, else ask Save /
  * Discard / Keep editing.
  */
-export function PulseEditor({ tab, anchorRef, onClose }: {
+function PulseEditor({ tab, anchorRef, onClose }: {
   tab: PulseTab
   /** The widget's title it sits under. */
   anchorRef: RefObject<HTMLElement | null>

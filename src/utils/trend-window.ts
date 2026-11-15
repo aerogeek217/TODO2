@@ -48,7 +48,7 @@ export const FILTER_HISTORY_EVENT_TYPES: readonly TodoEventType[] = [
  * start (a range from the week's start, as `completed this week`, reaches
  * back to it), else the first day.
  */
-export function historyEventsStart(today: Date, weekStartsOn: WeekStart): Date {
+function historyEventsStart(today: Date, weekStartsOn: WeekStart): Date {
   const first = addDays(today, -(NUMBER_HISTORY_DAYS - 1))
   return weekStartOf(first, weekStartsOn)
 }
@@ -58,7 +58,7 @@ export function historyEventsStart(today: Date, weekStartsOn: WeekStart): Date {
  * Created vs completed that counts by a filter (or under a narrowing screen
  * filter) replays each task's fields, as a Number's line does.
  */
-export type TrendFieldsWindow = `fields-${TrendRange}`
+type TrendFieldsWindow = `fields-${TrendRange}`
 
 /** The fields window of `range`. */
 export function trendFieldsWindow(range: TrendRange): TrendFieldsWindow {

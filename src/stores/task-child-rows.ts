@@ -6,10 +6,10 @@ import { loadFresh, trackWrite } from './store-helpers'
 import { notifyTasksStamped } from './task-hooks'
 
 /** Task id → its rows, in the store's order. */
-export type RowsByTodo<Stored> = ReadonlyMap<number, readonly Stored[]>
+type RowsByTodo<Stored> = ReadonlyMap<number, readonly Stored[]>
 
 /** The state a store of task-owned rows keeps (status updates, subtasks). */
-export interface TaskChildRowsState<Stored> {
+interface TaskChildRowsState<Stored> {
   byTodo: RowsByTodo<Stored>
   loaded: boolean
 }
@@ -56,7 +56,7 @@ export function findRow<Stored extends { id: number }>(byTodo: RowsByTodo<Stored
 }
 
 /** How one store of task-owned rows reads, stores and orders them. */
-export interface TaskChildRowsConfig<Row extends { todoId: number }, Stored extends Row & { id: number }> {
+interface TaskChildRowsConfig<Row extends { todoId: number }, Stored extends Row & { id: number }> {
   repository: TaskChildRepository<Row, Stored>
   /** The order of one task's rows. */
   compare: (a: Stored, b: Stored) => number

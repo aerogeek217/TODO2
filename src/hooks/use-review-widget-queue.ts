@@ -16,7 +16,7 @@ import { lensHidesWhere, useLensHidden, useStatsBase, type StatsBase } from './u
  * leaving the filter leaves the queue. `hides` is the switch's `−N`: what
  * the lens hides there. No dividers: the queue is one run of tasks.
  */
-export interface ReviewWidgetQueue {
+interface ReviewWidgetQueue {
   ids: number[]
   hides: number
 }

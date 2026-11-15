@@ -23,7 +23,7 @@ import { GoalNumber, GroupNumber, ListNumber, OldestNumber, ShareNumber } from '
 import styles from './NumberWidget.module.css'
 
 /** The large face's breakdown lists this many lines; the rest fold into one line. */
-export const BREAKDOWN_SHOWN = 5
+const BREAKDOWN_SHOWN = 5
 
 /** The breakdown's list name: `Overdue by person`. */
 const BY_WORDS: Record<NumberBreakdownBy, string> = { people: 'person', tags: 'tag', status: 'status', priority: 'priority' }

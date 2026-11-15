@@ -169,7 +169,7 @@ export function checkPredicateShape(v: unknown): true | string {
 }
 
 /** What `pickPredicate` dropped or changed, in words (`people filter dropped`, …). */
-export type PredicateFix = string
+type PredicateFix = string
 
 /** An id filter: `null` (no filter), or an array of finite numbers within the cap; `undefined` when malformed. */
 function readIdList(v: unknown): number[] | null | undefined {
@@ -198,7 +198,7 @@ function readMarkers(v: unknown): MarkersFilter | null | undefined {
   return out
 }
 
-export interface PickedPredicate {
+interface PickedPredicate {
   predicate: TodoPredicate
   /** The malformed parts dropped (or shortened); empty for a clean predicate. */
   fixes: PredicateFix[]

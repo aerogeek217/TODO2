@@ -10,7 +10,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import type { CheckinChange, CheckinReplyDiff } from './diff'
 
-export type CheckinChangeField = CheckinChange['field']
+type CheckinChangeField = CheckinChange['field']
 
 /** A change's key in the dialog's selection. */
 export function checkinChangeKey(todoId: number, field: CheckinChangeField): string {
@@ -42,7 +42,7 @@ export function withoutTaskChanges(selection: ReadonlySet<string>, diff: Checkin
 }
 
 /** One task's ticked changes. */
-export interface CheckinTaskUpdate {
+interface CheckinTaskUpdate {
   todoId: number
   /** Complete the task. */
   complete: boolean

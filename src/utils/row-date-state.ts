@@ -16,7 +16,7 @@ import { isUrgentByDate, type UrgentDueWithinDays } from './urgency'
  * Settings "due soon" range, the one that makes a task urgent (open tasks
  * only). Both false without a due date.
  */
-export interface DueState {
+interface DueState {
   past: boolean
   soon: boolean
 }
@@ -34,7 +34,7 @@ export function dueState(
  * `upcoming` (a completed task's always: nothing is chased on it);
  * `undefined` without one.
  */
-export type FollowupState = 'late' | 'today' | 'upcoming'
+type FollowupState = 'late' | 'today' | 'upcoming'
 
 export function followupState(
   todo: Pick<TodoItem, 'nextFollowupAt' | 'isCompleted'>,

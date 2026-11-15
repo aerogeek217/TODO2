@@ -109,7 +109,7 @@ export function entityToggle(ids: ReadonlySet<number> | null, negated: boolean, 
 }
 
 /** What a People / Status / Tags filter picker shows and what its controls write (`entityPickerSelection`). */
-export interface EntityPickerSelection {
+interface EntityPickerSelection {
   /** The "is" preview is showing: nothing ticked, though nothing is filtered. */
   previewing: boolean
   allSelected: boolean

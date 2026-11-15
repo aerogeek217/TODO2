@@ -66,7 +66,7 @@ export interface ListSectionsContext {
 }
 
 /** What a sort reads besides the tasks. */
-export interface ListSortContext {
+interface ListSortContext {
   /** The list's manual order (see {@link ListSectionsContext.manualRanks}). */
   manualRanks?: ListRanks
   /** The Priority sort's day (effective Urgent); absent = today. */

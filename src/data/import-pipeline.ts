@@ -31,7 +31,7 @@ export const TASK_ARCHIVE_KIND = 'task-archive'
  *   (append)…") — accepts a task archive or a full export, so the
  *   full-database requirements (tasks and settings) are not enforced.
  */
-export type ImportPurpose = 'restore' | 'append'
+type ImportPurpose = 'restore' | 'append'
 
 export interface PrepareImportOptions {
   purpose?: ImportPurpose

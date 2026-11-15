@@ -7,7 +7,7 @@ import { backupScheduler } from '../data/backup-scheduler'
  * the user chose to go ahead anyway; `cancelled` — it failed and the user
  * cancelled: the caller must not change anything.
  */
-export type SafetySnapshotResult = 'taken' | 'without-backup' | 'cancelled'
+type SafetySnapshotResult = 'taken' | 'without-backup' | 'cancelled'
 
 /** Appended to an operation's result message when it ran without a backup. */
 export const NO_BACKUP_NOTE = 'No backup was taken.'
