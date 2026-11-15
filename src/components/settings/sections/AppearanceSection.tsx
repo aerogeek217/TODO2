@@ -19,7 +19,7 @@ const DATES_OPTIONS: ReadonlyArray<{ dates: RowDates; label: string }> = [
   { dates: 'numeric', label: 'MM/DD' },
 ]
 
-/** Theme (the only place it is set), theme colors, the default list zoom and how rows show dates. */
+/** Theme (the only place it is set), theme colors, the default list zoom, how rows show dates and the stale rows' cobwebs. */
 export function AppearanceSection() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
@@ -27,6 +27,8 @@ export function AppearanceSection() {
   const setListZoom = useSettingsStore((s) => s.setListZoom)
   const rowDates = useSettingsStore((s) => s.rowDates)
   const setRowDates = useSettingsStore((s) => s.setRowDates)
+  const staleCobwebs = useSettingsStore((s) => s.staleCobwebs)
+  const setStaleCobwebs = useSettingsStore((s) => s.setStaleCobwebs)
   const isMobile = useIsMobile()
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showNlpSyntax, setShowNlpSyntax] = useState(false)
@@ -84,6 +86,19 @@ export function AppearanceSection() {
             </button>
           ))}
         </div>
+      </SettingRow>
+      <SettingRow
+        label="Cobwebs on stale tasks"
+        help="A task nobody has changed for a while gathers a small cobweb in its checkbox. The days are Tasks › Lists & rows › Fade tasks untouched for."
+      >
+        <button
+          type="button"
+          role="switch"
+          aria-checked={staleCobwebs}
+          aria-label="Cobwebs on stale tasks"
+          className={`${styles.switch} ${staleCobwebs ? styles.switchOn : ''}`}
+          onClick={() => void setStaleCobwebs(!staleCobwebs)}
+        />
       </SettingRow>
       <SettingRow label="Theme colors" help="Override accent, surface and priority colors per theme.">
         <button type="button" className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowThemeColors(true)}>

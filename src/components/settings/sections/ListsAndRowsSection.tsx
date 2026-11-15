@@ -195,7 +195,7 @@ function StaleAfterDaysSetting() {
   return (
     <SettingRow
       label="Fade tasks untouched for"
-      help="An open task nobody has changed for this many days is drawn faded in lists; hovering it brings it back. 0 turns the fade off."
+      help="An open task nobody has changed for this many days is drawn faded in lists, with a cobweb in its checkbox (Appearance can turn the cobweb off); hovering it brings it back. 0 turns both off."
     >
       <input
         type="number"

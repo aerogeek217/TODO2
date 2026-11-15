@@ -53,3 +53,20 @@ describe('AppearanceSection — dates', () => {
     await waitFor(async () => expect(await db.settings.get('rowDates')).toBeUndefined())
   })
 })
+
+describe('AppearanceSection — cobwebs on stale tasks', () => {
+  it('is on by default; off is saved as false and on removes the row', async () => {
+    render(<AppearanceSection />)
+    const toggle = screen.getByRole('switch', { name: 'Cobwebs on stale tasks' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(toggle)
+    await waitFor(() => expect(useSettingsStore.getState().staleCobwebs).toBe(false))
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await waitFor(async () => expect((await db.settings.get('staleCobwebs'))?.value).toBe('false'))
+
+    fireEvent.click(toggle)
+    await waitFor(() => expect(useSettingsStore.getState().staleCobwebs).toBe(true))
+    await waitFor(async () => expect(await db.settings.get('staleCobwebs')).toBeUndefined())
+  })
+})

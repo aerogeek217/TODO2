@@ -111,6 +111,8 @@ interface SettingsData {
   autoFollowup: boolean
   /** "Remove note lines after converting": a converted line leaves the note instead of becoming `✓ <title>`. Off by default. */
   removeConvertedLines: boolean
+  /** "Cobwebs on stale tasks": a stale row's checkbox draws a cobweb (the `staleAfterDays` threshold). On by default. */
+  staleCobwebs: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
   /**
@@ -176,6 +178,7 @@ interface SettingsState extends SettingsData {
   /** "Set a next follow-up automatically". */
   setAutoFollowup: (on: boolean) => Promise<void>
   setRemoveConvertedLines: (on: boolean) => Promise<void>
+  setStaleCobwebs: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /**
    * Remembers the check-in filter (kept without people; no filter = the row
@@ -486,6 +489,14 @@ export const SETTINGS = {
     failure: 'Couldn’t save what converted note lines become.',
     undo: ({ removeConvertedLines: on }) => (on ? 'Remove note lines after converting' : 'Keep converted note lines'),
   }),
+  staleCobwebs: setting(['staleCobwebs'], {
+    read: (rows) => ({ staleCobwebs: rows.get(K.staleCobwebs) !== 'false' }),
+    // Stored only when off: absent = on.
+    rows: ({ staleCobwebs: on }) => rowUnlessDefault(K.staleCobwebs, 'false', on),
+    label: 'whether stale tasks show cobwebs',
+    failure: 'Couldn’t save whether stale tasks show cobwebs.',
+    undo: ({ staleCobwebs: on }) => (on ? 'Cobwebs on stale tasks' : 'No cobwebs on stale tasks'),
+  }),
   urgentDueWithinDays: setting(['urgentDueWithinDays'], {
     read: (rows) => ({
       urgentDueWithinDays: rowOr(rows, K.urgentDueWithinDays, DEFAULT_URGENT_DUE_WITHIN_DAYS, (v) => {
@@ -692,6 +703,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setRemoveConvertedLines(on) {
     await SETTINGS.removeConvertedLines.write({ removeConvertedLines: on })
+  },
+
+  async setStaleCobwebs(on) {
+    await SETTINGS.staleCobwebs.write({ staleCobwebs: on })
   },
 
   async setUrgentDueWithinDays(range) {

@@ -151,6 +151,7 @@ export const TaskRow = memo(function TaskRow({
   // Stale (untouched for the Settings threshold): the row faded until hovered; the title tooltip says when it was last edited.
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
   const stale = isStale(todo, today, staleAfterDays)
+  const staleCobwebs = useSettingsStore((s) => s.staleCobwebs)
 
   // The full title in the tooltip — only when it's cut off; a stale row's always, with its last-edited line.
   const { triggerProps: titleTipProps, tooltip: titleTip } = useTooltip(stale ? `${todo.title}\n${staleTooltipLine(todo, today)}` : todo.title)
@@ -220,6 +221,7 @@ export const TaskRow = memo(function TaskRow({
       <RowCheckbox
         summary={markers}
         checked={todo.isCompleted}
+        cobweb={stale && staleCobwebs}
         onChange={handleToggleComplete}
         onClick={(e) => e.stopPropagation()}
         aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}

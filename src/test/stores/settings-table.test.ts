@@ -36,6 +36,7 @@ const CASES: Record<string, Case> = {
   followupDefaultInterval: { value: { followupDefaultInterval: { count: 2, unit: 'w' } }, undo: 'Follow-up interval 2 weeks', failure: 'Couldn’t save the follow-up interval.' },
   autoFollowup: { value: { autoFollowup: false }, undo: 'Don’t set a next follow-up automatically', failure: 'Couldn’t save whether a next follow-up is set automatically.' },
   removeConvertedLines: { value: { removeConvertedLines: true }, undo: 'Remove note lines after converting', failure: 'Couldn’t save what converted note lines become.' },
+  staleCobwebs: { value: { staleCobwebs: false }, undo: 'No cobwebs on stale tasks', failure: 'Couldn’t save whether stale tasks show cobwebs.' },
   urgentDueWithinDays: { value: { urgentDueWithinDays: 7 }, undo: 'Due within 1 week makes a task urgent', failure: 'Couldn’t save when a due date makes a task urgent.' },
   checkinTaskFilter: { value: { checkinTaskFilter: checkinFilterOf({ ...emptyPredicate(), tags: [4] }) }, undo: null, failure: 'Couldn’t save the check-in filter.' },
   newListSort: { value: { newListSort: 'deadline', newListSortDirection: 'desc' }, undo: 'New lists sort by Due date ↓', failure: 'Couldn’t save how new lists sort.' },

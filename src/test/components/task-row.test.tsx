@@ -207,6 +207,23 @@ describe('TaskRow', () => {
       expect(week.container.querySelector('[data-todo-id]')).toHaveAttribute('data-stale', 'true')
     })
 
+    it('a stale row’s checkbox has a cobweb; a fresh or completed one, or with Cobwebs off, none', () => {
+      const web = (c: HTMLElement) => c.querySelector('[data-row-cell="checkbox"]')?.parentElement?.querySelector('[data-cobweb]') ?? null
+      const stale = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1) })} />)
+      expect(web(stale.container)).not.toBeNull()
+      stale.unmount()
+      const fresh = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: day(19) })} />)
+      expect(web(fresh.container)).toBeNull()
+      fresh.unmount()
+      const done = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1), isCompleted: true })} />)
+      expect(web(done.container)).toBeNull()
+      done.unmount()
+      useSettingsStore.setState({ staleCobwebs: false })
+      const off = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1) })} />)
+      expect(off.container.querySelector('[data-todo-id]')).toHaveAttribute('data-stale', 'true')
+      expect(web(off.container)).toBeNull()
+    })
+
     it('a stale row\u2019s title tooltip opens even when the title fits, with the last-edited line', () => {
       render(<TaskRow todo={makeTodo({ id: 1, title: 'Short', modifiedAt: new Date(2026, 2, 5, 14) })} />)
       fireEvent.pointerEnter(screen.getByText('Short'))

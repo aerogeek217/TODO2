@@ -86,6 +86,11 @@ export const SETTING_KEYS = {
   /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `11/20`) or `numeric` (`MM/DD`). Absent = `relative`. */
   rowDates: 'rowDates',
   /**
+   * "Cobwebs on stale tasks" (Settings › Appearance, flair P2): a stale row's checkbox
+   * draws a small cobweb. `false` = off; absent (or `true`) = on.
+   */
+  staleCobwebs: 'staleCobwebs',
+  /**
    * Ambience (Settings › Appearance › Ambience): JSON
    * `{ enabled, place: { lat, lon } | null, sky, motion, seasons }` (`utils/ambience-settings`);
    * a field missing or out of range reads as its default. Absent = all defaults (on, place

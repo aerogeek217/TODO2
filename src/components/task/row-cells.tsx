@@ -16,6 +16,7 @@ import { PriorityRing } from '../shared/PriorityRing'
 import { StatusMark } from '../shared/StatusMark'
 import { useTooltip } from '../shared/use-tooltip'
 import { tagTextWidth } from './text-width'
+import { Cobweb } from './Cobweb'
 import { useTaskRowColumn } from './task-row-grid-context'
 import styles from './TaskRow.module.css'
 
@@ -95,9 +96,11 @@ export function MarkerGutterStatic({ summary }: { summary: MarkerSummary }) {
  * the box: the check draws itself when the task is completed (D19); the ring
  * hides the box's own border while it shows.
  */
-export function RowCheckbox({ summary, checked, className, ...input }: {
+export function RowCheckbox({ summary, checked, cobweb = false, className, ...input }: {
   summary: MarkerSummary
   checked: boolean
+  /** A stale task's cobweb in the box (flair P2; the row passes stale && the setting). */
+  cobweb?: boolean
   className?: string
 } & Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'checked' | 'className'>) {
   return (
@@ -107,6 +110,7 @@ export function RowCheckbox({ summary, checked, className, ...input }: {
         <path d="M3.5 8.5l3 3 6-7" pathLength={1} />
       </svg>
       <PriorityRing summary={summary} completed={checked} size={TASK_ROW.checkbox} />
+      {cobweb && !checked && <Cobweb />}
     </span>
   )
 }
