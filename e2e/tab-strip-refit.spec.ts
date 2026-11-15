@@ -1,12 +1,17 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedWorkspace, wsTab, type WsTabSeed, wsRow } from './fixtures/workspace'
+import { findStripWidths, shrinks, stripAt, type StripState } from './fixtures/tab-strip'
 
 /**
  * A shrunk tab strip fits again when a tab's own content changes, not only
- * when a box resizes: the active list's count (none → `1 of 5`, shown only while narrowed; on the tab while
- * the list's filter line is hidden), its unsaved
- * dot. The shrunk tabs' widths are pinned, so no ResizeObserver fires for
- * these (cr31 UI W5).
+ * when a box resizes: the active list's count (none → `1 of 5`, shown only
+ * while narrowed; on the tab while the list's filter line is hidden). The
+ * shrunk tabs' widths are pinned, so no ResizeObserver fires for these
+ * (cr31 UI W5).
+ *
+ * The windows where the strip shrinks its tabs but folds none are found by
+ * measuring (`fixtures/tab-strip`), not written down: they move with every
+ * label and header button (cr34 T10).
  */
 
 const OTHERS: WsTabSeed[] = [
@@ -18,8 +23,7 @@ const OTHERS: WsTabSeed[] = [
   { id: 'n3', kind: 'notes' },
 ]
 
-async function seed(page: Page, width: number) {
-  await page.setViewportSize({ width, height: 800 })
+async function seed(page: Page) {
   await seedWorkspace(page, {
     // The filter line hidden: the tab carries the list's count.
     listDefinitions: [{ name: 'Inbox', showFilterLine: false }],
@@ -40,40 +44,37 @@ const cut = (tab: Locator) => tab.locator('[data-tab-title]').evaluate(async (el
   return el.scrollWidth > el.clientWidth
 })
 
-/**
- * Whether the strip shrinks its tabs, with none folded into `+N` — read after
- * two frames (the settle, in the same round trip: the sweep makes one per width).
- */
-const shrunk = (page: Page) => page.evaluate(async () => {
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-  const cell = document.querySelector('[data-ws-cell="k1"]')
-  if (!cell || cell.querySelector('[aria-label$="more tabs"]')) return false
-  return Array.from(cell.querySelectorAll('[data-ws-tab] [data-tab-title]')).some((t) => t.scrollWidth > t.clientWidth)
-})
-
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
 
+/** How many window widths the sweep tries, spread over the widths that shrink without folding. */
+const SWEEP_WIDTHS = 24
+
 /**
- * At each width where k1's strip shrinks its tabs but folds none, runs
- * `change` and records whether the active tab's title is cut, then `undo`.
- * Sweeping widths: at some, a change happens to resize the strip by a
- * rounding pixel (and the ResizeObserver fits again); at others nothing
- * resizes. Sixty-one widths, each a resize and a few settles: ~10 s alone,
- * so the sweep's test takes the slow budget (it ran past 30 s in a full parallel run).
+ * In windows where k1's strip shrinks its tabs but folds none, runs `change`
+ * and records whether the active tab's title is cut, then `undo`. Many
+ * widths, because at some a change happens to resize the strip by a
+ * rounding pixel (and the ResizeObserver fits again) while at others nothing
+ * resizes. Each a resize and a few settles: the test takes the slow budget.
  */
 async function sweep(page: Page, change: () => Promise<void>, undo: () => Promise<void>): Promise<number[]> {
   test.slow()
-  await seed(page, 2000)
+  await seed(page)
   const active = wsTab(page, 'l1')
   // Nothing narrows the list: no count yet (one number per list, 2A).
   await expect(active).toContainText('Inbox')
   await expect(active).not.toContainText('of 5')
+  // From one px under the full width (the first shrink) down to one px above the first fold.
+  const { full, fullAt, foldAt } = await findStripWidths(page, 'k1')
+  const from = fullAt - 1
+  const to = foldAt + 1
+  expect(from - to, 'some windows shrink the strip without folding a tab').toBeGreaterThan(3)
+  const step = Math.max(1, Math.floor((from - to) / SWEEP_WIDTHS))
+  const shrunkOnly = (state: StripState) => state.folded.length === 0 && shrinks(state, full)
   const widthsCut: number[] = []
   let tried = 0
-  // Its tabs fold from about 1700 down (the header holds Open larger too): the widths that only shrink them are above.
-  for (let width = 1900; width >= 1300; width -= 10) {
-    await page.setViewportSize({ width, height: 800 })
-    if (!(await shrunk(page))) continue
+  for (let width = from; width >= to; width -= step) {
+    const state = await stripAt(page, 'k1', width)
+    expect(shrunkOnly(state), `${width}: shrunk, none folded`).toBe(true)
     tried++
     expect(await cut(active), `${width}: whole before`).toBe(false)
     await change()
@@ -82,7 +83,7 @@ async function sweep(page: Page, change: () => Promise<void>, undo: () => Promis
     await undo()
     await settle(page)
   }
-  expect(tried, 'some widths shrink the strip without folding').toBeGreaterThan(3)
+  expect(tried, 'windows tried').toBeGreaterThan(3)
   return widthsCut
 }
 

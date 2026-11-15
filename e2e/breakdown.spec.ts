@@ -255,12 +255,30 @@ test('the lens switch at the header’s end, quiet while it follows the lens (2A
   const sw = chart(page).getByTestId('lens-switch')
   await expect(sw).toHaveAttribute('data-lens-hides', '7')
   await expect(chart(page).getByTestId('glance-section-count')).toHaveText('3 open')
-  // At the header's right end, before the ⋯ (shown on hover).
+  // At the header's right end: right before the cell's controls slot (shown on hover) — whatever
+  // buttons that slot holds —, one gap of the line away, the ⋯ the slot's last button.
   await chart(page).locator('[data-chart-head]').hover()
-  const more = (await chart(page).getByRole('button', { name: 'Cell options' }).boundingBox())!
-  const sb = (await sw.boundingBox())!
-  expect(sb.x + sb.width).toBeLessThanOrEqual(more.x + 0.5)
-  expect(more.x - (sb.x + sb.width)).toBeLessThan(64) // the grip and Open larger between
+  await expect(chart(page).getByRole('button', { name: 'Cell options' })).toBeVisible()
+  const end = await sw.evaluate((el) => {
+    const line = el.closest('[data-widget-top-line]')
+    const slot = line?.querySelector('[data-cell-controls]')
+    const buttons = Array.from(slot?.querySelectorAll('button') ?? []).filter((b) => b.getBoundingClientRect().width > 0)
+    if (!line || !slot) throw new Error('no top line with a controls slot')
+    return {
+      switchRight: el.getBoundingClientRect().right,
+      slotLeft: slot.getBoundingClientRect().left,
+      slotRight: slot.getBoundingClientRect().right,
+      lineRight: line.getBoundingClientRect().right - parseFloat(getComputedStyle(line).paddingRight),
+      gap: parseFloat(getComputedStyle(line).columnGap) || 0,
+      buttons: buttons.length,
+      last: buttons.at(-1)?.getAttribute('aria-label'),
+    }
+  })
+  expect(end.switchRight).toBeLessThanOrEqual(end.slotLeft + 0.5)
+  expect(end.slotLeft - end.switchRight, 'the switch is one gap before the controls').toBeLessThanOrEqual(end.gap + 0.5)
+  expect(Math.abs(end.lineRight - end.slotRight), 'the controls end the line').toBeLessThanOrEqual(0.5)
+  expect(end.buttons).toBeGreaterThan(0)
+  expect(end.last).toBe('Cell options')
   await sw.click()
   await expect(sw).toHaveAttribute('aria-pressed', 'false')
   await expect(chart(page).getByTestId('glance-section-count')).toHaveText('10 open')
