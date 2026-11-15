@@ -90,8 +90,8 @@ async function pickAisha(page: Page) {
   await expect(filterPills(page)).toHaveText([/@/])
 }
 
-// (At 1100px the 560px field leaves no room to centre: the tray sits at the tabs' least gap — the narrowing test.)
-for (const width of [1920, 1440, 1280]) {
+// (The 440px field centres down to about 1000px; narrower, the tray sits at the tabs' least gap — the narrowing test.)
+for (const width of [1920, 1440, 1280, 1100]) {
   test(`at ${width}px, at rest, the filter tray is centred in the bar, clear of both neighbours`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await seedWorkspace(page, SEED)

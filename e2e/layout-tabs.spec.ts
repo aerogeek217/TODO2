@@ -257,7 +257,7 @@ test('the fold, measured: the filter field narrows first, then the layout tabs f
     await expect.poll(async () => (await barState(page)).overflows, { message: `at ${width}px` }).toBe(false)
     const s = await barState(page)
     expect(s, `at ${width}px`).toMatchObject({ height: 40, overflows: false, overlap: false })
-    const state = JSON.stringify([s.search < 560, s.tabsFolded])
+    const state = JSON.stringify([s.search < 440, s.tabsFolded])
     if (seen.at(-1) !== state) seen.push(state)
   }
   // Whole, then narrowed, and only then the tabs fold (the picker's room may give the field back its width).
@@ -267,5 +267,5 @@ test('the fold, measured: the filter field narrows first, then the layout tabs f
   // And back: wide again, everything unfolds.
   await page.setViewportSize({ width: 1600, height: 800 })
   await expect.poll(async () => (await barState(page)).tabsFolded).toBe(false)
-  expect(await barState(page)).toMatchObject({ search: 560, overflows: false })
+  expect(await barState(page)).toMatchObject({ search: 440, overflows: false })
 })
