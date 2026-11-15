@@ -5,6 +5,7 @@ import {
   type LayoutCell,
   type WorkspaceLayout,
 } from '../../models/workspace-layout'
+import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
@@ -264,7 +265,9 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
   const rowNoun = 'row'
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
-  const setRowCollapsed = useCallback((next: boolean) => { void setTrackCollapsed(rowTrackIds, next) }, [setTrackCollapsed, rowTrackIds])
+  // A tab switch and a collapse can take a widget off the screen: an open editor holding changes (the Edit list
+  // sheet) is asked first, as on desktop (`editor-leave`); with none they run at once.
+  const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
@@ -371,10 +374,12 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
               if (tab?.kind === 'lens' && tab.config.listDefinitionId != null) setTabSheet({ tabId, listDefinitionId: tab.config.listDefinitionId })
             }}
             onActivate={(tabId) => {
-              withViewTransition(() => {
+              const show = () => withViewTransition(() => {
                 void setActiveTab(tabId)
                 if (collapsed) setRowCollapsed(false)
               })
+              if (tabId === active?.id && !collapsed) show()
+              else afterLeavingEditors(show)
             }}
           />
           {collapsed ? (

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { getActiveTab, isGlanceKind, type LayoutTab } from '../../models/workspace-layout'
-import { afterLeavingEditors } from '../../stores/editor-leave'
+import { afterLeavingEditors, editorsHoldChanges } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { OPEN_LARGER_LABEL, widgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
@@ -53,6 +53,20 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
   return (
     <div ref={setNodeRef} {...listeners} className={styles.fill} data-ws-panel-handle={panelId} data-strip-room="" aria-hidden="true" />
   )
+}
+
+/**
+ * After a tab switch that waited on an editor's question: the focus, back on
+ * the strip's tab the key was pressed on (the question took it, so the
+ * strip's own move to the new tab found it elsewhere), goes to the new tab —
+ * where an arrow key leaves it when nothing asks. Only from another tab of
+ * this cell's strip: a click's focus, or one that went elsewhere, stays.
+ */
+function focusSwitchedTab(cell: HTMLElement | null, tabId: string): void {
+  const focused = document.activeElement
+  if (!cell || !(focused instanceof HTMLElement) || focused.getAttribute('role') !== 'tab' || !cell.contains(focused)) return
+  const next = document.getElementById(`ws-tab-${tabId}`)
+  if (next && next !== focused && cell.contains(next) && !next.hasAttribute('data-ws-tab-folded')) next.focus()
 }
 
 /** Before any menu is open: the widget part builds nothing. */
@@ -117,14 +131,17 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
   const drag = useWorkspaceDrag()
   /**
-   * Close tab (its ×, Delete on it, the menu's entry) — and Close cell below:
-   * an open editor holding changes (Edit list, a widget editor) is asked
-   * first, Save / Discard / Keep editing (`editor-leave`), as on every other
-   * way out of it; the tab may be the one it edits. A press would have asked
-   * already: this is the keyboard's way here. With none, it closes at once.
+   * Whatever here can take a widget off the screen — a tab switched or
+   * closed, the row collapsed (or expanded: its neighbours shrink), the
+   * menu's split, merge, insert and Close cell — asks an open editor holding
+   * changes first (Edit list, a widget editor): Save / Discard / Keep editing
+   * (`editor-leave`), as on every other way out of it; Save or Discard, then
+   * it is done; Keep editing, nothing. With none it runs at once, in the same
+   * tick. A press elsewhere has asked already (the editors' own rule): this
+   * is the keyboard's way here, and a menu's.
    */
   const closeTabAsked = useCallback((tabId: string) => afterLeavingEditors(() => closeTab(tabId)), [closeTab])
-  const setRowCollapsed = useCallback((next: boolean) => { void setTrackCollapsed(rowTrackIds, next) }, [setTrackCollapsed, rowTrackIds])
+  const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   /** Tabs only when there's a choice (D26 AA1): one widget's top line names it. */
@@ -200,9 +217,9 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         tabTitle: menuTitle,
         collapsed,
         onAddWidget: () => setAddFlow({ anchor: menu.at ?? anchorBelow(moreRef), where: 'tab' }),
-        onSplit: (side) => { splitCell(cell.id, side) },
-        onMerge: (other) => { mergeCells(cell.id, other) },
-        onInsert: (edge) => { insertTrack(edge) },
+        onSplit: (side) => afterLeavingEditors(() => { splitCell(cell.id, side) }),
+        onMerge: (other) => afterLeavingEditors(() => { mergeCells(cell.id, other) }),
+        onInsert: (edge) => afterLeavingEditors(() => { insertTrack(edge) }),
         onCollapse: setRowCollapsed,
         onCloseTab: closeTabAsked,
         onCloseCell: () => afterLeavingEditors(() => closeCell(cell.id)),
@@ -285,10 +302,13 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             activeLens={activeResult?.tabLens}
             ghosts={ghosts}
             onActivate={(tabId) => {
-              withViewTransition(() => {
+              const show = () => withViewTransition(() => {
                 void setActiveTab(tabId)
                 if (collapsed) setRowCollapsed(false)
               })
+              // The tab already shown changes nothing: nothing to ask about.
+              if ((tabId === active?.id && !collapsed) || !editorsHoldChanges()) show()
+              else afterLeavingEditors(() => { show(); focusSwitchedTab(cellRef.current, tabId) })
             }}
             onClose={closeTabAsked}
             onOpenTabMenu={(tabId, p) => openMenu(tabId, p)}

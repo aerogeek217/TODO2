@@ -12,7 +12,7 @@ import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { MenuEntry } from '../../shared/MenuPopover'
-import { showTab } from '../widget-hooks'
+import { openBeside } from '../widget-hooks'
 import { sortHeading, sortWords, SPLIT_CHOICE_LABELS, STYLE_LABELS } from './breakdown-copy'
 import { settingEntry, type Choice } from './menu-entries'
 
@@ -23,10 +23,10 @@ import { settingEntry, type Choice } from './menu-entries'
  * are its editor's (board BC). Every other choice is layout config.
  */
 
-/** Opens a chart's editor beside it (its tab shown first, as Edit list's). */
+/** Opens a chart's editor beside it (its tab shown first, as Edit list's: an open editor with changes asks before that). */
 function openChartEditor(tabId: string): void {
-  showTab(tabId)
-  useChartWidgetsStore.getState().openEditor(tabId)
+  if (useChartWidgetsStore.getState().editorTabId === tabId) return
+  openBeside(tabId, () => useChartWidgetsStore.getState().openEditor(tabId))
 }
 
 const SHOWN_HIDDEN: readonly Choice<boolean>[] = [{ value: true, label: 'Shown' }, { value: false, label: 'Hidden' }]
