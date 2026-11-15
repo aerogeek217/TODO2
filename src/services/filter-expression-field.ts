@@ -25,26 +25,59 @@ export function namedIds(e: FilterExpr | null | undefined): NamedIds {
 }
 
 /**
+ * The people, tags and statuses picked from a field's popup, newest last, by
+ * kind (`expressionResolver`'s `picked`): which one of two that share a name
+ * was meant — the text of a pick is the name alone (cr34 F10).
+ */
+export interface PickedIds {
+  person: readonly number[]
+  tag: readonly number[]
+  status: readonly number[]
+}
+
+/** No pick yet. */
+export const NO_PICKS: PickedIds = { person: [], tag: [], status: [] }
+
+/** `picked` with `item` picked last (once: a pick made again moves to the end). */
+export function withPicked(picked: PickedIds, item: { kind: keyof PickedIds; id: number }): PickedIds {
+  return { ...picked, [item.kind]: [...picked[item.kind].filter((id) => id !== item.id), item.id] }
+}
+
+/**
  * Names → ids as Quick Add reads a typed `@` / `#` / `!` name (exact,
- * initials, a prefix). Two people may share a name: a name that matches one
- * the filter already names (`prefer`, its ids) stays that one, so `@Alex`
- * naming the second Alex doesn't switch to the first on the next write
- * (cr33 F5).
+ * initials, a prefix). Two people may share a name, and the text can't say
+ * which one it names, so the name goes, in this order, to: the one last
+ * picked from the popup among them (`picked` — a click on the second Alex
+ * names the second, cr34 F10); else the one the filter already names
+ * (`prefer`, its ids), so `@Alex` naming the second Alex doesn't switch to
+ * the first on the next write (cr33 F5); else the first that matches. One
+ * text never names two namesakes: both `@Alex` are the same person.
  */
 export function expressionResolver(
   people: readonly Person[],
   tags: readonly Tag[],
   statuses: readonly Status[],
   prefer?: NamedIds,
+  picked?: PickedIds,
 ): ExpressionNameResolver {
-  const pick = <T extends { id?: number; name: string }>(hit: T | undefined, items: readonly T[], ids: ReadonlySet<number> | undefined): number | undefined => {
-    if (!hit || !ids || ids.size === 0 || (hit.id !== undefined && ids.has(hit.id))) return hit?.id
+  const pick = <T extends { id?: number; name: string }>(
+    hit: T | undefined,
+    items: readonly T[],
+    ids: ReadonlySet<number> | undefined,
+    picks: readonly number[] | undefined,
+  ): number | undefined => {
+    if (!hit) return undefined
+    for (let i = (picks?.length ?? 0) - 1; i >= 0; i--) {
+      const id = picks?.[i]
+      if (id !== undefined && (id === hit.id || items.some((x) => x.id === id && x.name === hit.name))) return id
+    }
+    if (!ids || ids.size === 0 || (hit.id !== undefined && ids.has(hit.id))) return hit.id
     return items.find((i) => i.id !== undefined && ids.has(i.id) && i.name === hit.name)?.id ?? hit.id
   }
   return {
-    person: (name) => pick(matchPerson(name, people), people, prefer?.person),
-    tag: (name) => pick(matchTag(name, tags), tags, prefer?.tag),
-    status: (name) => pick(matchStatus(name, statuses), statuses, prefer?.status),
+    person: (name) => pick(matchPerson(name, people), people, prefer?.person, picked?.person),
+    tag: (name) => pick(matchTag(name, tags), tags, prefer?.tag, picked?.tag),
+    status: (name) => pick(matchStatus(name, statuses), statuses, prefer?.status, picked?.status),
   }
 }
 
