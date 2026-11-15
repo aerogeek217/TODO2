@@ -1,3 +1,5 @@
+import { registerModuleReset } from '../../../utils/module-reset'
+
 /**
  * Marks a control that acts on Edit list's list itself — its filter line's
  * words and group · sort summary, which toggle it (value: the list's id): a
@@ -7,6 +9,7 @@ export const EDIT_LIST_KEEP_ATTR = 'data-edit-list-keep'
 
 /** The open Edit list's close request (`requestEditListClose`), while one is open. */
 let closeRequest: (() => boolean) | null = null
+registerModuleReset(() => { closeRequest = null })
 
 /** Edit list registers its close request while it is open (`null` when it closes). */
 export function setEditListCloseRequest(request: (() => boolean) | null): void {

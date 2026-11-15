@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { registerModuleReset } from '../../utils/module-reset'
 import { flushSync } from 'react-dom'
 import type { GridAxis, LayoutBody } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -60,6 +61,7 @@ interface DragState {
  * identity takes it back once drawn. Cleared on the next frame.
  */
 let refocusAfterKey: string | null = null
+registerModuleReset(() => { refocusAfterKey = null })
 
 /** A divider's identity: its axis and the first cells on either side (unique; kept across a move). */
 function dividerIdentity(axis: GridAxis, beforeId: string, afterId: string): string {
