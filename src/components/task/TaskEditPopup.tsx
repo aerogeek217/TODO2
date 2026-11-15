@@ -5,7 +5,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { describeFollowupInterval } from '../../utils/followup'
-import { useFilterStore } from '../../stores/filter-store'
+import { appliedScreenFilter, useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
 import { formatDate, formatRelativeTime, startOfDay, startOfToday } from '../../utils/date'
 import { urgentMark, urgentToggleHint } from '../../utils/urgency'
@@ -134,7 +134,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (mode !== 'create' || seed) return null
     const draftDefaults = useUIStore.getState().quickAddDraft?.defaults
     if (draftDefaults) return draftDefaults
-    return getFilterDefaults(useFilterStore.getState().filters)
+    return getFilterDefaults(appliedScreenFilter(useFilterStore.getState()))
   }, [mode, seed])
 
   // QuickAddBar handoff: when the create popup mounts and `ui-store.quickAddDraft`

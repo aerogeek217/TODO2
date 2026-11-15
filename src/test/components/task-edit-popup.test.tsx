@@ -598,6 +598,14 @@ describe('TaskEditPopup', () => {
       expect(screen.getByRole('button', { name: 'Important' })).toHaveAttribute('aria-pressed', 'true')
       expect(screen.getByRole('button', { name: 'Urgent' })).toHaveAttribute('aria-pressed', 'false')
     })
+
+    it('create mode: a paused screen filter seeds nothing', () => {
+      patchScreenFilter({ markers: [{ values: ['focus'] }] })
+      useFilterStore.setState({ paused: true })
+      renderCreateMode()
+      expect(screen.getByRole('button', { name: 'Focus' })).toHaveAttribute('aria-pressed', 'false')
+      useFilterStore.setState({ paused: false })
+    })
   })
 
   describe('Urgent and Important toggles', () => {

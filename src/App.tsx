@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo, useSyncExternalStore
 import { createHashRouter, RouterProvider, Routes, Route, Navigate, useLocation } from 'react-router'
 import { useTodoStore } from './stores/todo-store'
 import { usePersonStore } from './stores/person-store'
-import { useFilterStore } from './stores/filter-store'
+import { appliedScreenFilter, useFilterStore } from './stores/filter-store'
 import { useSettingsStore } from './stores/settings-store'
 import { useWorkspaceStore } from './stores/workspace-store'
 import { useFileStorageStore } from './services/file-storage-store'
@@ -176,7 +176,7 @@ function AppQuickAddBar() {
     // A preset marker whose chip was removed is not seeded.
     const draft = useUIStore.getState().quickAddDraft
     const fd = withoutMarkers(
-      draft?.defaults ?? getFilterDefaults(useFilterStore.getState().filters),
+      draft?.defaults ?? getFilterDefaults(appliedScreenFilter(useFilterStore.getState())),
       submitted.removedPresetMarkers ?? [],
     )
     const id = await createQuickAddTask(submitted, fd)
