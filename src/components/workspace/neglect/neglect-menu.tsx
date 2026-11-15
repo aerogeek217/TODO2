@@ -12,7 +12,7 @@ import { knownTagCount, settingEntry, TAG_PICKS_MAX_HEIGHT_PX, TAG_PICKS_WIDTH_P
 
 const UNTOUCHED_WIDTH_PX = 200
 
-/** `Tags (2)` / `People` / `None`: the Colour by item's value (the picked tags that still exist). */
+/** `Tags (2)` / `People` / `None`: the Color by item's value (the picked tags that still exist). */
 export function colourByLabel(colourBy: NeglectColourBy, tags: readonly Tag[]): string {
   if (colourBy.kind === 'people') return 'People'
   if (colourBy.kind === 'none') return 'None'
@@ -25,7 +25,7 @@ export function untouchedLabel(days: number): string {
 }
 
 /**
- * A Neglect map tab's menu items, listed first: **Colour by ›** (Tags,
+ * A Neglect map tab's menu items, listed first: **Color by ›** (Tags,
  * People or None, then a checkbox per tag — ticking one colours by tags;
  * the submenu stays open while tags are ticked) and **Untouched after ›**
  * (the threshold). Both are layout config: a change is saved at once as
@@ -44,7 +44,7 @@ export function useNeglectMenuEntries(tab: NeglectTab | undefined): MenuEntry[] 
     { kind: 'none', label: 'None', next: () => ({ kind: 'none' }) },
   ]
   const colourEntries: MenuEntry[] = [
-    { kind: 'label', text: 'Colour dots by' },
+    { kind: 'label', text: 'Color dots by' },
     ...kinds.map((k): MenuEntry => ({
       kind: 'item',
       label: k.label,
@@ -58,7 +58,7 @@ export function useNeglectMenuEntries(tab: NeglectTab | undefined): MenuEntry[] 
     { kind: 'label', text: 'Tags' },
     ...tagPickEntries(tags, pickedTags, (tagIds) => patch({ colourBy: { kind: 'tags', tagIds } }), colourBy.kind === 'tags'),
     { kind: 'separator' },
-    { kind: 'note', text: 'A task with several picked tags takes the first one’s colour.' },
+    { kind: 'note', text: 'A task with several picked tags takes the first one’s color.' },
   ]
   // A threshold set outside the offered choices (e.g. by an import) still shows.
   const choices = NEGLECT_UNTOUCHED_CHOICES.includes(untouchedDays)
@@ -67,7 +67,7 @@ export function useNeglectMenuEntries(tab: NeglectTab | undefined): MenuEntry[] 
   return [
     {
       kind: 'item',
-      label: 'Colour by',
+      label: 'Color by',
       note: colourByLabel(colourBy, tags),
       children: colourEntries,
       childrenWidth: TAG_PICKS_WIDTH_PX,
