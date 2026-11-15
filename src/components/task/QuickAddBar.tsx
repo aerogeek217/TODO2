@@ -61,7 +61,7 @@ import { useTagStore } from '../../stores/tag-store'
 import { parseInput, type CommandProblem } from '../../services/natural-language-parser'
 import { NO_PICKS, resolveInput, withPicked, type PickedIds, type ResolvedInput } from '../../services/nlp-resolver'
 import { DATE_ARGUMENT_HINT, REPEAT_FREQUENCIES } from '../../services/slash-commands'
-import { tokenTints } from '../../services/nlp-token-tints'
+import { markerTint, tokenTints } from '../../services/nlp-token-tints'
 import { TintedText } from '../shared/TintedText'
 import { formatFollowupDate, formatFollowupDay } from '../../utils/followup'
 import { startOfToday } from '../../utils/date'
@@ -82,8 +82,6 @@ const TITLE_LINE_PX = 28
 /** The most lines the title field grows to before it scrolls. */
 const TITLE_MAX_LINES = 6
 
-/** Each marker chip's tint (`data-tint`). */
-const MARKER_CHIP_TINT: Record<MarkerKey, string> = { focus: 'focus', urgent: 'urgent', important: 'important' }
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -263,7 +261,7 @@ function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
   return (
     <div className={styles.chipsRow} role="group" aria-label="What the task gets">
       {MARKER_KEYS.filter((key) => draft[key] || preset?.[key]).map((key) => (
-        <span key={`marker-${key}`} className={`${styles.chip} ${styles.markerChip}`} data-tint={MARKER_CHIP_TINT[key]}>
+        <span key={`marker-${key}`} className={`${styles.chip} ${styles.markerChip}`} data-tint={markerTint(key)}>
           <MarkerIcon marker={key} /> {MARKER_LABELS[key]}
           <ChipRemove label={`Remove ${MARKER_LABELS[key]}`} onRemove={() => onRemove({ kind: 'marker', marker: key })} />
         </span>

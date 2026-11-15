@@ -1,6 +1,7 @@
 import type { ParsedInput } from './natural-language-parser'
 import type { ResolvedInput } from './nlp-resolver'
 import type { SlashCommandName } from './slash-commands'
+import type { MarkerKey } from '../models/filter-predicate'
 
 /**
  * How each recognised token is tinted where task text is typed:
@@ -18,10 +19,20 @@ export type TokenTint = 'chip' | 'new' | 'due' | 'urgent' | 'important' | 'focus
 
 export interface TintSpan { start: number; end: number; tint: TokenTint }
 
+/**
+ * A priority's tint: its own, named as the marker (cr34 A5) — wherever a
+ * priority is typed or shown as a token (Quick Add's text and chips, the
+ * notes editor, the top bar's filter field, a filter expression, the Review
+ * field's pills).
+ */
+export function markerTint(marker: MarkerKey): TokenTint {
+  return marker
+}
+
 const COMMAND_TINT: Record<SlashCommandName, TokenTint> = {
-  urgent: 'urgent',
-  important: 'important',
-  focus: 'focus',
+  urgent: markerTint('urgent'),
+  important: markerTint('important'),
+  focus: markerTint('focus'),
   due: 'due',
   followup: 'followup',
   repeat: 'accent',

@@ -2,7 +2,7 @@ import type { FilterExpr, Person, Status, Tag } from '../models'
 import { expressionAtoms, type ExpressionError, type ExpressionNameResolver, type ExpressionSpan, type ExpressionSpanKind } from '../utils/filter-expression'
 import { computeAutocomplete, type AutocompleteSources, type AutocompleteView } from './nlp-autocomplete'
 import { matchPerson, matchStatus, matchTag, pickedAmong, type PickedIds } from './nlp-resolver'
-import type { TintSpan, TokenTint } from './nlp-token-tints'
+import { markerTint, type TintSpan, type TokenTint } from './nlp-token-tints'
 
 /**
  * What the filter expression field (`components/shared/filters/ExpressionField`)
@@ -99,9 +99,9 @@ const SPAN_TINT: Partial<Record<ExpressionSpanKind, TokenTint>> = {
   none: 'chip',
   done: 'chip',
   date: 'chip',
-  urgent: 'urgent',
-  important: 'important',
-  focus: 'focus',
+  urgent: markerTint('urgent'),
+  important: markerTint('important'),
+  focus: markerTint('focus'),
   due: 'due',
   followup: 'followup',
 }
