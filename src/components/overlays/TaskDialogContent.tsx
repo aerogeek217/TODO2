@@ -9,6 +9,7 @@ import {
   screenTaskDialogDescription,
   taskDialogCopySections,
   taskDialogCount,
+  type PopupListView,
   type TaskDialogRowGroup,
 } from '../../services/task-dialog'
 import type { TaskDialogPayload } from '../../stores/task-dialog-payload'
@@ -96,7 +97,7 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
   if (resolved.payload !== payload || (chips !== null && resolved.screen !== chips) || resolved.pick !== pick) setResolved(resolve(payload))
   const { groups } = resolved
   // A pick changes the grouping, or the sort with its direction.
-  const pickView = (next: { grouping: typeof view.grouping; sort: typeof view.sort; sortDirection?: typeof view.sortDirection }) => {
+  const pickView = (next: Omit<PopupListView, 'sortDirection'> & Partial<Pick<PopupListView, 'sortDirection'>>) => {
     if (next.grouping !== view.grouping) pickPopupListView({ grouping: next.grouping })
     else pickPopupListView({ sort: next.sort, sortDirection: next.sortDirection ?? 'asc' })
   }
