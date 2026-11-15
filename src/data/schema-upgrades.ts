@@ -42,8 +42,8 @@ import { upgradeV80 } from './upgrades/v80'
  * 4. Tests: the transform's own (a v(N-1) dataset in, the vN one out —
  *    idempotent, tolerant of missing tables and malformed rows), the
  *    export → restore round trip, and a "v(N-1) reader refuses vN" test
- *    (a file, the browser database and kept drafts stamped N are refused by
- *    a build at N-1).
+ *    (a file and the browser database stamped N are refused by a build at
+ *    N-1).
  * 5. The dev seed (`scripts/dev-seed.ts`): `DEV_SEED_SCHEMA_VERSION = N` and
  *    its rows in the vN shape (`dev-seed.test` pins it to `CURRENT_DB_VERSION`).
  *

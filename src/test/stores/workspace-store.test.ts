@@ -2,11 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
 import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-store'
-import { createTab, layoutBodyOf, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
+import { createTab, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { registerOpenEditor } from '../../stores/editor-leave'
-import { writeLayoutDraft } from '../../data/draft-storage'
 import { useUndoStore } from '../../stores/undo-store'
 import { useTagStore } from '../../stores/tag-store'
 import { edgeBetween, wholeLine } from '../../utils/workspace-grid'
@@ -765,7 +763,7 @@ describe('an open editor holding changes is asked before the layout is left (cr3
   })
 })
 
-describe('an unsaved layout change an older build kept in the browser', () => {
+describe('a layout edit across a reload', () => {
   it('nothing is kept for a reload any more: an edit is stored, the browser keeps nothing', async () => {
     const [id] = await seedAndInit(twoColumns())
     ws().closeTab('b1')
@@ -773,71 +771,5 @@ describe('an unsaved layout change an older build kept in the browser', () => {
     await reload()
     expect(picture(ws().working!)).toEqual(['ka'])
     expect(picture(await stored(id!))).toEqual(['ka'])
-  })
-
-  it('made against the stored layout: applied once at launch as one undo step, with the snackbar; the key goes', async () => {
-    const [id] = await seedAndInit(twoColumns())
-    const base = layoutBodyOf(await stored(id!))
-    writeLayoutDraft({ kind: 'saved', layoutId: id!, base, body: grid([[KA]], { colIds: ['A'], rowIds: ['R'] }) })
-    await reload()
-    expect(picture(ws().working!)).toEqual(['ka'])
-    expect(picture(await stored(id!))).toEqual(['ka'])
-    expect(undoNames()).toEqual(['Applied unsaved changes to layout “Daily”'])
-    expect(useUndoStore.getState().snackbar?.description).toBe('Applied unsaved changes to layout “Daily”')
-    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
-    await undo()
-    expect(picture(await stored(id!))).toEqual(['ka kb'])
-    // Once: a second reload finds nothing to apply.
-    await reload()
-    expect(undoNames()).toEqual([])
-    expect(picture(ws().working!)).toEqual(['ka kb'])
-  })
-
-  it('a draft for a resize alone: the sizes are saved, no undo step', async () => {
-    const [id] = await seedAndInit(twoColumns())
-    const base = layoutBodyOf((await stored(id!)))
-    const body: LayoutBody = { ...base, grid: { ...base.grid, columns: base.grid.columns.map((c, i) => ({ ...c, weight: i === 0 ? 1500 : 500 })) } }
-    writeLayoutDraft({ kind: 'saved', layoutId: id!, base, body })
-    await reload()
-    expect(ws().working!.grid.columns.map((c) => c.weight)).toEqual([1500, 500])
-    expect((await stored(id!)).grid.columns.map((c) => c.weight)).toEqual([1500, 500])
-    expect(undoNames()).toEqual([])
-    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
-  })
-
-  it('a draft of a layout that changed since is dropped, and the key goes', async () => {
-    const [a] = await seedAndInit(twoColumns('A'), twoColumns('B'))
-    const base = layoutBodyOf(await stored(a!))
-    writeLayoutDraft({ kind: 'saved', layoutId: a!, base, body: grid([[KB]], { colIds: ['A'], rowIds: ['R'] }) })
-    // Elsewhere: the stored layout changed under the draft.
-    await db.layouts.update(a!, { ...grid([[KA]]) })
-    await reload()
-    expect(picture(ws().working!)).toEqual(['ka'])
-    expect(undoNames()).toEqual([])
-    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
-  })
-
-  it('a kept new layout that shows no list becomes a stored layout and opens; one that shows a list is dropped (every list is a stored layout’s)', async () => {
-    const listId = await db.listDefinitions.add({
-      name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none', owner: { layoutId: 1 },
-      membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
-    } as never) as number
-    const [a] = await seedAndInit(twoColumns('A'))
-    await useListDefinitionStore.getState().load()
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: grid([[cell('kn', [createTab('notes', 'n1')])]]) })
-    await reload()
-    expect(ws().layouts.map((l) => l.name)).toEqual(['A', 'Untitled layout'])
-    expect(ws().working).toMatchObject({ name: 'Untitled layout' })
-    expect(ws().activeLayoutId).not.toBe(a)
-    expect((await stored(ws().activeLayoutId!)).cells).toHaveLength(1)
-    expect(useUndoStore.getState().snackbar?.description).toBe('Kept the unsaved new layout “Untitled layout”.')
-    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
-
-    await ws().load(a!)
-    writeLayoutDraft({ kind: 'new', name: 'With a list', body: grid([[cell('kl', [createTab('lens', 'l1', { listDefinitionId: listId })])]]) })
-    await reload()
-    expect(ws().activeLayoutId).toBe(a)
-    expect(ws().layouts).toHaveLength(2)
-    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
   })
 })

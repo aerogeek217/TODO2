@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { byLayoutOrder, layoutRepository, type ListCopy, type OwnedListsRemoved, type ReadLayout } from '../data/layout-repository'
 import { trackWrite } from './store-helpers'
-import { clearLayoutDraft, readLayoutDraft, type LayoutDraftRecord } from '../data/draft-storage'
 import { ownerLayoutId } from '../models/list-definition'
 import { UndoGone, UndoRefused, useUndoStore, type UndoEntry } from './undo-store'
 import { undoable } from './undoable'
@@ -35,7 +34,7 @@ import {
   type WorkspaceLayout,
 } from '../models/workspace-layout'
 import { getTab, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
-import { layoutListRefs, listIdChanges, repointLayoutLists } from '../utils/workspace-layout-lists'
+import { layoutListRefs, repointLayoutLists } from '../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../utils/workspace-layout-sizes'
 import { withViewStateOf } from '../utils/workspace-layout-view'
 import {
@@ -137,10 +136,8 @@ export interface EditUndoOptions {
  *   brings them back all the same.
  * - A layout repaired when it was read opens with its repair in memory; its
  *   first edit writes it (until then view state isn't written).
- * - The first `init()` of a page load applies an unsaved layout change a
- *   build before autosave kept in the browser, once (`data/draft-storage`):
- *   as one undo step while the stored layout is still the one it was made
- *   against, else dropped; a kept new layout becomes a stored one.
+ * - The first `init()` of a page load deletes the lists the open layout
+ *   owns but doesn't show (`pruneOwnedLists`).
  * - `load(id)` switches layouts; `createLayout(name)` stores a new, empty
  *   layout at once and opens it.
  * - While a data replace holds layout and list writes (`replace-hold`: from
@@ -396,24 +393,6 @@ let firstInit: Promise<void> | null = null
 registerModuleReset(() => { firstInit = null })
 
 /**
- * Whether a kept new layout can become a stored one: it shows no list (no
- * list tab) — every list belongs to a stored layout, so
- * a layout not stored yet can't show one.
- */
-function showsNoList(body: LayoutBody): boolean {
-  return layoutListRefs(body).size === 0
-}
-
-/** Whether every list `body` names that still exists belongs to layout `layoutId` (a deleted one shows as such). */
-function showsOnlyOwnLists(body: LayoutBody, layoutId: number): boolean {
-  const defs = useListDefinitionStore.getState().listDefinitions
-  return [...layoutListRefs(body)].every((id) => {
-    const def = defs.find((d) => d.id === id)
-    return def == null || ownerLayoutId(def) === layoutId
-  })
-}
-
-/**
  * The lists `next` names that `before` didn't and that belong elsewhere —
  * another layout, or no layout. A layout shows only its own
  * lists, so an edit that would show one of these is refused. A list that
@@ -443,7 +422,7 @@ async function applyRemoved({ deleted, handedOver }: OwnedListsRemoved): Promise
 /**
  * Deletes the lists layout `layoutId` owns that none of `bodies` shows,
  * nor its stored row (`layoutRepository.pruneOwnedLists`) — at launch, the
- * lists edits a reload dropped had made. A failed delete only leaves them
+ * lists an interrupted edit left behind. A failed delete only leaves them
  * in place (hidden, unshown) until the layout's next edit.
  */
 async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promise<void> {
@@ -883,76 +862,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     return false
   }
 
-  /**
-   * After the page load's first open: the unsaved change a build before
-   * layout autosave kept in the browser (`readLayoutDraft`), once — then the
-   * key goes.
-   * - Of the open layout, made against its stored table (repointed onto
-   *   the copies of lists it shared when an upgrade gave it its own):
-   *   applied as one undo step (`Applied unsaved changes …`) — unless it
-   *   shows another layout's list (dropped, and said).
-   * - A kept new layout that shows no list: stored as a layout and opened
-   *   (one that shows a list can't be: dropped, and said).
-   * - Anything else is dropped. The lists only dropped edits showed go (the
-   *   open layout's, and the draft's layout's).
-   */
-  async function applyKeptDraft(draft: LayoutDraftRecord | null): Promise<void> {
-    clearLayoutDraft()
-    const { working, saved } = get()
-    if (!working || !saved) return
-    let applied = false
-    if (draft?.kind === 'saved' && draft.layoutId === saved.id) {
-      const changes = listIdChanges(draft.base, saved)
-      const base = changes && repointLayoutLists(draft.base, changes)
-      if (changes && base && layoutStructureEqual(base, saved)) {
-        const body = repointLayoutLists(draft.body, changes)
-        await useListDefinitionStore.getState().ensureLoaded()
-        // A newer open (a layout switch, a data replace) took over meanwhile.
-        if (get().saved !== saved) return
-        if (showsOnlyOwnLists(body, saved.id)) {
-          applied = edit((layout) => withLayoutBody(layout, body), `Applied unsaved changes to layout “${saved.name}”`)
-        } else {
-          useUndoStore.getState().notify(`Unsaved changes to layout “${saved.name}” were dropped: they showed another layout’s list.`)
-        }
-      }
-    }
-    if (!applied) await pruneOwnedLists(saved.id, saved)
-    if (draft?.kind === 'saved' && draft.layoutId !== saved.id && get().layouts.some((l) => l.id === draft.layoutId)) {
-      await pruneOwnedLists(draft.layoutId)
-    }
-    if (draft?.kind === 'new') {
-      await useListDefinitionStore.getState().ensureLoaded()
-      if (get().saved !== saved) return
-      if (!showsNoList(draft.body)) {
-        useUndoStore.getState().notify(`The unsaved new layout “${draft.name}” was dropped: a layout shows only its own lists, and it wasn’t stored yet.`)
-      } else {
-        await storeKeptNewLayout(draft.name, draft.body)
-      }
-    }
-  }
-
-  /** A kept new layout (an older build's) stored after the others and opened. */
-  async function storeKeptNewLayout(name: string, body: LayoutBody): Promise<void> {
-    const now = new Date()
-    const record = { name, ...body, createdAt: now, modifiedAt: now, lastUsedAt: now }
-    let id: number
-    try {
-      id = await layoutRepository.insert(record)
-    } catch (err) {
-      reportWriteFailure(`Couldn't keep the unsaved new layout "${name}".`, err)
-      return
-    }
-    await layoutRepository.setActiveId(id).catch((err: unknown) => {
-      console.warn('[workspace] remembering the open layout failed', err)
-    })
-    const sortOrder = (await layoutRepository.get(id).catch(() => undefined))?.layout.sortOrder ?? orderAfter(get().layouts)
-    const layout: Layout = { ...record, id, sortOrder }
-    open({ layout, fixes: [] }, [...get().layouts.filter((l) => l.id !== id), layout], get().repairedIds)
-    useUndoStore.getState().notify(`Kept the unsaved new layout “${name}”.`)
-  }
-
-  /** Opens the active layout (`init`); `kept` = the older build's kept draft, on the first open. */
-  async function openActive(kept: LayoutDraftRecord | null): Promise<void> {
+  /** Opens the active layout (`init`); the page load's first open prunes its unshown lists. */
+  async function openActive(): Promise<void> {
     const first = !get().hydrated
     await layoutRepository.ensureDefault()
     const reads = await layoutRepository.getAll()
@@ -962,7 +873,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const read = reads.find((r) => r.layout === active)
     if (!read) return
     open(read, layouts, repairedOf(reads))
-    if (first) await applyKeptDraft(kept)
+    const { saved } = get()
+    if (first && saved) await pruneOwnedLists(saved.id, saved)
   }
 
   /**
@@ -1040,11 +952,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     resizePreview: null,
 
     init() {
-      if (get().hydrated) return openActive(null)
-      // The page load's first open applies a kept draft. Concurrent first
-      // calls (StrictMode's double effects) share it, so the draft is read
-      // once.
-      firstInit ??= openActive(readLayoutDraft()).finally(() => { firstInit = null })
+      if (get().hydrated) return openActive()
+      // Concurrent first calls (StrictMode's double effects) share the page
+      // load's first open, so its unshown lists are pruned once.
+      firstInit ??= openActive().finally(() => { firstInit = null })
       return firstInit
     },
 

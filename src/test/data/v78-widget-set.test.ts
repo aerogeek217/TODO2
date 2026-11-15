@@ -4,7 +4,6 @@ import { layoutV79Of } from '../../data/upgrades/v79/layouts'
 import { layoutWidgetSetOf, upgradeWidgetSet } from '../../data/upgrades/v78/widget-set'
 import { prepareImport } from '../../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
-import { readLayoutDraft } from '../../data/draft-storage'
 import { rowFixes, validateRow } from '../../data/import-validation'
 import { isNormalized, validateTiling } from '../../utils/workspace-grid'
 import { closeCell } from '../../utils/workspace-layout-ops'
@@ -248,15 +247,5 @@ describe('v78 widget-set: the contract', () => {
     const out = result.data.layouts[0]!
     expect(picture(out)).toEqual(['a'])
     expect(out.cells[0]).toMatchObject({ tabs: [notes('n')], activeTabId: 'n' })
-  })
-
-  it('a kept v77 layout draft reads back without the removed kinds', () => {
-    const body = { columns: [{ id: 'A', weight: 1, rows: [
-      { id: 'A1', weight: 1, cells: [{ id: 'a', weight: 1, tabs: [notes('n')] }] },
-      { id: 'A2', weight: 1, cells: [{ id: 'g', weight: 1, tabs: [raw('g1', 'recent', { recentDays: 7 })] }] },
-    ] }] }
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'N', schemaVersion: 77, ...body }))
-    const draft = readLayoutDraft()
-    expect(draft?.kind === 'new' && picture(draft.body)).toEqual(['a'])
   })
 })

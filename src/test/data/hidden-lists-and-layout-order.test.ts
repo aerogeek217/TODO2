@@ -3,9 +3,8 @@ import { db } from '../../data/database'
 import { rowFixes, sanitizeRow, validateImportData, validateRow } from '../../data/import-validation'
 import { layoutRepository } from '../../data/layout-repository'
 import { auditData, cleanupIssues } from '../../data/audit'
-import { readListDrafts, writeListDrafts } from '../../data/draft-storage'
 import { emptyPredicate } from '../../models/filter-predicate'
-import type { ListDefinition, PersistedListDefinition } from '../../models/list-definition'
+import type { ListDefinition } from '../../models/list-definition'
 import type { WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 import { emptyBody, single } from '../helpers/layout-builders'
@@ -189,14 +188,5 @@ describe('audit: lists that belong to no layout', () => {
     await db.settings.put({ key: 'newTaskFollowup', value: 'maybe' })
     const report = await auditData()
     expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', keys: ['newTaskFollowup'], fix: 'delete' })])
-  })
-})
-
-describe('kept list drafts carry the new parts', () => {
-  it('a draft with an owner, a hidden filter line and the Priority grouping is read back as it was kept', () => {
-    const base = list(4, { owner: { layoutId: 2 } }) as unknown as PersistedListDefinition
-    const draft = { ...base, grouping: 'priority', showFilterLine: false } as PersistedListDefinition
-    writeListDrafts(new Map([[4, { draft, base }]]))
-    expect(readListDrafts().get(4)).toEqual({ draft, base })
   })
 })

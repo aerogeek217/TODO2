@@ -17,7 +17,7 @@ const MODULES = { edit, lists, ops, queries, sizes }
 const ALL = [
   'addTab', 'cellRowTracks', 'closeCell', 'closeTab', 'copySizes', 'countListTabs', 'extractTab', 'findCell', 'findTab', 'getTab',
   'insertTrack', 'isCellCollapsed', 'layoutIds', 'layoutListRefs', 'layoutPanels', 'layoutStructureEqual', 'layoutStructureKey',
-  'layoutTabs', 'listIdChanges', 'mergeCells', 'moveEdge', 'movePanel', 'moveTab', 'panelOfTab', 'patchTabConfig', 'patchTabViewState',
+  'layoutTabs', 'mergeCells', 'moveEdge', 'movePanel', 'moveTab', 'panelOfTab', 'patchTabConfig', 'patchTabViewState',
   'repointLayoutLists', 'replaceTab', 'setActiveTab', 'setLayoutHue', 'setTrackCollapsed', 'setTrackSizes', 'splitCell', 'trackAxes',
 ]
 
@@ -33,7 +33,7 @@ describe('the layout modules (A10)', () => {
     expect(Object.keys(queries).sort()).toEqual([
       'findCell', 'findTab', 'getTab', 'layoutIds', 'layoutPanels', 'layoutStructureEqual', 'layoutStructureKey', 'layoutTabs', 'panelOfTab', 'sameArrangement',
     ])
-    expect(Object.keys(lists).sort()).toEqual(['countListTabs', 'layoutListRefs', 'listIdChanges', 'repointLayoutLists'])
+    expect(Object.keys(lists).sort()).toEqual(['countListTabs', 'layoutListRefs', 'repointLayoutLists'])
     expect(Object.keys(sizes).sort()).toEqual(['GRID_AXES', 'copySizes', 'sameTrackIn', 'setTrackSizes', 'trackAxes', 'withoutTrackFitPx'])
     expect(Object.keys(ops)).not.toContain('findCell')
     expect(Object.keys(edit).sort()).toEqual(['insertAllAt', 'insertAt', 'isPositive', 'removeAt', 'replaceAt', 'setCell', 'withCells', 'withTracks'])

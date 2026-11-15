@@ -1,8 +1,6 @@
 import { create } from 'zustand'
 import type { PersistedListDefinition } from '../models/list-definition'
 import { defsEqual } from '../utils/list-def-equal'
-import { registerModuleReset } from '../utils/module-reset'
-import { clearListDrafts, readListDrafts } from '../data/draft-storage'
 import { useListDefinitionStore } from './list-definition-store'
 
 /**
@@ -71,38 +69,4 @@ export function listAsShown(
 /** `listAsShown` of list `id`, now. */
 export function listAsShownNow(id: number): PersistedListDefinition | undefined {
   return listAsShown(savedDef(id), useListDraftStore.getState().drafts)
-}
-
-/** The page load's application of the drafts an older build kept, while it runs (shared by concurrent callers). */
-let applyingKept: Promise<void> | null = null
-let appliedKept = false
-registerModuleReset(() => {
-  applyingKept = null
-  appliedKept = false
-})
-
-/**
- * Once per page load (the workspace calls it when it opens): the unsaved
- * list edits a build before list autosave kept in the browser
- * (`data/draft-storage`). Each is written for good — one undo step with
- * the snackbar, `Applied unsaved changes to list “X”` — while its list is
- * still as it was saved when the edits were made; the rest are dropped.
- * Then the kept drafts are forgotten.
- */
-export function applyKeptListDrafts(): Promise<void> {
-  if (applyingKept) return applyingKept
-  if (appliedKept) return Promise.resolve()
-  applyingKept = (async () => {
-    const kept = readListDrafts()
-    clearListDrafts()
-    appliedKept = true
-    if (kept.size === 0) return
-    await useListDefinitionStore.getState().ensureLoaded()
-    for (const [id, { draft, base }] of kept) {
-      const saved = savedDef(id)
-      if (!saved || !defsEqual(saved, base) || defsEqual(draft, saved)) continue
-      await useListDefinitionStore.getState().editList(id, () => draft, `Applied unsaved changes to list “${saved.name}”`)
-    }
-  })().finally(() => { applyingKept = null })
-  return applyingKept
 }

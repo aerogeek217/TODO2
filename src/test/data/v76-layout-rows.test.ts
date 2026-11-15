@@ -2,11 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { upgradeV76 } from '../../data/upgrades/v76-layout-rows'
 import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
-import { readLayoutDraft } from '../../data/draft-storage'
 import { rowFixes, sanitizeRow, validateRow } from '../../data/import-validation'
 import { layoutTableOf } from '../../data/upgrades/v78/layout-table'
 import { picture } from '../helpers/layout-builders'
-import type { LayoutBody } from '../../models/workspace-layout'
 import { LAYOUT_PART_LIMIT } from '../../data/layout-shape'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 
@@ -150,27 +148,5 @@ describe('v76 — every column is rows', () => {
   it('runs in the chain from the floor: a v68 file’s layout arrives in the rows shape', () => {
     const out = upgradeDataSet({ layouts: [layout({ columns: [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [notes('t')] }] }] })] }, 68, 76)
     expect((out.layouts![0]!.columns as Array<{ rows: unknown[] }>)[0]!.rows).toEqual([{ id: 'k-r', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [notes('t')] }] }])
-  })
-})
-
-describe('a layout draft kept at v75', () => {
-  it('reads back upgraded, its base the same ids its stored layout upgrades to', () => {
-    const v75Columns = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 2, collapsed: true, activeTabId: 'n', tabs: [notes('n')] }, { id: 'k2', weight: 1, tabs: [notes('m')] }] }]
-    const v75Base = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 2, collapsed: true, activeTabId: 'n', tabs: [notes('n')] }] }]
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({
-      kind: 'saved', layoutId: 2, schemaVersion: 75,
-      columns: v75Columns, top: { id: 'T', height: 120, tabs: [notes('t')] },
-      baseColumns: v75Base,
-    }))
-    const rowK = { id: 'k-r', weight: 2, collapsed: true, cells: [{ id: 'k', weight: 1, activeTabId: 'n', tabs: [notes('n')] }] }
-    const draft = readLayoutDraft()
-    expect(draft?.kind).toBe('saved')
-    if (draft?.kind !== 'saved') return
-    expect(picture(draft.body)).toEqual(['T-c', 'k', 'k2'])
-    expect(picture(draft.base)).toEqual(['k'])
-    // The stored layout the base was made against upgrades to the same table.
-    expect(upgraded(layout({ columns: v75Base })).columns).toEqual([{ id: 'A', weight: 1, rows: [rowK] }])
-    const stored = asV78(upgraded(layout({ columns: v75Base }))) as unknown as LayoutBody
-    expect(draft.base).toEqual({ grid: stored.grid, cells: stored.cells })
   })
 })

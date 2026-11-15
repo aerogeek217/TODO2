@@ -6,7 +6,6 @@ import { layoutNumbersOf, upgradeNumbers } from '../../data/upgrades/v78/numbers
 import { numberConfigOfMetric, V77_NUMBER_METRICS, type V77NumberMetric } from '../../data/upgrades/v78/number-metrics'
 import { prepareImport } from '../../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
-import { readLayoutDraft } from '../../data/draft-storage'
 import { db } from '../../data/database'
 import { restoreFromImportData } from '../../data/restore'
 import { rowFixes, validateRow } from '../../data/import-validation'
@@ -116,14 +115,6 @@ describe('v78 numbers: a Number’s metric becomes the filter that counts the sa
     }
     const out = upgradeV78({ layouts: [v77] }).layouts![0] as Obj & { cells: Array<{ tabs: LayoutTab[] }> }
     expect(out.cells[0]!.tabs).toEqual([{ id: 'n', kind: 'number', config: numberConfigOfMetric('urgent') }])
-  })
-
-  it('a kept v77 layout draft reads back with its Numbers as filters', () => {
-    const body = { columns: [{ id: 'A', weight: 1, rows: [{ id: 'A1', weight: 1, cells: [{ id: 'a', weight: 1, tabs: [v77Number('n', 'dueToday')] }] }] }] }
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'N', schemaVersion: 77, ...body }))
-    const draft = readLayoutDraft()
-    const tabs = draft?.kind === 'new' ? draft.body.cells.flatMap((c) => c.tabs) : []
-    expect(tabs).toEqual([{ id: 'n', kind: 'number', config: numberConfigOfMetric('dueToday') }])
   })
 })
 

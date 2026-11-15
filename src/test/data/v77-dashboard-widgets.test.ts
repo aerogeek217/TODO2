@@ -2,13 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { upgradeV77 } from '../../data/upgrades/v77-dashboard-widgets'
 import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
-import { readLayoutDraft } from '../../data/draft-storage'
 import { rowFixes } from '../../data/import-validation'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
 import type { LayoutBody } from '../../models/workspace-layout'
 import { upgradeV78 } from '../../data/upgrades/v78'
-import { upgradeV79 } from '../../data/upgrades/v79'
 import { picture } from '../helpers/layout-builders'
 
 const DATE = '2026-11-01T09:00:00.000Z'
@@ -303,29 +301,5 @@ describe('v77 — the Dashboard as widgets', () => {
   it('runs in the chain from the floor', () => {
     const out = upgradeDataSet({ layouts: [layout({ columns: [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [dash('d', { tiles: ['open'], sections: [] })] }] }] })] }, 68, 77)
     expect(rowsOf(out.layouts![0]!)).toEqual([{ id: 'd-r1', weight: 1, cells: [numberCell('d', 1, 'open')] }])
-  })
-})
-
-describe('a layout draft kept at v76', () => {
-  it('reads back upgraded, its base the same ids its stored layout upgrades to', () => {
-    const config = { tiles: ['open'], sections: [{ id: 'status' }] }
-    const v76Base = [{ id: 'A', weight: 1, rows: [one('k-r', 'k', [dash('d', config)])] }]
-    const v76Columns = [{ id: 'A', weight: 1, rows: [one('k-r', 'k', [dash('d', config)]), one('m-r', 'm', [notes('n')])] }]
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({
-      kind: 'saved', layoutId: 2, schemaVersion: 76,
-      columns: v76Columns, baseColumns: v76Base,
-    }))
-    const widgets = [
-      { id: 'd-r1', weight: 1, cells: [numberCell('d', 1, 'open')] },
-      { id: 'd-r2', weight: 1, cells: [partCell('d', 2, 12, 'status')] },
-    ]
-    const draft = readLayoutDraft()
-    expect(draft?.kind).toBe('saved')
-    if (draft?.kind !== 'saved') return
-    expect(picture(draft.base)).toEqual(['d-c1', 'd-c2'])
-    expect(picture(draft.body)).toEqual(['d-c1', 'd-c2', 'm'])
-    expect(rowsOf(upgraded(layout({ columns: v76Base })))).toEqual(widgets)
-    const stored = upgradeV79({ layouts: [asV78(upgraded(layout({ columns: v76Base })))] }).layouts![0]! as unknown as LayoutBody
-    expect(draft.base).toEqual({ grid: stored.grid, cells: stored.cells })
   })
 })

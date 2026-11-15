@@ -6,7 +6,6 @@ import { CURRENT_DB_VERSION } from '../../data/database'
 import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
-import { readLayoutDraft, readListDrafts } from '../../data/draft-storage'
 import { rowFixes, validateRow } from '../../data/import-validation'
 import { emptyPredicate, type TodoPredicate } from '../../models/filter-predicate'
 import { defaultBreakdownColumns } from '../../models/chart-widgets'
@@ -397,27 +396,6 @@ describe('v79 through the pipeline', () => {
     // The same through the registry alone.
     const chained = upgradeDataSet(JSON.parse(JSON.stringify(file)) as DataSet, 68, CURRENT_DB_VERSION)
     expect(chained.listDefinitions!.map((d) => d.id)).toEqual([1])
-  })
-
-  it('a layout draft kept at v78 reads back in the v79 shape, its base as the stored layout upgrades to', () => {
-    const k = cell('k', [raw({ id: 'l', kind: 'lens', config: { listDefinitionId: 4 }, viewState: { zoom: 'strips' } }), raw({ id: 'e', kind: 'eisenhower', config: {} })])
-    const body = grid([[k]])
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 1, schemaVersion: 78, grid: body.grid, cells: body.cells, baseGrid: body.grid, baseCells: body.cells }))
-    const draft = readLayoutDraft()
-    expect(draft?.kind).toBe('saved')
-    if (draft?.kind !== 'saved') return
-    expect(draft.body.cells.flatMap((c) => c.tabs)).toEqual([{ id: 'l', kind: 'lens', config: { listDefinitionId: 4 }, viewState: { zoom: 'lines' } }])
-    const stored = layoutV79Of(layout(body)) as unknown as LayoutBody
-    expect(draft.base).toEqual({ grid: stored.grid, cells: stored.cells })
-  })
-
-  it('a list draft of the Eisenhower’s list kept at v78 is dropped (nothing shows that list); another reads back', () => {
-    const def = (id: number, owner: unknown) => ({ id, name: `L${id}`, sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: emptyPredicate() }, owner })
-    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({
-      2: { draft: def(2, { eisenhower: true }), base: def(2, { eisenhower: true }), schemaVersion: 78 },
-      4: { draft: def(4, { layoutId: 1 }), base: def(4, { layoutId: 1 }), schemaVersion: 78 },
-    }))
-    expect([...readListDrafts().keys()]).toEqual([4])
   })
 })
 
