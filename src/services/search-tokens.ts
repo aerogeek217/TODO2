@@ -4,7 +4,7 @@ import { fixedAnchor } from '../utils/filter-criteria'
 import type { SearchClause } from '../utils/search-clause'
 import { collapseWhitespace } from '../utils/text'
 import { parseInput } from './natural-language-parser'
-import { matchPerson, matchStatus, matchTag } from './nlp-resolver'
+import { matchPerson, matchStatus, matchTag, pickedAmong, type PickedIds } from './nlp-resolver'
 import { removeTextSpans, type TextEdit } from './nlp-chip-edit'
 import {
   computeAutocomplete,
@@ -41,6 +41,8 @@ export interface SearchSources {
   tags: readonly Tag[]
   statuses: readonly Status[]
   today: Date
+  /** Picked from the popup, newest last: which of two that share a name a name means (cr34 F10). */
+  picked?: PickedIds
 }
 
 /** A recognised token: the clause it sets, as typed. */
@@ -109,7 +111,7 @@ const CLAUSE_FIELD = { person: 'personIds', tag: 'tags', status: 'statusIds' } a
  * `!` counts — the parser's repeats after the first one too (they OR).
  */
 export function parseSearch(text: string, sources: SearchSources, kept: readonly string[] = []): SearchParse {
-  const { people, tags, statuses, today } = sources
+  const { people, tags, statuses, today, picked } = sources
   const parsed = parseInput(text, today)
   const tokens: SearchToken[] = []
   const names: SearchName[] = []
@@ -118,8 +120,13 @@ export function parseSearch(text: string, sources: SearchSources, kept: readonly
   const push = (span: { raw: string; start: number; end: number }, clause: SearchClause) => {
     tokens.push({ raw: span.raw, start: span.start, end: span.end, clause, complete: complete(span.end) })
   }
-  const match = (kind: SearchName['kind'], value: string) =>
-    kind === 'person' ? matchPerson(value, people) : kind === 'tag' ? matchTag(value, tags) : matchStatus(value, statuses)
+  // Of two that share a name, the one picked last from the popup, else the first.
+  const match = (kind: SearchName['kind'], value: string) => {
+    if (kind === 'person') { const hit = matchPerson(value, people); return pickedAmong(hit, people, picked?.person) ?? hit }
+    if (kind === 'tag') { const hit = matchTag(value, tags); return pickedAmong(hit, tags, picked?.tag) ?? hit }
+    const hit = matchStatus(value, statuses)
+    return pickedAmong(hit, statuses, picked?.status) ?? hit
+  }
   const name = (t: { raw: string; value: string; start: number; end: number }, kind: SearchName['kind']) => {
     const isKept = kept.includes(t.raw)
     const id = isKept ? undefined : match(kind, t.value)?.id

@@ -179,6 +179,27 @@ describe('the expression field', () => {
     expect(field().value).toBe({ '#wo': '#work ', '#work and /fo': '#work and /focus ', '@al': '@Alice ' }[text])
   }, 5000)
 
+  it('two people of one name: a popup pick of the second names the second (cr34 F10)', () => {
+    usePersonStore.setState({
+      people: [makePerson({ id: 3, name: 'Alex' }), makePerson({ id: 4, name: 'Alex' })],
+      assignedPeopleMap: new Map(),
+    })
+    const log: TodoPredicate[] = []
+    render(<Harness initial={{ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }} log={log} />)
+    type('@Al')
+    const alexes = screen.getAllByRole('option', { name: /Alex/ })
+    expect(alexes).toHaveLength(2)
+    fireEvent.mouseDown(alexes[1] as HTMLElement, { button: 0 })
+    expect(field().value).toBe('@Alex ')
+    fireEvent.keyDown(field(), { key: 'Enter' })
+    expect(log.at(-1)?.expression).toEqual({ kind: 'person', id: 4 })
+    // Then the first: the filter switches back, though its text reads the same.
+    type('@Al')
+    fireEvent.mouseDown(screen.getAllByRole('option', { name: /Alex/ })[0] as HTMLElement, { button: 0 })
+    fireEvent.keyDown(field(), { key: 'Enter' })
+    expect(log.at(-1)?.expression).toEqual({ kind: 'person', id: 3 })
+  })
+
   it('writes a text that reads once typing rests, and shows how it reads', () => {
     vi.useFakeTimers()
     const log: TodoPredicate[] = []

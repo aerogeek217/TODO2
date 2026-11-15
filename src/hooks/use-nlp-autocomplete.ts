@@ -48,8 +48,13 @@ interface UseNlpAutocompleteOptions {
    * Off: ⏎ always picks while the popup is open.
    */
   enterSubmits?: boolean
-  /** Writes a pick into the input: set the value, then put the caret at `cursor`. */
-  onApply: (value: string, cursor: number) => void
+  /**
+   * Writes a pick into the input: set the value, then put the caret at
+   * `cursor`. `picked`: the person / tag / status the pick names — its text
+   * is the name alone, which two that share a name can't tell apart (cr34
+   * F10): a field resolves its names with it (`nlp-resolver.withPicked`).
+   */
+  onApply: (value: string, cursor: number, picked?: AutocompleteItem) => void
   /** A picked create row: makes the person / tag (default: the stores, `services/nlp-create`). */
   onCreate?: (trigger: '@' | '#', name: string) => Promise<void>
   /** What the popup lists (default `computeAutocomplete`; the search box: `services/search-tokens.searchAutocomplete`). */
@@ -121,7 +126,8 @@ export function useNlpAutocomplete({
       if (done) {
         value = done.value
         cursor = done.cursor
-        onApplyRef.current(value, cursor)
+        const accepted = open.view.rows[open.selectedIndex]
+        onApplyRef.current(value, cursor, accepted?.kind === 'entity' ? accepted.item : undefined)
         view = compute(value, cursor, sources)
       }
     }
@@ -156,7 +162,7 @@ export function useNlpAutocomplete({
     if (!view || !input) return
     const pick = applyAutocompletePick(input.value, view, row)
     if (!pick) return
-    onApplyRef.current(pick.value, pick.cursor)
+    onApplyRef.current(pick.value, pick.cursor, row.kind === 'entity' ? row.item : undefined)
     if (pick.reopen) handleInputChange(pick.value, pick.cursor, input)
     else dismiss()
     // A picked Create row makes the person / tag now, so the token resolves to it.

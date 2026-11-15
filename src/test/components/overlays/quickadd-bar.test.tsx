@@ -395,6 +395,29 @@ describe('QuickAddBar', () => {
       expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).resolved.personIds).toEqual([3])
     })
 
+    it('two people of one name: a click on the second gives the task the second; so does Enter on the second highlighted (cr34 F10)', () => {
+      const alexes: PersistedPerson[] = [{ id: 3, name: 'Alex', initials: 'AX' }, { id: 4, name: 'Alex', initials: 'AX' }]
+      usePersonStore.setState({ people: alexes })
+      const onSubmit = vi.fn()
+      const { unmount } = render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeTo('Call @Al')
+      const rows = screen.getAllByRole('option', { name: /Alex/ })
+      expect(rows).toHaveLength(2)
+      fireEvent.mouseDown(rows[1] as HTMLElement, { button: 0 })
+      expect(getInput().value).toBe('Call @Alex ')
+      fireEvent.keyDown(getInput(), { key: 'Enter' })
+      expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).resolved.personIds).toEqual([4])
+      unmount()
+
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeTo('Call @Al')
+      const second = screen.getAllByRole('option', { name: /Alex/ })[1] as HTMLElement
+      fireEvent.mouseMove(second, { clientX: 40, clientY: 60 })
+      expect(second).toHaveAttribute('aria-selected', 'true')
+      fireEvent.keyDown(getInput(), { key: 'Enter' })
+      expect((onSubmit.mock.calls[1]![0] as QuickAddDraft).resolved.personIds).toEqual([4])
+    })
+
     it('a row matched only inside the name is listed but needs a pick: Enter adds the typed name as new', () => {
       usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Hannah', initials: 'HA' }] })
       const onSubmit = vi.fn()

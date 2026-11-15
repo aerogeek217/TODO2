@@ -309,3 +309,25 @@ describe('resolveUnmatchedPeople', () => {
     expect(personStore.getOrCreate).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('resolveInput: namesakes picked from the popup (cr34 F10)', () => {
+  const alexes: Person[] = [{ id: 3, name: 'Alex', initials: 'A' }, { id: 4, name: 'Alex', initials: 'A' }, { id: 5, name: 'Bea', initials: 'B' }]
+  const waiting: Status[] = [{ id: 7, name: 'Waiting', color: '#888', sortOrder: 0 }, { id: 8, name: 'Waiting', color: '#888', sortOrder: 1 }]
+
+  it('with nothing picked, a name is the first that matches', () => {
+    const r = resolveInput(parseInput('Call @Alex !Waiting'), alexes, waiting)
+    expect(r.personIds).toEqual([3])
+    expect(r.statusId).toBe(7)
+  })
+
+  it('the second Alex picked is the second Alex; the second Waiting likewise', () => {
+    const r = resolveInput(parseInput('Call @Alex !Waiting'), alexes, waiting, { person: [4], tag: [], status: [8] })
+    expect(r.personIds).toEqual([4])
+    expect(r.statusId).toBe(8)
+  })
+
+  it('the newest pick wins; a pick of someone else changes nothing for the name', () => {
+    expect(resolveInput(parseInput('Call @Alex'), alexes, waiting, { person: [4, 3], tag: [], status: [] }).personIds).toEqual([3])
+    expect(resolveInput(parseInput('Call @Alex @Bea'), alexes, waiting, { person: [5], tag: [], status: [] }).personIds).toEqual([3, 5])
+  })
+})

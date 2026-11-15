@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Status, Tag } from '../../models'
-import { expressionResolver, namedIds, NO_PICKS, withPicked } from '../../services/filter-expression-field'
+import { expressionResolver, namedIds } from '../../services/filter-expression-field'
+import { NO_PICKS, withPicked } from '../../services/nlp-resolver'
 import { parseExpression, printExpression } from '../../utils/filter-expression'
 import { expressionNamesOf } from '../../utils/filter-chips'
 import { makePerson } from '../helpers'

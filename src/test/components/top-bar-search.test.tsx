@@ -248,6 +248,24 @@ describe('TopBar search box and the filter store', () => {
     act(() => useFilterStore.getState().setSearchText('from elsewhere'))
     expect(input.value).toBe('from elsewhere')
   })
+
+  it('two people of one name: a popup pick of the second makes the second’s chip (cr34 F10)', () => {
+    useFilterStore.getState().clearAll()
+    usePersonStore.setState({ people: [makePerson({ id: 3, name: 'Alex' }), makePerson({ id: 4, name: 'Alex' })], assignedPeopleMap: new Map() })
+    useStatusStore.setState({ statuses: [] })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
+    renderBar()
+    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    act(() => {
+      input.focus()
+      fireEvent.change(input, { target: { value: '@Al', selectionStart: 3, selectionEnd: 3 } })
+    })
+    const alexes = screen.getAllByRole('option', { name: 'Alex' })
+    expect(alexes).toHaveLength(2)
+    fireEvent.mouseDown(alexes[1] as HTMLElement, { button: 0 })
+    expect(useFilterStore.getState().filters.personIds).toEqual(new Set([4]))
+    expect(input.value).toBe('')
+  })
 })
 
 describe('TopBar renders for the tasks only while it searches them', () => {

@@ -206,7 +206,8 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
       print: (expression, showCompleted) => printExpression(expression, showCompleted, field.names),
     })
     ac.dismiss()
-    field.apply(next.value, next.cursor, true)
+    // The row's person / tag / status, so a namesake's pick names that one (cr34 F10).
+    field.apply(next.value, next.cursor, true, row.item)
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
