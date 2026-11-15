@@ -151,7 +151,7 @@
   background: none;
   font-family: inherit;
   font-size: var(--font-size-task);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-regular);
   line-height: 20px;
   text-align: left;
   color: var(--color-text-primary);
