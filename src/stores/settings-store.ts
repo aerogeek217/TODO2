@@ -172,6 +172,12 @@ interface SettingsState extends SettingsData {
   load: () => Promise<void>
   /** No undo step (a colour picker writes on every move). */
   setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
+  /**
+   * One colour of `theme` back to its default: its override removed, so a
+   * priority follows the accent / Danger / Follow up again. No undo step
+   * (as every colour write); nothing is written for a colour with no override.
+   */
+  resetColor: (theme: ThemeName, key: keyof ThemeColors) => Promise<void>
   /** When `theme` is omitted, both bags reset; otherwise only the specified bag. */
   resetColors: (theme?: ThemeName) => Promise<void>
   /** No undo step. */
@@ -665,6 +671,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await SETTINGS.colors.write({
       colors: { ...colors, [theme]: { ...colors[theme], [key]: value } },
       customizedColors: { ...custom, [theme]: custom[theme].includes(key) ? custom[theme] : [...custom[theme], key] },
+    })
+  },
+
+  async resetColor(theme, key) {
+    const { colors, customizedColors: custom } = get()
+    if (!custom[theme].includes(key)) return
+    await SETTINGS.colors.write({
+      colors: { ...colors, [theme]: { ...colors[theme], [key]: DEFAULT_THEMED_COLORS[theme][key] } },
+      customizedColors: { ...custom, [theme]: custom[theme].filter((k) => k !== key) },
     })
   },
 
