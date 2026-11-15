@@ -4,14 +4,12 @@ import type { TodoPredicate } from '../../../models/filter-predicate'
 import { useUIStore } from '../../../stores/ui-store'
 import { expressionNamesOf } from '../../../utils/filter-chips'
 import { printExpression, wholeExpression } from '../../../utils/filter-expression'
-import { groupSortSummary } from '../../../utils/list-options'
-import { ChevronDownIcon } from '../../shared/icons'
+import { GroupSortButton } from '../../shared/GroupSortButton'
 import { ExpressionWords } from '../../shared/filters/ExpressionWords'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { EDIT_LIST_KEEP_ATTR, requestEditListClose } from './edit-list-keep'
 import { openEditList } from '../widget-hooks'
 import { WidgetTopLine } from '../WidgetTopLine'
-import chipStyles from '../../shared/filters/ListFilterChips.module.css'
 import styles from './ListFilterRow.module.css'
 
 interface ListFilterRowProps {
@@ -60,19 +58,17 @@ function FilterRowBody({ tabId, definition, count, topLine }: ListFilterRowProps
         <ListFilterWords predicate={definition.membership.predicate} onOpen={toggleEditor} />
       </div>
       {count != null && <ListCount label={count} />}
-      <button
-        type="button"
-        className={`${chipStyles.summary} ${editorOpen ? chipStyles.summaryOpen : ''}`}
+      <GroupSortButton
+        grouping={definition.grouping}
+        sort={definition.sort}
+        sortDirection={definition.sortDirection}
+        open={editorOpen}
         aria-haspopup="dialog"
-        aria-expanded={editorOpen}
         title={`Edit list “${definition.name.trim() || 'List'}”`}
         data-testid="list-summary"
         {...{ [EDIT_LIST_KEEP_ATTR]: id }}
         onClick={toggleEditor}
-      >
-        {groupSortSummary(definition.grouping, definition.sort, definition.sortDirection)}
-        <ChevronDownIcon />
-      </button>
+      />
     </>
   )
   return topLine
