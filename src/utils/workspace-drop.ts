@@ -333,7 +333,7 @@ export function tabLabel(tabCount = 1): string {
 }
 
 /** A drop into a strip of Numbers (flair P10). */
-export const STRIP_LABEL = 'Add to strip'
+const STRIP_LABEL = 'Add to strip'
 
 /** What a drop on `target` says: "Split Late · above", "Insert row · full width", "Add as tab". */
 export function dropLabel(geo: WorkspaceGeometry, target: LayoutDropTarget, tabCount: number): string {
