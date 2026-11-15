@@ -201,6 +201,50 @@ describe('filter expressions — date printing', () => {
     expect(print('created', range(off(-1), null))).toBe('created >= yesterday')
   })
 
+  it('a stored offset of 0 or ±1 finds the shortcuts and the period names, as the named day does (cr34 F7)', () => {
+    // Before today, its end stored either way: `overdue`, `followup late` (the other dates have no such word).
+    for (const end of [rel('yesterday'), off(-1)]) {
+      expect(print('deadline', range(null, end))).toBe('overdue')
+      expect(print('followup', range(null, end))).toBe('followup late')
+      expect(print('lastFollowup', range(null, end))).toBe('followed <= yesterday')
+      expect(print('created', range(null, end))).toBe('created <= yesterday')
+    }
+    // Not before today: one day either side stays a comparison.
+    expect(print('deadline', range(null, off(-2)))).toBe('due <= -2d')
+    expect(print('deadline', range(null, off(0)))).toBe('due <= today')
+    expect(print('deadline', range(off(-1), off(-1)))).toBe('due yesterday')
+    // This week / this month: from today (to today on the dates that look back), today stored as a 0-day offset.
+    expect(print('deadline', range(off(0), rel('end-of-week')))).toBe('due this week')
+    expect(print('followup', range(off(0), rel('end-of-month')))).toBe('followup this month')
+    expect(print('completed', range(rel('start-of-week'), off(0)))).toBe('completed this week')
+    expect(print('created', range(rel('start-of-month'), off(0)))).toBe('created this month')
+    // A different day is no period.
+    expect(print('deadline', range(off(1), rel('end-of-week')))).toBe('due tomorrow..end of week')
+  })
+
+  it('what prints reads back and prints the same, so a blur rewrites nothing: every pair of day ends, stored either way (cr34 F7)', () => {
+    const ends: Array<DateAnchor | null> = [
+      null, off(-2), off(-1), off(0), off(1), off(2), rel('yesterday'), rel('today'), rel('tomorrow'),
+      rel('start-of-week'), rel('end-of-week'), rel('start-of-month'), rel('end-of-month'),
+    ]
+    const fields: DateField[] = ['deadline', 'followup', 'lastFollowup', 'created', 'modified', 'completed']
+    let checked = 0
+    for (const field of fields) {
+      for (const start of ends) {
+        for (const end of ends) {
+          if (start == null && end == null) continue
+          const text = print(field, range(start, end))
+          const r = parse(text)
+          // An inverted range (its end before its start) prints, but reads as an error (F9): nothing to settle.
+          if (!r.ok) continue
+          expect(printExpression(r.expression, r.showCompleted, names), `${field} ${JSON.stringify(start)}..${JSON.stringify(end)}: ${text}`).toBe(text)
+          checked += 1
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(500)
+  })
+
   it('settles the older words in the new form', () => {
     for (const [typed, printed] of [
       ['due by fri', 'due <= 11/13/2026'],

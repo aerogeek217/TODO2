@@ -80,6 +80,14 @@ describe('expressionWords — structure', () => {
     expect(words('not due within 3 days')).toBe('not due within the next 3 days')
   })
 
+  it('reads the shortcuts and the periods from a stored 0 or -1 day offset too (cr34 F7)', () => {
+    const before = { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: -1 } }
+    const thisWeek = { match: 'range' as const, start: { kind: 'offset' as const, days: 0 }, end: { kind: 'relative' as const, token: 'end-of-week' as const } }
+    expect(expressionWords({ kind: 'and', items: [{ kind: 'date', field: 'deadline', match: before }, { kind: 'date', field: 'followup', match: before }] }, names).text)
+      .toBe('Overdue · follow-up late')
+    expect(expressionWords({ kind: 'date', field: 'deadline', match: thisWeek }, names).text).toBe('Due this week')
+  })
+
   it('folds a date and its none in a bracketed or', () => {
     expect(words('#q4 and (followed by 7 days ago or never followed or @Ben)')).toBe('#q4 · (last follow-up 7+ days ago, or never or Ben)')
   })
