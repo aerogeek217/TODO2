@@ -85,11 +85,13 @@ describe('Edit list', () => {
     expect(draft()).toMatchObject({ grouping: 'status', sort: 'deadline' })
 
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
-    // Priority carries its rule as a note (no "new feature" tag); Manual explains itself.
-    const priority = screen.getByRole('menuitemradio', { name: /^Priority/ })
+    // Priority carries its rule as a note (no "new feature" tag); Manual explains itself —
+    // each note the item's tooltip and accessible description, not a line under its name.
+    const priority = screen.getByRole('menuitemradio', { name: 'Priority' })
     expect(priority).not.toHaveTextContent('NEW')
-    expect(priority).toHaveTextContent('Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date')
-    expect(screen.getByRole('menuitemradio', { name: /^Manual/ })).toHaveTextContent('Your drag order (per list)')
+    expect(priority).toHaveAccessibleDescription('Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date')
+    expect(priority).not.toHaveTextContent('ties by due date')
+    expect(screen.getByRole('menuitemradio', { name: 'Manual' })).toHaveAccessibleDescription('Your drag order (per list)')
     fireEvent.click(priority)
     expect(draft()).toMatchObject({ grouping: 'status', sort: 'priority' })
 

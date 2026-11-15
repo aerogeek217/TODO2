@@ -81,12 +81,13 @@ describe('<ListEditorBody>', () => {
     expect(screen.getByRole('menu', { name: row })).toBeInTheDocument()
   })
 
-  it('groups by Priority, with a note saying a task shows in each of its groups', () => {
+  it('groups by Priority, its note saying a task shows in each of its groups — a tooltip, not a line under it', () => {
     const onChange = vi.fn()
     render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
     openChoices('Group by')
-    const priority = screen.getByRole('menuitemradio', { name: /^Priority/ })
-    expect(priority).toHaveTextContent('a task shows in each of its groups')
+    const priority = screen.getByRole('menuitemradio', { name: 'Priority' })
+    expect(priority).toHaveAccessibleDescription(/a task shows in each of its groups/)
+    expect(priority).not.toHaveTextContent('a task shows in each of its groups')
     fireEvent.click(priority)
     expect(last(onChange).grouping).toBe('priority')
   })

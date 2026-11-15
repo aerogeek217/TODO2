@@ -48,6 +48,23 @@ describe('useTooltip / <Tooltip> — the app tooltip', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Inside')
   })
 
+  it('in the popover opened last (a choice menu from a popover) it opens; in the popover under it, it doesn’t', () => {
+    render(
+      <>
+        <div data-popover-level="1"><Trigger text="Under" /></div>
+        <div data-popover-level="2"><Trigger text="Menu item" /></div>
+      </>,
+    )
+    const [under, top] = screen.getAllByRole('button', { name: 'Copy' })
+    fireEvent.pointerEnter(under!)
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.pointerLeave(under!)
+    fireEvent.pointerEnter(top!)
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Menu item')
+  })
+
   it('a popover that closes before the delay ends doesn’t hold it back', () => {
     const popover = document.createElement('div')
     popover.setAttribute('data-popover-level', '1')

@@ -24,6 +24,7 @@ import {
 import { changedListFields, type ListDefField } from '../../utils/list-def-equal'
 import type { CopySourceGroup } from '../../utils/list-copy'
 import type { CopySource } from '../../hooks/use-copy-sources'
+import { useIsMobile } from '../../hooks/use-is-mobile'
 import { CopyFromMenu } from './CopyFromMenu'
 import { PredicateChips } from './filters/PredicateChips'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
@@ -624,7 +625,9 @@ function SortDirectionToggle({ sort, direction, onChange }: {
 /**
  * A select-button: the current choice + a chevron; opens a radio menu of the
  * choices under it. With `placeholder` it shows that, muted, instead of the
- * current choice (an unset field) and is named by its label alone.
+ * current choice (an unset field) and is named by its label alone. A
+ * choice's description (Group by's and Sort by's notes) is its item's
+ * tooltip and accessible description, not a line under it — but on a phone.
  */
 function ChoiceSelect({ labelId, label, value, choices, placeholder, onPick }: {
   labelId: string
@@ -637,11 +640,15 @@ function ChoiceSelect({ labelId, label, value, choices, placeholder, onPick }: {
   const ref = useRef<HTMLButtonElement | null>(null)
   const valueId = useId()
   const [open, setOpen] = useState(false)
+  const phone = useIsMobile()
   const current = choices.find((c) => c.value === value)
   const entries: MenuEntry[] = choices.map((c) => ({
     kind: 'item',
     label: c.label,
     description: c.description,
+    // What a choice means is a tooltip, as Settings explains a setting — on a
+    // phone (no hover) a line under it, as Settings' phone rows and Edit list's sheet show it.
+    descriptionTooltip: !phone,
     radio: true,
     indicator: 'radio',
     checked: c.value === value,
