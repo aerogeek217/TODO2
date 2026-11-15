@@ -682,6 +682,16 @@ export async function wsShape(page: Page): Promise<string[][][]> {
  */
 export async function releaseDrag(page: Page): Promise<void> {
   await page.mouse.up()
+  await clicksGetThrough(page)
+}
+
+/**
+ * Resolves once a click reaches its target again: dnd-kit's stop on every
+ * click at the document, 50 ms long after a drag ends or is cancelled, is
+ * over (`releaseDrag` has the reason and the probe's how). Also while the
+ * mouse is still down — after a drag cancelled with Esc, before letting go.
+ */
+export async function clicksGetThrough(page: Page): Promise<void> {
   await page.waitForFunction(() => {
     const probe = document.createElement('div')
     let reached = false
