@@ -9,8 +9,8 @@ import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
 import type { AddWhere } from './add-widget-where'
 import { useTabTitle, useTabTitles } from './widget-hooks'
-import { MenuPopover } from '../shared/MenuPopover'
-import { ChevronDownIcon, ChevronUpIcon, ExpandIcon, MoreIcon } from '../shared/icons'
+import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
+import { ChevronDownIcon, ChevronUpIcon, CloseIcon, ExpandIcon, MoreIcon, PlusIcon } from '../shared/icons'
 import {
   useWorkspaceDrag,
   WORKSPACE_PANEL_DRAG,
@@ -228,11 +228,11 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const menuFace = menuTab == null ? 'large' : numberStrip ? (slotFaces[menuTab.id] ?? 'large') : menuTab.id === active?.id ? cellFace.face : 'large'
   const menuOpensLarger = menuTab != null && tabOpensLarger(menuTab, menuFace)
   const menuEntries = menu && menuTab
-    ? cellMenuFor(menu.part, widgetKindMenuEntries({
+    ? cellMenuFor(menu.part, [...widgetKindMenuEntries({
         ...(widgetContent ?? NO_WIDGET_MENU),
         onOpenLarger: menuOpensLarger ? () => { void openWidgetLarger(menuTab.id) } : undefined,
         onNameAndIcon: () => openLabelEdit(menuTab.id, menu.at),
-      }), {
+      }), ...numberEntries(menuTab)], {
         cell,
         tab: menuTab,
         tabTitle: menuTitle,
@@ -246,6 +246,26 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         onCloseCell: () => afterLeavingEditors(() => closeCell(cell.id)),
       })
     : null
+  /**
+   * A Number's own way to grow or shrink a strip (flair P10): Add number
+   * beside (a lone Number becomes a strip of two), and in a strip Remove
+   * number (its tab closed, as its × does).
+   */
+  function numberEntries(tab: LayoutTab): MenuEntry[] {
+    if (tab.kind !== 'number') return []
+    const at = cell.tabs.findIndex((t) => t.id === tab.id)
+    const entries: MenuEntry[] = [
+      { kind: 'separator' },
+      {
+        kind: 'item',
+        label: 'Add number beside',
+        icon: <PlusIcon />,
+        onSelect: () => { void useWorkspaceStore.getState().addWidget('number', { kind: 'cell', cellId: cell.id, index: at + 1 }) },
+      },
+    ]
+    if (numberStrip) entries.push({ kind: 'item', label: 'Remove number', icon: <CloseIcon size={12} />, onSelect: () => closeTabAsked(tab.id) })
+    return entries
+  }
   /** The whole menu (a right-click, Shift+F10 / the Menu key): at a point, or under the ⋯. */
   const openMenu = useCallback((tabId: string, at: MenuAt) => setMenu({ tabId, at, part: 'all' }), [])
   /** The ⋯'s menu (`widget`) or the grip's (`layout`) for tab `tabId`, under its button; pressed again, closed. */
