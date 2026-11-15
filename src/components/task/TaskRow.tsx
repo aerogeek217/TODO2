@@ -152,6 +152,7 @@ export const TaskRow = memo(function TaskRow({
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
   const stale = isStale(todo, today, staleAfterDays)
   const staleCobwebs = useSettingsStore((s) => s.staleCobwebs)
+  const staleFade = useSettingsStore((s) => s.staleFade)
 
   // The full title in the tooltip — only when it's cut off; a stale row's always, with its last-edited line.
   const { triggerProps: titleTipProps, tooltip: titleTip } = useTooltip(stale ? `${todo.title}\n${staleTooltipLine(todo, today)}` : todo.title)
@@ -190,6 +191,7 @@ export const TaskRow = memo(function TaskRow({
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-ghosted={ghost ? '' : undefined}
       data-stale={stale || undefined}
+      data-faded={(stale && staleFade) || undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       onMouseEnter={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(todo.id)}
       onMouseLeave={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(null)}

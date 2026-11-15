@@ -81,13 +81,14 @@
 }
 
 /* Stale (untouched for the Settings threshold): faded until the row is hovered, focused or has a picker open. */
-.row[data-stale] {
+/* A stale row while Fade stale tasks is on (`data-faded`; `data-stale` is the state). */
+.row[data-faded] {
   opacity: 0.55;
 }
 
-.row[data-stale]:hover,
-.row[data-stale]:focus-within,
-.row[data-stale].rowDropdownOpen {
+.row[data-faded]:hover,
+.row[data-faded]:focus-within,
+.row[data-faded].rowDropdownOpen {
   opacity: 1;
 }
 

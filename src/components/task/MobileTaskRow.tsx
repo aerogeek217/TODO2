@@ -91,6 +91,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
   const cue = rowCue(todo, priorityCues, today, urgentRange)
   const stale = isStale(todo, today, staleAfterDays)
   const staleCobwebs = useSettingsStore((s) => s.staleCobwebs)
+  const staleFade = useSettingsStore((s) => s.staleFade)
   const hasNotes = statusNotesPreview(newestUpdate, todo.notes) !== null
   // What the details line says, in words, for a screen reader (the line itself is drawn for the eye).
   const description = rowSummaryText(todo, today, {
@@ -108,6 +109,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''}`}
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-stale={stale || undefined}
+      data-faded={(stale && staleFade) || undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       onMouseDown={(e) => { if (own(e)) keepRowTextUnselected(e) }}
       onContextMenu={(e) => {

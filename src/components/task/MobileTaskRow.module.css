@@ -53,7 +53,7 @@
   opacity: 0.4;
 }
 
-.row[data-stale] {
+.row[data-faded] {
   opacity: 0.55;
 }
 

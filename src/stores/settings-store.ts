@@ -113,6 +113,8 @@ interface SettingsData {
   removeConvertedLines: boolean
   /** "Cobwebs on stale tasks": a stale row's checkbox draws a cobweb (the `staleAfterDays` threshold). On by default. */
   staleCobwebs: boolean
+  /** "Fade stale tasks": a stale row is drawn faded until hovered (the `staleAfterDays` threshold). On by default. */
+  staleFade: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
   /**
@@ -137,7 +139,7 @@ interface SettingsData {
    * as they were when the log began (`services/stats/task-history`).
    */
   historyLogSince: Date | null
-  /** "Fade tasks untouched for": days without a change after which an open task's row is drawn faded; 0 = off. */
+  /** "Stale after" (Tasks › Rules): days without a change after which an open task is stale; 0 = never. */
   staleAfterDays: number
   /** What a list tab's badges count, unless the list has its own (`utils/tab-badges`). */
   tabBadges: TabBadgeRanges
@@ -179,6 +181,7 @@ interface SettingsState extends SettingsData {
   setAutoFollowup: (on: boolean) => Promise<void>
   setRemoveConvertedLines: (on: boolean) => Promise<void>
   setStaleCobwebs: (on: boolean) => Promise<void>
+  setStaleFade: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /**
    * Remembers the check-in filter (kept without people; no filter = the row
@@ -205,7 +208,7 @@ interface SettingsState extends SettingsData {
    * launch tries again).
    */
   stampHistoryLogSince: (now?: Date) => Promise<void>
-  /** Fade tasks untouched for `days` (0–365 whole days, 0 = off; anything else is ignored); stored only when not 30. */
+  /** Tasks go stale after `days` (0–365 whole days, 0 = never; anything else is ignored); stored only when not 30. */
   setStaleAfterDays: (days: number) => Promise<void>
   setTabBadges: (ranges: TabBadgeRanges) => Promise<void>
   setPriorityCues: (cues: PriorityCues) => Promise<void>
@@ -497,6 +500,14 @@ export const SETTINGS = {
     failure: 'Couldn’t save whether stale tasks show cobwebs.',
     undo: ({ staleCobwebs: on }) => (on ? 'Cobwebs on stale tasks' : 'No cobwebs on stale tasks'),
   }),
+  staleFade: setting(['staleFade'], {
+    read: (rows) => ({ staleFade: rows.get(K.staleFade) !== 'false' }),
+    // Stored only when off: absent = on.
+    rows: ({ staleFade: on }) => rowUnlessDefault(K.staleFade, 'false', on),
+    label: 'whether stale tasks are faded',
+    failure: 'Couldn’t save whether stale tasks are faded.',
+    undo: ({ staleFade: on }) => (on ? 'Fade stale tasks' : 'Don’t fade stale tasks'),
+  }),
   urgentDueWithinDays: setting(['urgentDueWithinDays'], {
     read: (rows) => ({
       urgentDueWithinDays: rowOr(rows, K.urgentDueWithinDays, DEFAULT_URGENT_DUE_WITHIN_DAYS, (v) => {
@@ -567,8 +578,8 @@ export const SETTINGS = {
     read: (rows) => ({ staleAfterDays: rowOr(rows, K.staleAfterDays, DEFAULT_STALE_AFTER_DAYS, (v) => parseStaleAfterDays(v) ?? DEFAULT_STALE_AFTER_DAYS) }),
     rows: ({ staleAfterDays: days }) => rowUnlessDefault(K.staleAfterDays, String(days), days === DEFAULT_STALE_AFTER_DAYS),
     label: 'the stale threshold',
-    failure: 'Couldn’t save when to fade untouched tasks.',
-    undo: ({ staleAfterDays: days }) => (days === 0 ? 'Don’t fade untouched tasks' : `Fade tasks untouched for ${days === 1 ? 'a day' : `${days} days`}`),
+    failure: 'Couldn’t save when tasks go stale.',
+    undo: ({ staleAfterDays: days }) => (days === 0 ? 'Tasks never go stale' : `Tasks go stale after ${days === 1 ? 'a day' : `${days} days`}`),
   }),
   tabBadges: setting(['tabBadges'], {
     read: (rows) => {
@@ -707,6 +718,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setStaleCobwebs(on) {
     await SETTINGS.staleCobwebs.write({ staleCobwebs: on })
+  },
+
+  async setStaleFade(on) {
+    await SETTINGS.staleFade.write({ staleFade: on })
   },
 
   async setUrgentDueWithinDays(range) {

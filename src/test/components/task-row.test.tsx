@@ -207,6 +207,17 @@ describe('TaskRow', () => {
       expect(week.container.querySelector('[data-todo-id]')).toHaveAttribute('data-stale', 'true')
     })
 
+    it('a stale row is faded (data-faded) while Fade stale tasks is on; off, it stays stale but unfaded', () => {
+      const row = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1) })} />)
+      expect(row.container.querySelector('[data-todo-id]')).toHaveAttribute('data-faded', 'true')
+      row.unmount()
+      useSettingsStore.setState({ staleFade: false })
+      const off = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1) })} />)
+      const el = off.container.querySelector('[data-todo-id]')
+      expect(el).toHaveAttribute('data-stale', 'true')
+      expect(el).not.toHaveAttribute('data-faded')
+    })
+
     it('a stale row’s checkbox has a cobweb; a fresh or completed one, or with Cobwebs off, none', () => {
       const web = (c: HTMLElement) => c.querySelector('[data-row-cell="checkbox"]')?.parentElement?.querySelector('[data-cobweb]') ?? null
       const stale = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1) })} />)

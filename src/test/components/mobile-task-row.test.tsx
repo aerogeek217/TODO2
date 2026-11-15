@@ -128,6 +128,17 @@ describe('MobileTaskRow', () => {
       const off = render(<MobileTaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 0, 1) })} />)
       expect(off.container.querySelector('[data-cobweb]')).toBeNull()
     })
+
+    it('a stale task fades only while Fade stale tasks is on', () => {
+      useSettingsStore.setState({ staleAfterDays: 30 })
+      const on = render(<MobileTaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 0, 1) })} />)
+      expect(getRow()).toHaveAttribute('data-faded', 'true')
+      on.unmount()
+      useSettingsStore.setState({ staleFade: false })
+      render(<MobileTaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 0, 1) })} />)
+      expect(getRow()).toHaveAttribute('data-stale', 'true')
+      expect(getRow()).not.toHaveAttribute('data-faded')
+    })
   })
 
   // ── Tapping ───────────────────────────────────────────────────────

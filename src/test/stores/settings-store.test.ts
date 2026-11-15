@@ -404,10 +404,10 @@ describe('useSettingsStore', () => {
 
     await useSettingsStore.getState().setStaleAfterDays(0)
     expect(await db.settings.get('staleAfterDays')).toEqual({ key: 'staleAfterDays', value: '0' })
-    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Don’t fade untouched tasks')
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Tasks never go stale')
     await useSettingsStore.getState().setStaleAfterDays(45)
     expect(await db.settings.get('staleAfterDays')).toEqual({ key: 'staleAfterDays', value: '45' })
-    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Fade tasks untouched for 45 days')
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Tasks go stale after 45 days')
     for (const bad of [-1, 366, 2.5, Number.NaN]) await useSettingsStore.getState().setStaleAfterDays(bad)
     expect(useSettingsStore.getState().staleAfterDays).toBe(45)
     await useSettingsStore.getState().setStaleAfterDays(30)

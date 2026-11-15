@@ -67,7 +67,7 @@ export const SETTING_KEYS = {
   /** When the launch prompt about deleting old completed tasks last showed (an ISO date-time). Absent = never. */
   purgePromptLastAt: 'purgePromptLastAt',
   /**
-   * "Fade tasks untouched for": days without a change after which an open
+   * "Stale after" (Tasks › Rules): days without a change after which an open
    * task's row is drawn faded — a whole number 0–365, `0` = off. Absent = 30.
    */
   staleAfterDays: 'staleAfterDays',
@@ -90,6 +90,12 @@ export const SETTING_KEYS = {
    * draws a small cobweb. `false` = off; absent (or `true`) = on.
    */
   staleCobwebs: 'staleCobwebs',
+  /**
+   * "Fade stale tasks" (Settings › Appearance › Task rows): a stale row is drawn faded
+   * until hovered. `false` = off; absent (or `true`) = on. Which tasks are stale is
+   * `staleAfterDays`.
+   */
+  staleFade: 'staleFade',
   /**
    * Ambience (Settings › Appearance › Ambience): JSON
    * `{ enabled, place: { lat, lon } | null, sky, motion, seasons }` (`utils/ambience-settings`);
