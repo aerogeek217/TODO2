@@ -8,7 +8,7 @@ import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useKeptTodos, useLeavingRows } from '../../../hooks/use-leaving-rows'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useActiveScreenFilter } from '../../../stores/screen-filter'
-import { screenUnhideAction } from '../../shared/filters/screen-hides'
+import { screenFilterCount, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useEffectiveListDefinition } from '../../../hooks/use-list-draft'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
@@ -51,7 +51,7 @@ import { groupPerson, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { ListFilterRow } from './ListFilterRow'
 import { ListNameLine, ListTopLineLead } from './ListTopLine'
-import { useScreenChips } from './use-screen-chips'
+import { useFilterStore } from '../../../stores/filter-store'
 import { useShownListReport } from './use-shown-list'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
@@ -171,7 +171,8 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const toggleGroup = useListWidgetStore((s) => s.toggleGroup)
   const screenFilter = useActiveScreenFilter()
   const filterLineShown = definition.showFilterLine !== false
-  const screenChips = useScreenChips()
+  // The Clear note's count: the chips and the typed expression's terms.
+  const screenCount = useFilterStore((s) => (s.isActive ? screenFilterCount(s.filters) : 0))
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const ranks = useListRanks(definition.id)
@@ -442,7 +443,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
           illustration="list"
           title="No tasks match"
           text={`All ${baseCount} ${baseCount === 1 ? 'task' : 'tasks'} in this list ${baseCount === 1 ? 'is' : 'are'} hidden by the screen filter.`}
-          action={screenUnhideAction(screenChips.length)}
+          action={screenUnhideAction(screenCount)}
         />
       )
     } else if (hasNarrowingFilters(predicate)) {

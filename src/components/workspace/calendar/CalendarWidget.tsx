@@ -4,8 +4,8 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useScreenFilter } from '../../../stores/screen-filter'
-import { screenUnhideAction } from '../../shared/filters/screen-hides'
-import { admitsCompleted, countActiveFilters } from '../../../utils/filter-criteria'
+import { screenFilterCount, screenUnhideAction } from '../../shared/filters/screen-hides'
+import { admitsCompleted } from '../../../utils/filter-criteria'
 import { buildEntries } from '../../../services/calendar-entries'
 import { CALENDAR_BREAKPOINTS, calendarRange, calendarRangeLabel, calendarRangeName, convertCalendarOffset, weekdayLabels } from '../../../utils/calendar-grid'
 import { heatHue } from '../../../utils/calendar-heat'
@@ -53,7 +53,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
   const drag = ctx.drag
   const todos = useTodoStore((s) => s.todos)
   const { filters: screen, active: screenActive } = useScreenFilter()
-  const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
+  const chipCount = useFilterStore((s) => screenFilterCount(s.filters))
   const [sizeRef, rootSize] = useElementSize()
   const rootRef = useCallback((el: HTMLElement | null) => {
     sizeRef(el)

@@ -19,7 +19,6 @@ import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { ROW_KEY_ATTR, ROW_TODO_ATTR, SELECTION_SCOPE_ATTR, TODO_ID_ATTR } from '../../../utils/dom-contract'
-import { countActiveFilters } from '../../../utils/filter-criteria'
 import { isFollowupOverdue } from '../../../utils/followup'
 import {
   buildNeglectMap,
@@ -37,7 +36,7 @@ import { placeNeglectLabels, type LabelDot, type LabelRect, type PlacedLabel } f
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import { sharedMemo } from '../../../utils/shared-memo'
 import type { UrgentDueWithinDays } from '../../../utils/urgency'
-import { screenUnhideAction } from '../../shared/filters/screen-hides'
+import { screenFilterCount, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useTooltip } from '../../shared/use-tooltip'
 import { appTextWidth } from '../../task/text-width'
 import { ListBulkBar } from '../list/ListBulkBar'
@@ -411,7 +410,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   const today = useToday()
   const todos = useTodoStore((s) => s.todos)
   const { active: screenActive } = useScreenFilter()
-  const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
+  const chipCount = useFilterStore((s) => screenFilterCount(s.filters))
   const dueSoonDays = useSettingsStore((s) => s.urgentDueWithinDays)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
