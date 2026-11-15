@@ -3,6 +3,8 @@ import { useIsMobile } from '../../hooks/use-is-mobile'
 import { copyTasksRich } from '../../services/task-copy'
 import {
   currentTaskDialogEnv,
+  newListDefaults,
+  popupListView,
   resolveTaskDialog,
   screenTaskDialogDescription,
   taskDialogCopySections,
@@ -15,12 +17,14 @@ import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
 import type { FilterCriteria } from '../../utils/filter-criteria'
-import { useUIStore } from '../../stores/ui-store'
+import { useUIStore, type PopupListPick } from '../../stores/ui-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { startOfToday } from '../../utils/date'
 import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
 import { TaskRowGrid } from '../task/TaskRowGrid'
 import { GlanceGlyph } from '../shared/GlanceGlyph'
+import { GroupSortControl } from '../shared/GroupSortControl'
 import { ReviewIcon } from '../shared/icons'
 import { personReviewLabel, useEntityMenuOffers } from '../shared/person-menu-entries'
 import { personReviewFilter, reviewTasksLabel } from '../../services/review'
@@ -31,13 +35,15 @@ interface Resolved {
   payload: TaskDialogPayload
   /** The screen filter the rows were resolved under. */
   screen: FilterCriteria
+  /** The group · sort pick they were resolved under. */
+  pick: PopupListPick
   groups: TaskDialogRowGroup[]
 }
 
 /** The payload's rows from the stores as they are now. */
 function resolve(payload: TaskDialogPayload): Resolved {
   const env = currentTaskDialogEnv()
-  return { payload, screen: env.screen, groups: resolveTaskDialog(payload.source, env) }
+  return { payload, screen: env.screen, pick: useUIStore.getState().popupListPick, groups: resolveTaskDialog(payload.source, env) }
 }
 
 interface TaskDialogContentProps {
@@ -65,6 +71,10 @@ interface TaskDialogContentProps {
  * completed here stays, struck through, until it closes, while the counts
  * behind update. The screen filter's tasks resolve again on every change of
  * that filter — fixed between changes — and their description follows it.
+ * The header's group · sort control (`GroupSortControl`) shows the popup
+ * lists' view (`popupListView`: Settings' new-list defaults until the user
+ * picks); a pick is every popup list's until a reload
+ * (`ui-store.popupListPick`) and resolves the rows again.
  * A person's tasks have Review (where a Review widget is) as a button
  * under the title (`PersonActions`, D26 BD). Footer: Copy tasks, Close (a
  * secondary button, with its Esc hint).
@@ -75,10 +85,21 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
   // The screen filter, only for its own tasks (no other re-renders on a
   // chip change).
   const chips = useFilterStore((s) => (isScreen ? s.filters : null))
-  // A new payload while open (e.g. a person chip in a row), or the screen
-  // filter changed under its tasks: resolve it afresh.
-  if (resolved.payload !== payload || (chips !== null && resolved.screen !== chips)) setResolved(resolve(payload))
+  const pick = useUIStore((s) => s.popupListPick)
+  const pickPopupListView = useUIStore((s) => s.pickPopupListView)
+  const newListSort = useSettingsStore((s) => s.newListSort)
+  const newListSortDirection = useSettingsStore((s) => s.newListSortDirection)
+  const newListGroup = useSettingsStore((s) => s.newListGroup)
+  const view = popupListView(newListDefaults({ newListSort, newListSortDirection, newListGroup }), pick)
+  // A new payload while open (e.g. a person chip in a row), the screen
+  // filter changed under its tasks, or a new group · sort pick: resolve it afresh.
+  if (resolved.payload !== payload || (chips !== null && resolved.screen !== chips) || resolved.pick !== pick) setResolved(resolve(payload))
   const { groups } = resolved
+  // A pick changes the grouping, or the sort with its direction.
+  const pickView = (next: { grouping: typeof view.grouping; sort: typeof view.sort; sortDirection?: typeof view.sortDirection }) => {
+    if (next.grouping !== view.grouping) pickPopupListView({ grouping: next.grouping })
+    else pickPopupListView({ sort: next.sort, sortDirection: next.sortDirection ?? 'asc' })
+  }
 
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
@@ -141,6 +162,7 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
         <GlanceGlyph name={payload.glyph} className={styles.glyph} />
         <h2 id={titleId} className={styles.title}>{payload.title}</h2>
         <span className={styles.countBadge} data-testid="task-dialog-count">{count}</span>
+        <GroupSortControl value={view} onChange={pickView} className={styles.groupSort} />
         <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}>×</button>
       </div>
       {personId != null && <PersonActions personId={personId} fallbackName={payload.title} onClose={onClose} />}
