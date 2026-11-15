@@ -110,7 +110,7 @@ const defaultFilters: FilterCriteria = {
 const NO_BOX_CHIPS: readonly BoxChip[] = []
 
 /** No screen filter: what a paused filter applies (one object, so readers compare by reference). */
-export const NO_SCREEN_FILTER: FilterCriteria = Object.freeze({ ...defaultFilters })
+const NO_SCREEN_FILTER: FilterCriteria = Object.freeze({ ...defaultFilters })
 
 /** The screen filter as it applies: none while paused (`paused`), else the store's. */
 export function appliedScreenFilter(s: Pick<FilterState, 'filters' | 'paused'>): FilterCriteria {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
-import { NO_SCREEN_FILTER, useFilterStore } from '../../stores/filter-store'
+import { useFilterStore } from '../../stores/filter-store'
 import { currentScreenFilter, useActiveScreenFilter, useScreenFilter } from '../../stores/screen-filter'
 import { clearFilterStore } from '../helpers'
 
@@ -37,8 +37,12 @@ describe('the screen filter', () => {
       const { result, rerender } = renderHook(() => ({ state: useScreenFilter(), active: useActiveScreenFilter() }))
       useFilterStore.getState().setPaused(true)
       rerender()
-      expect(currentScreenFilter()).toBe(NO_SCREEN_FILTER)
-      expect(result.current.state).toEqual({ filters: NO_SCREEN_FILTER, active: false })
+      const none = currentScreenFilter()
+      expect(none).toMatchObject({ searchText: '', personIds: null, tags: null, showCompleted: false })
+      // One object while paused, so readers compare by reference.
+      expect(currentScreenFilter()).toBe(none)
+      expect(result.current.state).toEqual({ filters: none, active: false })
+      expect(result.current.state.filters).toBe(none)
       expect(result.current.active).toBeUndefined()
       expect(useFilterStore.getState().filters.searchText).toBe('budget')
       expect(useFilterStore.getState().isActive).toBe(true)
