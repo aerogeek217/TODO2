@@ -28,7 +28,7 @@ test('Add widget… (as a tab) › List: the tab appears showing every open task
     listDefinitions: [{ name: 'Existing' }],
     layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
   })
-  await openCellMenu(page, 'cell')
+  await openCellLayoutMenu(page, 'cell')
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
 

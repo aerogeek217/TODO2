@@ -126,7 +126,7 @@ test('adding a second widget shows the tabs; closing it hides them again', async
   await seedWorkspace(page, { layouts: [notesCalendar] })
   const notes = wsCell(page, 'a')
   await expect(notes.getByRole('tablist')).toHaveCount(0)
-  await openCellMenu(page, 'a')
+  await openCellLayoutMenu(page, 'a')
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'Calendar', exact: true }).click()
 
@@ -135,9 +135,9 @@ test('adding a second widget shows the tabs; closing it hides them again', async
   // With a strip, the strip names the widgets: no top line stands for a tab.
   await expect(notes.locator('[data-widget-top-line][data-ws-tab]')).toHaveCount(0)
 
-  // Close the new one from the merged ⋯ menu (the strip's header holds it now).
-  await openCellLayoutMenu(page, 'a')
-  await page.getByRole('menuitem', { name: 'Close tab “Calendar”' }).click()
+  // Remove the new one from its ⋯ (the strip's header holds it now).
+  await openCellMenu(page, 'a')
+  await page.getByRole('menuitem', { name: 'Remove widget' }).click()
   await expect(notes.getByRole('tablist')).toHaveCount(0)
   await expect(topLine(notes)).toHaveAttribute('data-ws-tab', 'notesTab')
 })

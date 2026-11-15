@@ -825,7 +825,7 @@ test('the built offline file at about 145 tasks and seven cells', async ({ playw
       const host = 'p7-trend'
       const openAdd = async () => {
         await page.locator(cellSel(host)).hover()
-        await page.locator(cellSel(host)).getByRole('button', { name: 'Cell options' }).click()
+        await page.locator(cellSel(host)).getByRole('button', { name: 'Cell layout' }).click()
         await page.getByRole('menuitem', { name: 'Add widget…' }).click()
         await expect(page.getByRole('menu', { name: 'Add widget' })).toBeVisible()
       }

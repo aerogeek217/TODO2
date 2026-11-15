@@ -10,7 +10,7 @@ import { AddWidgetFlow } from './AddWidgetFlow'
 import type { AddWhere } from './add-widget-where'
 import { useTabTitle, useTabTitles } from './widget-hooks'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
-import { ChevronDownIcon, ChevronUpIcon, CloseIcon, ExpandIcon, MoreIcon, PlusIcon } from '../shared/icons'
+import { ChevronDownIcon, ChevronUpIcon, ExpandIcon, MoreIcon, PlusIcon } from '../shared/icons'
 import {
   useWorkspaceDrag,
   WORKSPACE_PANEL_DRAG,
@@ -118,9 +118,10 @@ function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = fals
  * slot (grip and ⋯, `CellControlsContext`); with two or more, the tab
  * strip, the panel handle, the grip, Open larger (the active widget's),
  * collapse and the ⋯ in its header.
- * Either way (`cell-menu`, UX cleanup 4A) the ⋯ opens the widget's own
- * entries and Add widget…, the grip the cell's layout entries in the table's
- * words (D26 board V), and a right-click or Shift+F10 the whole menu. The
+ * Either way (`cell-menu`, UX cleanup 4A; layout menus option A) the ⋯
+ * opens the widget's own entries and Remove widget, the grip every placement
+ * (Add widget…, Split, Insert row / column, Merge, Collapse, Close cell),
+ * and a right-click or Shift+F10 the whole menu. The
  * active widget's body shows at its face (D25 R) — while the widget popup
  * shows that tab (Open larger), a placeholder in its place: a tab has one
  * live widget at a time (`OpenLargerPlaceholder`).
@@ -132,6 +133,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const splitCell = useWorkspaceStore((s) => s.splitCell)
   const mergeCells = useWorkspaceStore((s) => s.mergeCells)
   const insertTrack = useWorkspaceStore((s) => s.insertTrack)
+  const insertTrackBeside = useWorkspaceStore((s) => s.insertTrackBeside)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
   const drag = useWorkspaceDrag()
   /**
@@ -237,19 +239,21 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         tab: menuTab,
         tabTitle: menuTitle,
         collapsed,
-        onAddWidget: () => setAddFlow({ anchor: menu.at ?? anchorBelow(moreRef), where: 'tab' }),
+        // From the grip (Layout): under the grip; from a right-click: where it was.
+        onAddWidget: () => setAddFlow({ anchor: menu.at ?? anchorBelow(menu.part === 'layout' ? gripRef : moreRef), where: 'tab' }),
         onSplit: (side) => afterLeavingEditors(() => { splitCell(cell.id, side) }),
         onMerge: (other) => afterLeavingEditors(() => { mergeCells(cell.id, other) }),
         onInsert: (edge) => afterLeavingEditors(() => { insertTrack(edge) }),
+        onInsertBeside: (side) => afterLeavingEditors(() => { insertTrackBeside(cell.id, side) }),
         onCollapse: setRowCollapsed,
         onCloseTab: closeTabAsked,
         onCloseCell: () => afterLeavingEditors(() => closeCell(cell.id)),
       })
     : null
   /**
-   * A Number's own way to grow or shrink a strip (flair P10): Add number
-   * beside (a lone Number becomes a strip of two), and in a strip Remove
-   * number (its tab closed, as its × does).
+   * A Number's own way to grow a strip (flair P10): Add number beside (a
+   * lone Number becomes a strip of two). Remove widget (every widget's)
+   * takes one out.
    */
   function numberEntries(tab: LayoutTab): MenuEntry[] {
     if (tab.kind !== 'number') return []
@@ -263,7 +267,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         onSelect: () => { void useWorkspaceStore.getState().addWidget('number', { kind: 'cell', cellId: cell.id, index: at + 1 }) },
       },
     ]
-    if (numberStrip) entries.push({ kind: 'item', label: 'Remove number', icon: <CloseIcon size={12} />, onSelect: () => closeTabAsked(tab.id) })
     return entries
   }
   /** The whole menu (a right-click, Shift+F10 / the Menu key): at a point, or under the ⋯. */

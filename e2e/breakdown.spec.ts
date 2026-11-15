@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { layoutTab, openCellMenu, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { layoutTab, openCellLayoutMenu, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * The Breakdown (D26 P8, boards Z1 / Z3 and review mode's board F): a row,
@@ -239,8 +239,8 @@ test('the editor’s count columns: a column with its own filter, name and rule;
 
 test('the presets: People · Tags · Status · Custom (no Waiting on)', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await openCellMenu(page, 'k2')
-  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Add widget…' }).click()
+  await openCellLayoutMenu(page, 'k2')
+  await page.getByRole('menu', { name: 'Cell layout' }).getByRole('menuitem', { name: 'Add widget…' }).click()
   await page.getByRole('menuitem', { name: 'Insights' }).click()
   await page.getByRole('menuitem', { name: 'Breakdown' }).click()
   await expect(page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem')).toHaveText(['People', 'Tags', 'Status', 'Custom'])

@@ -17,10 +17,11 @@ import { useFilterStore } from '../../../stores/filter-store'
 import { cell, grid, picture, single, type CellSpec } from '../../helpers/layout-builders'
 
 /**
- * The cell's menus (D26 P2 + AA1, UX cleanup 4A): the ⋯'s — the widget's
- * own entries, then Add widget… with where first —, the grip's — the table's
- * words: Split cell ▸ Right / Below, Merge with ▸ (only into a rectangle),
- * Insert ▸ a row or column at an edge, Collapse row, Close … —, and both on a
+ * The cell's menus (D26 P2 + AA1, UX cleanup 4A; layout menus option A):
+ * the ⋯'s — the widget's own entries, then Remove widget —, the grip's —
+ * under Layout: Add widget… with where first, Split cell ▸ every side, Insert
+ * row ▸ / Insert column ▸ beside this cell or at the layout's edge, Merge
+ * with ▸ (only into a rectangle), Collapse row, Close cell —, and both on a
  * right-click or Shift+F10; and tabs on demand: one widget has no strip, its
  * top line holds the grip and ⋯.
  */
@@ -85,16 +86,16 @@ describe('the cell menu', () => {
     return screen.getAllByRole('menu').at(-1)!
   }
 
-  it('the ⋯ lists the widget’s entries under its kind, then Add widget…; nothing of the layout', () => {
+  it('the ⋯ lists the widget’s entries under its kind, then Remove widget; nothing of the layout', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     renderCell(k)
     const menu = cellMenu()
     expect(headings(menu)).toEqual(['Notes'])
-    expect(itemLabels(menu)).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Add widget…'])
+    expect(itemLabels(menu)).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Remove widget'])
   })
 
-  it('the grip lists the table’s words under Cell in order; one widget’s close is Close cell', () => {
+  it('the grip lists every placement under Layout in order; one widget’s close is Close cell', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     renderCell(k)
@@ -102,8 +103,8 @@ describe('the cell menu', () => {
     expect(grip).toHaveAttribute('aria-haspopup', 'menu')
     expect(grip).toHaveAttribute('aria-expanded', 'false')
     const menu = gripMenu()
-    expect(headings(menu)).toEqual(['Cell'])
-    expect(itemLabels(menu)).toEqual(['Split cell', 'Merge with', 'Insert', 'Collapse row', 'Close cell'])
+    expect(headings(menu)).toEqual(['Layout'])
+    expect(itemLabels(menu)).toEqual(['Add widget…', 'Split cell', 'Insert row', 'Insert column', 'Merge with', 'Collapse row', 'Close cell'])
     expect(grip).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Cell options' })).toHaveAttribute('aria-expanded', 'false')
     // Its second click closes it.
@@ -111,7 +112,7 @@ describe('the cell menu', () => {
     expect(screen.queryByRole('menu', { name: 'Cell layout' })).toBeNull()
   })
 
-  it('with two widgets: the header’s grip has Close tab and Close cell (2 tabs); the ⋯ the active one’s entries', () => {
+  it('with two widgets: the ⋯ the active one’s entries and Remove widget; the header’s grip Close cell (2 tabs)', () => {
     const k = cell('k', [createTab('notes', 'n'), createTab('calendar', 'c')], { activeTabId: 'c' })
     open(single(k))
     renderCell(k)
@@ -122,20 +123,20 @@ describe('the cell menu', () => {
     const more = cellMenu()
     expect(headings(more)).toEqual(['Calendar'])
     expect(within(more).getByRole('menuitem', { name: /^Change widget/ })).toHaveTextContent('Calendar')
-    expect(itemLabels(more).at(-1)).toBe('Add widget…')
+    expect(itemLabels(more).at(-1)).toBe('Remove widget')
     fireEvent.keyDown(document, { key: 'Escape' })
-    const menu = gripMenu()
-    expect(itemLabels(menu).slice(-3)).toEqual(['Collapse row', 'Close tab “Calendar”', 'Close cell (2 tabs)'])
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Close tab “Calendar”' }))
+    expect(itemLabels(gripMenu()).slice(-2)).toEqual(['Collapse row', 'Close cell (2 tabs)'])
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Remove widget' }))
     expect(working().cells[0]?.tabs.map((t) => t.id)).toEqual(['n'])
   })
 
-  it('Split cell ▸ Right puts an empty cell beside it; Below one under it', () => {
+  it('Split cell ▸ every side; Right puts an empty cell beside it, Below one under it', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     renderCell(k)
     const sub = submenu('Split cell')
-    expect(within(sub).getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Right', 'Below'])
+    expect(within(sub).getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Above', 'Left', 'Right', 'Below'])
     fireEvent.click(within(sub).getByRole('menuitem', { name: 'Right' }))
     expect(working().cells.map((x) => x.tabs.length)).toEqual([1, 0])
     fireEvent.click(within(submenu('Split cell')).getByRole('menuitem', { name: 'Below' }))
@@ -157,24 +158,39 @@ describe('the cell menu', () => {
     expect(working().cells[0]?.tabs.map((t) => t.id)).toEqual(['n', 'm1'])
   })
 
-  it('Insert ▸ Column at the left adds a full-height empty column', () => {
+  it('Insert column ▸ At the far left adds a full-height empty column', () => {
     const k = cell('k', [createTab('notes', 'n')])
     const m = cell('m', [createTab('notes', 'm1')])
     open(grid([[k], [m]]))
     renderCell(k)
-    const sub = submenu('Insert')
+    const sub = submenu('Insert column')
     expect(within(sub).getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
-      .toEqual(['Row at the top', 'Row at the bottom', 'Column at the left', 'Column at the right'])
-    fireEvent.click(within(sub).getByRole('menuitem', { name: 'Column at the left' }))
+      .toEqual(['Left of this column', 'Right of this column', 'At the far left', 'At the far right'])
+    fireEvent.click(within(sub).getByRole('menuitem', { name: 'At the far left' }))
     const added = working().cells.find((c) => c.tabs.length === 0)
     expect(added?.area).toEqual({ col: 0, row: 0, colSpan: 1, rowSpan: 2 })
+  })
+
+  it('Insert row ▸ Above this row puts a full-width empty row right above the cell’s row', () => {
+    const k = cell('k', [createTab('notes', 'n')])
+    const m = cell('m', [createTab('notes', 'm1')])
+    const r = cell('r', [createTab('notes', 'r1')])
+    open(grid([[k, k], [m, r]]))
+    renderCell(m)
+    const sub = submenu('Insert row')
+    expect(within(sub).getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
+      .toEqual(['Above this row', 'Below this row', 'At the top', 'At the bottom'])
+    fireEvent.click(within(sub).getByRole('menuitem', { name: 'Above this row' }))
+    const added = working().cells.find((c) => c.tabs.length === 0)
+    expect(added?.area).toEqual({ col: 0, row: 1, colSpan: 2, rowSpan: 1 })
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Inserted row')
   })
 
   it('Add widget… asks where first, as a picture: Below puts the widget in a new cell under it', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     renderCell(k)
-    fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Add widget…' }))
+    fireEvent.click(within(gripMenu()).getByRole('menuitem', { name: 'Add widget…' }))
     const add = screen.getByRole('menu', { name: 'Add widget' })
     const where = within(add).getByRole('group', { name: 'Where' })
     expect(within(where).getAllByRole('menuitemradio').map((el) => el.getAttribute('aria-label'))).toEqual([
@@ -212,7 +228,7 @@ describe('the cell menu', () => {
     const k = cell('k', [createTab('calendar', 'cal')])
     open(single(k))
     renderCell(k)
-    fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Add widget…' }))
+    fireEvent.click(within(gripMenu()).getByRole('menuitem', { name: 'Add widget…' }))
     const add = screen.getByRole('menu', { name: 'Add widget' })
     fireEvent.click(within(add).getByRole('menuitemradio', { name }))
     fireEvent.click(within(add).getByRole('menuitem', { name: 'Notes' }))
@@ -225,7 +241,7 @@ describe('the cell menu', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     renderCell(k)
-    fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Add widget…' }))
+    fireEvent.click(within(gripMenu()).getByRole('menuitem', { name: 'Add widget…' }))
     const add = screen.getByRole('menu', { name: 'Add widget' })
     const focused = () => document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent
     expect(focused()).toBe('Add as tab')
@@ -288,7 +304,7 @@ describe('an open editor with changes is asked before a tab close, Close cell or
   const PATHS: Array<[name: string, run: () => void, after: string[], undo: string]> = [
     ['the tab’s ×', () => fireEvent.click(screen.getByRole('button', { name: /^Close .*Calendar/ })), ['n'], 'Closed tab “Calendar”'],
     ['Delete on the tab', () => fireEvent.keyDown(document.querySelector('[data-ws-tab="c"]')!, { key: 'Delete' }), ['n'], 'Closed tab “Calendar”'],
-    ['the menu’s Close tab', () => fireEvent.click(within(cellMenu('Cell layout')).getByRole('menuitem', { name: 'Close tab “Calendar”' })), ['n'], 'Closed tab “Calendar”'],
+    ['the ⋯’s Remove widget', () => fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Remove widget' })), ['n'], 'Closed tab “Calendar”'],
     ['the menu’s Close cell', () => fireEvent.click(within(cellMenu('Cell layout')).getByRole('menuitem', { name: 'Close cell (2 tabs)' })), [], 'Closed cell (2 tabs)'],
   ]
 
@@ -387,7 +403,8 @@ describe('an open editor with changes is asked before its widget can leave the s
     ['the menu’s Collapse row', () => layoutMenuItem('Collapse row')],
     ['the menu’s Split cell ▸ Right', () => layoutMenuItem('Split cell', 'Right')],
     ['the menu’s Merge with ▸ Right', () => layoutMenuItem('Merge with', 'Right')],
-    ['the menu’s Insert ▸ Row at the top', () => layoutMenuItem('Insert', 'Row at the top')],
+    ['the menu’s Insert row ▸ At the top', () => layoutMenuItem('Insert row', 'At the top')],
+    ['the menu’s Insert row ▸ Below this row', () => layoutMenuItem('Insert row', 'Below this row')],
   ]
 
   it.each(PATHS)('%s: asks; Keep editing changes nothing; Save or Discard then carries on', async (_name, run) => {
@@ -520,9 +537,9 @@ describe('tabs on demand (D26 AA1)', () => {
     fireEvent.contextMenu(document.querySelector('[data-ws-tab="n"]')!)
     const menu = screen.getByRole('menu', { name: 'Cell options' })
     // The whole menu: both sections.
-    expect(headings(menu)).toEqual(['Notes', 'Cell'])
+    expect(headings(menu)).toEqual(['Notes', 'Layout'])
     expect(within(menu).getByRole('menuitem', { name: 'Split cell' })).toBeInTheDocument()
-    expect(within(menu).getByRole('menuitem', { name: 'Close tab “Notes”' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Remove widget' })).toBeInTheDocument()
     fireEvent.click(within(menu).getByRole('menuitem', { name: /^Change widget/ }))
     const kinds = screen.getByRole('menu', { name: 'Change widget' })
     expect(within(kinds).getByRole('menuitemradio', { name: 'Notes' })).toHaveAttribute('aria-checked', 'true')
@@ -536,10 +553,10 @@ describe('tabs on demand (D26 AA1)', () => {
     expect(screen.queryByRole('menu', { name: 'Cell options' })).toBeNull()
     fireEvent.contextMenu(topLine('k'))
     const menu = screen.getByRole('menu', { name: 'Cell options' })
-    expect(headings(menu)).toEqual(['Notes', 'Cell'])
+    expect(headings(menu)).toEqual(['Notes', 'Layout'])
     expect(itemLabels(menu)).toEqual([
-      'Open larger', 'Name and icon…', 'Change widget',
-      'Add widget…', 'Split cell', 'Merge with', 'Insert', 'Collapse row', 'Close cell',
+      'Open larger', 'Name and icon…', 'Change widget', 'Remove widget',
+      'Add widget…', 'Split cell', 'Insert row', 'Insert column', 'Merge with', 'Collapse row', 'Close cell',
     ])
   })
 

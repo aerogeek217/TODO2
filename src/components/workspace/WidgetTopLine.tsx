@@ -78,7 +78,7 @@ export function CellGrip({ cellId, tabs, title, idSuffix = '', expanded, onMenu,
       aria-label={CELL_GRIP_LABEL}
       aria-haspopup="menu"
       aria-expanded={expanded}
-      title={`${CELL_GRIP_LABEL} · drag to move “${title}”`}
+      title={`Drag to move “${title}” · click for layout`}
       onPointerDown={(e) => {
         press.current = { x: e.clientX, y: e.clientY, dragged: false }
         listeners?.onPointerDown?.(e)

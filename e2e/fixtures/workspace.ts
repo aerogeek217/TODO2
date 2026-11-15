@@ -716,21 +716,21 @@ export function wsPanelHandle(page: Page, panelId: string): Locator {
   return page.locator(`[data-ws-panel-handle="${panelId}"]`)
 }
 
-/** Picks Split cell ▸ `item` (Right / Below) in the open cell layout menu (`openCellLayoutMenu`). */
-export async function pickSplit(page: Page, item: 'Right' | 'Below'): Promise<void> {
+/** Picks Split cell ▸ `item` (a side) in the open cell layout menu (`openCellLayoutMenu`). */
+export async function pickSplit(page: Page, item: 'Above' | 'Left' | 'Right' | 'Below'): Promise<void> {
   await pickCellMenu(page, 'Split cell', item)
 }
 
-/** Picks `parent` ▸ `item` in the open cell layout menu (Split cell, Merge with, Insert). */
-export async function pickCellMenu(page: Page, parent: 'Split cell' | 'Merge with' | 'Insert', item: string): Promise<void> {
+/** Picks `parent` ▸ `item` in the open cell layout menu (Split cell, Merge with, Insert row, Insert column). */
+export async function pickCellMenu(page: Page, parent: 'Split cell' | 'Merge with' | 'Insert row' | 'Insert column', item: string): Promise<void> {
   await page.getByRole('menuitem', { name: parent, exact: true }).click()
   await page.getByRole('menuitem', { name: item, exact: true }).click()
 }
 
 /**
  * Opens cell `cellId`'s ⋯ menu, `Cell options` (over the cell first: a
- * one-widget cell shows its ⋯ on hover): the widget's entries and Add
- * widget…. The layout's entries are the grip's (`openCellLayoutMenu`).
+ * one-widget cell shows its ⋯ on hover): the widget's entries and Remove
+ * widget. The layout's entries are the grip's (`openCellLayoutMenu`).
  */
 export async function openCellMenu(page: Page, cellId: string): Promise<void> {
   await wsCell(page, cellId).hover()
@@ -740,8 +740,8 @@ export async function openCellMenu(page: Page, cellId: string): Promise<void> {
 /**
  * Opens cell `cellId`'s layout menu, `Cell layout` (UX cleanup 4A: a click
  * on its grip — a one-widget cell's in its top line, a strip's in its
- * header): Split cell ▸, Merge with ▸, Insert ▸, Collapse / Expand row,
- * Close tab, Close cell.
+ * header), under Layout: Add widget…, Split cell ▸, Insert row ▸, Insert
+ * column ▸, Merge with ▸, Collapse / Expand row, Close cell.
  */
 export async function openCellLayoutMenu(page: Page, cellId: string): Promise<Locator> {
   await wsCell(page, cellId).hover()

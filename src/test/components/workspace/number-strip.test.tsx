@@ -73,17 +73,16 @@ describe('a Numbers strip', () => {
   it('a lone Number’s ⋯ has Add number beside: it becomes a strip of two', () => {
     const { refresh } = show(cell('k', [createTab('number', 'a')]))
     fireEvent.click(screen.getByRole('button', { name: 'Cell options' }))
-    expect(within(screen.getByRole('menu')).queryByRole('menuitem', { name: /Remove number/ })).toBeNull()
     fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: /Add number beside/ }))
     refresh()
     expect(placed('k').tabs.map((t) => t.kind)).toEqual(['number', 'number'])
     expect(slots()).toHaveLength(2)
   })
 
-  it('a strip’s Number’s ⋯ has Remove number: its tab closes', () => {
+  it('a strip’s Number’s ⋯ Remove widget closes that Number alone', () => {
     const { refresh } = show(cell('k', [createTab('number', 'a'), createTab('number', 'b'), createTab('number', 'c')]))
     fireEvent.click(within(slots()[1]!).getByRole('button', { name: 'Cell options' }))
-    fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: /Remove number/ }))
+    fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Remove widget' }))
     refresh()
     expect(placed('k').tabs.map((t) => t.id)).toEqual(['a', 'c'])
   })

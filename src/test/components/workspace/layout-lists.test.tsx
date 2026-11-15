@@ -98,10 +98,10 @@ describe('a layout’s lists in the workspace', () => {
     return found!
   }
 
-  it('⋯ › Add widget… › List: a new blank list of the layout in a new tab, no editor open — no list picker', async () => {
+  it('the grip’s Add widget… › List: a new blank list of the layout in a new tab, no editor open — no list picker', async () => {
     render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
-    fireEvent.click(screen.getByRole('button', { name: 'Cell options' }))
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Cell options' })).getByRole('menuitem', { name: 'Add widget…' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cell layout' }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Cell layout' })).getByRole('menuitem', { name: 'Add widget…' }))
     fireEvent.click(within(screen.getByRole('menu', { name: 'Add widget' })).getByRole('menuitem', { name: /^List/ }))
     expect(screen.queryByText('Add list')).toBeNull()
     const { listId } = await addedListTab()

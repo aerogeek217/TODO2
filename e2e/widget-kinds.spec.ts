@@ -65,7 +65,7 @@ test.describe('desktop', () => {
       if (await plus.count() > 0) await plus.click()
       else {
         await cell.hover()
-        await cell.getByRole('button', { name: 'Cell options' }).click()
+        await cell.getByRole('button', { name: 'Cell layout' }).click()
         await page.getByRole('menuitem', { name: 'Add widget…' }).click()
       }
       const menu = page.getByRole('menu', { name: 'Add widget' })

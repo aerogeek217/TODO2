@@ -142,7 +142,7 @@ test.describe('sizes and collapse of cells side by side', () => {
 })
 
 test.describe('the cell menu', () => {
-  test('Split cell ▸ Right adds a cell beside, Below one under it; Insert ▸ Column at the right a column', async ({ page }) => {
+  test('Split cell ▸ Right adds a cell beside, Below one under it; Insert column ▸ At the far right a column', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const a1 = await edges(wsCell(page, 'a1'))
     await openCellLayoutMenu(page, 'a1')
@@ -161,7 +161,7 @@ test.describe('the cell menu', () => {
     await expect.poll(() => rowCount(page)).toBe(1)
 
     await openCellLayoutMenu(page, 'a1')
-    await pickCellMenu(page, 'Insert', 'Column at the right')
+    await pickCellMenu(page, 'Insert column', 'At the far right')
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     await expectLayoutStep(page)
   })

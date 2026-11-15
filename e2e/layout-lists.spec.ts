@@ -46,7 +46,7 @@ test.use({ viewport: { width: 1600, height: 900 } })
 test('a new list widget’s list is the open layout’s; a list tab is never pointed at another list; Settings has no Lists', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await wsCell(page, 'b1').hover()
-  await wsCell(page, 'b1').getByRole('button', { name: 'Cell options' }).click()
+  await wsCell(page, 'b1').getByRole('button', { name: 'Cell layout' }).click()
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
   // A new list for this layout at once: no picker, no choice of where it goes, no editor.

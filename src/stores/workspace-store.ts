@@ -42,6 +42,7 @@ import {
   closeCell,
   closeTab,
   insertTrack,
+  insertTrackBeside,
   mergeCells,
   moveEdge,
   movePanel,
@@ -253,6 +254,8 @@ export interface WorkspaceState {
   splitCell: (cellId: string, side: Side) => string | null
   /** Inserts a row / column at the layout's `edge` with one new empty cell across it. Returns that cell's id. */
   insertTrack: (edge: Side) => string | null
+  /** Inserts a row / column beside a cell's own, on `side` (`insertTrackBeside`). Returns the first new cell's id. */
+  insertTrackBeside: (cellId: string, side: Side) => string | null
   /** Merges cell `bId` into cell `aId` when they make a rectangle (the tabs join); `false` when they don't. */
   mergeCells: (aId: string, bId: string) => boolean
   /**
@@ -1080,6 +1083,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         newCellId = result.cellId
         return result.layout
       }, edge === 'top' || edge === 'bottom' ? 'Inserted row' : 'Inserted column')
+      return newCellId
+    },
+
+    insertTrackBeside(cellId, side) {
+      let newCellId: string | null = null
+      edit((layout, genId) => {
+        const result = insertTrackBeside(layout, cellId, side, genId)
+        newCellId = result.cellId
+        return result.layout
+      }, side === 'top' || side === 'bottom' ? 'Inserted row' : 'Inserted column')
       return newCellId
     },
 

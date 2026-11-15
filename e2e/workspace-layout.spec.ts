@@ -189,7 +189,7 @@ test.describe('resize and collapse', () => {
   test('a new column and a resize of it are stored at once, kept over a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await openCellLayoutMenu(page, 'b1')
-    await pickCellMenu(page, 'Insert', 'Column at the right')
+    await pickCellMenu(page, 'Insert column', 'At the far right')
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     await expectLayoutStep(page)
@@ -459,7 +459,7 @@ test.describe('adding and changing widgets', () => {
     await expect.poll(async () => (await wsShape(page)).flat(2).length).toBe(1)
 
     await page.locator('[data-ws-cell]').hover()
-    await page.locator('[data-ws-cell]').getByRole('button', { name: 'Cell options' }).click()
+    await page.locator('[data-ws-cell]').getByRole('button', { name: 'Cell layout' }).click()
     await page.getByRole('menuitem', { name: 'Add widget…' }).click()
     // Calendar: in Tasks, in the menu itself.
     await pickWidgetKind(page, 'Add widget', 'Calendar')

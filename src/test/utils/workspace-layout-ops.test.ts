@@ -15,6 +15,7 @@ import {
   edgeSnapLine,
   evenStretchDelta,
   insertTrack,
+  insertTrackBeside,
   isCellCollapsed,
   mergeCells,
   moveEdge,
@@ -138,6 +139,47 @@ describe('splitCell', () => {
     // Beside it, in the same collapsed row: the row expands (collapse is the row's).
     const right = splitCell(base, 'a', 'right', ids())
     expect(isCellCollapsed(right.layout, 'n2')).toBe(false)
+  })
+})
+
+describe('insertTrackBeside (Insert row ▸ Above this row …, layout menus option A)', () => {
+  const a = cell('a')
+  const b = cell('b')
+  const c = cell('c')
+  const d = cell('d')
+
+  it('a row above a cell’s row: full width, half of that row’s size', () => {
+    const base = layout(grid([[a, b], [c, d]], { rows: [500, 500] }))
+    const out = insertTrackBeside(base, 'c', 'top', ids())
+    expect(picture(out.layout)).toEqual(['a b', 'n2 n2', 'c d'])
+    expect(out.layout.grid.rows.map((t) => t.weight)).toEqual([500, 250, 250])
+    expect(out.cellId).toBe('n2')
+    expectValid(out.layout)
+  })
+
+  it('a column right of a cell’s column: full height, half of that column', () => {
+    const base = layout(grid([[a, b]], { cols: [600, 400] }))
+    const out = insertTrackBeside(base, 'a', 'right', ids())
+    expect(picture(out.layout)).toEqual(['a n2 b'])
+    expect(out.layout.grid.columns.map((t) => t.weight)).toEqual([300, 300, 400])
+  })
+
+  it('a cell spanning across the line grows into the new row; the gap beside it gets a new cell', () => {
+    const t = cell('t')
+    const base = layout(grid([[t, a], [t, b]]))
+    const out = insertTrackBeside(base, 'b', 'top', ids())
+    expect(picture(out.layout)).toEqual(['t a', 't n2', 't b'])
+    expectValid(out.layout)
+  })
+
+  it('at the layout’s outer edge it is Row at the top', () => {
+    const base = layout(grid([[a, b], [c, d]]))
+    expect(picture(insertTrackBeside(base, 'a', 'top', ids()).layout)).toEqual(picture(insertTrack(base, 'top', ids()).layout))
+  })
+
+  it('an unknown cell: the same layout', () => {
+    const base = layout(grid([[a, b]]))
+    expect(insertTrackBeside(base, 'zz', 'top', ids())).toEqual({ layout: base, cellId: null })
   })
 })
 

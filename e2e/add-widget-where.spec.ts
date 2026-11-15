@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { edges, openCellMenu, seedWorkspace, wsCell, type WsLayoutSeed } from './fixtures/workspace'
+import { edges, openCellLayoutMenu, seedWorkspace, wsCell, type WsLayoutSeed } from './fixtures/workspace'
 
 /**
  * Add widget's Where as a picture (D26 follow-ups, board BE): the cell
@@ -24,7 +24,7 @@ type Edges = Awaited<ReturnType<typeof edges>>
 
 /** Opens Add widget from cell a and returns its menu. */
 async function openAddWidget(page: Page) {
-  await openCellMenu(page, 'a')
+  await openCellLayoutMenu(page, 'a')
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   return page.getByRole('menu', { name: 'Add widget' })
 }
