@@ -78,6 +78,9 @@ export function underModal(node: Node, backdrop: Element | null = topModalBackdr
   return backdrop != null && (backdrop.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_PRECEDING) !== 0
 }
 
+/** A cell strip's tab (`CellTabStrip`): its click switches its cell to it. */
+export const STRIP_TAB_SELECTOR = '[role="tab"][data-ws-tab]'
+
 /** The widget popup's panel (Open larger): the id of the tab it shows. */
 export const WIDGET_POPUP_ATTR = 'data-widget-popup'
 

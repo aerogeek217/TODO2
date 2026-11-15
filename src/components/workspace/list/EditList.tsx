@@ -5,7 +5,7 @@ import { tabListId } from '../../../models/workspace-layout'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { useEditorLeave } from '../../../hooks/use-editor-leave'
+import { carryOnAfterLeave, useEditorLeave } from '../../../hooks/use-editor-leave'
 import { useListWidgetCount } from '../../../hooks/use-list-widget-count'
 import { useCopySources } from '../../../hooks/use-copy-sources'
 import { listEditChanges, useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -273,7 +273,8 @@ interface SurfaceProps {
  * (`EDIT_LIST_KEEP_ATTR`), or in a layer portaled out of the app — the
  * menus, pickers and dialogs opened from it, the close question. A press in
  * the list's own panel counts. A press it lets close goes on to what it
- * pressed; one it holds (it asked) is swallowed, its click too.
+ * pressed; one it holds (it asked) is swallowed, its click too — a tab's
+ * alone is made again once the answer is Save or Discard (`carryOnAfterLeave`).
  */
 function usePressElsewhereCloses(
   panelRef: React.RefObject<HTMLElement | null>,
@@ -308,6 +309,8 @@ function usePressElsewhereCloses(
       if (!held) return
       if (e.type === 'mousedown') e.preventDefault()
       e.stopPropagation()
+      // A tab pressed: it switches once the question was answered Save or Discard.
+      carryOnAfterLeave(e.target)
     }
     const onClick = (e: MouseEvent) => {
       if (!held) return
