@@ -33,7 +33,7 @@ import { shownOfTotalText } from '../shared/filters/lens-text'
 import { BadgeCapsule } from '../shared/BadgeCapsule'
 import { tabBadgeSummary } from '../../utils/tab-badges'
 import styles from './MobileWorkspaceView.module.css'
-import { withViewTransition } from '../shared/view-transition'
+import { viewTransition, withViewTransition } from '../shared/view-transition'
 import { CellControlsContext, type CellControlsValue } from './cell-controls'
 
 const WIDER_SCREEN_HINT = 'To create or edit layouts, use a wider screen.'
@@ -56,7 +56,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
 
   const pick = (id: number) => {
     if (id === activeLayoutId) { onClose(); return }
-    withViewTransition(() => useWorkspaceStore.getState().load(id))
+    void useWorkspaceStore.getState().load(id, viewTransition)
     onClose()
   }
 
