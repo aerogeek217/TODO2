@@ -133,7 +133,7 @@ export function trendCumulativeDrill(
 }
 
 // Project pulse's tag and the Neglect map's Slipping
-// list: the tasks it counted (screen-filtered), in its order.
+// list: the tasks it counted (screen-filtered).
 
 /** A tag's open tasks (a Project pulse card); `null` = no tag. */
 export function tagRowDrill(tag: Pick<Tag, 'id' | 'name'> | null, todoIds: readonly number[]): GlanceDrill {
@@ -147,12 +147,12 @@ export function tagRowDrill(tag: Pick<Tag, 'id' | 'name'> | null, todoIds: reado
 
 /** What each Neglect map zone holds, in a sentence (`days`: the tab's untouched threshold). */
 const NEGLECT_ZONE_DRILLS: Record<string, { title: string; describe: (days: number) => string }> = {
-  slipping: { title: 'Slipping', describe: (days) => `Open tasks due soon or late and not changed in ${days} days or more, latest first.` },
-  inHand: { title: 'In hand', describe: (days) => `Open tasks due soon or late that changed in the last ${days} days, latest first.` },
-  planned: { title: 'Planned', describe: (days) => `Open tasks due later that changed in the last ${days} days, soonest first.` },
-  drifting: { title: 'Drifting', describe: (days) => `Open tasks due later and not changed in ${days} days or more, soonest first.` },
-  noDue: { title: 'No due date', describe: () => 'Open tasks without a due date, the longest untouched first.' },
-  forgotten: { title: 'Forgotten', describe: (days) => `Open tasks without a due date and not changed in ${days} days or more, the longest untouched first.` },
+  slipping: { title: 'Slipping', describe: (days) => `Open tasks due soon or late and not changed in ${days} days or more.` },
+  inHand: { title: 'In hand', describe: (days) => `Open tasks due soon or late that changed in the last ${days} days.` },
+  planned: { title: 'Planned', describe: (days) => `Open tasks due later that changed in the last ${days} days.` },
+  drifting: { title: 'Drifting', describe: (days) => `Open tasks due later and not changed in ${days} days or more.` },
+  noDue: { title: 'No due date', describe: () => 'Open tasks without a due date.' },
+  forgotten: { title: 'Forgotten', describe: (days) => `Open tasks without a due date and not changed in ${days} days or more.` },
 }
 
 /** A Neglect map zone's tasks, as its word opens them: `zone` is the map's zone key (`noDue`: every task without a due date). */
@@ -161,12 +161,12 @@ export function neglectZoneDrill(zone: string, todoIds: readonly number[], days:
   return { title: spec.title, glyph: 'stale', description: spec.describe(days), source: { kind: 'todos', todoIds } }
 }
 
-/** A Neglect map's Slipping tasks (latest first), untouched for `days` or more. */
+/** A Neglect map's Slipping tasks, untouched for `days` or more. */
 export function slippingDrill(todoIds: readonly number[], days: number): GlanceDrill {
   return {
     title: 'Slipping',
     glyph: 'stale',
-    description: `Open tasks due soon or late and not changed in ${days} days or more, latest first.`,
+    description: `Open tasks due soon or late and not changed in ${days} days or more.`,
     source: { kind: 'todos', todoIds },
   }
 }

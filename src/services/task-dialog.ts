@@ -1,4 +1,4 @@
-import { emptyPredicate, type PersistedStatusUpdate, type PersistedSubtask, type PersistedTodoItem, type Person, type Status, type Tag } from '../models'
+import { emptyPredicate, type TodoPredicate, type PersistedStatusUpdate, type PersistedSubtask, type PersistedTodoItem, type Person, type Status, type Tag } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import type { TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models/todo-sort-group'
 import { admitsCompleted, completedAdmitters, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
@@ -6,7 +6,6 @@ import { createPredicateEvaluator, createScreenComposedEvaluator, matchesFilterW
 import type { WeekStart } from '../utils/effective-date'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import type { MarkerSettings } from '../utils/markers'
-import { bySortOrder } from '../utils/sort-order'
 import { startOfToday } from '../utils/date'
 import { countTabBadges, inTabBadgeRange, type TabBadgeCounts } from '../utils/tab-badges'
 import type { TabBadgeRanges } from '../models/list-definition'
@@ -22,6 +21,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useStatusUpdateStore } from '../stores/status-update-store'
 import { useSubtaskStore } from '../stores/subtask-store'
+import { useUIStore, type PopupListPick } from '../stores/ui-store'
 
 /**
  * The task dialog: the tasks behind a number (a glance widget's count) or an
@@ -29,7 +29,8 @@ import { useSubtaskStore } from '../stores/subtask-store'
  * and in words what was counted; its source is resolved to rows once, when
  * the dialog opens, so rows stay in place (a completed one struck through)
  * until it closes — or, for the screen filter's tasks, until that filter
- * changes.
+ * changes — or until the group · sort pick changes. Every source is built
+ * as a list (`buildList`) in the popup lists' view (`popupListView`).
  */
 
 /** A resolved heading; `label` null = a flat list (no header). */
@@ -56,15 +57,38 @@ export interface TaskDialogEnv {
   subtasksByTodo: ReadonlyMap<number, readonly PersistedSubtask[]>
   /** The top-bar filter (the screen source composes it in). */
   screen: FilterCriteria
-  /** Settings' sort and grouping for a new list: how the screen filter's tasks are shown. */
-  newListView: NewListView
+  /** How the rows are grouped and sorted (`popupListView`). */
+  view: PopupListView
+  /**
+   * Whether the user picked the grouping (`PopupListPick.grouping`): a
+   * source with headings of its own keeps them until then.
+   */
+  groupingPicked: boolean
 }
 
-/** Settings' new-list sort, its direction and grouping (`newListSort` / `newListSortDirection` / `newListGroup`). */
-interface NewListView {
+/** A popup task list's grouping, sort and direction. */
+export interface PopupListView {
   sort: TodoSortBy
   sortDirection: TodoSortDirection
   grouping: TodoGroupBy
+}
+
+/**
+ * How every popup task list shows its tasks: the user's pick
+ * (`ui-store.popupListPick`, until a reload) over Settings' new-list sort,
+ * direction and grouping (`defaults`). A sort is picked with its direction.
+ */
+export function popupListView(defaults: PopupListView, pick: PopupListPick): PopupListView {
+  return {
+    grouping: pick.grouping ?? defaults.grouping,
+    sort: pick.sort ?? defaults.sort,
+    sortDirection: pick.sort != null ? (pick.sortDirection ?? 'asc') : defaults.sortDirection,
+  }
+}
+
+/** Settings' new-list sort, direction and grouping (`newListSort` / `newListSortDirection` / `newListGroup`). */
+export function newListDefaults(settings: { newListSort: TodoSortBy; newListSortDirection: TodoSortDirection; newListGroup: TodoGroupBy }): PopupListView {
+  return { sort: settings.newListSort, sortDirection: settings.newListSortDirection, grouping: settings.newListGroup }
 }
 
 /** The stores as they are now: what a source is resolved with. */
@@ -72,6 +96,7 @@ export function currentTaskDialogEnv(): TaskDialogEnv {
   const people = usePersonStore.getState()
   const tags = useTagStore.getState()
   const settings = useSettingsStore.getState()
+  const pick = useUIStore.getState().popupListPick
   return {
     todos: useTodoStore.getState().todos,
     today: startOfToday(),
@@ -84,7 +109,8 @@ export function currentTaskDialogEnv(): TaskDialogEnv {
     statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo,
     subtasksByTodo: useSubtaskStore.getState().byTodo,
     screen: currentScreenFilter(),
-    newListView: { sort: settings.newListSort, sortDirection: settings.newListSortDirection, grouping: settings.newListGroup },
+    view: popupListView(newListDefaults(settings), pick),
+    groupingPicked: pick.grouping != null,
   }
 }
 
@@ -96,33 +122,63 @@ function filterSettingsOf(env: Pick<TaskDialogEnv, 'markerSettings' | 'weekStart
   return { ...env.markerSettings, weekStartsOn: env.weekStartsOn }
 }
 
-/** The rows a source stands for, as headings of task ids in display order. */
+/**
+ * The rows a source stands for, as headings of task ids in display order:
+ * each source built as a list in `env.view` — sorted (a Manual sort is the
+ * tasks' `sortOrder`: a popup has no manual order of its own) and grouped.
+ * A `groups` source keeps its own headings, each sorted, until the user
+ * picks a grouping (`env.groupingPicked`); then its tasks, each once, are
+ * grouped by that.
+ */
 export function resolveTaskDialog(source: TaskDialogSource, env: TaskDialogEnv): TaskDialogRowGroup[] {
   switch (source.kind) {
     case 'todos':
-      return [{ key: 'all', label: null, todoIds: [...source.todoIds] }]
-    case 'groups':
-      return source.groups
-        .filter((g) => g.todoIds.length > 0)
-        .map((g) => ({ key: g.key, label: g.label, ...(g.color ? { color: g.color } : {}), todoIds: [...g.todoIds] }))
+      return groupsOfList(buildList(viewDefinition(env.view, GIVEN_TASKS), tasksOf(source.todoIds, env), listBuildContext(env, everyTask)))
+    case 'groups': {
+      if (env.groupingPicked) {
+        const ids = [...new Set(source.groups.flatMap((g) => g.todoIds))]
+        return groupsOfList(buildList(viewDefinition(env.view, GIVEN_TASKS), tasksOf(ids, env), listBuildContext(env, everyTask)))
+      }
+      const flat = viewDefinition({ ...env.view, grouping: 'none' }, GIVEN_TASKS)
+      const ctx = listBuildContext(env, everyTask)
+      return source.groups.flatMap((g) => {
+        const todoIds = buildList(flat, tasksOf(g.todoIds, env), ctx).todos.map((t) => t.id)
+        return todoIds.length === 0 ? [] : [{ key: g.key, label: g.label, ...(g.color ? { color: g.color } : {}), todoIds }]
+      })
+    }
     case 'predicate': {
       const matches = createPredicateEvaluator(lookupsOf(env), env.today, filterSettingsOf(env))
-      const todoIds = env.todos.filter((t) => matches(source.predicate, t)).sort(bySortOrder).map((t) => t.id)
-      return [{ key: 'all', label: null, todoIds }]
+      return groupsOfList(buildList(viewDefinition(env.view, source.predicate), env.todos, listBuildContext(env, matches)))
     }
-    case 'screen':
-      // No manual order of its own: a Manual sort is the tasks' `sortOrder`.
-      return groupsOfList(buildList(screenListDefinition(env.newListView), env.todos, listBuildContext(env)))
+    case 'screen': {
+      // The screen filter composed in; its People / Tags picks narrow the groups too.
+      const matches = createScreenComposedEvaluator(env.screen, lookupsOf(env), env.today, filterSettingsOf(env))
+      return groupsOfList(buildList(viewDefinition(env.view, OPEN_TASKS), env.todos, { ...listBuildContext(env, matches), screenFilter: env.screen }))
+    }
   }
 }
 
-/** What a list is built with in the dialog: the screen filter composed in (its People / Tags picks narrowing the groups too). */
-function listBuildContext(env: TaskDialogEnv): ListBuildContext {
+/** The tasks of `ids` that still exist, in the order given. */
+function tasksOf(ids: readonly number[], env: Pick<TaskDialogEnv, 'todos'>): PersistedTodoItem[] {
+  const byId = new Map(env.todos.map((t) => [t.id, t]))
+  return ids.flatMap((id) => {
+    const t = byId.get(id)
+    return t ? [t] : []
+  })
+}
+
+/** A source of given tasks takes every one of them, completed ones too (what was counted). */
+const everyTask = () => true
+
+/** A source of given tasks as a list: no filter of its own (so no People / Tags pick narrows its groups). */
+const GIVEN_TASKS = emptyPredicate()
+
+/** What a list is built with in the dialog: `evalPredicate` decides its members. */
+function listBuildContext(env: TaskDialogEnv, evalPredicate: ListBuildContext['evalPredicate']): ListBuildContext {
   return {
     today: env.today,
     weekStartsOn: env.weekStartsOn,
-    evalPredicate: createScreenComposedEvaluator(env.screen, lookupsOf(env), env.today, filterSettingsOf(env)),
-    screenFilter: env.screen,
+    evalPredicate,
     assignedPeopleMap: env.assignedPeopleMap,
     assignedTagsMap: env.assignedTagsMap,
     people: env.people,
@@ -149,17 +205,17 @@ const SCREEN_DIALOG_TITLE = 'Filtered tasks'
 const OPEN_TASKS = emptyPredicate()
 
 /**
- * The list the screen filter's tasks are shown as: every open task, the
- * screen filter composed in (narrowing it; its Show completed — or a
- * Completed range, `admitsCompleted` — adding the
- * completed ones), with Settings' new-list sort and grouping.
+ * The list a source's tasks are shown as: its `predicate` (the screen
+ * source's every open task, the screen filter composed in by its evaluator
+ * — its Show completed, or a Completed range, `admitsCompleted`, adding the
+ * completed ones), sorted and grouped by `view`.
  */
-function screenListDefinition(view: NewListView): PersistedListDefinition {
+function viewDefinition(view: PopupListView, predicate: TodoPredicate): PersistedListDefinition {
   return {
     id: 0,
     name: SCREEN_DIALOG_TITLE,
     sortOrder: 0,
-    membership: { kind: 'custom', predicate: OPEN_TASKS },
+    membership: { kind: 'custom', predicate },
     sort: view.sort,
     ...(view.sortDirection === 'desc' ? { sortDirection: view.sortDirection } : {}),
     grouping: view.grouping,
