@@ -47,8 +47,8 @@ describe('SettingsModal', () => {
     const nav = screen.getByRole('navigation', { name: 'Settings sections' })
     expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual([
       'Database', 'Import / Export', 'File storage', 'Backups', 'Data integrity',
-      'Appearance', 'Theme and lists', 'Ambience',
-      'Tasks', 'New tasks', 'Lists & rows', 'Completed tasks',
+      'Appearance', 'Theme', 'Task rows', 'Ambience',
+      'Tasks', 'New tasks', 'Rules', 'New lists', 'Completed tasks',
       'People, statuses & tags',
       'Keyboard shortcuts',
       'About',
@@ -152,11 +152,11 @@ describe('SettingsModal', () => {
     })
   })
 
-  it('Tasks holds New tasks, Lists & rows, then Completed tasks; Database Import / Export, File storage, Backups, Data integrity — each headed', () => {
+  it('Tasks holds New tasks, Rules, New lists, then Completed tasks; Database Import / Export, File storage, Backups, Data integrity — each headed', () => {
     render(<SettingsModal />)
     open('tasks')
     const parts = () => Array.from(screen.getByRole('dialog', { name: 'Settings' }).querySelectorAll('h3')).map((h) => h.textContent)
-    expect(parts()).toEqual(['New tasks', 'Lists & rows', 'Completed tasks'])
+    expect(parts()).toEqual(['New tasks', 'Rules', 'New lists', 'Completed tasks'])
     expect(screen.getByRole('region', { name: 'Completed tasks' })).toHaveAttribute('data-settings-part', 'completed')
     fireEvent.click(screen.getByRole('button', { name: 'Database' }))
     expect(parts()).toEqual(['Import / Export', 'File storage', 'Backups', 'Data integrity'])

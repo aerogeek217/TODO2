@@ -21,21 +21,25 @@ export type SettingsSectionId =
 /** The headed parts of the merged sections (Tasks, Database, Appearance). */
 export type SettingsPartId =
   | 'new-tasks'
-  | 'lists-and-rows'
+  | 'rules'
+  | 'new-lists'
   | 'completed'
   | 'file-storage'
   | 'backups'
   | 'import-export'
   | 'data-integrity'
-  | 'theme-and-lists'
+  | 'theme'
+  | 'task-rows'
   | 'ambience'
 
 /** The section each part sits in. */
 export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSectionId>> = {
-  'theme-and-lists': 'appearance',
+  theme: 'appearance',
+  'task-rows': 'appearance',
   ambience: 'appearance',
   'new-tasks': 'tasks',
-  'lists-and-rows': 'tasks',
+  rules: 'tasks',
+  'new-lists': 'tasks',
   completed: 'tasks',
   'file-storage': 'database',
   backups: 'database',

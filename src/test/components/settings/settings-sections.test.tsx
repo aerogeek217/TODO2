@@ -20,7 +20,7 @@ describe('Settings sections', () => {
     expect(resolveSettingsTarget('database')).toEqual({ section: 'database', part: null })
     expect(resolveSettingsTarget('backups')).toEqual({ section: 'database', part: 'backups' })
     expect(resolveSettingsTarget('new-tasks' satisfies SettingsPartId)).toEqual({ section: 'tasks', part: 'new-tasks' })
-    expect(resolveSettingsTarget('lists-and-rows' satisfies SettingsPartId)).toEqual({ section: 'tasks', part: 'lists-and-rows' })
+    expect(resolveSettingsTarget('rules' satisfies SettingsPartId)).toEqual({ section: 'tasks', part: 'rules' })
   })
 
   it('the phone lists Database, Appearance, People statuses & tags and About; Database shows only Import / Export and File storage', () => {

@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { useSettingsStore, type RowDates, type ThemeMode } from '../../../stores/settings-store'
-import { LIST_ZOOM_SETTING_LABELS, LIST_ZOOM_SETTINGS } from '../../../utils/list-zoom'
+import { useSettingsStore, type ThemeMode } from '../../../stores/settings-store'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { ThemeColorsEditor } from '../ThemeColorsEditor'
 import { NlpSyntaxModal } from '../NlpSyntaxModal'
@@ -14,21 +13,10 @@ const THEME_OPTIONS: ReadonlyArray<{ mode: ThemeMode; label: string }> = [
   { mode: 'dark', label: 'Dark' },
 ]
 
-const DATES_OPTIONS: ReadonlyArray<{ dates: RowDates; label: string }> = [
-  { dates: 'relative', label: 'Relative' },
-  { dates: 'numeric', label: 'MM/DD' },
-]
-
-/** Theme (the only place it is set), theme colors, the default list zoom, how rows show dates and the stale rows' cobwebs. */
-export function AppearanceSection() {
+/** Appearance › Theme: the theme (the only place it is set), its colors, and on the phone the quick-add syntax. */
+export function ThemeSection() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
-  const listZoom = useSettingsStore((s) => s.listZoom)
-  const setListZoom = useSettingsStore((s) => s.setListZoom)
-  const rowDates = useSettingsStore((s) => s.rowDates)
-  const setRowDates = useSettingsStore((s) => s.setRowDates)
-  const staleCobwebs = useSettingsStore((s) => s.staleCobwebs)
-  const setStaleCobwebs = useSettingsStore((s) => s.setStaleCobwebs)
   const isMobile = useIsMobile()
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showNlpSyntax, setShowNlpSyntax] = useState(false)
@@ -51,54 +39,6 @@ export function AppearanceSection() {
             </button>
           ))}
         </div>
-      </SettingRow>
-      <SettingRow
-        label="Default list zoom"
-        help="How a list tab draws its tasks until you zoom it (Ctrl + scroll over the list, or its tab menu): Auto is Stacked in a list narrower than 480px and Rows in a wider one, Stacked puts the details under the name, Rows one row per task, Lines the names alone."
-      >
-        <div className={styles.segmented} role="radiogroup" aria-label="Default list zoom">
-          {LIST_ZOOM_SETTINGS.map((zoom) => (
-            <button
-              key={zoom}
-              type="button"
-              role="radio"
-              aria-checked={listZoom === zoom}
-              className={`${styles.segment} ${listZoom === zoom ? styles.segmentActive : ''}`}
-              onClick={() => void setListZoom(zoom)}
-            >
-              {LIST_ZOOM_SETTING_LABELS[zoom]}
-            </button>
-          ))}
-        </div>
-      </SettingRow>
-      <SettingRow label="Dates" help="How task rows show due and follow-up dates. Relative says Today, the weekday for the next six days, else 11/20; MM/DD always says 11/20.">
-        <div className={styles.segmented} role="radiogroup" aria-label="Dates">
-          {DATES_OPTIONS.map(({ dates, label }) => (
-            <button
-              key={dates}
-              type="button"
-              role="radio"
-              aria-checked={rowDates === dates}
-              className={`${styles.segment} ${rowDates === dates ? styles.segmentActive : ''}`}
-              onClick={() => void setRowDates(dates)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </SettingRow>
-      <SettingRow
-        label="Cobwebs on stale tasks"
-        help="A task nobody has changed for a while gathers a small cobweb in its checkbox. The days are Tasks › Lists & rows › Fade tasks untouched for."
-      >
-        <button
-          type="button"
-          role="switch"
-          aria-checked={staleCobwebs}
-          aria-label="Cobwebs on stale tasks"
-          className={`${styles.switch} ${staleCobwebs ? styles.switchOn : ''}`}
-          onClick={() => void setStaleCobwebs(!staleCobwebs)}
-        />
       </SettingRow>
       <SettingRow label="Theme colors" help="Override accent, surface and priority colors per theme.">
         <button type="button" className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowThemeColors(true)}>

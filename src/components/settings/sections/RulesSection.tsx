@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import { useSettingsStore } from '../../../stores/settings-store'
 import {
   URGENT_DUE_WITHIN_CHOICES,
@@ -7,19 +7,7 @@ import {
   urgentRangeLabel,
   type UrgentDueWithinDays,
 } from '../../../utils/urgency'
-import {
-  GROUP_LABEL,
-  LIST_GROUP_CHOICES,
-  LIST_SORT_CHOICES,
-  SORT_LABEL,
-  choicesWith,
-  sortOrderWords,
-} from '../../../utils/list-options'
-import { TODO_SORT_DIRECTIONS, isTodoGroupBy, isTodoSortBy, sortDirectionOnPick, sortHasDirection } from '../../../models/todo-sort-group'
 import { STALE_AFTER_MAX_DAYS, isStaleAfterDays } from '../../../utils/stale'
-import { MARKER_KEYS } from '../../../models'
-import { MARKER_LABELS } from '../../../utils/markers'
-import { PriorityRing } from '../../shared/PriorityRing'
 import { formatTabBadgeRange, parseTabBadgeRange, TAB_BADGE_CHOICES, tabBadgeRangeLabel } from '../../../utils/tab-badges'
 import type { TabBadgeRange } from '../../../models/list-definition'
 import { SettingRow } from './SettingRow'
@@ -50,56 +38,12 @@ function TabBadgeRangeSelect({ label, value, onChange }: { label: string; value:
   )
 }
 
-/** The sample checkbox beside each priority's name, px. */
-const CUE_RING_SIZE = 16
-
-/** What each priority adds to a task's row, beside its ring on the checkbox (D25 B; each name shows its ring). */
-function PriorityCuesSetting() {
-  const cues = useSettingsStore((s) => s.priorityCues)
-  const setCues = useSettingsStore((s) => s.setPriorityCues)
-  const toggle = (name: string, on: boolean, flip: () => void) => (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={name}
-      className={`${styles.switch} ${on ? styles.switchOn : ''}`}
-      onClick={flip}
-    />
-  )
-  return (
-    <SettingRow label="Priority cues" help="Beside the ring on each task's checkbox. Several glows blend along the row." column>
-      <div className={styles.cueGrid}>
-        <span />
-        <span className={styles.cueHead}>Glow</span>
-        <span className={styles.cueHead}>Semibold</span>
-        {MARKER_KEYS.map((key) => (
-          <Fragment key={key}>
-            <span className={styles.cueName}>
-              <span className={styles.cueRing} aria-hidden="true" data-cue-ring={key}>
-                <PriorityRing
-                  summary={{ focus: key === 'focus', urgent: key === 'urgent' ? 'flag' : null, important: key === 'important' }}
-                  completed={false}
-                  size={CUE_RING_SIZE}
-                />
-              </span>
-              {MARKER_LABELS[key]}
-            </span>
-            {toggle(`${MARKER_LABELS[key]} glow`, cues[key].glow, () => void setCues({ ...cues, [key]: { ...cues[key], glow: !cues[key].glow } }))}
-            {toggle(`${MARKER_LABELS[key]} semibold`, cues[key].semibold, () => void setCues({ ...cues, [key]: { ...cues[key], semibold: !cues[key].semibold } }))}
-          </Fragment>
-        ))}
-      </div>
-    </SettingRow>
-  )
-}
-
 /**
- * How lists and their rows read: when a due date makes a task urgent, when an
- * untouched task's row fades, the tab badges' ranges, what a priority adds to
- * its row, the first day of the week, and how new lists sort and group.
+ * Tasks › Rules: what things mean — when a due date makes a task urgent, when
+ * an untouched task is stale, the tab badges' ranges and the first day of the
+ * week. How a stale or priority task looks is Appearance › Task rows.
  */
-export function ListsAndRowsSection() {
+export function RulesSection() {
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const setWeekStartsOn = useSettingsStore((s) => s.setWeekStartsOn)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
@@ -148,7 +92,6 @@ export function ListsAndRowsSection() {
           <TabBadgeRangeSelect label="Tab badges: follow-up" value={tabBadges.followup} onChange={(followup) => void setTabBadges({ ...tabBadges, followup })} />
         </span>
       </SettingRow>
-      <PriorityCuesSetting />
       <SettingRow label="Week starts on" help="Calendars and the This Week group.">
         <select
           className={styles.select}
@@ -160,14 +103,14 @@ export function ListsAndRowsSection() {
           <option value={0}>Sunday</option>
         </select>
       </SettingRow>
-      <NewListDefaults />
     </div>
   )
 }
 
 /**
- * "Fade tasks untouched for": the days without a change after which an open
- * task's row is drawn faded (0 = never). A whole number, committed on Enter
+ * "Stale after": the days without a change after which an open task is stale
+ * (0 = never) — faded and cobwebbed per Appearance › Task rows, counted by
+ * Project pulse. A whole number, committed on Enter
  * / blur; anything else reverts. Each change is one undo step.
  */
 function StaleAfterDaysSetting() {
@@ -194,8 +137,8 @@ function StaleAfterDaysSetting() {
 
   return (
     <SettingRow
-      label="Fade tasks untouched for"
-      help="An open task nobody has changed for this many days is drawn faded in lists, with a cobweb in its checkbox (Appearance can turn the cobweb off); hovering it brings it back. 0 turns both off."
+      label="Stale after"
+      help="An open task nobody has changed for this many days is stale: Appearance › Task rows fades it and puts a cobweb in its checkbox, and Project pulse counts it. 0: nothing goes stale."
     >
       <input
         type="number"
@@ -217,66 +160,12 @@ function StaleAfterDaysSetting() {
             setDraft(stored)
           }
         }}
-        aria-label="Fade tasks untouched for (days)"
+        aria-label="Stale after (days)"
         aria-invalid={!valid}
         style={{ width: 64, textAlign: 'right' }}
         autoComplete="off"
       />
-      <span className={styles.muted}>{parsed === 0 ? 'days (off)' : parsed === 1 ? 'day' : 'days'}</span>
+      <span className={styles.muted}>{parsed === 0 ? 'days (never)' : parsed === 1 ? 'day' : 'days'}</span>
     </SettingRow>
-  )
-}
-
-/**
- * What a new blank list (adding a List widget, or a tab switched to List)
- * starts sorted (and which way, for a sort with a direction) and grouped by.
- * Each change is one undo step.
- */
-function NewListDefaults() {
-  const sort = useSettingsStore((s) => s.newListSort)
-  const direction = useSettingsStore((s) => s.newListSortDirection)
-  const group = useSettingsStore((s) => s.newListGroup)
-  const setSort = useSettingsStore((s) => s.setNewListSort)
-  const setGroup = useSettingsStore((s) => s.setNewListGroup)
-  return (
-    <>
-      <SettingRow label="New lists sort by" help="A list you create starts sorted this way. Edit list changes its own.">
-        <select
-          className={styles.select}
-          aria-label="New lists sort by"
-          value={sort}
-          // A direction carries over to another sort with one, or the sort starts in its own (as in Edit list).
-          onChange={(e) => { if (isTodoSortBy(e.target.value)) void setSort(e.target.value, sortDirectionOnPick(e.target.value, direction)) }}
-        >
-          {choicesWith(LIST_SORT_CHOICES, sort).map((choice) => (
-            <option key={choice} value={choice}>{SORT_LABEL[choice]}</option>
-          ))}
-        </select>
-        {sortHasDirection(sort) && (
-          <select
-            className={styles.select}
-            aria-label="New lists sort order"
-            value={direction}
-            onChange={(e) => void setSort(sort, e.target.value === 'desc' ? 'desc' : 'asc')}
-          >
-            {TODO_SORT_DIRECTIONS.map((dir) => (
-              <option key={dir} value={dir}>{sortOrderWords(sort, dir)}</option>
-            ))}
-          </select>
-        )}
-      </SettingRow>
-      <SettingRow label="New lists group by" help="A list you create starts grouped this way.">
-        <select
-          className={styles.select}
-          aria-label="New lists group by"
-          value={group}
-          onChange={(e) => { if (isTodoGroupBy(e.target.value)) void setGroup(e.target.value) }}
-        >
-          {choicesWith(LIST_GROUP_CHOICES, group).map((choice) => (
-            <option key={choice} value={choice}>{GROUP_LABEL[choice]}</option>
-          ))}
-        </select>
-      </SettingRow>
-    </>
   )
 }

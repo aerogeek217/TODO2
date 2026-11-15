@@ -915,7 +915,9 @@ export async function gotoSettingsDeepLink(page: Page): Promise<Locator> {
 /** The headed parts of the merged Settings sections, by label: their section. */
 const SETTINGS_PART_SECTION: Readonly<Record<string, string>> = {
   'New tasks': 'Tasks',
-  'Lists & rows': 'Tasks',
+  Rules: 'Tasks',
+  'New lists': 'Tasks',
+  'Task rows': 'Appearance',
   'Completed tasks': 'Tasks',
   'File storage': 'Database',
   Backups: 'Database',
