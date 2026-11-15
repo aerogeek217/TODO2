@@ -101,6 +101,73 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().colors.light.accent).toBe(DEFAULT_THEMED_COLORS.light.accent)
   })
 
+  describe('resetColor: one colour back to its default (cr34, answer 18)', () => {
+    const s = () => useSettingsStore.getState()
+    const inline = (name: string) => document.documentElement.style.getPropertyValue(name)
+
+    it('removes that one override — its row, its inline style — and leaves the others', async () => {
+      await s().setColor('dark', 'accent', '#ff0000')
+      await s().setColor('dark', 'danger', '#00ff00')
+      await s().setColor('light', 'accent', '#0000ff')
+      await s().resetColor('dark', 'accent')
+      expect(s().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent)
+      expect(s().customizedColors.dark).toEqual(['danger'])
+      expect(await db.settings.get('color.dark.accent')).toBeUndefined()
+      expect(inline('--color-accent')).toBe('')
+      expect(inline('--color-accent-dim')).toBe('')
+      // The same theme's other override and the other theme's same colour stay.
+      expect(s().colors.dark.danger).toBe('#00ff00')
+      expect((await db.settings.get('color.dark.danger'))!.value).toBe('#00ff00')
+      expect(inline('--color-danger')).toBe('#00ff00')
+      expect(s().colors.light.accent).toBe('#0000ff')
+      expect(s().customizedColors.light).toEqual(['accent'])
+      expect((await db.settings.get('color.light.accent'))!.value).toBe('#0000ff')
+    })
+
+    it('a priority follows the colour it follows again, its token tint with it', async () => {
+      await s().setColor('dark', 'danger', '#ff0000')
+      await s().setColor('dark', 'urgent', '#00ff00')
+      await s().setColor('dark', 'focus', '#3b82f6')
+      expect(inline('--color-marker-urgent')).toBe('#00ff00')
+      await s().resetColor('dark', 'urgent')
+      // Nothing of Urgent's own is left: the stylesheet's `var(--color-danger)` applies, Danger's override included.
+      expect(inline('--color-marker-urgent')).toBe('')
+      expect(inline('--color-marker-urgent-bg')).toBe('')
+      expect(s().customizedColors.dark).toEqual(['danger', 'focus'])
+      expect(await db.settings.get('color.dark.urgent')).toBeUndefined()
+      expect(inline('--color-danger')).toBe('#ff0000')
+      // Focus keeps its own.
+      expect(inline('--color-marker-focus')).toBe('#3b82f6')
+      await s().resetColor('dark', 'focus')
+      expect(inline('--color-marker-focus')).toBe('')
+      expect(inline('--color-marker-focus-bg')).toBe('')
+      expect(inline('--color-marker-focus-text')).toBe('')
+    })
+
+    it('a colour with no override: nothing is written; no undo step either way', async () => {
+      await s().load()
+      useUndoStore.getState().clear()
+      const writes = [vi.spyOn(settingsRepository, 'put'), vi.spyOn(settingsRepository, 'delete'), vi.spyOn(settingsRepository, 'writeMany')]
+      await s().resetColor('dark', 'accent')
+      for (const write of writes) expect(write).not.toHaveBeenCalled()
+      await s().setColor('dark', 'accent', '#123456')
+      await s().resetColor('dark', 'accent')
+      expect(s().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent)
+      expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    })
+
+    it('it survives a reload: the row is gone, the others load', async () => {
+      await s().setColor('light', 'urgent', '#00ff00')
+      await s().setColor('light', 'important', '#0000ff')
+      await s().resetColor('light', 'urgent')
+      useSettingsStore.setState(useSettingsStore.getInitialState(), true)
+      await s().load()
+      expect(s().customizedColors.light).toEqual(['important'])
+      expect(s().colors.light.urgent).toBe(DEFAULT_THEMED_COLORS.light.urgent)
+      expect(s().colors.light.important).toBe('#0000ff')
+    })
+  })
+
   it('setThemeMode flips which override bag drives inline styles', async () => {
     // Customize both bags to distinct values, then verify the inline app-bg
     // override flips with the resolved theme.
@@ -110,6 +177,22 @@ describe('useSettingsStore', () => {
     expect(document.documentElement.style.getPropertyValue('--color-app-bg')).toBe('#aabbcc')
     await useSettingsStore.getState().setThemeMode('light')
     expect(document.documentElement.style.getPropertyValue('--color-app-bg')).toBe('#ddeeff')
+  })
+
+  it('light theme: Focus’s own colour is darkened for its typed token’s text, as the accent is (cr34 U6)', async () => {
+    const inline = (name: string) => document.documentElement.style.getPropertyValue(name)
+    await useSettingsStore.getState().setColor('light', 'focus', '#3b82f6')
+    await useSettingsStore.getState().setColor('dark', 'focus', '#8ab4f8')
+    // Dark: the colour as it is (the dark theme's `--color-accent-text` is the accent itself).
+    expect(inline('--color-marker-focus')).toBe('#8ab4f8')
+    expect(inline('--color-marker-focus-text')).toBe('#8ab4f8')
+    await useSettingsStore.getState().setThemeMode('light')
+    // Light: the ring and glow take the colour as picked; the token's text is darkened.
+    expect(inline('--color-marker-focus')).toBe('#3b82f6')
+    expect(inline('--color-marker-focus-text')).toBe('color-mix(in srgb, #3b82f6 76%, black)')
+    expect(inline('--color-marker-focus-bg')).toBe('color-mix(in srgb, #3b82f6 12%, transparent)')
+    await useSettingsStore.getState().setThemeMode('dark')
+    expect(inline('--color-marker-focus-text')).toBe('#8ab4f8')
   })
 
   it('a failed theme or colour save puts the page back too', async () => {

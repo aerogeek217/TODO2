@@ -107,3 +107,45 @@ test('removing the last picked chip returns the widget to its prompt', async ({ 
   await expect(rows).toHaveCount(0)
   await expect(widget).toContainText('Pick a person to show this list')
 })
+
+test('Tab out of the prompt field closes its option list; the focus coming back opens it again (cr34 U10)', async ({ page }) => {
+  const widget = await seedTaskList(page, {
+    people: ['Ada', 'Bob'],
+    tasks: [{ title: 'Ada task', people: ['Ada'] }, { title: 'Bob task', people: ['Bob'] }],
+    list: { name: 'Tab out', runtimeFilter: { field: 'person' } },
+  })
+  const input = widget.getByLabel('Filter tasks by person')
+  const options = page.getByRole('listbox', { name: 'Person' })
+  await input.click()
+  await expect(options).toBeVisible()
+  await page.getByRole('option', { name: 'Ada', exact: true }).click()
+  await expect(options).toBeVisible()
+  await expect(input).toBeFocused()
+
+  // Tab with no query typed moves on: the list must not stay over the rows.
+  await page.keyboard.press('Tab')
+  await expect(input).not.toBeFocused()
+  await expect(options).toHaveCount(0)
+  await expect(input).toHaveAttribute('aria-expanded', 'false')
+  await expect(widget.locator('[data-todo-id]')).toContainText('Ada task')
+
+  // Back in the field (Shift+Tab), the list is there again. A chip's × is part of the field: the
+  // focus there leaves the list open; Shift+Tab on out of the field closes it.
+  await page.keyboard.press('Shift+Tab')
+  await expect(input).toBeFocused()
+  await expect(options).toBeVisible()
+  await page.keyboard.press('Shift+Tab')
+  await expect(widget.getByRole('button', { name: 'Remove Ada' })).toBeFocused()
+  await expect(options).toBeVisible()
+  await page.keyboard.press('Shift+Tab')
+  await expect(options).toHaveCount(0)
+
+  // Tab with a query typed accepts the match and stays (never closes).
+  await input.click()
+  await expect(options).toBeVisible()
+  await input.fill('bo')
+  await page.keyboard.press('Tab')
+  await expect(input).toBeFocused()
+  await expect(options).toBeVisible()
+  await expect(widget.getByRole('button', { name: 'Remove Bob' })).toBeVisible()
+})

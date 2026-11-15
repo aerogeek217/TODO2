@@ -90,6 +90,76 @@ describe('ThemeColorsEditor', () => {
     expect(swatch('Urgent priority').value).toBe(DEFAULT_THEMED_COLORS.dark.danger)
   })
 
+  describe('a row’s Reset (cr34, answer 18)', () => {
+    const reset = (label: string) => document.querySelector<HTMLButtonElement>(`button[aria-label="Reset ${label}"]`)
+    const swatch = (label: string) => document.querySelector<HTMLInputElement>(`input[type="color"][aria-label="${label}"]`)!
+
+    it('only a row with a color of its own has one', async () => {
+      await useSettingsStore.getState().setColor('dark', 'urgent', '#00ff00')
+      await useSettingsStore.getState().setColor('dark', 'surface', '#222222')
+      render(<ThemeColorsEditor onClose={() => {}} />)
+      expect(reset('Urgent priority')).not.toBeNull()
+      expect(reset('Surface')).not.toBeNull()
+      expect(document.querySelectorAll('button[aria-label^="Reset "]')).toHaveLength(2)
+      expect(reset('Urgent priority')).toHaveTextContent(/^Reset$/)
+      // What it does, in the tooltip: a priority follows a color; any other has a default.
+      expect(reset('Urgent priority')).toHaveAttribute('title', 'Use the Danger accent color again')
+      expect(reset('Surface')).toHaveAttribute('title', 'Use the default color again')
+    })
+
+    it('a color set in the editor gets its Reset at once', async () => {
+      render(<ThemeColorsEditor onClose={() => {}} />)
+      expect(reset('Focus priority')).toBeNull()
+      fireEvent.change(swatch('Focus priority'), { target: { value: '#3b82f6' } })
+      await waitFor(() => expect(reset('Focus priority')).not.toBeNull())
+    })
+
+    it('resets that one priority: it follows Danger again — its override included — and the other overrides stay', async () => {
+      await useSettingsStore.getState().setColor('dark', 'danger', '#ff0000')
+      await useSettingsStore.getState().setColor('dark', 'urgent', '#00ff00')
+      await useSettingsStore.getState().setColor('dark', 'focus', '#3b82f6')
+      render(<ThemeColorsEditor onClose={() => {}} />)
+      const root = document.documentElement
+      expect(swatch('Urgent priority').value).toBe('#00ff00')
+
+      fireEvent.click(reset('Urgent priority')!)
+      await waitFor(() => expect(root.style.getPropertyValue('--color-marker-urgent')).toBe(''))
+      expect(root.style.getPropertyValue('--color-marker-urgent-bg')).toBe('')
+      expect(swatch('Urgent priority').value).toBe('#ff0000')
+      expect(reset('Urgent priority')).toBeNull()
+      await waitFor(async () => expect(await db.settings.get('color.dark.urgent')).toBeUndefined())
+      // Danger and Focus keep their own.
+      expect(swatch('Danger accent').value).toBe('#ff0000')
+      expect(swatch('Focus priority').value).toBe('#3b82f6')
+      expect(root.style.getPropertyValue('--color-marker-focus')).toBe('#3b82f6')
+      expect(reset('Danger accent')).not.toBeNull()
+      expect(reset('Focus priority')).not.toBeNull()
+    })
+
+    it('the focus moves to the row’s swatch (the button goes with the override)', async () => {
+      await useSettingsStore.getState().setColor('dark', 'accent', '#ff0000')
+      render(<ThemeColorsEditor onClose={() => {}} />)
+      const button = reset('Accent')!
+      button.focus()
+      fireEvent.click(button)
+      await waitFor(() => expect(reset('Accent')).toBeNull())
+      expect(document.activeElement).toBe(swatch('Accent'))
+      expect(swatch('Accent').value).toBe(DEFAULT_THEMED_COLORS.dark.accent)
+    })
+
+    it('it resets the working theme’s color, not the other theme’s', async () => {
+      await useSettingsStore.getState().setColor('dark', 'important', '#ff0000')
+      await useSettingsStore.getState().setColor('light', 'important', '#0000ff')
+      const { getByRole } = render(<ThemeColorsEditor onClose={() => {}} />)
+      fireEvent.click(getByRole('tab', { name: 'Light' }))
+      fireEvent.click(reset('Important priority')!)
+      await waitFor(() => expect(useSettingsStore.getState().customizedColors.light).toEqual([]))
+      expect(useSettingsStore.getState().customizedColors.dark).toEqual(['important'])
+      expect(useSettingsStore.getState().colors.dark.important).toBe('#ff0000')
+      expect(swatch('Important priority').value).toBe(DEFAULT_THEMED_COLORS.light.star)
+    })
+  })
+
   it('Focus’s own color is its typed token’s text and fill', async () => {
     await useSettingsStore.getState().setColor('dark', 'focus', '#3b82f6')
     const root = document.documentElement

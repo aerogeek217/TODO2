@@ -294,11 +294,90 @@ describe('TaskEditPopup', () => {
       const { props } = renderEditMode(makeTodo({}))
       const button = screen.getByRole('button', { name: /^Status/ })
       fireEvent.click(button)
-      expect(screen.getByRole('button', { name: 'No Status' })).toBeInTheDocument()
-      fireEvent.keyDown(screen.getByRole('button', { name: 'No Status' }), { key: 'Escape' })
-      expect(screen.queryByRole('button', { name: 'No Status' })).toBeNull()
+      // The options are a menu's radio items (cr34 U1; they were plain buttons under a button that said "menu").
+      expect(screen.getByRole('menuitemradio', { name: 'No Status' })).toBeInTheDocument()
+      fireEvent.keyDown(screen.getByRole('menuitemradio', { name: 'No Status' }), { key: 'Escape' })
+      expect(screen.queryByRole('menuitemradio', { name: 'No Status' })).toBeNull()
       expect(props.onClose).not.toHaveBeenCalled()
       expect(document.activeElement).toBe(button)
+    })
+
+    describe('the Status menu by keyboard (cr34 U1)', () => {
+      const STATUSES = [
+        { id: 1, name: 'Doing', color: '#888', icon: 'circle', sortOrder: 0 },
+        { id: 2, name: 'Waiting', color: '#888', icon: 'circle', sortOrder: 1 },
+      ]
+      const option = (name: string) => screen.getByRole('menuitemradio', { name })
+
+      it('opens with the focus on the current status, in a menu named Status outside the dialog', () => {
+        useStatusStore.setState({ statuses: STATUSES as never })
+        renderEditMode(makeTodo({ statusId: 2 }))
+        const button = screen.getByRole('button', { name: 'Status: Waiting' })
+        fireEvent.click(button)
+        expect(button).toHaveAttribute('aria-expanded', 'true')
+        const menu = screen.getByRole('menu', { name: 'Status' })
+        expect(screen.getByRole('dialog', { name: 'Edit task' }).contains(menu)).toBe(false)
+        expect(screen.getAllByRole('menuitemradio').map((o) => o.textContent)).toEqual(['No Status', 'Doing', 'Waiting'])
+        expect(option('Waiting')).toHaveAttribute('aria-checked', 'true')
+        expect(option('Doing')).toHaveAttribute('aria-checked', 'false')
+        expect(document.activeElement).toBe(option('Waiting'))
+      })
+
+      it('with no status, the focus starts on No Status', () => {
+        useStatusStore.setState({ statuses: STATUSES as never })
+        renderEditMode(makeTodo({}))
+        fireEvent.click(screen.getByRole('button', { name: 'Status: No status' }))
+        expect(option('No Status')).toHaveAttribute('aria-checked', 'true')
+        expect(document.activeElement).toBe(option('No Status'))
+      })
+
+      it('↓ on the button opens it; the arrows move, wrapping; Home and End jump', () => {
+        useStatusStore.setState({ statuses: STATUSES as never })
+        renderEditMode(makeTodo({ statusId: 1 }))
+        const button = screen.getByRole('button', { name: 'Status: Doing' })
+        button.focus()
+        fireEvent.keyDown(button, { key: 'ArrowDown' })
+        expect(document.activeElement).toBe(option('Doing'))
+        fireEvent.keyDown(option('Doing'), { key: 'ArrowDown' })
+        expect(document.activeElement).toBe(option('Waiting'))
+        fireEvent.keyDown(option('Waiting'), { key: 'ArrowDown' })
+        expect(document.activeElement).toBe(option('No Status'))
+        fireEvent.keyDown(option('No Status'), { key: 'ArrowUp' })
+        expect(document.activeElement).toBe(option('Waiting'))
+        fireEvent.keyDown(option('Waiting'), { key: 'Home' })
+        expect(document.activeElement).toBe(option('No Status'))
+        fireEvent.keyDown(option('No Status'), { key: 'End' })
+        expect(document.activeElement).toBe(option('Waiting'))
+      })
+
+      it('a pick writes the status, closes the menu and hands the focus back to the button', () => {
+        useStatusStore.setState({ statuses: STATUSES as never })
+        const { onUpdate, props } = renderEditMode(makeTodo({ statusId: 1 }))
+        const button = screen.getByRole('button', { name: 'Status: Doing' })
+        fireEvent.click(button)
+        // Enter on a focused button is its click.
+        fireEvent.click(option('Waiting'))
+        expect(onUpdate).toHaveBeenCalledWith({ statusId: 2 })
+        expect(screen.queryByRole('menu', { name: 'Status' })).toBeNull()
+        expect(button).toHaveAttribute('aria-expanded', 'false')
+        expect(document.activeElement).toBe(button)
+        expect(props.onClose).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByRole('button', { name: /^Status/ }))
+        fireEvent.click(option('No Status'))
+        expect(onUpdate).toHaveBeenLastCalledWith({ statusId: undefined })
+      })
+
+      it('Tab closes the menu, the focus back on the button to move on from', () => {
+        useStatusStore.setState({ statuses: STATUSES as never })
+        const { props } = renderEditMode(makeTodo({ statusId: 1 }))
+        const button = screen.getByRole('button', { name: 'Status: Doing' })
+        fireEvent.click(button)
+        fireEvent.keyDown(option('Doing'), { key: 'Tab' })
+        expect(screen.queryByRole('menu', { name: 'Status' })).toBeNull()
+        expect(document.activeElement).toBe(button)
+        expect(props.onClose).not.toHaveBeenCalled()
+      })
     })
 
     it('typing in the title doesn’t reconfigure the notes editor (a stable subtask target)', () => {

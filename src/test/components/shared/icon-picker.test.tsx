@@ -32,6 +32,38 @@ afterEach(cleanup)
 const value = () => JSON.parse(screen.getByTestId('value').textContent ?? 'null') as DrawnIcon | null
 
 describe('IconPicker', () => {
+  it('its ids are its own: two pickers share none, and each names its own parts (cr34 U11)', () => {
+    render(<><Harness recent={['🚀']} /><Harness recent={['🎯']} /></>)
+    for (const tab of screen.getAllByRole('tab', { name: 'Emoji' })) fireEvent.click(tab)
+    // The pickers' own ids: each one's Show as label and Recent caption.
+    const ids = Array.from(document.querySelectorAll('[data-icon-picker] [id]'), (el) => el.id).filter((id) => /-(show-as|recent)$/.test(id))
+    expect(ids).toHaveLength(4)
+    expect(new Set(ids).size).toBe(4)
+    for (const id of ids) expect(document.querySelectorAll(`[id="${id}"]`)).toHaveLength(1)
+    expect(document.getElementById('icon-picker-show-as')).toBeNull()
+    expect(document.getElementById('icon-picker-recent')).toBeNull()
+    // Each group is named by its own picker's caption.
+    const [first, second] = screen.getAllByRole('radiogroup', { name: 'Show as' })
+    expect(first!.getAttribute('aria-labelledby')).not.toBe(second!.getAttribute('aria-labelledby'))
+    const recents = screen.getAllByRole('group', { name: 'Recent' })
+    expect(recents).toHaveLength(2)
+    expect(recents[0]).toContainElement(screen.getByRole('button', { name: 'Emoji 🚀' }))
+    expect(recents[1]).toContainElement(screen.getByRole('button', { name: 'Emoji 🎯' }))
+  })
+
+  it('a problem with what was typed is the field’s description, by the picker’s own id (cr34 U11)', () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Emoji' }))
+    const field = screen.getByRole('textbox', { name: 'Emoji' })
+    fireEvent.change(field, { target: { value: 'abc' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    const problem = screen.getByRole('alert')
+    expect(problem.id).not.toBe('')
+    expect(problem.id).not.toBe('icon-picker-problem')
+    expect(field).toHaveAttribute('aria-describedby', problem.id)
+    expect(field).toHaveAttribute('aria-invalid', 'true')
+  })
+
   it('opens on Icons with the current (fallback) icon marked and focused; a pick closes it', () => {
     render(<Harness />)
     expect(screen.getByRole('tab', { name: 'Icons' })).toHaveAttribute('aria-selected', 'true')

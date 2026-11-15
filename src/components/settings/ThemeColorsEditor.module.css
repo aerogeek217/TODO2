@@ -38,3 +38,30 @@
 .themeToggleBtnActive:hover {
   color: var(--color-text-on-accent);
 }
+
+/* A row's Reset: there only while the row's color is the user's own; it
+   removes that one override (a priority then follows the color it follows). */
+.rowReset {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.rowReset:hover {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 640px) {
+  .rowReset {
+    min-height: var(--touch-target-min);
+    padding: 0 14px;
+  }
+}

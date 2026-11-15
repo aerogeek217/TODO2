@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSettingsStore, type ThemeColors, type ThemeName } from '../../stores/settings-store'
-import { themeColorShown } from '../../models/theme-colors'
+import { THEME_COLOR_FOLLOWS, themeColorShown } from '../../models/theme-colors'
 import { useResolvedTheme } from '../../hooks/use-resolved-theme'
 import { ColorInput } from '../shared/ColorInput'
 import styles from './EntityEditor.module.css'
@@ -31,7 +31,7 @@ interface ThemeColorsEditorProps {
 
 export function ThemeColorsEditor({ onClose }: ThemeColorsEditorProps) {
   const colors = useSettingsStore((s) => s.colors)
-  const { setColor, resetColors } = useSettingsStore.getState()
+  const { setColor, resetColor, resetColors } = useSettingsStore.getState()
   // Editor binds to the resolved theme on mount; the Light/Dark toggle below
   // only switches which `colors[theme]` bag the inputs read/write — it does
   // not change the user's theme (Settings → Appearance).
@@ -59,12 +59,31 @@ export function ThemeColorsEditor({ onClose }: ThemeColorsEditorProps) {
       </div>
 
       <div className={styles.list}>
-        {(Object.keys(colorLabels) as Array<keyof ThemeColors>).map((key) => (
-          <div key={key} className={settingsStyles.colorRow}>
-            <span className={settingsStyles.colorLabel}>{colorLabels[key]}</span>
-            <ColorInput value={themeColorShown(workingColors, customized, key)} onChange={(color) => setColor(workingTheme, key, color)} label={colorLabels[key]} />
-          </div>
-        ))}
+        {(Object.keys(colorLabels) as Array<keyof ThemeColors>).map((key) => {
+          const follows = THEME_COLOR_FOLLOWS[key]
+          return (
+            <div key={key} className={settingsStyles.colorRow} data-color-row={key}>
+              <span className={settingsStyles.colorLabel}>{colorLabels[key]}</span>
+              {/* Only a color the user set has a default to go back to. */}
+              {customized.includes(key) && (
+                <button
+                  type="button"
+                  className={editorStyles.rowReset}
+                  aria-label={`Reset ${colorLabels[key]}`}
+                  title={follows ? `Use the ${colorLabels[follows]} color again` : 'Use the default color again'}
+                  onClick={(e) => {
+                    // The button goes with the override: the focus moves to the row's swatch first.
+                    e.currentTarget.closest('[data-color-row]')?.querySelector<HTMLInputElement>('input[type="color"]')?.focus()
+                    void resetColor(workingTheme, key)
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+              <ColorInput value={themeColorShown(workingColors, customized, key)} onChange={(color) => setColor(workingTheme, key, color)} label={colorLabels[key]} />
+            </div>
+          )
+        })}
       </div>
 
       <div className={settingsStyles.buttonRow}>

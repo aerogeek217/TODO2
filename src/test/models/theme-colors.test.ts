@@ -6,6 +6,7 @@ import {
   THEME_COLOR_FOLLOWS,
   THEME_COLOR_VARS,
   parseColorSettingKey,
+  priorityTintText,
   themeColorShown,
   type ThemeColors,
   type ThemeName,
@@ -42,6 +43,21 @@ describe('theme colour seeds', () => {
 
   it('a colour follows only a colour with a value of its own', () => {
     for (const follows of Object.values(THEME_COLOR_FOLLOWS)) expect(THEME_COLOR_FOLLOWS[follows]).toBeUndefined()
+  })
+})
+
+describe('priorityTintText (cr34 U6)', () => {
+  it.each(['dark', 'light'] as const)('%s: Focus’s own colour as its token’s text is what the stylesheet does to the accent', (theme) => {
+    const tokens = declarations(css, THEME_RULES[theme])
+    // With no override the token's text follows the accent's text colour …
+    expect(tokens.get('--color-marker-focus-text')).toBe('var(--color-accent-text)')
+    // … so an override gets the same treatment: the colour itself (dark), darkened (light).
+    expect(priorityTintText(theme, 'var(--color-accent)')).toBe(tokens.get('--color-accent-text'))
+  })
+
+  it('the light theme darkens the colour; the dark theme keeps it', () => {
+    expect(priorityTintText('dark', '#3b82f6')).toBe('#3b82f6')
+    expect(priorityTintText('light', '#3b82f6')).toBe('color-mix(in srgb, #3b82f6 76%, black)')
   })
 })
 

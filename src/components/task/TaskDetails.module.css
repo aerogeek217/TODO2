@@ -363,20 +363,22 @@
   box-shadow: inset 0 0 0 1px var(--color-tint-8), var(--focus-ring);
 }
 
+/* On: the priority's own color on its own tint (the marker tokens: a priority
+   given its own color in Settings › Theme colors takes it here too). */
 .markerToggle[data-marker='focus'][aria-pressed='true'] {
-  background: var(--color-accent-bg-medium);
+  background: var(--color-marker-focus-bg);
   box-shadow: none;
   color: var(--color-marker-focus);
 }
 
 .markerToggle[data-marker='urgent'][aria-pressed='true'] {
-  background: var(--color-danger-bg);
+  background: var(--color-marker-urgent-bg);
   box-shadow: none;
   color: var(--color-marker-urgent);
 }
 
 .markerToggle[data-marker='important'][aria-pressed='true'] {
-  background: var(--color-followup-bg);
+  background: var(--color-marker-important-bg);
   box-shadow: none;
   color: var(--color-marker-important);
 }
@@ -438,38 +440,6 @@
 .statusCaret {
   color: var(--color-text-muted);
   font-size: var(--font-size-glyph-sm);
-}
-
-.statusMenu {
-  composes: menu from '../shared/dropdown.module.css';
-  min-width: 160px;
-  border-radius: 16px;
-  padding: 4px;
-}
-
-.statusOption {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 14px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-md);
-  font-family: inherit;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-  border-radius: 10px;
-}
-
-.statusOption:hover {
-  background: var(--color-tint-5);
-}
-
-.statusOptionActive {
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-semibold);
 }
 
 /* ── People and tags ── */
