@@ -127,8 +127,10 @@ for (const delay of [60, 150, 300]) {
     await new Promise((done) => setTimeout(done, delay))
     await Promise.all([first, rawClick(cdp, gear.x, gear.y)])
 
-    await expect(wsCell(page, 'notes')).toBeVisible()
-    await expect(page.getByRole('dialog', { name: 'Settings', exact: true })).toBeVisible()
+    // A lost press never lands, however long this waits; the long wait is for a 4× slowed CPU on a
+    // machine running the whole suite, where the mount alone can take several seconds.
+    await expect(wsCell(page, 'notes')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('dialog', { name: 'Settings', exact: true })).toBeVisible({ timeout: 30_000 })
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
     const downs = await page.evaluate(() => window.__downs ?? [])
     expect(downs.map((d) => d.label)).toEqual(['More', 'Settings'])

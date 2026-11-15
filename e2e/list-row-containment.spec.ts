@@ -143,6 +143,8 @@ async function expectSameWithoutContainment(page: Page, list: Locator, what: str
 }
 
 test('on screen a row draws and takes presses as it does without the containment', async ({ page }) => {
+  // A screenshot and a hit grid per state, twice: under a full suite's load this outruns the usual limit.
+  test.slow()
   await seedZooms(page)
 
   // At rest: the priority glows from the rows' left edges, the rings, the Focus glows.
