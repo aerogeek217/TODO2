@@ -307,7 +307,7 @@ test.describe('dividers', () => {
     await expect.poll(async () => Math.round((await box(a)).width)).toBe(120)
   })
 
-  test('part of a line previews where it goes, and on release makes a new line (unsaved); Save keeps it', async ({ page }) => {
+  test('part of a line previews where it goes, and on release makes a new line, saved at once: a reload keeps it', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',

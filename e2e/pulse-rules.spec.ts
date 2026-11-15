@@ -5,7 +5,7 @@ import { seedWorkspace, type WorkspaceSeed, expectLayoutStep, expectLayoutStored
  * Project pulse's rules (G5) in a real browser: Edit project pulse… opens
  * the editor under the widget's title; Stale given its own filter — typed
  * as an expression — and a name changes the card's count and its words
- * (drawn live); its Save writes them and the layout is then unsaved.
+ * (drawn live); its Save writes them to the layout as one undo step.
  */
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -34,7 +34,7 @@ const pulse = (page: Page) => page.locator('[data-glance="pulse"]')
 const card = (page: Page) => pulse(page).locator('[data-pulse-card]').first()
 const editor = (page: Page) => page.locator('[data-pulse-editor]')
 
-test('Edit project pulse…: Stale given a filter and a name changes the card’s count; the layout is unsaved', async ({ page }) => {
+test('Edit project pulse…: Stale given a filter and a name changes the card’s count, drawn live; Save writes it as one undo step', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(card(page).locator('[data-pulse-count="stale"]')).toHaveText('1 stale')
   await expect(card(page).locator('[data-pulse-count="late"]')).toHaveText('1 late (25%)')

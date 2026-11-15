@@ -54,7 +54,7 @@ test.describe('pieces and crossings', () => {
     await expect(crossing(page)).toHaveAccessibleName('Resize row and column')
   })
 
-  test('dragging a piece moves it alone: a new line, unsaved', async ({ page }) => {
+  test('dragging a piece moves it alone: a new line, saved at once', async ({ page }) => {
     await seedWorkspace(page, { layouts: [quad] })
     const a0 = await edges(wsCell(page, 'a'))
     const c0 = await edges(wsCell(page, 'c'))
