@@ -6,6 +6,7 @@ import { WidgetFaceContext, type WidgetFaceHost } from '../../hooks/use-widget-f
 import { listTabZoom } from '../../services/list-zoom'
 import { onDataReplaced } from '../../services/replace-data'
 import { closeWidgetPopup } from '../../services/widget-popup'
+import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { stepListZoom, type ZoomDirection } from '../../utils/list-zoom'
@@ -26,6 +27,14 @@ export const WIDGET_POPUP_MENU_LABEL = 'Widget options'
 
 /** The task editor on top owns Esc while it's open. */
 const editorIsOpen = () => useUIStore.getState().editPopupMode != null
+
+/**
+ * The user's close — Esc, ×, a press on the scrim: an editor opened from
+ * inside the popup that holds changes (Edit list, a widget editor) is asked
+ * first, Save / Discard / Keep editing (`editor-leave`): closing the popup
+ * takes its widget off the screen. With none it closes at once.
+ */
+const leavePopup = () => afterLeavingEditors(closeWidgetPopup)
 
 /**
  * Where the focus goes back in a cell when what opened the popup is gone (a
@@ -153,8 +162,8 @@ function withHeldZoom(entries: MenuEntry[], tab: LayoutTab, host: ListTabViewHos
  * title, the widget's own ⋯ entries (no cell layout entries, no Open larger,
  * no Change widget ›) and ×. What opens from inside (menus, editors, the task
  * editor, the task dialog) is a layer above it. Esc, × or a press on the
- * scrim close it; the focus goes back to what opened it (to the tab's cell
- * when that is gone).
+ * scrim close it (`leavePopup`: an editor with changes asks first); the
+ * focus goes back to what opened it (to the tab's cell when that is gone).
  */
 function WidgetPopup({ tab, listView }: {
   tab: LayoutTab
@@ -189,7 +198,7 @@ function WidgetPopup({ tab, listView }: {
   }, [tabId, openerName])
   return (
     <DialogFrame
-      onClose={closeWidgetPopup}
+      onClose={leavePopup}
       layer="overlay"
       initialFocus="panel"
       escapeBelongsElsewhere={() => menuOpen || editorIsOpen()}
@@ -214,7 +223,7 @@ function WidgetPopup({ tab, listView }: {
             <MoreIcon />
           </button>
         )}
-        <button type="button" className={styles.action} aria-label="Close" title="Close" onClick={closeWidgetPopup}>
+        <button type="button" className={styles.action} aria-label="Close" title="Close" onClick={leavePopup}>
           <CloseIcon size={12} />
         </button>
       </div>

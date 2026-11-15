@@ -8,11 +8,13 @@ import { registerModuleReset } from '../utils/module-reset'
  * while it is mounted (`registerOpenEditor`); whatever would close one or
  * take its subject off the screen from outside it — opening Settings or
  * another editor, a layout switch, a new or duplicated layout, a route
- * change — runs through `afterLeavingEditors` / `leaveOpenEditors`, which
- * asks each one holding changes in turn and carries on only once it was
- * saved or discarded (Keep editing: nothing happens). An editor closed
- * anyway (its subject gone: a data replace, an undo, another tab) says so
- * itself.
+ * change, and in a cell a tab switched or closed, a row collapsed, a split,
+ * merge or insert, Change widget, an added widget, the widget popup closed
+ * — runs through `afterLeavingEditors` / `leaveOpenEditors`, which asks each
+ * one holding changes in turn and carries on only once it was saved or
+ * discarded (Keep editing: nothing happens). An editor closed anyway says
+ * so itself: only where nothing could ask — a data replace, an undo, a hash
+ * typed in, a cell resized too small to show its widget.
  */
 export interface OpenEditor {
   /** Whether it holds changes that leaving would lose. */

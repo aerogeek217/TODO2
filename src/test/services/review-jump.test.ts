@@ -148,6 +148,32 @@ describe('jumpToReview', () => {
     unregister()
   })
 
+  it('an editor with changes asks too when the jump would close the widget popup (it was opened from there)', async () => {
+    let answer = false
+    const ask = vi.fn(() => Promise.resolve(answer))
+    const unregister = registerOpenEditor({ changed: () => true, ask })
+    // The Review widget is in sight (nothing of its cell is hidden); the popup shows another tab.
+    const shown = layout(1, grid([[cell('a', [notes('n')]), cell('b', [review('rv')])]]))
+    useWorkspaceStore.setState({ working: shown, saved: shown, layouts: [shown], activeLayoutId: 1 })
+    useUIStore.setState({ widgetPopup: { kind: 'tab', tabId: 'n' } })
+    expect(await jumpToReview(AISHA)).toBe(false)
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'tab', tabId: 'n' })
+    expect(useListWidgetStore.getState().reviewFilters.rv).toBeUndefined()
+    // Saved or discarded: the popup closes and the filter is shown.
+    answer = true
+    expect(await jumpToReview(AISHA)).toBe(true)
+    expect(useUIStore.getState().widgetPopup).toBeNull()
+    expect(useListWidgetStore.getState().reviewFilters.rv).toEqual(AISHA)
+    // The popup on the Review widget itself stays open: nothing to ask about.
+    ask.mockClear()
+    useUIStore.setState({ widgetPopup: { kind: 'tab', tabId: 'rv' } })
+    expect(await jumpToReview(AISHA)).toBe(true)
+    expect(ask).not.toHaveBeenCalled()
+    expect(useUIStore.getState().widgetPopup).toEqual({ kind: 'tab', tabId: 'rv' })
+    unregister()
+  })
+
   it('closes the task dialog and the filtered-tasks panel, which would cover the widget', async () => {
     const open = layout(1, grid([[cell('a', [review('rv')])]]))
     useWorkspaceStore.setState({ working: open, saved: open, layouts: [open], activeLayoutId: 1 })

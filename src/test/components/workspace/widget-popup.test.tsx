@@ -10,6 +10,7 @@ import { createTab, type LayoutBody, type LayoutCell, type NumberTab, type Persi
 import { replaceData } from '../../../services/replace-data'
 import { openNumberList, openReviewPopup, openWidgetLarger } from '../../../services/widget-popup'
 import { listTabZoom } from '../../../services/list-zoom'
+import { registerOpenEditor } from '../../../stores/editor-leave'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -132,6 +133,53 @@ const cellEl = (id: string) => document.querySelector<HTMLElement>(`[data-ws-cel
 const bodyOf = (id: string) => document.querySelector<HTMLElement>(`[data-ws-cell-body="${id}"]`)!
 const placeholderIn = (id: string) => cellEl(id).querySelector<HTMLElement>('[data-open-larger-placeholder]')
 const closePopup = () => act(() => { useUIStore.getState().closeWidgetPopup() })
+
+describe('closing the popup over an editor opened from it that holds changes', () => {
+  function openList() {
+    const k = cell('k', [listTab])
+    open(single(k))
+    renderCell(k)
+    act(() => { void openWidgetLarger('l') })
+  }
+  const WAYS: Array<[name: string, close: () => void]> = [
+    ['its ×', () => fireEvent.click(within(popup()!).getByRole('button', { name: 'Close' }))],
+    ['Esc', () => fireEvent.keyDown(popup()!, { key: 'Escape' })],
+    ['a press on its scrim', () => {
+      const scrim = document.querySelector('[data-modal-backdrop]')!
+      fireEvent.mouseDown(scrim)
+      fireEvent.mouseUp(scrim)
+      fireEvent.click(scrim)
+    }],
+  ]
+
+  it.each(WAYS)('%s asks first: Keep editing keeps the popup, Save or Discard then closes it', async (_name, close) => {
+    openList()
+    let answer = false
+    let changed = true
+    const ask = vi.fn(() => { if (answer) changed = false; return Promise.resolve(answer) })
+    const unregister = registerOpenEditor({ changed: () => changed, ask })
+    close()
+    await act(async () => {})
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(popup()).not.toBeNull()
+    answer = true
+    close()
+    await act(async () => {})
+    expect(ask).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(popup()).toBeNull())
+    unregister()
+  })
+
+  it.each(WAYS)('%s with no editor holding changes closes it in the same tick, asking nothing', (_name, close) => {
+    openList()
+    const ask = vi.fn(() => Promise.resolve(false))
+    const unregister = registerOpenEditor({ changed: () => false, ask })
+    close()
+    expect(useUIStore.getState().widgetPopup).toBeNull()
+    expect(ask).not.toHaveBeenCalled()
+    unregister()
+  })
+})
 
 describe('one live widget per tab: the cell shows a placeholder while its tab is open larger', () => {
   it('a list: its rows are in the popup only, the cell names it as open larger; closed, the cell’s list is back', () => {

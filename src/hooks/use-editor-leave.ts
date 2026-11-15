@@ -1,8 +1,25 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
-import { registerOpenEditor } from '../stores/editor-leave'
+import { leaveOpenEditors, registerOpenEditor } from '../stores/editor-leave'
+import { STRIP_TAB_SELECTOR } from '../utils/dom-contract'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
 import { useLatestRef } from './use-latest-ref'
+
+/**
+ * A press an editor's question held (its press-elsewhere rule: the press
+ * went no further) on a cell strip's tab is made again once every editor was
+ * saved or discarded — the tab then switches, as it does from the keyboard,
+ * where the switch itself asks (`afterLeavingEditors`). The one press that
+ * carries on: switching tabs is what the user asked for, and the question
+ * was about leaving. Keep editing: nothing. Not a press on a button inside
+ * the tab (its ×, which closes it: pressed again by the user).
+ */
+export function carryOnAfterLeave(target: EventTarget | null): void {
+  if (!(target instanceof Element)) return
+  const tab = target.closest<HTMLElement>(STRIP_TAB_SELECTOR)
+  if (!tab || target.closest('button') != null) return
+  void leaveOpenEditors().then((left) => { if (left && tab.isConnected) tab.click() })
+}
 
 /**
  * The leave question of an editor dialog that holds a copy until its Save
@@ -20,7 +37,8 @@ import { useLatestRef } from './use-latest-ref'
  *   (Settings, another editor, a layout switch, a route change) asks first
  *   (`afterLeavingEditors`).
  * - Closed anyway with changes, not through Save or Discard (its subject
- *   gone — a data replace, an undo, another tab), it says so (`dropped`).
+ *   gone where nothing could ask — a data replace, an undo, a typed hash, a
+ *   cell resized too small for its widget), it says so (`dropped`).
  * - `save` / `discard` — its footer's buttons: they close it for good, so
  *   closing drops nothing.
  */

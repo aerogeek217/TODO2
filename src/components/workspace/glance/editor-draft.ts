@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { useEditorLeave } from '../../../hooks/use-editor-leave'
+import { carryOnAfterLeave, useEditorLeave } from '../../../hooks/use-editor-leave'
 import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { configPatch, sameConfigValue } from '../../../utils/config-patch'
 import { isInLayerAbove } from '../../../utils/dom-layers'
@@ -123,7 +123,8 @@ export function useEditorDraft<C extends object>({ tabId, stored, write, onClose
  * elsewhere: inside it, on its anchor (the widget it edits), or in a layer
  * stacked above it (a picker, a menu, the close question). A press the
  * editor holds (it asked) is swallowed — its click too — so it doesn't go
- * on to what it pressed; one it lets close goes on. Capture phase on the
+ * on to what it pressed (a tab's alone is made again once the answer is
+ * Save or Discard, `carryOnAfterLeave`); one it lets close goes on. Capture phase on the
  * document, after an expression field's own hold (on the window), which
  * stops the press first.
  */
@@ -157,6 +158,8 @@ export function usePressElsewhereCloses(
       if (!held) return
       if (e.type === 'mousedown') e.preventDefault()
       e.stopPropagation()
+      // A tab pressed: it switches once the question was answered Save or Discard.
+      carryOnAfterLeave(e.target)
     }
     const onClick = (e: MouseEvent) => {
       if (!held) return

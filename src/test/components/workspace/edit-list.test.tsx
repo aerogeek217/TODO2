@@ -363,6 +363,77 @@ describe('Edit list', () => {
     expect(draft()).toMatchObject({ name: 'Waiting' })
   })
 
+  describe('a press on a strip’s tab that the question held', () => {
+    let switched = 0
+    let closed = 0
+    /** Edit list open with a change, beside a strip tab (with its ×) as `CellTabStrip` draws one. */
+    function openBesideTab() {
+      switched = 0
+      closed = 0
+      render(
+        <>
+          <Cell />
+          <div role="tab" data-ws-tab="t2" onClick={() => { switched++ }}>
+            Notes
+            <button type="button" aria-label="Close Notes" onClick={(e) => { e.stopPropagation(); closed++ }}>×</button>
+          </div>
+          <EditListHost />
+          <ConfirmPromptHost />
+        </>,
+      )
+      act(() => useUIStore.getState().openListEditor(7, 't1'))
+      fireEvent.change(within(screen.getByRole('dialog', { name: 'Edit list Waiting on' })).getByLabelText('Name'), { target: { value: 'Waiting' } })
+    }
+    const press = (el: Element) => {
+      fireEvent.pointerDown(el)
+      fireEvent.mouseDown(el)
+      fireEvent.click(el)
+    }
+
+    it('asks once and goes no further; Keep editing leaves the tab alone', async () => {
+      openBesideTab()
+      press(screen.getByRole('tab'))
+      expect(useUIStore.getState().confirmPrompts).toHaveLength(1)
+      expect(switched).toBe(0)
+      await answer('Keep editing')
+      expect(switched).toBe(0)
+      expect(editorOpen()).toBe(true)
+      expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
+    })
+
+    it.each(['Save', 'Discard'] as const)('%s: the tab’s click is then made, once, with no second question', async (label) => {
+      openBesideTab()
+      press(screen.getByRole('tab'))
+      await answer(label)
+      await vi.waitFor(() => expect(switched).toBe(1))
+      expect(editorOpen()).toBe(false)
+      expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.name).toBe(label === 'Save' ? 'Waiting' : 'Waiting on')
+    })
+
+    it('a Save whose write fails makes no click: Edit list is still open', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.spyOn(listDefinitionRepository, 'update').mockRejectedValue(new DOMException('full', 'QuotaExceededError'))
+      openBesideTab()
+      press(screen.getByRole('tab'))
+      await answer('Save')
+      await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: "Couldn't save list “Waiting on”." }))
+      expect(switched).toBe(0)
+      expect(editorOpen()).toBe(true)
+      vi.restoreAllMocks()
+    })
+
+    it('the tab’s × is pressed again by the user: its press is not made for them', async () => {
+      openBesideTab()
+      press(screen.getByRole('button', { name: 'Close Notes' }))
+      expect(useUIStore.getState().confirmPrompts).toHaveLength(1)
+      await answer('Discard')
+      await act(async () => {})
+      expect(closed).toBe(0)
+      expect(switched).toBe(0)
+    })
+  })
+
   it('a press on a control acting on its own list (the line’s words or summary) is not a press elsewhere', () => {
     render(<><Cell /><button type="button" data-edit-list-keep="7">Words</button><button type="button" data-edit-list-keep="8">Other list</button><EditListHost /></>)
     act(() => useUIStore.getState().openListEditor(7, 't1'))

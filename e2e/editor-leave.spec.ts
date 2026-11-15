@@ -120,11 +120,163 @@ async function mainTabKinds(page: Page): Promise<string[] | undefined> {
     .find((l) => l.name === 'Main')?.cells.flatMap((c) => c.tabs.map((t) => t.kind))
 }
 
-test('Delete on a tab asks before it closes the tab; Keep editing closes nothing; Discard closes it', async ({ page }) => {
+type MenuPick = [role: 'menuitem' | 'menuitemradio', name: string | RegExp]
+
+/** Opens cell `cellId`'s menu `button` and runs its `items` in turn (a submenu's after its parent), all by the keys. */
+async function pickByKeys(page: Page, cellId: string, button: 'Cell options' | 'Cell layout', ...items: MenuPick[]): Promise<void> {
+  await page.locator(`[data-ws-cell="${cellId}"]`).getByRole('button', { name: button, exact: true }).focus()
+  await page.keyboard.press('Enter')
+  for (const [role, name] of items) {
+    const entry = page.getByRole('menu').last().getByRole(role, { name })
+    await expect(entry).toBeVisible()
+    await entry.focus()
+    await page.keyboard.press('Enter')
+  }
+}
+
+/** Team's list and Notes as two tabs of one cell, the list shown. */
+const TWO_TABS: WorkspaceSeed = {
+  ...SEED,
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, { id: 'n1', kind: 'notes' }] })] }] }],
+}
+const stripTab = (page: Page, tabId: string) => page.locator(`[role="tab"][data-ws-tab="${tabId}"]`)
+/** The notice an editor closed without its question leaves behind. */
+const droppedNotice = (page: Page) => page.getByText('weren’t saved')
+/** Layout Main as stored: whether its first row is collapsed, and its cells' tab kinds. */
+async function mainLayout(page: Page): Promise<{ collapsed: boolean; cells: string[][] } | undefined> {
+  const main = (await readStore<{ name: string; grid: { rows: Array<{ collapsed?: boolean }> }; cells: Array<{ tabs: Array<{ kind: string }> }> }>(page, 'layouts'))
+    .find((l) => l.name === 'Main')
+  return main && { collapsed: main.grid.rows[0]?.collapsed === true, cells: main.cells.map((c) => c.tabs.map((t) => t.kind)) }
+}
+
+test('a tab switched by the arrow keys asks; Keep editing stays on the list; Discard switches, the focus on the new tab', async ({ page }) => {
+  await seedWorkspace(page, TWO_TABS)
+  await dirtyEditList(page)
+  const list = stripTab(page, 't1')
+  const notes = stripTab(page, 'n1')
+  await list.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(question(page)).toBeVisible()
+  await expect(list).toHaveAttribute('aria-selected', 'true')
+  await answer(page, 'Keep editing')
+  await expect(editList(page)).toBeVisible()
+  await expect(list).toHaveAttribute('aria-selected', 'true')
+  await expect(wsListWidget(page, 't1').getByTestId('list-summary')).toHaveText('Name')
+
+  await list.focus()
+  await page.keyboard.press('ArrowRight')
+  await answer(page, 'Discard')
+  await expect(notes).toHaveAttribute('aria-selected', 'true')
+  await expect(notes).toBeFocused()
+  await expect(editList(page)).toHaveCount(0)
+  await expect(droppedNotice(page)).toHaveCount(0)
+  expect(await teamSort(page)).toBe('manual')
+})
+
+test('a click on another tab asks once; Keep editing stays; Save writes the list, then the tab switches', async ({ page }) => {
+  await seedWorkspace(page, TWO_TABS)
+  await dirtyEditList(page)
+  const list = stripTab(page, 't1')
+  const notes = stripTab(page, 'n1')
+  await notes.click()
+  await expect(question(page)).toBeVisible()
+  await expect(page.getByRole('dialog', { name: /^Save changes/ })).toHaveCount(1)
+  await answer(page, 'Keep editing')
+  await expect(editList(page)).toBeVisible()
+  await expect(list).toHaveAttribute('aria-selected', 'true')
+
+  await notes.click()
+  await answer(page, 'Save')
+  // The click carries on: the tab switches, with no second question.
+  await expect(notes).toHaveAttribute('aria-selected', 'true')
+  await expect(editList(page)).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: /^Save changes/ })).toHaveCount(0)
+  await expect(droppedNotice(page)).toHaveCount(0)
+  await expect.poll(() => teamSort(page)).toBe('name')
+})
+
+test('Collapse row asks — the header’s button and the menu’s, by the keys; Discard collapses the row', async ({ page }) => {
+  await seedWorkspace(page, TWO_TABS)
+  await dirtyEditList(page)
+  await page.locator('[data-ws-cell="k1"]').getByRole('button', { name: 'Collapse row' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(question(page)).toBeVisible()
+  await answer(page, 'Keep editing')
+  await expect(editList(page)).toBeVisible()
+  expect((await mainLayout(page))?.collapsed).toBe(false)
+
+  await pickByKeys(page, 'k1', 'Cell layout', ['menuitem', 'Collapse row'])
+  await expect(question(page)).toBeVisible()
+  await answer(page, 'Discard')
+  await expect(editList(page)).toHaveCount(0)
+  await expect.poll(async () => (await mainLayout(page))?.collapsed).toBe(true)
+  await expect(droppedNotice(page)).toHaveCount(0)
+  expect(await teamSort(page)).toBe('manual')
+})
+
+test('Merge with from a menu run by the keys asks; Keep editing merges nothing; Discard merges the cells', async ({ page }) => {
   await seedWorkspace(page, {
     ...SEED,
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, { id: 'n1', kind: 'notes' }] })] }] }],
+    layouts: [{
+      name: 'Main',
+      columns: [
+        { id: 'c0', rows: [wsRow({ id: 'k0', tabs: [{ id: 'n0', kind: 'notes' }] })] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
+      ],
+    }],
   })
+  await dirtyEditList(page)
+  // Notes takes the list's cell: its tabs join after Notes, which stays shown — the list would go out of sight.
+  const merge = () => pickByKeys(page, 'k0', 'Cell layout', ['menuitem', 'Merge with'], ['menuitem', 'Right'])
+  await merge()
+  await expect(question(page)).toBeVisible()
+  await answer(page, 'Keep editing')
+  await expect(editList(page)).toBeVisible()
+  expect((await mainLayout(page))?.cells).toEqual([['notes'], ['lens']])
+
+  await merge()
+  await answer(page, 'Discard')
+  await expect(editList(page)).toHaveCount(0)
+  await expect.poll(async () => (await mainLayout(page))?.cells).toEqual([['notes', 'lens']])
+  await expect(droppedNotice(page)).toHaveCount(0)
+})
+
+test('closing the widget popup over an Edit list with changes asks; Keep editing keeps both; Discard closes it', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  const cell = page.locator('[data-ws-cell="k1"]')
+  await cell.hover()
+  await cell.getByRole('button', { name: 'Open larger' }).click()
+  const popup = page.getByTestId('widget-popup')
+  await expect(popup).toBeVisible()
+  await popup.getByRole('button', { name: 'Widget options' }).click()
+  await page.getByRole('menu', { name: 'Widget options' }).getByRole('menuitem', { name: /^Edit list/ }).click()
+  await expect(editList(page)).toBeVisible()
+  await editList(page).getByRole('button', { name: /^Sort by/ }).click()
+  await page.getByRole('menuitemradio', { name: /^Name/ }).click()
+
+  // Its ×.
+  await popup.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(question(page)).toBeVisible()
+  await answer(page, 'Keep editing')
+  await expect(popup).toBeVisible()
+  await expect(editList(page)).toBeVisible()
+  // A press on its scrim.
+  await page.mouse.click(6, 894)
+  await expect(question(page)).toBeVisible()
+  await answer(page, 'Keep editing')
+  await expect(popup).toBeVisible()
+  await expect(editList(page)).toBeVisible()
+
+  await popup.getByRole('button', { name: 'Close', exact: true }).click()
+  await answer(page, 'Discard')
+  await expect(popup).toHaveCount(0)
+  await expect(editList(page)).toHaveCount(0)
+  await expect(droppedNotice(page)).toHaveCount(0)
+  expect(await teamSort(page)).toBe('manual')
+})
+
+test('Delete on a tab asks before it closes the tab; Keep editing closes nothing; Discard closes it', async ({ page }) => {
+  await seedWorkspace(page, TWO_TABS)
   await dirtyEditList(page)
   const tab = page.locator('[data-ws-tab="t1"]')
   await tab.focus()
@@ -148,18 +300,7 @@ test('Delete on a tab asks before it closes the tab; Keep editing closes nothing
 test('Change widget and Close cell from a menu run by the keys ask first; Keep editing changes nothing', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await dirtyEditList(page)
-  const cell = page.locator('[data-ws-cell="k1"]')
-  /** Opens the cell's menu `button` and runs its `items` in turn (a submenu's after its parent), all by the keys. */
-  const pick = async (button: 'Cell options' | 'Cell layout', ...items: Array<[role: 'menuitem' | 'menuitemradio', name: string | RegExp]>) => {
-    await cell.getByRole('button', { name: button, exact: true }).focus()
-    await page.keyboard.press('Enter')
-    for (const [role, name] of items) {
-      const entry = page.getByRole('menu').last().getByRole(role, { name })
-      await expect(entry).toBeVisible()
-      await entry.focus()
-      await page.keyboard.press('Enter')
-    }
-  }
+  const pick = (button: 'Cell options' | 'Cell layout', ...items: MenuPick[]) => pickByKeys(page, 'k1', button, ...items)
   const changeToCalendar = () => pick('Cell options', ['menuitem', /^Change widget/], ['menuitemradio', 'Calendar'])
 
   await changeToCalendar()

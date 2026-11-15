@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent, within, act } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { MobileWorkspaceView } from '../../../components/workspace/MobileWorkspaceView'
@@ -6,6 +6,7 @@ import { WidgetPopupHost } from '../../../components/workspace/WidgetPopup'
 import { emptyPredicate } from '../../../models'
 import { createTab, type LayoutBody, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { openWidgetLarger } from '../../../services/widget-popup'
+import { registerOpenEditor } from '../../../stores/editor-leave'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -103,5 +104,48 @@ describe('a tab open larger on the phone', () => {
     act(() => { useUIStore.getState().closeWidgetPopup() })
     expect(cellEl('k').querySelector('[data-open-larger-placeholder]')).toBeNull()
     expect(cellEl('k').querySelectorAll('[data-list-host="l"]')).toHaveLength(1)
+  })
+})
+
+describe('an open editor with changes is asked before a phone cell’s tab switch or collapse', () => {
+  const activeTab = () => useWorkspaceStore.getState().working?.cells[0]?.activeTabId
+  const tab = (id: string) => document.querySelector<HTMLElement>(`[data-ws-tab="${id}"]`)!
+  const two = () => grid([[cell('k', [createTab('notes', 'a'), createTab('notes', 'b')], { activeTabId: 'a' })]])
+  const collapse = () => {
+    fireEvent.click(within(cellEl('k')).getByRole('button', { name: 'Cell options' }))
+    fireEvent.click(within(document.body).getByRole('menuitem', { name: 'Collapse row' }))
+  }
+
+  it('Keep editing changes nothing; Save or Discard then switches the tab, or collapses the row', async () => {
+    show(two())
+    let answer = false
+    let changed = true
+    const ask = vi.fn(() => { if (answer) changed = false; return Promise.resolve(answer) })
+    const unregister = registerOpenEditor({ changed: () => changed, ask })
+    fireEvent.click(tab('b'))
+    await act(async () => {})
+    collapse()
+    await act(async () => {})
+    expect(ask).toHaveBeenCalledTimes(2)
+    expect(activeTab()).toBe('a')
+    expect(rowCollapsed('r1')).toBe(false)
+    answer = true
+    fireEvent.click(tab('b'))
+    await act(async () => {})
+    expect(ask).toHaveBeenCalledTimes(3)
+    await vi.waitFor(() => expect(activeTab()).toBe('b'))
+    unregister()
+  })
+
+  it('with no editor holding changes nothing asks: the tab switches and the row collapses in the same tick', () => {
+    show(two())
+    const ask = vi.fn(() => Promise.resolve(false))
+    const unregister = registerOpenEditor({ changed: () => false, ask })
+    fireEvent.click(tab('b'))
+    expect(activeTab()).toBe('b')
+    collapse()
+    expect(rowCollapsed('r1')).toBe(true)
+    expect(ask).not.toHaveBeenCalled()
+    unregister()
   })
 })
