@@ -592,12 +592,45 @@ export async function expectLayoutStep(page: Page, name?: string | RegExp): Prom
 }
 
 /**
- * A divider moved part of a line: a structural edit saved at once — an undo
- * step with no snackbar (the table shows the move), then stored.
+ * A divider moved part of a line: a structural edit saved at once — the
+ * newest undo step (`Moved divider`), with no snackbar (the table shows the
+ * move), then stored. A drag that did nothing leaves no such step.
  */
 export async function expectDividerStep(page: Page): Promise<void> {
   await expectLayoutStored(page)
+  await expect.poll(() => newestUndoStep(page)).toBe('Moved divider')
   await expect(page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true })).toHaveCount(0)
+}
+
+/** The name of the newest step on the undo stack (what Ctrl+Z would undo), `null` with none. */
+export async function newestUndoStep(page: Page): Promise<string | null> {
+  return page.evaluate(async () => {
+    const mod = (await import(/* @vite-ignore */ '/src/stores/undo-store.ts' as string)) as {
+      useUndoStore: { getState: () => { undoStack: Array<{ description: string }> } }
+    }
+    return mod.useUndoStore.getState().undoStack.at(-1)?.description ?? null
+  })
+}
+
+/**
+ * Records what the undo snackbar says from now on (its live region's text
+ * at every change): the returned reader gives every text so far — empty
+ * while no snackbar has shown, however briefly.
+ */
+export async function watchSnackbar(page: Page): Promise<() => Promise<string[]>> {
+  await page.evaluate(() => {
+    const region = document.querySelector('[data-snackbar-live]')
+    if (!region) throw new Error('no snackbar region')
+    const said: string[] = []
+    const note = () => {
+      const text = region.textContent?.trim() ?? ''
+      if (text !== '' && said.at(-1) !== text) said.push(text)
+    }
+    note()
+    new MutationObserver(note).observe(region, { childList: true, subtree: true, characterData: true })
+    ;(window as unknown as { __snackbarSaid: string[] }).__snackbarSaid = said
+  })
+  return () => page.evaluate(() => (window as unknown as { __snackbarSaid: string[] }).__snackbarSaid.slice())
 }
 
 /**
