@@ -1,6 +1,6 @@
 import { memo, useMemo, type CSSProperties } from 'react'
 import { getActiveTab, type LayoutCell, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { cellAtTrack, cellById, edgeBetween, edgeStretches, lineCrossings, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
+import { edgeBetween, edgeStretches, isWholeLine, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
 import { previewedLayout } from '../../utils/workspace-preview'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
 import { isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
@@ -8,7 +8,6 @@ import { isFitTrack } from '../../utils/workspace-rows'
 import { pairPercent } from '../../utils/workspace-resize'
 import { WorkspaceCell } from './WorkspaceCell'
 import { WorkspaceDivider, type DividerValue } from './WorkspaceDivider'
-import { WorkspaceCrossing } from './WorkspaceCrossing'
 import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
@@ -103,14 +102,6 @@ interface DividerItem {
   afterId: string
 }
 
-/** A crossing handle to draw: its lines, its React key and its corner cell. */
-interface CrossingItem {
-  col: number
-  row: number
-  key: string
-  cornerId: string
-}
-
 /**
  * The dividers to draw (one per stretch, keyed by its axis and first cells).
  * While a divider drag previews a structural move (`handle`), the dragged
@@ -126,7 +117,7 @@ function dividerItems(layout: WorkspaceLayout, handle: ResizeHandle | null): Div
     const b = after[0]
     if (a && b) items.push({ stretch, key: `${stretch.axis}:${a.id}|${b.id}`, beforeId: a.id, afterId: b.id })
   }
-  if (handle?.kind !== 'divider') return items
+  if (!handle) return items
   const edge = edgeBetween(layout, handle.beforeId, handle.afterId)
   if (!edge || edge.axis !== handle.axis) return items
   const dragged = { key: `${handle.axis}:${handle.beforeId}|${handle.afterId}`, beforeId: handle.beforeId, afterId: handle.afterId }
@@ -137,32 +128,10 @@ function dividerItems(layout: WorkspaceLayout, handle: ResizeHandle | null): Div
 }
 
 /**
- * The crossing handles to draw (one per "+" — none on a row line beside a
- * collapsed track —, keyed by the cells above-left and below-right). While
- * a crossing drag previews a structural move (`handle`), the dragged
- * crossing keeps its key and sits at its corner cell's bottom-right, a "+"
- * there or not, so it is never remounted under the pointer.
+ * One divider per stretch of grid line between cells (`edgeStretches`),
+ * labelled with the cells beside it. (Layout edit mode E4: no crossing
+ * handles — a divider's plain drag moves its whole line, Alt-drag its piece.)
  */
-function crossingItems(layout: WorkspaceLayout, handle: ResizeHandle | null): CrossingItem[] {
-  const items: CrossingItem[] = []
-  for (const { col, row } of lineCrossings(layout)) {
-    if (!rowLineMoves(layout, row)) continue
-    const corner = cellAtTrack(layout, col - 1, row - 1)
-    const across = cellAtTrack(layout, col, row)
-    if (corner && across) items.push({ col, row, key: `${corner.id}|${across.id}`, cornerId: corner.id })
-  }
-  if (handle?.kind !== 'crossing') return items
-  const corner = cellById(layout, handle.cornerId)
-  if (!corner) return items
-  const col = corner.area.col + corner.area.colSpan
-  const row = corner.area.row + corner.area.rowSpan
-  const dragged = { col, row, key: handle.key, cornerId: handle.cornerId }
-  const at = items.findIndex((x) => x.col === col && x.row === row)
-  const others = items.map((x, i) => (i === at ? dragged : x)).filter((x, i) => i === at || x.key !== handle.key)
-  return at >= 0 ? others : [...others, dragged]
-}
-
-/** One divider per stretch of grid line between cells (`edgeStretches`), labelled with the cells beside it, and a crossing handle at each "+". */
 function Dividers({ layout, handle }: { layout: WorkspaceLayout; handle: ResizeHandle | null }) {
   const active = useMemo(() => layout.cells.map((c) => getActiveTab(c)).filter((t): t is LayoutTab => t != null), [layout.cells])
   const titles = useTabTitles(active)
@@ -184,10 +153,9 @@ function Dividers({ layout, handle }: { layout: WorkspaceLayout; handle: ResizeH
           value={dividerValue(layout, stretch)}
           style={dividerPlacement(stretch)}
           fitTrackIds={fitTracksBeside(layout, stretch)}
+          // E4: a plain drag moves the whole line; Alt-drag breaks a piece that is part of one off.
+          partOfLine={!isWholeLine(layout, stretch)}
         />
-      ))}
-      {crossingItems(layout, handle).map(({ col, row, key, cornerId }) => (
-        <WorkspaceCrossing key={key} col={col} row={row} cornerId={cornerId} testId={key} />
       ))}
     </>
   )

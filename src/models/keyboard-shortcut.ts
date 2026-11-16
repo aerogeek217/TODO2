@@ -188,4 +188,6 @@ interface ShortcutInfoRow {
 export const SHORTCUT_INFO_ROWS: readonly ShortcutInfoRow[] = [
   { category: 'navigation', label: 'Shift+Up / Down', description: 'Extend selection' },
   { category: 'notes', label: 'Alt-T', description: 'Convert current line to task' },
+  // A workspace divider (layout edit mode E4): a plain drag or arrow key moves its whole line.
+  { category: 'general', label: 'Alt-drag', description: 'Divider: split its piece off the line (a plain drag moves the whole line)' },
 ]
