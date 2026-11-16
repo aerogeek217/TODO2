@@ -4,6 +4,7 @@ import { useShortcutLabel } from '../../hooks/use-shortcut-label'
 import { useUIStore } from '../../stores/ui-store'
 import { leaveLayout } from '../../stores/editor-leave'
 import { DisabledLayoutTabs } from '../workspace/LayoutTabs'
+import { LayoutEditTray } from '../workspace/LayoutEditTray'
 import { RedoIcon, UndoIcon } from '../shared/icons'
 import topBarStyles from './TopBar.module.css'
 import { LAYOUT_EDIT_TRAY_ATTR } from '../../utils/dom-contract'
@@ -13,8 +14,9 @@ import styles from './LayoutEditBar.module.css'
 const LAYER_SELECTOR = '[data-popover-level], [role="dialog"], [role="alertdialog"], [aria-modal="true"]'
 
 /**
- * Esc in the layout edit mode: with changes, Save / Discard / Keep editing
- * (`askLeaveEdit`); with none, the mode closes. Not an Esc a layer took — a
+ * Esc in the layout edit mode: a tap's pending move cancelled (E3); else,
+ * with changes, Save / Discard / Keep editing (`askLeaveEdit`); with none,
+ * the mode closes. Not an Esc a layer took — a
  * menu (it stops it), a popover or a dialog (one open when the key went
  * down: its own Esc closes it) — nor one a control already handled.
  */
@@ -28,6 +30,11 @@ function useModeEscape(): void {
       if (e.key !== 'Escape' || e.defaultPrevented || layered) return
       e.preventDefault()
       const ws = useWorkspaceStore.getState()
+      // A tap's pending move (E3): Esc cancels it, the mode stays.
+      if (ws.editing?.moveArmed) {
+        ws.disarmEditMove()
+        return
+      }
       if (layoutEditChanged(ws)) void ws.askLeaveEdit()
       else ws.leaveEdit()
     }
@@ -84,7 +91,8 @@ function useLayoutRequestsInMode(): void {
  * The top bar while the layout edit mode is on (layout edit mode E1): in
  * place of the bar's contents, `Editing “Default”`, the layouts as tabs
  * (shown, disabled: leaving the layout goes through Done or Cancel), the
- * widget tray's slot (`LAYOUT_EDIT_TRAY_ATTR`, empty until the cards phase),
+ * widget tray (`LAYOUT_EDIT_TRAY_ATTR`, `LayoutEditTray`: the kinds as chips
+ * to drag in or click; a tap's pending move's hint in their place),
  * then the mode's Undo and Redo (its own steps, as Ctrl+Z / Ctrl+Y are
  * while it is on), Cancel and Done. Esc leaves (asking with changes).
  */
@@ -111,7 +119,9 @@ export function LayoutEditBar() {
       <div className={styles.tabs}>
         <DisabledLayoutTabs layouts={layouts} activeLayoutId={activeLayoutId} />
       </div>
-      <div className={styles.tray} {...{ [LAYOUT_EDIT_TRAY_ATTR]: '' }} />
+      <div className={styles.tray} {...{ [LAYOUT_EDIT_TRAY_ATTR]: '' }}>
+        <LayoutEditTray />
+      </div>
       <div className={styles.actions}>
         <button
           type="button"

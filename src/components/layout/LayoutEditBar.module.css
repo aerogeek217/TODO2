@@ -40,13 +40,14 @@
   overflow: hidden;
 }
 
-/* The widget tray's slot: the free room between the tabs and the buttons. */
+/* The widget tray's slot: the free room between the tabs and the buttons (the tray scrolls inside it). */
 .tray {
   display: flex;
   align-items: center;
   gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
 }
 
 .actions {
