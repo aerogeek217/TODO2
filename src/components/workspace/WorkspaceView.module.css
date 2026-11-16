@@ -182,16 +182,18 @@
   transition: opacity 160ms ease;
 }
 
-/* The content over the card's surface (`data-edit-layer`): a header, a body. */
+/* The content over the card's surface (`data-edit-layer`): a header, a body —
+   a press there passes through to the surface unless something in it takes
+   presses again (a tab, a strip's Number). */
 .area[data-layout-editing] [data-edit-layer] {
   position: relative;
   z-index: 1;
+  pointer-events: none;
 }
 
 /* A tab strip's header: its tabs (and its +N) take presses, its room passes them to the surface. */
 .area[data-layout-editing] [data-ws-cell-header] {
   pointer-events: none;
-  padding-right: 34px;
 }
 
 .area[data-layout-editing] [data-ws-cell-header] :is([role='tab'], button) {
@@ -202,14 +204,16 @@
   display: none;
 }
 
-/* A strip's Number: the slot drags it (a tab's drag); nothing inside it takes a press. */
-.area[data-layout-editing] [data-number-slot] {
-  pointer-events: auto;
-  cursor: grab;
+/* Nothing in a body takes a press, whatever a widget sets on its own parts
+   (an empty calendar's note, the Neglect map's zone words, a strip's + and ×)… */
+.area[data-layout-editing] [data-ws-cell-body] * {
+  pointer-events: none !important;
 }
 
-.area[data-layout-editing] [data-number-slot] * {
-  pointer-events: none;
+/* … but a strip's Number: the slot itself drags it (a tab's drag). */
+.area[data-layout-editing] [data-ws-cell-body] [data-number-slot] {
+  pointer-events: auto !important;
+  cursor: grab;
 }
 
 /* The selected card or slot: an accent ring; a card's surface holding the focus rings it too. */

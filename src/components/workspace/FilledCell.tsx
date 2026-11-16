@@ -63,15 +63,22 @@ type MenuAt = { x: number; y: number } | null
 
 /**
  * The buttons of one kind a cell draws (the strip's header's, a top line's
- * slot, the cell's own while no top line holds one — briefly two): a menu
- * anchors to the one still in the page.
+ * slot, the cell's own while no top line holds one — briefly two; in the
+ * layout edit mode the card's ⋯ beside a hidden one): a menu anchors to the
+ * one still in the page and drawn.
  */
 function useButtonSet() {
   const [els] = useState(() => new Set<HTMLButtonElement>())
   const ref = useMemo(() => ({
     get current(): HTMLButtonElement | null {
-      for (const el of els) if (el.isConnected) return el
-      return null
+      // One drawn first (the layout edit mode hides the cell's own ⋯ for the card's).
+      let connected: HTMLButtonElement | null = null
+      for (const el of els) {
+        if (!el.isConnected) continue
+        if (el.getClientRects().length > 0) return el
+        connected ??= el
+      }
+      return connected
     },
   }), [els])
   const set = useCallback((el: HTMLButtonElement | null) => {
@@ -333,6 +340,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             collapsed={collapsed}
             activeCount={activeCount}
             ghosts={ghosts}
+            partsKey={editing ? 'edit' : undefined}
             onActivate={(tabId) => {
               const show = () => withViewTransition(() => {
                 void setActiveTab(tabId)
@@ -344,14 +352,15 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             }}
             onClose={closeTabAsked}
             onOpenTabMenu={(tabId, p) => openMenu(tabId, p)}
-            onAddTab={(ref) => setAddFlow({ anchor: anchorBelow(ref) })}
+            // In the mode a card takes a new tab from the tray (a chip dragged onto it, or clicked with it selected).
+            onAddTab={editing ? undefined : (ref) => setAddFlow({ anchor: anchorBelow(ref) })}
           />
           {stripHit && drag?.insertLeft != null && (
             <span className={styles.insertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
           )}
           <StillRoom />
-          {/* In the mode the card's ⋯ stands for these (the rulers collapse and expand rows). */}
-          {editing ? null : collapsed ? (
+          {/* In the mode the card's ⋯ stands for these (the rulers collapse and expand rows): its room kept here. */}
+          {editing ? <span className={styles.editMoreRoom} aria-hidden="true" /> : collapsed ? (
             <button
               type="button"
               className={styles.expand}

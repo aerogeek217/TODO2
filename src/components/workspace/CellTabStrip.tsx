@@ -217,6 +217,11 @@ interface CellTabStripProps {
    * close ×, add `+` and tab menu appear only when their handlers are given.
    */
   touch?: boolean
+  /**
+   * The header's other parts, as a key (the layout edit mode swaps its
+   * buttons for the card's ⋯'s room, E3): a change fits the tabs again.
+   */
+  partsKey?: string
   onActivate: (tabId: string) => void
   onClose?: (tabId: string) => void
   onOpenTabMenu?: (tabId: string, point: { x: number; y: number }) => void
@@ -237,6 +242,7 @@ export function CellTabStrip({
   activeCount,
   ghosts,
   touch = false,
+  partsKey,
   onActivate,
   onClose,
   onOpenTabMenu,
@@ -317,7 +323,7 @@ export function CellTabStrip({
     if (containerRef.current) mo?.observe(containerRef.current, { childList: true, subtree: true, characterData: true })
     return () => { ro.disconnect(); mo?.disconnect() }
     // Re-observe when the tabs, the active one or the header's parts change (the tabs are read through a ref).
-  }, [tabKey, tabsRef, activeId, hasAdd, collapsed])
+  }, [tabKey, tabsRef, activeId, hasAdd, collapsed, partsKey])
 
   // The tab an arrow key moved to, or picked from the `+N` menu, focused once it
   // shows: a folded one is out of sight (not focusable) until its activation

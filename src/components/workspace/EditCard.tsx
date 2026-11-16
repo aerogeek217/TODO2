@@ -159,6 +159,7 @@ export function EditCardControls({ cell, label, labelTab, menuOpen, setMoreButto
         type="button"
         className={`${styles.more} ${menuOpen ? styles.pressed : ''}`}
         aria-label={EDIT_CARD_MENU_LABEL}
+        data-edit-card-more=""
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         data-tooltip="Move, swap, split, stretch…"

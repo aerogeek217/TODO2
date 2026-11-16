@@ -248,6 +248,13 @@
   align-self: stretch;
 }
 
+/* In the layout edit mode: the room the card's ⋯ takes at the header's end (E3). */
+.editMoreRoom {
+  flex-shrink: 0;
+  width: 30px;
+  align-self: stretch;
+}
+
 /* Its panel while it is dragged: in place, dimmed, ringed. */
 .dragSource {
   opacity: 0.4;

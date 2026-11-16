@@ -49,6 +49,20 @@ export function moveSelection(cellId: string, side: Side): boolean {
   return true
 }
 
+/** The card menu's width (px): `EditCardMenu`'s. */
+const CARD_MENU_WIDTH_PX = 248
+
+/**
+ * Where the keys open a card's menu: under its ⋯, its right edge there — a
+ * point, not the ⋯ as its anchor, so closing it hands the focus back to the
+ * card (an anchored menu gives it to its anchor).
+ */
+function keyMenuPoint(surface: HTMLElement): CardMenuAt {
+  const more = surface.parentElement?.querySelector('[data-edit-card-more]')
+  const r = (more ?? surface).getBoundingClientRect()
+  return { x: Math.max(8, r.right - CARD_MENU_WIDTH_PX), y: r.bottom + 4 }
+}
+
 /**
  * A key on a card (`cell`): arrows, Shift+arrow (stretch one track),
  * Alt+arrow (onto the slot beside it, or swap with the card there), Enter /
@@ -86,7 +100,7 @@ export function onCardKey(e: KeyboardEvent<HTMLElement>, cell: LayoutCell, onMen
   if (e.key === 'Enter' || e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
     e.preventDefault()
     store().selectEditCell(cell.id)
-    onMenu(null)
+    onMenu(keyMenuPoint(e.currentTarget))
     return
   }
   if (e.key === ' ') {

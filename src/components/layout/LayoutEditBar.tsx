@@ -13,6 +13,9 @@ import styles from './LayoutEditBar.module.css'
 /** Where a press or a key may sit without the mode's Esc being its: a popover, a menu, a dialog. */
 const LAYER_SELECTOR = '[data-popover-level], [role="dialog"], [role="alertdialog"], [aria-modal="true"]'
 
+/** A workspace drag in progress (the page marks itself while a card, tab or tray chip is dragged). */
+const DRAGGING_SELECTOR = '[data-dragging-tab="true"]'
+
 /**
  * Esc in the layout edit mode: a tap's pending move cancelled (E3); else,
  * with changes, Save / Discard / Keep editing (`askLeaveEdit`); with none,
@@ -24,7 +27,8 @@ function useModeEscape(): void {
   useEffect(() => {
     let layered = false
     const capture = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') layered = document.querySelector(LAYER_SELECTOR) != null
+      // A drag's Esc (a card, a tab, a tray chip, a corner) cancels the drag, not the mode.
+      if (e.key === 'Escape') layered = document.querySelector(LAYER_SELECTOR) != null || document.querySelector(DRAGGING_SELECTOR) != null
     }
     const bubble = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented || layered) return
