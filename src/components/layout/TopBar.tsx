@@ -22,6 +22,7 @@ import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
 import { tabAcross } from '../../utils/focusables'
 import { AmbienceSky } from '../ambience/AmbienceSky'
 import { TallyMarks } from './TallyMarks'
+import { LayoutEditBar } from './LayoutEditBar'
 
 /**
  * The most layouts shown as tabs: more than a bar can hold anyway, so past
@@ -41,7 +42,18 @@ function layoutTabsKey(s: ReturnType<typeof useWorkspaceStore.getState>): string
   return `${s.layouts.length}|${names}|${open}|${s.writeFailed ? 'failed' : ''}`
 }
 
+/**
+ * The app's top bar (desktop): at rest the layout tabs, the screen-filter
+ * tray and the right zone (`RestingTopBar`); while the layout edit mode is
+ * on, the mode's bar in its place (`LayoutEditBar`).
+ */
 export function TopBar() {
+  const editing = useWorkspaceStore((s) => s.editing != null)
+  const isWorkspace = useLocation().pathname === ROUTE_WORKSPACE
+  return editing && isWorkspace ? <LayoutEditBar /> : <RestingTopBar />
+}
+
+function RestingTopBar() {
   const quickAddKeys = useShortcutLabel('quick-add')
   const settingsKeys = useShortcutLabel('open-settings')
   const filters = useFilterStore((s) => s.filters)

@@ -481,6 +481,12 @@
   --color-accent-focus: color-mix(in srgb, var(--color-accent) 40%, transparent);
   --color-accent-shadow: color-mix(in srgb, var(--color-accent) 20%, transparent);
   --color-accent-shadow-subtle: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  /* The layout edit mode (E1): the workspace tinted towards the accent under
+     a faint dot grid, an accent outline round it, the cells' content dimmed. */
+  --edit-canvas: color-mix(in srgb, var(--color-accent) 4%, var(--color-app-bg));
+  --edit-dot: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  --edit-outline: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  --edit-cell-dim: 0.4;
 
   /* Overlay */
   --color-overlay: rgba(0, 0, 0, 0.4);
@@ -761,6 +767,11 @@
   --color-accent-focus: color-mix(in srgb, var(--color-accent) 30%, transparent);
   --color-accent-shadow: color-mix(in srgb, var(--color-accent) 15%, transparent);
   --color-accent-shadow-subtle: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  /* The layout edit mode (E1): as in dark, a touch stronger on the paper. */
+  --edit-canvas: color-mix(in srgb, var(--color-accent) 5%, var(--color-app-bg));
+  --edit-dot: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  --edit-outline: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  --edit-cell-dim: 0.45;
 
   /* Overlay */
   --color-overlay: rgba(0, 0, 0, 0.25);

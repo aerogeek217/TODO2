@@ -191,3 +191,38 @@
   color: var(--color-text-primary);
 }
 
+
+/* ═══ The layout edit mode ═══ */
+
+/* The layouts shown only, in the mode's bar: dimmed, no press. */
+.tabStripDisabled {
+  opacity: 0.55;
+}
+
+.tabDisabled,
+.tabDisabled:hover {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Edit layout (the pencil after the tabs or the picker). */
+.edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.edit:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}

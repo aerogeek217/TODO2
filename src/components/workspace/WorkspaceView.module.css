@@ -159,3 +159,31 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ── The layout edit mode (E1) ──
+   The workspace tinted towards the accent under a faint dot grid, an accent
+   outline inside its edge; nothing moves (the gaps stay). Each cell's
+   content dims and takes no presses; its controls (the grip, the ⋯), its
+   tab strip and the dividers still do, acting on the draft. */
+.area[data-layout-editing] {
+  background-color: var(--edit-canvas);
+  background-image: radial-gradient(var(--edit-dot) 1px, transparent 1.2px);
+  background-size: 16px 16px;
+  box-shadow: inset 0 0 0 2px var(--edit-outline);
+}
+
+.area[data-layout-editing] [data-ws-cell-body] {
+  opacity: var(--edit-cell-dim);
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.area[data-layout-editing] [data-ws-cell-body] [data-cell-controls],
+.area[data-layout-editing] [data-ws-cell-body] [data-ws-panel-handle] {
+  pointer-events: auto;
+}
+
+/* The selected cell (opened from its ⋯ › Edit layout): an accent ring. */
+.area[data-layout-editing] [data-edit-selected] {
+  box-shadow: 0 0 0 2px var(--color-accent), var(--shadow-glass-card);
+}

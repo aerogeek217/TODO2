@@ -1,0 +1,112 @@
+/* The top bar in the layout edit mode (`LayoutEditBar`): the bar's glass and
+ * hairline (`TopBar.module.css` .topBar), its contents swapped for the
+ * mode's — `Editing “X”`, the layouts as tabs (disabled), the widget tray's
+ * slot, then Undo, Redo, Cancel and Done. */
+
+.bar {
+  gap: 12px;
+}
+
+/* The hairline in the accent all along: the mode is on. */
+.bar::after {
+  background: var(--edit-outline);
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 0 4px;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 8px var(--color-accent-glow);
+}
+
+/* The layouts (shown only), on the bar's bottom edge as at rest. */
+.tabs {
+  display: flex;
+  align-self: stretch;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The widget tray's slot: the free room between the tabs and the buttons. */
+.tray {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ghost,
+.cancel,
+.done {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ghost {
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.ghost:disabled {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cancel {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.cancel:hover {
+  border-color: var(--color-text-muted);
+  color: var(--color-text-primary);
+}
+
+.done {
+  border: none;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.done:hover {
+  background: var(--color-accent-dim);
+}

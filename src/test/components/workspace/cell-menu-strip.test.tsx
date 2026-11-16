@@ -86,13 +86,13 @@ describe('the cell menu', () => {
     return screen.getAllByRole('menu').at(-1)!
   }
 
-  it('the ⋯ lists the widget’s entries under its kind, then Remove widget; nothing of the layout', () => {
+  it('the ⋯ lists the widget’s entries under its kind, then Remove widget and Edit layout; nothing of the layout', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     renderCell(k)
     const menu = cellMenu()
     expect(headings(menu)).toEqual(['Notes'])
-    expect(itemLabels(menu)).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Remove widget'])
+    expect(itemLabels(menu)).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Remove widget', 'Edit layout'])
   })
 
   it('the grip lists every placement under Layout in order; one widget’s close is Close cell', () => {
@@ -123,7 +123,7 @@ describe('the cell menu', () => {
     const more = cellMenu()
     expect(headings(more)).toEqual(['Calendar'])
     expect(within(more).getByRole('menuitem', { name: /^Change widget/ })).toHaveTextContent('Calendar')
-    expect(itemLabels(more).at(-1)).toBe('Remove widget')
+    expect(itemLabels(more).slice(-2)).toEqual(['Remove widget', 'Edit layout'])
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(itemLabels(gripMenu()).slice(-2)).toEqual(['Collapse row', 'Close cell (2 tabs)'])
     fireEvent.keyDown(document, { key: 'Escape' })
@@ -555,7 +555,7 @@ describe('tabs on demand (D26 AA1)', () => {
     const menu = screen.getByRole('menu', { name: 'Cell options' })
     expect(headings(menu)).toEqual(['Notes', 'Layout'])
     expect(itemLabels(menu)).toEqual([
-      'Open larger', 'Name and icon…', 'Change widget', 'Remove widget',
+      'Open larger', 'Name and icon…', 'Change widget', 'Remove widget', 'Edit layout',
       'Add widget…', 'Split cell', 'Insert row', 'Insert column', 'Merge with', 'Collapse row', 'Close cell',
     ])
   })

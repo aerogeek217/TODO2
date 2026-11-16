@@ -18,6 +18,7 @@ import {
   ChevronUpIcon,
   CloseCellIcon,
   CloseIcon,
+  PencilIcon,
   PlusIcon,
   SplitBelowIcon,
   SplitRightIcon,
@@ -40,7 +41,10 @@ import { createListAndTab, openEditList, useListOwnerLayoutId } from './widget-h
  * Insert row ▸, Insert column ▸, Merge with ▸ (each side its own entry),
  * Collapse row, then Close cell. A right-click on a widget's top line or a
  * tab, and Shift+F10 / the Menu key there, open the whole menu: both, in
- * their two headed sections.
+ * their two headed sections. The ⋯ (and so the whole menu) ends with Edit
+ * layout, which opens the layout edit mode with this cell selected; in the
+ * mode every one of the cell's menus holds only its layout entries (no
+ * widget editors or popups over the draft).
  */
 
 /** Merge with ▸ a side: why the item is off when the cell doesn't merge that way. */
@@ -79,6 +83,10 @@ export interface CellMenuActions {
   onCollapse: (next: boolean) => void
   onCloseTab: (tabId: string) => void
   onCloseCell: () => void
+  /** Edit layout (the ⋯'s last entry): opens the layout edit mode with this cell selected. Absent: no entry. */
+  onEditLayout?: () => void
+  /** The layout edit mode is on: every menu of the cell is its layout entries. */
+  editing?: boolean
   /** Look up the cell Merge with ▸ would take that way (default: in the open layout). */
   mergeWith?: (cellId: string, side: Side) => string | undefined
 }
@@ -167,6 +175,12 @@ function removeWidgetEntry(a: CellMenuActions): MenuEntry[] {
   return [{ kind: 'item', label: 'Remove widget', icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => a.onCloseTab(tab.id) }]
 }
 
+/** Edit layout (after Remove widget in the ⋯): the layout edit mode, this cell selected. */
+function editLayoutEntry(a: CellMenuActions): MenuEntry[] {
+  const open = a.onEditLayout
+  return open ? [{ kind: 'item', label: 'Edit layout', icon: <PencilIcon />, onSelect: open }] : []
+}
+
 /** The cell's section of the whole menu, under its heading (Layout): the layout entries ({@link cellLayoutEntries}). */
 export function cellMenuEntries(a: CellMenuActions): MenuEntry[] {
   return [{ kind: 'label', text: 'Layout' }, ...cellLayoutEntries(a)]
@@ -188,8 +202,8 @@ export const CELL_MENU_LABEL: Readonly<Record<CellMenuPart, string>> = {
 
 /** The entries of the cell's menu `part`, from the widget's entries and the cell's actions. */
 export function cellMenuFor(part: CellMenuPart, widget: readonly MenuEntry[], a: CellMenuActions): MenuEntry[] {
-  if (part === 'layout') return cellMenuEntries(a)
-  const own = mergedCellMenu(widget, removeWidgetEntry(a))
+  if (part === 'layout' || a.editing) return cellMenuEntries(a)
+  const own = mergedCellMenu(widget, [...removeWidgetEntry(a), ...editLayoutEntry(a)])
   if (part === 'widget') return own
   return mergedCellMenu(own, cellMenuEntries(a))
 }

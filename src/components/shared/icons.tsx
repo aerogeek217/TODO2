@@ -237,6 +237,16 @@ export function PencilIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M10.5 2.5l3 3L6 13H3v-3z" /></Svg>
 }
 
+/** Undo: a hook arrow back to the left. */
+export function UndoIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M5.5 3L2.5 6l3 3" /><path d="M2.5 6h7a4 4 0 0 1 0 8H7" /></Svg>
+}
+
+/** Redo: the undo arrow, mirrored. */
+export function RedoIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M10.5 3l3 3-3 3" /><path d="M13.5 6h-7a4 4 0 0 0 0 8H9" /></Svg>
+}
+
 export function TrashIcon({ size = 14 }: { size?: number }) {
   return (
     <Svg size={size}>
