@@ -102,6 +102,10 @@ test('a cell dragged out of a row leaves it holding only a Number: the other row
 })
 
 test('a Number tab dragged out of a two-Number cell leaves a Numbers row: the ghost below it is full height', async ({ page }) => {
+  // In the layout edit mode a cell's body dims and takes no presses (E1), a Numbers strip's slots with it, and
+  // outside the mode a Number only reorders in its strip (E4): until E3's card and tab drags, a strip's Number
+  // can't be dragged out of it.
+  test.fixme(true, 'E3: a strip Number drags again in the layout edit mode')
   await seedWorkspace(page, { layouts: [{ name: 'Main', table: { areas: ['nn n2', 'a c'], cells: [
     { id: 'nn', tabs: [number('numA', 'open'), number('numB', 'overdue')] },
     { id: 'n2', tabs: [number('num2', 'focus')] },

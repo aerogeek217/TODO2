@@ -581,7 +581,7 @@ test.describe('dividers', () => {
 })
 
 test.describe('rows that size themselves', () => {
-  test('a row of Numbers fits its content (its divider gives it a height: workspace-crossings); the row under it takes the rest', async ({ page }) => {
+  test('a row of Numbers fits its content (its divider gives it a height: workspace-dividers); the row under it takes the rest', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
