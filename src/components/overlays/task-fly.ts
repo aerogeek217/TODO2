@@ -55,6 +55,16 @@ function topmostAt(x: number, y: number): Element | null {
 }
 
 /**
+ * Whether `hit` is the `content-visibility: auto` box around row `el` (a
+ * list's `.row`): a row just added has its contents skipped until a frame
+ * finds it on screen, so a hit test made before that paint reaches only
+ * that box — topmost there, so nothing covers the row.
+ */
+function skippedBoxOf(hit: Element, el: Element): boolean {
+  return hit !== el && hit.contains(el) && getComputedStyle(hit).contentVisibility === 'auto'
+}
+
+/**
  * A row on screen showing the task `todoId` — a list row or line (one with
  * its title in it), not a calendar entry or a dot —, as `pickFlightTarget`
  * picks it; null when none.
@@ -66,7 +76,7 @@ export function findFlightRow(todoId: number): HTMLElement | null {
     const rect = el.getBoundingClientRect()
     // Hit-tested only when drawn (a row skipped or folded has no box).
     const hit = rect.height > 0 ? topmostAt((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2) : null
-    return { el, rect, visibleAtCenter: hit !== null && el.contains(hit) }
+    return { el, rect, visibleAtCenter: hit !== null && (el.contains(hit) || skippedBoxOf(hit, el)) }
   })
   return pickFlightTarget(candidates, { width: window.innerWidth, height: window.innerHeight })?.el ?? null
 }
