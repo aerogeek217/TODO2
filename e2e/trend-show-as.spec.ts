@@ -55,8 +55,8 @@ function seed(atlasTagId: number): WorkspaceSeed {
       areas: ['c-m-bars c-m-burndown c-m-cumulative', 'c-l-bars c-l-burndown c-l-cumulative'],
       rows: [{ px: 160 }, 1000],
       cells: SHOWS.flatMap((show) => [
-        { id: `c-m-${show}`, tabs: [{ id: `m-${show}`, kind: 'trend', glance: { range: '14d', show } }] },
-        { id: `c-l-${show}`, tabs: [{ id: `l-${show}`, kind: 'trend', glance: { range: '14d', show, name: 'Atlas', ...atlas } }] },
+        { id: `c-m-${show}`, tabs: [{ id: `m-${show}`, kind: 'trend' as const, glance: { range: '14d', show } }] },
+        { id: `c-l-${show}`, tabs: [{ id: `l-${show}`, kind: 'trend' as const, glance: { range: '14d', show, name: 'Atlas', ...atlas } }] },
       ]).sort((a, b) => order(a.id) - order(b.id)),
     } }],
   }

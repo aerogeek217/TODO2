@@ -100,7 +100,7 @@ function rawClick(cdp: CDPSession, x: number, y: number): Promise<unknown> {
   ])
 }
 
-async function centre(page: Page, locator: ReturnType<Page['locator']>): Promise<{ x: number; y: number }> {
+async function centre(locator: ReturnType<Page['locator']>): Promise<{ x: number; y: number }> {
   const box = await locator.boundingBox()
   if (!box) throw new Error('not on screen')
   return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }
@@ -119,8 +119,8 @@ for (const delay of [60, 150, 300]) {
         window.__downs?.push({ at: e.timeStamp, label: el?.getAttribute('aria-label') ?? el?.textContent?.trim() ?? String(e.target) })
       }, true)
     })
-    const tab = await centre(page, layoutTab(page, 'More'))
-    const gear = await centre(page, page.getByRole('button', { name: 'Settings', exact: true }))
+    const tab = await centre(layoutTab(page, 'More'))
+    const gear = await centre(page.getByRole('button', { name: 'Settings', exact: true }))
 
     // Neither click waits for the page: the second goes out `delay` ms after the first, however busy the page is.
     const first = rawClick(cdp, tab.x, tab.y)
@@ -144,7 +144,7 @@ test('a click made while a tab change’s pictures animate reaches the page unde
   await seed(page)
   // A long animation: the test has time to press inside it.
   await page.addStyleTag({ content: `::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation-duration: 4s !important; }` })
-  const gear = await centre(page, page.getByRole('button', { name: 'Settings', exact: true }))
+  const gear = await centre(page.getByRole('button', { name: 'Settings', exact: true }))
 
   await wsTab(page, 'tn').click()
   // The new tab is rendered and the transition's pictures are animating over it.

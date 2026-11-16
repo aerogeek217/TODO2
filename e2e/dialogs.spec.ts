@@ -108,8 +108,8 @@ async function expectFocusTrapped(page: Page, dialog: Locator) {
   await dialog.evaluate((panel) => {
     const escaped: string[] = []
     const name = (el: EventTarget | null) => (el instanceof Element ? `${el.tagName.toLowerCase()} "${el.getAttribute('aria-label') ?? el.textContent?.slice(0, 40) ?? ''}"` : String(el))
-    const onIn = (e: FocusEvent) => { if (e.target instanceof Node && !panel.contains(e.target)) escaped.push(`focus went to ${name(e.target)}`) }
-    const onOut = (e: FocusEvent) => { if (!(e.relatedTarget instanceof Node)) escaped.push(`focus left ${name(e.target)} for nothing`) }
+    const onIn = (e: Event) => { if (e.target instanceof Node && !panel.contains(e.target)) escaped.push(`focus went to ${name(e.target)}`) }
+    const onOut = (e: Event) => { if (!(e instanceof FocusEvent && e.relatedTarget instanceof Node)) escaped.push(`focus left ${name(e.target)} for nothing`) }
     document.addEventListener('focusin', onIn, true)
     panel.addEventListener('focusout', onOut)
     const watch: LapWatch = {

@@ -108,7 +108,7 @@ function perfSeed(): string {
     { ...structuredClone(week), id: listId + 1, name: 'Week', sortOrder: 101, owner: { layoutId } },
     { id: listId + 2, name: 'By status', sortOrder: 102, membership: { kind: 'custom', predicate: { ...EVERY_OPEN, statusIds: [1, 2, 3] } }, sort: 'deadline', grouping: 'status', owner: { layoutId } },
   )
-  const cell = (id: string, col: number, row: number, colSpan: number, rowSpan: number, tabs: Array<{ id: string }>) =>
+  const cell = (id: string, col: number, row: number, colSpan: number, rowSpan: number, tabs: Array<{ id: string } & Record<string, unknown>>) =>
     ({ id, activeTabId: tabs[0]?.id, area: { col, row, colSpan, rowSpan }, tabs })
   seed.layouts.push({
     id: layoutId,
@@ -134,7 +134,7 @@ function perfSeed(): string {
       cell('p7-bd', 2, 2, 1, 1, [copy('tab-people', 'p7-people')]),
       cell('p7-trend', 3, 2, 1, 1, [copy('tab-trend', 'p7-created')]),
     ],
-  } as SeedFile['layouts'][number])
+  } as unknown as SeedFile['layouts'][number])
   const setting = (key: string, value: string) => {
     seed.settings = seed.settings.filter((s) => s.key !== key)
     seed.settings.push({ key, value })

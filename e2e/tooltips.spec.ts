@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsRow } from './fixtures/workspace'
+import { seedWorkspace, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 import { taskRowByTitle } from './fixtures/seed'
 
 /**
@@ -34,7 +34,7 @@ async function expectTooltip(page: Page, target: Locator, text: string | RegExp)
 }
 
 /** Every widget kind on one layout, a task of each kind of date and marker. */
-const EVERY_KIND = {
+const EVERY_KIND: WorkspaceSeed = {
   people: ['Ada Lovelace'],
   tags: ['Project: Atlas'],
   listDefinitions: [{ name: 'Tasks' }],
