@@ -209,7 +209,7 @@ describe('the cell menu', () => {
     expect(picture(working())).toEqual(['k', 'm'])
   })
 
-  it('with two widgets: the ⋯ the active one’s entries and Remove widget; no grip and no drag handle outside the mode', () => {
+  it('with two widgets: the ⋯ the active one’s entries and Remove tab; no grip and no drag handle outside the mode', () => {
     const k = cell('k', [createTab('notes', 'n'), createTab('calendar', 'c')], { activeTabId: 'c' })
     open(single(k))
     renderCell(k)
@@ -221,8 +221,9 @@ describe('the cell menu', () => {
     const more = cellMenu()
     expect(headings(more)).toEqual(['Calendar'])
     expect(within(more).getByRole('menuitem', { name: /^Change widget/ })).toHaveTextContent('Calendar')
-    expect(itemLabels(more).slice(-3)).toEqual(['Remove widget', 'Collapse row', 'Edit layout'])
-    fireEvent.click(within(more).getByRole('menuitem', { name: 'Remove widget' }))
+    // A cell showing a tab strip speaks of tabs: Add tab ›, Remove tab.
+    expect(itemLabels(more).slice(-4)).toEqual(['Add tab', 'Remove tab', 'Collapse row', 'Edit layout'])
+    fireEvent.click(within(more).getByRole('menuitem', { name: 'Remove tab' }))
     expect(working().cells[0]?.tabs.map((t) => t.id)).toEqual(['n'])
   })
 
@@ -236,7 +237,7 @@ describe('the cell menu', () => {
     expect(within(header).queryByRole('button', { name: 'Collapse row' })).toBeNull()
     expect(header.querySelector('[data-ws-panel-handle]')).toBeNull()
     expect(within(header).getAllByRole('tab')).toHaveLength(2)
-    expect(itemLabels(cardMenu()).slice(-2)).toEqual(['Remove widget', 'Close cell (2 tabs)'])
+    expect(itemLabels(cardMenu()).slice(-2)).toEqual(['Remove tab', 'Close cell (2 tabs)'])
   })
 
   it('Split ▸ every side; Right puts an empty cell beside it, Below one under it', () => {
@@ -298,7 +299,7 @@ describe('an open editor with changes is asked before a tab close, Close cell or
   const PATHS: Array<[name: string, run: () => void, after: string[], undo: string]> = [
     ['the tab’s ×', () => fireEvent.click(screen.getByRole('button', { name: /^Remove .*Calendar/ })), ['n'], 'Removed “Calendar”'],
     ['Delete on the tab', () => fireEvent.keyDown(document.querySelector('[data-ws-tab="c"]')!, { key: 'Delete' }), ['n'], 'Removed “Calendar”'],
-    ['the ⋯’s Remove widget', () => fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Remove widget' })), ['n'], 'Removed “Calendar”'],
+    ['the ⋯’s Remove tab', () => fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Remove tab' })), ['n'], 'Removed “Calendar”'],
   ]
 
   it.each(PATHS)('%s: Keep editing closes nothing; Save or Discard then closes it, as one undo step named as ever', async (_name, run, after, undo) => {
@@ -390,8 +391,8 @@ describe('an open editor with changes is asked before its widget can leave the s
     ['an arrow key on the strip', () => fireEvent.keyDown(tab('c'), { key: 'ArrowLeft' })],
     ['the header’s Collapse row button', () => fireEvent.click(screen.getByRole('button', { name: 'Collapse row' }))],
     ['the ⋯’s Collapse row', () => fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Collapse row' }))],
-    ['the ⋯’s Add widget as tab ›', () => {
-      fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Add widget as tab' }))
+    ['the ⋯’s Add tab ›', () => {
+      fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Add tab' }))
       fireEvent.click(within(screen.getAllByRole('menu').at(-1)!).getByRole('menuitem', { name: 'Notes' }))
     }],
   ]
@@ -532,7 +533,7 @@ describe('tabs on demand (D26 AA1)', () => {
     // That widget's menu, with Edit layout in place of the layout section.
     expect(headings(menu)).toEqual(['Notes'])
     expect(within(menu).queryByRole('menuitem', { name: 'Split cell' })).toBeNull()
-    expect(within(menu).getByRole('menuitem', { name: 'Remove widget' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Remove tab' })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: 'Edit layout' })).toBeInTheDocument()
     fireEvent.click(within(menu).getByRole('menuitem', { name: /^Change widget/ }))
     const kinds = screen.getByRole('menu', { name: 'Change widget' })
