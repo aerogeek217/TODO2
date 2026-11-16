@@ -148,6 +148,21 @@ export function layoutEditChanged(s: Pick<WorkspaceState, 'editing' | 'working' 
   return s.editing != null && s.working != null && s.saved != null && !layoutBodyEqual(s.working, s.saved)
 }
 
+/**
+ * The lists the layout edit mode made that nothing shows and that are
+ * waiting to be deleted: in the mode, those its draft no longer shows (made,
+ * then undone); after Cancel, every list it made while the Restore offer
+ * holds them (`discardedLists`). No list chooser offers them (Copy from…,
+ * a Number's Follow a list).
+ */
+export function listsHeldByEdit(s: Pick<WorkspaceState, 'editing' | 'working' | 'discardedLists'>): readonly number[] {
+  const { editing, working } = s
+  if (!editing || !working || editing.createdLists.length === 0) return s.discardedLists
+  const shown = layoutListRefs(working)
+  const undone = editing.createdLists.filter((id) => !shown.has(id))
+  return undone.length === 0 ? s.discardedLists : [...s.discardedLists, ...undone]
+}
+
 /** What the mode's own undo keeps at most. */
 const EDIT_UNDO_MAX = 100
 
@@ -237,6 +252,8 @@ export interface WorkspaceState {
   resizePreview: ResizePreview | null
   /** The layout edit mode's session (`LayoutEditSession`), or `null` while the mode is off. */
   editing: LayoutEditSession | null
+  /** After Cancel: the lists the session made, held for its Restore offer and deleted once it goes (`listsHeldByEdit`). */
+  discardedLists: readonly number[]
 
   /**
    * Opens the layout edit mode on the open layout (`cellId`: that cell
@@ -1126,6 +1143,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   /** Deletes the lists Cancel's offer would have brought back (it is gone, not taken). */
   function dropRestore(offer: RestoreOffer): void {
     if (mode.restore === offer) mode.restore = null
+    if (mode.restore == null && get().discardedLists.length > 0) set({ discardedLists: [] })
     const { saved } = get()
     const bodies = saved?.id === offer.session.layoutId ? [offer.saved, saved] : [offer.saved]
     void pruneListsAmong(offer.session.layoutId, offer.session.createdLists, ...bodies)
@@ -1135,6 +1153,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   async function restoreEdit(offer: RestoreOffer): Promise<void> {
     if (mode.restore !== offer) return
     mode.restore = null
+    set({ discardedLists: [] })
     const unchanged = () => {
       const { saved, editing } = get()
       return editing == null && saved?.id === offer.session.layoutId && layoutStructureEqual(saved, offer.saved) && !replaceHoldActive()
@@ -1175,6 +1194,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     hydrated: false,
     resizePreview: null,
     editing: null,
+    discardedLists: [],
 
     async enterEdit(opts) {
       const cellId = opts?.cellId ?? null
@@ -1308,6 +1328,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       }
       const offer: RestoreOffer = { session, draft: layoutBodyOf(working), saved: layoutBodyOf(saved) }
       mode.restore = offer
+      set({ discardedLists: session.createdLists })
       useUndoStore.getState().notify('Layout changes discarded', {
         action: { label: 'Restore', run: () => { void restoreEdit(offer) } },
         onEnd: () => dropRestore(offer),
@@ -1352,6 +1373,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     endEditForReplace() {
       // Its lists' ids may name other lists in the new data: nothing is deleted.
       mode.restore = null
+      if (get().discardedLists.length > 0) set({ discardedLists: [] })
       if (!get().editing) return
       const changed = layoutEditChanged(get())
       endSession()
