@@ -41,6 +41,18 @@
   pointer-events: none;
 }
 
+/* A squeezed strip's active tab, named under the strip (its title cut to nothing in a narrow
+ * card): shown only while the strip is squeezed. */
+.stripLabel {
+  display: none;
+  top: calc(var(--cell-header-height) + 6px);
+  max-width: calc(100% - 20px);
+}
+
+:global([data-ws-cell]):has([data-strip-squeezed]) .stripLabel {
+  display: inline-flex;
+}
+
 .labelIcon {
   display: inline-flex;
   color: var(--color-text-muted);

@@ -274,3 +274,37 @@ test('Done stores every change as one step; the global Undo brings it all back',
   await snackbar.getByRole('button', { name: 'Undo', exact: true }).click()
   await expect.poll(() => wsShape(page)).toEqual(before)
 })
+
+test('a card too narrow for its active tab’s title names that tab under its strip (E5)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await seedWorkspace(page, {
+    layouts: [{
+      name: 'Main',
+      table: {
+        areas: ['a n'],
+        cols: [1000, 1],
+        cells: [
+          { id: 'a', tabs: [{ id: 'notesTab', kind: 'notes' }] },
+          { id: 'n', tabs: [{ id: 'calTab', kind: 'calendar' }, { id: 'trendTab', kind: 'trend' }] },
+        ],
+      },
+    }],
+  })
+  const narrow = wsCell(page, 'n')
+  await expect.poll(async () => Math.round((await box(narrow)).width)).toBe(120)
+  // Outside the mode no card is drawn.
+  await expect(narrow.locator('[data-edit-strip-label]')).toHaveCount(0)
+  await enterLayoutEdit(page)
+  // The strip squeezed to its active tab beside `+1`, the tab's title cut away: its name under the strip.
+  await expect(narrow.locator('[data-strip-squeezed]')).toHaveCount(1)
+  const label = narrow.locator('[data-edit-strip-label]')
+  await expect(label).toBeVisible()
+  await expect(label).toHaveText('Calendar')
+  const header = await box(narrow.locator('[data-ws-cell-header]'))
+  const labelBox = await box(label)
+  const card = await box(narrow)
+  expect(labelBox.y, 'under the strip').toBeGreaterThanOrEqual(header.y + header.height)
+  expect(labelBox.x + labelBox.width, 'inside the card').toBeLessThanOrEqual(card.x + card.width)
+  // A card whose strip has room names its tabs itself: no label there.
+  await expect(wsCell(page, 'a').locator('[data-edit-strip-label]')).toHaveCount(0)
+})

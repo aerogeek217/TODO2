@@ -360,7 +360,7 @@ export function CellTabStrip({
   }
 
   return (
-    <div ref={stripRef} className={styles.strip}>
+    <div ref={stripRef} className={styles.strip} data-strip-squeezed={fit.squeeze ? '' : undefined}>
       <div ref={containerRef} className={styles.tabs} role="tablist" aria-label="Widgets">
         {order.map((tab, i) => (
           <Tab
