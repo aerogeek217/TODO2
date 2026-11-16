@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core'
-import { calendarEntryState, type CalendarEntry } from '../../../services/calendar-entries'
+import { calendarEntryState, calendarEntryUrgent, type CalendarEntry } from '../../../services/calendar-entries'
 import { calendarEntryTitle } from './calendar-entry-title'
 import { AvatarStack } from '../../shared/AvatarStack'
 import { TaskPillStatus } from '../../shared/TaskPillBar'
@@ -31,10 +31,12 @@ interface CalendarEntryButtonProps {
 
 /**
  * One calendar entry: a task's due date or next follow-up on a day (or an
- * occurrence of a recurring task) — a line with a tick at its left edge whose
- * colour is the entry's state (`data-state`, flair P6). Type glyph (both date
- * types on) · repeat glyph · title · meta (people + status at `md` /
- * `touch`). Click opens the task.
+ * occurrence of a recurring task) — a line, no fill, with a bar at its left
+ * edge in its date type's colour (due magenta, follow-up yellow; flair P6, E6),
+ * stronger with a faint tint while it asks for action now (`data-urgent`:
+ * a late due date, a follow-up today or late). Type glyph in the same colour
+ * (both date types on) · repeat glyph · title · meta (people + status at
+ * `md` / `touch`). Click opens the task.
  */
 export const CalendarEntryButton = memo(function CalendarEntryButton({
   entry, today, size, wrap = false, showKind = true, onOpen, dragging = false, ghost = false,
@@ -59,6 +61,7 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
       className={cls}
       data-cal-entry={entry.kind}
       data-state={state}
+      data-urgent={calendarEntryUrgent(state) ? 'true' : undefined}
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-virtual={entry.isVirtual ? 'true' : undefined}
       data-tooltip={ghost ? undefined : calendarEntryTitle(entry, today)}

@@ -125,7 +125,8 @@ interface PriorityFactsProps {
  * Urgent › Important) — off muted in a hairline, on the marker's colour on
  * its tint. The Urgent toggle shows and flips the flag only; a due date that
  * makes the task urgent anyway is a hint (the clock after the label, the
- * tooltip). What the callbacks write is the host's.
+ * tooltip) — the toggle keeps the clock's room either way, so the cell's
+ * width never changes. What the callbacks write is the host's.
  */
 export function PriorityFacts({
   focusOn, urgentOn, importantOn, urgentState, urgentHint,
@@ -149,10 +150,15 @@ export function PriorityFacts({
           tooltip={`${urgentOn ? 'Remove urgent' : 'Mark urgent'}${urgentHint ? `\n${urgentHint}` : ''}`}
           data-urgent={urgentState ?? undefined}
         >
-          Urgent
-          {urgentState === 'date' && (
-            <span className={styles.markerHint} data-urgent-hint=""><UrgentClockIcon /></span>
-          )}
+          {/* The toggle is always as wide as with its clock (the sizer under the face, hidden), so the
+              clock coming and going with the due date moves nothing after it (E6). */}
+          <span className={styles.markerFace}>
+            Urgent
+            {urgentState === 'date' && (
+              <span className={styles.markerHint} data-urgent-hint=""><UrgentClockIcon /></span>
+            )}
+          </span>
+          <span className={styles.markerSizer} data-label="Urgent" aria-hidden="true"><UrgentClockIcon /></span>
         </MarkerToggle>
         <MarkerToggle
           pressed={importantOn}
@@ -237,7 +243,7 @@ export function StatusFacts({ statuses, statusId, onStatusChange }: StatusFactsP
           }}
         >
           {status ? (
-            <><span className={styles.statusIcon} style={{ color: status.color }}><StatusMark status={status} filled /></span>{status.name}</>
+            <><span className={styles.statusIcon} style={{ color: status.color }}><StatusMark status={status} filled /></span><span className={styles.statusName}>{status.name}</span></>
           ) : (
             <span className={styles.statusNone}>No status</span>
           )}
