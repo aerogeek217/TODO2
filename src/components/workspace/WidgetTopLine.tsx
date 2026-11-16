@@ -99,7 +99,7 @@ export function CellGrip({ cellId, tabs, title, idSuffix = '', expanded, onMenu,
 }
 
 /**
- * A cell's controls slot (D26 AA1): the grip (its layout menu, UX cleanup
+ * A cell's controls slot (D26 AA1): in the layout edit mode the grip (its layout menu, UX cleanup
  * 4A), Open larger (where the widget offers it) and the ⋯ (the widget's menu) — shown while the pointer is over the
  * cell, while focus is in it and while a menu of the cell is open, always on
  * touch (no grip there); hidden, they take no press — and, while its row is

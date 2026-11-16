@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { ownerLayoutId } from '../../models/list-definition'
-import { breakdownPreset } from '../../models/chart-widgets'
+import { breakdownPreset, type BreakdownPreset } from '../../models/chart-widgets'
 import { getActiveTab, kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
 import { zoomTargetTab } from '../../services/list-zoom'
 import { showTab } from '../../services/workspace-tabs'
@@ -188,14 +188,30 @@ function paletteTargetCell(layout: LayoutBody, focused: Element | null): string 
   return readingOrder(layout).at(0)?.id ?? null
 }
 
-/** How far below a cell's top the palette's Where picker opens: the cell's top line (name, tabs) stays in view. */
-const CELL_TOP_LINE_PX = 32
+/**
+ * Add widget as tab › `kind` (layout edit mode E4: the ⋯, an empty cell's
+ * picker, the palette's Add Widget ›): a new widget of `kind` as a tab of
+ * cell `cellId`, made its active one — a List with a new blank list of the
+ * open layout (`createListAndTab`), a Breakdown from `preset` (default
+ * Custom). An open editor holding changes is asked first (Save / Discard /
+ * Keep editing): the new tab takes the cell's place on screen.
+ */
+export function addTabToCell(cellId: string, kind: WidgetKind, preset?: BreakdownPreset): void {
+  afterLeavingEditors(() => {
+    const target: LayoutDropTarget = { kind: 'cell', cellId }
+    if (kind === 'breakdown') {
+      addWidgetAt('breakdown', target, undefined, { breakdown: breakdownPreset(preset ?? 'custom') })
+      return
+    }
+    addKindAt(kind, target, addWidgetAt, useWorkspaceStore.getState().saved?.id)
+  })
+}
 
 /**
- * The palette's Add Widget › `kind` (J18): the Where picker of the cell last
- * used, the kind chosen (`ui-store.requestAddWidget`, drawn by
- * `AddWidgetRequestHost` under the cell's top line); in an empty layout the
- * widget is added as its tiles add it (a Breakdown a Custom one).
+ * The palette's Add Widget › `kind` (J18; layout edit mode E4): the widget
+ * added as a tab of the cell last used (`paletteTargetCell`), with no Where
+ * step (`addTabToCell`; a Breakdown a Custom one); in an empty layout it is
+ * added as its tiles add it.
  */
 export function addWidgetFromPalette(kind: WidgetKind): void {
   const { working, saved } = useWorkspaceStore.getState()
@@ -206,9 +222,7 @@ export function addWidgetFromPalette(kind: WidgetKind): void {
     else addKindAt(kind, { kind: 'layout' }, addWidgetAt, saved?.id)
     return
   }
-  const rect = document.querySelector(`[data-ws-cell="${CSS.escape(cellId)}"]`)?.getBoundingClientRect()
-  const anchor = rect ? { x: rect.left + 8, y: rect.top + CELL_TOP_LINE_PX } : { x: 16, y: 64 }
-  useUIStore.getState().requestAddWidget({ cellId, kind, anchor })
+  addTabToCell(cellId, kind)
 }
 
 /** `useAddWidget`'s add, outside a component (the palette's Add Widget ›). */

@@ -58,6 +58,7 @@ import {
   moveTab,
   patchTabConfig,
   patchTabViewState,
+  removeTabKeepCell,
   replaceTab,
   setActiveTab,
   setTrackCollapsed,
@@ -348,6 +349,13 @@ export interface WorkspaceState {
   /** Moves a whole cell (by id) with all its tabs. */
   movePanel: (cellId: string, target: LayoutDropTarget) => void
   closeTab: (tabId: string) => void
+  /**
+   * Remove widget (the ⋯, a tab's ×, a strip Number's ×; layout edit mode
+   * E4): removes tab `tabId`, and a cell it leaves with no tabs stays as an
+   * empty cell (`removeTabKeepCell`) — one undo step, `Removed “X”`. Only the
+   * mode's Close cell gives a cell's space away (`closeCell`).
+   */
+  removeWidget: (tabId: string) => void
   /** Closes a cell (by id) with all its tabs: a neighbour takes its space, or it stays empty (`closeCell`). */
   closeCell: (cellId: string) => void
   /** Splits a cell: a new empty cell on `side` of it. Returns the new cell's id. */
@@ -1456,6 +1464,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     closeTab(tabId) {
       edit((layout) => closeTab(layout, tabId), (before) => `Removed “${tabName(before, tabId)}”`)
+    },
+
+    removeWidget(tabId) {
+      edit((layout) => removeTabKeepCell(layout, tabId), (before) => `Removed “${tabName(before, tabId)}”`)
     },
 
     closeCell(cellId) {

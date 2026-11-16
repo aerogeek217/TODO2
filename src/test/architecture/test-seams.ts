@@ -123,7 +123,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'stores/task-child-rows.ts': ['findRow', 'withoutRows', 'withRows'],
   'stores/todo-store.ts': ['followedUpName'],
   'stores/ui-store.ts': [
-    'AddWidgetRequest', 'ConfirmPrompt', 'EntityAction', 'FIRST_SETTINGS_SECTION', 'PromptAnswer', 'QuickAddDraftSeed',
+    'ConfirmPrompt', 'EntityAction', 'FIRST_SETTINGS_SECTION', 'PromptAnswer', 'QuickAddDraftSeed',
     'readLastSettingsSection', 'resolveSettingsTarget', 'SETTINGS_PART_SECTION', 'SETTINGS_SECTION_KEY',
   ],
   'stores/workspace-store.ts': ['isLayoutEditStep', 'settleLayoutWrites'],
@@ -171,7 +171,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
     'SMALL_FACE_MAX_HEIGHT_PX', 'SMALL_FACE_MAX_WIDTH_PX',
   ],
   'utils/word-diff.ts': ['WORD_DIFF_MAX_CELLS'],
-  'utils/workspace-drop.ts': ['bodyZone', 'cellRectIn', 'dropChangesLayout', 'dropLabel', 'fitRowHeights'],
+  'utils/workspace-drop.ts': ['bodyZone', 'cellRectIn', 'dropLabel', 'fitRowHeights'],
   'utils/workspace-grid.ts': ['cellAtTrack', 'isNormalized', 'lineCrossings', 'mergeTracks'],
   'utils/workspace-layout-ops.ts': ['EDGE_SNAP_PX', 'edgeSnap', 'extractTab', 'isCellCollapsed'],
   'utils/workspace-layout-queries.ts': ['layoutStructureKey', 'TabLocation'],

@@ -24,7 +24,7 @@ import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignme
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
-import { dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, sameDropHit } from '../utils/workspace-drop'
+import { dropChangesLayout, dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, ownStripHit, sameDropHit } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
@@ -138,7 +138,10 @@ function useWorkspaceData(): void {
 
 /**
  * Tab and panel drags: measures the workspace when one starts, follows the
- * pointer to find the drop target, and applies the move on drop.
+ * pointer to find the drop target, and applies the move on drop. Outside
+ * the layout edit mode (E4) a tab only reorders inside its own strip
+ * (`ownStripHit`: no other cell, no split, edge or join zone, no ghost) and
+ * no whole cell drags; in the mode every drop target stands, on the draft.
  */
 function useWorkspaceDragState() {
   const [drag, setDragState] = useState<WorkspaceDragState | null>(null)
@@ -154,10 +157,13 @@ function useWorkspaceDragState() {
     const layout = useWorkspaceStore.getState().working
     if (!current || !layout) return
     const geo = current.geometry
-    const hit = hitTestWorkspace(geo, { x, y })
+    const editing = useWorkspaceStore.getState().editing != null
+    const found = hitTestWorkspace(geo, { x, y })
+    const hit = editing ? found : ownStripHit(layout, found, current.source)
     const target = hit ? dropTargetForHit(layout, geo, hit, current.source) : null
-    const ghost = target ? dropGhost(layout, geo, current.source, target, current.tabs.map((t) => t.id)) : null
-    const accepts = ghost != null
+    // The drop ghost only in the mode: outside it the strip's insert line says where the tab goes.
+    const ghost = editing && target ? dropGhost(layout, geo, current.source, target, current.tabs.map((t) => t.id)) : null
+    const accepts = editing ? ghost != null : target != null && dropChangesLayout(layout, current.source, target)
     let insertLeft: number | null = null
     if (hit?.kind === 'tab-strip') {
       const panel = geometryCells(geo).find((c) => c.id === hit.cellId)
@@ -207,6 +213,8 @@ function useWorkspaceDragState() {
     const tab = isWorkspaceTabDragData(data) ? data : null
     const panel = isWorkspacePanelDragData(data) ? data : null
     if (!tab && !panel) return false
+    // A whole cell moves only in the layout edit mode.
+    if (panel && useWorkspaceStore.getState().editing == null) return true
     const area = document.querySelector<HTMLElement>('[data-ws-area]')
     if (!area) return true
     setDrag({

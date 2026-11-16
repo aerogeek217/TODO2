@@ -1112,3 +1112,20 @@ export function withTrackIdsOf<L extends LayoutBody>(body: L, model: LayoutBody)
   }
   return next
 }
+
+/**
+ * Remove widget outside the layout edit mode (layout edit mode E4, the rule
+ * "edit mode changes the grid; what's inside a cell changes in place"):
+ * removes a tab as `closeTab` does, but a cell it leaves with no tabs stays
+ * where it is as an empty cell — its space goes to no neighbour (only the
+ * mode's Close cell gives a cell away, `closeCell`). A collapsed row the
+ * removal leaves with no filled cell lying only in it expands
+ * (`expandOrphanRows`). The same layout for an unknown tab.
+ */
+export function removeTabKeepCell<L extends LayoutBody>(layout: L, tabId: string): L {
+  const loc = findTab(layout, tabId)
+  const cell = loc ? layout.cells[loc.cellIdx] : undefined
+  if (!loc || !cell) return layout
+  if (cell.tabs.length > 1) return closeTab(layout, tabId)
+  return expandOrphanRows(setCell(layout, cell.id, withStrip(cell, { tabs: [] })))
+}

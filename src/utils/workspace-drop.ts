@@ -292,6 +292,18 @@ export function dropTargetForHit(
   }
 }
 
+/**
+ * Outside the layout edit mode (E4: edit mode changes the grid; what's
+ * inside a cell changes in place) a drag only reorders a tab inside its own
+ * strip — a cell's tab strip, or a Numbers strip's middle: `hit` when it is
+ * that, else `null` (no other cell, no split, edge or join zone, no whole
+ * cell). In the mode every hit stands.
+ */
+export function ownStripHit(layout: LayoutBody, hit: WorkspaceDropHit | null, source: WorkspaceDragSource): WorkspaceDropHit | null {
+  if (hit?.kind !== 'tab-strip' || source.type !== 'tab') return null
+  return findTab(layout, source.tabId)?.cellId === hit.cellId ? hit : null
+}
+
 /** Whether dropping what is dragged on `target` would change the layout. */
 export function dropChangesLayout(layout: WorkspaceLayout, source: WorkspaceDragSource, target: LayoutDropTarget): boolean {
   return probeDrop(layout, source, target) !== layout

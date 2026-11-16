@@ -5,7 +5,7 @@ import { closeOpenEditors, layoutLeaveAsks, leaveLayout, openOneEditor, quitLayo
 import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
-import type { ReviewTabViewState, WidgetKind } from '../models/workspace-layout'
+import type { ReviewTabViewState } from '../models/workspace-layout'
 import type { TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models/todo-sort-group'
 
 type EditPopupMode = 'edit' | 'create' | null
@@ -112,12 +112,6 @@ export type LayoutRequest =
   | { kind: 'new' }
   | { kind: 'duplicate' }
 
-/** Add widget ▸ kind from the palette: the Where picker of cell `cellId`, at `anchor`, with `kind` chosen (`AddWidgetRequestHost`). */
-export interface AddWidgetRequest {
-  cellId: string
-  kind: WidgetKind
-  anchor: { x: number; y: number }
-}
 
 /**
  * The widget open larger (`WidgetPopupHost`, `services/widget-popup`): a tab
@@ -351,8 +345,6 @@ interface UIState {
   entityAction: EntityAction | null
   /** A layout action for `LayoutControls` to run (`LayoutRequest`); `null` = none waiting. */
   layoutRequest: LayoutRequest | null
-  /** An Add widget the palette asked for (`AddWidgetRequest`); `null` = none. */
-  addWidgetRequest: AddWidgetRequest | null
   /** The widget open larger, one at a time (`WidgetPopupTarget`); `null` = none. Opened through `services/widget-popup`. */
   widgetPopup: WidgetPopupTarget | null
   /**
@@ -436,8 +428,6 @@ interface UIState {
   closeEntityAction: () => void
   requestLayout: (request: LayoutRequest) => void
   clearLayoutRequest: () => void
-  requestAddWidget: (request: AddWidgetRequest) => void
-  clearAddWidgetRequest: () => void
   /** Shows `target` in the popup (replacing what it showed). */
   setWidgetPopup: (target: WidgetPopupTarget) => void
   closeWidgetPopup: () => void
@@ -481,7 +471,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   checkinImportPersonId: null,
   entityAction: null,
   layoutRequest: null,
-  addWidgetRequest: null,
   widgetPopup: null,
   popupReviewView: {},
 
@@ -763,12 +752,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
   clearLayoutRequest() {
     set({ layoutRequest: null })
-  },
-  requestAddWidget(request) {
-    set({ addWidgetRequest: request })
-  },
-  clearAddWidgetRequest() {
-    set({ addWidgetRequest: null })
   },
   setWidgetPopup(target) {
     set({ widgetPopup: target })

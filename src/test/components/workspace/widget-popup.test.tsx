@@ -203,17 +203,15 @@ describe('one live widget per tab: the cell shows a placeholder while its tab is
   it('a list’s rows are registered draggables again after the popup closes (the dead drag)', () => {
     renderCells(cell('k', [listTab]))
     expect(rowIds()).toEqual(['lw|l|all|1'])
-    // The cell's grip (its top line's) too: the placeholder's top line holds it meanwhile.
-    expect(draggableIds()).toContain('ws-panel:k')
+    // No grip outside the layout edit mode (E4): nothing drags the cell.
+    expect(draggableIds()).not.toContain('ws-panel:k')
     act(() => { void openWidgetLarger('l') })
     expect(rowIds()).toEqual(['lw|l|all|1'])
-    expect(draggableIds()).toContain('ws-panel:k')
     // The registered node is the popup's row, not one left behind by the cell.
     expect(popup()!.contains(dnd!.draggableNodes.get('lw|l|all|1')!.node.current)).toBe(true)
     closePopup()
     expect(rowIds()).toEqual(['lw|l|all|1'])
     expect(cellEl('k').contains(dnd!.draggableNodes.get('lw|l|all|1')!.node.current)).toBe(true)
-    expect(cellEl('k').contains(dnd!.draggableNodes.get('ws-panel:k')!.node.current)).toBe(true)
   })
 
   it('a calendar’s days are drop targets and its entries draggables again after the popup closes', () => {
