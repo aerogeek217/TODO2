@@ -15,6 +15,13 @@ import { registerModuleReset } from '../utils/module-reset'
  * discarded (Keep editing: nothing happens). An editor closed anyway says
  * so itself: only where nothing could ask — a data replace, an undo, a hash
  * typed in, a cell resized too small to show its widget.
+ *
+ * The layout edit mode (`workspace-store.editing`) registers too, as a
+ * **layout-wide** editor (`layoutWide`): it is asked only when something
+ * would leave the layout — a layout switch, New / Duplicate / delete layout,
+ * Settings opening, an in-app route change (`leaveLayout`) — never by what
+ * happens inside a cell (`afterLeavingEditors`, `leaveOpenEditors`), which
+ * in the mode are its own edits.
  */
 interface OpenEditor {
   /** Whether it holds changes that leaving would lose. */
@@ -25,6 +32,13 @@ interface OpenEditor {
    * for Keep editing.
    */
   ask: () => Promise<boolean>
+  /**
+   * A layout-wide editor (the layout edit mode): asked only on leaving the
+   * layout (`leaveLayout`), and left (`leave`) there when it holds no changes.
+   */
+  layoutWide?: boolean
+  /** A layout-wide editor's quiet exit, on leaving the layout with no changes. */
+  leave?: () => void
 }
 
 const open = new Set<OpenEditor>()
@@ -36,17 +50,52 @@ export function registerOpenEditor(editor: OpenEditor): () => void {
   return () => { open.delete(editor) }
 }
 
-/** Whether an open editor holds changes. */
-export function editorsHoldChanges(): boolean {
-  return [...open].some((e) => e.changed())
+/**
+ * Who a leave check asks: `cell` (default) — what happens inside the
+ * layout (a cell's tab switched or closed, a split, an editor opened, the
+ * widget popup): every editor but the layout-wide ones; `layout` —
+ * leaving the layout: every editor.
+ */
+type LeaveScope = 'cell' | 'layout'
+
+function asked(editor: OpenEditor, scope: LeaveScope): boolean {
+  return scope === 'layout' || editor.layoutWide !== true
+}
+
+/** Whether an open editor holds changes (`scope`: which are asked, `LeaveScope`). */
+export function editorsHoldChanges(scope: LeaveScope = 'cell'): boolean {
+  return [...open].some((e) => asked(e, scope) && e.changed())
 }
 
 /** Asks every open editor holding changes, in turn; resolves whether all were left (saved or discarded). */
-export async function leaveOpenEditors(): Promise<boolean> {
+export async function leaveOpenEditors(scope: LeaveScope = 'cell'): Promise<boolean> {
   for (const editor of [...open]) {
-    if (!editor.changed()) continue
+    if (!asked(editor, scope) || !editor.changed()) continue
     if (!(await editor.ask())) return false
   }
+  return true
+}
+
+/** Whether leaving the layout asks a question first: an open editor — the layout edit mode too — holds changes. */
+export function layoutLeaveAsks(): boolean {
+  return editorsHoldChanges('layout')
+}
+
+/** Leaves every layout-wide editor holding no changes (the layout edit mode), asking nothing. */
+export function quitLayoutEditors(): void {
+  for (const editor of [...open]) if (editor.layoutWide === true && !editor.changed()) editor.leave?.()
+}
+
+/**
+ * Leaving the layout (a layout switch, New / Duplicate / delete layout,
+ * Settings, a route change): every open editor holding changes is asked —
+ * the layout edit mode's Save / Discard / Keep editing too —, then the
+ * layout-wide ones holding none are left. Resolves whether everything was
+ * left (false: Keep editing, stay).
+ */
+export async function leaveLayout(): Promise<boolean> {
+  if (!(await leaveOpenEditors('layout'))) return false
+  quitLayoutEditors()
   return true
 }
 
