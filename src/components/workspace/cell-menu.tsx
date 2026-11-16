@@ -28,7 +28,7 @@ import {
   SplitRightIcon,
   WidgetKindIcon,
 } from '../shared/icons'
-import { mergeNeighbour, type Side } from '../../utils/workspace-grid'
+import type { Side } from '../../utils/workspace-grid'
 import { tabsCount } from './workspace-drag'
 import type { WidgetResult } from './WidgetBody'
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
@@ -38,27 +38,25 @@ import { useListReviewMenuEntries } from './list/review-menu'
 import { createListAndTab, openEditList, useListOwnerLayoutId } from './widget-hooks'
 
 /**
- * A cell's menus (D26 AA1, UX cleanup 4A; layout edit mode E4). The rule:
- * **edit mode changes the grid; what's inside a cell changes in place.**
- * Outside the mode the ⋯ (**Cell options**) — and a right-click on a
- * widget's top line or a tab, or Shift+F10 / the Menu key there — is this
+ * A cell's menus (D26 AA1, UX cleanup 4A; layout edit mode E3, E4). The
+ * rule: **edit mode changes the grid; what's inside a cell changes in
+ * place.** Outside the mode the ⋯ (**Cell options**) — and a right-click on
+ * a widget's top line or a tab, or Shift+F10 / the Menu key there — is this
  * widget and its cell's contents: the widget's own entries under its kind's
  * heading (Edit list…, Zoom, Copy…, Open larger, Name and icon…, Change
  * widget ›), then **Add widget as tab ›** (every kind, under Tasks and
  * Insights), **Remove widget** (a lone widget's cell stays, empty),
  * Collapse / Expand row, and last **Edit layout**, which opens the layout
- * edit mode with this cell selected. Inside the mode every one of the
- * cell's menus — the grip's (**Cell layout**) among them, which only the
- * mode draws — holds the cell's layout entries under Layout: Add widget…,
- * Split cell ▸, Insert row ▸, Insert column ▸, Merge with ▸ (each side its
- * own entry), Collapse row, then Close cell (no widget editors or popups
- * over the draft).
+ * edit mode with this cell selected. Inside the mode a cell is a card, and
+ * its menu (the card's ⋯, a right-click on the card, Enter on it: **Cell
+ * layout**, `editCardMenuEntries`) places it: Move to ▸, Swap with ▸,
+ * Split ▸, Merge with ▸, Stretch right / down, Remove widget, Close cell.
  */
 
 /** Merge with ▸ a side: why the item is off when the cell doesn't merge that way. */
 export const NO_MERGE_REASON = 'Only cells that make a rectangle together merge'
 
-/** Split cell ▸ and Merge with ▸: the four sides, in reading order. */
+/** Split ▸ and Merge with ▸: the four sides, in reading order. */
 const SIDE_ITEMS: ReadonlyArray<{ label: string; side: Side }> = [
   { label: 'Above', side: 'top' },
   { label: 'Left', side: 'left' },
@@ -66,13 +64,7 @@ const SIDE_ITEMS: ReadonlyArray<{ label: string; side: Side }> = [
   { label: 'Below', side: 'bottom' },
 ]
 
-/** The cell across `side` that cell `cellId` merges with into a rectangle (Merge with ▸), in the open layout. */
-function mergeTarget(cellId: string, side: Side): string | undefined {
-  const layout = useWorkspaceStore.getState().working
-  return layout ? mergeNeighbour(layout, cellId, side)?.id : undefined
-}
-
-/** What the cell's own part of the menu acts on. */
+/** What the cell's own part of the ⋯ menu acts on (outside the mode). */
 export interface CellMenuActions {
   cell: Pick<LayoutCell, 'id' | 'tabs'>
   /** The tab Remove widget removes (the menu's widget). */
@@ -81,78 +73,103 @@ export interface CellMenuActions {
   tabTitle: string
   /** Every row track it covers is collapsed: Expand row instead of Collapse row. */
   collapsed: boolean
-  onAddWidget: () => void
-  onSplit: (side: Side) => void
-  onMerge: (otherCellId: string) => void
-  /** A row / column at the layout's edge. */
-  onInsert: (edge: Side) => void
-  /** A row / column beside this cell's own (Above / Below this row, Left / Right of this column). */
-  onInsertBeside: (side: Side) => void
   onCollapse: (next: boolean) => void
   onCloseTab: (tabId: string) => void
   /** Add widget as tab › a kind (a Breakdown with its preset): a new tab of this cell, made its active one. */
   onAddTab: (kind: WidgetKind, preset?: BreakdownPreset) => void
-  onCloseCell: () => void
   /** Edit layout (the ⋯'s last entry): opens the layout edit mode with this cell selected. Absent: no entry. */
   onEditLayout?: () => void
-  /** The layout edit mode is on: every menu of the cell is its layout entries. */
-  editing?: boolean
-  /** Look up the cell Merge with ▸ would take that way (default: in the open layout). */
-  mergeWith?: (cellId: string, side: Side) => string | undefined
 }
 
-/** Add widget… (the first entry under Layout). */
-function addWidgetEntry(a: CellMenuActions): MenuEntry {
-  return { kind: 'item', label: 'Add widget…', icon: <PlusIcon />, submenu: true, onSelect: a.onAddWidget }
+/** The card menu's name (its `aria-label`; the card's ⋯ is named so too). */
+export const EDIT_CARD_MENU_LABEL = 'Cell layout'
+
+/** A place a card's menu offers: a slot to move to, a card to swap with — its cell id and its words. */
+interface EditCardPlace {
+  cellId: string
+  /** What it is called: a slot's ruler name (`B4`), a card's widget name. */
+  label: string
+  /** Beside it: a card's ruler name. */
+  note?: string
+}
+
+/** What a card's menu in the layout edit mode acts on (`editCardMenuEntries`). */
+export interface EditCardMenuActions {
+  /** The card's cell. */
+  cell: Pick<LayoutCell, 'id' | 'tabs'>
+  /** The tab Remove widget removes (the card's active one, or a strip's Number the menu came from). */
+  tab: LayoutTab | undefined
+  /** Every slot (empty cell), by ruler name: Move to ▸. */
+  slots: readonly EditCardPlace[]
+  /** Every other card, by name: Swap with ▸. */
+  cards: readonly EditCardPlace[]
+  /** The cell Merge with ▸ would take on `side`, if they make a rectangle. */
+  mergeWith: (side: Side) => string | undefined
+  /** Whether Stretch right / down can go one track (an empty slot all along that side). */
+  canStretch: (direction: 'right' | 'down') => boolean
+  onMoveTo: (slotId: string) => void
+  onSwap: (cellId: string) => void
+  onSplit: (side: Side) => void
+  onMerge: (otherCellId: string) => void
+  onStretch: (direction: 'right' | 'down') => void
+  onRemoveWidget: (tabId: string) => void
+  onCloseCell: () => void
 }
 
 /**
- * The cell's layout entries (the grip's menu, under Layout): Add widget…,
- * Split cell ▸ and Merge with ▸ on every side, Insert row ▸ (beside this
- * cell's row, or at the layout's top / bottom), Insert column ▸ (beside this
- * cell's column, or at its far left / right), Collapse row, then Close cell.
+ * A card's menu in the layout edit mode (E3, **Cell layout**): Move to ▸
+ * (every slot by its ruler name), Swap with ▸ (every other card by name),
+ * Split ▸ and Merge with ▸ (each side its own entry; Merge off, saying why,
+ * where the two make no rectangle), Stretch right / Stretch down (one
+ * track, over empty slots only), then Remove widget (its cell stays, a
+ * slot) and Close cell (the absorb rule).
  */
-function cellLayoutEntries(a: CellMenuActions): MenuEntry[] {
-  const mergeWith = a.mergeWith ?? mergeTarget
+export function editCardMenuEntries(a: EditCardMenuActions): MenuEntry[] {
+  const place = (p: EditCardPlace, run: (id: string) => void): MenuEntry => ({
+    kind: 'item',
+    label: p.label,
+    ...(p.note ? { note: p.note } : {}),
+    onSelect: () => run(p.cellId),
+  })
   const several = a.cell.tabs.length > 1
-  const sub = (label: string, onSelect: () => void): MenuEntry => ({ kind: 'item', label, onSelect })
-  return [
-    addWidgetEntry(a),
+  const tab = a.tab
+  const stretch = (direction: 'right' | 'down'): MenuEntry => {
+    const can = a.canStretch(direction)
+    return {
+      kind: 'item',
+      label: direction === 'right' ? 'Stretch right' : 'Stretch down',
+      icon: direction === 'right' ? <SplitRightIcon /> : <SplitBelowIcon />,
+      disabled: !can,
+      ...(can ? {} : { title: direction === 'right' ? 'Only over an empty slot all along its right side' : 'Only over an empty slot all along its bottom' }),
+      onSelect: () => a.onStretch(direction),
+    }
+  }
+  const entries: MenuEntry[] = [
     {
       kind: 'item',
-      label: 'Split cell',
-      icon: <SplitRightIcon />,
-      children: SIDE_ITEMS.map(({ label, side }) => sub(label, () => a.onSplit(side))),
+      label: 'Move to',
+      disabled: a.slots.length === 0,
+      ...(a.slots.length === 0 ? { title: 'No empty slot: insert a row or column first' } : {}),
+      children: a.slots.map((p) => place(p, a.onMoveTo)),
     },
     {
       kind: 'item',
-      label: 'Insert row',
-      icon: <SplitBelowIcon />,
-      children: [
-        sub('Above this row', () => a.onInsertBeside('top')),
-        sub('Below this row', () => a.onInsertBeside('bottom')),
-        { kind: 'separator' },
-        sub('At the top', () => a.onInsert('top')),
-        sub('At the bottom', () => a.onInsert('bottom')),
-      ],
+      label: 'Swap with',
+      disabled: a.cards.length === 0,
+      ...(a.cards.length === 0 ? { title: 'No other card' } : {}),
+      children: a.cards.map((p) => place(p, a.onSwap)),
     },
     {
       kind: 'item',
-      label: 'Insert column',
+      label: 'Split',
       icon: <SplitRightIcon />,
-      children: [
-        sub('Left of this column', () => a.onInsertBeside('left')),
-        sub('Right of this column', () => a.onInsertBeside('right')),
-        { kind: 'separator' },
-        sub('At the far left', () => a.onInsert('left')),
-        sub('At the far right', () => a.onInsert('right')),
-      ],
+      children: SIDE_ITEMS.map(({ label, side }): MenuEntry => ({ kind: 'item', label, onSelect: () => a.onSplit(side) })),
     },
     {
       kind: 'item',
       label: 'Merge with',
       children: SIDE_ITEMS.map(({ label, side }): MenuEntry => {
-        const other = mergeWith(a.cell.id, side)
+        const other = a.mergeWith(side)
         return {
           kind: 'item',
           label,
@@ -162,20 +179,18 @@ function cellLayoutEntries(a: CellMenuActions): MenuEntry[] {
         }
       }),
     },
-    {
-      kind: 'item',
-      label: a.collapsed ? 'Expand row' : 'Collapse row',
-      icon: a.collapsed ? <ChevronDownIcon size={14} /> : <ChevronUpIcon />,
-      onSelect: () => a.onCollapse(!a.collapsed),
-    },
+    stretch('right'),
+    stretch('down'),
     { kind: 'separator' },
-    {
-      kind: 'item',
-      label: several ? `Close cell (${tabsCount(a.cell.tabs.length)})` : 'Close cell',
-      icon: <CloseCellIcon />,
-      onSelect: a.onCloseCell,
-    },
   ]
+  if (tab) entries.push({ kind: 'item', label: 'Remove widget', icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => a.onRemoveWidget(tab.id) })
+  entries.push({
+    kind: 'item',
+    label: several ? `Close cell (${tabsCount(a.cell.tabs.length)})` : 'Close cell',
+    icon: <CloseCellIcon />,
+    onSelect: a.onCloseCell,
+  })
+  return entries
 }
 
 /** The width of Add widget as tab ›'s submenus. */
@@ -235,34 +250,25 @@ function editLayoutEntry(a: CellMenuActions): MenuEntry[] {
   return open ? [{ kind: 'item', label: 'Edit layout', icon: <PencilIcon />, onSelect: open }] : []
 }
 
-/** The cell's section of the whole menu, under its heading (Layout): the layout entries ({@link cellLayoutEntries}). */
-export function cellMenuEntries(a: CellMenuActions): MenuEntry[] {
-  return [{ kind: 'label', text: 'Layout' }, ...cellLayoutEntries(a)]
-}
-
 /**
- * Which of a cell's menus is open: the ⋯'s (`widget`), the grip's (`layout`:
- * the layout entries under Layout — the grip shows only in the layout edit
- * mode), or the whole menu (`all`: a right-click, Shift+F10 / the Menu key).
- * Outside the mode `widget` and `all` are the same menu.
+ * Which of a cell's menus is open outside the layout edit mode: the ⋯'s
+ * (`widget`) or the whole menu (`all`: a right-click, Shift+F10 / the Menu
+ * key) — the same menu. (In the mode a card has one menu, Cell layout.)
  */
-export type CellMenuPart = 'widget' | 'layout' | 'all'
+export type CellMenuPart = 'widget' | 'all'
 
-/** Each menu's name (its `aria-label`; the ⋯'s and the grip's are their buttons' too). */
+/** Each menu's name (its `aria-label`; the ⋯'s is its button's too). */
 export const CELL_MENU_LABEL: Readonly<Record<CellMenuPart, string>> = {
   widget: 'Cell options',
-  layout: 'Cell layout',
   all: 'Cell options',
 }
 
 /**
- * The entries of the cell's menu `part`, from the widget's entries and the
- * cell's actions. In the layout edit mode (and the grip's, only drawn
- * there): the layout entries. Outside it: the widget's entries, then Add
- * widget as tab ›, Remove widget and Collapse / Expand row, then Edit layout.
+ * The entries of the cell's ⋯ menu (outside the layout edit mode): the
+ * widget's entries, then Add widget as tab ›, Remove widget and Collapse /
+ * Expand row, then Edit layout.
  */
-export function cellMenuFor(part: CellMenuPart, widget: readonly MenuEntry[], a: CellMenuActions): MenuEntry[] {
-  if (part === 'layout' || a.editing) return cellMenuEntries(a)
+export function cellMenuFor(widget: readonly MenuEntry[], a: CellMenuActions): MenuEntry[] {
   const own = mergedCellMenu(widget, [addTabEntry(a), ...removeWidgetEntry(a), collapseEntry(a)])
   return mergedCellMenu(own, editLayoutEntry(a))
 }

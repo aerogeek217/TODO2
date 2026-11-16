@@ -41,10 +41,16 @@ import { layoutLeaveAsks, leaveLayout } from '../stores/editor-leave'
 import { useLatestRef } from '../hooks/use-latest-ref'
 import { useBlocker } from 'react-router'
 import { TabIcon } from '../components/workspace/TabIcon'
+import { addWidgetKindAt } from '../components/workspace/widget-hooks'
+import { focusEditItem } from '../components/workspace/edit-focus'
+import type { WidgetKind } from '../models/workspace-layout'
+import { findTab } from '../utils/workspace-layout-queries'
+import { NEW_WIDGET_PROBE_ID } from '../utils/workspace-drop'
 import {
   isWorkspaceDragType,
   isWorkspacePanelDragData,
   isWorkspaceTabDragData,
+  registerNewWidgetDrag,
   runDrop,
   tabsCount,
   WorkspaceDragContext,
@@ -141,7 +147,11 @@ function useWorkspaceData(): void {
  * pointer to find the drop target, and applies the move on drop. Outside
  * the layout edit mode (E4) a tab only reorders inside its own strip
  * (`ownStripHit`: no other cell, no split, edge or join zone, no ghost) and
- * no whole cell drags; in the mode every drop target stands, on the draft.
+ * no whole cell drags; in the mode every drop target stands, on the draft —
+ * a card dragged from anywhere on it (E3), a tab, a strip's Number, and a
+ * new widget dragged in from the tray (`registerNewWidgetDrag`: not a
+ * dnd-kit drag — its own pointer-up drops it, Esc cancels it). The card or
+ * tab dropped is selected where it landed and keeps the focus.
  */
 function useWorkspaceDragState() {
   const [drag, setDragState] = useState<WorkspaceDragState | null>(null)
@@ -233,12 +243,65 @@ function useWorkspaceDragState() {
   const end = useCallback((commit: boolean) => {
     const current = dragRef.current
     setDrag(null)
-    if (commit && current?.target && current.accepts) {
-      const ws = useWorkspaceStore.getState()
-      if (current.source.type === 'tab') ws.moveTab(current.source.tabId, current.target)
-      else ws.movePanel(current.source.panelId, current.target)
+    if (!commit || !current?.target || !current.accepts) return
+    const ws = useWorkspaceStore.getState()
+    const editing = ws.editing != null
+    const source = current.source
+    if (source.type === 'new') {
+      addWidgetKindAt(source.kind, current.target)
+      return
+    }
+    const tabId = source.type === 'tab' ? source.tabId : current.tabs[0]?.id
+    if (source.type === 'tab') ws.moveTab(source.tabId, current.target)
+    else ws.movePanel(source.panelId, current.target)
+    // In the mode: what moved is selected where it landed, and holds the focus.
+    const working = useWorkspaceStore.getState().working
+    const holder = editing && tabId != null && working ? findTab(working, tabId)?.cellId : undefined
+    if (holder != null) {
+      useWorkspaceStore.getState().selectEditCell(holder)
+      if (source.type === 'panel') focusEditItem(holder)
     }
   }, [setDrag])
+
+  /** A tray chip dragged in (E3): a new widget's drag, from the point the chip left. */
+  const startNew = useCallback((kind: WidgetKind, title: string, x: number, y: number) => {
+    const area = document.querySelector<HTMLElement>('[data-ws-area]')
+    if (!area || dragRef.current || useWorkspaceStore.getState().editing == null) return
+    setDrag({
+      source: { type: 'new', kind },
+      tabs: [{ id: NEW_WIDGET_PROBE_ID, kind, title }],
+      hit: null,
+      target: null,
+      accepts: false,
+      ghost: null,
+      insertLeft: null,
+      geometry: measureWorkspace(area),
+    })
+    update(x, y)
+  }, [setDrag, update])
+  useEffect(() => registerNewWidgetDrag(startNew), [startNew])
+
+  // A tray drag isn't dnd-kit's: its own release drops it, and Esc (or a lost pointer) cancels it.
+  const newDrag = drag?.source.type === 'new'
+  useEffect(() => {
+    if (!newDrag) return
+    const onUp = () => end(true)
+    const onCancel = () => end(false)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      end(false)
+    }
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onCancel)
+      window.removeEventListener('keydown', onKey, true)
+    }
+  }, [newDrag, end])
 
   return { drag, start, end }
 }

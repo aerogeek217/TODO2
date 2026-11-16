@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import { useUndoStore } from '../../stores/undo-store'
+import { registerModuleReset } from '../../utils/module-reset'
 import type { WidgetKind } from '../../models/workspace-layout'
 import type { IconValue } from '../../models/icon'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
@@ -99,4 +100,29 @@ export async function runDrop(drop: () => Promise<void>): Promise<void> {
     console.error('[workspace] the drop failed', err)
     useUndoStore.getState().notify(DROP_FAILED_NOTICE)
   }
+}
+
+/**
+ * Starts a drag of a new widget of `kind` from the layout edit mode's tray
+ * (E3) at the viewport point (`x`, `y`): the workspace page's drag state
+ * (`registerNewWidgetDrag`) follows the pointer from there with today's
+ * drop model and ghost, and a release adds the widget where the ghost says.
+ */
+type NewWidgetDragStart = (kind: WidgetKind, title: string, x: number, y: number) => void
+
+/** The workspace page's starter, while it is mounted. */
+let newWidgetDrag: NewWidgetDragStart | null = null
+registerModuleReset(() => { newWidgetDrag = null })
+
+/** The workspace page registers how a tray drag starts; returns its unregister. */
+export function registerNewWidgetDrag(start: NewWidgetDragStart): () => void {
+  newWidgetDrag = start
+  return () => { if (newWidgetDrag === start) newWidgetDrag = null }
+}
+
+/** The tray's chip dragged past the start distance: whether a drag started (the workspace page is there). */
+export function beginNewWidgetDrag(kind: WidgetKind, title: string, x: number, y: number): boolean {
+  if (!newWidgetDrag) return false
+  newWidgetDrag(kind, title, x, y)
+  return true
 }

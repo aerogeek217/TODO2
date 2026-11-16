@@ -1,108 +1,16 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
-import { useDraggable } from '@dnd-kit/core'
-import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
-import { tabTopLineIcon, type LayoutTab } from '../../models/workspace-layout'
+import { useContext, useLayoutEffect, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import { tabTopLineIcon } from '../../models/workspace-layout'
 import { AppIcon } from '../shared/AppIcon'
-import { ChevronDownIcon, ExpandIcon, GripIcon, MoreIcon } from '../shared/icons'
+import { ChevronDownIcon, ExpandIcon, MoreIcon } from '../shared/icons'
 import { OPEN_LARGER_LABEL } from '../shared/widget-kind-menu-entries'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
-import { useTabTitles } from './widget-hooks'
-import { WORKSPACE_PANEL_DRAG, workspacePanelDragId, type WorkspacePanelDragData } from './workspace-drag'
 import styles from './WidgetTopLine.module.css'
 
-/** The grip's name (its button's and its menu's: `cell-menu.CELL_MENU_LABEL.layout`). */
-const CELL_GRIP_LABEL = 'Cell layout'
-
-interface CellGripProps {
-  cellId: string
-  /** The cell's tabs, for the drag's data (and the ghost's words). */
-  tabs: readonly LayoutTab[]
-  /** The active widget's title (the tooltip's words). */
-  title: string
-  /**
-   * The draggable's id after the cell's panel id (`:floating`, `:header`):
-   * dnd-kit keeps one node per id, and a cell can draw two grips for a
-   * moment (its own floating one beside a top line's before that one claims
-   * the slot), or a grip beside the strip's panel handle.
-   */
-  idSuffix?: string
-  /** Its menu is open. */
-  expanded: boolean
-  /** Opens (or closes) the cell's layout menu under it. */
-  onMenu: () => void
-  /** Takes the button (a callback ref, with its cleanup): the menu opens under it. */
-  setButton?: (el: HTMLButtonElement | null) => (() => void) | undefined
-  /** Marks it as the cell's drag handle (`data-ws-panel-handle`) — not beside the strip's own handle. */
-  panelHandle?: boolean
-  className?: string
-}
-
 /**
- * A cell's grip (UX cleanup 4A): a button. A drag (5px to start, as a tab)
- * moves the whole cell, as the strip's panel handle does, and opens
- * nothing; a click — or Enter / Space — opens the cell's layout menu (Split
- * cell, Merge with, Insert, Collapse row, Close …). A press that dragged the
- * cell is never a click here, even when it ends back on the grip: dnd-kit
- * swallows the click that ends a drag, and the grip also ignores a click
- * after it was dragged (a drag cancelled with Esc, released later) or one
- * landing 5px or more from where it was pressed.
- */
-export function CellGrip({ cellId, tabs, title, idSuffix = '', expanded, onMenu, setButton, panelHandle = false, className }: CellGripProps) {
-  const titles = useTabTitles(tabs)
-  const data: WorkspacePanelDragData = {
-    type: WORKSPACE_PANEL_DRAG,
-    panelId: cellId,
-    tabs: tabs.map((t, i) => ({ id: t.id, kind: t.kind, title: titles[i] ?? '', ...(t.icon ? { icon: t.icon } : {}) })),
-  }
-  const { setNodeRef, listeners, isDragging } = useDraggable({ id: `${workspacePanelDragId(cellId)}${idSuffix}`, data })
-  /** Where the press began, and whether it went on to drag the cell. */
-  const press = useRef<{ x: number; y: number; dragged: boolean } | null>(null)
-  useEffect(() => {
-    if (isDragging && press.current) press.current.dragged = true
-  }, [isDragging])
-  const ref = useCallback((el: HTMLButtonElement | null) => {
-    setNodeRef(el)
-    const off = setButton?.(el)
-    return () => {
-      off?.()
-      setNodeRef(null)
-    }
-  }, [setNodeRef, setButton])
-  return (
-    <button
-      ref={ref}
-      type="button"
-      className={className ?? styles.grip}
-      data-ws-panel-handle={panelHandle ? cellId : undefined}
-      data-testid="ws-cell-grip"
-      aria-label={CELL_GRIP_LABEL}
-      aria-haspopup="menu"
-      aria-expanded={expanded}
-      data-tooltip={`Drag to move “${title}” · click for layout`}
-      onPointerDown={(e) => {
-        press.current = { x: e.clientX, y: e.clientY, dragged: false }
-        listeners?.onPointerDown?.(e)
-      }}
-      onClick={(e) => {
-        // A small face's body opens its widget larger on a click: not this one.
-        e.preventDefault()
-        const p = press.current
-        press.current = null
-        // `detail` 0: Enter / Space (no press to measure).
-        if (e.detail > 0 && p && (p.dragged || Math.hypot(e.clientX - p.x, e.clientY - p.y) >= DRAG_ACTIVATION_DISTANCE_PX)) return
-        onMenu()
-      }}
-    >
-      <GripIcon />
-    </button>
-  )
-}
-
-/**
- * A cell's controls slot (D26 AA1): in the layout edit mode the grip (its layout menu, UX cleanup
- * 4A), Open larger (where the widget offers it) and the ⋯ (the widget's menu) — shown while the pointer is over the
+ * A cell's controls slot (D26 AA1): Open larger (where the widget offers it) and the ⋯ (the
+ * widget's menu) — shown while the pointer is over the
  * cell, while focus is in it and while a menu of the cell is open, always on
- * touch (no grip there); hidden, they take no press — and, while its row is
+ * touch; hidden, they take no press — and, while its row is
  * collapsed, an Expand button that always shows. In a widget's top line, or
  * (`floating`) the cell's own over its top-right corner, for a face without
  * a top line that holds it.
@@ -113,7 +21,7 @@ export function CellControls({ value, floating = false, standsForTab = false }: 
   /** No top line in the widget's face: the slot is its top line (`data-ws-tab`, its right-click and Shift+F10 the menu). */
   standsForTab?: boolean
 }) {
-  const { setMoreButton, menuOpen, touch, collapsed, onExpand, onMore, tabId, onGrip, onOpenLarger } = value
+  const { setMoreButton, menuOpen, touch, collapsed, onExpand, onMore, tabId, onOpenLarger } = value
   const moreOpen = value.moreOpen ?? menuOpen
   const stop = (e: MouseEvent) => {
     // The body's small-face click (it opens the widget larger) is not this one.
@@ -140,19 +48,6 @@ export function CellControls({ value, floating = false, standsForTab = false }: 
         </button>
       )}
       <span className={styles.controls}>
-        {!touch && onGrip && (
-          <CellGrip
-            cellId={value.cellId}
-            tabs={value.tabs}
-            title={value.title}
-            idSuffix={floating ? ':floating' : ''}
-            expanded={value.gripOpen === true}
-            onMenu={onGrip}
-            setButton={value.setGripButton}
-            panelHandle
-            className={`${styles.grip} ${value.gripOpen ? styles.pressed : ''}`}
-          />
-        )}
         {!touch && onOpenLarger && (
           <button
             type="button"
@@ -208,7 +103,7 @@ interface WidgetTopLineProps {
  * A widget's top line (D26 AA1): its first line — a list's filter line, the
  * calendar's header, a Number's label, a chart's title — which, while the
  * widget is alone in its cell (no tab strip), names it (`lead`) and holds the
- * cell's controls slot (the grip and ⋯, `CellControls`). A right-click on it
+ * cell's controls slot (Open larger and the ⋯, `CellControls`). A right-click on it
  * or Shift+F10 / the Menu key in it opens the cell's ⋯ menu (the cell's
  * handlers, by `data-widget-top-line`); it stands for the tab
  * (`data-ws-tab`) the strip would show. Elsewhere (a strip names the widget,

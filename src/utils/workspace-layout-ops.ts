@@ -798,7 +798,11 @@ function relocate<L extends LayoutBody>(layout: L, srcId: string, place: (layout
  * cell (`cell`: a merge of strips, at `index` or after its tabs, the first
  * moved tab active), or a new cell from a split or an insert (keeping its
  * active tab). Its old place closes (`closeCell`, by `relocate`: a
- * neighbour or the new cell takes it, or it stays as an empty cell). A drop onto the cell itself (its strip or a
+ * neighbour or the new cell takes it, or it stays as an empty cell). Onto
+ * an empty cell (a slot — a whole cell moves only in the layout edit mode,
+ * E3) the two swap places (`swapCells`): the cell takes the slot's area and
+ * its old place is the empty cell, so a move never grows a card over its
+ * old place. A drop onto the cell itself (its strip or a
  * side), or back where it is, returns the layout unchanged; so does an
  * empty cell.
  */
@@ -807,6 +811,8 @@ export function movePanel<L extends LayoutBody>(layout: L, cellId: string, targe
   const first = cell?.tabs[0]
   if (!cell || !first) return layout
   if ((target.kind === 'cell' || target.kind === 'split') && target.cellId === cellId) return layout
+  const into = target.kind === 'cell' ? cellById(layout, target.cellId) : undefined
+  if (into && into.tabs.length === 0) return swapCells(layout, cellId, into.id)
   const next = relocate(layout, cellId, (l) => placeTabs(l, cell.tabs, target, genId, cell.activeTabId))
   return next ? unlessBackInPlace(layout, next, first.id, cellId) : layout
 }

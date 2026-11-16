@@ -138,9 +138,18 @@
   overflow: auto;
 }
 
+/* An empty cell in the layout edit mode: a slot (`EditCard.EditSlot` fills it). */
+.emptySlot {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  border-radius: var(--radius-card);
+  position: relative;
+}
+
 .emptyClose {
   position: absolute;
-  top: 6px;
+  top: 10px;
   right: 6px;
   display: inline-flex;
   align-items: center;
@@ -230,42 +239,13 @@
   text-decoration: underline;
 }
 
-/* Outside the layout edit mode a header's empty space is only room: nothing to drag. */
-.fillStill {
-  cursor: default;
-}
-
-
-/* The header's empty space: drags the whole panel; a click there opens nothing. */
+/* The header's empty space: the strip measures it as its room (kept beside a
+   full tab strip); nothing drags there — in the layout edit mode a press
+   there reaches the card's surface. */
 .fill {
   flex: 1 1 0;
-  /* Kept beside a full tab strip, so the panel can still be dragged whole (the strip measures the rest as its room). */
   min-width: 16px;
   align-self: stretch;
-  cursor: grab;
-  touch-action: none;
-}
-
-.fill:active {
-  cursor: grabbing;
-}
-
-/* The header's grip button (UX cleanup 4A): drags the panel too; a click opens the cell's layout menu. */
-.gripButton {
-  /* As narrow as the one-widget slot's grip: the strip keeps its room. */
-  width: 16px;
-  cursor: grab;
-  touch-action: none;
-}
-
-.gripButton:active {
-  cursor: grabbing;
-  color: var(--color-accent-text);
-}
-
-.header:has(.fill:active),
-.header:has(.gripButton:active) {
-  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-header-bg));
 }
 
 /* Its panel while it is dragged: in place, dimmed, ringed. */
@@ -300,35 +280,6 @@
 .bodySmall {
   overflow: hidden;
   cursor: pointer;
-}
-
-/*
- * A Numbers strip's grip (flair P10): at the top of the strip's right-hand
- * gutter, over the + — where a one-widget cell keeps its grip, at its
- * top-right, clear of every Number's × and ⋯ —, shown on the cell's hover or
- * focus; it drags the whole cell and opens its layout menu (Layout).
- */
-.stripGrip {
-  position: absolute;
-  right: 1px;
-  top: 2px;
-  z-index: var(--z-above-2);
-  display: inline-flex;
-  opacity: 0;
-  pointer-events: none;
-}
-
-[data-ws-cell][data-cell-hot] .stripGrip,
-.stripGrip:has([aria-expanded='true']) {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-@media (hover: none) {
-  .stripGrip {
-    opacity: 1;
-    pointer-events: auto;
-  }
 }
 
 /* Where a drop lands among a Numbers strip's slots (flair P10): a line down its height. */

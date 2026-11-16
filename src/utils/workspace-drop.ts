@@ -1,6 +1,6 @@
-import type { LayoutBody, LayoutCell, WorkspaceLayout } from '../models/workspace-layout'
+import { createTab, type LayoutBody, type LayoutCell, type WidgetKind, type WorkspaceLayout } from '../models/workspace-layout'
 import { findTab } from './workspace-layout-queries'
-import { movePanel, moveTab, type LayoutDropTarget } from './workspace-layout-ops'
+import { addTab, movePanel, moveTab, type LayoutDropTarget } from './workspace-layout-ops'
 import { cellById, spanOf, type Side } from './workspace-grid'
 import { cellsOnlyInRow } from './workspace-rows'
 import { FIT_TRACK_NOMINAL_PX, spanPx, tableTrackSizes, trackSizing, trackStart } from './workspace-table'
@@ -107,10 +107,17 @@ export type WorkspaceDropHit =
   | { kind: 'empty-cell'; cellId: string }
   | { kind: 'empty-layout' }
 
-/** What is dragged: one tab, or a whole panel (a cell) by its header. */
+/**
+ * What is dragged: one tab, a whole panel (a cell — in the layout edit
+ * mode, its card), or a new widget of `kind` from the mode's tray (E3).
+ */
 export type WorkspaceDragSource =
   | { type: 'tab'; tabId: string }
   | { type: 'panel'; panelId: string }
+  | { type: 'new'; kind: WidgetKind }
+
+/** The id a tray drag's new widget has in a drop's probe (and its ghost): never stored. */
+export const NEW_WIDGET_PROBE_ID = 'probe-new-widget'
 
 /** Whether two hits are the same drop spot (every field equal). */
 export function sameDropHit(a: WorkspaceDropHit | null, b: WorkspaceDropHit | null): boolean {
@@ -313,9 +320,11 @@ export function dropChangesLayout(layout: WorkspaceLayout, source: WorkspaceDrag
 function probeDrop(layout: WorkspaceLayout, source: WorkspaceDragSource, target: LayoutDropTarget): WorkspaceLayout {
   let n = 0
   const genId = () => `probe-${++n}`
-  return source.type === 'tab'
-    ? moveTab(layout, source.tabId, target, genId)
-    : movePanel(layout, source.panelId, target, genId)
+  switch (source.type) {
+    case 'tab': return moveTab(layout, source.tabId, target, genId)
+    case 'panel': return movePanel(layout, source.panelId, target, genId)
+    case 'new': return addTab(layout, createTab(source.kind, NEW_WIDGET_PROBE_ID), target, genId)
+  }
 }
 
 // ── The ghost ───────────────────────────────────────────────────────────────
@@ -329,26 +338,31 @@ export interface DropGhost {
 /** The side words of a split's label ("Split Late · above"). */
 const SIDE_WORDS: Record<Side, string> = { left: 'left', right: 'right', top: 'above', bottom: 'below' }
 
-/** A split's words: "Split Late · above", or with no title "Split · above" (Add widget's Where). */
-export function splitLabel(side: Side, title?: string): string {
+/** A split's words: "Split Late · above", or with no title "Split · above". */
+function splitLabel(side: Side, title?: string): string {
   return `Split ${title ? `${title} · ` : '· '}${SIDE_WORDS[side]}`
 }
 
 /** An insert's words: "Insert row · full width" / "Insert column · full height". */
-export function insertLabel(edge: Side): string {
+function insertLabel(edge: Side): string {
   return edge === 'top' || edge === 'bottom' ? 'Insert row · full width' : 'Insert column · full height'
 }
 
 /** A drop into a cell's strip: "Add as tab", or "Add 3 tabs". */
-export function tabLabel(tabCount = 1): string {
+function tabLabel(tabCount = 1): string {
   return tabCount > 1 ? `Add ${tabCount} tabs` : 'Add as tab'
 }
 
 /** A drop into a strip of Numbers (flair P10). */
 const STRIP_LABEL = 'Add to strip'
 
-/** What a drop on `target` says: "Split Late · above", "Insert row · full width", "Add as tab". */
-export function dropLabel(geo: WorkspaceGeometry, target: LayoutDropTarget, tabCount: number): string {
+/**
+ * What a drop on `target` says: "Split Late · above", "Insert row · full
+ * width", "Add as tab" — onto an empty cell (a slot, layout edit mode E3)
+ * "Move here" for a whole cell (`source` a panel), else "Add here".
+ */
+export function dropLabel(geo: WorkspaceGeometry, target: LayoutDropTarget, tabCount: number, source?: WorkspaceDragSource): string {
+  if (target.kind === 'cell' && geo.cells.find((c) => c.id === target.cellId)?.empty) return source?.type === 'panel' ? 'Move here' : 'Add here'
   switch (target.kind) {
     case 'split': {
       const title = geo.cells.find((c) => c.id === target.cellId)?.title
@@ -447,9 +461,9 @@ export function dropGhost(
 ): DropGhost | null {
   const next = probeDrop(layout, source, target)
   if (next === layout) return null
-  const label = dropLabel(geo, target, tabIds.length)
+  const label = dropLabel(geo, target, tabIds.length, source)
   if (layout.cells.length === 0 || !geo.table) return { rect: geo.area, label }
-  const first = tabIds[0] ?? (source.type === 'tab' ? source.tabId : undefined)
+  const first = source.type === 'new' ? NEW_WIDGET_PROBE_ID : tabIds[0] ?? (source.type === 'tab' ? source.tabId : undefined)
   const holder = first != null ? findTab(next, first)?.cellId : undefined
   const table = { ...geo.table, rowPx: fitRowHeights(layout, next, geo.table.rowPx) }
   const rect = holder != null ? cellRectIn(next, holder, table) : null

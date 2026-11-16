@@ -170,7 +170,7 @@ export function altMove(body: LayoutBody, cellId: string, side: Side): { kind: '
 // ── Tap, then tap ───────────────────────────────────────────────────────────
 
 /** The mode's selection as a tap reads it: the selected cell, and whether a tap on it armed a move. */
-export interface TapState {
+interface TapState {
   selectedCellId: string | null
   moveArmed: boolean
 }

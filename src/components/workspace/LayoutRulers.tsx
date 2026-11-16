@@ -1,11 +1,11 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { GridAxis, LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { evenTracks, trackRemoval } from '../../utils/workspace-layout-ops'
 import { columnShare, isSliverTrack, removeTrackMessage, rowCanCollapse, rowMark, trackNames } from '../../utils/layout-rulers'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { PlusIcon } from '../shared/icons'
-import { drawnSizes } from './divider-drag'
+import { useDrawnTracks, type DrawnTracks } from './use-drawn-tracks'
 import { useTabTitles } from './widget-hooks'
 import styles from './LayoutRulers.module.css'
 
@@ -20,34 +20,6 @@ import styles from './LayoutRulers.module.css'
  * it into a neighbour. They overlay the gutters and the cells' edges, so no
  * cell moves; the dividers are the mode's gutters.
  */
-
-/** The table's tracks as drawn (px), by axis: measured after each render and on a resize. */
-interface DrawnTracks {
-  columns: number[]
-  rows: number[]
-}
-
-function useDrawnTracks(anchor: React.RefObject<HTMLElement | null>, layout: WorkspaceLayout): DrawnTracks {
-  const [drawn, setDrawn] = useState<DrawnTracks>({ columns: [], rows: [] })
-  useLayoutEffect(() => {
-    const table = anchor.current?.closest<HTMLElement>('[data-ws-table]')
-    if (!table) return
-    const measure = () => {
-      const next = { columns: drawnSizes(table, 'columns'), rows: drawnSizes(table, 'rows') }
-      setDrawn((was) => (sameSizes(was.columns, next.columns) && sameSizes(was.rows, next.rows) ? was : next))
-    }
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
-    observer.observe(table)
-    return () => observer.disconnect()
-  }, [anchor, layout])
-  return drawn
-}
-
-function sameSizes(a: readonly number[], b: readonly number[]): boolean {
-  return a.length === b.length && a.every((v, i) => Math.abs(v - (b[i] ?? 0)) < 0.5)
-}
 
 /** A track's place in the grid (1-based lines), on `axis`, in the first track of the other. */
 function onTrack(axis: GridAxis, i: number): CSSProperties {
