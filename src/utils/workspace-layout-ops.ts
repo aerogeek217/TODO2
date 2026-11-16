@@ -1,6 +1,7 @@
 import {
   DEFAULT_WEIGHT,
   tabOwnsName,
+  type CellArea,
   type GridAxis,
   type GridTrack,
   type LayoutBody,
@@ -1396,4 +1397,74 @@ export function removeTabKeepCell<L extends LayoutBody>(layout: L, tabId: string
   if (!loc || !cell) return layout
   if (cell.tabs.length > 1) return closeTab(layout, tabId)
   return expandOrphanRows(setCell(layout, cell.id, withStrip(cell, { tabs: [] })))
+}
+
+// ── Cards (layout edit mode E3) ─────────────────────────────────────────────
+
+/** Whether `area` lies in `layout`'s grid: whole tracks, at least one each way, inside it. */
+function areaInGrid(layout: LayoutBody, area: CellArea): boolean {
+  const { col, row, colSpan, rowSpan } = area
+  if (![col, row, colSpan, rowSpan].every(Number.isInteger)) return false
+  return col >= 0 && row >= 0 && colSpan >= 1 && rowSpan >= 1
+    && col + colSpan <= layout.grid.columns.length && row + rowSpan <= layout.grid.rows.length
+}
+
+/** Whether two areas share a place. */
+function areasOverlap(a: CellArea, b: CellArea): boolean {
+  return a.col < b.col + b.colSpan && b.col < a.col + a.colSpan && a.row < b.row + b.rowSpan && b.row < a.row + a.rowSpan
+}
+
+/**
+ * Whether cell `cellId` may take `area` (`setCellArea`): the area lies in
+ * the grid and covers nothing but the cell's own places and empty cells
+ * (whole or in part). `false` for an unknown cell.
+ */
+export function cellAreaFits(layout: LayoutBody, cellId: string, area: CellArea): boolean {
+  if (!cellById(layout, cellId) || !areaInGrid(layout, area)) return false
+  return layout.cells.every((c) => c.id === cellId || c.tabs.length === 0 || !areasOverlap(c.area, area))
+}
+
+/**
+ * Stretches (or shrinks, or moves) cell `cellId` onto `area` (a card's
+ * corner, Stretch right / down, Shift+arrow — layout edit mode E3). Valid
+ * only over the cell's own places and empty cells (`cellAreaFits`): the
+ * empty cells it covers give those places up — what is left of one is cut
+ * into rectangles (in reading order, each as wide as it runs, then as deep
+ * as that run goes; the first piece keeps its id) —, and the places it
+ * leaves become empty cells, cut the same way. No widget moves or goes.
+ * The same layout for an unknown cell, the area it has, or one that
+ * doesn't fit.
+ */
+export function setCellArea<L extends LayoutBody>(layout: L, cellId: string, area: CellArea, genId: IdGen): L {
+  const cell = cellById(layout, cellId)
+  if (!cell || sameArea(cell.area, area) || !cellAreaFits(layout, cellId, area)) return layout
+  const rows = layout.grid.rows.length
+  const cols = layout.grid.columns.length
+  const matrix: string[][] = Array.from({ length: rows }, () => new Array<string>(cols).fill(''))
+  const fill = (a: CellArea, id: string) => {
+    for (let r = a.row; r < a.row + a.rowSpan; r++) {
+      const line = matrix[r]
+      if (line) for (let k = a.col; k < a.col + a.colSpan; k++) line[k] = id
+    }
+  }
+  for (const c of layout.cells) fill(c.area, c.id)
+  // The places it leaves: one new empty cell (cut into rectangles when they aren't one).
+  const vacated: LayoutCell = { id: genId(), area: cell.area, tabs: [] }
+  fill(cell.area, vacated.id)
+  fill(area, cellId)
+  const byId = new Map<string, LayoutCell>([...layout.cells.map((c) => [c.id, c] as const), [vacated.id, vacated] as const])
+  return normalizeGrid(withCells(layout, cellsFromMatrix(matrix, byId, genId)))
+}
+
+/**
+ * Swaps two cells' places (a card's Swap with ▸, Alt+arrow onto a card —
+ * layout edit mode E3): each takes the other's area, keeping its id, tabs
+ * and active tab; the tiling holds whatever their sizes. The same layout
+ * for an unknown cell or a cell with itself.
+ */
+export function swapCells<L extends LayoutBody>(layout: L, aId: string, bId: string): L {
+  const a = cellById(layout, aId)
+  const b = cellById(layout, bId)
+  if (!a || !b || a === b) return layout
+  return normalizeGrid(setCell(setCell(layout, aId, { ...a, area: b.area }), bId, { ...b, area: a.area }))
 }
