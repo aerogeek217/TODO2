@@ -695,11 +695,15 @@ button.heatDay {
 
 /* ── Entries ─────────────────────────────────────────────────────────────── */
 
-/* A line with a 2px tick at its left edge, no fill (flair P6): the tick is
-   neutral for an upcoming date, the deadline colour for a late due date, the
-   follow-up colour for a follow-up today or late. The text never changes colour. */
+/* A line with a 2px bar at its left edge, no fill (flair P6): the bar and the
+   type glyph take the entry's date type's colour (due / follow-up, as the
+   toolbar's toggles). An entry that asks for action now (`data-urgent`: a late
+   due date, a follow-up today or late) stands out: a 3px bar in the full colour
+   over a faint tint of it. The text never changes colour. */
 .entry {
-  --entry-tick: var(--cal-tick);
+  --entry-tick: var(--cal-tick-due);
+  --entry-glyph: var(--color-overdue);
+  --entry-tint: var(--cal-entry-due-tint);
   position: relative;
   display: flex;
   align-items: center;
@@ -793,6 +797,10 @@ button.heatDay {
   color: var(--color-text-muted);
 }
 
+.entryGlyph {
+  color: var(--entry-glyph);
+}
+
 .entryTitle {
   flex: 1 1 auto;
   min-width: 0;
@@ -809,14 +817,22 @@ button.heatDay {
   flex-shrink: 0;
 }
 
-/* A due date today keeps the neutral tick: today's column is marked already. */
-.entry[data-state='due-overdue'] {
-  --entry-tick: var(--color-overdue);
+.entry[data-cal-entry='followup'] {
+  --entry-tick: var(--cal-tick-followup);
+  --entry-glyph: var(--color-followup);
+  --entry-tint: var(--cal-entry-followup-tint);
 }
 
-.entry[data-state='followup-today'],
-.entry[data-state='followup-overdue'] {
-  --entry-tick: var(--color-followup);
+/* Late, or a follow-up today (a due date today stays ordinary: today's column
+   is marked already). */
+.entry[data-urgent='true'] {
+  background: var(--entry-tint);
+}
+
+.entry[data-urgent='true']::before {
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--entry-glyph);
 }
 
 /* A recurring occurrence: faded, italic, and it doesn't drag. */

@@ -95,6 +95,16 @@ describe('CalendarWidget', () => {
     expect(dayCell(day(14))!.getAttribute('data-today')).toBe('true')
   })
 
+  it('entries carry their date type (the bar and glyph colour) and only urgent ones are marked urgent', () => {
+    setup()
+    const entry = (d: number, title: string) => within(dayCell(day(d))!).getByText(title).closest('[data-cal-entry]')!
+    expect(entry(12, 'Late due').getAttribute('data-cal-entry')).toBe('due')
+    expect(entry(12, 'Late due').getAttribute('data-urgent')).toBe('true')
+    expect(entry(16, 'Both dates').getAttribute('data-urgent')).toBeNull()
+    expect(entry(20, 'Both dates').getAttribute('data-cal-entry')).toBe('followup')
+    expect(entry(20, 'Both dates').getAttribute('data-urgent')).toBeNull()
+  })
+
   it('the week has no past-day wash either', () => {
     setup(calendarTab({ viewState: { view: 'week' } }))
     expect(dayCell(day(12))!.className).not.toMatch(/washDue|washFollowup/)

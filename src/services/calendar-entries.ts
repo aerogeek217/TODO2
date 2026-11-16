@@ -124,12 +124,22 @@ export function dayOverdueWash(entries: readonly CalendarEntry[], today: Date): 
 }
 
 /** How an entry looks: by date type, and whether its date is today or overdue. */
-type CalendarEntryState = 'due' | 'due-today' | 'due-overdue' | 'followup' | 'followup-today' | 'followup-overdue'
+export type CalendarEntryState = 'due' | 'due-today' | 'due-overdue' | 'followup' | 'followup-today' | 'followup-overdue'
 
 export function calendarEntryState(entry: CalendarEntry, today: Date): CalendarEntryState {
   const kind = entry.kind === 'followup' ? 'followup' : 'due'
   if (isEntryOverdue(entry, today)) return `${kind}-overdue`
   return entry.day.getTime() === startOfDay(today).getTime() ? `${kind}-today` : kind
+}
+
+/**
+ * Whether an entry asks for action now, so its line stands out over the
+ * ordinary ones (a stronger bar and a faint tint of its date type's colour):
+ * a late due date, and a follow-up today or late. A due date today stays
+ * ordinary — today's column is marked already.
+ */
+export function calendarEntryUrgent(state: CalendarEntryState): boolean {
+  return state === 'due-overdue' || state === 'followup-today' || state === 'followup-overdue'
 }
 
 /** A compact-month day dot. */
