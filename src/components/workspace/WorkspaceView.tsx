@@ -15,6 +15,8 @@ import { useWorkspaceDrag } from './workspace-drag'
 import { useExpandOrphanRows } from './use-expand-orphan-rows'
 import { useTabTitles } from './widget-hooks'
 import { AmbienceBackdrop, AmbienceLamp } from '../ambience/AmbienceWorkspace'
+// Layout edit mode E2: the rulers, drawn into the table while the mode is on.
+import { LayoutRulers } from './LayoutRulers'
 import styles from './WorkspaceView.module.css'
 
 function EmptyLayout() {
@@ -209,6 +211,8 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
       data-ws-table
       data-ws-row-tracks={rows.map((t) => t.id).join(' ')}
     >
+      {/* Layout edit mode E2: the rulers and "+"s (first, so they come first in the Tab order). */}
+      <LayoutRulers layout={layout} />
       {layout.cells.map((cell) => {
         const { col, row, colSpan, rowSpan } = cell.area
         const tracks = rows.slice(row, row + rowSpan)

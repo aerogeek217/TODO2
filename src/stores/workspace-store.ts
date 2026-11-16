@@ -50,15 +50,19 @@ import {
   addTab,
   closeCell,
   closeTab,
+  evenTracks,
   insertTrack,
+  insertTrackAt,
   insertTrackBeside,
   mergeCells,
+  mergeTrackInto,
   moveEdge,
   movePanel,
   moveTab,
   patchTabConfig,
   patchTabViewState,
   removeTabKeepCell,
+  removeTrack,
   replaceTab,
   setActiveTab,
   setTrackCollapsed,
@@ -366,6 +370,18 @@ export interface WorkspaceState {
   insertTrackBeside: (cellId: string, side: Side) => string | null
   /** Merges cell `bId` into cell `aId` when they make a rectangle (the tabs join); `false` when they don't. */
   mergeCells: (aId: string, bId: string) => boolean
+  /**
+   * Inserts a full row / column on line `index` of `axis` (`insertTrackAt`,
+   * a ruler's "+" or Insert …; `from`: the track beside the line it takes
+   * half of). Returns the first new cell's id.
+   */
+  insertTrackAt: (axis: GridAxis, index: number, from?: number) => string | null
+  /** Removes track `index` of `axis` (`removeTrack`: its widgets move as `trackRemoval` says); `false` for the last track. */
+  removeTrack: (axis: GridAxis, index: number) => boolean
+  /** Merges track `index` of `axis` into its neighbour `into` (`mergeTrackInto`, a sliver's Merge into). */
+  mergeTrackInto: (axis: GridAxis, index: number, into: number) => boolean
+  /** Even all widths / heights (`evenTracks`): a size change — view state, as a divider's. */
+  evenTracks: (axis: GridAxis) => Promise<void>
   /**
    * View state: batched track resize (by track id, either axis: a weighted
    * track's weight, a fixed one's px), saved at once. `live`: one frame of
@@ -1024,6 +1040,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     return { ...session, undo: [...session.undo, layoutBodyOf(before)].slice(-EDIT_UNDO_MAX), redo: [] }
   }
 
+  /** The mode's selected cell let go once an edit took it away (a removed track's cell that joined another). */
+  function keepEditSelection(): void {
+    const { editing, working } = get()
+    if (editing?.selectedCellId != null && !working?.cells.some((c) => c.id === editing.selectedCellId)) {
+      set({ editing: { ...editing, selectedCellId: null } })
+    }
+  }
+
   /** Turns the mode on: `session` with `draft` as the working copy, registered as a layout-wide editor. */
   function beginSession(session: LayoutEditSession, draft: Layout): void {
     mode.unregister?.()
@@ -1506,6 +1530,32 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     mergeCells(aId, bId) {
       return edit((layout) => mergeCells(layout, aId, bId), 'Merged cells')
+    },
+
+    insertTrackAt(axis, index, from) {
+      let newCellId: string | null = null
+      edit((layout, genId) => {
+        const result = insertTrackAt(layout, axis, index, genId, from)
+        newCellId = result.cellId
+        return result.layout
+      }, axis === 'rows' ? 'Inserted row' : 'Inserted column')
+      return newCellId
+    },
+
+    removeTrack(axis, index) {
+      const changed = edit((layout, genId) => removeTrack(layout, axis, index, genId), axis === 'rows' ? 'Removed row' : 'Removed column')
+      keepEditSelection()
+      return changed
+    },
+
+    mergeTrackInto(axis, index, into) {
+      const changed = edit((layout, genId) => mergeTrackInto(layout, axis, index, into, genId), axis === 'rows' ? 'Merged rows' : 'Merged columns')
+      keepEditSelection()
+      return changed
+    },
+
+    evenTracks(axis) {
+      return resize((layout) => evenTracks(layout, axis), () => [axis])
     },
 
     setTrackSizes(sizeById, opts) {
