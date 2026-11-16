@@ -105,7 +105,7 @@ test('Move left / right from a tab’s menu, by keyboard; each is one undo step'
   await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Third', 'Second'])
   // The open layout's menu leads with its own actions.
   const open = await openLayoutTabMenu(page)
-  await expect(open.getByRole('menuitem')).toHaveText(['Duplicate layout…', 'Edit…', 'Move left', 'Move right', 'Delete layout…'])
+  await expect(open.getByRole('menuitem')).toHaveText(['Edit layout…', 'Duplicate layout…', 'Edit…', 'Move left', 'Move right', 'Delete layout…'])
   await expect(open.getByRole('menuitem', { name: 'Move left' })).toBeDisabled()
 })
 

@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { layoutEditChanged, useWorkspaceStore } from '../../stores/workspace-store'
 import { useShortcutLabel } from '../../hooks/use-shortcut-label'
+import { useUIStore } from '../../stores/ui-store'
+import { leaveLayout } from '../../stores/editor-leave'
 import { DisabledLayoutTabs } from '../workspace/LayoutTabs'
 import { RedoIcon, UndoIcon } from '../shared/icons'
 import topBarStyles from './TopBar.module.css'
@@ -61,6 +63,24 @@ function useModeFocus(done: React.RefObject<HTMLButtonElement | null>): void {
 }
 
 /**
+ * A layout action asked for while the mode is on (the palette's Go to
+ * Layout ›, New / Duplicate Layout… — `ui-store.requestLayout`, which the
+ * layout tabs run and which aren't mounted now): it leaves the layout, so
+ * the mode asks first (`leaveLayout`) and closes; then the request is made
+ * again for the layout tabs, back in the bar.
+ */
+function useLayoutRequestsInMode(): void {
+  useEffect(() => useUIStore.subscribe((s) => {
+    const request = s.layoutRequest
+    if (!request) return
+    useUIStore.getState().clearLayoutRequest()
+    void leaveLayout().then((left) => {
+      if (left) setTimeout(() => useUIStore.getState().requestLayout(request), 0)
+    })
+  }), [])
+}
+
+/**
  * The top bar while the layout edit mode is on (layout edit mode E1): in
  * place of the bar's contents, `Editing “Default”`, the layouts as tabs
  * (shown, disabled: leaving the layout goes through Done or Cancel), the
@@ -79,6 +99,7 @@ export function LayoutEditBar() {
   const doneRef = useRef<HTMLButtonElement | null>(null)
   useModeFocus(doneRef)
   useModeEscape()
+  useLayoutRequestsInMode()
   const store = useWorkspaceStore.getState
 
   return (
