@@ -3,17 +3,17 @@ import { clicksGetThrough, drag, enterLayoutEdit, releaseDrag, seedWorkspace, ws
 import { box, pointIn } from './fixtures/geometry'
 
 /**
- * The grip menu (UX cleanup 4A; layout edit mode E4) in a real browser:
- * outside the layout edit mode there is no grip — a cell's ⋯ opens the
- * widget's entries, Add widget as tab ›, Remove widget, Collapse row and
- * Edit layout. In the mode a click on the grip — a button — opens the
- * cell's layout entries (Split, Merge, Insert, Collapse row, Close …);
- * Enter / Space on the focused grip open it and Esc gives the grip its focus
- * back; a drag by the grip moves the cell (on the draft) and opens nothing,
- * also when it ends back on the grip; a multi-tab cell has a grip button in
- * its header, while a click on the header's empty space opens nothing. The
- * one-widget slot shows without a fade; floating over a face, it takes no
- * press while hidden.
+ * The cell menus (UX cleanup 4A; layout edit mode E3, E4) in a real
+ * browser: outside the layout edit mode there is no grip — a cell's ⋯ opens
+ * the widget's entries, Add widget as tab ›, Remove widget, Collapse row
+ * and Edit layout. In the mode (E3) the grip is gone too: the cell is a
+ * card, its ⋯ (Cell layout) opens its menu (Move to, Swap with, Split,
+ * Merge with, Stretch, Remove widget, Close cell) under it; Enter on the
+ * focused card opens it and Esc gives the card its focus back; a drag from
+ * anywhere on the card moves it (on the draft) and opens nothing, also when
+ * it ends back where it began; a multi-tab card's header room drags it too.
+ * The one-widget slot shows without a fade; floating over a face, it takes
+ * no press while hidden.
  */
 
 /** `a b`: Notes beside a Calendar, each alone in its cell. */
@@ -67,50 +67,49 @@ test('outside the mode: no grip, no drag handle; the ⋯ the widget’s entries,
   expect(await labels(optionsMenu(page))).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Edit layout'])
 })
 
-test('in the mode, one widget: the grip opens the layout menu', async ({ page }) => {
+const CARD_MENU = ['Move to', 'Swap with', 'Split', 'Merge with', 'Stretch right', 'Stretch down', 'Remove widget', 'Close cell']
+
+test('in the mode, one widget: no grip; the card’s ⋯ opens its menu under it', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   await enterLayoutEdit(page)
-  const cell = wsCell(page, 'a')
-  await cell.hover()
-  const grip = wsGrip(page, 'a')
-  await expect(grip).toHaveAttribute('aria-haspopup', 'menu')
-  await expect(grip).toHaveAccessibleName('Cell layout')
-  await grip.click()
+  await expect(page.getByTestId('ws-cell-grip')).toHaveCount(0)
+  const more = wsCell(page, 'a').getByRole('button', { name: 'Cell layout' })
+  await expect(more).toHaveAttribute('aria-haspopup', 'menu')
+  await more.click()
   await expect(layoutMenu(page)).toBeVisible()
-  expect(await labels(layoutMenu(page))).toEqual(['Add widget…', 'Split cell', 'Insert row', 'Insert column', 'Merge with', 'Collapse row', 'Close cell'])
-  await expect(grip).toHaveAttribute('aria-expanded', 'true')
-  // It opens under the grip.
-  const g = await box(grip)
+  expect(await labels(layoutMenu(page))).toEqual(CARD_MENU)
+  await expect(more).toHaveAttribute('aria-expanded', 'true')
+  // It opens under the ⋯.
+  const g = await box(more)
   const m = await box(layoutMenu(page))
   expect(m.y).toBeGreaterThanOrEqual(g.y + g.height)
   await page.keyboard.press('Escape')
   await expect(layoutMenu(page)).toHaveCount(0)
 })
 
-test('in the mode, the keyboard: Enter and Space on the focused grip open its menu; Esc gives the grip its focus back', async ({ page }) => {
+test('in the mode, the keyboard: Enter on the focused card opens its menu; Esc gives the card its focus back', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   await enterLayoutEdit(page)
-  const grip = wsGrip(page, 'b')
-  await grip.focus()
+  const card = wsGrip(page, 'b')
+  await card.focus()
   await page.keyboard.press('Enter')
   await expect(layoutMenu(page)).toBeVisible()
-  await expect(layoutMenu(page).getByRole('menuitem').first()).toBeFocused()
+  // The first item it can run: no slot to move to, so Swap with.
+  await expect(layoutMenu(page).getByRole('menuitem', { name: 'Swap with' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(layoutMenu(page)).toHaveCount(0)
-  await expect(grip).toBeFocused()
-  await page.keyboard.press(' ')
-  await expect(layoutMenu(page)).toBeVisible()
-  // ↓ to Split cell, → into its sides, ⏎ on Above.
+  await expect(card).toBeFocused()
+  await page.keyboard.press('Enter')
+  // ↓ to Split, → into its sides, ⏎ on Above.
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowRight')
   await page.keyboard.press('Enter')
   await expect.poll(async () => (await wsShape(page)).flat().length).toBe(3)
 })
 
-test('in the mode, a drag by the grip moves the cell and opens no menu, also when it ends back on the grip', async ({ page }) => {
+test('in the mode, a drag from anywhere on the card moves it and opens no menu, also when it ends back where it began', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   await enterLayoutEdit(page)
-  await wsCell(page, 'a').hover()
   const from = await pointIn(wsGrip(page, 'a'))
   // Away and back: the drag starts (past 5px) and ends where it began.
   await page.mouse.move(from.x, from.y)
@@ -121,52 +120,51 @@ test('in the mode, a drag by the grip moves the cell and opens no menu, also whe
   await expect(layoutMenu(page)).toHaveCount(0)
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
 
-  // Into the Calendar's right zone: the cell moves, no menu.
-  await wsCell(page, 'a').hover()
-  const b = await box(wsCell(page, 'b').locator('[data-ws-cell-body]'))
+  // Into the Calendar's right zone: the card moves, no menu.
+  const b = await box(wsCell(page, 'b'))
   await drag(page, await pointIn(wsGrip(page, 'a')), { x: b.x + b.width - 20, y: b.y + b.height / 2 })
   await expect.poll(() => wsShape(page)).toEqual([[['calTab']], [['notesTab']]])
   await expect(layoutMenu(page)).toHaveCount(0)
 })
 
-test('in the mode, a drag cancelled with Esc and let go on the grip opens no menu', async ({ page }) => {
+test('in the mode, a drag cancelled with Esc and let go on the card opens no menu', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   await enterLayoutEdit(page)
-  await wsCell(page, 'a').hover()
   const from = await pointIn(wsGrip(page, 'a'))
   await page.mouse.move(from.x, from.y)
   await page.mouse.down()
   await page.mouse.move(from.x, from.y + 30, { steps: 4 })
   await page.keyboard.press('Escape')
   await page.mouse.move(from.x, from.y, { steps: 4 })
-  // Past dnd-kit's own click guard (50 ms after the cancel): the click this mouse-up makes reaches the grip.
+  // Past dnd-kit's own click guard (50 ms after the cancel): the click this mouse-up makes reaches the card.
   await clicksGetThrough(page)
   await page.mouse.up()
   await expect(layoutMenu(page)).toHaveCount(0)
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
+  // The mode stayed (Esc cancelled the drag only).
+  await expect(page.locator('[data-layout-edit-bar]')).toBeVisible()
 })
 
-test('in the mode, several widgets: the header’s grip button opens the layout menu; a click on the empty header opens nothing, a drag there moves the cell', async ({ page }) => {
+test('in the mode, several widgets: the header’s own buttons give way to the card’s ⋯; a click on the header room opens nothing, a drag there moves the card', async ({ page }) => {
   await seedWorkspace(page, { layouts: [strip] })
   await enterLayoutEdit(page)
   const header = page.locator('[data-ws-cell-header="a"]')
-  await header.hover()
-  const grip = header.getByRole('button', { name: 'Cell layout' })
-  await expect(grip).toHaveAttribute('aria-haspopup', 'menu')
-  await grip.click()
-  expect(await labels(layoutMenu(page))).toEqual(['Add widget…', 'Split cell', 'Insert row', 'Insert column', 'Merge with', 'Collapse row', 'Close cell (2 tabs)'])
+  await expect(header.getByRole('button', { name: 'Cell options' })).toHaveCount(0)
+  await wsCell(page, 'a').getByRole('button', { name: 'Cell layout' }).click()
+  expect(await labels(layoutMenu(page))).toEqual([...CARD_MENU.slice(0, -1), 'Close cell (2 tabs)'])
   await page.keyboard.press('Escape')
   await expect(layoutMenu(page)).toHaveCount(0)
 
-  // The empty space: no menu on a click.
-  await wsPanelHandle(page, 'a').click()
+  // The header's room: a click selects the card, no menu.
+  const room = await pointIn(wsPanelHandle(page, 'a'))
+  await page.mouse.click(room.x, room.y)
   await expect(layoutMenu(page)).toHaveCount(0)
   await expect(optionsMenu(page)).toHaveCount(0)
+  await expect(wsCell(page, 'a')).toHaveAttribute('data-edit-selected', '')
 
-  // The header grip drags the whole cell too.
-  const b = await box(wsCell(page, 'b').locator('[data-ws-cell-body]'))
-  await header.hover()
-  await drag(page, await pointIn(grip), { x: b.x + b.width - 20, y: b.y + b.height / 2 })
+  // A drag from there moves the whole card.
+  const b = await box(wsCell(page, 'b'))
+  await drag(page, await pointIn(wsPanelHandle(page, 'a')), { x: b.x + b.width - 20, y: b.y + b.height / 2 })
   await expect.poll(() => wsShape(page)).toEqual([[['notes2']], [['notesTab', 'calTab']]])
   await expect(layoutMenu(page)).toHaveCount(0)
 })

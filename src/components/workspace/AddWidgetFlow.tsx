@@ -1,12 +1,9 @@
-import { useState } from 'react'
 import { BREAKDOWN_PRESET_LABELS, BREAKDOWN_PRESETS, breakdownPreset, type BreakdownPreset } from '../../models/chart-widgets'
 import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
 import { afterLeavingEditors } from '../../stores/editor-leave'
-import { useWorkspaceStore } from '../../stores/workspace-store'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import type { MenuEntry, MenuItemEntry } from '../shared/MenuPopover'
-import { addWherePicture, addWhereTarget, type AddWhere } from './add-widget-where'
+import type { MenuItemEntry } from '../shared/MenuPopover'
 import { WidgetKindIcon } from '../shared/icons'
 import { addKindAt, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
 import styles from './AddWidgetFlow.module.css'
@@ -48,36 +45,28 @@ function breakdownPresetItems(addBreakdown: (preset: BreakdownPreset) => void): 
 }
 
 interface AddWidgetFlowProps {
-  /** The cell it is added from. */
+  /** The cell it is added to: as its new tab, or filling it (an empty cell, a slot). */
   cellId: string
-  /** Where it goes until the user picks another (default a tab). */
-  initialWhere?: AddWhere
   anchor: { x: number; y: number }
   onClose: () => void
 }
 
 /**
- * Add widget from a cell (its strip's `+`; in the layout edit mode the
- * grip's Add widget… too). In the mode: where first, as a picture of the
- * cell (`addWherePicture`: its middle a tab, its sides a split, the bars
- * outside a row or column at the layout's edge; default Tab) —, then the
- * kinds; a pick adds that widget there (`useAddKind`). Outside the mode
- * (layout edit mode E4: edit mode changes the grid; what's inside a cell
- * changes in place) no picture: the kinds, each added as a tab of the cell.
+ * Add widget to a cell (its strip's `+`; in the layout edit mode a slot's
+ * click, E3): the kinds, by group (Tasks, Insights; a Breakdown its
+ * presets); a pick adds that widget as a tab of the cell — filling it when
+ * it is empty (`useAddKind`). No Where step: where a widget goes is the
+ * mode's drop model (a tray chip dragged in) or the slot it fills.
  */
-export function AddWidgetFlow({ cellId, initialWhere = 'tab', anchor, onClose }: AddWidgetFlowProps) {
-  const editing = useWorkspaceStore((s) => s.editing != null)
-  const [picked, setWhere] = useState<AddWhere>(initialWhere)
-  const where: AddWhere = editing ? picked : 'tab'
-  const addKind = useAddKind(addWhereTarget(cellId, where))
-  const addBreakdown = useAddBreakdown(addWhereTarget(cellId, where))
-  const lead: MenuEntry[] = editing ? [addWherePicture(where, setWhere)] : []
+export function AddWidgetFlow({ cellId, anchor, onClose }: AddWidgetFlowProps) {
+  const target: LayoutDropTarget = { kind: 'cell', cellId }
+  const addKind = useAddKind(target)
+  const addBreakdown = useAddBreakdown(target)
   return (
     <WidgetKindMenu
       anchor={anchor}
       heading="Add widget"
       onChangeKind={addKind}
-      leadEntries={lead}
       kindPresets={{ breakdown: breakdownPresetItems(addBreakdown) }}
       onClose={onClose}
     />

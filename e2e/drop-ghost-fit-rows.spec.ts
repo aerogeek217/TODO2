@@ -34,7 +34,7 @@ const NUMBERS_OVER_CELLS: WsLayoutSeed = {
 
 async function grip(page: Page, cellId: string): Promise<Point> {
   await wsCell(page, cellId).hover()
-  return pointIn(wsCell(page, cellId).getByTestId('ws-cell-grip'))
+  return pointIn(wsCell(page, cellId).locator('[data-edit-surface]'))
 }
 
 /** Drags from `from` to `to`, then checks the ghost seen there against the cell holding tab `tabId` after the drop. */
@@ -102,10 +102,7 @@ test('a cell dragged out of a row leaves it holding only a Number: the other row
 })
 
 test('a Number tab dragged out of a two-Number cell leaves a Numbers row: the ghost below it is full height', async ({ page }) => {
-  // In the layout edit mode a cell's body dims and takes no presses (E1), a Numbers strip's slots with it, and
-  // outside the mode a Number only reorders in its strip (E4): until E3's card and tab drags, a strip's Number
-  // can't be dragged out of it.
-  test.fixme(true, 'E3: a strip Number drags again in the layout edit mode')
+  // In the layout edit mode (E3) a strip's Numbers take presses again: each drags as a tab, out of the strip.
   await seedWorkspace(page, { layouts: [{ name: 'Main', table: { areas: ['nn n2', 'a c'], cells: [
     { id: 'nn', tabs: [number('numA', 'open'), number('numB', 'overdue')] },
     { id: 'n2', tabs: [number('num2', 'focus')] },

@@ -1,0 +1,79 @@
+/* The layout edit mode's widget tray (E3, `LayoutEditTray`): chips in the
+ * mode bar's free room, scrolling sideways when it is narrow (no bar). */
+
+.tray {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+
+.tray::-webkit-scrollbar {
+  display: none;
+}
+
+.caption {
+  flex-shrink: 0;
+  margin-right: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-badge);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chip {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: grab;
+  touch-action: none;
+}
+
+.chip:hover {
+  border-color: var(--color-accent-dim);
+  color: var(--color-text-primary);
+}
+
+.chip:active {
+  cursor: grabbing;
+}
+
+.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.chip[aria-haspopup] {
+  cursor: pointer;
+}
+
+/* The live region: empty until a tap arms a move. */
+.status {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.hint {
+  flex-shrink: 0;
+  padding: 0 4px;
+  color: var(--color-accent-text);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}

@@ -1,4 +1,4 @@
-import { memo, useMemo, type CSSProperties } from 'react'
+import { memo, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { getActiveTab, type LayoutCell, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import { edgeBetween, edgeStretches, isWholeLine, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
 import { previewedLayout } from '../../utils/workspace-preview'
@@ -17,6 +17,11 @@ import { useTabTitles } from './widget-hooks'
 import { AmbienceBackdrop, AmbienceLamp } from '../ambience/AmbienceWorkspace'
 // Layout edit mode E2: the rulers, drawn into the table while the mode is on.
 import { LayoutRulers } from './LayoutRulers'
+import { useDrawnTracks } from './use-drawn-tracks'
+// Layout edit mode E3: the cards' ruler names and the corner's stretch preview.
+import { LayoutEditViewContext, type LayoutEditView, type StretchPreview } from './layout-edit-view'
+import { stretchLabel } from './edit-card-actions'
+import { trackNames } from '../../utils/layout-rulers'
 import styles from './WorkspaceView.module.css'
 
 function EmptyLayout() {
@@ -186,6 +191,9 @@ const TableCell = memo(function TableCell({ cell, rowTracks, collapsed, fitRow, 
   return <WorkspaceCell cell={cell} rowTrackIds={rowTrackIds} collapsed={collapsed} fitRow={fitRow} style={style} />
 })
 
+/** No table to measure (outside the layout edit mode). */
+const UNMEASURED_TABLE = { current: null }
+
 /**
  * The layout's table as one CSS grid (D26): each track sized by
  * `workspace-table.trackTemplate` (weights as `fr` never under the cells'
@@ -198,11 +206,23 @@ const TableCell = memo(function TableCell({ cell, rowTracks, collapsed, fitRow, 
  */
 function Table({ layout: working }: { layout: WorkspaceLayout }) {
   const preview = useWorkspaceStore((s) => s.resizePreview)
+  const editing = useWorkspaceStore((s) => s.editing != null)
   const live = preview != null && preview.layoutId === working.id ? preview : null
   const layout = useMemo(() => (live ? previewedLayout(working, live.body) : working), [working, live])
   const { rows } = layout.grid
+  const tableRef = useRef<HTMLDivElement | null>(null)
+  // Measured only in the mode (the cards' and slots' ruler names).
+  const drawn = useDrawnTracks(editing ? tableRef : UNMEASURED_TABLE, layout)
+  const [stretch, setStretch] = useState<StretchPreview | null>(null)
+  const editView = useMemo<LayoutEditView | null>(() => (editing ? {
+    names: { columns: trackNames(layout, 'columns', drawn.columns), rows: trackNames(layout, 'rows', drawn.rows) },
+    setStretch,
+  } : null), [editing, layout, drawn])
+  const stretched = editing && stretch ? layout.cells.find((c) => c.id === stretch.cellId) : undefined
   return (
+    <LayoutEditViewContext.Provider value={editView}>
     <div
+      ref={tableRef}
       className={styles.table}
       style={{
         gridTemplateColumns: trackTemplate(layout, 'columns', WORKSPACE_GUTTER_PX),
@@ -228,7 +248,18 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
         )
       })}
       <Dividers layout={layout} handle={live && layout !== working ? live.handle : null} />
+      {stretched && stretch && editView && (
+        <div
+          className={styles.stretchGhost}
+          style={{ gridArea: `${stretch.area.row + 1} / ${stretch.area.col + 1} / span ${stretch.area.rowSpan} / span ${stretch.area.colSpan}` }}
+          data-testid="ws-stretch-ghost"
+          aria-hidden="true"
+        >
+          <span className={styles.stretchLabel}>{stretchLabel(stretch.area, editView.names)}</span>
+        </div>
+      )}
     </div>
+    </LayoutEditViewContext.Provider>
   )
 }
 
@@ -282,8 +313,8 @@ function Grain() {
  * tiles. A collapsed row it arrives with that nothing can expand, expands
  * (`useExpandOrphanRows`). In the layout edit mode (`data-layout-editing`)
  * the workspace is tinted under a faint dot grid with an accent outline, and
- * each cell's content dims and takes no presses — its controls (the grip,
- * the ⋯) and tab strip still do; nothing moves.
+ * each cell is a card (E3, `EditCard`): its content dims and takes no
+ * presses — the card's surface under it does, and its tabs; nothing moves.
  */
 export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
   useExpandOrphanRows(layout)

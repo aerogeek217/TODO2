@@ -172,6 +172,19 @@ export function addKindAt(kind: WidgetKind, target: LayoutDropTarget, add: typeo
 }
 
 /**
+ * A new widget of `kind` at `target` from the layout edit mode (E3: the
+ * tray's chips, dragged or clicked; a slot's kinds): a List with a new
+ * blank list of the open layout, a Breakdown a Custom one. No editor opens.
+ */
+export function addWidgetKindAt(kind: WidgetKind, target: LayoutDropTarget): void {
+  if (kind === 'breakdown') {
+    addWidgetAt('breakdown', target, undefined, { breakdown: breakdownPreset('custom') })
+    return
+  }
+  addKindAt(kind, target, addWidgetAt, useWorkspaceStore.getState().saved?.id)
+}
+
+/**
  * The cell an Add widget from the palette goes to: the one holding the
  * focus as the command runs (the palette gives it back first — what had it
  * when the palette opened), else the list tab's the zoom and review

@@ -4,7 +4,6 @@ import {
   dragTab,
   edges,
   openCellLayoutMenu,
-  pickCellMenu,
   pickSplit,
   seedWorkspace,
   wsCell,
@@ -147,9 +146,9 @@ test.describe('sizes and collapse of cells side by side', () => {
 })
 
 test.describe('the cell menu', () => {
-  test('Split cell ▸ Right adds a cell beside, Below one under it; Insert column ▸ At the far right a column', async ({ page }) => {
+  test('Split ▸ Right adds a cell beside, Below one under it; the rulers’ last “+” a column', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    // The cell's layout menu is the layout edit mode's (E4); Done stores the draft as one step.
+    // The card's menu is the layout edit mode's (E3); Done stores the draft as one step.
     await enterLayoutEdit(page)
     const a1 = await edges(wsCell(page, 'a1'))
     await openCellLayoutMenu(page, 'a1')
@@ -167,8 +166,7 @@ test.describe('the cell menu', () => {
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Close empty cell' }).click()
     await expect.poll(() => rowCount(page)).toBe(1)
 
-    await openCellLayoutMenu(page, 'a1')
-    await pickCellMenu(page, 'Insert column', 'At the far right')
+    await page.locator('[data-ruler-plus="columns:2"]').click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     await finishLayoutEdit(page)
     await expectLayoutStep(page, 'Edited layout “Main”')

@@ -33,6 +33,7 @@ import {
   layoutBodyOf,
   tabNameMax,
   withLayoutBody,
+  type CellArea,
   type GridAxis,
   type LayoutBody,
   type PersistedWorkspaceLayout,
@@ -42,7 +43,7 @@ import {
   type WidgetKind,
   type WorkspaceLayout,
 } from '../models/workspace-layout'
-import { getTab, layoutBodyEqual, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
+import { findTab, getTab, layoutBodyEqual, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
 import { layoutListRefs, repointLayoutLists } from '../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../utils/workspace-layout-sizes'
 import { withViewStateOf } from '../utils/workspace-layout-view'
@@ -65,10 +66,12 @@ import {
   removeTrack,
   replaceTab,
   setActiveTab,
+  setCellArea,
   setTrackCollapsed,
   setLayoutHue,
   setTabLabel,
   splitCell,
+  swapCells,
   withLabelOf,
   withTrackIdsOf,
   type IdGen,
@@ -77,6 +80,7 @@ import {
 } from '../utils/workspace-layout-ops'
 import type { EdgeStretch, Side } from '../utils/workspace-grid'
 import { samePreviewBody } from '../utils/workspace-preview'
+import { stretchedArea, tapOutcome, type StretchDirection, type TapOutcome, type TapTarget } from '../utils/layout-edit-cards'
 
 type Layout = PersistedWorkspaceLayout
 
@@ -131,6 +135,12 @@ interface LayoutEditSession {
   redo: readonly LayoutBody[]
   /** The lists made while it was on (`createListAndTab`): those its end doesn't keep are deleted. */
   createdLists: readonly number[]
+  /**
+   * A tap on the selected card armed a move (E3, tap then tap): the next
+   * tap on a slot moves it there, on another card's middle joins them
+   * (`layout-edit-cards.tapOutcome`). Esc, an edit, an undo disarm it.
+   */
+  moveArmed?: boolean
 }
 
 /** Whether the layout edit mode's draft differs from the layout as stored (view state too). */
@@ -237,8 +247,30 @@ export interface WorkspaceState {
    * Resolves whether the mode is on.
    */
   enterEdit: (opts?: { cellId?: string | null }) => Promise<boolean>
-  /** Selects a cell of the draft (`null`: none). Only while editing. */
-  selectEditCell: (cellId: string | null) => void
+  /** Selects a cell of the draft (`null`: none; `arm`: a tap armed a move, E3). Only while editing. */
+  selectEditCell: (cellId: string | null, opts?: { arm?: boolean }) => void
+  /** Disarms a tap's pending move (Esc), the card staying selected. */
+  disarmEditMove: () => void
+  /**
+   * A tap on a card or a slot in the mode (E3, `layout-edit-cards.tapOutcome`):
+   * selects (arming a move), disarms, moves the armed card onto a slot or
+   * joins it to a card as tabs (on the draft, the moved card selected).
+   * Returns what it did — `menu` (a slot with nothing armed: selected) for
+   * the view to open the slot's kinds.
+   */
+  tapEdit: (target: TapTarget) => TapOutcome
+  /**
+   * Moves the whole cell `cellId` to `target` (`movePanel`: a slot takes it,
+   * a card joins it as tabs, a side splits) and selects the cell that holds
+   * it after. Whether it moved.
+   */
+  moveEditCard: (cellId: string, target: LayoutDropTarget) => boolean
+  /** Stretches cell `cellId` onto `area` (`setCellArea`: over its own places and empty cells only). Whether it changed. */
+  setCellArea: (cellId: string, area: CellArea) => boolean
+  /** Stretches cell `cellId` one track `direction` from its bottom-right corner (`stretchedArea`). Whether it changed. */
+  stretchCell: (cellId: string, direction: StretchDirection) => boolean
+  /** Swaps two cells' places (`swapCells`). Whether they moved. */
+  swapCells: (aId: string, bId: string) => boolean
   /** The mode's undo: the draft as before its last structural edit (the view state of now kept). Nothing while its stack is empty. */
   undoEdit: () => void
   /** The mode's redo. */
@@ -1035,9 +1067,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
   /** `session` with the draft `before` an edit as its newest undo step — or, under its newest step's merge key, merged into that step. */
   function withEditStep(session: LayoutEditSession, before: Layout, mergeKey: string | undefined): LayoutEditSession {
-    if (mergeKey !== undefined && mergeKey === mode.mergeKey && session.undo.length > 0) return { ...session, redo: [] }
+    if (mergeKey !== undefined && mergeKey === mode.mergeKey && session.undo.length > 0) return { ...session, redo: [], moveArmed: false }
     mode.mergeKey = mergeKey ?? null
-    return { ...session, undo: [...session.undo, layoutBodyOf(before)].slice(-EDIT_UNDO_MAX), redo: [] }
+    return { ...session, undo: [...session.undo, layoutBodyOf(before)].slice(-EDIT_UNDO_MAX), redo: [], moveArmed: false }
   }
 
   /** The mode's selected cell let go once an edit took it away (a removed track's cell that joined another). */
@@ -1160,11 +1192,61 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return true
     },
 
-    selectEditCell(cellId) {
+    selectEditCell(cellId, opts) {
       const { editing, working } = get()
-      if (!editing || editing.selectedCellId === cellId) return
+      const arm = opts?.arm === true && cellId != null
+      if (!editing || (editing.selectedCellId === cellId && (editing.moveArmed ?? false) === arm)) return
       if (cellId != null && !working?.cells.some((c) => c.id === cellId)) return
-      set({ editing: { ...editing, selectedCellId: cellId } })
+      set({ editing: { ...editing, selectedCellId: cellId, moveArmed: arm } })
+    },
+
+    disarmEditMove() {
+      const { editing } = get()
+      if (editing?.moveArmed) set({ editing: { ...editing, moveArmed: false } })
+    },
+
+    tapEdit(target) {
+      const { editing } = get()
+      const outcome = tapOutcome({ selectedCellId: editing?.selectedCellId ?? null, moveArmed: editing?.moveArmed ?? false }, target)
+      if (!editing) return outcome
+      switch (outcome.kind) {
+        case 'select': get().selectEditCell(outcome.cellId, { arm: true }); break
+        case 'disarm': get().disarmEditMove(); break
+        case 'menu': get().selectEditCell(outcome.cellId); break
+        case 'move':
+          if (!get().moveEditCard(outcome.from, { kind: 'cell', cellId: outcome.to })) get().disarmEditMove()
+          break
+        case 'join':
+          if (!get().moveEditCard(outcome.from, { kind: 'cell', cellId: outcome.into })) get().disarmEditMove()
+          break
+      }
+      return outcome
+    },
+
+    moveEditCard(cellId, target) {
+      const first = get().working?.cells.find((c) => c.id === cellId)?.tabs[0]
+      if (!first) return false
+      const changed = edit((layout, genId) => movePanel(layout, cellId, target, genId), 'Moved cell')
+      const after = get().working
+      const holder = changed && after ? findTab(after, first.id)?.cellId : undefined
+      if (holder != null) get().selectEditCell(holder)
+      return changed
+    },
+
+    setCellArea(cellId, area) {
+      const changed = edit((layout, genId) => setCellArea(layout, cellId, area, genId), 'Stretched cell')
+      keepEditSelection()
+      return changed
+    },
+
+    stretchCell(cellId, direction) {
+      const working = get().working
+      const area = working ? stretchedArea(working, cellId, direction) : null
+      return area != null && get().setCellArea(cellId, area)
+    },
+
+    swapCells(aId, bId) {
+      return edit((layout) => swapCells(layout, aId, bId), 'Swapped cells')
     },
 
     undoEdit() {
@@ -1176,7 +1258,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const selectedCellId = next.cells.some((c) => c.id === editing.selectedCellId) ? editing.selectedCellId : null
       set({
         working: next,
-        editing: { ...editing, selectedCellId, undo: editing.undo.slice(0, -1), redo: [...editing.redo, layoutBodyOf(working)] },
+        editing: { ...editing, selectedCellId, moveArmed: false, undo: editing.undo.slice(0, -1), redo: [...editing.redo, layoutBodyOf(working)] },
         resizePreview: null,
       })
     },
@@ -1190,7 +1272,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const selectedCellId = next.cells.some((c) => c.id === editing.selectedCellId) ? editing.selectedCellId : null
       set({
         working: next,
-        editing: { ...editing, selectedCellId, undo: [...editing.undo, layoutBodyOf(working)], redo: editing.redo.slice(0, -1) },
+        editing: { ...editing, selectedCellId, moveArmed: false, undo: [...editing.undo, layoutBodyOf(working)], redo: editing.redo.slice(0, -1) },
         resizePreview: null,
       })
     },

@@ -160,11 +160,15 @@
   to { opacity: 1; }
 }
 
-/* ── The layout edit mode (E1) ──
+/* ── The layout edit mode (E1, E3) ──
    The workspace tinted towards the accent under a faint dot grid, an accent
-   outline inside its edge; nothing moves (the gaps stay). Each cell's
-   content dims and takes no presses; its controls (the grip, the ⋯), its
-   tab strip and the dividers still do, acting on the draft. */
+   outline inside its edge; nothing moves (the gaps stay). Each cell is a
+   card (E3, `EditCard`): its content dims and takes no presses — a press
+   anywhere lands on the card's surface under it (`data-edit-surface`),
+   which drags, selects and takes the keys —, except its tabs (each drags
+   on its own) and a strip's Numbers (each a tab's drag; their insides take
+   nothing). The cell's own controls (Open larger, the ⋯, Collapse) give way
+   to the card's ⋯ and corner. */
 .area[data-layout-editing] {
   background-color: var(--edit-canvas);
   background-image: radial-gradient(var(--edit-dot) 1px, transparent 1.2px);
@@ -178,12 +182,69 @@
   transition: opacity 160ms ease;
 }
 
-.area[data-layout-editing] [data-ws-cell-body] [data-cell-controls],
-.area[data-layout-editing] [data-ws-cell-body] [data-ws-panel-handle] {
+/* The content over the card's surface (`data-edit-layer`): a header, a body —
+   a press there passes through to the surface unless something in it takes
+   presses again (a tab, a strip's Number). */
+.area[data-layout-editing] [data-edit-layer] {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* A tab strip's header: its tabs (and its +N) take presses, its room passes them to the surface. */
+.area[data-layout-editing] [data-ws-cell-header] {
+  pointer-events: none;
+}
+
+.area[data-layout-editing] [data-ws-cell-header] :is([role='tab'], button) {
   pointer-events: auto;
 }
 
-/* The selected cell (opened from its ⋯ › Edit layout): an accent ring. */
+.area[data-layout-editing] [data-cell-controls] {
+  display: none;
+}
+
+/* Nothing in a body takes a press, whatever a widget sets on its own parts
+   (an empty calendar's note, the Neglect map's zone words, a strip's + and ×)… */
+.area[data-layout-editing] [data-ws-cell-body] * {
+  pointer-events: none !important;
+}
+
+/* … but a strip's Number: the slot itself drags it (a tab's drag). */
+.area[data-layout-editing] [data-ws-cell-body] [data-number-slot] {
+  pointer-events: auto !important;
+  cursor: grab;
+}
+
+/* The selected card or slot: an accent ring; a card's surface holding the focus rings it too. */
 .area[data-layout-editing] [data-edit-selected] {
   box-shadow: 0 0 0 2px var(--color-accent), var(--shadow-glass-card);
+}
+
+.area[data-layout-editing] [data-ws-cell]:has(> [data-edit-surface]:focus-visible) {
+  box-shadow: var(--focus-ring), var(--shadow-glass-card);
+}
+
+/* A card's corner dragged: where its release takes it, over the table. */
+.stretchGhost {
+  position: relative;
+  z-index: var(--z-above-3);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 6px;
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-card);
+  background: var(--color-accent-bg-medium);
+  pointer-events: none;
+}
+
+.stretchLabel {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
 }

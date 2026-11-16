@@ -273,15 +273,6 @@ export function SplitBelowIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-/** Six dots in two rows of three: a panel header's drag grip. */
-export function GripIcon() {
-  return (
-    <svg width="15" height="9" viewBox="0 0 15 9" fill="currentColor" aria-hidden="true">
-      {[1.5, 7.5, 13.5].map((x) => [1.5, 7.5].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r={1.5} />))}
-    </svg>
-  )
-}
-
 export function CloseCellIcon({ size = 14 }: { size?: number }) {
   return (
     <Svg size={size}>

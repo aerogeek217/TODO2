@@ -29,9 +29,11 @@ test('a tab drag that auto-scrolls the table drops in the cell now under the poi
   await expect(wsTab(page, 'mover')).toBeVisible()
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))))
   const t = await box(wsTab(page, 'mover'))
-  await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2)
+  // Grabbed near its start: in a 120px card the strip shows only the first part of it, beside its `+1`.
+  const grab = { x: t.x + 8, y: t.y + t.height / 2 }
+  await page.mouse.move(grab.x, grab.y)
   await page.mouse.down()
-  await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2 + 8, { steps: 2 })
+  await page.mouse.move(grab.x, grab.y + 8, { steps: 2 })
   // Lifted: the drag shows where the tab would go.
   await expect(page.locator('[data-dragging-tab="true"]')).toHaveCount(1)
   // Hold near the columns' right edge, at the strips' height, until they have scrolled.

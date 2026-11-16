@@ -4,7 +4,6 @@ import {
   dragTab,
   expectOpenLayout,
   openCellLayoutMenu,
-  pickCellMenu,
   pickSplit,
   pickWidgetKind,
   openLayoutAction,
@@ -203,8 +202,8 @@ test.describe('resize and collapse', () => {
   test('a new column and a resize of it are stored at once, kept over a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await editLayout(page, async () => {
-      await openCellLayoutMenu(page, 'b1')
-      await pickCellMenu(page, 'Insert column', 'At the far right')
+      // The rulers' "+" after the last column (E2).
+      await page.locator('[data-ruler-plus="columns:2"]').click()
     })
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)

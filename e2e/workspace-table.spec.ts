@@ -6,7 +6,8 @@ import {
   edges,
   expectSameEdges,
   openCellLayoutMenu,
-  pickCellMenu,
+  pickSplit,
+  wsGrip,
   releaseDrag,
   seedWorkspace,
   wsCell,
@@ -154,18 +155,14 @@ test.describe('drops and the ghost', () => {
 })
 
 test.describe('whole-cell drags', () => {
-  test('the header’s grip shows on header hover without moving anything; a press without travel moves nothing', async ({ page }) => {
+  test('a card grabs from its header’s room without moving anything; a press without travel moves nothing', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     await enterLayoutEdit(page)
     const handle = wsPanelHandle(page, 'a')
-    const grip = page.locator('[data-ws-cell-header="a"]').getByRole('button', { name: 'Cell layout' })
     const before = await box(wsTab(page, 'mapTab'))
-    await page.mouse.move(2, 2)
-    await expect.poll(() => grip.evaluate((e) => getComputedStyle(e.parentElement!).opacity)).toBe('0')
-    await handle.hover()
-    await expect.poll(() => grip.evaluate((e) => getComputedStyle(e.parentElement!).opacity)).toBe('1')
-    await expect(grip).toHaveCSS('cursor', 'grab')
-    await expect(handle).toHaveCSS('cursor', 'grab')
+    // The room passes the press to the card's surface, which grabs.
+    await expect(handle).toHaveCSS('pointer-events', 'none')
+    await expect(wsGrip(page, 'a')).toHaveCSS('cursor', 'grab')
     expect(await box(wsTab(page, 'mapTab'))).toEqual(before)
     const p = await pointIn(handle)
     await page.mouse.move(p.x, p.y)
@@ -229,7 +226,7 @@ test.describe('whole-cell drags', () => {
 })
 
 test.describe('the cell menu', () => {
-  test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); Insert row ▸ At the top', async ({ page }) => {
+  test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); the rulers’ first “+” a row at the top', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     await enterLayoutEdit(page)
     await openCellLayoutMenu(page, 'a')
@@ -238,8 +235,8 @@ test.describe('the cell menu', () => {
     await page.getByRole('menuitem', { name: 'Below', exact: true }).click()
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab', 'notes2']], [['calTab']]])
 
-    await openCellLayoutMenu(page, 'b')
-    await pickCellMenu(page, 'Insert row', 'At the top')
+    // The rulers' first row "+" (E2).
+    await page.locator('[data-ruler-plus="rows:0"]').click()
     const empty = page.getByRole('region', { name: 'Empty cell' })
     await expect(empty).toBeVisible()
     const a = await areaBox(page)
@@ -274,13 +271,13 @@ test.describe('the cell menu', () => {
     await expect(wsCell(page, 'm')).toHaveAttribute('data-empty', 'true')
   })
 
-  test('Add widget… puts the widget where it says: Right of the cell', async ({ page }) => {
+  test('Split ▸ Right leaves a slot beside the card; the slot’s click opens the kinds and Notes fills it', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     await enterLayoutEdit(page)
     await openCellLayoutMenu(page, 'c')
-    await page.getByRole('menuitem', { name: 'Add widget…' }).click()
+    await pickSplit(page, 'Right')
+    await page.locator('[data-edit-slot]').click()
     const menu = page.getByRole('menu', { name: 'Add widget' })
-    await menu.getByRole('group', { name: 'Where' }).getByRole('menuitemradio', { name: 'Split · right' }).click()
     await menu.getByRole('menuitem', { name: 'Notes', exact: true }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     const c = await box(wsCell(page, 'c'))
@@ -635,7 +632,8 @@ test.describe('a collapsed row no filled cell lies only in expands by itself (cr
     await seedWorkspace(page, { layouts: [{ name: 'Main', table: { areas: ['p s', 'a b', 't1 t2'], cells: notesCells(['p', 's', 'a', 'b', 't1', 't2']) } }] })
     // Closing cells is the layout edit mode's (E4).
     await enterLayoutEdit(page)
-    await openCellLayoutMenu(page, 'a')
+    // Row 2's ruler menu (E2).
+    await page.locator('[data-ruler="rows:1"]').click()
     await page.getByRole('menuitem', { name: 'Collapse row', exact: true }).click()
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).height)).toBe(32)
     await expect.poll(async () => Math.round((await box(wsCell(page, 'b'))).height)).toBe(32)
@@ -644,7 +642,7 @@ test.describe('a collapsed row no filled cell lies only in expands by itself (cr
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
     await expect(wsCell(page, 't1')).toHaveCount(0)
     await expect.poll(async () => Math.round((await box(wsCell(page, 'b'))).height)).toBe(32)
-    await expect(wsCell(page, 'b').getByRole('button', { name: 'Expand row' })).toBeVisible()
+    await expect(page.locator('[data-ruler="rows:1"]')).toContainText('folded')
     // Close b: s, above it, takes its place. No cell lies only in the folded row any more: it expands.
     await openCellLayoutMenu(page, 'b')
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()

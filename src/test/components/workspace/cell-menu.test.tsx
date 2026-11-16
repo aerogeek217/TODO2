@@ -1,17 +1,25 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createTab } from '../../../models/workspace-layout'
 import type { MenuEntry } from '../../../components/shared/MenuPopover'
-import { CELL_MENU_LABEL, cellMenuEntries, cellMenuFor, mergedCellMenu, NO_MERGE_REASON, type CellMenuActions } from '../../../components/workspace/cell-menu'
+import {
+  CELL_MENU_LABEL,
+  cellMenuFor,
+  editCardMenuEntries,
+  mergedCellMenu,
+  NO_MERGE_REASON,
+  type CellMenuActions,
+  type EditCardMenuActions,
+} from '../../../components/workspace/cell-menu'
 import { widgetKindMenuEntries } from '../../../components/shared/widget-kind-menu-entries'
 
 /**
  * The cell's menus as composed (D26 AA1, UX cleanup 4A; layout edit mode
- * E4 — edit mode changes the grid; what's inside a cell changes in place):
- * outside the mode the ⋯'s and a right-click's — the widget's entries under
- * its kind's heading, then Add widget as tab ›, Remove widget, Collapse
- * row, then Edit layout —; the grip's, only in the mode, and every menu in
- * the mode — the layout entries under Layout: Add widget…, Split cell ▸,
- * Insert row ▸, Insert column ▸, Merge with ▸, Collapse row, Close cell.
+ * E3, E4 — edit mode changes the grid; what's inside a cell changes in
+ * place): outside the mode the ⋯'s and a right-click's — the widget's
+ * entries under its kind's heading, then Add widget as tab ›, Remove
+ * widget, Collapse row, then Edit layout —; in the mode a card's (Cell
+ * layout): Move to ▸, Swap with ▸, Split ▸, Merge with ▸, Stretch right /
+ * down, Remove widget, Close cell.
  */
 
 /** Each entry as a word: an item's label, `—` a separator, `[text]` a label. */
@@ -26,16 +34,29 @@ function actions(over: Partial<CellMenuActions> = {}): CellMenuActions {
     tab,
     tabTitle: 'Notes',
     collapsed: false,
-    onAddWidget: vi.fn(),
-    onSplit: vi.fn(),
-    onMerge: vi.fn(),
-    onInsert: vi.fn(),
-    onInsertBeside: vi.fn(),
     onCollapse: vi.fn(),
     onCloseTab: vi.fn(),
     onAddTab: vi.fn(),
-    onCloseCell: vi.fn(),
+    ...over,
+  }
+}
+
+function cardActions(over: Partial<EditCardMenuActions> = {}): EditCardMenuActions {
+  const tab = createTab('notes', 'n')
+  return {
+    cell: { id: 'k', tabs: [tab] },
+    tab,
+    slots: [{ cellId: 's1', label: 'B1' }, { cellId: 's2', label: 'A3' }],
+    cards: [{ cellId: 'c2', label: 'Calendar', note: 'B2' }],
     mergeWith: () => undefined,
+    canStretch: () => true,
+    onMoveTo: vi.fn(),
+    onSwap: vi.fn(),
+    onSplit: vi.fn(),
+    onMerge: vi.fn(),
+    onStretch: vi.fn(),
+    onRemoveWidget: vi.fn(),
+    onCloseCell: vi.fn(),
     ...over,
   }
 }
@@ -45,121 +66,111 @@ const childrenOf = (entries: readonly MenuEntry[], label: string): MenuEntry[] =
   const e = item(entries, label)
   return e?.kind === 'item' ? [...(e.children ?? [])] : []
 }
+const select = (entry: MenuEntry | undefined) => { if (entry?.kind === 'item') entry.onSelect?.() }
 
-describe('cellMenuEntries', () => {
-  it('under Layout: Add widget…, Split cell, Insert row, Insert column, Merge with, Collapse row, Close cell', () => {
-    expect(words(cellMenuEntries(actions()))).toEqual([
-      '[Layout]', 'Add widget…', 'Split cell', 'Insert row', 'Insert column', 'Merge with', 'Collapse row', '—', 'Close cell',
+describe('editCardMenuEntries (a card’s menu in the layout edit mode)', () => {
+  it('Move to, Swap with, Split, Merge with, Stretch right / down, then Remove widget and Close cell', () => {
+    expect(words(editCardMenuEntries(cardActions()))).toEqual([
+      'Move to', 'Swap with', 'Split', 'Merge with', 'Stretch right', 'Stretch down', '—', 'Remove widget', 'Close cell',
     ])
   })
 
-  it('Split cell and Merge with offer every side; the insert menus beside this cell, then at the edges', () => {
-    const entries = cellMenuEntries(actions())
-    expect(words(childrenOf(entries, 'Split cell'))).toEqual(['Above', 'Left', 'Right', 'Below'])
-    expect(words(childrenOf(entries, 'Merge with'))).toEqual(['Above', 'Left', 'Right', 'Below'])
-    expect(words(childrenOf(entries, 'Insert row'))).toEqual(['Above this row', 'Below this row', '—', 'At the top', 'At the bottom'])
-    expect(words(childrenOf(entries, 'Insert column'))).toEqual(['Left of this column', 'Right of this column', '—', 'At the far left', 'At the far right'])
+  it('Move to lists every slot by its ruler name; Swap with every other card by name, its place beside it', () => {
+    const onMoveTo = vi.fn()
+    const onSwap = vi.fn()
+    const entries = editCardMenuEntries(cardActions({ onMoveTo, onSwap }))
+    expect(words(childrenOf(entries, 'Move to'))).toEqual(['B1', 'A3'])
+    const swap = childrenOf(entries, 'Swap with')
+    expect(words(swap)).toEqual(['Calendar'])
+    expect(swap[0]?.kind === 'item' && swap[0].note).toBe('B2')
+    select(item(childrenOf(entries, 'Move to'), 'A3'))
+    select(item(swap, 'Calendar'))
+    expect(onMoveTo).toHaveBeenCalledWith('s2')
+    expect(onSwap).toHaveBeenCalledWith('c2')
   })
 
-  it('each insert and split runs its action with its side', () => {
-    const onInsertBeside = vi.fn()
-    const onInsert = vi.fn()
+  it('no slot or no other card: the entry is off, saying why', () => {
+    const entries = editCardMenuEntries(cardActions({ slots: [], cards: [] }))
+    const move = item(entries, 'Move to')
+    const swap = item(entries, 'Swap with')
+    expect(move?.kind === 'item' && move.disabled).toBe(true)
+    expect(move?.kind === 'item' && move.title).toMatch(/empty slot/)
+    expect(swap?.kind === 'item' && swap.disabled).toBe(true)
+  })
+
+  it('Split and Merge with offer every side; Merge is off where the two make no rectangle', () => {
     const onSplit = vi.fn()
-    const entries = cellMenuEntries(actions({ onInsertBeside, onInsert, onSplit }))
-    const run = (menu: string, label: string) => {
-      const e = item(childrenOf(entries, menu), label)
-      if (e?.kind === 'item') e.onSelect?.()
-    }
-    run('Insert row', 'Above this row')
-    run('Insert column', 'Right of this column')
-    run('Insert row', 'At the bottom')
-    run('Split cell', 'Left')
-    expect(onInsertBeside.mock.calls).toEqual([['top'], ['right']])
-    expect(onInsert).toHaveBeenCalledWith('bottom')
-    expect(onSplit).toHaveBeenCalledWith('left')
-  })
-
-  it('two widgets: Close cell with the count; collapsed reads Expand row', () => {
-    const a = createTab('notes', 'n')
-    const b = createTab('calendar', 'c')
-    const onCollapse = vi.fn()
-    const entries = cellMenuEntries(actions({ cell: { id: 'k', tabs: [a, b] }, tab: b, tabTitle: 'Calendar', collapsed: true, onCollapse }))
-    expect(words(entries).slice(-3)).toEqual(['Expand row', '—', 'Close cell (2 tabs)'])
-    const expand = item(entries, 'Expand row')
-    if (expand?.kind === 'item') expand.onSelect?.()
-    expect(onCollapse).toHaveBeenCalledWith(false)
-  })
-
-  it('Merge with ▸ a side is off, saying why, where no rectangle; on where one is', () => {
     const onMerge = vi.fn()
-    const entries = cellMenuEntries(actions({ mergeWith: (_id, side) => (side === 'right' ? 'm' : undefined), onMerge }))
+    const entries = editCardMenuEntries(cardActions({ onSplit, onMerge, mergeWith: (side) => (side === 'right' ? 'm' : undefined) }))
+    expect(words(childrenOf(entries, 'Split'))).toEqual(['Above', 'Left', 'Right', 'Below'])
     const merge = childrenOf(entries, 'Merge with')
-    expect(item(merge, 'Right')).toMatchObject({ disabled: false })
-    expect(item(merge, 'Below')).toMatchObject({ disabled: true, title: NO_MERGE_REASON })
-    const right = item(merge, 'Right')
-    if (right?.kind === 'item') right.onSelect?.()
+    expect(words(merge)).toEqual(['Above', 'Left', 'Right', 'Below'])
+    const above = item(merge, 'Above')
+    expect(above?.kind === 'item' && above.disabled).toBe(true)
+    expect(above?.kind === 'item' && above.title).toBe(NO_MERGE_REASON)
+    select(item(merge, 'Right'))
+    select(item(childrenOf(entries, 'Split'), 'Below'))
     expect(onMerge).toHaveBeenCalledWith('m')
+    expect(onSplit).toHaveBeenCalledWith('bottom')
+  })
+
+  it('Stretch right / down: off where no empty slot runs along that side; on, it stretches', () => {
+    const onStretch = vi.fn()
+    const entries = editCardMenuEntries(cardActions({ onStretch, canStretch: (d) => d === 'down' }))
+    const right = item(entries, 'Stretch right')
+    expect(right?.kind === 'item' && right.disabled).toBe(true)
+    select(item(entries, 'Stretch down'))
+    expect(onStretch).toHaveBeenCalledWith('down')
+  })
+
+  it('Remove widget removes the menu’s widget; two widgets: Close cell with the count', () => {
+    const onRemoveWidget = vi.fn()
+    const onCloseCell = vi.fn()
+    const a = createTab('notes', 'a')
+    const b = createTab('calendar', 'b')
+    const entries = editCardMenuEntries(cardActions({ cell: { id: 'k', tabs: [a, b] }, tab: b, onRemoveWidget, onCloseCell }))
+    select(item(entries, 'Remove widget'))
+    select(item(entries, 'Close cell (2 tabs)'))
+    expect(onRemoveWidget).toHaveBeenCalledWith('b')
+    expect(onCloseCell).toHaveBeenCalled()
   })
 })
 
-describe('cellMenuFor (E4: edit mode changes the grid; what is inside a cell changes in place)', () => {
+describe('cellMenuFor (outside the mode: what is inside a cell changes in place)', () => {
   const notes = () => widgetKindMenuEntries({ currentKind: 'notes', onChangeKind: () => {} })
 
-  it('the ⋯ outside the mode: the widget’s entries, Add widget as tab ›, Remove widget, Collapse row, then Edit layout', () => {
-    expect(words(cellMenuFor('widget', notes(), actions({ onEditLayout: vi.fn() })))).toEqual([
+  it('the ⋯: the widget’s entries, Add widget as tab ›, Remove widget, Collapse row, then Edit layout', () => {
+    expect(words(cellMenuFor(notes(), actions({ onEditLayout: vi.fn() })))).toEqual([
       '[Notes]', 'Change widget', '—', 'Add widget as tab', 'Remove widget', 'Collapse row', '—', 'Edit layout',
     ])
   })
 
-  it('a right-click outside the mode: the same menu — no Layout section', () => {
-    const a = actions({ onEditLayout: vi.fn() })
-    expect(words(cellMenuFor('all', notes(), a))).toEqual(words(cellMenuFor('widget', notes(), a)))
-  })
-
   it('Add widget as tab › lists every kind under Tasks and Insights; a Breakdown opens its presets', () => {
     const onAddTab = vi.fn()
-    const add = childrenOf(cellMenuFor('widget', notes(), actions({ onAddTab })), 'Add widget as tab')
+    const add = childrenOf(cellMenuFor(notes(), actions({ onAddTab })), 'Add widget as tab')
     expect(words(add)).toEqual([
       '[Tasks]', 'List', 'Calendar', 'Review', 'Notes',
       '—', '[Insights]', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map',
     ])
-    const calendar = item(add, 'Calendar')
-    if (calendar?.kind === 'item') calendar.onSelect?.()
-    const people = item(childrenOf(add, 'Breakdown'), 'People')
-    if (people?.kind === 'item') people.onSelect?.()
+    select(item(add, 'Calendar'))
+    select(item(childrenOf(add, 'Breakdown'), 'People'))
     expect(onAddTab.mock.calls).toEqual([['calendar'], ['breakdown', 'people']])
   })
 
   it('Remove widget removes the menu’s widget', () => {
     const onCloseTab = vi.fn()
-    const remove = item(cellMenuFor('widget', notes(), actions({ onCloseTab })), 'Remove widget')
-    if (remove?.kind === 'item') remove.onSelect?.()
+    select(item(cellMenuFor(notes(), actions({ onCloseTab })), 'Remove widget'))
     expect(onCloseTab).toHaveBeenCalledWith('n')
   })
 
   it('collapsed reads Expand row, which expands it', () => {
     const onCollapse = vi.fn()
-    const expand = item(cellMenuFor('widget', notes(), actions({ collapsed: true, onCollapse })), 'Expand row')
-    if (expand?.kind === 'item') expand.onSelect?.()
+    select(item(cellMenuFor(notes(), actions({ collapsed: true, onCollapse })), 'Expand row'))
     expect(onCollapse).toHaveBeenCalledWith(false)
   })
 
-  it('the grip (layout, only drawn in the mode) and every menu in the mode: the layout entries under Layout', () => {
-    const layout = ['[Layout]', 'Add widget…', 'Split cell', 'Insert row', 'Insert column', 'Merge with', 'Collapse row', '—', 'Close cell']
-    expect(words(cellMenuFor('layout', notes(), actions()))).toEqual(layout)
-    expect(words(cellMenuFor('widget', notes(), actions({ editing: true })))).toEqual(layout)
-    expect(words(cellMenuFor('all', notes(), actions({ editing: true })))).toEqual(layout)
-  })
-
-  it('Add widget… in the grip’s menu runs the cell’s add', () => {
-    const onAddWidget = vi.fn()
-    const add = item(cellMenuFor('layout', notes(), actions({ onAddWidget })), 'Add widget…')
-    if (add?.kind === 'item') add.onSelect?.()
-    expect(onAddWidget).toHaveBeenCalled()
-  })
-
-  it('names the grip’s menu Cell layout, the ⋯’s and the whole one Cell options', () => {
-    expect(CELL_MENU_LABEL).toEqual({ widget: 'Cell options', layout: 'Cell layout', all: 'Cell options' })
+  it('names the ⋯’s menu and the whole one Cell options', () => {
+    expect(CELL_MENU_LABEL).toEqual({ widget: 'Cell options', all: 'Cell options' })
   })
 })
 
@@ -171,8 +182,8 @@ describe('mergedCellMenu', () => {
       onEditList: () => {},
       widgetActions: [{ label: 'Copy tasks', onSelect: () => {} }],
     })
-    const merged = words(mergedCellMenu(widget, cellMenuEntries(actions())))
-    expect(merged.slice(0, 6)).toEqual(['[List]', 'Edit list…', 'Copy tasks', 'Change widget', '—', '[Layout]'])
+    const merged = words(mergedCellMenu(widget, [{ kind: 'item', label: 'Remove widget' }]))
+    expect(merged).toEqual(['[List]', 'Edit list…', 'Copy tasks', 'Change widget', '—', 'Remove widget'])
     expect(merged).not.toContain('Change list')
   })
 
