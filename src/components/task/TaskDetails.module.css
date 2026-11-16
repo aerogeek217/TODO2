@@ -59,9 +59,30 @@
   border-left: 1px solid var(--color-border-muted);
 }
 
-/* The last cell (Due) takes what is left of its line: a wrapped line's divider then spans the band. */
-.fact:last-child {
-  flex-grow: 1;
+/* Each cell's width is set by the band's width, never by its value (E6): a change to one fact — a
+ * date's words, a status, a pill added or removed, the Urgent clock — moves no other cell and never
+ * changes where the band wraps. Priority is as wide as its toggles (the Urgent toggle keeping its
+ * clock's room); Status a fixed width, its name cut with an ellipsis; People and Tags share what
+ * is left of their line, their pills wrapping inside (a pill that needs another line makes its line
+ * taller: nothing moves sideways or up); Due room for its widest value (`11/25 · 2
+ * months late` · × · the repeat) and, the last cell, what is left of its line — a wrapped line's
+ * divider then spans the band. At the editor's 920px Due takes the second line. */
+.fact[data-fact='priority'] {
+  flex: none;
+}
+
+.fact[data-fact='status'] {
+  flex: 0 1 150px;
+}
+
+/* Sharing a line with Due, they take most of what is left (Due needs only its room). */
+.fact[data-fact='people'],
+.fact[data-fact='tags'] {
+  flex: 4 1 180px;
+}
+
+.fact[data-fact='due'] {
+  flex: 1 1 290px;
 }
 
 /* A fact's header: the writing's section label (`.sectionLabel`), no colour and no icon. */
@@ -346,6 +367,30 @@
   box-shadow: var(--focus-ring);
 }
 
+/* The Urgent toggle: its face (the label, the clock while urgent by its due date) centred over a
+ * hidden sizer as wide as the label and the clock, so the toggle's width never changes. */
+.markerToggle[data-marker='urgent'] {
+  display: inline-grid;
+  justify-items: center;
+}
+
+.markerFace,
+.markerSizer {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.markerSizer {
+  visibility: hidden;
+}
+
+/* The label as generated text: not the toggle's text or name. */
+.markerSizer::before {
+  content: attr(data-label);
+}
+
 /* Urgent by due date while unflagged: a faint clock after the label. */
 .markerHint {
   display: inline-flex;
@@ -389,6 +434,12 @@
 
 .statusIcon {
   display: inline-flex;
+}
+
+.statusName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .statusNone {
