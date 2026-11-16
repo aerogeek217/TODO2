@@ -74,7 +74,7 @@ test('Open larger shows in a header of 340px or more and opens the active tab’
   await page.keyboard.press('Escape')
   await expect(popup(page)).toHaveCount(0)
 
-  // From 340px: the button, after the grip and before Collapse row, opens the active tab's widget.
+  // From 340px: the button, before Collapse row, opens the active tab's widget.
   await stripAt(page, 'k1', under + 3)
   await cell.locator('[data-ws-cell-header]').hover()
   const button = cell.locator('[data-ws-cell-header]').getByRole('button', { name: 'Open larger' })
@@ -83,7 +83,7 @@ test('Open larger shows in a header of 340px or more and opens the active tab’
     .filter((el) => el.getBoundingClientRect().width > 0 && el.closest('[role="tablist"]') == null)
     .map((el) => el.getAttribute('aria-label'))
     .filter((name) => name === 'Cell layout' || name === 'Open larger' || name === 'Collapse row' || name === 'Cell options'),
-  )).toEqual(['Cell layout', 'Open larger', 'Collapse row', 'Cell options'])
+  )).toEqual(['Open larger', 'Collapse row', 'Cell options'])
   await button.click()
   await expect(popup(page)).toHaveAttribute('aria-label', 'Team')
 })

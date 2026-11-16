@@ -1,0 +1,153 @@
+/* The layout edit mode's cards and slots (E3, `EditCard`). A card's
+ * surface lies under its content (z 0; the content dims and takes no
+ * presses, so a press anywhere lands on the surface), its chrome — the
+ * label, the ⋯ and the corner — over it (z 2). Everything clears the
+ * rulers' strips: the top 8px of the first row's cells and the left 8px of
+ * the first column's. */
+
+.surface {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+}
+
+.surface:active {
+  cursor: grabbing;
+}
+
+/* The card's label: the widget's icon and name, over its dimmed top line. */
+.label {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100% - 56px);
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--edit-outline);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* A squeezed strip's active tab, named under the strip (its title cut to nothing in a narrow
+ * card): shown only while the strip is squeezed. */
+.stripLabel {
+  display: none;
+  top: calc(var(--cell-header-height) + 6px);
+  max-width: calc(100% - 20px);
+}
+
+:global([data-ws-cell]):has([data-strip-squeezed]) .stripLabel {
+  display: inline-flex;
+}
+
+.labelIcon {
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+.labelText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Its ⋯: the card's menu (Cell layout). Always shown in the mode. */
+.more {
+  position: absolute;
+  top: 8px;
+  right: 6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--edit-outline);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.more:hover,
+.pressed {
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+  color: var(--color-text-primary);
+}
+
+.more:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/* Its corner: drag to stretch over empty slots. */
+.corner {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 0 55%, var(--color-accent) 55% 62%, transparent 62% 72%, var(--color-accent) 72% 79%, transparent 79%);
+  opacity: 0.8;
+}
+
+.corner:hover {
+  opacity: 1;
+}
+
+/* ── A slot: an empty cell in the mode ── */
+
+.slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 1.5px dashed var(--edit-outline);
+  border-radius: var(--radius-card);
+  background: var(--color-accent-bg-subtle);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.slot:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg-light);
+  color: var(--color-accent-text);
+}
+
+.slot:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+
+.slotName {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}

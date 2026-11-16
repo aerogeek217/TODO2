@@ -156,6 +156,16 @@
   text-overflow: ellipsis;
 }
 
+/* How long ago it was modified: a box as wide as its longest words (`123d ago`, `just now`), the
+ * words at its start, so an edit (`10d ago` → `just now`) moves nothing before it — the meta is
+ * placed by its right end (E6). */
+.headerMetaAge {
+  display: inline-block;
+  min-width: 8.5ch;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
 /* The header's ⋯ and ×: quiet 30px squares. */
 .headerButton {
   display: inline-flex;

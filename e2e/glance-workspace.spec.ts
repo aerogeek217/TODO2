@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { openFilterPicker } from './fixtures/filters'
-import { pickWidgetKind, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed, expectLayoutStep, expectLayoutStored, addWidgetAsTab } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
@@ -102,11 +102,8 @@ test('a tab’s setting and a new widget are layout changes', async ({ page }) =
   await expectLayoutStep(page)
   await expectLayoutStored(page)
 
-  // Add widget → Insights › Created vs completed: a second tab, an unsaved layout change.
-  await cell.hover()
-  await cell.getByRole('button', { name: 'Cell layout' }).click()
-  await page.getByRole('menuitem', { name: 'Add widget…' }).click()
-  await pickWidgetKind(page, 'Add widget', 'Created vs completed')
+  // Add widget as tab › Created vs completed: a second tab, an undo step.
+  await addWidgetAsTab(page, (await cell.getAttribute('data-ws-cell')) ?? '', 'Created vs completed')
   await expect(cell.getByRole('tab')).toHaveCount(2)
   await expect(section(page, 'trend')).toBeVisible()
   await expectLayoutStep(page)

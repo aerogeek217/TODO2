@@ -48,7 +48,6 @@ import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsM
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
 import { ErrorBoundary } from './components/shared/ErrorBoundary'
-import { AddWidgetRequestHost } from './components/workspace/AddWidgetFlow'
 import { addWidgetFromPalette, openWidgetLargerFromPalette } from './components/workspace/widget-hooks'
 const SettingsPage = lazy(() => import('./views/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const SettingsModal = lazy(() => import('./components/settings/SettingsModal').then(m => ({ default: m.SettingsModal })))
@@ -296,6 +295,8 @@ function AppShell() {
       // Not shown on a phone (the Settings page is).
       ui.closeSettings()
       ui.closeFilterPanel()
+      // The phone has no layout editing: the layout edit mode closes, its draft dropped.
+      useWorkspaceStore.getState().dropEdit()
     }
   }, [isMobile])
 
@@ -422,7 +423,6 @@ function AppShell() {
         </div>
       )}
       {!isMobile && <PaletteHost open={overlays.palette} shortcuts={shortcutCallbacks} />}
-      {!isMobile && <AddWidgetRequestHost />}
       {!isMobile && <ShortcutsModalHost open={overlays.shortcuts} />}
       {!isMobile && <SettingsModalHost />}
 

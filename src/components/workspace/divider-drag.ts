@@ -7,13 +7,13 @@ import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-sto
 import { useLatestRef } from '../../hooks/use-latest-ref'
 
 /**
- * What the table's resize handles share — a divider (`WorkspaceDivider`)
- * and a crossing handle (`WorkspaceCrossing`): the tracks as drawn, the
+ * What a divider (`WorkspaceDivider`) drags with: the tracks as drawn, the
  * cells' minimums, throwaway ids for a preview's probe, the preview itself
- * and Esc.
+ * and Esc. (The crossing handles that shared it went with the layout edit
+ * mode, E4: a divider's plain drag moves its whole line.)
  */
 
-/** Keyboard step for a focused divider or crossing handle (px). */
+/** Keyboard step for a focused divider (px). */
 export const KEY_STEP_PX = 16
 
 /** The table's tracks along `axis` as drawn (px), from its computed grid template. */
@@ -45,7 +45,7 @@ export function probeIds(): () => string {
   return () => `probe-${++n}`
 }
 
-/** Where a snap guide (or a crossing's line) sits: in the gutter before the track after line `line`, across the whole table. */
+/** Where a snap guide (or a divider's whole line, lit) sits: in the gutter before the track after line `line`, across the whole table. */
 export function guidePlacement(axis: GridAxis, line: number): CSSProperties {
   return axis === 'columns'
     ? { gridColumn: `${line + 1} / span 1`, gridRow: '1 / -1' }

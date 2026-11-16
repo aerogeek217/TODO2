@@ -1,0 +1,265 @@
+/* The layout edit mode's rulers (E2, `LayoutRulers`): grid items of the
+ * workspace table itself, so each sits on its track (and scrolls with it).
+ * They overlay the gutters and the cells' outer edges — no cell moves:
+ * columns' rulers along the top (over the table's top padding and the
+ * first row's top 8px), rows' down the left (over the table's left padding
+ * and the first column's left 8px), a "+" on every line, centred in its
+ * gutter. Geometry: the gutter is `--workspace-gutter`, a "+" 14px. */
+
+/* The workspace's top and bottom padding move into the table while the mode
+ * is on, so the rulers and the end "+"s can sit in it (inside the table's
+ * scroller): the content stays where it was — the cells don't move. */
+:global([data-ws-area][data-layout-editing]:has(> [data-ws-table])) {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+:global([data-ws-area][data-layout-editing] > [data-ws-table]) {
+  padding-top: var(--workspace-gutter);
+  padding-bottom: var(--workspace-gutter);
+}
+
+.rulers {
+  display: contents;
+}
+
+.ruler,
+.tick,
+.plus {
+  position: relative;
+  z-index: calc(var(--z-above-3) + 1);
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ── A major track's ruler: its letter / number, its share or mark ── */
+
+.ruler {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px var(--edit-outline);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-badge);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ruler:hover,
+.ruler[data-open] {
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+.ruler:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-accent), var(--focus-ring);
+}
+
+.name {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-badge);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.ruler[data-axis='columns'] {
+  align-self: start;
+  height: 14px;
+  margin: calc(-1 * var(--workspace-gutter)) 9px 0;
+}
+
+/* The first column's ruler clears the corner's "+"s; the last one the end "+". */
+.ruler[data-axis='columns']:is([data-end='first'], [data-end='only']) {
+  margin-left: 28px;
+}
+
+.ruler[data-axis='columns']:is([data-end='last'], [data-end='only']) {
+  margin-right: 10px;
+}
+
+.ruler[data-axis='rows'] {
+  flex-direction: column;
+  justify-self: start;
+  width: 14px;
+  margin: 9px 0 9px calc(-1 * var(--workspace-gutter));
+  padding: 2px 0;
+}
+
+.ruler[data-axis='rows']:is([data-end='first'], [data-end='only']) {
+  margin-top: 10px;
+}
+
+.ruler[data-axis='rows']:is([data-end='last'], [data-end='only']) {
+  margin-bottom: 10px;
+}
+
+/* A row's mark runs down the ruler, giving way first in a short row. */
+.ruler[data-axis='rows'] .note {
+  writing-mode: vertical-rl;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── A sliver's tick: unlabelled, its menu merges it into a neighbour ── */
+
+.tick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: transparent;
+}
+
+.tick::before {
+  content: '';
+  border-radius: 1px;
+  background: var(--color-text-muted);
+}
+
+.tick:hover::before,
+.tick[data-open]::before,
+.tick:focus-visible::before {
+  background: var(--color-accent);
+}
+
+.tick[data-axis='columns'] {
+  align-self: start;
+  justify-self: center;
+  width: 12px;
+  height: 14px;
+  margin-top: calc(-1 * var(--workspace-gutter));
+}
+
+.tick[data-axis='columns']::before {
+  width: 3px;
+  height: 9px;
+}
+
+.tick[data-axis='rows'] {
+  justify-self: start;
+  align-self: center;
+  width: 14px;
+  height: 12px;
+  margin-left: calc(-1 * var(--workspace-gutter));
+}
+
+.tick[data-axis='rows']::before {
+  width: 9px;
+  height: 3px;
+}
+
+/* ── A line's "+" ── */
+
+.plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--edit-outline);
+  color: var(--color-accent-text);
+  transition: transform var(--transition-fast);
+}
+
+.plus:hover,
+.plus:focus-visible {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  transform: scale(1.15);
+}
+
+.plus:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/* An inner line's "+" sits in the gutter before the track after the line. */
+.plus[data-axis='columns'] {
+  align-self: start;
+  justify-self: start;
+  margin-top: calc(-1 * var(--workspace-gutter));
+  margin-left: calc(-0.5 * var(--workspace-gutter) - 7px);
+}
+
+/* The first column line's "+" steps right of the corner, where the first row line's sits. */
+.plus[data-axis='columns'][data-end='first'] {
+  margin-left: 12px;
+}
+
+.plus[data-axis='columns'][data-end='last'] {
+  justify-self: end;
+  margin-left: 0;
+  margin-right: calc(-1 * var(--workspace-gutter));
+}
+
+.plus[data-axis='rows'] {
+  justify-self: start;
+  align-self: start;
+  margin-left: calc(-1 * var(--workspace-gutter));
+  margin-top: calc(-0.5 * var(--workspace-gutter) - 7px);
+}
+
+.plus[data-axis='rows'][data-end='first'] {
+  margin-top: calc(-1 * var(--workspace-gutter));
+}
+
+.plus[data-axis='rows'][data-end='last'] {
+  align-self: end;
+  margin-top: 0;
+  margin-bottom: calc(-1 * var(--workspace-gutter));
+}
+
+/* ── The line a hovered or focused "+" inserts on, across the table ── */
+
+.guide {
+  position: relative;
+  z-index: var(--z-above-3);
+  border-radius: 1px;
+  background: var(--color-accent);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.guide[data-axis='columns'] {
+  justify-self: start;
+  width: 2px;
+  margin-left: calc(-0.5 * var(--workspace-gutter) - 1px);
+}
+
+.guide[data-axis='columns'][data-end='last'] {
+  justify-self: end;
+  margin-left: 0;
+  margin-right: calc(-0.5 * var(--workspace-gutter) - 1px);
+}
+
+.guide[data-axis='rows'] {
+  align-self: start;
+  height: 2px;
+  margin-top: calc(-0.5 * var(--workspace-gutter) - 1px);
+}
+
+.guide[data-axis='rows'][data-end='last'] {
+  align-self: end;
+  margin-top: 0;
+  margin-bottom: calc(-0.5 * var(--workspace-gutter) - 1px);
+}

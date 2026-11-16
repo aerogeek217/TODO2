@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
-import { useDraggable } from '@dnd-kit/core'
 import { getActiveTab, isGlanceKind, type LayoutTab } from '../../models/workspace-layout'
 import { afterLeavingEditors, editorsHoldChanges } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -7,16 +6,10 @@ import { OPEN_LARGER_LABEL, widgetKindMenuEntries, type WidgetKindMenuContent } 
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
-import type { AddWhere } from './add-widget-where'
-import { useTabTitle, useTabTitles } from './widget-hooks'
+import { addTabToCell, useTabTitle } from './widget-hooks'
 import { MenuPopover } from '../shared/MenuPopover'
 import { ChevronDownIcon, ChevronUpIcon, ExpandIcon, MoreIcon } from '../shared/icons'
-import {
-  useWorkspaceDrag,
-  WORKSPACE_PANEL_DRAG,
-  workspacePanelDragId,
-  type WorkspacePanelDragData,
-} from './workspace-drag'
+import { useWorkspaceDrag } from './workspace-drag'
 import styles from './WorkspaceCell.module.css'
 import type { WorkspaceCellProps } from './WorkspaceCell'
 import { trackScrollEdges } from '../../utils/scroll-edges'
@@ -30,7 +23,9 @@ import { transitionName, withViewTransition } from '../shared/view-transition'
 import { CELL_MENU_LABEL, cellMenuFor, useWidgetMenuContent, type CellMenuPart } from './cell-menu'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
 import { trackCellHot } from './cell-hot'
-import { CellControls, CellGrip } from './WidgetTopLine'
+import { CellControls } from './WidgetTopLine'
+import { EditCardControls, EditCardMenu, EditCardSurface } from './EditCard'
+import { tapCard } from './edit-card-actions'
 import { TabNameIconPopover } from './TabNameIconPopover'
 import { NumberStrip, NUMBER_SLOT_ATTR } from './NumberStrip'
 import { isNumberStripCell } from '../../utils/workspace-rows'
@@ -41,22 +36,9 @@ function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number
   return r ? { x: r.left, y: r.bottom + 4 } : { x: 100, y: 100 }
 }
 
-/**
- * The strip header's empty space: drags the whole panel (5px to start, as a
- * tab); a click there opens nothing (J15). Not focusable — the header's grip
- * button, beside the ⋯, drags too and opens the cell's layout menu.
- */
-function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly LayoutTab[] }) {
-  const titles = useTabTitles(tabs)
-  const data: WorkspacePanelDragData = {
-    type: WORKSPACE_PANEL_DRAG,
-    panelId,
-    tabs: tabs.map((t, i) => ({ id: t.id, kind: t.kind, title: titles[i] ?? '', ...(t.icon ? { icon: t.icon } : {}) })),
-  }
-  const { setNodeRef, listeners } = useDraggable({ id: workspacePanelDragId(panelId), data })
-  return (
-    <div ref={setNodeRef} {...listeners} className={styles.fill} data-ws-panel-handle={panelId} data-strip-room="" aria-hidden="true" />
-  )
+/** The strip header's empty space: the strip measures it as its room; nothing drags (in the layout edit mode a press there reaches the card's surface). */
+function StillRoom() {
+  return <div className={styles.fill} data-strip-room="" aria-hidden="true" />
 }
 
 /**
@@ -76,20 +58,27 @@ function focusSwitchedTab(cell: HTMLElement | null, tabId: string): void {
 /** Before any menu is open: the widget part builds nothing. */
 const NO_WIDGET_MENU: WidgetKindMenuContent = { onChangeKind: () => {} }
 
-/** Where a menu opens: under its button (`null`: the ⋯, the grip's under the grip), or at a point (a right-click). */
+/** Where a menu opens: under its button (`null`: the ⋯ — in the layout edit mode the card's), or at a point (a right-click). */
 type MenuAt = { x: number; y: number } | null
 
 /**
  * The buttons of one kind a cell draws (the strip's header's, a top line's
- * slot, the cell's own while no top line holds one — briefly two): a menu
- * anchors to the one still in the page.
+ * slot, the cell's own while no top line holds one — briefly two; in the
+ * layout edit mode the card's ⋯ beside a hidden one): a menu anchors to the
+ * one still in the page and drawn.
  */
 function useButtonSet() {
   const [els] = useState(() => new Set<HTMLButtonElement>())
   const ref = useMemo(() => ({
     get current(): HTMLButtonElement | null {
-      for (const el of els) if (el.isConnected) return el
-      return null
+      // One drawn first (the layout edit mode hides the cell's own ⋯ for the card's).
+      let connected: HTMLButtonElement | null = null
+      for (const el of els) {
+        if (!el.isConnected) continue
+        if (el.getClientRects().length > 0) return el
+        connected ??= el
+      }
+      return connected
     },
   }), [els])
   const set = useCallback((el: HTMLButtonElement | null) => {
@@ -115,26 +104,31 @@ function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = fals
 /**
  * A cell of the layout's table holding tabs (D26 AA1): with one widget no
  * tab strip — the widget's own top line names it and holds the controls
- * slot (grip and ⋯, `CellControlsContext`); with two or more, the tab
- * strip, the panel handle, the grip, Open larger (the active widget's),
- * collapse and the ⋯ in its header.
- * Either way (`cell-menu`, UX cleanup 4A; layout menus option A) the ⋯
- * opens the widget's own entries and Remove widget, the grip every placement
- * (Add widget…, Split, Insert row / column, Merge, Collapse, Close cell),
- * and a right-click or Shift+F10 the whole menu. The
+ * slot (Open larger and ⋯, `CellControlsContext`); with two or more, the
+ * tab strip, Open larger (the active widget's), collapse and the ⋯ in its
+ * header. The rule (layout edit mode E4): edit mode changes the grid;
+ * what's inside a cell changes in place. Outside the mode the ⋯ — and a
+ * right-click or Shift+F10 — opens the widget's own entries, Add widget as
+ * tab ›, Remove widget (a lone widget's cell stays, empty), Collapse /
+ * Expand row and Edit layout (`cell-menu`); tabs reorder only in their own
+ * strip. In the mode (E3) the cell is a card (`EditCard`): its surface,
+ * under the dimmed content, drags it from anywhere and selects it on a
+ * click; its tabs (and a strip's Numbers) drag on their own to another card
+ * or slot; its ⋯, a right-click on it and Enter open its menu (Cell layout:
+ * Move to, Swap with, Split, Merge with, Stretch, Remove widget, Close
+ * cell); its corner stretches it. The
  * active widget's body shows at its face (D25 R) — while the widget popup
  * shows that tab (Open larger), a placeholder in its place: a tab has one
  * live widget at a time (`OpenLargerPlaceholder`).
  */
 export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
-  const closeTab = useWorkspaceStore((s) => s.closeTab)
-  const closeCell = useWorkspaceStore((s) => s.closeCell)
-  const splitCell = useWorkspaceStore((s) => s.splitCell)
-  const mergeCells = useWorkspaceStore((s) => s.mergeCells)
-  const insertTrack = useWorkspaceStore((s) => s.insertTrack)
-  const insertTrackBeside = useWorkspaceStore((s) => s.insertTrackBeside)
+  const removeWidget = useWorkspaceStore((s) => s.removeWidget)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
+  /** The layout edit mode is on: the cell is a card (E3), its one menu the card's (Cell layout). */
+  const editing = useWorkspaceStore((s) => s.editing != null)
+  /** The cell the mode selected (its ⋯ › Edit layout): ringed. */
+  const editSelected = useWorkspaceStore((s) => s.editing?.selectedCellId === cell.id)
   const drag = useWorkspaceDrag()
   /**
    * Whatever here can take a widget off the screen — a tab switched or
@@ -144,9 +138,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
    * (`editor-leave`), as on every other way out of it; Save or Discard, then
    * it is done; Keep editing, nothing. With none it runs at once, in the same
    * tick. A press elsewhere has asked already (the editors' own rule): this
-   * is the keyboard's way here, and a menu's.
+   * is the keyboard's way here, and a menu's. Removing a widget keeps its
+   * cell (an empty cell when it was alone there, E4).
    */
-  const closeTabAsked = useCallback((tabId: string) => afterLeavingEditors(() => closeTab(tabId)), [closeTab])
+  const closeTabAsked = useCallback((tabId: string) => afterLeavingEditors(() => removeWidget(tabId)), [removeWidget])
   const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
@@ -190,11 +185,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const toggleSlotMenu = useCallback((tabId: string, button: HTMLButtonElement | null) => {
     setMenu((m) => (m && m.tabId === tabId && m.part === 'widget' ? null : { tabId, at: anchorBelow({ current: button }), part: 'widget' }))
   }, [])
-  const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number }; where: AddWhere } | null>(null)
+  const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number } } | null>(null)
   /** Name and icon… (items 11, 14): the tab, and what its popover opens under (the tab, or the top line standing for it). */
   const [labelEdit, setLabelEdit] = useState<{ tabId: string; anchor: RefObject<HTMLElement | null> | { x: number; y: number } } | null>(null)
   const [moreRef, setMoreButton] = useButtonSet()
-  const [gripRef, setGripButton] = useButtonSet()
   /**
    * The widget's top lines mounted, and those holding the controls slot: with
    * none holding it, the cell draws its own (a face without one); with no top
@@ -226,15 +220,15 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
     setLabelEdit({ tabId, anchor: el ? { current: el } : at ?? anchorBelow(moreRef) })
   }, [moreRef, cell.id])
 
-  // ── The ⋯'s menu, the grip's, the whole one ──
+  // ── The ⋯'s menu, the whole one (outside the mode) ──
   const menuTab = menu ? cell.tabs.find((t) => t.id === menu.tabId) : undefined
   const menuTitle = useTabTitle(menuTab)
   const widgetContent = useWidgetMenuContent(menuTab, menuTab ? widgetResults[menuTab.id] : undefined)
   // Open larger for the menu's tab: by the face it shows (the active tab's, a strip's Number's), a tab out of sight by its large face.
   const menuFace = menuTab == null ? 'large' : numberStrip ? (slotFaces[menuTab.id] ?? 'large') : menuTab.id === active?.id ? cellFace.face : 'large'
   const menuOpensLarger = menuTab != null && tabOpensLarger(menuTab, menuFace)
-  const menuEntries = menu && menuTab
-    ? cellMenuFor(menu.part, widgetKindMenuEntries({
+  const menuEntries = menu && menuTab && !editing
+    ? cellMenuFor(widgetKindMenuEntries({
         ...(widgetContent ?? NO_WIDGET_MENU),
         onOpenLarger: menuOpensLarger ? () => { void openWidgetLarger(menuTab.id) } : undefined,
         onNameAndIcon: () => openLabelEdit(menuTab.id, menu.at),
@@ -243,29 +237,24 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         tab: menuTab,
         tabTitle: menuTitle,
         collapsed,
-        // From the grip (Layout): under the grip; from a right-click: where it was.
-        onAddWidget: () => setAddFlow({ anchor: menu.at ?? anchorBelow(menu.part === 'layout' ? gripRef : moreRef), where: 'tab' }),
-        onSplit: (side) => afterLeavingEditors(() => { splitCell(cell.id, side) }),
-        onMerge: (other) => afterLeavingEditors(() => { mergeCells(cell.id, other) }),
-        onInsert: (edge) => afterLeavingEditors(() => { insertTrack(edge) }),
-        onInsertBeside: (side) => afterLeavingEditors(() => { insertTrackBeside(cell.id, side) }),
         onCollapse: setRowCollapsed,
         onCloseTab: closeTabAsked,
-        onCloseCell: () => afterLeavingEditors(() => closeCell(cell.id)),
+        onAddTab: (kind, preset) => addTabToCell(cell.id, kind, preset),
+        onEditLayout: () => { void useWorkspaceStore.getState().enterEdit({ cellId: cell.id }) },
       })
     : null
   /** The whole menu (a right-click, Shift+F10 / the Menu key): at a point, or under the ⋯. */
   const openMenu = useCallback((tabId: string, at: MenuAt) => setMenu({ tabId, at, part: 'all' }), [])
-  /** The ⋯'s menu (`widget`) or the grip's (`layout`) for tab `tabId`, under its button; pressed again, closed. */
-  const toggleMenu = useCallback((part: 'widget' | 'layout', tabId: string | undefined) => {
-    setMenu((m) => (m && m.at === null && m.part === part ? null : tabId != null ? { tabId, at: null, part } : null))
+  /** The ⋯'s menu for tab `tabId` (in the mode the card's), under its button; pressed again, closed. */
+  const toggleMenu = useCallback((tabId: string | undefined) => {
+    setMenu((m) => (m && m.at === null && m.part === 'widget' ? null : tabId != null ? { tabId, at: null, part: 'widget' } : null))
   }, [])
   const menuOpen = menu != null || addFlow != null
-  const gripOpen = menu?.part === 'layout'
 
   // A one-widget cell's controls slot, lent to its widget's top line.
   const activeId = active?.id
-  const onOpenLarger = cellFace.opensLarger ? cellFace.openLarger : undefined
+  // Not in the layout edit mode: nothing opens over the draft.
+  const onOpenLarger = cellFace.opensLarger && !editing ? cellFace.openLarger : undefined
   const controls = useMemo<CellControlsValue | null>(() => (stripShown || numberStrip || activeId == null ? null : {
     cellId: cell.id,
     tabs: cell.tabs,
@@ -274,16 +263,12 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
     touch: false,
     setMoreButton,
     menuOpen,
-    moreOpen: menuOpen && !gripOpen,
-    onMore: () => toggleMenu('widget', activeId),
-    onGrip: () => toggleMenu('layout', activeId),
+    onMore: () => toggleMenu(activeId),
     onOpenLarger,
-    gripOpen,
-    setGripButton,
     collapsed,
     onExpand: () => setRowCollapsed(false),
     claim,
-  }), [stripShown, numberStrip, activeId, cell.id, cell.tabs, activeTitle, menuOpen, gripOpen, onOpenLarger, collapsed, setRowCollapsed, claim, setMoreButton, setGripButton, toggleMenu])
+  }), [stripShown, numberStrip, activeId, cell.id, cell.tabs, activeTitle, menuOpen, onOpenLarger, collapsed, setRowCollapsed, claim, setMoreButton, toggleMenu])
 
   /** A strip's Number under an event's target (its slot), else the active tab. */
   const eventTab = (target: EventTarget | null): LayoutTab | undefined => {
@@ -292,9 +277,16 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
     return cell.tabs.find((t) => t.id === id) ?? active
   }
 
-  /** A right-click on the top line (a glance widget's: anywhere on it) opens the ⋯ menu there. */
+  /** A right-click on the top line (a glance widget's: anywhere on it) opens the ⋯ menu there — in the mode, anywhere on the card its menu. */
   const onContextMenu = (e: MouseEvent<HTMLElement>) => {
     const tab = eventTab(e.target)
+    if (editing) {
+      if (e.defaultPrevented || !tab || !(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return
+      e.preventDefault()
+      useWorkspaceStore.getState().selectEditCell(cell.id)
+      openMenu(tab.id, { x: e.clientX, y: e.clientY })
+      return
+    }
     if (stripShown || e.defaultPrevented || !tab) return
     // Only one from inside the cell's own element.
     if (!(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return
@@ -305,7 +297,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   /** Shift+F10 / the Menu key on the top line opens the ⋯ menu under the ⋯ (a widget's own menu, e.g. a row's, goes first). */
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     const tab = eventTab(e.target)
-    if (stripShown || e.defaultPrevented || !tab) return
+    // In the mode the card's surface takes the keys (Enter, Shift+F10: its menu).
+    if (stripShown || editing || e.defaultPrevented || !tab) return
     if (e.key !== 'ContextMenu' && !(e.key === 'F10' && e.shiftKey)) return
     if (!onTopLine(e.currentTarget, e.target, true)) return
     e.preventDefault()
@@ -323,22 +316,31 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       ].join(' ')}
       style={{ ...style, viewTransitionName: transitionName('ws-cell', cell.id) }}
       data-ws-cell={cell.id}
+      data-edit-selected={editSelected ? '' : undefined}
       data-ws-cell-title={activeTitle}
       data-face={!collapsed && active ? cellFace.face : undefined}
       aria-label={`${activeTitle} cell`}
       onContextMenu={onContextMenu}
       onKeyDown={onKeyDown}
+      // In the mode a click on a strip's Number is a tap on the card (its own drag moves the Number).
+      onClick={editing ? (e) => {
+        if (e.target instanceof Element && e.target.closest(`[${NUMBER_SLOT_ATTR}]`)) tapCard(e, cell.id)
+      } : undefined}
     >
+      {/* The layout edit mode (E3): the card's surface, under everything else. */}
+      {editing && active && <EditCardSurface cell={cell} title={activeTitle} onMenu={(at) => openMenu(active.id, at)} />}
       {stripShown && (
         <div
           className={[styles.header, menuOpen ? styles.headerMenuOpen : ''].join(' ')}
           data-ws-cell-header={cell.id}
+          data-edit-layer={editing ? '' : undefined}
         >
           <CellTabStrip
             cell={cell}
             collapsed={collapsed}
             activeCount={activeCount}
             ghosts={ghosts}
+            partsKey={editing ? 'edit' : undefined}
             onActivate={(tabId) => {
               const show = () => withViewTransition(() => {
                 void setActiveTab(tabId)
@@ -350,13 +352,15 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             }}
             onClose={closeTabAsked}
             onOpenTabMenu={(tabId, p) => openMenu(tabId, p)}
-            onAddTab={(ref) => setAddFlow({ anchor: anchorBelow(ref), where: 'tab' })}
+            // In the mode a card takes a new tab from the tray (a chip dragged onto it, or clicked with it selected).
+            onAddTab={editing ? undefined : (ref) => setAddFlow({ anchor: anchorBelow(ref) })}
           />
           {stripHit && drag?.insertLeft != null && (
             <span className={styles.insertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
           )}
-          <PanelHandle panelId={cell.id} tabs={cell.tabs} />
-          {collapsed ? (
+          <StillRoom />
+          {/* In the mode the card's ⋯ stands for these (the rulers collapse and expand rows): its room kept here. */}
+          {editing ? <span className={styles.editMoreRoom} aria-hidden="true" /> : collapsed ? (
             <button
               type="button"
               className={styles.expand}
@@ -369,16 +373,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             </button>
           ) : (
             <div className={styles.actions}>
-              <CellGrip
-                cellId={cell.id}
-                tabs={cell.tabs}
-                title={activeTitle}
-                idSuffix=":header"
-                expanded={gripOpen}
-                onMenu={() => toggleMenu('layout', active?.id)}
-                setButton={setGripButton}
-                className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
-              />
               {onOpenLarger && (
                 <button
                   type="button"
@@ -405,12 +399,12 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
               <button
                 ref={setMoreButton}
                 type="button"
-                className={`${styles.action} ${menu?.at === null && !gripOpen ? styles.actionPressed : ''}`}
+                className={`${styles.action} ${menu?.at === null ? styles.actionPressed : ''}`}
                 aria-label="Cell options"
                 aria-haspopup="menu"
-                aria-expanded={menu != null && !gripOpen}
+                aria-expanded={menu != null}
                 data-tooltip="Cell options"
-                onClick={() => toggleMenu('widget', active?.id)}
+                onClick={() => toggleMenu(active?.id)}
               >
                 <MoreIcon />
               </button>
@@ -420,12 +414,12 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       )}
       {!stripShown && !numberStrip && active && ghosts && <JoinPreviewStrip tab={active} ghosts={ghosts} />}
       {numberStrip && (
-        <div className={styles.bodyFrame} data-ws-cell-body={cell.id}>
+        <div className={styles.bodyFrame} data-ws-cell-body={cell.id} data-edit-layer={editing ? '' : undefined}>
           <NumberStrip
             cell={cell}
             smallFaces={fitRow || collapsed}
             dragging={drag != null}
-            menuTabId={menu && menu.part !== 'layout' ? menu.tabId : null}
+            menuTabId={menu ? menu.tabId : null}
             onMore={toggleSlotMenu}
             onClose={closeTabAsked}
             onAdd={() => { void useWorkspaceStore.getState().addWidget('number', { kind: 'cell', cellId: cell.id }) }}
@@ -435,24 +429,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
           {stripHit && drag?.insertLeft != null && (
             <span className={styles.stripInsertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
           )}
-          {/* The strip's grip: drags the whole cell, a click its layout menu. */}
-          <span className={styles.stripGrip}>
-            <CellGrip
-              cellId={cell.id}
-              tabs={cell.tabs}
-              title={activeTitle}
-              idSuffix=":floating"
-              expanded={gripOpen}
-              onMenu={() => toggleMenu('layout', active?.id)}
-              setButton={setGripButton}
-              panelHandle
-              className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
-            />
-          </span>
         </div>
       )}
       {!numberStrip && (!collapsed || !stripShown) && active && (
-        <div className={styles.bodyFrame}>
+        <div className={styles.bodyFrame} data-edit-layer={editing ? '' : undefined}>
           <div
             ref={setBody}
             className={`${styles.body} ${smallFace ? styles.bodySmall : ''}`}
@@ -481,10 +461,24 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         </div>
       )}
       {controls && claims.slots === 0 && <CellControls value={controls} floating standsForTab={claims.lines === 0} />}
+      {editing && active && (
+        <EditCardControls
+          cell={cell}
+          label={stripShown ? null : numberStrip ? `${cell.tabs.length} Numbers` : activeTitle}
+          stripLabel={stripShown ? activeTitle : undefined}
+          labelTab={numberStrip ? undefined : active}
+          menuOpen={menu != null}
+          setMoreButton={setMoreButton}
+          onMore={() => toggleMenu(active.id)}
+        />
+      )}
 
+      {menu && editing && (
+        <EditCardMenu cell={cell} tab={menuTab} at={menu.at} anchorRef={moreRef} onClose={() => setMenu(null)} />
+      )}
       {menu && menuEntries && (
         <MenuPopover
-          {...(menu.at ? { point: menu.at, restoreFocus: true } : { anchorRef: menu.part === 'layout' ? gripRef : moreRef, placement: 'bottom-end' as const })}
+          {...(menu.at ? { point: menu.at, restoreFocus: true } : { anchorRef: moreRef, placement: 'bottom-end' as const })}
           width={248}
           label={CELL_MENU_LABEL[menu.part]}
           entries={menuEntries}
@@ -497,7 +491,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       {addFlow && (
         <AddWidgetFlow
           cellId={cell.id}
-          initialWhere={addFlow.where}
           anchor={addFlow.anchor}
           onClose={() => setAddFlow(null)}
         />

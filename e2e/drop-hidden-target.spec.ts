@@ -13,6 +13,18 @@ import { readStore } from './fixtures/db'
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
+/**
+ * A month that takes six week rows whichever day a week starts on (August 2026
+ * starts on a Saturday): in a five-row month the shortest full calendar scrolls
+ * by less than a row, so no day lies wholly out of view over the list and the
+ * spec had nothing to drop on (it failed in November 2026 for that alone).
+ */
+const SIX_WEEK_MONTH = new Date('2026-08-12T10:00:00')
+
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(SIX_WEEK_MONTH)
+})
+
 const FILLERS = Array.from({ length: 12 }, (_, n) => ({ title: `Filler ${n + 1}` }))
 
 async function dueOf(page: Page, title: string): Promise<number | null> {

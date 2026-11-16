@@ -152,6 +152,11 @@ const SHORTCUT_SPECS = {
     description: 'Pause / resume filter', category: 'general', editable: true,
     chord: null,
   },
+  // The layout edit mode (layout edit mode E1, decision E): no keys by default — a plain key would swap the whole top bar on one stray press.
+  'edit-layout': {
+    description: 'Edit layout', category: 'general', editable: true,
+    chord: null,
+  },
 } as const satisfies Record<string, ShortcutSpec>
 
 export type ShortcutId = keyof typeof SHORTCUT_SPECS
@@ -183,4 +188,6 @@ interface ShortcutInfoRow {
 export const SHORTCUT_INFO_ROWS: readonly ShortcutInfoRow[] = [
   { category: 'navigation', label: 'Shift+Up / Down', description: 'Extend selection' },
   { category: 'notes', label: 'Alt-T', description: 'Convert current line to task' },
+  // A workspace divider (layout edit mode E4): a plain drag or arrow key moves its whole line.
+  { category: 'general', label: 'Alt-drag', description: 'Divider: split its piece off the line (a plain drag moves the whole line)' },
 ]

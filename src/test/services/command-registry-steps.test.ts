@@ -56,7 +56,7 @@ describe('Go to Layout ›, New Layout…, Duplicate Layout…', () => {
     expect(useUIStore.getState().layoutRequest).toEqual({ kind: 'new' })
     find(commands, 'layout-duplicate')?.action()
     expect(useUIStore.getState().layoutRequest).toEqual({ kind: 'duplicate' })
-    expect(commands.filter((c) => c.category === 'layout').map((c) => c.name)).toEqual(['Go to Layout', 'New Layout…', 'Duplicate Layout…'])
+    expect(commands.filter((c) => c.category === 'layout').map((c) => c.name)).toEqual(['Go to Layout', 'New Layout…', 'Duplicate Layout…', 'Edit Layout'])
   })
 })
 
@@ -73,7 +73,7 @@ describe('Add Widget ›', () => {
     ])
     step.find((c) => c.name === 'Number')?.action()
     expect(addWidget).toHaveBeenCalledWith('number')
-    expect(commands.filter((c) => c.category === 'layout').map((c) => c.name)).toEqual(['Go to Layout', 'Add Widget', 'New Layout…', 'Duplicate Layout…'])
+    expect(commands.filter((c) => c.category === 'layout').map((c) => c.name)).toEqual(['Go to Layout', 'Add Widget', 'New Layout…', 'Duplicate Layout…', 'Edit Layout'])
   })
 
   it('no List while the open layout isn’t stored (it can’t own a list yet)', () => {

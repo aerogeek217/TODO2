@@ -429,8 +429,13 @@
   --cal-on-followup: #111110;
   --cal-overdue-day: rgba(232, 107, 240, 0.10);
   --cal-followup-day: rgba(245, 200, 66, 0.08);
-  /* An upcoming calendar entry's tick (flair P6): 3 : 1 on a day cell and the day popover. */
-  --cal-tick: #77726b;
+  /* A calendar entry's bar (flair P6, E6): its date type's colour, a touch
+     softer than the full colour a late entry's bar takes. */
+  --cal-tick-due: color-mix(in srgb, var(--color-overdue) 75%, transparent);
+  --cal-tick-followup: color-mix(in srgb, var(--color-followup) 75%, transparent);
+  /* A calendar entry that asks for action now: a faint tint of its type's colour. */
+  --cal-entry-due-tint: var(--color-overdue-bg);
+  --cal-entry-followup-tint: var(--color-followup-bg);
   /* The top bar's tally (flair P3): a pale scratch, its dark lower edge, a faint light rim. */
   --tally-mark: #d6d1ca;
   --tally-edge: rgba(0, 0, 0, 0.7);
@@ -481,6 +486,12 @@
   --color-accent-focus: color-mix(in srgb, var(--color-accent) 40%, transparent);
   --color-accent-shadow: color-mix(in srgb, var(--color-accent) 20%, transparent);
   --color-accent-shadow-subtle: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  /* The layout edit mode (E1): the workspace tinted towards the accent under
+     a faint dot grid, an accent outline round it, the cells' content dimmed. */
+  --edit-canvas: color-mix(in srgb, var(--color-accent) 4%, var(--color-app-bg));
+  --edit-dot: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  --edit-outline: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  --edit-cell-dim: 0.4;
 
   /* Overlay */
   --color-overlay: rgba(0, 0, 0, 0.4);
@@ -714,7 +725,13 @@
   --cal-on-followup: #1a1917;
   --cal-overdue-day: rgba(163, 44, 171, 0.07);
   --cal-followup-day: rgba(245, 200, 66, 0.14);
-  --cal-tick: #8a857e;
+  /* The follow-up bar mixes in the bright fill yellow (the text yellow reads
+     brown as a line), still 3 : 1 on a day cell. */
+  --cal-tick-due: color-mix(in srgb, var(--color-overdue) 75%, transparent);
+  --cal-tick-followup: color-mix(in srgb, var(--cal-followup-solid) 35%, var(--color-followup));
+  /* Quieter than the follow-up pill's fill, level with the due tint. */
+  --cal-entry-due-tint: var(--color-overdue-bg);
+  --cal-entry-followup-tint: rgba(245, 200, 66, 0.16);
   /* The top bar's tally (flair P3): a dark scratch with a light lower edge. */
   --tally-mark: #5a5650;
   --tally-edge: rgba(255, 255, 255, 0.85);
@@ -761,6 +778,11 @@
   --color-accent-focus: color-mix(in srgb, var(--color-accent) 30%, transparent);
   --color-accent-shadow: color-mix(in srgb, var(--color-accent) 15%, transparent);
   --color-accent-shadow-subtle: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  /* The layout edit mode (E1): as in dark, a touch stronger on the paper. */
+  --edit-canvas: color-mix(in srgb, var(--color-accent) 5%, var(--color-app-bg));
+  --edit-dot: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  --edit-outline: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  --edit-cell-dim: 0.45;
 
   /* Overlay */
   --color-overlay: rgba(0, 0, 0, 0.25);

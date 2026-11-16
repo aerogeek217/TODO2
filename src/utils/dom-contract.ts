@@ -116,3 +116,6 @@ export function widgetElement(tabId: string, selector: string): HTMLElement | nu
 export const TOOLTIP_ATTR = 'data-tooltip'
 /** An optional muted key after a `data-tooltip`'s label (`Settings G S`). */
 export const TOOLTIP_SHORTCUT_ATTR = 'data-tooltip-shortcut'
+
+/** The layout edit mode's bar's widget tray slot (`LayoutEditBar`; `LayoutEditTray` fills it). */
+export const LAYOUT_EDIT_TRAY_ATTR = 'data-layout-edit-tray'

@@ -7,7 +7,8 @@ import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { DeleteLayoutDialog, LayoutNameDialog } from './LayoutDialogs'
 import { LayoutTabs } from './LayoutTabs'
 import { LayoutGlyph } from '../shared/LayoutGlyph'
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, PencilIcon, PlusIcon, TrashIcon, WarningIcon } from '../shared/icons'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, LayoutIcon, PencilIcon, PlusIcon, TrashIcon, WarningIcon } from '../shared/icons'
+import { useShortcutLabel } from '../../hooks/use-shortcut-label'
 import styles from './LayoutControls.module.css'
 
 /** How the top bar shows the layouts: one tab each, or folded into the picker's drop-down. */
@@ -26,10 +27,11 @@ type Pending =
  * `Couldn't save · Retry` control follow (`WriteFailedButton`).
  *
  * - Tabs: click opens a layout; right-click / Shift+F10 → its menu (the open
- *   one: Duplicate layout…; every one: Edit…, Move left / right, Delete
- *   layout…); drag to reorder; `+` = New layout.
- * - Picker: the layouts (drag to reorder), then New layout…, Duplicate
- *   layout…, Edit…, Delete layout….
+ *   one: Edit layout…, Duplicate layout…; every one: Name, icon and hue…, Move left /
+ *   right, Delete layout…); drag to reorder; `+` = New layout.
+ * - Picker: the layouts (drag to reorder), then New layout…, Edit layout…,
+ *   Duplicate layout…, Name, icon and hue…, Delete layout….
+ * - Then the pencil, Edit layout: the layout edit mode (`workspace-store.enterEdit`).
  *
  * One order feeds both (the store's `layouts`); a reorder is saved at once.
  * New layout asks for a name and stores the empty layout at once. Nothing
@@ -45,6 +47,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
   const [pending, setPending] = useState<Pending | null>(null)
   const pickerRef = useRef<HTMLButtonElement | null>(null)
   const store = useWorkspaceStore.getState
+  const editKeys = useShortcutLabel('edit-layout')
 
   const switchTo = (id: number) => {
     if (id === activeLayoutId) return
@@ -78,6 +81,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
 
   /** The open layout's actions (tab menu of the open tab, and the picker). */
   const openLayoutEntries: MenuEntry[] = [
+    { kind: 'item', label: 'Edit layout…', icon: <LayoutIcon />, onSelect: () => { void store().enterEdit() } },
     { kind: 'item', label: 'Duplicate layout…', icon: <CopyIcon />, onSelect: () => setPending({ kind: 'duplicate' }) },
   ]
 
@@ -97,7 +101,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
     ...openLayoutEntries,
     {
       kind: 'item',
-      label: 'Edit…',
+      label: 'Name, icon and hue…',
       icon: <PencilIcon />,
       onSelect: () => { if (activeLayoutId != null) setPending({ kind: 'rename', id: activeLayoutId, name }) },
     },
@@ -117,7 +121,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
     const index = indexOf(id)
     return [
       ...(open ? [...openLayoutEntries, { kind: 'separator' as const }] : []),
-      { kind: 'item', label: 'Edit…', icon: <PencilIcon />, onSelect: () => setPending({ kind: 'rename', id, name: nameOf(id) }) },
+      { kind: 'item', label: 'Name, icon and hue…', icon: <PencilIcon />, onSelect: () => setPending({ kind: 'rename', id, name: nameOf(id) }) },
       {
         kind: 'item',
         label: 'Move left',
@@ -171,6 +175,17 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           <ChevronDownIcon />
         </button>
       )}
+      <button
+        type="button"
+        className={styles.edit}
+        aria-label="Edit layout"
+        data-tooltip="Edit layout"
+        data-tooltip-shortcut={editKeys || undefined}
+        data-testid="layout-edit"
+        onClick={() => { void store().enterEdit() }}
+      >
+        <PencilIcon />
+      </button>
       <WriteFailedButton />
 
       {menuOpen && mode === 'menu' && (
@@ -215,7 +230,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
       )}
       {pending?.kind === 'rename' && (
         <LayoutNameDialog
-          title="Edit layout"
+          title="Name, icon and hue"
           confirmLabel="Apply"
           initialName={pending.name}
           initialHue={hueOf(pending.id)}

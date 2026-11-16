@@ -187,6 +187,13 @@ describe('checkOfflineFile', () => {
     ])
   })
 
+  it('reads a CSP hash source whose base64 holds `//` as no URL', () => {
+    // A digest can start with `//` (`'sha256-//o5Gm…'`): the policy's own, or the text in a script.
+    const script = `${APP}const h="'sha256-//o5GmChP+gDkMU2xu8Jjykw4yn3YW1CjQGEzBXyxHM='";`
+    const csp = `default-src 'none'; script-src ${scriptHash(script)}; base-uri 'none'; form-action 'none'`
+    expect(checkOfflineFile(offlineFile({ script, csp }))).toEqual([])
+  })
+
   it('reads a regex with escaped slashes as no URL', () => {
     const script = `${APP}if(/^(https?:\\/\\/|mailto:)/.test(r)||/\\/\\/x/.test(r))r=r.replace(/\\//g,"%2F");`
     const csp = `default-src 'none'; script-src ${scriptHash(script)}; base-uri 'none'; form-action 'none'`

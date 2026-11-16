@@ -144,15 +144,11 @@ test.describe('a fit row\'s line through a crossing', () => {
   }
   const cells = ['a', 'n1', 'b'] as const
 
-  test('dragging the crossing down moves only the fit row\'s bottom line', async ({ page }) => {
+  test('dragging the fit row\'s bottom divider down moves only that line, across the crossing (no crossing handles, E4)', async ({ page }) => {
     await seedWorkspace(page, { layouts: [quad] })
+    await expect(page.locator('[data-ws-crossing]')).toHaveCount(0)
     const before = await rowLines(page, cells)
-    const x = await box(page.locator('[data-ws-crossing][data-row="2"]'))
-    const from = { x: x.x + x.width / 2, y: x.y + x.height / 2 }
-    await page.mouse.move(from.x, from.y)
-    await page.mouse.down()
-    await page.mouse.move(from.x, from.y + 50, { steps: 12 })
-    await releaseDrag(page)
+    await dragDivider(page, 'n1', 'b', 50)
     await expectLayoutStored(page)
     await expect.poll(async () => Math.round((await rowLines(page, cells))[2] ?? 0)).toBe(Math.round((before[2] ?? 0) + 50))
     expectOnlyLineMoved(before, await rowLines(page, cells), 2, 50)

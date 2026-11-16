@@ -24,7 +24,7 @@ import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignme
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
-import { dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, sameDropHit } from '../utils/workspace-drop'
+import { dropChangesLayout, dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, ownStripHit, sameDropHit } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
@@ -37,14 +37,20 @@ import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
 import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { PulseEditorHost } from '../components/workspace/glance/PulseEditor'
 import { TrendEditorHost } from '../components/workspace/glance/TrendEditor'
-import { editorsHoldChanges, leaveOpenEditors } from '../stores/editor-leave'
+import { layoutLeaveAsks, leaveLayout } from '../stores/editor-leave'
 import { useLatestRef } from '../hooks/use-latest-ref'
 import { useBlocker } from 'react-router'
 import { TabIcon } from '../components/workspace/TabIcon'
+import { addWidgetKindAt } from '../components/workspace/widget-hooks'
+import { focusEditItem } from '../components/workspace/edit-focus'
+import type { WidgetKind } from '../models/workspace-layout'
+import { findTab } from '../utils/workspace-layout-queries'
+import { NEW_WIDGET_PROBE_ID } from '../utils/workspace-drop'
 import {
   isWorkspaceDragType,
   isWorkspacePanelDragData,
   isWorkspaceTabDragData,
+  registerNewWidgetDrag,
   runDrop,
   tabsCount,
   WorkspaceDragContext,
@@ -138,7 +144,14 @@ function useWorkspaceData(): void {
 
 /**
  * Tab and panel drags: measures the workspace when one starts, follows the
- * pointer to find the drop target, and applies the move on drop.
+ * pointer to find the drop target, and applies the move on drop. Outside
+ * the layout edit mode (E4) a tab only reorders inside its own strip
+ * (`ownStripHit`: no other cell, no split, edge or join zone, no ghost) and
+ * no whole cell drags; in the mode every drop target stands, on the draft —
+ * a card dragged from anywhere on it (E3), a tab, a strip's Number, and a
+ * new widget dragged in from the tray (`registerNewWidgetDrag`: not a
+ * dnd-kit drag — its own pointer-up drops it, Esc cancels it). The card or
+ * tab dropped is selected where it landed and keeps the focus.
  */
 function useWorkspaceDragState() {
   const [drag, setDragState] = useState<WorkspaceDragState | null>(null)
@@ -154,10 +167,13 @@ function useWorkspaceDragState() {
     const layout = useWorkspaceStore.getState().working
     if (!current || !layout) return
     const geo = current.geometry
-    const hit = hitTestWorkspace(geo, { x, y })
+    const editing = useWorkspaceStore.getState().editing != null
+    const found = hitTestWorkspace(geo, { x, y })
+    const hit = editing ? found : ownStripHit(layout, found, current.source)
     const target = hit ? dropTargetForHit(layout, geo, hit, current.source) : null
-    const ghost = target ? dropGhost(layout, geo, current.source, target, current.tabs.map((t) => t.id)) : null
-    const accepts = ghost != null
+    // The drop ghost only in the mode: outside it the strip's insert line says where the tab goes.
+    const ghost = editing && target ? dropGhost(layout, geo, current.source, target, current.tabs.map((t) => t.id)) : null
+    const accepts = editing ? ghost != null : target != null && dropChangesLayout(layout, current.source, target)
     let insertLeft: number | null = null
     if (hit?.kind === 'tab-strip') {
       const panel = geometryCells(geo).find((c) => c.id === hit.cellId)
@@ -207,6 +223,8 @@ function useWorkspaceDragState() {
     const tab = isWorkspaceTabDragData(data) ? data : null
     const panel = isWorkspacePanelDragData(data) ? data : null
     if (!tab && !panel) return false
+    // A whole cell moves only in the layout edit mode.
+    if (panel && useWorkspaceStore.getState().editing == null) return true
     const area = document.querySelector<HTMLElement>('[data-ws-area]')
     if (!area) return true
     setDrag({
@@ -225,12 +243,65 @@ function useWorkspaceDragState() {
   const end = useCallback((commit: boolean) => {
     const current = dragRef.current
     setDrag(null)
-    if (commit && current?.target && current.accepts) {
-      const ws = useWorkspaceStore.getState()
-      if (current.source.type === 'tab') ws.moveTab(current.source.tabId, current.target)
-      else ws.movePanel(current.source.panelId, current.target)
+    if (!commit || !current?.target || !current.accepts) return
+    const ws = useWorkspaceStore.getState()
+    const editing = ws.editing != null
+    const source = current.source
+    if (source.type === 'new') {
+      addWidgetKindAt(source.kind, current.target)
+      return
+    }
+    const tabId = source.type === 'tab' ? source.tabId : current.tabs[0]?.id
+    if (source.type === 'tab') ws.moveTab(source.tabId, current.target)
+    else ws.movePanel(source.panelId, current.target)
+    // In the mode: what moved is selected where it landed, and holds the focus.
+    const working = useWorkspaceStore.getState().working
+    const holder = editing && tabId != null && working ? findTab(working, tabId)?.cellId : undefined
+    if (holder != null) {
+      useWorkspaceStore.getState().selectEditCell(holder)
+      if (source.type === 'panel') focusEditItem(holder)
     }
   }, [setDrag])
+
+  /** A tray chip dragged in (E3): a new widget's drag, from the point the chip left. */
+  const startNew = useCallback((kind: WidgetKind, title: string, x: number, y: number) => {
+    const area = document.querySelector<HTMLElement>('[data-ws-area]')
+    if (!area || dragRef.current || useWorkspaceStore.getState().editing == null) return
+    setDrag({
+      source: { type: 'new', kind },
+      tabs: [{ id: NEW_WIDGET_PROBE_ID, kind, title }],
+      hit: null,
+      target: null,
+      accepts: false,
+      ghost: null,
+      insertLeft: null,
+      geometry: measureWorkspace(area),
+    })
+    update(x, y)
+  }, [setDrag, update])
+  useEffect(() => registerNewWidgetDrag(startNew), [startNew])
+
+  // A tray drag isn't dnd-kit's: its own release drops it, and Esc (or a lost pointer) cancels it.
+  const newDrag = drag?.source.type === 'new'
+  useEffect(() => {
+    if (!newDrag) return
+    const onUp = () => end(true)
+    const onCancel = () => end(false)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      end(false)
+    }
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onCancel)
+      window.removeEventListener('keydown', onKey, true)
+    }
+  }, [newDrag, end])
 
   return { drag, start, end }
 }
@@ -260,16 +331,19 @@ function PanelGhost({ tabs }: { tabs: WorkspaceDragState['tabs'] }) {
 /**
  * A route change (the phone's bottom tab bar, the browser's back button, a
  * hash typed in) while an open editor holds changes (Edit list, a widget
- * editor): blocked until it was saved or discarded — its own question
- * (`editor-leave`); Keep editing stays here. Nothing else is ever unsaved,
- * so nothing else blocks; a reload or a closed tab asks nothing, as the
- * widget editors never did.
+ * editor, the layout edit mode's draft): blocked until it was saved or
+ * discarded — its own question (`editor-leave.leaveLayout`); Keep editing
+ * stays here. Nothing else is ever unsaved, so nothing else blocks; a
+ * reload or a closed tab asks nothing, as the widget editors never did (the
+ * layout edit mode's draft is dropped). The page going while the mode is on
+ * (a route change nothing could ask about: a hash typed in) closes it, its
+ * draft dropped — said so when it held changes.
  */
 function EditorLeaveGuard() {
   const blocker = useBlocker(
     useCallback(
       ({ currentLocation, nextLocation }: { currentLocation: { pathname: string }; nextLocation: { pathname: string } }) =>
-        currentLocation.pathname !== nextLocation.pathname && editorsHoldChanges(),
+        currentLocation.pathname !== nextLocation.pathname && layoutLeaveAsks(),
       [],
     ),
   )
@@ -278,11 +352,12 @@ function EditorLeaveGuard() {
   useEffect(() => {
     if (!blocked) return
     // Asked once per block.
-    void leaveOpenEditors().then((left) => {
+    void leaveLayout().then((left) => {
       if (left) blockerRef.current.proceed?.()
       else blockerRef.current.reset?.()
     })
   }, [blocked, blockerRef])
+  useEffect(() => () => useWorkspaceStore.getState().dropEdit(), [])
   return null
 }
 

@@ -1,14 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
-import { edges, expectOpenLayout, layoutTab, reviewField, seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { expectOpenLayout, layoutTab, reviewField, seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * The command palette's second steps (UX cleanup 3B), in the real browser:
  * a step opens in place under a breadcrumb with the focus kept in the
  * field; Backspace in the empty field and Esc go back a step; the focus
  * returns to what opened the palette only when it closes or a leaf runs;
- * and each leaf does its job — Go to Layout ›, Add Widget › (the
- * Where picker on the cell last used), Review With › (a jump to the Review
- * widget), Theme ›.
+ * and each leaf does its job — Go to Layout ›, Add Widget › (a tab of the
+ * cell last used, at once), Review With › (a jump to the Review widget),
+ * Theme ›.
  */
 
 const SEED: WorkspaceSeed = {
@@ -113,9 +113,8 @@ test('a query reaches into the steps; Enter on a leaf there switches the layout 
   await expect(wsCell(page, 'a')).toBeVisible()
 })
 
-test('Add Widget › kind opens the Where picker on the cell last used, the kind chosen', async ({ page }) => {
+test('Add Widget › kind adds it as a tab of the cell last used — no Where step, the cells as they were', async ({ page }) => {
   await open(page)
-  const b = await edges(wsCell(page, 'b'))
   // The cell last used: the one holding the focus when the palette opens.
   await wsCell(page, 'b').locator('button').first().focus()
   await openPalette(page)
@@ -123,25 +122,11 @@ test('Add Widget › kind opens the Where picker on the cell last used, the kind
   await expect(options(page).first()).toHaveText('Add Widget › Notes')
   await page.keyboard.press('Enter')
   await expect(field(page)).toHaveCount(0)
-
-  const menu = page.getByRole('menu', { name: 'Add widget' })
-  await expect(menu).toBeVisible()
-  // Opened over cell b, under its top line; the Where picture has the focus, on Tab.
-  const m = await edges(menu)
-  expect(m.left).toBeGreaterThanOrEqual(b.left - 1)
-  expect(m.top).toBeGreaterThan(b.top)
-  const where = menu.getByRole('group', { name: 'Where' })
-  await expect(where.getByRole('menuitemradio', { name: 'Add as tab' })).toBeFocused()
-  // Only the chosen kind: no list of kinds.
-  await expect(menu.getByRole('menuitem', { name: 'Calendar', exact: true })).toHaveCount(0)
-  await where.getByRole('menuitemradio', { name: 'Split · below' }).click()
-  await menu.getByRole('menuitem', { name: 'Add Notes' }).click()
-  await expect(menu).toHaveCount(0)
-  await expect(page.locator('[data-ws-cell]')).toHaveCount(3)
-  const added = page.locator('[data-ws-cell]').filter({ hasNot: page.locator('[data-ws-tab="aTab"], [data-ws-tab="bTab"]') })
-  const n = await edges(added)
-  expect(n.left).toBeCloseTo(b.left, -1)
-  expect(n.top).toBeGreaterThan(b.top + (b.bottom - b.top) / 2 - 40)
+  // No Where picker: added at once, a tab of cell b, made its active one (layout edit mode E4).
+  await expect(page.getByRole('menu', { name: 'Add widget' })).toHaveCount(0)
+  await expect(page.locator('[data-ws-cell]')).toHaveCount(2)
+  await expect(wsCell(page, 'b').getByRole('tab')).toHaveCount(2)
+  await expect(wsCell(page, 'b').getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true')
 })
 
 test('Review With › person opens the popup review with @<name> (the Review widget on the other layout left alone)', async ({ page }) => {

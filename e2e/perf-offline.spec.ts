@@ -108,7 +108,7 @@ function perfSeed(): string {
     { ...structuredClone(week), id: listId + 1, name: 'Week', sortOrder: 101, owner: { layoutId } },
     { id: listId + 2, name: 'By status', sortOrder: 102, membership: { kind: 'custom', predicate: { ...EVERY_OPEN, statusIds: [1, 2, 3] } }, sort: 'deadline', grouping: 'status', owner: { layoutId } },
   )
-  const cell = (id: string, col: number, row: number, colSpan: number, rowSpan: number, tabs: Array<{ id: string }>) =>
+  const cell = (id: string, col: number, row: number, colSpan: number, rowSpan: number, tabs: Array<{ id: string } & Record<string, unknown>>) =>
     ({ id, activeTabId: tabs[0]?.id, area: { col, row, colSpan, rowSpan }, tabs })
   seed.layouts.push({
     id: layoutId,
@@ -134,7 +134,7 @@ function perfSeed(): string {
       cell('p7-bd', 2, 2, 1, 1, [copy('tab-people', 'p7-people')]),
       cell('p7-trend', 3, 2, 1, 1, [copy('tab-trend', 'p7-created')]),
     ],
-  } as SeedFile['layouts'][number])
+  } as unknown as SeedFile['layouts'][number])
   const setting = (key: string, value: string) => {
     seed.settings = seed.settings.filter((s) => s.key !== key)
     seed.settings.push({ key, value })
@@ -824,10 +824,11 @@ test('the built offline file at about 145 tasks and seven cells', async ({ playw
       say('add')
       const host = 'p7-trend'
       const openAdd = async () => {
+        // The ⋯'s Add widget as tab › (E4).
         await page.locator(cellSel(host)).hover()
-        await page.locator(cellSel(host)).getByRole('button', { name: 'Cell layout' }).click()
-        await page.getByRole('menuitem', { name: 'Add widget…' }).click()
-        await expect(page.getByRole('menu', { name: 'Add widget' })).toBeVisible()
+        await page.locator(cellSel(host)).getByRole('button', { name: 'Cell options' }).click()
+        await page.getByRole('menuitem', { name: 'Add widget as tab' }).click()
+        await expect(page.getByRole('menu', { name: 'Add widget as tab' })).toBeVisible()
       }
       const undo = async (gone: string) => {
         await page.keyboard.press('Control+z')
@@ -836,14 +837,13 @@ test('the built offline file at about 145 tasks and seven cells', async ({ playw
       }
       await repeat('add a List (every open task)', async () => {
         await openAdd()
-        const s = await measure(rig, () => page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List', exact: true }).click(), { watch: { selector: rowsIn(host) }, idle: 400 })
+        const s = await measure(rig, () => page.getByRole('menu', { name: 'Add widget as tab' }).getByRole('menuitem', { name: 'List', exact: true }).click(), { watch: { selector: rowsIn(host) }, idle: 400 })
         await undo(rowsIn(host))
         return s
       })
       await repeat('add a Number', async () => {
         await openAdd()
-        await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: /^Insights/ }).click()
-        const s = await measure(rig, () => page.getByRole('menu', { name: 'Insights' }).getByRole('menuitem', { name: 'Number', exact: true }).click(), { watch: { selector: `${cellSel(host)} [data-number]` }, idle: 400 })
+        const s = await measure(rig, () => page.getByRole('menu', { name: 'Add widget as tab' }).getByRole('menuitem', { name: 'Number', exact: true }).click(), { watch: { selector: `${cellSel(host)} [data-number]` }, idle: 400 })
         await undo(`${cellSel(host)} [data-number]`)
         return s
       })

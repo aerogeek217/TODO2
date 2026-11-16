@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { emptyPredicate } from '../../../models/filter-predicate'
+import { useHeldLists } from '../../../hooks/use-held-lists'
 import { NUMBER_NAME_MAX, type NumberConfig } from '../../../models/glance-widgets'
 import { listedLists } from '../../../models/list-definition'
 import {
@@ -173,11 +174,12 @@ export function GoalFields({ config, patch }: { config: NumberConfig; patch: Pat
   )
 }
 
-/** Follow a list: one of the layout's lists. */
+/** Follow a list: one of the layout's lists (not one the layout edit mode holds for deletion, `useHeldLists`). */
 export function ListField({ config, patch }: { config: NumberConfig; patch: Patch }) {
   const layoutId = useWorkspaceStore((s) => s.working?.id)
   const defs = useListDefinitionStore((s) => s.listDefinitions)
-  const lists = listedLists([...defs].sort(bySortOrder), layoutId)
+  const held = useHeldLists()
+  const lists = listedLists([...defs].sort(bySortOrder), layoutId).filter((d) => !held.has(d.id))
   const picked = config.list?.listDefinitionId
   const known = picked != null && lists.some((d) => d.id === picked)
   return (

@@ -4,7 +4,6 @@ import {
   dragTab,
   expectOpenLayout,
   openCellLayoutMenu,
-  pickCellMenu,
   pickSplit,
   pickWidgetKind,
   openLayoutAction,
@@ -23,6 +22,11 @@ import {
   wsRow,
   expectLayoutStep,
   expectLayoutStored,
+  addWidgetAsTab,
+  editLayout,
+  enterLayoutEdit,
+  finishLayoutEdit,
+  openCellMenu,
 } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -49,9 +53,10 @@ function bodyPoint(page: Page, cellId: string, fy: number, fx = 0.5): Promise<Po
   return pointIn(wsCell(page, cellId).locator('[data-ws-cell-body]'), fx, fy)
 }
 
-test.describe('tab drop targets', () => {
+test.describe('tab drop targets (in the layout edit mode, E4)', () => {
   test('cell middle joins the cell as a tab', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
+    await enterLayoutEdit(page)
     const to = await bodyPoint(page, 'b1', 0.5)
     await dragTab(page, wsTab(page, 'mapTab'), to, async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Add as tab')
@@ -59,11 +64,13 @@ test.describe('tab drop targets', () => {
     })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'mapTab']]])
     await expect(wsTab(page, 'mapTab')).toHaveAttribute('aria-selected', 'true')
-    await expectLayoutStep(page)
+    await finishLayoutEdit(page)
+    await expectLayoutStep(page, 'Edited layout “Main”')
   })
 
   test('cell top / bottom edge splits it above / below; a vacated cell goes to the cells along a side that cover it', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
+    await enterLayoutEdit(page)
     await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'b1', 0.1), async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Split Calendar · above')
     })
@@ -77,6 +84,7 @@ test.describe('tab drop targets', () => {
 
   test('a cell’s side edge makes a new column beside it; the layout’s outer edge a new column there', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
+    await enterLayoutEdit(page)
     await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'b1', 0.5, 0.05), async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Split Calendar · left')
     })
@@ -92,6 +100,7 @@ test.describe('tab drop targets', () => {
 
   test('tab strip inserts at the pointer position; own cell middle is a no-op', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
+    await enterLayoutEdit(page)
     const first = await wsTab(page, 'notesTab').boundingBox()
     if (!first) throw new Error('no tab')
     // Left half of the first tab, clear of the outer-edge new-column zone.
@@ -110,6 +119,7 @@ test.describe('tab drop targets', () => {
 
   test('Escape cancels a tab drag', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
+    await enterLayoutEdit(page)
     const tab = wsTab(page, 'mapTab')
     const t = await box(tab)
     const to = await bodyPoint(page, 'b1', 0.5)
@@ -170,16 +180,19 @@ test.describe('resize and collapse', () => {
 
   test('the cell menu’s Collapse row, Expand row and split / close', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    // D26: collapse is a row track's — the row b1 lies in. One widget: its top line stays (AA1).
-    await openCellLayoutMenu(page, 'b1')
+    // D26: collapse is a row track's — the row b1 lies in. One widget: its top line stays (AA1). In the ⋯ (E4).
+    await openCellMenu(page, 'b1')
     await page.getByRole('menuitem', { name: 'Collapse row' }).click()
     await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toBeHidden()
     await expectLayoutStored(page)
     await wsCell(page, 'b1').getByRole('button', { name: 'Expand row' }).click()
     await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toBeVisible()
 
-    await openCellLayoutMenu(page, 'b1')
-    await pickSplit(page, 'Below')
+    // The split is the layout edit mode's (E4); the empty cell it leaves offers the kinds outside it.
+    await editLayout(page, async () => {
+      await openCellLayoutMenu(page, 'b1')
+      await pickSplit(page, 'Below')
+    })
     await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page))[1]?.length).toBe(2)
@@ -188,8 +201,10 @@ test.describe('resize and collapse', () => {
 
   test('a new column and a resize of it are stored at once, kept over a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await openCellLayoutMenu(page, 'b1')
-    await pickCellMenu(page, 'Insert column', 'At the far right')
+    await editLayout(page, async () => {
+      // The rulers' "+" after the last column (E2).
+      await page.locator('[data-ruler-plus="columns:2"]').click()
+    })
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     await expectLayoutStep(page)
@@ -230,6 +245,7 @@ test.describe('a pane that goes leaves no void', () => {
 
   test('a cell split off, whose last tab then joins another pane, gives its height back', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
+    await enterLayoutEdit(page)
     await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'a1', 0.92))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['mapTab']], [['calTab']]])
 
@@ -248,6 +264,7 @@ test.describe('a pane that goes leaves no void', () => {
         ],
       }],
     })
+    await enterLayoutEdit(page)
     await dragTab(page, wsTab(page, 'calTab'), await bodyPoint(page, 'a1', 0.5))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'calTab']]])
     await expect.poll(() => voidRight(page, 'a1')).toBeLessThan(1)
@@ -277,6 +294,7 @@ test.describe('a pane that goes leaves no void', () => {
         },
       }],
     })
+    await enterLayoutEdit(page)
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a1'))).height)).toBe(32)
     await dragTab(page, wsTab(page, 'dashTab'), await bodyPoint(page, 'b1', 0.5))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['mapTab']], [['calTab', 'dashTab']]])
@@ -296,6 +314,7 @@ test.describe('a pane that goes leaves no void', () => {
         ],
       }],
     })
+    await enterLayoutEdit(page)
     await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'b1', 0.5))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'mapTab']]])
     await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
@@ -341,7 +360,7 @@ test.describe('saved layouts', () => {
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).not.toContainText('Edited')
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByRole('menu', { name: 'Layouts' }).getByRole('menuitem')).toHaveText([
-      'New layout…', 'Duplicate layout…', 'Edit…', 'Delete layout…',
+      'New layout…', 'Edit layout…', 'Duplicate layout…', 'Name, icon and hue…', 'Delete layout…',
     ])
   })
 
@@ -438,8 +457,8 @@ test.describe('saved layouts', () => {
     await expectOpenLayout(page, 'Planning')
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab']], [['calTab']]])
 
-    await openLayoutAction(page, 'Edit…')
-    const renameDialog = page.getByRole('dialog', { name: 'Edit layout' })
+    await openLayoutAction(page, 'Name, icon and hue…')
+    const renameDialog = page.getByRole('dialog', { name: 'Name, icon and hue' })
     await renameDialog.getByLabel('Name').fill('Weekly')
     await renameDialog.getByRole('button', { name: 'Apply' }).click()
     await expectOpenLayout(page, 'Weekly')
@@ -452,17 +471,14 @@ test.describe('saved layouts', () => {
 })
 
 test.describe('adding and changing widgets', () => {
-  test('empty layout tiles, the ⋯ menu’s Add widget… and its Change widget', async ({ page }) => {
+  test('empty layout tiles, the ⋯ menu’s Add widget as tab and its Change widget', async ({ page }) => {
     await seedWorkspace(page, { layouts: [{ name: 'Blank', columns: [] }] })
     await expect(page.getByText('This layout is empty')).toBeVisible()
     await page.getByRole('button', { name: 'Notes', exact: true }).click()
     await expect.poll(async () => (await wsShape(page)).flat(2).length).toBe(1)
 
-    await page.locator('[data-ws-cell]').hover()
-    await page.locator('[data-ws-cell]').getByRole('button', { name: 'Cell layout' }).click()
-    await page.getByRole('menuitem', { name: 'Add widget…' }).click()
-    // Calendar: in Tasks, in the menu itself.
-    await pickWidgetKind(page, 'Add widget', 'Calendar')
+    // Calendar from the ⋯'s Add widget as tab › (E4).
+    await addWidgetAsTab(page, (await page.locator('[data-ws-cell]').getAttribute('data-ws-cell')) ?? '', 'Calendar')
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true')
 
     await page.getByRole('tab', { name: 'Calendar' }).click({ button: 'right' })

@@ -6,7 +6,8 @@ import {
   edges,
   expectSameEdges,
   openCellLayoutMenu,
-  pickCellMenu,
+  pickSplit,
+  wsCard,
   releaseDrag,
   seedWorkspace,
   wsCell,
@@ -20,6 +21,8 @@ import {
   expectDividerStep, expectLayoutStep,
   expectLayoutStored,
   watchSnackbar,
+  enterLayoutEdit,
+  finishLayoutEdit,
 } from './fixtures/workspace'
 import { box, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -33,7 +36,10 @@ import { readStore } from './fixtures/db'
  * reload) and over part of one (a new line, saved at once: an undo step
  * with no snackbar, which Ctrl+Z undoes); the minimums and the
  * sideways scroll; a fixed (former band) row; a fit row of Numbers; and
- * Collapse row.
+ * Collapse row. Since layout edit mode E4 the drops, the ghost, whole-cell
+ * drags and the cell's layout menu are the mode's (each test opens it and
+ * ends with Done), a divider's plain drag moves its whole line and Alt +
+ * drag (Alt + arrow, Alt + double-click) moves part of one.
  */
 
 
@@ -89,15 +95,18 @@ test.describe('drops and the ghost', () => {
   for (const { side, at, label, shape } of sides) {
     test(`a tab on a cell’s ${side} edge splits it; the ghost is the new cell’s place and size`, async ({ page }) => {
       await seedWorkspace(page, { layouts: [aBc] })
+      await enterLayoutEdit(page)
       const ghost = await dragWithGhost(page, 'mapTab', await bodyPoint(page, 'b', at[0], at[1]), label)
       await expect.poll(() => wsShape(page)).toEqual(shape)
       expectSameEdges(ghost, await edges(cellOf(page, 'mapTab')))
-      await expectLayoutStep(page)
+      await finishLayoutEdit(page)
+      await expectLayoutStep(page, 'Edited layout “Main”')
     })
   }
 
   test('the layout’s top edge inserts a full-width row; its right edge a full-height column', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
     const a = await areaBox(page)
     const row = await dragWithGhost(page, 'mapTab', { x: a.x + 300, y: a.y + 3 }, 'Insert row · full width')
     await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round(a.width - 12))
@@ -110,6 +119,7 @@ test.describe('drops and the ghost', () => {
 
   test('the middle of a cell joins it as a tab (ghost tab in its strip); its strip inserts at the line', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
     const ghost = await dragWithGhost(page, 'mapTab', await bodyPoint(page, 'b', 0.5, 0.5), 'Add as tab')
     expectSameEdges(ghost, await edges(wsCell(page, 'b')))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['notes2']], [['calTab', 'mapTab']]])
@@ -123,6 +133,7 @@ test.describe('drops and the ghost', () => {
 
   test('a drop that changes nothing shows no ghost; Escape cancels', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
     await dragTab(page, wsTab(page, 'calTab'), await bodyPoint(page, 'b', 0.5, 0.5), async () => {
       await expect(wsGhost(page)).toHaveCount(0)
     })
@@ -144,17 +155,14 @@ test.describe('drops and the ghost', () => {
 })
 
 test.describe('whole-cell drags', () => {
-  test('the header’s grip shows on header hover without moving anything; a press without travel moves nothing', async ({ page }) => {
+  test('a card grabs from its header’s room without moving anything; a press without travel moves nothing', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
     const handle = wsPanelHandle(page, 'a')
-    const grip = page.locator('[data-ws-cell-header="a"]').getByRole('button', { name: 'Cell layout' })
     const before = await box(wsTab(page, 'mapTab'))
-    await page.mouse.move(2, 2)
-    await expect.poll(() => grip.evaluate((e) => getComputedStyle(e.parentElement!).opacity)).toBe('0')
-    await handle.hover()
-    await expect.poll(() => grip.evaluate((e) => getComputedStyle(e.parentElement!).opacity)).toBe('1')
-    await expect(grip).toHaveCSS('cursor', 'grab')
-    await expect(handle).toHaveCSS('cursor', 'grab')
+    // The room passes the press to the card's surface, which grabs.
+    await expect(handle).toHaveCSS('pointer-events', 'none')
+    await expect(wsCard(page, 'a')).toHaveCSS('cursor', 'grab')
     expect(await box(wsTab(page, 'mapTab'))).toEqual(before)
     const p = await pointIn(handle)
     await page.mouse.move(p.x, p.y)
@@ -167,6 +175,7 @@ test.describe('whole-cell drags', () => {
 
   test('a cell into another’s middle: all its tabs join, the first moved one active', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
     await dragPanel(page, 'a', await bodyPoint(page, 'c', 0.5, 0.5), {
       lifted: async () => {
         await expect(wsCell(page, 'a')).toHaveCSS('opacity', '0.4')
@@ -183,6 +192,7 @@ test.describe('whole-cell drags', () => {
 
   test('a cell onto another’s edge: its old place goes to its neighbour, the ghost shows the result', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
     let ghost = { left: 0, top: 0, right: 0, bottom: 0 }
     await dragPanel(page, 'c', await bodyPoint(page, 'b', 0.95, 0.5), {
       during: async () => {
@@ -196,6 +206,7 @@ test.describe('whole-cell drags', () => {
 
   test('over its own cell nothing lights up; near the window’s bottom the ghost card flips above the pointer', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
     await dragPanel(page, 'b', await bodyPoint(page, 'b', 0.5, 0.5), {
       during: async () => { await expect(wsGhost(page)).toHaveCount(0) },
     })
@@ -215,17 +226,17 @@ test.describe('whole-cell drags', () => {
 })
 
 test.describe('the cell menu', () => {
-  test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); Insert row ▸ At the top', async ({ page }) => {
+  test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); the rulers’ first “+” a row at the top', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
     await openCellLayoutMenu(page, 'a')
     await page.getByRole('menuitem', { name: 'Merge with', exact: true }).click()
     await expect(page.getByRole('menuitem', { name: 'Right', exact: true })).toBeDisabled()
     await page.getByRole('menuitem', { name: 'Below', exact: true }).click()
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab', 'notes2']], [['calTab']]])
-    await expectLayoutStep(page)
 
-    await openCellLayoutMenu(page, 'b')
-    await pickCellMenu(page, 'Insert row', 'At the top')
+    // The rulers' first row "+" (E2).
+    await page.locator('[data-ruler-plus="rows:0"]').click()
     const empty = page.getByRole('region', { name: 'Empty cell' })
     await expect(empty).toBeVisible()
     const a = await areaBox(page)
@@ -234,6 +245,7 @@ test.describe('the cell menu', () => {
 
   test('Close cell gives its place to a neighbour sharing its whole edge; with none it stays an empty cell', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
     const area = await areaBox(page)
     await openCellLayoutMenu(page, 'c')
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
@@ -249,6 +261,7 @@ test.describe('the cell menu', () => {
         },
       }],
     })
+    await enterLayoutEdit(page)
     const before = await edges(wsCell(page, 'm'))
     await openCellLayoutMenu(page, 'm')
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
@@ -258,12 +271,13 @@ test.describe('the cell menu', () => {
     await expect(wsCell(page, 'm')).toHaveAttribute('data-empty', 'true')
   })
 
-  test('Add widget… puts the widget where it says: Right of the cell', async ({ page }) => {
+  test('Split ▸ Right leaves a slot beside the card; the slot’s click opens the kinds and Notes fills it', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
     await openCellLayoutMenu(page, 'c')
-    await page.getByRole('menuitem', { name: 'Add widget…' }).click()
+    await pickSplit(page, 'Right')
+    await page.locator('[data-edit-slot]').click()
     const menu = page.getByRole('menu', { name: 'Add widget' })
-    await menu.getByRole('group', { name: 'Where' }).getByRole('menuitemradio', { name: 'Split · right' }).click()
     await menu.getByRole('menuitem', { name: 'Notes', exact: true }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     const c = await box(wsCell(page, 'c'))
@@ -308,7 +322,7 @@ test.describe('dividers', () => {
     await expect.poll(async () => Math.round((await box(a)).width)).toBe(120)
   })
 
-  test('part of a line previews where it goes, and on release makes a new line, saved at once: a reload keeps it', async ({ page }) => {
+  test('part of a line (Alt-drag) previews where it goes, and on release makes a new line, saved at once: a reload keeps it', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -324,6 +338,7 @@ test.describe('dividers', () => {
     const d = await box(divider)
     const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
     let mid = { a: 0, b: 0 }
+    await page.keyboard.down('Alt')
     await drag(page, from, { x: from.x, y: from.y + 100 }, {
       during: async () => {
         await expect(divider).toHaveAttribute('data-preview', '')
@@ -332,6 +347,7 @@ test.describe('dividers', () => {
         mid = { a: (await edges(wsCell(page, 'a'))).bottom, b: (await edges(wsCell(page, 'b'))).top }
       },
     })
+    await page.keyboard.up('Alt')
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - aBox.bottom)).toBeGreaterThan(90)
     expect(Math.abs((await edges(wsCell(page, 'a'))).bottom - mid.a)).toBeLessThanOrEqual(1)
     expect(Math.abs((await edges(wsCell(page, 'b'))).top - mid.b)).toBeLessThanOrEqual(1)
@@ -345,7 +361,7 @@ test.describe('dividers', () => {
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom)).toBe(moved)
   })
 
-  test('moving part of a line shows no snackbar, and Ctrl+Z puts the table back; redo moves it again (each stored)', async ({ page }) => {
+  test('moving part of a line (Alt-drag) shows no snackbar, and Ctrl+Z puts the table back; redo moves it again (each stored)', async ({ page }) => {
     const ids = ['a', 'b', 'c', 'x', 'y']
     await seedWorkspace(page, {
       layouts: [{
@@ -370,7 +386,9 @@ test.describe('dividers', () => {
 
     const d = await box(wsDivider(page, 'a', 'b'))
     const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    await page.keyboard.down('Alt')
     await drag(page, from, { x: from.x, y: from.y + 100 })
+    await page.keyboard.up('Alt')
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - before.a!.bottom)).toBeGreaterThan(90)
     // An undo step, stored — and the snackbar never showed: the table shows the move.
     await expectDividerStep(page)
@@ -390,7 +408,9 @@ test.describe('dividers', () => {
     // The move again, undone and then redone: stored as moved.
     const d2 = await box(wsDivider(page, 'a', 'b'))
     const from2 = { x: d2.x + d2.width / 2, y: d2.y + d2.height / 2 }
+    await page.keyboard.down('Alt')
     await drag(page, from2, { x: from2.x, y: from2.y + 100 })
+    await page.keyboard.up('Alt')
     await expectDividerStep(page)
     await expectShape(moved, 'moved again')
     await page.keyboard.press('Control+z')
@@ -436,26 +456,28 @@ test.describe('dividers', () => {
     },
   }
 
-  test('the keyboard on part of a line keeps the focus while it moves, press after press', async ({ page }) => {
+  test('the keyboard on part of a line (Alt + arrow) keeps the focus while it moves, press after press', async ({ page }) => {
     await seedWorkspace(page, { layouts: [partLines] })
     const divider = wsDivider(page, 'a', 'b')
     const aWidth = Math.round((await box(wsCell(page, 'a'))).width)
     const cWidth = Math.round((await box(wsCell(page, 'c'))).width)
     await divider.focus()
-    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('Alt+ArrowRight')
     await expect(divider).toBeFocused()
-    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('Alt+ArrowRight')
     await expect(divider).toBeFocused()
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).width - aWidth)).toBeGreaterThanOrEqual(30)
     // c|d stays where it was (a new track takes one more gap from the weighted columns: a few px).
     expect(Math.abs(Math.round((await box(wsCell(page, 'c'))).width) - cWidth)).toBeLessThanOrEqual(4)
   })
 
-  test('a double-click on part of a line evens only its own cells; the rest of the line stays', async ({ page }) => {
+  test('an Alt + double-click on part of a line evens only its own cells; the rest of the line stays', async ({ page }) => {
     await seedWorkspace(page, { layouts: [partLines] })
     const cWidth = Math.round((await box(wsCell(page, 'c'))).width)
     const d = await box(wsDivider(page, 'a', 'b'))
+    await page.keyboard.down('Alt')
     await page.mouse.dblclick(d.x + d.width / 2, d.y + d.height / 2)
+    await page.keyboard.up('Alt')
     // Even within one gutter: the new line's track brings a gap inside a.
     await expect.poll(async () => Math.abs(Math.round((await box(wsCell(page, 'a'))).width - (await box(wsCell(page, 'b'))).width))).toBeLessThanOrEqual(8)
     // c|d stays at 600 : 400 (a new track takes one more gap: a few px).
@@ -463,7 +485,7 @@ test.describe('dividers', () => {
     await expectDividerStep(page)
   })
 
-  test('part of a line follows the pointer into the next track and across another line: the gaps count (cr34 W8)', async ({ page }) => {
+  test('part of a line (Alt-drag) follows the pointer into the next track and across another line: the gaps count (cr34 W8)', async ({ page }) => {
     // a a b
     // c d d — a|b lies on the second column line, c|d on the first: dragged left, a|b crosses c|d's line.
     await seedWorkspace(page, {
@@ -489,6 +511,7 @@ test.describe('dividers', () => {
     // Then across that line, into the first track: a new line there.
     const far = { x: cdLine - 150, y: from.y }
     await page.mouse.move(from.x, from.y)
+    await page.keyboard.down('Alt')
     await page.mouse.down()
     await page.mouse.move(near.x, near.y, { steps: 8 })
     await expect.poll(() => offLine(near.x)).toBeLessThanOrEqual(1.5)
@@ -498,13 +521,14 @@ test.describe('dividers', () => {
     // c|d's own line hasn't moved under the preview.
     expect(Math.abs((await edges(wsCell(page, 'c'))).right + 3 - cdLine)).toBeLessThanOrEqual(1)
     await releaseDrag(page)
+    await page.keyboard.up('Alt')
     await expectDividerStep(page)
     // Released: the line stays where the preview drew it.
     await expect.poll(() => offLine(far.x)).toBeLessThanOrEqual(1.5)
     expect(Math.abs((await edges(wsCell(page, 'c'))).right + 3 - cdLine)).toBeLessThanOrEqual(1)
   })
 
-  test('part of a line made a new line in the track beside it lands under the pointer; the rest of its line stays (cr34 W8)', async ({ page }) => {
+  test('part of a line (Alt-drag) made a new line in the track beside it lands under the pointer; the rest of its line stays (cr34 W8)', async ({ page }) => {
     // a | c | x over b | c | y: a|b is one part of the level line, x|y the other.
     await seedWorkspace(page, {
       layouts: [{
@@ -521,6 +545,7 @@ test.describe('dividers', () => {
     const xyLine = (await edges(wsCell(page, 'x'))).bottom + 3
     const to = { x: from.x, y: from.y + 100 }
     await page.mouse.move(from.x, from.y)
+    await page.keyboard.down('Alt')
     await page.mouse.down()
     await page.mouse.move(to.x, to.y, { steps: 8 })
     await expect(divider).toHaveAttribute('data-preview', '')
@@ -532,6 +557,7 @@ test.describe('dividers', () => {
     // x|y, the rest of the line, is where it was: the new line's gutter came out of the row it split.
     expect(Math.abs((await edges(wsCell(page, 'x'))).bottom + 3 - xyLine)).toBeLessThanOrEqual(1)
     await releaseDrag(page)
+    await page.keyboard.up('Alt')
     await expectDividerStep(page)
     await expect.poll(offLine).toBeLessThanOrEqual(1.5)
     expect(Math.abs((await edges(wsCell(page, 'x'))).bottom + 3 - xyLine)).toBeLessThanOrEqual(1)
@@ -552,7 +578,7 @@ test.describe('dividers', () => {
 })
 
 test.describe('rows that size themselves', () => {
-  test('a row of Numbers fits its content (its divider gives it a height: workspace-crossings); the row under it takes the rest', async ({ page }) => {
+  test('a row of Numbers fits its content (its divider gives it a height: workspace-dividers); the row under it takes the rest', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -604,7 +630,10 @@ test.describe('a collapsed row no filled cell lies only in expands by itself (cr
     // a  b
     // t1 t2
     await seedWorkspace(page, { layouts: [{ name: 'Main', table: { areas: ['p s', 'a b', 't1 t2'], cells: notesCells(['p', 's', 'a', 'b', 't1', 't2']) } }] })
-    await openCellLayoutMenu(page, 'a')
+    // Closing cells is the layout edit mode's (E4).
+    await enterLayoutEdit(page)
+    // Row 2's ruler menu (E2).
+    await page.locator('[data-ruler="rows:1"]').click()
     await page.getByRole('menuitem', { name: 'Collapse row', exact: true }).click()
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).height)).toBe(32)
     await expect.poll(async () => Math.round((await box(wsCell(page, 'b'))).height)).toBe(32)
@@ -613,7 +642,7 @@ test.describe('a collapsed row no filled cell lies only in expands by itself (cr
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
     await expect(wsCell(page, 't1')).toHaveCount(0)
     await expect.poll(async () => Math.round((await box(wsCell(page, 'b'))).height)).toBe(32)
-    await expect(wsCell(page, 'b').getByRole('button', { name: 'Expand row' })).toBeVisible()
+    await expect(page.locator('[data-ruler="rows:1"]')).toContainText('folded')
     // Close b: s, above it, takes its place. No cell lies only in the folded row any more: it expands.
     await openCellLayoutMenu(page, 'b')
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
@@ -621,7 +650,7 @@ test.describe('a collapsed row no filled cell lies only in expands by itself (cr
     // p | a and s | t2: each row line has its divider again (none beside a folded row).
     await expect(page.locator('[data-ws-divider][data-axis="rows"]')).toHaveCount(2)
     await expect(page.getByRole('button', { name: 'Expand row' })).toHaveCount(0)
-    await expectLayoutStored(page)
+    await finishLayoutEdit(page)
     await expect.poll(() => storedCollapse(page)).toEqual([false, false, false])
     // The middle row is a row again: p's and a's line can be dragged.
     const aTop = (await edges(wsCell(page, 'a'))).top
@@ -661,10 +690,13 @@ test.describe('a collapsed row no filled cell lies only in expands by itself (cr
 test.describe('reload and lists', () => {
   test('a drop is saved at once and comes back after a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
+    // A whole cell moves in the layout edit mode (E4); Done stores it as one step.
+    await enterLayoutEdit(page)
     const a = await areaBox(page)
     await dragPanel(page, 'c', { x: a.x + 300, y: a.y + 3 })
     await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).width)).toBe(Math.round(a.width - 12))
-    await expectLayoutStep(page, 'Moved cell')
+    await finishLayoutEdit(page)
+    await expectLayoutStep(page, 'Edited layout “Main”')
     await page.reload()
     await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).width)).toBe(Math.round(a.width - 12))
     await expectLayoutStored(page)

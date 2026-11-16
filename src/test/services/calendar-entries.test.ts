@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildEntries,
   calendarEntryState,
+  calendarEntryUrgent,
   dayDots,
   dayOverdueWash,
   isEntryOverdue,
@@ -111,6 +112,11 @@ describe('entry state, overdue washes and dots', () => {
     const [lateFu] = entriesOn(yesterday, [makeTodo({ id: 5, nextFollowupAt: yesterday })])
     expect([future, todayDue, late, fu, todayFu, lateFu].map((e) => calendarEntryState(e!, today)))
       .toEqual(['due', 'due-today', 'due-overdue', 'followup', 'followup-today', 'followup-overdue'])
+  })
+
+  it('urgent (the stronger bar and tint): a late due date and a follow-up today or late — not a due date today', () => {
+    expect((['due', 'due-today', 'due-overdue', 'followup', 'followup-today', 'followup-overdue'] as const).map(calendarEntryUrgent))
+      .toEqual([false, false, true, false, true, true])
   })
 
   it('completed tasks and occurrences are never overdue', () => {

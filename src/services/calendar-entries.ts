@@ -132,6 +132,16 @@ export function calendarEntryState(entry: CalendarEntry, today: Date): CalendarE
   return entry.day.getTime() === startOfDay(today).getTime() ? `${kind}-today` : kind
 }
 
+/**
+ * Whether an entry asks for action now, so its line stands out over the
+ * ordinary ones (a stronger bar and a faint tint of its date type's colour):
+ * a late due date, and a follow-up today or late. A due date today stays
+ * ordinary — today's column is marked already.
+ */
+export function calendarEntryUrgent(state: CalendarEntryState): boolean {
+  return state === 'due-overdue' || state === 'followup-today' || state === 'followup-overdue'
+}
+
 /** A compact-month day dot. */
 type CalendarDot = 'due' | 'followup' | 'occurrence' | 'due-done' | 'followup-done'
 

@@ -2,7 +2,7 @@ import { trackHot } from '../../utils/hot-attr'
 
 /**
  * On a workspace cell while the pointer is over it or the focus is in it:
- * what its hover-only controls show by — the controls slot's grip and ⋯
+ * what its hover-only controls show by — the controls slot's Open larger and ⋯
  * (`WidgetTopLine`), a strip's × and + (`CellTabStrip`). An attribute the cell keeps from its own `:hover` and
  * `:focus-within`, not those pseudo-classes in the stylesheets:
  * `utils/hot-attr` says why (cr34 H5).

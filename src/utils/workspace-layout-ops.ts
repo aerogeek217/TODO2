@@ -1,6 +1,7 @@
 import {
   DEFAULT_WEIGHT,
   tabOwnsName,
+  type CellArea,
   type GridAxis,
   type GridTrack,
   type LayoutBody,
@@ -18,6 +19,7 @@ import {
   neighbours,
   normalizeGrid,
   rectOf,
+  sameArea,
   SIDES,
   sideAxis,
   spanOf,
@@ -326,9 +328,20 @@ export function insertTrackBeside<L extends LayoutBody>(layout: L, cellId: strin
   const before = side === 'left' || side === 'top'
   const line = before ? start : end
   if (line === 0 || line === tracks.length) return insertTrack(layout, side, genId)
+  return insertTrackOnLine(layout, axis, line, before ? line : line - 1, genId)
+}
 
-  // The heir: the cell's own track beside the line, else the nearest weighted one.
-  const own = before ? line : line - 1
+/**
+ * A new full row / column on inner line `line` of `axis` (layout edit
+ * mode E2): it takes half the size of track `own` (or, when that one isn't
+ * drawn by its weight, of the nearest weighted track; with none, the
+ * default weight). The cells crossing the line grow into the new track;
+ * every gap they leave along it gets a new empty cell. Returns the first
+ * new cell's id (`null` with none).
+ */
+function insertTrackOnLine<L extends LayoutBody>(layout: L, axis: GridAxis, line: number, own: number, genId: IdGen): { layout: L; cellId: string | null } {
+  const tracks = layout.grid[axis]
+  // The heir: the track `own`, else the nearest weighted one.
   const weighted = (i: number) => trackSizing(layout, axis, i).kind === 'weighted'
   const heirIdx = weighted(own)
     ? own
@@ -374,6 +387,262 @@ export function insertTrackBeside<L extends LayoutBody>(layout: L, cellId: strin
   const next = withCells(withTracks(layout, axis, insertAt(resized, line, newTrack)), [...moved, ...added])
   const first = added[0]
   return { layout: normalizeGrid(first ? expandedFor(next, first) : next), cellId: first?.id ?? null }
+}
+
+/**
+ * A new full row / column on line `index` of `axis` (layout edit mode E2:
+ * a ruler's "+", its menu's Insert … left / right / above / below): line 0
+ * and the last line are the layout's edges (`insertTrack`); on an inner line
+ * the cells crossing it grow across the new track and its other places
+ * become new empty cells (as `insertTrackBeside` does on a cell's line). It
+ * takes half the size of track `from` (default: the track after the line,
+ * else the one before) when that one is drawn by its weight, else of the
+ * nearest weighted track. Returns the first new cell's id; the same layout
+ * (and `null`) for a line that isn't one.
+ */
+export function insertTrackAt<L extends LayoutBody>(layout: L, axis: GridAxis, index: number, genId: IdGen, from?: number): { layout: L; cellId: string | null } {
+  const count = layout.grid[axis].length
+  if (!Number.isInteger(index) || index < 0 || index > count) return { layout, cellId: null }
+  if (layout.cells.length === 0 || index === 0) return insertTrack(layout, axis === 'columns' ? 'left' : 'top', genId)
+  if (index === count) return insertTrack(layout, axis === 'columns' ? 'right' : 'bottom', genId)
+  const own = from != null && (from === index - 1 || from === index) ? from : index
+  return insertTrackOnLine(layout, axis, index, own, genId)
+}
+
+// ── Removing a track ────────────────────────────────────────────────────────
+
+/**
+ * Where a cell lying only in a track that goes ends up (`trackRemoval`): its
+ * tabs join cell `into` (after that cell's own tabs, which keeps its active
+ * tab), or — `into: null` — the cell itself moves into the place beside it,
+ * which held only empty cells.
+ */
+interface TrackRemovalMove {
+  cellId: string
+  tabIds: string[]
+  into: string | null
+}
+
+/** What removing a track does: the track its space and places go to, and each widget-holding cell that moves. */
+export interface TrackRemoval {
+  /** The neighbouring track (its index before the removal) that takes the track's space and its cells' places. */
+  neighbour: number
+  moves: TrackRemovalMove[]
+}
+
+/** The cells covering track `neighbour` of `axis` somewhere over `[from, to)` of the other axis, in order along it. */
+function cellsInTrackOver(layout: LayoutBody, axis: GridAxis, neighbour: number, from: number, to: number): LayoutCell[] {
+  const cross = crossAxis(axis)
+  return layout.cells
+    .filter((c) => {
+      const [s, e] = spanOf(c.area, axis)
+      const [cs, ce] = spanOf(c.area, cross)
+      return s <= neighbour && neighbour < e && cs < to && from < ce
+    })
+    .sort((a, b) => spanOf(a.area, cross)[0] - spanOf(b.area, cross)[0])
+}
+
+/**
+ * What removing track `index` of `axis` does (`removeTrack`), toward
+ * track `into` (default the track before, else the one after); `null` when
+ * it can't go — the axis's last track, an index that isn't one, or `into`
+ * not beside it.
+ *
+ * Along the axis every cell either lies only in the track, spans it and
+ * other tracks, or doesn't touch it. A cell spanning it — passing through,
+ * or starting or ending in it — loses that track and stays (it shrinks).
+ * A cell lying only in it moves into the neighbouring track over its own
+ * extent across the other axis (its *place*), in reading order:
+ *
+ * - its place holds only empty cells: the cell moves there (`into: null`) —
+ *   the empty cells give that place up, what is left of them staying empty;
+ * - else its tabs join a filled cell of that place: the one sharing the most
+ *   of its edge, the first along it on a tie (a cell sticking out past the
+ *   place's ends counts only the part beside it);
+ * - an empty cell lying only in the track just goes.
+ *
+ * No widget is ever deleted.
+ */
+export function trackRemoval(layout: LayoutBody, axis: GridAxis, index: number, into?: number): TrackRemoval | null {
+  const count = layout.grid[axis].length
+  if (count < 2 || !Number.isInteger(index) || index < 0 || index >= count) return null
+  const neighbour = into ?? (index > 0 ? index - 1 : index + 1)
+  if (Math.abs(neighbour - index) !== 1 || neighbour < 0 || neighbour >= count) return null
+  const cross = crossAxis(axis)
+  const moves: TrackRemovalMove[] = []
+  for (const c of readingOrderOf(layout.cells)) {
+    const [s, e] = spanOf(c.area, axis)
+    if (s !== index || e !== index + 1 || c.tabs.length === 0) continue
+    const [from, to] = spanOf(c.area, cross)
+    const place = cellsInTrackOver(layout, axis, neighbour, from, to)
+    const filled = place.filter((p) => p.tabs.length > 0)
+    if (filled.length === 0) {
+      moves.push({ cellId: c.id, tabIds: c.tabs.map((t) => t.id), into: null })
+      continue
+    }
+    const shared = (p: LayoutCell) => {
+      const [ps, pe] = spanOf(p.area, cross)
+      return Math.min(pe, to) - Math.max(ps, from)
+    }
+    const target = filled.reduce((best, p) => (shared(p) > shared(best) ? p : best))
+    moves.push({ cellId: c.id, tabIds: c.tabs.map((t) => t.id), into: target.id })
+  }
+  return { neighbour, moves }
+}
+
+function readingOrderOf(cells: readonly LayoutCell[]): LayoutCell[] {
+  return [...cells].sort((a, b) => a.area.row - b.area.row || a.area.col - b.area.col)
+}
+
+/**
+ * The cells of an occupancy matrix (`grid[row][col]`: the id of the cell
+ * there) as rectangles: a cell whose places are a rectangle keeps them;
+ * one whose places aren't (an empty cell a move carved) is cut into
+ * rectangles — in reading order, each as wide as it runs and then as deep
+ * as that whole run goes —, the first keeping its id, the others new ids.
+ */
+function cellsFromMatrix(matrix: string[][], byId: ReadonlyMap<string, LayoutCell>, genId: IdGen): LayoutCell[] {
+  const rows = matrix.length
+  const cols = matrix[0]?.length ?? 0
+  const taken = matrix.map((line) => line.map(() => false))
+  const seen = new Set<string>()
+  const out: LayoutCell[] = []
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (taken[r]?.[c]) continue
+      const id = matrix[r]?.[c]
+      if (id == null) continue
+      let c1 = c + 1
+      while (c1 < cols && matrix[r]?.[c1] === id && !taken[r]?.[c1]) c1++
+      let r1 = r + 1
+      const runs = (rr: number) => {
+        for (let x = c; x < c1; x++) if (matrix[rr]?.[x] !== id || taken[rr]?.[x]) return false
+        return true
+      }
+      while (r1 < rows && runs(r1)) r1++
+      for (let y = r; y < r1; y++) for (let x = c; x < c1; x++) {
+        const line = taken[y]
+        if (line) line[x] = true
+      }
+      const src = byId.get(id)
+      if (!src) continue
+      const area = { col: c, row: r, colSpan: c1 - c, rowSpan: r1 - r }
+      if (seen.has(id)) out.push({ id: genId(), area, tabs: [] })
+      else out.push(sameArea(src.area, area) ? src : { ...src, area })
+      seen.add(id)
+    }
+  }
+  return out
+}
+
+/**
+ * Removes track `index` of `axis` toward track `into` (beside it): the
+ * cells change as `trackRemoval` says, and the track's size goes to `into`
+ * when both are drawn by their weights (the weights added) or both are
+ * fixed (the px added), so the other lines stay where they are. The same
+ * layout when it can't go (`trackRemoval` is `null`).
+ */
+function removeTrackToward<L extends LayoutBody>(layout: L, axis: GridAxis, index: number, into: number | undefined, genId: IdGen): L {
+  const plan = trackRemoval(layout, axis, index, into)
+  if (!plan) return layout
+  const { neighbour } = plan
+  const cross = crossAxis(axis)
+  const cols = layout.grid.columns.length
+  const rows = layout.grid.rows.length
+  // The occupancy matrix: the cell id at each [row][col].
+  const matrix: string[][] = Array.from({ length: rows }, () => new Array<string>(cols).fill(''))
+  for (const c of layout.cells) {
+    for (let r = c.area.row; r < c.area.row + c.area.rowSpan; r++) {
+      for (let k = c.area.col; k < c.area.col + c.area.colSpan; k++) {
+        const line = matrix[r]
+        if (line) line[k] = c.id
+      }
+    }
+  }
+  const at = (a: number, x: number): [number, number] => (axis === 'columns' ? [x, a] : [a, x])
+  const byId = new Map(layout.cells.map((c) => [c.id, c]))
+  const joined = new Map<string, LayoutTab[]>()
+  for (const move of plan.moves) {
+    const cell = byId.get(move.cellId)
+    if (!cell) continue
+    if (move.into == null) {
+      // Into the place beside it: those places become the cell's.
+      const [from, to] = spanOf(cell.area, cross)
+      for (let x = from; x < to; x++) {
+        const [r, k] = at(neighbour, x)
+        const line = matrix[r]
+        if (line) line[k] = cell.id
+      }
+    } else {
+      joined.set(move.into, [...(joined.get(move.into) ?? []), ...cell.tabs])
+    }
+  }
+  // The track goes: its line of the matrix.
+  const kept = axis === 'rows'
+    ? matrix.filter((_, r) => r !== index)
+    : matrix.map((line) => line.filter((_, k) => k !== index))
+  let cells = cellsFromMatrix(kept, byId, genId)
+  if (joined.size > 0) {
+    cells = cells.map((c) => {
+      const extra = joined.get(c.id)
+      return extra ? withStrip(c, stripWith([...c.tabs, ...extra], c.activeTabId)) : c
+    })
+  }
+  // The track's size to its neighbour, where both share space the same way.
+  const tracks = layout.grid[axis]
+  const gone = tracks[index]
+  const heir = tracks[neighbour]
+  let resized = tracks
+  if (gone && heir) {
+    const a = trackSizing(layout, axis, index)
+    const b = trackSizing(layout, axis, neighbour)
+    if (a.kind === 'weighted' && b.kind === 'weighted') resized = replaceAt(tracks, neighbour, { ...heir, weight: (heir.weight ?? DEFAULT_WEIGHT) + (gone.weight ?? 0) })
+    else if (a.kind === 'fixed' && b.kind === 'fixed' && gone.px != null && heir.px != null) resized = replaceAt(tracks, neighbour, { ...heir, px: heir.px + gone.px })
+  }
+  const next = withCells(withTracks(layout, axis, removeAt(resized, index)), cells)
+  return normalizeGrid(next)
+}
+
+/**
+ * Removes track `index` of `axis` (a ruler's Remove row / column, layout
+ * edit mode E2) toward the track before it, else the one after: cells
+ * spanning it shrink, a cell lying only in it moves into the place beside
+ * it or its tabs join a cell there (`trackRemoval` says which), and its
+ * size goes to that track. Refused — the same layout — for the axis's last
+ * track or an index that isn't one. Never deletes a widget.
+ */
+export function removeTrack<L extends LayoutBody>(layout: L, axis: GridAxis, index: number, genId: IdGen): L {
+  return removeTrackToward(layout, axis, index, undefined, genId)
+}
+
+/**
+ * Merges track `index` of `axis` into its neighbour `into` (a sliver's
+ * Merge into B, layout edit mode E2): the line between them goes. The
+ * track's space joins `into`; every cell edge on that line moves to the
+ * track's far line — the cells spanning the track lose it, the cells in
+ * `into` grow over it —, and a cell lying only in the track moves as
+ * `removeTrack` moves one (toward `into`). The same layout when `into`
+ * isn't beside it, or it is its axis's last track.
+ */
+export function mergeTrackInto<L extends LayoutBody>(layout: L, axis: GridAxis, index: number, into: number, genId: IdGen): L {
+  if (Math.abs(into - index) !== 1) return layout
+  return removeTrackToward(layout, axis, index, into, genId)
+}
+
+/**
+ * Even all widths / heights (a ruler's menu): every track of `axis` drawn
+ * by its weight takes the same weight (their mean, so their sum stays);
+ * fixed, fit and collapsed tracks keep theirs. A size change (view state).
+ * The same layout when they already are even.
+ */
+export function evenTracks<L extends LayoutBody>(layout: L, axis: GridAxis): L {
+  const tracks = layout.grid[axis]
+  const weighted = tracks.flatMap((_, i) => (trackSizing(layout, axis, i).kind === 'weighted' ? [i] : []))
+  if (weighted.length < 2) return layout
+  const mean = weighted.reduce((sum, i) => sum + (tracks[i]?.weight ?? DEFAULT_WEIGHT), 0) / weighted.length
+  if (!(mean > 0) || weighted.every((i) => tracks[i]?.weight === mean)) return layout
+  const set = new Set(weighted)
+  return withTracks(layout, axis, tracks.map((t, i) => (set.has(i) ? { ...t, weight: mean } : t)))
 }
 
 /**
@@ -529,7 +798,11 @@ function relocate<L extends LayoutBody>(layout: L, srcId: string, place: (layout
  * cell (`cell`: a merge of strips, at `index` or after its tabs, the first
  * moved tab active), or a new cell from a split or an insert (keeping its
  * active tab). Its old place closes (`closeCell`, by `relocate`: a
- * neighbour or the new cell takes it, or it stays as an empty cell). A drop onto the cell itself (its strip or a
+ * neighbour or the new cell takes it, or it stays as an empty cell). Onto
+ * an empty cell (a slot — a whole cell moves only in the layout edit mode,
+ * E3) the two swap places (`swapCells`): the cell takes the slot's area and
+ * its old place is the empty cell, so a move never grows a card over its
+ * old place. A drop onto the cell itself (its strip or a
  * side), or back where it is, returns the layout unchanged; so does an
  * empty cell.
  */
@@ -538,6 +811,8 @@ export function movePanel<L extends LayoutBody>(layout: L, cellId: string, targe
   const first = cell?.tabs[0]
   if (!cell || !first) return layout
   if ((target.kind === 'cell' || target.kind === 'split') && target.cellId === cellId) return layout
+  const into = target.kind === 'cell' ? cellById(layout, target.cellId) : undefined
+  if (into && into.tabs.length === 0) return swapCells(layout, cellId, into.id)
   const next = relocate(layout, cellId, (l) => placeTabs(l, cell.tabs, target, genId, cell.activeTabId))
   return next ? unlessBackInPlace(layout, next, first.id, cellId) : layout
 }
@@ -561,8 +836,8 @@ export interface MoveEdgeOptions {
   snapPx?: number
   /**
    * A whole line snaps back onto its own place too (within `snapPx`: no
-   * change) — a crossing handle's line holds still while the drag runs
-   * along the other one.
+   * change). Nothing in the app passes it since the crossing handles went
+   * (E4); the layout-op fuzz tests' two-line moves do.
    */
   snapHome?: boolean
   /**
@@ -1111,4 +1386,91 @@ export function withTrackIdsOf<L extends LayoutBody>(body: L, model: LayoutBody)
     next = withTracks(next, axis, body.grid[axis].map((t, i) => ({ ...t, id: model.grid[axis][i]?.id ?? t.id })))
   }
   return next
+}
+
+/**
+ * Remove widget outside the layout edit mode (layout edit mode E4, the rule
+ * "edit mode changes the grid; what's inside a cell changes in place"):
+ * removes a tab as `closeTab` does, but a cell it leaves with no tabs stays
+ * where it is as an empty cell — its space goes to no neighbour (only the
+ * mode's Close cell gives a cell away, `closeCell`). A collapsed row the
+ * removal leaves with no filled cell lying only in it expands
+ * (`expandOrphanRows`). The same layout for an unknown tab.
+ */
+export function removeTabKeepCell<L extends LayoutBody>(layout: L, tabId: string): L {
+  const loc = findTab(layout, tabId)
+  const cell = loc ? layout.cells[loc.cellIdx] : undefined
+  if (!loc || !cell) return layout
+  if (cell.tabs.length > 1) return closeTab(layout, tabId)
+  return expandOrphanRows(setCell(layout, cell.id, withStrip(cell, { tabs: [] })))
+}
+
+// ── Cards (layout edit mode E3) ─────────────────────────────────────────────
+
+/** Whether `area` lies in `layout`'s grid: whole tracks, at least one each way, inside it. */
+function areaInGrid(layout: LayoutBody, area: CellArea): boolean {
+  const { col, row, colSpan, rowSpan } = area
+  if (![col, row, colSpan, rowSpan].every(Number.isInteger)) return false
+  return col >= 0 && row >= 0 && colSpan >= 1 && rowSpan >= 1
+    && col + colSpan <= layout.grid.columns.length && row + rowSpan <= layout.grid.rows.length
+}
+
+/** Whether two areas share a place. */
+function areasOverlap(a: CellArea, b: CellArea): boolean {
+  return a.col < b.col + b.colSpan && b.col < a.col + a.colSpan && a.row < b.row + b.rowSpan && b.row < a.row + a.rowSpan
+}
+
+/**
+ * Whether cell `cellId` may take `area` (`setCellArea`): the area lies in
+ * the grid and covers nothing but the cell's own places and empty cells
+ * (whole or in part). `false` for an unknown cell.
+ */
+export function cellAreaFits(layout: LayoutBody, cellId: string, area: CellArea): boolean {
+  if (!cellById(layout, cellId) || !areaInGrid(layout, area)) return false
+  return layout.cells.every((c) => c.id === cellId || c.tabs.length === 0 || !areasOverlap(c.area, area))
+}
+
+/**
+ * Stretches (or shrinks, or moves) cell `cellId` onto `area` (a card's
+ * corner, Stretch right / down, Shift+arrow — layout edit mode E3). Valid
+ * only over the cell's own places and empty cells (`cellAreaFits`): the
+ * empty cells it covers give those places up — what is left of one is cut
+ * into rectangles (in reading order, each as wide as it runs, then as deep
+ * as that run goes; the first piece keeps its id) —, and the places it
+ * leaves become empty cells, cut the same way. No widget moves or goes.
+ * The same layout for an unknown cell, the area it has, or one that
+ * doesn't fit.
+ */
+export function setCellArea<L extends LayoutBody>(layout: L, cellId: string, area: CellArea, genId: IdGen): L {
+  const cell = cellById(layout, cellId)
+  if (!cell || sameArea(cell.area, area) || !cellAreaFits(layout, cellId, area)) return layout
+  const rows = layout.grid.rows.length
+  const cols = layout.grid.columns.length
+  const matrix: string[][] = Array.from({ length: rows }, () => new Array<string>(cols).fill(''))
+  const fill = (a: CellArea, id: string) => {
+    for (let r = a.row; r < a.row + a.rowSpan; r++) {
+      const line = matrix[r]
+      if (line) for (let k = a.col; k < a.col + a.colSpan; k++) line[k] = id
+    }
+  }
+  for (const c of layout.cells) fill(c.area, c.id)
+  // The places it leaves: one new empty cell (cut into rectangles when they aren't one).
+  const vacated: LayoutCell = { id: genId(), area: cell.area, tabs: [] }
+  fill(cell.area, vacated.id)
+  fill(area, cellId)
+  const byId = new Map<string, LayoutCell>([...layout.cells.map((c) => [c.id, c] as const), [vacated.id, vacated] as const])
+  return normalizeGrid(withCells(layout, cellsFromMatrix(matrix, byId, genId)))
+}
+
+/**
+ * Swaps two cells' places (a card's Swap with ▸, Alt+arrow onto a card —
+ * layout edit mode E3): each takes the other's area, keeping its id, tabs
+ * and active tab; the tiling holds whatever their sizes. The same layout
+ * for an unknown cell or a cell with itself.
+ */
+export function swapCells<L extends LayoutBody>(layout: L, aId: string, bId: string): L {
+  const a = cellById(layout, aId)
+  const b = cellById(layout, bId)
+  if (!a || !b || a === b) return layout
+  return normalizeGrid(setCell(setCell(layout, aId, { ...a, area: b.area }), bId, { ...b, area: a.area }))
 }

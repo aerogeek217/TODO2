@@ -8,25 +8,32 @@ import { FIT_ROW_PX, isFitTrack } from '../../utils/workspace-rows'
 import { cellMinPx, rowDrawsFitFaces, tableTrackSizes, trackSizing } from '../../utils/workspace-table'
 import {
   addTab,
+  cellAreaFits,
   cellRowTracks,
   closeCell,
   closeTab,
   edgeSnap,
   edgeSnapLine,
   evenStretchDelta,
+  evenTracks,
   insertTrack,
+  insertTrackAt,
   insertTrackBeside,
   isCellCollapsed,
   mergeCells,
+  mergeTrackInto,
   moveEdge,
   movePanel,
   moveTab,
   patchTabConfig,
   patchTabViewState,
+  removeTrack,
   replaceTab,
   setActiveTab,
+  setCellArea,
   setTrackCollapsed,
   splitCell,
+  swapCells,
   withRowDrawnAt,
   type LayoutDropTarget,
 } from '../../utils/workspace-layout-ops'
@@ -1224,7 +1231,7 @@ describe('random op sequences keep the table valid', () => {
           if (r < 0.3) return rand() < 0.5 ? 1 : -1
           return Math.round((rand() - 0.5) * 900)
         }
-        const op = Math.floor(rand() * 13)
+        const op = Math.floor(rand() * 19)
         const before = body
         let added: string | null = null
         let made: string | null = null
@@ -1288,6 +1295,42 @@ describe('random op sequences keep the table valid', () => {
             if (tab) body = replaceTab(body, tab.id, createTab(tab.kind === 'number' ? 'notes' : 'number', tab.id))
             break
           }
+          // The layout edit mode's rulers (E2): a "+" on any line, Remove row / column, a sliver's Merge into, Even all.
+          case 13: {
+            const axis: GridAxis = rand() < 0.5 ? 'columns' : 'rows'
+            const out = insertTrackAt(body, axis, Math.floor(rand() * (body.grid[axis].length + 1)), genId)
+            body = out.layout
+            made = out.cellId
+            break
+          }
+          case 14: {
+            const axis: GridAxis = rand() < 0.5 ? 'columns' : 'rows'
+            const count = body.grid[axis].length
+            body = removeTrack(body, axis, Math.floor(rand() * count), genId)
+            if (count < 2) expect(body).toBe(before)
+            break
+          }
+          case 15: {
+            const axis: GridAxis = rand() < 0.5 ? 'columns' : 'rows'
+            const i = Math.floor(rand() * body.grid[axis].length)
+            body = mergeTrackInto(body, axis, i, rand() < 0.5 ? i - 1 : i + 1, genId)
+            break
+          }
+          case 16: body = evenTracks(body, rand() < 0.5 ? 'columns' : 'rows'); break
+          // The layout edit mode's cards (E3): a card stretched / shrunk / moved onto an area, two cards swapped.
+          case 17: {
+            const id = pick(cellIds) ?? ''
+            const cols = body.grid.columns.length
+            const rows = body.grid.rows.length
+            const col = Math.floor(rand() * cols)
+            const row = Math.floor(rand() * rows)
+            const area = { col, row, colSpan: 1 + Math.floor(rand() * (cols - col)), rowSpan: 1 + Math.floor(rand() * (rows - row)) }
+            const fits = cellAreaFits(body, id, area)
+            body = setCellArea(body, id, area, genId)
+            if (!fits) expect(body).toBe(before)
+            break
+          }
+          case 18: body = swapCells(body, pick(cellIds) ?? '', pick(cellIds) ?? ''); break
         }
         expectValid(body)
         expectSoundViewState(body)

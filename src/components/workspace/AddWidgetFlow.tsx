@@ -1,13 +1,9 @@
-import { useState } from 'react'
 import { BREAKDOWN_PRESET_LABELS, BREAKDOWN_PRESETS, breakdownPreset, type BreakdownPreset } from '../../models/chart-widgets'
 import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
 import { afterLeavingEditors } from '../../stores/editor-leave'
-import { useUIStore } from '../../stores/ui-store'
-import { useWorkspaceStore } from '../../stores/workspace-store'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import { MenuPopover, type MenuEntry, type MenuItemEntry } from '../shared/MenuPopover'
-import { addWherePicture, addWhereTarget, type AddWhere } from './add-widget-where'
+import type { MenuItemEntry } from '../shared/MenuPopover'
 import { WidgetKindIcon } from '../shared/icons'
 import { addKindAt, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
 import styles from './AddWidgetFlow.module.css'
@@ -49,59 +45,30 @@ function breakdownPresetItems(addBreakdown: (preset: BreakdownPreset) => void): 
 }
 
 interface AddWidgetFlowProps {
-  /** The cell it is added from. */
+  /** The cell it is added to: as its new tab, or filling it (an empty cell, a slot). */
   cellId: string
-  /** Where it goes until the user picks another (default a tab). */
-  initialWhere?: AddWhere
-  /** The kind, already chosen (the palette's Add Widget › kind): only where is asked. */
-  kind?: WidgetKind
   anchor: { x: number; y: number }
   onClose: () => void
 }
 
 /**
- * Add widget from a cell (its ⋯ menu, its strip's `+`): where first, as a
- * picture of the cell (`addWherePicture`: its middle a tab, its sides a
- * split, the bars outside a row or column at the layout's edge; default
- * Tab) —, then the kinds; a pick adds that widget there (`useAddKind`).
- * With `kind` chosen, the picture is followed by `Add <kind>` (a
- * Breakdown's presets) instead of the kinds.
+ * Add widget to a cell (its strip's `+`; in the layout edit mode a slot's
+ * click, E3): the kinds, by group (Tasks, Insights; a Breakdown its
+ * presets); a pick adds that widget as a tab of the cell — filling it when
+ * it is empty (`useAddKind`). No Where step: where a widget goes is the
+ * mode's drop model (a tray chip dragged in) or the slot it fills.
  */
-export function AddWidgetFlow({ cellId, initialWhere = 'tab', kind, anchor, onClose }: AddWidgetFlowProps) {
-  const [where, setWhere] = useState<AddWhere>(initialWhere)
-  const addKind = useAddKind(addWhereTarget(cellId, where))
-  const addBreakdown = useAddBreakdown(addWhereTarget(cellId, where))
-  const lead: MenuEntry[] = [addWherePicture(where, setWhere)]
-  if (kind) {
-    const add: MenuEntry[] = kind === 'breakdown'
-      ? [{ kind: 'label', text: widgetKindLabel(kind) }, ...breakdownPresetItems(addBreakdown)]
-      : [{ kind: 'item', label: `Add ${widgetKindLabel(kind)}`, icon: <WidgetKindIcon kind={kind} />, onSelect: () => addKind(kind) }]
-    return <MenuPopover point={anchor} label="Add widget" width={248} restoreFocus entries={[...lead, { kind: 'separator' }, ...add]} onClose={onClose} />
-  }
+export function AddWidgetFlow({ cellId, anchor, onClose }: AddWidgetFlowProps) {
+  const target: LayoutDropTarget = { kind: 'cell', cellId }
+  const addKind = useAddKind(target)
+  const addBreakdown = useAddBreakdown(target)
   return (
     <WidgetKindMenu
       anchor={anchor}
       heading="Add widget"
       onChangeKind={addKind}
-      leadEntries={lead}
       kindPresets={{ breakdown: breakdownPresetItems(addBreakdown) }}
       onClose={onClose}
-    />
-  )
-}
-
-/** The Where picker the palette asked for (`ui-store.addWidgetRequest`), while its cell is in the open layout. */
-export function AddWidgetRequestHost() {
-  const request = useUIStore((s) => s.addWidgetRequest)
-  const cellThere = useWorkspaceStore((s) => request != null && s.working?.cells.some((c) => c.id === request.cellId) === true)
-  if (!request || !cellThere) return null
-  return (
-    <AddWidgetFlow
-      key={`${request.cellId}:${request.kind}`}
-      cellId={request.cellId}
-      kind={request.kind}
-      anchor={request.anchor}
-      onClose={() => useUIStore.getState().clearAddWidgetRequest()}
     />
   )
 }

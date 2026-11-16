@@ -1,11 +1,20 @@
 import { create } from 'zustand'
 import { byLayoutOrder, layoutRepository, type OwnedListsRemoved, type ReadLayout } from '../data/layout-repository'
 import { trackWrite } from './store-helpers'
-import { applyRemoved, foreignListRefs, ownedListCopies, pruneOwnedLists, restoreLists } from './layout-lists'
+import { applyRemoved, foreignListRefs, ownedListCopies, pruneListsAmong, pruneOwnedLists, restoreLists } from './layout-lists'
 import { closeCellDescription, tabName } from './layout-step-names'
 import { UndoGone, UndoRefused, useUndoStore, type UndoEntry } from './undo-store'
 import { undoable } from './undoable'
-import { editorsHoldChanges, leaveOpenEditors } from './editor-leave'
+import {
+  closeOpenEditors,
+  editorsHoldChanges,
+  layoutLeaveAsks,
+  leaveLayout,
+  leaveOpenEditors,
+  quitLayoutEditors,
+  registerOpenEditor,
+} from './editor-leave'
+import { useUIStore } from './ui-store'
 import { assertNoReplaceHold, refusedByReplaceHold, registerReplaceSettle, replaceHoldActive } from './replace-hold'
 import { useListDefinitionStore } from './list-definition-store'
 import { useListOrderStore } from './list-order-store'
@@ -24,6 +33,7 @@ import {
   layoutBodyOf,
   tabNameMax,
   withLayoutBody,
+  type CellArea,
   type GridAxis,
   type LayoutBody,
   type PersistedWorkspaceLayout,
@@ -33,7 +43,7 @@ import {
   type WidgetKind,
   type WorkspaceLayout,
 } from '../models/workspace-layout'
-import { getTab, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
+import { findTab, getTab, layoutBodyEqual, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
 import { layoutListRefs, repointLayoutLists } from '../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../utils/workspace-layout-sizes'
 import { withViewStateOf } from '../utils/workspace-layout-view'
@@ -41,20 +51,27 @@ import {
   addTab,
   closeCell,
   closeTab,
+  evenTracks,
   insertTrack,
+  insertTrackAt,
   insertTrackBeside,
   mergeCells,
+  mergeTrackInto,
   moveEdge,
   movePanel,
   moveTab,
   patchTabConfig,
   patchTabViewState,
+  removeTabKeepCell,
+  removeTrack,
   replaceTab,
   setActiveTab,
+  setCellArea,
   setTrackCollapsed,
   setLayoutHue,
   setTabLabel,
   splitCell,
+  swapCells,
   withLabelOf,
   withTrackIdsOf,
   type IdGen,
@@ -63,12 +80,12 @@ import {
 } from '../utils/workspace-layout-ops'
 import type { EdgeStretch, Side } from '../utils/workspace-grid'
 import { samePreviewBody } from '../utils/workspace-preview'
+import { stretchedArea, tapOutcome, type StretchDirection, type TapOutcome, type TapTarget } from '../utils/layout-edit-cards'
 
 type Layout = PersistedWorkspaceLayout
 
 function sameHandle(a: ResizeHandle, b: ResizeHandle): boolean {
-  if (a.kind === 'divider') return b.kind === 'divider' && a.axis === b.axis && a.beforeId === b.beforeId && a.afterId === b.afterId
-  return b.kind === 'crossing' && a.cornerId === b.cornerId && a.key === b.key
+  return a.axis === b.axis && a.beforeId === b.beforeId && a.afterId === b.afterId
 }
 
 /** A resize from a divider: `live` = one frame of a drag (see `setTrackSizes`). */
@@ -78,12 +95,11 @@ interface ResizeOptions {
 
 /**
  * The resize handle a preview belongs to: a divider (its axis and the first
- * cells on either side, as it was keyed when the drag started) or a crossing
- * handle (its corner cell, above-left, and its key).
+ * cells on either side, as it was keyed when the drag started). The
+ * crossing handles went with the layout edit mode (E4): a divider's plain
+ * drag moves its whole line.
  */
-export type ResizeHandle =
-  | { kind: 'divider'; axis: GridAxis; beforeId: string; afterId: string }
-  | { kind: 'crossing'; cornerId: string; key: string }
+export type ResizeHandle = { kind: 'divider'; axis: GridAxis; beforeId: string; afterId: string }
 
 /**
  * A resize drag whose move changes the structure (part of a line moved, or a
@@ -104,6 +120,51 @@ interface EditUndoOptions {
   /** No undo snackbar: the step is on the undo stack all the same (a divider moved — the table shows it). */
   quiet?: boolean
 }
+
+/**
+ * The layout edit mode's session (layout edit mode E1): which layout it
+ * edits, the cell it selected, its own undo steps and the lists it made.
+ */
+interface LayoutEditSession {
+  layoutId: number
+  /** The selected cell (opened from a cell's ⋯ › Edit layout), or none. */
+  selectedCellId: string | null
+  /** The mode's undo steps: the draft's body before each structural edit, oldest first. */
+  undo: readonly LayoutBody[]
+  /** Its redo steps: the draft's body before each undo, oldest first. */
+  redo: readonly LayoutBody[]
+  /** The lists made while it was on (`createListAndTab`): those its end doesn't keep are deleted. */
+  createdLists: readonly number[]
+  /**
+   * A tap on the selected card armed a move (E3, tap then tap): the next
+   * tap on a slot moves it there, on another card's middle joins them
+   * (`layout-edit-cards.tapOutcome`). Esc, an edit, an undo disarm it.
+   */
+  moveArmed?: boolean
+}
+
+/** Whether the layout edit mode's draft differs from the layout as stored (view state too). */
+export function layoutEditChanged(s: Pick<WorkspaceState, 'editing' | 'working' | 'saved'>): boolean {
+  return s.editing != null && s.working != null && s.saved != null && !layoutBodyEqual(s.working, s.saved)
+}
+
+/**
+ * The lists the layout edit mode made that nothing shows and that are
+ * waiting to be deleted: in the mode, those its draft no longer shows (made,
+ * then undone); after Cancel, every list it made while the Restore offer
+ * holds them (`discardedLists`). No list chooser offers them (Copy from…,
+ * a Number's Follow a list).
+ */
+export function listsHeldByEdit(s: Pick<WorkspaceState, 'editing' | 'working' | 'discardedLists'>): readonly number[] {
+  const { editing, working } = s
+  if (!editing || !working || editing.createdLists.length === 0) return s.discardedLists
+  const shown = layoutListRefs(working)
+  const undone = editing.createdLists.filter((id) => !shown.has(id))
+  return undone.length === 0 ? s.discardedLists : [...s.discardedLists, ...undone]
+}
+
+/** What the mode's own undo keeps at most. */
+const EDIT_UNDO_MAX = 100
 
 /**
  * Workspace layouts: the stored layouts and the open one. **Every edit is
@@ -141,6 +202,19 @@ interface EditUndoOptions {
  *   owns but doesn't show (`pruneOwnedLists`).
  * - `load(id)` switches layouts; `createLayout(name)` stores a new, empty
  *   layout at once and opens it.
+ * - **The layout edit mode** (`editing`, layout edit mode E1): while it is
+ *   on, `working` is its draft and `saved` stays the layout as stored.
+ *   Every structural edit changes only the draft and is a step of the
+ *   mode's own undo (`undoEdit` / `redoEdit`; merge keys merge there too);
+ *   resizes and view state change only the draft; nothing is written.
+ *   Done (`finishEdit`) commits the draft as one write and one undo step
+ *   (`Edited layout “X”`), whose Undo brings back the lists it dropped;
+ *   Cancel (`cancelEdit`) puts `saved` back and offers Restore in the
+ *   snackbar; a reload drops the draft (the next launch's prune deletes
+ *   the lists it made). Layout undo steps, a rename, Retry and the
+ *   layouts' order are refused meanwhile; leaving the layout asks
+ *   Save / Discard / Keep editing when the draft holds changes
+ *   (`editor-leave.leaveLayout`).
  * - While a data replace holds layout and list writes (`replace-hold`: from
  *   its database write until `refresh-all` has opened the new data), the
  *   layout in memory is the replaced one: nothing writes it — an edit, a
@@ -176,6 +250,86 @@ export interface WorkspaceState {
    * in the browser, never unsaved, never an undo step.
    */
   resizePreview: ResizePreview | null
+  /** The layout edit mode's session (`LayoutEditSession`), or `null` while the mode is off. */
+  editing: LayoutEditSession | null
+  /** After Cancel: the lists the session made, held for its Restore offer and deleted once it goes (`listsHeldByEdit`). */
+  discardedLists: readonly number[]
+
+  /**
+   * Opens the layout edit mode on the open layout (`cellId`: that cell
+   * selected). An open editor holding changes asks first (Save / Discard /
+   * Keep editing); then every editor, the widget popup, the filtered-tasks
+   * panel and the snackbar close. The open layout's writes land first (a
+   * failed one is retried; when it fails again the mode doesn't open).
+   * Resolves whether the mode is on.
+   */
+  enterEdit: (opts?: { cellId?: string | null }) => Promise<boolean>
+  /** Selects a cell of the draft (`null`: none; `arm`: a tap armed a move, E3). Only while editing. */
+  selectEditCell: (cellId: string | null, opts?: { arm?: boolean }) => void
+  /** Disarms a tap's pending move (Esc), the card staying selected. */
+  disarmEditMove: () => void
+  /**
+   * A tap on a card or a slot in the mode (E3, `layout-edit-cards.tapOutcome`):
+   * selects (arming a move), disarms, moves the armed card onto a slot or
+   * joins it to a card as tabs (on the draft, the moved card selected).
+   * Returns what it did — `menu` (a slot with nothing armed: selected) for
+   * the view to open the slot's kinds.
+   */
+  tapEdit: (target: TapTarget) => TapOutcome
+  /**
+   * Moves the whole cell `cellId` to `target` (`movePanel`: a slot takes it,
+   * a card joins it as tabs, a side splits) and selects the cell that holds
+   * it after. Whether it moved.
+   */
+  moveEditCard: (cellId: string, target: LayoutDropTarget) => boolean
+  /** Stretches cell `cellId` onto `area` (`setCellArea`: over its own places and empty cells only). Whether it changed. */
+  setCellArea: (cellId: string, area: CellArea) => boolean
+  /** Stretches cell `cellId` one track `direction` from its bottom-right corner (`stretchedArea`). Whether it changed. */
+  stretchCell: (cellId: string, direction: StretchDirection) => boolean
+  /** Swaps two cells' places (`swapCells`). Whether they moved. */
+  swapCells: (aId: string, bId: string) => boolean
+  /** The mode's undo: the draft as before its last structural edit (the view state of now kept). Nothing while its stack is empty. */
+  undoEdit: () => void
+  /** The mode's redo. */
+  redoEdit: () => void
+  /**
+   * Done: commits the draft — one write, one undo step (`Edited layout
+   * “X”`) — when its structure changed, writes its view state when only that
+   * did, and leaves the mode. The lists the session made that the draft
+   * doesn't show are deleted first. Resolves true once the mode is off.
+   */
+  finishEdit: () => Promise<boolean>
+  /**
+   * Cancel: the layout as stored comes back and the mode closes, asking
+   * nothing. With changes, the snackbar says `Layout changes discarded` and
+   * offers Restore (the draft and its undo steps back, the mode open again);
+   * the lists the session made are deleted once that offer is gone.
+   */
+  cancelEdit: () => void
+  /** The leave question's Discard: as Cancel, with no Restore — the session's lists deleted at once. */
+  discardEdit: () => void
+  /** Leaves the mode holding no changes (Esc, a layout left): its lists deleted. */
+  leaveEdit: () => void
+  /**
+   * Closes the mode from outside, where nothing could ask (the workspace
+   * page gone, the window narrowed to a phone's): the draft dropped — said
+   * so when it held changes — and the session's lists deleted.
+   */
+  dropEdit: () => void
+  /**
+   * Asks Save / Discard / Keep editing about the draft (the question already
+   * up: the same answer). Resolves true once the mode is off (saved or
+   * discarded), false for Keep editing.
+   */
+  askLeaveEdit: () => Promise<boolean>
+  /**
+   * A data replace: the mode closes (with a notice when the draft held
+   * changes) and a pending Restore is dropped — nothing deleted: the ids may
+   * name other lists in the new data.
+   */
+  endEditForReplace: () => void
+  /** A list made while editing (`createListAndTab`): deleted with the mode's end unless the draft shows it. */
+  noteEditList: (listDefinitionId: number) => void
 
   /**
    * Opens the active layout (creating an empty "Default" one when none
@@ -214,7 +368,7 @@ export interface WorkspaceState {
   /**
    * Renames a layout (not a structural edit: no undo step). Empty name → `false`.
    * With `hue`, sets its hue in the same write (`null` = none; D19 — the
-   * Edit layout dialog's swatches). With `icon`, sets its icon in the same
+   * Name, icon and hue dialog's swatches). With `icon`, sets its icon in the same
    * write (items 11, 14; `{ kind: 'none' }` = No icon) — absent leaves it.
    */
   rename: (id: number, name: string, hue?: string | null, icon?: IconValue) => Promise<boolean>
@@ -248,6 +402,13 @@ export interface WorkspaceState {
   /** Moves a whole cell (by id) with all its tabs. */
   movePanel: (cellId: string, target: LayoutDropTarget) => void
   closeTab: (tabId: string) => void
+  /**
+   * Remove widget (the ⋯, a tab's ×, a strip Number's ×; layout edit mode
+   * E4): removes tab `tabId`, and a cell it leaves with no tabs stays as an
+   * empty cell (`removeTabKeepCell`) — one undo step, `Removed “X”`. Only the
+   * mode's Close cell gives a cell's space away (`closeCell`).
+   */
+  removeWidget: (tabId: string) => void
   /** Closes a cell (by id) with all its tabs: a neighbour takes its space, or it stays empty (`closeCell`). */
   closeCell: (cellId: string) => void
   /** Splits a cell: a new empty cell on `side` of it. Returns the new cell's id. */
@@ -258,6 +419,18 @@ export interface WorkspaceState {
   insertTrackBeside: (cellId: string, side: Side) => string | null
   /** Merges cell `bId` into cell `aId` when they make a rectangle (the tabs join); `false` when they don't. */
   mergeCells: (aId: string, bId: string) => boolean
+  /**
+   * Inserts a full row / column on line `index` of `axis` (`insertTrackAt`,
+   * a ruler's "+" or Insert …; `from`: the track beside the line it takes
+   * half of). Returns the first new cell's id.
+   */
+  insertTrackAt: (axis: GridAxis, index: number, from?: number) => string | null
+  /** Removes track `index` of `axis` (`removeTrack`: its widgets move as `trackRemoval` says); `false` for the last track. */
+  removeTrack: (axis: GridAxis, index: number) => boolean
+  /** Merges track `index` of `axis` into its neighbour `into` (`mergeTrackInto`, a sliver's Merge into). */
+  mergeTrackInto: (axis: GridAxis, index: number, into: number) => boolean
+  /** Even all widths / heights (`evenTracks`): a size change — view state, as a divider's. */
+  evenTracks: (axis: GridAxis) => Promise<void>
   /**
    * View state: batched track resize (by track id, either axis: a weighted
    * track's weight, a fixed one's px), saved at once. `live`: one frame of
@@ -502,6 +675,35 @@ registerModuleSettle(settleLayoutWrites)
 // A data replace writes once they have landed (`replace-hold`).
 registerReplaceSettle(settleLayoutWrites)
 
+/**
+ * After Cancel: what Restore brings back (the session — its undo steps, its
+ * lists — and the draft), and the layout as it was then (Restore needs it
+ * unchanged since).
+ */
+interface RestoreOffer {
+  session: LayoutEditSession
+  draft: LayoutBody
+  saved: LayoutBody
+}
+
+/** The layout edit mode's state outside the store (`editing`). */
+const mode = {
+  /** Its registration as a layout-wide editor (`editor-leave`), while it is on. */
+  unregister: null as (() => void) | null,
+  /** Its leave question, while it is up. */
+  question: null as Promise<boolean> | null,
+  /** The merge key of its newest undo step (the arrow keys stepping a divider: one step). */
+  mergeKey: null as string | null,
+  /** Cancel's Restore offer, while the snackbar holds it. */
+  restore: null as RestoreOffer | null,
+}
+registerModuleReset(() => {
+  mode.unregister = null
+  mode.question = null
+  mode.mergeKey = null
+  mode.restore = null
+})
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   /**
    * Writes layout `layout` (`putAndPrune`) and takes the lists it removed
@@ -544,6 +746,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     }
   }
 
+  /** While the layout edit mode is on, a layout's name, hue, icon and order stay as they are: says so and returns true. */
+  function refusedWhileEditing(): boolean {
+    if (!get().editing) return false
+    useUndoStore.getState().notify('Finish editing the layout first.')
+    return true
+  }
+
   /** Makes `next` the open layout (shown and committed) and writes it (`claim`: see `writeLayout`). */
   function commit(next: Layout, claim?: ListClaim): Promise<WriteResult> {
     set({ working: next, saved: next, layouts: replaceLayout(get().layouts, next) })
@@ -564,6 +773,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    */
   function openFor(run: EditRun, verb: 'undo' | 'redo', description: string): Layout {
     assertNoReplaceHold()
+    // The draft isn't the layout as stored: a layout step would write over it.
+    if (get().editing) throw new UndoRefused(`Finish editing the layout to ${verb}: ${description}.`)
     const { layouts, saved } = get()
     const layout = layouts.find((l) => l.id === run.layoutId)
     if (!layout) throw new UndoGone(`Can’t ${verb}: ${description} — its layout is gone.`)
@@ -684,6 +895,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       void editView(() => viewed)
       return true
     }
+    const session = get().editing
+    if (session) {
+      // The layout edit mode: the draft changes, a step of its own undo.
+      set({ working: next, editing: withEditStep(session, working, opts.mergeKey), resizePreview: null })
+      return true
+    }
     const description = typeof describe === 'function' ? describe(working, next) : describe
     const committed: Layout = { ...next, modifiedAt: new Date() }
     commitEdit(saved, committed, description, opts)
@@ -729,6 +946,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const { working, saved, layouts, repairedIds } = get()
     // The layout in memory is the replaced one (the reload opens the new data next).
     if (!working || replaceHoldActive()) return
+    if (get().editing) {
+      // The layout edit mode: the draft only — Done writes it.
+      const next = fn(working)
+      if (next !== working) set({ working: next })
+      return
+    }
     const nextWorking = fn(working)
     const nextSaved = saved ? fn(saved) : saved
     if (nextWorking === working && nextSaved === saved) return
@@ -754,6 +977,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const { layout, fixes } = read
     // What is on screen from here on is a stored row: no step waits on a failed write any more.
     listClaims.clear()
+    // Another layout (or the replaced data's): the mode, still on, closes.
+    endSession()
     set({
       layouts, repairedIds, activeLayoutId: layout.id, working: layout, saved: layout,
       writeFailed: false, hydrated: true, resizePreview: null,
@@ -855,6 +1080,109 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     }
   }
 
+  // ── The layout edit mode ──
+
+  /** `session` with the draft `before` an edit as its newest undo step — or, under its newest step's merge key, merged into that step. */
+  function withEditStep(session: LayoutEditSession, before: Layout, mergeKey: string | undefined): LayoutEditSession {
+    if (mergeKey !== undefined && mergeKey === mode.mergeKey && session.undo.length > 0) return { ...session, redo: [], moveArmed: false }
+    mode.mergeKey = mergeKey ?? null
+    return { ...session, undo: [...session.undo, layoutBodyOf(before)].slice(-EDIT_UNDO_MAX), redo: [], moveArmed: false }
+  }
+
+  /** The mode's selected cell let go once an edit took it away (a removed track's cell that joined another). */
+  function keepEditSelection(): void {
+    const { editing, working } = get()
+    if (editing?.selectedCellId != null && !working?.cells.some((c) => c.id === editing.selectedCellId)) {
+      set({ editing: { ...editing, selectedCellId: null } })
+    }
+  }
+
+  /** Turns the mode on: `session` with `draft` as the working copy, registered as a layout-wide editor. */
+  function beginSession(session: LayoutEditSession, draft: Layout): void {
+    mode.unregister?.()
+    mode.mergeKey = null
+    set({ editing: session, working: draft, resizePreview: null })
+    mode.unregister = registerOpenEditor({
+      layoutWide: true,
+      changed: () => layoutEditChanged(get()),
+      ask: () => get().askLeaveEdit(),
+      leave: () => get().leaveEdit(),
+    })
+  }
+
+  /** Turns the mode off (the working copy as it is: the caller sets it). */
+  function endSession(): void {
+    mode.unregister?.()
+    mode.unregister = null
+    mode.mergeKey = null
+    if (get().editing) set({ editing: null })
+  }
+
+  /** Closes what covers or edits the workspace before the mode opens: every editor, the widget popup, the filtered-tasks panel, the snackbar. */
+  function clearForEdit(): void {
+    closeOpenEditors()
+    useUIStore.getState().closeWidgetPopup()
+    useUIStore.getState().closeFilterPanel()
+    useUndoStore.getState().dismissSnackbar()
+  }
+
+  /**
+   * Before the mode opens: an open editor holding changes asks, then the
+   * open layout's writes land (a failed one retried). Resolves whether it
+   * may open.
+   */
+  async function readyToEdit(): Promise<boolean> {
+    if (editorsHoldChanges() && !(await leaveOpenEditors())) return false
+    await settleLayoutWrites()
+    if (!get().writeFailed || await get().retryWrite()) return true
+    const name = get().saved?.name ?? 'the layout'
+    useUndoStore.getState().notify(`Couldn't save layout "${name}". Retry before editing it.`)
+    return false
+  }
+
+  /** Deletes the lists Cancel's offer would have brought back (it is gone, not taken). */
+  function dropRestore(offer: RestoreOffer): void {
+    if (mode.restore === offer) mode.restore = null
+    if (mode.restore == null && get().discardedLists.length > 0) set({ discardedLists: [] })
+    const { saved } = get()
+    const bodies = saved?.id === offer.session.layoutId ? [offer.saved, saved] : [offer.saved]
+    void pruneListsAmong(offer.session.layoutId, offer.session.createdLists, ...bodies)
+  }
+
+  /** Restore (Cancel's snackbar): the mode open again on the draft and its undo steps — while the layout is still open and as it was. */
+  async function restoreEdit(offer: RestoreOffer): Promise<void> {
+    if (mode.restore !== offer) return
+    mode.restore = null
+    set({ discardedLists: [] })
+    const unchanged = () => {
+      const { saved, editing } = get()
+      return editing == null && saved?.id === offer.session.layoutId && layoutStructureEqual(saved, offer.saved) && !replaceHoldActive()
+    }
+    if (!unchanged()) {
+      useUndoStore.getState().notify('Couldn’t restore the layout changes: the layout changed since.')
+      dropRestore(offer)
+      return
+    }
+    if (!(await readyToEdit()) || !unchanged()) {
+      dropRestore(offer)
+      return
+    }
+    const saved = get().saved
+    if (!saved) return
+    clearForEdit()
+    beginSession(offer.session, withLayoutBody(saved, offer.draft))
+  }
+
+  /** Writes the draft's view state (Done with no structural change): as `editView` writes it, onto the stored row. */
+  async function writeDraftView(draft: Layout): Promise<void> {
+    const { layouts, repairedIds } = get()
+    set({ working: draft, saved: draft, layouts: replaceLayout(layouts, draft) })
+    if (repairedIds.has(draft.id)) return
+    await layoutRepository.updateView(draft.id, (row) => withViewStateOf(row, draft)).catch((err: unknown) => {
+      console.warn('[workspace] saving the view state failed', err)
+    })
+  }
+
   return {
     layouts: [],
     activeLayoutId: null,
@@ -865,6 +1193,199 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     repairedIds: new Set(),
     hydrated: false,
     resizePreview: null,
+    editing: null,
+    discardedLists: [],
+
+    async enterEdit(opts) {
+      const cellId = opts?.cellId ?? null
+      if (get().editing) {
+        if (cellId != null) get().selectEditCell(cellId)
+        return true
+      }
+      if (!get().saved || refusedByReplaceHold()) return false
+      if (!(await readyToEdit())) return false
+      const { saved, working } = get()
+      if (!saved || !working || get().editing || refusedByReplaceHold()) return get().editing != null
+      clearForEdit()
+      const selected = cellId != null && working.cells.some((c) => c.id === cellId) ? cellId : null
+      beginSession({ layoutId: saved.id, selectedCellId: selected, undo: [], redo: [], createdLists: [] }, working)
+      return true
+    },
+
+    selectEditCell(cellId, opts) {
+      const { editing, working } = get()
+      const arm = opts?.arm === true && cellId != null
+      if (!editing || (editing.selectedCellId === cellId && (editing.moveArmed ?? false) === arm)) return
+      if (cellId != null && !working?.cells.some((c) => c.id === cellId)) return
+      set({ editing: { ...editing, selectedCellId: cellId, moveArmed: arm } })
+    },
+
+    disarmEditMove() {
+      const { editing } = get()
+      if (editing?.moveArmed) set({ editing: { ...editing, moveArmed: false } })
+    },
+
+    tapEdit(target) {
+      const { editing } = get()
+      const outcome = tapOutcome({ selectedCellId: editing?.selectedCellId ?? null, moveArmed: editing?.moveArmed ?? false }, target)
+      if (!editing) return outcome
+      switch (outcome.kind) {
+        case 'select': get().selectEditCell(outcome.cellId, { arm: true }); break
+        case 'disarm': get().disarmEditMove(); break
+        case 'menu': get().selectEditCell(outcome.cellId); break
+        case 'move':
+          if (!get().moveEditCard(outcome.from, { kind: 'cell', cellId: outcome.to })) get().disarmEditMove()
+          break
+        case 'join':
+          if (!get().moveEditCard(outcome.from, { kind: 'cell', cellId: outcome.into })) get().disarmEditMove()
+          break
+      }
+      return outcome
+    },
+
+    moveEditCard(cellId, target) {
+      const first = get().working?.cells.find((c) => c.id === cellId)?.tabs[0]
+      if (!first) return false
+      const changed = edit((layout, genId) => movePanel(layout, cellId, target, genId), 'Moved cell')
+      const after = get().working
+      const holder = changed && after ? findTab(after, first.id)?.cellId : undefined
+      if (holder != null) get().selectEditCell(holder)
+      return changed
+    },
+
+    setCellArea(cellId, area) {
+      const changed = edit((layout, genId) => setCellArea(layout, cellId, area, genId), 'Stretched cell')
+      keepEditSelection()
+      return changed
+    },
+
+    stretchCell(cellId, direction) {
+      const working = get().working
+      const area = working ? stretchedArea(working, cellId, direction) : null
+      return area != null && get().setCellArea(cellId, area)
+    },
+
+    swapCells(aId, bId) {
+      return edit((layout) => swapCells(layout, aId, bId), 'Swapped cells')
+    },
+
+    undoEdit() {
+      const { editing, working } = get()
+      const before = editing?.undo.at(-1)
+      if (!editing || !working || !before) return
+      mode.mergeKey = null
+      const next = withViewStateOf(withLayoutBody(working, before), working)
+      const selectedCellId = next.cells.some((c) => c.id === editing.selectedCellId) ? editing.selectedCellId : null
+      set({
+        working: next,
+        editing: { ...editing, selectedCellId, moveArmed: false, undo: editing.undo.slice(0, -1), redo: [...editing.redo, layoutBodyOf(working)] },
+        resizePreview: null,
+      })
+    },
+
+    redoEdit() {
+      const { editing, working } = get()
+      const after = editing?.redo.at(-1)
+      if (!editing || !working || !after) return
+      mode.mergeKey = null
+      const next = withViewStateOf(withLayoutBody(working, after), working)
+      const selectedCellId = next.cells.some((c) => c.id === editing.selectedCellId) ? editing.selectedCellId : null
+      set({
+        working: next,
+        editing: { ...editing, selectedCellId, moveArmed: false, undo: [...editing.undo, layoutBodyOf(working)], redo: editing.redo.slice(0, -1) },
+        resizePreview: null,
+      })
+    },
+
+    async finishEdit() {
+      const { editing: session, working } = get()
+      if (!session || !working) return session == null
+      if (refusedByReplaceHold()) return false
+      endSession()
+      // The lists it made that the draft doesn't show go first: the commit's
+      // write would take them into its undo step, which would bring back
+      // lists no layout ever showed.
+      await pruneListsAmong(session.layoutId, session.createdLists, working)
+      const { working: draft, saved } = get()
+      if (!draft || !saved || saved.id !== session.layoutId || refusedByReplaceHold()) return true
+      if (!layoutStructureEqual(draft, saved)) {
+        commitEdit(saved, { ...draft, modifiedAt: new Date() }, `Edited layout “${saved.name}”`, {})
+      } else if (!layoutBodyEqual(draft, saved)) {
+        await writeDraftView(draft)
+      }
+      return true
+    },
+
+    cancelEdit() {
+      const { editing: session, working, saved } = get()
+      if (!session || !working || !saved) return
+      const changed = layoutEditChanged(get())
+      endSession()
+      set({ working: saved, resizePreview: null })
+      if (!changed) {
+        void pruneListsAmong(session.layoutId, session.createdLists, saved)
+        return
+      }
+      const offer: RestoreOffer = { session, draft: layoutBodyOf(working), saved: layoutBodyOf(saved) }
+      mode.restore = offer
+      set({ discardedLists: session.createdLists })
+      useUndoStore.getState().notify('Layout changes discarded', {
+        action: { label: 'Restore', run: () => { void restoreEdit(offer) } },
+        onEnd: () => dropRestore(offer),
+      })
+    },
+
+    discardEdit() {
+      const { editing: session, saved } = get()
+      if (!session || !saved) return
+      endSession()
+      set({ working: saved, resizePreview: null })
+      void pruneListsAmong(session.layoutId, session.createdLists, saved)
+    },
+
+    leaveEdit() {
+      get().discardEdit()
+    },
+
+    dropEdit() {
+      if (!get().editing) return
+      if (layoutEditChanged(get())) useUndoStore.getState().notify('Edit layout closed: its changes weren’t saved.')
+      get().discardEdit()
+    },
+
+    askLeaveEdit() {
+      if (!get().editing) return Promise.resolve(true)
+      const name = get().saved?.name ?? 'the layout'
+      mode.question ??= useUIStore.getState().askChoice({
+        title: `Save changes to layout “${name}”?`,
+        message: 'Your changes will be lost if you don’t save.',
+        confirmLabel: 'Save',
+        discardLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+      }).then(async (answer): Promise<boolean> => {
+        if (answer === 'confirm') return get().finishEdit()
+        if (answer === 'discard') get().discardEdit()
+        return get().editing == null
+      }).finally(() => { mode.question = null })
+      return mode.question
+    },
+
+    endEditForReplace() {
+      // Its lists' ids may name other lists in the new data: nothing is deleted.
+      mode.restore = null
+      if (get().discardedLists.length > 0) set({ discardedLists: [] })
+      if (!get().editing) return
+      const changed = layoutEditChanged(get())
+      endSession()
+      set({ working: get().saved, resizePreview: null })
+      if (changed) useUndoStore.getState().notify('Edit layout closed: its changes weren’t saved.')
+    },
+
+    noteEditList(listDefinitionId) {
+      const { editing } = get()
+      if (!editing || editing.createdLists.includes(listDefinitionId)) return
+      set({ editing: { ...editing, createdLists: [...editing.createdLists, listDefinitionId] } })
+    },
 
     init() {
       if (get().hydrated) return openActive()
@@ -876,15 +1397,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     async load(id) {
       if (refusedByReplaceHold()) return
-      // An open editor holding changes (Edit list, a widget editor) asks first (`editor-leave`).
-      if (id !== get().activeLayoutId && editorsHoldChanges() && !(await leaveOpenEditors())) return
+      if (id !== get().activeLayoutId) {
+        // An open editor holding changes (Edit list, a widget editor, the
+        // layout edit mode) asks first (`editor-leave`); the mode with none closes.
+        if (layoutLeaveAsks() && !(await leaveLayout())) return
+        quitLayoutEditors()
+      }
       if (id === get().activeLayoutId || await readyToLeave()) await openLayout(id)
     },
 
     async createLayout(name) {
       const clean = cleanName(name)
       if (!clean || refusedByReplaceHold()) return null
-      if (editorsHoldChanges() && !(await leaveOpenEditors())) return null
+      if (layoutLeaveAsks() && !(await leaveLayout())) return null
+      quitLayoutEditors()
       if (!(await readyToLeave())) return null
       const now = new Date()
       const record = { name: clean, ...emptyLayoutBody(), createdAt: now, modifiedAt: now, lastUsedAt: now }
@@ -908,7 +1434,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     async retryWrite() {
       const { saved, writeFailed } = get()
       if (!saved || !writeFailed) return true
-      if (refusedByReplaceHold()) return false
+      // The layout edit mode: `working` is a draft; Done writes the layout.
+      if (refusedByReplaceHold() || get().editing) return false
       return (await commit(saved)).ok
     },
 
@@ -916,7 +1443,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const clean = cleanName(name)
       const openId = get().saved?.id
       if (!clean || openId == null || refusedByReplaceHold()) return null
-      if (editorsHoldChanges() && !(await leaveOpenEditors())) return null
+      if (layoutLeaveAsks() && !(await leaveLayout())) return null
+      quitLayoutEditors()
       if (!(await readyToLeave())) return null
       // The lists it shows are copied for the new layout; the originals stay
       // with the layout they came from.
@@ -955,7 +1483,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     async rename(id, name, hue, icon) {
       const clean = cleanName(name)
-      if (!clean || refusedByReplaceHold()) return false
+      if (!clean || refusedByReplaceHold() || refusedWhileEditing()) return false
       const renamed = <L extends WorkspaceLayout>(layout: L): L => {
         const next = { ...layout, name: clean, ...(icon ? { icon } : {}) }
         return hue === undefined ? next : setLayoutHue(next, hue)
@@ -982,7 +1510,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     async delete(id) {
       if (refusedByReplaceHold()) return false
-      if (id === get().activeLayoutId && editorsHoldChanges() && !(await leaveOpenEditors())) return false
+      if (id === get().activeLayoutId || get().editing) {
+        if (layoutLeaveAsks() && !(await leaveLayout())) return false
+        quitLayoutEditors()
+      }
       const name = get().layouts.find((l) => l.id === id)?.name ?? 'the layout'
       // Its lists go with it.
       let removed: OwnedListsRemoved | null
@@ -1014,7 +1545,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async reorderLayouts(orderedIds, description = 'Reordered layouts') {
-      if (refusedByReplaceHold()) return false
+      if (refusedByReplaceHold() || refusedWhileEditing()) return false
       const before = get().layouts.map((l) => l.id)
       if (!(await applyOrder(orderedIds))) return false
       const after = get().layouts.map((l) => l.id)
@@ -1022,6 +1553,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       // Undo / redo throw on a failed write: the entry stays, to try again.
       const apply = (ids: readonly number[]) => async () => {
         assertNoReplaceHold()
+        if (get().editing) throw new UndoRefused(`Finish editing the layout first: ${description}.`)
         if (!(await applyOrder(ids, false))) throw new Error('the layout order was not saved')
       }
       undoable(description, apply(after), apply(before), true)
@@ -1062,6 +1594,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       edit((layout) => closeTab(layout, tabId), (before) => `Removed “${tabName(before, tabId)}”`)
     },
 
+    removeWidget(tabId) {
+      edit((layout) => removeTabKeepCell(layout, tabId), (before) => `Removed “${tabName(before, tabId)}”`)
+    },
+
     closeCell(cellId) {
       edit((layout) => closeCell(layout, cellId), (before) => closeCellDescription(before, cellId))
     },
@@ -1098,6 +1634,32 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     mergeCells(aId, bId) {
       return edit((layout) => mergeCells(layout, aId, bId), 'Merged cells')
+    },
+
+    insertTrackAt(axis, index, from) {
+      let newCellId: string | null = null
+      edit((layout, genId) => {
+        const result = insertTrackAt(layout, axis, index, genId, from)
+        newCellId = result.cellId
+        return result.layout
+      }, axis === 'rows' ? 'Inserted row' : 'Inserted column')
+      return newCellId
+    },
+
+    removeTrack(axis, index) {
+      const changed = edit((layout, genId) => removeTrack(layout, axis, index, genId), axis === 'rows' ? 'Removed row' : 'Removed column')
+      keepEditSelection()
+      return changed
+    },
+
+    mergeTrackInto(axis, index, into) {
+      const changed = edit((layout, genId) => mergeTrackInto(layout, axis, index, into, genId), axis === 'rows' ? 'Merged rows' : 'Merged columns')
+      keepEditSelection()
+      return changed
+    },
+
+    evenTracks(axis) {
+      return resize((layout) => evenTracks(layout, axis), () => [axis])
     },
 
     setTrackSizes(sizeById, opts) {

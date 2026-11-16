@@ -507,9 +507,14 @@ export function wsTab(page: Page, tabId: string): Locator {
   return page.locator(`[data-ws-tab="${tabId}"]`)
 }
 
-/** A cell's grip (alone in its cell, a widget's top line holds it; `data-ws-panel-handle` as the strip's handle). */
-export function wsGrip(page: Page, cellId: string): Locator {
-  return wsCell(page, cellId).getByTestId('ws-cell-grip')
+/**
+ * A card's surface in the layout edit mode (E3, `data-edit-surface`): under
+ * the card's dimmed content, so a press anywhere on the card (its middle —
+ * `pointIn`) drags the whole card, a click selects it, and it takes the
+ * keys. Drawn only in the mode.
+ */
+export function wsCard(page: Page, cellId: string): Locator {
+  return page.locator(`[data-edit-surface="${cellId}"]`)
 }
 
 /** A layout's tab in the top bar, by its exact name. */
@@ -579,7 +584,7 @@ export async function expectLayoutStep(page: Page, name?: string | RegExp): Prom
 }
 
 /**
- * A divider moved part of a line: a structural edit saved at once — the
+ * A divider's Alt-drag moved part of a line: a structural edit saved at once — the
  * newest undo step (`Moved divider`), with no snackbar (the table shows the
  * move), then stored. A drag that did nothing leaves no such step.
  */
@@ -621,7 +626,7 @@ export async function watchSnackbar(page: Page): Promise<() => Promise<string[]>
 }
 
 /**
- * Picks an action for the open layout (Duplicate layout…, Edit…,
+ * Picks an action for the open layout (Duplicate layout…, Name, icon and hue…,
  * Delete layout…): from its tab's menu, or the picker's when the tabs are
  * folded.
  */
@@ -711,26 +716,33 @@ export async function drag(
   await releaseDrag(page)
 }
 
-/** A panel's header handle: the empty space between its tabs and its buttons. */
+/**
+ * A multi-tab card's header room: the empty space between its tabs and its
+ * end, which in the layout edit mode passes a press to the card's surface
+ * (so a drag from there moves the card; a click selects it). It takes no
+ * pointer events itself: press it by its point (`pointIn`), not `.click()`.
+ */
 export function wsPanelHandle(page: Page, panelId: string): Locator {
-  return page.locator(`[data-ws-panel-handle="${panelId}"]`)
+  return page.locator(`[data-ws-cell-header="${panelId}"] [data-strip-room]`)
 }
 
-/** Picks Split cell ▸ `item` (a side) in the open cell layout menu (`openCellLayoutMenu`). */
+/** Picks Split ▸ `item` (a side) in the open card menu (`openCellLayoutMenu`). */
 export async function pickSplit(page: Page, item: 'Above' | 'Left' | 'Right' | 'Below'): Promise<void> {
-  await pickCellMenu(page, 'Split cell', item)
+  await pickCellMenu(page, 'Split', item)
 }
 
-/** Picks `parent` ▸ `item` in the open cell layout menu (Split cell, Merge with, Insert row, Insert column). */
-export async function pickCellMenu(page: Page, parent: 'Split cell' | 'Merge with' | 'Insert row' | 'Insert column', item: string): Promise<void> {
+/** Picks `parent` ▸ `item` in the open card menu (Split, Merge with, Move to, Swap with). */
+export async function pickCellMenu(page: Page, parent: 'Split' | 'Merge with' | 'Move to' | 'Swap with', item: string): Promise<void> {
   await page.getByRole('menuitem', { name: parent, exact: true }).click()
   await page.getByRole('menuitem', { name: item, exact: true }).click()
 }
 
 /**
  * Opens cell `cellId`'s ⋯ menu, `Cell options` (over the cell first: a
- * one-widget cell shows its ⋯ on hover): the widget's entries and Remove
- * widget. The layout's entries are the grip's (`openCellLayoutMenu`).
+ * one-widget cell shows its ⋯ on hover): outside the layout edit mode the
+ * widget's entries, Add widget as tab ›, Remove widget, Collapse row and
+ * Edit layout. In the mode a card's ⋯ opens its own menu
+ * (`openCellLayoutMenu`).
  */
 export async function openCellMenu(page: Page, cellId: string): Promise<void> {
   await wsCell(page, cellId).hover()
@@ -738,15 +750,61 @@ export async function openCellMenu(page: Page, cellId: string): Promise<void> {
 }
 
 /**
- * Opens cell `cellId`'s layout menu, `Cell layout` (UX cleanup 4A: a click
- * on its grip — a one-widget cell's in its top line, a strip's in its
- * header), under Layout: Add widget…, Split cell ▸, Insert row ▸, Insert
- * column ▸, Merge with ▸, Collapse / Expand row, Close cell.
+ * Opens card `cellId`'s menu in the layout edit mode, `Cell layout` (E3: the
+ * card's ⋯, at its top-right): Move to ▸, Swap with ▸, Split ▸, Merge with
+ * ▸, Stretch right / down, Remove widget, Close cell. Open the mode first
+ * (`enterLayoutEdit`); rows and columns are the rulers' ("+", their menus).
  */
 export async function openCellLayoutMenu(page: Page, cellId: string): Promise<Locator> {
   await wsCell(page, cellId).hover()
   await wsCell(page, cellId).getByRole('button', { name: 'Cell layout' }).click()
   return page.getByRole('menu', { name: 'Cell layout' })
+}
+
+/**
+ * The ⋯'s **Add widget as tab ›** `label` on cell `cellId` (layout edit mode
+ * E4): the new widget a tab of that cell, made its active one; a Breakdown
+ * from `preset` (default Custom). No editor opens.
+ */
+export async function addWidgetAsTab(page: Page, cellId: string, label: string, preset = 'Custom'): Promise<void> {
+  await openCellMenu(page, cellId)
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Add widget as tab' }).click()
+  await page.getByRole('menu', { name: 'Add widget as tab' }).getByRole('menuitem', { name: label, exact: true }).click()
+  if (label === 'Breakdown') await page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem', { name: preset, exact: true }).click()
+}
+
+/**
+ * A layout-wide edit made in the layout edit mode (the cards, their menus,
+ * the rulers live only there): opens the mode, runs `edit` on the draft,
+ * then Done — stored as one undo step, `Edited layout “X”`.
+ */
+export async function editLayout(page: Page, edit: () => Promise<void>): Promise<void> {
+  await enterLayoutEdit(page)
+  await edit()
+  await finishLayoutEdit(page)
+}
+
+/** The layout edit mode's bar (layout edit mode E1). */
+export function layoutEditBar(page: Page): Locator {
+  return page.locator('[data-layout-edit-bar]')
+}
+
+/**
+ * Opens the layout edit mode (E1) from the pencil after the layout tabs and
+ * waits for its bar. Everything layout-wide — the cards and their menus,
+ * whole-cell and cross-cell drags, the drop ghost, the rulers, the tray —
+ * is drawn only there, and acts on the draft until `finishLayoutEdit`.
+ */
+export async function enterLayoutEdit(page: Page): Promise<void> {
+  await page.getByTestId('layout-edit').click()
+  await expect(layoutEditBar(page)).toBeVisible()
+}
+
+/** Done in the layout edit mode: the draft stored as one undo step (`Edited layout “X”`); waits for the bar to go and the write to land. */
+export async function finishLayoutEdit(page: Page): Promise<void> {
+  await layoutEditBar(page).getByRole('button', { name: 'Done', exact: true }).click()
+  await expect(layoutEditBar(page)).toHaveCount(0)
+  await expectLayoutStored(page)
 }
 
 /** The drop ghost while a tab or cell is dragged (D26 board T). */
@@ -807,8 +865,9 @@ export async function openChangeWidget(page: Page): Promise<Locator> {
 }
 
 /**
- * Drags a whole panel by its header's empty space (grabbed at its centre)
- * to `to`, checking `lifted` / `during` (if given) before releasing.
+ * Drags a whole card in the layout edit mode (E3) to `to` — grabbed at its
+ * header's room when it has a tab strip, else at its middle (its surface) —,
+ * checking `lifted` / `during` (if given) before releasing.
  */
 export async function dragPanel(
   page: Page,
@@ -816,17 +875,21 @@ export async function dragPanel(
   to: Point,
   checks: { lifted?: () => Promise<void>; during?: () => Promise<void> } = {},
 ): Promise<void> {
-  await drag(page, await pointIn(wsPanelHandle(page, panelId)), to, checks)
+  const room = wsPanelHandle(page, panelId)
+  const from = (await room.count()) > 0 ? await pointIn(room) : await pointIn(wsCard(page, panelId))
+  await drag(page, from, to, checks)
 }
 
 /**
  * Drags a tab (grabbed at its centre) to (x, y), checking `during` (if
  * given) before releasing. A widget alone in its cell has no tab (its top
- * line stands for it): its cell's grip drags it.
+ * line stands for it): its card drags it — in the layout edit mode only
+ * (E3: grabbed on its surface, at the card's middle); outside it a tab
+ * reorders only inside its own strip.
  */
 export async function dragTab(page: Page, tab: Locator, to: Point, during?: () => Promise<void>): Promise<void> {
   const grip = (await tab.getAttribute('data-widget-top-line')) != null
-    ? tab.locator('xpath=ancestor::*[@data-ws-cell][1]').getByTestId('ws-cell-grip')
+    ? tab.locator('xpath=ancestor::*[@data-ws-cell][1]').locator('[data-edit-surface]')
     : null
   await drag(page, await pointIn(grip ?? tab), to, { during })
 }

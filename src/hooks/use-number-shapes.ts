@@ -25,6 +25,7 @@ import { useEffectiveListDefinition } from './use-list-draft'
 import { useActiveScreenFilter } from '../stores/screen-filter'
 import { useTabBadges, type TabBadge } from './use-tab-badges'
 import { useTrendEvents } from './use-trend-events'
+import { useHeldLists } from './use-held-lists'
 
 /**
  * A Number's shapes' data (D26 P6, board Y), over the count's parts
@@ -138,10 +139,12 @@ export function useNumberGroup(base: StatsBase, config: Pick<NumberConfig, 'item
 
 // ── Follow a list ───────────────────────────────────────────────────────────
 
-/** The open layout's first list (Follow a list starts on it in the editor); none without one. */
+/** The open layout's first list (Follow a list starts on it in the editor); none without one. A list held for deletion (`useHeldLists`) isn't one. */
 export function useLayoutFirstListId(): number | undefined {
   const layoutId = useWorkspaceStore((s) => s.working?.id)
-  return useListDefinitionStore((s) => listedLists([...s.listDefinitions].sort(bySortOrder), layoutId)[0]?.id)
+  const defs = useListDefinitionStore((s) => s.listDefinitions)
+  const held = useHeldLists()
+  return useMemo(() => listedLists([...defs].sort(bySortOrder), layoutId).find((d) => !held.has(d.id))?.id, [defs, layoutId, held])
 }
 
 interface NumberListData {

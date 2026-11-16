@@ -34,7 +34,7 @@ export interface StripState {
   header: number
   /** The header's Open larger button: shown, hidden by the header's width, or not offered by the active widget. */
   openLarger: 'shown' | 'hidden' | 'absent'
-  /** The left edge of the header's buttons (grip, Open larger, Collapse row, ⋯), or of Expand row. */
+  /** The left edge of the header's buttons (Open larger, Collapse row, ⋯), or of Expand row. */
   actionsLeft: number
 }
 
@@ -48,7 +48,8 @@ export async function stripState(page: Page, cellId: string): Promise<StripState
     const read = (): StripState => {
       const cell = document.querySelector(`[data-ws-cell="${id}"]`)
       const strip = cell?.querySelector('[role="tablist"]')
-      const handle = cell?.querySelector<HTMLElement>('[data-ws-panel-handle]')
+      // The header's empty space: the panel handle in the layout edit mode, only room outside it (E4).
+      const handle = cell?.querySelector<HTMLElement>('[data-ws-cell-header] > [data-strip-room]')
       const header = cell?.querySelector<HTMLElement>('[data-ws-cell-header]')
       if (!cell || !strip || !handle || !header) throw new Error(`cell ${id} has no tab strip`)
       const tabs = Array.from(cell.querySelectorAll<HTMLElement>('[data-ws-tab]'))

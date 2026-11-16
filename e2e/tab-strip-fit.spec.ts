@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { releaseDrag, seedWorkspace, wsCell, wsTab, type WsTabSeed, wsRow } from './fixtures/workspace'
+import { releaseDrag, seedWorkspace, wsCell, wsTab, type WsTabSeed, wsRow, enterLayoutEdit } from './fixtures/workspace'
 import { pointIn } from './fixtures/geometry'
 import { DESKTOP_MIN_WIDTH, expectFits, findStripWidths, shrinks, stripAt, stripState, widestWidthWhere } from './fixtures/tab-strip'
 
@@ -239,7 +239,8 @@ async function seedFolded(page: Page) {
 
 test('with tabs folded into +N, a tab dropped before the active tab pulled forward lands right before it', async ({ page }) => {
   await seedFolded(page)
-  // From the other cell: just before c2 (layout index 4), past the folded ones.
+  // From the other cell — the layout edit mode's (E4): just before c2 (layout index 4), past the folded ones.
+  await enterLayoutEdit(page)
   await dropOn(page, 'n2', 'c2', 0.2)
   await expect.poll(() => k1Tabs(page)).toEqual(['n1', 'c1', 'd1', 'e1', 'n2', 'c2'])
 })

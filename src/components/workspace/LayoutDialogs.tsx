@@ -15,9 +15,9 @@ interface LayoutNameDialogProps {
   initialName: string
   /** The empty field's hint (New layout, which starts empty). */
   placeholder?: string
-  /** Edit layout: the layout's hue (a preset's name or a hex colour), offered as a swatch row + a colour input under the name (`null` = none). Absent = no swatches. */
+  /** Name, icon and hue: the layout's hue (a preset's name or a hex colour), offered as a swatch row + a colour input under the name (`null` = none). Absent = no swatches. */
   initialHue?: string | null
-  /** Edit layout (with `initialHue`): the layout's icon as stored (absent: never picked — the layout glyph, J1). */
+  /** Name, icon and hue (with `initialHue`): the layout's icon as stored (absent: never picked — the layout glyph, J1). */
   initialIcon?: IconValue
   /** `hue` only when the dialog offers the swatches; `icon` only when one was picked in it (absent: unchanged). */
   onConfirm: (name: string, hue?: string | null, icon?: IconValue) => void
@@ -25,7 +25,7 @@ interface LayoutNameDialogProps {
 }
 
 /**
- * "New layout…" / "Duplicate layout…" / "Edit…": one name field, prefilled
+ * "New layout…" / "Duplicate layout…" / "Name, icon and hue…": one name field, prefilled
  * and selected; empty can't be confirmed. Edit… adds the Icon row (items
  * 11, 14: the one icon picker, the layout glyph marked while none is
  * picked) and the hue swatches (D19), in the icons board's order — Name,

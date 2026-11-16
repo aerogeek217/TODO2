@@ -1,6 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { AddWidgetRequestHost } from '../../../components/workspace/AddWidgetFlow'
+import { cleanup } from '@testing-library/react'
 import { addWidgetAt, addWidgetFromPalette } from '../../../components/workspace/widget-hooks'
 import { createTab, WIDGET_KIND_SPECS, WIDGET_KINDS, type LayoutBody, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
@@ -10,9 +9,10 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { cell, emptyBody, grid } from '../../helpers/layout-builders'
 
 /**
- * The palette's Add Widget › kind (J18): the existing Where picker on the
- * cell last used, the kind chosen; in an empty layout, the widget added as
- * the empty layout's tiles add it.
+ * The palette's Add Widget › kind (J18; layout edit mode E4): the widget
+ * added as a tab of the cell last used, made its active tab — no Where
+ * step; in an empty layout, the widget added as the empty layout's tiles
+ * add it.
  */
 
 function open(body: LayoutBody) {
@@ -22,6 +22,11 @@ function open(body: LayoutBody) {
 
 const two = () => grid([[cell('left', [createTab('notes', 'n1')]), cell('right', [createTab('notes', 'n2')])]])
 const ws = () => useWorkspaceStore.getState().working!
+const kinds = (cellId: string) => ws().cells.find((c) => c.id === cellId)?.tabs.map((t) => t.kind)
+const activeKind = (cellId: string) => {
+  const c = ws().cells.find((x) => x.id === cellId)
+  return c?.tabs.find((t) => t.id === c.activeTabId)?.kind
+}
 
 afterEach(() => {
   cleanup()
@@ -29,7 +34,7 @@ afterEach(() => {
 })
 
 describe('addWidgetFromPalette', () => {
-  it('asks for the Where picker of the cell holding the focus, the kind chosen', () => {
+  it('adds the kind as a tab of the cell holding the focus, made its active tab — the cells stay as they were', () => {
     open(two())
     const right = document.createElement('section')
     right.setAttribute('data-ws-cell', 'right')
@@ -38,25 +43,58 @@ describe('addWidgetFromPalette', () => {
     document.body.append(right)
     inside.focus()
     addWidgetFromPalette('calendar')
-    expect(useUIStore.getState().addWidgetRequest).toMatchObject({ cellId: 'right', kind: 'calendar' })
+    expect(ws().cells.map((c) => c.id)).toEqual(['left', 'right'])
+    expect(kinds('right')).toEqual(['notes', 'calendar'])
+    expect(activeKind('right')).toBe('calendar')
+    expect(kinds('left')).toEqual(['notes'])
   })
 
   it('without a focused cell: the layout’s first cell in reading order', () => {
     open(two())
     addWidgetFromPalette('notes')
-    expect(useUIStore.getState().addWidgetRequest).toMatchObject({ cellId: 'left', kind: 'notes' })
+    expect(kinds('left')).toEqual(['notes', 'notes'])
+  })
+
+  it('a Breakdown is a Custom one; no editor opens', () => {
+    open(two())
+    addWidgetFromPalette('breakdown')
+    expect(activeKind('left')).toBe('breakdown')
+    expect(useChartWidgetsStore.getState().editorTabId).toBeNull()
   })
 
   it('in an empty layout: added at once as the tiles add it (a Breakdown a Custom one; no editor opens)', () => {
     open(emptyBody())
     addWidgetFromPalette('notes')
-    expect(useUIStore.getState().addWidgetRequest).toBeNull()
     expect(ws().cells.flatMap((c) => c.tabs.map((t) => t.kind))).toEqual(['notes'])
     open(emptyBody())
     addWidgetFromPalette('breakdown')
     const added = ws().cells[0]?.tabs[0]
     expect(added?.kind).toBe('breakdown')
     expect(useChartWidgetsStore.getState().editorTabId).toBeNull()
+  })
+
+  it('an open editor with changes is asked first: Keep editing adds nothing, Save or Discard adds it', async () => {
+    open(two())
+    let answer = false
+    let changed = true
+    const ask = vi.fn(() => { if (answer) changed = false; return Promise.resolve(answer) })
+    const unregister = registerOpenEditor({ changed: () => changed, ask })
+    addWidgetFromPalette('notes')
+    await vi.waitFor(() => expect(ask).toHaveBeenCalledTimes(1))
+    expect(ws().cells.flatMap((c) => c.tabs)).toHaveLength(2)
+    answer = true
+    addWidgetFromPalette('notes')
+    await vi.waitFor(() => expect(ws().cells.flatMap((c) => c.tabs)).toHaveLength(3))
+    unregister()
+  })
+
+  it('in the layout edit mode: added to the draft — nothing written until Done', async () => {
+    open(two())
+    expect(await useWorkspaceStore.getState().enterEdit()).toBe(true)
+    addWidgetFromPalette('calendar')
+    expect(kinds('left')).toEqual(['notes', 'calendar'])
+    expect(useWorkspaceStore.getState().saved?.cells.find((c) => c.id === 'left')?.tabs).toHaveLength(1)
+    expect(useWorkspaceStore.getState().editing?.undo).toHaveLength(1)
   })
 })
 
@@ -67,68 +105,5 @@ describe('addWidgetAt: no editor opens on add (decision 8)', () => {
     expect(ws().cells.flatMap((c) => c.tabs).find((t) => t.id === id)?.kind).toBe(kind)
     expect(useUIStore.getState()).toMatchObject({ numberEditorTabId: null, listEditor: null })
     expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, pulseEditorTabId: null })
-  })
-})
-
-describe('AddWidgetRequestHost', () => {
-  it('the Where picker, then Add <kind>: it goes where the picture says', () => {
-    open(two())
-    render(<AddWidgetRequestHost />)
-    act(() => useUIStore.getState().requestAddWidget({ cellId: 'left', kind: 'notes', anchor: { x: 10, y: 10 } }))
-    const menu = screen.getByRole('menu', { name: 'Add widget' })
-    expect(within(menu).getByRole('group', { name: 'Where' })).toBeInTheDocument()
-    // No kinds to pick from: only the chosen one.
-    expect(within(menu).queryByRole('menuitem', { name: /Calendar/ })).toBeNull()
-    fireEvent.click(within(menu).getByRole('menuitemradio', { name: /Split · right/ }))
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Add Notes' }))
-    expect(ws().cells).toHaveLength(3)
-    expect(useUIStore.getState().addWidgetRequest).toBeNull()
-    expect(screen.queryByRole('menu', { name: 'Add widget' })).toBeNull()
-  })
-
-  it('a Breakdown offers its presets', () => {
-    open(two())
-    render(<AddWidgetRequestHost />)
-    act(() => useUIStore.getState().requestAddWidget({ cellId: 'left', kind: 'breakdown', anchor: { x: 10, y: 10 } }))
-    const menu = screen.getByRole('menu', { name: 'Add widget' })
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent?.trim())).toEqual(['People', 'Tags', 'Status', 'Custom'])
-  })
-
-  it('an open editor with changes is asked before the widget is added: Keep editing adds nothing, Save or Discard adds it (answer 17)', async () => {
-    open(two())
-    render(<AddWidgetRequestHost />)
-    let answer = false
-    let changed = true
-    const ask = vi.fn(() => { if (answer) changed = false; return Promise.resolve(answer) })
-    const unregister = registerOpenEditor({ changed: () => changed, ask })
-    const add = async (item: string) => {
-      act(() => useUIStore.getState().requestAddWidget({ cellId: 'left', kind: item === 'Add Notes' ? 'notes' : 'breakdown', anchor: { x: 10, y: 10 } }))
-      await act(async () => { fireEvent.click(within(screen.getByRole('menu', { name: 'Add widget' })).getByRole('menuitem', { name: item })) })
-    }
-    // Keep editing: nothing is added, the editor stays as it was.
-    await add('Add Notes')
-    expect(ask).toHaveBeenCalledTimes(1)
-    expect(ws().cells.flatMap((c) => c.tabs)).toHaveLength(2)
-    // A Breakdown's preset asks the same way.
-    await add('People')
-    expect(ask).toHaveBeenCalledTimes(2)
-    expect(ws().cells.flatMap((c) => c.tabs)).toHaveLength(2)
-    // Save or Discard: the widget is added once the editor was left.
-    answer = true
-    await add('Add Notes')
-    expect(ask).toHaveBeenCalledTimes(3)
-    await vi.waitFor(() => expect(ws().cells.flatMap((c) => c.tabs).map((t) => t.kind)).toEqual(['notes', 'notes', 'notes']))
-    // No editor holding changes: added at once, nothing asked.
-    await add('People')
-    expect(ask).toHaveBeenCalledTimes(3)
-    expect(ws().cells.flatMap((c) => c.tabs)).toHaveLength(4)
-    unregister()
-  })
-
-  it('nothing for a cell no longer in the open layout', () => {
-    open(two())
-    render(<AddWidgetRequestHost />)
-    act(() => useUIStore.getState().requestAddWidget({ cellId: 'gone', kind: 'notes', anchor: { x: 10, y: 10 } }))
-    expect(screen.queryByRole('menu', { name: 'Add widget' })).toBeNull()
   })
 })

@@ -353,7 +353,7 @@ export function lineCrossings(body: LayoutBody): LineCrossing[] {
   return out
 }
 
-/** Line `line` of `axis` as one stretch, from the layout's one edge to the other (what a crossing handle moves). */
+/** Line `line` of `axis` as one stretch, from the layout's one edge to the other (what a divider's plain drag moves). */
 export function wholeLine(body: LayoutBody, axis: GridAxis, line: number): EdgeStretch {
   return { axis, line, from: 0, to: body.grid[crossAxis(axis)].length }
 }

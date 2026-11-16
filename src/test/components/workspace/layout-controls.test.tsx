@@ -90,7 +90,7 @@ describe('LayoutControls — tabs', () => {
     render(<LayoutControls mode="tabs" />)
     fireEvent.contextMenu(tab('Second'))
     const menu = screen.getByRole('menu', { name: 'Layout Second' })
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Edit…', 'Move left', 'Move right', 'Delete layout…'])
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Name, icon and hue…', 'Move left', 'Move right', 'Delete layout…'])
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Move right' }))
     await waitFor(() => expect(tabNames()).toEqual(['Main', 'Third', 'Second']))
     expect(ws().layouts.map((l) => l.id).at(-1)).toBe(b)
@@ -103,8 +103,8 @@ describe('LayoutControls — tabs', () => {
     const menu = screen.getByRole('menu', { name: 'Layout Main' })
     expect(within(menu).getByRole('menuitem', { name: 'Move left' })).toBeDisabled()
     expect(within(menu).getByRole('menuitem', { name: 'Move right' })).toBeEnabled()
-    // The open layout's own action leads: Duplicate layout… (no Save / Discard).
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Duplicate layout…', 'Edit…', 'Move left', 'Move right', 'Delete layout…'])
+    // The open layout's own actions lead: Edit layout… (the layout edit mode), Duplicate layout… (no Save / Discard).
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Edit layout…', 'Duplicate layout…', 'Name, icon and hue…', 'Move left', 'Move right', 'Delete layout…'])
   })
 
   it('Duplicate layout… asks a name (the layout’s, “copy”) and opens the copy', async () => {
@@ -163,7 +163,7 @@ describe('LayoutControls — folded into the picker', () => {
     const menu = screen.getByRole('menu', { name: 'Layouts' })
     expect(within(menu).getAllByRole('menuitemradio').map((i) => i.textContent)).toEqual(['Second', 'Main'])
     expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
-      'New layout…', 'Duplicate layout…', 'Edit…', 'Delete layout…',
+      'New layout…', 'Edit layout…', 'Duplicate layout…', 'Name, icon and hue…', 'Delete layout…',
     ])
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'New layout…' }))
     expect(screen.getByRole('dialog', { name: 'New layout' })).toBeInTheDocument()

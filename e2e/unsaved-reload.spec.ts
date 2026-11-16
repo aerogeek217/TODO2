@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { ADD_FILTER, closeListFilterEditor, openCellLayoutMenu, openListFilterEditor, openSettings, seedTaskList, seedWorkspace, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, openSettings, seedTaskList, seedWorkspace, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow, expectLayoutStep, expectLayoutStored, openCellMenu } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -56,11 +56,11 @@ test('a layout change is saved at once: closing the tab asks nothing, a reload k
   await page.reload()
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
 
-  // Undo lasts until a reload: made again, then undone.
-  await openCellLayoutMenu(page, 'b1')
-  await page.getByRole('menuitem', { name: /^Close cell/ }).click()
-  await expectLayoutStep(page, 'Closed cell “Calendar”')
-  await expect.poll(() => wsShape(page)).toEqual([[['notesTab']]])
+  // Undo lasts until a reload: made again (Remove widget leaves the cell, empty — E4), then undone.
+  await openCellMenu(page, 'b1')
+  await page.getByRole('menuitem', { name: 'Remove widget' }).click()
+  await expectLayoutStep(page, 'Removed “Calendar”')
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [[]]])
   await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
   await expectLayoutStored(page)

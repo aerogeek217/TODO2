@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { ownerLayoutId } from '../../models/list-definition'
-import { breakdownPreset } from '../../models/chart-widgets'
+import { breakdownPreset, type BreakdownPreset } from '../../models/chart-widgets'
 import { getActiveTab, kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
 import { zoomTargetTab } from '../../services/list-zoom'
 import { showTab } from '../../services/workspace-tabs'
@@ -129,6 +129,8 @@ registerModuleReset(() => { creatingList = null })
 export function createListAndTab(show: (listDefinitionId: number) => unknown, layoutId: number): Promise<void> {
   if (creatingList) return creatingList
   const run = useListDefinitionStore.getState().add({ name: freshListName('New list', layoutId), owner: { layoutId } }).then((id) => {
+    // Made in the layout edit mode: deleted with its end unless its draft shows it.
+    useWorkspaceStore.getState().noteEditList(id)
     show(id)
   })
   creatingList = run.finally(() => { creatingList = null })
@@ -170,6 +172,19 @@ export function addKindAt(kind: WidgetKind, target: LayoutDropTarget, add: typeo
 }
 
 /**
+ * A new widget of `kind` at `target` from the layout edit mode (E3: the
+ * tray's chips, dragged or clicked; a slot's kinds): a List with a new
+ * blank list of the open layout, a Breakdown a Custom one. No editor opens.
+ */
+export function addWidgetKindAt(kind: WidgetKind, target: LayoutDropTarget): void {
+  if (kind === 'breakdown') {
+    addWidgetAt('breakdown', target, undefined, { breakdown: breakdownPreset('custom') })
+    return
+  }
+  addKindAt(kind, target, addWidgetAt, useWorkspaceStore.getState().saved?.id)
+}
+
+/**
  * The cell an Add widget from the palette goes to: the one holding the
  * focus as the command runs (the palette gives it back first — what had it
  * when the palette opened), else the list tab's the zoom and review
@@ -186,14 +201,30 @@ function paletteTargetCell(layout: LayoutBody, focused: Element | null): string 
   return readingOrder(layout).at(0)?.id ?? null
 }
 
-/** How far below a cell's top the palette's Where picker opens: the cell's top line (name, tabs) stays in view. */
-const CELL_TOP_LINE_PX = 32
+/**
+ * Add widget as tab › `kind` (layout edit mode E4: the ⋯, an empty cell's
+ * picker, the palette's Add Widget ›): a new widget of `kind` as a tab of
+ * cell `cellId`, made its active one — a List with a new blank list of the
+ * open layout (`createListAndTab`), a Breakdown from `preset` (default
+ * Custom). An open editor holding changes is asked first (Save / Discard /
+ * Keep editing): the new tab takes the cell's place on screen.
+ */
+export function addTabToCell(cellId: string, kind: WidgetKind, preset?: BreakdownPreset): void {
+  afterLeavingEditors(() => {
+    const target: LayoutDropTarget = { kind: 'cell', cellId }
+    if (kind === 'breakdown') {
+      addWidgetAt('breakdown', target, undefined, { breakdown: breakdownPreset(preset ?? 'custom') })
+      return
+    }
+    addKindAt(kind, target, addWidgetAt, useWorkspaceStore.getState().saved?.id)
+  })
+}
 
 /**
- * The palette's Add Widget › `kind` (J18): the Where picker of the cell last
- * used, the kind chosen (`ui-store.requestAddWidget`, drawn by
- * `AddWidgetRequestHost` under the cell's top line); in an empty layout the
- * widget is added as its tiles add it (a Breakdown a Custom one).
+ * The palette's Add Widget › `kind` (J18; layout edit mode E4): the widget
+ * added as a tab of the cell last used (`paletteTargetCell`), with no Where
+ * step (`addTabToCell`; a Breakdown a Custom one); in an empty layout it is
+ * added as its tiles add it.
  */
 export function addWidgetFromPalette(kind: WidgetKind): void {
   const { working, saved } = useWorkspaceStore.getState()
@@ -204,9 +235,7 @@ export function addWidgetFromPalette(kind: WidgetKind): void {
     else addKindAt(kind, { kind: 'layout' }, addWidgetAt, saved?.id)
     return
   }
-  const rect = document.querySelector(`[data-ws-cell="${CSS.escape(cellId)}"]`)?.getBoundingClientRect()
-  const anchor = rect ? { x: rect.left + 8, y: rect.top + CELL_TOP_LINE_PX } : { x: 16, y: 64 }
-  useUIStore.getState().requestAddWidget({ cellId, kind, anchor })
+  addTabToCell(cellId, kind)
 }
 
 /** `useAddWidget`'s add, outside a component (the palette's Add Widget ›). */

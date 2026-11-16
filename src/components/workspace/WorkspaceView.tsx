@@ -1,6 +1,6 @@
-import { memo, useMemo, type CSSProperties } from 'react'
+import { memo, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { getActiveTab, type LayoutCell, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { cellAtTrack, cellById, edgeBetween, edgeStretches, lineCrossings, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
+import { edgeBetween, edgeStretches, isWholeLine, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
 import { previewedLayout } from '../../utils/workspace-preview'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
 import { isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
@@ -8,7 +8,6 @@ import { isFitTrack } from '../../utils/workspace-rows'
 import { pairPercent } from '../../utils/workspace-resize'
 import { WorkspaceCell } from './WorkspaceCell'
 import { WorkspaceDivider, type DividerValue } from './WorkspaceDivider'
-import { WorkspaceCrossing } from './WorkspaceCrossing'
 import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
@@ -16,6 +15,13 @@ import { useWorkspaceDrag } from './workspace-drag'
 import { useExpandOrphanRows } from './use-expand-orphan-rows'
 import { useTabTitles } from './widget-hooks'
 import { AmbienceBackdrop, AmbienceLamp } from '../ambience/AmbienceWorkspace'
+// Layout edit mode E2: the rulers, drawn into the table while the mode is on.
+import { LayoutRulers } from './LayoutRulers'
+import { useDrawnTracks } from './use-drawn-tracks'
+// Layout edit mode E3: the cards' ruler names and the corner's stretch preview.
+import { LayoutEditViewContext, type LayoutEditView, type StretchPreview } from './layout-edit-view'
+import { stretchLabel } from './edit-card-actions'
+import { trackNames } from '../../utils/layout-rulers'
 import styles from './WorkspaceView.module.css'
 
 function EmptyLayout() {
@@ -103,14 +109,6 @@ interface DividerItem {
   afterId: string
 }
 
-/** A crossing handle to draw: its lines, its React key and its corner cell. */
-interface CrossingItem {
-  col: number
-  row: number
-  key: string
-  cornerId: string
-}
-
 /**
  * The dividers to draw (one per stretch, keyed by its axis and first cells).
  * While a divider drag previews a structural move (`handle`), the dragged
@@ -126,7 +124,7 @@ function dividerItems(layout: WorkspaceLayout, handle: ResizeHandle | null): Div
     const b = after[0]
     if (a && b) items.push({ stretch, key: `${stretch.axis}:${a.id}|${b.id}`, beforeId: a.id, afterId: b.id })
   }
-  if (handle?.kind !== 'divider') return items
+  if (!handle) return items
   const edge = edgeBetween(layout, handle.beforeId, handle.afterId)
   if (!edge || edge.axis !== handle.axis) return items
   const dragged = { key: `${handle.axis}:${handle.beforeId}|${handle.afterId}`, beforeId: handle.beforeId, afterId: handle.afterId }
@@ -137,32 +135,10 @@ function dividerItems(layout: WorkspaceLayout, handle: ResizeHandle | null): Div
 }
 
 /**
- * The crossing handles to draw (one per "+" — none on a row line beside a
- * collapsed track —, keyed by the cells above-left and below-right). While
- * a crossing drag previews a structural move (`handle`), the dragged
- * crossing keeps its key and sits at its corner cell's bottom-right, a "+"
- * there or not, so it is never remounted under the pointer.
+ * One divider per stretch of grid line between cells (`edgeStretches`),
+ * labelled with the cells beside it. (Layout edit mode E4: no crossing
+ * handles — a divider's plain drag moves its whole line, Alt-drag its piece.)
  */
-function crossingItems(layout: WorkspaceLayout, handle: ResizeHandle | null): CrossingItem[] {
-  const items: CrossingItem[] = []
-  for (const { col, row } of lineCrossings(layout)) {
-    if (!rowLineMoves(layout, row)) continue
-    const corner = cellAtTrack(layout, col - 1, row - 1)
-    const across = cellAtTrack(layout, col, row)
-    if (corner && across) items.push({ col, row, key: `${corner.id}|${across.id}`, cornerId: corner.id })
-  }
-  if (handle?.kind !== 'crossing') return items
-  const corner = cellById(layout, handle.cornerId)
-  if (!corner) return items
-  const col = corner.area.col + corner.area.colSpan
-  const row = corner.area.row + corner.area.rowSpan
-  const dragged = { col, row, key: handle.key, cornerId: handle.cornerId }
-  const at = items.findIndex((x) => x.col === col && x.row === row)
-  const others = items.map((x, i) => (i === at ? dragged : x)).filter((x, i) => i === at || x.key !== handle.key)
-  return at >= 0 ? others : [...others, dragged]
-}
-
-/** One divider per stretch of grid line between cells (`edgeStretches`), labelled with the cells beside it, and a crossing handle at each "+". */
 function Dividers({ layout, handle }: { layout: WorkspaceLayout; handle: ResizeHandle | null }) {
   const active = useMemo(() => layout.cells.map((c) => getActiveTab(c)).filter((t): t is LayoutTab => t != null), [layout.cells])
   const titles = useTabTitles(active)
@@ -184,10 +160,9 @@ function Dividers({ layout, handle }: { layout: WorkspaceLayout; handle: ResizeH
           value={dividerValue(layout, stretch)}
           style={dividerPlacement(stretch)}
           fitTrackIds={fitTracksBeside(layout, stretch)}
+          // E4: a plain drag moves the whole line; Alt-drag breaks a piece that is part of one off.
+          partOfLine={!isWholeLine(layout, stretch)}
         />
-      ))}
-      {crossingItems(layout, handle).map(({ col, row, key, cornerId }) => (
-        <WorkspaceCrossing key={key} col={col} row={row} cornerId={cornerId} testId={key} />
       ))}
     </>
   )
@@ -216,6 +191,9 @@ const TableCell = memo(function TableCell({ cell, rowTracks, collapsed, fitRow, 
   return <WorkspaceCell cell={cell} rowTrackIds={rowTrackIds} collapsed={collapsed} fitRow={fitRow} style={style} />
 })
 
+/** No table to measure (outside the layout edit mode). */
+const UNMEASURED_TABLE = { current: null }
+
 /**
  * The layout's table as one CSS grid (D26): each track sized by
  * `workspace-table.trackTemplate` (weights as `fr` never under the cells'
@@ -228,11 +206,23 @@ const TableCell = memo(function TableCell({ cell, rowTracks, collapsed, fitRow, 
  */
 function Table({ layout: working }: { layout: WorkspaceLayout }) {
   const preview = useWorkspaceStore((s) => s.resizePreview)
+  const editing = useWorkspaceStore((s) => s.editing != null)
   const live = preview != null && preview.layoutId === working.id ? preview : null
   const layout = useMemo(() => (live ? previewedLayout(working, live.body) : working), [working, live])
   const { rows } = layout.grid
+  const tableRef = useRef<HTMLDivElement | null>(null)
+  // Measured only in the mode (the cards' and slots' ruler names).
+  const drawn = useDrawnTracks(editing ? tableRef : UNMEASURED_TABLE, layout)
+  const [stretch, setStretch] = useState<StretchPreview | null>(null)
+  const editView = useMemo<LayoutEditView | null>(() => (editing ? {
+    names: { columns: trackNames(layout, 'columns', drawn.columns), rows: trackNames(layout, 'rows', drawn.rows) },
+    setStretch,
+  } : null), [editing, layout, drawn])
+  const stretched = editing && stretch ? layout.cells.find((c) => c.id === stretch.cellId) : undefined
   return (
+    <LayoutEditViewContext.Provider value={editView}>
     <div
+      ref={tableRef}
       className={styles.table}
       style={{
         gridTemplateColumns: trackTemplate(layout, 'columns', WORKSPACE_GUTTER_PX),
@@ -241,6 +231,8 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
       data-ws-table
       data-ws-row-tracks={rows.map((t) => t.id).join(' ')}
     >
+      {/* Layout edit mode E2: the rulers and "+"s (first, so they come first in the Tab order). */}
+      <LayoutRulers layout={layout} />
       {layout.cells.map((cell) => {
         const { col, row, colSpan, rowSpan } = cell.area
         const tracks = rows.slice(row, row + rowSpan)
@@ -256,7 +248,18 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
         )
       })}
       <Dividers layout={layout} handle={live && layout !== working ? live.handle : null} />
+      {stretched && stretch && editView && (
+        <div
+          className={styles.stretchGhost}
+          style={{ gridArea: `${stretch.area.row + 1} / ${stretch.area.col + 1} / span ${stretch.area.rowSpan} / span ${stretch.area.colSpan}` }}
+          data-testid="ws-stretch-ghost"
+          aria-hidden="true"
+        >
+          <span className={styles.stretchLabel}>{stretchLabel(stretch.area, editView.names)}</span>
+        </div>
+      )}
     </div>
+    </LayoutEditViewContext.Provider>
   )
 }
 
@@ -308,14 +311,19 @@ function Grain() {
 /**
  * The open layout, filling the page: its table of cells, or the empty-layout
  * tiles. A collapsed row it arrives with that nothing can expand, expands
- * (`useExpandOrphanRows`).
+ * (`useExpandOrphanRows`). In the layout edit mode (`data-layout-editing`)
+ * the workspace is tinted under a faint dot grid with an accent outline, and
+ * each cell is a card (E3, `EditCard`): its content dims and takes no
+ * presses — the card's surface under it does, and its tabs; nothing moves.
  */
 export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
   useExpandOrphanRows(layout)
+  const editing = useWorkspaceStore((s) => s.editing != null)
   return (
     <div
       className={styles.area}
       data-ws-area
+      data-layout-editing={editing ? '' : undefined}
       data-layout-hue={hueAttr(layout.hue)}
       style={{ '--layout-hue': hueColor(layout.hue) } as CSSProperties}
     >

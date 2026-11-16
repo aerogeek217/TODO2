@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openCellLayoutMenu, openCellMenu, pickSplit, pickWidgetKind, seedWorkspace, wsCell, wsRow, wsTab } from './fixtures/workspace'
+import { addWidgetAsTab, openCellMenu, pickWidgetKind, seedWorkspace, wsCell, wsRow, wsTab } from './fixtures/workspace'
 
 /**
  * Adding a List widget (the ⋯'s Add widget…, an empty cell's / layout's List) and
@@ -22,15 +22,13 @@ const noEditor = async (page: Page) => {
 
 const editListDialog = (page: Page, name: string) => page.getByRole('dialog', { name: `Edit list ${name}` })
 
-test('Add widget… (as a tab) › List: the tab appears showing every open task, no editor; Edit list… opens from its menu', async ({ page }) => {
+test('Add widget as tab › List: the tab appears showing every open task, no editor; Edit list… opens from its menu', async ({ page }) => {
   await seedWorkspace(page, {
     tasks: [{ title: 'Open one' }, { title: 'Open two' }, { title: 'Done one', isCompleted: true }],
     listDefinitions: [{ name: 'Existing' }],
     layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
   })
-  await openCellLayoutMenu(page, 'cell')
-  await page.getByRole('menuitem', { name: 'Add widget…' }).click()
-  await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
+  await addWidgetAsTab(page, 'cell', 'List')
 
   await expect(wsCell(page, 'cell').getByRole('tab', { name: 'New list' })).toHaveAttribute('aria-selected', 'true')
   await noPicker(page)
@@ -64,11 +62,11 @@ test('Change widget › List: the tab shows a new list, no editor', async ({ pag
 
 test('an empty cell’s List: a new list in the cell, no editor', async ({ page }) => {
   await seedWorkspace(page, {
-    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] }), wsRow({ id: 'other', tabs: [{ id: 'calTab', kind: 'calendar' }] })] }] }],
   })
-  // Split, then the new empty cell's List button.
-  await openCellLayoutMenu(page, 'cell')
-  await pickSplit(page, 'Right')
+  // Remove widget on a lone widget leaves its cell, empty (E4); then the empty cell's List button.
+  await openCellMenu(page, 'cell')
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Remove widget' }).click()
   const empty = page.locator('[data-ws-cell][data-empty]')
   await empty.getByRole('button', { name: 'List', exact: true }).click()
   await expect(page.getByTestId('top-line-name').filter({ hasText: 'New list' })).toBeVisible()

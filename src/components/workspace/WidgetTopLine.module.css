@@ -39,7 +39,7 @@
 }
 
 /* The controls slot: an Expand button while collapsed (always shown), then
- * the grip and ⋯ — shown while the pointer is over the cell, while focus is
+ * Open larger and the ⋯ — shown while the pointer is over the cell, while focus is
  * in it (`data-cell-hot`, which the cell's element keeps by its own `:hover`
  * and `:focus-within` — `cell-hot.ts` says why it isn't those pseudo-classes
  * here) and while a menu of the cell is open, always on touch. Opacity only,
@@ -131,33 +131,3 @@
   color: var(--color-text-primary);
 }
 
-/* The grip (a button: a click opens the cell's layout menu, a drag moves the cell). */
-.grip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: grab;
-  touch-action: none;
-}
-
-.grip:hover {
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
-}
-
-.grip.pressed {
-  background: var(--color-tint-12);
-  color: var(--color-text-primary);
-}
-
-.grip:active {
-  cursor: grabbing;
-  color: var(--color-accent-text);
-}

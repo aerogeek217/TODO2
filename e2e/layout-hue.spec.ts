@@ -3,7 +3,7 @@ import { rowTitles } from './fixtures/seed'
 import { layoutTab, openLayoutTabMenu, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 
 /**
- * D19 · a hue per layout: picked with the name in the Edit layout dialog's
+ * D19 · a hue per layout: picked with the name in the Name, icon and hue dialog's
  * swatches and saved at once (the layout stays saved). The layout's
  * `--layout-hue` and the focus ring inside it take the hue, and it
  * survives a reload.
@@ -39,8 +39,8 @@ test('a hued layout keeps its hue across a reload; the focus ring inside it read
 
   // The hue, with the name, in Edit….
   const menu = await openLayoutTabMenu(page, 'Main')
-  await menu.getByRole('menuitem', { name: 'Edit…' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit layout' })
+  await menu.getByRole('menuitem', { name: 'Name, icon and hue…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Name, icon and hue' })
   await expect(dialog.getByRole('radio', { name: 'None (the accent)' })).toBeChecked()
   await dialog.getByRole('radio', { name: 'Violet' }).check()
   await dialog.getByRole('button', { name: 'Apply' }).click()
@@ -61,8 +61,8 @@ test('a hued layout keeps its hue across a reload; the focus ring inside it read
 
   // A custom colour, typed into the colour input: picked as it is, in place of the preset.
   const edit = await openLayoutTabMenu(page, 'Main')
-  await edit.getByRole('menuitem', { name: 'Edit…' }).click()
-  const custom = page.getByRole('dialog', { name: 'Edit layout' })
+  await edit.getByRole('menuitem', { name: 'Name, icon and hue…' }).click()
+  const custom = page.getByRole('dialog', { name: 'Name, icon and hue' })
   await expect(custom.getByRole('radio', { name: 'Violet' })).toBeChecked()
   await custom.locator('[data-hue-custom] input[type="text"]').fill('#ff6600')
   await expect(custom.getByRole('radio', { name: 'Violet' })).not.toBeChecked()
@@ -75,10 +75,10 @@ test('a hued layout keeps its hue across a reload; the focus ring inside it read
 
   // None again: back to the accent.
   const again = await openLayoutTabMenu(page, 'Main')
-  await again.getByRole('menuitem', { name: 'Edit…' }).click()
-  await expect(page.getByRole('dialog', { name: 'Edit layout' }).locator('[data-hue-custom] input[type="text"]')).toHaveValue('#ff6600')
-  await page.getByRole('dialog', { name: 'Edit layout' }).getByRole('radio', { name: 'None (the accent)' }).check()
-  await page.getByRole('dialog', { name: 'Edit layout' }).getByRole('button', { name: 'Apply' }).click()
+  await again.getByRole('menuitem', { name: 'Name, icon and hue…' }).click()
+  await expect(page.getByRole('dialog', { name: 'Name, icon and hue' }).locator('[data-hue-custom] input[type="text"]')).toHaveValue('#ff6600')
+  await page.getByRole('dialog', { name: 'Name, icon and hue' }).getByRole('radio', { name: 'None (the accent)' }).check()
+  await page.getByRole('dialog', { name: 'Name, icon and hue' }).getByRole('button', { name: 'Apply' }).click()
   await expect(area(page)).toHaveAttribute('data-layout-hue', 'none')
 })
 

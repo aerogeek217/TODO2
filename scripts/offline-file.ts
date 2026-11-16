@@ -185,6 +185,13 @@ const ABSOLUTE_URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`<>()\\]*/gi
 const RELATIVE_URL = /(?<![\w:/\\])\/\/(?:[a-z0-9-]+(?:\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])[^\s"'`<>()\\]*/gi
 /** A data: URL's base64 payload: random letters, where `//` and API names turn up by chance. */
 const BASE64_PAYLOAD = /(;base64,)[A-Za-z0-9+/=]+/g
+/** A CSP hash source's base64 digest (the script's own `'sha256-…'`): random letters too, a `//` in it no URL. */
+const HASH_SOURCE = /('sha(?:256|384|512)-)[A-Za-z0-9+/=]+/g
+
+/** `html` without the random base64 the URL and API scans would misread: data: payloads, CSP hash digests. */
+function withoutBase64(html: string): string {
+  return html.replace(BASE64_PAYLOAD, '$1').replace(HASH_SOURCE, '$1')
+}
 
 /** Elements the file's markup must not hold: each loads or sends something. */
 const LOADING_ELEMENTS = /<(base|iframe|frame|object|embed|img|picture|source|audio|video|track|form|a|area|portal)\b[^>]*>/gi
@@ -226,7 +233,7 @@ export function checkOfflineFile(html: string): string[] {
   for (const m of markup.matchAll(LOADING_ELEMENTS)) problems.push(`has a <${m[1]}> element: ${clip(m[0])}`)
   if (/http-equiv\s*=\s*["']?refresh/i.test(markup)) problems.push('has a <meta http-equiv="refresh">')
 
-  const text = html.replace(BASE64_PAYLOAD, '$1')
+  const text = withoutBase64(html)
   for (const api of NETWORK_APIS) {
     for (const m of text.matchAll(api.pattern)) {
       if (!insideInert(text, m.index, m[0].length)) problems.push(`uses ${api.name}: …${around(text, m.index)}…`)
@@ -247,7 +254,7 @@ export function checkOfflineFile(html: string): string[] {
 
 /** The allowlist entries `html` no longer holds (so their reasons no longer apply): a dependency dropped the text. */
 export function unusedInertTexts(html: string): string[] {
-  const text = html.replace(BASE64_PAYLOAD, '$1')
+  const text = withoutBase64(html)
   return [
     ...[...INERT_URLS, ...INERT_API_TEXTS].filter((t) => !text.includes(t.text)).map((t) => t.text),
     ...INERT_SCHEMES.filter((s) => !text.includes(`${s.text}://`)).map((s) => `${s.text}:`),

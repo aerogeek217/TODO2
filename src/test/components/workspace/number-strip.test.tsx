@@ -70,17 +70,26 @@ describe('a Numbers strip', () => {
     expect(within(menu).getByRole('menuitem', { name: /Edit number/ })).toBeInTheDocument()
   })
 
-  it('a Number’s ⋯ has no Add number beside (the strip’s + and the grip’s Add widget… add one)', () => {
+  it('a Number’s ⋯ has no Add number beside (the strip’s + adds one)', () => {
     show(cell('k', [createTab('number', 'a')]))
     fireEvent.click(screen.getByRole('button', { name: 'Cell options' }))
     expect(within(screen.getByRole('menu')).queryByRole('menuitem', { name: /Add number beside/ })).toBeNull()
   })
 
-  it('the strip’s grip sits in its right-hand gutter, beside the +, not over a Number', () => {
+  it('no card ⋯ outside the layout edit mode; the + stays', () => {
     show(cell('k', [createTab('number', 'a'), createTab('number', 'b')]))
-    const grip = screen.getByRole('button', { name: 'Cell layout' })
-    expect(grip.closest('[data-number-slot]')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Add number' }).closest('[data-number-slot]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Cell layout' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Add number' })).toBeInTheDocument()
+  })
+
+  it('in the mode the strip is a card: one card ⋯ (not a Number’s), its surface, its Numbers still draggable slots; no grip', () => {
+    useWorkspaceStore.setState({ editing: { layoutId: 1, selectedCellId: null, undo: [], redo: [], createdLists: [] } })
+    show(cell('k', [createTab('number', 'a'), createTab('number', 'b')]))
+    const more = screen.getByRole('button', { name: 'Cell layout' })
+    expect(more.closest('[data-number-slot]')).toBeNull()
+    expect(document.querySelector('[data-edit-surface="k"]')).not.toBeNull()
+    expect(slots()).toHaveLength(2)
+    expect(screen.queryByTestId('ws-cell-grip')).toBeNull()
   })
 
   it('a strip’s Number’s ⋯ Remove widget closes that Number alone', () => {

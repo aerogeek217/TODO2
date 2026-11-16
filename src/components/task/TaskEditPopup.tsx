@@ -685,7 +685,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           isDraft={isDraft}
           menuEntries={menuEntries}
           meta={isEdit && todo
-            ? <>Created {formatDate(todo.createdAt)} · Modified {formatRelativeTime(todo.modifiedAt)}</>
+            ? <>Created {formatDate(todo.createdAt)} · Modified <span className={styles.headerMetaAge}>{formatRelativeTime(todo.modifiedAt)}</span></>
             : undefined}
         />
 
