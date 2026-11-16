@@ -10,7 +10,7 @@ import {
   seedWorkspace,
   wsCell,
   wsGhost,
-  wsGrip,
+  wsCard,
   wsShape,
   type WsLayoutSeed,
 } from './fixtures/workspace'
@@ -74,7 +74,7 @@ test('a card dragged onto a slot moves there, its old place a slot; onto a card�
   await expect(slots(page)).toHaveCount(1)
   await expect(page.locator('[data-edit-slot="e"]')).toHaveAccessibleName('Empty slot B2')
 
-  await drag(page, await pointIn(wsGrip(page, 'a')), await pointIn(wsCell(page, 'e')), {
+  await drag(page, await pointIn(wsCard(page, 'a')), await pointIn(wsCell(page, 'e')), {
     during: async () => {
       await expect(wsGhost(page)).toBeVisible()
       await expect(ghostLabel(page)).toHaveText('Move here')
@@ -87,7 +87,7 @@ test('a card dragged onto a slot moves there, its old place a slot; onto a card�
   await expect(wsCell(page, 'a')).toHaveAttribute('data-edit-selected', '')
 
   // Onto the Calendar's middle: they join as tabs.
-  await drag(page, await pointIn(wsGrip(page, 'a')), await pointIn(wsCell(page, 'b')), {
+  await drag(page, await pointIn(wsCard(page, 'a')), await pointIn(wsCell(page, 'b')), {
     during: async () => { await expect(ghostLabel(page)).toHaveText('Add as tab') },
   })
   await expect(wsCell(page, 'b').locator('[data-ws-tab="notesTab"]')).toHaveCount(1)
@@ -99,7 +99,7 @@ test('a card dragged onto a slot moves there, its old place a slot; onto a card�
 test('a card dropped near another card’s edge splits it', async ({ page }) => {
   await seedWorkspace(page, { layouts: [grid] })
   await enterLayoutEdit(page)
-  await drag(page, await pointIn(wsGrip(page, 'a')), await pointIn(wsCell(page, 'b'), 0.5, 0.95), {
+  await drag(page, await pointIn(wsCard(page, 'a')), await pointIn(wsCell(page, 'b'), 0.5, 0.95), {
     during: async () => { await expect(ghostLabel(page)).toHaveText('Split Calendar · below') },
   })
   await expect.poll(async () => {
@@ -180,7 +180,7 @@ test('the card menu: Move to ▸ a slot by its ruler name, Swap with ▸ a card 
   await pickCellMenu(page, 'Move to', 'B2')
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('2 / 2 / span 1 / span 1')
   // The focus stays on the card that moved.
-  await expect(wsGrip(page, 'a')).toBeFocused()
+  await expect(wsCard(page, 'a')).toBeFocused()
 
   await openCellLayoutMenu(page, 'b')
   await page.getByRole('menuitem', { name: 'Swap with', exact: true }).click()
@@ -215,24 +215,24 @@ test('tap a card, then a slot: it moves there; Esc cancels a pending move', asyn
   await seedWorkspace(page, { layouts: [grid] })
   await enterLayoutEdit(page)
   const hint = page.getByTestId('layout-edit-move-hint')
-  await wsGrip(page, 'a').click()
+  await wsCard(page, 'a').click()
   await expect(hint).toContainText('Click a slot to move “Notes” there')
   await page.keyboard.press('Escape')
   await expect(hint).toHaveCount(0)
   // The mode stays: Esc took the pending move only.
   await expect(layoutEditBar(page)).toBeVisible()
 
-  await wsGrip(page, 'a').click()
+  await wsCard(page, 'a').click()
   await page.locator('[data-edit-slot="e"]').click()
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('2 / 2 / span 1 / span 1')
   await expect(hint).toHaveCount(0)
-  await expect(wsGrip(page, 'a')).toBeFocused()
+  await expect(wsCard(page, 'a')).toBeFocused()
 })
 
 test('Alt+arrow moves a card onto the slot beside it, or swaps it; Shift+arrow stretches it; the focus stays on it', async ({ page }) => {
   await seedWorkspace(page, { layouts: [grid] })
   await enterLayoutEdit(page)
-  const c = wsGrip(page, 'c')
+  const c = wsCard(page, 'c')
   await c.focus()
   await page.keyboard.press('Alt+ArrowRight')
   await expect.poll(() => placeOf(page, 'trendTab')).toBe('2 / 2 / span 1 / span 1')
@@ -244,10 +244,10 @@ test('Alt+arrow moves a card onto the slot beside it, or swaps it; Shift+arrow s
 
   // The arrows move the selection; Shift+arrow stretches over the slot.
   await page.keyboard.press('ArrowLeft')
-  await expect(wsGrip(page, 'a')).toBeFocused()
+  await expect(wsCard(page, 'a')).toBeFocused()
   await page.keyboard.press('Shift+ArrowDown')
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('1 / 1 / span 2 / span 1')
-  await expect(wsGrip(page, 'a')).toBeFocused()
+  await expect(wsCard(page, 'a')).toBeFocused()
   await page.keyboard.press('Shift+ArrowUp')
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('1 / 1 / span 1 / span 1')
 })
@@ -259,7 +259,7 @@ test('Done stores every change as one step; the global Undo brings it all back',
   await openCellLayoutMenu(page, 'a')
   await pickCellMenu(page, 'Move to', 'B2')
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('2 / 2 / span 1 / span 1')
-  await wsGrip(page, 'c').focus()
+  await wsCard(page, 'c').focus()
   await page.keyboard.press('Shift+ArrowUp')
   await page.keyboard.press('Alt+ArrowUp')
   await expect.poll(() => placeOf(page, 'trendTab')).toBe('1 / 1 / span 1 / span 1')

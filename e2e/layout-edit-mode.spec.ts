@@ -14,8 +14,8 @@ import { readStore } from './fixtures/db'
 /**
  * The layout edit mode (layout edit mode E1) in a real browser: the pencil
  * opens it — its bar in the top bar's place, the focus on Done, the
- * workspace tinted and each cell's content taking no presses; an edit (the
- * stand-in grip menu's Split cell) changes only the draft; Cancel puts the
+ * workspace tinted and each cell's content taking no presses; an edit (a
+ * card menu's Split ▸ Below) changes only the draft; Cancel puts the
  * layout back and offers Restore, which brings the draft back; Done stores
  * it as one undo step, and the global Undo puts the layout back. Leaving
  * the layout with changes asks Save / Discard / Keep editing.
@@ -56,7 +56,7 @@ test('enter, split on the draft, Cancel, Restore, Done, then the global Undo', a
   const body = page.locator('[data-ws-cell-body="Main-a"]')
   await expect(body).toHaveCSS('pointer-events', 'none')
 
-  // The stand-in grip menu acts on the draft: nothing stored, no global step.
+  // A card's menu acts on the draft: nothing stored, no global step.
   await openCellLayoutMenu(page, 'Main-a')
   await pickSplit(page, 'Below')
   await expect.poll(() => cellCount(page)).toBe(3)

@@ -1,12 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, edges, enterLayoutEdit, expectSameEdges, openCellMenu, seedWorkspace, wsCell, wsGhost, wsGrip, wsShape, type WsLayoutSeed, addWidgetAsTab } from './fixtures/workspace'
+import { drag, edges, enterLayoutEdit, expectSameEdges, openCellMenu, seedWorkspace, wsCell, wsGhost, wsCard, wsShape, type WsLayoutSeed, addWidgetAsTab } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
  * Tabs on demand (D26 AA1) in a real browser: a cell with one widget has no
- * tab strip — its widget's top line names it, and the grip and ⋯ show on
- * hover and on keyboard focus —; a second widget brings the tabs, closing it
- * takes them away; the grip drags the whole cell under the drop ghost; a
+ * tab strip — its widget's top line names it, and its ⋯ shows on hover and
+ * on keyboard focus —; a second widget brings the tabs, closing it takes
+ * them away; in the layout edit mode a card drags as a whole under the drop
+ * ghost; a
  * list's name and badge sit on its filter line; a collapsed row shows its
  * cells' top lines; the phone has no tab row for one widget either.
  */
@@ -130,7 +131,7 @@ test('adding a second widget shows the tabs; closing it hides them again', async
   await expect(topLine(notes)).toHaveAttribute('data-ws-tab', 'notesTab')
 })
 
-test('in the layout edit mode, dragging by the grip moves the whole cell, under the drop ghost', async ({ page }) => {
+test('in the layout edit mode, dragging a card moves the whole cell, under the drop ghost', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   await enterLayoutEdit(page)
   await wsCell(page, 'a').hover()
@@ -139,7 +140,7 @@ test('in the layout edit mode, dragging by the grip moves the whole cell, under 
   // b's right zone: Notes goes to the right of the Calendar.
   const to = { x: b.x + b.width - 20, y: b.y + b.height / 2 }
   let ghost = { left: 0, top: 0, right: 0, bottom: 0 }
-  await drag(page, await pointIn(wsGrip(page, 'a')), to, {
+  await drag(page, await pointIn(wsCard(page, 'a')), to, {
     during: async () => {
       await expect(wsGhost(page)).toBeVisible()
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Split Calendar · right')

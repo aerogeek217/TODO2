@@ -511,9 +511,9 @@ export function wsTab(page: Page, tabId: string): Locator {
  * A card's surface in the layout edit mode (E3, `data-edit-surface`): under
  * the card's dimmed content, so a press anywhere on the card (its middle —
  * `pointIn`) drags the whole card, a click selects it, and it takes the
- * keys. Drawn only in the mode (the grips went with E3).
+ * keys. Drawn only in the mode.
  */
-export function wsGrip(page: Page, cellId: string): Locator {
+export function wsCard(page: Page, cellId: string): Locator {
   return page.locator(`[data-edit-surface="${cellId}"]`)
 }
 
@@ -584,7 +584,7 @@ export async function expectLayoutStep(page: Page, name?: string | RegExp): Prom
 }
 
 /**
- * A divider moved part of a line: a structural edit saved at once — the
+ * A divider's Alt-drag moved part of a line: a structural edit saved at once — the
  * newest undo step (`Moved divider`), with no snackbar (the table shows the
  * move), then stored. A drag that did nothing leaves no such step.
  */
@@ -626,7 +626,7 @@ export async function watchSnackbar(page: Page): Promise<() => Promise<string[]>
 }
 
 /**
- * Picks an action for the open layout (Duplicate layout…, Edit…,
+ * Picks an action for the open layout (Duplicate layout…, Name, icon and hue…,
  * Delete layout…): from its tab's menu, or the picker's when the tabs are
  * folded.
  */
@@ -876,7 +876,7 @@ export async function dragPanel(
   checks: { lifted?: () => Promise<void>; during?: () => Promise<void> } = {},
 ): Promise<void> {
   const room = wsPanelHandle(page, panelId)
-  const from = (await room.count()) > 0 ? await pointIn(room) : await pointIn(wsGrip(page, panelId))
+  const from = (await room.count()) > 0 ? await pointIn(room) : await pointIn(wsCard(page, panelId))
   await drag(page, from, to, checks)
 }
 

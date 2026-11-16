@@ -6,9 +6,9 @@ import { expectOpenLayout, layoutTab, reviewField, seedWorkspace, wsCell, wsRow,
  * a step opens in place under a breadcrumb with the focus kept in the
  * field; Backspace in the empty field and Esc go back a step; the focus
  * returns to what opened the palette only when it closes or a leaf runs;
- * and each leaf does its job — Go to Layout ›, Add Widget › (the
- * Where picker on the cell last used), Review With › (a jump to the Review
- * widget), Theme ›.
+ * and each leaf does its job — Go to Layout ›, Add Widget › (a tab of the
+ * cell last used, at once), Review With › (a jump to the Review widget),
+ * Theme ›.
  */
 
 const SEED: WorkspaceSeed = {

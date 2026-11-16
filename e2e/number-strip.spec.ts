@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, wsGrip, type WsLayoutSeed, enterLayoutEdit } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsCard, type WsLayoutSeed, enterLayoutEdit } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
@@ -78,7 +78,7 @@ test('in the layout edit mode a lone Number dragged into the strip joins it ther
   await seedWorkspace(page, seed())
   await enterLayoutEdit(page)
   // A lone Number drags by its card (the whole cell), then between the strip's two slots.
-  const grip = wsGrip(page, 'n')
+  const grip = wsCard(page, 'n')
   await drag(page, await pointIn(grip), await pointIn(slots(page).nth(1), 0.3, 0.5))
   await expect.poll(() => order(page)).toEqual(['num1', 'num3', 'num2'])
 })

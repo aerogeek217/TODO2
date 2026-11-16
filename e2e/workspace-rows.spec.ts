@@ -25,8 +25,8 @@ import { readStore } from './fixtures/db'
  * Cells side by side, in a real browser: the ghost of a drop on a body its
  * widget scrolls, the divider between two cells of a row (view state: kept
  * over a reload; the 120px minimum), collapsing a row (its side-by-side
- * cells with it), the cell menu's Split cell ▸ Right / Below and Insert ▸
- * Column, a glance widget alone in its cell (no strip, D26 AA1: its ⋯ on
+ * cells with it), a card menu's Split ▸ Right / Below and a column ruler's
+ * Insert column (in the layout edit mode), a glance widget alone in its cell (no strip, D26 AA1: its ⋯ on
  * hover and on keyboard focus, its right-click the ⋯ menu), and a phone
  * stacking a row.
  */
