@@ -15,6 +15,9 @@ import {
   wsRow,
   expectLayoutStep,
   expectLayoutStored,
+  enterLayoutEdit,
+  finishLayoutEdit,
+  openCellMenu,
 } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -83,6 +86,8 @@ test.describe('a body its widget scrolls', () => {
     expect(scroll.sh).toBeGreaterThan(scroll.ch + 20)
     await body.evaluate((el) => { el.scrollTop = el.scrollHeight })
     await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(20)
+    // Drops into another cell, and their ghost, are the layout edit mode's (E4).
+    await enterLayoutEdit(page)
     await dragTab(page, wsTab(page, 'notesTab'), await bodyPoint(page, 'kc', 0.5, 0.5), async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Add as tab')
       await expect(page.getByTestId('ws-drop-label')).toBeInViewport()
@@ -124,7 +129,7 @@ test.describe('sizes and collapse of cells side by side', () => {
     await seedWorkspace(page, { layouts: [sideBySide] })
     const rowDividers = page.locator('[data-ws-divider][data-axis="rows"]')
     await expect(rowDividers).toHaveCount(1)
-    await openCellLayoutMenu(page, 'c1')
+    await openCellMenu(page, 'c1')
     await page.getByRole('menuitem', { name: 'Collapse row' }).click()
     // One widget each: its top line shows, the rest hidden (D26 AA1).
     await expect(wsCell(page, 'c1').locator('[data-ws-cell-body]')).toBeHidden()
@@ -144,6 +149,8 @@ test.describe('sizes and collapse of cells side by side', () => {
 test.describe('the cell menu', () => {
   test('Split cell ▸ Right adds a cell beside, Below one under it; Insert column ▸ At the far right a column', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
+    // The cell's layout menu is the layout edit mode's (E4); Done stores the draft as one step.
+    await enterLayoutEdit(page)
     const a1 = await edges(wsCell(page, 'a1'))
     await openCellLayoutMenu(page, 'a1')
     await pickSplit(page, 'Right')
@@ -163,7 +170,8 @@ test.describe('the cell menu', () => {
     await openCellLayoutMenu(page, 'a1')
     await pickCellMenu(page, 'Insert column', 'At the far right')
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
-    await expectLayoutStep(page)
+    await finishLayoutEdit(page)
+    await expectLayoutStep(page, 'Edited layout “Main”')
   })
 })
 
@@ -175,10 +183,10 @@ test.describe('a glance widget alone in its cell', () => {
       { id: 'colB', rows: [wsRow({ id: 'h1', tabs: [{ id: 'calTab', kind: 'trend' }] })] },
     ],
   }
-  /** h1's grip and ⋯ (in its panel header, its top line). */
+  /** h1's ⋯ (in its top line; no grip outside the layout edit mode). */
   const controls = (page: Page) => wsCell(page, 'h1').locator('[data-cell-controls] > span').last()
 
-  test('no strip: its body fills the cell; its grip and ⋯ show on hover', async ({ page }) => {
+  test('no strip: its body fills the cell; its ⋯ shows on hover', async ({ page }) => {
     await seedWorkspace(page, { layouts: [alone] })
     await page.mouse.move(2, 2)
     await expect(wsCell(page, 'h1').locator('[data-ws-cell-header]')).toHaveCount(0)
@@ -221,6 +229,7 @@ test.describe('a glance widget alone in its cell', () => {
 
   test('a drag measures no strip: the top of its body is the new-row zone', async ({ page }) => {
     await seedWorkspace(page, { layouts: [alone] })
+    await enterLayoutEdit(page)
     await dragTab(page, wsTab(page, 'notesTab'), await bodyPoint(page, 'h1', 0.5, 0.06), async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Split Created vs completed · above')
     })

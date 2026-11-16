@@ -1,11 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
-import { edges, openCellLayoutMenu, seedWorkspace, wsCell, type WsLayoutSeed } from './fixtures/workspace'
+import { edges, enterLayoutEdit, openCellLayoutMenu, seedWorkspace, wsCell, type WsLayoutSeed } from './fixtures/workspace'
 
 /**
- * Add widget's Where as a picture (D26 follow-ups, board BE): the cell
- * drawn, its middle a tab, its four sides a split that way, the bars outside
- * it a row or column at the layout's edge. Each zone puts the new widget
- * where it says; hover names it under the picture in the drag ghost's words.
+ * Add widget's Where as a picture (D26 follow-ups, board BE), in the
+ * layout edit mode (the grip's Add widget…; outside the mode there is no
+ * Where — E4): the cell drawn, its middle a tab, its four sides a split
+ * that way, the bars outside it a row or column at the layout's edge. Each
+ * zone puts the new widget where it says (on the draft); hover names it
+ * under the picture in the drag ghost's words.
  */
 
 /** `a b`: Notes beside a Calendar. */
@@ -22,8 +24,9 @@ const pair: WsLayoutSeed = {
 
 type Edges = Awaited<ReturnType<typeof edges>>
 
-/** Opens Add widget from cell a and returns its menu. */
+/** Opens the layout edit mode, then Add widget from cell a's grip; returns its menu. */
 async function openAddWidget(page: Page) {
+  await enterLayoutEdit(page)
   await openCellLayoutMenu(page, 'a')
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   return page.getByRole('menu', { name: 'Add widget' })

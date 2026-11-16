@@ -1,17 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import {
-  drag,
-  edges,
-  expectSameEdges,
-  openCellLayoutMenu,
-  openCellMenu,
-  seedWorkspace,
-  wsCell,
-  wsGhost,
-  wsGrip,
-  wsShape,
-  type WsLayoutSeed,
-} from './fixtures/workspace'
+import { drag, edges, enterLayoutEdit, expectSameEdges, openCellMenu, seedWorkspace, wsCell, wsGhost, wsGrip, wsShape, type WsLayoutSeed, addWidgetAsTab } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
@@ -73,7 +61,7 @@ test('a cell of several widgets: the active tab’s × and the add-tab + show on
   await expect.poll(() => opacity(add)).toBe(1)
 })
 
-test('a one-widget cell has no tablist; its top line’s grip and ⋯ show on hover and on keyboard focus', async ({ page }) => {
+test('a one-widget cell has no tablist; its top line’s ⋯ shows on hover and on keyboard focus (no grip outside the layout edit mode)', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   const cal = wsCell(page, 'b')
   await expect(cal).toBeVisible()
@@ -83,7 +71,7 @@ test('a one-widget cell has no tablist; its top line’s grip and ⋯ show on ho
   await expect(topLine(cal)).toHaveAttribute('data-ws-tab', 'calTab')
   await expect(topLine(cal).getByTestId('calendar-range-label')).toBeVisible()
   await expect(topLine(cal).getByRole('button', { name: 'Cell options' })).toHaveCount(1)
-  await expect(topLine(cal).getByTestId('ws-cell-grip')).toHaveCount(1)
+  await expect(topLine(cal).getByTestId('ws-cell-grip')).toHaveCount(0)
 
   // At rest the slot is out of sight (opacity only: the line never moves).
   await page.mouse.move(2, 2)
@@ -97,11 +85,12 @@ test('a one-widget cell has no tablist; its top line’s grip and ⋯ show on ho
   await cal.getByRole('button', { name: 'Previous month' }).focus()
   await page.keyboard.press('Tab')
   await expect.poll(() => opacity(slotControls(cal))).toBe(1)
-  // Shift+F10 in the top line opens the ⋯ menu: the widget's entries, then the cell's.
+  // Shift+F10 in the top line opens the ⋯ menu: the widget's entries, then the cell's contents and Edit layout.
   await page.keyboard.press('Shift+F10')
   const menu = page.getByRole('menu', { name: 'Cell options' })
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem', { name: 'Split cell' })).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: 'Split cell' })).toHaveCount(0)
+  await expect(menu.getByRole('menuitem', { name: 'Edit layout' })).toBeVisible()
   await expect(menu.getByRole('menuitem', { name: /^Change widget/ })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(menu).toHaveCount(0)
@@ -119,16 +108,15 @@ test('a right-click on the top line opens the ⋯ menu at the pointer', async ({
   await topLine(wsCell(page, 'a')).click({ button: 'right', position: { x: 12, y: 10 } })
   const menu = page.getByRole('menu', { name: 'Cell options' })
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem', { name: 'Close cell', exact: true })).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: 'Remove widget', exact: true })).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: 'Close cell', exact: true })).toHaveCount(0)
 })
 
 test('adding a second widget shows the tabs; closing it hides them again', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   const notes = wsCell(page, 'a')
   await expect(notes.getByRole('tablist')).toHaveCount(0)
-  await openCellLayoutMenu(page, 'a')
-  await page.getByRole('menuitem', { name: 'Add widget…' }).click()
-  await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'Calendar', exact: true }).click()
+  await addWidgetAsTab(page, 'a', 'Calendar')
 
   await expect(notes.getByRole('tablist')).toBeVisible()
   await expect(notes.getByRole('tab')).toHaveCount(2)
@@ -142,8 +130,9 @@ test('adding a second widget shows the tabs; closing it hides them again', async
   await expect(topLine(notes)).toHaveAttribute('data-ws-tab', 'notesTab')
 })
 
-test('dragging by the grip moves the whole cell, under the drop ghost', async ({ page }) => {
+test('in the layout edit mode, dragging by the grip moves the whole cell, under the drop ghost', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
+  await enterLayoutEdit(page)
   await wsCell(page, 'a').hover()
   const target = wsCell(page, 'b').locator('[data-ws-cell-body]')
   const b = await box(target)

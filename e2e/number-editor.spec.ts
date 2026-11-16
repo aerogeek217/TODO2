@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openCellLayoutMenu, pickSplit, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { openCellLayoutMenu, pickSplit, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep, expectLayoutStored, editLayout } from './fixtures/workspace'
 
 /**
  * A Number is a filter (D26 P5, board X): added from Add widget, its editor
@@ -37,8 +37,10 @@ async function editNumber(page: Page): Promise<void> {
 
 test('add a Number, type a filter, see its count and its tasks', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await openCellLayoutMenu(page, 'k1')
-  await pickSplit(page, 'Below')
+  await editLayout(page, async () => {
+    await openCellLayoutMenu(page, 'k1')
+    await pickSplit(page, 'Below')
+  })
   await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Insights' })
     .getByRole('button', { name: 'Number', exact: true }).click()
 
@@ -78,8 +80,10 @@ test('add a Number, type a filter, see its count and its tasks', async ({ page }
 
 test('closing the editor with changes asks Save / Discard / Keep editing; a press elsewhere goes no further', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await openCellLayoutMenu(page, 'k1')
-  await pickSplit(page, 'Below')
+  await editLayout(page, async () => {
+    await openCellLayoutMenu(page, 'k1')
+    await pickSplit(page, 'Below')
+  })
   await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Insights' })
     .getByRole('button', { name: 'Number', exact: true }).click()
   await editNumber(page)

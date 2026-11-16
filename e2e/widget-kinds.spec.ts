@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createTab, kindTabTitle, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../src/models/workspace-layout'
-import { openChangeWidget, pickWidgetKind, seedWorkspace, wsCell, type WsLayoutSeed, wsRow } from './fixtures/workspace'
+import { addWidgetAsTab, openChangeWidget, pickWidgetKind, seedWorkspace, wsCell, type WsLayoutSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Every widget kind (from the one kind table) can be added, switched to and
@@ -59,18 +59,17 @@ test.describe('desktop', () => {
     await expect(body(cell, 'notes')).toBeVisible()
 
     // Add: every kind but Notes, from the add-tab menu (a list gets a new list; no editor opens) —
-    // the first from the ⋯'s Add widget…: one widget has no strip, so no + (D26 AA1).
+    // the first from the ⋯'s Add widget as tab ›: one widget has no strip, so no + (D26 AA1; E4).
     for (const kind of WIDGET_KINDS.filter((k) => k !== 'notes')) {
       const plus = page.getByRole('button', { name: 'Add widget as tab' })
-      if (await plus.count() > 0) await plus.click()
-      else {
-        await cell.hover()
-        await cell.getByRole('button', { name: 'Cell layout' }).click()
-        await page.getByRole('menuitem', { name: 'Add widget…' }).click()
+      if (await plus.count() > 0) {
+        await plus.click()
+        const menu = page.getByRole('menu', { name: 'Add widget' })
+        await expect(menu.getByRole('menuitem')).toHaveText(MENU_ITEMS)
+        await pickWidgetKind(page, 'Add widget', widgetKindLabel(kind))
+      } else {
+        await addWidgetAsTab(page, (await cell.getAttribute('data-ws-cell')) ?? '', widgetKindLabel(kind))
       }
-      const menu = page.getByRole('menu', { name: 'Add widget' })
-      await expect(menu.getByRole('menuitem')).toHaveText(MENU_ITEMS)
-      await pickWidgetKind(page, 'Add widget', widgetKindLabel(kind))
       await expect(tab(page, kind)).toHaveAttribute('aria-selected', 'true')
       await noEditor(page)
       await expect(body(cell, kind)).toBeVisible()
@@ -94,8 +93,7 @@ test.describe('desktop', () => {
       await noEditor(page)
     }
 
-    // Close: every tab; the last one — alone, no strip: its grip › Close cell — closes the cell: with no
-    // neighbour to take its space, it stays an empty cell (D26).
+    // Remove: every tab; the last one — alone, no strip: its ⋯ › Remove widget — leaves the cell, empty (E4).
     for (const kind of WIDGET_KINDS.slice(0, -1)) {
       const t = tab(page, kind).first()
       await t.click()
@@ -103,8 +101,8 @@ test.describe('desktop', () => {
     }
     await expect(cell.getByRole('tablist')).toHaveCount(0)
     await cell.hover()
-    await cell.getByRole('button', { name: 'Cell layout' }).click()
-    await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
+    await cell.getByRole('button', { name: 'Cell options' }).click()
+    await page.getByRole('menuitem', { name: 'Remove widget', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
   })
 

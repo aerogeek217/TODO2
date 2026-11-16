@@ -61,6 +61,7 @@ import {
   moveTab,
   patchTabConfig,
   patchTabViewState,
+  removeTabKeepCell,
   removeTrack,
   replaceTab,
   setActiveTab,
@@ -80,8 +81,7 @@ import { samePreviewBody } from '../utils/workspace-preview'
 type Layout = PersistedWorkspaceLayout
 
 function sameHandle(a: ResizeHandle, b: ResizeHandle): boolean {
-  if (a.kind === 'divider') return b.kind === 'divider' && a.axis === b.axis && a.beforeId === b.beforeId && a.afterId === b.afterId
-  return b.kind === 'crossing' && a.cornerId === b.cornerId && a.key === b.key
+  return a.axis === b.axis && a.beforeId === b.beforeId && a.afterId === b.afterId
 }
 
 /** A resize from a divider: `live` = one frame of a drag (see `setTrackSizes`). */
@@ -91,12 +91,11 @@ interface ResizeOptions {
 
 /**
  * The resize handle a preview belongs to: a divider (its axis and the first
- * cells on either side, as it was keyed when the drag started) or a crossing
- * handle (its corner cell, above-left, and its key).
+ * cells on either side, as it was keyed when the drag started). The
+ * crossing handles went with the layout edit mode (E4): a divider's plain
+ * drag moves its whole line.
  */
-export type ResizeHandle =
-  | { kind: 'divider'; axis: GridAxis; beforeId: string; afterId: string }
-  | { kind: 'crossing'; cornerId: string; key: string }
+export type ResizeHandle = { kind: 'divider'; axis: GridAxis; beforeId: string; afterId: string }
 
 /**
  * A resize drag whose move changes the structure (part of a line moved, or a
@@ -354,6 +353,13 @@ export interface WorkspaceState {
   /** Moves a whole cell (by id) with all its tabs. */
   movePanel: (cellId: string, target: LayoutDropTarget) => void
   closeTab: (tabId: string) => void
+  /**
+   * Remove widget (the ⋯, a tab's ×, a strip Number's ×; layout edit mode
+   * E4): removes tab `tabId`, and a cell it leaves with no tabs stays as an
+   * empty cell (`removeTabKeepCell`) — one undo step, `Removed “X”`. Only the
+   * mode's Close cell gives a cell's space away (`closeCell`).
+   */
+  removeWidget: (tabId: string) => void
   /** Closes a cell (by id) with all its tabs: a neighbour takes its space, or it stays empty (`closeCell`). */
   closeCell: (cellId: string) => void
   /** Splits a cell: a new empty cell on `side` of it. Returns the new cell's id. */
@@ -1482,6 +1488,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     closeTab(tabId) {
       edit((layout) => closeTab(layout, tabId), (before) => `Removed “${tabName(before, tabId)}”`)
+    },
+
+    removeWidget(tabId) {
+      edit((layout) => removeTabKeepCell(layout, tabId), (before) => `Removed “${tabName(before, tabId)}”`)
     },
 
     closeCell(cellId) {

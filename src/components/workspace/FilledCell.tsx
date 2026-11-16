@@ -8,7 +8,7 @@ import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
 import type { AddWhere } from './add-widget-where'
-import { useTabTitle, useTabTitles } from './widget-hooks'
+import { addTabToCell, useTabTitle, useTabTitles } from './widget-hooks'
 import { MenuPopover } from '../shared/MenuPopover'
 import { ChevronDownIcon, ChevronUpIcon, ExpandIcon, MoreIcon } from '../shared/icons'
 import {
@@ -42,9 +42,11 @@ function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number
 }
 
 /**
- * The strip header's empty space: drags the whole panel (5px to start, as a
- * tab); a click there opens nothing (J15). Not focusable — the header's grip
- * button, beside the ⋯, drags too and opens the cell's layout menu.
+ * The strip header's empty space in the layout edit mode: drags the whole
+ * panel (5px to start, as a tab); a click there opens nothing (J15). Not
+ * focusable — the header's grip button, beside the ⋯, drags too and opens
+ * the cell's layout menu. Outside the mode (E4) the space is only room
+ * (`StillRoom`): a cell moves only in the mode.
  */
 function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly LayoutTab[] }) {
   const titles = useTabTitles(tabs)
@@ -57,6 +59,11 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
   return (
     <div ref={setNodeRef} {...listeners} className={styles.fill} data-ws-panel-handle={panelId} data-strip-room="" aria-hidden="true" />
   )
+}
+
+/** The strip header's empty space outside the layout edit mode: the strip measures it as its room; nothing drags. */
+function StillRoom() {
+  return <div className={`${styles.fill} ${styles.fillStill}`} data-strip-room="" aria-hidden="true" />
 }
 
 /**
@@ -115,20 +122,24 @@ function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = fals
 /**
  * A cell of the layout's table holding tabs (D26 AA1): with one widget no
  * tab strip — the widget's own top line names it and holds the controls
- * slot (grip and ⋯, `CellControlsContext`); with two or more, the tab
- * strip, the panel handle, the grip, Open larger (the active widget's),
- * collapse and the ⋯ in its header.
- * Either way (`cell-menu`, UX cleanup 4A; layout menus option A) the ⋯
- * opens the widget's own entries and Remove widget, the grip every placement
- * (Add widget…, Split, Insert row / column, Merge, Collapse, Close cell),
- * and a right-click or Shift+F10 the whole menu. The
+ * slot (Open larger and ⋯, `CellControlsContext`); with two or more, the
+ * tab strip, Open larger (the active widget's), collapse and the ⋯ in its
+ * header. The rule (layout edit mode E4): edit mode changes the grid;
+ * what's inside a cell changes in place. Outside the mode the ⋯ — and a
+ * right-click or Shift+F10 — opens the widget's own entries, Add widget as
+ * tab ›, Remove widget (a lone widget's cell stays, empty), Collapse /
+ * Expand row and Edit layout (`cell-menu`); tabs reorder only in their own
+ * strip. In the mode the grip (and the strip header's space, the Numbers
+ * strip's gutter grip) drags the whole cell, and every menu holds the
+ * cell's placements (Add widget…, Split, Insert row / column, Merge,
+ * Collapse, Close cell). The
  * active widget's body shows at its face (D25 R) — while the widget popup
  * shows that tab (Open larger), a placeholder in its place: a tab has one
  * live widget at a time (`OpenLargerPlaceholder`).
  */
 export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
-  const closeTab = useWorkspaceStore((s) => s.closeTab)
+  const removeWidget = useWorkspaceStore((s) => s.removeWidget)
   const closeCell = useWorkspaceStore((s) => s.closeCell)
   const splitCell = useWorkspaceStore((s) => s.splitCell)
   const mergeCells = useWorkspaceStore((s) => s.mergeCells)
@@ -148,9 +159,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
    * (`editor-leave`), as on every other way out of it; Save or Discard, then
    * it is done; Keep editing, nothing. With none it runs at once, in the same
    * tick. A press elsewhere has asked already (the editors' own rule): this
-   * is the keyboard's way here, and a menu's.
+   * is the keyboard's way here, and a menu's. Removing a widget keeps its
+   * cell (an empty cell when it was alone there, E4).
    */
-  const closeTabAsked = useCallback((tabId: string) => afterLeavingEditors(() => closeTab(tabId)), [closeTab])
+  const closeTabAsked = useCallback((tabId: string) => afterLeavingEditors(() => removeWidget(tabId)), [removeWidget])
   const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
@@ -255,6 +267,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         onInsertBeside: (side) => afterLeavingEditors(() => { insertTrackBeside(cell.id, side) }),
         onCollapse: setRowCollapsed,
         onCloseTab: closeTabAsked,
+        onAddTab: (kind, preset) => addTabToCell(cell.id, kind, preset),
         onCloseCell: () => afterLeavingEditors(() => closeCell(cell.id)),
         onEditLayout: () => { void useWorkspaceStore.getState().enterEdit({ cellId: cell.id }) },
         editing,
@@ -283,14 +296,15 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
     menuOpen,
     moreOpen: menuOpen && !gripOpen,
     onMore: () => toggleMenu('widget', activeId),
-    onGrip: () => toggleMenu('layout', activeId),
+    // The grip (drag the cell, its layout menu) only in the layout edit mode (E4).
+    onGrip: editing ? () => toggleMenu('layout', activeId) : undefined,
     onOpenLarger,
     gripOpen,
     setGripButton,
     collapsed,
     onExpand: () => setRowCollapsed(false),
     claim,
-  }), [stripShown, numberStrip, activeId, cell.id, cell.tabs, activeTitle, menuOpen, gripOpen, onOpenLarger, collapsed, setRowCollapsed, claim, setMoreButton, setGripButton, toggleMenu])
+  }), [stripShown, numberStrip, activeId, cell.id, cell.tabs, activeTitle, menuOpen, gripOpen, onOpenLarger, collapsed, setRowCollapsed, claim, setMoreButton, setGripButton, toggleMenu, editing])
 
   /** A strip's Number under an event's target (its slot), else the active tab. */
   const eventTab = (target: EventTarget | null): LayoutTab | undefined => {
@@ -363,7 +377,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
           {stripHit && drag?.insertLeft != null && (
             <span className={styles.insertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
           )}
-          <PanelHandle panelId={cell.id} tabs={cell.tabs} />
+          {editing ? <PanelHandle panelId={cell.id} tabs={cell.tabs} /> : <StillRoom />}
           {collapsed ? (
             <button
               type="button"
@@ -377,16 +391,18 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             </button>
           ) : (
             <div className={styles.actions}>
-              <CellGrip
-                cellId={cell.id}
-                tabs={cell.tabs}
-                title={activeTitle}
-                idSuffix=":header"
-                expanded={gripOpen}
-                onMenu={() => toggleMenu('layout', active?.id)}
-                setButton={setGripButton}
-                className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
-              />
+              {editing && (
+                <CellGrip
+                  cellId={cell.id}
+                  tabs={cell.tabs}
+                  title={activeTitle}
+                  idSuffix=":header"
+                  expanded={gripOpen}
+                  onMenu={() => toggleMenu('layout', active?.id)}
+                  setButton={setGripButton}
+                  className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
+                />
+              )}
               {onOpenLarger && (
                 <button
                   type="button"
@@ -443,20 +459,22 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
           {stripHit && drag?.insertLeft != null && (
             <span className={styles.stripInsertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
           )}
-          {/* The strip's grip: drags the whole cell, a click its layout menu. */}
-          <span className={styles.stripGrip}>
-            <CellGrip
-              cellId={cell.id}
-              tabs={cell.tabs}
-              title={activeTitle}
-              idSuffix=":floating"
-              expanded={gripOpen}
-              onMenu={() => toggleMenu('layout', active?.id)}
-              setButton={setGripButton}
-              panelHandle
-              className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
-            />
-          </span>
+          {/* The strip's grip, in the layout edit mode only (E4): drags the whole cell, a click its layout menu. */}
+          {editing && (
+            <span className={styles.stripGrip}>
+              <CellGrip
+                cellId={cell.id}
+                tabs={cell.tabs}
+                title={activeTitle}
+                idSuffix=":floating"
+                expanded={gripOpen}
+                onMenu={() => toggleMenu('layout', active?.id)}
+                setButton={setGripButton}
+                panelHandle
+                className={`${styles.action} ${styles.gripButton} ${gripOpen ? styles.actionPressed : ''}`}
+              />
+            </span>
+          )}
         </div>
       )}
       {!numberStrip && (!collapsed || !stripShown) && active && (

@@ -83,7 +83,7 @@ test('Open larger shows in a header of 340px or more and opens the active tab’
     .filter((el) => el.getBoundingClientRect().width > 0 && el.closest('[role="tablist"]') == null)
     .map((el) => el.getAttribute('aria-label'))
     .filter((name) => name === 'Cell layout' || name === 'Open larger' || name === 'Collapse row' || name === 'Cell options'),
-  )).toEqual(['Cell layout', 'Open larger', 'Collapse row', 'Cell options'])
+  )).toEqual(['Open larger', 'Collapse row', 'Cell options'])
   await button.click()
   await expect(popup(page)).toHaveAttribute('aria-label', 'Team')
 })

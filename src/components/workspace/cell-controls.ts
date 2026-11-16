@@ -3,7 +3,7 @@ import type { LayoutTab } from '../../models/workspace-layout'
 
 /**
  * What a cell without a tab strip (one widget, D26 AA1) lends its widget's
- * top line (`WidgetTopLine`): the controls slot — the grip that drags the
+ * top line (`WidgetTopLine`): the controls slot — in the layout edit mode the grip that drags the
  * whole cell and, clicked, opens its layout menu, Open larger (the widget
  * popup, where the widget offers it) and the ⋯ that opens the
  * widget's menu (`cell-menu`) — and the tab the
@@ -30,7 +30,7 @@ export interface CellControlsValue {
   moreOpen?: boolean
   /** The ⋯ was pressed. */
   onMore: () => void
-  /** The grip was clicked (UX cleanup 4A): the cell's layout menu. No grip without it (touch has none). */
+  /** The grip was clicked (UX cleanup 4A): the cell's layout menu. No grip without it — only the layout edit mode passes it (E4); touch has none. */
   onGrip?: () => void
   /** Opens the widget larger (the widget popup), where it offers that; no Open larger button without it. */
   onOpenLarger?: () => void

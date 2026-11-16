@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { releaseDrag, seedWorkspace, wsTab, wsRow } from './fixtures/workspace'
+import { releaseDrag, seedWorkspace, wsTab, wsRow, enterLayoutEdit } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
@@ -20,6 +20,8 @@ const COLUMNS = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'].map((id) 
 
 test('a tab drag that auto-scrolls the table drops in the cell now under the pointer', async ({ page }) => {
   await seedWorkspace(page, { layouts: [{ name: 'Main', columns: COLUMNS.map((c, i) => i === 0 ? { ...c, rows: [wsRow({ id: 'c1k', tabs: [{ id: 'c1t', kind: 'notes' }, { id: 'mover', kind: 'notes' }], activeTabId: 'mover' })] } : c) }] })
+  // A tab dropped in another cell: the layout edit mode's (E4).
+  await enterLayoutEdit(page)
   const scroller = page.locator('[data-ws-table]')
   await expect(scroller).toHaveCount(1)
   const s = await box(scroller)

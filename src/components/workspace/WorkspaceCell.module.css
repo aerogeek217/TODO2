@@ -210,6 +210,31 @@
   color: var(--color-text-muted);
 }
 
+/* An empty cell's Edit layout link (outside the layout edit mode): quiet, under the kinds. */
+.emptyEditLayout {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  cursor: pointer;
+}
+
+.emptyEditLayout:hover {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+}
+
+/* Outside the layout edit mode a header's empty space is only room: nothing to drag. */
+.fillStill {
+  cursor: default;
+}
+
 
 /* The header's empty space: drags the whole panel; a click there opens nothing. */
 .fill {

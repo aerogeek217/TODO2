@@ -3,7 +3,8 @@ import { registerModuleReset } from '../../utils/module-reset'
 import { flushSync } from 'react-dom'
 import type { GridAxis, LayoutBody } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { isWholeLine, wholeLine, type EdgeStretch } from '../../utils/workspace-grid'
+import { isWholeLine, type EdgeStretch } from '../../utils/workspace-grid'
+import { dividerBreaksOff, dividerMoveStretch, dividerTooltip } from '../../utils/divider-moves'
 import { edgeSnapLine, evenStretchDelta, moveEdge, withRowDrawnAt, type MoveEdgeOptions } from '../../utils/workspace-layout-ops'
 import { withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
 import { trackSizing } from '../../utils/workspace-table'
@@ -39,6 +40,8 @@ interface WorkspaceDividerProps {
    * fits again.
    */
   fitTrackIds?: readonly string[]
+  /** Its stretch is part of its line (not the whole of it): Alt-drag breaks it off (its tooltip says so). */
+  partOfLine?: boolean
 }
 
 /** What a divider drag keeps from its start. */
@@ -46,8 +49,10 @@ interface DragState {
   pointerId: number
   start: number
   layout: LayoutBody
-  /** What the drag moves: the divider's stretch, or beside a fit row its whole line. */
+  /** What the drag moves: its whole line, or with Alt its own piece (`dividerMoveStretch`). */
   moved: EdgeStretch
+  /** Alt is held: the piece breaks off its line (read on every move, so it can change mid-drag). */
+  breakOff: boolean
   opts: MoveEdgeOptions
   /** The last frame changed the structure (part of a line moved): drawn as a preview, applied on release. */
   structural: boolean
@@ -74,7 +79,7 @@ function dividerIdentity(axis: GridAxis, beforeId: string, afterId: string): str
  * (`edgeSnapLine`): shown while it holds there, gone when it lets go or the
  * drag ends. Only an inner line (the outer edges are no snap target).
  */
-export function SnapGuide({ axis, line, tracks }: { axis: GridAxis; line: number; tracks: number }) {
+function SnapGuide({ axis, line, tracks }: { axis: GridAxis; line: number; tracks: number }) {
   if (line < 1 || line >= tracks) return null
   return (
     <div
@@ -91,25 +96,27 @@ export function SnapGuide({ axis, line, tracks }: { axis: GridAxis; line: number
 /**
  * The gutter between the cells on either side of a stretch of grid line, as
  * a resize handle (D26 P2). A line parts at its "+" crossings, so each piece
- * between them is a divider of its own (`edgeStretches`). A drag moves the
- * stretch (`moveEdge`, snapping onto any line of the axis within 8px —
- * a faint guide along that line while it holds —, every cell kept at its
- * minimum): when it holds every edge on its line, the two tracks beside it
- * share their size anew, live, saved once at the end as view state; when
- * only part of a line moves (a new line, or onto another line: a piece
- * snapped back onto a line it left re-joins it), the table previews the
- * result — every cell drawn at the size and place the release gives it
- * (`workspace-store.resizePreview`), this divider on its new line — and the
- * release makes that edit, an undo step (Esc, or a cancelled pointer, puts the
- * table back as it was). Beside a Numbers-only row it moves
- * the whole line, the row taking a height of its own (`fitTrackIds`; its
- * `fitPx`, view state). ←/→ (↑/↓)
- * move it 16px, the focus staying on it (a run of them moving part of a
- * line is one undo step); a double-click evens a whole
- * line's two tracks, or part of a line's own cells, or lets a fit row fit
- * again.
+ * between them is a divider of its own (`edgeStretches`). **A plain drag
+ * moves the whole line** it lies on, across the crossings (layout edit mode
+ * E4, decision B: `dividerMoveStretch`) — its two tracks share their size
+ * anew, live, saved once at the end as view state (the mode's draft while
+ * the mode is on); **Alt + drag moves only its own piece** (Alt can change
+ * mid-drag), which leaves the line: a new line and track — or onto another
+ * line, a piece snapped back onto a line it left re-joining it — previewed
+ * while the drag runs, every cell drawn at the size and place the release
+ * gives it (`workspace-store.resizePreview`), the release making that edit
+ * (an undo step outside the mode). Either snaps onto any line of its axis
+ * within 8px (a faint guide along that line while it holds), every cell
+ * kept at its minimum; Esc, or a cancelled pointer, puts the table back as
+ * it was. Its hover, focus and drag light what it moves: the whole line,
+ * or with Alt its piece. Beside a Numbers-only row it always moves the
+ * whole line, the row taking a height of its own (`fitTrackIds`; its
+ * `fitPx`, view state). ←/→ (↑/↓) move the whole line 16px, Alt + them the
+ * piece, the focus staying on it (a run of them is one undo step); a
+ * double-click evens the whole line's two tracks (Alt: moves the piece
+ * midway between its own cells), or lets a fit row fit again.
  */
-export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, style, fitTrackIds = [] }: WorkspaceDividerProps) {
+export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, style, fitTrackIds = [], partOfLine = false }: WorkspaceDividerProps) {
   const axisX = stretch.axis === 'columns'
   const dragRef = useRef<DragState | null>(null)
   const elRef = useRef<HTMLDivElement | null>(null)
@@ -119,6 +126,21 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
   const [dragging, setDragging] = useState(false)
   const [previewing, setPreviewing] = useState(false)
   const [snap, setSnap] = useState<{ line: number; tracks: number } | null>(null)
+  /** Alt is held over it (or during its drag): it lights, and moves, its piece alone. */
+  const [breaking, setBreaking] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const fit = fitTrackIds.length > 0
+  // While hovered: Alt pressed or let go changes what it lights at once.
+  useEffect(() => {
+    if (!hovered) return
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Alt' && !dragRef.current) setBreaking(e.type === 'keydown' && partOfLine && !fit) }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('keyup', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onKey)
+    }
+  }, [hovered, partOfLine, fit])
   /** This divider as a preview's handle: as keyed when its drag started (it keeps that key through the preview). */
   const handle = { kind: 'divider', axis: stretch.axis, beforeId, afterId } as const
 
@@ -144,6 +166,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     setDragging(false)
     setPreviewing(false)
     setSnap(null)
+    setBreaking(false)
     const el = elRef.current
     if (el?.hasPointerCapture?.(drag.pointerId)) el.releasePointerCapture(drag.pointerId)
     return drag
@@ -170,8 +193,8 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     if (el && document.activeElement !== el) el.focus()
   })
 
-  /** What a move of this divider moves in `layout`: its stretch, or beside a fit row the whole line. */
-  const movedIn = (layout: LayoutBody): EdgeStretch => (fitTrackIds.length > 0 ? wholeLine(layout, stretch.axis, stretch.line) : stretch)
+  /** What a move of this divider moves in `layout`: its whole line, or with Alt (`breakOff`) its piece. */
+  const movedIn = (layout: LayoutBody, breakOff: boolean): EdgeStretch => dividerMoveStretch(layout, stretch, { breakOff, fit })
 
   /**
    * Applies one frame: a whole-line move live; a structural one previewed —
@@ -207,6 +230,11 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
   const onPointerMove = (e: PointerEvent) => {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== e.pointerId) return
+    if (e.altKey !== drag.breakOff) {
+      drag.breakOff = e.altKey
+      drag.moved = movedIn(drag.layout, e.altKey)
+      setBreaking(dividerBreaksOff(drag.layout, stretch, { breakOff: e.altKey, fit }))
+    }
     pendingRef.current = (axisX ? e.clientX : e.clientY) - drag.start
     if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush)
   }
@@ -240,12 +268,14 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
       pointerId: e.pointerId,
       start: axisX ? e.clientX : e.clientY,
       layout,
-      moved: movedIn(layout),
+      moved: movedIn(layout, e.altKey),
+      breakOff: e.altKey,
       opts: { sizes, minPx: minPxIn(layout), gap: drawnGap(table, stretch.axis) },
       structural: false,
       delta: 0,
     }
     pointer.listen(onPointerMove, onPointerUp)
+    setBreaking(dividerBreaksOff(layout, stretch, { breakOff: e.altKey, fit }))
     setDragging(true)
   }
 
@@ -261,8 +291,8 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     if (sizes.length !== layout.grid[stretch.axis].length) return
     refocusAfterKey = identity
     requestAnimationFrame(() => { if (refocusAfterKey === identity) refocusAfterKey = null })
-    // Key steps on this divider are one undo step (when they move part of a line).
-    void useWorkspaceStore.getState().moveEdge(movedIn(layout), e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, { sizes, minPx: minPxIn(layout), gap: drawnGap(table, stretch.axis) }, { mergeKey: `divider:${identity}` })
+    // Key steps on this divider are one undo step (when they move part of a line). Alt: its piece alone.
+    void useWorkspaceStore.getState().moveEdge(movedIn(layout, e.altKey), e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, { sizes, minPx: minPxIn(layout), gap: drawnGap(table, stretch.axis) }, { mergeKey: `divider:${identity}` })
   }
 
   /**
@@ -296,18 +326,18 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
   }
 
   /**
-   * A whole line's two weighted tracks share their size evenly; part of a
-   * line moves, as a drag would, midway between its own cells
+   * The whole line's two weighted tracks share their size evenly; with Alt,
+   * part of a line moves, as an Alt-drag would, midway between its own cells
    * (`evenStretchDelta`) — the rest of its line stays. Beside a fit row
    * given a height, that height goes: the row fits its content again.
    */
   const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     const layout = useWorkspaceStore.getState().working
-    if (fitTrackIds.length > 0) {
+    if (fit) {
       if (layout) clearFitHeights(layout, e.currentTarget.closest<HTMLElement>('[data-ws-table]'))
       return
     }
-    if (layout && !isWholeLine(layout, stretch)) {
+    if (layout && e.altKey && !isWholeLine(layout, stretch)) {
       const table = e.currentTarget.closest<HTMLElement>('[data-ws-table]')
       const sizes = table ? drawnSizes(table, stretch.axis) : []
       const gap = table ? drawnGap(table, stretch.axis) : 0
@@ -328,6 +358,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
       <div
         ref={elRef}
         className={`${styles.divider} ${axisX ? styles.betweenColumns : styles.betweenCells} ${dragging ? styles.dragging : ''}`}
+        data-tooltip={dragging ? undefined : dividerTooltip(partOfLine, fit)}
         style={style}
         role="separator"
         aria-orientation={axisX ? 'vertical' : 'horizontal'}
@@ -339,14 +370,31 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
         tabIndex={0}
         data-ws-divider={`${beforeId}|${afterId}`}
         data-axis={stretch.axis}
-        data-fit={fitTrackIds.length > 0 ? '' : undefined}
+        data-fit={fit ? '' : undefined}
         data-preview={previewing ? '' : undefined}
+        data-break={breaking ? '' : undefined}
         // Its arrow keys move it; none of the app shortcuts (↑ / ↓ select tasks).
         {...shortcutScope('none')}
         onPointerDown={onPointerDown}
+        onPointerEnter={(e) => {
+          setHovered(true)
+          // Mid-drag the drag decides (a preview moving the element fires a fresh enter).
+          if (!dragRef.current) setBreaking(e.altKey && partOfLine && !fit)
+        }}
+        onPointerLeave={() => {
+          setHovered(false)
+          if (!dragRef.current) setBreaking(false)
+        }}
         onLostPointerCapture={(e) => recapture(e.currentTarget, e.pointerId, dragRef.current?.pointerId === e.pointerId)}
         onDoubleClick={onDoubleClick}
         onKeyDown={onKeyDown}
+      />
+      {/* The whole line it moves, lit by its hover, focus and drag (CSS: the sibling right after it) — not while Alt breaks its piece off. */}
+      <div
+        className={`${styles.lineLight} ${axisX ? styles.guideColumns : styles.guideRows}`}
+        style={guidePlacement(stretch.axis, stretch.line)}
+        aria-hidden="true"
+        data-ws-divider-line={`${beforeId}|${afterId}`}
       />
       {snap && <SnapGuide axis={stretch.axis} line={snap.line} tracks={snap.tracks} />}
     </>

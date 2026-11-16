@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, type WsLayoutSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, type WsLayoutSeed, enterLayoutEdit } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
@@ -66,17 +66,34 @@ test('a Number drags within the strip to reorder it', async ({ page }) => {
   await expect.poll(() => order(page)).toEqual(['num2', 'num1'])
 })
 
-test('a lone Number dragged into the strip joins it there; one dragged out leaves it', async ({ page }) => {
+test('outside the layout edit mode a Number dragged out of the strip goes nowhere', async ({ page }) => {
   await seedWorkspace(page, seed())
+  await drag(page, await pointIn(slots(page).nth(1), 0.5, 0.5), await pointIn(wsCell(page, 'a'), 0.5, 0.5))
+  await expect(page.getByTestId('ws-drop-ghost')).toHaveCount(0)
+  await expect.poll(() => order(page)).toEqual(['num1', 'num2'])
+  await expect(wsCell(page, 'a').locator('[data-ws-tab="num1"], [data-ws-tab="num2"]')).toHaveCount(0)
+})
+
+test('in the layout edit mode a lone Number dragged into the strip joins it there', async ({ page }) => {
+  await seedWorkspace(page, seed())
+  await enterLayoutEdit(page)
   // A lone Number drags by its cell's grip (the whole cell), then between the strip's two slots.
   await wsCell(page, 'n').hover()
   const grip = wsCell(page, 'n').getByTestId('ws-cell-grip')
   await drag(page, await pointIn(grip), await pointIn(slots(page).nth(1), 0.3, 0.5))
   await expect.poll(() => order(page)).toEqual(['num1', 'num3', 'num2'])
-  // Out again: onto the notes cell's middle (a tab there).
+})
+
+test('in the layout edit mode a Number dragged out of the strip leaves it', async ({ page }) => {
+  // In the layout edit mode a cell's body dims and takes no presses (E1), a Numbers strip's slots with it, and
+  // outside the mode a Number only reorders in its strip (E4): until E3's card and tab drags, a strip's Number
+  // can't be dragged out of it.
+  test.fixme(true, 'E3: a strip Number drags again in the layout edit mode')
+  await seedWorkspace(page, seed())
+  await enterLayoutEdit(page)
+  // Onto the notes cell's middle (a tab there).
   await drag(page, await pointIn(slots(page).nth(1), 0.5, 0.5), await pointIn(wsCell(page, 'a'), 0.5, 0.5))
-  await expect.poll(() => order(page)).toEqual(['num1', 'num2'])
-  await expect(wsCell(page, 'a').locator('[data-ws-tab="num3"]')).toHaveCount(1)
+  await expect(wsCell(page, 'a').locator('[data-ws-tab="num2"]')).toHaveCount(1)
 })
 
 test('too narrow for 72px each: the strip wraps and its row grows', async ({ page }) => {

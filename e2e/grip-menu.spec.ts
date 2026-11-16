@@ -1,15 +1,17 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { clicksGetThrough, drag, releaseDrag, seedWorkspace, wsCell, wsGrip, wsPanelHandle, wsShape, type WsLayoutSeed } from './fixtures/workspace'
+import { clicksGetThrough, drag, enterLayoutEdit, releaseDrag, seedWorkspace, wsCell, wsGrip, wsPanelHandle, wsShape, type WsLayoutSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
- * The grip menu (UX cleanup 4A) in a real browser: a cell's ⋯ opens the
- * widget's entries and Add widget…; a click on its grip — a button —
- * opens the cell's layout entries (Split, Merge, Insert, Collapse row,
- * Close …); Enter / Space on the focused grip open it and Esc gives the grip
- * its focus back; a drag by the grip moves the cell and opens nothing, also
- * when it ends back on the grip; a multi-tab cell has a grip button in its
- * header, while a click on the header's empty space opens nothing. The
+ * The grip menu (UX cleanup 4A; layout edit mode E4) in a real browser:
+ * outside the layout edit mode there is no grip — a cell's ⋯ opens the
+ * widget's entries, Add widget as tab ›, Remove widget, Collapse row and
+ * Edit layout. In the mode a click on the grip — a button — opens the
+ * cell's layout entries (Split, Merge, Insert, Collapse row, Close …);
+ * Enter / Space on the focused grip open it and Esc gives the grip its focus
+ * back; a drag by the grip moves the cell (on the draft) and opens nothing,
+ * also when it ends back on the grip; a multi-tab cell has a grip button in
+ * its header, while a click on the header's empty space opens nothing. The
  * one-widget slot shows without a fade; floating over a face, it takes no
  * press while hidden.
  */
@@ -54,8 +56,20 @@ const layoutMenu = (page: Page) => page.getByRole('menu', { name: 'Cell layout' 
 const optionsMenu = (page: Page) => page.getByRole('menu', { name: 'Cell options' })
 const labels = (menu: Locator) => menu.locator(':scope > [role^="menuitem"]').evaluateAll((els) => els.map((el) => el.getAttribute('data-menu-label')))
 
-test('one widget: the grip opens the layout menu, the ⋯ the widget’s entries and Remove widget', async ({ page }) => {
+test('outside the mode: no grip, no drag handle; the ⋯ the widget’s entries, Add widget as tab, Remove widget, Collapse row, Edit layout', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
+  const cell = wsCell(page, 'a')
+  await cell.hover()
+  await expect(wsGrip(page, 'a')).toHaveCount(0)
+  await expect(page.locator('[data-ws-panel-handle]')).toHaveCount(0)
+  await cell.getByRole('button', { name: 'Cell options' }).click()
+  await expect(optionsMenu(page)).toBeVisible()
+  expect(await labels(optionsMenu(page))).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Edit layout'])
+})
+
+test('in the mode, one widget: the grip opens the layout menu', async ({ page }) => {
+  await seedWorkspace(page, { layouts: [notesCalendar] })
+  await enterLayoutEdit(page)
   const cell = wsCell(page, 'a')
   await cell.hover()
   const grip = wsGrip(page, 'a')
@@ -71,14 +85,11 @@ test('one widget: the grip opens the layout menu, the ⋯ the widget’s entries
   expect(m.y).toBeGreaterThanOrEqual(g.y + g.height)
   await page.keyboard.press('Escape')
   await expect(layoutMenu(page)).toHaveCount(0)
-
-  await cell.getByRole('button', { name: 'Cell options' }).click()
-  await expect(optionsMenu(page)).toBeVisible()
-  expect(await labels(optionsMenu(page))).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Remove widget', 'Edit layout'])
 })
 
-test('the keyboard: Enter and Space on the focused grip open its menu; Esc gives the grip its focus back', async ({ page }) => {
+test('in the mode, the keyboard: Enter and Space on the focused grip open its menu; Esc gives the grip its focus back', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
+  await enterLayoutEdit(page)
   const grip = wsGrip(page, 'b')
   await grip.focus()
   await page.keyboard.press('Enter')
@@ -96,8 +107,9 @@ test('the keyboard: Enter and Space on the focused grip open its menu; Esc gives
   await expect.poll(async () => (await wsShape(page)).flat().length).toBe(3)
 })
 
-test('a drag by the grip moves the cell and opens no menu, also when it ends back on the grip', async ({ page }) => {
+test('in the mode, a drag by the grip moves the cell and opens no menu, also when it ends back on the grip', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
+  await enterLayoutEdit(page)
   await wsCell(page, 'a').hover()
   const from = await pointIn(wsGrip(page, 'a'))
   // Away and back: the drag starts (past 5px) and ends where it began.
@@ -117,8 +129,9 @@ test('a drag by the grip moves the cell and opens no menu, also when it ends bac
   await expect(layoutMenu(page)).toHaveCount(0)
 })
 
-test('a drag cancelled with Esc and let go on the grip opens no menu', async ({ page }) => {
+test('in the mode, a drag cancelled with Esc and let go on the grip opens no menu', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
+  await enterLayoutEdit(page)
   await wsCell(page, 'a').hover()
   const from = await pointIn(wsGrip(page, 'a'))
   await page.mouse.move(from.x, from.y)
@@ -133,8 +146,9 @@ test('a drag cancelled with Esc and let go on the grip opens no menu', async ({ 
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
 })
 
-test('several widgets: the header’s grip button opens the layout menu; a click on the empty header opens nothing, a drag there moves the cell', async ({ page }) => {
+test('in the mode, several widgets: the header’s grip button opens the layout menu; a click on the empty header opens nothing, a drag there moves the cell', async ({ page }) => {
   await seedWorkspace(page, { layouts: [strip] })
+  await enterLayoutEdit(page)
   const header = page.locator('[data-ws-cell-header="a"]')
   await header.hover()
   const grip = header.getByRole('button', { name: 'Cell layout' })
@@ -173,7 +187,7 @@ test.describe('the one-widget slot', () => {
     await expect.poll(async () => (await style(controls(cal))).opacity).toBe('0')
     expect((await style(controls(cal))).transition).toBe('0s')
     // Under each control: only the slot and what holds it (the top line, the cell…), never another part of the line.
-    for (const el of [wsGrip(page, 'b'), cal.getByRole('button', { name: 'Cell options' })]) {
+    for (const el of [cal.getByRole('button', { name: 'Cell options' })]) {
       const p = await pointIn(el)
       const others = await page.evaluate(({ x, y }) => {
         const slot = document.elementFromPoint(x, y)?.closest('[data-cell-controls]')
@@ -196,7 +210,6 @@ test.describe('the one-widget slot', () => {
     await expect.poll(async () => (await style(controls(cell))).opacity).toBe('0')
     expect(await style(controls(cell))).toEqual({ opacity: '0', transition: '0s', events: 'none' })
     expect(await pressLandsInSlot(page, more)).toBe(false)
-    expect(await pressLandsInSlot(page, wsGrip(page, 'n'))).toBe(false)
     const p = await pointIn(more)
     expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-ws-cell="n"]') != null, p)).toBe(true)
     await cell.hover()

@@ -76,7 +76,14 @@ describe('a Numbers strip', () => {
     expect(within(screen.getByRole('menu')).queryByRole('menuitem', { name: /Add number beside/ })).toBeNull()
   })
 
-  it('the strip’s grip sits in its right-hand gutter, beside the +, not over a Number', () => {
+  it('no gutter grip outside the layout edit mode; the + stays', () => {
+    show(cell('k', [createTab('number', 'a'), createTab('number', 'b')]))
+    expect(screen.queryByRole('button', { name: 'Cell layout' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Add number' })).toBeInTheDocument()
+  })
+
+  it('in the mode the strip’s grip sits in its right-hand gutter, beside the +, not over a Number', () => {
+    useWorkspaceStore.setState({ editing: { layoutId: 1, selectedCellId: null, undo: [], redo: [], createdLists: [] } })
     show(cell('k', [createTab('number', 'a'), createTab('number', 'b')]))
     const grip = screen.getByRole('button', { name: 'Cell layout' })
     expect(grip.closest('[data-number-slot]')).toBeNull()
