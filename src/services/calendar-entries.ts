@@ -124,7 +124,7 @@ export function dayOverdueWash(entries: readonly CalendarEntry[], today: Date): 
 }
 
 /** How an entry looks: by date type, and whether its date is today or overdue. */
-export type CalendarEntryState = 'due' | 'due-today' | 'due-overdue' | 'followup' | 'followup-today' | 'followup-overdue'
+type CalendarEntryState = 'due' | 'due-today' | 'due-overdue' | 'followup' | 'followup-today' | 'followup-overdue'
 
 export function calendarEntryState(entry: CalendarEntry, today: Date): CalendarEntryState {
   const kind = entry.kind === 'followup' ? 'followup' : 'due'
