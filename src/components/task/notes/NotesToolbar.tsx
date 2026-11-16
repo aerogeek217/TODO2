@@ -149,7 +149,7 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
         type="button"
         className={styles.btn}
         onClick={() => toggleList('bullet')}
-        title="Bullet list"
+        data-tooltip="Bullet list"
         aria-label="Bullet list"
       >
         •
@@ -158,7 +158,7 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
         type="button"
         className={styles.btn}
         onClick={() => toggleList('box')}
-        title="Checkbox"
+        data-tooltip="Checkbox"
         aria-label="Checkbox"
       >
         ☐
@@ -167,7 +167,7 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
         type="button"
         className={styles.btn}
         onClick={() => indent('out')}
-        title="Outdent list line (Shift+Tab)"
+        data-tooltip="Outdent list line (Shift+Tab)"
         aria-label="Outdent"
       >
         <IndentGlyph out />
@@ -176,7 +176,7 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
         type="button"
         className={styles.btn}
         onClick={() => indent('in')}
-        title="Indent list line (Tab)"
+        data-tooltip="Indent list line (Tab)"
         aria-label="Indent"
       >
         <IndentGlyph />
@@ -188,7 +188,7 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
         className={styles.copyBtn}
         onClick={onCopy}
         disabled={copying}
-        title="Copy as rich text for OneNote / Word"
+        data-tooltip="Copy as rich text for OneNote / Word"
         aria-label="Copy as rich text"
       >
         ⧉

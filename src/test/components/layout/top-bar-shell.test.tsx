@@ -42,7 +42,8 @@ describe('TopBar — app shell', () => {
   it('the gear opens Settings, without leaving the route', () => {
     renderBar()
     const gear = screen.getByRole('button', { name: 'Settings' })
-    expect(gear).toHaveAttribute('title', 'Settings (G then S)')
+    expect(gear).toHaveAttribute('data-tooltip', 'Settings')
+    expect(gear).toHaveAttribute('data-tooltip-shortcut', 'G then S')
     fireEvent.click(gear)
     expect(useUIStore.getState().settingsOpen).toBe(true)
   })
@@ -58,8 +59,8 @@ describe('TopBar — app shell', () => {
     expect(tray).not.toHaveAttribute('data-filtered')
     act(() => useFilterStore.getState().setShowCompleted(true))
     expect(tray).toHaveAttribute('data-filtered', 'true')
-    // Show completed's chip: a click hides them again.
-    fireEvent.click(within(tray).getByRole('button', { name: 'Show completed' }))
+    // Show completed's pill (`done`): its × hides them again.
+    fireEvent.click(within(tray).getByRole('button', { name: 'Remove done' }))
     expect(tray).not.toHaveAttribute('data-filtered')
   })
 
@@ -70,23 +71,76 @@ describe('TopBar — app shell', () => {
     expect(search).not.toHaveAttribute('aria-controls')
   })
 
-  it('the Filter button follows the field; its menu’s Clear all filters clears every screen filter; no Clear all in the bar', () => {
+  it('the funnel leads the tray and pauses the filter: dim and inert with none, a click pauses, another resumes; the Filter button follows the field', () => {
+    useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Alpha' }), makeTodo({ id: 2, title: 'Beta' })] })
     renderBar()
     const tray = screen.getByRole('group', { name: 'Screen filters — apply to every widget' })
+    const funnel = within(tray).getByRole('button', { name: 'Pause the filter' })
     const search = within(tray).getByRole('textbox', { name: 'Filter tasks' })
     const filter = within(tray).getByRole('button', { name: 'Filter' })
+    expect(tray.firstElementChild).toBe(funnel)
     expect(search.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(funnel).toBeDisabled()
+    expect(funnel).not.toHaveAttribute('aria-pressed')
+    act(() => useFilterStore.getState().setSearchText('alpha'))
+    expect(funnel).toBeEnabled()
+    expect(funnel).toHaveAttribute('aria-pressed', 'false')
+    expect(tray).toHaveAttribute('data-filtered', 'true')
+    expect(within(tray).getByRole('button', { name: /^1 of 2 open tasks shown/ })).toBeInTheDocument()
+
+    // Paused: the filter stays, nothing applies it — the tray isn't red, the counter says so.
+    fireEvent.click(funnel)
+    expect(useFilterStore.getState().paused).toBe(true)
+    expect(useFilterStore.getState().filters.searchText).toBe('alpha')
+    expect(funnel).toHaveAttribute('aria-pressed', 'true')
+    expect(funnel).toHaveAttribute('data-paused', 'true')
+    expect(tray).not.toHaveAttribute('data-filtered')
+    expect(tray).toHaveAttribute('data-filter-paused', 'true')
+    const counter = within(tray).getByRole('button', { name: /^2 open tasks shown, the filter paused\. Show them$/ })
+    expect(counter).toHaveTextContent('2open · paused')
+
+    // Again: resumed.
+    fireEvent.click(funnel)
+    expect(useFilterStore.getState().paused).toBe(false)
+    expect(tray).toHaveAttribute('data-filtered', 'true')
+    expect(within(tray).getByRole('button', { name: /^1 of 2 open tasks shown/ })).toBeInTheDocument()
+  })
+
+  it('the field’s × clears every filter at once — a paused one too —, shown only while a filter is on; the Filter menu keeps its Clear all filters', () => {
+    renderBar()
+    const tray = screen.getByRole('group', { name: 'Screen filters — apply to every widget' })
     expect(within(tray).queryByRole('button', { name: 'Clear all filters' })).toBeNull()
     act(() => {
       useFilterStore.getState().setPersonIds(new Set([1]))
       useFilterStore.getState().setShowCompleted(true)
+      useFilterStore.getState().applyExpression({ kind: 'or', items: [{ kind: 'tag', id: 1 }, { kind: 'tag', id: 2 }] }, true)
+      useFilterStore.getState().setPaused(true)
     })
-    expect(within(tray).queryByRole('button', { name: 'Clear all filters' })).toBeNull()
-    fireEvent.click(within(tray).getByRole('button', { name: /^Filter, \d+ active$/ }))
-    fireEvent.click(within(screen.getByRole('group', { name: 'Screen filters' })).getByRole('button', { name: 'Clear all filters' }))
+    fireEvent.click(within(tray).getByRole('button', { name: 'Clear all filters' }))
     expect(useFilterStore.getState().isActive).toBe(false)
+    expect(useFilterStore.getState().paused).toBe(false)
+    expect(useFilterStore.getState().filters.expression).toBeUndefined()
+    expect(within(tray).queryByRole('button', { name: 'Clear all filters' })).toBeNull()
+    expect(within(tray).getByRole('button', { name: 'Pause the filter' })).toBeDisabled()
+    // The Filter menu keeps its own Clear all filters.
+    act(() => useFilterStore.getState().setPersonIds(new Set([1])))
+    fireEvent.click(within(tray).getByRole('button', { name: /^Filter/ }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Screen filters' })).getByRole('button', { name: 'Clear all filters' }))
     expect(useFilterStore.getState().filters.personIds).toBeNull()
     expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
+  })
+
+  it('paused, the field’s pills are dimmed and struck through; an × on one resumes the filter with the change', () => {
+    renderBar()
+    act(() => {
+      useFilterStore.getState().applyExpression({ kind: 'and', items: [{ kind: 'text', text: 'alpha' }, { kind: 'text', text: 'beta' }] }, false)
+      useFilterStore.getState().setPaused(true)
+    })
+    const pills = screen.getByTestId('top-bar-pills')
+    expect(pills).toHaveAttribute('data-paused', 'true')
+    fireEvent.click(within(pills).getByRole('button', { name: 'Remove "beta"' }))
+    expect(useFilterStore.getState().paused).toBe(false)
+    expect(screen.getByTestId('top-bar-pills')).not.toHaveAttribute('data-paused')
   })
 
   it('the counter ends the tray while a filter is on: what it keeps of every task; a click opens the filtered-tasks panel', () => {

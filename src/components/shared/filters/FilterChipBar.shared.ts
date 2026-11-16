@@ -31,39 +31,9 @@ export interface FilterChipBarProps {
    * path so the extra slots get reset along with the predicate.
    */
   onClearAll?: () => void
-  /** Desktop: fold the set filters' chips into the Filter button (a bar short of room). */
-  fold?: boolean
-  /**
-   * Desktop: also lay out both folds hidden and inert, at their natural
-   * widths (no `valueWidths`), so a host that folds by measure (the top bar)
-   * knows both widths and each value's at all times. The shown Filter button
-   * and chips and each hidden fold sit in a `FOLD_VARIANT_ATTR` wrapper, the
-   * hidden ones marked `FOLD_HIDDEN_ATTR`.
-   */
-  measureFold?: boolean
-  /**
-   * Desktop: the widths (px) some filter values are cut to with an ellipsis,
-   * by field (`people`, `tags`, …) — a host short of room (the top bar).
-   * A cut value's button shows the whole value in its tooltip.
-   */
-  valueWidths?: Readonly<Partial<Record<string, number>>>
   /** Desktop: the Esc that closes a picker (or the Filter menu) stops there, so nothing behind also takes it. */
   consumeEscape?: boolean
 }
-
-/** A `measureFold` filter bar's wrapper around its Filter button with the chips (`open`) or alone (`folded`). */
-export const FOLD_VARIANT_ATTR = 'data-fold-variant'
-export type FoldVariant = 'open' | 'folded'
-/** On the wrappers of the folds laid out only to be measured (their boxes' widths). */
-export const FOLD_HIDDEN_ATTR = 'data-fold-hidden'
-/** On a filter button's value text while the filter is on: the field (`people`, …). */
-export const FOLD_VALUE_ATTR = 'data-fold-value'
-/**
- * On a filter chip (or the Filter button) while its picker (menu) is open: the
- * bar keeps its fold until it closes, so a pick that widens a value never
- * folds the button — and its picker — away mid-pick.
- */
-export const FOLD_HOLD_ATTR = 'data-fold-hold'
 
 const DEFAULT_PREDICATE: TodoPredicate = {
   showCompleted: false,

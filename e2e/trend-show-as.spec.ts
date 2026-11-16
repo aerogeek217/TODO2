@@ -112,14 +112,14 @@ test('the three presentations at the medium and large face; a point opens its ta
   await expect(burndown.locator('svg text')).toContainText(['12', '11'])
   // No filter: every count exact.
   await expect(burndown.locator('polyline[data-approx="true"]')).toHaveCount(0)
-  await expect(burndown.locator('[data-trend-column="0"]')).not.toHaveAttribute('title', /.+/)
+  await expect(burndown.locator('[data-trend-column="0"]')).not.toHaveAttribute('data-tooltip', /.+/)
   // The large ones count #Project: Atlas — tags are exact only since the log began: the early days dashed,
   // their tooltip saying why, and no ≈ note anywhere on the chart.
   const atlas = widget(page, 'l-burndown')
   await expect(atlas.locator('[data-trend-head]')).toHaveText('Atlas')
   await expect(atlas.locator('[data-trend-line="open"] polyline[data-approx="true"]')).toHaveCount(1)
-  await expect(atlas.locator('[data-trend-column="0"]')).toHaveAttribute('title', /^Approximate: .*tags read as they are now/)
-  await expect(atlas.locator('[data-trend-column="13"]')).not.toHaveAttribute('title', /.+/)
+  await expect(atlas.locator('[data-trend-column="0"]')).toHaveAttribute('data-tooltip', /^Approximate: .*tags read as they are now/)
+  await expect(atlas.locator('[data-trend-column="13"]')).not.toHaveAttribute('data-tooltip', /.+/)
   for (const show of SHOWS) await expect(widget(page, `l-${show}`)).not.toContainText('≈')
   await expect(atlas.getByTestId('trend-open-now')).toContainText('6')
   // Today's point opens the tasks open now.
@@ -134,7 +134,7 @@ test('the three presentations at the medium and large face; a point opens its ta
   await page.keyboard.press('Escape')
   // Bars before the log began are dimmed, with the same tooltip.
   await expect(widget(page, 'l-bars').locator('[data-trend-column="0"]')).toHaveAttribute('data-approx', 'true')
-  await expect(widget(page, 'l-bars').locator('[data-trend-column="0"]')).toHaveAttribute('title', /^Approximate: /)
+  await expect(widget(page, 'l-bars').locator('[data-trend-column="0"]')).toHaveAttribute('data-tooltip', /^Approximate: /)
   await expect(widget(page, 'l-bars').locator('[data-trend-column="13"]')).not.toHaveAttribute('data-approx', 'true')
 
   if (SHOTS) {

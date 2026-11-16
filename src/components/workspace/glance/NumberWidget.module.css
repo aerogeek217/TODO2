@@ -81,6 +81,7 @@ button.number:hover {
 }
 
 .count {
+  position: relative;
   flex: none;
   display: inline-flex;
   align-items: baseline;
@@ -250,4 +251,40 @@ button.breakdownRow:hover {
   padding: 2px 6px 0 28px;
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);
+}
+
+/*
+ * Losing its light (flair P1): going unlit, the name and figure cross-fade to
+ * the unlit colour (the transition applies only on the unlit side, so
+ * becoming lit is at once), and `LightRing` sends one ring in the lit colour
+ * out from the figure.
+ */
+.number:not([data-lit]) .label,
+.number:not([data-lit]) .count,
+[data-group-item]:not([data-lit]) [data-testid='number-group-count'] {
+  transition: color 300ms ease-out;
+}
+
+.lightRing {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border: 1.5px solid var(--light-ring-color);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: lightRing 600ms ease-out both;
+}
+
+@keyframes lightRing {
+  from { opacity: 0.75; transform: scale(0.6); }
+  to { opacity: 0; transform: scale(1.9); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lightRing {
+    display: none;
+  }
 }

@@ -8,7 +8,9 @@ function rectOf(el: Element): Rect {
 /**
  * A cell card (`[data-ws-cell]`): its header, body and visible tabs, and its
  * active tab's title (`[data-ws-cell-title]`). A cell of one widget has no
- * header (no strip, D26 AA1): its whole card is its body.
+ * header (no strip, D26 AA1): its whole card is its body. A strip of
+ * Numbers (flair P10) has no header either: its slots
+ * (`[data-number-slot]`) are its tabs, in its body (`strip`).
  */
 function measureCell(cellEl: HTMLElement): CellGeometry {
   const id = cellEl.dataset.wsCell ?? ''
@@ -23,10 +25,12 @@ function measureCell(cellEl: HTMLElement): CellGeometry {
         .map((t) => ({ id: t.dataset.wsTab ?? '', rect: rectOf(t) }))
         .filter((t) => t.rect.right <= visibleRight + 0.5 && t.rect.right > t.rect.left)
     : []
+  const slots = header ? [] : Array.from(cellEl.querySelectorAll<HTMLElement>('[data-number-slot]'))
+    .map((s) => ({ id: s.dataset.numberSlot ?? '', rect: rectOf(s) }))
   const title = cellEl.dataset.wsCellTitle
   const rect = rectOf(cellEl)
   const body = empty ? null : header == null ? rect : bodyEl ? rectOf(bodyEl) : null
-  return { id, ...(title ? { title } : {}), rect, header, body, empty, tabs }
+  return { id, ...(title ? { title } : {}), rect, header, body, empty, tabs: slots.length > 0 ? slots : tabs, ...(slots.length > 0 ? { strip: true } : {}) }
 }
 
 /** A computed px length (`6px` → 6); 0 when it isn't one. */

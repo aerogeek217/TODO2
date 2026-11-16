@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { REVIEW_POPUP_TAB_ID } from '../../models/review'
 import { createTab, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
-import { setTabIgnoresLens } from '../../hooks/use-widget-lens'
 import { closeWidgetPopup, openNumberList, openReviewPopup, openWidgetLarger } from '../../services/widget-popup'
 import { registerOpenEditor } from '../../stores/editor-leave'
 import { useListWidgetStore, type ReviewFilter } from '../../stores/list-widget-store'
@@ -63,13 +62,11 @@ describe('the popup review', () => {
     expect(useListWidgetStore.getState().reviewFilters[REVIEW_POPUP_TAB_ID]).toEqual(AISHA)
   })
 
-  it('its lens switch and sort are kept in memory, never written to a layout', () => {
+  it('its sort is kept in memory, never written to a layout', () => {
     const patchTabViewState = vi.fn()
     useWorkspaceStore.setState({ patchTabViewState: patchTabViewState as never })
-    setTabIgnoresLens({ id: REVIEW_POPUP_TAB_ID, kind: 'review', config: {} }, true)
-    expect(useUIStore.getState().popupReviewView).toEqual({ ignoreLens: true })
     useUIStore.getState().patchPopupReviewView({ sort: 'due' })
-    expect(useUIStore.getState().popupReviewView).toEqual({ ignoreLens: true, sort: 'due' })
+    expect(useUIStore.getState().popupReviewView).toEqual({ sort: 'due' })
     expect(patchTabViewState).not.toHaveBeenCalled()
   })
 })

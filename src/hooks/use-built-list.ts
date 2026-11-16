@@ -45,22 +45,6 @@ interface BuiltList {
    * were completed) because the list would otherwise drop them now.
    */
   kept: ReadonlySet<number>
-  /**
-   * With a `lensProbe`: how many of the list's open tasks (its filter,
-   * prompt picks and the top bar's chips) the top bar's lens hides — whether
-   * or not it applies to this list; open tasks only, as the counter's and
-   * the lens picker's "hides". 0 without one.
-   */
-  lensHides: number
-}
-
-/**
- * What `useBuiltList` measures the top bar's lens against: the screen
- * filter without it (`chips`; undefined = no chips) and with it (`lensed`).
- */
-export interface LensProbe {
-  chips: FilterCriteria | undefined
-  lensed: FilterCriteria
 }
 
 const NO_CANDIDATES = (): PersistedTodoItem[] => []
@@ -73,7 +57,6 @@ const NO_BUILT: BuiltList = {
   mergedPredicate: null,
   orderCandidates: NO_CANDIDATES,
   kept: NO_IDS,
-  lensHides: 0,
 }
 
 /**
@@ -92,17 +75,12 @@ const NO_BUILT: BuiltList = {
  * clause keeps it too), so its row keeps its place until it has folded
  * away; `kept` names those. Only membership, order and grouping read the
  * kept build: its row shows the task as it is now (`useKeptTodos`).
- *
- * `lensProbe`: count what the top bar's lens hides here (`lensHides`) —
- * the list's open tasks under the chips alone less those under the chips
- * and the lens — however `screenFilter` treats the lens.
  */
 export function useBuiltList(
   definition: PersistedListDefinition | undefined,
   runtimeFilterValue: number[] | undefined,
   screenFilter?: FilterCriteria,
   leaving?: LeavingRows,
-  lensProbe?: LensProbe,
 ): BuiltList {
   const statuses = useStatusStore((s) => s.statuses)
   const todos = useTodoStore((s) => s.todos)
@@ -166,20 +144,16 @@ export function useBuiltList(
     }
     // The list's completed tasks count as the top bar's counter counts them: those its own gate
     // lets through, and those the screen filter admits (`admitsCompletedTask`: Show completed, a
-    // Completed range of the chips, the lens's own) — so `of M` never grows with the whole history.
+    // Completed range of the chips) — so `of M` never grows with the whole history.
     const screenAdmits = screenFilter && admitsCompleted(screenFilter) ? admitsCompletedTask(screenFilter, lookups, today, markerSettings) : null
     const gateOpen = mergedPredicate && !mergedPredicate.showCompleted ? { ...mergedPredicate, showCompleted: true } : mergedPredicate
     let baseCount = list.todos.length
-    // The open part of `baseCount`: the list's open tasks with no screen filter (a `lensHides` side).
-    let baseOpen: number | null = null
     if (screenFilter) {
       baseCount = 0
-      baseOpen = 0
       if (mergedPredicate) {
         for (const t of todos) {
           if (listOnly(mergedPredicate, t)) {
             baseCount++
-            if (!t.isCompleted) baseOpen++
           } else if (t.isCompleted && screenAdmits && gateOpen && screenAdmits(t) && listOnly(gateOpen, t)) {
             baseCount++
           }
@@ -191,29 +165,9 @@ export function useBuiltList(
       const shown = new Set(list.todos.map((t) => t.id))
       return todos.filter((t) => shown.has(t.id) || listOnly(ownPredicate, t))
     }
-    // What the lens hides here, of open tasks only — the picker's and the counter's rule.
-    let lensHides = 0
-    if (lensProbe && mergedPredicate) {
-      const builtOpen = kept.size === 0 ? countMatching(list.todos, (t) => !t.isCompleted) : null
-      // Each side read from a pass already made where it can be (U11): the build ran under
-      // `screenFilter` (`useListScreenFilter` hands the probe the same object), `baseCount` under none.
-      const openUnder = (screen: FilterCriteria | undefined): number => {
-        if (screen === screenFilter && builtOpen != null) return builtOpen
-        if (screen === undefined && baseOpen != null) return baseOpen
-        const match = screen ? createScreenComposedEvaluator(screen, lookups, today, markerSettings) : listOnly
-        return countMatching(todos, (t) => !t.isCompleted && match(mergedPredicate, t))
-      }
-      lensHides = Math.max(0, openUnder(lensProbe.chips) - openUnder(lensProbe.lensed))
-    }
-    return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, kept, lensHides }
+    return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, kept }
   }, [
     definition, todos, people, assignedPeopleMap,
-    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings, leaving, lookups, lensProbe,
+    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings, leaving, lookups,
   ])
-}
-
-function countMatching(todos: readonly PersistedTodoItem[], match: (t: PersistedTodoItem) => boolean): number {
-  let n = 0
-  for (const t of todos) if (match(t)) n++
-  return n
 }

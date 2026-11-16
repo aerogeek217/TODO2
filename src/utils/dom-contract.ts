@@ -9,6 +9,12 @@
 
 /** A task's row (list rows, the phone row) or calendar entry: its task id. */
 export const TODO_ID_ATTR = 'data-todo-id'
+/**
+ * A creating surface that closes once its task is made (Quick Add, the New
+ * task editor): a new task's flight (`overlays/task-fly`, flair P4) is
+ * decided while it is still up, so its hit test looks through it.
+ */
+export const FLIGHT_SEE_THROUGH_ATTR = 'data-flight-see-through'
 /** The top bar's search field. */
 export const SEARCH_INPUT_ATTR = 'data-search-input'
 /** The top bar's filter tray (the field, the Filter button, the set filters' chips, the counter). */
@@ -101,3 +107,12 @@ export function widgetPopupOf(tabId: string): HTMLElement | null {
 export function widgetElement(tabId: string, selector: string): HTMLElement | null {
   return widgetPopupOf(tabId)?.querySelector<HTMLElement>(selector) ?? document.querySelector<HTMLElement>(selector)
 }
+
+/**
+ * An element's hover text (flair P9, one tooltip everywhere): `TooltipHost`
+ * shows it as the app's tooltip. Elements write it as `data-tooltip="…"`;
+ * the native `title` attribute is banned (ESLint).
+ */
+export const TOOLTIP_ATTR = 'data-tooltip'
+/** An optional muted key after a `data-tooltip`'s label (`Settings G S`). */
+export const TOOLTIP_SHORTCUT_ATTR = 'data-tooltip-shortcut'

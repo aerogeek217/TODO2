@@ -3,7 +3,7 @@ import type { PersistedTodoItem } from '../models'
 import { emptyPredicate } from '../models/filter-predicate'
 import type { NumberConfig } from '../models/glance-widgets'
 import { DEFAULT_NUMBER_OLDEST_BY, type NumberGroupItem, type NumberOldestBy } from '../models/number-shapes'
-import type { LensTab } from '../models/workspace-layout'
+import type { ListTab } from '../models/workspace-layout'
 import { countReplayed, historyExactness, type TaskReplays } from '../services/stats/filter-history'
 import { numberHistoryDays } from '../services/stats/number-count'
 import { oldestOf, shareOf, shareSeries, type NumberOldest, type NumberShare } from '../services/stats/number-shapes'
@@ -22,7 +22,7 @@ import { sharedMemo, sharedMemoByKey } from '../utils/shared-memo'
 import { useBuiltList } from './use-built-list'
 import { historyReplayMemo, lineBeforeWrite, lookupsFor, numberCountOf, useOffRender, type NumberCount, type NumberHistory, type StatsBase } from './use-glance-data'
 import { useEffectiveListDefinition } from './use-list-draft'
-import { useListScreenFilter } from './use-list-screen-filter'
+import { useActiveScreenFilter } from '../stores/screen-filter'
 import { useTabBadges, type TabBadge } from './use-tab-badges'
 import { useTrendEvents } from './use-trend-events'
 
@@ -129,7 +129,7 @@ const groupMemo = sharedMemoByKey(function group(_items: readonly NumberGroupIte
   return counts
 })
 
-/** A group Number's counts: each item's filter under the screen filter (the group's lens switch for every one), in item order. */
+/** A group Number's counts: each item's filter under the screen filter, in item order. */
 export function useNumberGroup(base: StatsBase, config: Pick<NumberConfig, 'items'>): NumberCount[] {
   const items = config.items ?? NO_ITEMS
   const counts = items.map((item) => numberCountOf(base, { filter: item.filter }))
@@ -148,7 +148,7 @@ interface NumberListData {
   /** The list as edited (its draft); absent when none is picked or it was deleted. */
   name: string | null
   /** The list as a list tab of the Number's id (its prompt picks are the Number's), for the popover; absent with no list. */
-  lensTab: LensTab | null
+  listTab: ListTab | null
   /** The tasks it shows, each once, in order. */
   ids: number[]
   /** What its filter (and prompt) keeps before the screen filter — the `of N`. */
@@ -169,26 +169,26 @@ const listIdsMemo = sharedMemoByKey(function listIds(sections: readonly Section[
 
 /**
  * What the list a Number follows shows (`useBuiltList`): its filter as
- * edited, its own lens switch, its prompt (picked per the Number's tab, in
- * the list's popover) and the screen filter; and its tab badge.
+ * edited, its prompt (picked per the Number's tab, in the list's popover)
+ * and the screen filter; and its tab badge.
  */
 export function useNumberList(tabId: string, listId: number | undefined): NumberListData {
   const definition = useEffectiveListDefinition(listId)
   const picks = useListWidgetStore((s) => s.picks[tabId])
-  const screenFor = useListScreenFilter(definition?.id)
-  const built = useBuiltList(definition, picks, screenFor.filters, undefined, screenFor.probe)
+  const screen = useActiveScreenFilter()
+  const built = useBuiltList(definition, picks, screen)
   const defId = definition?.id
-  const lensTab = useMemo<LensTab | null>(
+  const listTab = useMemo<ListTab | null>(
     () => (defId != null ? { id: tabId, kind: 'lens', config: { listDefinitionId: defId } } : null),
     [tabId, defId],
   )
-  const tabs = useMemo(() => (lensTab ? [lensTab] : []), [lensTab])
+  const tabs = useMemo(() => (listTab ? [listTab] : []), [listTab])
   const badge = useTabBadges(tabs).get(tabId)
   const sections = built.list?.sections ?? NO_SECTIONS
   const ids = listIdsMemo(sections)
   return {
     name: definition ? definition.name : null,
-    lensTab,
+    listTab,
     ids,
     baseCount: built.baseCount,
     pending: built.runtimeFilterPending,

@@ -13,9 +13,7 @@ import { listReviewCount, personReviewFilter, reviewTargetTabId } from './review
 import { jumpToReview } from './review-jump'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useUIStore, type LayoutRequest } from '../stores/ui-store'
-import { lensActions } from '../stores/lens-actions'
 import type { ThemeMode } from '../stores/settings-store'
-import { findLens, type Lens } from '../utils/lens'
 import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../models/workspace-layout'
 
 /**
@@ -42,7 +40,7 @@ export interface Command {
   step?: readonly Command[]
   /** Inside a step: the heading it sits under (Add Widget ›'s Tasks / Insights); none, no heading. */
   group?: string
-  /** The one in use (the open layout, the picked lens, the theme): marked in its row. */
+  /** The one in use (the open layout, the theme): marked in its row. */
   current?: boolean
 }
 
@@ -93,8 +91,6 @@ export interface CommandContext {
   openWidgetLarger?: () => void
   /** The layouts, for Go to Layout › and the layout commands; null (or absent) while no layout is open. */
   getLayouts?: () => LayoutChoices | null
-  /** The lenses and the top bar's pick, for Lens ›. */
-  getLenses?: () => { lenses: readonly Lens[]; activeLensId: string | null }
   /** The theme setting, for Theme ›. */
   getThemeMode?: () => ThemeMode
 }
@@ -183,33 +179,6 @@ function layoutCommands(ctx: CommandContext): Command[] {
   return commands
 }
 
-/**
- * Lens › No lens and each lens by name (the picked one marked): a pick is
- * the top bar's — the lens put back on if it was lifted, saved at once, as
- * the lens picker's. None while no lens is defined (Cycle Lens says where
- * to make one).
- */
-function lensCommands(ctx: CommandContext): Command[] {
-  const { lenses, activeLensId } = ctx.getLenses?.() ?? { lenses: [], activeLensId: null }
-  if (lenses.length === 0) return []
-  const picked = findLens(lenses, activeLensId)?.id ?? null
-  const pick = (id: string | null) => () => {
-    useUIStore.getState().setLensLifted(false)
-    void lensActions.setActiveLens(id)
-  }
-  const choices: Command[] = [
-    { id: 'lens-none', name: 'No lens', category: 'filter', ...(picked == null ? { current: true } : {}), action: pick(null) },
-    ...lenses.map((l): Command => ({
-      id: `lens-${l.id}`,
-      name: l.name,
-      category: 'filter',
-      ...(l.id === picked ? { current: true } : {}),
-      action: pick(l.id),
-    })),
-  ]
-  return [stepCommand('lens-pick', 'Lens', 'filter', choices)]
-}
-
 const THEME_MODES: readonly { mode: ThemeMode; name: string }[] = [
   { mode: 'light', name: 'Light' },
   { mode: 'dark', name: 'Dark' },
@@ -260,9 +229,7 @@ export function createCommands(
     // Filter presets
     { id: 'filter-show-completed', name: 'Toggle Show Completed', category: 'filter', action: () => ctx.setShowCompleted(!ctx.getShowCompleted()) },
     { id: 'filter-clear', name: 'Clear All Filters', category: 'filter', action: ctx.clearAllFilters },
-    bound('lens-cycle', 'Cycle Lens', 'cycle-lens', 'filter'),
-    bound('lens-lift', 'Lift Lens / Put It Back', 'lift-lens', 'filter'),
-    ...lensCommands(ctx),
+    bound('filter-pause', 'Pause / Resume Filter', 'pause-filter', 'filter'),
     { id: 'filter-overdue', name: 'Show Overdue Tasks', category: 'filter', action: () => {
       ctx.clearAllFilters()
       const yesterday = new Date(startOfToday().getTime() - 1)

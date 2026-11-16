@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
-import { filterChip, openFilterPicker } from './fixtures/filters'
+import { filterPills, openFilterPicker } from './fixtures/filters'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
@@ -181,14 +181,14 @@ test('the task editor closing saves a typed subtask and an entry being edited; E
 })
 
 test('the date filter: an Is not with no range yet is still chosen when the panel opens again', async ({ page }) => {
-  // No range yet, so no filter and no chip: the panel opens from the Filter menu each time.
+  // No range yet, so no filter and no pill: the panel opens from the Filter menu each time.
   const panel = page.getByRole('dialog').first()
   const not = panel.getByRole('radio', { name: 'Is not' }).first()
   await openFilterPicker(page, 'Dates')
   await panel.getByRole('tab', { name: /^Last follow-up/ }).click()
   await not.click()
   await esc(page)
-  await expect(filterChip(page, 'Dates')).toHaveCount(0)
+  await expect(filterPills(page)).toHaveCount(0)
   await openFilterPicker(page, 'Dates')
   await panel.getByRole('tab', { name: /^Last follow-up/ }).click()
   await expect(not).toHaveAttribute('aria-checked', 'true')

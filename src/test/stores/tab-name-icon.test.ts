@@ -148,10 +148,10 @@ describe('a tab’s icon (items 11, 14)', () => {
     expect(tab('c1')).not.toHaveProperty('name')
   })
 
-  it('names the tab in other undo steps (Closed tab “…”)', async () => {
+  it('names the tab in other undo steps (Removed “…”)', async () => {
     await open([{ ...createTab('calendar', 'c1'), name: 'Deadlines' }, createTab('notes', 'n1')])
     ws().closeTab('c1')
-    expect(undoNames()).toEqual(['Closed tab “Deadlines”'])
+    expect(undoNames()).toEqual(['Removed “Deadlines”'])
   })
 })
 

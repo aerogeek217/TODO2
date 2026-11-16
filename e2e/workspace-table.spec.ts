@@ -6,7 +6,6 @@ import {
   edges,
   expectSameEdges,
   openCellLayoutMenu,
-  openCellMenu,
   pickCellMenu,
   releaseDrag,
   seedWorkspace,
@@ -216,7 +215,7 @@ test.describe('whole-cell drags', () => {
 })
 
 test.describe('the cell menu', () => {
-  test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); Insert ▸ Row at the top', async ({ page }) => {
+  test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); Insert row ▸ At the top', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     await openCellLayoutMenu(page, 'a')
     await page.getByRole('menuitem', { name: 'Merge with', exact: true }).click()
@@ -226,7 +225,7 @@ test.describe('the cell menu', () => {
     await expectLayoutStep(page)
 
     await openCellLayoutMenu(page, 'b')
-    await pickCellMenu(page, 'Insert', 'Row at the top')
+    await pickCellMenu(page, 'Insert row', 'At the top')
     const empty = page.getByRole('region', { name: 'Empty cell' })
     await expect(empty).toBeVisible()
     const a = await areaBox(page)
@@ -261,7 +260,7 @@ test.describe('the cell menu', () => {
 
   test('Add widget… puts the widget where it says: Right of the cell', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
-    await openCellMenu(page, 'c')
+    await openCellLayoutMenu(page, 'c')
     await page.getByRole('menuitem', { name: 'Add widget…' }).click()
     const menu = page.getByRole('menu', { name: 'Add widget' })
     await menu.getByRole('group', { name: 'Where' }).getByRole('menuitemradio', { name: 'Split · right' }).click()

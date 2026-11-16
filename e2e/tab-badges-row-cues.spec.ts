@@ -37,7 +37,7 @@ test.describe('tab badges', () => {
     const ann = wsTab(page, 'ann')
     await expect(badge(ann).locator('span')).toHaveText(['2', '1'])
     await expect(badge(wsTab(page, 'all')).locator('span')).toHaveText(['3', '1'])
-    await expect(ann).toHaveAttribute('title', /2 due: 1 overdue, 1 within 3 days\n1 follow-up: today/)
+    await expect(ann).toHaveAttribute('data-tooltip', /2 due: 1 overdue, 1 within 3 days\n1 follow-up: today/)
 
     const solid = await badge(ann).locator('span').first().evaluate((el) => getComputedStyle(el).backgroundColor)
     const tinted = await badge(ann).locator('span').nth(1).evaluate((el) => getComputedStyle(el).backgroundColor)
@@ -63,9 +63,9 @@ test.describe('tab badges', () => {
     const ann = wsTab(page, 'ann')
     await expect(badge(ann).locator('span')).toHaveText(['2', '1'])
 
-    await page.getByPlaceholder('Filter…').fill('soon')
+    await page.locator('header').getByRole('textbox', { name: 'Filter tasks' }).fill('soon')
     await expect(badge(ann).locator('span')).toHaveText(['1'])
-    await page.getByPlaceholder('Filter…').fill('')
+    await page.locator('header').getByRole('textbox', { name: 'Filter tasks' }).fill('')
     await expect(badge(ann).locator('span')).toHaveText(['2', '1'])
 
     const settings = await openSettings(page, 'Tasks')
@@ -161,7 +161,8 @@ test.describe('priority row cues', () => {
 
   test('Settings’ switches change the rows and last across a reload', async ({ page }) => {
     await seedWorkspace(page, CUE_SEED)
-    const settings = await openSettings(page, 'Tasks')
+    // Priority cues are how a row looks: Settings › Appearance › Task rows (the Settings regroup).
+    const settings = await openSettings(page, 'Task rows')
     await settings.getByRole('switch', { name: 'Focus glow' }).click()
     await settings.getByRole('switch', { name: 'Important semibold' }).click()
     await expect.poll(() => backgroundImage(rowOf(page, 'In focus'))).toContain('radial-gradient')

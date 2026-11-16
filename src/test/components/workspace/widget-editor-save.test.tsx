@@ -140,7 +140,8 @@ describe('a widget editor’s Save', () => {
     expect(saveButton(editor)).toBeEnabled()
     fireEvent.change(within(filter).getByRole('textbox', { name: 'Filter expression' }), { target: { value: 'overdue and (' } })
     expect(saveButton(editor)).toBeDisabled()
-    expect(saveButton(editor)).toHaveAttribute('title', SAVE_UNREADABLE_TITLE)
+    expect(saveButton(editor)).toHaveAttribute('data-tooltip', SAVE_UNREADABLE_TITLE)
+    expect(saveButton(editor)).toHaveAttribute('aria-description', SAVE_UNREADABLE_TITLE)
   })
 })
 

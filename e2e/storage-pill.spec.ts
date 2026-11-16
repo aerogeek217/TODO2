@@ -115,14 +115,14 @@ test('all well, at any width: Local only and Synced are a dot, their words in th
     expect(Math.round((await pill.boundingBox())!.width), `${width}px`).toBe(24)
     await expect(pill.getByText('Local only')).toBeHidden()
     await expect(pill).toHaveAccessibleName('Storage: Local only')
-    await expect(pill).toHaveAttribute('title', 'Local only')
+    await expect(pill).toHaveAttribute('data-tooltip', 'Local only')
 
     await setStorage(page, { isConnected: true, fileName: 'todo2.json', needsPermission: false, paused: null, error: null })
     await expect(pill).toHaveAttribute('data-state', 'syncing')
     expect(Math.round((await pill.boundingBox())!.width), `${width}px`).toBe(24)
     await expect(pill.getByText('Synced')).toBeHidden()
     await expect(pill).toHaveAccessibleName('Storage: Synced')
-    await expect(pill).toHaveAttribute('title', 'Syncing to todo2.json')
+    await expect(pill).toHaveAttribute('data-tooltip', 'Syncing to todo2.json')
 
     await setStorage(page, STATES.permission.fileStorage)
     await expect(pill).toHaveAttribute('data-state', 'permission')

@@ -88,7 +88,7 @@ describe('NeglectMapWidget', () => {
     fireEvent.click(screen.getByRole('button', { name: 'In hand: show 1 task' }))
     expect(useUIStore.getState().taskDialog).toMatchObject({
       title: 'In hand',
-      description: 'Open tasks due soon or late that changed in the last 14 days, latest first.',
+      description: 'Open tasks due soon or late that changed in the last 14 days.',
       source: { kind: 'todos', todoIds: [3] },
     })
     // The strip's No due date: every task without one, the longest untouched first.

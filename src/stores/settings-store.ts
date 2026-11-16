@@ -60,8 +60,6 @@ import {
   parseAmbienceSettings,
   roundCoordinate,
 } from '../utils/ambience-settings'
-import type { Lens } from '../utils/lens'
-import { formatLensesSetting, isLensId, readLensesSetting } from '../data/lens-shape'
 import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import {
   formatShortcutOverrides,
@@ -113,6 +111,12 @@ interface SettingsData {
   autoFollowup: boolean
   /** "Remove note lines after converting": a converted line leaves the note instead of becoming `✓ <title>`. Off by default. */
   removeConvertedLines: boolean
+  /** "Cobwebs on stale tasks": a stale row's checkbox draws a cobweb (the `staleAfterDays` threshold). On by default. */
+  staleCobwebs: boolean
+  /** "Fade stale tasks": a stale row is drawn faded until hovered (the `staleAfterDays` threshold). On by default. */
+  staleFade: boolean
+  /** "Tally of today’s tasks": the top bar scratches a mark per task completed today. On by default. */
+  tallyMarks: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
   /**
@@ -137,7 +141,7 @@ interface SettingsData {
    * as they were when the log began (`services/stats/task-history`).
    */
   historyLogSince: Date | null
-  /** "Fade tasks untouched for": days without a change after which an open task's row is drawn faded; 0 = off. */
+  /** "Stale after" (Tasks › Rules): days without a change after which an open task is stale; 0 = never. */
   staleAfterDays: number
   /** What a list tab's badges count, unless the list has its own (`utils/tab-badges`). */
   tabBadges: TabBadgeRanges
@@ -149,15 +153,6 @@ interface SettingsData {
   rowDates: RowDates
   /** Ambience: the time of day and the season in the chrome (Settings › Appearance › Ambience; `models/ambience`). */
   ambience: AmbienceSettings
-  /** The lenses (named screen filters, picked in the top bar — `utils/lens`), in Settings' order. */
-  lenses: readonly Lens[]
-  /** The preset lenses were seeded once (`seedLensPresets`); nothing seeds them again. */
-  lensPresetsSeeded: boolean
-  /**
-   * The lens picked in the top bar, for every layout (a lens's id); `null` =
-   * No lens. An id no lens has (a lens deleted since) reads as No lens.
-   */
-  activeLensId: string | null
   /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
   shortcutOverrides: ShortcutOverrides
 }
@@ -187,6 +182,9 @@ interface SettingsState extends SettingsData {
   /** "Set a next follow-up automatically". */
   setAutoFollowup: (on: boolean) => Promise<void>
   setRemoveConvertedLines: (on: boolean) => Promise<void>
+  setStaleCobwebs: (on: boolean) => Promise<void>
+  setStaleFade: (on: boolean) => Promise<void>
+  setTallyMarks: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /**
    * Remembers the check-in filter (kept without people; no filter = the row
@@ -213,7 +211,7 @@ interface SettingsState extends SettingsData {
    * launch tries again).
    */
   stampHistoryLogSince: (now?: Date) => Promise<void>
-  /** Fade tasks untouched for `days` (0–365 whole days, 0 = off; anything else is ignored); stored only when not 30. */
+  /** Tasks go stale after `days` (0–365 whole days, 0 = never; anything else is ignored); stored only when not 30. */
   setStaleAfterDays: (days: number) => Promise<void>
   setTabBadges: (ranges: TabBadgeRanges) => Promise<void>
   setPriorityCues: (cues: PriorityCues) => Promise<void>
@@ -228,7 +226,6 @@ interface SettingsState extends SettingsData {
    * passing the same `mergeKey` (the Header motion slider as it moves) stay one.
    */
   setAmbience: (changes: Partial<AmbienceSettings>, options?: Pick<SettingWriteOptions, 'mergeKey'>) => Promise<void>
-  // The lens edits and the top bar's pick are `stores/lens-actions`' (cr31 A5).
   /**
    * Gives `id` new keys (no undo step). Resolves the reason when they are
    * refused (a reserved key, or another binding's — nothing is written),
@@ -381,7 +378,7 @@ function setting<K extends keyof SettingsData>(
   return { ...spec, ...settingWriter(store, spec) }
 }
 
-/** A setting only read here (written elsewhere: the status seed, the lens seed). */
+/** A setting only read here (written elsewhere: the status seed, the history log's start). */
 function stored<K extends keyof SettingsData>(fields: readonly K[], read: (rows: StoredRows) => Pick<SettingsState, K>): StoredSetting<SettingsState, K> {
   return { fields, read }
 }
@@ -498,6 +495,30 @@ export const SETTINGS = {
     failure: 'Couldn’t save what converted note lines become.',
     undo: ({ removeConvertedLines: on }) => (on ? 'Remove note lines after converting' : 'Keep converted note lines'),
   }),
+  staleCobwebs: setting(['staleCobwebs'], {
+    read: (rows) => ({ staleCobwebs: rows.get(K.staleCobwebs) !== 'false' }),
+    // Stored only when off: absent = on.
+    rows: ({ staleCobwebs: on }) => rowUnlessDefault(K.staleCobwebs, 'false', on),
+    label: 'whether stale tasks show cobwebs',
+    failure: 'Couldn’t save whether stale tasks show cobwebs.',
+    undo: ({ staleCobwebs: on }) => (on ? 'Cobwebs on stale tasks' : 'No cobwebs on stale tasks'),
+  }),
+  staleFade: setting(['staleFade'], {
+    read: (rows) => ({ staleFade: rows.get(K.staleFade) !== 'false' }),
+    // Stored only when off: absent = on.
+    rows: ({ staleFade: on }) => rowUnlessDefault(K.staleFade, 'false', on),
+    label: 'whether stale tasks are faded',
+    failure: 'Couldn’t save whether stale tasks are faded.',
+    undo: ({ staleFade: on }) => (on ? 'Fade stale tasks' : 'Don’t fade stale tasks'),
+  }),
+  tallyMarks: setting(['tallyMarks'], {
+    read: (rows) => ({ tallyMarks: rows.get(K.tallyMarks) !== 'false' }),
+    // Stored only when off: absent = on.
+    rows: ({ tallyMarks: on }) => rowUnlessDefault(K.tallyMarks, 'false', on),
+    label: 'whether the top bar shows a tally of today’s tasks',
+    failure: 'Couldn’t save whether the top bar shows a tally of today’s tasks.',
+    undo: ({ tallyMarks: on }) => (on ? 'Tally of today’s tasks on' : 'Tally of today’s tasks off'),
+  }),
   urgentDueWithinDays: setting(['urgentDueWithinDays'], {
     read: (rows) => ({
       urgentDueWithinDays: rowOr(rows, K.urgentDueWithinDays, DEFAULT_URGENT_DUE_WITHIN_DAYS, (v) => {
@@ -568,8 +589,8 @@ export const SETTINGS = {
     read: (rows) => ({ staleAfterDays: rowOr(rows, K.staleAfterDays, DEFAULT_STALE_AFTER_DAYS, (v) => parseStaleAfterDays(v) ?? DEFAULT_STALE_AFTER_DAYS) }),
     rows: ({ staleAfterDays: days }) => rowUnlessDefault(K.staleAfterDays, String(days), days === DEFAULT_STALE_AFTER_DAYS),
     label: 'the stale threshold',
-    failure: 'Couldn’t save when to fade untouched tasks.',
-    undo: ({ staleAfterDays: days }) => (days === 0 ? 'Don’t fade untouched tasks' : `Fade tasks untouched for ${days === 1 ? 'a day' : `${days} days`}`),
+    failure: 'Couldn’t save when tasks go stale.',
+    undo: ({ staleAfterDays: days }) => (days === 0 ? 'Tasks never go stale' : `Tasks go stale after ${days === 1 ? 'a day' : `${days} days`}`),
   }),
   tabBadges: setting(['tabBadges'], {
     read: (rows) => {
@@ -617,20 +638,6 @@ export const SETTINGS = {
     label: 'the ambience',
     failure: 'Couldn’t save the ambience settings.',
     undo: ({ ambience: a }) => (!a.enabled ? 'Ambience off' : `Ambience: ${SKY_STRENGTH_LABELS[a.sky]}, ${a.seasons ? 'with' : 'without'} seasons`),
-  }),
-  // The lenses and the pick are written by `stores/lens-actions` (its undo names are the edit's).
-  lenses: setting(['lenses'], {
-    read: (rows) => ({ lenses: rowOr<readonly Lens[]>(rows, K.lenses, [], (v) => readLensesSetting(v).lenses) }),
-    rows: ({ lenses }) => ({ [K.lenses]: lenses.length === 0 ? null : formatLensesSetting(lenses) }),
-    label: 'the lenses',
-    failure: 'Couldn’t save the lenses.',
-  }),
-  lensPresetsSeeded: stored(['lensPresetsSeeded'], (rows) => ({ lensPresetsSeeded: rows.get(K.lensPresetsSeeded) === 'true' })),
-  activeLensId: setting(['activeLensId'], {
-    read: (rows) => ({ activeLensId: rowOr(rows, K.activeLensId, null, (v) => (isLensId(v) ? v : null)) }),
-    rows: ({ activeLensId: id }) => ({ [K.activeLensId]: id }),
-    label: 'the lens pick',
-    failure: 'Couldn’t save the lens pick.',
   }),
   shortcutOverrides: setting(['shortcutOverrides'], {
     read: (rows) => ({ shortcutOverrides: rowOr<ShortcutOverrides>(rows, K.keyboardShortcuts, {}, (v) => readShortcutOverrides(v).overrides) }),
@@ -718,6 +725,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setRemoveConvertedLines(on) {
     await SETTINGS.removeConvertedLines.write({ removeConvertedLines: on })
+  },
+
+  async setStaleCobwebs(on) {
+    await SETTINGS.staleCobwebs.write({ staleCobwebs: on })
+  },
+
+  async setStaleFade(on) {
+    await SETTINGS.staleFade.write({ staleFade: on })
+  },
+
+  async setTallyMarks(on) {
+    await SETTINGS.tallyMarks.write({ tallyMarks: on })
   },
 
   async setUrgentDueWithinDays(range) {

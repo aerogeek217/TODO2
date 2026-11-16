@@ -143,10 +143,10 @@ describe('the readers of the top level', () => {
     expect(picked.expression).toEqual({ kind: 'and', items: [{ kind: 'priority', value: 'focus' }, { kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 2 }] }] })
   })
 
-  it('narrow People groups by the top-level person pick, its own and its lens’s', () => {
+  it('narrow People groups by the top-level person pick, its own and the screen filter’s', () => {
     expect(groupRestrictions('personIds', mixed, undefined)).toEqual([[1]])
-    const lens = predicateToCriteria(expr({ kind: 'and', items: [{ kind: 'person', id: 2 }, { kind: 'priority', value: 'focus' }] }))
-    expect(groupRestrictions('personIds', undefined, { ...predicateToCriteria(emptyPredicate()), lens })).toEqual([[2]])
+    const screen = predicateToCriteria(expr({ kind: 'and', items: [{ kind: 'person', id: 2 }, { kind: 'priority', value: 'focus' }] }))
+    expect(groupRestrictions('personIds', undefined, screen)).toEqual([[2]])
   })
 
   // cr33 F12: `@a and @b` keeps tasks of both, so a new task gets both and
@@ -170,8 +170,8 @@ describe('the readers of the top level', () => {
   it('narrow People / Tag groups by each repeated top-level "is" term, intersected', () => {
     expect(groupRestrictions('personIds', both, undefined)).toEqual([[1], [2]])
     expect(groupRestrictions('tags', both, undefined)).toEqual([[1], [3]])
-    const lens = predicateToCriteria(expr({ kind: 'and', items: [{ kind: 'person', id: 1 }, { kind: 'not', item: { kind: 'person', id: 3 } }, { kind: 'or', items: [{ kind: 'person', id: 2 }, { kind: 'person', id: 4 }] }] }))
-    expect(groupRestrictions('personIds', undefined, { ...predicateToCriteria(emptyPredicate()), lens })).toEqual([[1], [2, 4]])
+    const screen = predicateToCriteria(expr({ kind: 'and', items: [{ kind: 'person', id: 1 }, { kind: 'not', item: { kind: 'person', id: 3 } }, { kind: 'or', items: [{ kind: 'person', id: 2 }, { kind: 'person', id: 4 }] }] }))
+    expect(groupRestrictions('personIds', undefined, screen)).toEqual([[1], [2, 4]])
   })
 })
 

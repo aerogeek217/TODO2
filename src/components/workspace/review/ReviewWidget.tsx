@@ -33,7 +33,6 @@ import { ReviewQueueButton } from '../../review/ReviewQueueButton'
 import { ReviewRail } from '../../review/ReviewRail'
 import { ReviewSessionContext, useReviewSession } from '../../review/review-session-context'
 import { CellControlsContext } from '../cell-controls'
-import { TabLensSwitch } from '../LensSwitch'
 import { TopLineName, WidgetTopLine } from '../WidgetTopLine'
 import { ReviewFilterField } from './ReviewFilterField'
 import styles from './ReviewWidget.module.css'
@@ -43,25 +42,25 @@ import styles from './ReviewWidget.module.css'
  * review in a cell — where every Review button jumps (2B,
  * `services/review-jump`, which sets its filter). Alone in its cell its top line reads `Review`, the
  * progress (`2 followed up`, with a filter; under 820px wide a Queue button
- * before it), its lens switch and the cell's ⋯; under it the prompt row
+ * before it) and the cell's ⋯; under it the prompt row
  * (`ReviewFilterField`): one field that takes a filter expression — no kind
  * to choose. In a cell of several widgets there is no top line: the prompt
- * row is its first row and ends with the progress and the lens switch.
+ * row is its first row and ends with the progress.
  * **The filter is temporary**, kept by tab id in memory
  * (`list-widget-store.reviewFilters`: never saved, gone with a reload). The
  * queue is **live** (`useReviewWidgetQueue`): the open tasks the filter
- * keeps under the screen filter and the widget's lens switch — a task
+ * keeps under the screen filter — a task
  * leaving the filter leaves the rail; the current one stays until the
  * review moves on. Its place and – marks last as long as the filter (the
  * tab's session; ✓ is followed up today, item 11); only the rail's sort
- * (Priority unless one is stored) and the lens switch are view state. A
+ * (Priority unless one is stored) is view state. A
  * double-click on a rail row opens the task in its editor. Faces
  * (`utils/widget-face.reviewFaceFor`): large — the rail, the card
  * (`components/review/ReviewCard`) and its footer; medium — the card's
  * essentials, the update line and the footer (the phone's face too); small
  * — `Review · <filter>` and `N left · M followed up`, a click opens the
  * whole widget in the widget popup. Drawn in the popup as the popup review
- * (`REVIEW_POPUP_TAB_ID`, no layout tab), its sort and lens switch are kept
+ * (`REVIEW_POPUP_TAB_ID`, no layout tab), its sort is kept
  * in `ui-store.popupReviewView`. Every write is the card's
  * (`useReviewFollowUp`, its fields), each its own undo step.
  */
@@ -205,7 +204,6 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
       {`${done} followed up`}
     </span>
   )
-  const lensSwitch = picked && <TabLensSwitch tab={tab} hides={queue.hides} />
 
   let body: ReactNode
   if (!picked) {
@@ -240,13 +238,12 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
     <>
       <WidgetTopLine alone className={styles.topLine} lead={<TopLineName>{kindTabTitle(tab)}</TopLineName>}>
         {progress}
-        {lensSwitch}
       </WidgetTopLine>
       <ReviewFilterField
         tabId={tab.id}
         filter={filter}
         inputRef={fieldRef}
-        trailing={alone ? undefined : <>{progress}{lensSwitch}</>}
+        trailing={alone ? undefined : progress}
       />
       {body}
     </>

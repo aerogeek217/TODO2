@@ -14,7 +14,6 @@ import { DATE_FIELD_VALUES } from '../../models/app-view'
 import { TODO_EVENT_TYPES } from '../../models/todo-event'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
-import { formatLensesSetting } from '../../data/lens-shape'
 import { makeTodo, resetDb } from '../helpers'
 import { cell, emptyBody, grid, numberTab } from '../helpers/layout-builders'
 
@@ -121,10 +120,10 @@ function buildSeed(): Seed {
       { key: 'staleAfterDays', value: '45' },
       { key: 'rowDensity', value: 'stacked' },
       { key: 'rowDates', value: 'numeric' },
+      { key: 'staleCobwebs', value: 'false' },
+      { key: 'staleFade', value: 'false' },
+      { key: 'tallyMarks', value: 'false' },
       { key: 'ambience', value: JSON.stringify({ enabled: false, place: { lat: 41.88, lon: -87.63 }, sky: 'subtle', motion: 60, seasons: false }) },
-      { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...emptyPredicate(), expression: EXPRESSION } }]) },
-      { key: 'lensPresetsSeeded', value: 'true' },
-      { key: 'activeLensId', value: 'lens-a' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
       { key: 'completedRetentionDays', value: '30' },
@@ -143,7 +142,7 @@ function buildSeed(): Seed {
       id: 2, name: 'Follow-ups', sortOrder: 1,
       membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: [{ values: ['focus'], not: true }], negate: { personIds: true, statusIds: true, tags: true } } },
       sort: 'followup', grouping: 'followup',
-      owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' }, ignoreLens: true,
+      owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' },
     }, {
       id: 3, name: 'By priority', sortOrder: 2,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
@@ -192,11 +191,11 @@ function buildSeed(): Seed {
           ], { activeTabId: 't2' })
           const k2 = cell('k2', [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }])
           const k3 = cell('k3', [
-            { ...numberTab('t5', 'noFollowup', { breakdown: 'tags', litWhen: 'below', litAt: 4 }), viewState: { ignoreLens: true } },
+            numberTab('t5', 'noFollowup', { breakdown: 'tags', litWhen: 'below', litAt: 4 }),
             { id: 't6', kind: 'lens', config: {} },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
-            // Item 12: a Review widget (no settings, 2A), its sort and lens switch.
-            { id: 't14', kind: 'review', config: {}, viewState: { sort: 'next', ignoreLens: true } },
+            // Item 12: a Review widget (no settings, 2A) and its sort.
+            { id: 't14', kind: 'review', config: {}, viewState: { sort: 'next' } },
             // The glance widgets, each with a setting off its default.
             numberTab('g1', 'closedThisWeek'),
             { id: 'g4', kind: 'trend', config: { range: '12w', name: 'Opened and closed', show: 'cumulative', filter: { ...emptyPredicate(), tags: [1] } } },
@@ -302,13 +301,11 @@ describe('export → JSON → import round-trip', () => {
     // Every "is not" switch.
     const negations = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.keys(d.membership.predicate.negate ?? {}) : [])
     expect(new Set(negations)).toEqual(new Set(NEGATABLE_FIELDS))
-    // Expressions: on a list, with every kind of atom and a `not`; in a lens and the check-in filter.
+    // Expressions: on a list, with every kind of atom and a `not`; in the check-in filter.
     const expressions = seed.listDefinitions.flatMap((d) => (d.membership.kind === 'custom' && d.membership.predicate.expression ? [d.membership.predicate.expression] : []))
     expect(new Set(expressions.flatMap((e) => expressionAtoms(e).map((a) => a.kind)))).toEqual(new Set(['person', 'tag', 'status', 'priority', 'text', 'date']))
     expect(JSON.stringify(expressions)).toContain('"kind":"not"')
-    for (const key of ['lenses', 'checkinTaskFilter']) {
-      expect(seed.settings.find((r) => r.key === key)?.value, `${key} holds an expression`).toContain('"expression"')
-    }
+    expect(seed.settings.find((r) => r.key === 'checkinTaskFilter')?.value, 'the check-in filter holds an expression').toContain('"expression"')
     // Every date type and every kind of date clause.
     const clauses = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.entries(d.membership.predicate.dates) : [])
     expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(DATE_FIELD_VALUES))

@@ -172,7 +172,7 @@ describe('RuntimeFilterPicker', () => {
       <RuntimeFilterPicker spec={{ field: 'person' }} value={[1, 2]} onChange={onChange} />,
     )
     const clear = getByLabelText('Clear Person')
-    expect(clear.getAttribute('title')).toBe('Clear Person')
+    expect(clear.getAttribute('data-tooltip')).toBe('Clear Person')
     // Not a Tab stop, and its press doesn't take the focus.
     expect(clear.tabIndex).toBe(-1)
     expect(fireEvent.mouseDown(clear)).toBe(false)

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { filterChip, filterMenuRow, openFilterMenu, setShowCompleted } from './fixtures/filters'
+import { filterMenu, filterMenuRow, filterPills, openFilterMenu, setShowCompleted } from './fixtures/filters'
 import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, openSettings, seedTaskList, wsListWidget, TASK_LIST_TAB } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 
@@ -47,8 +47,8 @@ test('the marker gutter names the priority the checkbox ring draws; urgent by du
   await expect(gutter('Later')).toHaveAccessibleName('No priority')
   await expect(ring('Later')).toHaveCount(0)
 
-  // Settings › Tasks › Lists & rows: range Off → the clocks go; the flag stays.
-  const settings = await openSettings(page, 'Lists & rows')
+  // Settings › Tasks › Rules: range Off → the clocks go; the flag stays.
+  const settings = await openSettings(page, 'Rules')
   await settings.getByRole('combobox', { name: 'Due date makes a task urgent' }).selectOption('off')
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
@@ -133,11 +133,13 @@ test('the top-bar Priority filter (first in the Filter menu) keeps tasks with an
   await marker('Important').click()
   await expect.poll(() => rowTitles(widget)).toEqual(['Important only', 'Important focus'])
   await page.keyboard.press('Escape')
+  await expect(filterMenuRow(page, 'Priority')).toHaveAccessibleName('Priority filter: Focus or Important')
   await page.keyboard.press('Escape')
-  await expect(filterChip(page, 'Priority')).toHaveAccessibleName('Priority filter: Focus or Important')
+  await expect(filterPills(page)).toHaveText([/\/focus/, /\/important/])
   await expect(page.locator('[data-filter-row]')).toHaveAttribute('data-filtered', 'true')
 
-  await page.getByRole('button', { name: 'Clear priority filter' }).click()
+  await openFilterMenu(page)
+  await filterMenu(page).getByRole('button', { name: 'Clear priority filter' }).click()
   await expect.poll(() => rowTitles(widget)).toHaveLength(5)
 })
 

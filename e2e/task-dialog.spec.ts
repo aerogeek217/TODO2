@@ -66,7 +66,8 @@ test('a Number opens its tasks; a completed row stays, struck through, while the
 })
 
 test('a row opens the editor on top; Esc in the editor closes only the editor', async ({ page }) => {
-  await seedWorkspace(page, SEED)
+  // Popup lists open on Settings' new-list sort: here by due date.
+  await seedWorkspace(page, { ...SEED, settings: { newListSort: 'deadline' } })
   await tile(page, 'open').click()
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(4)
   // Overdue first, then by due date, undated last.

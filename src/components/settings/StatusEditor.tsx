@@ -72,7 +72,7 @@ function StatusIconButton({ look, name, color, onChange }: { look: StatusLook; n
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        title={iconDescription(value)}
+        data-tooltip={iconDescription(value)}
       >
         <StatusMark status={look} />
       </button>
@@ -111,7 +111,7 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
       </span>
       <span className={styles.nameEditable} onClick={() => onEdit(status)}>{status.name}</span>
       <div className={styles.actions}>
-        <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => onDelete(status.id)} title="Delete">&times;</button>
+        <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => onDelete(status.id)} aria-label="Delete" data-tooltip="Delete">&times;</button>
       </div>
     </div>
   )

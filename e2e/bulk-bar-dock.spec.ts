@@ -45,7 +45,8 @@ async function expectNoRowUnder(page: Page, bar: Locator): Promise<void> {
 test('a list: the bar docks under the scroll, which makes room for it; in a narrow cell its buttons wrap', async ({ page }) => {
   await seedWorkspace(page, seed('lens', 300))
   await selectTaskRowByTitle(page, 'Task 1')
-  await page.locator('[data-row-key]').filter({ hasText: 'Task 2' }).locator('span[data-task-title="Task 2"]').click({ modifiers: ['Shift'] })
+  // Near the title's start: in a narrow cell the row's hover cluster (flair P8) covers the title's middle.
+  await page.locator('[data-row-key]').filter({ hasText: 'Task 2' }).locator('span[data-task-title="Task 2"]').click({ modifiers: ['Shift'], position: { x: 6, y: 8 } })
   const bar = page.getByTestId('list-bulk-bar')
   await expect(bar).toBeVisible()
   await expect(bar).toContainText('2 selected')

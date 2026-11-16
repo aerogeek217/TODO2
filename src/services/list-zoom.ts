@@ -1,4 +1,4 @@
-import type { LensTab, ListZoom } from '../models/workspace-layout'
+import type { ListTab, ListZoom } from '../models/workspace-layout'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
@@ -20,7 +20,7 @@ import { getTab } from '../utils/workspace-layout-queries'
  * resolved by the list's width), else that default (Auto unmeasured: Rows).
  */
 export function listTabZoom(
-  tab: Pick<LensTab, 'id' | 'viewState'>,
+  tab: Pick<ListTab, 'id' | 'viewState'>,
   setting: ListZoomSetting = useSettingsStore.getState().listZoom,
 ): ListZoom {
   return tab.viewState?.zoom ?? useListWidgetStore.getState().zoom[tab.id] ?? defaultListZoom(setting)
@@ -32,7 +32,7 @@ export function setListTabZoom(tabId: string, zoom: ListZoom): Promise<void> {
 }
 
 /** The open layout's list tab `tabId`, if it is one. */
-function lensTab(tabId: string): LensTab | null {
+function listTabOf(tabId: string): ListTab | null {
   const layout = useWorkspaceStore.getState().working
   const tab = layout ? getTab(layout, tabId) : undefined
   return tab?.kind === 'lens' ? tab : null
@@ -50,11 +50,11 @@ function shownListTabIds(): string[] {
  * focused in (`ui-store.activeListTabId`), else the one holding the
  * selection, else the first on screen — while it is on screen.
  */
-export function zoomTargetTab(): LensTab | null {
+export function zoomTargetTab(): ListTab | null {
   const shown = shownListTabIds()
   const ui = useUIStore.getState()
   const id = [ui.activeListTabId, ui.selectionScope, shown[0]].find((t) => t != null && shown.includes(t))
-  return id ? lensTab(id) : null
+  return id ? listTabOf(id) : null
 }
 
 /**
@@ -62,8 +62,8 @@ export function zoomTargetTab(): LensTab | null {
  * control's step (the wheel, the tab menu's − / +, the palette): `tab` as
  * the control shows it, or the open layout's list tab of that id.
  */
-export function stepListTabZoom(tab: string | Pick<LensTab, 'id' | 'viewState'>, dir: ZoomDirection): Promise<void> {
-  const shown = typeof tab === 'string' ? lensTab(tab) : tab
+export function stepListTabZoom(tab: string | Pick<ListTab, 'id' | 'viewState'>, dir: ZoomDirection): Promise<void> {
+  const shown = typeof tab === 'string' ? listTabOf(tab) : tab
   if (!shown) return Promise.resolve()
   const zoom = listTabZoom(shown)
   const next = stepListZoom(zoom, dir)

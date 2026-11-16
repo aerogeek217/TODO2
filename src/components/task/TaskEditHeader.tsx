@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import type { AutocompleteRow, AutocompleteState } from '../../hooks/use-nlp-autocomplete'
 import { NlpPopup } from '../shared/NlpPopup'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
@@ -24,12 +24,14 @@ interface TaskEditHeaderProps {
   isDraft?: boolean
   /** The ⋯ menu's entries (edit mode: Duplicate, Make subtask of…, Delete); none: no ⋯. */
   menuEntries?: readonly MenuEntry[]
+  /** Muted, before the ⋯ / × (edit mode: `Created 11/01 · Modified today`); it gives way first when the header is narrow. */
+  meta?: ReactNode
 }
 
 export function TaskEditHeader({
   isEdit, isCompleted, title, mode, titleRef,
   onToggleComplete, onTitleChange, onTitleBlur, onTitleKeyDown,
-  onClose, acState, onAcPick, onAcHighlight, isDraft = false, menuEntries,
+  onClose, acState, onAcPick, onAcHighlight, isDraft = false, menuEntries, meta,
 }: TaskEditHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const moreRef = useRef<HTMLButtonElement>(null)
@@ -68,6 +70,7 @@ export function TaskEditHeader({
         )}
       </div>
       {isDraft && <span className={styles.draftBadge}>Draft</span>}
+      {meta != null && <span className={styles.headerMeta} data-task-meta="">{meta}</span>}
       {menuEntries && menuEntries.length > 0 && (
         <>
           <button

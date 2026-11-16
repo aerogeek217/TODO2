@@ -40,20 +40,8 @@ function seed(cellPx: number, over: Partial<WorkspaceSeed> = {}): WorkspaceSeed 
         ],
       },
     }],
-    // Keeps the tasks tagged Ops: it hides tasks in this list (`−N`).
-    lenses: [{ id: 'lens-ops', name: 'Ops only', predicate: { tags: [1] } }],
     ...over,
   }
-}
-
-/** Picks the seeded lens in the top bar (it hides tasks in the list: its switch shows at rest with `−N`). */
-async function pickOpsLens(page: Page) {
-  await page.evaluate(async () => {
-    const mod = (await import(/* @vite-ignore */ '/src/stores/settings-store.ts' as string)) as {
-      useSettingsStore: { setState: (s: Record<string, unknown>) => void }
-    }
-    mod.useSettingsStore.setState({ activeLensId: 'lens-ops' })
-  })
 }
 
 /** Narrows every list by a word the tasks share (a screen filter: the count shows). */
@@ -75,7 +63,6 @@ async function parts(line: Locator): Promise<Record<string, Box>> {
     count: '[data-testid="list-count"]',
     summary: '[data-testid="list-summary"]',
     controls: '[data-cell-controls]',
-    lens: '[data-testid="lens-switch"]',
   }
   const out: Record<string, Box> = {}
   for (const [name, sel] of Object.entries(selectors)) {
@@ -89,7 +76,7 @@ async function parts(line: Locator): Promise<Record<string, Box>> {
 
 const overlaps = (a: Box, b: Box) => a.x + 0.5 < b.x + b.width && b.x + 0.5 < a.x + a.width
 
-type Narrowing = 'none' | 'screen' | 'lens'
+type Narrowing = 'none' | 'screen'
 
 async function expectFits(page: Page, width: number, by: Narrowing) {
   const narrowed = by !== 'none'
@@ -103,13 +90,7 @@ async function expectFits(page: Page, width: number, by: Narrowing) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
   const p = await parts(line)
   const label = `${width}px, narrowed by ${by}`
-  if (by === 'lens') {
-    // The lens hides tasks here: its switch shows at rest, with its −N.
-    const sw = line.getByTestId('lens-switch')
-    await expect(sw).toHaveText(/^−[1-9]\d*$/)
-    await expect(sw).not.toHaveAttribute('data-quiet')
-  }
-  for (const required of ['name', 'badge', 'controls', ...(narrowed ? ['count'] : []), ...(by === 'lens' ? ['lens'] : [])]) {
+  for (const required of ['name', 'badge', 'controls', ...(narrowed ? ['count'] : [])]) {
     expect(p[required], `${label}: ${required} drawn`).toBeDefined()
   }
   const names = Object.keys(p)
@@ -130,8 +111,8 @@ async function expectFits(page: Page, width: number, by: Narrowing) {
     expect(Math.abs((b.y + b.height / 2) - (l.y + l.height / 2)), `${label}: ${name} on the line`).toBeLessThan(4)
   }
   // The count and group · sort stay whole; the name gives way only after the words have gone.
-  for (const whole of ['count', 'summary', 'lens']) {
-    const el = line.getByTestId(whole === 'count' ? 'list-count' : whole === 'lens' ? 'lens-switch' : 'list-summary')
+  for (const whole of ['count', 'summary']) {
+    const el = line.getByTestId(whole === 'count' ? 'list-count' : 'list-summary')
     if (!p[whole]) continue
     expect(await el.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), `${label}: ${whole} whole`).toBe(true)
   }
@@ -139,13 +120,12 @@ async function expectFits(page: Page, width: number, by: Narrowing) {
   if (nameCut) expect(p.words, `${label}: the name is cut while the words still show`).toBeUndefined()
 }
 
-for (const by of ['none', 'screen', 'lens'] as const) {
+for (const by of ['none', 'screen'] as const) {
   test(`a one-widget list's top line: no part over another, one line, 240–520px (narrowed by: ${by})`, async ({ page }) => {
     test.slow()
     for (const width of WIDTHS) {
       await seedWorkspace(page, seed(width))
       if (by === 'screen') await screenSearch(page, 'one')
-      if (by === 'lens') await pickOpsLens(page)
       await expectFits(page, width, by)
     }
   })

@@ -112,7 +112,7 @@
   white-space: nowrap;
 }
 
-/* The one in use (the open layout, the picked lens, the theme). */
+/* The one in use (the open layout, the theme). */
 .resultCurrent {
   flex-shrink: 0;
   font-size: var(--font-size-meta);

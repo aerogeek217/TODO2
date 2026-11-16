@@ -7,7 +7,7 @@ import { dayKey } from '../../../utils/date'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useTooltip } from '../../shared/use-tooltip'
 import styles from './CalendarWidget.module.css'
-import { MONTH_GRID_PAD, MONTH_GRID_GAP, MONTH_LEGEND_HEIGHT, type DayContext, useDayTarget, dayClasses, washClass } from './calendar-day'
+import { MONTH_GRID_PAD, MONTH_GRID_GAP, MONTH_LEGEND_HEIGHT, type DayContext, useDayTarget, dayClasses } from './calendar-day'
 import { DropLabel, EntryItem, MoreButton } from './CalendarDayParts'
 
 /** The calendar's month: the grid of days, a heat-map day and its legend. */
@@ -28,7 +28,7 @@ function MonthDay({ day, month, entries, fit, ctx, onMore, moreOpen }: {
   return (
     <div
       ref={setNodeRef}
-      className={dayClasses(styles.monthDay, ctx, highlighted, [outside && styles.dayOutside, washClass(entries, day, ctx.today)])}
+      className={dayClasses(styles.monthDay, ctx, highlighted, [outside && styles.dayOutside])}
       data-day={dayKey(day)}
       data-today={isToday ? 'true' : undefined}
       data-outside={outside ? 'true' : undefined}

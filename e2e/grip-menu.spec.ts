@@ -54,7 +54,7 @@ const layoutMenu = (page: Page) => page.getByRole('menu', { name: 'Cell layout' 
 const optionsMenu = (page: Page) => page.getByRole('menu', { name: 'Cell options' })
 const labels = (menu: Locator) => menu.locator(':scope > [role^="menuitem"]').evaluateAll((els) => els.map((el) => el.getAttribute('data-menu-label')))
 
-test('one widget: the grip opens the layout menu, the ⋯ the widget’s entries and Add widget…', async ({ page }) => {
+test('one widget: the grip opens the layout menu, the ⋯ the widget’s entries and Remove widget', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   const cell = wsCell(page, 'a')
   await cell.hover()
@@ -63,7 +63,7 @@ test('one widget: the grip opens the layout menu, the ⋯ the widget’s entries
   await expect(grip).toHaveAccessibleName('Cell layout')
   await grip.click()
   await expect(layoutMenu(page)).toBeVisible()
-  expect(await labels(layoutMenu(page))).toEqual(['Split cell', 'Merge with', 'Insert', 'Collapse row', 'Close cell'])
+  expect(await labels(layoutMenu(page))).toEqual(['Add widget…', 'Split cell', 'Insert row', 'Insert column', 'Merge with', 'Collapse row', 'Close cell'])
   await expect(grip).toHaveAttribute('aria-expanded', 'true')
   // It opens under the grip.
   const g = await box(grip)
@@ -74,7 +74,7 @@ test('one widget: the grip opens the layout menu, the ⋯ the widget’s entries
 
   await cell.getByRole('button', { name: 'Cell options' }).click()
   await expect(optionsMenu(page)).toBeVisible()
-  expect(await labels(optionsMenu(page))).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Add widget…'])
+  expect(await labels(optionsMenu(page))).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Remove widget'])
 })
 
 test('the keyboard: Enter and Space on the focused grip open its menu; Esc gives the grip its focus back', async ({ page }) => {
@@ -89,7 +89,8 @@ test('the keyboard: Enter and Space on the focused grip open its menu; Esc gives
   await expect(grip).toBeFocused()
   await page.keyboard.press(' ')
   await expect(layoutMenu(page)).toBeVisible()
-  // ↓ to Merge with, then Collapse row by its letter… or simply Split ▸ Right by the keyboard.
+  // ↓ to Split cell, → into its sides, ⏎ on Above.
+  await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowRight')
   await page.keyboard.press('Enter')
   await expect.poll(async () => (await wsShape(page)).flat().length).toBe(3)
@@ -139,7 +140,7 @@ test('several widgets: the header’s grip button opens the layout menu; a click
   const grip = header.getByRole('button', { name: 'Cell layout' })
   await expect(grip).toHaveAttribute('aria-haspopup', 'menu')
   await grip.click()
-  expect(await labels(layoutMenu(page))).toEqual(['Split cell', 'Merge with', 'Insert', 'Collapse row', 'Close tab “Notes”', 'Close cell (2 tabs)'])
+  expect(await labels(layoutMenu(page))).toEqual(['Add widget…', 'Split cell', 'Insert row', 'Insert column', 'Merge with', 'Collapse row', 'Close cell (2 tabs)'])
   await page.keyboard.press('Escape')
   await expect(layoutMenu(page)).toHaveCount(0)
 

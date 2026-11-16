@@ -77,8 +77,8 @@ interface PredicateChipsProps {
   onOpenExpression?: () => void
   /**
    * `false`: an expression's `done` is refused (an error line), for the
-   * filters that never show completed tasks by it — a lens, the
-   * check-in — which would drop it silently (cr33 F9).
+   * filters that never show completed tasks by it — the check-in —
+   * which would drop it silently (cr33 F9).
    */
   allowDone?: boolean
 }
@@ -175,7 +175,7 @@ export function PredicateChips(props: PredicateChipsProps) {
     body = (
       <div className={styles.expressionLocked} data-testid="expression-locked">
         <span className={styles.expressionLockedTitle}>This filter is an expression</span>
-        <span className={styles.expressionLockedText} title={text}>{text}</span>
+        <span className={styles.expressionLockedText} data-tooltip={text}>{text}</span>
         <div className={styles.expressionLockedButtons}>
           <button
             type="button"

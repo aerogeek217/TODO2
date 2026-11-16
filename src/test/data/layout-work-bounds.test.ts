@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { prepareImport } from '../../data/import-pipeline'
+import { CURRENT_DB_VERSION } from '../../data/database'
 import { storedListRefs } from '../../data/layout-repository'
 import { rowFixes, sanitizeRow, validateRow } from '../../data/import-validation'
 import { LAYOUT_FILE_PART_LIMIT, LAYOUT_FILE_WORK_LIMIT, layoutPartCount, layoutSizeProblem } from '../../data/layout-size'
@@ -374,7 +375,7 @@ describe('a long list or deep nesting in a layout row is handled, never an obscu
     expect(result).toEqual({
       ok: false,
       reason: 'upgrade-failed',
-      error: 'Could not upgrade this file from schema v77 to v80: it holds parts nested too deeply, or a list too long, to read',
+      error: `Could not upgrade this file from schema v77 to v${CURRENT_DB_VERSION}: it holds parts nested too deeply, or a list too long, to read`,
     })
   })
 })

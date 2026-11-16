@@ -8,7 +8,7 @@ import { readStores } from './fixtures/db'
  * list and settings rows, a Review widget's saved kind, pick and place, a
  * Breakdown's `badges` and `checkins`, a Number's config lens switch, a
  * Strips list tab — imported through Settings › Import / Export › Import
- * JSON arrives in the v79 shape: the app opens it with no repair notice and
+ * JSON arrives in the v79 shape (then v81's: no lens switch at all): the app opens it with no repair notice and
  * stores none of the retired parts.
  */
 
@@ -83,7 +83,8 @@ test('a v78 export imported through Settings arrives in the v79 shape: no repair
   expect(tabs.bd!.config).not.toHaveProperty('checkins')
   expect((tabs.bd!.config as { columns: Array<{ id: string }> }).columns.map((c) => c.id)).toEqual(['due', 'followup'])
   expect(tabs.bd!.viewState).toEqual({ sorts: { people: { by: 'due' } } })
-  expect(tabs.num).toMatchObject({ viewState: { ignoreLens: true } })
+  // v79 moved its config lens switch to the view state; v81 removed it.
+  expect(tabs.num).not.toHaveProperty('viewState')
   expect(tabs.num!.config).not.toHaveProperty('ignoreLens')
   expect(listDefinitions.map((d) => d.id)).toEqual([1])
   expect(listOrders).toEqual([])

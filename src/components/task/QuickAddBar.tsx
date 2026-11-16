@@ -75,7 +75,7 @@ import { useBackdropPress } from '../shared/use-backdrop-press'
 import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusMark } from '../shared/StatusMark'
 import styles from './QuickAddBar.module.css'
-import { shortcutScope } from '../../utils/dom-contract'
+import { FLIGHT_SEE_THROUGH_ATTR, shortcutScope } from '../../utils/dom-contract'
 
 /** The title field's line height (px; `.titleInput`'s `line-height`). */
 const TITLE_LINE_PX = 28
@@ -201,7 +201,7 @@ function ChipRemove({ label, onRemove }: { label: string; onRemove: () => void }
       className={styles.chipRemove}
       tabIndex={-1}
       aria-label={label}
-      title={label}
+      data-tooltip={label}
       onMouseDown={(e) => e.preventDefault()}
       onClick={(e) => {
         e.stopPropagation()
@@ -751,6 +751,8 @@ export function QuickAddBar({
       className={styles.overlay}
       data-testid="quickadd-backdrop"
       {...{ [MODAL_BACKDROP_ATTR]: '' }}
+      // A new task's flight is decided while the bar is still up (flair P4).
+      {...{ [FLIGHT_SEE_THROUGH_ATTR]: '' }}
       {...backdropPress}
     >
       <div

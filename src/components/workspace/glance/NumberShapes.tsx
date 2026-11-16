@@ -18,6 +18,8 @@ import { numberDrill } from './glance-drills'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { GlanceFrame } from './GlanceFrame'
 import { litColors, numberColors, type NumberColors } from './number-colors'
+import { RollingNumber } from '../../shared/RollingNumber'
+import { LightRing } from './LightRing'
 import {
   goalStateLabel,
   goalTargetLabel,
@@ -196,14 +198,14 @@ export function ShareNumber({ tab, onResult, onDrill }: ShapeProps) {
       {small ? (
         // A fit row's: the percent, its line and its change beside it wherever they fit (`.figures`).
         <span className={base.figures}>
-          <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{percentText}</span>
+          <span className={base.count} style={{ color: colors.count }} data-testid="number-count"><RollingNumber value={percentText} /><LightRing lit={colors.lit} color={litColors(config, true).count} /></span>
           {history && <ShareHistory history={history} large={false} color={colors.line} deltaText={deltaText} approximate={approximate} />}
         </span>
       ) : (
         <span className={styles.shareRow}>
           <Ring percent={percent} color={colors.lit ? colors.count : 'var(--color-text-secondary)'} size={large ? 72 : 44} />
           <span className={styles.column}>
-            <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{percentText}</span>
+            <span className={base.count} style={{ color: colors.count }} data-testid="number-count"><RollingNumber value={percentText} /><LightRing lit={colors.lit} color={litColors(config, true).count} /></span>
             <span className={styles.meta} data-testid="number-share-of">{ofText}</span>
             {history && (
               <span className={`${styles.shareLine}${large ? ` ${styles.shareLineLarge}` : ''}`}>
@@ -261,7 +263,7 @@ export function OldestNumber({ tab, onResult, onDrill }: ShapeProps) {
       onOpen={open}
     >
       <span className={styles.figureLine}>
-        <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{age ? age.figure : '—'}</span>
+        <span className={base.count} style={{ color: colors.count }} data-testid="number-count"><RollingNumber value={age ? age.figure : '—'} /><LightRing lit={colors.lit} color={litColors(config, true).count} /></span>
         {!small && <span className={styles.caption}>{age ? age.caption : none}</span>}
       </span>
       {!small && top && <span className={styles.title} data-testid="number-oldest-title">{top.title}</span>}
@@ -309,7 +311,7 @@ export function GoalNumber({ tab, onResult, onDrill }: ShapeProps) {
       onOpen={open}
     >
       <span className={styles.figureLine}>
-        <span className={base.count} style={{ color: colors.count }} data-testid="number-count">{n}</span>
+        <span className={base.count} style={{ color: colors.count }} data-testid="number-count"><RollingNumber value={n} /><LightRing lit={colors.lit} color={litColors(config, true).count} /></span>
         {progress && <span className={styles.target} data-testid="number-goal-target">{target}</span>}
         {!small && <span className={`${styles.state}${progress?.lit ? ` ${styles.stateLit}` : ''}`} style={progress?.lit ? { color: colors.count } : undefined} data-testid="number-goal-state">{state}</span>}
       </span>
@@ -320,7 +322,7 @@ export function GoalNumber({ tab, onResult, onDrill }: ShapeProps) {
             <span
               className={styles.tick}
               style={{ left: `${Math.min(100, Math.round(progress.paceFraction * 100))}%` }}
-              title={paceLabel(progress.pace, stats.ctx.today)}
+              data-tooltip={paceLabel(progress.pace, stats.ctx.today)}
               data-testid="number-goal-pace"
             />
           )}
@@ -382,7 +384,7 @@ export function GroupNumber({ tab, onResult, onDrill }: ShapeProps) {
               const colors = litColors({ color: item.color }, numberIsLit(config, n), n === 0)
               const figure = (
                 <>
-                  <span className={styles.itemCount} style={{ color: colors.count }} data-testid="number-group-count">{n}</span>
+                  <span className={styles.itemCount} style={{ color: colors.count }} data-testid="number-group-count"><RollingNumber value={n} /><LightRing lit={colors.lit} color={litColors({ color: item.color }, true).count} /></span>
                   {!small && <span className={styles.itemName}>{itemName}</span>}
                 </>
               )
@@ -392,7 +394,7 @@ export function GroupNumber({ tab, onResult, onDrill }: ShapeProps) {
                   key={i}
                   type="button"
                   className={styles.item}
-                  title={small ? itemName : undefined}
+                  data-tooltip={small ? itemName : undefined}
                   data-group-item={i}
                   data-lit={colors.lit ? 'true' : undefined}
                   aria-label={`${label}. Show tasks`}
@@ -404,7 +406,7 @@ export function GroupNumber({ tab, onResult, onDrill }: ShapeProps) {
                   {figure}
                 </button>
               ) : (
-                <span key={i} className={styles.item} title={small ? itemName : undefined} data-group-item={i} data-lit={colors.lit ? 'true' : undefined} aria-label={label}>{figure}</span>
+                <span key={i} className={styles.item} data-tooltip={small ? itemName : undefined} data-group-item={i} data-lit={colors.lit ? 'true' : undefined} aria-label={label}>{figure}</span>
               )
             })}
           </span>
@@ -418,7 +420,7 @@ export function GroupNumber({ tab, onResult, onDrill }: ShapeProps) {
 
 /**
  * Follow a list (board Y): what one of the layout's lists shows — its
- * filter as edited, its own lens switch, its prompt and the screen filter
+ * filter as edited, its prompt and the screen filter
  * (`use-built-list`) — as a count, with its tab badge. A click opens the
  * list in the widget popup (`services/widget-popup`); its prompt is answered
  * there. Lit by its count (`litWhen` / `litAt`).
@@ -429,10 +431,10 @@ export function ListNumber({ tab, onResult }: ShapeProps) {
   const [faceRef, face] = useWidgetFace()
   const name = nameOf(tab, list.name ?? 'Number')
   const n = list.ids.length
-  const colors = list.pending || !list.lensTab ? litColors(config, false, true) : numberColors(config, n)
-  const countText = list.pending || !list.lensTab ? '—' : String(n)
-  const ofText = !list.pending && list.lensTab && n < list.baseCount ? `of ${list.baseCount}` : null
-  const note = !list.lensTab
+  const colors = list.pending || !list.listTab ? litColors(config, false, true) : numberColors(config, n)
+  const countText = list.pending || !list.listTab ? '—' : String(n)
+  const ofText = !list.pending && list.listTab && n < list.baseCount ? `of ${list.baseCount}` : null
+  const note = !list.listTab
     ? (config.list ? 'This list was deleted' : 'No list picked')
     : list.pending ? 'Pick to count' : null
   const lines = useMemo(() => [[{ label: name, count: ofText ? `${countText} ${ofText}` : countText }]], [name, countText, ofText])
@@ -446,12 +448,13 @@ export function ListNumber({ tab, onResult }: ShapeProps) {
       colors={colors}
       name={name}
       ariaLabel={`${name}: ${countText}${ofText ? ` ${ofText}` : ''}${list.badge ? `, ${list.badge.summary.join(', ')}` : ''}${note ? `. ${note}` : ''}.`}
-      onOpen={list.lensTab ? () => { void openNumberList(tab.id) } : undefined}
+      onOpen={list.listTab ? () => { void openNumberList(tab.id) } : undefined}
     >
       <span className={styles.figureLine}>
         <span className={base.count} style={{ color: colors.count }} data-testid="number-count">
-          {countText}
+          <RollingNumber value={countText} />
           {ofText && <span className={base.of}>{ofText}</span>}
+          <LightRing lit={colors.lit} color={litColors(config, true).count} />
         </span>
         {list.badge && <BadgeCapsule counts={list.badge.counts} label={list.badge.summary.join(', ')} data-number-badge="" />}
       </span>

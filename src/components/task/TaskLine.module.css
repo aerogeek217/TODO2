@@ -90,7 +90,8 @@
   font-weight: var(--font-weight-medium);
 }
 
-.line[data-stale] .title {
+/* A stale line's muted title is its fade (Fade stale tasks); the box's fill still says stale. */
+.line[data-faded] .title {
   color: var(--color-text-muted);
 }
 

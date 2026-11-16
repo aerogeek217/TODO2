@@ -149,7 +149,7 @@ function DraftFollowupPopover({ value, today, anchorRef, onSet, onClose }: {
             {...selectOnFocus}
           />
           {input.text !== '' && (
-            <button type="button" className={followupStyles.inputClear} aria-label="Clear next follow-up" title="Clear the date" onClick={() => set(null)}>
+            <button type="button" className={followupStyles.inputClear} aria-label="Clear next follow-up" data-tooltip="Clear the date" onClick={() => set(null)}>
               &times;
             </button>
           )}
@@ -279,7 +279,7 @@ export function DraftTaskRow({ row, lookups, onChange, onCheck, onEdit, onRemove
           onChange={(e) => onCheck(e.target.checked)}
           onClick={(e) => e.stopPropagation()}
           aria-label={checked ? `Keep "${draft.title}"` : `Done: remove "${draft.title}" from the note`}
-          title={checked ? 'Keep this draft' : 'Done: no task, the line goes from the note when you confirm'}
+          data-tooltip={checked ? 'Keep this draft' : 'Done: no task, the line goes from the note when you confirm'}
         />
 
         {isEditing ? (
@@ -385,7 +385,7 @@ export function DraftTaskRow({ row, lookups, onChange, onCheck, onEdit, onRemove
           type="button"
           className={`${styles.iconBtn} ${styles.editBtn}`}
           aria-label={`Edit "${draft.title}"`}
-          title="Edit every detail"
+          data-tooltip="Edit every detail"
           tabIndex={-1}
           onClick={onEdit}
         >
@@ -397,7 +397,7 @@ export function DraftTaskRow({ row, lookups, onChange, onCheck, onEdit, onRemove
           type="button"
           className={`${styles.iconBtn} ${styles.removeBtn}`}
           aria-label={`Remove "${draft.title}"`}
-          title="Leave this line out: it stays in the note"
+          data-tooltip="Leave this line out: it stays in the note"
           tabIndex={-1}
           onClick={onRemove}
         >

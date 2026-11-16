@@ -31,8 +31,8 @@ export interface ListBuildContext {
   /** Decides membership: the list's predicate (prompt picks merged in) against each task. */
   evalPredicate: PredicateEvaluator
   /**
-   * The screen filter `evalPredicate` composes in, if any (the chips with
-   * the top bar's lens): its People / Tags "is" picks narrow the groups as
+   * The screen filter `evalPredicate` composes in, if any (the top bar's
+   * chips): its People / Tags "is" picks narrow the groups as
    * the list's own do (`groupRestrictions`).
    */
   screenFilter?: FilterCriteria
@@ -175,8 +175,8 @@ export function buildList(
 /**
  * The person / tag picks that narrow a list's groups, so a multi-assignee
  * task doesn't emit sections for people nothing picked: the "is" pick of
- * the list's effective predicate (prompt pick merged in), of the screen
- * filter's chips and of its lens — every filter a member passes. An "is
+ * the list's effective predicate (prompt pick merged in) and of the screen
+ * filter's chips — every filter a member passes. An "is
  * not" pick doesn't narrow: its members have none of the picked people /
  * tags, so their groups never show anyway. Of an expression only the
  * top-level `and` terms narrow them, each "is" term a pick of its own
@@ -192,13 +192,12 @@ export function groupRestrictions(
 ): number[][] {
   const out: number[][] = []
   const kind = field === 'personIds' ? 'person' : 'tag'
-  for (const c of [predicate, screen, screen?.lens]) {
+  for (const c of [predicate, screen]) {
     if (!c) continue
-    // An expression narrows by its top-level "is" terms only (as `topLevelPredicate`, its own clauses aside).
-    if (c.expression) {
-      out.push(...topLevelIdPicks(c.expression, kind))
-      continue
-    }
+    // An expression narrows by its top-level "is" terms only; its clauses
+    // too (the screen filter's chips beside the top bar's expression — a
+    // list's expression has none).
+    if (c.expression) out.push(...topLevelIdPicks(c.expression, kind))
     const ids = c[field]
     if (ids == null || isNegated(c, field)) continue
     const picks = [...ids]

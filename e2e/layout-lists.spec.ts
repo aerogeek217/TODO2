@@ -46,7 +46,7 @@ test.use({ viewport: { width: 1600, height: 900 } })
 test('a new list widget’s list is the open layout’s; a list tab is never pointed at another list; Settings has no Lists', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await wsCell(page, 'b1').hover()
-  await wsCell(page, 'b1').getByRole('button', { name: 'Cell options' }).click()
+  await wsCell(page, 'b1').getByRole('button', { name: 'Cell layout' }).click()
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
   // A new list for this layout at once: no picker, no choice of where it goes, no editor.
@@ -133,8 +133,8 @@ test('closing a list’s last tab deletes the list at once; Undo brings back the
   await seedWorkspace(page, SEED)
   const mine = (await lists(page)).find((d) => d.name === 'Mine')!
   await wsTab(page, 'mineTab').hover()
-  await wsTab(page, 'mineTab').getByRole('button', { name: 'Close Mine' }).click()
-  await expectLayoutStep(page, 'Closed tab “Mine”')
+  await wsTab(page, 'mineTab').getByRole('button', { name: 'Remove Mine' }).click()
+  await expectLayoutStep(page, 'Removed “Mine”')
   await expect.poll(async () => (await lists(page)).some((d) => d.id === mine.id)).toBe(false)
 
   await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()

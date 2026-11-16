@@ -161,7 +161,9 @@ function useWorkspaceDragState() {
     let insertLeft: number | null = null
     if (hit?.kind === 'tab-strip') {
       const panel = geometryCells(geo).find((c) => c.id === hit.cellId)
-      if (panel?.header) insertLeft = hit.lineX - panel.header.left
+      // A strip of Numbers has no header: its line is placed in its body.
+      const box = panel?.header ?? (panel?.strip ? panel.body : null)
+      if (box) insertLeft = hit.lineX - box.left
     }
     const sameGhost = JSON.stringify(ghost) === JSON.stringify(current.ghost)
     if (sameDropHit(hit, current.hit) && sameGhost && insertLeft === current.insertLeft) return
@@ -481,6 +483,7 @@ export function WorkspacePage() {
               today={activeDrag.calendarEntry.today}
               size={activeDrag.calendarEntry.size}
               wrap={activeDrag.calendarEntry.wrap}
+              showKind={activeDrag.calendarEntry.showKind}
               ghost
             />
           </div>

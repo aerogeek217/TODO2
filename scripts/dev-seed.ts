@@ -56,7 +56,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 80
+export const DEV_SEED_SCHEMA_VERSION = 82
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -938,21 +938,24 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       sortOrder: 0,
       // The table (D26): three tall cells over a collapsed row (Due soon), a fit row of Numbers, and a fixed strip of glance widgets.
       ...table('default', [
-        'F F P B',
-        'C C P B',
-        'C C P S',
-        'O L U D',
-        'X X T E',
+        'F P B',
+        'C P B',
+        'C P S',
+        'O O O',
+        'X T E',
       ], {
         F: cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), notes('tab-notes')]),
         P: cell('cell-person', [lens('tab-person', L.byPerson)]),
         B: cell('cell-board', [lens('tab-board', L.focus)]),
         C: cell('cell-cal', [calendar('tab-cal', 'week', 0)]),
         S: cell('cell-soon', [lens('tab-soon', L.dueSoon)]),
-        O: cell('cell-open', [number('tab-open', 'open')]),
-        L: cell('cell-late', [number('tab-late', 'overdue')]),
-        U: cell('cell-followup-due', [number('tab-followup-due', 'followupDue')]),
-        D: cell('cell-due-today', [number('tab-due-today', 'dueToday')]),
+        // A strip of Numbers (flair P10): one cell, side by side, evenly divided.
+        O: cell('cell-open', [
+          number('tab-open', 'open'),
+          number('tab-late', 'overdue'),
+          number('tab-followup-due', 'followupDue'),
+          number('tab-due-today', 'dueToday'),
+        ]),
         X: cell('cell-status', [breakdown('tab-status', 'Status', 'status', { style: 'stacked' })]),
         T: cell('cell-trend', [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }]),
         // Waiting on (D26 P8 / Z3): the Waiting tasks by person, oldest last follow-up first.
@@ -960,7 +963,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           breakdown('tab-waiting', 'Waiting on', 'people', { filter: filter({ statusIds: [IDS.statuses.waiting] }), show: 'oldest', oldestBy: 'lastFollowup' }),
           breakdown('tab-people', 'People', 'people'),
         ]),
-      }, [280, 220, 220, 280], [400, 250, { weight: 150, collapsed: true }, { fit: true }, { px: 240 }]),
+      }, [500, 220, 280], [400, 250, { weight: 150, collapsed: true }, { fit: true }, { px: 240 }]),
       createdAt: longAgo,
       modifiedAt: iso(at(-3, 17, 20)),
       lastUsedAt: iso(at(0, 8, 0)),
@@ -971,18 +974,20 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       sortOrder: 1,
       // The table (D26): a fit row of Numbers across the top, columns of lists and glance widgets, a fixed strip with the month and a Breakdown.
       ...table('planning', [
-        'a b c d e',
-        'H F M G G',
-        'H N M R R',
-        'S W T Y Y',
-        'S W T Z Z',
-        'K K K Q Q',
+        'a a a a',
+        'H F M G',
+        'H N M R',
+        'S W T Y',
+        'S W T Z',
+        'K K K Q',
       ], {
-        a: cell('cell-n-late', [number('tab-n-late', 'overdue')]),
-        b: cell('cell-n-followup', [number('tab-n-followup', 'followupDue')]),
-        c: cell('cell-n-today', [number('tab-n-today', 'dueToday')]),
-        d: cell('cell-n-open', [number('tab-n-open', 'open')]),
-        e: cell('cell-n-closed', [number('tab-n-closed', 'closedThisWeek')]),
+        a: cell('cell-n-late', [
+          number('tab-n-late', 'overdue'),
+          number('tab-n-followup', 'followupDue'),
+          number('tab-n-today', 'dueToday'),
+          number('tab-n-open', 'open'),
+          number('tab-n-closed', 'closedThisWeek'),
+        ]),
         // A list tab at each zoom (D25 C + I1): Stacked, Rows and Lines.
         H: cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], 'tab-rest'),
         F: cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]),
@@ -1009,7 +1014,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         ]),
         K: cell('cell-month', [calendar('tab-month', 'month', 0, false)]),
         Q: cell('cell-g-due', [breakdown('tab-g-due', 'Due', 'due')]),
-      }, [250, 250, 250, 125, 125], [{ fit: true }, 300, 200, 150, 150, { px: 220 }]),
+      }, [250, 250, 250, 250], [{ fit: true }, 300, 200, 150, 150, { px: 220 }]),
       createdAt: iso(at(-60, 10)),
       modifiedAt: iso(at(-8, 16, 45)),
       lastUsedAt: iso(at(-1, 14, 10)),

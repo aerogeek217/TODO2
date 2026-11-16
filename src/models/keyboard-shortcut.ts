@@ -147,13 +147,9 @@ const SHORTCUT_SPECS = {
     description: 'Review list', category: 'task', editable: true, blockedByEditPopup: true,
     chord: one({ key: 'r' }),
   },
-  // The top bar's lens (D15, cr22): no keys by default.
-  'cycle-lens': {
-    description: 'Cycle lens', category: 'general', editable: true,
-    chord: null,
-  },
-  'lift-lens': {
-    description: 'Lift lens / put it back', category: 'general', editable: true,
+  // The top bar's funnel from the keys (feedback 2026-11-15, as the lens lift was): no keys by default.
+  'pause-filter': {
+    description: 'Pause / resume filter', category: 'general', editable: true,
     chord: null,
   },
 } as const satisfies Record<string, ShortcutSpec>

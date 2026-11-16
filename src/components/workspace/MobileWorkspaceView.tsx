@@ -9,7 +9,7 @@ import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
-import { isFitCell } from '../../utils/workspace-rows'
+import { isFitCell, isNumberStripCell } from '../../utils/workspace-rows'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { smallFaceClick, useCellFace, useHeldBodyHeight } from './cell-face'
@@ -26,10 +26,9 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon, MoreIcon } from '../shared/i
 import { LayoutGlyph } from '../shared/LayoutGlyph'
 import type { IconValue } from '../../models/icon'
 import { useFilterStore } from '../../stores/filter-store'
-import { usePickedLens } from '../../stores/screen-filter'
 import { useScreenTaskCounts } from '../../hooks/use-screen-task-count'
 import { screenTaskDialog } from '../../services/task-dialog'
-import { shownOfTotalText } from '../shared/filters/lens-text'
+import { shownOfTotalText } from '../shared/filters/counter-text'
 import { BadgeCapsule } from '../shared/BadgeCapsule'
 import { tabBadgeSummary } from '../../utils/tab-badges'
 import styles from './MobileWorkspaceView.module.css'
@@ -144,25 +143,44 @@ function MobileTopBar({ name, hue, icon, status }: { name: string; hue?: string;
 }
 
 /**
- * The phone top bar's `61 of 109` (D15): what the screen filter's chips and
- * the top bar's lens keep of every open task, while a chip is on or a
- * lens is picked; a tap lists them in the task dialog (whose filter bar
- * edits the chips). Its own component, so only it renders for a task write.
+ * The phone top bar's `61 of 109` (D15): what the screen filter's chips
+ * keep of every open task, while a chip is on; a tap lists them in the task
+ * dialog (whose filter bar edits the chips). While the filter is paused (the
+ * desktop funnel, the palette's Pause / Resume Filter) it says so —
+ * `109 open · paused` — and a tap resumes it. Its own component, so only it
+ * renders for a task write.
  */
 function ShownOfTotalPill() {
   const chipsOn = useFilterStore((s) => s.isActive)
-  const lensPicked = usePickedLens() != null
-  if (!chipsOn && !lensPicked) return null
-  return <ShownOfTotalCount chipsOn={chipsOn} />
+  const paused = useFilterStore((s) => s.paused)
+  if (!chipsOn) return null
+  return paused ? <PausedFilterPill /> : <ShownOfTotalCount />
 }
 
-function ShownOfTotalCount({ chipsOn }: { chipsOn: boolean }) {
+/** The pill while the filter is paused: every open task shows; a tap resumes the filter. */
+function PausedFilterPill() {
+  const { total } = useScreenTaskCounts()
+  return (
+    <button
+      type="button"
+      className={styles.shownPill}
+      aria-label={`Filter paused: ${total} open ${total === 1 ? 'task' : 'tasks'} shown. Resume the filter`}
+      data-testid="shown-of-total"
+      data-paused=""
+      onClick={() => useFilterStore.getState().setPaused(false)}
+    >
+      <b>{total}</b> open · paused · Resume
+    </button>
+  )
+}
+
+function ShownOfTotalCount() {
   const { shown, total, withCompleted, badges } = useScreenTaskCounts()
   const badgeLines = tabBadgeSummary(badges, useSettingsStore((s) => s.tabBadges))
   return (
     <button
       type="button"
-      className={`${styles.shownPill} ${chipsOn ? styles.shownPillFiltered : ''}`}
+      className={styles.shownPill}
       aria-label={`${[shownOfTotalText(shown, total, withCompleted), ...badgeLines].join(', ')}. Show them`}
       data-testid="shown-of-total"
       onClick={() => useUIStore.getState().showTaskDialog(screenTaskDialog())}
@@ -271,7 +289,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
   const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
-  const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
+  const [listReport, setListReport] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
   const [tabSheet, setTabSheet] = useState<{ tabId: string; listDefinitionId: number } | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   // The ⋯ button (in the strip's header, or a top line's slot): kept as state, so the menu anchors to whichever is drawn.
@@ -338,7 +356,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
     )
   }
 
-  const listResult = lens && lens.tabId === active?.id ? lens.result : undefined
+  const listResult = listReport && listReport.tabId === active?.id ? listReport.result : undefined
 
   const widgetEntries: MenuEntry[] = []
   if (active?.kind === 'lens' && active.config.listDefinitionId != null) {
@@ -428,7 +446,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
                 <WidgetBody
                   key={active.id}
                   tab={active}
-                  onResult={(result) => setLens({ tabId: active.id, result })}
+                  onResult={(result) => setListReport({ tabId: active.id, result })}
                 />
               )}
             </WidgetFaceContext.Provider>
@@ -442,7 +460,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
           className={`${styles.cellAction} ${styles.cellExpand}`}
           aria-label={`Expand ${rowNoun}`}
           aria-expanded={false}
-          title={`Expand ${rowNoun}`}
+          data-tooltip={`Expand ${rowNoun}`}
           onClick={() => setRowCollapsed(false)}
         >
           <ChevronDownIcon size={16} />
@@ -452,7 +470,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
         <ListTabSheet
           tabId={tabSheet.tabId}
           listDefinitionId={tabSheet.listDefinitionId}
-          result={lens?.tabId === tabSheet.tabId ? lens.result : undefined}
+          result={listReport?.tabId === tabSheet.tabId ? listReport.result : undefined}
           onClose={() => setTabSheet(null)}
         />
       )}
@@ -484,11 +502,11 @@ function MobileTable({ layout }: { layout: WorkspaceLayout }) {
     if (last && lastCell && isFitCell(lastCell) && isFitCell(cell)) last.push(cell)
     else groups.push([cell])
   }
-  const cellOf = (cell: LayoutCell, fitRow: boolean) => {
+  const cellOf = (cell: LayoutCell, fitRow: boolean, key = cell.id) => {
     const tracks = rows.slice(cell.area.row, cell.area.row + cell.area.rowSpan)
     return (
       <MobileCell
-        key={cell.id}
+        key={key}
         cell={cell}
         rowTrackIds={tracks.map((t) => t.id)}
         collapsed={tracks.length > 0 && tracks.every((t) => t.collapsed === true)}
@@ -512,7 +530,14 @@ function MobileTable({ layout }: { layout: WorkspaceLayout }) {
           if (!first) return null
           const fit = isFitCell(first)
           return fit
-            ? <div key={first.id} className={styles.fitRow} data-fit="true">{group.map((c) => cellOf(c, true))}</div>
+            ? (
+              <div key={first.id} className={styles.fitRow} data-fit="true">
+                {/* A strip of Numbers (flair P10) lays its Numbers out among the others: each its own two-up item. */}
+                {group.flatMap((c) => (isNumberStripCell(c)
+                  ? c.tabs.map((tab) => cellOf({ ...c, tabs: [tab], activeTabId: tab.id }, true, tab.id))
+                  : [cellOf(c, true)]))}
+              </div>
+            )
             : cellOf(first, false)
         })}
       </section>

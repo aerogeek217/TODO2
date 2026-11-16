@@ -67,7 +67,7 @@ export const SETTING_KEYS = {
   /** When the launch prompt about deleting old completed tasks last showed (an ISO date-time). Absent = never. */
   purgePromptLastAt: 'purgePromptLastAt',
   /**
-   * "Fade tasks untouched for": days without a change after which an open
+   * "Stale after" (Tasks › Rules): days without a change after which an open
    * task's row is drawn faded — a whole number 0–365, `0` = off. Absent = 30.
    */
   staleAfterDays: 'staleAfterDays',
@@ -86,21 +86,21 @@ export const SETTING_KEYS = {
   /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `11/20`) or `numeric` (`MM/DD`). Absent = `relative`. */
   rowDates: 'rowDates',
   /**
-   * The lenses (named screen filters, picked in the top bar — `activeLensId`): JSON array of
-   * `{ id, name, predicate }`, the predicate a list predicate with
-   * completed tasks off (`data/lens-shape`). Absent = none.
+   * "Cobwebs on stale tasks" (Settings › Appearance, flair P2): a stale row's checkbox
+   * draws a small cobweb. `false` = off; absent (or `true`) = on.
    */
-  lenses: 'lenses',
+  staleCobwebs: 'staleCobwebs',
   /**
-   * The preset lenses were seeded (the first open of Settings › Lenses):
-   * `true`. Absent = not yet; nothing seeds them again once set.
+   * "Fade stale tasks" (Settings › Appearance › Task rows): a stale row is drawn faded
+   * until hovered. `false` = off; absent (or `true`) = on. Which tasks are stale is
+   * `staleAfterDays`.
    */
-  lensPresetsSeeded: 'lensPresetsSeeded',
+  staleFade: 'staleFade',
   /**
-   * The lens picked in the top bar (app-wide, for every layout): a lens's
-   * id (`lenses`). Absent = No lens; an id no lens has reads as No lens.
+   * "Tally of today’s tasks" (Settings › Appearance › Theme, flair P3): the top bar
+   * scratches a mark for each task completed today. `false` = off; absent (or `true`) = on.
    */
-  activeLensId: 'activeLensId',
+  tallyMarks: 'tallyMarks',
   /**
    * Ambience (Settings › Appearance › Ambience): JSON
    * `{ enabled, place: { lat, lon } | null, sky, motion, seasons }` (`utils/ambience-settings`);

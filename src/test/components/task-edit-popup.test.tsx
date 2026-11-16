@@ -12,7 +12,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { useStatusStore } from '../../stores/status-store'
-import { makePerson, makeTodo, patchScreenFilter, resetDb } from '../helpers'
+import { getByTooltip, makePerson, makeTodo, patchScreenFilter, resetDb } from '../helpers'
 import type { Person, Tag, PersistedTodoItem } from '../../models'
 
 // Suppress showPicker (not supported in jsdom)
@@ -598,6 +598,14 @@ describe('TaskEditPopup', () => {
       expect(screen.getByRole('button', { name: 'Important' })).toHaveAttribute('aria-pressed', 'true')
       expect(screen.getByRole('button', { name: 'Urgent' })).toHaveAttribute('aria-pressed', 'false')
     })
+
+    it('create mode: a paused screen filter seeds nothing', () => {
+      patchScreenFilter({ markers: [{ values: ['focus'] }] })
+      useFilterStore.setState({ paused: true })
+      renderCreateMode()
+      expect(screen.getByRole('button', { name: 'Focus' })).toHaveAttribute('aria-pressed', 'false')
+      useFilterStore.setState({ paused: false })
+    })
   })
 
   describe('Urgent and Important toggles', () => {
@@ -720,7 +728,7 @@ describe('TaskEditPopup', () => {
       const { onUpdate } = renderEditMode(todo)
       expect(screen.getByDisplayValue('Weekly')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByTitle('Clear due date'))
+      fireEvent.click(getByTooltip(document.body, 'Clear due date'))
       const updated = onUpdate.mock.calls.at(-1)![0] as PersistedTodoItem
       expect(updated.dueDate).toBeUndefined()
       expect(updated.recurrenceRule).toBeUndefined()

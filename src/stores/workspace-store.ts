@@ -42,6 +42,7 @@ import {
   closeCell,
   closeTab,
   insertTrack,
+  insertTrackBeside,
   mergeCells,
   moveEdge,
   movePanel,
@@ -112,7 +113,7 @@ interface EditUndoOptions {
  *   config or kind, part of a grid line moved) commit at once: the open
  *   layout changes, its row is written (`layoutRepository.putAndPrune`) and
  *   the edit is one undo step with the snackbar, named in words
- *   (`Closed tab “This week”`). The lists the layout owns that it no longer
+ *   (`Removed “This week”`). The lists the layout owns that it no longer
  *   shows (`layoutListRefs`: list tabs and Numbers that follow a list; a
  *   Review widget's picks are temporary and name none) are deleted in the
  *   same write. Undo brings those lists back
@@ -253,6 +254,8 @@ export interface WorkspaceState {
   splitCell: (cellId: string, side: Side) => string | null
   /** Inserts a row / column at the layout's `edge` with one new empty cell across it. Returns that cell's id. */
   insertTrack: (edge: Side) => string | null
+  /** Inserts a row / column beside a cell's own, on `side` (`insertTrackBeside`). Returns the first new cell's id. */
+  insertTrackBeside: (cellId: string, side: Side) => string | null
   /** Merges cell `bId` into cell `aId` when they make a rectangle (the tabs join); `false` when they don't. */
   mergeCells: (aId: string, bId: string) => boolean
   /**
@@ -288,7 +291,7 @@ export interface WorkspaceState {
   /** Sets (or clears, `null`) the structural resize preview; a preview drawing the same table as the current one changes nothing. */
   setResizePreview: (preview: ResizePreview | null) => void
   /**
-   * Layout config of a tab (e.g. a lens tab's list, a calendar's date types,
+   * Layout config of a tab (e.g. a list tab's list, a calendar's date types,
    * an editor's Save): one undo step, `description` its name (default
    * `Changed “<tab>”`). A list tab's list must be this layout's own
    * lists: a patch naming another's changes nothing.
@@ -1056,7 +1059,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     closeTab(tabId) {
-      edit((layout) => closeTab(layout, tabId), (before) => `Closed tab “${tabName(before, tabId)}”`)
+      edit((layout) => closeTab(layout, tabId), (before) => `Removed “${tabName(before, tabId)}”`)
     },
 
     closeCell(cellId) {
@@ -1080,6 +1083,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         newCellId = result.cellId
         return result.layout
       }, edge === 'top' || edge === 'bottom' ? 'Inserted row' : 'Inserted column')
+      return newCellId
+    },
+
+    insertTrackBeside(cellId, side) {
+      let newCellId: string | null = null
+      edit((layout, genId) => {
+        const result = insertTrackBeside(layout, cellId, side, genId)
+        newCellId = result.cellId
+        return result.layout
+      }, side === 'top' || side === 'bottom' ? 'Inserted row' : 'Inserted column')
       return newCellId
     },
 

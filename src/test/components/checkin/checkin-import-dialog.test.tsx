@@ -279,7 +279,7 @@ describe('CheckinImportDialog — who replied', () => {
     expect(dialog().textContent).not.toMatch(/send date|since the email/)
     expect(applyButton().textContent).toBe('Apply 1 change')
     expect(applyButton()).toHaveProperty('disabled', true)
-    expect(applyButton().title).toBe('Choose who replied first')
+    expect(applyButton().getAttribute('data-tooltip')).toBe('Choose who replied first')
 
     fireEvent.change(within(dialog()).getByRole('combobox', { name: 'Reply from' }), { target: { value: String(marcus.id) } })
     expect(applyButton()).toHaveProperty('disabled', false)
@@ -293,7 +293,7 @@ describe('CheckinImportDialog — who replied', () => {
     const done = card('Review the staging load-test results')
     expect(done.textContent).toContain('Not assigned to Ada Lovelace. Check before applying.')
     expect(within(done).getByRole('checkbox', { name: 'Completed' })).toHaveProperty('checked', false)
-    expect(applyButton().title).toBe('Nothing is ticked')
+    expect(applyButton().getAttribute('data-tooltip')).toBe('Nothing is ticked')
   })
 
   it('no footer: switching who replied re-derives the ticks and notes, but a tick changed by hand stays', () => {
@@ -361,7 +361,7 @@ describe('CheckinImportDialog — who replied', () => {
     act(() => useUIStore.getState().openCheckinImport({ personId: 999 }))
     paste({ plain: noFooter() })
     expect((within(dialog()).getByRole('combobox', { name: 'Reply from' }) as HTMLSelectElement).value).toBe('')
-    expect(applyButton().title).toBe('Choose who replied first')
+    expect(applyButton().getAttribute('data-tooltip')).toBe('Choose who replied first')
   })
 
   it('the footer name matches a person regardless of case and spacing', () => {

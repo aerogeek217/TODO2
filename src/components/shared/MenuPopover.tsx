@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type Modifier } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -11,6 +11,7 @@ import styles from './MenuPopover.module.css'
 import { PopoverRoot } from './PopoverRoot'
 import { PopoverLevelContext, usePopoverLevel } from './popover-level'
 import { shortcutScope } from '../../utils/dom-contract'
+import { useTooltip } from './use-tooltip'
 
 export interface MenuItemEntry {
   kind: 'item'
@@ -36,6 +37,12 @@ export interface MenuItemEntry {
   trailing?: ReactNode
   /** A muted, wrapping line under the label (what a choice means). */
   description?: string
+  /**
+   * The description as a tooltip on the item instead of the line under its
+   * label (as Settings explains a setting: in a tooltip); it stays the
+   * item's accessible description either way.
+   */
+  descriptionTooltip?: boolean
   /** Shows a submenu chevron; `onSelect` opens the caller's own submenu. */
   submenu?: boolean
   /**
@@ -626,7 +633,7 @@ function StepButton({ label, onStep, children }: { label: string; onStep?: () =>
       role="menuitem"
       className={styles.stepButton}
       aria-label={label}
-      title={label}
+      data-tooltip={label}
       aria-disabled={onStep ? undefined : true}
       onClick={() => onStep?.()}
     >
@@ -674,57 +681,80 @@ function MenuItemButton({ entry, index: i, expanded, gutter, onSelect, onHoverIt
     ? entry.checked === true
     : entry.checkbox ? (entry.checked === 'mixed' ? 'mixed' : entry.checked === true) : undefined
   const radioDot = entry.indicator === 'radio'
+  // The description as a tooltip (`descriptionTooltip`): the item's
+  // accessible description through a hidden copy, the bubble on hover or
+  // keyboard focus.
+  const tipText = entry.descriptionTooltip ? entry.description : undefined
+  const tip = useTooltip(tipText, { prose: true })
+  const descId = useId()
+  const inlineDescription = entry.description && !entry.descriptionTooltip ? entry.description : undefined
+  const onTipPointerDown = tip.triggerProps.onPointerDown
+  const sortablePointerDown = sortable?.listeners?.onPointerDown as ((e: React.PointerEvent) => void) | undefined
   return (
-    <button
-      ref={sortable?.ref}
-      {...sortable?.listeners}
-      style={sortable?.style}
-      type="button"
-      role={role}
-      aria-checked={ariaChecked}
-      aria-haspopup={hasSub ? 'menu' : undefined}
-      aria-expanded={expanded}
-      aria-keyshortcuts={entry.shortcut}
-      disabled={entry.disabled}
-      data-menu-index={i}
-      data-menu-label={entry.label}
-      data-menu-drag={entry.dragId}
-      title={entry.title}
-      className={[
-        styles.item,
-        entry.danger ? styles.danger : '',
-        entry.dim ? styles.dim : '',
-        expanded ? styles.itemOpen : '',
-        radioDot && entry.checked === true ? styles.radioChecked : '',
-        entry.description ? styles.itemTall : '',
-        sortable ? styles.draggable : '',
-        sortable?.dragging ? styles.dragging : '',
-      ].join(' ')}
-      onPointerEnter={onHoverItem ? () => onHoverItem(i, entry) : undefined}
-      onClick={(e) => onSelect(entry, i, e.detail === 0)}
-    >
-      {radioDot && <span className={styles.radio} aria-hidden="true" />}
-      {entry.icon
-        ? <span className={styles.icon}>{entry.icon}</span>
-        : gutter && !radioDot && <span className={styles.iconSlot} aria-hidden="true" />}
-      {entry.description ? (
-        <span className={styles.labelBlock}>
-          <span className={styles.labelLine}>
-            <span className={styles.label}>{entry.label}</span>
+    <>
+      <button
+        ref={sortable?.ref}
+        {...sortable?.listeners}
+        onPointerDown={onTipPointerDown ? (e) => { sortablePointerDown?.(e); onTipPointerDown() } : sortablePointerDown}
+        onPointerLeave={tip.triggerProps.onPointerLeave}
+        onFocus={tip.triggerProps.onFocus}
+        onBlur={tip.triggerProps.onBlur}
+        style={sortable?.style}
+        type="button"
+        role={role}
+        aria-checked={ariaChecked}
+        aria-haspopup={hasSub ? 'menu' : undefined}
+        aria-expanded={expanded}
+        aria-describedby={tipText ? descId : undefined}
+        aria-keyshortcuts={entry.shortcut}
+        disabled={entry.disabled}
+        data-menu-index={i}
+        data-menu-label={entry.label}
+        data-menu-drag={entry.dragId}
+        data-tooltip={entry.title}
+        // A disabled item's reason, for a screen reader too (the tooltip shows only on hover).
+        aria-description={entry.title}
+        className={[
+          styles.item,
+          entry.danger ? styles.danger : '',
+          entry.dim ? styles.dim : '',
+          expanded ? styles.itemOpen : '',
+          radioDot && entry.checked === true ? styles.radioChecked : '',
+          inlineDescription ? styles.itemTall : '',
+          sortable ? styles.draggable : '',
+          sortable?.dragging ? styles.dragging : '',
+        ].join(' ')}
+        onPointerEnter={onHoverItem || tipText ? (e) => {
+          tip.triggerProps.onPointerEnter?.(e)
+          onHoverItem?.(i, entry)
+        } : undefined}
+        onClick={(e) => onSelect(entry, i, e.detail === 0)}
+      >
+        {radioDot && <span className={styles.radio} aria-hidden="true" />}
+        {entry.icon
+          ? <span className={styles.icon}>{entry.icon}</span>
+          : gutter && !radioDot && <span className={styles.iconSlot} aria-hidden="true" />}
+        {inlineDescription ? (
+          <span className={styles.labelBlock}>
+            <span className={styles.labelLine}>
+              <span className={styles.label}>{entry.label}</span>
+            </span>
+            <span className={styles.description}>{inlineDescription}</span>
           </span>
-          {entry.description && <span className={styles.description}>{entry.description}</span>}
-        </span>
-      ) : (
-        <span className={styles.label}>{entry.label}</span>
-      )}
-      {entry.trailing}
-      {entry.note && <span className={styles.note}>{entry.note}</span>}
-      {entry.shortcut && <kbd className={styles.kbd} aria-hidden="true">{entry.shortcut}</kbd>}
-      {entry.kbd && <kbd className={styles.kbd} aria-hidden="true">{entry.kbd}</kbd>}
-      {!radioDot && entry.checked === true && <span className={styles.check}><CheckIcon /></span>}
-      {entry.checked === 'mixed' && <span className={styles.check}><DashIcon /></span>}
-      {hasSub && <span className={styles.chevron}><ChevronRightIcon /></span>}
-    </button>
+        ) : (
+          <span className={styles.label}>{entry.label}</span>
+        )}
+        {entry.trailing}
+        {entry.note && <span className={styles.note}>{entry.note}</span>}
+        {entry.shortcut && <kbd className={styles.kbd} aria-hidden="true">{entry.shortcut}</kbd>}
+        {entry.kbd && <kbd className={styles.kbd} aria-hidden="true">{entry.kbd}</kbd>}
+        {!radioDot && entry.checked === true && <span className={styles.check}><CheckIcon /></span>}
+        {entry.checked === 'mixed' && <span className={styles.check}><DashIcon /></span>}
+        {hasSub && <span className={styles.chevron}><ChevronRightIcon /></span>}
+      </button>
+      {tipText && <span id={descId} hidden>{tipText}</span>}
+      {tip.tooltip}
+    </>
   )
 }
 

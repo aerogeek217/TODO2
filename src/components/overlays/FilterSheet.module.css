@@ -156,3 +156,8 @@
   font-weight: 600;
   color: var(--color-accent-text);
 }
+
+/* A filter typed on desktop that no section says (`ScreenExpression`). */
+.expression {
+  margin: -4px 2px 8px;
+}

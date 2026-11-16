@@ -1,6 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { createCommands, type Command, type CommandContext } from '../../services/command-registry'
-import { emptyPredicate } from '../../models/filter-predicate'
 import { createTab } from '../../models/workspace-layout'
 import { REVIEW_POPUP_TAB_ID } from '../../models/review'
 import { useUIStore } from '../../stores/ui-store'
@@ -9,11 +8,10 @@ import { useListWidgetStore } from '../../stores/list-widget-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { makePerson } from '../helpers'
 import { cell, grid } from '../helpers/layout-builders'
-import type { Lens } from '../../utils/lens'
 
 /**
  * The palette's second steps (3B): Go to Layout ›, Add Widget ›, New /
- * Duplicate Layout…, Lens ›, Review With ›, Theme › — what each lists, what
+ * Duplicate Layout…, Review With ›, Theme › — what each lists, what
  * it marks, and what a leaf does.
  */
 
@@ -81,37 +79,6 @@ describe('Add Widget ›', () => {
   it('no List while the open layout isn’t stored (it can’t own a list yet)', () => {
     const commands = createCommands(makeContext({ getLayouts: () => ({ ...layouts, stored: false }), addWidget: vi.fn() }))
     expect((find(commands, 'add-widget')?.step ?? []).map((c) => c.name)).not.toContain('List')
-  })
-})
-
-describe('Lens ›', () => {
-  const lenses: Lens[] = [
-    { id: 'l1', name: 'Mine', predicate: emptyPredicate() },
-    { id: 'l2', name: 'Work', predicate: emptyPredicate() },
-  ]
-
-  it('none while no lens is defined', () => {
-    expect(find(createCommands(makeContext({ getLenses: () => ({ lenses: [], activeLensId: null }) })), 'lens-pick')).toBeUndefined()
-  })
-
-  it('No lens, then each lens, the pick marked; a pick is the top bar’s, the lens put back on', async () => {
-    const commands = createCommands(makeContext({ getLenses: () => ({ lenses, activeLensId: 'l2' }) }))
-    expect(find(commands, 'lens-pick')).toMatchObject({ name: 'Lens', category: 'filter' })
-    expect(leaves(commands, 'lens-pick')).toEqual([
-      { id: 'lens-none', name: 'No lens', current: false },
-      { id: 'lens-l1', name: 'Mine', current: false },
-      { id: 'lens-l2', name: 'Work', current: true },
-    ])
-    useSettingsStore.setState({ lenses })
-    useUIStore.getState().setLensLifted(true)
-    find(commands, 'lens-pick')?.step?.[1]?.action()
-    expect(useUIStore.getState().lensLifted).toBe(false)
-    await vi.waitFor(() => expect(useSettingsStore.getState().activeLensId).toBe('l1'))
-  })
-
-  it('No lens is marked while nothing (or a lens that is gone) is picked', () => {
-    const commands = createCommands(makeContext({ getLenses: () => ({ lenses, activeLensId: 'gone' }) }))
-    expect(leaves(commands, 'lens-pick')[0]).toMatchObject({ name: 'No lens', current: true })
   })
 })
 

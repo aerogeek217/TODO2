@@ -12,7 +12,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
-import { resetDb } from '../helpers'
+import { getByTooltip, resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
 
 const due = new Date(2026, 5, 15)
@@ -74,7 +74,7 @@ describe('TaskEditPopup with concurrent changes to its task', () => {
     })
 
     expect(titleInput().value).toBe('Half-typed tit')
-    expect(screen.getByTitle(/^Due /)).toBeTruthy()
+    expect(getByTooltip(document.body, /^Due /)).toBeTruthy()
     // The title wasn't saved yet: the store still has the old one.
     expect(useTodoStore.getState().todos.find((t) => t.id === id)?.title).toBe('Old title')
   })

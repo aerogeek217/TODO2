@@ -2,8 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
-import { createTab, isGlanceKind, isLensSwitchTab, tabIgnoresLens, WIDGET_KINDS, type GlanceTab, type GlanceWidgetKind } from '../../../models/workspace-layout'
-import { WidgetLensContext } from '../../../hooks/use-widget-lens'
+import { createTab, isGlanceKind, WIDGET_KINDS, type GlanceTab, type GlanceWidgetKind } from '../../../models/workspace-layout'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -33,9 +32,7 @@ function draw(tab: GlanceTab) {
   return render(
     <DndContext>
       <WidgetFaceContext.Provider value={{ forced: 'large' }}>
-        <WidgetLensContext.Provider value={isLensSwitchTab(tab) && tabIgnoresLens(tab)}>
-          <GlanceWidget tab={tab} onResult={() => {}} />
-        </WidgetLensContext.Provider>
+        <GlanceWidget tab={tab} onResult={() => {}} />
       </WidgetFaceContext.Provider>
     </DndContext>,
   )

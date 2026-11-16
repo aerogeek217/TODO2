@@ -9,7 +9,6 @@ import type { GlanceResult } from '../../../components/workspace/glance/glance-h
 import type { GlanceDrill } from '../../../components/workspace/glance/glance-types'
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
-import { WidgetLensContext } from '../../../hooks/use-widget-lens'
 import type { BreakdownConfig } from '../../../models/chart-widgets'
 import { createTab, type BreakdownTab, type LayoutTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { REVIEW_POPUP_TAB_ID } from '../../../models/review'
@@ -281,24 +280,6 @@ describe('clicks: a row drills, its Review button and a count jump', () => {
     expect(useUIStore.getState().widgetPopup).toBeNull()
   })
 
-  it('a jump carries the Breakdown’s lens switch to the Review widget, so it shows the tasks counted (F4)', async () => {
-    const reviewTab = () => useWorkspaceStore.getState().working!.cells[1]!.tabs[0]!
-    inLayout(breakdown({ name: 'Team' }))
-    // The Breakdown ignores the top bar's lens (its switch, through the widget's context).
-    render(
-      <DndContext>
-        <WidgetLensContext.Provider value={true}><Live face="large" /></WidgetLensContext.Provider>
-      </DndContext>,
-    )
-    expect(reviewTab().viewState).toBeUndefined()
-    await act(async () => { fireEvent.click(within(rowOf('person-4')).getByTestId('breakdown-review')) })
-    await vi.waitFor(() => expect(reviewFilter()?.expression).toEqual({ kind: 'person', id: 4 }))
-    await vi.waitFor(() => expect(reviewTab().viewState).toMatchObject({ ignoreLens: true }))
-    // The filter kept is the filter alone.
-    expect(reviewFilter()).not.toHaveProperty('ignoreLens')
-    expect(layoutSteps()).toEqual([])
-  })
-
   it('a person row’s right-click opens the person menu', () => {
     setup(breakdown())
     fireEvent.contextMenu(rowOf('person-4'))
@@ -433,7 +414,7 @@ describe('the table’s columns', () => {
     setup(breakdown({ columns: [{ id: 'col-a', name: 'Waiting on someone else', color: '#7ec4bc', filter: { ...current0().config.filter }, litWhen: 'never' }] }))
     const table = document.querySelector<HTMLElement>('[role="table"]')!
     expect(table.style.getPropertyValue('--bd-cols')).toBe('minmax(0, 1fr) 84px 44px 40px')
-    expect(document.querySelector<HTMLElement>('[data-sort-key="col-a"]')!.title).toBe('Waiting on someone else')
+    expect(document.querySelector<HTMLElement>('[data-sort-key="col-a"]')!.getAttribute('data-tooltip')).toBe('Waiting on someone else')
   })
 
   it('a priority split keeps its rings on the row names', () => {

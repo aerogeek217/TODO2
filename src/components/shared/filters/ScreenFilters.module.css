@@ -1,6 +1,6 @@
 /* The top bar's Filter button and its menu (the fields, Completed, Clear
- * all), and the chips of the filters that are on. The pickers keep
- * `FilterPicker.module.css`'s panel styles. */
+ * all). The filters that are on are the field's pills (`TopBarFilterField`).
+ * The pickers keep `FilterPicker.module.css`'s panel styles. */
 
 .filterButton {
   display: inline-flex;
@@ -15,12 +15,6 @@
 .filterButton:hover {
   background: var(--color-tint-6);
   color: var(--color-text-primary);
-}
-
-.filterButtonActive,
-.filterButtonActive:hover {
-  background: var(--color-accent-bg);
-  color: var(--color-accent-text);
 }
 
 .filterMain {
@@ -41,10 +35,6 @@
   min-width: 0;
 }
 
-.filterButtonOn .filterMain {
-  padding-right: 4px;
-}
-
 .icon {
   display: inline-flex;
   font-size: var(--font-size-body);
@@ -52,7 +42,6 @@
   flex-shrink: 0;
 }
 
-.filterButtonActive .icon,
 .iconOn {
   color: var(--color-accent-text);
 }
@@ -63,27 +52,7 @@
   max-width: 160px;
 }
 
-/* The Dates value (`Due today – end of next week`). */
-.filterLabelWide {
-  max-width: 260px;
-}
-
-/* Its picker open (D21): ringed in the accent over the accent fill, the
- * icon, label and chevron in the text accent; a filter that is on keeps its
- * stronger fill. The focus ring is the inner button's, outside the ring. */
-.filterButtonOpen,
-.filterButtonOpen:hover {
-  background: var(--color-trigger-open-fill);
-  box-shadow: var(--trigger-open-ring);
-  color: var(--color-accent-text);
-}
-
-.filterButtonActive.filterButtonOpen {
-  background: var(--color-accent-bg);
-}
-
-.filterButtonOpen .icon,
-.filterButtonOpen .chevron {
+.chevron {
   color: var(--color-accent-text);
 }
 
@@ -91,10 +60,6 @@
   display: inline-flex;
   color: var(--color-text-muted);
   transition: transform var(--transition-fast);
-}
-
-.filterButtonActive .chevron {
-  color: var(--color-accent-text);
 }
 
 .chevronOpen {
@@ -132,48 +97,6 @@
   color: var(--color-text-primary);
 }
 
-/* The top bar measures both folds (`measureFold`): the shown one is laid out
- * as if unwrapped; each fold also off to the side, unseen, at its natural
- * width (no value cut), with the tray's gap between its buttons. */
-.foldShown {
-  display: contents;
-}
-
-.foldHidden {
-  position: fixed;
-  left: 0;
-  top: 0;
-  display: flex;
-  align-items: center;
-  gap: inherit;
-  width: max-content;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-/* Show completed's chip (while it is on): one button, its × a glyph drawn
- * as the other chips' round × (a click anywhere on it hides them). */
-.completedChip {
-  padding-right: 4px;
-}
-
-.chipCross {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  margin-left: 2px;
-  border-radius: var(--radius-pill);
-  background: var(--color-tint-12);
-  flex-shrink: 0;
-}
-
-.completedChip:hover .chipCross {
-  background: var(--color-tint-20);
-  color: var(--color-text-primary);
-}
-
 /* ═══ The Filter button and its menu ═══ */
 
 .filtersTrigger {
@@ -196,20 +119,6 @@
 .filtersTrigger[aria-expanded='true'] .chevron,
 .filtersTrigger[aria-expanded='true'] .icon {
   color: var(--color-accent-text);
-}
-
-.countBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: var(--radius-pill);
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
-  font-size: var(--font-size-badge);
-  font-weight: var(--font-weight-bold);
 }
 
 .menu {

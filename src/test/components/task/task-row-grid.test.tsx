@@ -3,6 +3,7 @@ import { render, fireEvent, act, cleanup } from '@testing-library/react'
 import { TaskRowGrid } from '../../../components/task/TaskRowGrid'
 import { createValueStore } from '../../../utils/value-store'
 import { useSettingsStore } from '../../../stores/settings-store'
+import { useTaskRowColumn } from '../../../components/task/task-row-grid-context'
 
 afterEach(() => {
   cleanup()
@@ -64,5 +65,46 @@ describe('TaskRowGrid divider', () => {
     fireEvent.lostPointerCapture(divider, { pointerId: 1 })
     expect(live.get()).toBeNull()
     expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
+describe('TaskRowGrid — columns for the fields its rows use (flair P8)', () => {
+  const all = { notes: true, people: true, tags: true, due: true, followup: true, status: true }
+  const noNotes = { ...all, notes: false }
+  /** The grid's columns, read through a row-like child. */
+  function Probe() {
+    const notes = useTaskRowColumn((c) => c.notes)
+    return <button type="button" aria-expanded={false} data-notes={notes}>row</button>
+  }
+  const notesTrack = (c: HTMLElement) => Number(c.querySelector('[data-notes]')!.getAttribute('data-notes'))
+
+  it('a field the rows start using gets its column at once', () => {
+    const { container, rerender } = render(<TaskRowGrid used={noNotes}><Probe /></TaskRowGrid>)
+    expect(notesTrack(container)).toBe(0)
+    rerender(<TaskRowGrid used={all}><Probe /></TaskRowGrid>)
+    expect(notesTrack(container)).toBe(16)
+  })
+
+  it('one they stop using leaves at once while the list is idle, but not while a row’s picker is open — it goes when the picker closes', async () => {
+    const { container, rerender } = render(<TaskRowGrid used={all}><Probe /></TaskRowGrid>)
+    rerender(<TaskRowGrid used={noNotes}><Probe /></TaskRowGrid>)
+    expect(notesTrack(container)).toBe(0)
+
+    rerender(<TaskRowGrid used={all}><Probe /></TaskRowGrid>)
+    const button = container.querySelector('button')!
+    button.setAttribute('aria-expanded', 'true')
+    rerender(<TaskRowGrid used={noNotes}><Probe /></TaskRowGrid>)
+    expect(notesTrack(container)).toBe(16)
+    await act(async () => {
+      button.setAttribute('aria-expanded', 'false')
+      await new Promise((r) => setTimeout(r, 50))
+    })
+    expect(notesTrack(container)).toBe(0)
+  })
+
+  it('no field used: no divider', () => {
+    const none = { notes: false, people: false, tags: false, due: false, followup: false, status: false }
+    const { queryByRole } = render(<TaskRowGrid used={none} onDetailsWidthChange={() => {}}><div /></TaskRowGrid>)
+    expect(queryByRole('separator')).toBeNull()
   })
 })

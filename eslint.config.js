@@ -23,6 +23,13 @@ const HTML_SINKS = [
   { selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']", message: NO_HTML_SINK },
 ]
 
+// One tooltip everywhere (flair P9): an element's hover text is the app's
+// tooltip — `data-tooltip` (read by `TooltipHost`) or `useTooltip` — never
+// the browser's native `title`, which waits and looks different. (An
+// iframe's `title` is its accessible name, not a tooltip: allowed.)
+const NO_NATIVE_TITLE = 'Use data-tooltip (TooltipHost) or useTooltip instead of the native title attribute; give an icon-only control an aria-label.'
+const NATIVE_TITLE = { selector: "JSXOpeningElement[name.type='JSXIdentifier'][name.name=/^(?!iframe$)[a-z]/] > JSXAttribute[name.name='title']", message: NO_NATIVE_TITLE }
+
 export default defineConfig([
   // `.claude/` is gitignored tooling (agent worktrees hold whole checkouts of
   // the repo), not this checkout's code.
@@ -63,7 +70,7 @@ export default defineConfig([
         ...GLOBAL_OBJECTS.flatMap((object) => NETWORK_GLOBALS.map((property) => ({ object, property, message: LOCAL_FIRST }))),
         ...['sendBeacon', 'serviceWorker'].map((property) => ({ object: 'navigator', property, message: LOCAL_FIRST })),
       ],
-      'no-restricted-syntax': ['error', ...HTML_SINKS],
+      'no-restricted-syntax': ['error', ...HTML_SINKS, NATIVE_TITLE],
     },
   },
 ])

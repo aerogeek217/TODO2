@@ -93,7 +93,7 @@ export function toggleCalendarDateType(types: CalendarDateTypes, type: CalendarD
   return { ...types, [type]: !types[type] }
 }
 
-export interface LensTabConfig {
+export interface ListTabConfig {
   /** The list definition shown; absent = not picked yet. */
   listDefinitionId?: number
 }
@@ -102,16 +102,7 @@ interface CalendarTabConfig {
   dateTypes: CalendarDateTypes
 }
 
-/**
- * A widget's lens switch (G3, board BD): view state, saved at once, never
- * an unsaved edit — `true`, the top bar's lens doesn't apply here. A
- * list's is its list's (`ListDefinition.ignoreLens`).
- */
-export interface LensViewState {
-  ignoreLens?: boolean
-}
-
-export interface CalendarTabViewState extends LensViewState {
+export interface CalendarTabViewState {
   view?: CalendarView
   /** Weeks (week view) or months (month view) from the current one. */
   offset?: number
@@ -181,12 +172,12 @@ type NoTabSettings = Record<string, never>
 type ReviewTabConfig = NoTabSettings
 
 /**
- * A Review widget's view state (saved at once): its lens switch and the
- * rail's sort (absent: Priority, `DEFAULT_REVIEW_WIDGET_SORT`). Where it
- * stands — the current task, the – marks — lasts as long as its filter
- * (`review-session`) and is never saved.
+ * A Review widget's view state (saved at once): the rail's sort (absent:
+ * Priority, `DEFAULT_REVIEW_WIDGET_SORT`). Where it stands — the current
+ * task, the – marks — lasts as long as its filter (`review-session`) and is
+ * never saved.
  */
-export interface ReviewTabViewState extends LensViewState {
+export interface ReviewTabViewState {
   sort?: ReviewSort
 }
 
@@ -249,14 +240,14 @@ interface TabOf<K extends WidgetKind, C, V> {
 }
 
 /** A list tab's view state: the rows' details width and its zoom (its prompt picks are temporary, not saved). */
-export type LensTab = TabOf<'lens', LensTabConfig, ListTabViewState>
+export type ListTab = TabOf<'lens', ListTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
-export type NeglectTab = TabOf<'neglect', NeglectTabConfig, LensViewState>
-export type NumberTab = TabOf<'number', NumberConfig, LensViewState>
-export type TrendTab = TabOf<'trend', TrendTabConfig, LensViewState>
-export type PulseTab = TabOf<'pulse', PulseTabConfig, LensViewState>
+export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
+export type NumberTab = TabOf<'number', NumberConfig, NoTabSettings>
+export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
+export type PulseTab = TabOf<'pulse', PulseTabConfig, NoTabSettings>
 // ── D26 P8: the chart widgets ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
 export type PivotTab = TabOf<'pivot', PivotConfig, PivotViewState>
@@ -267,7 +258,7 @@ export type ChartTab = BreakdownTab | PivotTab
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | GlanceTab
+export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | GlanceTab
 
 type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -338,8 +329,7 @@ export interface LayoutCell {
  * The parts of a layout that Save writes and an edit can leave unsaved: its
  * grid and its cells. The cells tile the grid exactly — no gap, no overlap —
  * and every grid line is the edge of at least one cell (`utils/workspace-grid`).
- * An empty layout has no tracks and no cells. (The lens is not a layout's:
- * the top bar picks one for every layout — `activeLensId`, a settings row.)
+ * An empty layout has no tracks and no cells.
  */
 export interface LayoutBody {
   grid: LayoutGrid
@@ -547,23 +537,6 @@ export function isGlanceKind(kind: WidgetKind): kind is GlanceWidgetKind {
 }
 
 /** A glance widget's tab. */
-/** The kinds with a lens switch of their own in their view state (G3; a list's is its list's). */
-export const LENS_SWITCH_KINDS = ['calendar', 'review', 'neglect', 'number', 'trend', 'pulse', 'breakdown', 'pivot'] as const
-type LensSwitchKind = (typeof LENS_SWITCH_KINDS)[number]
-export type LensSwitchTab = Extract<LayoutTab, { kind: LensSwitchKind }>
-
-export function isLensSwitchTab(tab: LayoutTab): tab is LensSwitchTab {
-  return (LENS_SWITCH_KINDS as readonly string[]).includes(tab.kind)
-}
-
-/**
- * Whether a widget ignores the top bar's lens: its switch (`viewState.ignoreLens`;
- * v79 moved a Number's older config `ignoreLens` there).
- */
-export function tabIgnoresLens(tab: LensSwitchTab): boolean {
-  return tab.viewState?.ignoreLens === true
-}
-
 export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
   return isGlanceKind(tab.kind)
 }

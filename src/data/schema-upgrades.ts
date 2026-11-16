@@ -11,6 +11,8 @@ import { upgradeV77 } from './upgrades/v77-dashboard-widgets'
 import { upgradeV78 } from './upgrades/v78'
 import { upgradeV79 } from './upgrades/v79'
 import { upgradeV80 } from './upgrades/v80'
+import { upgradeV81 } from './upgrades/v81'
+import { upgradeV82 } from './upgrades/v82'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -101,7 +103,10 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * removed kinds' tabs, the Eisenhower's leftovers, the Review, Breakdown,
  * Number, list zoom and trend shapes (`upgrades/v79/index.ts`), and v80,
  * people without their email and the check-in open method's settings row
- * deleted (`upgrades/v80/index.ts`). Each
+ * deleted (`upgrades/v80/index.ts`), and v81, the lenses' settings rows and
+ * shortcuts deleted and every list's and tab's lens switch removed
+ * (`upgrades/v81/index.ts`), and v82, each row track's runs of side-by-side
+ * Number cells merged into one strip cell (`upgrades/v82/index.ts`). Each
  * transform lives in `data/upgrades/v<N>-*.ts` (or `v<N>/`, by parts); the
  * tab walk v78 and v79 share is `upgrades/layout-tabs.ts`.
  */
@@ -118,6 +123,8 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [78, upgradeV78],
   [79, upgradeV79],
   [80, upgradeV80],
+  [81, upgradeV81],
+  [82, upgradeV82],
 ])
 
 /**

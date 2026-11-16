@@ -18,7 +18,9 @@ import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { WidgetTopLine } from '../WidgetTopLine'
 import { Sparkline } from './Sparkline'
-import { numberColors } from './number-colors'
+import { litColors, numberColors } from './number-colors'
+import { RollingNumber } from '../../shared/RollingNumber'
+import { LightRing } from './LightRing'
 import { GoalNumber, GroupNumber, ListNumber, OldestNumber, ShareNumber } from './NumberShapes'
 import styles from './NumberWidget.module.css'
 
@@ -111,7 +113,7 @@ export function NumberWidget(props: GlanceWidgetProps<NumberTab>) {
 
 /**
  * A count (D26 P5): the tasks its filter keeps under the top
- * bar's filter (its lens too, unless the Number ignores it), as their count
+ * bar's filter, as their count
  * — `shown of total` while the top bar hides some, with its 14-day line
  * (`filter-history`; approximate while the history log doesn't hold all it
  * reads for the whole line — said in its tooltip, `NumberLine`) and its change against yesterday or the same day last
@@ -161,8 +163,9 @@ function CountNumber({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
       </WidgetTopLine>
       <span className={styles.figures}>
         <span className={styles.count} style={{ color: colors.count }} data-testid="number-count">
-          {shown}
+          <RollingNumber value={shown} />
           {shown !== total && <span className={styles.of}>of {total}</span>}
+          <LightRing lit={colors.lit} color={litColors(config, true).count} />
         </span>
         {series && (
           <span className={styles.history}>

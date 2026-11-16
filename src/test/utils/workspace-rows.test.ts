@@ -8,6 +8,7 @@ import {
   isFitCell,
   isFitHeightKind,
   isFitTrack,
+  isNumberStripCell,
   isGlanceKind,
 } from '../../utils/workspace-rows'
 import { CELL_MIN_PX } from '../../utils/workspace-resize'
@@ -38,12 +39,19 @@ describe('fit tracks', () => {
   const a = cell('a', [notes('t')])
   const body = grid([[n1, n2, L], [a, a, L]])
 
-  it('a row track fits when every cell lying only in it holds one Number; a spanning cell doesn’t count', () => {
+  it('a row track fits when every cell lying only in it holds only Numbers; a spanning cell doesn’t count', () => {
     expect(cellsOnlyInRow(body, 0).map((c) => c.id)).toEqual(['n1', 'n2'])
     expect(isFitTrack(body, 0)).toBe(true)
     expect(isFitTrack(body, 1)).toBe(false)
     expect(isFitCell(n1)).toBe(true)
-    expect(isFitCell({ tabs: [number('a'), number('b')] })).toBe(false)
+    // A strip of Numbers (flair P10) fits too; a Number beside another kind doesn't, nor an empty cell.
+    expect(isFitCell({ tabs: [number('a'), number('b')] })).toBe(true)
+    expect(isFitCell({ tabs: [number('a'), notes('b')] })).toBe(false)
+    expect(isFitCell({ tabs: [] })).toBe(false)
+    expect(isNumberStripCell({ tabs: [number('a'), number('b')] })).toBe(true)
+    expect(isNumberStripCell({ tabs: [number('a')] })).toBe(false)
+    expect(isNumberStripCell({ tabs: [number('a'), notes('b')] })).toBe(false)
+    expect(isFitTrack(grid([[cell('s', [number('s1'), number('s2')]), n1]]), 0)).toBe(true)
   })
 
   it('a track with no cell of its own doesn’t fit', () => {
@@ -54,12 +62,12 @@ describe('fit tracks', () => {
     expect(isFitTrack(spanning, 0)).toBe(false)
   })
 
-  it('a cell of one Number may shrink to its fit height (58px), any other glance cell to 64px, the rest to CELL_MIN_PX', () => {
+  it('a cell of Numbers may shrink to its fit height (58px), any other glance cell to 64px, the rest to CELL_MIN_PX', () => {
     expect(FIT_ROW_PX).toBe(58)
     expect(cellMinHeightPx(n1)).toBe(FIT_ROW_PX)
     expect(cellMinHeightPx(cell('g', [createTab('trend', 'g1')]))).toBe(GLANCE_ROW_MIN_PX)
-    // Two Numbers in one cell have a tab strip: a glance cell, not a fit one.
-    expect(cellMinHeightPx(cell('nn', [number('x3'), number('x4')]))).toBe(GLANCE_ROW_MIN_PX)
+    // Two Numbers in one cell are a strip (flair P10): a fit cell.
+    expect(cellMinHeightPx(cell('nn', [number('x3'), number('x4')]))).toBe(FIT_ROW_PX)
     expect(cellMinHeightPx(L)).toBe(CELL_MIN_PX)
   })
 })

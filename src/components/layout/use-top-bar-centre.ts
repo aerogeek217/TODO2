@@ -1,6 +1,5 @@
 import { useLayoutEffect, useState, type RefObject } from 'react'
-import { attrSelector } from '../../utils/dom-contract'
-import { FOLD_HIDDEN_ATTR, FOLD_VARIANT_ATTR } from '../shared/filters/FilterChipBar.shared'
+import { attrSelector, FILTER_MENU_ATTR } from '../../utils/dom-contract'
 import { FOLD_SEARCH_ATTR, SEARCH_WIDTH } from './use-top-bar-fold'
 
 /** What `centreOffset` decides from: viewport px, read with the centring gap at `offset`. */
@@ -8,21 +7,21 @@ export interface CentreMeasure {
   /** The bar's left edge and width. */
   barLeft: number
   barWidth: number
-  /** Where the group (the lens control, else the tray) starts with no centring gap: as far left as it may go. */
+  /** Where the tray starts with no centring gap: as far left as it may go. */
   start: number
-  /** The group at rest — the lens control, the field at its full width and the Filter button, no chip, no counter. */
+  /** The tray at rest — the funnel, the field at its full width and the Filter button, no counter. */
   restWidth: number
-  /** The group as it is now (its chips and counter included). */
+  /** The tray as it is now (its counter included). */
   groupWidth: number
   /** The right zone's left edge (its padding is the least gap before it). */
   rightLeft: number
 }
 
 /**
- * The centring gap before the top bar's lens-and-filter group: the group at
- * rest centred in the bar; a group grown by chips or the counter keeps its
- * left edge (the lens control and the field never move under the user) and
- * runs on rightwards, moving left only once it would reach the right zone;
+ * The centring gap before the top bar's filter tray: the tray at rest
+ * centred in the bar; a tray grown by the counter keeps its left
+ * edge (the field never moves under the user) and runs on rightwards,
+ * moving left only once it would reach the right zone;
  * never left of `start` (the tabs' least gap — past that the fold takes over).
  * Whole px, never negative.
  */
@@ -32,23 +31,29 @@ export function centreOffset(m: CentreMeasure): number {
   return Math.max(0, Math.round(left - m.start))
 }
 
-/** The Filter button's width without a count badge: the first button of the hidden unfolded copy. */
-function restButtonWidth(tray: HTMLElement): number {
-  const button = tray.querySelector<HTMLElement>(`${attrSelector(FOLD_VARIANT_ATTR, 'open')}${attrSelector(FOLD_HIDDEN_ATTR)} > button`)
-  return button?.getBoundingClientRect().width ?? 0
+/**
+ * The tray's width at rest: from its left to the Filter button's right (the
+ * last part but the counter) and its padding — the field as wide as it is
+ * drawn (narrowed, the tray at rest is that much narrower).
+ */
+function restTrayWidth(tray: HTMLElement, trayBox: DOMRect): number {
+  const cs = getComputedStyle(tray)
+  const padding = parseFloat(cs.paddingRight) || 0
+  const button = tray.querySelector<HTMLElement>(attrSelector(FILTER_MENU_ATTR))
+  if (button) return button.getBoundingClientRect().right - trayBox.left + padding
+  const field = tray.querySelector<HTMLElement>(attrSelector(FOLD_SEARCH_ATTR))
+  return (field?.getBoundingClientRect().left ?? trayBox.left) - trayBox.left + SEARCH_WIDTH + padding
 }
 
 /**
- * The centring gap for the top bar's middle group, measured (`centreOffset`)
- * after each resize of the bar or a part of it, on the next frame. `group` =
- * the group's first part (the lens control slot, else the tray), `tray` the
- * tray, `right` the right zone, `spacer` the gap's element (its laid-out
+ * The centring gap for the top bar's filter tray, measured (`centreOffset`)
+ * after each resize of the bar or a part of it, on the next frame. `tray` =
+ * the tray, `right` the right zone, `spacer` the gap's element (its laid-out
  * width is taken out of the measure, so the result doesn't depend on it).
  */
 export function useTopBarCentre(
   barRef: RefObject<HTMLElement | null>,
   spacerRef: RefObject<HTMLElement | null>,
-  groupRef: RefObject<HTMLElement | null>,
   trayRef: RefObject<HTMLElement | null>,
   rightRef: RefObject<HTMLElement | null>,
 ): number {
@@ -59,28 +64,22 @@ export function useTopBarCentre(
     let frame = 0
     const measure = () => {
       frame = 0
-      const group = groupRef.current
       const tray = trayRef.current
       const right = rightRef.current
-      if (!group || !tray || !right) return
+      if (!tray || !right) return
       const barBox = bar.getBoundingClientRect()
-      const groupBox = group.getBoundingClientRect()
       const trayBox = tray.getBoundingClientRect()
-      const field = tray.querySelector<HTMLElement>(attrSelector(FOLD_SEARCH_ATTR))
-      const trayCs = getComputedStyle(tray)
-      const gap = parseFloat(trayCs.columnGap) || 0
-      const fieldLeft = field?.getBoundingClientRect().left ?? trayBox.left
       // The gap as laid out (flex may have shrunk it below what was set).
       const laidOut = spacerRef.current?.getBoundingClientRect().width ?? 0
       setOffset((shown) => {
-        const start = groupBox.left - laidOut
-        const restWidth = (fieldLeft - groupBox.left) + SEARCH_WIDTH + gap + restButtonWidth(tray) + (parseFloat(trayCs.paddingRight) || 0)
+        const start = trayBox.left - laidOut
+        const restWidth = restTrayWidth(tray, trayBox)
         const next = centreOffset({
           barLeft: barBox.left,
           barWidth: barBox.width,
           start,
           restWidth,
-          groupWidth: trayBox.right - groupBox.left,
+          groupWidth: trayBox.width,
           rightLeft: right.getBoundingClientRect().left,
         })
         return Math.abs(next - shown) <= 0.5 ? shown : next
@@ -91,7 +90,7 @@ export function useTopBarCentre(
     }
     const observer = new ResizeObserver(schedule)
     observer.observe(bar)
-    for (const el of [groupRef.current, trayRef.current, rightRef.current]) if (el) observer.observe(el)
+    for (const el of [trayRef.current, rightRef.current]) if (el) observer.observe(el)
     // The tray's parts too: a part that shrinks keeps its box while its content changes.
     for (const child of Array.from(trayRef.current?.children ?? [])) observer.observe(child)
     schedule()

@@ -9,7 +9,7 @@ import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import type { Status } from '../../../models'
-import { makePerson, makeTodo } from '../../helpers'
+import { getByTooltip, makePerson, makeTodo, queryByTooltip } from '../../helpers'
 
 /**
  * Search-result pill bar.
@@ -65,7 +65,7 @@ describe('TopBar search-result pill bar', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'Q4' } })
@@ -75,9 +75,9 @@ describe('TopBar search-result pill bar', () => {
     const option = within(listbox).getAllByRole('option')[0]!
 
     expect(within(option).getByText('AL')).toBeInTheDocument()
-    expect(within(option).getByTitle('In Progress')).toBeInTheDocument()
+    expect(getByTooltip(option, 'In Progress')).toBeInTheDocument()
     expect(within(option).getByText(/^\w{3} \d+ Jan 2099$/)).toBeInTheDocument()
-    expect(within(option).getByTitle('Due')).toBeInTheDocument()
+    expect(getByTooltip(option, 'Due')).toBeInTheDocument()
   })
 
   it('clicking a row routes through onOpen and pill chips are structurally inside the row button', async () => {
@@ -89,7 +89,7 @@ describe('TopBar search-result pill bar', () => {
     useUIStore.setState({ selectedTodoId: null, editPopupMode: null } as never)
 
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'Click' } })
@@ -97,7 +97,7 @@ describe('TopBar search-result pill bar', () => {
 
     const listbox = await screen.findByRole('listbox', { name: /search results/i })
     const option = within(listbox).getAllByRole('option')[0]!
-    const statusPill = within(option).getByTitle('In Progress')
+    const statusPill = getByTooltip(option, 'In Progress')
 
     // Sanity: clicking the row button itself fires onOpen → openEditPopup.
     act(() => {
@@ -126,7 +126,7 @@ describe('TopBar search-result pill bar', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
+    const input = screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'plain' } })
@@ -136,7 +136,7 @@ describe('TopBar search-result pill bar', () => {
     const option = within(listbox).getAllByRole('option')[0]!
     // Title still renders; nothing else.
     expect(within(option).getByText('plain todo')).toBeInTheDocument()
-    expect(within(option).queryByTitle(/^Next follow-up/)).toBeNull()
-    expect(within(option).queryByTitle('Due')).toBeNull()
+    expect(queryByTooltip(option, /^Next follow-up/)).toBeNull()
+    expect(queryByTooltip(option, 'Due')).toBeNull()
   })
 })

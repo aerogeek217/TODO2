@@ -385,6 +385,8 @@ describe('the list a Number follows, open larger (the popup’s `list` kind)', (
   })
 
   it('the row details divider moves; the width and the level last while the workspace is open', async () => {
+    // A task with a due date: a list whose tasks use no detail field has no columns and no divider (flair P8).
+    useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'One', dueDate: new Date(2026, 9, 16), sortOrder: 1 })] })
     renderCells(cell('k', [following()]))
     await act(async () => { await openNumberList('num') })
     const divider = () => within(popup()!).getByRole('separator', { name: 'Resize task names and details' })

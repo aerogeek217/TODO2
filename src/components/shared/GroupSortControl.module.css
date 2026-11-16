@@ -1,0 +1,11 @@
+/* The group · sort popover: Edit list's Group by and Sort by rows on the
+ * popovers' glass (as `dropdown.module.css`'s menu, with room of its own —
+ * written out, not composed, so its padding never loses to the menu's). */
+.popover {
+  width: min(300px, calc(100vw - 32px));
+  padding: 12px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-dropdown);
+}

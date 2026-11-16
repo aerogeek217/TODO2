@@ -21,10 +21,10 @@ import { addFollowupInterval, formatFollowupDate } from '../../../utils/followup
 import { SHORTCUT_HANDLERS, type ShortcutCtx } from '../../../services/keyboard-shortcuts'
 import { createCommands, type CommandContext } from '../../../services/command-registry'
 import type { PersistedListDefinition } from '../../../models/list-definition'
-import { createTab, type LensTab } from '../../../models/workspace-layout'
+import { createTab, type ListTab } from '../../../models/workspace-layout'
 import type { Person, TodoPredicate } from '../../../models'
 import { db } from '../../../data/database'
-import { clearFilterStore, makeTodo, resetEntityStores, stubClipboard } from '../../helpers'
+import { clearFilterStore, getByTooltip, makeTodo, queryByTooltip, resetEntityStores, stubClipboard } from '../../helpers'
 import { WidgetFaceContext, type WidgetFaceHost } from '../../../hooks/use-widget-face'
 
 const alice: Person = { id: 1, name: 'Alice', initials: 'AL', color: '#c33' }
@@ -39,7 +39,7 @@ function def(over: Partial<PersistedListDefinition> = {}, predicate: Partial<Tod
   }
 }
 
-const tab: LensTab = { id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }
+const tab: ListTab = { id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }
 
 function setup(d: PersistedListDefinition) {
   useListDefinitionStore.setState({ listDefinitions: [d] })
@@ -95,7 +95,7 @@ describe('ListWidget', () => {
   it('shows the list’s open tasks; nothing narrows it, so no count', () => {
     const { result } = setup(def())
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
-    // One number per list (2A): the tab's badge; a count only while the screen filter or the lens narrows it.
+    // One number per list (2A): the tab's badge; a count only while the screen filter narrows it.
     expect(screen.queryByTestId('list-count')).toBeNull()
     expect(result()?.countLabel).toBeUndefined()
     // No filters anywhere: the filter line reads `Every open task` in words (no chips, no + Filter),
@@ -354,10 +354,10 @@ describe('ListWidget', () => {
 
   it('Add task shows only when the merged predicate names people / status / tags', () => {
     setup(def())
-    expect(screen.queryByTitle('Add a task to this list')).toBeNull()
+    expect(queryByTooltip(document.body, 'Add a task to this list')).toBeNull()
     cleanup()
     setup(def({}, { personIds: [1] }))
-    expect(screen.getByTitle('Add a task to this list')).toBeInTheDocument()
+    expect(getByTooltip(document.body, 'Add a task to this list')).toBeInTheDocument()
   })
 })
 
@@ -626,7 +626,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     const urgent = screen.getByRole('menuitemcheckbox', { name: /Urgent/ })
     expect(urgent).toHaveAttribute('aria-checked', 'false')
     expect(urgent).toHaveTextContent('By due date')
-    expect(urgent).toHaveAttribute('title', '1 of 2 tasks is urgent by its due date, flagged or not.')
+    expect(urgent).toHaveAttribute('data-tooltip', '1 of 2 tasks is urgent by its due date, flagged or not.')
     await act(async () => { fireEvent.click(urgent) })
     expect(useTodoStore.getState().todos.map((t) => t.urgent)).toEqual([true, true])
     openMore()

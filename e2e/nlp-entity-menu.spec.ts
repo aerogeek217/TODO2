@@ -196,6 +196,8 @@ test.describe('task row notes popover', () => {
 
   test('a click on Edit… in the person menu opens the editor; Esc and clicks in it leave the popover open', async ({ page }) => {
     await seedWorkspace(page, ROW_SEED)
+    // No task has notes: the cell is in the row's hover cluster (flair P8), shown on the row's hover.
+    await taskRowByTitle(page, 'Plan the offsite').hover()
     await taskRowByTitle(page, 'Plan the offsite').locator('[data-row-cell="notes"]').click()
     const notesPopover = page.getByRole('dialog', { name: 'Status and notes' })
     await expect(notesPopover).toBeVisible()

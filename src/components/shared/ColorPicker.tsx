@@ -38,7 +38,7 @@ export function ColorPicker({ value, onChange, before }: ColorPickerProps) {
             checked={preset === h}
             onChange={() => onChange(HUE_PRESET_HEX[h])}
             aria-label={HUE_LABEL[h]}
-            title={HUE_LABEL[h]}
+            data-tooltip={HUE_LABEL[h]}
             data-hue={h}
           />
         ))}

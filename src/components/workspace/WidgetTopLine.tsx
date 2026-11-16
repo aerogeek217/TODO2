@@ -78,7 +78,7 @@ export function CellGrip({ cellId, tabs, title, idSuffix = '', expanded, onMenu,
       aria-label={CELL_GRIP_LABEL}
       aria-haspopup="menu"
       aria-expanded={expanded}
-      title={`${CELL_GRIP_LABEL} · drag to move “${title}”`}
+      data-tooltip={`Drag to move “${title}” · click for layout`}
       onPointerDown={(e) => {
         press.current = { x: e.clientX, y: e.clientY, dragged: false }
         listeners?.onPointerDown?.(e)
@@ -133,7 +133,7 @@ export function CellControls({ value, floating = false, standsForTab = false }: 
           className={styles.button}
           aria-label="Expand row"
           aria-expanded={false}
-          title="Expand row"
+          data-tooltip="Expand row"
           onClick={(e) => { stop(e); onExpand() }}
         >
           <ChevronDownIcon size={14} />
@@ -159,7 +159,7 @@ export function CellControls({ value, floating = false, standsForTab = false }: 
             className={styles.button}
             aria-label={OPEN_LARGER_LABEL}
             aria-haspopup="dialog"
-            title={OPEN_LARGER_LABEL}
+            data-tooltip={OPEN_LARGER_LABEL}
             data-testid="open-larger"
             onClick={(e) => { stop(e); onOpenLarger() }}
           >
@@ -173,7 +173,7 @@ export function CellControls({ value, floating = false, standsForTab = false }: 
           aria-label="Cell options"
           aria-haspopup="menu"
           aria-expanded={moreOpen}
-          title="Cell options"
+          data-tooltip="Cell options"
           onClick={(e) => { stop(e); onMore() }}
         >
           <MoreIcon size={touch ? 16 : 14} />
@@ -264,5 +264,5 @@ export function WidgetNameLine({ name, children }: { name: string; children?: Re
 
 /** A top line's name part (`lead`): the widget's name, cut short with an ellipsis. */
 export function TopLineName({ children, title }: { children: ReactNode; title?: string }) {
-  return <span className={styles.name} title={title} data-testid="top-line-name">{children}</span>
+  return <span className={styles.name} data-tooltip={title} data-testid="top-line-name">{children}</span>
 }

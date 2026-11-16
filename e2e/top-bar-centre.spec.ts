@@ -1,14 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
 import { seedWorkspace, withSpareLayouts, type WorkspaceSeed, wsRow } from './fixtures/workspace'
-import { filterChip, filterField } from './fixtures/filters'
+import { filterField, filterPills } from './fixtures/filters'
 
 /**
- * The top bar in three groups: the layout tabs on the left, the lens control
- * with the filter tray in the middle, the storage pill, the gear and New task
- * on the right. At rest (no chip, no counter) the middle group is centred in
- * the bar, at least 20px clear of both neighbours; a chip or the counter
- * grows it rightwards — the lens control and the field never move under the
- * user — until it would reach the right zone. Short of room it sits as near
+ * The top bar in three groups: the layout tabs on the left, the filter tray
+ * in the middle, the storage pill, the gear and New task on the right. At
+ * rest (no chip, no counter) the tray is centred in the bar, at least 20px
+ * clear of both neighbours; a chip or the counter grows it rightwards — the
+ * field never moves under the user — until it would reach the right zone. Short of room it sits as near
  * the centre as it can, then the fold takes over; never a wrap.
  */
 
@@ -34,13 +33,13 @@ const MIN_GAP = 20
 const geometry = (page: Page) => page.locator('header').evaluate((bar) => {
   const rect = (sel: string) => bar.querySelector(sel)!.getBoundingClientRect()
   const box = bar.getBoundingClientRect()
-  const parts = [...bar.querySelectorAll('button, input')].map((p) => p.getBoundingClientRect()).filter((r) => r.width > 0)
+  const parts = [...bar.querySelectorAll('button, input')].filter((p) => !p.closest('[data-top-bar-pill]')).map((p) => p.getBoundingClientRect()).filter((r) => r.width > 0)
   const rightControls = [...bar.querySelectorAll('[data-fold-part="spring"] > *')].map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0)
   return {
     fold: bar.dataset.fold,
     barCentre: box.left + box.width / 2,
     tabsRight: rect('[data-fold-part="layout"]').right,
-    groupLeft: rect('[data-fold-part="lens"]').left,
+    groupLeft: rect('[data-filter-row]').left,
     groupRight: rect('[data-filter-row]').right,
     fieldLeft: rect('[data-fold-search]').left,
     rightLeft: Math.min(...rightControls.map((r) => r.left)),
@@ -88,11 +87,12 @@ async function pickAisha(page: Page) {
     }
     mod.useFilterStore.getState().setPersonIds(new Set([1]))
   })
-  await expect(filterChip(page, 'People')).toBeVisible()
+  await expect(filterPills(page)).toHaveText([/@/])
 }
 
+// (The 440px field centres down to about 1000px; narrower, the tray sits at the tabs' least gap — the narrowing test.)
 for (const width of [1920, 1440, 1280, 1100]) {
-  test(`at ${width}px, at rest, the lens and filter group is centred in the bar, clear of both neighbours`, async ({ page }) => {
+  test(`at ${width}px, at rest, the filter tray is centred in the bar, clear of both neighbours`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await seedWorkspace(page, SEED)
     const g = await settled(page)
@@ -102,7 +102,7 @@ for (const width of [1920, 1440, 1280, 1100]) {
   })
 }
 
-test('a filter set grows the group rightwards: the lens control and the field stay put', async ({ page }) => {
+test('a filter set grows the tray rightwards by the counter: the field stays put', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, SEED)
   const rest = await settled(page)
@@ -114,13 +114,13 @@ test('a filter set grows the group rightwards: the lens control and the field st
   expectClear(set, 'one filter')
 })
 
-test('typing @name in the field makes a chip without sliding the field under the caret', async ({ page }) => {
+test('typing @name in the field filters without sliding the field under the caret', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, SEED)
   const rest = await settled(page)
   await filterField(page).click()
   await page.keyboard.type('@Aisha ')
-  await expect(filterChip(page, 'People')).toBeVisible()
+  await expect(page.locator('header [data-filter-row]')).toHaveAttribute('data-filtered', 'true')
   const after = await settled(page)
   expect(after.fieldLeft).toBe(rest.fieldLeft)
   expect(after.groupLeft).toBe(rest.groupLeft)

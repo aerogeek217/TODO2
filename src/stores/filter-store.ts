@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import type { NegatableField } from '../models'
+import type { FilterExpr, NegatableField } from '../models'
 import { withDateMatch } from '../utils/date-filters'
-import { countActiveFilters, fixedAnchor, type FilterCriteria } from '../utils/filter-criteria'
+import { countActiveFilters, criteriaToPredicate, fixedAnchor, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
+import { normalizeExpression, splitTopLevel, wholeExpression } from '../utils/filter-expression'
 import { isNegated, withIdFilter, withNormalizedNegation } from '../utils/filter-negation'
 import {
   sameSearchField,
@@ -27,6 +28,21 @@ interface BoxChip {
   token: string
   field: SearchField
   before: SearchFieldValue
+}
+
+/** The screen filter as one expression: what the top bar's field shows and edits (`fieldFilter`). */
+interface ScreenFieldFilter {
+  expression: FilterExpr | null
+  showCompleted: boolean
+}
+
+/**
+ * The filter as the top bar's field last wrote it (`applyExpression`) — its
+ * terms in the order typed — and the filters that made: while those are
+ * still the store's, the field shows it as typed.
+ */
+interface TypedFilter extends ScreenFieldFilter {
+  filters: FilterCriteria
 }
 
 interface FilterState {
@@ -59,6 +75,26 @@ interface FilterState {
   applySearchTokens: (tokens: readonly { raw: string; clause: SearchClause }[]) => void
   /** Takes the last chip the box made off its field (back as it was); its token, or null when there is none. */
   unwindSearchToken: () => string | null
+  /**
+   * The top bar's field (P2): `expression` and Show completed become the
+   * whole screen filter — each top-level `and` term a chip can say one chip
+   * (`splitTopLevel`: one per field, one Priority chip, as the top bar
+   * holds), the other terms the screen filter's `expression`, ANDed with
+   * them. Not persisted, as the chips aren't.
+   */
+  applyExpression: (expression: FilterExpr | null, showCompleted: boolean) => void
+  /** What the field last wrote (`applyExpression`), or null. */
+  typed: TypedFilter | null
+  /**
+   * The screen filter is paused (feedback 2026-11-15, the funnel): it stays
+   * — chips, the typed expression, text, Show completed — but nothing
+   * applies it (`appliedScreenFilter`: every widget, count and panel shows
+   * every task). Any edit of the filter resumes it with the change (every
+   * write goes through `commit` or `clearAll`); in memory only, never saved.
+   */
+  paused: boolean
+  /** Pauses the filter or resumes it; a pause with no filter on does nothing. */
+  setPaused: (paused: boolean) => void
 }
 
 const defaultFilters: FilterCriteria = {
@@ -73,6 +109,14 @@ const defaultFilters: FilterCriteria = {
 
 const NO_BOX_CHIPS: readonly BoxChip[] = []
 
+/** No screen filter: what a paused filter applies (one object, so readers compare by reference). */
+const NO_SCREEN_FILTER: FilterCriteria = Object.freeze({ ...defaultFilters })
+
+/** The screen filter as it applies: none while paused (`paused`), else the store's. */
+export function appliedScreenFilter(s: Pick<FilterState, 'filters' | 'paused'>): FilterCriteria {
+  return s.paused ? NO_SCREEN_FILTER : s.filters
+}
+
 function isFilterActive(f: FilterCriteria): boolean {
   return countActiveFilters(f) > 0
 }
@@ -81,6 +125,7 @@ function isFilterActive(f: FilterCriteria): boolean {
  * Stores `filters` with its "is not" switches normalised (an "is not" with
  * nothing ticked = no filter). The box's chips are `boxChips` when given
  * (the box's own edits), else those whose field this edit leaves as it was.
+ * An edit resumes a paused filter.
  */
 function commit(
   set: (s: Partial<FilterState>) => void,
@@ -93,13 +138,15 @@ function commit(
   const kept = boxChips ?? (prev.boxChips.length === 0
     ? prev.boxChips
     : prev.boxChips.filter((c) => sameSearchField(prev.filters, normalized, c.field)))
-  set({ filters: normalized, isActive: isFilterActive(normalized), boxChips: kept })
+  set({ filters: normalized, isActive: isFilterActive(normalized), boxChips: kept, paused: false })
 }
 
 export const useFilterStore = create<FilterState>((set, get) => ({
   filters: { ...defaultFilters },
   isActive: false,
   boxChips: NO_BOX_CHIPS,
+  typed: null,
+  paused: false,
 
   setShowCompleted(showCompleted: boolean) {
     commit(set, get, { ...get().filters, showCompleted })
@@ -150,7 +197,19 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       filters: { ...defaultFilters },
       isActive: false,
       boxChips: NO_BOX_CHIPS,
+      typed: null,
+      paused: false,
     })
+  },
+
+  setPaused(paused) {
+    const next = paused && get().isActive
+    if (get().paused !== next) set({ paused: next })
+  },
+
+  applyExpression(expression, showCompleted) {
+    commit(set, get, screenFilterOf(expression, showCompleted), NO_BOX_CHIPS)
+    set({ typed: { expression, showCompleted, filters: get().filters } })
   },
 
   applySearchTokens(tokens) {
@@ -172,3 +231,26 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     return last.token
   },
 }))
+
+/** The top bar holds one Priority chip (its picker edits one condition). */
+const SCREEN_MARKER_CHIPS = 1
+
+/** `expression` and Show completed as the screen filter: its chips, and the terms no chip says as its expression (`applyExpression`). */
+export function screenFilterOf(expression: FilterExpr | null, showCompleted: boolean): FilterCriteria {
+  const { clauses, rest } = splitTopLevel(expression, { markerChips: SCREEN_MARKER_CHIPS })
+  const criteria = predicateToCriteria({ showCompleted, ...clauses })
+  const [only] = rest
+  if (!only) return criteria
+  return { ...criteria, expression: rest.length === 1 ? only : normalizeExpression({ kind: 'and', items: rest }) }
+}
+
+/**
+ * The screen filter as the top bar's field shows it: as the field last
+ * wrote it while that is still the filter (`typed`), else its chips and
+ * expression as one expression (`wholeExpression`: the chips in their
+ * order, then the expression).
+ */
+export function fieldFilter(filters: FilterCriteria, typed: TypedFilter | null): ScreenFieldFilter {
+  if (typed && typed.filters === filters) return { expression: typed.expression, showCompleted: typed.showCompleted }
+  return { expression: wholeExpression(criteriaToPredicate(filters)), showCompleted: filters.showCompleted }
+}

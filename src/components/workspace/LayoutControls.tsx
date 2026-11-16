@@ -251,7 +251,7 @@ function WriteFailedButton() {
     <button
       type="button"
       className={styles.writeFailed}
-      title={`Layout “${name}” couldn’t be saved. Retry`}
+      data-tooltip={`Layout “${name}” couldn’t be saved. Retry`}
       aria-label={`Couldn't save layout ${name}. Retry`}
       data-testid="layout-write-failed"
       onClick={() => { void useWorkspaceStore.getState().retryWrite() }}

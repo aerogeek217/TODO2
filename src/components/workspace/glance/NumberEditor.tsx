@@ -6,11 +6,7 @@ import {
   type NumberCompare,
   type NumberConfig,
 } from '../../../models/glance-widgets'
-import { tabIgnoresLens, type NumberTab, type LayoutTab } from '../../../models/workspace-layout'
-import { lensHidesFor, useLensHidden } from '../../../hooks/use-glance-data'
-import { setTabIgnoresLens } from '../../../hooks/use-widget-lens'
-import { useAppliedLens } from '../../../stores/screen-filter'
-import { LensSwitch } from '../LensSwitch'
+import type { NumberTab, LayoutTab } from '../../../models/workspace-layout'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useUIStore } from '../../../stores/ui-store'
@@ -66,7 +62,7 @@ function NumberColorField({ name, legend, value, onChange, autoLabel, hint }: {
       checked={auto}
       onChange={() => onChange(undefined)}
       aria-label={autoLabel}
-      title={autoLabel}
+      data-tooltip={autoLabel}
       data-hue="auto"
     />
   )
@@ -89,28 +85,6 @@ interface NumberEditorProps {
 }
 
 /**
- * Top-bar lens (G3): the Number's lens switch — the one on its corner —
- * while a lens applies at the top bar: on with `−N` (what it hides among
- * this Number's tasks), slashed while the Number ignores it. View state,
- * saved at once (never an unsaved layout edit).
- */
-function NumberLensField({ tab, config }: { tab: NumberTab; config: NumberConfig }) {
-  const lens = useAppliedLens()
-  const filters = config.show === 'group' ? (config.items ?? []).map((i) => i.filter) : [config.filter]
-  const hides = lensHidesFor(useLensHidden(), ...filters)
-  if (!lens) return null
-  const ignored = tabIgnoresLens(tab)
-  return (
-    <div className={styles.field} data-testid="number-editor-lens">
-      <span className={styles.label}>Top-bar lens</span>
-      <span className={styles.litRow}>
-        <LensSwitch lens={{ name: lens.name, ignored, hides }} onToggle={() => setTabIgnoresLens(tab, !ignored)} />
-      </span>
-    </div>
-  )
-}
-
-/**
  * The open Number editor (`ui-store.numberEditorTabId`), beside its
  * Number's body (`[data-number-body]`).
  */
@@ -125,20 +99,18 @@ const isNumberTab = (tab: LayoutTab): tab is NumberTab => tab.kind === 'number'
 /**
  * Edit number (D26 P5, board X): a Number's name, its colour (Auto, then the
  * app's colour picker), the filter it counts — the Graphical / Expression
- * filter Edit list has, with Reads as —, when it lights up, what its change
- * compares with, and whether the top bar's lens applies — and what it shows
- * (D26 P6, Show): a count, a share of a second filter, the oldest task, a
- * goal, several counts (each its own name, colour and filter, in place of
- * its filter and colour) or one of the layout's lists (in place of its
- * filter and lens) — only the active shape's fields. A popover beside
+ * filter Edit list has, with Reads as —, when it lights up and what its
+ * change compares with — and what it shows (D26 P6, Show): a count, a
+ * share of a second filter, the oldest task, a goal, several counts (each
+ * its own name, colour and filter, in place of its filter and colour) or
+ * one of the layout's lists (in place of its filter) — only the active
+ * shape's fields. A popover beside
  * the Number, opened by Edit number… (its tab menu). Its controls edit a copy of the config, which the
  * Number draws live (`useEditorDraft`, Edit list's pattern): Save writes the
  * changes for good as one layout config update — one undo step — and
  * Discard drops them. Esc, × or a press elsewhere close
  * it at once while nothing changed, else ask Save / Discard / Keep editing
  * (an expression that doesn't read holds the first press, as everywhere).
- * The Top-bar lens switch is view state, written at once as on the
- * Number's corner.
  */
 function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
   const id = useId()
@@ -274,7 +246,6 @@ function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
                 {COMPARES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </label>}
-            {show !== 'list' && <NumberLensField tab={tab} config={config} />}
           </div>
         </div>
       </ExpressionReportProvider>

@@ -1,4 +1,4 @@
-import { emptyPredicate, type PersistedStatusUpdate, type PersistedSubtask, type PersistedTodoItem, type Person, type Status, type Tag } from '../models'
+import { emptyPredicate, type TodoPredicate, type PersistedStatusUpdate, type PersistedSubtask, type PersistedTodoItem, type Person, type Status, type Tag } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import type { TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models/todo-sort-group'
 import { admitsCompleted, completedAdmitters, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
@@ -6,7 +6,6 @@ import { createPredicateEvaluator, createScreenComposedEvaluator, matchesFilterW
 import type { WeekStart } from '../utils/effective-date'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import type { MarkerSettings } from '../utils/markers'
-import { bySortOrder } from '../utils/sort-order'
 import { startOfToday } from '../utils/date'
 import { countTabBadges, inTabBadgeRange, type TabBadgeCounts } from '../utils/tab-badges'
 import type { TabBadgeRanges } from '../models/list-definition'
@@ -14,7 +13,7 @@ import { buildList, type ListBuildContext, type ListContents } from './build-lis
 import type { CopyTaskSection } from './task-copy'
 import type { TaskDialogPayload, TaskDialogSource } from '../stores/task-dialog-payload'
 import { useFilterStore } from '../stores/filter-store'
-import { currentAppliedLens, currentScreenFilter } from '../stores/screen-filter'
+import { currentScreenFilter } from '../stores/screen-filter'
 import { usePersonStore } from '../stores/person-store'
 import { currentFilterSettings, useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
@@ -22,6 +21,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useStatusUpdateStore } from '../stores/status-update-store'
 import { useSubtaskStore } from '../stores/subtask-store'
+import { useUIStore, type PopupListPick } from '../stores/ui-store'
 
 /**
  * The task dialog: the tasks behind a number (a glance widget's count) or an
@@ -29,7 +29,8 @@ import { useSubtaskStore } from '../stores/subtask-store'
  * and in words what was counted; its source is resolved to rows once, when
  * the dialog opens, so rows stay in place (a completed one struck through)
  * until it closes — or, for the screen filter's tasks, until that filter
- * changes.
+ * changes — or until the group · sort pick changes. Every source is built
+ * as a list (`buildList`) in the popup lists' view (`popupListView`).
  */
 
 /** A resolved heading; `label` null = a flat list (no header). */
@@ -56,15 +57,38 @@ export interface TaskDialogEnv {
   subtasksByTodo: ReadonlyMap<number, readonly PersistedSubtask[]>
   /** The top-bar filter (the screen source composes it in). */
   screen: FilterCriteria
-  /** Settings' sort and grouping for a new list: how the screen filter's tasks are shown. */
-  newListView: NewListView
+  /** How the rows are grouped and sorted (`popupListView`). */
+  view: PopupListView
+  /**
+   * Whether the user picked the grouping (`PopupListPick.grouping`): a
+   * source with headings of its own keeps them until then.
+   */
+  groupingPicked: boolean
 }
 
-/** Settings' new-list sort, its direction and grouping (`newListSort` / `newListSortDirection` / `newListGroup`). */
-interface NewListView {
+/** A popup task list's grouping, sort and direction. */
+export interface PopupListView {
   sort: TodoSortBy
   sortDirection: TodoSortDirection
   grouping: TodoGroupBy
+}
+
+/**
+ * How every popup task list shows its tasks: the user's pick
+ * (`ui-store.popupListPick`, until a reload) over Settings' new-list sort,
+ * direction and grouping (`defaults`). A sort is picked with its direction.
+ */
+export function popupListView(defaults: PopupListView, pick: PopupListPick): PopupListView {
+  return {
+    grouping: pick.grouping ?? defaults.grouping,
+    sort: pick.sort ?? defaults.sort,
+    sortDirection: pick.sort != null ? (pick.sortDirection ?? 'asc') : defaults.sortDirection,
+  }
+}
+
+/** Settings' new-list sort, direction and grouping (`newListSort` / `newListSortDirection` / `newListGroup`). */
+export function newListDefaults(settings: { newListSort: TodoSortBy; newListSortDirection: TodoSortDirection; newListGroup: TodoGroupBy }): PopupListView {
+  return { sort: settings.newListSort, sortDirection: settings.newListSortDirection, grouping: settings.newListGroup }
 }
 
 /** The stores as they are now: what a source is resolved with. */
@@ -72,6 +96,7 @@ export function currentTaskDialogEnv(): TaskDialogEnv {
   const people = usePersonStore.getState()
   const tags = useTagStore.getState()
   const settings = useSettingsStore.getState()
+  const pick = useUIStore.getState().popupListPick
   return {
     todos: useTodoStore.getState().todos,
     today: startOfToday(),
@@ -84,7 +109,8 @@ export function currentTaskDialogEnv(): TaskDialogEnv {
     statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo,
     subtasksByTodo: useSubtaskStore.getState().byTodo,
     screen: currentScreenFilter(),
-    newListView: { sort: settings.newListSort, sortDirection: settings.newListSortDirection, grouping: settings.newListGroup },
+    view: popupListView(newListDefaults(settings), pick),
+    groupingPicked: pick.grouping != null,
   }
 }
 
@@ -96,33 +122,63 @@ function filterSettingsOf(env: Pick<TaskDialogEnv, 'markerSettings' | 'weekStart
   return { ...env.markerSettings, weekStartsOn: env.weekStartsOn }
 }
 
-/** The rows a source stands for, as headings of task ids in display order. */
+/**
+ * The rows a source stands for, as headings of task ids in display order:
+ * each source built as a list in `env.view` — sorted (a Manual sort is the
+ * tasks' `sortOrder`: a popup has no manual order of its own) and grouped.
+ * A `groups` source keeps its own headings, each sorted, until the user
+ * picks a grouping (`env.groupingPicked`); then its tasks, each once, are
+ * grouped by that.
+ */
 export function resolveTaskDialog(source: TaskDialogSource, env: TaskDialogEnv): TaskDialogRowGroup[] {
   switch (source.kind) {
     case 'todos':
-      return [{ key: 'all', label: null, todoIds: [...source.todoIds] }]
-    case 'groups':
-      return source.groups
-        .filter((g) => g.todoIds.length > 0)
-        .map((g) => ({ key: g.key, label: g.label, ...(g.color ? { color: g.color } : {}), todoIds: [...g.todoIds] }))
+      return groupsOfList(buildList(viewDefinition(env.view, GIVEN_TASKS), tasksOf(source.todoIds, env), listBuildContext(env, everyTask)))
+    case 'groups': {
+      if (env.groupingPicked) {
+        const ids = [...new Set(source.groups.flatMap((g) => g.todoIds))]
+        return groupsOfList(buildList(viewDefinition(env.view, GIVEN_TASKS), tasksOf(ids, env), listBuildContext(env, everyTask)))
+      }
+      const flat = viewDefinition({ ...env.view, grouping: 'none' }, GIVEN_TASKS)
+      const ctx = listBuildContext(env, everyTask)
+      return source.groups.flatMap((g) => {
+        const todoIds = buildList(flat, tasksOf(g.todoIds, env), ctx).todos.map((t) => t.id)
+        return todoIds.length === 0 ? [] : [{ key: g.key, label: g.label, ...(g.color ? { color: g.color } : {}), todoIds }]
+      })
+    }
     case 'predicate': {
       const matches = createPredicateEvaluator(lookupsOf(env), env.today, filterSettingsOf(env))
-      const todoIds = env.todos.filter((t) => matches(source.predicate, t)).sort(bySortOrder).map((t) => t.id)
-      return [{ key: 'all', label: null, todoIds }]
+      return groupsOfList(buildList(viewDefinition(env.view, source.predicate), env.todos, listBuildContext(env, matches)))
     }
-    case 'screen':
-      // No manual order of its own: a Manual sort is the tasks' `sortOrder`.
-      return groupsOfList(buildList(screenListDefinition(env.newListView), env.todos, listBuildContext(env)))
+    case 'screen': {
+      // The screen filter composed in; its People / Tags picks narrow the groups too.
+      const matches = createScreenComposedEvaluator(env.screen, lookupsOf(env), env.today, filterSettingsOf(env))
+      return groupsOfList(buildList(viewDefinition(env.view, OPEN_TASKS), env.todos, { ...listBuildContext(env, matches), screenFilter: env.screen }))
+    }
   }
 }
 
-/** What a list is built with in the dialog: the screen filter composed in (its People / Tags picks narrowing the groups too). */
-function listBuildContext(env: TaskDialogEnv): ListBuildContext {
+/** The tasks of `ids` that still exist, in the order given. */
+function tasksOf(ids: readonly number[], env: Pick<TaskDialogEnv, 'todos'>): PersistedTodoItem[] {
+  const byId = new Map(env.todos.map((t) => [t.id, t]))
+  return ids.flatMap((id) => {
+    const t = byId.get(id)
+    return t ? [t] : []
+  })
+}
+
+/** A source of given tasks takes every one of them, completed ones too (what was counted). */
+const everyTask = () => true
+
+/** A source of given tasks as a list: no filter of its own (so no People / Tags pick narrows its groups). */
+const GIVEN_TASKS = emptyPredicate()
+
+/** What a list is built with in the dialog: `evalPredicate` decides its members. */
+function listBuildContext(env: TaskDialogEnv, evalPredicate: ListBuildContext['evalPredicate']): ListBuildContext {
   return {
     today: env.today,
     weekStartsOn: env.weekStartsOn,
-    evalPredicate: createScreenComposedEvaluator(env.screen, lookupsOf(env), env.today, filterSettingsOf(env)),
-    screenFilter: env.screen,
+    evalPredicate,
     assignedPeopleMap: env.assignedPeopleMap,
     assignedTagsMap: env.assignedTagsMap,
     people: env.people,
@@ -149,17 +205,17 @@ const SCREEN_DIALOG_TITLE = 'Filtered tasks'
 const OPEN_TASKS = emptyPredicate()
 
 /**
- * The list the screen filter's tasks are shown as: every open task, the
- * screen filter composed in (narrowing it; its Show completed — or a
- * Completed range, `admitsCompleted` — adding the
- * completed ones), with Settings' new-list sort and grouping.
+ * The list a source's tasks are shown as: its `predicate` (the screen
+ * source's every open task, the screen filter composed in by its evaluator
+ * — its Show completed, or a Completed range, `admitsCompleted`, adding the
+ * completed ones), sorted and grouped by `view`.
  */
-function screenListDefinition(view: NewListView): PersistedListDefinition {
+function viewDefinition(view: PopupListView, predicate: TodoPredicate): PersistedListDefinition {
   return {
     id: 0,
     name: SCREEN_DIALOG_TITLE,
     sortOrder: 0,
-    membership: { kind: 'custom', predicate: OPEN_TASKS },
+    membership: { kind: 'custom', predicate },
     sort: view.sort,
     ...(view.sortDirection === 'desc' ? { sortDirection: view.sortDirection } : {}),
     grouping: view.grouping,
@@ -167,7 +223,7 @@ function screenListDefinition(view: NewListView): PersistedListDefinition {
 }
 
 /** What `screenTaskCount` reads. */
-export type ScreenCountEnv = Pick<TaskDialogEnv,
+type ScreenCountEnv = Pick<TaskDialogEnv,
   'todos' | 'today' | 'weekStartsOn' | 'markerSettings' | 'assignedPeopleMap' | 'assignedTagsMap' | 'statuses' | 'statusUpdatesByTodo' | 'subtasksByTodo' | 'screen'>
 
 /** How many tasks the screen filter's dialog lists: open ones the filter matches (completed too under its Show completed). */
@@ -178,7 +234,7 @@ export function screenTaskCount(env: ScreenCountEnv): number {
   return n
 }
 
-/** The top bar's counter: what the screen filter (chips and lens) keeps of every task it can show. */
+/** The top bar's counter: what the screen filter keeps of every task it can show. */
 export interface ScreenTaskCounts {
   /** What the dialog lists (`screenTaskCount`). */
   shown: number
@@ -189,15 +245,8 @@ export interface ScreenTaskCounts {
    */
   total: number
   /**
-   * What the lens alone keeps of `total` (`total` without a lens): the open
-   * tasks it keeps, and every completed task `total` counts — so
-   * `total - lensKeeps` is the open tasks the lens hides, whatever the chips
-   * admit, the same number the lens picker shows (`lenses.lensHideCounts`).
-   */
-  lensKeeps: number
-  /**
    * Whether completed tasks count: the chips' Show completed, or a Completed
-   * range in the chips or the lens (`admitsCompleted`) — `61 of 109 tasks`
+   * range in the chips (`admitsCompleted`) — `61 of 109 tasks`
    * rather than `open tasks`.
    */
   withCompleted: boolean
@@ -215,10 +264,7 @@ const NO_BADGE_COUNTS: TabBadgeCounts = { due: 0, dueOverdue: 0, followup: 0, fo
  * Whether the screen filter admits completed task `t` — counts it in the
  * counter's total: the chips' Show completed admits every completed task; a
  * Completed range of the chips the ones it keeps, whatever the other chips (they are what the
- * count narrows by); the lens, when a Completed range of its own lets
- * completed tasks through, the ones the whole lens keeps — so it never
- * hides a completed task it admitted, and its hide count is the picker's.
- * A list's `of M` counts its completed tasks by the same rule (`useBuiltList`).
+ * count narrows by). A list's `of M` counts its completed tasks by the same rule (`useBuiltList`).
  */
 export function admitsCompletedTask(
   screen: FilterCriteria,
@@ -229,9 +275,6 @@ export function admitsCompletedTask(
   if (screen.showCompleted) return () => true
   const open = predicateToCriteria(OPEN_TASKS)
   const stages: FilterCriteria[] = completedAdmitters(screen).map((c) => ({ ...open, ...c, showCompleted: true }))
-  if (screen.lens && admitsCompleted({ ...screen.lens, showCompleted: false })) {
-    stages.push({ ...open, showCompleted: true, lens: screen.lens })
-  }
   return (t) => stages.some((s) => matchesFilterWithLookups(s, t, lookups, today, settings))
 }
 
@@ -244,17 +287,13 @@ export function screenTaskCounts(env: ScreenCountEnv, badgeRanges?: TabBadgeRang
   const settings = filterSettingsOf(env)
   const lookups = lookupsOf(env)
   const withCompleted = admitsCompleted(screen)
-  const everything: FilterCriteria = { ...predicateToCriteria(OPEN_TASKS), showCompleted: withCompleted }
   const shown = createScreenComposedEvaluator(screen, lookups, env.today, settings)
-  const lens = screen.lens ? createScreenComposedEvaluator({ ...everything, lens: screen.lens }, lookups, env.today, settings) : null
   const admitted = withCompleted ? admitsCompletedTask(screen, lookups, env.today, settings) : null
-  const counts = { shown: 0, total: 0, lensKeeps: 0, withCompleted }
+  const counts = { shown: 0, total: 0, withCompleted }
   const badged: PersistedTodoItem[] = []
   for (const t of env.todos) {
     if (t.isCompleted && !admitted?.(t)) continue
     counts.total++
-    // The lens's hide count is of open tasks (the picker's): a completed task counted here counts as kept.
-    if (!lens || t.isCompleted || lens(OPEN_TASKS, t)) counts.lensKeeps++
     if (shown(OPEN_TASKS, t)) {
       counts.shown++
       if (badgeRanges && inTabBadgeRange(t, badgeRanges, env.today)) badged.push(t)
@@ -298,11 +337,10 @@ export function personTaskDialog(person: Pick<Person, 'id' | 'name'>): TaskDialo
 
 /** The screen filter's tasks (the top bar's Show N tasks, the palette); the dialog edits that filter live. */
 export function screenTaskDialog(): TaskDialogPayload {
-  const lens = currentAppliedLens()
   return {
     title: SCREEN_DIALOG_TITLE,
     glyph: 'filter',
-    description: screenTaskDialogDescription(useFilterStore.getState().filters, lens && { name: lens.name, counts: screenTaskCounts(currentTaskDialogEnv()) }),
+    description: screenTaskDialogDescription(useFilterStore.getState().filters),
     source: { kind: 'screen' },
   }
 }
@@ -314,18 +352,9 @@ export function showTasksLabel(n: number): string {
 
 /**
  * What the screen filter's dialog shows, in words, for the filter as it is
- * (the dialog keeps it current): `chips` = the top bar's chips; `lens` = the
- * top bar's lens as it applies (its name and the counts), if any.
+ * (the dialog keeps it current): `chips` = the top bar's chips.
  */
-export function screenTaskDialogDescription(chips: FilterCriteria, lens?: { name: string; counts: ScreenTaskCounts }): string {
-  const tasks = (lens ? lens.counts.withCompleted : admitsCompleted(chips)) ? 'tasks' : 'open tasks'
-  if (lens) {
-    const { shown, total, lensKeeps } = lens.counts
-    if (countActiveFilters({ ...chips, showCompleted: false }) === 0) {
-      return `${shown} of ${total} ${tasks} shown: the lens “${lens.name}” hides ${total - lensKeeps}. A filter set here applies to every widget, on top of the lens.`
-    }
-    return `${shown} of ${total} ${tasks} match the filter under the lens “${lens.name}”. A change here applies to every widget.`
-  }
+export function screenTaskDialogDescription(chips: FilterCriteria): string {
   if (countActiveFilters(chips) === 0) return 'Every open task: no screen filter is on. A filter set here applies to every widget.'
   const what = admitsCompleted(chips) ? 'Tasks matching the screen filter, completed ones included.' : 'Open tasks matching the screen filter.'
   return `${what} A change here applies to every widget.`

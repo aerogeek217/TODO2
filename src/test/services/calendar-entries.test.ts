@@ -102,14 +102,15 @@ describe('entry state, overdue washes and dots', () => {
   const entriesOn = (d: Date, todos: Parameters<typeof buildEntries>[0]) =>
     buildEntries(todos, days, { dateTypes: both }).get(dayKey(d)) ?? []
 
-  it('states: due / due today / overdue due / follow-up / overdue follow-up', () => {
+  it('states: due / due today / overdue due / follow-up / follow-up today / overdue follow-up', () => {
     const [future] = entriesOn(tomorrow, [makeTodo({ id: 1, dueDate: tomorrow })])
     const [todayDue] = entriesOn(today, [makeTodo({ id: 2, dueDate: today })])
     const [late] = entriesOn(yesterday, [makeTodo({ id: 3, dueDate: yesterday })])
-    const [fu] = entriesOn(today, [makeTodo({ id: 4, nextFollowupAt: today })])
+    const [fu] = entriesOn(tomorrow, [makeTodo({ id: 4, nextFollowupAt: tomorrow })])
+    const [todayFu] = entriesOn(today, [makeTodo({ id: 6, nextFollowupAt: today })])
     const [lateFu] = entriesOn(yesterday, [makeTodo({ id: 5, nextFollowupAt: yesterday })])
-    expect([future, todayDue, late, fu, lateFu].map((e) => calendarEntryState(e!, today)))
-      .toEqual(['due', 'due-today', 'due-overdue', 'followup', 'followup-overdue'])
+    expect([future, todayDue, late, fu, todayFu, lateFu].map((e) => calendarEntryState(e!, today)))
+      .toEqual(['due', 'due-today', 'due-overdue', 'followup', 'followup-today', 'followup-overdue'])
   })
 
   it('completed tasks and occurrences are never overdue', () => {

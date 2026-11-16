@@ -1,0 +1,67 @@
+/*
+ * The screen filter's pause (feedback 2026-11-15): the funnel's paused look,
+ * the paused pills, and the field's × that clears. Beside `TopBar.module.css`
+ * (whose `.funnel`, `.pills` and `.searchInput` these join), doubled where
+ * they must win over its single-class rules.
+ */
+
+/* Paused: the slashed funnel, no fill, its stroke red, a softer red ring. */
+.paused.paused {
+  color: var(--color-danger);
+  opacity: 1;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 35%, transparent);
+}
+
+.paused.paused:hover {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+
+/* A paused filter's pills: dimmed, each term struck through. */
+.pillsPaused {
+  opacity: 0.55;
+}
+
+.pillsPaused [data-top-bar-pill] > span,
+.pillsPaused [data-pill-joiner] {
+  text-decoration: line-through;
+}
+
+/* The field's ×, inside its right end while a filter is on: clears them all. */
+.clear {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.clear:hover {
+  color: var(--color-text-primary);
+  background: var(--color-tint-12);
+}
+
+/* The field's text, pills and `+N more` keep clear of the ×. */
+.roomForClear.roomForClear {
+  padding-right: 28px;
+}
+
+.fadedForClear.fadedForClear {
+  padding-right: 88px;
+  mask-image: linear-gradient(to right, #000 calc(100% - 116px), transparent calc(100% - 88px));
+}
+
+.moreForClear.moreForClear {
+  right: 28px;
+}

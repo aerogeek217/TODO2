@@ -17,9 +17,7 @@ export function openFilterPicker(name: string | RegExp): void {
   fireEvent.click(within(menu).getByRole('button', { name }))
 }
 
-/** Opens a field's picker (`People`): from its chip while the filter is on, else from the Filter menu. */
+/** Opens a field's picker (`People`) from the Filter menu (the bar has no chips: the field's pills are). */
 export function openFieldPicker(label: string): void {
-  const chip = screen.queryByRole('button', { name: new RegExp(`^${label} filter: `) })
-  if (chip) fireEvent.click(chip)
-  else openFilterPicker(`${label} filter`)
+  openFilterPicker(new RegExp(`^${label} filter(: |$)`))
 }

@@ -413,7 +413,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
       {arrow && <span className={`${styles.arrow} ${arrow === 'right' ? styles.arrowRight : ''}`} aria-hidden="true" />}
       <header className={styles.header}>
         <span className={styles.eyebrow}>Edit list</span>
-        <button type="button" className={styles.close} aria-label="Close Edit list" title="Close" onClick={() => { model.requestClose() }}>
+        <button type="button" className={styles.close} aria-label="Close Edit list" data-tooltip="Close" onClick={() => { model.requestClose() }}>
           <CloseIcon size={12} />
         </button>
       </header>
@@ -449,7 +449,9 @@ function Footer({ model, className, buttonClass, saveClass, children }: {
         type="button"
         className={`${buttonClass} ${saveClass}`}
         disabled={!model.canSave}
-        title={model.saveTitle}
+        data-tooltip={model.saveTitle}
+        // Why Save is off, for a screen reader too (the tooltip shows only on hover).
+        aria-description={model.saveTitle}
         onClick={model.save}
       >
         Save

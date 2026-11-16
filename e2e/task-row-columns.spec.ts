@@ -8,7 +8,8 @@ import { drag, seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed, 
  * The desktop task row's columns: every row of a list shares one set of
  * tracks (markers · checkbox · title │ notes · people · tags · dates (due,
  * follow-up) · status — no ⋯: the task menu is right-click / Shift+F10),
- * every column is always there, hovering shows placeholders by opacity only, and a per-tab divider sets the details
+ * a column is there while any of the list's tasks uses its field (flair P8: the others show on hover as icons at the title's end),
+ * hovering shows placeholders by opacity only, and a per-tab divider sets the details
  * width (saved as view state). Layout, hover and drag are real-browser
  * behaviour, so this is the authoritative surface.
  */
@@ -403,4 +404,48 @@ test('the selection ring is drawn whole — the bottom edge too, with or without
   await wrapper.locator('[data-task-title]').hover()
   edges = await edgeColours(page, wrapper)
   expect(near(edges.bottom), `hovered bottom ${edges.bottom} vs accent ${accent}`).toBe(true)
+})
+
+test.describe('only the fields a list uses (flair P8)', () => {
+  const SPARSE: NonNullable<WorkspaceSeed['tasks']> = [{ title: 'Call the recruiter', dueInDays: 2 }, { title: 'Bare task' }]
+  /** A cell in the row's own columns (not in its hover cluster). */
+  const column = (r: Locator, cell: string) => r.locator(`:scope > [data-row-cell="${cell}"], :scope > [data-row-cell="dates"] [data-row-cell="${cell}"]`)
+
+  test('tasks with only due dates: the due column alone; hovering a row shows the rest as icons at the title’s end, moving nothing', async ({ page }) => {
+    await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 760, SPARSE))
+    const widget = wsListWidget(page, 'tab')
+    await expect(widget.locator('[data-todo-id]')).toHaveCount(2)
+    const r = row(widget, 'Call the recruiter')
+    for (const cell of ['notes', 'people', 'tags', 'followup', 'status']) await expect(column(r, cell), cell).toHaveCount(0)
+    await expect(column(r, 'due')).toHaveCount(1)
+    const cluster = r.locator('[data-row-cluster]')
+    await expect(cluster.getByRole('button')).toHaveCount(5)
+    await page.mouse.move(1200, 780)
+    await expect(cluster).toHaveCSS('opacity', '0')
+    const restTitle = await box(r.locator('[data-task-title]'))
+    const restDue = await box(column(r, 'due'))
+    await r.locator('[data-task-title]').hover()
+    await expect(cluster).toHaveCSS('opacity', '1')
+    expect(await box(r.locator('[data-task-title]'))).toEqual(restTitle)
+    expect(await box(column(r, 'due'))).toEqual(restDue)
+    // The cluster ends just left of the due column.
+    const c = await box(cluster)
+    expect(Math.round(restDue.x - (c.x + c.width))).toBe(TASK_ROW.gap)
+  })
+
+  test('picking a person from the hover icons brings the people column back for every row', async ({ page }) => {
+    await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 760, SPARSE))
+    const widget = wsListWidget(page, 'tab')
+    const r = row(widget, 'Call the recruiter')
+    await expect(r).toBeVisible()
+    await r.locator('[data-task-title]').hover()
+    await r.locator('[data-row-cluster]').getByRole('button', { name: 'Assign people' }).click()
+    const picker = page.locator('[data-anchored-picker]')
+    await expect(picker).toBeVisible()
+    await picker.getByText('Alice Chen').click()
+    await page.keyboard.press('Escape')
+    await page.mouse.move(1200, 780)
+    for (const title of ['Call the recruiter', 'Bare task']) await expect(column(row(widget, title), 'people'), title).toHaveCount(1)
+    await expect(row(widget, 'Bare task').locator('[data-row-cluster]').getByRole('button', { name: 'Assign people' })).toHaveCount(0)
+  })
 })

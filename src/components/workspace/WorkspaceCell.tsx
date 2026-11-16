@@ -30,7 +30,7 @@ function EmptyCell({ cell, style }: { cell: LayoutCell; style?: CSSProperties })
       data-empty="true"
       aria-label="Empty cell"
     >
-      <button type="button" className={styles.emptyClose} aria-label="Close empty cell" title="Close cell" onClick={() => closeCell(cell.id)}>
+      <button type="button" className={styles.emptyClose} aria-label="Close empty cell" data-tooltip="Close cell" onClick={() => closeCell(cell.id)}>
         <CloseIcon size={12} />
       </button>
       <span className={styles.emptyPlus}><PlusIcon size={16} /></span>

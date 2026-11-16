@@ -16,6 +16,7 @@ import { PriorityRing } from '../shared/PriorityRing'
 import { StatusMark } from '../shared/StatusMark'
 import { useTooltip } from '../shared/use-tooltip'
 import { tagTextWidth } from './text-width'
+import { Cobweb } from './Cobweb'
 import { useTaskRowColumn } from './task-row-grid-context'
 import styles from './TaskRow.module.css'
 
@@ -95,9 +96,11 @@ export function MarkerGutterStatic({ summary }: { summary: MarkerSummary }) {
  * the box: the check draws itself when the task is completed (D19); the ring
  * hides the box's own border while it shows.
  */
-export function RowCheckbox({ summary, checked, className, ...input }: {
+export function RowCheckbox({ summary, checked, cobweb = false, className, ...input }: {
   summary: MarkerSummary
   checked: boolean
+  /** A stale task's cobweb in the box (flair P2; the row passes stale && the setting). */
+  cobweb?: boolean
   className?: string
 } & Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'checked' | 'className'>) {
   return (
@@ -107,6 +110,7 @@ export function RowCheckbox({ summary, checked, className, ...input }: {
         <path d="M3.5 8.5l3 3 6-7" pathLength={1} />
       </svg>
       <PriorityRing summary={summary} completed={checked} size={TASK_ROW.checkbox} />
+      {cobweb && !checked && <Cobweb />}
     </span>
   )
 }
@@ -282,7 +286,7 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
  */
 export function DatesCell({
   todo, today, deadlineInputRef, onOpenDue, onClearDue, onDueInputChange,
-  followupAnchorRef, followupOpen, onToggleFollowup, onClearFollowup,
+  followupAnchorRef, followupOpen, onToggleFollowup, onClearFollowup, inCluster = false,
 }: {
   todo: PersistedTodoItem
   today: Date
@@ -294,12 +298,22 @@ export function DatesCell({
   followupOpen: boolean
   onToggleFollowup: (e: MouseEvent) => void
   onClearFollowup: () => void
+  /**
+   * In the row's hover cluster (flair P8): only the parts the list doesn't
+   * use, as icons. Else the parts it does use, in its dates column.
+   */
+  inCluster?: boolean
 }) {
-  const tier = useTaskRowColumn((c) => c.datesTier)
+  const columnTier = useTaskRowColumn((c) => c.datesTier)
+  const dueUsed = useTaskRowColumn((c) => c.due > 0)
+  const followupUsed = useTaskRowColumn((c) => c.followup > 0)
+  const tier = inCluster ? 'icons' : columnTier
+  const showDue = inCluster ? !dueUsed : dueUsed
+  const showFollowup = inCluster ? !followupUsed : followupUsed
   const parts = datesParts(tier)
   return (
     <div className={styles.datesCell} style={{ gap: parts.gap }} data-row-cell="dates" data-dates-tier={tier}>
-      <DuePart
+      {showDue && <DuePart
         todo={todo}
         today={today}
         width={parts.due}
@@ -308,8 +322,8 @@ export function DatesCell({
         onOpen={onOpenDue}
         onClear={onClearDue}
         onInputChange={onDueInputChange}
-      />
-      <FollowupPart
+      />}
+      {showFollowup && <FollowupPart
         todo={todo}
         today={today}
         width={parts.followup}
@@ -318,7 +332,7 @@ export function DatesCell({
         open={followupOpen}
         onToggle={onToggleFollowup}
         onClear={onClearFollowup}
-      />
+      />}
     </div>
   )
 }

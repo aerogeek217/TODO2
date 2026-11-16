@@ -98,7 +98,7 @@ describe('TagEditor', () => {
     const { getByText, findByText } = await renderEditor()
     await findByText('urgent')
 
-    const deleteBtn = document.body.querySelector('[title="Delete"]') as HTMLButtonElement | null
+    const deleteBtn = document.body.querySelector('[data-tooltip="Delete"]') as HTMLButtonElement | null
     expect(deleteBtn).not.toBeNull()
     fireEvent.click(deleteBtn!)
 

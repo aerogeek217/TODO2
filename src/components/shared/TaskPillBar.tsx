@@ -117,7 +117,7 @@ export const TaskPillDates = memo(function TaskPillDates({
         {todo.recurrenceRule && (
           <span
             className={styles.markerRecurrence}
-            title={`Repeats ${todo.recurrenceRule.type}`}
+            data-tooltip={`Repeats ${todo.recurrenceRule.type}`}
             aria-label="Recurring"
           >
             &#x21bb;
@@ -135,13 +135,13 @@ export const TaskPillDates = memo(function TaskPillDates({
         className={deadlineChipClass}
         onClick={onDeadlineClick}
         data-pill="due"
-        title={deadlinePast ? 'Due date passed — click to change' : 'Due — click to change'}
+        data-tooltip={deadlinePast ? 'Due date passed — click to change' : 'Due — click to change'}
         aria-label="Edit due date"
       >
         <StatusIcon icon="clock" />
         {formatDateShort(todo.dueDate!)}
         {todo.recurrenceRule && (
-          <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>
+          <span className={styles.recurrenceIndicator} role="img" aria-label={`Repeats ${todo.recurrenceRule.type}`} data-tooltip={`Repeats ${todo.recurrenceRule.type}`}>
             &#x21bb;
           </span>
         )}
@@ -151,7 +151,7 @@ export const TaskPillDates = memo(function TaskPillDates({
             role="button"
             tabIndex={-1}
             aria-label="Clear due date"
-            title="Clear due date"
+            data-tooltip="Clear due date"
             onClick={(e) => { e.stopPropagation(); onDeadlineClear(e) }}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -162,12 +162,12 @@ export const TaskPillDates = memo(function TaskPillDates({
     ) : (
       <span
         className={deadlineChipClass}
-        title={deadlinePast ? 'Due date passed' : 'Due'}
+        data-tooltip={deadlinePast ? 'Due date passed' : 'Due'}
       >
         <StatusIcon icon="clock" />
         {formatDateShort(todo.dueDate!)}
         {todo.recurrenceRule && (
-          <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>
+          <span className={styles.recurrenceIndicator} role="img" aria-label={`Repeats ${todo.recurrenceRule.type}`} data-tooltip={`Repeats ${todo.recurrenceRule.type}`}>
             &#x21bb;
           </span>
         )}
@@ -273,7 +273,7 @@ export const TaskPillStatus = memo(function TaskPillStatus({
     <span
       className={styles.statusReadOnly}
       style={status ? { color: status.color } : undefined}
-      title={status?.name}
+      data-tooltip={status?.name}
       aria-label={status ? `Status: ${status.name}` : 'No status'}
     >
       {status

@@ -5,7 +5,6 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import { settingsRepository } from '../../data'
 import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
 import { useUndoStore } from '../../stores/undo-store'
-import { lensActions } from '../../stores/lens-actions'
 import { DEFAULT_TAB_BADGES } from '../../utils/tab-badges'
 import { DEFAULT_PRIORITY_CUES } from '../../utils/priority-cues'
 
@@ -405,10 +404,10 @@ describe('useSettingsStore', () => {
 
     await useSettingsStore.getState().setStaleAfterDays(0)
     expect(await db.settings.get('staleAfterDays')).toEqual({ key: 'staleAfterDays', value: '0' })
-    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Don’t fade untouched tasks')
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Tasks never go stale')
     await useSettingsStore.getState().setStaleAfterDays(45)
     expect(await db.settings.get('staleAfterDays')).toEqual({ key: 'staleAfterDays', value: '45' })
-    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Fade tasks untouched for 45 days')
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Tasks go stale after 45 days')
     for (const bad of [-1, 366, 2.5, Number.NaN]) await useSettingsStore.getState().setStaleAfterDays(bad)
     expect(useSettingsStore.getState().staleAfterDays).toBe(45)
     await useSettingsStore.getState().setStaleAfterDays(30)
@@ -422,161 +421,22 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().staleAfterDays).toBe(30)
   })
 
-  it('the lenses: none by default (no row); add, rename, change, duplicate — each one undo step — and read back on load', async () => {
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().lenses).toEqual([])
-    useUndoStore.getState().clear()
-    const s = () => useSettingsStore.getState()
-
-    const id = await lensActions.addLens('  Fresh ')
-    expect(id).not.toBeNull()
-    expect(s().lenses).toEqual([{ id, name: 'Fresh', predicate: emptyPredicate() }])
-    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('New lens “Fresh”')
-    expect(await lensActions.addLens('   ')).toBeNull()
-
-    expect(await lensActions.renameLens(id!, 'Recent')).toBe(true)
-    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Renamed lens “Fresh” to “Recent”')
-    await lensActions.setLensPredicate(id!, { ...emptyPredicate(), showCompleted: true, personIds: [0], negate: { personIds: true } })
-    expect(s().lenses[0]!.predicate).toEqual({ ...emptyPredicate(), personIds: [0], negate: { personIds: true } })
-    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Changed lens “Recent”')
-    const copy = await lensActions.duplicateLens(id!)
-    expect(s().lenses.map((l) => [l.id, l.name])).toEqual([[id, 'Recent'], [copy, 'Recent 2']])
-    expect(useUndoStore.getState().undoStack).toHaveLength(4)
-
-    useSettingsStore.setState({ lenses: [] })
-    await s().load()
-    expect(s().lenses.map((l) => l.name)).toEqual(['Recent', 'Recent 2'])
-
-    await useUndoStore.getState().undo()
-    expect(s().lenses.map((l) => l.name)).toEqual(['Recent'])
-    await lensActions.setLenses([], 'Deleted lens “Recent”')
-    expect(await db.settings.get('lenses')).toBeUndefined()
-  })
-
-  it('moveLens: one undo step, saved at once and read back on load; out of range or in place changes nothing; a failed save puts the order back', async () => {
-    await useSettingsStore.getState().load()
-    const s = () => useSettingsStore.getState()
-    const a = await lensActions.addLens('A')
-    await lensActions.addLens('B')
-    await lensActions.addLens('C')
-    useUndoStore.getState().clear()
-    const names = () => s().lenses.map((l) => l.name)
-
-    expect(await lensActions.moveLens(0, 2)).toBe(true)
-    expect(names()).toEqual(['B', 'C', 'A'])
-    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Moved lens “A”'])
-    useSettingsStore.setState({ lenses: [] })
-    await s().load()
-    expect(names()).toEqual(['B', 'C', 'A'])
-    expect(s().lenses[2]!.id).toBe(a)
-
-    expect(await lensActions.moveLens(2, 0)).toBe(true)
-    expect(names()).toEqual(['A', 'B', 'C'])
-    await useUndoStore.getState().undo()
-    expect(names()).toEqual(['B', 'C', 'A'])
-    useSettingsStore.setState({ lenses: [] })
-    await s().load()
-    expect(names()).toEqual(['B', 'C', 'A'])
-
-    useUndoStore.getState().clear()
-    expect(await lensActions.moveLens(1, 1)).toBe(true)
-    for (const [from, to] of [[-1, 0], [3, 0], [0, 3], [0, -1], [0.5, 1]] as const) expect(await lensActions.moveLens(from, to)).toBe(false)
-    expect(names()).toEqual(['B', 'C', 'A'])
-    expect(useUndoStore.getState().undoStack).toHaveLength(0)
-
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('quota'))
-    expect(await lensActions.moveLens(0, 1)).toBe(false)
-    expect(names()).toEqual(['B', 'C', 'A'])
-    expect(useUndoStore.getState().undoStack).toHaveLength(0)
-    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save the lenses.', notice: true })
-    vi.restoreAllMocks()
-  })
-
-  it('the preset lenses are seeded once, after the lenses there are, without an undo step', async () => {
-    await useSettingsStore.getState().load()
-    useUndoStore.getState().clear()
-    const s = () => useSettingsStore.getState()
-    await lensActions.addLens('Fresh')
-    useUndoStore.getState().clear()
-
-    await lensActions.seedLensPresets(null)
-    expect(s().lenses.map((l) => l.name)).toEqual(['Fresh', 'This month', 'Has a person', 'Fresh 2'])
-    expect(new Set(s().lenses.map((l) => l.id)).size).toBe(4)
-    expect(s().lensPresetsSeeded).toBe(true)
-    expect(useUndoStore.getState().undoStack).toHaveLength(0)
-    expect(await db.settings.get('lensPresetsSeeded')).toEqual({ key: 'lensPresetsSeeded', value: 'true' })
-
-    await lensActions.setLenses([], 'Deleted every lens')
-    await lensActions.seedLensPresets(3)
-    expect(s().lenses).toEqual([])
-    useSettingsStore.setState({ lensPresetsSeeded: false })
-    await s().load()
-    expect(s().lensPresetsSeeded).toBe(true)
-  })
-
-  it('the top bar’s lens pick: No lens by default (no row); a pick is saved at once with no undo step, No lens removes the row; a reload reads it back', async () => {
-    const s = () => useSettingsStore.getState()
-    await s().load()
-    expect(s().activeLensId).toBeNull()
-    useUndoStore.getState().clear()
-
-    expect(await lensActions.setActiveLens('lens-a')).toBe(true)
-    expect(s().activeLensId).toBe('lens-a')
-    expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'lens-a' })
-    expect(useUndoStore.getState().undoStack).toHaveLength(0)
-    expect(useUndoStore.getState().snackbar).toBeNull()
-
-    useSettingsStore.setState({ activeLensId: null })
-    await s().load()
-    expect(s().activeLensId).toBe('lens-a')
-
-    expect(await lensActions.setActiveLens(null)).toBe(true)
-    expect(s().activeLensId).toBeNull()
-    expect(await db.settings.get('activeLensId')).toBeUndefined()
-    await s().load()
-    expect(s().activeLensId).toBeNull()
-    expect(useUndoStore.getState().undoStack).toHaveLength(0)
-  })
-
-  it('the lens pick: an id no lens has is kept (it reads as No lens where used); a value that is no lens id is ignored', async () => {
-    const s = () => useSettingsStore.getState()
-    await db.settings.put({ key: 'activeLensId', value: 'lens-gone' })
-    await s().load()
-    expect(s().activeLensId).toBe('lens-gone')
-    await db.settings.put({ key: 'activeLensId', value: 'x'.repeat(101) })
-    await s().load()
-    expect(s().activeLensId).toBeNull()
-    expect(await lensActions.setActiveLens('')).toBe(false)
-    expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'x'.repeat(101) })
-  })
-
-  it('a failed save of the lens pick puts it back and says so', async () => {
-    const s = () => useSettingsStore.getState()
-    await s().load()
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('quota'))
-    expect(await lensActions.setActiveLens('lens-a')).toBe(false)
-    expect(s().activeLensId).toBeNull()
-    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save the lens pick.', notice: true })
-  })
-
-  it('quick picks are saved one after another: an earlier pick’s save failing keeps the later pick (on screen and stored)', async () => {
+  it('quick changes are saved one after another: an earlier save failing keeps the later value (on screen and stored)', async () => {
     const s = () => useSettingsStore.getState()
     await s().load()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     let failFirst: ((e: Error) => void) | undefined
     vi.spyOn(settingsRepository, 'put').mockImplementationOnce(() => new Promise((_, reject) => { failFirst = reject }))
-    const first = lensActions.setActiveLens('lens-a')
-    const second = lensActions.setActiveLens('lens-b')
+    const first = s().setStaleAfterDays(14)
+    const second = s().setStaleAfterDays(45)
     // The second shows at once and waits for the first's save.
-    expect(s().activeLensId).toBe('lens-b')
+    expect(s().staleAfterDays).toBe(45)
     await vi.waitFor(() => expect(failFirst).toBeDefined())
     failFirst?.(new Error('quota'))
-    expect(await first).toBe(false)
-    expect(await second).toBe(true)
-    expect(s().activeLensId).toBe('lens-b')
-    expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'lens-b' })
+    await first
+    await second
+    expect(s().staleAfterDays).toBe(45)
+    expect(await db.settings.get('staleAfterDays')).toEqual({ key: 'staleAfterDays', value: '45' })
   })
 
   it('the default list zoom: auto by default (no row); a level stored, auto removes the row; junk ignored', async () => {

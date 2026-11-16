@@ -85,7 +85,7 @@ test('the active tab’s × takes a 24px press, drawn at 16px; the label and the
   await seedWorkspace(page, SEED)
   const tab = wsTab(page, 'tA')
   await wsCell(page, 'a').hover()
-  const close = tab.getByRole('button', { name: /^Close / })
+  const close = tab.getByRole('button', { name: /^Remove / })
   await expect(close).toBeVisible()
   expect((await boxOf(close)).width).toBe(16)
   const extent = await hitExtent(close)
@@ -111,7 +111,7 @@ test('the active tab’s × takes a 24px press, drawn at 16px; the label and the
 test('an inactive tab’s hidden × takes no press', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const next = wsTab(page, 'tB')
-  const close = next.getByRole('button', { name: /^Close / })
+  const close = next.getByRole('button', { name: /^Remove / })
   await page.mouse.move(2, 880)
   // Hidden (visibility) until its tab is hovered: a press at its place is the tab's.
   await expect(close).toBeHidden()
@@ -119,19 +119,22 @@ test('an inactive tab’s hidden × takes no press', async ({ page }) => {
   expect(await landsOn(page, n.x + n.width - 10, n.y + n.height / 2, ['button[aria-label^="Close "]', '[data-ws-tab]'])).toBe('[data-ws-tab]')
 })
 
-test('the top bar’s filter chip × takes a 24px press; the chip’s value keeps its press', async ({ page }) => {
+test('the top bar’s filter pill × takes a 24px press; a press beside it reaches the field', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await filterField(page).fill('@Aisha ')
-  const chip = filterTray(page).getByRole('button', { name: /^People filter: / })
-  await expect(chip).toBeVisible()
-  const clear = filterTray(page).getByRole('button', { name: 'Clear people filter' })
-  expect((await boxOf(clear)).width).toBe(16)
+  await filterField(page).fill('@Aisha')
+  await filterField(page).press('Escape')
+  await filterField(page).press('Enter')
+  await filterField(page).blur()
+  const pill = filterTray(page).locator('[data-top-bar-pill]')
+  await expect(pill).toHaveText([/@"Aisha Rahman"/])
+  const clear = pill.getByRole('button', { name: /^Remove @/ })
+  expect((await boxOf(clear)).width).toBe(14)
   const extent = await hitExtent(clear)
   expect(extent.width).toBeGreaterThanOrEqual(24)
   expect(extent.height).toBeGreaterThanOrEqual(24)
-  const v = await boxOf(chip)
-  // The chip's value: its whole text still opens the picker.
-  expect(await landsOn(page, v.x + v.width - 6, v.y + v.height / 2, ['button[aria-label="Clear people filter"]', 'button[aria-label^="People filter"]'])).toBe('button[aria-label^="People filter"]')
+  // The pill's text: a press there reaches the field under it (it shows the filter as text).
+  const p = await boxOf(pill)
+  expect(await landsOn(page, p.x + 4, p.y + p.height / 2, ['button[aria-label^="Remove @"]', 'input[aria-label="Filter tasks"]'])).toBe('input[aria-label="Filter tasks"]')
 })
 
 test('an editor’s filter chip × takes a 24px press; its value keeps its press', async ({ page }) => {
@@ -160,7 +163,7 @@ test('Quick Add’s chip × takes a 24px press; the next chip is untouched', asy
     })
   }
   await input.pressSequentially('Call #docs #customer ')
-  const removes = page.getByRole('button', { name: /^Remove / })
+  const removes = page.getByRole('button', { name: /^Remove #/ })
   await expect(removes.nth(1)).toBeVisible()
   const first = removes.first()
   expect((await boxOf(first)).width).toBe(14)

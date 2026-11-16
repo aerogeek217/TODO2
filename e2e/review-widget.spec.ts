@@ -12,8 +12,8 @@ import { expectLayoutStored, openCellMenu, pickInReview, pickWidgetKind, reviewF
  * expression popup; a filter that doesn't read keeps the queue on the last
  * one that did, Esc putting its text back; the check-in buttons while the
  * filter names only people; the default Priority sort and a row's
- * double-click; a follow-up from the widget, the live queue, the lens
- * switch, and its faces by the cell's size. With `REVIEW_SHOTS=<folder>` it
+ * double-click; a follow-up from the widget, the live queue, and its
+ * faces by the cell's size. With `REVIEW_SHOTS=<folder>` it
  * also saves screenshots (dark, 1440 × 900) for the design review.
  */
 
@@ -61,7 +61,6 @@ async function shot(page: Page, name: string, target: Locator | Page = page) {
 function largeSeed(): WorkspaceSeed {
   return {
     ...BASE,
-    lenses: [{ id: 'lens-urgent', name: 'Urgent', predicate: { markers: [{ values: ['urgent'] }] } }],
     layouts: [{
       name: 'Main',
       table: {
@@ -85,7 +84,7 @@ test('added from the cell’s ⋯: nothing to review; a click lists who or what 
   await pickWidgetKind(page, 'Change widget', 'Review')
   const w = page.locator('[data-review-widget]')
   const tabId = await w.getAttribute('data-review-widget') ?? ''
-  // Its own top line (alone in the cell): the name — no progress, no lens switch yet — over the field's row; no kind.
+  // Its own top line (alone in the cell): the name — no progress yet — over the field's row; no kind.
   await expect(w.locator('[data-widget-top-line]')).toContainText('Review')
   await expect(w.getByTestId('review-widget-progress')).toHaveCount(0)
   await expect(w.getByTestId('review-by')).toHaveCount(0)
@@ -308,23 +307,6 @@ test('the live queue: a task leaving the filter leaves the rail — the current 
   await expect(railRows(page, 'rev1')).toHaveCount(3)
 })
 
-test('the widget’s lens switch: quiet while the top bar’s lens hides tasks of the filter; off, all of them', async ({ page }) => {
-  await seedWorkspace(page, largeSeed())
-  const control = page.locator('header').getByRole('button', { name: /^Lens:/ })
-  await control.click()
-  await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Urgent/ }).click()
-  const w = widget(page, 'rev1')
-  await expect(w.getByTestId('lens-switch')).toHaveCount(0)
-  await pickInReview(page, 'rev1', 'Aisha', 'Ben')
-  await expect(railRows(page, 'rev1')).toHaveCount(1)
-  const sw = w.getByTestId('lens-switch')
-  await expect(sw).toHaveAttribute('data-lens-hides', '4')
-  await w.hover()
-  await sw.click()
-  await expect(sw).toHaveAttribute('aria-pressed', 'false')
-  await expect(railRows(page, 'rev1')).toHaveCount(5)
-})
-
 test('in a cell of several widgets: no top line — the field’s row comes first and ends with the progress', async ({ page }) => {
   await seedWorkspace(page, {
     ...BASE,
@@ -363,7 +345,7 @@ function shortSeed(rowPx: number): WorkspaceSeed {
   }
 }
 
-test('a short cell keeps the large face: the queue scrolls, and the card’s body scrolls as one down to the update line', async ({ page }) => {
+test('a short cell keeps the large face: the queue scrolls, and the card’s band and columns scroll as one down to the update line', async ({ page }) => {
   await seedWorkspace(page, shortSeed(340))
   const w = widget(page, 'rev1')
   await pickInReview(page, 'rev1', 'Aisha')
@@ -376,25 +358,24 @@ test('a short cell keeps the large face: the queue scrolls, and the card’s bod
   expect(await overflow(list)).toEqual({ over: true, y: 'auto' })
   await railRows(page, 'rev1').last().scrollIntoViewIfNeeded()
   await expect(railRows(page, 'rev1').last()).toBeInViewport({ ratio: 1 })
-  // The card: nothing pinned — one scroller under the title, the facts beside the writing, the dock at its end.
-  const body = w.locator('[data-task-body]')
+  // The card: one scroller under the title — the fact band, then the columns side by side, each as tall as it is.
+  const body = w.locator('[data-task-frame]')
   expect(await overflow(body)).toEqual({ over: true, y: 'auto' })
-  for (const part of ['[data-task-rail]', '[data-task-writing]', '[data-task-writing-scroll]']) {
+  for (const part of ['[data-task-writing]', '[data-task-updates]']) {
     expect((await overflow(w.locator(part))).over, part).toBe(false)
   }
   await body.evaluate((n) => { n.scrollTop = 0 })
-  await expect(w.locator('[data-task-notes]')).toBeInViewport()
+  await expect(w.locator('[data-subtasks]')).toBeInViewport()
   await expect(w.locator('[data-fact="priority"]')).toBeInViewport()
   await shot(page, 'review-widget-short-top', wsCell(page, 'rv'))
   // Scrolled to its end: the update line; ⏎ there still follows up.
   const line = w.getByLabel('Status update · today')
   await line.scrollIntoViewIfNeeded()
   await expect(line).toBeInViewport({ ratio: 1 })
-  const last = w.getByRole('textbox', { name: 'Last follow-up' })
-  await last.scrollIntoViewIfNeeded()
-  await expect(last).toBeInViewport({ ratio: 1 })
-  await line.scrollIntoViewIfNeeded()
-  await shot(page, 'review-widget-short-dock', wsCell(page, 'rv'))
+  // The follow-up fields are the footer's: in view without scrolling.
+  await expect(w.getByRole('textbox', { name: 'Last follow-up' })).toBeInViewport({ ratio: 1 })
+  await expect(w.getByRole('textbox', { name: 'Next follow-up' })).toBeInViewport({ ratio: 1 })
+  await shot(page, 'review-widget-short-end', wsCell(page, 'rv'))
   await line.fill('Short cell update')
   await page.keyboard.press('Enter')
   await expect(cardTitle(page, 'rev1')).toHaveText('Onboarding checklist')
@@ -403,12 +384,13 @@ test('a short cell keeps the large face: the queue scrolls, and the card’s bod
   await expect(w.getByRole('button', { name: /^Skip/ })).toBeInViewport({ ratio: 1 })
 })
 
-test('a tall cell still pins the dock: the card’s body does not scroll', async ({ page }) => {
+test('a tall cell: the card’s band and body do not scroll as one; the update line in view', async ({ page }) => {
   await seedWorkspace(page, largeSeed())
   const w = widget(page, 'rev1')
   await pickInReview(page, 'rev1', 'Aisha')
-  const body = w.locator('[data-task-body]')
-  expect(await body.evaluate((n) => getComputedStyle(n).overflowY)).not.toBe('auto')
+  for (const part of ['[data-task-frame]', '[data-task-body]']) {
+    expect(await w.locator(part).evaluate((n) => getComputedStyle(n).overflowY), part).not.toBe('auto')
+  }
   await expect(w.getByLabel('Status update · today')).toBeInViewport({ ratio: 1 })
 })
 

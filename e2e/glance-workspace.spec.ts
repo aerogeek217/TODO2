@@ -104,7 +104,7 @@ test('a tab’s setting and a new widget are layout changes', async ({ page }) =
 
   // Add widget → Insights › Created vs completed: a second tab, an unsaved layout change.
   await cell.hover()
-  await cell.getByRole('button', { name: 'Cell options' }).click()
+  await cell.getByRole('button', { name: 'Cell layout' }).click()
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   await pickWidgetKind(page, 'Add widget', 'Created vs completed')
   await expect(cell.getByRole('tab')).toHaveCount(2)

@@ -37,7 +37,7 @@ function WeekFaceDay({ day, weekday, entries, ctx, onOpen }: {
       type="button"
       className={dayClasses(`${styles.weekDay} ${calStyles.heatDay}`, ctx, highlighted, [isToday && styles.weekToday])}
       aria-label={`${dayLabel(day)}${isToday ? ', today' : ''}: ${heat.count} ${heat.count === 1 ? 'task' : 'tasks'}`}
-      title={summary || undefined}
+      data-tooltip={summary || undefined}
       data-day={dayKey(day)}
       data-today={isToday ? 'true' : undefined}
       data-heat={heat.step}

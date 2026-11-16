@@ -85,11 +85,13 @@ describe('Edit list', () => {
     expect(draft()).toMatchObject({ grouping: 'status', sort: 'deadline' })
 
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
-    // Priority carries its rule as a note (no "new feature" tag); Manual explains itself.
-    const priority = screen.getByRole('menuitemradio', { name: /^Priority/ })
+    // Priority carries its rule as a note (no "new feature" tag); Manual explains itself —
+    // each note the item's tooltip and accessible description, not a line under its name.
+    const priority = screen.getByRole('menuitemradio', { name: 'Priority' })
     expect(priority).not.toHaveTextContent('NEW')
-    expect(priority).toHaveTextContent('Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date')
-    expect(screen.getByRole('menuitemradio', { name: /^Manual/ })).toHaveTextContent('Your drag order (per list)')
+    expect(priority).toHaveAccessibleDescription('Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date')
+    expect(priority).not.toHaveTextContent('ties by due date')
+    expect(screen.getByRole('menuitemradio', { name: 'Manual' })).toHaveAccessibleDescription('Your drag order (per list)')
     fireEvent.click(priority)
     expect(draft()).toMatchObject({ grouping: 'status', sort: 'priority' })
 
@@ -200,7 +202,7 @@ describe('Edit list', () => {
     it('Save answered in a leave question from outside (Settings) that fails cancels the leave: Edit list stays with its draft', async () => {
       const update = failWrites()
       editGroup(open())
-      act(() => useUIStore.getState().openSettings('lenses'))
+      act(() => useUIStore.getState().openSettings('completed'))
       await answer('Save')
       await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: COULD_NOT_SAVE }))
       // The write failed: Settings didn't open over it, nothing was dropped and nothing says it was.
@@ -211,7 +213,7 @@ describe('Edit list', () => {
       expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('people')
       // Its changes still count: leaving again asks again; with the storage back, Save writes and Settings opens.
       update.mockRestore()
-      act(() => useUIStore.getState().openSettings('lenses'))
+      act(() => useUIStore.getState().openSettings('completed'))
       await answer('Save')
       await vi.waitFor(() => expect(useUIStore.getState().settingsOpen).toBe(true))
       expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
@@ -265,12 +267,13 @@ describe('Edit list', () => {
     })
   })
 
-  it('Save writes only what the draft changed: a lens switch written meanwhile stays', async () => {
+  it('Save writes only what the draft changed: another part written meanwhile stays', async () => {
     const dialog = open()
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
-    await act(() => useListDefinitionStore.getState().setIgnoreLens(7, true))
+    const stored = useListDefinitionStore.getState().listDefinitions[0]!
+    await act(() => useListDefinitionStore.getState().update({ ...stored, showFilterLine: false }))
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save' })) })
-    expect(useListDefinitionStore.getState().listDefinitions[0]).toMatchObject({ name: 'Waiting', ignoreLens: true, sort: 'deadline' })
+    expect(useListDefinitionStore.getState().listDefinitions[0]).toMatchObject({ name: 'Waiting', showFilterLine: false, sort: 'deadline' })
   })
 
   it('Discard drops the draft and closes it, writing nothing', () => {
@@ -289,7 +292,9 @@ describe('Edit list', () => {
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: ' ' } })
     expect(within(dialog).getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true')
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
-    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveAttribute('title', 'Name the list to save it')
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveAttribute('data-tooltip', 'Name the list to save it')
+    // The reason reaches a screen reader too (the tooltip shows only on hover).
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveAttribute('aria-description', 'Name the list to save it')
   })
 
   it('Esc closes a list with no changes at once; an Esc that closes a menu inside only closes the menu', () => {
@@ -375,7 +380,7 @@ describe('Edit list', () => {
           <Cell />
           <div role="tab" data-ws-tab="t2" onClick={() => { switched++ }}>
             Notes
-            <button type="button" aria-label="Close Notes" onClick={(e) => { e.stopPropagation(); closed++ }}>×</button>
+            <button type="button" aria-label="Remove Notes" onClick={(e) => { e.stopPropagation(); closed++ }}>×</button>
           </div>
           <EditListHost />
           <ConfirmPromptHost />
@@ -425,7 +430,7 @@ describe('Edit list', () => {
 
     it('the tab’s × is pressed again by the user: its press is not made for them', async () => {
       openBesideTab()
-      press(screen.getByRole('button', { name: 'Close Notes' }))
+      press(screen.getByRole('button', { name: 'Remove Notes' }))
       expect(useUIStore.getState().confirmPrompts).toHaveLength(1)
       await answer('Discard')
       await act(async () => {})
@@ -472,13 +477,13 @@ describe('Edit list', () => {
   it('opening Settings with changes asks: Keep editing stays; Discard drops the draft, then Settings opens', async () => {
     const dialog = open()
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
-    act(() => useUIStore.getState().openSettings('lenses'))
+    act(() => useUIStore.getState().openSettings('completed'))
     expect(question()).toBeInTheDocument()
     expect(useUIStore.getState().settingsOpen).toBe(false)
     await answer('Keep editing')
     expect(useUIStore.getState().settingsOpen).toBe(false)
     expect(editorOpen()).toBe(true)
-    act(() => useUIStore.getState().openSettings('lenses'))
+    act(() => useUIStore.getState().openSettings('completed'))
     await answer('Discard')
     expect(useUIStore.getState().settingsOpen).toBe(true)
     expect(useUIStore.getState().listEditor).toBeNull()

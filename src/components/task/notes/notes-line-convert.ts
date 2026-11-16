@@ -2,6 +2,7 @@ import type { Extension } from '@codemirror/state'
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view'
 import { singleLineCandidate } from '../../../services/note-lines'
 import { showConvertScope } from './notes-convert-highlight'
+import { TOOLTIP_ATTR } from '../../../utils/dom-contract'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
@@ -43,7 +44,7 @@ export function lineConvert(onConvert: (view: EditorView, line: number) => void,
       button.type = 'button'
       button.className = 'cm-line-convert'
       button.tabIndex = -1
-      button.title = label
+      button.setAttribute(TOOLTIP_ATTR, label)
       button.setAttribute('aria-label', label)
       button.append(convertIcon())
       button.addEventListener('mousedown', this.onPress)

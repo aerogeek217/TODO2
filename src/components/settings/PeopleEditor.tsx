@@ -43,7 +43,7 @@ function PersonColorField({ color, onChange }: { color: string | undefined; onCh
           type="button"
           className={styles.iconBtn}
           onClick={() => onChange(undefined)}
-          title="Remove color"
+          data-tooltip="Remove color"
           aria-label="Remove color"
         >
           &times;
@@ -184,7 +184,7 @@ export function PeopleEditor({ onClose, editPersonId, layer }: PeopleEditorProps
         <span className={styles.initials}>{p.initials}</span>
         <TaskCount count={counts.get(p.id!) ?? 0} />
         <div className={styles.actions}>
-          <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDeletePerson(p.id!)} title="Delete">&times;</button>
+          <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDeletePerson(p.id!)} aria-label="Delete" data-tooltip="Delete">&times;</button>
         </div>
       </div>
     )

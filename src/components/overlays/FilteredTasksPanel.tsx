@@ -4,7 +4,6 @@ import { screenTaskDialog } from '../../services/task-dialog'
 import { useFilterStore } from '../../stores/filter-store'
 import { screenReviewFilter } from '../../services/review'
 import { jumpToReview } from '../../services/review-jump'
-import { currentPickedLens } from '../../stores/screen-filter'
 import { useUIStore } from '../../stores/ui-store'
 import { attrSelector, SEARCH_INPUT_ATTR, SHOW_FILTERED_TASKS_ATTR, shortcutScope } from '../../utils/dom-contract'
 import { tabAcross } from '../../utils/focusables'
@@ -23,9 +22,9 @@ function samePlacement(a: FilterPanelPlacement, b: FilterPanelPlacement): boolea
     && a.scrimTop === b.scrimTop && a.joinedLeft === b.joinedLeft && a.joinedRight === b.joinedRight
 }
 
-/** The tray's counter, else (no chip and no lens: the counter goes with the panel) its search. */
+/** The tray's counter, else (no chip: the counter goes with the panel) its search. */
 function focusTrayAfterClose(): void {
-  const counted = useFilterStore.getState().isActive || currentPickedLens() != null
+  const counted = useFilterStore.getState().isActive
   const selector = counted ? attrSelector(SHOW_FILTERED_TASKS_ATTR) : attrSelector(SEARCH_INPUT_ATTR)
   document.querySelector<HTMLElement>(selector)?.focus()
 }
@@ -68,8 +67,8 @@ export function FilteredTasksPanel({ trayRef, topBarRef, panelRef }: {
 
   // Placed under the tray before paint, and again whenever the tray or the
   // window changes size (a chip, a filter's value, the fold, a resize), or a
-  // part before it in the bar changes width (the lens control, the layout
-  // tabs: the tray moves, unresized).
+  // part before it in the bar changes width (the layout tabs: the tray
+  // moves, unresized).
   useLayoutEffect(() => {
     const tray = trayRef.current
     if (!tray) return

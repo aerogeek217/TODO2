@@ -53,7 +53,7 @@ describe('PeopleEditor', () => {
 
     const { findByText } = await renderEditor()
     await findByText('Ann')
-    const counts = () => [...document.body.querySelectorAll('[data-testid="entity-task-count"]')].map((el) => [el.textContent, el.getAttribute('title')])
+    const counts = () => [...document.body.querySelectorAll('[data-testid="entity-task-count"]')].map((el) => [el.textContent, el.getAttribute('data-tooltip')])
     await waitFor(() => expect(counts()).toEqual([['2', '2 tasks'], ['', '0 tasks']]))
   })
 

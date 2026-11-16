@@ -180,11 +180,6 @@ export interface WorkspaceSeed {
   /** The first layout is opened. */
   layouts: WsLayoutSeed[]
   /**
-   * Lenses (the `lenses` settings row, the presets marked seeded so none are
-   * added): each predicate merged over the empty one.
-   */
-  lenses?: Array<{ id: string; name: string; predicate?: Record<string, unknown> }>
-  /**
    * Settings rows to store as they are (`key` → stored `value`), e.g. `{ rowDensity: 'lines' }`;
    * `null` stores none. The Default list zoom is seeded as Rows (`rowDensity: 'rows'`) unless given:
    * Auto (the app's default, no row — `{ rowDensity: null }`) would draw a cell under 480px Stacked.
@@ -208,8 +203,6 @@ export interface WorkspaceSeed {
     runtimeFilter?: { field: 'person' | 'status' | 'tag' }
     /** `false` hides the list's filter line. */
     showFilterLine?: false
-    /** The top bar's lens doesn't apply to the list. */
-    ignoreLens?: true
     /** The layout (index into `layouts`) that owns the list; default: the first that shows it, else the first. */
     layoutIdx?: number
   }>
@@ -366,7 +359,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         grouping: def.grouping ?? 'none',
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
         ...(def.showFilterLine === false ? { showFilterLine: false } : {}),
-        ...(def.ignoreLens ? { ignoreLens: true } : {}),
       }))
     }
     let taskOrder = 0
@@ -467,11 +459,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     for (const [key, value] of Object.entries({ rowDensity: 'rows', ...seed.settings })) {
       if (value === null) tx.objectStore('settings').delete(key)
       else tx.objectStore('settings').put({ key, value })
-    }
-    if (seed.lenses) {
-      const lenses = seed.lenses.map((l) => ({ id: l.id, name: l.name, predicate: { ...seed.predicate, ...(l.predicate ?? {}) } }))
-      tx.objectStore('settings').put({ key: 'lenses', value: JSON.stringify(lenses) })
-      tx.objectStore('settings').put({ key: 'lensPresetsSeeded', value: 'true' })
     }
     await done
     idb.close()
@@ -729,21 +716,21 @@ export function wsPanelHandle(page: Page, panelId: string): Locator {
   return page.locator(`[data-ws-panel-handle="${panelId}"]`)
 }
 
-/** Picks Split cell ▸ `item` (Right / Below) in the open cell layout menu (`openCellLayoutMenu`). */
-export async function pickSplit(page: Page, item: 'Right' | 'Below'): Promise<void> {
+/** Picks Split cell ▸ `item` (a side) in the open cell layout menu (`openCellLayoutMenu`). */
+export async function pickSplit(page: Page, item: 'Above' | 'Left' | 'Right' | 'Below'): Promise<void> {
   await pickCellMenu(page, 'Split cell', item)
 }
 
-/** Picks `parent` ▸ `item` in the open cell layout menu (Split cell, Merge with, Insert). */
-export async function pickCellMenu(page: Page, parent: 'Split cell' | 'Merge with' | 'Insert', item: string): Promise<void> {
+/** Picks `parent` ▸ `item` in the open cell layout menu (Split cell, Merge with, Insert row, Insert column). */
+export async function pickCellMenu(page: Page, parent: 'Split cell' | 'Merge with' | 'Insert row' | 'Insert column', item: string): Promise<void> {
   await page.getByRole('menuitem', { name: parent, exact: true }).click()
   await page.getByRole('menuitem', { name: item, exact: true }).click()
 }
 
 /**
  * Opens cell `cellId`'s ⋯ menu, `Cell options` (over the cell first: a
- * one-widget cell shows its ⋯ on hover): the widget's entries and Add
- * widget…. The layout's entries are the grip's (`openCellLayoutMenu`).
+ * one-widget cell shows its ⋯ on hover): the widget's entries and Remove
+ * widget. The layout's entries are the grip's (`openCellLayoutMenu`).
  */
 export async function openCellMenu(page: Page, cellId: string): Promise<void> {
   await wsCell(page, cellId).hover()
@@ -753,8 +740,8 @@ export async function openCellMenu(page: Page, cellId: string): Promise<void> {
 /**
  * Opens cell `cellId`'s layout menu, `Cell layout` (UX cleanup 4A: a click
  * on its grip — a one-widget cell's in its top line, a strip's in its
- * header): Split cell ▸, Merge with ▸, Insert ▸, Collapse / Expand row,
- * Close tab, Close cell.
+ * header), under Layout: Add widget…, Split cell ▸, Insert row ▸, Insert
+ * column ▸, Merge with ▸, Collapse / Expand row, Close cell.
  */
 export async function openCellLayoutMenu(page: Page, cellId: string): Promise<Locator> {
   await wsCell(page, cellId).hover()
@@ -928,7 +915,9 @@ export async function gotoSettingsDeepLink(page: Page): Promise<Locator> {
 /** The headed parts of the merged Settings sections, by label: their section. */
 const SETTINGS_PART_SECTION: Readonly<Record<string, string>> = {
   'New tasks': 'Tasks',
-  'Lists & rows': 'Tasks',
+  Rules: 'Tasks',
+  'New lists': 'Tasks',
+  'Task rows': 'Appearance',
   'Completed tasks': 'Tasks',
   'File storage': 'Database',
   Backups: 'Database',

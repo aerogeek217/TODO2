@@ -69,7 +69,6 @@ export interface NumberConfig {
   /** The threshold of `above` / `below` (a whole number); absent with `never`. */
   litAt?: number
   compare: NumberCompare
-  // Its lens switch is the tab's view state (`LensViewState.ignoreLens`; v79 moved an older `ignoreLens` here there).
   /** Its large face's breakdown (the count's); absent = `none`. */
   breakdown?: NumberBreakdown
   // The active shape's field (D26 P6, `models/number-shapes`): only that one is kept.
@@ -81,7 +80,7 @@ export interface NumberConfig {
   goal?: NumberGoal
   /** `group`: its counts (1 – `NUMBER_GROUP_MAX`), each with its own filter; its own `filter` is unused. */
   items?: NumberGroupItem[]
-  /** `list`: the list it follows (absent until one is picked); its own `filter` and `ignoreLens` are unused. */
+  /** `list`: the list it follows (absent until one is picked); its own `filter` is unused. */
   list?: NumberListRef
 }
 
@@ -191,8 +190,7 @@ export type NumberPredicateRead = (raw: unknown) => PickedConfig<TodoPredicate>
  * missing field gets its default (`fixed`) — the name `Number`, Auto, a
  * count, never lit (a threshold of 0 when `above` / `below` lacks one),
  * against yesterday —; a name past the limit is cut to it (`shortened`,
- * `readStoredName`); an unknown colour or breakdown, or an `ignoreLens`
- * (the tab's view state since v79), is dropped (`fixed`). Its shape's field is read too
+ * `readStoredName`); an unknown colour or breakdown is dropped (`fixed`). Its shape's field is read too
  * (`pickShapeField`); another shape's is dropped (`fixed`).
  */
 export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, readPredicate: NumberPredicateRead): PickedConfig<NumberConfig> {
@@ -215,8 +213,6 @@ export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, 
   else if (raw.unlitColor !== undefined) fixed = true
   if (litWhen !== 'never') config.litAt = pick(raw.litAt, isNumberLitAt, 0)
   else if (raw.litAt !== undefined) fixed = true
-  // The lens switch is the tab's view state (v79 moved this one there): one left here is dropped.
-  if (raw.ignoreLens !== undefined) fixed = true
   if (isNumberBreakdown(raw.breakdown)) config.breakdown = raw.breakdown
   else if (raw.breakdown !== undefined) fixed = true
   if (pickShapeField(raw, config, readPredicate)) fixed = true

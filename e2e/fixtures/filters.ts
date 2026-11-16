@@ -1,10 +1,10 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
 /**
- * The top bar's screen filter: the tray (the field, the Filter button, the
- * chips of the filters that are on, the counter), the Filter menu (Priority,
- * Tags, People, Dates, Status, then Show completed and, while a filter is
- * on, Clear all filters) and the stores behind it.
+ * The top bar's screen filter: the tray (the funnel, the field — a typed
+ * filter, at rest its terms as pills —, the Filter button, the counter), the
+ * Filter menu (Priority, Tags, People, Dates, Status, then Show completed
+ * and, while a filter is on, Clear all filters) and the stores behind it.
  */
 
 export type FilterField = 'Priority' | 'Tags' | 'People' | 'Dates' | 'Status'
@@ -29,14 +29,24 @@ export function filterMenu(page: Page): Locator {
   return page.getByRole('group', { name: 'Screen filters', exact: true })
 }
 
-/** A field's chip in the bar (`People filter: Alice`), shown while that filter is on. */
-export function filterChip(page: Page, field: FilterField): Locator {
-  return filterTray(page).getByRole('button', { name: new RegExp(`^${field} filter: `) })
+/** The field's pills at rest: a term of the filter each (`@"Aisha Rahman"`, `#q4`, `done`), in order. */
+export function filterPills(page: Page): Locator {
+  return filterTray(page).locator('[data-top-bar-pill]')
 }
 
-/** The Show completed chip in the bar (while it is on). */
+/** The funnel at the tray's left: a toggle that pauses the screen filter (pressed while paused). */
+export function filterFunnel(page: Page): Locator {
+  return filterTray(page).getByRole('button', { name: 'Pause the filter' })
+}
+
+/** The field's × (while a filter is on): one click clears every screen filter. */
+export function filterClear(page: Page): Locator {
+  return filterTray(page).locator('[data-clear-filters]')
+}
+
+/** Show completed's pill (`done`, at rest) — its ×. */
 export function completedChip(page: Page): Locator {
-  return filterTray(page).getByRole('button', { name: 'Show completed' })
+  return filterTray(page).getByRole('button', { name: 'Remove done' })
 }
 
 /** Opens the Filter menu (if it isn't open); returns it. */
@@ -72,13 +82,12 @@ export async function openFilterPickerByKeyboard(page: Page, field: FilterField)
   await page.keyboard.press('Enter')
 }
 
-/** Opens `field`'s picker: from its chip while the filter is on, else from the Filter menu. */
+/** Opens `field`'s picker from the Filter menu (the bar has no chips: the field's pills are). */
 export async function openFieldPicker(page: Page, field: FilterField): Promise<void> {
-  if (await filterChip(page, field).count() > 0) await filterChip(page, field).click()
-  else await openFilterPicker(page, field)
+  await openFilterPicker(page, field)
 }
 
-/** Turns Show completed on or off (the menu's toggle; off from its chip). */
+/** Turns Show completed on or off (the menu's toggle; off from its `done` pill's ×). */
 export async function setShowCompleted(page: Page, on: boolean): Promise<void> {
   if (!on) {
     if (await completedChip(page).count() > 0) await completedChip(page).click()

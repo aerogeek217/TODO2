@@ -16,6 +16,12 @@
  * clock stays); a dropped date is in the part's tooltip — and only then do
  * the tags go (people takes their room), then people (below `PEOPLE_MIN`).
  * So a divider drag can change the dates as well as the people / tags.
+ *
+ * **Only the fields a list uses** (flair P8): a field no shown row has —
+ * notes, people, tags, the due date, the follow-up, the status — gets no
+ * track, and its room goes to the title. The layout above is worked out for
+ * the whole set, then the unused tracks are left out, so the details width
+ * shrinks by them and people and tags never grow into it.
  */
 
 /**
@@ -109,6 +115,20 @@ const PEOPLE_MAX = 64
 /** People's share of F while tags share it. */
 const PEOPLE_SHARE = 0.4
 
+/** A desktop row's detail fields, each a track (the due date and the follow-up are the dates track's two parts). */
+type RowField = 'notes' | 'people' | 'tags' | 'due' | 'followup' | 'status'
+
+/** Which fields a list's shown rows use. */
+export type RowFieldsUsed = Readonly<Record<RowField, boolean>>
+
+/** Every field used: every track (a list that doesn't say, e.g. the drag overlay's row). */
+export const ALL_ROW_FIELDS: RowFieldsUsed = { notes: true, people: true, tags: true, due: true, followup: true, status: true }
+
+/** Whether two used sets are the same. */
+export function sameRowFields(a: RowFieldsUsed, b: RowFieldsUsed): boolean {
+  return a.notes === b.notes && a.people === b.people && a.tags === b.tags && a.due === b.due && a.followup === b.followup && a.status === b.status
+}
+
 /** Gutter + checkbox and the gaps after them and after the title. */
 const LEAD = TASK_ROW.gutter + TASK_ROW.checkbox + 3 * TASK_ROW.gap
 
@@ -121,14 +141,24 @@ export interface TaskRowColumns {
   laidOut: number
   minDetails: number
   maxDetails: number
-  /** People track, px; 0 = removed. */
+  /** Notes track, px; 0 = unused. */
+  notes: number
+  /** People track, px; 0 = removed (no room) or unused. */
   people: number
-  /** Tags track, px; 0 = removed. */
+  /** Tags track, px; 0 = removed (no room) or unused. */
   tags: number
-  /** The dates track, px. */
+  /** The dates track, px (its used parts and the gap between them); 0 = both unused. */
   dates: number
+  /** The dates track's due part, px; 0 = unused. */
+  due: number
+  /** The dates track's follow-up part, px; 0 = unused. */
+  followup: number
+  /** Status track, px; 0 = unused. */
+  status: number
   /** Which dates show beside their icons. */
   datesTier: DatesTier
+  /** The fields the list uses (the set passed in): a field off here has no track and its row shows it on hover. */
+  used: RowFieldsUsed
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -146,7 +176,7 @@ function span(tracks: readonly number[]): number {
  * the bounds is clamped here; the stored value itself is kept, so a list
  * that widens again gets it back.
  */
-export function taskRowColumns(listWidth: number, stored?: number): TaskRowColumns {
+export function taskRowColumns(listWidth: number, stored?: number, used: RowFieldsUsed = ALL_ROW_FIELDS): TaskRowColumns {
   const inner = listWidth - TASK_ROW.padLeft - TASK_ROW.padRight
   /** The most the details can get in this list: the title keeps its minimum. */
   const room = inner - LEAD - TASK_ROW.titleMin
@@ -169,9 +199,21 @@ export function taskRowColumns(listWidth: number, stored?: number): TaskRowColum
     people = f + TASK_ROW.gap
   }
 
-  const detailTracks = [TASK_ROW.notes, ...(people ? [people] : []), ...(tags ? [tags] : []), dates, TASK_ROW.status]
+  // Leave out what the list doesn't use (laid out for the whole set above).
+  const parts = datesParts(datesTier)
+  const due = used.due ? parts.due : 0
+  const followup = used.followup ? parts.followup : 0
+  const usedDates = due && followup ? due + parts.gap + followup : due + followup
+  const notes = used.notes ? TASK_ROW.notes : 0
+  const status = used.status ? TASK_ROW.status : 0
+  if (!used.people) people = 0
+  if (!used.tags) tags = 0
+  const detailTracks = [notes, people, tags, usedDates, status].filter((t) => t > 0)
   const template = [`${TASK_ROW.gutter}px`, `${TASK_ROW.checkbox}px`, 'minmax(0, 1fr)', ...detailTracks.map((t) => `${t}px`)].join(' ')
-  return { template, details, laidOut: span(detailTracks), minDetails, maxDetails, people, tags, dates, datesTier }
+  return {
+    template, details, laidOut: span(detailTracks), minDetails, maxDetails,
+    notes, people, tags, dates: usedDates, due, followup, status, datesTier, used,
+  }
 }
 
 /** F: what people and tags share of details `d` beside a dates track `dates` wide (the gaps between the five tracks taken). */

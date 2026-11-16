@@ -1,67 +1,47 @@
-import type { FilterCriteria } from '../utils/filter-criteria'
-import { findLens, withLens, type Lens } from '../utils/lens'
-import { useFilterStore } from './filter-store'
-import { useSettingsStore } from './settings-store'
-import { useUIStore } from './ui-store'
+import { useDeferredValue } from 'react'
+import { countActiveFilters, type FilterCriteria } from '../utils/filter-criteria'
+import { appliedScreenFilter, useFilterStore } from './filter-store'
 
 /**
- * The screen filter as the widgets apply it: the top bar's chips
- * (`filter-store`) with the top bar's lens (`settings-store.activeLensId`,
- * the same on every layout) composed under them (`utils/lens.withLens`) —
- * unless it is lifted for now (`ui-store`).
- * Everything that filters by the screen filter reads it here (lists, the
- * the glance widgets, the calendar, the counter and the filtered
- * tasks); what edits the chips, counts them or seeds a new task from them
- * reads `filter-store` itself.
+ * The screen filter as the widgets apply it: the top bar's chips and the
+ * expression typed beside them (`filter-store`; `FilterCriteria.expression`,
+ * ANDed with the chips wherever the criteria are matched). Everything that
+ * filters by the screen filter reads it here (lists, the glance widgets, the
+ * calendar, the Neglect map, the counter and the filtered tasks); what edits
+ * the chips, counts them or seeds a new task from them reads `filter-store`
+ * itself. While the filter is paused (`filter-store.paused`, the funnel)
+ * the hooks and `currentScreenFilter` give no filter: every widget shows
+ * every task.
+ *
+ * **The hooks hand the widgets the filter deferred** (`useDeferredValue`):
+ * a change — Clear all filters above all, which mounts every task the
+ * filter hid — first renders the top bar alone (its field, pills, funnel and
+ * Filter menu read `filter-store`), which paints at once; the widgets then
+ * render the new filter in a background render React yields from, instead
+ * of holding the click's frame for the whole workspace (some 300 ms on a
+ * seeded workspace, over a second in dev). `currentScreenFilter` is never
+ * deferred.
  */
 
-/** The top bar's lens as it applies now: picked, still there, not lifted. */
-function appliedLensOf(lenses: readonly Lens[], lensId: string | null, lifted: boolean): Lens | undefined {
-  return lifted ? undefined : findLens(lenses, lensId)
-}
-
-/** The top bar's lens as picked, lifted or not. */
-export function currentPickedLens(): Lens | undefined {
-  const { lenses, activeLensId } = useSettingsStore.getState()
-  return findLens(lenses, activeLensId)
-}
-
-/** The top bar's lens as it applies now (`appliedLensOf`). */
-export function currentAppliedLens(): Lens | undefined {
-  const { lenses, activeLensId } = useSettingsStore.getState()
-  return appliedLensOf(lenses, activeLensId, useUIStore.getState().lensLifted)
-}
-
-/** The screen filter with the lens, as it is now (the same object while nothing changed). */
+/** The screen filter as it applies now — none while paused (the same object while nothing changed). */
 export function currentScreenFilter(): FilterCriteria {
-  return withLens(useFilterStore.getState().filters, currentAppliedLens())
+  return appliedScreenFilter(useFilterStore.getState())
 }
 
-/** The top bar's lens as picked — lifted or not — kept current; none when none is picked (or one deleted since). */
-export function usePickedLens(): Lens | undefined {
-  const lenses = useSettingsStore((s) => s.lenses)
-  const lensId = useSettingsStore((s) => s.activeLensId)
-  return findLens(lenses, lensId)
-}
-
-/** The top bar's lens as it applies now, kept current. */
-export function useAppliedLens(): Lens | undefined {
-  const picked = usePickedLens()
-  const lifted = useUIStore((s) => s.lensLifted)
-  return lifted ? undefined : picked
-}
-
-/** What a widget filters by: the screen filter with the lens, and whether anything narrows (chips or a lens). */
-export interface ScreenFilterState {
+/** What a widget filters by: the screen filter, and whether anything narrows. */
+interface ScreenFilterState {
   filters: FilterCriteria
   active: boolean
 }
 
-/** The screen filter with the lens (`currentScreenFilter`), kept current. */
+/** The screen filter (`currentScreenFilter`), kept current — deferred, as the module says. */
 export function useScreenFilter(): ScreenFilterState {
-  const chips = useFilterStore((s) => s.filters)
-  const chipsActive = useFilterStore((s) => s.isActive)
-  const lens = useAppliedLens()
-  const filters = withLens(chips, lens)
-  return { filters, active: chipsActive || lens != null }
+  const filters = useDeferredValue(useFilterStore(appliedScreenFilter))
+  return { filters, active: countActiveFilters(filters) > 0 }
+}
+
+/** The screen filter while it narrows, else undefined — what a list composes into its own (`useBuiltList`). */
+export function useActiveScreenFilter(): FilterCriteria | undefined {
+  const { filters, active } = useScreenFilter()
+  return active ? filters : undefined
 }

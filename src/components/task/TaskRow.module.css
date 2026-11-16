@@ -81,13 +81,14 @@
 }
 
 /* Stale (untouched for the Settings threshold): faded until the row is hovered, focused or has a picker open. */
-.row[data-stale] {
+/* A stale row while Fade stale tasks is on (`data-faded`; `data-stale` is the state). */
+.row[data-faded] {
   opacity: 0.55;
 }
 
-.row[data-stale]:hover,
-.row[data-stale]:focus-within,
-.row[data-stale].rowDropdownOpen {
+.row[data-faded]:hover,
+.row[data-faded]:focus-within,
+.row[data-faded].rowDropdownOpen {
   opacity: 1;
 }
 
@@ -173,10 +174,11 @@
   animation: checkPop 0.2s ease;
 }
 
+/* Regular weight (flair P5): the priority's semibold cue stands out against it. */
 .title {
   display: block;
   font-size: var(--font-size-task);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-regular);
   color: var(--color-text-primary);
   min-width: 0;
   overflow: hidden;
@@ -316,6 +318,41 @@
 .row:focus-within .ph,
 .rowDropdownOpen .ph {
   opacity: 1;
+}
+
+/*
+ * The hover cluster (flair P8): the empty cells of the fields the list has no
+ * column for, over the title's end (`right` from the store), on the row's
+ * hover fill with a soft edge that fades the title out under it. Shown as
+ * the placeholders are, by opacity only; it takes no press while hidden.
+ */
+.fieldCluster {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 8px;
+  z-index: var(--z-above);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 18px;
+  background: linear-gradient(to right, transparent, var(--color-surface-high) 16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.fieldCluster > .cell {
+  flex: none;
+  width: 22px;
+  justify-content: center;
+}
+
+.row:hover .fieldCluster,
+.row:focus-within .fieldCluster,
+.rowDropdownOpen .fieldCluster {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* The add-subtasks mark of a task with no checklist (`SubtaskAddButton`): revealed as the placeholders are, and while its popover is open. */
@@ -618,6 +655,11 @@
   .subtaskAdd,
   .gutterFlag {
     opacity: 1;
+  }
+
+  .fieldCluster {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 

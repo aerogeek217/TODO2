@@ -130,8 +130,8 @@ test('New layout (the tabs’ +) asks a name; the empty layout is stored at once
 test('New layout right after an edit asks nothing about the layout: the edit is saved, no unsaved dot', async ({ page }) => {
   await seedWorkspace(page, three)
   await wsTab(page, 'm-cal').click()
-  await wsTab(page, 'm-cal').getByRole('button', { name: 'Close Calendar' }).click()
-  await expectLayoutStep(page, 'Closed tab “Calendar”')
+  await wsTab(page, 'm-cal').getByRole('button', { name: 'Remove Calendar' }).click()
+  await expectLayoutStep(page, 'Removed “Calendar”')
   await expect(openLayoutTab(page).getByRole('img')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'New layout', exact: true }).click()
@@ -146,14 +146,14 @@ test('New layout right after an edit asks nothing about the layout: the edit is 
 test('switching tabs right after an edit asks nothing; the edit is kept, and Undo there says to open its layout', async ({ page }) => {
   await seedWorkspace(page, three)
   await wsTab(page, 'm-cal').click()
-  await wsTab(page, 'm-cal').getByRole('button', { name: 'Close Calendar' }).click()
+  await wsTab(page, 'm-cal').getByRole('button', { name: 'Remove Calendar' }).click()
   await layoutTab(page, 'Second').click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(openLayoutTab(page)).toHaveText('Second')
   // Ctrl+Z here: the step is Main's.
   await page.locator('[data-ws-area]').click({ position: { x: 5, y: 5 } })
   await page.keyboard.press('Control+z')
-  await expect(page.locator('[data-snackbar-live]')).toContainText('Open layout “Main” to undo: Closed tab “Calendar”.')
+  await expect(page.locator('[data-snackbar-live]')).toContainText('Open layout “Main” to undo: Removed “Calendar”.')
   await layoutTab(page, 'Main').click()
   await expect.poll(() => wsShape(page)).toEqual([[['m']]])
   await page.locator('[data-ws-area]').click({ position: { x: 5, y: 5 } })
@@ -216,7 +216,7 @@ async function barState(page: Page) {
     const bar = document.querySelector('header')!
     const r = bar.getBoundingClientRect()
     const parts = Array.from(bar.querySelectorAll<HTMLElement>('button, [role="tab"], input'))
-      .filter((el) => el.offsetParent !== null)
+      .filter((el) => el.offsetParent !== null && !el.closest('[data-top-bar-pill]'))
       .map((el) => el.getBoundingClientRect())
     // The parts in the bar's flow — as the fold measures them (`measureTopBar`): an absolute or
     // fixed child (the ambience layers, spanning the whole bar) is no part and overlaps nothing.
@@ -229,14 +229,14 @@ async function barState(page: Page) {
       height: r.height,
       overflows: bar.scrollWidth > bar.clientWidth || parts.some((p) => p.right > r.right + 0.5 || p.bottom > r.bottom + 0.5 || p.top < r.top - 0.5),
       overlap,
-      // The set filters' chips shown in the bar (not the fold laid out hidden for the bar's measure).
-      filtersFolded: Array.from(document.querySelectorAll('[aria-label^="People filter:"]')).every((el) => el.closest('[data-fold-hidden]')),
+      // The filter field's width (it narrows before the tabs fold).
+      search: Math.round(bar.querySelector('[data-fold-search]')!.getBoundingClientRect().width),
       tabsFolded: document.querySelector('[data-testid="layout-picker"]') != null,
     }
   })
 }
 
-test('the fold, measured: the chips fold first (once the tray is shrunk), then the layout tabs; nothing leaves or overlaps the 40px bar', async ({ page }) => {
+test('the fold, measured: the filter field narrows first, then the layout tabs fold; nothing leaves or overlaps the 40px bar', async ({ page }) => {
   test.setTimeout(90_000)
   await seedWorkspace(page, {
     people: ['Alice'],
@@ -250,21 +250,22 @@ test('the fold, measured: the chips fold first (once the tray is shrunk), then t
     }
     mod.useFilterStore.getState().setPersonIds(new Set([1]))
   })
-  // Narrowing: [chips folded, tabs folded] at each width, in the order they first appear.
+  // Narrowing: [field narrowed, tabs folded] at each width, in the order they first appear.
   const seen: string[] = []
   for (let width = 1600; width >= 700; width -= 20) {
     await page.setViewportSize({ width, height: 800 })
     await expect.poll(async () => (await barState(page)).overflows, { message: `at ${width}px` }).toBe(false)
     const s = await barState(page)
     expect(s, `at ${width}px`).toMatchObject({ height: 40, overflows: false, overlap: false })
-    // The tabs never fold while the chip still shows.
-    if (s.tabsFolded) expect(s.filtersFolded, `at ${width}px`).toBe(true)
-    const state = JSON.stringify([s.filtersFolded, s.tabsFolded])
+    const state = JSON.stringify([s.search < 440, s.tabsFolded])
     if (seen.at(-1) !== state) seen.push(state)
   }
-  expect(seen).toEqual(['[false,false]', '[true,false]', '[true,true]'])
+  // Whole, then narrowed, and only then the tabs fold (the picker's room may give the field back its width).
+  expect(seen.slice(0, 2)).toEqual(['[false,false]', '[true,false]'])
+  expect(seen.slice(2).every((state) => JSON.parse(state)[1] === true)).toBe(true)
+  expect(seen.length).toBeGreaterThan(2)
   // And back: wide again, everything unfolds.
   await page.setViewportSize({ width: 1600, height: 800 })
   await expect.poll(async () => (await barState(page)).tabsFolded).toBe(false)
-  expect(await barState(page)).toMatchObject({ filtersFolded: false, overflows: false })
+  expect(await barState(page)).toMatchObject({ search: 440, overflows: false })
 })

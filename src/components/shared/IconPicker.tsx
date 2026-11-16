@@ -190,7 +190,7 @@ export function IconPicker({ anchorRef, value, fallback, choices = LINE_ICON_CHO
                 className={`${styles.cell} ${on ? styles.cellOn : ''}`}
                 aria-label={c.label}
                 aria-pressed={on}
-                title={c.label}
+                data-tooltip={c.label}
                 data-current={on ? '' : undefined}
                 onClick={() => pickAndClose(c.value)}
               >

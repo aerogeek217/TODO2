@@ -5,7 +5,7 @@ import { StatusIcon } from './StatusIcon'
 
 /**
  * A status's mark wherever a status is drawn (rows, pickers, chips, the
- * facts rail, a Breakdown's status rows, Settings): its emoji where it has
+ * fact band, a Breakdown's status rows, Settings): its emoji where it has
  * one (J17), else its glyph (the default one when it has none) — at the
  * size of the text around it (`1em`), in the color around it. A muted emoji
  * takes that color as the glyph does (the status's color, set by the

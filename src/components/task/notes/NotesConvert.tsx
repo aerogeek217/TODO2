@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { EditorView } from '@codemirror/view'
-import { useFilterStore } from '../../../stores/filter-store'
+import { appliedScreenFilter, useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { autoNextFollowup, useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -58,7 +58,7 @@ function draftContext(): DraftContext {
     people: usePersonStore.getState().people,
     statuses: useStatusStore.getState().statuses,
     tags: useTagStore.getState().tags,
-    defaults: getFilterDefaults(useFilterStore.getState().filters),
+    defaults: getFilterDefaults(appliedScreenFilter(useFilterStore.getState())),
     defaultStatusId: useSettingsStore.getState().defaultStatusId,
     today: new Date(),
   }

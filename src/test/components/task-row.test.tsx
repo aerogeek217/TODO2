@@ -207,6 +207,34 @@ describe('TaskRow', () => {
       expect(week.container.querySelector('[data-todo-id]')).toHaveAttribute('data-stale', 'true')
     })
 
+    it('a stale row is faded (data-faded) while Fade stale tasks is on; off, it stays stale but unfaded', () => {
+      const row = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1) })} />)
+      expect(row.container.querySelector('[data-todo-id]')).toHaveAttribute('data-faded', 'true')
+      row.unmount()
+      useSettingsStore.setState({ staleFade: false })
+      const off = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1) })} />)
+      const el = off.container.querySelector('[data-todo-id]')
+      expect(el).toHaveAttribute('data-stale', 'true')
+      expect(el).not.toHaveAttribute('data-faded')
+    })
+
+    it('a stale row’s checkbox has a cobweb; a fresh or completed one, or with Cobwebs off, none', () => {
+      const web = (c: HTMLElement) => c.querySelector('[data-row-cell="checkbox"]')?.parentElement?.querySelector('[data-cobweb]') ?? null
+      const stale = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1) })} />)
+      expect(web(stale.container)).not.toBeNull()
+      stale.unmount()
+      const fresh = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: day(19) })} />)
+      expect(web(fresh.container)).toBeNull()
+      fresh.unmount()
+      const done = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1), isCompleted: true })} />)
+      expect(web(done.container)).toBeNull()
+      done.unmount()
+      useSettingsStore.setState({ staleCobwebs: false })
+      const off = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 1) })} />)
+      expect(off.container.querySelector('[data-todo-id]')).toHaveAttribute('data-stale', 'true')
+      expect(web(off.container)).toBeNull()
+    })
+
     it('a stale row\u2019s title tooltip opens even when the title fits, with the last-edited line', () => {
       render(<TaskRow todo={makeTodo({ id: 1, title: 'Short', modifiedAt: new Date(2026, 2, 5, 14) })} />)
       fireEvent.pointerEnter(screen.getByText('Short'))
@@ -813,5 +841,59 @@ describe('TaskRow', () => {
       fireEvent.mouseLeave(getRow())
       expect(useUIStore.getState().hoveredTodoId).toBeNull()
     })
+  })
+})
+
+describe('TaskRow — the fields its list has no column for (flair P8)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(TODAY)
+    resetStores()
+  })
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  const all = { notes: true, people: true, tags: true, due: true, followup: true, status: true }
+  const inList = (used: typeof all, todo = makeTodo({ id: 1 })) => (
+    <TaskRowColumnsContext.Provider value={createValueStore(taskRowColumns(528, undefined, used))}>
+      <TaskRow todo={todo} />
+    </TaskRowColumnsContext.Provider>
+  )
+  const cluster = () => document.querySelector('[data-row-cluster]')
+
+  it('every field used: every cell in its column, no cluster', () => {
+    render(inList(all))
+    expect(cluster()).toBeNull()
+    for (const name of ['Add status or notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    }
+  })
+
+  it('unused fields leave their columns for the cluster, each its empty cell; the used ones stay in their columns', () => {
+    render(inList({ ...all, notes: false, tags: false, followup: false, status: false }))
+    const box = cluster()!
+    expect(box).not.toBeNull()
+    expect(within(box as HTMLElement).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Add status or notes', 'Add tag', 'Set follow-up', 'Set status'])
+    for (const name of ['Assign people', 'Set due date']) {
+      const cell = screen.getByRole('button', { name })
+      expect(box.contains(cell)).toBe(false)
+    }
+  })
+
+  it('the cluster sits at the title’s end, left of the remaining details', () => {
+    const used = { ...all, notes: false, status: false }
+    render(inList(used))
+    const { laidOut } = taskRowColumns(528, undefined, used)
+    expect((cluster() as HTMLElement).style.right).toBe(`${8 + laidOut + 5}px`)
+  })
+
+  it('a cluster cell opens its picker: the status menu from Set status', () => {
+    useStatusStore.setState({ statuses: [{ id: 2, name: 'Waiting', color: '#888', sortOrder: 1 }] as never })
+    render(inList({ ...all, status: false }))
+    fireEvent.click(within(cluster() as HTMLElement).getByRole('button', { name: 'Set status' }))
+    expect(screen.getByText('Waiting')).toBeInTheDocument()
   })
 })

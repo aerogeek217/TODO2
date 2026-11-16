@@ -1,26 +1,21 @@
 import { useFilterStore } from '../../../stores/filter-store'
-import { useUIStore } from '../../../stores/ui-store'
-import type { Lens } from '../../../utils/lens'
+import { countActiveFilters, type FilterCriteria } from '../../../utils/filter-criteria'
 
 /**
- * A widget's "No tasks match" note when the screen filter hides everything:
- * what hides the tasks, and the way out.
+ * How many filters the screen filter holds, as a reader counts them: each
+ * chip, and each top-level term of the typed expression (`@A and #b` two).
  */
-
-/** What hides the tasks: `the screen filter`, `the lens “This month”`, or `the screen filter and the lens “This month”`. */
-export function screenHiderText(chipsOn: boolean, lens: Lens | undefined): string {
-  if (!lens) return 'the screen filter'
-  return chipsOn ? `the screen filter and the lens “${lens.name}”` : `the lens “${lens.name}”`
+export function screenFilterCount(f: FilterCriteria): number {
+  const expr = f.expression
+  const terms = expr == null ? 0 : expr.kind === 'and' ? expr.items.length : 1
+  return countActiveFilters(f) - (expr == null ? 0 : 1) + terms
 }
 
 /**
- * The way out: while a chip is on, the chips' Clear (`Clear screen filter`
- * / `filters` — the lens stays, as the funnel's Clear all); with the lens
- * alone, `Lift the lens` (for now, as its glasses do).
+ * A widget's "No tasks match" note when the screen filter hides everything
+ * (`… hidden by the screen filter.`): the way out, the chips' Clear
+ * (`Clear screen filter` / `filters`, by `screenFilterCount`).
  */
-export function screenUnhideAction(chipCount: number): { label: string; onClick: () => void } {
-  if (chipCount > 0) {
-    return { label: chipCount === 1 ? 'Clear screen filter' : 'Clear screen filters', onClick: () => useFilterStore.getState().clearAll() }
-  }
-  return { label: 'Lift the lens', onClick: () => useUIStore.getState().setLensLifted(true) }
+export function screenUnhideAction(count: number): { label: string; onClick: () => void } {
+  return { label: count > 1 ? 'Clear screen filters' : 'Clear screen filter', onClick: () => useFilterStore.getState().clearAll() }
 }

@@ -13,8 +13,8 @@ import { useUIStore } from '../stores/ui-store'
 import { scrollBehavior } from '../utils/motion'
 import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
+import { useFilterStore } from '../stores/filter-store'
 import { copyTasks, tasksToCopy } from './task-copy'
-import { cycleLens, toggleLensLift } from './lenses'
 import { reviewTargetTabId } from './review'
 import { reviewListTab } from './review-jump'
 import {
@@ -294,14 +294,20 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
     e.preventDefault()
     reviewListTab(tabId)
   },
-  'cycle-lens': ({ e }) => {
+  'pause-filter': ({ e }) => {
     e.preventDefault()
-    cycleLens()
+    toggleFilterPause()
   },
-  'lift-lens': ({ e }) => {
-    e.preventDefault()
-    toggleLensLift()
-  },
+}
+
+/** The top bar's funnel from the keys and the palette: the screen filter paused, or resumed; with none on the snackbar says so. */
+function toggleFilterPause(): void {
+  const filter = useFilterStore.getState()
+  if (!filter.isActive) {
+    useUndoStore.getState().notify('No filter to pause.')
+    return
+  }
+  filter.setPaused(!filter.paused)
 }
 
 /** Some text on the page is selected (a non-collapsed range). */

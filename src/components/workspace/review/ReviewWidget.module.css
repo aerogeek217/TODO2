@@ -16,7 +16,7 @@
 
 /* ── Top line and prompt row ────────────────────────────────────────────── */
 
-/* Alone in its cell: `Review`, the progress, the lens switch, the cell's ⋯. The prompt row under it draws the hairline. */
+/* Alone in its cell: `Review`, the progress, the cell's ⋯. The prompt row under it draws the hairline. */
 .topLine {
   display: flex;
   align-items: center;
@@ -41,8 +41,8 @@
 }
 
 /* The prompt row (widget feedback 2A, board Review-field): one filter field, the check-in buttons
- * after it (people only, desktop), then — in a cell of several widgets — the progress and the lens
- * switch; a filter's error under the field. */
+ * after it (people only, desktop), then — in a cell of several widgets — the progress; a filter's
+ * error under the field. */
 .fieldRow {
   display: flex;
   flex-direction: column;
@@ -154,37 +154,6 @@
   pointer-events: none;
 }
 
-.pill {
-  white-space: nowrap;
-}
-
-/* A pill's ×: 14px inside the pill's line, quiet until hovered. */
-.pillRemove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  margin: 0 -1px 0 3px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: inherit;
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  line-height: 1;
-  vertical-align: -2px;
-  opacity: 0.6;
-  cursor: pointer;
-  pointer-events: auto;
-}
-
-.pillRemove:hover {
-  opacity: 1;
-  background: var(--color-tint-10);
-}
-
 .input.inputRest {
   position: absolute;
   inset: 0;
@@ -246,13 +215,10 @@
 
 /* ── Faces ──────────────────────────────────────────────────────────────── */
 
-/* Large: the dialog's layout (board BL, task layout A) — the queue beside the card, the footer under
- * both; the card never stacks. The columns give way in a small cell: the queue from 300px down to
- * 220px, the card's facts rail (`TaskDetails.module.css` reads `--task-rail-width`; `cqw` there is
- * the card's) from 268px down to 220px, the writing taking the rest (340px at the least). */
+/* Large: the queue beside the card, the footer under both (board B-Review, task layout B). The queue
+ * gives way in a small cell, from 300px down to 220px; the card (its fact band, its two columns)
+ * takes the rest, its columns stacking under 600px. */
 .large {
-  --task-rail-width: clamp(220px, 33cqw, 268px);
-
   flex: 1;
   min-height: 0;
   display: grid;

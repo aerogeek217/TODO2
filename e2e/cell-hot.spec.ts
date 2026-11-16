@@ -3,7 +3,7 @@ import { seedWorkspace, wsCell, wsRow } from './fixtures/workspace'
 
 /**
  * `data-cell-hot` (cr34 H5): a cell's hover-only controls — the grip and ⋯,
- * a strip's × and +, a quiet lens switch — show while the cell's element
+ * a strip's × and + — show while the cell's element
  * carries it, and the cell carries it exactly while its own `:hover` or
  * `:focus-within` matches (`components/workspace/cell-hot`).
  *

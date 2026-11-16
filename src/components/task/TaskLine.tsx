@@ -41,10 +41,13 @@ const LINE_BOX = 11
 function useLineState(todo: PersistedTodoItem, today: Date) {
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
+  const staleFade = useSettingsStore((s) => s.staleFade)
   const rowDates = useSettingsStore((s) => s.rowDates)
+  const stale = isStale(todo, today, staleAfterDays)
   return {
     tone: rowTone(todo, today, { urgentRange, staleAfterDays }),
-    stale: isStale(todo, today, staleAfterDays),
+    stale,
+    faded: stale && staleFade,
     markers: markerSummary(todo, today, urgentRange),
     date: lineDate(todo, today, { urgentRange, rowDates }),
   }
@@ -88,7 +91,7 @@ export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect,
   // Clicks in the menu and its pickers (portaled, but children here) aren't the line's.
   const own = (e: React.SyntheticEvent) => e.target instanceof Node && e.currentTarget.contains(e.target)
   const today = useToday()
-  const { tone, stale, markers, date } = useLineState(todo, today)
+  const { tone, stale, faded, markers, date } = useLineState(todo, today)
   const tags = useTagStore((s) => s.assignedTagsMap.get(todo.id))
   const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
@@ -107,6 +110,7 @@ export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect,
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-tone={tone}
       data-stale={stale || undefined}
+      data-faded={faded || undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       data-task-line=""
       // A tab stop, as a row's cells are: Shift+F10 / the context-menu key on it opens the task menu.

@@ -3,10 +3,8 @@ import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { columnIsLit, DEFAULT_BREAKDOWN_OLDEST_BY, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
 import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
-import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
-import { TabLensSwitch } from '../LensSwitch'
+import { useStatsBase } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { useWidgetIgnoresLens } from '../../../hooks/use-widget-lens'
 import { breakdownReviewFilter, breakdownReviews } from '../../../services/review'
 import { jumpToReview } from '../../../services/review-jump'
 import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
@@ -102,7 +100,7 @@ function ColumnCount({ n, column, label, onOpen }: {
       style={style}
       {...marks}
       aria-label={label}
-      title={label}
+      data-tooltip={label}
       onClick={(e) => {
         e.stopPropagation()
         onOpen()
@@ -187,8 +185,6 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
   const { splitBy, show } = config
   const oldestBy = config.oldestBy ?? DEFAULT_BREAKDOWN_OLDEST_BY
   const [menu, setMenu] = useState<{ entity: MenuEntity; at: { x: number; y: number } } | null>(null)
-  // The Breakdown's own lens switch goes with a jump, so the Review widget shows the tasks counted here.
-  const ignoresLens = useWidgetIgnoresLens()
   // A Breakdown that counts completed tasks: a review (open tasks only) would not show them.
   const reviews = breakdownReviews(config)
   /**
@@ -198,7 +194,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
    * tasks, opens its tasks in the task dialog instead.
    */
   const reviewRow = (row: BreakdownRow, column?: BreakdownColumn) => {
-    const filter = breakdownReviewFilter(config, row, column, ignoresLens)
+    const filter = breakdownReviewFilter(config, row, column)
     if (filter) {
       void jumpToReview(filter)
       return
@@ -348,7 +344,7 @@ function StackedBar({ title, rows, onDrill }: { title: string; rows: readonly Br
           style={{ flex: `${r.ids.length} 1 0`, background: rowColor(r, i) }}
           data-segment={r.key}
           aria-label={`${rowHeading(r)}: ${r.ids.length}. Show tasks`}
-          title={`${rowHeading(r)}: ${r.ids.length}`}
+          data-tooltip={`${rowHeading(r)}: ${r.ids.length}`}
           disabled={!onDrill}
           onClick={() => onDrill?.(breakdownRowDrill(title, r))}
         />
@@ -448,7 +444,6 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
     void useWorkspaceStore.getState().patchTabViewState(tab.id, 'breakdown', { sorts })
   }
   const glyph = SPLIT_GLYPHS[config.splitBy]
-  const lensHides = lensHidesFor(useLensHidden(), config.filter)
 
   let body: ReactNode
   if (face === 'small') {
@@ -488,7 +483,6 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
         glyph={glyph}
         count={`${total} ${word}`}
         onCount={allDrill}
-        lens={<TabLensSwitch tab={tab} hides={lensHides} />}
       >
         {all.length === 0 ? (
           <Empty title="No tasks" hint="The tasks this breakdown's filter keeps show here." />

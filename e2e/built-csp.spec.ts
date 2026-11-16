@@ -20,7 +20,7 @@ import { openSettings, pickInReview, seedTaskList, seedWorkspace, TASK_LIST_TAB,
  * scripts and both policies are set at build time.
  *
  * The offline file is also audited for egress: through its main flows —
- * tasks, Settings, a lens, the check-in preview, export and import, the
+ * tasks, Settings, the screen filter, the check-in preview, export and import, the
  * glance widgets and the Neglect map, and the sync file end to end — it requests nothing but itself and data: / blob: /
  * about: URLs, and causes no CSP violation.
  *
@@ -240,7 +240,6 @@ test('the offline file requests nothing but itself through its main flows', asyn
       { title: 'Book the room' },
       { title: 'Send the agenda' },
     ],
-    lenses: [{ id: 'lens-plan', name: 'Planning', predicate: { searchText: 'plan' } }],
     listDefinitions: [{ name: 'Tasks' }],
     layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [
       wsRow({ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] }),
@@ -261,13 +260,12 @@ test('the offline file requests nothing but itself through its main flows', asyn
   await taskRowByTitle(page, 'Send the agenda').getByRole('checkbox', { name: 'Mark complete' }).click()
   await expect(taskRowByTitle(page, 'Send the agenda')).toHaveCount(0)
 
-  // A lens pick, and back.
-  const lensName = page.locator('header').getByRole('button', { name: /^Lens:/ })
-  for (const [pick, name] of [['Planning', 'Planning'], ['No lens', 'none']] as const) {
-    await lensName.click()
-    await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: new RegExp(`^${pick}`) }).click()
-    await expect(lensName).toHaveAccessibleName(`Lens: ${name}`)
-  }
+  // The screen filter, and back.
+  const filterField = page.locator('header').getByRole('textbox', { name: 'Filter tasks' })
+  await filterField.fill('plan')
+  await expect(taskRowByTitle(page, 'Book the big room')).toHaveCount(0)
+  await filterField.fill('')
+  await expect(taskRowByTitle(page, 'Book the big room')).toHaveCount(1)
 
   // Every Settings section.
   const settings = await openSettings(page)
@@ -438,7 +436,7 @@ test('the sync file works from the offline file under its CSP: create, write, re
     await settings.getByRole('button', { name: 'Create New File' }).click()
     const pill = page.getByTestId('storage-pill')
     await expect(pill).toHaveText('Synced')
-    await expect(pill).toHaveAttribute('title', `Syncing to ${SYNC_FILE}`)
+    await expect(pill).toHaveAttribute('data-tooltip', `Syncing to ${SYNC_FILE}`)
     await expect.poll(syncedTitles).toEqual(['Before the sync file'])
 
     // Edits land in the file.

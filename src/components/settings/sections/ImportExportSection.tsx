@@ -218,7 +218,7 @@ export function ImportExportSection() {
           type="button"
           className={secondary}
           onClick={() => pickJsonFile(importRef.current, doImport)}
-          title="Replace all data with a full backup"
+          data-tooltip="Replace all data with a full backup"
         >
           Import JSON
         </button>
@@ -226,7 +226,7 @@ export function ImportExportSection() {
           type="button"
           className={secondary}
           onClick={() => pickJsonFile(appendImportRef.current, doAppendImport)}
-          title="Add the tasks from a task archive or backup to your current data"
+          data-tooltip="Add the tasks from a task archive or backup to your current data"
         >
           Import tasks (append)…
         </button>

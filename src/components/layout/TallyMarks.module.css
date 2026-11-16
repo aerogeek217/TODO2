@@ -1,0 +1,41 @@
+/*
+ * The top bar's tally of tasks finished today (flair P3, board 12b): pale
+ * scratches with a dark lower edge, as if cut into the bar. Absolute, in the
+ * free stretch right of the filter tray (`left` from TallyMarks), centred
+ * on the bar's height; over the ambience sky, under nothing else.
+ */
+.tally {
+  position: absolute;
+  top: 50%;
+  z-index: var(--z-above);
+  display: inline-flex;
+  transform: translateY(-50%);
+  line-height: 0;
+}
+
+.marks {
+  overflow: visible;
+  fill: none;
+  stroke: var(--tally-mark);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.74;
+  filter: drop-shadow(0 0.7px 0 var(--tally-edge)) drop-shadow(0 0 0.5px var(--tally-light));
+}
+
+/* The newest mark, scratched in when the count rises (its path is `pathLength="1"`). */
+.fresh {
+  stroke-dasharray: 1;
+  animation: scratch 180ms ease-out both;
+}
+
+@keyframes scratch {
+  from {
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}

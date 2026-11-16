@@ -34,13 +34,14 @@ export function widgetFaceFor(size: { width: number; height: number }): WidgetFa
 
 /**
  * A Review widget's body this tall or shorter (and not small) shows its medium face. Above it the large
- * face — the queue beside the card — shows, and both scroll: under about 530px the card has no room to
- * pin its dock (the update line and the two follow-up rows, 120px of writing, the top line, the prompt
- * row, the title and the footer), so its body scrolls as one (`Review.module.css`, `review-card`). At
- * this height the top line, the prompt row, the title and the footer leave about 110px of card.
+ * face — the queue beside the card — shows, and both scroll: under about 530px the card has no room
+ * for its columns to scroll inside (the top line, the prompt row, the title, the fact band, a line of
+ * each column with the update line, and the footer), so its band and columns scroll as one
+ * (`Review.module.css`, `review-card`). At this height the top line, the prompt row, the title and the
+ * footer leave about 110px of card.
  */
 export const REVIEW_MEDIUM_MAX_HEIGHT_PX = 320
-/** A Review widget's body this narrow or narrower (and not small) shows its medium face: the card's rail beside its writing needs it. */
+/** A Review widget's body this narrow or narrower (and not small) shows its medium face: the card's two columns need it. */
 export const REVIEW_MEDIUM_MAX_WIDTH_PX = 640
 
 /**

@@ -124,13 +124,12 @@ export function dayOverdueWash(entries: readonly CalendarEntry[], today: Date): 
 }
 
 /** How an entry looks: by date type, and whether its date is today or overdue. */
-type CalendarEntryState = 'due' | 'due-today' | 'due-overdue' | 'followup' | 'followup-overdue'
+type CalendarEntryState = 'due' | 'due-today' | 'due-overdue' | 'followup' | 'followup-today' | 'followup-overdue'
 
 export function calendarEntryState(entry: CalendarEntry, today: Date): CalendarEntryState {
-  const overdue = isEntryOverdue(entry, today)
-  if (entry.kind === 'followup') return overdue ? 'followup-overdue' : 'followup'
-  if (overdue) return 'due-overdue'
-  return entry.day.getTime() === startOfDay(today).getTime() ? 'due-today' : 'due'
+  const kind = entry.kind === 'followup' ? 'followup' : 'due'
+  if (isEntryOverdue(entry, today)) return `${kind}-overdue`
+  return entry.day.getTime() === startOfDay(today).getTime() ? `${kind}-today` : kind
 }
 
 /** A compact-month day dot. */

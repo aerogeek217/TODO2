@@ -15,7 +15,8 @@ export function taskRowByTitle(page: Page, title: string): Locator {
  *  carries `title={todo.title}` for tooltip parity, which we use as a stable
  *  selector that only fires the row's onSelect. */
 export async function selectTaskRowByTitle(page: Page, title: string): Promise<void> {
-  await taskRowByTitle(page, title).locator(`span[data-task-title="${title}"]`).click()
+  // Near the title's start: in a narrow list the row's hover cluster (flair P8) can cover the title's middle.
+  await taskRowByTitle(page, title).locator(`span[data-task-title="${title}"]`).click({ position: { x: 6, y: 8 } })
 }
 
 /** The titles of the task rows in `scope` (a widget, a quadrant, a group), top to bottom. */

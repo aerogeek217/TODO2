@@ -1,12 +1,13 @@
 import type { ComponentType } from 'react'
 import type { SettingsPartId, SettingsSectionId } from '../../../stores/ui-store'
-import { AppearanceSection } from './AppearanceSection'
+import { ThemeSection } from './ThemeSection'
+import { TaskRowsSection } from './TaskRowsSection'
 import { AmbienceSection } from './AmbienceSection'
 import { NewTasksSection } from './NewTasksSection'
-import { ListsAndRowsSection } from './ListsAndRowsSection'
+import { RulesSection } from './RulesSection'
+import { NewListsSection } from './NewListsSection'
 import { EntitiesSection } from './EntitiesSection'
 import { CompletedTasksSection } from './CompletedTasksSection'
-import { LensesSection } from './LensesSection'
 import { FileStorageSection } from './FileStorageSection'
 import { BackupsSection } from './BackupsSection'
 import { ImportExportSection } from './ImportExportSection'
@@ -52,19 +53,19 @@ function single(id: SettingsSectionId, label: string, Icon: ComponentType, Body:
   return { id, label, Icon, parts: [{ id, label, Body, mobile }] }
 }
 
-const LENSES_HELP = 'A lens is a saved filter with a name, picked in the top bar: every widget shows only what it keeps, on every layout. Edit it like a list’s filters — the same pickers, with their “is not” switch for what to leave out. Filters set in the top bar apply on top of it.'
 
 const BACKUPS_HELP = 'Taken automatically every day, before destructive operations, and before the sync file is rewritten. Restoring one backs up the data it replaces first.'
 
 const AMBIENCE_HELP = 'Quiet signs of the time of day and the season in the top bar and the space around your lists: the sky, the sun and the moon, weather. Nothing changes on your tasks. Desktop only.'
 
-// Theme and lists on every surface; Ambience on desktop only (a phone sees the first part, without its heading).
+// How things look (what they mean is Tasks): Theme and Task rows on every surface, Ambience on desktop only.
 const APPEARANCE: SettingsSectionDef = {
   id: 'appearance',
   label: 'Appearance',
   Icon: AppearanceIcon,
   parts: [
-    { id: 'theme-and-lists', label: 'Theme and lists', Body: AppearanceSection, mobile: true },
+    { id: 'theme', label: 'Theme', Body: ThemeSection, mobile: true },
+    { id: 'task-rows', label: 'Task rows', Body: TaskRowsSection, mobile: true },
     { id: 'ambience', label: 'Ambience', Body: AmbienceSection, mobile: false, help: AMBIENCE_HELP },
   ],
 }
@@ -94,8 +95,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     Icon: TasksIcon,
     parts: [
       { id: 'new-tasks', label: 'New tasks', Body: NewTasksSection, mobile: false },
-      { id: 'lists-and-rows', label: 'Lists & rows', Body: ListsAndRowsSection, mobile: false },
-      { id: 'lenses', label: 'Lenses', Body: LensesSection, mobile: false, help: LENSES_HELP },
+      { id: 'rules', label: 'Rules', Body: RulesSection, mobile: false },
+      { id: 'new-lists', label: 'New lists', Body: NewListsSection, mobile: false },
       { id: 'completed', label: 'Completed tasks', Body: CompletedTasksSection, mobile: false },
     ],
   },

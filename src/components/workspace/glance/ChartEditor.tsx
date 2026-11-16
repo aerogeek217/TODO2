@@ -151,7 +151,7 @@ function CountColumnsField({ config, patch }: { config: BreakdownConfig; patch: 
                 aria-label={`Column ${i + 1} name`}
                 onChange={(e) => set(i, { ...column, name: e.target.value.slice(0, CHART_NAME_MAX) })}
               />
-              <button type="button" className={styles.close} aria-label={`Remove ${label}`} title="Remove" onClick={() => write(columns.filter((_, j) => j !== i))}>
+              <button type="button" className={styles.close} aria-label={`Remove ${label}`} data-tooltip="Remove" onClick={() => write(columns.filter((_, j) => j !== i))}>
                 <CloseIcon size={12} />
               </button>
             </div>

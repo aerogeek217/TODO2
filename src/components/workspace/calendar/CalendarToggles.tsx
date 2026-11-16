@@ -20,7 +20,7 @@ export function TypeToggle({ type, types, iconOnly, onToggle }: {
       data-type={type}
       aria-pressed={on}
       aria-label={iconOnly ? label : undefined}
-      title={iconOnly ? `${tip} (${label})` : tip}
+      data-tooltip={iconOnly ? `${tip} (${label})` : tip}
       onClick={() => onToggle(type)}
     >
       {type === 'due' ? <WidgetKindIcon kind="calendar" size={12} /> : <FlagIcon size={12} />}
@@ -38,7 +38,7 @@ export function TitlesToggle({ on, iconOnly, onToggle }: { on: boolean; iconOnly
       className={`${styles.typeToggle} ${styles.titlesToggle} ${iconOnly ? styles.typeToggleIcon : ''}`}
       aria-pressed={on}
       aria-label={iconOnly ? 'Titles' : undefined}
-      title={iconOnly ? `${tip} (Titles)` : tip}
+      data-tooltip={iconOnly ? `${tip} (Titles)` : tip}
       onClick={onToggle}
     >
       <TitlesIcon size={12} />

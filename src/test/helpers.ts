@@ -1,3 +1,4 @@
+import { buildQueries, queryAllByAttribute, type Matcher } from '@testing-library/react'
 import type { PersistedTodoItem, Person, Status, Tag, TodoItem } from '../models'
 import type { FilterCriteria } from '../utils/filter-criteria'
 import { applyFilter, matchesFilter, type FilterSettings } from '../utils/filter-match'
@@ -153,3 +154,16 @@ export function resetEntityStores(opts: {
   if (statuses) useStatusStore.setState({ statuses: [] })
   if (tags) useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
 }
+
+/**
+ * Queries by the app's tooltip text (`data-tooltip`, flair P9 — the native
+ * `title` is gone): `getByTooltip(container, text)` and its kin, as
+ * testing-library's `ByTitle` queries were used (`document.body` for `screen`).
+ */
+const queryAllByTooltip = (container: HTMLElement, text: Matcher) => queryAllByAttribute('data-tooltip', container, text)
+const [queryByTooltip, getAllByTooltip, getByTooltip, findAllByTooltip, findByTooltip] = buildQueries(
+  queryAllByTooltip,
+  (_c, text) => `Found several elements with the tooltip ${String(text)}`,
+  (_c, text) => `Found no element with the tooltip ${String(text)}`,
+)
+export { queryAllByTooltip, queryByTooltip, getAllByTooltip, getByTooltip, findAllByTooltip, findByTooltip }

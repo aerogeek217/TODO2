@@ -13,7 +13,7 @@ import { makeTodo, lookupsFor } from '../helpers'
  * The Last followed up and Completed date types (cr24 P4, D22): matching by
  * local day, Last followed up as an optional date, Completed as a range only
  * that lets the completed tasks it keeps through the completion gate —
- * outside or groups only, from a list's filter, the top bar's chips or its lens.
+ * outside or groups only, from a list's filter or the top bar's chips.
  */
 
 const today = new Date(2026, 10, 4, 15, 0) // Wed 4 Nov 2026
@@ -123,10 +123,9 @@ describe('Completed', () => {
     expect(completedAdmitters(f)).toEqual([range(thisWeek)])
     const e = crit({ expression: { kind: 'and', items: [{ kind: 'person', id: 9 }, { kind: 'date', field: 'completed', match: todayOnly }] } })
     expect(completedAdmitters(e)).toEqual([range(todayOnly)])
-    // An or, a lens and Show completed aren't among them.
+    // An or and Show completed aren't among them.
     const either = crit({ showCompleted: true, expression: { kind: 'or', items: [{ kind: 'date', field: 'completed', match: thisWeek }, { kind: 'date', field: 'lastFollowup', match: { match: 'unset' } }] } })
-    const lensed: FilterCriteria = { ...either, lens: crit({ dates: { completed: thisWeek } }) }
-    expect(completedAdmitters(lensed)).toEqual([])
+    expect(completedAdmitters(either)).toEqual([])
   })
 
   describe('the gate wherever the screen filter applies', () => {
@@ -147,14 +146,12 @@ describe('Completed', () => {
       expect(screenStage.showCompleted && listStage.showCompleted).toBe(true)
     })
 
-    it('from the top bar’s lens (whose Show completed is ignored)', () => {
-      const lensed = crit({ lens: crit({ dates: { completed: thisWeek } }) })
-      expect(admitsCompleted(lensed)).toBe(true)
-      expect(ids(lensed)).toEqual([4, 6])
-      expect(composedIds(lensed, crit({ dates: { lastFollowup: { match: 'set' } } }))).toEqual([6])
-      // A lens's expression opens it with a top-level Completed range, not one inside an or.
-      expect(admitsCompleted(crit({ lens: crit({ expression: { kind: 'date', field: 'completed', match: thisWeek } }) }))).toBe(true)
-      expect(admitsCompleted(crit({ lens: crit({ expression: { kind: 'or', items: [{ kind: 'status', id: 1 }, { kind: 'date', field: 'completed', match: thisWeek }] } }) }))).toBe(false)
+    it('from a filter’s expression: a top-level Completed range opens it, one inside an or doesn’t', () => {
+      const e = crit({ expression: { kind: 'date', field: 'completed', match: thisWeek } })
+      expect(admitsCompleted(e)).toBe(true)
+      expect(ids(e)).toEqual([4, 6])
+      expect(composedIds(e, crit({ dates: { lastFollowup: { match: 'set' } } }))).toEqual([6])
+      expect(admitsCompleted(crit({ expression: { kind: 'or', items: [{ kind: 'status', id: 1 }, { kind: 'date', field: 'completed', match: thisWeek }] } }))).toBe(false)
     })
 
     it('without a Completed range anywhere, completed tasks stay hidden', () => {

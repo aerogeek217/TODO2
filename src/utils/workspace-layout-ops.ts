@@ -307,6 +307,76 @@ export function insertTrack<L extends LayoutBody>(layout: L, edge: Side, genId: 
 }
 
 /**
+ * A new row or column beside cell `cellId`'s own (Layout ▸ Insert row ▸
+ * Above / Below this row, Insert column ▸ Left / Right of this column):
+ * a track at the cell's edge line on `side`, across the whole layout. It
+ * takes half the size of the cell's own track next to that line (or, when
+ * that one isn't drawn by its weight, of the nearest weighted track; with
+ * none, the default weight). The cells crossing the line grow into the new
+ * track; every gap they leave along it gets a new empty cell. At the
+ * layout's outer edge it is `insertTrack`. Returns the first new cell's id
+ * (`null` with none, or for an unknown cell: then the same layout).
+ */
+export function insertTrackBeside<L extends LayoutBody>(layout: L, cellId: string, side: Side, genId: IdGen): { layout: L; cellId: string | null } {
+  const cell = cellById(layout, cellId)
+  if (!cell) return { layout, cellId: null }
+  const axis = sideAxis(side)
+  const tracks = layout.grid[axis]
+  const [start, end] = spanOf(cell.area, axis)
+  const before = side === 'left' || side === 'top'
+  const line = before ? start : end
+  if (line === 0 || line === tracks.length) return insertTrack(layout, side, genId)
+
+  // The heir: the cell's own track beside the line, else the nearest weighted one.
+  const own = before ? line : line - 1
+  const weighted = (i: number) => trackSizing(layout, axis, i).kind === 'weighted'
+  const heirIdx = weighted(own)
+    ? own
+    : tracks.map((_, i) => i).filter(weighted).sort((a, b) => Math.abs(a - own) - Math.abs(b - own))[0]
+  const heir = heirIdx != null ? tracks[heirIdx] : undefined
+  let resized = tracks
+  let weight = DEFAULT_WEIGHT
+  if (heir && heirIdx != null) {
+    weight = (heir.weight ?? DEFAULT_WEIGHT) / 2
+    resized = replaceAt(tracks, heirIdx, { ...heir, weight })
+  }
+  const newTrack: GridTrack = { id: genId(), weight }
+
+  // Cells after the line move down / right; cells crossing it grow into the new track.
+  const cross = crossAxis(axis)
+  const crossing: Array<[number, number]> = []
+  const moved = layout.cells.map((c) => {
+    const [s, e] = spanOf(c.area, axis)
+    if (s >= line) return { ...c, area: withSpan(c.area, axis, s + 1, e + 1) }
+    if (e > line) {
+      crossing.push(spanOf(c.area, cross))
+      return { ...c, area: withSpan(c.area, axis, s, e + 1) }
+    }
+    return c
+  })
+  // The new track's gaps between crossing cells: a new empty cell each.
+  crossing.sort((a, b) => a[0] - b[0])
+  const crossCount = layout.grid[cross].length
+  const added: LayoutCell[] = []
+  let at = 0
+  const fill = (to: number) => {
+    if (to <= at) return
+    const area = axis === 'rows'
+      ? { col: at, row: line, colSpan: to - at, rowSpan: 1 }
+      : { col: line, row: at, colSpan: 1, rowSpan: to - at }
+    added.push({ id: genId(), area, tabs: [] })
+  }
+  for (const [s, e] of crossing) {
+    fill(s)
+    at = Math.max(at, e)
+  }
+  fill(crossCount)
+  const next = withCells(withTracks(layout, axis, insertAt(resized, line, newTrack)), [...moved, ...added])
+  const first = added[0]
+  return { layout: normalizeGrid(first ? expandedFor(next, first) : next), cellId: first?.id ?? null }
+}
+
+/**
  * Merges cell `bId` into cell `aId` when the two make a rectangle: `a`
  * grows over `b`, `b`'s tabs join `a`'s strip after its own (`a`'s active
  * tab stays; an empty `a` shows `b`'s), and `b` goes. The same layout when

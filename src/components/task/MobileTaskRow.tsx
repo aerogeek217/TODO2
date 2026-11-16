@@ -25,6 +25,7 @@ import { TagPicker } from '../shared/TagChipSelector'
 import { SubtaskCountStatic } from './subtasks/SubtaskCountButton'
 import { keepRowTextUnselected } from './row-events'
 import { TaskMenu } from './TaskMenu'
+import { Cobweb } from './Cobweb'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import styles from './MobileTaskRow.module.css'
 
@@ -89,6 +90,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
   const markers = markerSummary(todo, today, urgentRange)
   const cue = rowCue(todo, priorityCues, today, urgentRange)
   const stale = isStale(todo, today, staleAfterDays)
+  const staleCobwebs = useSettingsStore((s) => s.staleCobwebs)
+  const staleFade = useSettingsStore((s) => s.staleFade)
   const hasNotes = statusNotesPreview(newestUpdate, todo.notes) !== null
   // What the details line says, in words, for a screen reader (the line itself is drawn for the eye).
   const description = rowSummaryText(todo, today, {
@@ -106,6 +109,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''}`}
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-stale={stale || undefined}
+      data-faded={(stale && staleFade) || undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       onMouseDown={(e) => { if (own(e)) keepRowTextUnselected(e) }}
       onContextMenu={(e) => {
@@ -130,6 +134,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
           aria-label="Toggle complete"
         />
         <PriorityRing summary={markers} completed={todo.isCompleted} size={CHECKBOX_BOX} label={markers.label} />
+        {stale && staleCobwebs && !todo.isCompleted && <Cobweb />}
       </span>
 
       <div className={styles.body}>

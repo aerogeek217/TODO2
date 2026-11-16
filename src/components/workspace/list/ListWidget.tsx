@@ -1,14 +1,14 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersistedTodoItem } from '../../../models'
-import type { LensTab, ListZoom } from '../../../models/workspace-layout'
+import type { ListTab, ListZoom } from '../../../models/workspace-layout'
 import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
+import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useKeptTodos, useLeavingRows } from '../../../hooks/use-leaving-rows'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { useListScreenFilter } from '../../../hooks/use-list-screen-filter'
-import type { LensMark } from '../../../hooks/use-widget-lens'
-import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
+import { useActiveScreenFilter } from '../../../stores/screen-filter'
+import { screenFilterCount, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useEffectiveListDefinition } from '../../../hooks/use-list-draft'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
@@ -51,7 +51,7 @@ import { groupPerson, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { ListFilterRow } from './ListFilterRow'
 import { ListNameLine, ListTopLineLead } from './ListTopLine'
-import { useScreenChips } from './use-screen-chips'
+import { useFilterStore } from '../../../stores/filter-store'
 import { useShownListReport } from './use-shown-list'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
@@ -74,21 +74,14 @@ import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { transitionName, withViewTransition } from '../../shared/view-transition'
 import { registerModuleReset } from '../../../utils/module-reset'
 
-/** The top bar's lens on one list (its switch, and its tab's mark while the filter line is hidden); `ignored` is `ListDefinition.ignoreLens`. */
-export type ListLensMark = LensMark
-
-/** What a list widget reports to its cell (tab count, its menu's lens switch, Copy tasks). */
+/** What a list widget reports to its cell (tab count, Copy tasks). */
 export interface ListWidgetResult {
   /**
-   * The tab's count — `shown of total`, only while the screen filter or the
-   * lens narrows the list (UX cleanup 2A) — only while the list's filter
-   * line is hidden; the line shows it otherwise.
+   * The tab's count — `shown of total`, only while the screen filter
+   * narrows the list (UX cleanup 2A) — only while the list's filter line is
+   * hidden; the line shows it otherwise.
    */
   countLabel?: string
-  /** The top bar's lens on this list, while one applies there: the tab menu's switch. */
-  lens?: ListLensMark & { listId: number }
-  /** The lens mark on the tab: while the filter line is hidden and the list ignores the lens. */
-  tabLens?: ListLensMark
   /** The sections shown, for Copy tasks. */
   sections: readonly Section[]
   /** The list shows group headers (Collapse all / Expand all groups apply). */
@@ -96,7 +89,7 @@ export interface ListWidgetResult {
 }
 
 interface ListWidgetProps {
-  tab: LensTab
+  tab: ListTab
   onResult?: (result: ListWidgetResult) => void
 }
 
@@ -149,7 +142,7 @@ interface PendingSwitch {
 }
 
 function ListWidgetBody({ tab, definition, onResult, faceRef }: {
-  tab: LensTab
+  tab: ListTab
   definition: PersistedListDefinition
   onResult?: (r: ListWidgetResult) => void
   /** Measures the widget's face (`useWidgetFace`). */
@@ -176,11 +169,10 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const setPicks = useListWidgetStore((s) => s.setPicks)
   const collapsed = useListWidgetStore((s) => s.collapsed[tab.id])
   const toggleGroup = useListWidgetStore((s) => s.toggleGroup)
-  const screenFor = useListScreenFilter(definition.id)
-  // The lens as it applies to this list (none while the list ignores it).
-  const lens = screenFor.ignoresLens ? undefined : screenFor.lens
+  const screenFilter = useActiveScreenFilter()
   const filterLineShown = definition.showFilterLine !== false
-  const screenChips = useScreenChips()
+  // The Clear note's count: the chips and the typed expression's terms.
+  const screenCount = useFilterStore((s) => (s.isActive ? screenFilterCount(s.filters) : 0))
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const ranks = useListRanks(definition.id)
@@ -225,12 +217,11 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   // A row completed here lingers, then folds, before it drops out (D19; desktop rows).
   const shownIdsRef = useRef<ReadonlySet<number>>(new Set())
   const leaving = useLeavingRows((id) => shownIdsRef.current.has(id))
-  const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, kept, lensHides } = useBuiltList(
+  const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, kept } = useBuiltList(
     definition,
     picks,
-    screenFor.filters,
+    screenFilter,
     isMobile ? undefined : leaving,
-    screenFor.probe,
   )
   useEffect(() => { shownIdsRef.current = new Set(list?.todos.map((t) => t.id)) })
   // A kept row is built as it was (open); it shows as it is now (completed).
@@ -238,9 +229,12 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
 
   const sections = list?.sections ?? EMPTY_SECTIONS
   const shown = useMemo(() => uniqueCount(sections), [sections])
+  // The row fields the list's tasks use (flair P8; collapsed groups too, so expanding one moves nothing): a field none has gets no column.
+  const fieldTodos = useMemo(() => sections.flatMap((s) => s.todos.map((built) => keptTodos?.get(built.id) ?? built)), [sections, keptTodos])
+  const rowFields = useRowFieldsUsed(fieldTodos)
   const total = list?.todos.length ?? 0
   // One number per list (UX cleanup 2A): the tab's badge says what is due; a
-  // count shows only while the screen filter or the lens narrows the list.
+  // count shows only while the screen filter narrows the list.
   const countLabel = !runtimeFilterPending && shown < baseCount ? `${shown} of ${baseCount}` : undefined
 
   const predicate = definition.membership.predicate
@@ -265,36 +259,15 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const manual = definition.sort === 'manual'
   const collapsedKeys = useMemo(() => new Set(collapsed ?? []), [collapsed])
 
-  // The lens on this list, whenever one applies at the top bar (its prompt
-  // answered): in a desktop cell its switch shows at rest only while it has an
-  // effect — it hides something here, or the list ignores it — and is otherwise
-  // kept in place, hidden until the cell's hover or focus (`LensSwitch`'s
-  // `quiet`), so `lensHides` crossing 0 neither moves the line nor takes the
-  // switch from under the focus (U7).
-  const lensName = screenFor.lens?.name
-  const lensMark = useMemo<ListLensMark | undefined>(
-    () => (lensName != null && !runtimeFilterPending
-      ? { name: lensName, ignored: screenFor.ignoresLens, hides: lensHides }
-      : undefined),
-    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides],
-  )
-  const toggleLens = useCallback(() => {
-    void useListDefinitionStore.getState().setIgnoreLens(definition.id, !screenFor.ignoresLens)
-  }, [definition.id, screenFor.ignoresLens])
-
   const onResultRef = useLatestRef(onResult)
   const tabCount = filterLineShown ? undefined : countLabel
-  // On the tab while the line is hidden: the lens only while the list ignores it (the count says what it narrows).
-  const tabLens = !filterLineShown && lensMark?.ignored ? lensMark : undefined
   useEffect(() => {
     onResultRef.current?.({
       ...(tabCount != null ? { countLabel: tabCount } : {}),
-      ...(lensMark ? { lens: { ...lensMark, listId: definition.id } } : {}),
-      ...(tabLens ? { tabLens } : {}),
       sections,
       grouped,
     })
-  }, [tabCount, lensMark, tabLens, definition.id, sections, grouped, onResultRef])
+  }, [tabCount, sections, grouped, onResultRef])
   // The tasks as shown, for a review of the tab (its menu, the shortcut, the palette).
   useShownListReport(tab.id, definition, runtimeFilterPending ? null : sections)
 
@@ -469,8 +442,8 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
         <EmptyState
           illustration="list"
           title="No tasks match"
-          text={`All ${baseCount} ${baseCount === 1 ? 'task' : 'tasks'} in this list ${baseCount === 1 ? 'is' : 'are'} hidden by ${screenHiderText(screenChips.length > 0, lens)}.`}
-          action={screenUnhideAction(screenChips.length)}
+          text={`All ${baseCount} ${baseCount === 1 ? 'task' : 'tasks'} in this list ${baseCount === 1 ? 'is' : 'are'} hidden by the screen filter.`}
+          action={screenUnhideAction(screenCount)}
         />
       )
     } else if (hasNarrowingFilters(predicate)) {
@@ -543,6 +516,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
       <TaskRowGrid
         className={styles.body}
         zoom={zoom}
+        used={rowFields}
         detailsWidth={tab.viewState?.detailsWidth}
         onDetailsWidthChange={(detailsWidth) => {
           if (viewHost) viewHost.patch({ detailsWidth })
@@ -576,11 +550,9 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
           tabId={tab.id}
           definition={definition}
           count={countLabel}
-          lens={lensMark}
-          onToggleLens={toggleLens}
           topLine={{ lead: <ListTopLineLead tab={tab} /> }}
         />
-      ) : <ListNameLine tab={tab} count={countLabel} lens={lensMark} onToggleLens={toggleLens} />}
+      ) : <ListNameLine tab={tab} count={countLabel} />}
       {definition.runtimeFilter && (
         <RuntimeFilterPicker
           inputRef={runtimeInputRef}
@@ -602,7 +574,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
           <button
             type="button"
             className={styles.addTask}
-            title="Add a task to this list"
+            data-tooltip="Add a task to this list"
             onClick={() => {
               if (!mergedPredicate) return
               useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate) })

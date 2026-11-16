@@ -92,7 +92,7 @@ export function LayoutTabs({ layouts, activeLayoutId, onActivate, onOpenMenu, on
         type="button"
         className={styles.add}
         aria-label="New layout"
-        title="New layout"
+        data-tooltip="New layout"
         onClick={onNew}
         data-testid="layout-new"
       >
@@ -151,7 +151,7 @@ function LayoutTabView({ layout, active, focusable, onActivate, onOpenMenu, onFo
         active ? styles.tabActive : '',
         sortable?.dragging ? styles.tabDragging : '',
       ].join(' ')}
-      title={layout.name}
+      data-tooltip={layout.name}
       onClick={() => { if (!active) onActivate() }}
       onContextMenu={(e) => {
         e.preventDefault()

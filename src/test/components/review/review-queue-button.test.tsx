@@ -2,7 +2,7 @@
 // 820px): it says it opens a dialog (`aria-haspopup="dialog"`), and the
 // popover it opens is one — `role="dialog"`, named as the queue (cr34 U11).
 // Where the popover sits and the focus goes is the real browser's
-// (`e2e/task-layout-a.spec.ts`).
+// (`e2e/task-layout-b.spec.ts`).
 import { describe, it, expect, afterEach } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ReviewQueueButton } from '../../../components/review/ReviewQueueButton'

@@ -49,7 +49,8 @@ import { expressionDepth, expressionSize, normalizeExpression } from './tree'
  *   `in 3 days` / `3 days ago`;
  * - `done` — Show completed, only as a term of the top-level `and`.
  *
- * Two terms side by side need an `and` / `or` between them.
+ * Two terms side by side need an `and` / `or` between them (but see
+ * `searchForms`: the top bar's field reads the search box's forms too).
  */
 
 export interface ExpressionNameResolver {
@@ -66,8 +67,17 @@ interface ExpressionParseOptions {
   allowPeople?: boolean
   /** `false`: Completed dates are refused (the check-in filter, the Review widget's field: they take open tasks only). */
   allowCompleted?: boolean
-  /** `false`: `done` is refused (a lens, the check-in: they never show completed tasks by it). */
+  /** `false`: `done` is refused (the check-in: it never shows completed tasks by it). */
   allowDone?: boolean
+  /**
+   * `true`: the search box's forms read too (the top bar's field, which took
+   * them before it took expressions — `services/search-tokens`): two terms
+   * side by side are an `and` — but side-by-side names of one kind (`@a @b`,
+   * `!x !y`) or priorities (`/urgent /focus`) are an `or`, as the box made
+   * one chip of them —; `completed` with no day after it is `done`; `/due
+   * ⟨day⟩` and `/followup ⟨day | none⟩` are `due ⟨day⟩` / `followup ⟨…⟩`.
+   */
+  searchForms?: boolean
 }
 
 /** What a span of the text is, for tinting. */
@@ -220,6 +230,12 @@ function fail(start: number, end: number, message: string, hint?: string): never
   throw new ParseFailure(hint ? { start, end, message, hint } : { start, end, message })
 }
 
+/** A name's kind (a person, tag, status or priority atom), else null: side-by-side names of one kind `or` (`searchForms`). */
+function nameKind(node: Node | undefined): IdAtomKind | 'priority' | null {
+  if (node?.kind === 'person' || node?.kind === 'tag' || node?.kind === 'status' || node?.kind === 'priority') return node.kind
+  return null
+}
+
 const lower = (t: Lex | undefined) => (t?.kind === 'word' ? t.value.toLowerCase() : null)
 
 /**
@@ -286,17 +302,38 @@ class Parser {
 
   private parseAnd(after?: Lex): Node {
     const items = [this.parseUnary(after)]
+    // The search box's forms: the last term, while side-by-side names of its kind join it with `or`.
+    let joinable: Node | null = items[0] ?? null
+    let joinedHere = false
     for (;;) {
       if (this.isWord('and')) {
         const op = this.next()
         if (op) this.span(op, 'operator')
-        items.push(this.parseUnary(op))
+        const item = this.parseUnary(op)
+        items.push(item)
+        joinable = item
+        joinedHere = false
         continue
       }
       const t = this.peek()
       if (!t || t.kind === 'rparen' || this.isWord('or')) break
       if (t.kind === 'cmp') this.strayComparison(t)
-      fail(t.start, t.end, `Add and / or before “${this.tokenText(t)}”`)
+      if (!this.opts.searchForms) fail(t.start, t.end, `Add and / or before “${this.tokenText(t)}”`)
+      const item = this.parseUnary()
+      const last = items.at(-1)
+      const kind = nameKind(item)
+      // The last term is a name of that kind, or names of it this loop joined (never a typed `(… or …)`).
+      const lastKind = last && joinable === last ? (last.kind === 'or' && joinedHere ? nameKind(last.items[0]) : nameKind(last)) : null
+      if (last && kind && kind === lastKind) {
+        const joined: Node = { kind: 'or', items: [...(last.kind === 'or' ? last.items : [last as FilterExpr]), item as FilterExpr] }
+        items[items.length - 1] = joined
+        joinable = joined
+        joinedHere = true
+      } else {
+        items.push(item)
+        joinable = item
+        joinedHere = false
+      }
     }
     return items.length === 1 ? (items[0] as Node) : { kind: 'and', items: items as FilterExpr[] }
   }
@@ -385,7 +422,11 @@ class Parser {
   }
 
   private priority(t: Lex): FilterExpr {
-    const key = PRIORITIES.get(t.value.toLowerCase())
+    const command = t.value.toLowerCase()
+    if (this.opts.searchForms && (command === 'due' || command === 'followup' || command === 'follow-up')) {
+      return this.dateTerm(t, command === 'due' ? 'deadline' : 'followup')
+    }
+    const key = PRIORITIES.get(command)
     if (!key) fail(t.start, t.end, `Unknown /${t.value}`, 'Use /urgent, /important or /focus')
     this.span(t, key)
     return { kind: 'priority', value: key }
@@ -413,8 +454,25 @@ class Parser {
       return { kind: 'date', field: 'lastFollowup', match: { match: 'unset' } }
     }
     const field = DATE_WORDS.get(w)
+    if (field === 'completed' && this.opts.searchForms) return this.completedOrDone(t)
     if (field) return this.dateTerm(t, field)
     return this.phrase(t)
+  }
+
+  /** `completed` in the search box's forms: a Completed date when a day follows that reads, else `done`. */
+  private completedOrDone(t: Lex): Node {
+    const pos = this.pos
+    const spans = this.spans.length
+    try {
+      return this.dateTerm(t, 'completed')
+    } catch (e) {
+      if (!(e instanceof ParseFailure)) throw e
+      this.pos = pos
+      this.spans.length = spans
+      if (this.opts.allowDone === false) throw e
+      this.span(t, 'done')
+      return { kind: 'done', start: t.start, end: t.end }
+    }
   }
 
   /** Bare words side by side, up to a keyword or another kind of token: one text phrase. */

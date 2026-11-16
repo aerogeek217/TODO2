@@ -189,7 +189,7 @@ test.describe('resize and collapse', () => {
   test('a new column and a resize of it are stored at once, kept over a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await openCellLayoutMenu(page, 'b1')
-    await pickCellMenu(page, 'Insert', 'Column at the right')
+    await pickCellMenu(page, 'Insert column', 'At the far right')
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     await expectLayoutStep(page)
@@ -314,8 +314,8 @@ test.describe('saved layouts', () => {
     await expectOpenLayout(page, 'Main')
 
     await wsTab(page, 'mapTab').click()
-    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
-    await expectLayoutStep(page, 'Closed tab “Neglect map”')
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Remove Neglect map' }).click()
+    await expectLayoutStep(page, 'Removed “Neglect map”')
     await expect(openLayoutTab(page).getByRole('img')).toHaveCount(0)
 
     await switchLayout(page, 'Second')
@@ -335,7 +335,7 @@ test.describe('saved layouts', () => {
     // A third layout, so the tabs fold even with the tray shrunk.
     await seedWorkspace(page, withSpareLayouts({ layouts: [twoColumns, second] }, 1))
     await wsTab(page, 'mapTab').click()
-    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Remove Neglect map' }).click()
     await expectLayoutStep(page)
     await page.getByTestId('layout-picker').click()
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).not.toContainText('Edited')
@@ -367,7 +367,7 @@ test.describe('saved layouts', () => {
   test('New layout right after an edit asks nothing; Main keeps the edit', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await wsTab(page, 'mapTab').click()
-    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Remove Neglect map' }).click()
     await page.getByRole('button', { name: 'New layout', exact: true }).click()
     await page.getByRole('dialog', { name: 'New layout' }).getByLabel('Name').fill('Planning')
     await page.getByRole('dialog', { name: 'New layout' }).getByRole('button', { name: 'Create layout' }).click()
@@ -380,7 +380,7 @@ test.describe('saved layouts', () => {
   test('Undo takes an edit back once its layout is open again', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns, second] })
     await wsTab(page, 'mapTab').click()
-    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Remove Neglect map' }).click()
     await expectLayoutStep(page)
     await switchLayout(page, 'Second')
     await expectOpenLayout(page, 'Second')
@@ -396,7 +396,7 @@ test.describe('saved layouts', () => {
   test('opening Settings after an edit shows no prompt; the edit stays', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await wsTab(page, 'mapTab').click()
-    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Remove Neglect map' }).click()
     await expectLayoutStep(page)
 
     const settings = await openSettings(page)
@@ -411,7 +411,7 @@ test.describe('saved layouts', () => {
   test('leaving the workspace right after a layout edit asks nothing; the edit is kept', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await wsTab(page, 'mapTab').click()
-    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Remove Neglect map' }).click()
     await expectLayoutStep(page)
 
     // Only the phone's Settings tab still navigates away from the workspace.
@@ -459,7 +459,7 @@ test.describe('adding and changing widgets', () => {
     await expect.poll(async () => (await wsShape(page)).flat(2).length).toBe(1)
 
     await page.locator('[data-ws-cell]').hover()
-    await page.locator('[data-ws-cell]').getByRole('button', { name: 'Cell options' }).click()
+    await page.locator('[data-ws-cell]').getByRole('button', { name: 'Cell layout' }).click()
     await page.getByRole('menuitem', { name: 'Add widget…' }).click()
     // Calendar: in Tasks, in the menu itself.
     await pickWidgetKind(page, 'Add widget', 'Calendar')

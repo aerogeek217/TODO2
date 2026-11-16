@@ -306,7 +306,9 @@ function CheckinImportPanel() {
           type="button"
           className={styles.applyBtn}
           disabled={!reply || applyBlocked !== undefined || applying}
-          title={applyBlocked}
+          data-tooltip={applyBlocked}
+          // Why it is off, for a screen reader too (the tooltip shows only on hover).
+          aria-description={applyBlocked}
           onClick={() => { void apply() }}
           data-checkin-apply=""
         >

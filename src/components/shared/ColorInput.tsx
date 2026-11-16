@@ -50,7 +50,7 @@ export function ColorInput({ value, onChange, wheel = false, label = 'Custom col
 
   return (
     <div className={styles.wrapper}>
-      <span className={`${styles.ring} ${wheel ? styles.wheel : ''}`} title={label}>
+      <span className={`${styles.ring} ${wheel ? styles.wheel : ''}`} data-tooltip={label}>
         <input
           type="color"
           className={styles.swatch}

@@ -115,6 +115,30 @@ describe('MobileTaskRow', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 0, 1) })} />)
       expect(getRow()).toHaveAttribute('data-stale', 'true')
     })
+
+    it('a stale task’s checkbox has a cobweb, unless Cobwebs are off; a fresh one none', () => {
+      useSettingsStore.setState({ staleAfterDays: 30 })
+      const stale = render(<MobileTaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 0, 1) })} />)
+      expect(stale.container.querySelector('[data-cobweb]')).not.toBeNull()
+      stale.unmount()
+      const fresh = render(<MobileTaskRow todo={makeTodo({ id: 1, modifiedAt: new Date() })} />)
+      expect(fresh.container.querySelector('[data-cobweb]')).toBeNull()
+      fresh.unmount()
+      useSettingsStore.setState({ staleCobwebs: false })
+      const off = render(<MobileTaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 0, 1) })} />)
+      expect(off.container.querySelector('[data-cobweb]')).toBeNull()
+    })
+
+    it('a stale task fades only while Fade stale tasks is on', () => {
+      useSettingsStore.setState({ staleAfterDays: 30 })
+      const on = render(<MobileTaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 0, 1) })} />)
+      expect(getRow()).toHaveAttribute('data-faded', 'true')
+      on.unmount()
+      useSettingsStore.setState({ staleFade: false })
+      render(<MobileTaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 0, 1) })} />)
+      expect(getRow()).toHaveAttribute('data-stale', 'true')
+      expect(getRow()).not.toHaveAttribute('data-faded')
+    })
   })
 
   // ── Tapping ───────────────────────────────────────────────────────

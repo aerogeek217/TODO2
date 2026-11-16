@@ -48,7 +48,7 @@ test.skip(!PERF, 'set PERF=1 to measure the built offline file')
 
 const ROOT = resolve(import.meta.dirname, '..')
 const FILE = process.env.PERF_FILE ?? join(ROOT, 'dist', 'todo2.html')
-const SEED = join(ROOT, 'dev-data', 'seed-v80.json')
+const SEED = join(ROOT, 'dev-data', 'seed-v82.json')
 const OUT = process.env.PERF_OUT ?? join(ROOT, 'test-results', 'perf-offline.json')
 const RUNS = Math.max(1, Number(process.env.PERF_RUNS ?? 5))
 const ONLY = (process.env.PERF_ONLY ?? '').split(',').map((s) => s.trim()).filter(Boolean)
@@ -825,7 +825,7 @@ test('the built offline file at about 145 tasks and seven cells', async ({ playw
       const host = 'p7-trend'
       const openAdd = async () => {
         await page.locator(cellSel(host)).hover()
-        await page.locator(cellSel(host)).getByRole('button', { name: 'Cell options' }).click()
+        await page.locator(cellSel(host)).getByRole('button', { name: 'Cell layout' }).click()
         await page.getByRole('menuitem', { name: 'Add widget…' }).click()
         await expect(page.getByRole('menu', { name: 'Add widget' })).toBeVisible()
       }

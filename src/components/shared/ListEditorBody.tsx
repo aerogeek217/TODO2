@@ -1,6 +1,6 @@
 import { useSettingsStore } from '../../stores/settings-store'
 import { formatTabBadgeRange, parseTabBadgeRange, TAB_BADGE_CHOICES, tabBadgeRangeLabel } from '../../utils/tab-badges'
-import { useId, useMemo, useRef, useState, type RefObject } from 'react'
+import { useId, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type {
   PersistedListDefinition,
   RuntimeFilterField,
@@ -24,6 +24,7 @@ import {
 import { changedListFields, type ListDefField } from '../../utils/list-def-equal'
 import type { CopySourceGroup } from '../../utils/list-copy'
 import type { CopySource } from '../../hooks/use-copy-sources'
+import { useIsMobile } from '../../hooks/use-is-mobile'
 import { CopyFromMenu } from './CopyFromMenu'
 import { PredicateChips } from './filters/PredicateChips'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
@@ -137,10 +138,8 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
   }
 
   const promptValue = draft.runtimeFilter?.field ?? 'none'
-  const groupChoices: Choice<TodoGroupBy>[] = choicesWith<TodoGroupBy>(LIST_GROUP_CHOICES, draft.grouping)
-    .map((g) => ({ value: g, label: GROUP_LABEL[g], description: GROUP_NOTE[g] }))
-  const sortChoices: Choice<TodoSortBy>[] = choicesWith<TodoSortBy>(LIST_SORT_CHOICES, draft.sort)
-    .map((s) => ({ value: s, label: SORT_LABEL[s], description: SORT_NOTE[s] }))
+  const groupChoices = groupChoicesFor(draft.grouping)
+  const sortChoices = sortChoicesFor(draft.sort)
   const promptChoices: Choice<RuntimeFilterField | 'none'>[] = choicesWith<RuntimeFilterField | 'none'>(LIST_PROMPT_CHOICES, promptValue)
     .map((p) => ({ value: p, label: PROMPT_EDITOR_LABEL[p] }))
 
@@ -191,7 +190,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
   const filterLineShown = draft.showFilterLine !== false
   const filterLineSwitch = variant === 'sheet'
     ? (
-      <label className={styles.switchRow} title={FILTER_LINE_HINT}>
+      <label className={styles.switchRow} data-tooltip={FILTER_LINE_HINT}>
         <span className={`${styles.switchLabel} ${changed.has('filterLine') ? styles.labelChanged : ''}`} data-changed={changed.has('filterLine') || undefined}>
           {changed.has('filterLine') && <span className={styles.changedDot} aria-hidden="true" />}
           Show filter line
@@ -208,7 +207,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
     : (
       <div className={styles.row}>
         {label('filterLine')}
-        <label className={styles.check} title={FILTER_LINE_HINT}>
+        <label className={styles.check} data-tooltip={FILTER_LINE_HINT}>
           <input
             type="checkbox"
             aria-label="Show filter line"
@@ -410,7 +409,15 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
       {nameRow}
       {filtersRow}
       <div className={styles.rule} role="separator" />
-      {(['group', 'sort', 'prompt', 'tabBadges'] as const).map((field) => (
+      <GroupSortRows
+        idBase={idBase}
+        value={draft}
+        label={label}
+        onGroup={pick.group}
+        onSort={pick.sort}
+        onDirection={(direction) => onChange(withSortDirection(draft, direction))}
+      />
+      {(['prompt', 'tabBadges'] as const).map((field) => (
         <div key={field} className={styles.row}>
           {label(field)}
           <ChoiceSelect
@@ -421,11 +428,101 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
             placeholder={choiceSpec[field].value === choiceSpec[field].unset ? `${ROW_LABEL[field]}…` : undefined}
             onPick={pick[field]}
           />
-          {field === 'sort' && directionToggle}
         </div>
       ))}
       {ownRangeRows}
       {filterLineSwitch}
+    </div>
+  )
+}
+
+/** Group by's choices, the current one kept when it is no longer offered. */
+function groupChoicesFor(current: TodoGroupBy): Choice<TodoGroupBy>[] {
+  return choicesWith<TodoGroupBy>(LIST_GROUP_CHOICES, current)
+    .map((g) => ({ value: g, label: GROUP_LABEL[g], description: GROUP_NOTE[g] }))
+}
+
+/** Sort by's choices, the current one kept when it is no longer offered. */
+function sortChoicesFor(current: TodoSortBy): Choice<TodoSortBy>[] {
+  return choicesWith<TodoSortBy>(LIST_SORT_CHOICES, current)
+    .map((s) => ({ value: s, label: SORT_LABEL[s], description: SORT_NOTE[s] }))
+}
+
+/** A grouping, sort and direction: what Group by and Sort by edit. */
+type GroupSortValue = Pick<PersistedListDefinition, 'grouping' | 'sort' | 'sortDirection'>
+
+interface GroupSortRowsProps {
+  /** The rows' ids (`<idBase>-group-label`, `<idBase>-sort-label`). */
+  idBase: string
+  value: GroupSortValue
+  /** Each row's label element, with the id above; a plain label by default. */
+  label?: (field: 'group' | 'sort') => ReactNode
+  onGroup: (grouping: TodoGroupBy) => void
+  /** A sort picked (the caller keeps or drops the direction: `withListSort`). */
+  onSort: (sort: TodoSortBy) => void
+  onDirection: (direction: TodoSortDirection) => void
+}
+
+/**
+ * Edit list's Group by and Sort by rows (compact): each a select-button
+ * opening its radio menu, Sort by with its ↑ / ↓ toggle while the sort has
+ * a direction.
+ */
+function GroupSortRows({ idBase, value, label, onGroup, onSort, onDirection }: GroupSortRowsProps) {
+  const rowLabel = label ?? ((field: 'group' | 'sort') => (
+    <span className={styles.label} id={`${idBase}-${field}-label`}>{ROW_LABEL[field]}</span>
+  ))
+  return (
+    <>
+      <div className={styles.row}>
+        {rowLabel('group')}
+        <ChoiceSelect
+          labelId={`${idBase}-group-label`}
+          label={ROW_LABEL.group}
+          value={value.grouping}
+          choices={groupChoicesFor(value.grouping)}
+          placeholder={value.grouping === 'none' ? `${ROW_LABEL.group}…` : undefined}
+          onPick={(v) => onGroup(v as TodoGroupBy)}
+        />
+      </div>
+      <div className={styles.row}>
+        {rowLabel('sort')}
+        <ChoiceSelect
+          labelId={`${idBase}-sort-label`}
+          label={ROW_LABEL.sort}
+          value={value.sort}
+          choices={sortChoicesFor(value.sort)}
+          onPick={(v) => onSort(v as TodoSortBy)}
+        />
+        {sortHasDirection(value.sort) && (
+          <SortDirectionToggle
+            sort={value.sort}
+            direction={effectiveSortDirection(value.sort, value.sortDirection)}
+            onChange={onDirection}
+          />
+        )}
+      </div>
+    </>
+  )
+}
+
+/**
+ * Group by and Sort by on their own, as Edit list shows them (its compact
+ * form): the popup task lists' group · sort popover (`GroupSortControl`).
+ * `onChange` gets the whole value, the direction carried over or dropped as
+ * Edit list does (`withListSort`).
+ */
+export function GroupSortFields({ value, onChange }: { value: GroupSortValue; onChange: (next: GroupSortValue) => void }) {
+  const idBase = useId()
+  return (
+    <div className={`${styles.form} ${styles.compact}`}>
+      <GroupSortRows
+        idBase={idBase}
+        value={value}
+        onGroup={(grouping) => onChange({ ...value, grouping })}
+        onSort={(sort) => onChange(withListSort(value, sort))}
+        onDirection={(direction) => onChange(withSortDirection(value, direction))}
+      />
     </div>
   )
 }
@@ -450,7 +547,7 @@ function CopyFromButton({ groups, onPick }: {
         className={`${styles.copyFrom} ${open ? styles.selectOpen : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Take the filters, group, sort, prompt and filter line of another list"
+        data-tooltip="Take the filters, group, sort, prompt and filter line of another list"
         // The menu leaves a press on its own button to the button: it toggles.
         onClick={() => setOpen((o) => !o)}
       >
@@ -528,7 +625,9 @@ function SortDirectionToggle({ sort, direction, onChange }: {
 /**
  * A select-button: the current choice + a chevron; opens a radio menu of the
  * choices under it. With `placeholder` it shows that, muted, instead of the
- * current choice (an unset field) and is named by its label alone.
+ * current choice (an unset field) and is named by its label alone. A
+ * choice's description (Group by's and Sort by's notes) is its item's
+ * tooltip and accessible description, not a line under it — but on a phone.
  */
 function ChoiceSelect({ labelId, label, value, choices, placeholder, onPick }: {
   labelId: string
@@ -541,11 +640,15 @@ function ChoiceSelect({ labelId, label, value, choices, placeholder, onPick }: {
   const ref = useRef<HTMLButtonElement | null>(null)
   const valueId = useId()
   const [open, setOpen] = useState(false)
+  const phone = useIsMobile()
   const current = choices.find((c) => c.value === value)
   const entries: MenuEntry[] = choices.map((c) => ({
     kind: 'item',
     label: c.label,
     description: c.description,
+    // What a choice means is a tooltip, as Settings explains a setting — on a
+    // phone (no hover) a line under it, as Settings' phone rows and Edit list's sheet show it.
+    descriptionTooltip: !phone,
     radio: true,
     indicator: 'radio',
     checked: c.value === value,

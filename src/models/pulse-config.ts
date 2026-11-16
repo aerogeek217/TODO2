@@ -4,7 +4,7 @@
  * among a card's open tasks — each a name and, optionally, a filter
  * (Graphical / Expression, as a Number's). A rule left out, or one without a
  * filter, follows the built-in default: Late is `overdue` (due before
- * today), Stale follows Settings' "Fade tasks untouched for N days"
+ * today), Stale follows Settings' "Stale after N days"
  * (`utils/stale.isStale`). No schema step: a stored config without rules
  * reads as the defaults, and a rule is written on its first edit.
  */

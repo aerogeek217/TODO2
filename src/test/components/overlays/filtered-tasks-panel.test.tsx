@@ -5,7 +5,6 @@ import { TopBar } from '../../../components/layout/TopBar'
 import {
   FILTER_PANEL_GUTTER, FILTER_PANEL_MIN_WIDTH, filterPanelPlacement,
 } from '../../../components/overlays/filter-panel-placement'
-import { emptyPredicate } from '../../../models/filter-predicate'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
@@ -27,6 +26,11 @@ import {
  * between; Esc, the toggle, Close, a press on the scrim or on the bar
  * outside the tray close it.
  */
+
+/** Closes the Filter menu (its button again). */
+function filterMenuButtonIn(t: HTMLElement): HTMLElement {
+  return within(t).getByRole('button', { name: /^Filter(, \d+ active)?$/ })
+}
 
 describe('filterPanelPlacement', () => {
   const vw = 1280
@@ -108,9 +112,9 @@ describe('FilteredTasksPanel', () => {
     expect(tray().className).toMatch(/trayPanelOpen/)
     expect(document.querySelector('[data-filter-panel-scrim]')).not.toBeNull()
     expect(useUIStore.getState().taskDialog).toBeNull()
-    // The tray keeps the Filter button and the chip of the filter that is on.
+    // The tray keeps the Filter button and the pill of the filter that is on.
     expect(within(tray()).getByRole('button', { name: 'Filter, 1 active' })).toBeTruthy()
-    expect(within(tray()).getByRole('button', { name: /^People filter: / })).toBeTruthy()
+    expect(within(tray()).getByRole('button', { name: /^Remove @/ })).toBeTruthy()
     // Footer: Copy tasks and Close.
     expect(within(panel()!).getByRole('button', { name: /Copy tasks/ })).toBeTruthy()
   })
@@ -120,12 +124,13 @@ describe('FilteredTasksPanel', () => {
     const draft = SAMPLE_TASKS.find((t) => t.title === 'Draft homepage copy')!
     act(() => useTodoStore.setState({ todos: SAMPLE_TASKS.map((t) => (t.id === draft.id ? { ...t, isCompleted: true } : t)) }))
     expect(rowTitles()).toEqual(PRIYA_OPEN)
-    // From the Filter menu on; the chip it leaves in the tray, off.
+    // From the Filter menu on; the `done` pill it leaves in the field, off.
     fireEvent.click(within(tray()).getByRole('button', { name: /^Filter, / }))
     fireEvent.click(within(screen.getByRole('group', { name: 'Screen filters' })).getByRole('button', { name: 'Show completed' }))
     expect(rowTitles()).toEqual(expect.arrayContaining([...PRIYA_OPEN, 'Team lunch booking']))
     expect(panel()!.textContent).toContain('Tasks matching the screen filter, completed ones included.')
-    fireEvent.click(within(tray()).getByRole('button', { name: 'Show completed' }))
+    fireEvent.click(filterMenuButtonIn(tray()))
+    fireEvent.click(within(tray()).getByRole('button', { name: 'Remove done' }))
     expect(rowTitles()).toEqual(PRIYA_OPEN.filter((t) => t !== 'Draft homepage copy'))
   })
 
@@ -165,13 +170,15 @@ describe('FilteredTasksPanel', () => {
     expect(document.activeElement).toBe(showButton())
   })
 
-  it('Esc in the tray’s search: the text first, then the panel', async () => {
+  it('Esc in the tray’s field: the typed text first (back to the filter’s), then the panel', async () => {
     openPanel()
     const search = within(tray()).getByRole('textbox', { name: 'Filter tasks' })
-    fireEvent.change(search, { target: { value: 'q4' } })
+    fireEvent.focus(search)
+    const filterText = (search as HTMLInputElement).value
+    fireEvent.change(search, { target: { value: `${filterText} q4` } })
     fireEvent.keyDown(search, { key: 'Escape' })
     expect(panel()).not.toBeNull()
-    expect(search).toHaveValue('')
+    expect(search).toHaveValue(filterText)
     fireEvent.keyDown(search, { key: 'Escape' })
     expect(panel()).toBeNull()
   })
@@ -208,17 +215,6 @@ describe('FilteredTasksPanel', () => {
     expect(panel()).toBeNull()
     fireEvent.click(gear)
     expect(useUIStore.getState().settingsOpen).toBe(true)
-  })
-
-  it('the lens control is outside the tray: a press on it closes the panel, then its picker opens and picks', () => {
-    useSettingsStore.setState({ lenses: [{ id: 'lens-a', name: 'Mine', predicate: emptyPredicate() }] })
-    openPanel()
-    const name = within(screen.getByTestId('lens-control')).getByRole('button', { name: 'Lens: none' })
-    fireEvent.mouseDown(name)
-    expect(panel()).toBeNull()
-    fireEvent.click(name)
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Lens' })).getByRole('menuitemradio', { name: /^Mine/ }))
-    expect(useSettingsStore.getState().activeLensId).toBe('lens-a')
   })
 
   it('the palette’s command focuses it again while it is open', () => {

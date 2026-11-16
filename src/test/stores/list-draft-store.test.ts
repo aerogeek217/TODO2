@@ -77,19 +77,18 @@ describe('editList: a list edit written for good as one undo step', () => {
     expect((await db.listDefinitions.get(def.id))!.sort).toBe('name')
   })
 
-  it('keeps the stored name for a blank one, and the stored owner and lens switch', async () => {
+  it('keeps the stored name for a blank one, and the stored owner', async () => {
     const def = await addList('Team')
-    await useListDefinitionStore.getState().setIgnoreLens(def.id, true)
-    await useListDefinitionStore.getState().editList(def.id, (d) => ({ ...d, name: '  ', sort: 'name', owner: { layoutId: 9 }, ignoreLens: undefined }), 'x')
-    expect(stored(def.id)).toMatchObject({ name: 'Team', sort: 'name', owner: { layoutId: 1 }, ignoreLens: true })
+    await useListDefinitionStore.getState().editList(def.id, (d) => ({ ...d, name: '  ', sort: 'name', owner: { layoutId: 9 } }), 'x')
+    expect(stored(def.id)).toMatchObject({ name: 'Team', sort: 'name', owner: { layoutId: 1 } })
   })
 
-  it('Undo puts back only the parts the step changed: a later lens switch stays', async () => {
+  it('Undo puts back only the parts the step changed: a later write to another part stays', async () => {
     const def = await addList('Team')
     await useListDefinitionStore.getState().editList(def.id, (d) => ({ ...d, grouping: 'people' }), 'Grouped')
-    await useListDefinitionStore.getState().setIgnoreLens(def.id, true)
+    await useListDefinitionStore.getState().update({ ...stored(def.id), showFilterLine: false })
     await useUndoStore.getState().undo()
-    expect(stored(def.id)).toMatchObject({ grouping: 'none', ignoreLens: true })
+    expect(stored(def.id)).toMatchObject({ grouping: 'none', showFilterLine: false })
   })
 
   it('nothing changed, or an unknown list: no write, no step', async () => {

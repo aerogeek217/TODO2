@@ -10,7 +10,6 @@ import type { ReviewTab } from '../../../models/workspace-layout'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { clearReviewSessions, reviewWidgetSession } from '../../../stores/review-session'
-import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
@@ -67,7 +66,6 @@ const setFilter = (expression: FilterExpr | null) => act(() => {
 beforeEach(() => {
   resetEntityStores()
   clearFilterStore()
-  useSettingsStore.setState({ lenses: [], activeLensId: null })
   useTodoStore.setState({
     todos: [
       makeTodo({ id: 1, title: 'Vendor contract renewal', sortOrder: 1, statusId: 1 }),
@@ -127,7 +125,6 @@ describe('the Review widget: nothing to review', () => {
     expect(empty).toHaveTextContent('Pick who or what to review')
     expect(empty).toHaveTextContent('Click the field, or type @person, #tag, !status or any filter. It is temporary and isn’t saved.')
     expect(field()).toHaveAttribute('placeholder', 'Who or what to review…')
-    expect(screen.queryByTestId('lens-switch')).toBeNull()
     expect(screen.queryByTestId('review-widget-progress')).toBeNull()
     fireEvent.click(within(empty).getByRole('button', { name: 'Pick' }))
     expect(field()).toHaveFocus()

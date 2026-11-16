@@ -182,7 +182,7 @@ function ShortcutRow({ row, recording, onRecord }: ShortcutRowProps) {
                 type="button"
                 className={styles.action}
                 aria-label={`Reset ${row.description} to ${defaultKeys}`}
-                title={`Back to ${defaultKeys}`}
+                data-tooltip={`Back to ${defaultKeys}`}
                 onClick={() => void resetShortcut(id)}
               >
                 Reset

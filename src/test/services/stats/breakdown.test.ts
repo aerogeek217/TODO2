@@ -121,7 +121,7 @@ describe('computeBreakdown — the @ / # picks narrow people and tags rows, as a
     expect(rows([[2, 3]])).toEqual([['Bob', [1, 2]], ['Amy', [1]]])
   })
 
-  it('the filter, the chips and the lens all pick: those all pick win, else any one', () => {
+  it('the filter and the chips both pick: those both pick win, else any one', () => {
     expect(rows([[2, 3], [3]])).toEqual([['Bob', [1, 2]]])
   })
 

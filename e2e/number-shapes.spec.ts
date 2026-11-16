@@ -74,7 +74,7 @@ test('against a goal: a bar, where it stands, lit over the limit or behind its p
   await editor(page).getByRole('combobox', { name: 'Pace' }).selectOption('week')
   await expect(goal.getByTestId('number-goal-target')).toHaveText('/ 3')
   await expect(goal.getByTestId('number-goal-pace')).toBeVisible()
-  const paceTitle = await goal.getByTestId('number-goal-pace').getAttribute('title')
+  const paceTitle = await goal.getByTestId('number-goal-pace').getAttribute('data-tooltip')
   const pace = Number(/Pace: ([\d.]+)/.exec(paceTitle ?? '')?.[1])
   const behind = 2 < pace
   await expect(goal.getByTestId('number-goal-state')).toHaveText(behind ? /^Behind pace/ : /^On pace/)

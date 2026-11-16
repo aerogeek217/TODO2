@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo, useSyncExternalStore
 import { createHashRouter, RouterProvider, Routes, Route, Navigate, useLocation } from 'react-router'
 import { useTodoStore } from './stores/todo-store'
 import { usePersonStore } from './stores/person-store'
-import { useFilterStore } from './stores/filter-store'
+import { appliedScreenFilter, useFilterStore } from './stores/filter-store'
 import { useSettingsStore } from './stores/settings-store'
 import { useWorkspaceStore } from './stores/workspace-store'
 import { useFileStorageStore } from './services/file-storage-store'
@@ -14,6 +14,7 @@ import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
 import { QuickAddBar, type QuickAddDraft, type QuickAddPreset } from './components/task/QuickAddBar'
 import { RecentTaskPill } from './components/overlays/RecentTaskPill'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
+import { TooltipHost } from './components/shared/TooltipHost'
 import { ConfirmPromptHost } from './components/overlays/ConfirmPromptHost'
 import { FollowupPopoverHost } from './components/overlays/FollowupPopoverHost'
 import { RowPopoverHost } from './components/overlays/RowPopoverHost'
@@ -59,8 +60,7 @@ import './styles/tokens.css'
 /**
  * The command palette, mounted while it shows (so the shell never re-renders
  * for a task write or a selection click). The command list is built from the
- * tasks, people, their assignments, statuses, the layouts, the lenses and
- * the theme, and is rebuilt when they change: a palette opened while the
+ * tasks, people, their assignments, statuses, the layouts and the theme, and is rebuilt when they change: a palette opened while the
  * app is still loading gains Review With › as the tasks and their people
  * arrive. Commands that act read
  * the stores when they run (`getState`).
@@ -72,13 +72,11 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const statuses = useStatusStore((s) => s.statuses)
-  // What the second steps list (Go to Layout ›, Lens ›, Theme ›) and mark.
+  // What the second steps list (Go to Layout ›, Theme ›) and mark.
   const layouts = useWorkspaceStore((s) => s.layouts)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
   const layoutOpen = useWorkspaceStore((s) => s.working != null)
   const layoutStored = useWorkspaceStore((s) => s.saved?.id != null)
-  const lenses = useSettingsStore((s) => s.lenses)
-  const activeLensId = useSettingsStore((s) => s.activeLensId)
   const themeMode = useSettingsStore((s) => s.themeMode)
 
   const commandCtx = useMemo(
@@ -106,11 +104,10 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
       addWidget: addWidgetFromPalette,
       openWidgetLarger: openWidgetLargerFromPalette,
       getLayouts: () => (layoutOpen ? { layouts, activeLayoutId, stored: layoutStored } : null),
-      getLenses: () => ({ lenses, activeLensId }),
       getThemeMode: () => themeMode,
     }),
     [selectionCount, shortcuts, todos, people, assignedPeopleMap, statuses,
-      layouts, activeLayoutId, layoutOpen, layoutStored, lenses, activeLensId, themeMode],
+      layouts, activeLayoutId, layoutOpen, layoutStored, themeMode],
   )
 
   // The palette's key hints follow the user's shortcut changes.
@@ -180,7 +177,7 @@ function AppQuickAddBar() {
     // A preset marker whose chip was removed is not seeded.
     const draft = useUIStore.getState().quickAddDraft
     const fd = withoutMarkers(
-      draft?.defaults ?? getFilterDefaults(useFilterStore.getState().filters),
+      draft?.defaults ?? getFilterDefaults(appliedScreenFilter(useFilterStore.getState())),
       submitted.removedPresetMarkers ?? [],
     )
     const id = await createQuickAddTask(submitted, fd)
@@ -296,8 +293,8 @@ function AppShell() {
       ui.setFilterSheetOpen(false)
       if (ui.taskDialog?.source.kind === 'screen') ui.hideTaskDialog()
     } else {
-      // Not shown on a phone: closed at once, a lens draft kept for the next open.
-      ui.hideSettings()
+      // Not shown on a phone (the Settings page is).
+      ui.closeSettings()
       ui.closeFilterPanel()
     }
   }, [isMobile])
@@ -416,7 +413,7 @@ function AppShell() {
       </div>
       {showFab && (
         <div className={styles.fabGroup}>
-          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} aria-label="Quick add" title={`Quick add (${quickAddKeys})`}>
+          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} aria-label="Quick add" data-tooltip={`Quick add (${quickAddKeys})`}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <line x1="9" y1="3" x2="9" y2="15" />
               <line x1="3" y1="9" x2="15" y2="9" />
@@ -434,6 +431,8 @@ function AppShell() {
       <AppQuickAddBar />
       <RecentTaskPill />
       <UndoSnackbar />
+      {/* Every `data-tooltip` hover text, as the app's tooltip (flair P9). */}
+      <TooltipHost />
       {isMobile && <FilterSheet />}
       {isMobile && <BottomTabBar />}
     </div>

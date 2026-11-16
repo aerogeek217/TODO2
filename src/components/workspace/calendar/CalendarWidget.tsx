@@ -3,11 +3,9 @@ import { clampCalendarOffset, kindTabTitle, toggleCalendarDateType, type Calenda
 import { useTodoStore } from '../../../stores/todo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useFilterStore } from '../../../stores/filter-store'
-import { useWidgetAppliedLens, useWidgetScreenFilter } from '../../../hooks/use-widget-lens'
-import { lensHidesWhere, useLensHidden } from '../../../hooks/use-glance-data'
-import { TabLensSwitch } from '../LensSwitch'
-import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
-import { admitsCompleted, countActiveFilters } from '../../../utils/filter-criteria'
+import { useScreenFilter } from '../../../stores/screen-filter'
+import { screenFilterCount, screenUnhideAction } from '../../shared/filters/screen-hides'
+import { admitsCompleted } from '../../../utils/filter-criteria'
 import { buildEntries } from '../../../services/calendar-entries'
 import { CALENDAR_BREAKPOINTS, calendarRange, calendarRangeLabel, calendarRangeName, convertCalendarOffset, weekdayLabels } from '../../../utils/calendar-grid'
 import { heatHue } from '../../../utils/calendar-heat'
@@ -54,9 +52,8 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
   const { ctx, today, weekStartsOn, isMobile } = useCalendarSetup(tab)
   const drag = ctx.drag
   const todos = useTodoStore((s) => s.todos)
-  const { filters: screen, active: screenActive } = useWidgetScreenFilter()
-  const lens = useWidgetAppliedLens()
-  const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
+  const { filters: screen, active: screenActive } = useScreenFilter()
+  const chipCount = useFilterStore((s) => screenFilterCount(s.filters))
   const [sizeRef, rootSize] = useElementSize()
   const rootRef = useCallback((el: HTMLElement | null) => {
     sizeRef(el)
@@ -66,8 +63,6 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
   const [more, setMore] = useState<MoreState | null>(null)
 
   const dateTypes = tab.config.dateTypes
-  // What the lens hides here: open tasks with a date the calendar shows.
-  const lensHides = lensHidesWhere(useLensHidden(), (t) => !t.isCompleted && ((dateTypes.due && t.dueDate != null) || (dateTypes.followup && t.nextFollowupAt != null)))
   const view: CalendarView = tab.viewState?.view ?? 'month'
   const offset = clampCalendarOffset(tab.viewState?.offset ?? 0)
   const titles = tab.viewState?.titles === true
@@ -221,7 +216,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
           type="button"
           className={styles.iconButton}
           aria-label={`Previous ${unit}`}
-          title={`Previous ${unit}`}
+          data-tooltip={`Previous ${unit}`}
           onClick={() => setOffset(offset - 1)}
         >
           <ChevronLeftIcon size={14} />
@@ -230,14 +225,14 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
           type="button"
           className={styles.iconButton}
           aria-label={`Next ${unit}`}
-          title={`Next ${unit}`}
+          data-tooltip={`Next ${unit}`}
           onClick={() => setOffset(offset + 1)}
         >
           <ChevronRightIcon size={14} />
         </button>
         <span className={styles.rangeLabel} aria-live="polite" data-testid="calendar-range-label">{label}</span>
         {narrow && !isMobile ? (
-          <button type="button" className={styles.iconButton} aria-label="Today" title="Today" onClick={() => setOffset(0)}>
+          <button type="button" className={styles.iconButton} aria-label="Today" data-tooltip="Today" onClick={() => setOffset(0)}>
             <TodayIcon size={14} />
           </button>
         ) : (
@@ -273,7 +268,6 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
             </button>
           ))}
         </div>
-        <TabLensSwitch tab={tab} hides={lensHides} />
       </WidgetTopLine>
 
       <div className={styles.body}>
@@ -289,7 +283,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
               <div className={styles.emptyNote} data-testid="calendar-empty" data-empty="filtered">
                 <div className={styles.emptyLine1}>No tasks match</div>
                 <div className={styles.emptyLine2}>
-                  {hiddenCount} {hiddenCount === 1 ? 'task' : 'tasks'} {view === 'week' && rangeName === 'this week' ? rangeName : `in ${rangeName}`} {hiddenCount === 1 ? 'is' : 'are'} hidden by {screenHiderText(chipCount > 0, lens)}.
+                  {hiddenCount} {hiddenCount === 1 ? 'task' : 'tasks'} {view === 'week' && rangeName === 'this week' ? rangeName : `in ${rangeName}`} {hiddenCount === 1 ? 'is' : 'are'} hidden by the screen filter.
                 </div>
                 <button type="button" className={styles.emptyAction} onClick={unhide.onClick}>
                   {unhide.label}

@@ -285,7 +285,7 @@ export function FollowupPopover({
             type="button"
             className={styles.inputClear}
             aria-label="Clear next follow-up"
-            title="Clear the date"
+            data-tooltip="Clear the date"
             onClick={clearNext}
           >
             &times;

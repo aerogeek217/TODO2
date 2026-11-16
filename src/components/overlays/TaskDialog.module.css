@@ -63,6 +63,18 @@
   cursor: pointer;
 }
 
+/* The group · sort control: at the header's end, before the ×. */
+.groupSort {
+  margin-left: auto;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+
+.groupSort + .closeBtn {
+  margin-left: 0;
+}
+
 .closeBtn:hover {
   background: var(--color-surface-hover);
   color: var(--color-text-primary);

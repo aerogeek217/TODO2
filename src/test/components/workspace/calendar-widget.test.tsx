@@ -88,11 +88,30 @@ describe('CalendarWidget', () => {
     expect(within(dayCell(day(15))!).getByText('Done')).toBeInTheDocument()
   })
 
-  it('marks overdue entries and washes their past day; today gets the pill', () => {
+  it('marks overdue entries (their tick) without washing their past day; today gets the pill', () => {
     setup()
     expect(within(dayCell(day(12))!).getByText('Late due').closest('[data-cal-entry]')?.getAttribute('data-state')).toBe('due-overdue')
-    expect(dayCell(day(12))!.className).toMatch(/washDue/)
+    expect(dayCell(day(12))!.className).not.toMatch(/washDue/)
     expect(dayCell(day(14))!.getAttribute('data-today')).toBe('true')
+  })
+
+  it('the week has no past-day wash either', () => {
+    setup(calendarTab({ viewState: { view: 'week' } }))
+    expect(dayCell(day(12))!.className).not.toMatch(/washDue|washFollowup/)
+  })
+
+  it('entries carry their date-type glyph only while both Due and Follow-up show', () => {
+    setup()
+    const glyphs = () => document.querySelectorAll('[data-cal-entry] [data-cal-entry-glyph]').length
+    const entries = () => document.querySelectorAll('[data-cal-entry]').length
+    expect(glyphs()).toBe(entries())
+    expect(glyphs()).toBeGreaterThan(0)
+    act(() => useWorkspaceStore.getState().patchTabConfig('cal', 'calendar', { dateTypes: { due: true, followup: false } }))
+    expect(entries()).toBeGreaterThan(0)
+    expect(glyphs()).toBe(0)
+    act(() => useWorkspaceStore.getState().patchTabConfig('cal', 'calendar', { dateTypes: { due: false, followup: true } }))
+    expect(document.querySelector('[data-cal-entry="followup"]')).not.toBeNull()
+    expect(glyphs()).toBe(0)
   })
 
   it('occurrences render but do not drag; the task’s own entry drags', () => {
@@ -102,7 +121,7 @@ describe('CalendarWidget', () => {
     expect(own.getAttribute('aria-roledescription')).toBe('draggable')
     expect(occurrence.getAttribute('data-virtual')).toBe('true')
     expect(occurrence.getAttribute('aria-roledescription')).toBeNull()
-    expect(occurrence.getAttribute('title')).toContain('Repeats every Monday')
+    expect(occurrence.getAttribute('data-tooltip')).toContain('Repeats every Monday')
   })
 
   it('clicking an entry (or an occurrence) opens the task', () => {

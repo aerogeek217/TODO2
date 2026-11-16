@@ -5,15 +5,6 @@
   min-width: 0;
 }
 
-/* The lens switch (G3) ends the line, just before the controls slot: it takes the free space, the slot none. */
-.topLine > :global([data-lens-switch]) {
-  margin-left: auto;
-}
-
-.topLine > :global([data-lens-switch]) ~ .slot {
-  margin-left: 0;
-}
-
 /* The widget's name at the line's start (alone in its cell). */
 /* J2: a picked icon before the name, muted as a line icon at rest. */
 .leadIcon {

@@ -1,10 +1,10 @@
-import { memo, useCallback, useContext, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type Ref } from 'react'
+import { memo, useCallback, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type Ref } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import { NEGLECT_UNTOUCHED_CHOICES, type NeglectTab } from '../../../models/workspace-layout'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../../constants'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
-import { lensHidesWhere, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
+import { useStatsBase } from '../../../hooks/use-glance-data'
 import { useToday } from '../../../hooks/use-today'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
@@ -13,13 +13,12 @@ import type { StatsContext } from '../../../services/stats/stats-context'
 import { neglectZoneDrill, slippingDrill } from '../glance/glance-drills'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useWidgetAppliedLens, useWidgetScreenFilter } from '../../../hooks/use-widget-lens'
+import { useScreenFilter } from '../../../stores/screen-filter'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { ROW_KEY_ATTR, ROW_TODO_ATTR, SELECTION_SCOPE_ATTR, TODO_ID_ATTR } from '../../../utils/dom-contract'
-import { countActiveFilters } from '../../../utils/filter-criteria'
 import { isFollowupOverdue } from '../../../utils/followup'
 import {
   buildNeglectMap,
@@ -37,13 +36,11 @@ import { placeNeglectLabels, type LabelDot, type LabelRect, type PlacedLabel } f
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import { sharedMemo } from '../../../utils/shared-memo'
 import type { UrgentDueWithinDays } from '../../../utils/urgency'
-import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
+import { screenFilterCount, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useTooltip } from '../../shared/use-tooltip'
 import { appTextWidth } from '../../task/text-width'
 import { ListBulkBar } from '../list/ListBulkBar'
 import { WidgetNameLine } from '../WidgetTopLine'
-import { TabLensSwitch } from '../LensSwitch'
-import { CellControlsContext } from '../cell-controls'
 import styles from './NeglectMapWidget.module.css'
 
 /**
@@ -324,7 +321,7 @@ function xMarks(untouchedDays: number): Array<{ x: number; label: string; key: s
 
 /**
  * The Neglect map widget (D25 board H): every open task the screen filter
- * (chips and lens) keeps, as a dot placed by how long it has gone untouched
+ * keeps, as a dot placed by how long it has gone untouched
  * (across, capped at 60 days) and how soon it is due (down: 14 days late at
  * the top, today, the due-soon line, 30 days ahead at the bottom; tasks
  * without a due date in the strip under it). The top-right corner —
@@ -412,12 +409,8 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   const isMobile = useIsMobile()
   const today = useToday()
   const todos = useTodoStore((s) => s.todos)
-  const { active: screenActive } = useWidgetScreenFilter()
-  const lens = useWidgetAppliedLens()
-  // Its lens switch (G3): what the lens hides here — open tasks, as the map places every one.
-  const lensHides = lensHidesWhere(useLensHidden(), (t) => !t.isCompleted)
-  const alone = useContext(CellControlsContext) != null
-  const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
+  const { active: screenActive } = useScreenFilter()
+  const chipCount = useFilterStore((s) => screenFilterCount(s.filters))
   const dueSoonDays = useSettingsStore((s) => s.urgentDueWithinDays)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
@@ -537,7 +530,6 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
     {/* Alone in its cell, its top line (D26 AA1): its name and how many are slipping. */}
     <WidgetNameLine name="Neglect map">
       <span className={styles.lineSlipping} data-testid="neglect-line-slipping">Slipping <b>{map.slipping.length}</b></span>
-      {alone && <TabLensSwitch tab={tab} hides={lensHides} />}
     </WidgetNameLine>
     <div
       ref={sizeRef}
@@ -548,8 +540,6 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
       data-slipping-list={showList ? 'true' : undefined}
       {...{ [SELECTION_SCOPE_ATTR]: isMobile ? undefined : tab.id }}
     >
-      {/* In a cell of several widgets (no name line): its lens switch over its corner (G3). */}
-      {!alone && <TabLensSwitch tab={tab} hides={lensHides} floating />}
       <div className={styles.chart} data-neglect-chart="" {...handlers}>
         <div className={styles.yAxis} aria-hidden="true">
           {yMarks(dueSoonDays).map((m) => (
@@ -602,7 +592,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
           <div className={styles.notePanel} role="status">
             <span className={styles.noteTitle}>No tasks match</span>
             <span className={styles.noteHint}>
-              All {openTotal} open {openTotal === 1 ? 'task is' : 'tasks are'} hidden by {screenHiderText(chipCount > 0, lens)}.
+              All {openTotal} open {openTotal === 1 ? 'task is' : 'tasks are'} hidden by the screen filter.
             </span>
             <button type="button" className={styles.noteAction} onClick={unhide.onClick}>{unhide.label}</button>
           </div>
