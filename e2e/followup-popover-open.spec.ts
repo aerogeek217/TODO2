@@ -126,6 +126,9 @@ test.describe('the follow-up popover stays open', () => {
     await page.keyboard.press('Escape')
     const next = rowOf(page, 'Task 58')
     await next.scrollIntoViewIfNeeded()
+    // No task the list shows has a next follow-up now: the column is gone and
+    // the row's follow-up icon shows on its hover (flair P8).
+    await next.hover()
     await next.getByRole('button', { name: 'Set follow-up' }).click()
     await followedUp(page).click()
     await expect(rowOf(page, 'Task 58')).toHaveCount(0)
