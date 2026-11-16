@@ -416,7 +416,7 @@ export function insertTrackAt<L extends LayoutBody>(layout: L, axis: GridAxis, i
  * tab), or — `into: null` — the cell itself moves into the place beside it,
  * which held only empty cells.
  */
-export interface TrackRemovalMove {
+interface TrackRemovalMove {
   cellId: string
   tabIds: string[]
   into: string | null

@@ -19,10 +19,10 @@ import { trackSizing } from './workspace-table'
  */
 
 /** Below this drawn size (px) a track no cell lies only in is a sliver. */
-export const SLIVER_PX = 24
+const SLIVER_PX = 24
 
 /** A column's letter: A … Z, then AA, AB … */
-export function columnLetter(n: number): string {
+function columnLetter(n: number): string {
   let s = ''
   let k = n
   do {

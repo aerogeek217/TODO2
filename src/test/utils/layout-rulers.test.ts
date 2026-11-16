@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createTab, type LayoutBody } from '../../models/workspace-layout'
-import { columnLetter, columnShare, isSliverTrack, removeTrackMessage, rowCanCollapse, rowMark, trackNames } from '../../utils/layout-rulers'
+import { columnShare, isSliverTrack, removeTrackMessage, rowCanCollapse, rowMark, trackNames } from '../../utils/layout-rulers'
 import { trackRemoval } from '../../utils/workspace-layout-ops'
 import { cell as spec, grid, type CellSpec } from '../helpers/layout-builders'
 
@@ -16,7 +16,9 @@ const title = (tabId: string) => tabId.charAt(0).toUpperCase() + tabId.slice(1)
 
 describe('names and marks', () => {
   it('letters columns A … Z, then AA', () => {
-    expect([0, 1, 25, 26, 27].map(columnLetter)).toEqual(['A', 'B', 'Z', 'AA', 'AB'])
+    const row = Array.from({ length: 28 }, (_, i) => cell(`k${i}`))
+    const names = trackNames(grid([row]), 'columns', [])
+    expect([0, 1, 25, 26, 27].map((i) => names[i])).toEqual(['A', 'B', 'Z', 'AA', 'AB'])
   })
 
   it('a sliver is drawn under 24px with no cell lying only in it; the majors are named in order past it', () => {
