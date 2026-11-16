@@ -357,7 +357,7 @@ test('Delete on a tab asks before it closes the tab; Keep editing closes nothing
   await expect(editList(page)).toHaveCount(0)
   await expect.poll(() => mainTabKinds(page)).toEqual(['notes'])
   // It closed as ever: one undo step, named as ever, and no notice that an edit was dropped.
-  await expect(page.getByText('Closed tab “Team”')).toBeVisible()
+  await expect(page.getByText('Removed “Team”')).toBeVisible()
 })
 
 test('Change widget and Close cell from a menu run by the keys ask first; Keep editing changes nothing', async ({ page }) => {

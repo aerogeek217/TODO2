@@ -53,7 +53,7 @@ test('+ adds a Number, evenly divided again; a Number’s × closes it', async (
   expect(Math.max(...w) - Math.min(...w)).toBeLessThanOrEqual(1)
   const first = slots(page).first()
   await first.hover()
-  await first.getByRole('button', { name: /^Close/ }).click()
+  await first.getByRole('button', { name: /^Remove/ }).click()
   await expect(slots(page)).toHaveCount(2)
   expect(await order(page)).not.toContain('num1')
 })

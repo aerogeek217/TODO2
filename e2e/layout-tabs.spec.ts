@@ -130,8 +130,8 @@ test('New layout (the tabs’ +) asks a name; the empty layout is stored at once
 test('New layout right after an edit asks nothing about the layout: the edit is saved, no unsaved dot', async ({ page }) => {
   await seedWorkspace(page, three)
   await wsTab(page, 'm-cal').click()
-  await wsTab(page, 'm-cal').getByRole('button', { name: 'Close Calendar' }).click()
-  await expectLayoutStep(page, 'Closed tab “Calendar”')
+  await wsTab(page, 'm-cal').getByRole('button', { name: 'Remove Calendar' }).click()
+  await expectLayoutStep(page, 'Removed “Calendar”')
   await expect(openLayoutTab(page).getByRole('img')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'New layout', exact: true }).click()
@@ -146,14 +146,14 @@ test('New layout right after an edit asks nothing about the layout: the edit is 
 test('switching tabs right after an edit asks nothing; the edit is kept, and Undo there says to open its layout', async ({ page }) => {
   await seedWorkspace(page, three)
   await wsTab(page, 'm-cal').click()
-  await wsTab(page, 'm-cal').getByRole('button', { name: 'Close Calendar' }).click()
+  await wsTab(page, 'm-cal').getByRole('button', { name: 'Remove Calendar' }).click()
   await layoutTab(page, 'Second').click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(openLayoutTab(page)).toHaveText('Second')
   // Ctrl+Z here: the step is Main's.
   await page.locator('[data-ws-area]').click({ position: { x: 5, y: 5 } })
   await page.keyboard.press('Control+z')
-  await expect(page.locator('[data-snackbar-live]')).toContainText('Open layout “Main” to undo: Closed tab “Calendar”.')
+  await expect(page.locator('[data-snackbar-live]')).toContainText('Open layout “Main” to undo: Removed “Calendar”.')
   await layoutTab(page, 'Main').click()
   await expect.poll(() => wsShape(page)).toEqual([[['m']]])
   await page.locator('[data-ws-area]').click({ position: { x: 5, y: 5 } })

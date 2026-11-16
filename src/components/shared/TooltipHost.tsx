@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { TooltipBubble } from './TooltipBubble'
-import { popoverOpenElsewhere, TOOLTIP_DELAY_MS } from './use-tooltip'
+import { popoverOpenElsewhere, releaseTooltipSlot, takeTooltipSlot, TOOLTIP_DELAY_MS } from './use-tooltip'
 import { TOOLTIP_ATTR, TOOLTIP_SHORTCUT_ATTR } from '../../utils/dom-contract'
 
 const SELECTOR = `[${TOOLTIP_ATTR}]`
@@ -26,6 +26,11 @@ interface Open {
   shortcut?: string
 }
 
+/** What an element's tooltip says now. */
+function openFor(el: HTMLElement, text: string): Open {
+  return { el, text, shortcut: el.getAttribute(TOOLTIP_SHORTCUT_ATTR) ?? undefined }
+}
+
 /**
  * The one tooltip for every element that names its hover text in
  * `data-tooltip` (flair P9, one tooltip everywhere): mounted once in the
@@ -33,17 +38,23 @@ interface Open {
  * `useTooltip` does — after {@link TOOLTIP_DELAY_MS} of hover or keyboard
  * focus; closed on leave, blur, a press, Escape, a scroll or a resize; never
  * for touch, nor for a trigger outside an open popover; the trigger
- * `aria-describedby` the tooltip while it shows. An element that leaves the
- * page while its tooltip shows takes the tooltip with it.
+ * `aria-describedby` the tooltip while it shows. It shares `useTooltip`'s
+ * one slot (`takeTooltipSlot`): opening either closes the other. While it
+ * shows, the trigger's text changing changes it, and the trigger leaving
+ * the page (or its text going) closes it; moving among the trigger's own
+ * children leaves it as it is.
  */
 export function TooltipHost() {
   const id = useId()
   const [open, setOpen] = useState<Open | null>(null)
   const anchorRef = useRef<HTMLElement | null>(null)
+  /** Closes it from outside the listeners' effect (the bubble's Escape / scroll, the trigger leaving). */
+  const hideRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     let timer: number | null = null
     let pending: HTMLElement | null = null
+    let shown: HTMLElement | null = null
     const cancel = () => {
       if (timer != null) window.clearTimeout(timer)
       timer = null
@@ -51,10 +62,14 @@ export function TooltipHost() {
     }
     const hide = () => {
       cancel()
+      shown = null
+      releaseTooltipSlot(hide)
       setOpen(null)
     }
+    hideRef.current = hide
     const showSoon = (el: HTMLElement) => {
-      if (pending === el) return
+      // Already showing or about to (the pointer moving among its children).
+      if (pending === el || shown === el) return
       cancel()
       pending = el
       timer = window.setTimeout(() => {
@@ -62,8 +77,10 @@ export function TooltipHost() {
         pending = null
         const text = el.getAttribute(TOOLTIP_ATTR)
         if (!text || !el.isConnected || popoverOpenElsewhere(el)) return
+        takeTooltipSlot(hide)
+        shown = el
         anchorRef.current = el
-        setOpen({ el, text, shortcut: el.getAttribute(TOOLTIP_SHORTCUT_ATTR) ?? undefined })
+        setOpen(openFor(el, text))
       }, TOOLTIP_DELAY_MS)
     }
     const over = (e: PointerEvent) => {
@@ -96,6 +113,8 @@ export function TooltipHost() {
     document.addEventListener('focusout', focusOut, true)
     return () => {
       cancel()
+      releaseTooltipSlot(hide)
+      hideRef.current = () => {}
       document.removeEventListener('pointerover', over, true)
       document.removeEventListener('pointerout', out, true)
       document.removeEventListener('pointerdown', hide, true)
@@ -104,23 +123,29 @@ export function TooltipHost() {
     }
   }, [])
 
-  // While it shows: the trigger describes itself by it; the trigger leaving
-  // the page, or its text going, closes it.
+  // While it shows: the trigger describes itself by it; its text changing
+  // changes it; the trigger leaving the page, or its text going, closes it.
+  const el = open?.el ?? null
   useEffect(() => {
-    if (!open) return
-    const { el } = open
+    if (!el) return
     describedBy(el, id, true)
     const watch = new MutationObserver(() => {
-      if (!el.isConnected || !el.getAttribute(TOOLTIP_ATTR)) setOpen(null)
+      const text = el.getAttribute(TOOLTIP_ATTR)
+      if (!el.isConnected || !text) {
+        hideRef.current()
+        return
+      }
+      const now = openFor(el, text)
+      setOpen((o) => (o && o.el === el && (o.text !== now.text || o.shortcut !== now.shortcut) ? now : o))
     })
     watch.observe(document.body, { childList: true, subtree: true })
-    watch.observe(el, { attributes: true, attributeFilter: [TOOLTIP_ATTR] })
+    watch.observe(el, { attributes: true, attributeFilter: [TOOLTIP_ATTR, TOOLTIP_SHORTCUT_ATTR] })
     return () => {
       watch.disconnect()
       describedBy(el, id, false)
     }
-  }, [open, id])
+  }, [el, id])
 
   if (!open) return null
-  return <TooltipBubble id={id} anchorRef={anchorRef} text={open.text} shortcut={open.shortcut} onClose={() => setOpen(null)} />
+  return <TooltipBubble id={id} anchorRef={anchorRef} text={open.text} shortcut={open.shortcut} onClose={() => hideRef.current()} />
 }

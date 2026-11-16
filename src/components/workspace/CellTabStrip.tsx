@@ -163,8 +163,8 @@ function Tab({ tab, badge, active, collapsed, count, touch, onActivate, onClose,
         <button
           type="button"
           className={styles.close}
-          aria-label={`Close ${title}`}
-          data-tooltip="Close tab"
+          aria-label={`Remove ${title}`}
+          data-tooltip="Remove widget"
           tabIndex={-1}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onClose?.() }}

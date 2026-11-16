@@ -63,9 +63,9 @@ function mergeTarget(cellId: string, side: Side): string | undefined {
 /** What the cell's own part of the menu acts on. */
 export interface CellMenuActions {
   cell: Pick<LayoutCell, 'id' | 'tabs'>
-  /** The tab Close tab closes (the menu's widget). */
+  /** The tab Remove widget removes (the menu's widget). */
   tab: LayoutTab | undefined
-  /** Its title, for Close tab's words. */
+  /** Its title. */
   tabTitle: string
   /** Every row track it covers is collapsed: Expand row instead of Collapse row. */
   collapsed: boolean

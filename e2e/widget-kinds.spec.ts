@@ -99,7 +99,7 @@ test.describe('desktop', () => {
     for (const kind of WIDGET_KINDS.slice(0, -1)) {
       const t = tab(page, kind).first()
       await t.click()
-      await t.getByRole('button', { name: `Close ${title(kind)}` }).click()
+      await t.getByRole('button', { name: `Remove ${title(kind)}` }).click()
     }
     await expect(cell.getByRole('tablist')).toHaveCount(0)
     await cell.hover()

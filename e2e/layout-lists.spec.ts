@@ -133,8 +133,8 @@ test('closing a list’s last tab deletes the list at once; Undo brings back the
   await seedWorkspace(page, SEED)
   const mine = (await lists(page)).find((d) => d.name === 'Mine')!
   await wsTab(page, 'mineTab').hover()
-  await wsTab(page, 'mineTab').getByRole('button', { name: 'Close Mine' }).click()
-  await expectLayoutStep(page, 'Closed tab “Mine”')
+  await wsTab(page, 'mineTab').getByRole('button', { name: 'Remove Mine' }).click()
+  await expectLayoutStep(page, 'Removed “Mine”')
   await expect.poll(async () => (await lists(page)).some((d) => d.id === mine.id)).toBe(false)
 
   await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()

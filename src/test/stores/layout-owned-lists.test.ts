@@ -101,7 +101,7 @@ describe('an edit that leaves a list shown by no tab', () => {
     expect(useListOrderStore.getState().ranks.has(w.mine1)).toBe(false)
     // Another layout's list keeps its order.
     expect(await ranksOf(w.theirs)).toEqual([[1, 5]])
-    expect(undoNames()).toEqual(['Closed tab “Mine 1”'])
+    expect(undoNames()).toEqual(['Removed “Mine 1”'])
   })
 
   it('Undo brings the list back — the layout’s, with its manual order — and its tab where it was; Redo removes both again', async () => {
@@ -142,7 +142,7 @@ describe('an edit that leaves a list shown by no tab', () => {
     await ws().load(w.b)
     await undo()
     expect(await storedListIds()).not.toContain(w.mine1)
-    expect(useUndoStore.getState().snackbar?.description).toBe('Open layout “A” to undo: Closed tab “Mine 1”.')
+    expect(useUndoStore.getState().snackbar?.description).toBe('Open layout “A” to undo: Removed “Mine 1”.')
     await ws().load(w.a)
     await undo()
     expect(await storedListIds()).toContain(w.mine1)
@@ -184,7 +184,7 @@ describe('an edit that leaves a list shown by no tab', () => {
     await ws().delete(w.a)
     await undo()
     expect(await storedListIds()).not.toContain(w.mine1)
-    expect(useUndoStore.getState().snackbar?.description).toBe('Can’t undo: Closed tab “Mine 1” — its layout is gone.')
+    expect(useUndoStore.getState().snackbar?.description).toBe('Can’t undo: Removed “Mine 1” — its layout is gone.')
   })
 
   it('a tab re-pointed away from one (patchTabConfig) deletes it too; Undo brings it back under the tab', async () => {
@@ -282,7 +282,7 @@ describe('a layout write that fails, then Undo: the list comes back (cr34 M6 / D
     ws().splitCell('k-A', 'right')
     expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs])
     expect(ws().writeFailed).toBe(false)
-    expect(undoNames()).toEqual(['Closed tab “Mine 1”', 'Split cell'])
+    expect(undoNames()).toEqual(['Removed “Mine 1”', 'Split cell'])
     // The split's undo: the list isn't its to bring back (its tab is still closed).
     await undo()
     expect(tabIds()).toEqual(['s', 'm2', 'e'])

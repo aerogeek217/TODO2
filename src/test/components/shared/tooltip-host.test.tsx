@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, act, fireEvent, screen } from '@testing-library/react'
 import { TooltipHost } from '../../../components/shared/TooltipHost'
-import { TOOLTIP_DELAY_MS } from '../../../components/shared/use-tooltip'
+import { TOOLTIP_DELAY_MS, useTooltip } from '../../../components/shared/use-tooltip'
 
 /**
  * One tooltip everywhere (flair P9): any `data-tooltip` element shows the
@@ -86,5 +86,52 @@ describe('TooltipHost', () => {
     rerender(page(false))
     await act(async () => { await Promise.resolve() })
     expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('its text changing while it shows changes it', async () => {
+    const page = (text: string) => (
+      <>
+        <TooltipHost />
+        <button type="button" data-tooltip={text}>Sync</button>
+      </>
+    )
+    const { rerender } = render(page('Syncing to todo2.json'))
+    pointer('pointerOver', screen.getByRole('button', { name: 'Sync' }))
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Syncing to todo2.json')
+    rerender(page('Local only'))
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Local only')
+  })
+
+  it('one tooltip at a time: a data-tooltip inside a useTooltip trigger closes the outer one when it opens', () => {
+    function Chip() {
+      const { triggerProps, tooltip } = useTooltip('Chip tooltip')
+      return (
+        <span data-testid="chip" {...triggerProps}>
+          Chip
+          <button type="button" aria-label="Remove filter" data-tooltip="Remove filter">×</button>
+          {tooltip}
+        </span>
+      )
+    }
+    render(<><TooltipHost /><Chip /></>)
+    fireEvent.pointerEnter(screen.getByTestId('chip'), { pointerType: 'mouse' })
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.getAllByRole('tooltip').map((t) => t.textContent)).toEqual(['Chip tooltip'])
+    pointer('pointerOver', screen.getByRole('button', { name: 'Remove filter' }))
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.getAllByRole('tooltip').map((t) => t.textContent)).toEqual(['Remove filter'])
+  })
+
+  it('moving among an open trigger’s children leaves it as it is', () => {
+    const button = setup()
+    pointer('pointerOver', button)
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    const tip = screen.getByRole('tooltip')
+    pointer('pointerOver', screen.getByTestId('inner'))
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.getByRole('tooltip')).toBe(tip)
+    expect(button.getAttribute('aria-describedby')?.split(' ')).toEqual(['own', tip.id])
   })
 })

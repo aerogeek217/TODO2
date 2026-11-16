@@ -186,6 +186,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const [slotFaces, setSlotFaces] = useState<Readonly<Record<string, WidgetFace>>>({})
   const setSlotFace = useCallback((tabId: string, face: WidgetFace) => setSlotFaces((f) => (f[tabId] === face ? f : { ...f, [tabId]: face })), [])
   const [menu, setMenu] = useState<{ tabId: string; at: MenuAt; part: CellMenuPart } | null>(null)
+  /** A strip's Number's ⋯: its menu under the button; pressed again, closed (stable, so the slots' controls stay memoized). */
+  const toggleSlotMenu = useCallback((tabId: string, button: HTMLButtonElement | null) => {
+    setMenu((m) => (m && m.tabId === tabId && m.part === 'widget' ? null : { tabId, at: anchorBelow({ current: button }), part: 'widget' }))
+  }, [])
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number }; where: AddWhere } | null>(null)
   /** Name and icon… (items 11, 14): the tab, and what its popover opens under (the tab, or the top line standing for it). */
   const [labelEdit, setLabelEdit] = useState<{ tabId: string; anchor: RefObject<HTMLElement | null> | { x: number; y: number } } | null>(null)
@@ -422,7 +426,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             smallFaces={fitRow || collapsed}
             dragging={drag != null}
             menuTabId={menu && menu.part !== 'layout' ? menu.tabId : null}
-            onMore={(tabId, button) => setMenu((m) => (m && m.tabId === tabId && m.part === 'widget' ? null : { tabId, at: anchorBelow({ current: button }), part: 'widget' }))}
+            onMore={toggleSlotMenu}
             onClose={closeTabAsked}
             onAdd={() => { void useWorkspaceStore.getState().addWidget('number', { kind: 'cell', cellId: cell.id }) }}
             onResult={setWidgetResult}

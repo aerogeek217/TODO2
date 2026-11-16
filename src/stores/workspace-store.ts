@@ -113,7 +113,7 @@ interface EditUndoOptions {
  *   config or kind, part of a grid line moved) commit at once: the open
  *   layout changes, its row is written (`layoutRepository.putAndPrune`) and
  *   the edit is one undo step with the snackbar, named in words
- *   (`Closed tab “This week”`). The lists the layout owns that it no longer
+ *   (`Removed “This week”`). The lists the layout owns that it no longer
  *   shows (`layoutListRefs`: list tabs and Numbers that follow a list; a
  *   Review widget's picks are temporary and name none) are deleted in the
  *   same write. Undo brings those lists back
@@ -1059,7 +1059,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     closeTab(tabId) {
-      edit((layout) => closeTab(layout, tabId), (before) => `Closed tab “${tabName(before, tabId)}”`)
+      edit((layout) => closeTab(layout, tabId), (before) => `Removed “${tabName(before, tabId)}”`)
     },
 
     closeCell(cellId) {

@@ -1,9 +1,30 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { TooltipBubble } from './TooltipBubble'
 import { POPOVER_LEVEL_ATTR } from './popover-level'
+import { registerModuleReset } from '../../utils/module-reset'
 
 /** How long the pointer (or keyboard focus) rests on a trigger before its tooltip opens. */
 export const TOOLTIP_DELAY_MS = 400
+
+/**
+ * The one tooltip showing (flair P9): `useTooltip`'s and `TooltipHost`'s
+ * share it, so a trigger inside another (a chip's ×) never shows two
+ * bubbles — the one opening closes the one showing.
+ */
+let openTooltip: (() => void) | null = null
+registerModuleReset(() => { openTooltip = null })
+
+/** A tooltip opens: the one showing, if another, closes (`close` is how this one closes). */
+export function takeTooltipSlot(close: () => void): void {
+  const showing = openTooltip
+  openTooltip = close
+  if (showing && showing !== close) showing()
+}
+
+/** A tooltip closed: the slot is free (only when it still holds this one). */
+export function releaseTooltipSlot(close: () => void): void {
+  if (openTooltip === close) openTooltip = null
+}
 
 /**
  * A popover is open (`data-popover-level`, every popover's root) over
@@ -70,8 +91,9 @@ export function useTooltip(text: string | null | undefined, opts: {
       timerRef.current = null
     }
   }, [])
-  const hide = useCallback(() => {
+  const hide = useCallback(function hideTooltip() {
     cancel()
+    releaseTooltipSlot(hideTooltip)
     setOpen(false)
   }, [cancel])
   const showSoon = useCallback((el: HTMLElement) => {
@@ -80,11 +102,15 @@ export function useTooltip(text: string | null | undefined, opts: {
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null
       if (popoverOpenElsewhere(el)) return
+      takeTooltipSlot(hide)
       setOpen(true)
     }, TOOLTIP_DELAY_MS)
-  }, [cancel])
+  }, [cancel, hide])
 
-  useEffect(() => cancel, [cancel])
+  useEffect(() => () => {
+    cancel()
+    releaseTooltipSlot(hide)
+  }, [cancel, hide])
 
   if (!text) return { triggerProps: {}, tooltip: null }
 

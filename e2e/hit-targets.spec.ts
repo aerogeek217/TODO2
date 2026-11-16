@@ -85,7 +85,7 @@ test('the active tab’s × takes a 24px press, drawn at 16px; the label and the
   await seedWorkspace(page, SEED)
   const tab = wsTab(page, 'tA')
   await wsCell(page, 'a').hover()
-  const close = tab.getByRole('button', { name: /^Close / })
+  const close = tab.getByRole('button', { name: /^Remove / })
   await expect(close).toBeVisible()
   expect((await boxOf(close)).width).toBe(16)
   const extent = await hitExtent(close)
@@ -111,7 +111,7 @@ test('the active tab’s × takes a 24px press, drawn at 16px; the label and the
 test('an inactive tab’s hidden × takes no press', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const next = wsTab(page, 'tB')
-  const close = next.getByRole('button', { name: /^Close / })
+  const close = next.getByRole('button', { name: /^Remove / })
   await page.mouse.move(2, 880)
   // Hidden (visibility) until its tab is hovered: a press at its place is the tab's.
   await expect(close).toBeHidden()
@@ -163,7 +163,7 @@ test('Quick Add’s chip × takes a 24px press; the next chip is untouched', asy
     })
   }
   await input.pressSequentially('Call #docs #customer ')
-  const removes = page.getByRole('button', { name: /^Remove / })
+  const removes = page.getByRole('button', { name: /^Remove #/ })
   await expect(removes.nth(1)).toBeVisible()
   const first = removes.first()
   expect((await boxOf(first)).width).toBe(14)

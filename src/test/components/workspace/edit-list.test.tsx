@@ -293,6 +293,8 @@ describe('Edit list', () => {
     expect(within(dialog).getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true')
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveAttribute('data-tooltip', 'Name the list to save it')
+    // The reason reaches a screen reader too (the tooltip shows only on hover).
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveAttribute('aria-description', 'Name the list to save it')
   })
 
   it('Esc closes a list with no changes at once; an Esc that closes a menu inside only closes the menu', () => {
@@ -378,7 +380,7 @@ describe('Edit list', () => {
           <Cell />
           <div role="tab" data-ws-tab="t2" onClick={() => { switched++ }}>
             Notes
-            <button type="button" aria-label="Close Notes" onClick={(e) => { e.stopPropagation(); closed++ }}>×</button>
+            <button type="button" aria-label="Remove Notes" onClick={(e) => { e.stopPropagation(); closed++ }}>×</button>
           </div>
           <EditListHost />
           <ConfirmPromptHost />
@@ -428,7 +430,7 @@ describe('Edit list', () => {
 
     it('the tab’s × is pressed again by the user: its press is not made for them', async () => {
       openBesideTab()
-      press(screen.getByRole('button', { name: 'Close Notes' }))
+      press(screen.getByRole('button', { name: 'Remove Notes' }))
       expect(useUIStore.getState().confirmPrompts).toHaveLength(1)
       await answer('Discard')
       await act(async () => {})

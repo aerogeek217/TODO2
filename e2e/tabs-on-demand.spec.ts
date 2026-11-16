@@ -53,7 +53,7 @@ test('a cell of several widgets: the active tab’s × and the add-tab + show on
     }],
   })
   const cell = wsCell(page, 'a')
-  const close = cell.getByRole('tab', { selected: true }).getByRole('button', { name: /^Close / })
+  const close = cell.getByRole('tab', { selected: true }).getByRole('button', { name: /^Remove / })
   const add = cell.getByRole('button', { name: 'Add widget as tab' })
   const tabBox = () => box(cell.getByRole('tab', { selected: true }))
   await page.mouse.move(2, 2)

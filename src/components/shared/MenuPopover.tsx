@@ -712,6 +712,8 @@ function MenuItemButton({ entry, index: i, expanded, gutter, onSelect, onHoverIt
         data-menu-label={entry.label}
         data-menu-drag={entry.dragId}
         data-tooltip={entry.title}
+        // A disabled item's reason, for a screen reader too (the tooltip shows only on hover).
+        aria-description={entry.title}
         className={[
           styles.item,
           entry.danger ? styles.danger : '',

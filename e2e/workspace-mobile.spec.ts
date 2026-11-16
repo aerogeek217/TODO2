@@ -55,7 +55,7 @@ test('mobile opens the workspace; list widgets use touch rows and tabs are not d
   // Switching only: no close ×, no add-tab +, no drag handle semantics.
   await expect(wsTab(page, 'todayTab')).not.toHaveAttribute('aria-roledescription', 'draggable')
   await expect(page.getByRole('button', { name: 'Add widget as tab' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: /^Close / })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Remove / })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Quick add' })).toBeVisible()
 })
 

@@ -302,9 +302,9 @@ describe('an open editor with changes is asked before a tab close, Close cell or
   }
 
   const PATHS: Array<[name: string, run: () => void, after: string[], undo: string]> = [
-    ['the tab’s ×', () => fireEvent.click(screen.getByRole('button', { name: /^Close .*Calendar/ })), ['n'], 'Closed tab “Calendar”'],
-    ['Delete on the tab', () => fireEvent.keyDown(document.querySelector('[data-ws-tab="c"]')!, { key: 'Delete' }), ['n'], 'Closed tab “Calendar”'],
-    ['the ⋯’s Remove widget', () => fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Remove widget' })), ['n'], 'Closed tab “Calendar”'],
+    ['the tab’s ×', () => fireEvent.click(screen.getByRole('button', { name: /^Remove .*Calendar/ })), ['n'], 'Removed “Calendar”'],
+    ['Delete on the tab', () => fireEvent.keyDown(document.querySelector('[data-ws-tab="c"]')!, { key: 'Delete' }), ['n'], 'Removed “Calendar”'],
+    ['the ⋯’s Remove widget', () => fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Remove widget' })), ['n'], 'Removed “Calendar”'],
     ['the menu’s Close cell', () => fireEvent.click(within(cellMenu('Cell layout')).getByRole('menuitem', { name: 'Close cell (2 tabs)' })), [], 'Closed cell (2 tabs)'],
   ]
 

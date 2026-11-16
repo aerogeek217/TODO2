@@ -41,8 +41,8 @@ async function addImportantFilter(page: Page) {
 
 async function closeNeglectMap(page: Page) {
   await wsTab(page, 'mapTab').click()
-  await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
-  await expectLayoutStep(page, 'Closed tab “Neglect map”')
+  await wsTab(page, 'mapTab').getByRole('button', { name: 'Remove Neglect map' }).click()
+  await expectLayoutStep(page, 'Removed “Neglect map”')
 }
 
 test('a layout change is saved at once: closing the tab asks nothing, a reload keeps it, Undo puts it back', async ({ page }) => {

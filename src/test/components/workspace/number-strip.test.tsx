@@ -57,7 +57,7 @@ describe('a Numbers strip', () => {
     expect(placed('k').tabs.map((t) => t.kind)).toEqual(['number', 'number', 'number'])
     expect(slots()).toHaveLength(3)
     const first = slots()[0]!
-    fireEvent.click(within(first).getByRole('button', { name: /^Close/ }))
+    fireEvent.click(within(first).getByRole('button', { name: /^Remove/ }))
     refresh()
     expect(placed('k').tabs.map((t) => t.id)).not.toContain('a')
     expect(slots()).toHaveLength(2)

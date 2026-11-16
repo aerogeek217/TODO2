@@ -128,7 +128,7 @@ describe('structural edits are saved at once, each an undo step', () => {
     ws().closeCell('ka')
     expect(undoNames()).toEqual([
       'Added “Notes”',
-      'Closed tab “Notes”',
+      'Removed “Notes”',
       'Split cell',
       'Closed cell',
       'Inserted row',
@@ -260,8 +260,8 @@ describe('undo of a structural edit', () => {
     ws().closeTab('b1')
     await ws().load(b!)
     await undo()
-    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Open layout “A” to undo: Closed tab “List”.', notice: true })
-    expect(undoNames()).toEqual(['Closed tab “List”'])
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Open layout “A” to undo: Removed “List”.', notice: true })
+    expect(undoNames()).toEqual(['Removed “List”'])
     expect(tabsOf(await stored(a!), 'kb')).toBeUndefined()
     await ws().load(a!)
     await undo()
@@ -275,7 +275,7 @@ describe('undo of a structural edit', () => {
     await ws().load(b!)
     await ws().delete(a!)
     await undo()
-    expect(useUndoStore.getState().snackbar?.description).toBe('Can’t undo: Closed tab “List” — its layout is gone.')
+    expect(useUndoStore.getState().snackbar?.description).toBe('Can’t undo: Removed “List” — its layout is gone.')
     expect(undoNames()).toEqual([])
   })
 
@@ -516,7 +516,7 @@ describe('layouts', () => {
     const row = await stored(id!)
     expect(row.name).toBe('Morning')
     expect(row.cells).toHaveLength(1)
-    expect(undoNames()).toEqual(['Closed tab “List”'])
+    expect(undoNames()).toEqual(['Removed “List”'])
     expect(await ws().rename(id!, '')).toBe(false)
   })
 
@@ -543,7 +543,7 @@ describe('layouts', () => {
     expect(ws().working).toMatchObject({ name: 'Home', hue: 'green', icon: { kind: 'emoji', emoji: '🏠' } })
     expect(ws().layouts.find((l) => l.id === id)?.icon).toEqual({ kind: 'emoji', emoji: '🏠' })
     expect((await stored(id!)).icon).toEqual({ kind: 'emoji', emoji: '🏠' })
-    expect(undoNames()).toEqual(['Closed tab “List”'])
+    expect(undoNames()).toEqual(['Removed “List”'])
     expect(await ws().rename(id!, 'Home 2', 'green')).toBe(true)
     expect((await stored(id!)).icon).toEqual({ kind: 'emoji', emoji: '🏠' })
     expect(await ws().rename(id!, 'Home 2', 'green', { kind: 'none' })).toBe(true)

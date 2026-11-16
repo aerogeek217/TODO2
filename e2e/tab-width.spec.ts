@@ -62,7 +62,7 @@ test.describe('tab width', () => {
       await pointerAway(page)
       const before = await widthOf(tab)
       await tab.hover()
-      await expect(tab.getByRole('button', { name: /^Close / })).toBeVisible()
+      await expect(tab.getByRole('button', { name: /^Remove / })).toBeVisible()
       const during = await widthOf(tab)
       expect(during, `${id}: width during hover`).toBe(before)
     }

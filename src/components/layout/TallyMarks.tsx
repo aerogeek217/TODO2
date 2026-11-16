@@ -17,7 +17,8 @@ interface Gap {
 /**
  * The gap between the tray's right edge and the right zone's left edge,
  * measured after each resize of the bar, the tray, its parts, the centring
- * gap (it moves the tray) or the right zone, on the next frame.
+ * gap (it moves the tray) or the right zone, on the next frame. Set up once
+ * while enabled (not on every render of the bar).
  */
 function useTallyGap(
   enabled: boolean,
@@ -61,7 +62,8 @@ function useTallyGap(
       observer.disconnect()
       if (frame) cancelAnimationFrame(frame)
     }
-  })
+    // Once per switch on: the refs are stable, and `measure` watches parts attached later.
+  }, [enabled, barRef, spacerRef, trayRef, rightRef])
   return enabled ? gap : null
 }
 

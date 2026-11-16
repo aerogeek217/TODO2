@@ -450,6 +450,8 @@ function Footer({ model, className, buttonClass, saveClass, children }: {
         className={`${buttonClass} ${saveClass}`}
         disabled={!model.canSave}
         data-tooltip={model.saveTitle}
+        // Why Save is off, for a screen reader too (the tooltip shows only on hover).
+        aria-description={model.saveTitle}
         onClick={model.save}
       >
         Save

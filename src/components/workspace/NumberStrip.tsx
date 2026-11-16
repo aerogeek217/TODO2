@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab } from '../../models/workspace-layout'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
@@ -13,6 +13,9 @@ import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { useTabTitle } from './widget-hooks'
 import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type WorkspaceTabDragData } from './workspace-drag'
 import styles from './NumberStrip.module.css'
+
+/** A strip's slot never collapses on its own (its cell's row does): no Expand. */
+const NOOP = () => {}
 
 /** On a strip's slot while hovered or holding the focus: its own controls show by it (not the whole cell's hover). */
 const SLOT_HOT_ATTR = 'data-slot-hot'
@@ -110,7 +113,10 @@ function NumberSlot({ cell, tab, smallFaces, dragging, menuOpen, onMore, onClose
     setLines((n) => n + 1)
     return () => setLines((n) => n - 1)
   }, [])
-  const controls: CellControlsValue = {
+  // Memoized, as FilledCell's: every consumer of the context re-renders when it changes.
+  const opensLarger = face.opensLarger
+  const openLarger = face.openLarger
+  const controls = useMemo<CellControlsValue>(() => ({
     cellId: cell.id,
     tabs: cell.tabs,
     tabId: tab.id,
@@ -122,11 +128,13 @@ function NumberSlot({ cell, tab, smallFaces, dragging, menuOpen, onMore, onClose
     },
     menuOpen,
     onMore: () => onMore(tab.id, moreRef.current),
-    ...(face.opensLarger ? { onOpenLarger: face.openLarger } : {}),
+    ...(opensLarger ? { onOpenLarger: openLarger } : {}),
     collapsed: false,
-    onExpand: () => {},
+    onExpand: NOOP,
     claim,
-  }
+  }), [cell.id, cell.tabs, tab.id, title, menuOpen, onMore, opensLarger, openLarger, claim])
+  const tabId = tab.id
+  const slotResult = useCallback((result: WidgetResult) => onResult(tabId, result), [onResult, tabId])
   const small = face.face === 'small'
 
   return (
@@ -148,7 +156,7 @@ function NumberSlot({ cell, tab, smallFaces, dragging, menuOpen, onMore, onClose
               // The popup shows this tab: its one live widget is there.
               <OpenLargerPlaceholder tabId={tab.id} title={title} compact={small} minHeight={heldHeight} />
             ) : (
-              <WidgetBody key={tab.id} tab={tab} onResult={(result) => onResult(tab.id, result)} />
+              <WidgetBody key={tab.id} tab={tab} onResult={slotResult} />
             )}
           </WidgetFaceContext.Provider>
         </CellControlsContext.Provider>
@@ -157,8 +165,8 @@ function NumberSlot({ cell, tab, smallFaces, dragging, menuOpen, onMore, onClose
       <button
         type="button"
         className={styles.close}
-        aria-label={`Close “${title}”`}
-        data-tooltip={`Close “${title}”`}
+        aria-label={`Remove “${title}”`}
+        data-tooltip={`Remove “${title}”`}
         onClick={(e) => {
           e.preventDefault()
           onClose(tab.id)
