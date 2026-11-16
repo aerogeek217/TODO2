@@ -865,8 +865,9 @@ export async function openChangeWidget(page: Page): Promise<Locator> {
 }
 
 /**
- * Drags a whole panel by its header's empty space (grabbed at its centre)
- * to `to`, checking `lifted` / `during` (if given) before releasing.
+ * Drags a whole card in the layout edit mode (E3) to `to` — grabbed at its
+ * header's room when it has a tab strip, else at its middle (its surface) —,
+ * checking `lifted` / `during` (if given) before releasing.
  */
 export async function dragPanel(
   page: Page,
@@ -874,7 +875,9 @@ export async function dragPanel(
   to: Point,
   checks: { lifted?: () => Promise<void>; during?: () => Promise<void> } = {},
 ): Promise<void> {
-  await drag(page, await pointIn(wsPanelHandle(page, panelId)), to, checks)
+  const room = wsPanelHandle(page, panelId)
+  const from = (await room.count()) > 0 ? await pointIn(room) : await pointIn(wsGrip(page, panelId))
+  await drag(page, from, to, checks)
 }
 
 /**

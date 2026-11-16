@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, type WsLayoutSeed, enterLayoutEdit } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsGrip, type WsLayoutSeed, enterLayoutEdit } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
@@ -77,18 +77,14 @@ test('outside the layout edit mode a Number dragged out of the strip goes nowher
 test('in the layout edit mode a lone Number dragged into the strip joins it there', async ({ page }) => {
   await seedWorkspace(page, seed())
   await enterLayoutEdit(page)
-  // A lone Number drags by its cell's grip (the whole cell), then between the strip's two slots.
-  await wsCell(page, 'n').hover()
-  const grip = wsCell(page, 'n').getByTestId('ws-cell-grip')
+  // A lone Number drags by its card (the whole cell), then between the strip's two slots.
+  const grip = wsGrip(page, 'n')
   await drag(page, await pointIn(grip), await pointIn(slots(page).nth(1), 0.3, 0.5))
   await expect.poll(() => order(page)).toEqual(['num1', 'num3', 'num2'])
 })
 
 test('in the layout edit mode a Number dragged out of the strip leaves it', async ({ page }) => {
-  // In the layout edit mode a cell's body dims and takes no presses (E1), a Numbers strip's slots with it, and
-  // outside the mode a Number only reorders in its strip (E4): until E3's card and tab drags, a strip's Number
-  // can't be dragged out of it.
-  test.fixme(true, 'E3: a strip Number drags again in the layout edit mode')
+  // In the layout edit mode (E3) a strip's Numbers take presses again: each drags as a tab, out of the strip.
   await seedWorkspace(page, seed())
   await enterLayoutEdit(page)
   // Onto the notes cell's middle (a tab there).
