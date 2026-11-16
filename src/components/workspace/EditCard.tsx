@@ -136,10 +136,16 @@ function EditCardCorner({ cell }: { cell: LayoutCell }) {
  * layout**: the card's menu) and its corner. Clicks on the label fall
  * through to the content and the surface.
  */
-export function EditCardControls({ cell, label, labelTab, menuOpen, setMoreButton, onMore }: {
+export function EditCardControls({ cell, label, stripLabel, labelTab, menuOpen, setMoreButton, onMore }: {
   cell: LayoutCell
   /** The card's label (none: a strip of tabs names it). */
   label: string | null
+  /**
+   * A strip of tabs names the card, but too narrow for its active tab's
+   * title (`data-strip-squeezed`): its name, shown under the strip only
+   * while the strip is squeezed.
+   */
+  stripLabel?: string
   /** The tab whose icon leads the label. */
   labelTab?: LayoutTab
   menuOpen: boolean
@@ -152,6 +158,12 @@ export function EditCardControls({ cell, label, labelTab, menuOpen, setMoreButto
         <span className={styles.label} data-edit-card-label="" aria-hidden="true">
           {labelTab && <TabIcon tab={labelTab} size={12} className={styles.labelIcon} />}
           <span className={styles.labelText}>{label}</span>
+        </span>
+      )}
+      {label == null && stripLabel != null && (
+        <span className={`${styles.label} ${styles.stripLabel}`} data-edit-strip-label="" aria-hidden="true">
+          {labelTab && <TabIcon tab={labelTab} size={12} className={styles.labelIcon} />}
+          <span className={styles.labelText}>{stripLabel}</span>
         </span>
       )}
       <button

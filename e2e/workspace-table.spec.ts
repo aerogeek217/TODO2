@@ -7,7 +7,7 @@ import {
   expectSameEdges,
   openCellLayoutMenu,
   pickSplit,
-  wsGrip,
+  wsCard,
   releaseDrag,
   seedWorkspace,
   wsCell,
@@ -162,7 +162,7 @@ test.describe('whole-cell drags', () => {
     const before = await box(wsTab(page, 'mapTab'))
     // The room passes the press to the card's surface, which grabs.
     await expect(handle).toHaveCSS('pointer-events', 'none')
-    await expect(wsGrip(page, 'a')).toHaveCSS('cursor', 'grab')
+    await expect(wsCard(page, 'a')).toHaveCSS('cursor', 'grab')
     expect(await box(wsTab(page, 'mapTab'))).toEqual(before)
     const p = await pointIn(handle)
     await page.mouse.move(p.x, p.y)

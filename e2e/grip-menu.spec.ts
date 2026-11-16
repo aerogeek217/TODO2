@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { clicksGetThrough, drag, enterLayoutEdit, releaseDrag, seedWorkspace, wsCell, wsGrip, wsPanelHandle, wsShape, type WsLayoutSeed } from './fixtures/workspace'
+import { clicksGetThrough, drag, enterLayoutEdit, releaseDrag, seedWorkspace, wsCell, wsCard, wsPanelHandle, wsShape, type WsLayoutSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
@@ -60,7 +60,7 @@ test('outside the mode: no grip, no drag handle; the ⋯ the widget’s entries,
   await seedWorkspace(page, { layouts: [notesCalendar] })
   const cell = wsCell(page, 'a')
   await cell.hover()
-  await expect(wsGrip(page, 'a')).toHaveCount(0)
+  await expect(wsCard(page, 'a')).toHaveCount(0)
   await expect(page.locator('[data-ws-panel-handle]')).toHaveCount(0)
   await cell.getByRole('button', { name: 'Cell options' }).click()
   await expect(optionsMenu(page)).toBeVisible()
@@ -90,7 +90,7 @@ test('in the mode, one widget: no grip; the card’s ⋯ opens its menu under it
 test('in the mode, the keyboard: Enter on the focused card opens its menu; Esc gives the card its focus back', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   await enterLayoutEdit(page)
-  const card = wsGrip(page, 'b')
+  const card = wsCard(page, 'b')
   await card.focus()
   await page.keyboard.press('Enter')
   await expect(layoutMenu(page)).toBeVisible()
@@ -110,7 +110,7 @@ test('in the mode, the keyboard: Enter on the focused card opens its menu; Esc g
 test('in the mode, a drag from anywhere on the card moves it and opens no menu, also when it ends back where it began', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   await enterLayoutEdit(page)
-  const from = await pointIn(wsGrip(page, 'a'))
+  const from = await pointIn(wsCard(page, 'a'))
   // Away and back: the drag starts (past 5px) and ends where it began.
   await page.mouse.move(from.x, from.y)
   await page.mouse.down()
@@ -122,7 +122,7 @@ test('in the mode, a drag from anywhere on the card moves it and opens no menu, 
 
   // Into the Calendar's right zone: the card moves, no menu.
   const b = await box(wsCell(page, 'b'))
-  await drag(page, await pointIn(wsGrip(page, 'a')), { x: b.x + b.width - 20, y: b.y + b.height / 2 })
+  await drag(page, await pointIn(wsCard(page, 'a')), { x: b.x + b.width - 20, y: b.y + b.height / 2 })
   await expect.poll(() => wsShape(page)).toEqual([[['calTab']], [['notesTab']]])
   await expect(layoutMenu(page)).toHaveCount(0)
 })
@@ -130,7 +130,7 @@ test('in the mode, a drag from anywhere on the card moves it and opens no menu, 
 test('in the mode, a drag cancelled with Esc and let go on the card opens no menu', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   await enterLayoutEdit(page)
-  const from = await pointIn(wsGrip(page, 'a'))
+  const from = await pointIn(wsCard(page, 'a'))
   await page.mouse.move(from.x, from.y)
   await page.mouse.down()
   await page.mouse.move(from.x, from.y + 30, { steps: 4 })

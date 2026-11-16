@@ -10,7 +10,7 @@ import {
   seedWorkspace,
   wsCell,
   wsGhost,
-  wsGrip,
+  wsCard,
   wsShape,
   type WsLayoutSeed,
 } from './fixtures/workspace'
@@ -74,7 +74,7 @@ test('a card dragged onto a slot moves there, its old place a slot; onto a card�
   await expect(slots(page)).toHaveCount(1)
   await expect(page.locator('[data-edit-slot="e"]')).toHaveAccessibleName('Empty slot B2')
 
-  await drag(page, await pointIn(wsGrip(page, 'a')), await pointIn(wsCell(page, 'e')), {
+  await drag(page, await pointIn(wsCard(page, 'a')), await pointIn(wsCell(page, 'e')), {
     during: async () => {
       await expect(wsGhost(page)).toBeVisible()
       await expect(ghostLabel(page)).toHaveText('Move here')
@@ -87,7 +87,7 @@ test('a card dragged onto a slot moves there, its old place a slot; onto a card�
   await expect(wsCell(page, 'a')).toHaveAttribute('data-edit-selected', '')
 
   // Onto the Calendar's middle: they join as tabs.
-  await drag(page, await pointIn(wsGrip(page, 'a')), await pointIn(wsCell(page, 'b')), {
+  await drag(page, await pointIn(wsCard(page, 'a')), await pointIn(wsCell(page, 'b')), {
     during: async () => { await expect(ghostLabel(page)).toHaveText('Add as tab') },
   })
   await expect(wsCell(page, 'b').locator('[data-ws-tab="notesTab"]')).toHaveCount(1)
@@ -99,7 +99,7 @@ test('a card dragged onto a slot moves there, its old place a slot; onto a card�
 test('a card dropped near another card’s edge splits it', async ({ page }) => {
   await seedWorkspace(page, { layouts: [grid] })
   await enterLayoutEdit(page)
-  await drag(page, await pointIn(wsGrip(page, 'a')), await pointIn(wsCell(page, 'b'), 0.5, 0.95), {
+  await drag(page, await pointIn(wsCard(page, 'a')), await pointIn(wsCell(page, 'b'), 0.5, 0.95), {
     during: async () => { await expect(ghostLabel(page)).toHaveText('Split Calendar · below') },
   })
   await expect.poll(async () => {
@@ -180,7 +180,7 @@ test('the card menu: Move to ▸ a slot by its ruler name, Swap with ▸ a card 
   await pickCellMenu(page, 'Move to', 'B2')
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('2 / 2 / span 1 / span 1')
   // The focus stays on the card that moved.
-  await expect(wsGrip(page, 'a')).toBeFocused()
+  await expect(wsCard(page, 'a')).toBeFocused()
 
   await openCellLayoutMenu(page, 'b')
   await page.getByRole('menuitem', { name: 'Swap with', exact: true }).click()
@@ -215,24 +215,24 @@ test('tap a card, then a slot: it moves there; Esc cancels a pending move', asyn
   await seedWorkspace(page, { layouts: [grid] })
   await enterLayoutEdit(page)
   const hint = page.getByTestId('layout-edit-move-hint')
-  await wsGrip(page, 'a').click()
+  await wsCard(page, 'a').click()
   await expect(hint).toContainText('Click a slot to move “Notes” there')
   await page.keyboard.press('Escape')
   await expect(hint).toHaveCount(0)
   // The mode stays: Esc took the pending move only.
   await expect(layoutEditBar(page)).toBeVisible()
 
-  await wsGrip(page, 'a').click()
+  await wsCard(page, 'a').click()
   await page.locator('[data-edit-slot="e"]').click()
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('2 / 2 / span 1 / span 1')
   await expect(hint).toHaveCount(0)
-  await expect(wsGrip(page, 'a')).toBeFocused()
+  await expect(wsCard(page, 'a')).toBeFocused()
 })
 
 test('Alt+arrow moves a card onto the slot beside it, or swaps it; Shift+arrow stretches it; the focus stays on it', async ({ page }) => {
   await seedWorkspace(page, { layouts: [grid] })
   await enterLayoutEdit(page)
-  const c = wsGrip(page, 'c')
+  const c = wsCard(page, 'c')
   await c.focus()
   await page.keyboard.press('Alt+ArrowRight')
   await expect.poll(() => placeOf(page, 'trendTab')).toBe('2 / 2 / span 1 / span 1')
@@ -244,10 +244,10 @@ test('Alt+arrow moves a card onto the slot beside it, or swaps it; Shift+arrow s
 
   // The arrows move the selection; Shift+arrow stretches over the slot.
   await page.keyboard.press('ArrowLeft')
-  await expect(wsGrip(page, 'a')).toBeFocused()
+  await expect(wsCard(page, 'a')).toBeFocused()
   await page.keyboard.press('Shift+ArrowDown')
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('1 / 1 / span 2 / span 1')
-  await expect(wsGrip(page, 'a')).toBeFocused()
+  await expect(wsCard(page, 'a')).toBeFocused()
   await page.keyboard.press('Shift+ArrowUp')
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('1 / 1 / span 1 / span 1')
 })
@@ -259,7 +259,7 @@ test('Done stores every change as one step; the global Undo brings it all back',
   await openCellLayoutMenu(page, 'a')
   await pickCellMenu(page, 'Move to', 'B2')
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('2 / 2 / span 1 / span 1')
-  await wsGrip(page, 'c').focus()
+  await wsCard(page, 'c').focus()
   await page.keyboard.press('Shift+ArrowUp')
   await page.keyboard.press('Alt+ArrowUp')
   await expect.poll(() => placeOf(page, 'trendTab')).toBe('1 / 1 / span 1 / span 1')
@@ -273,4 +273,38 @@ test('Done stores every change as one step; the global Undo brings it all back',
   const snackbar = page.locator('[data-snackbar-live]')
   await snackbar.getByRole('button', { name: 'Undo', exact: true }).click()
   await expect.poll(() => wsShape(page)).toEqual(before)
+})
+
+test('a card too narrow for its active tab’s title names that tab under its strip (E5)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await seedWorkspace(page, {
+    layouts: [{
+      name: 'Main',
+      table: {
+        areas: ['a n'],
+        cols: [1000, 1],
+        cells: [
+          { id: 'a', tabs: [{ id: 'notesTab', kind: 'notes' }] },
+          { id: 'n', tabs: [{ id: 'calTab', kind: 'calendar' }, { id: 'trendTab', kind: 'trend' }] },
+        ],
+      },
+    }],
+  })
+  const narrow = wsCell(page, 'n')
+  await expect.poll(async () => Math.round((await box(narrow)).width)).toBe(120)
+  // Outside the mode no card is drawn.
+  await expect(narrow.locator('[data-edit-strip-label]')).toHaveCount(0)
+  await enterLayoutEdit(page)
+  // The strip squeezed to its active tab beside `+1`, the tab's title cut away: its name under the strip.
+  await expect(narrow.locator('[data-strip-squeezed]')).toHaveCount(1)
+  const label = narrow.locator('[data-edit-strip-label]')
+  await expect(label).toBeVisible()
+  await expect(label).toHaveText('Calendar')
+  const header = await box(narrow.locator('[data-ws-cell-header]'))
+  const labelBox = await box(label)
+  const card = await box(narrow)
+  expect(labelBox.y, 'under the strip').toBeGreaterThanOrEqual(header.y + header.height)
+  expect(labelBox.x + labelBox.width, 'inside the card').toBeLessThanOrEqual(card.x + card.width)
+  // A card whose strip has room names its tabs itself: no label there.
+  await expect(wsCell(page, 'a').locator('[data-edit-strip-label]')).toHaveCount(0)
 })

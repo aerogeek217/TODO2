@@ -28,8 +28,13 @@
   flex: 1 1 auto;
   min-height: 0;
   max-height: 260px;
-  margin: 6px 0 0 -20px;
-  padding-left: 20px;
+  /* Above and below, the room of the focus ring (4px outside the box), taken from the 6px
+   * gap under the heading: the + Add subtask line — the last line, the only one with no
+   * subtasks — had its ring cut by the scroller's edges (`scroll-padding` keeps the room when
+   * a focus scrolls the line into view). */
+  margin: 2px 0 0 -20px;
+  padding: 4px 0 4px 20px;
+  scroll-padding-block: 4px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--color-tint-8) transparent;

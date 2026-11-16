@@ -3,7 +3,7 @@ import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
 import { createTab, type LayoutBody, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { emptyPredicate } from '../../models/filter-predicate'
-import { isLayoutEditStep, layoutEditChanged, settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-store'
+import { isLayoutEditStep, layoutEditChanged, listsHeldByEdit, settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
@@ -290,6 +290,31 @@ describe('Cancel', () => {
     expect(await storedListIds()).toContain(list)
     useUndoStore.getState().dismissSnackbar()
     await settle()
+    expect(await storedListIds()).not.toContain(list)
+  })
+
+  it('no chooser offers a list the session made while nothing shows it: undone in the mode, or held by Cancel’s offer', async () => {
+    const [id] = await seed(twoColumns())
+    await ws().enterEdit()
+    const list = await addListInMode(id!, 'ka')
+    expect(listsHeldByEdit(ws())).toEqual([])
+    ws().undoEdit()
+    expect(listsHeldByEdit(ws())).toEqual([list])
+    ws().redoEdit()
+    expect(listsHeldByEdit(ws())).toEqual([])
+    ws().cancelEdit()
+    expect(listsHeldByEdit(ws())).toEqual([list])
+    // Restore: shown by the draft again, so offered.
+    snackbar()?.action?.run()
+    await settle()
+    expect(ws().editing).not.toBeNull()
+    expect(listsHeldByEdit(ws())).toEqual([])
+    // Cancel again; the offer gone, the list deleted and no longer held.
+    ws().cancelEdit()
+    expect(listsHeldByEdit(ws())).toEqual([list])
+    useUndoStore.getState().dismissSnackbar()
+    await settle()
+    expect(listsHeldByEdit(ws())).toEqual([])
     expect(await storedListIds()).not.toContain(list)
   })
 

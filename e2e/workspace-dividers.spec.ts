@@ -261,7 +261,7 @@ test.describe('a Numbers-only row', () => {
     await expectLayoutStored(page)
     // Its own height (fitPx), beside its weight — never a px.
     await expect.poll(async () => (await storedRows(page))[0]?.fitPx).toBe(tall)
-    expect((await storedRows(page))[0]).toMatchObject({ weight: expect.any(Number) as number })
+    expect((await storedRows(page))[0]).toMatchObject({ weight: expect.any(Number) as unknown })
     expect((await storedRows(page))[0]?.px).toBeUndefined()
     // Taller than its small face: the medium face.
     await expect(wsCell(page, 'n1')).toHaveAttribute('data-face', 'medium')

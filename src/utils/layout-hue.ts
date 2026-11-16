@@ -36,7 +36,7 @@ const HUE_COLOR: Readonly<Record<HueName, string>> = {
 /**
  * A layout's hue as stored (`WorkspaceLayout.hue`): a preset's name
  * (`HUE_NAMES`, each a token pair with a light twin) or a hex colour the
- * user picked in the Edit layout dialog's colour input (`#rgb` / `#rrggbb`,
+ * user picked in the Name, icon and hue dialog's colour input (`#rgb` / `#rrggbb`,
  * used as it is in both themes).
  */
 export function isLayoutHue(v: unknown): v is string {
@@ -55,7 +55,7 @@ export function hueAttr(hue: string | null | undefined): string {
   return isHueName(hue) ? hue : 'custom'
 }
 
-/** A preset hue's name in words (the Edit layout dialog's swatches). */
+/** A preset hue's name in words (the Name, icon and hue dialog's swatches). */
 export const HUE_LABEL: Readonly<Record<HueName, string>> = {
   teal: 'Teal',
   violet: 'Violet',

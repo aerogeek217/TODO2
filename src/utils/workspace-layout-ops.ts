@@ -836,8 +836,8 @@ export interface MoveEdgeOptions {
   snapPx?: number
   /**
    * A whole line snaps back onto its own place too (within `snapPx`: no
-   * change) — a crossing handle's line holds still while the drag runs
-   * along the other one.
+   * change). Nothing in the app passes it since the crossing handles went
+   * (E4); the layout-op fuzz tests' two-line moves do.
    */
   snapHome?: boolean
   /**

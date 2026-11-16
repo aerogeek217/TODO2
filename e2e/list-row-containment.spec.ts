@@ -109,7 +109,7 @@ test('rows off screen skip their rendering, and a row’s fallback height is its
     const contained = await height()
     const style = await page.addStyleTag({ content: NO_CONTAINMENT })
     expect(await height(), `${zoom}: the scroll height`).toBe(contained)
-    await style.evaluate((el) => el.remove())
+    await style.evaluate((el) => (el as HTMLElement).remove())
   }
 })
 
@@ -137,7 +137,7 @@ async function expectSameWithoutContainment(page: Page, list: Locator, what: str
   const contained = await picture(page, list)
   const style = await page.addStyleTag({ content: NO_CONTAINMENT })
   const plain = await picture(page, list)
-  await style.evaluate((el) => el.remove())
+  await style.evaluate((el) => (el as HTMLElement).remove())
   expect(contained.hits, `${what}: presses land where they do without containment`).toEqual(plain.hits)
   expect(contained.png.equals(plain.png), `${what}: drawn as without containment`).toBe(true)
 }

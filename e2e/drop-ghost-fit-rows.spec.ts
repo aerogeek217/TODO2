@@ -7,8 +7,8 @@ import { box, pointIn, type Point } from './fixtures/geometry'
  * across a Numbers (fit) row (widget feedback 2D): a fit row's height is
  * its content's, so the ghost places a row a drop leaves holding only
  * Numbers, and a new fit row, at the height the browser then draws — not at
- * its old weighted height or a nominal one. Each case drags by the grip (a
- * whole cell) or a tab, reads the ghost while over the target and checks it
+ * its old weighted height or a nominal one. Each case, in the layout edit
+ * mode, drags a whole card (by its surface) or a tab, reads the ghost while over the target and checks it
  * against the cell that holds what was dragged after the drop.
  */
 
@@ -32,7 +32,7 @@ const NUMBERS_OVER_CELLS: WsLayoutSeed = {
   },
 }
 
-async function grip(page: Page, cellId: string): Promise<Point> {
+async function card(page: Page, cellId: string): Promise<Point> {
   await wsCell(page, cellId).hover()
   return pointIn(wsCell(page, cellId).locator('[data-edit-surface]'))
 }
@@ -68,7 +68,7 @@ for (const c of CASES) {
     await seedWorkspace(page, { layouts: [NUMBERS_OVER_CELLS] })
     // Drops and their ghost live in the layout edit mode (E4).
     await enterLayoutEdit(page)
-    await expectGhostIsLanding(page, await grip(page, c.from), await pointIn(wsCell(page, c.to), c.at[0], c.at[1]), c.tab)
+    await expectGhostIsLanding(page, await card(page, c.from), await pointIn(wsCell(page, c.to), c.at[0], c.at[1]), c.tab)
   })
 }
 
@@ -77,7 +77,7 @@ test('a Number inserted as a column at the layout’s left edge: full height', a
   // Drops and their ghost live in the layout edit mode (E4).
   await enterLayoutEdit(page)
   const area = await box(page.locator('[data-ws-area]'))
-  await expectGhostIsLanding(page, await grip(page, 'n2'), { x: area.x + 10, y: area.y + area.height / 2 }, 'num2')
+  await expectGhostIsLanding(page, await card(page, 'n2'), { x: area.x + 10, y: area.y + area.height / 2 }, 'num2')
 })
 
 test('a Number inserted as a row at the layout’s top edge: a fit row', async ({ page }) => {
@@ -85,7 +85,7 @@ test('a Number inserted as a row at the layout’s top edge: a fit row', async (
   // Drops and their ghost live in the layout edit mode (E4).
   await enterLayoutEdit(page)
   const area = await box(page.locator('[data-ws-area]'))
-  await expectGhostIsLanding(page, await grip(page, 'b'), { x: area.x + area.width / 2, y: area.y - 6 }, 'notesB')
+  await expectGhostIsLanding(page, await card(page, 'b'), { x: area.x + area.width / 2, y: area.y - 6 }, 'notesB')
 })
 
 test('a cell dragged out of a row leaves it holding only a Number: the other rows take the room (the ghost too)', async ({ page }) => {
@@ -98,7 +98,7 @@ test('a cell dragged out of a row leaves it holding only a Number: the other row
   ] } }] })
   // Drops and their ghost live in the layout edit mode (E4).
   await enterLayoutEdit(page)
-  await expectGhostIsLanding(page, await grip(page, 'x'), await pointIn(wsCell(page, 'c'), 0.95, 0.5), 'notesX')
+  await expectGhostIsLanding(page, await card(page, 'x'), await pointIn(wsCell(page, 'c'), 0.95, 0.5), 'notesX')
 })
 
 test('a Number tab dragged out of a two-Number cell leaves a Numbers row: the ghost below it is full height', async ({ page }) => {

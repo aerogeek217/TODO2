@@ -105,7 +105,7 @@ test('Move left / right from a tab’s menu, by keyboard; each is one undo step'
   await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Third', 'Second'])
   // The open layout's menu leads with its own actions.
   const open = await openLayoutTabMenu(page)
-  await expect(open.getByRole('menuitem')).toHaveText(['Edit layout…', 'Duplicate layout…', 'Edit…', 'Move left', 'Move right', 'Delete layout…'])
+  await expect(open.getByRole('menuitem')).toHaveText(['Edit layout…', 'Duplicate layout…', 'Name, icon and hue…', 'Move left', 'Move right', 'Delete layout…'])
   await expect(open.getByRole('menuitem', { name: 'Move left' })).toBeDisabled()
 })
 
@@ -191,9 +191,9 @@ test('Delete from a tab’s menu names the lists that go with it', async ({ page
 
   // Edit… (rename) from a tab's menu too.
   const third = await openLayoutTabMenu(page, 'Third')
-  await third.getByRole('menuitem', { name: 'Edit…' }).click()
-  await page.getByRole('dialog', { name: 'Edit layout' }).getByLabel('Name').fill('Weekly')
-  await page.getByRole('dialog', { name: 'Edit layout' }).getByRole('button', { name: 'Apply' }).click()
+  await third.getByRole('menuitem', { name: 'Name, icon and hue…' }).click()
+  await page.getByRole('dialog', { name: 'Name, icon and hue' }).getByLabel('Name').fill('Weekly')
+  await page.getByRole('dialog', { name: 'Name, icon and hue' }).getByRole('button', { name: 'Apply' }).click()
   await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Weekly'])
 })
 

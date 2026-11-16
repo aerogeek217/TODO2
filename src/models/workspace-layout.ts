@@ -373,7 +373,7 @@ export interface WorkspaceLayout {
    * The layout's hue (D19): its active tab, its cell headers and the focus
    * ring inside it take it; absent = the app accent. A preset's name
    * (`HUE_NAMES`) or a hex colour (`utils/layout-hue.isLayoutHue`). Set in
-   * the Edit layout dialog and saved at once, as the name is.
+   * the Name, icon and hue dialog and saved at once, as the name is.
    */
   hue?: string
   /**
@@ -381,7 +381,7 @@ export interface WorkspaceLayout {
    * its tab, in the picker and on the phone. Absent = never picked: the
    * layout glyph (`models/icon.layoutIcon`); `{ kind: 'none' }` = No icon.
    * A line icon and a muted emoji take the hue on the open layout's tab; a
-   * color emoji keeps its colors. Set in the Edit layout dialog and saved
+   * color emoji keeps its colors. Set in the Name, icon and hue dialog and saved
    * at once, as the name and the hue are.
    */
   icon?: IconValue

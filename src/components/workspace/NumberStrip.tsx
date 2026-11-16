@@ -45,9 +45,9 @@ interface NumberStripProps {
  * Numbers side by side, evenly divided — wrapping onto another line when
  * they can't each keep their 72px — with no tab strip. Each is a slot of its
  * own: its face, its ⋯ and Open larger (its own controls, shown on its own
- * hover), its × and a drag of its own (a tab's: reorder, move out); the
- * cell's grip still drags the whole strip. A `+` at the strip's end adds a
- * Number.
+ * hover), its × and a drag of its own (a tab's: reorder in the strip; out
+ * of it only in the layout edit mode, where the card drags the whole
+ * strip). A `+` at the strip's end adds a Number.
  */
 export function NumberStrip({ cell, smallFaces, dragging, menuTabId, onMore, onClose, onAdd, onResult, onFace }: NumberStripProps) {
   return (

@@ -8,6 +8,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { listFilterHint, predicateLineItems } from '../utils/filter-chips'
 import { copySourceGroups, type CopySourceGroup, type CopySourceRef } from '../utils/list-copy'
+import { useHeldLists } from './use-held-lists'
 
 /** A list Copy from offers. */
 export interface CopySource extends CopySourceRef {
@@ -22,7 +23,8 @@ export interface CopySource extends CopySourceRef {
 /**
  * Copy from's choices (`copySourceGroups`): every layout's lists by layout,
  * the open layout's first — each list as it shows,
- * with its filters in words. `excludeId`: the list being edited.
+ * with its filters in words. `excludeId`: the list being edited. A list the
+ * layout edit mode made and holds for deletion isn't offered (`useHeldLists`).
  */
 export function useCopySources(excludeId?: number): CopySourceGroup<CopySource>[] {
   const defs = useListDefinitionStore((s) => s.listDefinitions)
@@ -32,10 +34,11 @@ export function useCopySources(excludeId?: number): CopySourceGroup<CopySource>[
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
+  const held = useHeldLists()
   return useMemo(() => {
     const names = { people, tags, statuses }
     // Grouped by the saved list's owner and order (a draft keeps both).
-    const lists = defs.map((saved): CopySource => {
+    const lists = defs.filter((d) => !held.has(d.id)).map((saved): CopySource => {
       const def = listAsShown(saved, drafts) ?? saved
       return {
         id: saved.id,
@@ -47,5 +50,5 @@ export function useCopySources(excludeId?: number): CopySourceGroup<CopySource>[
       }
     })
     return copySourceGroups({ lists, layouts, openLayoutId, excludeId })
-  }, [defs, drafts, layouts, openLayoutId, excludeId, people, tags, statuses])
+  }, [defs, drafts, layouts, openLayoutId, excludeId, people, tags, statuses, held])
 }

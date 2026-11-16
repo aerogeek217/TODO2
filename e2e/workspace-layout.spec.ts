@@ -360,7 +360,7 @@ test.describe('saved layouts', () => {
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).not.toContainText('Edited')
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByRole('menu', { name: 'Layouts' }).getByRole('menuitem')).toHaveText([
-      'New layout…', 'Edit layout…', 'Duplicate layout…', 'Edit…', 'Delete layout…',
+      'New layout…', 'Edit layout…', 'Duplicate layout…', 'Name, icon and hue…', 'Delete layout…',
     ])
   })
 
@@ -457,8 +457,8 @@ test.describe('saved layouts', () => {
     await expectOpenLayout(page, 'Planning')
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab']], [['calTab']]])
 
-    await openLayoutAction(page, 'Edit…')
-    const renameDialog = page.getByRole('dialog', { name: 'Edit layout' })
+    await openLayoutAction(page, 'Name, icon and hue…')
+    const renameDialog = page.getByRole('dialog', { name: 'Name, icon and hue' })
     await renameDialog.getByLabel('Name').fill('Weekly')
     await renameDialog.getByRole('button', { name: 'Apply' }).click()
     await expectOpenLayout(page, 'Weekly')

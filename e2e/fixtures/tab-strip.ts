@@ -34,7 +34,7 @@ export interface StripState {
   header: number
   /** The header's Open larger button: shown, hidden by the header's width, or not offered by the active widget. */
   openLarger: 'shown' | 'hidden' | 'absent'
-  /** The left edge of the header's buttons (grip, Open larger, Collapse row, ⋯), or of Expand row. */
+  /** The left edge of the header's buttons (Open larger, Collapse row, ⋯), or of Expand row. */
   actionsLeft: number
 }
 
