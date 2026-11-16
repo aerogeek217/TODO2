@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { expectLayoutStored, newestUndoStep, seedWorkspace, type WsLayoutSeed } from './fixtures/workspace'
+import { enterLayoutEdit, expectLayoutStored, newestUndoStep, seedWorkspace, type WsLayoutSeed } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -43,7 +43,7 @@ async function storedMain(page: Page): Promise<{ cells: Array<{ id: string; tabs
 test('rulers without a shift, insert a row by “+”, Remove row moves a widget as a tab, Done, then the global Undo', async ({ page }) => {
   await seedWorkspace(page, { layouts: [main] })
   const before = await cellBoxes(page)
-  await page.getByTestId('layout-edit').click()
+  await enterLayoutEdit(page)
   await expect(bar(page)).toBeVisible()
 
   // The rulers: a column ruler per column, a row ruler per row, a "+" on every line; no cell moved.

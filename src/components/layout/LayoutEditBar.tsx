@@ -53,8 +53,8 @@ function useModeEscape(): void {
 
 /**
  * The focus in the layout edit mode: on Done as it opens; back where it was
- * when the mode closes (the cell's ⋯ it opened from), else on the layout
- * tabs' Edit layout — unless something else has taken it by then (Settings,
+ * when the mode closes (the cell's ⋯ it opened from), else on the open
+ * layout's tab (or the picker) — unless something else has taken it by then (Settings,
  * a dialog).
  */
 function useModeFocus(done: React.RefObject<HTMLButtonElement | null>): void {
@@ -67,7 +67,7 @@ function useModeFocus(done: React.RefObject<HTMLButtonElement | null>): void {
         const now = document.activeElement
         if (now && now !== document.body && now.isConnected) return
         if (opener?.isConnected) opener.focus()
-        else document.querySelector<HTMLElement>('[data-testid="layout-edit"]')?.focus()
+        else document.querySelector<HTMLElement>('[data-layout-controls] [role="tab"][aria-selected="true"], [data-testid="layout-picker"]')?.focus()
       }, 0)
     }
   }, [done])

@@ -2,7 +2,7 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test'
 import { openFilterPicker } from './fixtures/filters'
-import { layoutTab, pickInReview, wsCell } from './fixtures/workspace'
+import { enterLayoutEdit, layoutTab, pickInReview, wsCell } from './fixtures/workspace'
 
 /**
  * Not a regression: screenshots of most of the app's screens over the dev
@@ -310,7 +310,7 @@ for (const size of SIZES) {
         }, { keepMouse: true })
         await shot('cell-layout', async () => {
           // The grip and its Cell layout menu live in the layout edit mode (E4).
-          await page.getByTestId('layout-edit').click()
+          await enterLayoutEdit(page)
           await wsCell(page, 'cell-person').hover()
           await wsCell(page, 'cell-person').getByRole('button', { name: 'Cell layout' }).click()
           await page.getByRole('menu', { name: 'Cell layout' }).waitFor()
