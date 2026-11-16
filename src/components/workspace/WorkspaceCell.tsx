@@ -21,11 +21,13 @@ export interface WorkspaceCellProps {
 /** An empty cell (right after a split): kind buttons, "or drag a tab here", and a close ×. */
 function EmptyCell({ cell, style }: { cell: LayoutCell; style?: CSSProperties }) {
   const closeCell = useWorkspaceStore((s) => s.closeCell)
+  const selected = useWorkspaceStore((s) => s.editing?.selectedCellId === cell.id)
   return (
     <section
       className={styles.emptyCell}
       style={style}
       data-ws-cell={cell.id}
+      data-edit-selected={selected ? '' : undefined}
       data-ws-cell-title="Empty cell"
       data-empty="true"
       aria-label="Empty cell"

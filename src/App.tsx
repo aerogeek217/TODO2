@@ -296,6 +296,8 @@ function AppShell() {
       // Not shown on a phone (the Settings page is).
       ui.closeSettings()
       ui.closeFilterPanel()
+      // The phone has no layout editing: the layout edit mode closes, its draft dropped.
+      useWorkspaceStore.getState().dropEdit()
     }
   }, [isMobile])
 

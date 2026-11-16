@@ -308,14 +308,19 @@ function Grain() {
 /**
  * The open layout, filling the page: its table of cells, or the empty-layout
  * tiles. A collapsed row it arrives with that nothing can expand, expands
- * (`useExpandOrphanRows`).
+ * (`useExpandOrphanRows`). In the layout edit mode (`data-layout-editing`)
+ * the workspace is tinted under a faint dot grid with an accent outline, and
+ * each cell's content dims and takes no presses — its controls (the grip,
+ * the ⋯) and tab strip still do; nothing moves.
  */
 export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
   useExpandOrphanRows(layout)
+  const editing = useWorkspaceStore((s) => s.editing != null)
   return (
     <div
       className={styles.area}
       data-ws-area
+      data-layout-editing={editing ? '' : undefined}
       data-layout-hue={hueAttr(layout.hue)}
       style={{ '--layout-hue': hueColor(layout.hue) } as CSSProperties}
     >

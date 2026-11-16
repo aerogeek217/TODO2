@@ -28,6 +28,33 @@ interface LayoutTabsProps {
 
 const dragIdOf = (id: number) => `layout-${id}`
 
+/**
+ * The layouts as tabs that do nothing (the layout edit mode's bar): where
+ * they always are, the open one marked, dimmed — no press, no focus, no
+ * drag, no `+`.
+ */
+export function DisabledLayoutTabs({ layouts, activeLayoutId }: { layouts: readonly Layout[]; activeLayoutId: number | null }) {
+  return (
+    <div className={`${styles.tabStrip} ${styles.tabStripDisabled}`}>
+      <div className={styles.tabs} role="tablist" aria-label="Layouts" aria-disabled="true">
+        {layouts.map((l) => (
+          <LayoutTabView
+            key={l.id}
+            layout={l}
+            active={l.id === activeLayoutId}
+            focusable={false}
+            disabled
+            onActivate={() => {}}
+            onOpenMenu={() => {}}
+            onFocusSibling={() => {}}
+            setRef={() => {}}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** Only sideways: the tabs reorder along the bar. */
 const horizontalOnly: Modifier = ({ transform }) => ({ ...transform, y: 0 })
 
@@ -126,6 +153,8 @@ interface LayoutTabViewProps {
   onOpenMenu: (point: MenuPoint) => void
   onFocusSibling: (delta: 1 | -1 | 'first' | 'last') => void
   setRef: (el: HTMLDivElement | null) => void
+  /** Shown only (the layout edit mode's bar): `aria-disabled`, no press, menu or keys. */
+  disabled?: boolean
   sortable?: {
     ref: (el: HTMLElement | null) => void
     listeners: ReturnType<typeof useSortable>['listeners']
@@ -134,8 +163,25 @@ interface LayoutTabViewProps {
   }
 }
 
-function LayoutTabView({ layout, active, focusable, onActivate, onOpenMenu, onFocusSibling, setRef, sortable }: LayoutTabViewProps) {
+function LayoutTabView({ layout, active, focusable, onActivate, onOpenMenu, onFocusSibling, setRef, disabled = false, sortable }: LayoutTabViewProps) {
   const icon = layoutIcon(layout)
+  if (disabled) {
+    return (
+      <div
+        style={{ '--layout-hue': hueColor(layout.hue) } as React.CSSProperties}
+        role="tab"
+        aria-selected={active}
+        aria-disabled="true"
+        tabIndex={-1}
+        data-layout-tab={layout.id}
+        data-testid="layout-tab"
+        className={[styles.tab, styles.tabDisabled, active ? styles.tabActive : ''].join(' ')}
+      >
+        {icon.kind !== 'none' && <span className={styles.tabIcon} data-layout-tab-icon=""><AppIcon icon={icon} size={12} /></span>}
+        <span className={styles.tabName}>{layout.name}</span>
+      </div>
+    )
+  }
   return (
     <div
       ref={(el) => { sortable?.ref(el); setRef(el) }}

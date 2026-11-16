@@ -31,7 +31,7 @@ describe('the layout modules (A10)', () => {
 
   it('each seam holds its own kind: queries read, lists name lists, sizes size, ops reduce', () => {
     expect(Object.keys(queries).sort()).toEqual([
-      'findTab', 'getTab', 'layoutIds', 'layoutStructureEqual', 'layoutStructureKey', 'layoutTabs', 'panelOfTab', 'sameArrangement',
+      'findTab', 'getTab', 'layoutBodyEqual', 'layoutIds', 'layoutStructureEqual', 'layoutStructureKey', 'layoutTabs', 'panelOfTab', 'sameArrangement',
     ])
     expect(Object.keys(lists).sort()).toEqual(['countListTabs', 'layoutListRefs', 'repointLayoutLists'])
     expect(Object.keys(sizes).sort()).toEqual(['GRID_AXES', 'copySizes', 'sameTrackIn', 'setTrackSizes', 'trackAxes', 'withoutTrackFitPx'])

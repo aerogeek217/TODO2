@@ -14,6 +14,7 @@ import { scrollBehavior } from '../utils/motion'
 import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import { useFilterStore } from '../stores/filter-store'
+import { useWorkspaceStore } from '../stores/workspace-store'
 import { copyTasks, tasksToCopy } from './task-copy'
 import { reviewTargetTabId } from './review'
 import { reviewListTab } from './review-jump'
@@ -170,9 +171,22 @@ function focusSearch({ e }: ShortcutCtx) {
   searchInput.select()
 }
 
+/**
+ * Undo / Redo: while the layout edit mode is on, its own steps — and with
+ * none left, nothing (never a task step behind the dimmed cells).
+ */
+function undo({ e }: ShortcutCtx) {
+  e.preventDefault()
+  const ws = useWorkspaceStore.getState()
+  if (ws.editing) ws.undoEdit()
+  else void useUndoStore.getState().undo()
+}
+
 function redo({ e }: ShortcutCtx) {
   e.preventDefault()
-  void useUndoStore.getState().redo()
+  const ws = useWorkspaceStore.getState()
+  if (ws.editing) ws.redoEdit()
+  else void useUndoStore.getState().redo()
 }
 
 /** Every binding's handler. */
@@ -191,10 +205,7 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
     }
     callbacks.closePalette()
   },
-  undo: ({ e }) => {
-    e.preventDefault()
-    void useUndoStore.getState().undo()
-  },
+  undo,
   redo,
   'redo-alt': redo,
   'select-all': ({ e }) => {
@@ -297,6 +308,10 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
   'pause-filter': ({ e }) => {
     e.preventDefault()
     toggleFilterPause()
+  },
+  'edit-layout': ({ e }) => {
+    e.preventDefault()
+    void useWorkspaceStore.getState().enterEdit()
   },
 }
 

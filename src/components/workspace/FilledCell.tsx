@@ -135,6 +135,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const insertTrack = useWorkspaceStore((s) => s.insertTrack)
   const insertTrackBeside = useWorkspaceStore((s) => s.insertTrackBeside)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
+  /** The layout edit mode is on: the menus hold only the cell's layout entries (its widget's open editors and popups). */
+  const editing = useWorkspaceStore((s) => s.editing != null)
+  /** The cell the mode selected (its ⋯ › Edit layout): ringed. */
+  const editSelected = useWorkspaceStore((s) => s.editing?.selectedCellId === cell.id)
   const drag = useWorkspaceDrag()
   /**
    * Whatever here can take a widget off the screen — a tab switched or
@@ -252,6 +256,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         onCollapse: setRowCollapsed,
         onCloseTab: closeTabAsked,
         onCloseCell: () => afterLeavingEditors(() => closeCell(cell.id)),
+        onEditLayout: () => { void useWorkspaceStore.getState().enterEdit({ cellId: cell.id }) },
+        editing,
       })
     : null
   /** The whole menu (a right-click, Shift+F10 / the Menu key): at a point, or under the ⋯. */
@@ -265,7 +271,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
 
   // A one-widget cell's controls slot, lent to its widget's top line.
   const activeId = active?.id
-  const onOpenLarger = cellFace.opensLarger ? cellFace.openLarger : undefined
+  // Not in the layout edit mode: nothing opens over the draft.
+  const onOpenLarger = cellFace.opensLarger && !editing ? cellFace.openLarger : undefined
   const controls = useMemo<CellControlsValue | null>(() => (stripShown || numberStrip || activeId == null ? null : {
     cellId: cell.id,
     tabs: cell.tabs,
@@ -323,6 +330,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       ].join(' ')}
       style={{ ...style, viewTransitionName: transitionName('ws-cell', cell.id) }}
       data-ws-cell={cell.id}
+      data-edit-selected={editSelected ? '' : undefined}
       data-ws-cell-title={activeTitle}
       data-face={!collapsed && active ? cellFace.face : undefined}
       aria-label={`${activeTitle} cell`}

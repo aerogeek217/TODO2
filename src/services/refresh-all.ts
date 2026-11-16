@@ -30,6 +30,9 @@ import { clearReviewSessions } from '../stores/review-session'
  */
 export async function refreshAllStores() {
   useUndoStore.getState().clear()
+  // The layout edit mode's draft is of the replaced layout: it closes (saying
+  // so when it held changes), and Cancel's Restore offer goes unread.
+  useWorkspaceStore.getState().endEditForReplace()
   useFilterStore.getState().clearAll()
   // Prompt picks, collapsed groups and each Review widget's filter (the store knows which of its fields
   // name ids), and every review: its queue, marks and typed text are by task id.

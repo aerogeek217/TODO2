@@ -129,6 +129,8 @@ registerModuleReset(() => { creatingList = null })
 export function createListAndTab(show: (listDefinitionId: number) => unknown, layoutId: number): Promise<void> {
   if (creatingList) return creatingList
   const run = useListDefinitionStore.getState().add({ name: freshListName('New list', layoutId), owner: { layoutId } }).then((id) => {
+    // Made in the layout edit mode: deleted with its end unless its draft shows it.
+    useWorkspaceStore.getState().noteEditList(id)
     show(id)
   })
   creatingList = run.finally(() => { creatingList = null })

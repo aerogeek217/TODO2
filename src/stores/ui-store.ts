@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
 import { create } from 'zustand'
 import { registerModuleReset } from '../utils/module-reset'
-import { closeOpenEditors, editorsHoldChanges, leaveOpenEditors, openOneEditor, registerEditorFields } from './editor-leave'
+import { closeOpenEditors, layoutLeaveAsks, leaveLayout, openOneEditor, quitLayoutEditors, registerEditorFields } from './editor-leave'
 import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
@@ -704,10 +704,13 @@ export const useUIStore = create<UIState>((set, get) => ({
     // modal: one holding changes asks first (Save / Discard / Keep editing,
     // `editor-leave`) and Settings opens once it was saved or discarded; an
     // unchanged one just closes — every kind (`closeOpenEditors`, the one roster).
-    if (editorsHoldChanges()) {
-      void leaveOpenEditors().then((left) => { if (left) get().openSettings(target) })
+    // Settings leaves the layout: the layout edit mode asks too, and with no
+    // changes closes (`leaveLayout`).
+    if (layoutLeaveAsks()) {
+      void leaveLayout().then((left) => { if (left) get().openSettings(target) })
       return
     }
+    quitLayoutEditors()
     closeOpenEditors()
     if (!target) {
       set({ settingsOpen: true })

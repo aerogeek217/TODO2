@@ -98,6 +98,31 @@ async function eachPart(entries: readonly UndoEntry[], step: (entry: UndoEntry) 
   if (gone && !ran) throw gone
 }
 
+/**
+ * A notice's options (`notify`): an offer beside it (`action`), and what to
+ * do once it is gone without the offer taken (`onEnd`: it timed out, was
+ * dismissed, or another snackbar replaced it — never when the store is
+ * cleared, a data replace's reset, whose callers drop what it offered).
+ */
+interface NoticeOptions {
+  action?: UndoSnackbarAction
+  onEnd?: () => void
+}
+
+/** The open notice's `onEnd` and whether its offer was taken (`notify`). */
+let noticeEnd: { onEnd: () => void; taken: boolean } | null = null
+registerModuleReset(() => { noticeEnd = null })
+
+/**
+ * The snackbar is about to show something else or nothing: the open
+ * notice's `onEnd` runs, unless its offer was taken.
+ */
+function endNotice(): void {
+  const ending = noticeEnd
+  noticeEnd = null
+  if (ending && !ending.taken) ending.onEnd()
+}
+
 /** One entry made of `grouped`: undo runs theirs newest first, redo oldest first. */
 function compoundOf(description: string, grouped: readonly UndoEntry[]): UndoEntry {
   return {
@@ -187,9 +212,10 @@ interface UndoState {
   /**
    * Shows `description` in the snackbar without an Undo button — the result
    * of an operation that can't be undone (e.g. one run without a backup).
-   * Leaves the undo stack alone.
+   * Leaves the undo stack alone. `options`: an offer beside it and what
+   * follows its end (`NoticeOptions`).
    */
-  notify: (description: string) => void
+  notify: (description: string, options?: NoticeOptions) => void
   dismissSnackbar: () => void
   clear: () => void
 }
@@ -202,7 +228,9 @@ export const useUndoStore = create<UndoState>((set, get) => {
    */
   const endSnackbarAfter = (ms: number): ReturnType<typeof setTimeout> => {
     const timerId = setTimeout(() => {
-      if (get().snackbarTimerId === timerId) set({ snackbar: null, snackbarTimerId: null })
+      if (get().snackbarTimerId !== timerId) return
+      set({ snackbar: null, snackbarTimerId: null })
+      endNotice()
     }, ms)
     return timerId
   }
@@ -231,6 +259,8 @@ export const useUndoStore = create<UndoState>((set, get) => {
         : base
 
       if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
+      // The snackbar shows this step, or nothing: an open notice has ended.
+      endNotice()
 
       if (showSnackbar && !inGroup) {
         // A second line is more to read: it stays as long as a notice.
@@ -363,6 +393,7 @@ export const useUndoStore = create<UndoState>((set, get) => {
         : base
 
       if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
+      endNotice()
 
       if (showSnackbar) {
         const timerId = endSnackbarAfter(UNDO_SNACKBAR_MS)
@@ -431,22 +462,34 @@ export const useUndoStore = create<UndoState>((set, get) => {
       return run
     },
 
-    notify(description: string) {
+    notify(description: string, options?: NoticeOptions) {
       const { snackbarTimerId } = get()
       if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
+      endNotice()
       const timerId = endSnackbarAfter(NOTICE_SNACKBAR_MS)
-      set({ snackbar: { description, notice: true }, snackbarTimerId: timerId })
+      const offer = options?.action
+      let action: UndoSnackbarAction | undefined
+      if (offer || options?.onEnd) {
+        const end = { onEnd: options?.onEnd ?? (() => {}), taken: false }
+        noticeEnd = end
+        // Taken: its end runs nothing.
+        if (offer) action = { label: offer.label, run: () => { end.taken = true; offer.run() } }
+      }
+      set({ snackbar: { description, notice: true, ...(action ? { action } : {}) }, snackbarTimerId: timerId })
     },
 
     dismissSnackbar() {
       const { snackbarTimerId } = get()
       if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
       set({ snackbar: null, snackbarTimerId: null })
+      endNotice()
     },
 
     clear() {
       const { snackbarTimerId } = get()
       if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
+      // A reset: what an open notice offered is dropped by the caller, its end runs nothing.
+      noticeEnd = null
       set({ undoStack: [], redoStack: [], groupStartIndex: null, groupToken: null, snackbar: null, snackbarTimerId: null })
     },
   }

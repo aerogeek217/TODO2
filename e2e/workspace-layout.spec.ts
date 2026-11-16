@@ -341,7 +341,7 @@ test.describe('saved layouts', () => {
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).not.toContainText('Edited')
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByRole('menu', { name: 'Layouts' }).getByRole('menuitem')).toHaveText([
-      'New layout…', 'Duplicate layout…', 'Edit…', 'Delete layout…',
+      'New layout…', 'Edit layout…', 'Duplicate layout…', 'Edit…', 'Delete layout…',
     ])
   })
 
