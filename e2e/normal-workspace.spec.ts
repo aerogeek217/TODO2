@@ -2,9 +2,12 @@ import { expect, test } from '@playwright/test'
 import {
   addWidgetAsTab,
   drag,
+  enterLayoutEdit,
   expectLayoutStep,
   layoutEditBar,
+  openCellLayoutMenu,
   openCellMenu,
+  pickSplit,
   seedWorkspace,
   wsCell,
   wsShape,
@@ -113,4 +116,32 @@ test('outside the mode a tab dragged to another cell goes nowhere; inside its ow
   // Onto the left half of the first tab: before it.
   await drag(page, await pointIn(wsTab(page, 'mapTab')), await pointIn(wsTab(page, 'notesTab'), 0.2, 0.5))
   await expect.poll(() => wsShape(page)).toEqual([[['mapTab', 'notesTab'], ['trendTab']], [['calTab'], ['pulseTab']]])
+})
+
+test('on a phone: no way into the layout edit mode, an empty cell offers nothing, and narrowing closes an open mode', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await seedWorkspace(page, { layouts: [quad] })
+  // An empty cell, made on the desktop.
+  await openCellMenu(page, 'b')
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Remove widget' }).click()
+  await expectLayoutStep(page, 'Removed “Calendar”')
+  // The mode open with a change, then the window narrowed to a phone's: it closes, saying the draft wasn't saved.
+  await enterLayoutEdit(page)
+  await openCellLayoutMenu(page, 'a')
+  await pickSplit(page, 'Below')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(layoutEditBar(page)).toHaveCount(0)
+  await expect(page.locator('[data-layout-editing]')).toHaveCount(0)
+  await expect(page.locator('[data-edit-surface], [data-edit-slot]')).toHaveCount(0)
+  await expect(page.getByText('Edit layout closed: its changes weren’t saved.')).toBeVisible()
+  // No pencil, no Edit layout anywhere; the empty cell says where layouts are made and offers no kinds.
+  await expect(page.getByTestId('layout-edit')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Edit layout' })).toHaveCount(0)
+  const empty = wsCell(page, 'b')
+  await expect(empty).toContainText('Empty cell')
+  await expect(empty.getByRole('button')).toHaveCount(0)
+  await wsCell(page, 'a').getByRole('button', { name: 'Cell options' }).click()
+  await expect(page.getByRole('menu').first()).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Edit layout' })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: 'Add widget as tab' })).toHaveCount(0)
 })
