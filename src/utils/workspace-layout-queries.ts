@@ -108,6 +108,12 @@ export function sameArrangement(a: LayoutBody, b: LayoutBody): boolean {
   return a === b || arrangementKey(a) === arrangementKey(b)
 }
 
+/** Whether two layout bodies are the same, view state included (the tracks' sizes and collapse, active tabs, tabs' view state). */
+export function layoutBodyEqual(a: LayoutBody, b: LayoutBody): boolean {
+  if (a === b || (a.grid === b.grid && a.cells === b.cells)) return true
+  return JSON.stringify(canonical({ grid: a.grid, cells: a.cells })) === JSON.stringify(canonical({ grid: b.grid, cells: b.cells }))
+}
+
 /** True when two layout bodies differ only in view state (i.e. the working copy has no unsaved changes). */
 export function layoutStructureEqual(a: LayoutBody, b: LayoutBody): boolean {
   if (a === b) return true

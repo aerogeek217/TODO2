@@ -57,6 +57,24 @@ export async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[])
 }
 
 /**
+ * Deletes the lists among `ids` that layout `layoutId` owns and none of
+ * `bodies` (nor its stored row) shows — the lists a layout edit mode's
+ * session created that its end doesn't keep. A failed delete leaves them
+ * (unshown) for the next prune.
+ */
+export async function pruneListsAmong(layoutId: number, ids: readonly number[], ...bodies: LayoutBody[]): Promise<void> {
+  if (ids.length === 0) return
+  const shown = new Set(bodies.flatMap((b) => [...layoutListRefs(b)]))
+  const only = new Set(ids.filter((id) => !shown.has(id)))
+  if (only.size === 0) return
+  try {
+    await applyRemoved(await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shown, only)))
+  } catch (err) {
+    console.warn('[workspace] removing the lists the layout edit made failed', err)
+  }
+}
+
+/**
  * Brings back lists a committed edit removed (with their manual order) and
  * reads the list stores again. Rejects when the write fails (the undo store
  * keeps the step); `UndoGone` when their layout is gone.

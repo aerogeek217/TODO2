@@ -152,6 +152,11 @@ const SHORTCUT_SPECS = {
     description: 'Pause / resume filter', category: 'general', editable: true,
     chord: null,
   },
+  // The layout edit mode (layout edit mode E1, decision E): no keys by default — a plain key would swap the whole top bar on one stray press.
+  'edit-layout': {
+    description: 'Edit layout', category: 'general', editable: true,
+    chord: null,
+  },
 } as const satisfies Record<string, ShortcutSpec>
 
 export type ShortcutId = keyof typeof SHORTCUT_SPECS

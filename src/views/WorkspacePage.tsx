@@ -37,7 +37,7 @@ import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
 import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { PulseEditorHost } from '../components/workspace/glance/PulseEditor'
 import { TrendEditorHost } from '../components/workspace/glance/TrendEditor'
-import { editorsHoldChanges, leaveOpenEditors } from '../stores/editor-leave'
+import { layoutLeaveAsks, leaveLayout } from '../stores/editor-leave'
 import { useLatestRef } from '../hooks/use-latest-ref'
 import { useBlocker } from 'react-router'
 import { TabIcon } from '../components/workspace/TabIcon'
@@ -260,16 +260,19 @@ function PanelGhost({ tabs }: { tabs: WorkspaceDragState['tabs'] }) {
 /**
  * A route change (the phone's bottom tab bar, the browser's back button, a
  * hash typed in) while an open editor holds changes (Edit list, a widget
- * editor): blocked until it was saved or discarded — its own question
- * (`editor-leave`); Keep editing stays here. Nothing else is ever unsaved,
- * so nothing else blocks; a reload or a closed tab asks nothing, as the
- * widget editors never did.
+ * editor, the layout edit mode's draft): blocked until it was saved or
+ * discarded — its own question (`editor-leave.leaveLayout`); Keep editing
+ * stays here. Nothing else is ever unsaved, so nothing else blocks; a
+ * reload or a closed tab asks nothing, as the widget editors never did (the
+ * layout edit mode's draft is dropped). The page going while the mode is on
+ * (a route change nothing could ask about: a hash typed in) closes it, its
+ * draft dropped — said so when it held changes.
  */
 function EditorLeaveGuard() {
   const blocker = useBlocker(
     useCallback(
       ({ currentLocation, nextLocation }: { currentLocation: { pathname: string }; nextLocation: { pathname: string } }) =>
-        currentLocation.pathname !== nextLocation.pathname && editorsHoldChanges(),
+        currentLocation.pathname !== nextLocation.pathname && layoutLeaveAsks(),
       [],
     ),
   )
@@ -278,11 +281,12 @@ function EditorLeaveGuard() {
   useEffect(() => {
     if (!blocked) return
     // Asked once per block.
-    void leaveOpenEditors().then((left) => {
+    void leaveLayout().then((left) => {
       if (left) blockerRef.current.proceed?.()
       else blockerRef.current.reset?.()
     })
   }, [blocked, blockerRef])
+  useEffect(() => () => useWorkspaceStore.getState().dropEdit(), [])
   return null
 }
 

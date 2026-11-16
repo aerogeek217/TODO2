@@ -219,6 +219,8 @@ export function createCommands(
 
     // Layouts
     ...layoutCommands(ctx),
+    // The layout edit mode (its `edit-layout` keys, none by default), once a layout is open.
+    ...(ctx.getLayouts?.() ? [bound('layout-edit', 'Edit Layout', 'edit-layout', 'layout')] : []),
 
     // Task actions
     bound('new-task', 'New Task', 'quick-add', 'task'),

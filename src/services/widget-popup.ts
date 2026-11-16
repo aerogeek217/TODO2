@@ -2,6 +2,8 @@ import { REVIEW_POPUP_TAB_ID } from '../models/review'
 import { closeOpenEditors, editorsHoldChanges, leaveOpenEditors } from '../stores/editor-leave'
 import { useListWidgetStore, type ReviewFilter } from '../stores/list-widget-store'
 import { useUIStore, type WidgetPopupTarget } from '../stores/ui-store'
+import { useUndoStore } from '../stores/undo-store'
+import { useWorkspaceStore } from '../stores/workspace-store'
 
 /**
  * The widget popup (**Open larger**): one widget at a time drawn at its large
@@ -22,6 +24,11 @@ import { useUIStore, type WidgetPopupTarget } from '../stores/ui-store'
  * before it shows). Resolves whether it did — false on Keep editing.
  */
 async function openPopup(target: WidgetPopupTarget, before?: () => void): Promise<boolean> {
+  // The layout edit mode shows the layout, not its widgets: nothing opens over it.
+  if (useWorkspaceStore.getState().editing) {
+    useUndoStore.getState().notify('Finish editing the layout first.')
+    return false
+  }
   if (editorsHoldChanges() && !(await leaveOpenEditors())) return false
   closeOpenEditors()
   before?.()
