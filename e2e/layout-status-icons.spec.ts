@@ -3,7 +3,7 @@ import { expectLayoutStored, openSettings, seedWorkspace, wsListWidget, wsRow, t
 
 /**
  * Widget feedback 11, 14, 15, J1, J17 (phase 3B): a layout's icon, picked in
- * Edit layout's Icon row (between Name and Hue) with the one icon picker —
+ * Name, icon and hue's Icon row (between Name and Hue) with the one icon picker —
  * the layout glyph until one is picked, a line icon, an emoji (muted: one
  * color, the hue on the open tab; or its own colors), No icon — saved with
  * Apply and kept across a reload; a status's emoji, picked in the status
@@ -29,8 +29,8 @@ const tabIcon = (page: Page, name: string) => tab(page, name).locator('[data-lay
 
 async function editLayout(page: Page, name: string) {
   await tab(page, name).click({ button: 'right' })
-  await page.getByRole('menu', { name: /^Layout / }).getByRole('menuitem', { name: 'Edit…' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit layout' })
+  await page.getByRole('menu', { name: /^Layout / }).getByRole('menuitem', { name: 'Name, icon and hue…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Name, icon and hue' })
   await expect(dialog).toBeVisible()
   return dialog
 }

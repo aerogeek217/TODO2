@@ -351,7 +351,7 @@ export interface WorkspaceState {
   /**
    * Renames a layout (not a structural edit: no undo step). Empty name → `false`.
    * With `hue`, sets its hue in the same write (`null` = none; D19 — the
-   * Edit layout dialog's swatches). With `icon`, sets its icon in the same
+   * Name, icon and hue dialog's swatches). With `icon`, sets its icon in the same
    * write (items 11, 14; `{ kind: 'none' }` = No icon) — absent leaves it.
    */
   rename: (id: number, name: string, hue?: string | null, icon?: IconValue) => Promise<boolean>

@@ -27,10 +27,10 @@ type Pending =
  * `Couldn't save · Retry` control follow (`WriteFailedButton`).
  *
  * - Tabs: click opens a layout; right-click / Shift+F10 → its menu (the open
- *   one: Edit layout…, Duplicate layout…; every one: Edit…, Move left /
+ *   one: Edit layout…, Duplicate layout…; every one: Name, icon and hue…, Move left /
  *   right, Delete layout…); drag to reorder; `+` = New layout.
  * - Picker: the layouts (drag to reorder), then New layout…, Edit layout…,
- *   Duplicate layout…, Edit…, Delete layout….
+ *   Duplicate layout…, Name, icon and hue…, Delete layout….
  * - Then the pencil, Edit layout: the layout edit mode (`workspace-store.enterEdit`).
  *
  * One order feeds both (the store's `layouts`); a reorder is saved at once.
@@ -101,7 +101,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
     ...openLayoutEntries,
     {
       kind: 'item',
-      label: 'Edit…',
+      label: 'Name, icon and hue…',
       icon: <PencilIcon />,
       onSelect: () => { if (activeLayoutId != null) setPending({ kind: 'rename', id: activeLayoutId, name }) },
     },
@@ -121,7 +121,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
     const index = indexOf(id)
     return [
       ...(open ? [...openLayoutEntries, { kind: 'separator' as const }] : []),
-      { kind: 'item', label: 'Edit…', icon: <PencilIcon />, onSelect: () => setPending({ kind: 'rename', id, name: nameOf(id) }) },
+      { kind: 'item', label: 'Name, icon and hue…', icon: <PencilIcon />, onSelect: () => setPending({ kind: 'rename', id, name: nameOf(id) }) },
       {
         kind: 'item',
         label: 'Move left',
@@ -230,7 +230,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
       )}
       {pending?.kind === 'rename' && (
         <LayoutNameDialog
-          title="Edit layout"
+          title="Name, icon and hue"
           confirmLabel="Apply"
           initialName={pending.name}
           initialHue={hueOf(pending.id)}
