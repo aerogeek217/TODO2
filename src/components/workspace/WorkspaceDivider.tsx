@@ -133,7 +133,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
   // While hovered: Alt pressed or let go changes what it lights at once.
   useEffect(() => {
     if (!hovered) return
-    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Alt') setBreaking(e.type === 'keydown' && partOfLine && !fit) }
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Alt' && !dragRef.current) setBreaking(e.type === 'keydown' && partOfLine && !fit) }
     window.addEventListener('keydown', onKey)
     window.addEventListener('keyup', onKey)
     return () => {
@@ -378,7 +378,8 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
         onPointerDown={onPointerDown}
         onPointerEnter={(e) => {
           setHovered(true)
-          setBreaking(e.altKey && partOfLine && !fit)
+          // Mid-drag the drag decides (a preview moving the element fires a fresh enter).
+          if (!dragRef.current) setBreaking(e.altKey && partOfLine && !fit)
         }}
         onPointerLeave={() => {
           setHovered(false)
