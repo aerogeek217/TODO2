@@ -1,5 +1,5 @@
 import { test, type Page } from '@playwright/test'
-import { drag, edges, expectSameEdges, seedWorkspace, wsCell, wsGhost, type WsLayoutSeed } from './fixtures/workspace'
+import { drag, edges, expectSameEdges, seedWorkspace, wsCell, wsGhost, type WsLayoutSeed, enterLayoutEdit } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 
 /**
@@ -66,18 +66,24 @@ const CASES: Array<{ name: string; from: string; tab: string; to: string; at: [n
 for (const c of CASES) {
   test(`${c.name}: the ghost is where it lands`, async ({ page }) => {
     await seedWorkspace(page, { layouts: [NUMBERS_OVER_CELLS] })
+    // Drops and their ghost live in the layout edit mode (E4).
+    await enterLayoutEdit(page)
     await expectGhostIsLanding(page, await grip(page, c.from), await pointIn(wsCell(page, c.to), c.at[0], c.at[1]), c.tab)
   })
 }
 
 test('a Number inserted as a column at the layout’s left edge: full height', async ({ page }) => {
   await seedWorkspace(page, { layouts: [NUMBERS_OVER_CELLS] })
+  // Drops and their ghost live in the layout edit mode (E4).
+  await enterLayoutEdit(page)
   const area = await box(page.locator('[data-ws-area]'))
   await expectGhostIsLanding(page, await grip(page, 'n2'), { x: area.x + 10, y: area.y + area.height / 2 }, 'num2')
 })
 
 test('a Number inserted as a row at the layout’s top edge: a fit row', async ({ page }) => {
   await seedWorkspace(page, { layouts: [NUMBERS_OVER_CELLS] })
+  // Drops and their ghost live in the layout edit mode (E4).
+  await enterLayoutEdit(page)
   const area = await box(page.locator('[data-ws-area]'))
   await expectGhostIsLanding(page, await grip(page, 'b'), { x: area.x + area.width / 2, y: area.y - 6 }, 'notesB')
 })
@@ -90,6 +96,8 @@ test('a cell dragged out of a row leaves it holding only a Number: the other row
     { id: 'a', tabs: [{ id: 'notesA', kind: 'notes' }] },
     { id: 'c', tabs: [{ id: 'calTab', kind: 'calendar' }] },
   ] } }] })
+  // Drops and their ghost live in the layout edit mode (E4).
+  await enterLayoutEdit(page)
   await expectGhostIsLanding(page, await grip(page, 'x'), await pointIn(wsCell(page, 'c'), 0.95, 0.5), 'notesX')
 })
 
@@ -100,5 +108,7 @@ test('a Number tab dragged out of a two-Number cell leaves a Numbers row: the gh
     { id: 'a', tabs: [{ id: 'notesA', kind: 'notes' }] },
     { id: 'c', tabs: [{ id: 'calTab', kind: 'calendar' }] },
   ] } }] })
+  // Drops and their ghost live in the layout edit mode (E4).
+  await enterLayoutEdit(page)
   await expectGhostIsLanding(page, await pointIn(page.locator('[data-ws-tab="numB"]')), await pointIn(wsCell(page, 'a'), 0.95, 0.5), 'numB')
 })

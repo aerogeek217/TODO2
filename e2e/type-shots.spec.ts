@@ -309,10 +309,16 @@ for (const size of SIZES) {
           await page.getByRole('menu').first().waitFor()
         }, { keepMouse: true })
         await shot('cell-layout', async () => {
+          // The grip and its Cell layout menu live in the layout edit mode (E4).
+          await page.getByTestId('layout-edit').click()
           await wsCell(page, 'cell-person').hover()
           await wsCell(page, 'cell-person').getByRole('button', { name: 'Cell layout' }).click()
           await page.getByRole('menu', { name: 'Cell layout' }).waitFor()
         }, { keepMouse: true })
+        // Out of the mode again: Esc closes the menu, then (no changes) the mode.
+        await page.keyboard.press('Escape')
+        await page.keyboard.press('Escape')
+        await page.locator('[data-layout-edit-bar]').waitFor({ state: 'detached' })
         await shot('tab-strip', async () => {
           await wsCell(page, 'cell-focus').hover()
         }, { keepMouse: true, clip: async () => wsCell(page, 'cell-focus') })

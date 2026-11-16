@@ -92,11 +92,7 @@ test('Add Widget from the palette asks before it adds; Keep editing adds nothing
     await expect(field).toBeFocused()
     await field.pressSequentially('add widget notes')
     await expect(page.getByRole('listbox').getByRole('option').first()).toHaveText('Add Widget › Notes')
-    await page.keyboard.press('Enter')
-    // The Where picker (a tab of the list's cell by default), then Add Notes — all by the keys.
-    const add = page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'Add Notes' })
-    await expect(add).toBeVisible()
-    await add.focus()
+    // A tab of the list's cell at once (no Where step, E4) — once the editor's question is answered.
     await page.keyboard.press('Enter')
   }
   await addNotes()
@@ -268,7 +264,7 @@ test('Collapse row asks — the header’s button and the menu’s, by the keys;
   await expect(editList(page)).toBeVisible()
   expect((await mainLayout(page))?.collapsed).toBe(false)
 
-  await pickByKeys(page, 'k1', 'Cell layout', ['menuitem', 'Collapse row'])
+  await pickByKeys(page, 'k1', 'Cell options', ['menuitem', 'Collapse row'])
   await expect(question(page)).toBeVisible()
   await answer(page, 'Discard')
   await expect(editList(page)).toHaveCount(0)
@@ -277,7 +273,7 @@ test('Collapse row asks — the header’s button and the menu’s, by the keys;
   expect(await teamSort(page)).toBe('manual')
 })
 
-test('Merge with from a menu run by the keys asks; Keep editing merges nothing; Discard merges the cells', async ({ page }) => {
+test('Add widget as tab from a menu run by the keys asks; Keep editing adds nothing; Discard adds the tab over the list', async ({ page }) => {
   await seedWorkspace(page, {
     ...SEED,
     layouts: [{
@@ -289,18 +285,18 @@ test('Merge with from a menu run by the keys asks; Keep editing merges nothing; 
     }],
   })
   await dirtyEditList(page)
-  // Notes takes the list's cell: its tabs join after Notes, which stays shown — the list would go out of sight.
-  const merge = () => pickByKeys(page, 'k0', 'Cell layout', ['menuitem', 'Merge with'], ['menuitem', 'Right'])
-  await merge()
+  // A new tab in the list's cell takes its place on screen: the list would go out of sight.
+  const add = () => pickByKeys(page, 'k1', 'Cell options', ['menuitem', 'Add widget as tab'], ['menuitem', 'Calendar'])
+  await add()
   await expect(question(page)).toBeVisible()
   await answer(page, 'Keep editing')
   await expect(editList(page)).toBeVisible()
   expect((await mainLayout(page))?.cells).toEqual([['notes'], ['lens']])
 
-  await merge()
+  await add()
   await answer(page, 'Discard')
   await expect(editList(page)).toHaveCount(0)
-  await expect.poll(async () => (await mainLayout(page))?.cells).toEqual([['notes', 'lens']])
+  await expect.poll(async () => (await mainLayout(page))?.cells).toEqual([['notes'], ['lens', 'calendar']])
   await expect(droppedNotice(page)).toHaveCount(0)
 })
 
@@ -360,10 +356,10 @@ test('Delete on a tab asks before it closes the tab; Keep editing closes nothing
   await expect(page.getByText('Removed “Team”')).toBeVisible()
 })
 
-test('Change widget and Close cell from a menu run by the keys ask first; Keep editing changes nothing', async ({ page }) => {
+test('Change widget and Remove widget from a menu run by the keys ask first; Keep editing changes nothing', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await dirtyEditList(page)
-  const pick = (button: 'Cell options' | 'Cell layout', ...items: MenuPick[]) => pickByKeys(page, 'k1', button, ...items)
+  const pick = (button: 'Cell options', ...items: MenuPick[]) => pickByKeys(page, 'k1', button, ...items)
   const changeToCalendar = () => pick('Cell options', ['menuitem', /^Change widget/], ['menuitemradio', 'Calendar'])
 
   await changeToCalendar()
@@ -372,7 +368,7 @@ test('Change widget and Close cell from a menu run by the keys ask first; Keep e
   await expect(editList(page)).toBeVisible()
   expect(await mainTabKinds(page)).toEqual(['lens'])
 
-  await pick('Cell layout', ['menuitem', 'Close cell'])
+  await pick('Cell options', ['menuitem', 'Remove widget'])
   await expect(question(page)).toBeVisible()
   await answer(page, 'Keep editing')
   await expect(editList(page)).toBeVisible()

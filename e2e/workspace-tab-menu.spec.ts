@@ -72,10 +72,10 @@ test('Shift+F10 on a tab opens its menu under the tab; type-ahead moves; Esc ret
   expect(Math.round(m.x)).toBe(Math.round(t.x))
   expect(m.y).toBeGreaterThanOrEqual(t.y + t.height)
   await expect(menu.getByRole('menuitem', { name: 'Edit list…' })).toBeFocused()
-  // Type-ahead: the next item starting with the key — the kinds are in Change widget's submenu, so it is
-  // the cell's (Shift+F10 opens the whole menu, both sections).
-  await page.keyboard.press('s')
-  await expect(menu.getByRole('menuitem', { name: 'Split cell' })).toBeFocused()
+  // Type-ahead: the next item starting with the key — the kinds are in their submenus, so it is
+  // Add widget as tab (E4: the cell's contents, after the widget's own entries).
+  await page.keyboard.press('a')
+  await expect(menu.getByRole('menuitem', { name: 'Add widget as tab' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(menu).toHaveCount(0)
   await expect(tab).toBeFocused()

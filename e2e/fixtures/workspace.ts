@@ -729,8 +729,10 @@ export async function pickCellMenu(page: Page, parent: 'Split cell' | 'Merge wit
 
 /**
  * Opens cell `cellId`'s ⋯ menu, `Cell options` (over the cell first: a
- * one-widget cell shows its ⋯ on hover): the widget's entries and Remove
- * widget. The layout's entries are the grip's (`openCellLayoutMenu`).
+ * one-widget cell shows its ⋯ on hover): outside the layout edit mode the
+ * widget's entries, Add widget as tab ›, Remove widget, Collapse row and
+ * Edit layout. The layout's entries are the grip's, in the mode
+ * (`openCellLayoutMenu`).
  */
 export async function openCellMenu(page: Page, cellId: string): Promise<void> {
   await wsCell(page, cellId).hover()
@@ -741,12 +743,59 @@ export async function openCellMenu(page: Page, cellId: string): Promise<void> {
  * Opens cell `cellId`'s layout menu, `Cell layout` (UX cleanup 4A: a click
  * on its grip — a one-widget cell's in its top line, a strip's in its
  * header), under Layout: Add widget…, Split cell ▸, Insert row ▸, Insert
- * column ▸, Merge with ▸, Collapse / Expand row, Close cell.
+ * column ▸, Merge with ▸, Collapse / Expand row, Close cell. The grip is
+ * drawn only in the layout edit mode (E4): open it first (`enterLayoutEdit`).
  */
 export async function openCellLayoutMenu(page: Page, cellId: string): Promise<Locator> {
   await wsCell(page, cellId).hover()
   await wsCell(page, cellId).getByRole('button', { name: 'Cell layout' }).click()
   return page.getByRole('menu', { name: 'Cell layout' })
+}
+
+/**
+ * The ⋯'s **Add widget as tab ›** `label` on cell `cellId` (layout edit mode
+ * E4): the new widget a tab of that cell, made its active one; a Breakdown
+ * from `preset` (default Custom). No editor opens.
+ */
+export async function addWidgetAsTab(page: Page, cellId: string, label: string, preset = 'Custom'): Promise<void> {
+  await openCellMenu(page, cellId)
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Add widget as tab' }).click()
+  await page.getByRole('menu', { name: 'Add widget as tab' }).getByRole('menuitem', { name: label, exact: true }).click()
+  if (label === 'Breakdown') await page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem', { name: preset, exact: true }).click()
+}
+
+/**
+ * A layout-wide edit made in the layout edit mode (since E4 the grip and its
+ * Cell layout menu live only there): opens the mode, runs `edit` on the
+ * draft, then Done — stored as one undo step, `Edited layout “X”`.
+ */
+export async function editLayout(page: Page, edit: () => Promise<void>): Promise<void> {
+  await enterLayoutEdit(page)
+  await edit()
+  await finishLayoutEdit(page)
+}
+
+/** The layout edit mode's bar (layout edit mode E1). */
+export function layoutEditBar(page: Page): Locator {
+  return page.locator('[data-layout-edit-bar]')
+}
+
+/**
+ * Opens the layout edit mode (E1) from the pencil after the layout tabs and
+ * waits for its bar. Everything layout-wide — the grip, its Cell layout
+ * menu, whole-cell and cross-cell drags, the drop ghost — is drawn only
+ * there since E4, and acts on the draft until `finishLayoutEdit`.
+ */
+export async function enterLayoutEdit(page: Page): Promise<void> {
+  await page.getByTestId('layout-edit').click()
+  await expect(layoutEditBar(page)).toBeVisible()
+}
+
+/** Done in the layout edit mode: the draft stored as one undo step (`Edited layout “X”`); waits for the bar to go and the write to land. */
+export async function finishLayoutEdit(page: Page): Promise<void> {
+  await layoutEditBar(page).getByRole('button', { name: 'Done', exact: true }).click()
+  await expect(layoutEditBar(page)).toHaveCount(0)
+  await expectLayoutStored(page)
 }
 
 /** The drop ghost while a tab or cell is dragged (D26 board T). */
@@ -822,7 +871,8 @@ export async function dragPanel(
 /**
  * Drags a tab (grabbed at its centre) to (x, y), checking `during` (if
  * given) before releasing. A widget alone in its cell has no tab (its top
- * line stands for it): its cell's grip drags it.
+ * line stands for it): its cell's grip drags it — in the layout edit mode
+ * only (E4); outside it a tab reorders only inside its own strip.
  */
 export async function dragTab(page: Page, tab: Locator, to: Point, during?: () => Promise<void>): Promise<void> {
   const grip = (await tab.getAttribute('data-widget-top-line')) != null

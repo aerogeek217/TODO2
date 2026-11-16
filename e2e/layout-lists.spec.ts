@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { ADD_FILTER, closeListFilterEditor, expectOpenLayout, openListFilterEditor, openLayoutAction, openSettings, readListDefinitions, seedWorkspace, switchLayout as openLayout, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, expectOpenLayout, openListFilterEditor, openLayoutAction, openSettings, readListDefinitions, seedWorkspace, switchLayout as openLayout, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep, expectLayoutStored, addWidgetAsTab } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -45,10 +45,7 @@ test.use({ viewport: { width: 1600, height: 900 } })
 
 test('a new list widget’s list is the open layout’s; a list tab is never pointed at another list; Settings has no Lists', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await wsCell(page, 'b1').hover()
-  await wsCell(page, 'b1').getByRole('button', { name: 'Cell layout' }).click()
-  await page.getByRole('menuitem', { name: 'Add widget…' }).click()
-  await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
+  await addWidgetAsTab(page, 'b1', 'List')
   // A new list for this layout at once: no picker, no choice of where it goes, no editor.
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect.poll(async () => (await lists(page)).find((d) => d.name === 'New list')?.owner).toEqual({ layoutId: await layoutId(page, 'Main') })
