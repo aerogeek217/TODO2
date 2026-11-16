@@ -65,7 +65,7 @@ const storedListIds = async () => (await db.listDefinitions.toArray()).map((d) =
 /** A list made in the mode, as `createListAndTab` makes it: stored, noted, then shown in a new tab of cell `cellId`. */
 async function addListInMode(layoutId: number, cellId: string): Promise<number> {
   const id = await useListDefinitionStore.getState().add({
-    name: 'New list', sortOrder: 0, sort: 'manual', grouping: 'none',
+    name: 'New list', sort: 'manual', grouping: 'none',
     membership: { kind: 'custom', predicate: emptyPredicate() }, owner: { layoutId },
   })
   ws().noteEditList(id)
@@ -196,7 +196,7 @@ describe('Done', () => {
   it('a list the draft dropped is deleted with the write and its Undo brings it back', async () => {
     const [id] = await seed(twoColumns())
     const list = await useListDefinitionStore.getState().add({
-      name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none',
+      name: 'Inbox', sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: emptyPredicate() }, owner: { layoutId: id! },
     })
     ws().addWidget('lens', { kind: 'cell', cellId: 'ka' }, { listDefinitionId: list })
