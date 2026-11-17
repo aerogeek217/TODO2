@@ -17,6 +17,7 @@ import {
   enterLayoutEdit,
   finishLayoutEdit,
   openCellMenu,
+  tabAreaPoint,
 } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -87,7 +88,8 @@ test.describe('a body its widget scrolls', () => {
     await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(20)
     // Drops into another cell, and their ghost, are the layout edit mode's (E4).
     await enterLayoutEdit(page)
-    await dragTab(page, wsTab(page, 'notesTab'), await bodyPoint(page, 'kc', 0.5, 0.5), async () => {
+    // A lone widget drags as its card: onto the Calendar's tab area it joins (its middle would swap).
+    await dragTab(page, wsTab(page, 'notesTab'), await tabAreaPoint(page, 'kc'), async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Add as tab')
       await expect(page.getByTestId('ws-drop-label')).toBeInViewport()
     })

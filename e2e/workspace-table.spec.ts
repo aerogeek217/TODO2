@@ -23,6 +23,7 @@ import {
   watchSnackbar,
   enterLayoutEdit,
   finishLayoutEdit,
+  tabAreaPoint,
 } from './fixtures/workspace'
 import { box, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -173,10 +174,20 @@ test.describe('whole-cell drags', () => {
     await expectLayoutStored(page)
   })
 
-  test('a cell into another’s middle: all its tabs join, the first moved one active', async ({ page }) => {
+  test('a cell onto another’s middle swaps the two whole cells', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     await enterLayoutEdit(page)
     await dragPanel(page, 'a', await bodyPoint(page, 'c', 0.5, 0.5), {
+      during: async () => { await expect(page.getByTestId('ws-drop-label')).toHaveText('Swap with “Notes”') },
+    })
+    await expect.poll(() => wsShape(page)).toEqual([[['notes2'], ['notesTab', 'mapTab']], [['calTab']]])
+  })
+
+  test('a cell onto another’s tab area: all its tabs join, the first moved one active', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [aBc] })
+    await enterLayoutEdit(page)
+    // A one-widget card's tab area: its top band, where its label sits.
+    await dragPanel(page, 'a', await tabAreaPoint(page, 'c'), {
       lifted: async () => {
         await expect(wsCell(page, 'a')).toHaveCSS('opacity', '0.4')
         await expect(page.getByTestId('ws-panel-ghost')).toContainText('2 tabs')

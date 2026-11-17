@@ -819,6 +819,16 @@ export async function finishLayoutEdit(page: Page): Promise<void> {
   await expectLayoutStored(page)
 }
 
+/**
+ * A point in a one-widget card's tab area in the layout edit mode (its top
+ * band, where its label sits): a whole card or a tab dropped there joins it
+ * as tabs — on its middle a whole card swaps with it instead.
+ */
+export async function tabAreaPoint(page: Page, cellId: string): Promise<Point> {
+  const b = await box(wsCell(page, cellId))
+  return { x: b.x + b.width / 2, y: b.y + 14 }
+}
+
 /** The drop ghost while a tab or cell is dragged (D26 board T). */
 export function wsGhost(page: Page): Locator {
   return page.getByTestId('ws-drop-ghost')

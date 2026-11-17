@@ -209,9 +209,13 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
 
   const hit = drag?.hit
   const stripHit = hit?.kind === 'tab-strip' && hit.cellId === cell.id && drag?.accepts ? hit : null
-  // Joining it (its body's middle): the tabs show in its strip as ghosts —
-  // a one-widget cell's in the strip it will have, over its top line.
-  const joining = drag?.accepts === true && hit?.kind === 'cell-body' && hit.cellId === cell.id && hit.zone === 'middle'
+  // Joining it (its body's middle — not a whole card's swap —, or a one-widget
+  // card's tab area in the layout edit mode): the tabs show in its strip as
+  // ghosts — a one-widget cell's in the strip it will have, over its top line.
+  const joinTarget = drag?.target?.kind === 'cell' && drag.target.cellId === cell.id
+  const joining = drag?.accepts === true && joinTarget && (
+    (hit?.kind === 'cell-body' && hit.zone === 'middle') || (hit?.kind === 'tab-strip' && !stripShown && !numberStrip)
+  )
   const ghosts = joining ? drag.tabs : null
   const isDragSource = drag?.source.type === 'panel' && drag.source.panelId === cell.id
 
