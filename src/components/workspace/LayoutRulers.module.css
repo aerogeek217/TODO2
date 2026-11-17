@@ -2,9 +2,14 @@
  * workspace table itself, so each sits on its track (and scrolls with it).
  * They overlay the gutters and the cells' outer edges — no cell moves:
  * columns' rulers along the top (over the table's top padding and the
- * first row's top 8px), rows' down the left (over the table's left padding
- * and the first column's left 8px), a "+" on every line, centred in its
- * gutter. Geometry: the gutter is `--workspace-gutter`, a "+" 14px. */
+ * first row's top 10px), rows' down the left (over the table's left padding
+ * and the first column's left 10px), a "+" on every line, centred in its
+ * gutter. Geometry: the gutter is `--workspace-gutter` (6px); a ruler's
+ * strip is 16px (`--ruler-strip`); a "+" is a 20px disc in a 28px target
+ * (`--ruler-plus`), which reaches 11px past the gutter into the tracks
+ * beside it, so a ruler keeps 14px clear of a line with a "+"
+ * (`--ruler-clear`). The cards' chrome sits 20px in from a card's top and
+ * left, clear of all of it (`EditCard.module.css`). */
 
 /* The workspace's top and bottom padding move into the table while the mode
  * is on, so the rulers and the end "+"s can sit in it (inside the table's
@@ -21,6 +26,10 @@
 
 .rulers {
   display: contents;
+  --ruler-strip: 16px;
+  --ruler-plus: 28px;
+  --ruler-disc: 20px;
+  --ruler-clear: 14px;
 }
 
 .ruler,
@@ -83,33 +92,43 @@
 
 .ruler[data-axis='columns'] {
   align-self: start;
-  height: 14px;
-  margin: calc(-1 * var(--workspace-gutter)) 9px 0;
+  height: var(--ruler-strip);
+  margin: calc(-1 * var(--workspace-gutter)) var(--ruler-clear) 0;
 }
 
-/* The first column's ruler clears the corner's "+"s; the last one the end "+". */
+/* The first column's ruler clears the corner's "+"; the last one the end "+". */
 .ruler[data-axis='columns']:is([data-end='first'], [data-end='only']) {
-  margin-left: 28px;
+  margin-left: 18px;
 }
 
 .ruler[data-axis='columns']:is([data-end='last'], [data-end='only']) {
-  margin-right: 10px;
+  margin-right: 24px;
 }
 
 .ruler[data-axis='rows'] {
   flex-direction: column;
   justify-self: start;
-  width: 14px;
-  margin: 9px 0 9px calc(-1 * var(--workspace-gutter));
+  width: var(--ruler-strip);
+  margin: var(--ruler-clear) 0 var(--ruler-clear) calc(-1 * var(--workspace-gutter));
   padding: 2px 0;
 }
 
+/* The first row's ruler clears the first row line's "+", which steps down out of the corner. */
 .ruler[data-axis='rows']:is([data-end='first'], [data-end='only']) {
-  margin-top: 10px;
+  margin-top: 44px;
 }
 
 .ruler[data-axis='rows']:is([data-end='last'], [data-end='only']) {
-  margin-bottom: 10px;
+  margin-bottom: 24px;
+}
+
+/* Before a sliver, the ruler clears the sliver's "+", which sits just before it. */
+.ruler[data-axis='columns'][data-before-sliver] {
+  margin-right: calc(var(--ruler-plus) + 2px);
+}
+
+.ruler[data-axis='rows'][data-before-sliver] {
+  margin-bottom: calc(var(--ruler-plus) + 2px);
 }
 
 /* A row's mark runs down the ruler, giving way first in a short row. */
@@ -119,91 +138,121 @@
   letter-spacing: 0.04em;
 }
 
-/* ── A sliver's tick: unlabelled, its menu merges it into a neighbour ── */
+/* ── A sliver's tick: unlabelled, its menu merges it into a neighbour ──
+ * A pill on the sliver's start in the ruler's strip, wider than the sliver
+ * (it reaches over the gutter after it); its "+" sits just before it. */
 
 .tick {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
-  background: transparent;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px var(--edit-outline);
 }
 
 .tick::before {
   content: '';
-  border-radius: 1px;
-  background: var(--color-text-muted);
+  border-radius: 2px;
+  background: var(--color-text-secondary);
+}
+
+.tick:hover,
+.tick[data-open] {
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.tick:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-accent), var(--focus-ring);
 }
 
 .tick:hover::before,
 .tick[data-open]::before,
 .tick:focus-visible::before {
-  background: var(--color-accent);
+  background: var(--color-accent-text);
 }
 
 .tick[data-axis='columns'] {
   align-self: start;
-  justify-self: center;
-  width: 12px;
-  height: 14px;
+  justify-self: start;
+  width: 18px;
+  height: var(--ruler-strip);
   margin-top: calc(-1 * var(--workspace-gutter));
 }
 
 .tick[data-axis='columns']::before {
-  width: 3px;
-  height: 9px;
+  width: 4px;
+  height: 10px;
 }
 
 .tick[data-axis='rows'] {
   justify-self: start;
-  align-self: center;
-  width: 14px;
-  height: 12px;
+  align-self: start;
+  width: var(--ruler-strip);
+  height: 18px;
   margin-left: calc(-1 * var(--workspace-gutter));
 }
 
 .tick[data-axis='rows']::before {
-  width: 9px;
-  height: 3px;
+  width: 10px;
+  height: 4px;
 }
 
-/* ── A line's "+" ── */
+/* ── A line's "+": a 20px disc in a 28px target ── */
 
 .plus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: var(--ruler-plus);
+  height: var(--ruler-plus);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-accent-text);
+}
+
+.plus::before {
+  content: '';
+  position: absolute;
+  inset: calc((var(--ruler-plus) - var(--ruler-disc)) / 2);
+  z-index: -1;
   border-radius: 50%;
   background: var(--color-surface);
-  box-shadow: inset 0 0 0 1px var(--edit-outline);
-  color: var(--color-accent-text);
-  transition: transform var(--transition-fast);
+  box-shadow: inset 0 0 0 1px var(--edit-outline), 0 1px 3px rgb(0 0 0 / 0.25);
+  transition: transform var(--transition-fast), background var(--transition-fast);
 }
 
 .plus:hover,
 .plus:focus-visible {
-  background: var(--color-accent);
   color: var(--color-text-on-accent);
-  transform: scale(1.15);
+}
+
+.plus:hover::before,
+.plus:focus-visible::before {
+  background: var(--color-accent);
+  transform: scale(1.12);
 }
 
 .plus:focus-visible {
+  outline: none;
+}
+
+.plus:focus-visible::before {
   box-shadow: var(--focus-ring);
 }
 
-/* An inner line's "+" sits in the gutter before the track after the line. */
+/* An inner line's "+" sits on the gutter before the track after the line, centred in the ruler's strip. */
 .plus[data-axis='columns'] {
   align-self: start;
   justify-self: start;
-  margin-top: calc(-1 * var(--workspace-gutter));
-  margin-left: calc(-0.5 * var(--workspace-gutter) - 7px);
+  margin-top: calc((var(--ruler-strip) - var(--ruler-plus)) / 2 - var(--workspace-gutter));
+  margin-left: calc(-0.5 * var(--workspace-gutter) - var(--ruler-plus) / 2);
 }
 
-/* The first column line's "+" steps right of the corner, where the first row line's sits. */
+/* The first column line's "+" sits in the corner, centred on both strips. */
 .plus[data-axis='columns'][data-end='first'] {
-  margin-left: 12px;
+  margin-left: calc((var(--ruler-strip) - var(--ruler-plus)) / 2 - var(--workspace-gutter));
 }
 
 .plus[data-axis='columns'][data-end='last'] {
@@ -215,12 +264,13 @@
 .plus[data-axis='rows'] {
   justify-self: start;
   align-self: start;
-  margin-left: calc(-1 * var(--workspace-gutter));
-  margin-top: calc(-0.5 * var(--workspace-gutter) - 7px);
+  margin-left: calc((var(--ruler-strip) - var(--ruler-plus)) / 2 - var(--workspace-gutter));
+  margin-top: calc(-0.5 * var(--workspace-gutter) - var(--ruler-plus) / 2);
 }
 
+/* The first row line's "+" steps down out of the corner, where the first column line's sits. */
 .plus[data-axis='rows'][data-end='first'] {
-  margin-top: calc(-1 * var(--workspace-gutter));
+  margin-top: 14px;
 }
 
 .plus[data-axis='rows'][data-end='last'] {
@@ -229,7 +279,16 @@
   margin-bottom: calc(-1 * var(--workspace-gutter));
 }
 
-/* ── The line a hovered or focused "+" inserts on, across the table ── */
+/* A sliver's "+" (it and its two lines are one line) sits just before the sliver, clear of its tick. */
+.plus[data-axis='columns'][data-sliver-run]:not([data-end]) {
+  margin-left: calc(-1 * var(--ruler-plus));
+}
+
+.plus[data-axis='rows'][data-sliver-run]:not([data-end]) {
+  margin-top: calc(-1 * var(--ruler-plus));
+}
+
+/* ── The line a hovered or focused "+" inserts on: where its new empty cells go ── */
 
 .guide {
   position: relative;
