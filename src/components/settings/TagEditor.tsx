@@ -141,17 +141,21 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
       return (
         <div key={tag.id}>
           <div className={styles.editRow} onKeyDown={handleEditKeyDown}>
-            <ColorPicker value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
-            <input
-              className={styles.editInput}
-              value={ed.name}
-              onChange={(e) => { setEditing({ ...ed, name: e.target.value }); setNameError('') }}
-              placeholder="Tag name"
-              autoFocus
-            />
-            <div className={styles.editActions}>
-              <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
-              <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
+            <div className={styles.editLine}>
+              <input
+                className={styles.editInput}
+                value={ed.name}
+                onChange={(e) => { setEditing({ ...ed, name: e.target.value }); setNameError('') }}
+                placeholder="Tag name"
+                autoFocus
+              />
+            </div>
+            <div className={styles.editLine}>
+              <ColorPicker value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+              <div className={styles.editActions}>
+                <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
+                <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
+              </div>
             </div>
           </div>
           {nameError && <div className={styles.errorHint}>{nameError}</div>}
@@ -196,17 +200,21 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
         {adding ? (
           <div>
             <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
-              <ColorPicker value={newColor} onChange={setNewColor} />
-              <input
-                className={styles.editInput}
-                value={newName}
-                onChange={(e) => { setNewName(e.target.value); setNameError('') }}
-                placeholder="Tag name"
-                autoFocus
-              />
-              <div className={styles.editActions}>
-                <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
-                <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
+              <div className={styles.editLine}>
+                <input
+                  className={styles.editInput}
+                  value={newName}
+                  onChange={(e) => { setNewName(e.target.value); setNameError('') }}
+                  placeholder="Tag name"
+                  autoFocus
+                />
+              </div>
+              <div className={styles.editLine}>
+                <ColorPicker value={newColor} onChange={setNewColor} />
+                <div className={styles.editActions}>
+                  <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
+                  <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
+                </div>
               </div>
             </div>
             {nameError && <div className={styles.errorHint}>{nameError}</div>}

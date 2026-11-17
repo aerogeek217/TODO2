@@ -10,6 +10,7 @@ import {
   type ListRowDropTarget,
 } from '../../../utils/list-row-drop'
 import type { ListRowDragData } from './ListWidgetRow'
+import { watchDragRelease } from '../drag-release'
 
 /** A row drag inside one list widget: the dragged row and where it would land. */
 export interface ListRowDragState {
@@ -100,14 +101,19 @@ export function useListRowDrag({ tabId, scrollRef, canCross, onDrop }: UseListRo
       geomRef.current = geom
       const section = geom.sections.find((s) => s.key === data.sectionKey)
       const index = section ? section.rows.findIndex((r) => r.key === data.rowKey) : -1
-      setDrag({
-        source: { key: data.rowKey, todoId: data.todo.id, sectionKey: data.sectionKey, index: Math.max(0, index) },
-        target: null,
-      })
+      const source: ListRowDragSource = { key: data.rowKey, todoId: data.todo.id, sectionKey: data.sectionKey, index: Math.max(0, index) }
+      setDrag({ source, target: null })
       // Attached here, not in an effect after the render: the pointer may
       // reach its landing spot and stop before an effect would run.
       stopFollowingRef.current?.()
       followPointer()
+      // A drag dnd-kit ends without telling us (a quick flick) ends here too, dropping nothing.
+      const stopFollowing = stopFollowingRef.current
+      const stopWatching = watchDragRelease(() => dragRef.current?.source === source, endDrag)
+      stopFollowingRef.current = () => {
+        stopFollowing?.()
+        stopWatching()
+      }
     },
     onDragEnd() {
       const current = dragRef.current

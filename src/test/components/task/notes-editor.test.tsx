@@ -263,6 +263,21 @@ describe('NotesEditor — Markdown editing', () => {
     expect(view.state.doc.toString()).toBe('- one\n- ')
   })
 
+  it.each([
+    ['- one\n- |two', '- one\n- \n- two'],
+    ['  - sub\n  * |two', '  - sub\n  * \n  * two'],
+    ['- [ ] a\n- [ ] |b', '- [ ] a\n- [ ] \n- [ ] b'],
+    ['- [x] |done', '- [ ] \n- [x] done'],
+  ])('Enter just after a marker (%j) leaves a whole empty item above, never a bare dash', (doc, expected) => {
+    const caret = doc.indexOf('|')
+    const view = editorWith(doc.replace('|', ''))
+    view.dispatch({ selection: { anchor: caret } })
+    press(view, 'Enter')
+    expect(view.state.doc.toString()).toBe(expected)
+    // The caret stays before the text, now on the line below.
+    expect(view.state.selection.main.head).toBe(expected.length - doc.length + caret + 1)
+  })
+
   it('Backspace after an empty item’s marker turns it into the item’s indent', () => {
     const view = editorWith('- one\n- ')
     press(view, 'Backspace')

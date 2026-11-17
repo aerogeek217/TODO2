@@ -1,6 +1,6 @@
 import { syntaxTree } from '@codemirror/language'
-import { EditorSelection, EditorState, RangeSetBuilder } from '@codemirror/state'
-import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view'
+import { EditorSelection, EditorState, Prec, RangeSetBuilder } from '@codemirror/state'
+import { Decoration, EditorView, ViewPlugin, keymap, type Command, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { listMarker, type ListMarker } from '../../../services/note-lines'
 
 const CODE_NODES = new Set(['FencedCode', 'CodeBlock', 'CodeText'])
@@ -69,13 +69,35 @@ const selectionOutOfMarkers = EditorState.transactionFilter.of((tr) => {
 })
 
 /**
+ * Enter with the caret just after a marker, text after it (where Home puts it):
+ * a new empty item above, the text staying an item on its own line with the
+ * caret before it. lang-markdown's Enter splits the item there too, but trims
+ * the marker it leaves above to a bare `-` (`- [ ]`), which is no longer a
+ * list line — a dash, not a bullet. A done box's empty item above is open.
+ */
+const enterAfterMarker: Command = ({ state, dispatch }) => {
+  const range = state.selection.main
+  if (state.selection.ranges.length > 1 || !range.empty) return false
+  const line = state.doc.lineAt(range.head)
+  const marker = markerAt(state, line.from, line.text)
+  if (!marker || range.head !== line.from + marker.to || marker.to >= line.length) return false
+  const above = line.text.slice(0, marker.to).replace(/\[[xX]\]/, '[ ]')
+  dispatch(state.update({
+    changes: { from: line.from, insert: `${above}\n` },
+    scrollIntoView: true,
+    userEvent: 'input',
+  }))
+  return true
+}
+
+/**
  * Shows a list line's marker as a symbol: `- ` as •, `- [ ] ` as ☐, `- [x] `
  * as ☑ (and the `*`, `•` and bare `[ ]` forms alike). Display only: the note's
  * text stays standard Markdown, in the DOM too (the characters are unseen and
  * have no width, the symbol is CSS), so Copy, exports, Convert, Enter and Tab
  * all read what they always did. The caret steps over a marker as one unit.
  */
-export const notesListMarkers = [selectionOutOfMarkers, ViewPlugin.fromClass(class {
+export const notesListMarkers = [selectionOutOfMarkers, Prec.highest(keymap.of([{ key: 'Enter', run: enterAfterMarker }])), ViewPlugin.fromClass(class {
   decorations: DecorationSet
 
   constructor(view: EditorView) {
