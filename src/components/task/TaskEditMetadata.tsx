@@ -109,7 +109,7 @@ export function TaskEditMetadata({
             <span key={`t-${tag.id}`} className={styles.tagChip} style={{ color: tag.color, borderColor: tag.color }}>
               <button type="button" className={styles.chipOpen}
                 onClick={() => toggleDropdown('tags')}>
-                #{tag.name}
+                <span className={styles.personName}>#{tag.name}</span>
               </button>
               <button type="button" className={styles.chipRemove} aria-label={`Remove #${tag.name}`}
                 onClick={() => { if (tag.id != null) onToggleTag(tag.id) }}>&times;</button>
