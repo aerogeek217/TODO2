@@ -5,11 +5,15 @@
  * first row's top 10px), rows' down the left (over the table's left padding
  * and the first column's left 10px), a "+" on every line, centred in its
  * gutter. Geometry: the gutter is `--workspace-gutter` (6px); a ruler's
- * strip is 16px (`--ruler-strip`); a "+" is a 20px disc in a 28px target
- * (`--ruler-plus`), which reaches 11px past the gutter into the tracks
- * beside it, so a ruler keeps 14px clear of a line with a "+"
- * (`--ruler-clear`). The cards' chrome sits 20px in from a card's top and
- * left, clear of all of it (`EditCard.module.css`). */
+ * strip is 16px (`--ruler-strip`); a "+" is a 20px disc in a 24px target
+ * (`--ruler-plus`), centred in the strip, so it reaches 14px into the
+ * cells beside the strip and 9px past the gutter into the tracks beside
+ * its line — a ruler keeps 11px clear of a line with a "+"
+ * (`--ruler-clear`). A larger target would cover the first tab of a strip
+ * in the cards along the strips. The card's ⋯ sits 16px down, clear of the
+ * column "+"s (`EditCard.module.css`). A row ruler takes no part in sizing
+ * its row (`contain: size`), so a Numbers row that fits its content keeps
+ * its height in the mode. */
 
 /* The workspace's top and bottom padding move into the table while the mode
  * is on, so the rulers and the end "+"s can sit in it (inside the table's
@@ -27,9 +31,9 @@
 .rulers {
   display: contents;
   --ruler-strip: 16px;
-  --ruler-plus: 28px;
+  --ruler-plus: 24px;
   --ruler-disc: 20px;
-  --ruler-clear: 14px;
+  --ruler-clear: 11px;
 }
 
 .ruler,
@@ -96,13 +100,13 @@
   margin: calc(-1 * var(--workspace-gutter)) var(--ruler-clear) 0;
 }
 
-/* The first column's ruler clears the corner's "+"; the last one the end "+". */
+/* The first column's ruler clears the first column line's "+" (right of the corner); the last one the end "+". */
 .ruler[data-axis='columns']:is([data-end='first'], [data-end='only']) {
-  margin-left: 18px;
+  margin-left: 42px;
 }
 
 .ruler[data-axis='columns']:is([data-end='last'], [data-end='only']) {
-  margin-right: 24px;
+  margin-right: 20px;
 }
 
 .ruler[data-axis='rows'] {
@@ -111,15 +115,16 @@
   width: var(--ruler-strip);
   margin: var(--ruler-clear) 0 var(--ruler-clear) calc(-1 * var(--workspace-gutter));
   padding: 2px 0;
+  contain: size;
 }
 
-/* The first row's ruler clears the first row line's "+", which steps down out of the corner. */
+/* The first row's ruler clears the corner's "+"; the last one the end "+". */
 .ruler[data-axis='rows']:is([data-end='first'], [data-end='only']) {
-  margin-top: 44px;
+  margin-top: 16px;
 }
 
 .ruler[data-axis='rows']:is([data-end='last'], [data-end='only']) {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 /* Before a sliver, the ruler clears the sliver's "+", which sits just before it. */
@@ -199,7 +204,7 @@
   height: 4px;
 }
 
-/* ── A line's "+": a 20px disc in a 28px target ── */
+/* ── A line's "+": a 20px disc in a 24px target ── */
 
 .plus {
   display: inline-flex;
@@ -250,9 +255,9 @@
   margin-left: calc(-0.5 * var(--workspace-gutter) - var(--ruler-plus) / 2);
 }
 
-/* The first column line's "+" sits in the corner, centred on both strips. */
+/* The first column line's "+" steps right of the corner, where the first row line's sits. */
 .plus[data-axis='columns'][data-end='first'] {
-  margin-left: calc((var(--ruler-strip) - var(--ruler-plus)) / 2 - var(--workspace-gutter));
+  margin-left: 16px;
 }
 
 .plus[data-axis='columns'][data-end='last'] {
@@ -268,9 +273,9 @@
   margin-top: calc(-0.5 * var(--workspace-gutter) - var(--ruler-plus) / 2);
 }
 
-/* The first row line's "+" steps down out of the corner, where the first column line's sits. */
+/* The first row line's "+" sits in the corner, centred on both strips. */
 .plus[data-axis='rows'][data-end='first'] {
-  margin-top: 14px;
+  margin-top: calc((var(--ruler-strip) - var(--ruler-plus)) / 2 - var(--workspace-gutter));
 }
 
 .plus[data-axis='rows'][data-end='last'] {

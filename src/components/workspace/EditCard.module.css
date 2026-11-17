@@ -4,9 +4,9 @@
  * label, the ⋯ and the corner — over it (z 2). Everything clears the
  * rulers' strips and their "+"s (`LayoutRulers.module.css`): the strips
  * cover the top 10px of the first row's cells and the left 10px of the
- * first column's; a "+" disc reaches 12px in (its target 16px), on a line —
- * so the ⋯ sits 18px down; the label, 10px down and 12px in, meets the
- * corner's "+" discs without overlapping them. */
+ * first column's; a "+" disc reaches 12px in (its target 14px), on a line —
+ * so the ⋯ sits 16px down; the label, 10px down and 12px in, meets the
+ * "+" discs beside it. */
 
 .surface {
   position: absolute;
@@ -70,7 +70,7 @@
 /* Its ⋯: the card's menu (Cell layout). Always shown in the mode. */
 .more {
   position: absolute;
-  top: 18px;
+  top: 16px;
   right: 6px;
   z-index: 2;
   display: inline-flex;

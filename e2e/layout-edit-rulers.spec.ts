@@ -149,3 +149,26 @@ test('the "+" beside a sliver inserts a full-width row, as its guide shows; a li
   expect(top.y + top.height).toBeLessThanOrEqual(slot.y + 1)
   expect(bottom.y).toBeGreaterThanOrEqual(slot.y + slot.height - 1)
 })
+
+test('a Numbers row that fits its content keeps its height in the mode: no cell moves', async ({ page }) => {
+  const number = (id: string, metric: string) => ({ id, kind: 'number' as const, glance: { metric } })
+  await seedWorkspace(page, {
+    layouts: [{
+      name: 'Main',
+      table: {
+        areas: ['n1 n2', 'a b', 'n3 n3'],
+        cells: [
+          { id: 'n1', tabs: [number('num1', 'open')] },
+          { id: 'n2', tabs: [number('num2', 'overdue')] },
+          { id: 'a', tabs: [{ id: 'notesA', kind: 'notes' }] },
+          { id: 'b', tabs: [{ id: 'calTab', kind: 'calendar' }] },
+          { id: 'n3', tabs: [number('num3', 'focus')] },
+        ],
+      },
+    }],
+  })
+  const before = await cellBoxes(page)
+  await enterLayoutEdit(page)
+  await expect(page.getByRole('button', { name: 'Row 3 options' })).toBeVisible()
+  expect(await cellBoxes(page)).toEqual(before)
+})
