@@ -61,6 +61,34 @@ export function trackNames(body: LayoutBody, axis: GridAxis, sizes: readonly num
   })
 }
 
+/**
+ * The run of lines that line `line` of `axis` is one with: the slivers
+ * beside it and their far lines — `[first, last]`, the tracks `first` …
+ * `last − 1` all slivers (`[line, line]` with none). A sliver and its two
+ * lines act as one line for an insert (`insertTrackAt`'s `through`): one
+ * "+", on the run's first line, inserts across them all.
+ */
+export function sliverRun(body: LayoutBody, axis: GridAxis, line: number, sizes: readonly number[]): [number, number] {
+  const count = body.grid[axis].length
+  let first = line
+  let last = line
+  while (first > 0 && isSliverTrack(body, axis, first - 1, sizes)) first--
+  while (last < count && isSliverTrack(body, axis, last, sizes)) last++
+  return [first, last]
+}
+
+/**
+ * Where a run of lines lies, in the majors' names: `between 1 and 2`,
+ * `before A`, `after 3` — a sliver is never named (`names`: `trackNames`).
+ */
+export function runPlaceWords(names: ReadonlyArray<string | null>, first: number, last: number, noun: string): string {
+  const before = names.slice(0, first).filter((n): n is string => n != null).at(-1)
+  const after = names.slice(last).find((n): n is string => n != null)
+  if (before == null) return `before ${after ?? `the first ${noun}`}`
+  if (after == null) return `after ${before}`
+  return `between ${before} and ${after}`
+}
+
 /** A column's share as its ruler shows it: a weighted column its percent of the weighted columns, a fixed one its px. */
 export function columnShare(body: LayoutBody, i: number): string {
   const sizing = trackSizing(body, 'columns', i)

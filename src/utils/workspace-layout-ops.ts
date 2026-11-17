@@ -399,14 +399,73 @@ function insertTrackOnLine<L extends LayoutBody>(layout: L, axis: GridAxis, line
  * else the one before) when that one is drawn by its weight, else of the
  * nearest weighted track. Returns the first new cell's id; the same layout
  * (and `null`) for a line that isn't one.
+ *
+ * `through` (> `index`): lines `index` … `through` act as one line — the
+ * tracks between them are slivers (`utils/layout-rulers`), a few px a part
+ * line moved left. They are merged into the track after the run (else the
+ * one before; `mergeTrackInto`, so no cell lying across them moves more
+ * than their few px) and the new track goes on the one line left, so only
+ * the cells spanning the whole run cross it. `from` then names a track of
+ * the layout as given (a sliver among them counts as none).
  */
-export function insertTrackAt<L extends LayoutBody>(layout: L, axis: GridAxis, index: number, genId: IdGen, from?: number): { layout: L; cellId: string | null } {
+export function insertTrackAt<L extends LayoutBody>(layout: L, axis: GridAxis, index: number, genId: IdGen, from?: number, through = index): { layout: L; cellId: string | null } {
   const count = layout.grid[axis].length
   if (!Number.isInteger(index) || index < 0 || index > count) return { layout, cellId: null }
+  if (Number.isInteger(through) && through > index && through <= count) return insertTrackOverRun(layout, axis, index, through, genId, from)
   if (layout.cells.length === 0 || index === 0) return insertTrack(layout, axis === 'columns' ? 'left' : 'top', genId)
   if (index === count) return insertTrack(layout, axis === 'columns' ? 'right' : 'bottom', genId)
   const own = from != null && (from === index - 1 || from === index) ? from : index
   return insertTrackOnLine(layout, axis, index, own, genId)
+}
+
+/** `insertTrackAt` over the run of lines `first` … `last` (the tracks between them slivers): merged into one line, then inserted on it. */
+function insertTrackOverRun<L extends LayoutBody>(layout: L, axis: GridAxis, first: number, last: number, genId: IdGen, from?: number): { layout: L; cellId: string | null } {
+  const tracks = layout.grid[axis]
+  const runIds = tracks.slice(first, last).map((t) => t.id)
+  const afterId = tracks[last]?.id
+  const beforeId = first > 0 ? tracks[first - 1]?.id : undefined
+  const intoId = afterId ?? beforeId
+  if (intoId == null) return { layout, cellId: null }
+  const fromId = from != null && !runIds.includes(tracks[from]?.id ?? '') ? tracks[from]?.id : undefined
+  const indexOf = (body: LayoutBody, id: string) => body.grid[axis].findIndex((t) => t.id === id)
+  let next: L = layout
+  // Each merged into its neighbour on the way to `intoId`: the nearest first, so they stay beside it.
+  for (const id of afterId != null ? [...runIds].reverse() : runIds) {
+    const i = indexOf(next, id)
+    const into = indexOf(next, intoId)
+    if (i < 0 || into < 0) continue
+    next = mergeTrackInto(next, axis, i, into, genId)
+  }
+  const line = afterId != null ? indexOf(next, afterId) : next.grid[axis].length
+  if (line < 0) return { layout, cellId: null }
+  const own = fromId != null ? indexOf(next, fromId) : -1
+  return insertTrackAt(next, axis, line, genId, own >= 0 ? own : undefined)
+}
+
+/**
+ * Where `insertTrackAt` on lines `first` … `through` of `axis` puts new
+ * empty cells: the stretches of the other axis (track ranges `[start,
+ * end)` of `layout`'s other axis) between the cells that cross the line and
+ * grow across the new track. Read off the op's own result, so a ruler's
+ * guide and the insert can't disagree. An edge line is one stretch across
+ * the whole layout.
+ */
+export function insertPreviewGaps(layout: LayoutBody, axis: GridAxis, first: number, through = first): Array<[number, number]> {
+  let n = 0
+  const probe = '\u0000probe-'
+  const { layout: out } = insertTrackAt(layout, axis, first, () => `${probe}${n++}`, undefined, through)
+  if (out === layout) return []
+  const cross = crossAxis(axis)
+  const crossIds = layout.grid[cross].map((t) => t.id)
+  const gaps: Array<[number, number]> = []
+  for (const c of out.cells) {
+    if (!c.id.startsWith(probe)) continue
+    const [s, e] = spanOf(c.area, cross)
+    const start = crossIds.indexOf(out.grid[cross][s]?.id ?? '')
+    const end = crossIds.indexOf(out.grid[cross][e - 1]?.id ?? '')
+    if (start >= 0 && end >= start) gaps.push([start, end + 1])
+  }
+  return gaps.sort((a, b) => a[0] - b[0])
 }
 
 // ── Removing a track ────────────────────────────────────────────────────────

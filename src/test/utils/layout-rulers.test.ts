@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createTab, type LayoutBody } from '../../models/workspace-layout'
-import { columnShare, isSliverTrack, removeTrackMessage, rowCanCollapse, rowMark, trackNames } from '../../utils/layout-rulers'
+import { columnShare, isSliverTrack, removeTrackMessage, rowCanCollapse, rowMark, runPlaceWords, sliverRun, trackNames } from '../../utils/layout-rulers'
 import { trackRemoval } from '../../utils/workspace-layout-ops'
 import { cell as spec, grid, type CellSpec } from '../helpers/layout-builders'
 
@@ -51,6 +51,33 @@ describe('names and marks', () => {
     const body = grid([[t, cell('a')], [t, spec('e', [])]])
     expect(rowCanCollapse(body, 0)).toBe(true)
     expect(rowCanCollapse(body, 1)).toBe(false)
+  })
+})
+
+describe('a sliver and its two lines act as one line', () => {
+  const x = cell('x')
+  const y = cell('y')
+  const z = cell('z')
+  const w = cell('w')
+  // Rows: 1, a sliver (part of the line between x and z moved 10px down), 2.
+  const body = grid([[x, y], [x, w], [z, w]], { rows: [500, 10, 490] })
+  const sizes = [500, 10, 490]
+
+  it('the run of lines beside a sliver, from either of its lines; a plain line alone', () => {
+    expect(sliverRun(body, 'rows', 1, sizes)).toEqual([1, 2])
+    expect(sliverRun(body, 'rows', 2, sizes)).toEqual([1, 2])
+    expect(sliverRun(body, 'rows', 0, sizes)).toEqual([0, 0])
+    expect(sliverRun(body, 'rows', 3, sizes)).toEqual([3, 3])
+    // Unmeasured: no slivers, no runs.
+    expect(sliverRun(body, 'rows', 1, [])).toEqual([1, 1])
+  })
+
+  it('names the majors around a run, never the sliver', () => {
+    const names = trackNames(body, 'rows', sizes)
+    expect(names).toEqual(['1', null, '2'])
+    expect(runPlaceWords(names, 1, 2, 'row')).toBe('between 1 and 2')
+    expect(runPlaceWords(names, 0, 0, 'row')).toBe('before 1')
+    expect(runPlaceWords(names, 3, 3, 'row')).toBe('after 2')
   })
 })
 
