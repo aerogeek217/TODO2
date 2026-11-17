@@ -134,8 +134,7 @@ test('on a phone: no way into the layout edit mode, an empty cell offers nothing
   await expect(page.locator('[data-layout-editing]')).toHaveCount(0)
   await expect(page.locator('[data-edit-surface], [data-edit-slot]')).toHaveCount(0)
   await expect(page.getByText('Edit layout closed: its changes weren’t saved.')).toBeVisible()
-  // No pencil, no Edit layout anywhere; the empty cell says where layouts are made and offers no kinds.
-  await expect(page.getByTestId('layout-edit')).toHaveCount(0)
+  // No Edit layout anywhere; the empty cell says where layouts are made and offers no kinds.
   await expect(page.getByRole('button', { name: 'Edit layout' })).toHaveCount(0)
   const empty = wsCell(page, 'b')
   await expect(empty).toContainText('Empty cell')

@@ -19,11 +19,13 @@ import { box, pointIn } from './fixtures/geometry'
 /**
  * The layout edit mode's cards and slots (E3) in a real browser: a card
  * drags from anywhere on it and the drop target decides — a slot takes it
- * (its old place a slot), a card's middle joins it as tabs, a card's edge
+ * (its old place a slot), a card's middle swaps the two, a card's tab area
+ * (its strip, a one-widget card's top band) joins it as tabs, a card's edge
  * splits it; a tab and a strip's Number drag out on their own (and a Number
  * back into a strip); a card's corner stretches it over a slot; its menu
  * moves it to a slot or swaps it with a card; a tray chip drags a new widget
- * in; tap a card, then a slot, moves it; Alt+arrow moves it, keeping the
+ * in; tap a card, then a slot, moves it (then a card, swaps; then a card's
+ * tab area, joins); Alt+arrow moves it, keeping the
  * focus; and Done stores it all as one step the global Undo takes back.
  */
 
@@ -68,7 +70,7 @@ async function placeOf(page: Page, tabId: string): Promise<string | null> {
 const slots = (page: Page) => page.locator('[data-ws-table] [data-ws-cell][data-empty="true"]')
 const ghostLabel = (page: Page) => page.getByTestId('ws-drop-label')
 
-test('a card dragged onto a slot moves there, its old place a slot; onto a card’s middle it joins as tabs', async ({ page }) => {
+test('a card dragged onto a slot moves there, its old place a slot; onto a card’s middle it swaps; onto its tab area it joins as tabs', async ({ page }) => {
   await seedWorkspace(page, { layouts: [grid] })
   await enterLayoutEdit(page)
   await expect(slots(page)).toHaveCount(1)
@@ -86,12 +88,27 @@ test('a card dragged onto a slot moves there, its old place a slot; onto a card�
   // The moved card is selected.
   await expect(wsCell(page, 'a')).toHaveAttribute('data-edit-selected', '')
 
-  // Onto the Calendar's middle: they join as tabs.
+  // Onto the Calendar's middle: the two whole cards swap places.
   await drag(page, await pointIn(wsCard(page, 'a')), await pointIn(wsCell(page, 'b')), {
+    during: async () => { await expect(ghostLabel(page)).toHaveText('Swap with “Calendar”') },
+  })
+  await expect.poll(() => placeOf(page, 'notesTab')).toBe('1 / 2 / span 1 / span 1')
+  expect(await placeOf(page, 'calTab')).toBe('2 / 2 / span 1 / span 1')
+  await expect(wsCell(page, 'b').getByRole('tab')).toHaveCount(0)
+
+  // Onto the Calendar's tab area (its top band, where its label is): they join as tabs.
+  const cal = await box(wsCell(page, 'b'))
+  await drag(page, await pointIn(wsCard(page, 'a')), { x: cal.x + cal.width / 2, y: cal.y + 14 }, {
     during: async () => { await expect(ghostLabel(page)).toHaveText('Add as tab') },
   })
   await expect(wsCell(page, 'b').locator('[data-ws-tab="notesTab"]')).toHaveCount(1)
   await expect(wsCell(page, 'b').getByRole('tab')).toHaveCount(2)
+  // A card of tabs is named by them: Swap with ▸ means the whole cell.
+  await openCellLayoutMenu(page, 'c')
+  await page.getByRole('menuitem', { name: 'Swap with', exact: true }).click()
+  await expect(page.getByRole('menuitem', { name: /^Calendar, Notes/ })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
   // Nothing stored, no global step: the draft only.
   expect(await newestUndoStep(page)).toBeNull()
 })
@@ -216,7 +233,7 @@ test('tap a card, then a slot: it moves there; Esc cancels a pending move', asyn
   await enterLayoutEdit(page)
   const hint = page.getByTestId('layout-edit-move-hint')
   await wsCard(page, 'a').click()
-  await expect(hint).toContainText('Click a slot to move “Notes” there')
+  await expect(hint).toHaveText('Click a slot to move “Notes” there, a card to swap, or its tab bar to join it · Esc cancels')
   await page.keyboard.press('Escape')
   await expect(hint).toHaveCount(0)
   // The mode stays: Esc took the pending move only.
@@ -227,6 +244,20 @@ test('tap a card, then a slot: it moves there; Esc cancels a pending move', asyn
   await expect.poll(() => placeOf(page, 'notesTab')).toBe('2 / 2 / span 1 / span 1')
   await expect(hint).toHaveCount(0)
   await expect(wsCard(page, 'a')).toBeFocused()
+
+  // Then a card's middle: the two swap.
+  await wsCard(page, 'a').click()
+  await wsCard(page, 'b').click()
+  await expect.poll(() => placeOf(page, 'notesTab')).toBe('1 / 2 / span 1 / span 1')
+  expect(await placeOf(page, 'calTab')).toBe('2 / 2 / span 1 / span 1')
+  await expect(wsCard(page, 'a')).toBeFocused()
+
+  // Then a card's tab area: it joins as a tab.
+  await wsCard(page, 'c').click()
+  const notes = await box(wsCell(page, 'a'))
+  await page.mouse.click(notes.x + notes.width / 2, notes.y + 14)
+  await expect(wsCell(page, 'a').locator('[data-ws-tab="trendTab"]')).toHaveCount(1)
+  await expect(hint).toHaveCount(0)
 })
 
 test('Alt+arrow moves a card onto the slot beside it, or swaps it; Shift+arrow stretches it; the focus stays on it', async ({ page }) => {

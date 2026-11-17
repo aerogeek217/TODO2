@@ -29,6 +29,7 @@ import {
   WidgetKindIcon,
 } from '../shared/icons'
 import type { Side } from '../../utils/workspace-grid'
+import { isNumberStripCell } from '../../utils/workspace-rows'
 import { tabsCount } from './workspace-drag'
 import type { WidgetResult } from './WidgetBody'
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
@@ -45,13 +46,34 @@ import { createListAndTab, openEditList, useListOwnerLayoutId } from './widget-h
  * widget and its cell's contents: the widget's own entries under its kind's
  * heading (Edit list…, Zoom, Copy…, Open larger, Name and icon…, Change
  * widget ›), then **Add widget as tab ›** (every kind, under Tasks and
- * Insights), **Remove widget** (a lone widget's cell stays, empty),
+ * Insights), **Remove widget** (a lone widget's cell stays, empty) — in a
+ * cell showing a tab strip **Add tab ›** and **Remove tab** —,
  * Collapse / Expand row, and last **Edit layout**, which opens the layout
  * edit mode with this cell selected. Inside the mode a cell is a card, and
  * its menu (the card's ⋯, a right-click on the card, Enter on it: **Cell
  * layout**, `editCardMenuEntries`) places it: Move to ▸, Swap with ▸,
- * Split ▸, Merge with ▸, Stretch right / down, Remove widget, Close cell.
+ * Join as tabs ▸, Split ▸, Merge with ▸, Stretch right / down, Remove
+ * widget (Remove tab), Close cell.
  */
+
+/**
+ * Whether the cell shows its widgets as a tab strip: two or more tabs, not
+ * a Numbers strip (whose Numbers stand side by side, not as tabs). There
+ * the menus speak of tabs — Add tab ›, Remove tab —; elsewhere of a widget.
+ */
+function showsTabStrip(cell: Pick<LayoutCell, 'tabs'>): boolean {
+  return cell.tabs.length > 1 && !isNumberStripCell(cell)
+}
+
+/** Remove widget, or Remove tab in a cell that shows a tab strip (`showsTabStrip`). */
+function removeTabLabel(cell: Pick<LayoutCell, 'tabs'>): string {
+  return showsTabStrip(cell) ? 'Remove tab' : 'Remove widget'
+}
+
+/** Add widget as tab ›, or Add tab › in a cell that shows a tab strip. */
+function addTabLabel(cell: Pick<LayoutCell, 'tabs'>): string {
+  return showsTabStrip(cell) ? 'Add tab' : 'Add widget as tab'
+}
 
 /** Merge with ▸ a side: why the item is off when the cell doesn't merge that way. */
 export const NO_MERGE_REASON = 'Only cells that make a rectangle together merge'
@@ -101,7 +123,7 @@ export interface EditCardMenuActions {
   tab: LayoutTab | undefined
   /** Every slot (empty cell), by ruler name: Move to ▸. */
   slots: readonly EditCardPlace[]
-  /** Every other card, by name: Swap with ▸. */
+  /** Every other card, by name (`layout-edit-cards.cardName`): Swap with ▸, Join as tabs ▸. */
   cards: readonly EditCardPlace[]
   /** The cell Merge with ▸ would take on `side`, if they make a rectangle. */
   mergeWith: (side: Side) => string | undefined
@@ -109,6 +131,8 @@ export interface EditCardMenuActions {
   canStretch: (direction: 'right' | 'down') => boolean
   onMoveTo: (slotId: string) => void
   onSwap: (cellId: string) => void
+  /** Join as tabs ▸ a card: this card's tabs join it (after its own). */
+  onJoin: (cellId: string) => void
   onSplit: (side: Side) => void
   onMerge: (otherCellId: string) => void
   onStretch: (direction: 'right' | 'down') => void
@@ -118,7 +142,9 @@ export interface EditCardMenuActions {
 
 /**
  * A card's menu in the layout edit mode (E3, **Cell layout**): Move to ▸
- * (every slot by its ruler name), Swap with ▸ (every other card by name),
+ * (every slot by its ruler name), Swap with ▸ (every other card by name,
+ * the whole cell), Join as tabs ▸ (the same cards: this card's tabs join
+ * it — the keys' way to what a drop on a tab area does),
  * Split ▸ and Merge with ▸ (each side its own entry; Merge off, saying why,
  * where the two make no rectangle), Stretch right / Stretch down (one
  * track, over empty slots only), then Remove widget (its cell stays, a
@@ -161,6 +187,13 @@ export function editCardMenuEntries(a: EditCardMenuActions): MenuEntry[] {
     },
     {
       kind: 'item',
+      label: 'Join as tabs',
+      disabled: a.cards.length === 0,
+      ...(a.cards.length === 0 ? { title: 'No other card' } : {}),
+      children: a.cards.map((p) => place(p, a.onJoin)),
+    },
+    {
+      kind: 'item',
       label: 'Split',
       icon: <SplitRightIcon />,
       children: SIDE_ITEMS.map(({ label, side }): MenuEntry => ({ kind: 'item', label, onSelect: () => a.onSplit(side) })),
@@ -183,7 +216,7 @@ export function editCardMenuEntries(a: EditCardMenuActions): MenuEntry[] {
     stretch('down'),
     { kind: 'separator' },
   ]
-  if (tab) entries.push({ kind: 'item', label: 'Remove widget', icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => a.onRemoveWidget(tab.id) })
+  if (tab) entries.push({ kind: 'item', label: removeTabLabel(a.cell), icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => a.onRemoveWidget(tab.id) })
   entries.push({
     kind: 'item',
     label: several ? `Close cell (${tabsCount(a.cell.tabs.length)})` : 'Close cell',
@@ -216,7 +249,7 @@ function addTabEntry(a: CellMenuActions): MenuEntry {
     : { kind: 'item', label: widgetKindLabel(kind), icon: <WidgetKindIcon kind={kind} />, onSelect: () => a.onAddTab(kind) })
   return {
     kind: 'item',
-    label: 'Add widget as tab',
+    label: addTabLabel(a.cell),
     icon: <PlusIcon />,
     childrenWidth: ADD_TAB_SUBMENU_WIDTH_PX,
     children: WIDGET_KIND_GROUPS.flatMap(({ group, label }, i): MenuEntry[] => [
@@ -241,7 +274,7 @@ function collapseEntry(a: CellMenuActions): MenuEntry {
 function removeWidgetEntry(a: CellMenuActions): MenuEntry[] {
   const tab = a.tab
   if (!tab) return []
-  return [{ kind: 'item', label: 'Remove widget', icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => a.onCloseTab(tab.id) }]
+  return [{ kind: 'item', label: removeTabLabel(a.cell), icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => a.onCloseTab(tab.id) }]
 }
 
 /** Edit layout (the ⋯'s last entry): the layout edit mode, this cell selected. */

@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-import { expectLayoutStored, newestUndoStep, seedWorkspace, type WsLayoutSeed } from './fixtures/workspace'
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import { enterLayoutEdit, expectLayoutStored, newestUndoStep, seedWorkspace, type WsLayoutSeed } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -43,7 +43,7 @@ async function storedMain(page: Page): Promise<{ cells: Array<{ id: string; tabs
 test('rulers without a shift, insert a row by “+”, Remove row moves a widget as a tab, Done, then the global Undo', async ({ page }) => {
   await seedWorkspace(page, { layouts: [main] })
   const before = await cellBoxes(page)
-  await page.getByTestId('layout-edit').click()
+  await enterLayoutEdit(page)
   await expect(bar(page)).toBeVisible()
 
   // The rulers: a column ruler per column, a row ruler per row, a "+" on every line; no cell moved.
@@ -89,4 +89,86 @@ test('rulers without a shift, insert a row by “+”, Remove row moves a widget
   await expect.poll(async () => (await storedMain(page)).cells.map((c) => c.id).sort()).toEqual(['m-a', 'm-b', 'm-c'])
   await expect(cells(page)).toHaveCount(3)
   await expect(page.locator('[data-ws-cell="m-c"]')).toBeVisible()
+})
+
+/** Rows 1 and 2 with a sliver between: part of the line between the left cells moved 10px down. */
+const slivered: WsLayoutSeed = {
+  name: 'Main',
+  table: {
+    areas: ['s-a s-b', 's-a s-d', 's-c s-d'],
+    rows: [500, 10, 490],
+    cells: [
+      { id: 's-a', tabs: [{ id: 's-notes', kind: 'notes' }] },
+      { id: 's-b', tabs: [{ id: 's-cal', kind: 'calendar' }] },
+      { id: 's-c', tabs: [{ id: 's-notes2', kind: 'notes' }] },
+      { id: 's-d', tabs: [{ id: 's-bd', kind: 'breakdown' }] },
+    ],
+  },
+}
+
+async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  const b = await locator.boundingBox()
+  if (!b) throw new Error('no bounding box')
+  return b
+}
+
+test('the "+" beside a sliver inserts a full-width row, as its guide shows; a line a cell crosses has its guide broken there', async ({ page }) => {
+  await seedWorkspace(page, { layouts: [slivered] })
+  await enterLayoutEdit(page)
+  const table = page.locator('[data-ws-table]')
+  const guides = page.locator('[data-ruler-guide]')
+
+  // The sliver: a tick, no number; one "+" for it and its two lines, named by the rows around it.
+  await expect(page.getByRole('button', { name: 'Row 2 options' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Row 3 options' })).toHaveCount(0)
+  await expect(page.locator('[data-ruler-plus="rows:2"]')).toHaveCount(0)
+  const plus = page.locator('[data-ruler-plus="rows:1"]')
+  await expect(plus).toHaveAttribute('data-tooltip', 'Insert row between 1 and 2')
+
+  // Hovered: one guide across the whole table (no cell crosses the line the sliver merges into).
+  await plus.hover()
+  await expect(guides).toHaveCount(1)
+  const t = await boxOf(table)
+  expect((await boxOf(guides.first())).width).toBeGreaterThan(t.width * 0.9)
+
+  // Clicked: a full-width empty row, the sliver gone; every widget kept.
+  await plus.click()
+  const slots = page.locator('[data-edit-slot]')
+  await expect(slots).toHaveCount(1)
+  expect((await boxOf(slots.first())).width).toBeGreaterThan(t.width * 0.9)
+  await expect(page.getByRole('button', { name: 'Row 3 options' })).toBeVisible()
+  await expect(page.locator('[data-ruler^="rows:"]')).toHaveCount(3)
+  await expect(page.locator('[data-ws-table] [data-ws-tab]')).toHaveCount(4)
+
+  // Column line 1 is crossed by the new row's cell: its guide runs over rows 1 and 3 only, broken across row 2.
+  await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2)
+  await page.locator('[data-ruler-plus="columns:1"]').hover()
+  await expect(guides).toHaveCount(2)
+  const slot = await boxOf(slots.first())
+  const [top, bottom] = [await boxOf(guides.nth(0)), await boxOf(guides.nth(1))]
+  expect(top.y + top.height).toBeLessThanOrEqual(slot.y + 1)
+  expect(bottom.y).toBeGreaterThanOrEqual(slot.y + slot.height - 1)
+})
+
+test('a Numbers row that fits its content keeps its height in the mode: no cell moves', async ({ page }) => {
+  const number = (id: string, metric: string) => ({ id, kind: 'number' as const, glance: { metric } })
+  await seedWorkspace(page, {
+    layouts: [{
+      name: 'Main',
+      table: {
+        areas: ['n1 n2', 'a b', 'n3 n3'],
+        cells: [
+          { id: 'n1', tabs: [number('num1', 'open')] },
+          { id: 'n2', tabs: [number('num2', 'overdue')] },
+          { id: 'a', tabs: [{ id: 'notesA', kind: 'notes' }] },
+          { id: 'b', tabs: [{ id: 'calTab', kind: 'calendar' }] },
+          { id: 'n3', tabs: [number('num3', 'focus')] },
+        ],
+      },
+    }],
+  })
+  const before = await cellBoxes(page)
+  await enterLayoutEdit(page)
+  await expect(page.getByRole('button', { name: 'Row 3 options' })).toBeVisible()
+  expect(await cellBoxes(page)).toEqual(before)
 })

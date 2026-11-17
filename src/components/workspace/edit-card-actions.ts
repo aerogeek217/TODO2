@@ -6,6 +6,7 @@ import type { Side } from '../../utils/workspace-grid'
 import { bodyZone } from '../../utils/workspace-drop'
 import { drawnGap, drawnSizes } from './divider-drag'
 import { focusEditItem } from './edit-focus'
+import { cardTabArea } from './measure'
 
 /**
  * The layout edit mode's cards and slots (E3): what their presses and keys
@@ -34,7 +35,7 @@ export function selectOnFocus(cellId: string): void {
 
 /** After a tap that moved or joined the armed card: the focus on where it is now. */
 export function focusAfterTap(kind: string): void {
-  if (kind !== 'move' && kind !== 'join') return
+  if (kind !== 'move' && kind !== 'join' && kind !== 'swap') return
   const selected = store().editing?.selectedCellId
   if (selected != null) focusEditItem(selected)
 }
@@ -117,11 +118,19 @@ export function onCardKey(e: KeyboardEvent<HTMLElement>, cell: LayoutCell, onMen
   }
 }
 
-/** Which part of a card a click landed on: its middle (a join, after an armed card) or near an edge (selects it). */
-function tapZone(e: MouseEvent<HTMLElement>): 'middle' | 'edge' {
-  const card = e.currentTarget.closest('[data-ws-cell]') ?? e.currentTarget
+/**
+ * Which part of a card a click landed on: its tab area (`cardTabArea`: a
+ * join, after an armed card), its middle (a swap) or near an edge (selects
+ * it) — the zones a drop reads (`workspace-drop.hitTestWorkspace`).
+ */
+function tapZone(e: MouseEvent<HTMLElement>): 'middle' | 'tabs' | 'edge' {
+  const card = e.currentTarget.closest<HTMLElement>('[data-ws-cell]') ?? e.currentTarget
   const r = card.getBoundingClientRect()
-  return bodyZone({ left: r.left, top: r.top, right: r.right, bottom: r.bottom }, { x: e.clientX, y: e.clientY }) === 'middle' ? 'middle' : 'edge'
+  const p = { x: e.clientX, y: e.clientY }
+  const tabs = cardTabArea(card)
+  if (tabs && p.x >= tabs.left && p.x <= tabs.right && p.y >= tabs.top && p.y <= tabs.bottom) return 'tabs'
+  const top = tabs ? Math.max(r.top, tabs.bottom) : r.top
+  return bodyZone({ left: r.left, top, right: r.right, bottom: r.bottom }, p) === 'middle' ? 'middle' : 'edge'
 }
 
 /** A click on a card (its surface, a strip's Number): a tap (`workspace-store.tapEdit`). */

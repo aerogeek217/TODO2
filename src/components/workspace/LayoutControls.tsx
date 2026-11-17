@@ -8,7 +8,6 @@ import { DeleteLayoutDialog, LayoutNameDialog } from './LayoutDialogs'
 import { LayoutTabs } from './LayoutTabs'
 import { LayoutGlyph } from '../shared/LayoutGlyph'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, LayoutIcon, PencilIcon, PlusIcon, TrashIcon, WarningIcon } from '../shared/icons'
-import { useShortcutLabel } from '../../hooks/use-shortcut-label'
 import styles from './LayoutControls.module.css'
 
 /** How the top bar shows the layouts: one tab each, or folded into the picker's drop-down. */
@@ -31,7 +30,6 @@ type Pending =
  *   right, Delete layout…); drag to reorder; `+` = New layout.
  * - Picker: the layouts (drag to reorder), then New layout…, Edit layout…,
  *   Duplicate layout…, Name, icon and hue…, Delete layout….
- * - Then the pencil, Edit layout: the layout edit mode (`workspace-store.enterEdit`).
  *
  * One order feeds both (the store's `layouts`); a reorder is saved at once.
  * New layout asks for a name and stores the empty layout at once. Nothing
@@ -47,7 +45,6 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
   const [pending, setPending] = useState<Pending | null>(null)
   const pickerRef = useRef<HTMLButtonElement | null>(null)
   const store = useWorkspaceStore.getState
-  const editKeys = useShortcutLabel('edit-layout')
 
   const switchTo = (id: number) => {
     if (id === activeLayoutId) return
@@ -175,17 +172,6 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           <ChevronDownIcon />
         </button>
       )}
-      <button
-        type="button"
-        className={styles.edit}
-        aria-label="Edit layout"
-        data-tooltip="Edit layout"
-        data-tooltip-shortcut={editKeys || undefined}
-        data-testid="layout-edit"
-        onClick={() => { void store().enterEdit() }}
-      >
-        <PencilIcon />
-      </button>
       <WriteFailedButton />
 
       {menuOpen && mode === 'menu' && (

@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { GridAxis, LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { evenTracks, trackRemoval } from '../../utils/workspace-layout-ops'
-import { columnShare, isSliverTrack, removeTrackMessage, rowCanCollapse, rowMark, trackNames } from '../../utils/layout-rulers'
+import { evenTracks, insertPreviewGaps, trackRemoval } from '../../utils/workspace-layout-ops'
+import { columnShare, isSliverTrack, removeTrackMessage, rowCanCollapse, rowMark, runPlaceWords, sliverRun, trackNames } from '../../utils/layout-rulers'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { PlusIcon } from '../shared/icons'
 import { useDrawnTracks, type DrawnTracks } from './use-drawn-tracks'
@@ -15,9 +15,12 @@ import styles from './LayoutRulers.module.css'
  * share) and down the left of each row (1, 2, 3…, marked `fit` / `folded`),
  * each a button on its track that opens the track's menu; a "+" on every
  * line between them and at both ends, inserting a full column / row there
- * (a line across the table shows where while it is hovered or focused). A
- * sliver (`utils/layout-rulers`) gets an unlabelled tick whose menu merges
- * it into a neighbour. They overlay the gutters and the cells' edges, so no
+ * (while it is hovered or focused, a line shows where new empty cells will
+ * be — broken where a cell crossing the line grows across the new track
+ * instead, `insertPreviewGaps`). A sliver (`utils/layout-rulers`) gets an
+ * unlabelled tick whose menu merges it into a neighbour; it and its two
+ * lines act as one line for an insert (`sliverRun`): one "+", which merges
+ * the sliver away and inserts on the line left. They overlay the gutters and the cells' edges, so no
  * cell moves; the dividers are the mode's gutters.
  */
 
@@ -36,12 +39,13 @@ function endOf(i: number, count: number): 'first' | 'last' | 'only' | undefined 
 
 /**
  * Where line `k` of `axis` (of `count` tracks) is drawn: in the track after
- * it, at its start — the last line in the last track, at its end.
+ * it, at its start — the last line in the last track, at its end; over the
+ * other axis's first track, or `along` (track range `[start, end)`) it.
  */
-function onLine(axis: GridAxis, k: number, count: number, across: boolean): CSSProperties {
+function onLine(axis: GridAxis, k: number, count: number, along?: readonly [number, number]): CSSProperties {
   const last = k === count
   const track = last ? count : k + 1
-  const span = across ? '1 / -1' : '1 / span 1'
+  const span = along ? `${along[0] + 1} / ${along[1] + 1}` : '1 / span 1'
   return axis === 'columns'
     ? { gridColumn: `${track} / span 1`, gridRow: span }
     : { gridRow: `${track} / span 1`, gridColumn: span }
@@ -84,10 +88,17 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
     menuAnchor.current = triggers.current.get(keyOf(axis, index)) ?? null
     setMenu({ axis, index })
   }
-  const insertAt = (axis: GridAxis, line: number) => {
-    const cellId = store().insertTrackAt(axis, line)
+  /** A "+": a full track on the run of lines `first` … `last` (one line, or a sliver's two, `sliverRun`). */
+  const insertAt = (axis: GridAxis, first: number, last: number) => {
+    const cellId = store().insertTrackAt(axis, first, undefined, last)
     if (cellId) store().selectEditCell(cellId)
   }
+  // The hovered or focused "+"'s run, and where its insert puts new empty cells.
+  const hotGaps = useMemo(() => {
+    if (!hot) return []
+    const [first, last] = sliverRun(layout, hot.axis, hot.line, drawn[hot.axis])
+    return insertPreviewGaps(layout, hot.axis, first, last)
+  }, [layout, hot, drawn])
 
   const items: React.ReactNode[] = []
   for (const axis of ['columns', 'rows'] as const) {
@@ -96,11 +107,10 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
     const sizes = drawn[axis]
     const noun = axis === 'columns' ? 'column' : 'row'
     for (let k = 0; k <= count; k++) {
-      // A "+" on every line — but one beside a sliver: only the line before it (the two would overlap).
-      const plusShown = !(k > 0 && k < count && isSliverTrack(layout, axis, k - 1, sizes))
-      const between = k === 0 ? `before ${names[axis][0] ?? `the first ${noun}`}`
-        : k === count ? `after ${names[axis][count - 1] ?? `the last ${noun}`}`
-          : `between ${names[axis][k - 1] ?? 'a narrow track'} and ${names[axis][k] ?? 'a narrow track'}`
+      // A "+" on every line — but a sliver and its two lines are one line: one "+", on the first (the two would overlap).
+      const [first, last] = sliverRun(layout, axis, k, sizes)
+      const plusShown = first === k
+      const between = runPlaceWords(names[axis], first, last, noun)
       if (plusShown) items.push(
         <button
           key={`plus:${axis}:${k}`}
@@ -108,7 +118,8 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
           className={styles.plus}
           data-axis={axis}
           data-end={k === 0 ? 'first' : k === count ? 'last' : undefined}
-          style={onLine(axis, k, count, false)}
+          data-sliver-run={last > first ? '' : undefined}
+          style={onLine(axis, k, count)}
           aria-label={`Insert ${noun} here`}
           data-tooltip={`Insert ${noun} ${between}`}
           data-ruler-plus={`${axis}:${k}`}
@@ -116,9 +127,9 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
           onMouseLeave={() => setHot((h) => (h?.axis === axis && h.line === k ? null : h))}
           onFocus={() => setHot({ axis, line: k })}
           onBlur={() => setHot((h) => (h?.axis === axis && h.line === k ? null : h))}
-          onClick={() => insertAt(axis, k)}
+          onClick={() => insertAt(axis, first, last)}
         >
-          <PlusIcon size={10} strokeWidth={2} />
+          <PlusIcon size={12} strokeWidth={2.2} />
         </button>,
       )
       if (k === count) break
@@ -141,6 +152,7 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
           className={sliver ? styles.tick : styles.ruler}
           data-axis={axis}
           data-end={endOf(k, count)}
+          data-before-sliver={!sliver && k + 1 < count && isSliverTrack(layout, axis, k + 1, sizes) ? '' : undefined}
           data-open={open ? '' : undefined}
           style={onTrack(axis, k)}
           aria-label={label}
@@ -164,7 +176,17 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
 
   return (
     <div ref={anchor} className={styles.rulers} data-layout-rulers="">
-      {hot && <div className={styles.guide} data-axis={hot.axis} data-end={hot.line === 0 ? 'first' : hot.line === layout.grid[hot.axis].length ? 'last' : undefined} style={onLine(hot.axis, hot.line, layout.grid[hot.axis].length, true)} aria-hidden="true" />}
+      {hot && hotGaps.map((gap) => (
+        <div
+          key={`guide:${gap[0]}`}
+          className={styles.guide}
+          data-axis={hot.axis}
+          data-end={hot.line === 0 ? 'first' : hot.line === layout.grid[hot.axis].length ? 'last' : undefined}
+          data-ruler-guide={`${gap[0]}-${gap[1]}`}
+          style={onLine(hot.axis, hot.line, layout.grid[hot.axis].length, gap)}
+          aria-hidden="true"
+        />
+      ))}
       {items}
       {menu && (
         <MenuPopover
@@ -217,8 +239,10 @@ function rulerEntries(
     return entries
   }
 
+  // On the line beside this track — with a sliver beside it, across the sliver's two lines, as its "+" inserts.
   const insert = (line: number) => run(() => {
-    const cellId = store().insertTrackAt(axis, line, index)
+    const [first, last] = sliverRun(layout, axis, line, drawn[axis])
+    const cellId = store().insertTrackAt(axis, first, index, last)
     if (cellId) store().selectEditCell(cellId)
   })
   const evenable = evenTracks(layout, axis) !== layout
