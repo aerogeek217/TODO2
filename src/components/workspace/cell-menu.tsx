@@ -52,7 +52,8 @@ import { createListAndTab, openEditList, useListOwnerLayoutId } from './widget-h
  * edit mode with this cell selected. Inside the mode a cell is a card, and
  * its menu (the card's ⋯, a right-click on the card, Enter on it: **Cell
  * layout**, `editCardMenuEntries`) places it: Move to ▸, Swap with ▸,
- * Split ▸, Merge with ▸, Stretch right / down, Remove widget, Close cell.
+ * Join as tabs ▸, Split ▸, Merge with ▸, Stretch right / down, Remove
+ * widget (Remove tab), Close cell.
  */
 
 /**
@@ -122,7 +123,7 @@ export interface EditCardMenuActions {
   tab: LayoutTab | undefined
   /** Every slot (empty cell), by ruler name: Move to ▸. */
   slots: readonly EditCardPlace[]
-  /** Every other card, by name: Swap with ▸. */
+  /** Every other card, by name (`layout-edit-cards.cardName`): Swap with ▸, Join as tabs ▸. */
   cards: readonly EditCardPlace[]
   /** The cell Merge with ▸ would take on `side`, if they make a rectangle. */
   mergeWith: (side: Side) => string | undefined
@@ -130,6 +131,8 @@ export interface EditCardMenuActions {
   canStretch: (direction: 'right' | 'down') => boolean
   onMoveTo: (slotId: string) => void
   onSwap: (cellId: string) => void
+  /** Join as tabs ▸ a card: this card's tabs join it (after its own). */
+  onJoin: (cellId: string) => void
   onSplit: (side: Side) => void
   onMerge: (otherCellId: string) => void
   onStretch: (direction: 'right' | 'down') => void
@@ -139,7 +142,9 @@ export interface EditCardMenuActions {
 
 /**
  * A card's menu in the layout edit mode (E3, **Cell layout**): Move to ▸
- * (every slot by its ruler name), Swap with ▸ (every other card by name),
+ * (every slot by its ruler name), Swap with ▸ (every other card by name,
+ * the whole cell), Join as tabs ▸ (the same cards: this card's tabs join
+ * it — the keys' way to what a drop on a tab area does),
  * Split ▸ and Merge with ▸ (each side its own entry; Merge off, saying why,
  * where the two make no rectangle), Stretch right / Stretch down (one
  * track, over empty slots only), then Remove widget (its cell stays, a
@@ -179,6 +184,13 @@ export function editCardMenuEntries(a: EditCardMenuActions): MenuEntry[] {
       disabled: a.cards.length === 0,
       ...(a.cards.length === 0 ? { title: 'No other card' } : {}),
       children: a.cards.map((p) => place(p, a.onSwap)),
+    },
+    {
+      kind: 'item',
+      label: 'Join as tabs',
+      disabled: a.cards.length === 0,
+      ...(a.cards.length === 0 ? { title: 'No other card' } : {}),
+      children: a.cards.map((p) => place(p, a.onJoin)),
     },
     {
       kind: 'item',

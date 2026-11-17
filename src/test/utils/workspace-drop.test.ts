@@ -10,6 +10,7 @@ import {
   fitRowHeights,
   hitTestWorkspace,
   sameDropHit,
+  tabBand,
   type CellGeometry,
   type Rect,
   type WorkspaceGeometry,
@@ -357,5 +358,55 @@ describe('a strip of Numbers (flair P10)', () => {
     // Before c's middle: between b and c — index 1 among the other tabs (b, c).
     expect(target).toEqual({ kind: 'cell', cellId: 'k', index: 1 })
     expect(dropLabel(geo, target!, 1)).toBe('Add to strip')
+  })
+})
+
+describe('the layout edit mode: a card swaps on a middle, joins on a tab area', () => {
+  /** b1 as the mode measures a one-widget card: no header, its whole card the body, its top band its tab area. */
+  const oneWidget = (): CellGeometry => ({
+    id: 'b1',
+    title: 'Late',
+    name: 'Late',
+    rect: rect(506, 6, 1000, 700),
+    header: null,
+    body: rect(506, 6, 1000, 700),
+    empty: false,
+    tabs: [],
+    band: tabBand(rect(506, 6, 1000, 700), 32),
+  })
+  const table = { left: 6, top: 6, width: 994, height: 694, gap: 6, rowPx: {} }
+  const geo = (): WorkspaceGeometry => ({ ...geometry(), cells: [...geometry().cells.filter((c) => c.id !== 'b1'), oneWidget()], table })
+
+  it('the tab band is a header’s height, at most 35 % of a short card', () => {
+    expect(tabBand(rect(0, 100, 300, 500), 32)).toEqual(rect(0, 100, 300, 132))
+    expect(tabBand(rect(0, 100, 300, 160), 32).bottom).toBeCloseTo(121)
+  })
+
+  it('the band joins after the tab; below it the top split zone, the middle as before', () => {
+    expect(hitTestWorkspace(geo(), { x: 750, y: 20 })).toEqual({ kind: 'tab-strip', cellId: 'b1', index: 1, lineX: 510 })
+    expect(hitTestWorkspace(geo(), { x: 750, y: 60 })).toEqual({ kind: 'cell-body', cellId: 'b1', zone: 'top' })
+    expect(hitTestWorkspace(geo(), { x: 750, y: 350 })).toEqual({ kind: 'cell-body', cellId: 'b1', zone: 'middle' })
+  })
+
+  it('a whole card on a filled card’s middle swaps; a tab or a tray chip joins it; the band joins a card too', () => {
+    const l = layout()
+    const middle = { kind: 'cell-body' as const, cellId: 'b1', zone: 'middle' as const }
+    expect(dropTargetForHit(l, geo(), middle, { type: 'panel', panelId: 'a2' })).toEqual({ kind: 'swap', cellId: 'b1' })
+    expect(dropTargetForHit(l, geo(), middle, { type: 'tab', tabId: 't1' })).toEqual({ kind: 'cell', cellId: 'b1' })
+    expect(dropTargetForHit(l, geo(), middle, { type: 'new', kind: 'notes' })).toEqual({ kind: 'cell', cellId: 'b1' })
+    const band = hitTestWorkspace(geo(), { x: 750, y: 20 })!
+    expect(dropTargetForHit(l, geo(), band, { type: 'panel', panelId: 'a2' })).toEqual({ kind: 'cell', cellId: 'b1', index: 1 })
+  })
+
+  it('the swap’s ghost is the other card’s place, named by it; the join’s says Add as tab', () => {
+    const ghost = dropGhost(layout(), geo(), { type: 'panel', panelId: 'a2' }, { kind: 'swap', cellId: 'b1' }, ['t3'])!
+    expect(ghost.label).toBe('Swap with “Late”')
+    expect(ghost.rect.left).toBeCloseTo(506)
+    expect(ghost.rect.right).toBeCloseTo(1000)
+    expect(ghost.rect.top).toBeCloseTo(6)
+    expect(ghost.rect.bottom).toBeCloseTo(700)
+    expect(dropGhost(layout(), geo(), { type: 'panel', panelId: 'a2' }, { kind: 'cell', cellId: 'b1', index: 1 }, ['t3'])?.label).toBe('Add as tab')
+    // A card swapped with itself changes nothing.
+    expect(dropGhost(layout(), geo(), { type: 'panel', panelId: 'b1' }, { kind: 'swap', cellId: 'b1' }, ['t4'])).toBeNull()
   })
 })

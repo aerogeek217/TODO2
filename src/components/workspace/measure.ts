@@ -1,4 +1,4 @@
-import type { CellGeometry, Rect, TableMetrics, WorkspaceGeometry } from '../../utils/workspace-drop'
+import { tabBand, type CellGeometry, type Rect, type TableMetrics, type WorkspaceGeometry } from '../../utils/workspace-drop'
 
 function rectOf(el: Element): Rect {
   const r = el.getBoundingClientRect()
@@ -10,7 +10,9 @@ function rectOf(el: Element): Rect {
  * active tab's title (`[data-ws-cell-title]`). A cell of one widget has no
  * header (no strip, D26 AA1): its whole card is its body. A strip of
  * Numbers (flair P10) has no header either: its slots
- * (`[data-number-slot]`) are its tabs, in its body (`strip`).
+ * (`[data-number-slot]`) are its tabs, in its body (`strip`). In the
+ * layout edit mode, also the card's name (`[data-ws-card-name]`) and a
+ * one-widget card's tab area (`band`, `cardTabArea`).
  */
 function measureCell(cellEl: HTMLElement): CellGeometry {
   const id = cellEl.dataset.wsCell ?? ''
@@ -30,7 +32,36 @@ function measureCell(cellEl: HTMLElement): CellGeometry {
   const title = cellEl.dataset.wsCellTitle
   const rect = rectOf(cellEl)
   const body = empty ? null : header == null ? rect : bodyEl ? rectOf(bodyEl) : null
-  return { id, ...(title ? { title } : {}), rect, header, body, empty, tabs: slots.length > 0 ? slots : tabs, ...(slots.length > 0 ? { strip: true } : {}) }
+  const name = cellEl.dataset.wsCardName
+  const band = header == null ? cardTabArea(cellEl) : null
+  return {
+    id,
+    ...(title ? { title } : {}),
+    ...(name ? { name } : {}),
+    rect,
+    header,
+    body,
+    empty,
+    tabs: slots.length > 0 ? slots : tabs,
+    ...(slots.length > 0 ? { strip: true } : {}),
+    ...(band ? { band } : {}),
+  }
+}
+
+/**
+ * In the layout edit mode, a card's tab area — where a drop, or an armed
+ * card's click, joins it as tabs: its tab strip (its header), or a
+ * one-widget card's top band (`workspace-drop.tabBand`, a header's
+ * height). `null` outside the mode, for a Numbers strip (its middle joins
+ * it already) and an empty cell.
+ */
+export function cardTabArea(cellEl: HTMLElement): Rect | null {
+  if (!cellEl.closest('[data-layout-editing]') || cellEl.dataset.empty === 'true') return null
+  const headerEl = cellEl.querySelector('[data-ws-cell-header]')
+  if (headerEl) return rectOf(headerEl)
+  if (cellEl.querySelector('[data-number-slot]')) return null
+  const headerPx = px(getComputedStyle(cellEl).getPropertyValue('--cell-header-height')) || 32
+  return tabBand(rectOf(cellEl), headerPx)
 }
 
 /** A computed px length (`6px` → 6); 0 when it isn't one. */

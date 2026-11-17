@@ -6,7 +6,7 @@ import { OPEN_LARGER_LABEL, widgetKindMenuEntries, type WidgetKindMenuContent } 
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
-import { addTabToCell, useTabTitle } from './widget-hooks'
+import { addTabToCell, useCardName, useTabTitle } from './widget-hooks'
 import { MenuPopover } from '../shared/MenuPopover'
 import { ChevronDownIcon, ChevronUpIcon, ExpandIcon, MoreIcon } from '../shared/icons'
 import { useWorkspaceDrag } from './workspace-drag'
@@ -145,6 +145,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
+  // The card's name in the layout edit mode (Swap with ▸, a swap's ghost, the armed move's hint).
+  const cardName = useCardName(cell)
   /** Only Numbers, two or more (flair P10): one strip of them, side by side, no tab strip. */
   const numberStrip = isNumberStripCell(cell)
   /** Tabs only when there's a choice (D26 AA1): one widget's top line names it. */
@@ -318,6 +320,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       data-ws-cell={cell.id}
       data-edit-selected={editSelected ? '' : undefined}
       data-ws-cell-title={activeTitle}
+      data-ws-card-name={editing ? cardName : undefined}
       data-face={!collapsed && active ? cellFace.face : undefined}
       aria-label={`${activeTitle} cell`}
       onContextMenu={onContextMenu}
@@ -328,7 +331,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       } : undefined}
     >
       {/* The layout edit mode (E3): the card's surface, under everything else. */}
-      {editing && active && <EditCardSurface cell={cell} title={activeTitle} onMenu={(at) => openMenu(active.id, at)} />}
+      {editing && active && <EditCardSurface cell={cell} title={activeTitle} name={cardName} onMenu={(at) => openMenu(active.id, at)} />}
       {stripShown && (
         <div
           className={[styles.header, menuOpen ? styles.headerMenuOpen : ''].join(' ')}

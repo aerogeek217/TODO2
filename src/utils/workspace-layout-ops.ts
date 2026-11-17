@@ -69,9 +69,13 @@ export type IdGen = () => string
  *   height (`insertTrack`).
  * - `layout` — the first cell of an empty layout; else a new column at the
  *   layout's right.
+ * - `swap` — a whole cell trades places with the cell (`movePanel`, a card
+ *   dropped on another card's middle in the layout edit mode); tabs can't
+ *   swap, so for them it is `cell` (they join it).
  */
 export type LayoutDropTarget =
   | { kind: 'cell'; cellId: string; index?: number }
+  | { kind: 'swap'; cellId: string }
   | { kind: 'split'; cellId: string; side: Side }
   | { kind: 'insert'; edge: Side }
   | { kind: 'layout' }
@@ -744,10 +748,11 @@ function placeTabs<L extends LayoutBody>(
   const first = tabs[0]
   if (!first) return null
   switch (target.kind) {
-    case 'cell': {
+    case 'cell':
+    case 'swap': {
       const cell = cellById(layout, target.cellId)
       if (!cell) return null
-      const at = target.index ?? cell.tabs.length
+      const at = (target.kind === 'cell' ? target.index : undefined) ?? cell.tabs.length
       return setCell(layout, cell.id, withStrip(cell, { tabs: insertAllAt(cell.tabs, at, tabs), activeTabId: first.id }))
     }
     case 'split': {
@@ -861,7 +866,8 @@ function relocate<L extends LayoutBody>(layout: L, srcId: string, place: (layout
  * an empty cell (a slot — a whole cell moves only in the layout edit mode,
  * E3) the two swap places (`swapCells`): the cell takes the slot's area and
  * its old place is the empty cell, so a move never grows a card over its
- * old place. A drop onto the cell itself (its strip or a
+ * old place. A `swap` target trades the two cells' places whole
+ * (`swapCells`). A drop onto the cell itself (its strip or a
  * side), or back where it is, returns the layout unchanged; so does an
  * empty cell.
  */
@@ -869,7 +875,8 @@ export function movePanel<L extends LayoutBody>(layout: L, cellId: string, targe
   const cell = cellById(layout, cellId)
   const first = cell?.tabs[0]
   if (!cell || !first) return layout
-  if ((target.kind === 'cell' || target.kind === 'split') && target.cellId === cellId) return layout
+  if ((target.kind === 'cell' || target.kind === 'split' || target.kind === 'swap') && target.cellId === cellId) return layout
+  if (target.kind === 'swap') return swapCells(layout, cellId, target.cellId)
   const into = target.kind === 'cell' ? cellById(layout, target.cellId) : undefined
   if (into && into.tabs.length === 0) return swapCells(layout, cellId, into.id)
   const next = relocate(layout, cellId, (l) => placeTabs(l, cell.tabs, target, genId, cell.activeTabId))

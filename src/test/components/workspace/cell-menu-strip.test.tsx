@@ -150,7 +150,7 @@ describe('the cell menu', () => {
     const more = screen.getByRole('button', { name: 'Cell layout' })
     expect(more).toHaveAttribute('aria-haspopup', 'menu')
     const menu = cardMenu()
-    expect(itemLabels(menu)).toEqual(['Move to', 'Swap with', 'Split', 'Merge with', 'Stretch right', 'Stretch down', 'Remove widget', 'Close cell'])
+    expect(itemLabels(menu)).toEqual(['Move to', 'Swap with', 'Join as tabs', 'Split', 'Merge with', 'Stretch right', 'Stretch down', 'Remove widget', 'Close cell'])
     expect(more).toHaveAttribute('aria-expanded', 'true')
     // Its second click closes it.
     fireEvent.click(more)

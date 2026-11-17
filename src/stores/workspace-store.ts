@@ -1240,6 +1240,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         case 'join':
           if (!get().moveEditCard(outcome.from, { kind: 'cell', cellId: outcome.into })) get().disarmEditMove()
           break
+        case 'swap':
+          if (!get().moveEditCard(outcome.from, { kind: 'swap', cellId: outcome.with })) get().disarmEditMove()
+          break
       }
       return outcome
     },

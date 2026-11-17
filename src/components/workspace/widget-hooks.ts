@@ -1,12 +1,13 @@
 import { useMemo } from 'react'
 import { ownerLayoutId } from '../../models/list-definition'
 import { breakdownPreset, type BreakdownPreset } from '../../models/chart-widgets'
-import { getActiveTab, kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
+import { getActiveTab, kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutCell, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
 import { zoomTargetTab } from '../../services/list-zoom'
 import { showTab } from '../../services/workspace-tabs'
 import { openNumberList, openWidgetLarger } from '../../services/widget-popup'
 import { tabOpensLarger, type WidgetFace } from '../../utils/widget-face'
 import { readingOrder } from '../../utils/workspace-grid'
+import { cardName } from '../../utils/layout-edit-cards'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -60,6 +61,12 @@ export function useTabTitle(tab: LayoutTab | undefined): string {
   const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
   const draftName = useListDraftStore((s) => (listId != null ? s.drafts[listId]?.name : undefined))
   return tab ? tabTitle(tab, shownName(savedName, draftName)) : ''
+}
+
+/** A card's name in the mode (`layout-edit-cards.cardName`): its widget's title, `Tasks, Notes + 1`, `3 Numbers`. */
+export function useCardName(cell: Pick<LayoutCell, 'tabs'>): string {
+  const titles = useTabTitles(cell.tabs)
+  return cardName(cell, titles)
 }
 
 /** `useTabTitle` for every tab of a strip, in order. */

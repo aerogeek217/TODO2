@@ -1,12 +1,12 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { getActiveTab, WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { ChevronDownIcon, WidgetKindIcon } from '../shared/icons'
 import { focusEditItem } from './edit-focus'
-import { addWidgetKindAt, useTabTitle } from './widget-hooks'
+import { addWidgetKindAt, useCardName } from './widget-hooks'
 import { beginNewWidgetDrag } from './workspace-drag'
 import styles from './LayoutEditTray.module.css'
 
@@ -77,16 +77,16 @@ function TrayChip({ kind }: { kind: WidgetKind }) {
   )
 }
 
-/** While a tap armed a card's move: what the next tap does. */
+/** No tabs: a card that is gone. */
+const NO_TABS: LayoutTab[] = []
+
+/** While a tap armed a card's move: what the next tap does — a slot moves it, a card swaps, a card's tab bar joins it. */
 function MoveHint({ cellId }: { cellId: string }) {
-  const tab = useWorkspaceStore((s) => {
-    const cell = s.working?.cells.find((c) => c.id === cellId)
-    return cell ? getActiveTab(cell) : undefined
-  })
-  const title = useTabTitle(tab)
+  const tabs = useWorkspaceStore((s) => s.working?.cells.find((c) => c.id === cellId)?.tabs ?? NO_TABS)
+  const name = useCardName({ tabs })
   return (
     <span className={styles.hint} data-testid="layout-edit-move-hint">
-      Click a slot to move “{title}” there, or a card to join it · Esc cancels
+      Click a slot to move “{name}” there, a card to swap, or its tab bar to join it · Esc cancels
     </span>
   )
 }

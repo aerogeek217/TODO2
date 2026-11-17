@@ -3,6 +3,7 @@ import { createTab, type LayoutBody } from '../../models/workspace-layout'
 import {
   altMove,
   areaRulerName,
+  cardName,
   cellRulerName,
   cornerArea,
   emptySlots,
@@ -41,6 +42,18 @@ describe('ruler names', () => {
   it('an area: its first and last places', () => {
     expect(areaRulerName({ col: 0, row: 0, colSpan: 3, rowSpan: 2 }, names)).toBe('A1–B2')
     expect(areaRulerName({ col: 0, row: 0, colSpan: 1, rowSpan: 1 }, names)).toBe('A1')
+  })
+})
+
+describe('cardName (a card named in the mode)', () => {
+  const tabs = (kind: 'notes' | 'number', n: number) => Array.from({ length: n }, (_, i) => createTab(kind, `t${i}`))
+
+  it('a lone widget its title; a card of tabs its first two and how many more; a Numbers strip its count; a slot nothing', () => {
+    expect(cardName({ tabs: tabs('notes', 1) }, ['Tasks'])).toBe('Tasks')
+    expect(cardName({ tabs: tabs('notes', 2) }, ['Tasks', 'Notes'])).toBe('Tasks, Notes')
+    expect(cardName({ tabs: tabs('notes', 4) }, ['Tasks', 'Notes', 'Calendar', 'Trend'])).toBe('Tasks, Notes + 2')
+    expect(cardName({ tabs: tabs('number', 3) }, ['Open', 'Late', 'Due'])).toBe('3 Numbers')
+    expect(cardName({ tabs: [] }, [])).toBe('')
   })
 })
 
@@ -133,9 +146,10 @@ describe('tapOutcome', () => {
     expect(tapOutcome({ selectedCellId: 'a', moveArmed: false }, { kind: 'slot', cellId: 'e' })).toEqual({ kind: 'menu', cellId: 'e' })
   })
 
-  it('with a card armed: a slot moves it, another card’s middle joins, its edge reselects, the card itself disarms', () => {
+  it('with a card armed: a slot moves it, another card’s middle swaps, its tab area joins, its edge reselects, the card itself disarms', () => {
     expect(tapOutcome(armedA, { kind: 'slot', cellId: 'e' })).toEqual({ kind: 'move', from: 'a', to: 'e' })
-    expect(tapOutcome(armedA, { kind: 'card', cellId: 'b', zone: 'middle' })).toEqual({ kind: 'join', from: 'a', into: 'b' })
+    expect(tapOutcome(armedA, { kind: 'card', cellId: 'b', zone: 'middle' })).toEqual({ kind: 'swap', from: 'a', with: 'b' })
+    expect(tapOutcome(armedA, { kind: 'card', cellId: 'b', zone: 'tabs' })).toEqual({ kind: 'join', from: 'a', into: 'b' })
     expect(tapOutcome(armedA, { kind: 'card', cellId: 'b', zone: 'edge' })).toEqual({ kind: 'select', cellId: 'b' })
     expect(tapOutcome(armedA, { kind: 'card', cellId: 'a', zone: 'edge' })).toEqual({ kind: 'disarm' })
   })

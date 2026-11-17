@@ -52,6 +52,7 @@ function cardActions(over: Partial<EditCardMenuActions> = {}): EditCardMenuActio
     canStretch: () => true,
     onMoveTo: vi.fn(),
     onSwap: vi.fn(),
+    onJoin: vi.fn(),
     onSplit: vi.fn(),
     onMerge: vi.fn(),
     onStretch: vi.fn(),
@@ -71,8 +72,19 @@ const select = (entry: MenuEntry | undefined) => { if (entry?.kind === 'item') e
 describe('editCardMenuEntries (a card’s menu in the layout edit mode)', () => {
   it('Move to, Swap with, Split, Merge with, Stretch right / down, then Remove widget and Close cell', () => {
     expect(words(editCardMenuEntries(cardActions()))).toEqual([
-      'Move to', 'Swap with', 'Split', 'Merge with', 'Stretch right', 'Stretch down', '—', 'Remove widget', 'Close cell',
+      'Move to', 'Swap with', 'Join as tabs', 'Split', 'Merge with', 'Stretch right', 'Stretch down', '—', 'Remove widget', 'Close cell',
     ])
+  })
+
+  it('Join as tabs lists the same cards: a pick joins this card’s tabs to it; with no other card it is off', () => {
+    const onJoin = vi.fn()
+    const join = item(editCardMenuEntries(cardActions({ onJoin })), 'Join as tabs')
+    const children = join?.kind === 'item' ? join.children ?? [] : []
+    expect(children.map((c) => (c.kind === 'item' ? [c.label, c.note] : null))).toEqual([['Calendar', 'B2']])
+    select(children[0])
+    expect(onJoin).toHaveBeenCalledWith('c2')
+    const none = item(editCardMenuEntries(cardActions({ cards: [] })), 'Join as tabs')
+    expect(none?.kind === 'item' && none.disabled).toBe(true)
   })
 
   it('Move to lists every slot by its ruler name; Swap with every other card by name, its place beside it', () => {

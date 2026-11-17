@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import { getActiveTab, type LayoutCell, type LayoutTab } from '../../models/workspace-layout'
+import type { LayoutCell, LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { cellRulerName, cornerArea, emptySlots, otherCards, stretchedArea, trackReached } from '../../utils/layout-edit-cards'
+import { cardName, cellRulerName, cornerArea, emptySlots, otherCards, stretchedArea, trackReached } from '../../utils/layout-edit-cards'
 import { mergeNeighbour, sameArea } from '../../utils/workspace-grid'
 import { MenuPopover } from '../shared/MenuPopover'
 import { MoreIcon, PlusIcon } from '../shared/icons'
@@ -22,12 +22,13 @@ const store = useWorkspaceStore.getState
  * The layout edit mode's cards and slots (E3). Every cell is a card: its
  * whole surface drags it (past dnd-kit's 5px; the drop model decides what
  * the drop does), a short click selects it — and arms a move, so a click on
- * a slot next moves it there, on another card's middle joins them
- * (`workspace-store.tapEdit`) —, and it is a Tab stop: the arrow keys move
+ * a slot next moves it there, on another card's middle swaps with it, on
+ * its tab area joins it (`workspace-store.tapEdit`) —, and it is a Tab stop: the arrow keys move
  * the selection to the card or slot beside it, Shift+arrow stretches it one
  * track, Alt+arrow moves it onto the slot beside it or swaps it with the
  * card there, Enter opens its menu (Cell layout: Move to ▸, Swap with ▸,
- * Split ▸, Merge with ▸, Stretch, Remove widget, Close cell) and Delete
+ * Join as tabs ▸, Split ▸, Merge with ▸, Stretch, Remove widget / tab,
+ * Close cell) and Delete
  * removes its active widget. Its corner stretches it over empty slots. An
  * empty cell is a slot: dashed, named by the rulers (`B4`), a click opens
  * the widget kinds.
@@ -38,7 +39,14 @@ const store = useWorkspaceStore.getState
  * (which takes no presses), so a press anywhere on the card lands here —
  * the drag of the whole card, a click's tap, the keys. The card's Tab stop.
  */
-export function EditCardSurface({ cell, title, onMenu }: { cell: LayoutCell; title: string; onMenu: (at: CardMenuAt) => void }) {
+export function EditCardSurface({ cell, title, name, onMenu }: {
+  cell: LayoutCell
+  /** Its active tab's title (what Delete removes). */
+  title: string
+  /** The card's name (`useCardName`). */
+  name: string
+  onMenu: (at: CardMenuAt) => void
+}) {
   const titles = useTabTitles(cell.tabs)
   const names = useRulerNames()
   const data: WorkspacePanelDragData = {
@@ -57,7 +65,7 @@ export function EditCardSurface({ cell, title, onMenu }: { cell: LayoutCell; tit
       tabIndex={0}
       data-edit-surface={cell.id}
       {...{ [EDIT_FOCUS_ATTR]: cell.id }}
-      aria-label={`${title} card, ${place}. Drag or Alt+arrow to move, Shift+arrow to stretch, Enter for its menu, Delete removes ${title}`}
+      aria-label={`${name} card, ${place}. Drag or Alt+arrow to move, Shift+arrow to stretch, Enter for its menu, Delete removes ${title}`}
       onFocus={() => selectOnFocus(cell.id)}
       onClick={(e) => tapCard(e, cell.id)}
       onKeyDown={(e) => onCardKey(e, cell, onMenu)}
@@ -204,19 +212,17 @@ export function EditCardMenu({ cell, tab, at, anchorRef, onClose }: {
 }) {
   const working = useWorkspaceStore((s) => s.working)
   const names = useRulerNames()
-  const actives = useMemo(() => (working?.cells ?? []).map((c) => getActiveTab(c)).filter((t): t is LayoutTab => t != null), [working])
-  const titles = useTabTitles(actives)
+  const allTabs = useMemo(() => (working?.cells ?? []).flatMap((c) => c.tabs), [working])
+  const titles = useTabTitles(allTabs)
   if (!working) return null
-  const titleOf = (c: LayoutCell) => {
-    const t = getActiveTab(c)
-    const i = t ? actives.indexOf(t) : -1
-    return i >= 0 ? (titles[i] ?? 'A widget') : 'A widget'
-  }
+  // A card by its name (`cardName`: every tab, so Swap with ▸ plainly means the whole cell).
+  const nameOf = (c: LayoutCell) => cardName(c, c.tabs.map((t) => titles[allTabs.indexOf(t)] ?? ''))
+  const cardPlaces = otherCards(working, cell.id).map((c) => ({ cellId: c.id, label: nameOf(c), note: cellRulerName(c, names) }))
   const entries = editCardMenuEntries({
     cell,
     tab,
     slots: emptySlots(working).map((s) => ({ cellId: s.id, label: cellRulerName(s, names) })),
-    cards: otherCards(working, cell.id).map((c) => ({ cellId: c.id, label: titleOf(c), note: cellRulerName(c, names) })),
+    cards: cardPlaces,
     mergeWith: (side) => mergeNeighbour(working, cell.id, side)?.id,
     canStretch: (direction) => stretchedArea(working, cell.id, direction) != null,
     onMoveTo: (slotId) => {
@@ -227,6 +233,11 @@ export function EditCardMenu({ cell, tab, at, anchorRef, onClose }: {
     onSwap: (other) => {
       store().swapCells(cell.id, other)
       focusEditItem(cell.id)
+    },
+    onJoin: (other) => {
+      if (!store().moveEditCard(cell.id, { kind: 'cell', cellId: other })) return
+      const selected = store().editing?.selectedCellId
+      if (selected != null) focusEditItem(selected)
     },
     onSplit: (side) => { store().splitCell(cell.id, side) },
     onMerge: (other) => { store().mergeCells(cell.id, other) },
