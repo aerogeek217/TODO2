@@ -263,18 +263,22 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                   return (
                     <div key={s.id}>
                       <div className={styles.editRow} onKeyDown={handleEditKeyDown}>
-                        <ColorPicker value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
-                        <StatusIconButton look={ed.look} name={ed.name} color={ed.color} onChange={(look) => setEditing({ ...ed, look })} />
-                        <input
-                          className={styles.editInput}
-                          value={ed.name}
-                          onChange={(e) => { setEditing({ ...ed, name: e.target.value }); setNameError('') }}
-                          placeholder="Status name"
-                          autoFocus
-                        />
-                        <div className={styles.editActions}>
-                          <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
-                          <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
+                        <div className={styles.editLine}>
+                          <StatusIconButton look={ed.look} name={ed.name} color={ed.color} onChange={(look) => setEditing({ ...ed, look })} />
+                          <input
+                            className={styles.editInput}
+                            value={ed.name}
+                            onChange={(e) => { setEditing({ ...ed, name: e.target.value }); setNameError('') }}
+                            placeholder="Status name"
+                            autoFocus
+                          />
+                        </div>
+                        <div className={styles.editLine}>
+                          <ColorPicker value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+                          <div className={styles.editActions}>
+                            <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
+                            <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
+                          </div>
                         </div>
                       </div>
                       {nameError && <div className={styles.errorHint}>{nameError}</div>}
@@ -298,18 +302,22 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
         {adding ? (
           <div>
             <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
-              <ColorPicker value={newColor} onChange={setNewColor} />
-              <StatusIconButton look={newLook} name={newName} color={newColor} onChange={setNewLook} />
-              <input
-                className={styles.editInput}
-                value={newName}
-                onChange={(e) => { setNewName(e.target.value); setNameError('') }}
-                placeholder="Status name"
-                autoFocus
-              />
-              <div className={styles.editActions}>
-                <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
-                <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
+              <div className={styles.editLine}>
+                <StatusIconButton look={newLook} name={newName} color={newColor} onChange={setNewLook} />
+                <input
+                  className={styles.editInput}
+                  value={newName}
+                  onChange={(e) => { setNewName(e.target.value); setNameError('') }}
+                  placeholder="Status name"
+                  autoFocus
+                />
+              </div>
+              <div className={styles.editLine}>
+                <ColorPicker value={newColor} onChange={setNewColor} />
+                <div className={styles.editActions}>
+                  <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
+                  <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
+                </div>
               </div>
             </div>
             {nameError && <div className={styles.errorHint}>{nameError}</div>}

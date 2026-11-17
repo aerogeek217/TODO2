@@ -164,12 +164,16 @@ export function PeopleEditor({ onClose, editPersonId, layer }: PeopleEditorProps
       return (
         <div key={p.id}>
           <div className={styles.editRow} onKeyDown={handleKeyDown(saveEditPerson, () => { setEditing(null); setNameError('') })}>
-            <PersonColorField color={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
-            <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }); setNameError('') }} placeholder="Name" autoFocus />
-            <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditInitialsManual(true); setEditing({ ...ed, initials: e.target.value.toUpperCase().slice(0, 2) }) }} placeholder="AB" />
-            <div className={styles.editActions}>
-              <button className={styles.saveBtn} onClick={saveEditPerson}>Save</button>
-              <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
+            <div className={styles.editLine}>
+              <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }); setNameError('') }} placeholder="Name" autoFocus />
+              <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditInitialsManual(true); setEditing({ ...ed, initials: e.target.value.toUpperCase().slice(0, 2) }) }} placeholder="AB" />
+            </div>
+            <div className={styles.editLine}>
+              <PersonColorField color={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+              <div className={styles.editActions}>
+                <button className={styles.saveBtn} onClick={saveEditPerson}>Save</button>
+                <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
+              </div>
             </div>
           </div>
           {nameError && <div className={styles.errorHint}>{nameError}</div>}
@@ -225,12 +229,16 @@ export function PeopleEditor({ onClose, editPersonId, layer }: PeopleEditorProps
           {adding && (
             <div>
               <div className={styles.editRow} onKeyDown={handleKeyDown(saveAddPerson, () => { setAdding(false); setNameError('') })}>
-                <PersonColorField color={newColor} onChange={setNewColor} />
-                <input className={styles.editInput} value={newName} onChange={(e) => { setNewName(e.target.value); if (!newInitialsManual) setNewInitials(generateInitials(e.target.value)); setNameError('') }} placeholder="Name" autoFocus />
-                <input className={styles.editInputSmall} value={newInitials} onChange={(e) => { setNewInitialsManual(true); setNewInitials(e.target.value.toUpperCase().slice(0, 2)) }} placeholder="AB" />
-                <div className={styles.editActions}>
-                  <button className={styles.saveBtn} onClick={saveAddPerson}>Add</button>
-                  <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
+                <div className={styles.editLine}>
+                  <input className={styles.editInput} value={newName} onChange={(e) => { setNewName(e.target.value); if (!newInitialsManual) setNewInitials(generateInitials(e.target.value)); setNameError('') }} placeholder="Name" autoFocus />
+                  <input className={styles.editInputSmall} value={newInitials} onChange={(e) => { setNewInitialsManual(true); setNewInitials(e.target.value.toUpperCase().slice(0, 2)) }} placeholder="AB" />
+                </div>
+                <div className={styles.editLine}>
+                  <PersonColorField color={newColor} onChange={setNewColor} />
+                  <div className={styles.editActions}>
+                    <button className={styles.saveBtn} onClick={saveAddPerson}>Add</button>
+                    <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
+                  </div>
                 </div>
               </div>
               {nameError && <div className={styles.errorHint}>{nameError}</div>}
