@@ -56,6 +56,7 @@ import {
   WorkspaceDragContext,
   type WorkspaceDragState,
 } from '../components/workspace/workspace-drag'
+import { watchDragRelease } from '../components/workspace/drag-release'
 import { CalendarEntryButton } from '../components/workspace/calendar/CalendarEntryButton'
 import { CalendarDropChooser } from '../components/workspace/calendar/CalendarDropChooser'
 import {
@@ -157,6 +158,9 @@ function useWorkspaceDragState() {
   const [drag, setDragState] = useState<WorkspaceDragState | null>(null)
   // Source of truth for handlers (the state copy drives rendering).
   const dragRef = useRef<WorkspaceDragState | null>(null)
+  /** Stops watching for a dnd-kit drag's release (`watchDragRelease`); set while one is on. */
+  const stopWatchingRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => stopWatchingRef.current?.(), [])
   const setDrag = useCallback((next: WorkspaceDragState | null) => {
     dragRef.current = next
     setDragState(next)
@@ -227,8 +231,9 @@ function useWorkspaceDragState() {
     if (panel && useWorkspaceStore.getState().editing == null) return true
     const area = document.querySelector<HTMLElement>('[data-ws-area]')
     if (!area) return true
+    const source: WorkspaceDragState['source'] = tab ? { type: 'tab', tabId: tab.tabId } : { type: 'panel', panelId: panel?.panelId ?? '' }
     setDrag({
-      source: tab ? { type: 'tab', tabId: tab.tabId } : { type: 'panel', panelId: panel?.panelId ?? '' },
+      source,
       tabs: tab ? [{ id: tab.tabId, kind: tab.kind, title: tab.title, ...(tab.icon ? { icon: tab.icon } : {}) }] : panel?.tabs ?? [],
       hit: null,
       target: null,
@@ -237,11 +242,19 @@ function useWorkspaceDragState() {
       insertLeft: null,
       geometry: measureWorkspace(area),
     })
+    // A drag dnd-kit ends without telling the page (a quick flick) ends here too, dropping nothing.
+    stopWatchingRef.current?.()
+    stopWatchingRef.current = watchDragRelease(() => dragRef.current?.source === source, () => {
+      stopWatchingRef.current = null
+      setDrag(null)
+    })
     return true
   }, [setDrag])
 
   const end = useCallback((commit: boolean) => {
     const current = dragRef.current
+    stopWatchingRef.current?.()
+    stopWatchingRef.current = null
     setDrag(null)
     if (!commit || !current?.target || !current.accepts) return
     const ws = useWorkspaceStore.getState()
