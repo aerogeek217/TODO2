@@ -125,6 +125,9 @@ test.describe('the task editor', () => {
     expect(await facts.evaluateAll((els) => els.map((el) => el.getAttribute('data-fact')))).toEqual(FACT_ORDER)
     const colours = await facts.evaluateAll((els) => els.map((el) => getComputedStyle(el.querySelector('[id]')!).color))
     expect(new Set(colours).size).toBe(1)
+    // At 920px all five share one line: Due never wraps onto a second.
+    const tops = await facts.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)))
+    expect(new Set(tops).size).toBe(1)
     // The writing: Subtasks, then Notes; Status updates beside them.
     const subtasks = writing.locator('[data-subtasks]')
     const notes = writing.locator('[data-task-notes]')
