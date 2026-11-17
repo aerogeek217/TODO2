@@ -61,17 +61,17 @@ import { createListAndTab, openEditList, useListOwnerLayoutId } from './widget-h
  * a Numbers strip (whose Numbers stand side by side, not as tabs). There
  * the menus speak of tabs — Add tab ›, Remove tab —; elsewhere of a widget.
  */
-export function showsTabStrip(cell: Pick<LayoutCell, 'tabs'>): boolean {
+function showsTabStrip(cell: Pick<LayoutCell, 'tabs'>): boolean {
   return cell.tabs.length > 1 && !isNumberStripCell(cell)
 }
 
 /** Remove widget, or Remove tab in a cell that shows a tab strip (`showsTabStrip`). */
-export function removeTabLabel(cell: Pick<LayoutCell, 'tabs'>): string {
+function removeTabLabel(cell: Pick<LayoutCell, 'tabs'>): string {
   return showsTabStrip(cell) ? 'Remove tab' : 'Remove widget'
 }
 
 /** Add widget as tab ›, or Add tab › in a cell that shows a tab strip. */
-export function addTabLabel(cell: Pick<LayoutCell, 'tabs'>): string {
+function addTabLabel(cell: Pick<LayoutCell, 'tabs'>): string {
   return showsTabStrip(cell) ? 'Add tab' : 'Add widget as tab'
 }
 
