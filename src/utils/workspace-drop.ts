@@ -21,11 +21,14 @@ import { FIT_TRACK_NOMINAL_PX, spanPx, tableTrackSizes, trackSizing, trackStart 
  *    reaching {@link INSERT_EDGE_OUTSIDE_PX} past it too —, full width; but
  *    never over a cell (its strip and its body's zones win).
  * 3. A cell's header (its tab strip) → insert at that position. A cell
- *    with one widget has none (D26 AA1): its whole card is its body.
- * 4. A cell body → its outer {@link SIDE_ZONE_SHARE} on each side (at
- *    most {@link SIDE_ZONE_MAX_PX}): split it that side (in a corner, the
- *    side the pointer is deeper into); the middle: join as tab(s). An
- *    empty cell is one target.
+ *    with one widget has none (D26 AA1): its whole card is its body — but
+ *    in the layout edit mode its top band (`band`, `tabBand`: about a
+ *    header's height) is its tab area, and joins as tab(s) after its tab.
+ * 4. A cell body (below its band) → its outer {@link SIDE_ZONE_SHARE} on
+ *    each side (at most {@link SIDE_ZONE_MAX_PX}): split it that side (in a
+ *    corner, the side the pointer is deeper into); the middle: join as
+ *    tab(s) — a whole card (the mode's) swaps with it instead. An empty
+ *    cell is one target.
  * 5. The empty area of a layout with no cells → its first cell.
  *
  * What a drop will make is drawn as one ghost (`dropGhost`): the op run on
@@ -44,6 +47,14 @@ export interface CellGeometry {
   id: string
   /** Its active tab's title (a split's ghost names it). */
   title?: string
+  /** In the layout edit mode, the card's name (`layout-edit-cards.cardName`: a swap's ghost names it). */
+  name?: string
+  /**
+   * In the layout edit mode, a one-widget card's tab area (`tabBand`): a
+   * drop there joins it as a tab. Absent outside the mode, for a card with
+   * a tab strip (its header is that), a Numbers strip and an empty cell.
+   */
+  band?: Rect
   /** The whole cell card. */
   rect: Rect
   /** The header (tab strip) as drawn; absent for an empty cell and a cell of one widget (it has no strip). */
@@ -94,6 +105,20 @@ const INSERT_EDGE_OUTSIDE_PX = 16
 const SIDE_ZONE_SHARE = 0.2
 /** … but no deeper than this (px), so a big cell's middle stays the bigger part. */
 const SIDE_ZONE_MAX_PX = 120
+
+/** A one-widget card's tab area in the layout edit mode: a header's height, but no more than this share of the card. */
+const TAB_BAND_SHARE = 0.35
+
+/**
+ * A one-widget card's tab area in the layout edit mode (`rect`, the card):
+ * its top band, `headerPx` high (a cell header's height) but no more than
+ * {@link TAB_BAND_SHARE} of the card — the label sits there; a drop or an
+ * armed card's tap there joins it as a tab.
+ */
+export function tabBand(rect: Rect, headerPx: number): Rect {
+  const height = Math.min(headerPx, (rect.bottom - rect.top) * TAB_BAND_SHARE)
+  return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.top + Math.max(0, height) }
+}
 
 /** A cell body's zones: a split on that side (`left` / `right` / `top` / `bottom`), or joining it. */
 type CellZone = Side | 'middle'
@@ -239,8 +264,11 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
   if (cell.empty) return { kind: 'empty-cell', cellId: cell.id }
   const strip = cell.header
   if (strip && inside(strip, p)) return stripHit(cell, strip, p)
+  // A one-widget card's tab area (the mode): joins after its tab.
+  const band = cell.band
+  if (band && inside(band, p)) return { kind: 'tab-strip', cellId: cell.id, index: 1, lineX: band.left + 4 }
   if (cell.body && inside(cell.body, p)) {
-    const zone = bodyZone(cell.body, p)
+    const zone = bodyZone(band ? { ...cell.body, top: Math.max(cell.body.top, band.bottom) } : cell.body, p)
     // A strip of Numbers (flair P10): its middle takes the drop between its slots.
     if (zone === 'middle' && cell.strip && cell.tabs.length > 0) return stripHit(cell, cell.body, p)
     return { kind: 'cell-body', cellId: cell.id, zone }
@@ -272,7 +300,9 @@ export function bodyZone(body: Rect, p: Point): CellZone {
 
 /**
  * The layout target a hit stands for, for what is dragged. Inside its own
- * strip a tab's position counts the *other* tabs (as `moveTab` expects).
+ * strip a tab's position counts the *other* tabs (as `moveTab` expects). A
+ * filled cell's middle joins a tab (or a tray chip's widget) as a tab, and
+ * swaps with a whole card.
  */
 export function dropTargetForHit(
   layout: WorkspaceLayout,
@@ -291,7 +321,8 @@ export function dropTargetForHit(
       return { kind: 'cell', cellId: hit.cellId, index }
     }
     case 'cell-body':
-      return hit.zone === 'middle' ? { kind: 'cell', cellId: hit.cellId } : { kind: 'split', cellId: hit.cellId, side: hit.zone }
+      if (hit.zone !== 'middle') return { kind: 'split', cellId: hit.cellId, side: hit.zone }
+      return source.type === 'panel' ? { kind: 'swap', cellId: hit.cellId } : { kind: 'cell', cellId: hit.cellId }
     case 'empty-cell':
       return { kind: 'cell', cellId: hit.cellId }
     case 'empty-layout':
@@ -358,8 +389,9 @@ const STRIP_LABEL = 'Add to strip'
 
 /**
  * What a drop on `target` says: "Split Late · above", "Insert row · full
- * width", "Add as tab" — onto an empty cell (a slot, layout edit mode E3)
- * "Move here" for a whole cell (`source` a panel), else "Add here".
+ * width", "Add as tab", "Swap with “Tasks”" — onto an empty cell (a slot,
+ * layout edit mode E3) "Move here" for a whole cell (`source` a panel),
+ * else "Add here".
  */
 export function dropLabel(geo: WorkspaceGeometry, target: LayoutDropTarget, tabCount: number, source?: WorkspaceDragSource): string {
   if (target.kind === 'cell' && geo.cells.find((c) => c.id === target.cellId)?.empty) return source?.type === 'panel' ? 'Move here' : 'Add here'
@@ -374,6 +406,11 @@ export function dropLabel(geo: WorkspaceGeometry, target: LayoutDropTarget, tabC
       return geo.cells.find((c) => c.id === target.cellId)?.strip ? STRIP_LABEL : tabLabel(tabCount)
     case 'layout':
       return 'First cell'
+    case 'swap': {
+      const other = geo.cells.find((c) => c.id === target.cellId)
+      const name = other?.name ?? other?.title
+      return name ? `Swap with “${name}”` : 'Swap'
+    }
   }
 }
 

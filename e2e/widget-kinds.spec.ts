@@ -61,7 +61,7 @@ test.describe('desktop', () => {
     // Add: every kind but Notes, from the add-tab menu (a list gets a new list; no editor opens) —
     // the first from the ⋯'s Add widget as tab ›: one widget has no strip, so no + (D26 AA1; E4).
     for (const kind of WIDGET_KINDS.filter((k) => k !== 'notes')) {
-      const plus = page.getByRole('button', { name: 'Add widget as tab' })
+      const plus = page.getByRole('button', { name: 'Add tab' })
       if (await plus.count() > 0) {
         await plus.click()
         const menu = page.getByRole('menu', { name: 'Add widget' })

@@ -761,6 +761,9 @@ export async function openCellLayoutMenu(page: Page, cellId: string): Promise<Lo
   return page.getByRole('menu', { name: 'Cell layout' })
 }
 
+/** The ⋯'s Add widget as tab › (a lone widget) or Add tab › (a cell showing a tab strip). */
+export const ADD_TAB_ENTRY = /^Add (widget as )?tab$/
+
 /**
  * The ⋯'s **Add widget as tab ›** `label` on cell `cellId` (layout edit mode
  * E4): the new widget a tab of that cell, made its active one; a Breakdown
@@ -768,8 +771,9 @@ export async function openCellLayoutMenu(page: Page, cellId: string): Promise<Lo
  */
 export async function addWidgetAsTab(page: Page, cellId: string, label: string, preset = 'Custom'): Promise<void> {
   await openCellMenu(page, cellId)
-  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Add widget as tab' }).click()
-  await page.getByRole('menu', { name: 'Add widget as tab' }).getByRole('menuitem', { name: label, exact: true }).click()
+  // Add widget as tab › on a lone widget, Add tab › in a cell showing a tab strip.
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: ADD_TAB_ENTRY }).click()
+  await page.getByRole('menu', { name: ADD_TAB_ENTRY }).getByRole('menuitem', { name: label, exact: true }).click()
   if (label === 'Breakdown') await page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem', { name: preset, exact: true }).click()
 }
 
@@ -790,13 +794,21 @@ export function layoutEditBar(page: Page): Locator {
 }
 
 /**
- * Opens the layout edit mode (E1) from the pencil after the layout tabs and
+ * Opens the layout edit mode (E1) from the open layout's tab menu (Edit
+ * layout…) — or the picker's, while the layouts are folded into it — and
  * waits for its bar. Everything layout-wide — the cards and their menus,
  * whole-cell and cross-cell drags, the drop ghost, the rulers, the tray —
  * is drawn only there, and acts on the draft until `finishLayoutEdit`.
  */
 export async function enterLayoutEdit(page: Page): Promise<void> {
-  await page.getByTestId('layout-edit').click()
+  const picker = page.getByTestId('layout-picker')
+  if (await picker.isVisible()) {
+    await picker.click()
+    await page.getByRole('menu', { name: 'Layouts' }).getByRole('menuitem', { name: 'Edit layout…' }).click()
+  } else {
+    const menu = await openLayoutTabMenu(page)
+    await menu.getByRole('menuitem', { name: 'Edit layout…' }).click()
+  }
   await expect(layoutEditBar(page)).toBeVisible()
 }
 
@@ -805,6 +817,16 @@ export async function finishLayoutEdit(page: Page): Promise<void> {
   await layoutEditBar(page).getByRole('button', { name: 'Done', exact: true }).click()
   await expect(layoutEditBar(page)).toHaveCount(0)
   await expectLayoutStored(page)
+}
+
+/**
+ * A point in a one-widget card's tab area in the layout edit mode (its top
+ * band, where its label sits): a whole card or a tab dropped there joins it
+ * as tabs — on its middle a whole card swaps with it instead.
+ */
+export async function tabAreaPoint(page: Page, cellId: string): Promise<Point> {
+  const b = await box(wsCell(page, cellId))
+  return { x: b.x + b.width / 2, y: b.y + 14 }
 }
 
 /** The drop ghost while a tab or cell is dragged (D26 board T). */

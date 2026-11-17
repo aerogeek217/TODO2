@@ -1,9 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
+  enterLayoutEdit,
   expectLayoutStored,
   layoutTab,
   newestUndoStep,
   openCellLayoutMenu,
+  openLayoutTab,
   pickSplit,
   seedWorkspace,
   wsCell,
@@ -12,7 +14,7 @@ import {
 import { readStore } from './fixtures/db'
 
 /**
- * The layout edit mode (layout edit mode E1) in a real browser: the pencil
+ * The layout edit mode (layout edit mode E1) in a real browser: the layout tab menu’s Edit layout…
  * opens it — its bar in the top bar's place, the focus on Done, the
  * workspace tinted and each cell's content taking no presses; an edit (a
  * card menu's Split ▸ Below) changes only the draft; Cancel puts the
@@ -43,7 +45,7 @@ async function storedCells(page: Page, name: string): Promise<number> {
 
 test('enter, split on the draft, Cancel, Restore, Done, then the global Undo', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar('Main')] })
-  await page.getByTestId('layout-edit').click()
+  await enterLayoutEdit(page)
 
   // The mode: its bar, Done focused, the layouts' tabs shown but disabled, the workspace tinted.
   await expect(bar(page)).toBeVisible()
@@ -93,7 +95,7 @@ test('enter, split on the draft, Cancel, Restore, Done, then the global Undo', a
 
 test('in the mode, Ctrl+Z steps its own undo and never a step behind it', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar('Main')] })
-  await page.getByTestId('layout-edit').click()
+  await enterLayoutEdit(page)
   await openCellLayoutMenu(page, 'Main-a')
   await pickSplit(page, 'Right')
   await expect.poll(() => cellCount(page)).toBe(3)
@@ -107,15 +109,15 @@ test('in the mode, Ctrl+Z steps its own undo and never a step behind it', async 
   await page.keyboard.press('Control+z')
   await expect.poll(() => cellCount(page)).toBe(2)
   await expect(bar(page)).toBeVisible()
-  // Esc with no changes leaves; the focus back on the pencil.
+  // Esc with no changes leaves; the focus back where it was (the layout tab menu's opener: the open layout's tab).
   await page.keyboard.press('Escape')
   await expect(bar(page)).toHaveCount(0)
-  await expect(page.getByTestId('layout-edit')).toBeFocused()
+  await expect(openLayoutTab(page)).toBeFocused()
 })
 
 test('a layout switch with changes asks: Keep editing stays, Save stores and switches', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar('Main'), notesCalendar('Second')] })
-  await page.getByTestId('layout-edit').click()
+  await enterLayoutEdit(page)
   await openCellLayoutMenu(page, 'Main-b')
   await pickSplit(page, 'Below')
   await expect.poll(() => cellCount(page)).toBe(3)

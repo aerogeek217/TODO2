@@ -422,9 +422,10 @@ export interface WorkspaceState {
   /**
    * Inserts a full row / column on line `index` of `axis` (`insertTrackAt`,
    * a ruler's "+" or Insert …; `from`: the track beside the line it takes
-   * half of). Returns the first new cell's id.
+   * half of; `through`: the last line of a run whose tracks between are
+   * slivers, which act as one line). Returns the first new cell's id.
    */
-  insertTrackAt: (axis: GridAxis, index: number, from?: number) => string | null
+  insertTrackAt: (axis: GridAxis, index: number, from?: number, through?: number) => string | null
   /** Removes track `index` of `axis` (`removeTrack`: its widgets move as `trackRemoval` says); `false` for the last track. */
   removeTrack: (axis: GridAxis, index: number) => boolean
   /** Merges track `index` of `axis` into its neighbour `into` (`mergeTrackInto`, a sliver's Merge into). */
@@ -1239,6 +1240,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         case 'join':
           if (!get().moveEditCard(outcome.from, { kind: 'cell', cellId: outcome.into })) get().disarmEditMove()
           break
+        case 'swap':
+          if (!get().moveEditCard(outcome.from, { kind: 'swap', cellId: outcome.with })) get().disarmEditMove()
+          break
       }
       return outcome
     },
@@ -1636,10 +1640,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return edit((layout) => mergeCells(layout, aId, bId), 'Merged cells')
     },
 
-    insertTrackAt(axis, index, from) {
+    insertTrackAt(axis, index, from, through) {
       let newCellId: string | null = null
       edit((layout, genId) => {
-        const result = insertTrackAt(layout, axis, index, genId, from)
+        const result = insertTrackAt(layout, axis, index, genId, from, through)
         newCellId = result.cellId
         return result.layout
       }, axis === 'rows' ? 'Inserted row' : 'Inserted column')

@@ -6,7 +6,7 @@ import { OPEN_LARGER_LABEL, widgetKindMenuEntries, type WidgetKindMenuContent } 
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
-import { addTabToCell, useTabTitle } from './widget-hooks'
+import { addTabToCell, useCardName, useTabTitle } from './widget-hooks'
 import { MenuPopover } from '../shared/MenuPopover'
 import { ChevronDownIcon, ChevronUpIcon, ExpandIcon, MoreIcon } from '../shared/icons'
 import { useWorkspaceDrag } from './workspace-drag'
@@ -145,6 +145,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
+  // The card's name in the layout edit mode (Swap with ▸, a swap's ghost, the armed move's hint).
+  const cardName = useCardName(cell)
   /** Only Numbers, two or more (flair P10): one strip of them, side by side, no tab strip. */
   const numberStrip = isNumberStripCell(cell)
   /** Tabs only when there's a choice (D26 AA1): one widget's top line names it. */
@@ -207,9 +209,13 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
 
   const hit = drag?.hit
   const stripHit = hit?.kind === 'tab-strip' && hit.cellId === cell.id && drag?.accepts ? hit : null
-  // Joining it (its body's middle): the tabs show in its strip as ghosts —
-  // a one-widget cell's in the strip it will have, over its top line.
-  const joining = drag?.accepts === true && hit?.kind === 'cell-body' && hit.cellId === cell.id && hit.zone === 'middle'
+  // Joining it (its body's middle — not a whole card's swap —, or a one-widget
+  // card's tab area in the layout edit mode): the tabs show in its strip as
+  // ghosts — a one-widget cell's in the strip it will have, over its top line.
+  const joinTarget = drag?.target?.kind === 'cell' && drag.target.cellId === cell.id
+  const joining = drag?.accepts === true && joinTarget && (
+    (hit?.kind === 'cell-body' && hit.zone === 'middle') || (hit?.kind === 'tab-strip' && !stripShown && !numberStrip)
+  )
   const ghosts = joining ? drag.tabs : null
   const isDragSource = drag?.source.type === 'panel' && drag.source.panelId === cell.id
 
@@ -318,6 +324,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       data-ws-cell={cell.id}
       data-edit-selected={editSelected ? '' : undefined}
       data-ws-cell-title={activeTitle}
+      data-ws-card-name={editing ? cardName : undefined}
       data-face={!collapsed && active ? cellFace.face : undefined}
       aria-label={`${activeTitle} cell`}
       onContextMenu={onContextMenu}
@@ -328,7 +335,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       } : undefined}
     >
       {/* The layout edit mode (E3): the card's surface, under everything else. */}
-      {editing && active && <EditCardSurface cell={cell} title={activeTitle} onMenu={(at) => openMenu(active.id, at)} />}
+      {editing && active && <EditCardSurface cell={cell} title={activeTitle} name={cardName} onMenu={(at) => openMenu(active.id, at)} />}
       {stripShown && (
         <div
           className={[styles.header, menuOpen ? styles.headerMenuOpen : ''].join(' ')}

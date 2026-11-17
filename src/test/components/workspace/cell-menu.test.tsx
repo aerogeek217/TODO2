@@ -52,6 +52,7 @@ function cardActions(over: Partial<EditCardMenuActions> = {}): EditCardMenuActio
     canStretch: () => true,
     onMoveTo: vi.fn(),
     onSwap: vi.fn(),
+    onJoin: vi.fn(),
     onSplit: vi.fn(),
     onMerge: vi.fn(),
     onStretch: vi.fn(),
@@ -71,8 +72,19 @@ const select = (entry: MenuEntry | undefined) => { if (entry?.kind === 'item') e
 describe('editCardMenuEntries (a card’s menu in the layout edit mode)', () => {
   it('Move to, Swap with, Split, Merge with, Stretch right / down, then Remove widget and Close cell', () => {
     expect(words(editCardMenuEntries(cardActions()))).toEqual([
-      'Move to', 'Swap with', 'Split', 'Merge with', 'Stretch right', 'Stretch down', '—', 'Remove widget', 'Close cell',
+      'Move to', 'Swap with', 'Join as tabs', 'Split', 'Merge with', 'Stretch right', 'Stretch down', '—', 'Remove widget', 'Close cell',
     ])
+  })
+
+  it('Join as tabs lists the same cards: a pick joins this card’s tabs to it; with no other card it is off', () => {
+    const onJoin = vi.fn()
+    const join = item(editCardMenuEntries(cardActions({ onJoin })), 'Join as tabs')
+    const children = join?.kind === 'item' ? join.children ?? [] : []
+    expect(children.map((c) => (c.kind === 'item' ? [c.label, c.note] : null))).toEqual([['Calendar', 'B2']])
+    select(children[0])
+    expect(onJoin).toHaveBeenCalledWith('c2')
+    const none = item(editCardMenuEntries(cardActions({ cards: [] })), 'Join as tabs')
+    expect(none?.kind === 'item' && none.disabled).toBe(true)
   })
 
   it('Move to lists every slot by its ruler name; Swap with every other card by name, its place beside it', () => {
@@ -123,13 +135,14 @@ describe('editCardMenuEntries (a card’s menu in the layout edit mode)', () => 
     expect(onStretch).toHaveBeenCalledWith('down')
   })
 
-  it('Remove widget removes the menu’s widget; two widgets: Close cell with the count', () => {
+  it('Remove tab (two widgets: a tab strip) removes the menu’s widget; Close cell with the count', () => {
     const onRemoveWidget = vi.fn()
     const onCloseCell = vi.fn()
     const a = createTab('notes', 'a')
     const b = createTab('calendar', 'b')
     const entries = editCardMenuEntries(cardActions({ cell: { id: 'k', tabs: [a, b] }, tab: b, onRemoveWidget, onCloseCell }))
-    select(item(entries, 'Remove widget'))
+    expect(item(entries, 'Remove widget')).toBeUndefined()
+    select(item(entries, 'Remove tab'))
     select(item(entries, 'Close cell (2 tabs)'))
     expect(onRemoveWidget).toHaveBeenCalledWith('b')
     expect(onCloseCell).toHaveBeenCalled()
@@ -161,6 +174,13 @@ describe('cellMenuFor (outside the mode: what is inside a cell changes in place)
     const onCloseTab = vi.fn()
     select(item(cellMenuFor(notes(), actions({ onCloseTab })), 'Remove widget'))
     expect(onCloseTab).toHaveBeenCalledWith('n')
+  })
+
+  it('a cell showing a tab strip reads Add tab › and Remove tab; a Numbers strip keeps the widget words', () => {
+    const strip = actions({ cell: { id: 'k', tabs: [createTab('notes', 'n'), createTab('calendar', 'c')] } })
+    expect(words(cellMenuFor(notes(), strip))).toEqual(['[Notes]', 'Change widget', '—', 'Add tab', 'Remove tab', 'Collapse row'])
+    const numbers = actions({ cell: { id: 'k', tabs: [createTab('number', 'n'), createTab('number', 'm')] } })
+    expect(words(cellMenuFor(notes(), numbers))).toEqual(['[Notes]', 'Change widget', '—', 'Add widget as tab', 'Remove widget', 'Collapse row'])
   })
 
   it('collapsed reads Expand row, which expands it', () => {

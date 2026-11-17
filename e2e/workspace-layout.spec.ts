@@ -27,6 +27,7 @@ import {
   enterLayoutEdit,
   finishLayoutEdit,
   openCellMenu,
+  tabAreaPoint,
 } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -249,7 +250,8 @@ test.describe('a pane that goes leaves no void', () => {
     await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'a1', 0.92))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['mapTab']], [['calTab']]])
 
-    await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'b1', 0.5))
+    // A lone widget drags as its card: onto the other card's tab area it joins (its middle would swap).
+    await dragTab(page, wsTab(page, 'mapTab'), await tabAreaPoint(page, 'b1'))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'mapTab']]])
     await expect.poll(() => voidBelow(page, 'a1')).toBeLessThan(1)
   })
@@ -265,7 +267,7 @@ test.describe('a pane that goes leaves no void', () => {
       }],
     })
     await enterLayoutEdit(page)
-    await dragTab(page, wsTab(page, 'calTab'), await bodyPoint(page, 'a1', 0.5))
+    await dragTab(page, wsTab(page, 'calTab'), await tabAreaPoint(page, 'a1'))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'calTab']]])
     await expect.poll(() => voidRight(page, 'a1')).toBeLessThan(1)
   })
@@ -296,7 +298,7 @@ test.describe('a pane that goes leaves no void', () => {
     })
     await enterLayoutEdit(page)
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a1'))).height)).toBe(32)
-    await dragTab(page, wsTab(page, 'dashTab'), await bodyPoint(page, 'b1', 0.5))
+    await dragTab(page, wsTab(page, 'dashTab'), await tabAreaPoint(page, 'b1'))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['mapTab']], [['calTab', 'dashTab']]])
     await expect.poll(() => voidBelow(page, 'a2')).toBeLessThan(1)
   })
@@ -315,7 +317,8 @@ test.describe('a pane that goes leaves no void', () => {
       }],
     })
     await enterLayoutEdit(page)
-    await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'b1', 0.5))
+    // A lone widget drags as its card: onto the other card's tab area it joins (its middle would swap).
+    await dragTab(page, wsTab(page, 'mapTab'), await tabAreaPoint(page, 'b1'))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'mapTab']]])
     await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
     await expect.poll(() => voidBelow(page, 'a1')).toBeLessThan(1)

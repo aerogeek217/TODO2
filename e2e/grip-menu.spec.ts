@@ -67,7 +67,7 @@ test('outside the mode: no grip, no drag handle; the ⋯ the widget’s entries,
   expect(await labels(optionsMenu(page))).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Edit layout'])
 })
 
-const CARD_MENU = ['Move to', 'Swap with', 'Split', 'Merge with', 'Stretch right', 'Stretch down', 'Remove widget', 'Close cell']
+const CARD_MENU = ['Move to', 'Swap with', 'Join as tabs', 'Split', 'Merge with', 'Stretch right', 'Stretch down', 'Remove widget', 'Close cell']
 
 test('in the mode, one widget: no grip; the card’s ⋯ opens its menu under it', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
@@ -100,7 +100,8 @@ test('in the mode, the keyboard: Enter on the focused card opens its menu; Esc g
   await expect(layoutMenu(page)).toHaveCount(0)
   await expect(card).toBeFocused()
   await page.keyboard.press('Enter')
-  // ↓ to Split, → into its sides, ⏎ on Above.
+  // ↓↓ past Join as tabs to Split, → into its sides, ⏎ on Above.
+  await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowRight')
   await page.keyboard.press('Enter')
@@ -151,7 +152,8 @@ test('in the mode, several widgets: the header’s own buttons give way to the c
   const header = page.locator('[data-ws-cell-header="a"]')
   await expect(header.getByRole('button', { name: 'Cell options' })).toHaveCount(0)
   await wsCell(page, 'a').getByRole('button', { name: 'Cell layout' }).click()
-  expect(await labels(layoutMenu(page))).toEqual([...CARD_MENU.slice(0, -1), 'Close cell (2 tabs)'])
+  // A card of tabs: Remove tab, Close cell with the count.
+  expect(await labels(layoutMenu(page))).toEqual([...CARD_MENU.slice(0, -2), 'Remove tab', 'Close cell (2 tabs)'])
   await page.keyboard.press('Escape')
   await expect(layoutMenu(page)).toHaveCount(0)
 

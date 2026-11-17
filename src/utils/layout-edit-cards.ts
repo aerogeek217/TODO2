@@ -1,6 +1,7 @@
 import type { CellArea, GridAxis, LayoutBody, LayoutCell } from '../models/workspace-layout'
 import { cellById, crossAxis, neighbours, readingOrder, sideAxis, spanOf, type Side } from './workspace-grid'
 import { cellAreaFits } from './workspace-layout-ops'
+import { isNumberStripCell } from './workspace-rows'
 
 /**
  * The layout edit mode's cards and slots (E3), pure: what a card's ruler
@@ -62,6 +63,22 @@ export function areaRulerName(area: CellArea, names: RulerNames): string {
   const first = cellRulerName({ area: { ...area, colSpan: 1, rowSpan: 1 } }, names)
   const last = cellRulerName({ area: { col: end.col, row: end.row, colSpan: 1, rowSpan: 1 } }, names)
   return first === last ? first : `${first}–${last}`
+}
+
+/**
+ * A card's name in the mode (Swap with ▸, Join as tabs ▸, a swap's ghost,
+ * the armed move's hint): a one-widget card its widget's title; a Numbers
+ * strip `3 Numbers`; a card of tabs its first two tabs' titles and how many
+ * more — `Tasks, Notes`, `Tasks, Notes + 2`. `titles` are its tabs'
+ * titles, in order. An empty cell: `''`.
+ */
+export function cardName(cell: Pick<LayoutCell, 'tabs'>, titles: readonly string[]): string {
+  const n = cell.tabs.length
+  if (n === 0) return ''
+  if (isNumberStripCell(cell)) return `${n} Numbers`
+  const [a = 'A widget', b = 'a widget'] = titles
+  if (n === 1) return a
+  return n === 2 ? `${a}, ${b}` : `${a}, ${b} + ${n - 2}`
 }
 
 /** The layout's empty cells (slots), in reading order. */
@@ -175,9 +192,9 @@ interface TapState {
   moveArmed: boolean
 }
 
-/** What is tapped: a card (on its middle, or near an edge), or a slot. */
+/** What is tapped: a card (on its middle, its tab area, or near an edge), or a slot. */
 export type TapTarget =
-  | { kind: 'card'; cellId: string; zone: 'middle' | 'edge' }
+  | { kind: 'card'; cellId: string; zone: 'middle' | 'tabs' | 'edge' }
   | { kind: 'slot'; cellId: string }
 
 /**
@@ -186,8 +203,10 @@ export type TapTarget =
  *   move (`select`);
  * - the armed card again: disarms (`disarm`), the card still selected;
  * - a slot, with a card armed: the card moves there (`move`);
- * - another card's middle, with a card armed: they join as tabs (`join`);
- *   its edge selects it instead (`select`);
+ * - another card's middle, with a card armed: the two swap places
+ *   (`swap`); its tab area (its strip, a one-widget card's top band): the
+ *   armed card joins it as tabs (`join`); its edge selects it instead
+ *   (`select`);
  * - a slot, with none armed: selects it and opens its kinds (`menu`).
  */
 export type TapOutcome =
@@ -195,6 +214,7 @@ export type TapOutcome =
   | { kind: 'disarm' }
   | { kind: 'move'; from: string; to: string }
   | { kind: 'join'; from: string; into: string }
+  | { kind: 'swap'; from: string; with: string }
   | { kind: 'menu'; cellId: string }
 
 export function tapOutcome(state: TapState, target: TapTarget): TapOutcome {
@@ -202,5 +222,6 @@ export function tapOutcome(state: TapState, target: TapTarget): TapOutcome {
   if (target.kind === 'slot') return armed != null ? { kind: 'move', from: armed, to: target.cellId } : { kind: 'menu', cellId: target.cellId }
   if (armed == null) return { kind: 'select', cellId: target.cellId }
   if (armed === target.cellId) return { kind: 'disarm' }
-  return target.zone === 'middle' ? { kind: 'join', from: armed, into: target.cellId } : { kind: 'select', cellId: target.cellId }
+  if (target.zone === 'middle') return { kind: 'swap', from: armed, with: target.cellId }
+  return target.zone === 'tabs' ? { kind: 'join', from: armed, into: target.cellId } : { kind: 'select', cellId: target.cellId }
 }
