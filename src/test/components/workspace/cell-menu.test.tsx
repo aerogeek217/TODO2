@@ -221,3 +221,64 @@ describe('mergedCellMenu', () => {
     expect(words(mergedCellMenu([], [{ kind: 'item', label: 'B' }]))).toEqual(['B'])
   })
 })
+
+describe('Move / Copy to layout entries', () => {
+  const transfer = (onPick = vi.fn()) => ({
+    layouts: [
+      { id: 1, name: 'A', current: true },
+      { id: 2, name: 'B', current: false },
+    ],
+    onPick,
+  })
+
+  it('the ⋯ lists Move to layout and Copy to layout after the widget entries, before Add widget as tab', () => {
+    const entries = cellMenuFor([], actions({ transfer: transfer() }))
+    const w = words(entries)
+    expect(w).toContain('Move to layout')
+    expect(w.indexOf('Copy to layout')).toBe(w.indexOf('Move to layout') + 1)
+    expect(w.indexOf('Copy to layout')).toBeLessThan(w.indexOf('Add widget as tab'))
+  })
+
+  it('no entries without a transfer menu', () => {
+    const w = words(cellMenuFor([], actions()))
+    expect(w).not.toContain('Move to layout')
+    expect(w).not.toContain('Copy to layout')
+    expect(words(editCardMenuEntries(cardActions()))).not.toContain('Move cell to layout')
+  })
+
+  it('each submenu lists the layouts, the open one off with a note, then New layout…', () => {
+    const entries = cellMenuFor([], actions({ transfer: transfer() }))
+    const kids = childrenOf(entries, 'Move to layout')
+    expect(words(kids)).toEqual(['A', 'B', '—', 'New layout…'])
+    const current = kids[0]
+    expect(current?.kind === 'item' && current.disabled).toBe(true)
+    expect(current?.kind === 'item' && current.note).toBe('this layout')
+    const other = kids[1]
+    expect(other?.kind === 'item' && other.disabled).toBeFalsy()
+  })
+
+  it('a pick calls onPick with the layout id and whether it is a copy; New layout… with "new"', () => {
+    const onPick = vi.fn()
+    const entries = cellMenuFor([], actions({ transfer: transfer(onPick) }))
+    select(item(childrenOf(entries, 'Move to layout'), 'B'))
+    expect(onPick).toHaveBeenLastCalledWith(2, false)
+    select(item(childrenOf(entries, 'Copy to layout'), 'B'))
+    expect(onPick).toHaveBeenLastCalledWith(2, true)
+    select(item(childrenOf(entries, 'Copy to layout'), 'New layout…'))
+    expect(onPick).toHaveBeenLastCalledWith('new', true)
+    select(item(childrenOf(entries, 'Move to layout'), 'New layout…'))
+    expect(onPick).toHaveBeenLastCalledWith('new', false)
+  })
+
+  it('the card menu has Move cell to layout and Copy cell to layout between Stretch down and Remove widget', () => {
+    const onPick = vi.fn()
+    const entries = editCardMenuEntries(cardActions({ transfer: transfer(onPick) }))
+    const w = words(entries)
+    expect(w.indexOf('Move cell to layout')).toBeGreaterThan(w.indexOf('Stretch down'))
+    expect(w.indexOf('Copy cell to layout')).toBeLessThan(w.indexOf('Remove widget'))
+    select(item(childrenOf(entries, 'Copy cell to layout'), 'B'))
+    expect(onPick).toHaveBeenCalledWith(2, true)
+    select(item(childrenOf(entries, 'Move cell to layout'), 'New layout…'))
+    expect(onPick).toHaveBeenLastCalledWith('new', false)
+  })
+})

@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore, type LayoutRequest } from '../../stores/ui-store'
+import type { TransferWhat } from '../../utils/layout-transfer'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { ownerLayoutId } from '../../models/list-definition'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
@@ -14,7 +15,7 @@ import styles from './LayoutControls.module.css'
 type LayoutControlsMode = 'tabs' | 'menu'
 
 type Pending =
-  | { kind: 'new-name' }
+  | { kind: 'new-name'; transfer?: { what: TransferWhat; copy: boolean } }
   | { kind: 'duplicate' }
   | { kind: 'rename'; id: number; name: string }
   | { kind: 'delete'; id: number; name: string }
@@ -54,7 +55,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
 
   // A layout action asked for elsewhere (the palette, `ui-store.requestLayout`): run as the tabs and the picker run it.
   const runRequest = useEffectEvent((r: LayoutRequest) => {
-    if (r.kind === 'new') setPending({ kind: 'new-name' })
+    if (r.kind === 'new') setPending(r.transfer ? { kind: 'new-name', transfer: r.transfer } : { kind: 'new-name' })
     else if (r.kind === 'duplicate') setPending({ kind: 'duplicate' })
     else switchTo(r.layoutId)
   })
@@ -201,7 +202,12 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           confirmLabel="Create layout"
           initialName=""
           placeholder="Layout name"
-          onConfirm={(n) => { close(); create(n) }}
+          onConfirm={(n) => {
+            const transfer = pending.transfer
+            close()
+            if (transfer) void store().transferTo({ newName: n }, transfer.what, transfer.copy)
+            else create(n)
+          }}
           onCancel={close}
         />
       )}

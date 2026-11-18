@@ -33,9 +33,9 @@ export function selectOnFocus(cellId: string): void {
   store().selectEditCell(cellId)
 }
 
-/** After a tap that moved or joined the armed card: the focus on where it is now. */
+/** After a tap that moved or joined the armed card, or placed the widgets in hand: the focus on where it is now. */
 export function focusAfterTap(kind: string): void {
-  if (kind !== 'move' && kind !== 'join' && kind !== 'swap') return
+  if (kind !== 'move' && kind !== 'join' && kind !== 'swap' && kind !== 'place') return
   const selected = store().editing?.selectedCellId
   if (selected != null) focusEditItem(selected)
 }

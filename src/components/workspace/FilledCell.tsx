@@ -20,7 +20,7 @@ import { OpenLargerPlaceholder } from './OpenLargerPlaceholder'
 import { openWidgetLarger } from '../../services/widget-popup'
 import { tabOpensLarger } from '../../utils/widget-face'
 import { transitionName, withViewTransition } from '../shared/view-transition'
-import { CELL_MENU_LABEL, cellMenuFor, useWidgetMenuContent, type CellMenuPart } from './cell-menu'
+import { CELL_MENU_LABEL, cellMenuFor, useTransferMenu, useWidgetMenuContent, type CellMenuPart } from './cell-menu'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
 import { trackCellHot } from './cell-hot'
 import { CellControls } from './WidgetTopLine'
@@ -233,6 +233,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   // Open larger for the menu's tab: by the face it shows (the active tab's, a strip's Number's), a tab out of sight by its large face.
   const menuFace = menuTab == null ? 'large' : numberStrip ? (slotFaces[menuTab.id] ?? 'large') : menuTab.id === active?.id ? cellFace.face : 'large'
   const menuOpensLarger = menuTab != null && tabOpensLarger(menuTab, menuFace)
+  const transferMenu = useTransferMenu('tab', menuTab?.id)
   const menuEntries = menu && menuTab && !editing
     ? cellMenuFor(widgetKindMenuEntries({
         ...(widgetContent ?? NO_WIDGET_MENU),
@@ -247,6 +248,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         onCloseTab: closeTabAsked,
         onAddTab: (kind, preset) => addTabToCell(cell.id, kind, preset),
         onEditLayout: () => { void useWorkspaceStore.getState().enterEdit({ cellId: cell.id }) },
+        ...(transferMenu ? { transfer: transferMenu } : {}),
       })
     : null
   /** The whole menu (a right-click, Shift+F10 / the Menu key): at a point, or under the ⋯. */

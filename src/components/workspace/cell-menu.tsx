@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   isGlanceTab,
   tabListId,
@@ -12,6 +13,7 @@ import {
 import { BREAKDOWN_PRESET_LABELS, BREAKDOWN_PRESETS, type BreakdownPreset } from '../../models/chart-widgets'
 import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { useUIStore } from '../../stores/ui-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListWidgetStore } from '../../stores/list-widget-store'
 import { copyTasks } from '../../services/task-copy'
@@ -22,6 +24,8 @@ import {
   ChevronUpIcon,
   CloseCellIcon,
   CloseIcon,
+  CopyIcon,
+  LayoutIcon,
   PencilIcon,
   PlusIcon,
   SplitBelowIcon,
@@ -29,6 +33,8 @@ import {
   WidgetKindIcon,
 } from '../shared/icons'
 import type { Side } from '../../utils/workspace-grid'
+import type { IconValue } from '../../models/icon'
+import { LayoutGlyph } from '../shared/LayoutGlyph'
 import { isNumberStripCell } from '../../utils/workspace-rows'
 import { tabsCount } from './workspace-drag'
 import type { WidgetResult } from './WidgetBody'
@@ -109,6 +115,85 @@ export interface CellMenuActions {
   onAddTab: (kind: WidgetKind, preset?: BreakdownPreset) => void
   /** Edit layout (the ⋯'s last entry): opens the layout edit mode with this cell selected. Absent: no entry. */
   onEditLayout?: () => void
+  /** Move to layout › / Copy to layout › (this widget). Absent: no entries. */
+  transfer?: TransferMenu
+}
+
+/** A layout Move / Copy to layout › lists. */
+interface TransferLayout {
+  id: number
+  name: string
+  hue?: string
+  icon?: IconValue
+  /** The open layout: listed, off. */
+  current: boolean
+}
+
+/** Move / Copy to layout ›'s layouts and its pick (`'new'`: New layout…, which asks the new layout's name). */
+interface TransferMenu {
+  layouts: readonly TransferLayout[]
+  onPick: (to: number | 'new', copy: boolean) => void
+}
+
+/**
+ * Move / Copy to layout ›'s menu for a widget (`kind` `tab`) or a whole cell
+ * of the open layout (`id`): every layout, the open one off; a pick carries
+ * it there (`workspace-store.transferTo`), New layout… asking the new
+ * layout's name first (`ui-store.requestLayout`). None while widgets from
+ * another layout are in hand, or without an id.
+ */
+export function useTransferMenu(kind: 'tab' | 'cell', id: string | undefined): TransferMenu | undefined {
+  const layouts = useWorkspaceStore((s) => s.layouts)
+  const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
+  const carrying = useWorkspaceStore((s) => s.editing?.incoming != null)
+  return useMemo(() => {
+    if (id == null || carrying) return undefined
+    const what = kind === 'tab' ? { kind: 'tab' as const, tabId: id } : { kind: 'cell' as const, cellId: id }
+    return {
+      layouts: layouts.map((l) => ({
+        id: l.id,
+        name: l.name,
+        ...(l.hue ? { hue: l.hue } : {}),
+        ...(l.icon ? { icon: l.icon } : {}),
+        current: l.id === activeLayoutId,
+      })),
+      onPick: (to, copy) => {
+        if (to === 'new') useUIStore.getState().requestLayout({ kind: 'new', transfer: { what, copy } })
+        else void useWorkspaceStore.getState().transferTo(to, what, copy)
+      },
+    }
+  }, [kind, id, carrying, layouts, activeLayoutId])
+}
+
+/** The width of Move / Copy to layout ›'s submenu. */
+const TRANSFER_SUBMENU_WIDTH_PX = 220
+
+/**
+ * Move to layout › and Copy to layout › (`label`s: the ⋯'s for a widget,
+ * the card menu's for a whole cell): each the layouts — the open one off,
+ * `this layout` beside it — then New layout….
+ */
+function transferEntries(t: TransferMenu | undefined, labels: { move: string; copy: string }): MenuEntry[] {
+  if (!t) return []
+  const entry = (copy: boolean): MenuEntry => ({
+    kind: 'item',
+    label: copy ? labels.copy : labels.move,
+    icon: copy ? <CopyIcon /> : <LayoutIcon />,
+    childrenWidth: TRANSFER_SUBMENU_WIDTH_PX,
+    children: [
+      ...t.layouts.map((l): MenuEntry => ({
+        kind: 'item',
+        label: l.name,
+        icon: <LayoutGlyph layout={l} />,
+        disabled: l.current,
+        ...(l.current ? { note: 'this layout' } : {}),
+        onSelect: () => t.onPick(l.id, copy),
+      })),
+      { kind: 'separator' },
+      { kind: 'item', label: 'New layout…', icon: <PlusIcon />, onSelect: () => t.onPick('new', copy) },
+    ],
+  })
+  return [entry(false), entry(true)]
 }
 
 /** The card menu's name (its `aria-label`; the card's ⋯ is named so too). */
@@ -148,6 +233,8 @@ export interface EditCardMenuActions {
   onStretch: (direction: 'right' | 'down') => void
   onRemoveWidget: (tabId: string) => void
   onCloseCell: () => void
+  /** Move cell to layout › / Copy cell to layout › (the whole cell). Absent: no entries. */
+  transfer?: TransferMenu
 }
 
 /**
@@ -235,6 +322,8 @@ export function editCardMenuEntries(a: EditCardMenuActions): MenuEntry[] {
     stretch('down'),
     { kind: 'separator' },
   ]
+  const transfer = transferEntries(a.transfer, { move: 'Move cell to layout', copy: 'Copy cell to layout' })
+  if (transfer.length > 0) entries.push(...transfer, { kind: 'separator' })
   if (tab) entries.push({ kind: 'item', label: removeTabLabel(a.cell), icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => a.onRemoveWidget(tab.id) })
   entries.push({
     kind: 'item',
@@ -321,7 +410,8 @@ export const CELL_MENU_LABEL: Readonly<Record<CellMenuPart, string>> = {
  * Expand row, then Edit layout.
  */
 export function cellMenuFor(widget: readonly MenuEntry[], a: CellMenuActions): MenuEntry[] {
-  const own = mergedCellMenu(widget, [addTabEntry(a), ...removeWidgetEntry(a), collapseEntry(a)])
+  const moved = mergedCellMenu(widget, transferEntries(a.transfer, { move: 'Move to layout', copy: 'Copy to layout' }))
+  const own = mergedCellMenu(moved, [addTabEntry(a), ...removeWidgetEntry(a), collapseEntry(a)])
   return mergedCellMenu(own, editLayoutEntry(a))
 }
 

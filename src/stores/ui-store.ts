@@ -1,4 +1,5 @@
 import type { RefObject } from 'react'
+import type { TransferWhat } from '../utils/layout-transfer'
 import { create } from 'zustand'
 import { registerModuleReset } from '../utils/module-reset'
 import { closeOpenEditors, layoutLeaveAsks, leaveLayout, openOneEditor, quitLayoutEditors, registerEditorFields } from './editor-leave'
@@ -109,7 +110,8 @@ export interface EntityAction {
  */
 export type LayoutRequest =
   | { kind: 'switch'; layoutId: number }
-  | { kind: 'new' }
+  /** New layout… — with `transfer`, Move / Copy to layout › New layout…: the widget carried into it (`workspace-store.transferTo`). */
+  | { kind: 'new'; transfer?: { what: TransferWhat; copy: boolean } }
   | { kind: 'duplicate' }
 
 

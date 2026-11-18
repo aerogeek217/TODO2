@@ -68,6 +68,43 @@ export interface ListCopy {
   def: Omit<ListDefinition, 'id' | 'sortOrder' | 'owner'>
 }
 
+/**
+ * A move or copy of widgets to another layout as written (`layoutRepository.transfer`).
+ */
+interface TransferWrite {
+  /** The target layout as it is to be stored: its tabs name the lists of `copies` by the lists they copy (repointed on write). */
+  target: PersistedWorkspaceLayout
+  /** A move: the source layout without what it gave. Absent for a copy. */
+  source?: PersistedWorkspaceLayout
+  /** The source's lists handed to the target, kept as they are (a move whose source no longer names them). */
+  reown: readonly number[]
+  /** The lists copied for the target. */
+  copies: readonly ListCopy[]
+  /** A redo: the copies an undo deleted, put back with their ids (the target already names them). */
+  copyRows?: OwnedListsRemoved['rows']
+}
+
+/** What a `transfer` wrote: the target as stored, the copies' ids, and the lists each layout write removed (source first). */
+export interface TransferWritten {
+  target: PersistedWorkspaceLayout
+  copyIds: number[]
+  removed: OwnedListsRemoved[]
+}
+
+/** Undoing a `transfer` (`layoutRepository.untransfer`). */
+interface TransferUndo {
+  /** The target as it was (with the view state of now). */
+  target: PersistedWorkspaceLayout
+  /** A move: the source as it was. */
+  source?: PersistedWorkspaceLayout
+  /** The lists the transfer handed over: owned by the source again. */
+  reown: readonly number[]
+  /** The copies it made: deleted. */
+  copyIds: readonly number[]
+  /** What its layout writes removed: brought back. */
+  restore: readonly OwnedListsRemoved[]
+}
+
 /** The ids of the lists `layoutId` owns. Call inside a transaction on `listDefinitions`. */
 async function ownedListIds(layoutId: number): Promise<number[]> {
   const rows = (await db.listDefinitions.toArray()) as PersistedListDefinition[]
@@ -273,6 +310,69 @@ export const layoutRepository = {
         await db.layouts.put({ ...row, ...repointLayoutLists(layoutBodyOf(row), listIds) })
       }
       return { id, listIds }
+    })
+  },
+
+  /**
+   * A move or copy of widgets between two layouts (Move / Copy to layout,
+   * `TransferWrite`), in one transaction: the copies made (each a new list
+   * owned by the target with the manual order of the list it copies — or,
+   * for a redo, `copyRows` put back as they were), the lists handed over
+   * owned by the target, then the source (a move) and the target written,
+   * each layout's owned lists it no longer names removed as `putAndPrune`
+   * removes them. `null` when either layout is gone: nothing is written.
+   */
+  async transfer(w: TransferWrite): Promise<TransferWritten | null> {
+    return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, async () => {
+      if (!(await db.layouts.get(w.target.id))) return null
+      if (w.source && !(await db.layouts.get(w.source.id))) return null
+      const listIds = new Map<number, number>()
+      for (const { from, def } of w.copies) {
+        const sortOrder = await nextSortOrder(db.listDefinitions, -1)
+        const copyId = await db.listDefinitions.add({ ...def, sortOrder, owner: { layoutId: w.target.id } })
+        listIds.set(from, copyId)
+        const ranks = await db.listOrders.where('listDefinitionId').equals(from).toArray()
+        if (ranks.length > 0) {
+          await db.listOrders.bulkAdd(ranks.map((r) => ({ listDefinitionId: copyId, todoId: r.todoId, rank: r.rank })))
+        }
+      }
+      if (w.copyRows) {
+        for (const def of w.copyRows.defs) await db.listDefinitions.put({ ...def, owner: { layoutId: w.target.id } })
+        if (w.copyRows.ranks.length > 0) await db.listOrders.bulkPut(w.copyRows.ranks)
+      }
+      for (const id of w.reown) await db.listDefinitions.update(id, { owner: { layoutId: w.target.id } })
+      const target: PersistedWorkspaceLayout = { ...w.target, ...repointLayoutLists(layoutBodyOf(w.target), listIds) }
+      const removed: OwnedListsRemoved[] = []
+      for (const layout of w.source ? [w.source, target] : [target]) {
+        await layoutRepository.put(layout)
+        const named = storedListRefs(layout)
+        removed.push(await removeLists(layout.id, (await ownedListIds(layout.id)).filter((id) => !named.has(id))))
+      }
+      return { target, copyIds: [...listIds.values(), ...(w.copyRows?.defs.map((d) => d.id) ?? [])], removed }
+    })
+  },
+
+  /**
+   * Undoes a `transfer` (`TransferUndo`), in one transaction: the copies it
+   * made deleted (their rows, as they are now, returned for a redo), the
+   * lists it handed over owned by the source again, the lists its writes
+   * removed brought back, and both layouts written as they were. `null`
+   * when either layout is gone: nothing is written.
+   */
+  async untransfer(u: TransferUndo): Promise<OwnedListsRemoved['rows'] | null> {
+    return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, async () => {
+      if (!(await db.layouts.get(u.target.id))) return null
+      if (u.source && !(await db.layouts.get(u.source.id))) return null
+      const copyRows = await listRows(u.copyIds)
+      await deleteLists(u.copyIds)
+      if (u.source) for (const id of u.reown) await db.listDefinitions.update(id, { owner: { layoutId: u.source.id } })
+      for (const { rows } of u.restore) {
+        for (const def of rows.defs) await db.listDefinitions.put(def)
+        if (rows.ranks.length > 0) await db.listOrders.bulkPut(rows.ranks)
+      }
+      if (u.source) await layoutRepository.put(u.source)
+      await layoutRepository.put(u.target)
+      return copyRows
     })
   },
 

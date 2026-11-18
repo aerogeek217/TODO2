@@ -90,6 +90,8 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
   }
   /** A "+": a full track on the run of lines `first` … `last` (one line, or a sliver's two, `sliverRun`). */
   const insertAt = (axis: GridAxis, first: number, last: number) => {
+    // Widgets in hand (Move / Copy to layout): the new track holds them.
+    if (store().editing?.incoming && store().placeIncoming({ kind: 'line', axis, index: first, through: last })) return
     const cellId = store().insertTrackAt(axis, first, undefined, last)
     if (cellId) store().selectEditCell(cellId)
   }

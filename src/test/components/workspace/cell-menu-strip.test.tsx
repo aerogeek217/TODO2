@@ -101,7 +101,7 @@ describe('the cell menu', () => {
     expect(screen.queryByTestId('ws-cell-grip')).toBeNull()
     const menu = cellMenu()
     expect(headings(menu)).toEqual(['Notes'])
-    expect(itemLabels(menu)).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Edit layout'])
+    expect(itemLabels(menu)).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Move to layout', 'Copy to layout', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Edit layout'])
   })
 
   it('Add widget as tab › a kind adds it to this cell as its active tab; the cells stay', () => {
@@ -150,7 +150,7 @@ describe('the cell menu', () => {
     const more = screen.getByRole('button', { name: 'Cell layout' })
     expect(more).toHaveAttribute('aria-haspopup', 'menu')
     const menu = cardMenu()
-    expect(itemLabels(menu)).toEqual(['Move to', 'Swap with', 'Join as tabs', 'Insert', 'Merge with', 'Stretch right', 'Stretch down', 'Remove widget', 'Close cell'])
+    expect(itemLabels(menu)).toEqual(['Move to', 'Swap with', 'Join as tabs', 'Insert', 'Merge with', 'Stretch right', 'Stretch down', 'Move cell to layout', 'Copy cell to layout', 'Remove widget', 'Close cell'])
     expect(more).toHaveAttribute('aria-expanded', 'true')
     // Its second click closes it.
     fireEvent.click(more)
@@ -564,7 +564,7 @@ describe('tabs on demand (D26 AA1)', () => {
     fireEvent.contextMenu(topLine('k'))
     const menu = screen.getByRole('menu', { name: 'Cell options' })
     expect(headings(menu)).toEqual(['Notes'])
-    expect(itemLabels(menu)).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Edit layout'])
+    expect(itemLabels(menu)).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Move to layout', 'Copy to layout', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Edit layout'])
   })
 
   it('Shift+F10 on the focused ⋯ and the Menu key on the top line open the ⋯ menu', () => {

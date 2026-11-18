@@ -6,7 +6,7 @@ import { cardName, cellRulerName, cornerArea, emptySlots, otherCards, stretchedA
 import { mergeNeighbour, sameArea } from '../../utils/workspace-grid'
 import { MenuPopover } from '../shared/MenuPopover'
 import { MoreIcon, PlusIcon } from '../shared/icons'
-import { EDIT_CARD_MENU_LABEL, editCardMenuEntries } from './cell-menu'
+import { EDIT_CARD_MENU_LABEL, editCardMenuEntries, useTransferMenu } from './cell-menu'
 import { ARROW_SIDES, drawnAxis, focusAfterTap, moveSelection, onCardKey, selectOnFocus, tapCard, type CardMenuAt } from './edit-card-actions'
 import { EDIT_FOCUS_ATTR, focusEditItem } from './edit-focus'
 import { useLayoutEditView, useRulerNames } from './layout-edit-view'
@@ -214,6 +214,7 @@ export function EditCardMenu({ cell, tab, at, anchorRef, onClose }: {
   const names = useRulerNames()
   const allTabs = useMemo(() => (working?.cells ?? []).flatMap((c) => c.tabs), [working])
   const titles = useTabTitles(allTabs)
+  const transferMenu = useTransferMenu('cell', cell.id)
   if (!working) return null
   // A card by its name (`cardName`: every tab, so Swap with ▸ plainly means the whole cell).
   const nameOf = (c: LayoutCell) => cardName(c, c.tabs.map((t) => titles[allTabs.indexOf(t)] ?? ''))
@@ -254,6 +255,7 @@ export function EditCardMenu({ cell, tab, at, anchorRef, onClose }: {
       focusEditItem(cell.id)
     },
     onCloseCell: () => { store().closeCell(cell.id) },
+    ...(transferMenu ? { transfer: transferMenu } : {}),
   })
   return (
     <MenuPopover
