@@ -33,7 +33,6 @@ import { isNumberStripCell } from '../../utils/workspace-rows'
 import { tabsCount } from './workspace-drag'
 import type { WidgetResult } from './WidgetBody'
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
-import { useRadarMenuEntries } from './radar/radar-menu'
 import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
 import { useListReviewMenuEntries } from './list/review-menu'
@@ -87,6 +86,14 @@ const SIDE_ITEMS: ReadonlyArray<{ label: string; side: Side }> = [
   { label: 'Below', side: 'bottom' },
 ]
 
+/** Insert ▸'s full tracks: a row on the card's top / bottom line, a column on its left / right one. */
+const TRACK_ITEMS: ReadonlyArray<{ label: string; side: Side }> = [
+  { label: 'Row above', side: 'top' },
+  { label: 'Row below', side: 'bottom' },
+  { label: 'Column left', side: 'left' },
+  { label: 'Column right', side: 'right' },
+]
+
 /** What the cell's own part of the ⋯ menu acts on (outside the mode). */
 export interface CellMenuActions {
   cell: Pick<LayoutCell, 'id' | 'tabs'>
@@ -135,6 +142,8 @@ export interface EditCardMenuActions {
   /** Join as tabs ▸ a card: this card's tabs join it (after its own). */
   onJoin: (cellId: string) => void
   onSplit: (side: Side) => void
+  /** Insert ▸ a full row / column on the card's edge line on `side` (`workspace-store.insertTrackBeside`). */
+  onInsertTrack: (side: Side) => void
   onMerge: (otherCellId: string) => void
   onStretch: (direction: 'right' | 'down') => void
   onRemoveWidget: (tabId: string) => void
@@ -146,7 +155,10 @@ export interface EditCardMenuActions {
  * (every slot by its ruler name), Swap with ▸ (every other card by name,
  * the whole cell), Join as tabs ▸ (the same cards: this card's tabs join
  * it — the keys' way to what a drop on a tab area does),
- * Split ▸ and Merge with ▸ (each side its own entry; Merge off, saying why,
+ * Insert ▸ (a full row above / below or column left / right on the card's
+ * edge, as the rulers' menus insert — a card is where one looks for it —
+ * then Split this cell: a new cell on a side, taking half of this one),
+ * Merge with ▸ (each side its own entry; Merge off, saying why,
  * where the two make no rectangle), Stretch right / Stretch down (one
  * track, over empty slots only), then Remove widget (its cell stays, a
  * slot) and Close cell (the absorb rule).
@@ -195,9 +207,15 @@ export function editCardMenuEntries(a: EditCardMenuActions): MenuEntry[] {
     },
     {
       kind: 'item',
-      label: 'Split',
-      icon: <SplitRightIcon />,
-      children: SIDE_ITEMS.map(({ label, side }): MenuEntry => ({ kind: 'item', label, onSelect: () => a.onSplit(side) })),
+      label: 'Insert',
+      icon: <PlusIcon />,
+      childrenWidth: 220,
+      children: [
+        ...TRACK_ITEMS.map(({ label, side }): MenuEntry => ({ kind: 'item', label, onSelect: () => a.onInsertTrack(side) })),
+        { kind: 'separator' },
+        { kind: 'label', text: 'Split this cell' },
+        ...SIDE_ITEMS.map(({ label, side }): MenuEntry => ({ kind: 'item', label: `New cell ${label.toLowerCase()}`, onSelect: () => a.onSplit(side) })),
+      ],
     },
     {
       kind: 'item',
@@ -336,7 +354,6 @@ export function useWidgetMenuContent(
     listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined,
   )
   const neglectEntries = useNeglectMenuEntries(tab?.kind === 'neglect' ? tab : undefined)
-  const radarEntries = useRadarMenuEntries(tab?.kind === 'radar' ? tab : undefined)
   const listZoomEntries = useListZoomMenuEntries(tab?.kind === 'lens' ? tab : undefined)
   // A list tab's Review these N tasks (D26), above its zoom.
   const reviewEntries = useListReviewMenuEntries(tab?.kind === 'lens' ? tab : undefined)
@@ -399,8 +416,7 @@ export function useWidgetMenuContent(
       ? () => openEditList(tab.id, listId)
       : undefined,
     settingEntries: tab.kind === 'neglect' ? neglectEntries
-      : tab.kind === 'radar' ? radarEntries
-        : tab.kind === 'lens' ? zoomEntries : glance?.settingEntries,
+      : tab.kind === 'lens' ? zoomEntries : glance?.settingEntries,
     widgetActions: glance ? glance.actions : tab.kind === 'lens' ? listActions() : undefined,
   }
 }

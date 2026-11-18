@@ -7,7 +7,6 @@ import { BREAKDOWN_PRESETS, BREAKDOWN_SPLITS, breakdownPreset, type BreakdownCol
 import { emptyPredicate, type TodoPredicate } from '../../models/filter-predicate'
 import { NUMBER_NAME_MAX, type NumberConfig, type TrendTabConfig } from '../../models/glance-widgets'
 import type { IconValue } from '../../models/icon'
-import type { PulseTabConfig } from '../../models/pulse-config'
 import { REVIEW_SORTS } from '../../models/review'
 import {
   HUE_NAMES, LIST_ZOOMS, TAB_NAME_MAX, WIDGET_KINDS,
@@ -155,7 +154,7 @@ describe('every layout write path of the workspace store stores rows import acce
       for (const preset of BREAKDOWN_PRESETS) {
         expect(ws().addWidget('breakdown', { kind: 'layout' }, { breakdown: breakdownPreset(preset) })).not.toBeNull()
       }
-      for (const kind of ['neglect', 'pulse', 'number', 'pivot'] as const) await add(kind, layoutId)
+      for (const kind of ['neglect', 'number', 'pivot'] as const) await add(kind, layoutId)
       await expectStoredValid(`added with badge ranges ${JSON.stringify(tabBadges)}`)
     }
     await expectExportImports('added with every default')
@@ -292,18 +291,8 @@ describe('every layout write path of the workspace store stores rows import acce
     await expectExportImports('charts edited')
   })
 
-  it('Project pulse’s editor and tag picks, the Calendar’s date types and the Neglect map’s settings', async () => {
+  it('the Calendar’s date types and the Neglect map’s settings', async () => {
     const layoutId = await open()
-    const pulse = await add('pulse', layoutId)
-    const pulseEdits: Array<(c: PulseTabConfig) => PulseTabConfig> = [
-      (c) => ({ ...c, tagIds: [3, 1, 2], late: { name: LONGEST, filter: CHIPS }, stale: { name: LONGEST, filter: EXPRESSION } }),
-      (c) => ({ ...c, late: { name: 'behind' }, stale: { name: '' } }),
-      (c) => ({ ...without(c, 'late', 'stale'), tagIds: [] }),
-    ]
-    for (const edit of pulseEdits) {
-      save(pulse, 'pulse', edit)
-      await expectStoredValid('Project pulse saved')
-    }
     const calendar = await add('calendar', layoutId)
     for (const dateTypes of [{ due: false, followup: true }, { due: false, followup: false }, { due: true, followup: true }]) {
       ws().patchTabConfig(calendar, 'calendar', { dateTypes })

@@ -236,7 +236,7 @@ describe('one live widget per tab: the cell shows a placeholder while its tab is
     }
   })
 
-  const kinds = ['lens', 'calendar', 'notes', 'review', 'neglect', 'number', 'trend', 'pulse', 'breakdown', 'pivot'] as const
+  const kinds = ['lens', 'calendar', 'notes', 'review', 'neglect', 'number', 'trend', 'breakdown', 'pivot'] as const
   it.each(kinds)('a %s tab: only the placeholder in the cell’s body while it is open larger', (kind) => {
     const tab = kind === 'lens' ? listTab : createTab(kind, 'w')
     renderCells(cell('k', [tab]))

@@ -94,8 +94,7 @@ export function openEditList(tabId: string, listDefinitionId: number): void {
  * once an open editor holding changes was saved or discarded (its question
  * asked first, `editor-leave`), never on Keep editing: showing the tab
  * could take that editor's subject off the screen. Every editor opens
- * through it (Edit list, a Number's, a chart's, Project pulse's, Created vs
- * completed's).
+ * through it (Edit list, a Number's, a chart's, Created vs completed's).
  */
 export function openBeside(tabId: string, open: () => void): void {
   afterLeavingEditors(() => {

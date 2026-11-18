@@ -40,10 +40,10 @@ describe('WidgetKindMenu', () => {
     expect(panelWords(kindsMenu())).toEqual([
       '[Tasks]', 'List', 'Calendar', 'Review', 'Notes',
       '—', '[Insights]',
-      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map', 'Pressure radar', 'Work clusters', 'List wall',
+      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
     ])
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
-      'List', 'Calendar', 'Review', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map', 'Pressure radar', 'Work clusters', 'List wall',
+      'List', 'Calendar', 'Review', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
     ])
     expect(screen.getByRole('menuitemradio', { name: /^List(?! wall)/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /^Notes/ })).toHaveAttribute('aria-checked', 'true')
@@ -238,8 +238,8 @@ describe('WidgetKindMenu', () => {
         />,
       )
       openChangeWidget()
-      fireEvent.click(screen.getByRole('menuitemradio', { name: /Project pulse/ }))
-      expect(onChangeKind).toHaveBeenCalledWith('pulse')
+      fireEvent.click(screen.getByRole('menuitemradio', { name: /Work clusters/ }))
+      expect(onChangeKind).toHaveBeenCalledWith('clusters')
       expect(onClose).toHaveBeenCalled()
     })
 

@@ -352,14 +352,6 @@ function isTrendShow(v: unknown): v is TrendShow {
   return includes(TREND_SHOWS, v)
 }
 
-/**
- * Project pulse: the tags it reads, in pick order (a card per tag). A new
- * tab picks the `Project: …` tags.
- */
-export interface TagPicksTabConfig {
-  tagIds: number[]
-}
-
 /** A config read from untrusted input, and whether a bad or missing value was reset to its default. */
 export interface PickedConfig<C> {
   config: C
@@ -369,9 +361,6 @@ export interface PickedConfig<C> {
 }
 
 const isTrendRange = (v: unknown): v is TrendRange => includes(TREND_RANGES, v)
-const isTagId = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
-/** A stored tag pick list: an array of numbers (a tag deleted since is kept; it just matches nothing). */
-const isTagIds = (v: unknown): v is number[] => Array.isArray(v) && v.every(isTagId)
 
 /** `v` when `ok`, else `fallback` (and `fixed`). */
 function pickOne<V>(v: unknown, ok: (v: unknown) => v is V, fallback: V): { value: V; fixed: boolean } {
@@ -412,15 +401,4 @@ export function pickTrendConfig(raw: Obj, readPredicate: NumberPredicateRead): P
     if (filter.fixed) fixed = true
   } else if (raw.filter !== undefined) fixed = true
   return named?.cut ? { config, fixed, shortened: true } : { config, fixed }
-}
-
-/**
- * A Project pulse's config: its tag ids that are numbers,
- * each once, in order; not a list = none (`fixed`, as a dropped entry is).
- */
-export function pickTagPicksConfig(raw: Obj): PickedConfig<TagPicksTabConfig> {
-  const v = raw.tagIds
-  if (!Array.isArray(v)) return { config: { tagIds: [] }, fixed: true }
-  const tagIds = [...new Set((v as unknown[]).filter(isTagId))]
-  return { config: { tagIds }, fixed: !isTagIds(v) }
 }

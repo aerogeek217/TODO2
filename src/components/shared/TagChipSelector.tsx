@@ -9,8 +9,8 @@ import { byName } from '../../utils/sort-order'
  * The tag lookup-or-create popover over the full tag registry, anchored to
  * `anchorRef` (`anchorIsInside`: the anchor is the trigger, so a click on it
  * is left to the trigger's own toggle). Shared by the desktop task row's
- * tags cell (and the other rows') and Project pulse's + card (which picks
- * among the tags there are: no `onCreate`, no Create row).
+ * tags cell (and the other rows'); without `onCreate` it picks among the
+ * tags there are (no Create row).
  */
 export function TagPicker({ anchorRef, anchorIsInside = true, assignedTags, allTags, onToggle, onCreate, onClose }: {
   anchorRef: RefObject<HTMLElement | null>

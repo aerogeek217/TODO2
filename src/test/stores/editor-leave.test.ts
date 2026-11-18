@@ -70,8 +70,8 @@ const openNow = () => editorFields().filter(({ store, key }) => (
   (store === 'ui' ? useUIStore.getState() : useChartWidgetsStore.getState()) as unknown as Record<string, unknown>)[key] != null).map(({ key }) => key)
 
 describe('editor-leave: the one roster of open editors (M5 / A1)', () => {
-  it('the fields it holds: Edit list, the Number editor, a chart’s, Project pulse’s, Created vs completed’s', () => {
-    expect(editorFields().map(({ key }) => key).sort()).toEqual(['editorTabId', 'listEditor', 'numberEditorTabId', 'pulseEditorTabId', 'trendEditorTabId'])
+  it('the fields it holds: Edit list, the Number editor, a chart’s, Created vs completed’s', () => {
+    expect(editorFields().map(({ key }) => key).sort()).toEqual(['editorTabId', 'listEditor', 'numberEditorTabId', 'trendEditorTabId'])
   })
 
   it('closeOpenEditors closes every one of them: a new open-editor field has to be registered', () => {
@@ -85,8 +85,6 @@ describe('editor-leave: the one roster of open editors (M5 / A1)', () => {
     useUIStore.getState().openNumberEditor('n')
     useChartWidgetsStore.getState().openEditor('c')
     expect(openNow()).toEqual(['editorTabId'])
-    useChartWidgetsStore.getState().openPulseEditor('p')
-    expect(openNow()).toEqual(['pulseEditorTabId'])
     useChartWidgetsStore.getState().openTrendEditor('t')
     expect(openNow()).toEqual(['trendEditorTabId'])
     useUIStore.getState().openListEditor(4, 'l')

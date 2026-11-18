@@ -206,7 +206,7 @@ test('a zone’s word opens its tasks as a list; under 900px the widget has no S
 })
 
 test('the ⋯ menu sets Color by and Untouched after', async ({ page }) => {
-  // Alone in its cell: its top line (its name, Slipping N) stands for the tab (D26 AA1).
+  // Alone in its cell: its top line (its name) stands for the tab (D26 AA1).
   const tab = wsCell(page, 'k1').locator('[data-ws-tab]').getByTestId('top-line-name')
   await expect(tab).toHaveText('Neglect map')
   await tab.click({ button: 'right' })

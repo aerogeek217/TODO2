@@ -572,17 +572,6 @@
 }
 
 /* The top line's Slipping count (alone in its cell). */
-.lineSlipping {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.lineSlipping b {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-}
-
 /* The medium face: the Slipping list filling the cell. */
 .face {
   height: 100%;

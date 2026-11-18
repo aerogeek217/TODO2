@@ -12,7 +12,7 @@ function previewConfigs(entries: Iterable<readonly [string, object | undefined]>
 
 /**
  * The glance widgets' live preview while an editor is open (the Number's,
- * a chart's, Project pulse's): each tab's config as its editor holds it,
+ * a chart's, Created vs completed's): each tab's config as its editor holds it,
  * unsaved — the widget draws it in place of the stored one (as Edit list's
  * draft shows in its list) until Save writes it or Discard drops it. Never
  * in a layout, never kept across a reload.

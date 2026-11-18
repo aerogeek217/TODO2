@@ -27,10 +27,10 @@ async function settle() {
   await settleLayoutWrites()
 }
 
-/** a (Notes) | b (Calendar, Project pulse) over c (Review) spanning both. */
+/** a (Notes) | b (Calendar, Created vs completed) over c (Review) spanning both. */
 function layout(): Omit<WorkspaceLayout, 'id'> {
   const a = cell('a', [createTab('notes', 'a1')])
-  const b = cell('b', [createTab('calendar', 'b1'), createTab('pulse', 'b2')], { activeTabId: 'b1' })
+  const b = cell('b', [createTab('calendar', 'b1'), createTab('trend', 'b2')], { activeTabId: 'b1' })
   const c = cell('c', [createTab('review', 'c1')])
   return { sortOrder: 0, name: 'Daily', createdAt: T0, modifiedAt: T0, ...grid([[a, b], [c, c]], { colIds: ['A', 'B'], rowIds: ['R1', 'R2'] }) }
 }

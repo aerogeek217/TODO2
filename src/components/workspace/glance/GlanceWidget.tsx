@@ -5,7 +5,6 @@ import type { GlanceWidgetProps } from './glance-hooks'
 import { BreakdownWidget } from './BreakdownWidget'
 import { PivotWidget } from './PivotWidget'
 import { NumberWidget } from './NumberWidget'
-import { PulseWidget } from './PulseWidget'
 import { TrendWidget } from './TrendWidget'
 
 /**
@@ -19,7 +18,6 @@ export function GlanceWidget({ tab: stored, ...props }: GlanceWidgetProps<Glance
   switch (tab.kind) {
     case 'number': return <NumberWidget tab={tab} {...props} />
     case 'trend': return <TrendWidget tab={tab} {...props} />
-    case 'pulse': return <PulseWidget tab={tab} {...props} />
     // D26 P8: the chart widgets.
     case 'breakdown': return <BreakdownWidget tab={tab} {...props} />
     case 'pivot': return <PivotWidget tab={tab} {...props} />

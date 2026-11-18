@@ -33,8 +33,6 @@ import {
   type NumberConfig,
   type TrendTabConfig,
 } from './glance-widgets'
-// G5: Project pulse's config, its rules among it.
-import type { PulseTabConfig } from './pulse-config'
 import {
   CHART_NAME_MAX,
   newBreakdownConfig,
@@ -52,22 +50,23 @@ import type { IconValue, LineIconKey } from './icon'
  * list widget (its old name; renaming it would need a migration). The glance
  * kinds (D25 N) are the retired Dashboard's pieces as widgets of their own
  * (v77 made every Dashboard tab these): `number` (one count), the charts
- * (`trend`, the Breakdown — D26 P8) and `pulse` (Project pulse). v78
+ * (`trend`, the Breakdown — D26 P8). v78
  * (D26 P4) retired Needs follow-up, Next 7 days, Stale tasks, Recently
  * completed, What changed and Today, and made the Eisenhower summary the
  * Eisenhower's small face; P8 made People, Tags and Status Breakdowns. The
  * Status flow chart (P8), the Tag map and the Eisenhower were removed after v78 shipped;
  * v79 dropped every saved one. `review` (item 12) is the Review widget.
- * `radar` (the Pressure radar), `clusters` (Work clusters) and `listwall`
- * (the List wall) are the task maps of 2026-11-18, whole widgets like the
- * Neglect map.
+ * `clusters` (Work clusters) and `listwall` (the List wall) are the task
+ * maps of 2026-11-18, whole widgets like the Neglect map. Project pulse
+ * (`pulse`) and the Pressure radar (`radar`) were removed; v83 dropped
+ * every saved one.
  */
 export type WidgetKind =
-  | 'lens' | 'calendar' | 'notes' | 'review' | 'neglect' | 'radar' | 'clusters' | 'listwall'
+  | 'lens' | 'calendar' | 'notes' | 'review' | 'neglect' | 'clusters' | 'listwall'
   | GlanceWidgetKind
 
-/** The glance widget kinds (D25 N): a Number, the charts and Project pulse, each a widget. */
-export type GlanceWidgetKind = 'number' | ChartWidgetKind | 'trend' | 'pulse'
+/** The glance widget kinds (D25 N): a Number and the charts, each a widget. */
+export type GlanceWidgetKind = 'number' | ChartWidgetKind | 'trend'
 
 /** The chart widgets (D26 P8): a filter, then what it is split by — each has a name, a filter and an editor. */
 export type ChartWidgetKind = 'breakdown' | 'pivot'
@@ -220,20 +219,6 @@ function defaultNeglectConfig(tagIds: readonly number[] = []): NeglectTabConfig 
   return { colourBy: { kind: 'tags', tagIds: [...tagIds] }, untouchedDays: DEFAULT_NEGLECT_UNTOUCHED_DAYS }
 }
 
-/**
- * A Pressure radar tab's settings (layout config): the statuses whose tasks
- * sit in its Waiting quarter (a new radar's: the statuses named like
- * "Waiting", which the workspace store picks).
- */
-interface RadarTabConfig {
-  waitingStatusIds: number[]
-}
-
-/** Whether a status's name reads as waiting (a new Pressure radar's Waiting statuses). */
-export function isWaitingStatusName(name: string): boolean {
-  return /wait/i.test(name)
-}
-
 interface TabOf<K extends WidgetKind, C, V> {
   /** Unique within the layout. */
   id: string
@@ -243,7 +228,7 @@ interface TabOf<K extends WidgetKind, C, V> {
   /**
    * Layout config (items 11, 14): the tab's own name, for a kind without a
    * name of its own (`tabOwnsName` false — Calendar, Notes, Review, the
-   * Neglect map, Project pulse); it replaces the kind's label wherever the
+   * Neglect map, Work clusters, the List wall); it replaces the kind's label wherever the
    * tab is named. Absent or blank = the kind's label. A kind with a name of
    * its own (a list's, a Number's or a chart's) never reads it.
    */
@@ -262,12 +247,10 @@ export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewSt
 type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
-export type RadarTab = TabOf<'radar', RadarTabConfig, NoTabSettings>
 export type ClustersTab = TabOf<'clusters', NoTabSettings, NoTabSettings>
 export type ListWallTab = TabOf<'listwall', NoTabSettings, NoTabSettings>
 export type NumberTab = TabOf<'number', NumberConfig, NoTabSettings>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
-export type PulseTab = TabOf<'pulse', PulseTabConfig, NoTabSettings>
 // ── D26 P8: the chart widgets ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
 export type PivotTab = TabOf<'pivot', PivotConfig, PivotViewState>
@@ -276,9 +259,9 @@ export type PivotTab = TabOf<'pivot', PivotConfig, PivotViewState>
 export type ChartTab = BreakdownTab | PivotTab
 
 /** A glance widget's tab (D25 N). */
-export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
+export type GlanceTab = NumberTab | TrendTab | ChartTab
 
-export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | RadarTab | ClustersTab | ListWallTab | GlanceTab
+export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | ClustersTab | ListWallTab | GlanceTab
 
 type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -435,10 +418,6 @@ export interface TabSeed {
   listDefinitionId?: number
   /** The tags a new Neglect map colours by (the workspace store passes the `Project: …` tags). */
   neglectTagIds?: readonly number[]
-  /** The statuses a new Pressure radar's Waiting quarter holds (the workspace store passes those named like "Waiting"). */
-  waitingStatusIds?: readonly number[]
-  /** The tags a new Project pulse reads (the workspace store passes the `Project: …` tags). */
-  tagIds?: readonly number[]
   /** A new Breakdown's config over the default (an Add widget preset, D26 P8). */
   breakdown?: Partial<BreakdownConfig>
 }
@@ -468,7 +447,7 @@ interface WidgetKindSpec<K extends WidgetKind> {
   /** Its group in the add-widget menus. */
   group: WidgetKindGroup
   /**
-   * A glance widget (a Number, a section, Project pulse): a track of only
+   * A glance widget (a Number, a chart): a track of only
    * glance cells may shrink to `GLANCE_ROW_MIN_PX`, a glance cell's width to
    * `GLANCE_CELL_MIN_WIDTH_PX` (`utils/workspace-rows`), and a right-click
    * anywhere on one alone in its cell opens the cell's ⋯ menu.
@@ -521,7 +500,6 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
   pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
   trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE, name: DEFAULT_TREND_NAME, show: DEFAULT_TREND_SHOW } })),
-  pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
   // In Insights, but a whole widget, not a glance one (no glance minimums).
   neglect: {
     label: 'Neglect map',
@@ -532,14 +510,6 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     newTab: (id, seed) => ({ id, kind: 'neglect', config: defaultNeglectConfig(seed.neglectTagIds) }),
   },
   // The task maps (2026-11-18): whole widgets, as the Neglect map.
-  radar: {
-    label: 'Pressure radar',
-    showsList: false,
-    group: 'insights',
-    glance: false,
-    fitHeight: false,
-    newTab: (id, seed) => ({ id, kind: 'radar', config: { waitingStatusIds: [...(seed.waitingStatusIds ?? [])] } }),
-  },
   clusters: {
     label: 'Work clusters',
     showsList: false,
@@ -639,11 +609,9 @@ export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
   review: 'review',
   number: 'number',
   trend: 'chart',
-  pulse: 'ring',
   breakdown: 'bars',
   pivot: 'table',
   neglect: 'scatter',
-  radar: 'radar',
   clusters: 'clusters',
   listwall: 'wall',
 }

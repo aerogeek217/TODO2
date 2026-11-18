@@ -24,7 +24,7 @@
  * Numbers, a fixed strip of glance widgets) and Planning (a fit row of
  * Numbers across the top, lists — a tab at each zoom —, next week's
  * calendar, a Neglect map by project, glance widgets — Tags, Created vs
- * completed, Status, Project pulse —, a fixed strip with the month and a
+ * completed, Status —, a fixed strip with the month and a
  * Breakdown by due date) — each owning its lists, with list prompts, an
  * "is not" filter, a descending sort, Priority filters (several values,
  * "is not") and manual orders; a check-in filter.
@@ -56,7 +56,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 82
+export const DEV_SEED_SCHEMA_VERSION = 83
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -978,7 +978,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         'H F M G',
         'H N M R',
         'S W T Y',
-        'S W T Z',
         'K K K Q',
       ], {
         a: cell('cell-n-late', [
@@ -992,18 +991,14 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         H: cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], 'tab-rest'),
         F: cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]),
         M: cell('cell-plan-week', [calendar('tab-plan-week', 'week', 1)]),
-        // Glance widgets (D25 N + L, D26 P8): Tags and Status Breakdowns, Created vs completed, Project pulse.
+        // Glance widgets (D25 N + L, D26 P8): Tags and Status Breakdowns, Created vs completed.
         G: cell('cell-g-tags', [breakdown('tab-g-tags', 'Tags', 'tags'), breakdown('tab-g-priority', 'Priority', 'priority', { style: 'donut' })]),
         // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is; the task maps
-        // (2026-11-18) beside it: the Pressure radar (Waiting its Waiting quarter), Work clusters and the List wall.
+        // (2026-11-18) beside it: Work clusters and the List wall.
         N: cell('cell-neglect', [{
           id: 'tab-neglect',
           kind: 'neglect',
           config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
-        }, {
-          id: 'tab-radar',
-          kind: 'radar',
-          config: { waitingStatusIds: [IDS.statuses.waiting] },
         }, {
           id: 'tab-clusters',
           kind: 'clusters',
@@ -1022,12 +1017,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           // D26 P8: who has what, by status.
           { id: 'tab-g-pivot', kind: 'pivot', config: { name: 'People × status', filter: filter(), rows: 'people', cols: 'status' } },
         ]),
-        Z: cell('cell-pulse', [
-          { id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } },
-        ]),
         K: cell('cell-month', [calendar('tab-month', 'month', 0, false)]),
         Q: cell('cell-g-due', [breakdown('tab-g-due', 'Due', 'due')]),
-      }, [250, 250, 250, 250], [{ fit: true }, 300, 200, 150, 150, { px: 220 }]),
+      }, [250, 250, 250, 250], [{ fit: true }, 300, 200, 300, { px: 220 }]),
       createdAt: iso(at(-60, 10)),
       modifiedAt: iso(at(-8, 16, 45)),
       lastUsedAt: iso(at(-1, 14, 10)),

@@ -240,6 +240,10 @@ export function EditCardMenu({ cell, tab, at, anchorRef, onClose }: {
       if (selected != null) focusEditItem(selected)
     },
     onSplit: (side) => { store().splitCell(cell.id, side) },
+    onInsertTrack: (side) => {
+      const added = store().insertTrackBeside(cell.id, side)
+      if (added) store().selectEditCell(added)
+    },
     onMerge: (other) => { store().mergeCells(cell.id, other) },
     onStretch: (direction) => {
       store().stretchCell(cell.id, direction)

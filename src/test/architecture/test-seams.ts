@@ -107,9 +107,6 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'services/stats/filter-history.ts': ['filterHistory', 'filterHistoryFields', 'FilterHistoryOptions', 'HistoryExactFrom', 'ReplayedTask'],
   'services/stats/number-count.ts': ['numberOrderField'],
   'services/stats/number-shapes.ts': ['oldestDate', 'percentOf', 'weekDaysGone'],
-  'services/stats/pulse.ts': [
-    'PULSE_GROWING_NET', 'PULSE_WEEKS', 'PulseContext', 'PulseMomentum', 'pulseMomentum', 'PulseRuleMatch', 'PulseRuleMatchers',
-  ],
   'services/stats/trend.ts': ['TrendFilter'],
   'services/subtask-convert.ts': ['droppedFields', 'makeSubtaskPrompt'],
   'services/task-copy.ts': ['buildTasksHtml', 'buildTasksPlain', 'copiedNotice', 'CopyTaskContext'],
@@ -143,6 +140,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/followup.ts': ['lastFollowupLine'],
   'utils/list-copy.ts': ['copiedListParts'],
   'utils/list-order.ts': ['placeInOrder', 'rankBetween'],
+  'utils/list-wall.ts': ['wallGridShape'],
   'utils/module-reset.ts': ['resetModuleState', 'settleModuleWork'],
   'utils/neglect-labels.ts': [
     'NEGLECT_LABEL_GAP_PX', 'NEGLECT_LABEL_HEIGHT_PX', 'NEGLECT_LABEL_MAX_PX', 'NEGLECT_LABEL_MIN_PX', 'NEGLECT_LABEL_WORK_MAX',

@@ -5,7 +5,6 @@ import { DndContext } from '@dnd-kit/core'
 import { ChartEditorHost } from '../../../components/workspace/glance/ChartEditor'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import { NumberEditorHost } from '../../../components/workspace/glance/NumberEditor'
-import { PulseEditorHost } from '../../../components/workspace/glance/PulseEditor'
 import { SAVE_UNREADABLE_TITLE } from '../../../components/workspace/glance/editor-draft'
 import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
 import { useAddWidget } from '../../../components/workspace/widget-hooks'
@@ -21,8 +20,7 @@ import { numberTab, single } from '../../helpers/layout-builders'
 import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
- * The widget editors' Save / Discard (the Number's, a chart's, Project
- * pulse's): the editor edits a copy, drawn live in the widget; Save writes the changed keys once and
+ * The widget editors' Save / Discard (the Number's, a chart's): the editor edits a copy, drawn live in the widget; Save writes the changed keys once and
  * closes, Discard closes writing nothing; Esc, × or a press elsewhere close
  * at once while unchanged and ask Save / Discard / Keep editing otherwise;
  * Save is off while unchanged or while an expression doesn't read; a widget
@@ -58,7 +56,6 @@ function setup(...tabs: LayoutTab[]) {
       <button type="button" onClick={elsewhere}>Elsewhere</button>
       <NumberEditorHost />
       <ChartEditorHost />
-      <PulseEditorHost />
       <ConfirmPromptHost />
     </DndContext>,
   )
@@ -162,17 +159,6 @@ describe('a widget editor’s Discard', () => {
     expect(layoutSteps()).toEqual([])
     // Nothing kept: it opens on the stored config again.
     expect(nameField(openNumber())).toHaveValue('Overdue')
-  })
-
-  it('Project pulse’s: a rule edit dropped', () => {
-    const pulse = createTab('pulse', 'p', { tagIds: [1] })
-    setup(pulse)
-    act(() => { useChartWidgetsStore.getState().openPulseEditor('p') })
-    const editor = document.querySelector<HTMLElement>('[data-pulse-editor="p"]')!
-    fireEvent.change(within(editor).getByRole('textbox', { name: 'Late name' }), { target: { value: 'behind' } })
-    fireEvent.click(within(editor).getByRole('button', { name: 'Discard' }))
-    expect(document.querySelector('[data-pulse-editor]')).toBeNull()
-    expect(stored('p').config).toEqual({ tagIds: [1] })
   })
 })
 
@@ -298,7 +284,7 @@ describe('closing a widget editor', () => {
 })
 
 describe('Add widget opens no editor (decision 8)', () => {
-  it.each(['number', 'breakdown', 'pivot', 'pulse'] as const)('a new %s is added with its first config and no editor', (kind) => {
+  it.each(['number', 'breakdown', 'pivot', 'trend'] as const)('a new %s is added with its first config and no editor', (kind) => {
     setup(numberTab('n', 'overdue'))
     let id: string | null = null
     act(() => { id = add(kind, { kind: 'cell', cellId: 'c' }) })
@@ -307,6 +293,6 @@ describe('Add widget opens no editor (decision 8)', () => {
     expect(numberEditor()).toBeNull()
     expect(document.querySelector('[data-chart-editor]')).toBeNull()
     expect(useUIStore.getState().numberEditorTabId).toBeNull()
-    expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, pulseEditorTabId: null })
+    expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, trendEditorTabId: null })
   })
 })

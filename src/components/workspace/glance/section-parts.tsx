@@ -4,8 +4,8 @@ import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import { WidgetTopLine } from '../WidgetTopLine'
 import styles from './GlanceSections.module.css'
 
-/** What a panel's header names (Created vs completed, Project pulse). */
-export interface PanelDef {
+/** What a panel's header names (Created vs completed). */
+interface PanelDef {
   id: string
   title: string
   glyph: GlanceGlyphName
@@ -19,7 +19,7 @@ export function Panel({ def, count, onCount, sub, extras, titleData, style, clas
   onCount?: () => void
   sub?: string
   extras?: ReactNode
-  /** Data attributes on its title (G5: Project pulse's editor anchors there, `data-pulse-head`). */
+  /** Data attributes on its title (Created vs completed's editor anchors there, `data-trend-head`). */
   titleData?: Record<`data-${string}`, string>
   style?: CSSProperties
   className?: string
@@ -45,13 +45,12 @@ export function Panel({ def, count, onCount, sub, extras, titleData, style, clas
   )
 }
 
-/** A widget with nothing to show: a title and a hint, and an `action` under them (Project pulse's Add tag). */
-export function Empty({ title, hint, action }: { title: string; hint: string; action?: ReactNode }) {
+/** A widget with nothing to show: a title and a hint. */
+export function Empty({ title, hint }: { title: string; hint: string }) {
   return (
     <div className={styles.empty}>
       <span className={styles.emptyTitle}>{title}</span>
       <span className={styles.emptyHint}>{hint}</span>
-      {action}
     </div>
   )
 }

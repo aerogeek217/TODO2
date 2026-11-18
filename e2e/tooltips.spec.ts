@@ -60,7 +60,6 @@ const EVERY_KIND: WorkspaceSeed = {
         wsRow({ id: 'k6', tabs: [{ id: 'pv', kind: 'pivot' }, { id: 'tr', kind: 'trend' }] }),
       ] },
       { id: 'c3', rows: [
-        wsRow({ id: 'k7', tabs: [{ id: 'pulse', kind: 'pulse', tagNames: ['Project: Atlas'] }] }),
         wsRow({ id: 'k8', tabs: [{ id: 'map', kind: 'neglect' }] }),
       ] },
     ],

@@ -157,22 +157,6 @@ describe('structural edits are saved at once, each an undo step', () => {
     expect(tabs().find((t) => t.id === seeded)?.config).toEqual({ colourBy: { kind: 'tags', tagIds: [5] }, untouchedDays: 14 })
   })
 
-  it('a new Project pulse — added, or a tab changed to one — reads the `Project: …` tags', async () => {
-    useTagStore.setState({ tags: [
-      { id: 4, name: 'Project: Alpha', color: '#111111' },
-      { id: 5, name: 'home', color: '#222222' },
-      { id: 6, name: 'Project: Beta', color: '#333333' },
-    ] })
-    await seedAndInit(twoColumns())
-    const tabs = () => ws().working!.cells.flatMap((k) => k.tabs)
-    const tabId = ws().addWidget('pulse', { kind: 'cell', cellId: 'kb' })
-    expect(tabs().find((t) => t.id === tabId)).toEqual({ id: tabId, kind: 'pulse', config: { tagIds: [4, 6] } })
-    const seeded = ws().addWidget('pulse', { kind: 'cell', cellId: 'kb' }, { tagIds: [5] })
-    expect(tabs().find((t) => t.id === seeded)?.config).toEqual({ tagIds: [5] })
-    ws().changeTabKind('a1', 'pulse')
-    expect(tabs().find((t) => t.id === 'a1')?.config).toEqual({ tagIds: [4, 6] })
-  })
-
   it('split, insert, merge and close: stored at once; undone one by one, newest first', async () => {
     const [id] = await seedAndInit(twoColumns())
     const cellId = ws().splitCell('kb', 'bottom')

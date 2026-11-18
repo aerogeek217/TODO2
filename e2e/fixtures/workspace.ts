@@ -27,8 +27,6 @@ export interface WsTabSeed {
    * (`numberConfigOfMetric`), its other fields over that.
    */
   glance?: Record<string, unknown>
-  /** Project pulse tabs: the picked tags (names from `tags`; default none). */
-  tagNames?: string[]
   /** Neglect map tabs: the config (defaults: colour by no tags, 14 days). */
   neglect?: {
     /** Colour by these tags (names from `tags`), by people, or not at all. */
@@ -424,9 +422,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         else if (n.colourBy) config.colourBy = { kind: 'tags', tagIds: n.colourBy.tags.map((name) => tagIds.get(name)).filter((id) => id != null) }
         if (n.untouchedDays != null) config.untouchedDays = n.untouchedDays
       }
-      if (tab.kind === 'pulse' && tab.tagNames) {
-        config.tagIds = tab.tagNames.map((name) => tagIds.get(name)).filter((id) => id != null)
-      }
       if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
       if (tab.zoom != null) out.viewState = { ...(out.viewState as object | undefined), zoom: tab.zoom }
@@ -726,13 +721,13 @@ export function wsPanelHandle(page: Page, panelId: string): Locator {
   return page.locator(`[data-ws-cell-header="${panelId}"] [data-strip-room]`)
 }
 
-/** Picks Split ▸ `item` (a side) in the open card menu (`openCellLayoutMenu`). */
+/** Picks Insert ▸ New cell `item` (a side: Split this cell) in the open card menu (`openCellLayoutMenu`). */
 export async function pickSplit(page: Page, item: 'Above' | 'Left' | 'Right' | 'Below'): Promise<void> {
-  await pickCellMenu(page, 'Split', item)
+  await pickCellMenu(page, 'Insert', `New cell ${item.toLowerCase()}`)
 }
 
-/** Picks `parent` ▸ `item` in the open card menu (Split, Merge with, Move to, Swap with). */
-export async function pickCellMenu(page: Page, parent: 'Split' | 'Merge with' | 'Move to' | 'Swap with', item: string): Promise<void> {
+/** Picks `parent` ▸ `item` in the open card menu (Insert, Merge with, Move to, Swap with). */
+export async function pickCellMenu(page: Page, parent: 'Insert' | 'Merge with' | 'Move to' | 'Swap with', item: string): Promise<void> {
   await page.getByRole('menuitem', { name: parent, exact: true }).click()
   await page.getByRole('menuitem', { name: item, exact: true }).click()
 }

@@ -69,8 +69,8 @@ describe('Add Widget ›', () => {
     expect(step.map((c) => [c.group, c.name])).toEqual([
       ['Tasks', 'List'], ['Tasks', 'Calendar'], ['Tasks', 'Review'], ['Tasks', 'Notes'],
       ['Insights', 'Number'], ['Insights', 'Breakdown'], ['Insights', 'Pivot'],
-      ['Insights', 'Created vs completed'], ['Insights', 'Project pulse'], ['Insights', 'Neglect map'],
-      ['Insights', 'Pressure radar'], ['Insights', 'Work clusters'], ['Insights', 'List wall'],
+      ['Insights', 'Created vs completed'], ['Insights', 'Neglect map'],
+      ['Insights', 'Work clusters'], ['Insights', 'List wall'],
     ])
     step.find((c) => c.name === 'Number')?.action()
     expect(addWidget).toHaveBeenCalledWith('number')

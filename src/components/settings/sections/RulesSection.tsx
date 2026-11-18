@@ -109,8 +109,8 @@ export function RulesSection() {
 
 /**
  * "Stale after": the days without a change after which an open task is stale
- * (0 = never) — faded and cobwebbed per Appearance › Task rows, counted by
- * Project pulse. A whole number, committed on Enter
+ * (0 = never) — faded and cobwebbed per Appearance › Task rows. A whole
+ * number, committed on Enter
  * / blur; anything else reverts. Each change is one undo step.
  */
 function StaleAfterDaysSetting() {
@@ -138,7 +138,7 @@ function StaleAfterDaysSetting() {
   return (
     <SettingRow
       label="Stale after"
-      help="An open task nobody has changed for this many days is stale: Appearance › Task rows fades it and puts a cobweb in its checkbox, and Project pulse counts it. 0: nothing goes stale."
+      help="An open task nobody has changed for this many days is stale: Appearance › Task rows fades it and puts a cobweb in its checkbox. 0: nothing goes stale."
     >
       <input
         type="number"

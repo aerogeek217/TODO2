@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   breakdownDrill, slippingDrill,
-  tagRowDrill, trendBucketDrill, trendTotalDrill,
+  trendBucketDrill, trendTotalDrill,
 } from '../../../components/workspace/glance/glance-drills'
 
 const today = new Date(2026, 9, 10) // Sat 10 Oct
@@ -32,17 +32,6 @@ describe('glance drills: every glance click’s task dialog, built in one place'
       const text = fs.readFileSync(path.join(dir, name), 'utf8')
       expect(text, name).not.toMatch(/task-dialog/)
     }
-  })
-})
-
-describe('glance section payloads (moved from services/task-dialog)', () => {
-  it('a tag’s open tasks (a Project pulse card); no tag', () => {
-    expect(tagRowDrill({ id: 4, name: 'q4' }, [3, 1])).toEqual({
-      title: '#q4', glyph: 'tag', description: 'Open tasks tagged #q4.', source: { kind: 'todos', todoIds: [3, 1] },
-    })
-    expect(tagRowDrill(null, [7])).toEqual({
-      title: 'No tag', glyph: 'tag', description: 'Open tasks with no tag.', source: { kind: 'todos', todoIds: [7] },
-    })
   })
 })
 

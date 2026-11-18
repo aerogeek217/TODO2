@@ -165,7 +165,6 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
           {!sliver && (
             <>
               <span className={styles.name}>{name}</span>
-              {share && <small className={styles.note}>{share}</small>}
               {mark && <small className={styles.note}>{mark}</small>}
             </>
           )}

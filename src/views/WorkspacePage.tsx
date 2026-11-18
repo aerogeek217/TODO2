@@ -35,7 +35,6 @@ import { EditListHost } from '../components/workspace/list/EditList'
 import { WidgetPopupHost } from '../components/workspace/WidgetPopup'
 import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
 import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
-import { PulseEditorHost } from '../components/workspace/glance/PulseEditor'
 import { TrendEditorHost } from '../components/workspace/glance/TrendEditor'
 import { layoutLeaveAsks, leaveLayout } from '../stores/editor-leave'
 import { useLatestRef } from '../hooks/use-latest-ref'
@@ -597,7 +596,6 @@ export function WorkspacePage() {
       <EditorLeaveGuard />
       <NumberEditorHost />
       <ChartEditorHost />
-      <PulseEditorHost />
       <TrendEditorHost />
     </DndContext>
   )

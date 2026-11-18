@@ -1,6 +1,7 @@
 import { memo, type CSSProperties } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import type { ListWallTab } from '../../../models/workspace-layout'
+import { useElementSize } from '../../../hooks/use-element-size'
 import { useListWall } from '../../../hooks/use-list-wall'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { showTab } from '../../../services/workspace-tabs'
@@ -10,16 +11,21 @@ import {
   WALL_TONE_NAMES,
   WALL_TONES,
   wallListWords,
+  wallRowsFit,
   wallSquaresShown,
   type WallList,
   type WallTone,
 } from '../../../utils/list-wall'
 import { listWallFaceFor, type WidgetFace } from '../../../utils/widget-face'
+import { HelpTip } from '../../shared/HelpTip'
 import { useTooltip } from '../../shared/use-tooltip'
 import { WidgetNameLine } from '../WidgetTopLine'
 import styles from './ListWallWidget.module.css'
 
 type List = WallList<PersistedTodoItem>
+
+/** How to read the wall: the name line's ⓘ. */
+const WALL_HELP = 'A square for each open task a list shows, the trouble first: solid magenta overdue, a magenta outline due soon, yellow follow-up late, tinted on track, gray stale. A list’s name shows its tab in its cell; a square opens its task.'
 
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`
 
@@ -33,8 +39,9 @@ function countsText(list: List): string {
  * settings): every list tab of this layout at a glance, without opening
  * each (`hooks/use-list-wall`). Large: a block per list, a square per open
  * task it shows, the trouble first — overdue, due soon, follow-up late, on
- * track, stale (`utils/list-wall`); a big list stops at six rows with `+N`.
- * Medium (a narrow or short cell): a bar per list in the same colors, its
+ * track, stale (`utils/list-wall`); a big list stops at six rows with `+N`,
+ * and in a short cell its block trades rows for columns, so a wide strip
+ * shows the lists side by side (`wallGridShape`). Medium (a narrow cell): a bar per list in the same colors, its
  * overdue and late follow-ups in the tab badge's capsule. A list's name (a
  * bar) brings its tab to the front of its cell (`showTab`); a square opens
  * its task.
@@ -67,6 +74,7 @@ function ListWallFace({ face }: { face: WidgetFace }) {
     <>
       <WidgetNameLine name="List wall">
         <span className={styles.lineCount}>{plural(lists.length, 'list')}</span>
+        <HelpTip label="List wall" text={WALL_HELP} />
       </WidgetNameLine>
       {lists.length === 0
         ? <p className={styles.empty} role="status">No list tabs in this layout.</p>
@@ -78,27 +86,24 @@ function ListWallFace({ face }: { face: WidgetFace }) {
 // ── Large: blocks of squares ──────────────────────────────────────────────
 
 function Blocks({ lists }: { lists: List[] }) {
+  const [wallRef, wall] = useElementSize()
+  // Unmeasured: room for every row.
+  const rowsFit = wall.height > 0 ? wallRowsFit(wall.height) : Number.POSITIVE_INFINITY
   return (
-    <div className={styles.wall} data-list-wall-face="large">
-      <div className={styles.legend} aria-hidden="true">
-        {WALL_TONES.map((t) => (
-          <span key={t} className={styles.legendItem}><span className={styles.square} data-tone={t} />{WALL_TONE_NAMES[t]}</span>
-        ))}
-        <span className={styles.legendNote}>Trouble first in each list</span>
-      </div>
+    <div ref={wallRef} className={styles.wall} data-list-wall-face="large">
       <div className={styles.blocks}>
-        {lists.map((l) => <Block key={l.tabId} list={l} />)}
+        {lists.map((l) => <Block key={l.tabId} list={l} rowsFit={rowsFit} />)}
       </div>
     </div>
   )
 }
 
-function Block({ list }: { list: List }) {
+function Block({ list, rowsFit }: { list: List; rowsFit: number }) {
   const { late, followup, calm } = wallListWords(list.counts)
-  const { squares, more } = wallSquaresShown(list)
+  const { squares, more, columns } = wallSquaresShown(list, rowsFit)
   const { triggerProps, tooltip } = useTooltip(`${list.name}\n${list.waiting ? 'Waits on its prompt' : countsText(list)}\nClick to show it in its cell`)
   return (
-    <section className={styles.block} aria-label={list.name} data-wall-list={list.tabId}>
+    <section className={styles.block} style={{ '--wall-columns': columns } as CSSProperties} aria-label={list.name} data-wall-list={list.tabId}>
       <button
         type="button"
         className={styles.blockHead}

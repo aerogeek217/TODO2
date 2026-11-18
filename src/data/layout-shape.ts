@@ -45,8 +45,6 @@ import {
   pickPivotConfig,
   pivotConfigProblem,
 } from '../models/chart-widgets'
-// G5: Project pulse's config and its rules.
-import { pickPulseConfig, pulseConfigProblem, pulseRulePredicates } from '../models/pulse-config'
 // Item 8: a Pivot's view state — its rows' sort.
 import { pickPivotView, pivotViewProblem } from '../models/chart-widgets'
 import type { TodoPredicate } from '../models/filter-predicate'
@@ -132,11 +130,6 @@ function isWeight(v: unknown): v is number {
 
 function isFiniteNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
-}
-
-/** A list of ids as stored: an array of finite numbers. */
-function isIdList(v: unknown): v is number[] {
-  return Array.isArray(v) && v.every(isFiniteNum)
 }
 
 /** A Neglect map's `colourBy` as stored: a known kind; tags with a list of ids. */
@@ -233,17 +226,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (bad) return `${path}.config.${bad}`
       return config.filter === undefined ? true : checkChartFilter(config.filter, path)
     }
-    // G5: Project pulse — its tag picks and rules, then each rule's filter as a Number's.
-    case 'pulse': {
-      const bad = pulseConfigProblem(config)
-      if (bad) return `${path}.config.${bad}`
-      for (const [key, raw] of pulseRulePredicates(config)) {
-        const shape = checkPredicateShape(raw)
-        if (shape !== true) return `${path}.config.${key}.${shape}`
-        if (pickPredicate(raw).fixes.length > 0) return `${path}.config.${key}`
-      }
-      return true
-    }
     // D26 P8: the chart widgets — their fields, then their filter as a Number's.
     case 'breakdown': {
       const bad = breakdownConfigProblem(config)
@@ -269,8 +251,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     case 'clusters':
     case 'listwall':
       return true
-    case 'radar':
-      return isIdList(config.waitingStatusIds) ? true : `${path}.config.waitingStatusIds`
     // Item 12: a Review widget — no settings (its config the empty object), and its sort.
     case 'review': {
       const bad = view ? reviewViewProblem(view) : null
@@ -514,9 +494,9 @@ interface PickedCell {
  * and the cells come in reading order. A tab of a retired kind — `dashboard`
  * (v77 converted every one), `followup`, `next7`, `stale`, `recent`,
  * `changes`, `today` and `eisenhowerSummary` (v78 dropped or converted
- * every one), and `eisenhower`, `tagMap` and `statusFlow` (v79 dropped
- * every one) — is an unknown kind, dropped like one, and a cell it leaves
- * without tabs closes.
+ * every one), `eisenhower`, `tagMap` and `statusFlow` (v79 dropped
+ * every one), and `radar` and `pulse` (v83 dropped every one) — is an
+ * unknown kind, dropped like one, and a cell it leaves without tabs closes.
  *
  * Past `LAYOUT_PART_LIMIT` tracks, cells or tabs in the layout, the rest are
  * dropped and reported in `fixes`.
@@ -619,8 +599,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
-      // The task maps (2026-11-18): Work clusters has no settings; the Pressure radar its Waiting
-      // statuses (a bad list emptied, a repeat kept once). No view state: any is dropped.
+      // The task maps (2026-11-18): Work clusters has no settings. No view state: any is dropped.
       case 'clusters':
         if (Object.keys(config).length > 0) fix('settings')
         return { id, kind: 'clusters', config: {} }
@@ -628,12 +607,6 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       case 'listwall':
         if (Object.keys(config).length > 0) fix('settings')
         return { id, kind: 'listwall', config: {} }
-      case 'radar': {
-        const raw = config.waitingStatusIds
-        if (!isIdList(raw)) fix('settings')
-        const ids = Array.isArray(raw) ? [...new Set((raw as unknown[]).filter(isFiniteNum))] : []
-        return { id, kind: 'radar', config: { waitingStatusIds: ids } }
-      }
       // Item 12: a Review widget — no settings: a config key (an earlier build's kind `by` or pick
       // `pick`, which v79 removed) is dropped, a fix; its view state's sort as checked.
       case 'review': {
@@ -649,8 +622,6 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         return { id, kind: 'number', config: glance(numberConfigOf(config)) }
       case 'trend':
         return { id, kind: 'trend', config: glance(pickTrendConfig(config, readNumberPredicate)) }
-      case 'pulse':
-        return { id, kind: 'pulse', config: glance(pickPulseConfig(config, readNumberPredicate)) }
       // D26 P8: the chart widgets.
       case 'breakdown': {
         const viewState = glance(pickBreakdownView(view))

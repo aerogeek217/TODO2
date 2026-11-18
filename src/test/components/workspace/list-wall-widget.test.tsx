@@ -9,7 +9,7 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { buildWallList, wallListWords, wallSquaresShown } from '../../../utils/list-wall'
+import { buildWallList, wallGridShape, wallListWords, wallRowsFit, wallSquaresShown } from '../../../utils/list-wall'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 import { cell, grid } from '../../helpers/layout-builders'
 
@@ -109,5 +109,26 @@ describe('list-wall', () => {
     const { squares, more } = wallSquaresShown(l)
     expect(squares).toHaveLength(14 * 6 - 3)
     expect(more).toBe(100 - squares.length)
+  })
+
+  it('a short wall trades rows for columns, two rows and 28 columns at most', () => {
+    expect(wallGridShape(30, 6)).toEqual({ columns: 14, rows: 6 })
+    // Three rows: 84 squares want 28 columns; 30 fit in 14.
+    expect(wallGridShape(100, 3)).toEqual({ columns: 28, rows: 3 })
+    expect(wallGridShape(30, 3)).toEqual({ columns: 14, rows: 3 })
+    expect(wallGridShape(50, 2)).toEqual({ columns: 25, rows: 2 })
+    expect(wallGridShape(50, 0)).toEqual({ columns: 25, rows: 2 })
+    expect(wallGridShape(100, Number.POSITIVE_INFINITY)).toEqual({ columns: 14, rows: 6 })
+    const l = buildWallList({ tabId: 't', name: 'L', showing: false, waiting: false }, Array.from({ length: 100 }, (_, i) => i), () => 'ontrack')
+    expect(wallSquaresShown(l, 3)).toMatchObject({ columns: 28, more: 100 - 81 })
+    // 130px of wall: five rows under a block's name and words.
+    expect(wallRowsFit(130)).toBe(5)
+  })
+
+  it('a wide, short cell keeps its blocks, their grids widened', () => {
+    height = 110
+    render(<ListWallWidget tab={WALL} />)
+    expect(document.querySelector('[data-list-wall-face="large"]')).not.toBeNull()
+    expect((document.querySelector('[data-wall-list="t-all"]') as HTMLElement).style.getPropertyValue('--wall-columns')).toBe('14')
   })
 })

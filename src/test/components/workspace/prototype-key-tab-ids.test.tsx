@@ -19,7 +19,7 @@ import {
 /**
  * A tab id naming an `Object.prototype` member (cr34 S2): the editor-preview
  * store is keyed by tab id, and `configs['constructor']` on a plain object
- * read the inherited function — the Breakdown, Pivot and Project pulse threw
+ * read the inherited function — the Breakdown and Pivot (and Project pulse, since removed) threw
  * in render, the Number and Created vs completed drew from it. The layout
  * check now refuses such an id (`data/layout-shape.isId`,
  * `layout-shape.test`); these hold the store's own read, whatever the id.
