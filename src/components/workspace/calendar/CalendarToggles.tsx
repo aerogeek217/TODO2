@@ -1,5 +1,6 @@
 import { type CalendarDateType, type CalendarDateTypes } from '../../../models/workspace-layout'
-import { FlagIcon, TitlesIcon, WidgetKindIcon } from '../../shared/icons'
+import { DateBar } from '../../shared/DateBar'
+import { TitlesIcon } from '../../shared/icons'
 import styles from './CalendarWidget.module.css'
 
 /** The calendar toolbar's toggles: each date type, and Titles. */
@@ -23,7 +24,7 @@ export function TypeToggle({ type, types, iconOnly, onToggle }: {
       data-tooltip={iconOnly ? `${tip} (${label})` : tip}
       onClick={() => onToggle(type)}
     >
-      {type === 'due' ? <WidgetKindIcon kind="calendar" size={12} /> : <FlagIcon size={12} />}
+      <DateBar type={type} level={on ? 'soon' : 'later'} />
       {!iconOnly && <span>{label}</span>}
     </button>
   )

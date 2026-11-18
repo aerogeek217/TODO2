@@ -1,10 +1,11 @@
 import { memo } from 'react'
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core'
-import { calendarEntryState, calendarEntryUrgent, type CalendarEntry } from '../../../services/calendar-entries'
+import { calendarEntryLevel, calendarEntryState, type CalendarEntry } from '../../../services/calendar-entries'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { calendarEntryTitle } from './calendar-entry-title'
 import { AvatarStack } from '../../shared/AvatarStack'
 import { TaskPillStatus } from '../../shared/TaskPillBar'
-import { FlagIcon, RepeatIcon, WidgetKindIcon } from '../../shared/icons'
+import { RepeatIcon } from '../../shared/icons'
 import styles from './CalendarWidget.module.css'
 import { TODO_ID_ATTR } from '../../../utils/dom-contract'
 
@@ -17,8 +18,6 @@ interface CalendarEntryButtonProps {
   size: CalendarEntrySize
   /** Week columns: the title wraps to two lines; avatars only. */
   wrap?: boolean
-  /** The date-type glyph: only while the calendar shows both Due and Follow-up (`calendarShowsKind`). */
-  showKind?: boolean
   onOpen?: (todoId: number) => void
   /** The origin of a drag of this entry (faded). */
   dragging?: boolean
@@ -32,18 +31,19 @@ interface CalendarEntryButtonProps {
 /**
  * One calendar entry: a task's due date or next follow-up on a day (or an
  * occurrence of a recurring task) — a line, no fill, with a bar at its left
- * edge in its date type's colour (due magenta, follow-up yellow; flair P6, E6),
- * stronger with a faint tint while it asks for action now (`data-urgent`:
- * a late due date, a follow-up today or late). Type glyph in the same colour
- * (both date types on) · repeat glyph · title · meta (people + status at
- * `md` / `touch`). Click opens the task.
+ * edge in its date type's colour (due magenta, follow-up yellow; flair P6,
+ * E6) whose strength is how soon (`data-level`, the ladder a row date's bar
+ * shares: faint later, full soon, heavier over a faint tint late). Repeat
+ * glyph · title · meta (people + status at `md` / `touch`). Click opens the
+ * task.
  */
 export const CalendarEntryButton = memo(function CalendarEntryButton({
-  entry, today, size, wrap = false, showKind = true, onOpen, dragging = false, ghost = false,
+  entry, today, size, wrap = false, onOpen, dragging = false, ghost = false,
   dragRef, dragAttributes, dragListeners,
 }: CalendarEntryButtonProps) {
   const { todo } = entry
   const state = calendarEntryState(entry, today)
+  const range = useSettingsStore((s) => s.urgentDueWithinDays)
   const showMeta = size !== 'sm'
   const cls = [
     styles.entry,
@@ -61,7 +61,7 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
       className={cls}
       data-cal-entry={entry.kind}
       data-state={state}
-      data-urgent={calendarEntryUrgent(state) ? 'true' : undefined}
+      data-level={calendarEntryLevel(entry, today, range)}
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-virtual={entry.isVirtual ? 'true' : undefined}
       data-tooltip={ghost ? undefined : calendarEntryTitle(entry, today)}
@@ -73,11 +73,6 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
       {...(dragListeners ?? {})}
       {...(ghost ? { tabIndex: -1 } : {})}
     >
-      {showKind && (
-        <span className={styles.entryGlyph} data-cal-entry-glyph>
-          {entry.kind === 'due' ? <WidgetKindIcon kind="calendar" size={12} /> : <FlagIcon size={12} />}
-        </span>
-      )}
       {todo.recurrenceRule && entry.kind === 'due' && (
         <span className={styles.entryRepeat}><RepeatIcon size={10} /></span>
       )}

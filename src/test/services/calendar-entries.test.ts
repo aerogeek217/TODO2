@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildEntries,
   calendarEntryState,
-  calendarEntryUrgent,
+  calendarEntryLevel,
   dayDots,
   dayOverdueWash,
   isEntryOverdue,
@@ -114,9 +114,20 @@ describe('entry state, overdue washes and dots', () => {
       .toEqual(['due', 'due-today', 'due-overdue', 'followup', 'followup-today', 'followup-overdue'])
   })
 
-  it('urgent (the stronger bar and tint): a late due date and a follow-up today or late — not a due date today', () => {
-    expect((['due', 'due-today', 'due-overdue', 'followup', 'followup-today', 'followup-overdue'] as const).map(calendarEntryUrgent))
-      .toEqual([false, false, true, false, true, true])
+  it('levels (the bar strength a row date shares): late when overdue, soon for a follow-up today or a due date in the range, else later', () => {
+    const far = days[6]!
+    const level = (d: Date, todo: Parameters<typeof buildEntries>[0][number], range: number | null = 1) =>
+      calendarEntryLevel(entriesOn(d, [todo])[0]!, today, range)
+    expect(level(yesterday, makeTodo({ id: 1, dueDate: yesterday }))).toBe('late')
+    expect(level(today, makeTodo({ id: 2, dueDate: today }))).toBe('soon')
+    expect(level(tomorrow, makeTodo({ id: 3, dueDate: tomorrow }))).toBe('soon')
+    expect(level(far, makeTodo({ id: 4, dueDate: far }))).toBe('later')
+    expect(level(today, makeTodo({ id: 5, dueDate: today }), null)).toBe('later')
+    expect(level(yesterday, makeTodo({ id: 6, nextFollowupAt: yesterday }))).toBe('late')
+    expect(level(today, makeTodo({ id: 7, nextFollowupAt: today }))).toBe('soon')
+    expect(level(tomorrow, makeTodo({ id: 8, nextFollowupAt: tomorrow }))).toBe('later')
+    expect(level(yesterday, makeTodo({ id: 9, dueDate: yesterday, isCompleted: true }))).toBe('later')
+    expect(level(today, makeTodo({ id: 10, nextFollowupAt: today, isCompleted: true }))).toBe('later')
   })
 
   it('completed tasks and occurrences are never overdue', () => {

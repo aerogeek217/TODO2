@@ -695,15 +695,15 @@ button.heatDay {
 
 /* ── Entries ─────────────────────────────────────────────────────────────── */
 
-/* A line with a 2px bar at its left edge, no fill (flair P6): the bar and the
-   type glyph take the entry's date type's colour (due / follow-up, as the
-   toolbar's toggles). An entry that asks for action now (`data-urgent`: a late
-   due date, a follow-up today or late) stands out: a 3px bar in the full colour
-   over a faint tint of it. The text never changes colour. */
+/* A line with a 2px bar at its left edge, no fill (flair P6): the bar takes
+   the entry's date type's colour (due / follow-up, as the toolbar's toggles)
+   and its strength from `data-level`, the ladder a row date's bar shares
+   (date styling 2026-11-17): later faint, soon the full colour, late a 3px bar
+   in the full colour over a faint tint of it. The text never changes colour. */
 .entry {
-  --entry-tick: var(--cal-tick-due);
-  --entry-glyph: var(--color-overdue);
-  --entry-tint: var(--cal-entry-due-tint);
+  --entry-faint: var(--date-bar-due-faint);
+  --entry-solid: var(--date-bar-due);
+  --entry-tint: var(--date-tint-due);
   position: relative;
   display: flex;
   align-items: center;
@@ -733,7 +733,11 @@ button.heatDay {
   bottom: 2px;
   width: 2px;
   border-radius: 1px;
-  background: var(--entry-tick);
+  background: var(--entry-faint);
+}
+
+.entry[data-level='soon']::before {
+  background: var(--entry-solid);
 }
 
 .entry:hover {
@@ -785,20 +789,14 @@ button.heatDay {
   line-height: 16px;
 }
 
-.entryWrap .entryGlyph,
 .entryWrap .entryRepeat {
   margin-top: 2px;
 }
 
-.entryGlyph,
 .entryRepeat {
   display: inline-flex;
   flex-shrink: 0;
   color: var(--color-text-muted);
-}
-
-.entryGlyph {
-  color: var(--entry-glyph);
 }
 
 .entryTitle {
@@ -818,21 +816,20 @@ button.heatDay {
 }
 
 .entry[data-cal-entry='followup'] {
-  --entry-tick: var(--cal-tick-followup);
-  --entry-glyph: var(--color-followup);
-  --entry-tint: var(--cal-entry-followup-tint);
+  --entry-faint: var(--date-bar-followup-faint);
+  --entry-solid: var(--date-bar-followup);
+  --entry-tint: var(--date-tint-followup);
 }
 
-/* Late, or a follow-up today (a due date today stays ordinary: today's column
-   is marked already). */
-.entry[data-urgent='true'] {
+/* Late: a heavier bar over a faint tint. */
+.entry[data-level='late'] {
   background: var(--entry-tint);
 }
 
-.entry[data-urgent='true']::before {
+.entry[data-level='late']::before {
   width: 3px;
   border-radius: 1.5px;
-  background: var(--entry-glyph);
+  background: var(--entry-solid);
 }
 
 /* A recurring occurrence: faded, italic, and it doesn't drag. */

@@ -571,7 +571,6 @@ export function WorkspacePage() {
               today={activeDrag.calendarEntry.today}
               size={activeDrag.calendarEntry.size}
               wrap={activeDrag.calendarEntry.wrap}
-              showKind={activeDrag.calendarEntry.showKind}
               ghost
             />
           </div>

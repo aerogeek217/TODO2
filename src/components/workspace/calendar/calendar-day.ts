@@ -54,11 +54,6 @@ export function useTaskDrag(): TaskDragInfo | null {
   return drag
 }
 
-/** Entries carry their date-type glyph only while both types show: with one, every entry is that type. */
-export function calendarShowsKind(types: CalendarDateTypes): boolean {
-  return types.due && types.followup
-}
-
 /** The hovered day's label: what a drop there does. */
 export function dropLabel(drag: TaskDragInfo | null, types: CalendarDateTypes): string {
   if (drag?.entryMove) return 'Move here'

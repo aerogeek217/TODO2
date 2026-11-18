@@ -4,7 +4,7 @@ import { PlusIcon } from '../../shared/icons'
 import { CalendarEntryButton, type CalendarEntrySize } from './CalendarEntryButton'
 import { type CalendarEntryDragData } from './calendar-drag'
 import styles from './CalendarWidget.module.css'
-import { type DayContext, calendarShowsKind, dropLabel } from './calendar-day'
+import { type DayContext, dropLabel } from './calendar-day'
 
 /** The parts every calendar day draws: the drop label, an entry, the `+N more` button. */
 
@@ -25,13 +25,12 @@ export function EntryItem({ entry, size, wrap = false, slot, ctx }: {
   slot?: string
   ctx: DayContext
 }) {
-  const showKind = calendarShowsKind(ctx.dateTypes)
   if (entry.isVirtual || ctx.noDrag) {
-    return <CalendarEntryButton entry={entry} today={ctx.today} size={size} wrap={wrap} showKind={showKind} onOpen={ctx.onOpen} />
+    return <CalendarEntryButton entry={entry} today={ctx.today} size={size} wrap={wrap} onOpen={ctx.onOpen} />
   }
   const data: CalendarEntryDragData = {
     calendarDateType: entry.kind,
-    calendarEntry: { entry, size, wrap, showKind, today: ctx.today },
+    calendarEntry: { entry, size, wrap, today: ctx.today },
   }
   return (
     <TaskDraggable
@@ -47,7 +46,6 @@ export function EntryItem({ entry, size, wrap = false, slot, ctx }: {
           today={ctx.today}
           size={size}
           wrap={wrap}
-          showKind={showKind}
           onOpen={ctx.onOpen}
           dragging={isDragging}
           dragRef={setNodeRef}
