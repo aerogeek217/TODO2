@@ -267,6 +267,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     }
     case 'notes':
     case 'clusters':
+    case 'listwall':
       return true
     case 'radar':
       return isIdList(config.waitingStatusIds) ? true : `${path}.config.waitingStatusIds`
@@ -623,6 +624,10 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       case 'clusters':
         if (Object.keys(config).length > 0) fix('settings')
         return { id, kind: 'clusters', config: {} }
+      // The List wall: no settings either.
+      case 'listwall':
+        if (Object.keys(config).length > 0) fix('settings')
+        return { id, kind: 'listwall', config: {} }
       case 'radar': {
         const raw = config.waitingStatusIds
         if (!isIdList(raw)) fix('settings')

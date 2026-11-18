@@ -19,11 +19,11 @@ describe('widget kinds', () => {
     // Tasks (List, Calendar, Review, Notes), then Insights — the Neglect map and the task maps last.
     expect(WIDGET_KINDS).toEqual([
       'lens', 'calendar', 'review', 'notes',
-      'number', 'breakdown', 'pivot', 'trend', 'pulse', 'neglect', 'radar', 'clusters',
+      'number', 'breakdown', 'pivot', 'trend', 'pulse', 'neglect', 'radar', 'clusters', 'listwall',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
       'List', 'Calendar', 'Review', 'Notes',
-      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map', 'Pressure radar', 'Work clusters',
+      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map', 'Pressure radar', 'Work clusters', 'List wall',
     ])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'notes'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])
@@ -57,6 +57,7 @@ describe('widget kinds', () => {
     expect(createTab('radar', 'g')).toEqual({ id: 'g', kind: 'radar', config: { waitingStatusIds: [] } })
     expect(createTab('radar', 'g', { waitingStatusIds: [4] }).config).toEqual({ waitingStatusIds: [4] })
     expect(createTab('clusters', 'h')).toEqual({ id: 'h', kind: 'clusters', config: {} })
+    expect(createTab('listwall', 'i')).toEqual({ id: 'i', kind: 'listwall', config: {} })
     // A fresh config each time.
     const one = createTab('calendar', 'x')
     one.config.dateTypes.due = false

@@ -58,11 +58,12 @@ import type { IconValue, LineIconKey } from './icon'
  * Eisenhower's small face; P8 made People, Tags and Status Breakdowns. The
  * Status flow chart (P8), the Tag map and the Eisenhower were removed after v78 shipped;
  * v79 dropped every saved one. `review` (item 12) is the Review widget.
- * `radar` (the Pressure radar) and `clusters` (Work clusters) are the task
- * maps of 2026-11-18, whole widgets like the Neglect map.
+ * `radar` (the Pressure radar), `clusters` (Work clusters) and `listwall`
+ * (the List wall) are the task maps of 2026-11-18, whole widgets like the
+ * Neglect map.
  */
 export type WidgetKind =
-  | 'lens' | 'calendar' | 'notes' | 'review' | 'neglect' | 'radar' | 'clusters'
+  | 'lens' | 'calendar' | 'notes' | 'review' | 'neglect' | 'radar' | 'clusters' | 'listwall'
   | GlanceWidgetKind
 
 /** The glance widget kinds (D25 N): a Number, the charts and Project pulse, each a widget. */
@@ -263,6 +264,7 @@ export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
 export type RadarTab = TabOf<'radar', RadarTabConfig, NoTabSettings>
 export type ClustersTab = TabOf<'clusters', NoTabSettings, NoTabSettings>
+export type ListWallTab = TabOf<'listwall', NoTabSettings, NoTabSettings>
 export type NumberTab = TabOf<'number', NumberConfig, NoTabSettings>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
 export type PulseTab = TabOf<'pulse', PulseTabConfig, NoTabSettings>
@@ -276,7 +278,7 @@ export type ChartTab = BreakdownTab | PivotTab
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
 
-export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | RadarTab | ClustersTab | GlanceTab
+export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | RadarTab | ClustersTab | ListWallTab | GlanceTab
 
 type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -546,6 +548,14 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'clusters', config: {} }),
   },
+  listwall: {
+    label: 'List wall',
+    showsList: false,
+    group: 'insights',
+    glance: false,
+    fitHeight: false,
+    newTab: (id) => ({ id, kind: 'listwall', config: {} }),
+  },
 }
 
 /** Every widget kind, in menu order. */
@@ -635,6 +645,7 @@ export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
   neglect: 'scatter',
   radar: 'radar',
   clusters: 'clusters',
+  listwall: 'wall',
 }
 
 /**

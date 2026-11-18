@@ -197,6 +197,7 @@ function buildSeed(): Seed {
             // The task maps: the Pressure radar's Waiting statuses, Work clusters (no settings).
             { id: 't21', kind: 'radar', config: { waitingStatusIds: [1] } },
             { id: 't22', kind: 'clusters', config: {} },
+            { id: 't23', kind: 'listwall', config: {} },
             // Item 12: a Review widget (no settings, 2A) and its sort.
             { id: 't14', kind: 'review', config: {}, viewState: { sort: 'next' } },
             // The glance widgets, each with a setting off its default.

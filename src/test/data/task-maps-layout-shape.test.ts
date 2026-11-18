@@ -18,7 +18,7 @@ const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as 
 /** The task maps (2026-11-18): layout config only, no schema step. */
 describe('the task maps’ stored tabs', () => {
   it('a new Pressure radar and Work clusters pass the check unchanged', () => {
-    for (const tab of [createTab('radar', 'r', { waitingStatusIds: [3] }), createTab('clusters', 'c')]) {
+    for (const tab of [createTab('radar', 'r', { waitingStatusIds: [3] }), createTab('clusters', 'c'), createTab('listwall', 'w')]) {
       const row = layoutRow(tab as unknown as Record<string, unknown>)
       expect(checkLayoutBody(row)).toBe(true)
       expect(rowFixes('layouts', row)).toEqual([])
