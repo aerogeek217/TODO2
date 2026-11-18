@@ -23,7 +23,7 @@ import { cell, grid, picture, single, type CellSpec } from '../../helpers/layout
  * then Add widget as tab ›, Remove widget (a lone widget's cell stays,
  * empty), Collapse row and Edit layout —, no grip; in the mode (E3) the
  * cell is a card whose menu (its ⋯, Cell layout) places it — Move to ▸,
- * Swap with ▸, Split ▸, Merge with ▸, Stretch right / down, Remove widget,
+ * Swap with ▸, Insert ▸, Merge with ▸, Stretch right / down, Remove widget,
  * Close cell — and whose surface takes the keys; and tabs on demand: one
  * widget has no strip, its top line holds the controls (the ⋯).
  */
@@ -140,7 +140,7 @@ describe('the cell menu', () => {
     useWorkspaceStore.getState().leaveEdit()
   })
 
-  it('in the mode: the card’s ⋯ lists Move to, Swap with, Split, Merge with, Stretch, Remove widget, Close cell — no grip, no drag handle', () => {
+  it('in the mode: the card’s ⋯ lists Move to, Swap with, Insert, Merge with, Stretch, Remove widget, Close cell — no grip, no drag handle', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     editing()
@@ -150,7 +150,7 @@ describe('the cell menu', () => {
     const more = screen.getByRole('button', { name: 'Cell layout' })
     expect(more).toHaveAttribute('aria-haspopup', 'menu')
     const menu = cardMenu()
-    expect(itemLabels(menu)).toEqual(['Move to', 'Swap with', 'Join as tabs', 'Split', 'Merge with', 'Stretch right', 'Stretch down', 'Remove widget', 'Close cell'])
+    expect(itemLabels(menu)).toEqual(['Move to', 'Swap with', 'Join as tabs', 'Insert', 'Merge with', 'Stretch right', 'Stretch down', 'Remove widget', 'Close cell'])
     expect(more).toHaveAttribute('aria-expanded', 'true')
     // Its second click closes it.
     fireEvent.click(more)
@@ -240,18 +240,33 @@ describe('the cell menu', () => {
     expect(itemLabels(cardMenu()).slice(-2)).toEqual(['Remove tab', 'Close cell (2 tabs)'])
   })
 
-  it('Split ▸ every side; Right puts an empty cell beside it, Below one under it', () => {
+  it('Insert ▸ a full row or column, or a new cell on a side; New cell right puts an empty cell beside it, below one under it', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     editing()
     renderCell(k)
-    const sub = submenu('Split')
-    expect(within(sub).getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Above', 'Left', 'Right', 'Below'])
-    fireEvent.click(within(sub).getByRole('menuitem', { name: 'Right' }))
+    const sub = submenu('Insert')
+    expect(within(sub).getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual([
+      'Row above', 'Row below', 'Column left', 'Column right', 'New cell above', 'New cell left', 'New cell right', 'New cell below',
+    ])
+    fireEvent.click(within(sub).getByRole('menuitem', { name: 'New cell right' }))
     expect(working().cells.map((x) => x.tabs.length)).toEqual([1, 0])
-    fireEvent.click(within(submenu('Split')).getByRole('menuitem', { name: 'Below' }))
+    fireEvent.click(within(submenu('Insert')).getByRole('menuitem', { name: 'New cell below' }))
     expect(picture(working())).toHaveLength(2)
     expect(working().cells).toHaveLength(3)
+  })
+
+  it('Insert ▸ Row above puts a full-width row over the card, its new cell selected', () => {
+    const k = cell('k', [createTab('notes', 'n')])
+    const m = cell('m', [createTab('notes', 'm1')])
+    open(grid([[k, m]]))
+    editing()
+    renderCell(k)
+    fireEvent.click(within(submenu('Insert')).getByRole('menuitem', { name: 'Row above' }))
+    expect(working().grid.rows).toHaveLength(2)
+    const added = working().cells.find((c) => c.tabs.length === 0)
+    expect(added?.area).toEqual({ col: 0, row: 0, colSpan: 2, rowSpan: 1 })
+    expect(useWorkspaceStore.getState().editing?.selectedCellId).toBe(added?.id)
   })
 
   it('Merge with ▸ Right joins the cell beside it into one, its tabs after; Below is off when no rectangle', () => {

@@ -44,6 +44,25 @@
   pointer-events: none;
 }
 
+/* At rest a card is named by its widget's own top line, dimmed under the
+ * label: the label shows on the card's hover, focus or selection (always
+ * without hover), so a table of cards isn't a table of pills. Opacity only:
+ * nothing moves. */
+.label:not(.stripLabel) {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+:global([data-ws-cell]):is(:hover, :focus-within, [data-edit-selected]) .label {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .label:not(.stripLabel) {
+    opacity: 1;
+  }
+}
+
 /* A squeezed strip's active tab, named under the strip (its title cut to nothing in a narrow
  * card): shown only while the strip is squeezed. */
 .stripLabel {

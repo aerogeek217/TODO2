@@ -18,7 +18,7 @@ import { widgetKindMenuEntries } from '../../../components/shared/widget-kind-me
  * place): outside the mode the ⋯'s and a right-click's — the widget's
  * entries under its kind's heading, then Add widget as tab ›, Remove
  * widget, Collapse row, then Edit layout —; in the mode a card's (Cell
- * layout): Move to ▸, Swap with ▸, Split ▸, Merge with ▸, Stretch right /
+ * layout): Move to ▸, Swap with ▸, Insert ▸, Merge with ▸, Stretch right /
  * down, Remove widget, Close cell.
  */
 
@@ -54,6 +54,7 @@ function cardActions(over: Partial<EditCardMenuActions> = {}): EditCardMenuActio
     onSwap: vi.fn(),
     onJoin: vi.fn(),
     onSplit: vi.fn(),
+    onInsertTrack: vi.fn(),
     onMerge: vi.fn(),
     onStretch: vi.fn(),
     onRemoveWidget: vi.fn(),
@@ -70,9 +71,9 @@ const childrenOf = (entries: readonly MenuEntry[], label: string): MenuEntry[] =
 const select = (entry: MenuEntry | undefined) => { if (entry?.kind === 'item') entry.onSelect?.() }
 
 describe('editCardMenuEntries (a card’s menu in the layout edit mode)', () => {
-  it('Move to, Swap with, Split, Merge with, Stretch right / down, then Remove widget and Close cell', () => {
+  it('Move to, Swap with, Insert, Merge with, Stretch right / down, then Remove widget and Close cell', () => {
     expect(words(editCardMenuEntries(cardActions()))).toEqual([
-      'Move to', 'Swap with', 'Join as tabs', 'Split', 'Merge with', 'Stretch right', 'Stretch down', '—', 'Remove widget', 'Close cell',
+      'Move to', 'Swap with', 'Join as tabs', 'Insert', 'Merge with', 'Stretch right', 'Stretch down', '—', 'Remove widget', 'Close cell',
     ])
   })
 
@@ -110,18 +111,22 @@ describe('editCardMenuEntries (a card’s menu in the layout edit mode)', () => 
     expect(swap?.kind === 'item' && swap.disabled).toBe(true)
   })
 
-  it('Split and Merge with offer every side; Merge is off where the two make no rectangle', () => {
+  it('Insert offers a full row / column on each side, then the cell split; Merge is off where the two make no rectangle', () => {
     const onSplit = vi.fn()
+    const onInsertTrack = vi.fn()
     const onMerge = vi.fn()
-    const entries = editCardMenuEntries(cardActions({ onSplit, onMerge, mergeWith: (side) => (side === 'right' ? 'm' : undefined) }))
-    expect(words(childrenOf(entries, 'Split'))).toEqual(['Above', 'Left', 'Right', 'Below'])
+    const entries = editCardMenuEntries(cardActions({ onSplit, onInsertTrack, onMerge, mergeWith: (side) => (side === 'right' ? 'm' : undefined) }))
+    const insert = childrenOf(entries, 'Insert')
+    expect(words(insert)).toEqual(['Row above', 'Row below', 'Column left', 'Column right', '—', '[Split this cell]', 'New cell above', 'New cell left', 'New cell right', 'New cell below'])
+    select(item(insert, 'Row above'))
+    expect(onInsertTrack).toHaveBeenCalledWith('top')
     const merge = childrenOf(entries, 'Merge with')
     expect(words(merge)).toEqual(['Above', 'Left', 'Right', 'Below'])
     const above = item(merge, 'Above')
     expect(above?.kind === 'item' && above.disabled).toBe(true)
     expect(above?.kind === 'item' && above.title).toBe(NO_MERGE_REASON)
     select(item(merge, 'Right'))
-    select(item(childrenOf(entries, 'Split'), 'Below'))
+    select(item(insert, 'New cell below'))
     expect(onMerge).toHaveBeenCalledWith('m')
     expect(onSplit).toHaveBeenCalledWith('bottom')
   })

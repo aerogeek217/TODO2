@@ -7,7 +7,7 @@ import { box, pointIn } from './fixtures/geometry'
  * browser: outside the layout edit mode there is no grip — a cell's ⋯ opens
  * the widget's entries, Add widget as tab ›, Remove widget, Collapse row
  * and Edit layout. In the mode (E3) the grip is gone too: the cell is a
- * card, its ⋯ (Cell layout) opens its menu (Move to, Swap with, Split,
+ * card, its ⋯ (Cell layout) opens its menu (Move to, Swap with, Insert,
  * Merge with, Stretch, Remove widget, Close cell) under it; Enter on the
  * focused card opens it and Esc gives the card its focus back; a drag from
  * anywhere on the card moves it (on the draft) and opens nothing, also when
@@ -67,7 +67,7 @@ test('outside the mode: no grip, no drag handle; the ⋯ the widget’s entries,
   expect(await labels(optionsMenu(page))).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Edit layout'])
 })
 
-const CARD_MENU = ['Move to', 'Swap with', 'Join as tabs', 'Split', 'Merge with', 'Stretch right', 'Stretch down', 'Remove widget', 'Close cell']
+const CARD_MENU = ['Move to', 'Swap with', 'Join as tabs', 'Insert', 'Merge with', 'Stretch right', 'Stretch down', 'Remove widget', 'Close cell']
 
 test('in the mode, one widget: no grip; the card’s ⋯ opens its menu under it', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
@@ -100,7 +100,7 @@ test('in the mode, the keyboard: Enter on the focused card opens its menu; Esc g
   await expect(layoutMenu(page)).toHaveCount(0)
   await expect(card).toBeFocused()
   await page.keyboard.press('Enter')
-  // ↓↓ past Join as tabs to Split, → into its sides, ⏎ on Above.
+  // ↓↓ past Join as tabs to Insert, → into it, ⏎ on Row above: a full row over both cards.
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowRight')

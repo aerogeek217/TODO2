@@ -721,13 +721,13 @@ export function wsPanelHandle(page: Page, panelId: string): Locator {
   return page.locator(`[data-ws-cell-header="${panelId}"] [data-strip-room]`)
 }
 
-/** Picks Split ▸ `item` (a side) in the open card menu (`openCellLayoutMenu`). */
+/** Picks Insert ▸ New cell `item` (a side: Split this cell) in the open card menu (`openCellLayoutMenu`). */
 export async function pickSplit(page: Page, item: 'Above' | 'Left' | 'Right' | 'Below'): Promise<void> {
-  await pickCellMenu(page, 'Split', item)
+  await pickCellMenu(page, 'Insert', `New cell ${item.toLowerCase()}`)
 }
 
-/** Picks `parent` ▸ `item` in the open card menu (Split, Merge with, Move to, Swap with). */
-export async function pickCellMenu(page: Page, parent: 'Split' | 'Merge with' | 'Move to' | 'Swap with', item: string): Promise<void> {
+/** Picks `parent` ▸ `item` in the open card menu (Insert, Merge with, Move to, Swap with). */
+export async function pickCellMenu(page: Page, parent: 'Insert' | 'Merge with' | 'Move to' | 'Swap with', item: string): Promise<void> {
   await page.getByRole('menuitem', { name: parent, exact: true }).click()
   await page.getByRole('menuitem', { name: item, exact: true }).click()
 }
