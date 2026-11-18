@@ -1,0 +1,345 @@
+/*
+ * Work clusters (task maps B2). The field holds, in order: the clusters'
+ * halos (each with its name on its top edge), the links, then the bubbles.
+ * Positions are px from the layout; colours are theme tokens, a tag's own
+ * colour through `--node-colour` (`themeColor`).
+ */
+
+.faceHost {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.widget {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 4px 12px 10px;
+}
+
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.keyPerson,
+.keyTag {
+  width: 11px;
+  height: 11px;
+  box-sizing: border-box;
+  border-radius: 50%;
+}
+
+.keyPerson {
+  border: 1.5px solid var(--color-text-muted);
+  background: var(--color-tint-6);
+}
+
+.keyTag {
+  border: 1.5px solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+.keyNote {
+  color: var(--color-text-muted);
+}
+
+.keyBridge {
+  color: var(--hue-amber-text);
+}
+
+.field {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 200px;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* A phone's cell is as tall as its content: the field takes a shape of its own. */
+.widget[data-mobile='true'] .field {
+  flex: none;
+  aspect-ratio: 4 / 5;
+}
+
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ── Clusters ──────────────────────────────────────────────────────────── */
+
+.halo {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed var(--color-border);
+  border-radius: 50%;
+  background: var(--color-tint-3);
+  pointer-events: none;
+}
+
+.haloName {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  z-index: var(--z-above-3);
+  max-width: 340px;
+  padding: 1px 6px;
+  border: none;
+  border-radius: 4px;
+  transform: translate(-50%, -50%);
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.haloName:hover {
+  color: var(--color-text-primary);
+}
+
+.haloName:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Links ─────────────────────────────────────────────────────────────── */
+
+.link {
+  position: absolute;
+  z-index: var(--z-above);
+  border-radius: 2px;
+  background: var(--color-tint-16);
+  transform-origin: 0 50%;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+.link[data-bridge='true'] {
+  background: color-mix(in srgb, var(--hue-amber-text) 55%, transparent);
+}
+
+.link[data-lit='true'] {
+  background: var(--color-accent);
+}
+
+.link[data-lit='false'] {
+  opacity: 0.25;
+}
+
+/* ── Bubbles ───────────────────────────────────────────────────────────── */
+
+.bubble {
+  --node-colour: var(--color-accent);
+  position: absolute;
+  z-index: var(--z-above-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0 3px;
+  border-radius: 50%;
+  font-family: inherit;
+  line-height: 1.15;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.bubble[data-kind='person'] {
+  border: 1.5px solid var(--color-text-muted);
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+}
+
+.bubble[data-kind='tag'] {
+  border: 1.5px solid var(--node-colour);
+  background: color-mix(in srgb, var(--node-colour) 16%, var(--color-surface));
+  color: var(--color-text-primary);
+}
+
+.bubble[data-dim='true'] {
+  opacity: 0.35;
+}
+
+.bubble:hover {
+  z-index: var(--z-above-3);
+}
+
+.bubble:focus-visible {
+  z-index: var(--z-above-3);
+  box-shadow: var(--focus-ring);
+}
+
+.bubbleName {
+  max-width: 100%;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bubbleCount {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-deadline);
+  color: var(--color-surface);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The top line and the faces ────────────────────────────────────────── */
+
+.lineCount {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.smallFace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.smallTitle {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.smallFigures {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.smallCount {
+  flex: none;
+  font-size: var(--font-size-display-md);
+  font-weight: var(--font-weight-bold);
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.smallCaption {
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mediumFace {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  overflow: hidden;
+}
+
+.clusterRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font-family: inherit;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.clusterRow:hover {
+  background: var(--color-tint-5);
+}
+
+.clusterRow:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.rowName {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowLate {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-deadline);
+}
+
+.rowTotal {
+  min-width: 24px;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  text-align: right;
+}

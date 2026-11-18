@@ -81,7 +81,7 @@ describe('IconPicker', () => {
     fireEvent.keyDown(calendar, { key: 'ArrowRight' })
     expect(screen.getByRole('button', { name: 'Notes' })).toHaveFocus()
     fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
-    expect(screen.getByRole('button', { name: 'Layout' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Radar' })).toHaveFocus()
   })
 
   it('the Emoji tab focuses its field; an emoji arriving is applied at once, the rest dropped; it stays open', () => {

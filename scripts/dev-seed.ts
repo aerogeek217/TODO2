@@ -994,11 +994,24 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         M: cell('cell-plan-week', [calendar('tab-plan-week', 'week', 1)]),
         // Glance widgets (D25 N + L, D26 P8): Tags and Status Breakdowns, Created vs completed, Project pulse.
         G: cell('cell-g-tags', [breakdown('tab-g-tags', 'Tags', 'tags'), breakdown('tab-g-priority', 'Priority', 'priority', { style: 'donut' })]),
-        // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is.
+        // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is; the task maps
+        // (2026-11-18) beside it: the Pressure radar (Waiting its Waiting quarter), Work clusters and the List wall.
         N: cell('cell-neglect', [{
           id: 'tab-neglect',
           kind: 'neglect',
           config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
+        }, {
+          id: 'tab-radar',
+          kind: 'radar',
+          config: { waitingStatusIds: [IDS.statuses.waiting] },
+        }, {
+          id: 'tab-clusters',
+          kind: 'clusters',
+          config: {},
+        }, {
+          id: 'tab-list-wall',
+          kind: 'listwall',
+          config: {},
         }]),
         R: cell('cell-g-trend', [{ id: 'tab-g-trend', kind: 'trend', config: { range: '14d' } }]),
         S: cell('cell-someday', [lens('tab-someday', L.someday)]),

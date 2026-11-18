@@ -58,9 +58,12 @@ import type { IconValue, LineIconKey } from './icon'
  * Eisenhower's small face; P8 made People, Tags and Status Breakdowns. The
  * Status flow chart (P8), the Tag map and the Eisenhower were removed after v78 shipped;
  * v79 dropped every saved one. `review` (item 12) is the Review widget.
+ * `radar` (the Pressure radar), `clusters` (Work clusters) and `listwall`
+ * (the List wall) are the task maps of 2026-11-18, whole widgets like the
+ * Neglect map.
  */
 export type WidgetKind =
-  | 'lens' | 'calendar' | 'notes' | 'review' | 'neglect'
+  | 'lens' | 'calendar' | 'notes' | 'review' | 'neglect' | 'radar' | 'clusters' | 'listwall'
   | GlanceWidgetKind
 
 /** The glance widget kinds (D25 N): a Number, the charts and Project pulse, each a widget. */
@@ -217,6 +220,20 @@ function defaultNeglectConfig(tagIds: readonly number[] = []): NeglectTabConfig 
   return { colourBy: { kind: 'tags', tagIds: [...tagIds] }, untouchedDays: DEFAULT_NEGLECT_UNTOUCHED_DAYS }
 }
 
+/**
+ * A Pressure radar tab's settings (layout config): the statuses whose tasks
+ * sit in its Waiting quarter (a new radar's: the statuses named like
+ * "Waiting", which the workspace store picks).
+ */
+interface RadarTabConfig {
+  waitingStatusIds: number[]
+}
+
+/** Whether a status's name reads as waiting (a new Pressure radar's Waiting statuses). */
+export function isWaitingStatusName(name: string): boolean {
+  return /wait/i.test(name)
+}
+
 interface TabOf<K extends WidgetKind, C, V> {
   /** Unique within the layout. */
   id: string
@@ -245,6 +262,9 @@ export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewSt
 type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
+export type RadarTab = TabOf<'radar', RadarTabConfig, NoTabSettings>
+export type ClustersTab = TabOf<'clusters', NoTabSettings, NoTabSettings>
+export type ListWallTab = TabOf<'listwall', NoTabSettings, NoTabSettings>
 export type NumberTab = TabOf<'number', NumberConfig, NoTabSettings>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
 export type PulseTab = TabOf<'pulse', PulseTabConfig, NoTabSettings>
@@ -258,7 +278,7 @@ export type ChartTab = BreakdownTab | PivotTab
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
 
-export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | GlanceTab
+export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | RadarTab | ClustersTab | ListWallTab | GlanceTab
 
 type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -415,6 +435,8 @@ export interface TabSeed {
   listDefinitionId?: number
   /** The tags a new Neglect map colours by (the workspace store passes the `Project: …` tags). */
   neglectTagIds?: readonly number[]
+  /** The statuses a new Pressure radar's Waiting quarter holds (the workspace store passes those named like "Waiting"). */
+  waitingStatusIds?: readonly number[]
   /** The tags a new Project pulse reads (the workspace store passes the `Project: …` tags). */
   tagIds?: readonly number[]
   /** A new Breakdown's config over the default (an Add widget preset, D26 P8). */
@@ -509,6 +531,31 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'neglect', config: defaultNeglectConfig(seed.neglectTagIds) }),
   },
+  // The task maps (2026-11-18): whole widgets, as the Neglect map.
+  radar: {
+    label: 'Pressure radar',
+    showsList: false,
+    group: 'insights',
+    glance: false,
+    fitHeight: false,
+    newTab: (id, seed) => ({ id, kind: 'radar', config: { waitingStatusIds: [...(seed.waitingStatusIds ?? [])] } }),
+  },
+  clusters: {
+    label: 'Work clusters',
+    showsList: false,
+    group: 'insights',
+    glance: false,
+    fitHeight: false,
+    newTab: (id) => ({ id, kind: 'clusters', config: {} }),
+  },
+  listwall: {
+    label: 'List wall',
+    showsList: false,
+    group: 'insights',
+    glance: false,
+    fitHeight: false,
+    newTab: (id) => ({ id, kind: 'listwall', config: {} }),
+  },
 }
 
 /** Every widget kind, in menu order. */
@@ -596,6 +643,9 @@ export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
   breakdown: 'bars',
   pivot: 'table',
   neglect: 'scatter',
+  radar: 'radar',
+  clusters: 'clusters',
+  listwall: 'wall',
 }
 
 /**

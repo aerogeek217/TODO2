@@ -134,6 +134,11 @@ function isFiniteNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
 }
 
+/** A list of ids as stored: an array of finite numbers. */
+function isIdList(v: unknown): v is number[] {
+  return Array.isArray(v) && v.every(isFiniteNum)
+}
+
 /** A Neglect map's `colourBy` as stored: a known kind; tags with a list of ids. */
 function isNeglectColourBy(v: unknown): boolean {
   if (!isRecord(v)) return false
@@ -261,7 +266,11 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       return checkChartFilter(config.filter, path)
     }
     case 'notes':
+    case 'clusters':
+    case 'listwall':
       return true
+    case 'radar':
+      return isIdList(config.waitingStatusIds) ? true : `${path}.config.waitingStatusIds`
     // Item 12: a Review widget — no settings (its config the empty object), and its sort.
     case 'review': {
       const bad = view ? reviewViewProblem(view) : null
@@ -610,6 +619,21 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
+      // The task maps (2026-11-18): Work clusters has no settings; the Pressure radar its Waiting
+      // statuses (a bad list emptied, a repeat kept once). No view state: any is dropped.
+      case 'clusters':
+        if (Object.keys(config).length > 0) fix('settings')
+        return { id, kind: 'clusters', config: {} }
+      // The List wall: no settings either.
+      case 'listwall':
+        if (Object.keys(config).length > 0) fix('settings')
+        return { id, kind: 'listwall', config: {} }
+      case 'radar': {
+        const raw = config.waitingStatusIds
+        if (!isIdList(raw)) fix('settings')
+        const ids = Array.isArray(raw) ? [...new Set((raw as unknown[]).filter(isFiniteNum))] : []
+        return { id, kind: 'radar', config: { waitingStatusIds: ids } }
+      }
       // Item 12: a Review widget — no settings: a config key (an earlier build's kind `by` or pick
       // `pick`, which v79 removed) is dropped, a fix; its view state's sort as checked.
       case 'review': {

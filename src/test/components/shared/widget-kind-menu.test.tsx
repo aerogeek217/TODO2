@@ -40,12 +40,12 @@ describe('WidgetKindMenu', () => {
     expect(panelWords(kindsMenu())).toEqual([
       '[Tasks]', 'List', 'Calendar', 'Review', 'Notes',
       '—', '[Insights]',
-      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map',
+      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map', 'Pressure radar', 'Work clusters', 'List wall',
     ])
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
-      'List', 'Calendar', 'Review', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map',
+      'List', 'Calendar', 'Review', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map', 'Pressure radar', 'Work clusters', 'List wall',
     ])
-    expect(screen.getByRole('menuitemradio', { name: /^List/ })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemradio', { name: /^List(?! wall)/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /^Notes/ })).toHaveAttribute('aria-checked', 'true')
     expect(screen.queryByRole('menuitemradio', { name: /Taskboard/ })).toBeNull()
     for (const gone of [/Dashboard/, /Needs follow-up/, /Next 7 days/, /Stale tasks/, /Recently completed/, /Eisenhower/, /What changed/, /^Today/]) {
@@ -65,7 +65,7 @@ describe('WidgetKindMenu', () => {
       />,
     )
     openChangeWidget()
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /^List/ }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^List(?! wall)/ }))
     expect(onChangeKind).toHaveBeenCalledWith('lens')
     expect(onClose).toHaveBeenCalled()
   })
@@ -120,10 +120,10 @@ describe('WidgetKindMenu', () => {
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Review/ }))
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^List/ }))
-    // Up from the first wraps to the last: the Neglect map.
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^List(?! wall)/ }))
+    // Up from the first wraps to the last: the List wall.
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Neglect map/ }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /List wall/ }))
     // Type-ahead: the next item starting with the key.
     fireEvent.keyDown(kinds, { key: 'n' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
@@ -207,7 +207,7 @@ describe('WidgetKindMenu', () => {
       // Adding: the groups' headings (the menu is named Add widget); plain items, nothing checked.
       expect(screen.getByRole('menu', { name: 'Add widget' })).toBeInTheDocument()
       expect(screen.getByText('Tasks')).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: /^List/ })).not.toHaveAttribute('aria-checked')
+      expect(screen.getByRole('menuitem', { name: /^List(?! wall)/ })).not.toHaveAttribute('aria-checked')
       openGlance()
       expect(screen.getByRole('menuitem', { name: 'Number' })).not.toHaveAttribute('aria-checked')
     })

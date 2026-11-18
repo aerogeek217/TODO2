@@ -19,6 +19,7 @@ import { assertNoReplaceHold, refusedByReplaceHold, registerReplaceSettle, repla
 import { useListDefinitionStore } from './list-definition-store'
 import { useListOrderStore } from './list-order-store'
 import { useTagStore } from './tag-store'
+import { useStatusStore } from './status-store'
 import { useSettingsStore } from './settings-store'
 import { defaultBreakdownColumns } from '../models/chart-widgets'
 import { trendName } from '../models/glance-widgets'
@@ -28,6 +29,7 @@ import { registerModuleReset, registerModuleSettle } from '../utils/module-reset
 import {
   LAYOUT_NAME_MAX,
   createTab,
+  isWaitingStatusName,
   widgetKindLabel,
   emptyLayoutBody,
   layoutBodyOf,
@@ -499,12 +501,16 @@ function randomId(): string {
 
 /**
  * A new tab's seed: a Neglect map with no tags given colours by the
- * `Project: …` tags; a Project pulse with none reads them; a Breakdown
+ * `Project: …` tags; a Pressure radar's Waiting quarter holds the statuses
+ * named like "Waiting"; a Project pulse with none reads them; a Breakdown
  * (every preset) writes its Due and Follow-up count columns in Settings ›
  * Tasks' ranges of the moment (`defaultBreakdownColumns`).
  */
 function seedFor(kind: WidgetKind, seed: TabSeed | undefined): TabSeed | undefined {
   if (kind === 'neglect' && !seed?.neglectTagIds) return { ...seed, neglectTagIds: projectTagIds(useTagStore.getState().tags) }
+  if (kind === 'radar' && !seed?.waitingStatusIds) {
+    return { ...seed, waitingStatusIds: useStatusStore.getState().statuses.flatMap((st) => (st.id != null && isWaitingStatusName(st.name) ? [st.id] : [])) }
+  }
   if (kind === 'pulse' && !seed?.tagIds) return { ...seed, tagIds: projectTagIds(useTagStore.getState().tags) }
   if (kind === 'breakdown' && !seed?.breakdown?.columns) {
     return { ...seed, breakdown: { ...seed?.breakdown, columns: defaultBreakdownColumns(useSettingsStore.getState().tabBadges) } }

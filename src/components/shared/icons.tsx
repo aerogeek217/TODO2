@@ -64,6 +64,31 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <circle cx="12" cy="4.5" r="1.5" fill="currentColor" stroke="none" />
     </>
   ),
+  // The Pressure radar: two rings, the cross, a dot near the middle.
+  radar: (
+    <>
+      <circle cx="8" cy="8" r="5.5" />
+      <circle cx="8" cy="8" r="2.5" />
+      <path d="M8 2.5v11M2.5 8h11" strokeWidth="1" />
+      <circle cx="10.4" cy="6" r="1.1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  // Work clusters: three bubbles of different sizes, joined.
+  clusters: (
+    <>
+      <circle cx="5" cy="5.5" r="2.5" />
+      <circle cx="11.5" cy="5" r="1.75" />
+      <circle cx="9.5" cy="11.5" r="2" />
+      <path d="M7.4 5.3l2.4-.2M6.4 7.6l1.9 2.3" />
+    </>
+  ),
+  // The List wall: blocks of squares.
+  listwall: (
+    <>
+      <path d="M2.5 2.5h4v4h-4zM9.5 2.5h4v4h-4zM2.5 9.5h4v4h-4z" />
+      <path d="M9.5 9.5h4v4h-4z" fill="currentColor" stroke="none" />
+    </>
+  ),
   // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`GLANCE_GLYPH`).
   number: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
   trend: <path d={GLANCE_GLYPH.chart} />,

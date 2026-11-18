@@ -1,0 +1,426 @@
+/*
+ * The Pressure radar (task maps R1). A square field holds the circle: the
+ * rim, the 21- and 7-day rings, the NOW disk (a button), the cross between
+ * the quarters, then the dots; the quarters' words sit in the field's
+ * corners, outside the circle. Each quarter's colour is a theme token,
+ * set once per `data-quarter` as `--quarter`.
+ */
+
+.faceHost {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+[data-quarter='due'] { --quarter: var(--color-deadline); }
+[data-quarter='followup'] { --quarter: var(--color-followup); }
+[data-quarter='waiting'] { --quarter: var(--hue-violet-text); }
+[data-quarter='untouched'] { --quarter: var(--color-text-secondary); }
+
+.widget {
+  position: relative;
+  display: flex;
+  gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 0 12px 0 0;
+}
+
+.widget[data-mobile='true'] {
+  flex: none;
+  padding: 0;
+}
+
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.field {
+  position: relative;
+  flex: none;
+}
+
+.rim,
+.ring,
+.nowDisk {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  box-sizing: border-box;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.rim {
+  width: 100%;
+  height: 100%;
+  border: 1px dashed var(--color-border);
+}
+
+.ring {
+  border: 1px solid var(--color-border);
+}
+
+.nowDisk {
+  z-index: var(--z-above);
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-tint-4);
+  cursor: pointer;
+}
+
+.nowDisk:hover:not(:disabled) {
+  background: var(--color-tint-7);
+}
+
+.nowDisk:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.nowDisk:disabled {
+  cursor: default;
+}
+
+.axisX,
+.axisY {
+  position: absolute;
+  background: var(--color-border);
+}
+
+.axisX {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+}
+
+.axisY {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.ringLabel {
+  position: absolute;
+  left: 50%;
+  z-index: var(--z-above);
+  padding: 0 3px;
+  transform: translate(4px, -50%);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+  line-height: 12px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  pointer-events: none;
+}
+
+/* ── Dots ──────────────────────────────────────────────────────────────── */
+
+.dot {
+  --dot-size: 7px;
+  position: absolute;
+  z-index: var(--z-above-2);
+  width: var(--dot-size);
+  height: var(--dot-size);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--quarter);
+  opacity: 0.5;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.dot[data-radar-dot='due'] { --quarter: var(--color-deadline); }
+.dot[data-radar-dot='followup'] { --quarter: var(--color-followup); }
+.dot[data-radar-dot='waiting'] { --quarter: var(--hue-violet-text); }
+.dot[data-radar-dot='untouched'] { --quarter: var(--color-text-secondary); }
+
+.dot[data-now='true'] {
+  opacity: 1;
+  box-shadow: 0 0 0 1.5px var(--color-surface);
+}
+
+.dot[data-marked='true'] {
+  --dot-size: 10px;
+}
+
+.dot:hover {
+  z-index: var(--z-above-3);
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.35);
+}
+
+.dot:focus-visible {
+  z-index: var(--z-above-3);
+  opacity: 1;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── The quarters' words ───────────────────────────────────────────────── */
+
+.word {
+  position: absolute;
+  z-index: var(--z-above-3);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 34%;
+  margin: 0;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font-family: inherit;
+  line-height: 1.25;
+  text-align: inherit;
+}
+
+.word[data-quarter='due'] { top: 0; right: 0; text-align: right; align-items: flex-end; }
+.word[data-quarter='followup'] { bottom: 0; right: 0; text-align: right; align-items: flex-end; }
+.word[data-quarter='waiting'] { bottom: 0; left: 0; }
+.word[data-quarter='untouched'] { top: 0; left: 0; }
+
+.wordName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--quarter);
+  white-space: nowrap;
+}
+
+.wordCounts {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.wordButton {
+  cursor: pointer;
+}
+
+.wordButton:hover .wordName {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.wordButton:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+/* ── The rules beside it ───────────────────────────────────────────────── */
+
+.legend {
+  flex: none;
+  width: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.legendTitle {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.rule {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.mark {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--quarter);
+}
+
+.ruleText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.ruleName {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.ruleWhat {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.legendNote {
+  margin-top: auto;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* ── The top line ──────────────────────────────────────────────────────── */
+
+.lineNow {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.lineNow b {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-deadline);
+}
+
+/* ── Faces ─────────────────────────────────────────────────────────────── */
+
+.smallFace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.smallTitle {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.smallFigures {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.smallCount {
+  flex: none;
+  font-size: var(--font-size-display-md);
+  font-weight: var(--font-weight-bold);
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.smallCount[data-lit='true'] {
+  color: var(--color-deadline);
+}
+
+.smallCaption {
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mediumFace {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  overflow: hidden;
+}
+
+.quarterRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font-family: inherit;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.quarterRow .mark {
+  margin-top: 0;
+}
+
+.quarterRow:hover:not(:disabled) {
+  background: var(--color-tint-5);
+}
+
+.quarterRow:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.quarterRow:disabled {
+  cursor: default;
+  color: var(--color-text-muted);
+}
+
+.rowName {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowNow {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-deadline);
+}
+
+.rowTotal {
+  min-width: 24px;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  text-align: right;
+}

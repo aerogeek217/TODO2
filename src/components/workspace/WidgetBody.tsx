@@ -7,6 +7,9 @@ import { CalendarWidget } from './calendar/CalendarWidget'
 import type { GlanceSummary } from './glance/glance-summary'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 import { NeglectMapWidget } from './neglect/NeglectMapWidget'
+import { PressureRadarWidget } from './radar/PressureRadarWidget'
+import { WorkClustersWidget } from './clusters/WorkClustersWidget'
+import { ListWallWidget } from './listwall/ListWallWidget'
 import { GlanceWidget } from './glance/GlanceWidget'
 import styles from './WidgetBody.module.css'
 
@@ -43,6 +46,12 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
       return <NotesWidget />
     case 'neglect':
       return <NeglectMapWidget tab={tab} />
+    case 'radar':
+      return <PressureRadarWidget tab={tab} />
+    case 'clusters':
+      return <WorkClustersWidget tab={tab} />
+    case 'listwall':
+      return <ListWallWidget tab={tab} />
     case 'number':
     case 'trend':
     case 'pulse':

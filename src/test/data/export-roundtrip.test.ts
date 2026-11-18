@@ -194,6 +194,10 @@ function buildSeed(): Seed {
             numberTab('t5', 'noFollowup', { breakdown: 'tags', litWhen: 'below', litAt: 4 }),
             { id: 't6', kind: 'lens', config: {} },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
+            // The task maps: the Pressure radar's Waiting statuses, Work clusters (no settings).
+            { id: 't21', kind: 'radar', config: { waitingStatusIds: [1] } },
+            { id: 't22', kind: 'clusters', config: {} },
+            { id: 't23', kind: 'listwall', config: {} },
             // Item 12: a Review widget (no settings, 2A) and its sort.
             { id: 't14', kind: 'review', config: {}, viewState: { sort: 'next' } },
             // The glance widgets, each with a setting off its default.
