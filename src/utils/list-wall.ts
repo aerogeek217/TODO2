@@ -18,16 +18,20 @@ export const WALL_TONE_NAMES: Record<WallTone, string> = {
   stale: 'Stale',
 }
 
-/** A block's squares, in rows of this many where there is height for six rows. */
-const WALL_COLUMNS = 14
-/** A block's rows at most, and at least (a short cell). */
-const WALL_ROWS_MAX = 6
+/** A block's squares at least across (its name ellipsizes), and at most. */
+const WALL_COLUMNS_MIN = 8
+const WALL_COLUMNS_MAX = 40
+/** Without a measured width: 14 across, the blocks wrapping. */
+const WALL_COLUMNS_UNMEASURED = 14
+/** A block's rows at least (a short cell), at most while its blocks wrap, and at most in one row of blocks. */
 const WALL_ROWS_MIN = 2
-/** A short cell's blocks widen up to this many columns, so a block keeps its squares. */
-const WALL_COLUMNS_MAX = 28
+const WALL_ROWS_MAX = 6
+const WALL_ROWS_MAX_ONE_LINE = 12
 /** A square's side and the gap between squares, px. */
 const WALL_SQUARE_PX = 10
 const WALL_SQUARE_GAP_PX = 2
+/** The gap between blocks side by side, px. */
+const WALL_BLOCK_GAP_PX = 18
 
 /** A Lines box's state as the wall's: `none` is on track. */
 export function wallTone(tone: 'late' | 'soon' | 'followup' | 'stale' | 'none'): WallTone {
@@ -67,18 +71,36 @@ export function buildWallList<T>(
   return { ...list, squares: WALL_TONES.flatMap((t) => byTone.get(t)!), counts }
 }
 
+/** How the wall lays out its blocks: `perRow` side by side (`null`: unmeasured, they wrap), each `columns` squares across and `rows` down at most. */
+export interface WallShape {
+  perRow: number | null
+  columns: number
+  rows: number
+}
+
+/** A block `columns` squares across, px. */
+const blockWidth = (columns: number) => columns * (WALL_SQUARE_PX + WALL_SQUARE_GAP_PX) - WALL_SQUARE_GAP_PX
+
 /**
- * A block's grid of `count` squares with room for `rowsFit` rows (the
- * wall's height): 14 columns while six rows fit; in a shorter wall fewer
- * rows (two at least), the block widening up to 28 columns so it keeps as
- * many squares as six rows of 14 hold — a wide, short cell (a strip above
- * a row of tabs) shows its lists side by side.
+ * The wall's shape for `count` lists in `width` px with room for `rowsFit`
+ * rows of squares: as many blocks side by side as fit at 8 squares across
+ * (all of them where they fit — a wide cell shows its lists in one row,
+ * never wrapping into empty width), each block then sharing the width
+ * evenly, its squares as many across as that width holds (40 at most). Down:
+ * the rows the height has, two at least, six at most while the blocks
+ * wrap — twelve in one row of blocks.
  */
-export function wallGridShape(count: number, rowsFit: number): { columns: number; rows: number } {
-  const rows = Math.max(WALL_ROWS_MIN, Math.min(WALL_ROWS_MAX, Math.floor(rowsFit)))
-  const wanted = Math.min(count, WALL_COLUMNS * WALL_ROWS_MAX)
-  const columns = Math.max(WALL_COLUMNS, Math.min(WALL_COLUMNS_MAX, Math.ceil(wanted / rows)))
-  return { columns, rows }
+export function wallShape(count: number, width: number, rowsFit: number): WallShape {
+  const fit = Number.isFinite(rowsFit) ? Math.floor(rowsFit) : WALL_ROWS_MAX
+  if (width <= 0 || count <= 0) {
+    return { perRow: null, columns: WALL_COLUMNS_UNMEASURED, rows: Math.max(WALL_ROWS_MIN, Math.min(WALL_ROWS_MAX, fit)) }
+  }
+  const minWidth = blockWidth(WALL_COLUMNS_MIN)
+  const perRow = Math.max(1, Math.min(count, Math.floor((width + WALL_BLOCK_GAP_PX) / (minWidth + WALL_BLOCK_GAP_PX))))
+  const each = (width - (perRow - 1) * WALL_BLOCK_GAP_PX) / perRow
+  const columns = Math.max(WALL_COLUMNS_MIN, Math.min(WALL_COLUMNS_MAX, Math.floor((each + WALL_SQUARE_GAP_PX) / (WALL_SQUARE_PX + WALL_SQUARE_GAP_PX))))
+  const rowsMax = perRow >= count ? WALL_ROWS_MAX_ONE_LINE : WALL_ROWS_MAX
+  return { perRow, columns, rows: Math.max(WALL_ROWS_MIN, Math.min(rowsMax, fit)) }
 }
 
 /** How many rows of squares a wall body `height` px tall leaves room for, under a block's name and words. */
@@ -87,13 +109,12 @@ export function wallRowsFit(height: number): number {
   return Math.floor((height - 63 + WALL_SQUARE_GAP_PX) / (WALL_SQUARE_PX + WALL_SQUARE_GAP_PX))
 }
 
-/** The squares a block draws in its grid (`wallGridShape`), and how many it leaves for its `+N`. */
-export function wallSquaresShown<T>(list: WallList<T>, rowsFit = WALL_ROWS_MAX): { squares: WallSquare<T>[]; more: number; columns: number } {
-  const { columns, rows } = wallGridShape(list.squares.length, rowsFit)
-  const cap = columns * rows
-  if (list.squares.length <= cap) return { squares: list.squares, more: 0, columns }
+/** The squares a block draws in a wall of `shape`, and how many it leaves for its `+N`. */
+export function wallSquaresShown<T>(list: WallList<T>, shape: Pick<WallShape, 'columns' | 'rows'> = { columns: WALL_COLUMNS_UNMEASURED, rows: WALL_ROWS_MAX }): { squares: WallSquare<T>[]; more: number } {
+  const cap = shape.columns * shape.rows
+  if (list.squares.length <= cap) return { squares: list.squares, more: 0 }
   const kept = cap - 3
-  return { squares: list.squares.slice(0, kept), more: list.squares.length - kept, columns }
+  return { squares: list.squares.slice(0, kept), more: list.squares.length - kept }
 }
 
 /** `4 overdue · 3 follow-ups late` — else `2 due soon` — else `Nothing late`. */

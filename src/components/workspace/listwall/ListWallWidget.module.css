@@ -1,7 +1,7 @@
 /*
  * The List wall (task maps, 2026-11-18). Large: blocks of 10px squares,
- * 14 to a row (up to 28 in a short cell, `--wall-columns`), wrapping across
- * the cell and scrolling down. Medium: a bar per list, in columns as wide
+ * side by side as many as fit, sharing the width (`--wall-per-row`), each
+ * as many squares across as its width holds (`--wall-columns`), scrolling down. Medium: a bar per list, in columns as wide
  * as the cell allows. Each state's colour is a theme token, set once per `data-tone`.
  */
 
@@ -49,12 +49,34 @@
   gap: 14px 18px;
 }
 
+/* Measured: `--wall-per-row` blocks side by side, sharing the width (`list-wall.wallShape`). */
+.blocks[data-per-row] {
+  display: grid;
+  grid-template-columns: repeat(var(--wall-per-row), minmax(0, 1fr));
+}
+
 .block {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  /* As wide as its grid of squares, and room for a name at least. */
+  min-width: 0;
+  /* Unmeasured: as wide as its grid of squares, and room for a name at least. */
   width: max(166px, calc(var(--wall-columns, 14) * 12px - 2px));
+}
+
+.blocks[data-per-row] .block {
+  width: auto;
+}
+
+/* The legend's square (the name's tooltip). */
+.legendSquare {
+  display: block;
+  width: 10px;
+  height: 10px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--tone-edge);
+  border-radius: 2px;
+  background: var(--tone-fill);
 }
 
 .blockHead {

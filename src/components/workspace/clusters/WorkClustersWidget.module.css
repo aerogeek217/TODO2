@@ -191,6 +191,48 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── The legend (the name's tooltip) ───────────────────────────────────── */
+
+.legendPerson,
+.legendTag {
+  display: block;
+  width: 11px;
+  height: 11px;
+  box-sizing: border-box;
+  border-radius: 50%;
+}
+
+.legendPerson {
+  border: 1.5px solid var(--color-text-muted);
+  background: var(--color-surface-high);
+}
+
+.legendTag {
+  border: 1.5px solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-surface));
+}
+
+.legendBadge {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-deadline);
+}
+
+.legendLink,
+.legendBridge {
+  display: block;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-tint-16);
+}
+
+.legendBridge {
+  background: color-mix(in srgb, var(--hue-amber-text) 55%, transparent);
+}
+
 /* ── The top line and the faces ────────────────────────────────────────── */
 
 .lineCount {

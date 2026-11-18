@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { TooltipBubble } from './TooltipBubble'
+import { TooltipBubble, type TooltipLegendItem } from './TooltipBubble'
 import { POPOVER_LEVEL_ATTR } from './popover-level'
 import { registerModuleReset } from '../../utils/module-reset'
 
@@ -68,7 +68,8 @@ export interface UseTooltipResult {
  * scroll. Touch never opens it, nor does a trigger outside an open popover
  * (`popoverOpenElsewhere`). `text` may hold several lines (`\n`): the
  * first (or the first `labelLines`) is the label, the rest muted lines. `shortcut` adds a muted
- * key after the label (`Complete Space`). Only labels and shortcuts go in a
+ * key after the label (`Complete Space`); `legend` adds rows of a mark and
+ * its meaning under it (a widget's name line). Only labels and shortcuts go in a
  * tooltip, never anything clickable.
  *
  * Returns props for the trigger plus the tooltip node; while open the trigger
@@ -79,6 +80,8 @@ export function useTooltip(text: string | null | undefined, opts: {
   labelLines?: number
   /** A description in sentences (`TooltipBubble`'s `prose`, as Settings' ⓘ shows one): no label line. */
   prose?: boolean
+  /** A legend under the label (a widget's name: its marks and what each means). */
+  legend?: readonly TooltipLegendItem[]
 } = {}): UseTooltipResult {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -133,6 +136,6 @@ export function useTooltip(text: string | null | undefined, opts: {
   return {
     triggerProps,
     // Escape, a scroll or a resize closes it (the bubble's `usePopoverAnchor`).
-    tooltip: open ? <TooltipBubble id={id} anchorRef={anchorRef} text={text} shortcut={opts.shortcut} labelLines={opts.labelLines} prose={opts.prose} onClose={hide} /> : null,
+    tooltip: open ? <TooltipBubble id={id} anchorRef={anchorRef} text={text} shortcut={opts.shortcut} labelLines={opts.labelLines} prose={opts.prose} legend={opts.legend} onClose={hide} /> : null,
   }
 }

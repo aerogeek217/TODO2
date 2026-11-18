@@ -1,9 +1,15 @@
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './Tooltip.module.css'
 
 const GAP_PX = 6
+
+/** A legend row under a tooltip's label: what a mark means (`swatch`, drawn by the caller) and its name. */
+export interface TooltipLegendItem {
+  label: string
+  swatch: ReactNode
+}
 
 /**
  * The tooltip panel `useTooltip` (and `HelpTip`) shows: portaled and placed by
@@ -11,7 +17,7 @@ const GAP_PX = 6
  * kept inside the viewport. Escape, a scroll or a window resize closes it.
  * `prose`: a description in plain sentences — wider, regular weight, no label line.
  */
-export function TooltipBubble({ id, anchorRef, text, shortcut, labelLines = 1, prose = false, consumeEscape = false, onClose }: {
+export function TooltipBubble({ id, anchorRef, text, shortcut, labelLines = 1, prose = false, legend, consumeEscape = false, onClose }: {
   id: string
   anchorRef: RefObject<HTMLElement | null>
   text: string
@@ -20,6 +26,8 @@ export function TooltipBubble({ id, anchorRef, text, shortcut, labelLines = 1, p
   labelLines?: number
   /** A description in sentences: wider, regular weight, every line alike. */
   prose?: boolean
+  /** A legend under the text: a widget's marks and what each means. */
+  legend?: readonly TooltipLegendItem[]
   /** The Escape that closes it goes no further (a dialog behind it stays open). */
   consumeEscape?: boolean
   onClose: () => void
@@ -32,7 +40,7 @@ export function TooltipBubble({ id, anchorRef, text, shortcut, labelLines = 1, p
     closeOnOutsideClick: false,
     consumeEscape,
     onClose,
-    contentKey: `${text}|${shortcut ?? ''}`,
+    contentKey: `${text}|${shortcut ?? ''}|${legend?.map((l) => l.label).join('|') ?? ''}`,
   })
 
   if (prose) {
@@ -53,7 +61,7 @@ export function TooltipBubble({ id, anchorRef, text, shortcut, labelLines = 1, p
   const lines = text.split('\n')
   const first = lines.slice(0, labelLines).join('\n')
   const rest = lines.slice(labelLines)
-  const multiLine = lines.length > 1
+  const multiLine = lines.length > 1 || (legend?.length ?? 0) > 0
   return createPortal(
     <div
       ref={panelRef}
@@ -68,6 +76,16 @@ export function TooltipBubble({ id, anchorRef, text, shortcut, labelLines = 1, p
         {shortcut && <span className={styles.shortcut}> {shortcut}</span>}
       </span>
       {rest.map((line, i) => <span key={i} className={styles.line}>{line}</span>)}
+      {legend && legend.length > 0 && (
+        <span className={styles.legend}>
+          {legend.map((item) => (
+            <span key={item.label} className={styles.legendRow}>
+              <span className={styles.legendSwatch} aria-hidden="true">{item.swatch}</span>
+              {item.label}
+            </span>
+          ))}
+        </span>
+      )}
     </div>,
     document.body,
   )

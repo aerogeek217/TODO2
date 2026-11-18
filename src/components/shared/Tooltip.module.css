@@ -46,6 +46,31 @@
   font-weight: var(--font-weight-regular);
 }
 
+/* A legend under the label (`legend`): a mark, then what it means. */
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 5px;
+  font-weight: var(--font-weight-regular);
+  white-space: nowrap;
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legendSwatch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 12px;
+}
+
 @keyframes tooltip-fade {
   from { opacity: 0; }
   to { opacity: 1; }
