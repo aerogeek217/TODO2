@@ -13,6 +13,7 @@ import { themeColor } from '../../../utils/theme-color'
 import { taskMapFaceFor, type WidgetFace } from '../../../utils/widget-face'
 import { buildClusterGraph, layoutClusters, type ClusterGraph, type ClusterNode } from '../../../utils/work-clusters'
 import { EntityMenu, type MenuEntity } from '../../shared/EntityMenu'
+import { HelpTip } from '../../shared/HelpTip'
 import { useTooltip } from '../../shared/use-tooltip'
 import { clusterDrill } from '../glance/glance-drills'
 import { WidgetNameLine } from '../WidgetTopLine'
@@ -23,6 +24,9 @@ const LAYOUT_STEP_PX = 24
 /** A bubble this wide or wider shows its name; this wide or wider its count too. */
 const NAME_MIN_R = 17
 const COUNT_MIN_R = 24
+
+/** How to read the map: the name line's ⓘ. */
+const CLUSTERS_HELP = 'People (gray) and tags (colored), sized by their open tasks. A line joins a person and a tag that share tasks, thicker the more they share; amber lines join two clusters. Each cluster is named by its biggest tag.'
 
 const graphMemo = sharedMemo((
   shown: readonly PersistedTodoItem[],
@@ -211,17 +215,12 @@ function ClustersFull() {
   return (
     <>
       <WidgetNameLine name="Work clusters">
-        <span className={styles.lineCount} data-testid="clusters-line-count">{plural(groups.length, 'cluster')}</span>
+        <span className={styles.lineCount} data-testid="clusters-line-count">
+          {plural(groups.length, 'cluster')}{graph.hidden > 0 && ` · ${graph.hidden} smaller hidden`}
+        </span>
+        <HelpTip label="Work clusters" text={CLUSTERS_HELP} />
       </WidgetNameLine>
       <div className={styles.widget} data-mobile={isMobile ? 'true' : undefined}>
-        <div className={styles.keys} aria-hidden="true">
-          <span className={styles.key}><span className={styles.keyPerson} />Person</span>
-          <span className={styles.key}><span className={styles.keyTag} />Tag</span>
-          <span className={styles.keyNote}>
-            Size: open tasks · Line: tasks shared · <span className={styles.keyBridge}>amber: between clusters</span>
-            {graph.hidden > 0 && ` · ${graph.hidden} smaller not shown`}
-          </span>
-        </div>
         <div ref={fieldRef} className={styles.field} role="group" aria-label="People and tags, drawn together by the tasks they share">
           {graph.nodes.length === 0 && <p className={styles.empty} role="status">No open tasks with people or tags.</p>}
           {ready && layout.halos.map((h) => {

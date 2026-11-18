@@ -527,10 +527,8 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
 
   return (
     <>
-    {/* Alone in its cell, its top line (D26 AA1): its name and how many are slipping. */}
-    <WidgetNameLine name="Neglect map">
-      <span className={styles.lineSlipping} data-testid="neglect-line-slipping">Slipping <b>{map.slipping.length}</b></span>
-    </WidgetNameLine>
+    {/* Alone in its cell, its top line (D26 AA1): its name (Slipping's count is its corner's word). */}
+    <WidgetNameLine name="Neglect map" />
     <div
       ref={sizeRef}
       // A phone stacks the plot (scaled to its width) over the list; elsewhere the plot fills the widget, beside the list when there is one.
@@ -635,7 +633,7 @@ function SlippingList({ map, untouchedDays, selectedIds }: {
       </header>
       {map.slipping.length === 0 ? (
         <p className={styles.slipEmpty}>
-          Nothing slipping: every task due soon or late was touched in the last {untouchedDays} days.
+          Nothing slipping.
         </p>
       ) : (
         <ol className={styles.slipList}>

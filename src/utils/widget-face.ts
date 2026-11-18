@@ -110,18 +110,17 @@ export function taskMapFaceFor(size: { width: number; height: number }): WidgetF
 
 /** A List wall's body this narrow or narrower (and not small) shows its bars, a line per list. */
 const LIST_WALL_BARS_MAX_WIDTH_PX = 560
-/** A List wall's body this short or shorter (and not small) shows its bars. */
-const LIST_WALL_BARS_MAX_HEIGHT_PX = 220
 
 /**
  * A List wall's face (2026-11-18): small as every widget's; medium — a bar
- * per list — while the body is too narrow or short for blocks of squares
- * (`LIST_WALL_BARS_MAX_*`); else large. Unmeasured is `large`.
+ * per list — while the body is too narrow for blocks of squares
+ * (`LIST_WALL_BARS_MAX_WIDTH_PX`); else large, whose blocks trade rows for
+ * columns in a short cell (`list-wall.wallGridShape`). Unmeasured is `large`.
  */
 export function listWallFaceFor(size: { width: number; height: number }): WidgetFace {
-  const face = widgetFaceFor(size)
-  if (face !== 'large') return face
   const { width, height } = size
   if (width <= 0 && height <= 0) return 'large'
-  return width <= LIST_WALL_BARS_MAX_WIDTH_PX || height <= LIST_WALL_BARS_MAX_HEIGHT_PX ? 'medium' : 'large'
+  // A medium height is no reason for bars: the blocks fit two rows of squares in it.
+  if (widgetFaceFor(size) === 'small') return 'small'
+  return width <= LIST_WALL_BARS_MAX_WIDTH_PX ? 'medium' : 'large'
 }
