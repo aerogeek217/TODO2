@@ -89,3 +89,21 @@ export function tabOpensLarger(tab: LayoutTab, face: WidgetFace): boolean {
     default: return face === 'small'
   }
 }
+
+/** A task map's (the Pressure radar's, Work clusters') body this short or shorter (and not small) shows its medium face: under it the map is too small to read. */
+const TASK_MAP_MEDIUM_MAX_HEIGHT_PX = 280
+/** A task map's body this narrow or narrower (and not small) shows its medium face. */
+const TASK_MAP_MEDIUM_MAX_WIDTH_PX = 340
+
+/**
+ * A task map's face (2026-11-18): small as every widget's; medium — its
+ * figures as rows — while the body is too small for the map to read
+ * (`TASK_MAP_MEDIUM_MAX_*`); else large. Unmeasured is `large`.
+ */
+export function taskMapFaceFor(size: { width: number; height: number }): WidgetFace {
+  const face = widgetFaceFor(size)
+  if (face !== 'large') return face
+  const { width, height } = size
+  if (width <= 0 && height <= 0) return 'large'
+  return height <= TASK_MAP_MEDIUM_MAX_HEIGHT_PX || width <= TASK_MAP_MEDIUM_MAX_WIDTH_PX ? 'medium' : 'large'
+}

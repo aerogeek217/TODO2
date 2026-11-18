@@ -170,3 +170,39 @@ export function slippingDrill(todoIds: readonly number[], days: number): GlanceD
     source: { kind: 'todos', todoIds },
   }
 }
+
+// ── The task maps (2026-11-18) ──────────────────────────────────────────────
+
+/** What each Pressure radar quarter holds, in a sentence. */
+const RADAR_QUARTER_DRILLS: Record<string, { title: string; description: string; glyph: GlanceGlyphName }> = {
+  due: { title: 'Due date', glyph: 'overdue', description: 'Open tasks whose due date comes before their next follow-up, the soonest first.' },
+  followup: { title: 'Follow-up', glyph: 'followup', description: 'Open tasks whose next follow-up comes before their due date, the soonest first.' },
+  waiting: { title: 'Waiting', glyph: 'status', description: 'Open tasks with a Waiting status, by when to chase them: the next follow-up, else a week after the last.' },
+  untouched: { title: 'Untouched', glyph: 'stale', description: 'Open tasks with no due date, follow-up or Waiting status, by when they go stale.' },
+}
+
+/** A Pressure radar quarter's tasks (`quarter`: its key), the soonest first. */
+export function radarQuarterDrill(quarter: string, todoIds: readonly number[]): GlanceDrill {
+  const spec = RADAR_QUARTER_DRILLS[quarter] ?? RADAR_QUARTER_DRILLS.due!
+  return { title: spec.title, glyph: spec.glyph, description: spec.description, source: { kind: 'todos', todoIds: [...todoIds] } }
+}
+
+/** The Pressure radar's middle: every task that needs you now, the latest first. */
+export function radarNowDrill(todoIds: readonly number[]): GlanceDrill {
+  return {
+    title: 'Need you now',
+    glyph: 'urgent',
+    description: 'Open tasks overdue, with a follow-up due or late, waiting a week or more since the last follow-up, or gone stale.',
+    source: { kind: 'todos', todoIds: [...todoIds] },
+  }
+}
+
+/** A Work clusters cluster's tasks: each task of its people and tags, once. */
+export function clusterDrill(name: string, todoIds: readonly number[]): GlanceDrill {
+  return {
+    title: name,
+    glyph: 'people',
+    description: `Open tasks of the people and tags in the ${name} cluster.`,
+    source: { kind: 'todos', todoIds: [...todoIds] },
+  }
+}

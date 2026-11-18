@@ -163,7 +163,7 @@ describe('cellMenuFor (outside the mode: what is inside a cell changes in place)
     const add = childrenOf(cellMenuFor(notes(), actions({ onAddTab })), 'Add widget as tab')
     expect(words(add)).toEqual([
       '[Tasks]', 'List', 'Calendar', 'Review', 'Notes',
-      '—', '[Insights]', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map',
+      '—', '[Insights]', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map', 'Pressure radar', 'Work clusters',
     ])
     select(item(add, 'Calendar'))
     select(item(childrenOf(add, 'Breakdown'), 'People'))

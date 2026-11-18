@@ -40,10 +40,10 @@ describe('WidgetKindMenu', () => {
     expect(panelWords(kindsMenu())).toEqual([
       '[Tasks]', 'List', 'Calendar', 'Review', 'Notes',
       '—', '[Insights]',
-      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map',
+      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map', 'Pressure radar', 'Work clusters',
     ])
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
-      'List', 'Calendar', 'Review', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map',
+      'List', 'Calendar', 'Review', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map', 'Pressure radar', 'Work clusters',
     ])
     expect(screen.getByRole('menuitemradio', { name: /^List/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /^Notes/ })).toHaveAttribute('aria-checked', 'true')
@@ -121,9 +121,9 @@ describe('WidgetKindMenu', () => {
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^List/ }))
-    // Up from the first wraps to the last: the Neglect map.
+    // Up from the first wraps to the last: Work clusters.
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Neglect map/ }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Work clusters/ }))
     // Type-ahead: the next item starting with the key.
     fireEvent.keyDown(kinds, { key: 'n' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
