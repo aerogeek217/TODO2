@@ -20,6 +20,8 @@ function body(cell: Locator, kind: WidgetKind): Locator {
     case 'notes': return cell.locator('.cm-content')
     case 'review': return cell.locator('[data-review-widget]')
     case 'neglect': return cell.locator('[data-neglect-map]')
+    case 'clusters': return cell.locator('[data-clusters]')
+    case 'listwall': return cell.locator('[data-list-wall]')
     default: return cell.locator(`[data-glance="${kind}"]`)
   }
 }
@@ -36,7 +38,7 @@ const tab = (page: Page, kind: WidgetKind) => {
 /** No editor opens on add (decision 8): no Edit list, no Number or chart editor. */
 const noEditor = async (page: Page) => {
   await expect(page.getByRole('dialog', { name: /^Edit list / })).toHaveCount(0)
-  await expect(page.locator('[data-number-editor], [data-chart-editor], [data-pulse-editor]')).toHaveCount(0)
+  await expect(page.locator('[data-number-editor], [data-chart-editor], [data-trend-editor]')).toHaveCount(0)
 }
 const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindLabel), 'Insights']
 

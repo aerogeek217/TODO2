@@ -28,22 +28,21 @@ const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as 
 /** Each glance kind with a setting: a config it keeps (not its default), one it repairs, and the default. */
 const SETTINGS: Array<[GlanceWidgetKind, string, unknown, unknown, unknown]> = [
   ['trend', 'range', '12w', '1y', '14d'],
-  ['pulse', 'tagIds', [2], { 0: 1 }, []],
 ]
 
 describe('glance widget kinds', () => {
   it('are glance widgets in the Insights group; only a Number fits its height', () => {
     const glance = WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].glance)
-    expect(glance).toEqual(['number', 'breakdown', 'pivot', 'trend', 'pulse'])
+    expect(glance).toEqual(['number', 'breakdown', 'pivot', 'trend'])
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'notes'])
     // Insights: the glance widgets, then the Neglect map and the task maps — whole widgets, not glance ones. The group
     // is the menus' only: the Calendar (Tasks) and the Neglect map (Insights) alike are not glance kinds.
-    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'insights')).toEqual([...glance, 'neglect', 'radar', 'clusters', 'listwall'])
-    expect(['calendar', 'neglect', 'radar', 'clusters', 'listwall'].some((k) => isWidgetKind(k) && isGlanceKind(k))).toBe(false)
-    // The Dashboard (v77), the kinds D26 retired (v78) and the Eisenhower (after v78) are gone.
-    for (const gone of ['dashboard', 'followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary', 'people', 'tags', 'status', 'eisenhower']) {
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'insights')).toEqual([...glance, 'neglect', 'clusters', 'listwall'])
+    expect(['calendar', 'neglect', 'clusters', 'listwall'].some((k) => isWidgetKind(k) && isGlanceKind(k))).toBe(false)
+    // The Dashboard (v77), the kinds D26 retired (v78), the Eisenhower (after v78), Project pulse and the Pressure radar (v83) are gone.
+    for (const gone of ['dashboard', 'followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary', 'people', 'tags', 'status', 'eisenhower', 'pulse', 'radar']) {
       expect(isWidgetKind(gone), gone).toBe(false)
     }
   })
@@ -52,47 +51,6 @@ describe('glance widget kinds', () => {
     expect(createTab('number', 'n')).toEqual({ id: 'n', kind: 'number', config: { name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' } })
     expect(createTab('trend', 't').config).toEqual({ range: '14d', name: 'Created vs completed', show: 'bars' })
     expect(createTab('breakdown', 'b').config).toEqual({ name: 'Breakdown', filter: emptyPredicate(), splitBy: 'people', style: 'bars', show: 'count', showNone: true })
-    // Project pulse reads the tags it's seeded with (the store passes the `Project: …` tags).
-    expect(createTab('pulse', 'x').config).toEqual({ tagIds: [] })
-    expect(createTab('pulse', 'x', { tagIds: [4, 2] }).config).toEqual({ tagIds: [4, 2] })
-  })
-
-  it('a tag pick list keeps its numbers once each, in order: a repeat goes quietly, anything else is a fix', () => {
-    for (const kind of ['pulse'] as const) {
-      expect(tabOf(layoutRow({ id: 't', kind, config: { tagIds: [2, 1, 2] } }))).toEqual({ id: 't', kind, config: { tagIds: [2, 1] } })
-      expect(rowFixes('layouts', layoutRow({ id: 't', kind, config: { tagIds: [2, 1, 2] } }))).toEqual([])
-      const mixed = layoutRow({ id: 't', kind, config: { tagIds: [2, 'x', null, 5] } })
-      expect(checkLayoutBody(mixed)).toBe('cells[0].tabs[0].config.tagIds')
-      expect(rowFixes('layouts', mixed)).toEqual(['tab or cell settings reset'])
-      expect(tabOf(mixed)).toEqual({ id: 't', kind, config: { tagIds: [2, 5] } })
-    }
-  })
-
-  // G5: Project pulse's rules (no schema step: absent = the defaults).
-  it('Project pulse’s rules round-trip; a bad rule, name or filter is a fix and reads as its default', () => {
-    const late = { name: 'Behind', filter: { ...emptyPredicate(), expression: { kind: 'tag', id: 4 } } }
-    const config = { tagIds: [2], late, stale: { name: 'Quiet' } }
-    const good = layoutRow({ id: 't', kind: 'pulse', config })
-    expect(validateRow('layouts', good)).toBe(true)
-    expect(rowFixes('layouts', good)).toEqual([])
-    expect(tabOf(good)).toEqual({ id: 't', kind: 'pulse', config })
-
-    const badRule = layoutRow({ id: 't', kind: 'pulse', config: { tagIds: [2], stale: 7 } })
-    expect(checkLayoutBody(badRule)).toBe('cells[0].tabs[0].config.stale')
-    expect(rowFixes('layouts', badRule)).toEqual(['tab or cell settings reset'])
-    expect(tabOf(badRule)).toEqual({ id: 't', kind: 'pulse', config: { tagIds: [2] } })
-
-    const badName = layoutRow({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { ...late, name: null } } })
-    expect(checkLayoutBody(badName)).toBe('cells[0].tabs[0].config.late.name')
-    expect(tabOf(badName)).toEqual({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { ...late, name: 'late' } } })
-
-    // A filter without its required fields is read as a list's (a fix); one that isn't an object goes (the default).
-    const badFilter = layoutRow({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { name: 'L', filter: { tags: [3] } } } })
-    expect(checkLayoutBody(badFilter)).toBe('cells[0].tabs[0].config.late.filter.showCompleted')
-    expect(rowFixes('layouts', badFilter)).toEqual(['tab or cell settings reset'])
-    const notObject = layoutRow({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { name: 'L', filter: 'overdue' } } })
-    expect(checkLayoutBody(notObject)).toBe('cells[0].tabs[0].config.late.filter.predicate')
-    expect(tabOf(notObject)).toEqual({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { name: 'L' } } })
   })
 
   // Widget feedback 2C: Created vs completed's name, filter and Show as (no schema step: absent = the defaults).

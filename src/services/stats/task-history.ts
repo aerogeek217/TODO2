@@ -28,7 +28,7 @@ import { daysUntil } from '../../utils/effective-date'
  */
 
 /** When a completed task was completed: `completedAt`, or `modifiedAt` for a row without one. */
-export function completionOf(task: Pick<PersistedTodoItem, 'completedAt' | 'modifiedAt'>): Date {
+function completionOf(task: Pick<PersistedTodoItem, 'completedAt' | 'modifiedAt'>): Date {
   return new Date(task.completedAt ?? task.modifiedAt)
 }
 

@@ -90,7 +90,7 @@ export function tabOpensLarger(tab: LayoutTab, face: WidgetFace): boolean {
   }
 }
 
-/** A task map's (the Pressure radar's, Work clusters') body this short or shorter (and not small) shows its medium face: under it the map is too small to read. */
+/** A task map's (Work clusters') body this short or shorter (and not small) shows its medium face: under it the map is too small to read. */
 const TASK_MAP_MEDIUM_MAX_HEIGHT_PX = 280
 /** A task map's body this narrow or narrower (and not small) shows its medium face. */
 const TASK_MAP_MEDIUM_MAX_WIDTH_PX = 340

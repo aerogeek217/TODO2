@@ -15,7 +15,7 @@ interface WidgetEditorProps<T extends LayoutTab> {
 
 /**
  * The host of an open widget editor — the Number's, a chart's, Created vs
- * completed's, Project pulse's: `tabId` (the store's open editor) names a
+ * completed's: `tabId` (the store's open editor) names a
  * tab of the open layout that `isKind` accepts, and the editor opens beside
  * the widget's `anchor` element (`[data-number-body="<tab id>"]`, …), looked
  * for now and over the next 30 frames while the widget mounts (a new one, a

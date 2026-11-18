@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useReducer } from 'react'
-import type { PersistedTodoItem, Tag, TodoEvent, TodoPredicate } from '../models'
+import type { PersistedTodoItem, TodoEvent, TodoPredicate } from '../models'
 import { TREND_RANGES, type NumberConfig, type TrendRange, type TrendTabConfig } from '../models/glance-widgets'
 import { emptyPredicate } from '../models/filter-predicate'
 import { countReplayed, historyExactFrom, historyExactness, replayTasks, type HistoryExactness, type HistoryField, type TaskReplays } from '../services/stats/filter-history'
 import { numberHistoryDays, numberIds, numberStages } from '../services/stats/number-count'
-import { computePulse, type PulseCard } from '../services/stats/pulse'
-import { pulseRuleFilter, type PulseRuleKey, type PulseTabConfig } from '../models/pulse-config'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { usePersonStore } from '../stores/person-store'
@@ -18,7 +16,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { trendFieldsWindow } from '../utils/trend-window'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
-import { applyFilter, matchesFilterWithLookups, readsText, type FilterSettings } from '../utils/filter-match'
+import { applyFilter, readsText, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { WeekStart } from '../utils/effective-date'
 import { registerModuleReset } from '../utils/module-reset'
@@ -33,16 +31,9 @@ import { useScreenFilter } from '../stores/screen-filter'
  * on screen, and each statistic computed once per set of inputs, however
  * many widgets show it (`utils/shared-memo` — each part's inputs are store
  * values or other shared parts, so they compare by identity). A memo keeps
- * one input set, or one per choice of the option its callers differ by
- * (`OPTION_SLOTS`), so stale generations of the task arrays aren't held. The
+ * one input set, so stale generations of the task arrays aren't held. The
  * statistics themselves are the pure `services/stats/*` functions.
  */
-
-/**
- * Input sets kept by a memo whose callers differ by a free choice (Project
- * pulse's tag picks, one per tab): a few tabs on screen each hit.
- */
-const OPTION_SLOTS = 8
 
 /** A statistic over the screen-filtered tasks, and over every task (the `of N`). */
 interface ShownOfTotal<T> {
@@ -435,39 +426,3 @@ export function useNumberHistory(base: StatsBase, count: NumberCount): NumberHis
     return numberHistoryMemo(filter, screen, replays, days, lookups, markerSettings, historyLogSince)
   })
 }
-
-// ── Project pulse (D25 L) ───────────────────────────────────────────────────
-
-const pulseMemo = sharedMemo((
-  shown: Tasks,
-  tags: readonly Tag[],
-  ctx: StatsContext,
-  tagIds: readonly number[],
-  staleAfterDays: number,
-  late: FilterCriteria | null,
-  stale: FilterCriteria | null,
-  lookups: TodoNameLookups | null,
-  settings: FilterSettings,
-): PulseCard[] => {
-  // A rule with a filter of its own (G5) matches through it, as a chart's filter does; else its built-in default.
-  const match = (c: FilterCriteria | null) => (c && lookups ? (t: PersistedTodoItem) => matchesFilterWithLookups(c, t, lookups, ctx.today, settings) : undefined)
-  return computePulse(shown, tags, ctx, tagIds, staleAfterDays, { late: match(late), stale: match(stale) })
-}, OPTION_SLOTS)
-/**
- * Project pulse's cards over the screen-filtered tasks, a card per picked
- * tag; late and stale by its rules (G5): a rule's filter over a card's open
- * tasks (the lookups only when one has a filter, so a write no rule reads
- * recomputes nothing), else its default.
- */
-export function usePulse(base: StatsBase, config: Pick<PulseTabConfig, 'tagIds' | PulseRuleKey>): PulseCard[] {
-  const tags = useTagStore((s) => s.tags)
-  const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
-  const lateFilter = pulseRuleFilter(config, 'late')
-  const staleFilter = pulseRuleFilter(config, 'stale')
-  const late = lateFilter ? numberCriteriaMemo(lateFilter) : null
-  const stale = staleFilter ? numberCriteriaMemo(staleFilter) : null
-  const criteria = [late, stale].filter((c): c is FilterCriteria => c != null)
-  const lookups = criteria.length > 0 ? lookupsFor(base, ...criteria) : null
-  return pulseMemo(base.shown, tags, base.ctx, config.tagIds, staleAfterDays, late, stale, lookups, base.markerSettings)
-}
-

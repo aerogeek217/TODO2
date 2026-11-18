@@ -19,8 +19,8 @@ const notes = (id: string) => createTab('notes', id)
 const number = (id: string) => createTab('number', id)
 
 describe('the kind flags', () => {
-  it('the glance kinds are the Number, the charts, the sections and Project pulse; only the Number fits its height', () => {
-    expect(WIDGET_KINDS.filter(isGlanceKind)).toEqual(['number', 'breakdown', 'pivot', 'trend', 'pulse'])
+  it('the glance kinds are the Number and the charts; only the Number fits its height', () => {
+    expect(WIDGET_KINDS.filter(isGlanceKind)).toEqual(['number', 'breakdown', 'pivot', 'trend'])
     expect(WIDGET_KINDS.filter(isFitHeightKind)).toEqual(['number'])
   })
 

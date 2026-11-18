@@ -18,7 +18,6 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { applyFilter } from '../../../utils/filter-match'
 import { numberIds } from '../../../services/stats/number-count'
 import { computeBreakdown } from '../../../services/stats/breakdown'
-import { computePulse } from '../../../services/stats/pulse'
 import { SHARED_MEMO_WARNING } from '../../../utils/shared-memo'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
@@ -40,11 +39,6 @@ vi.mock('../../../services/stats/number-count', async (importOriginal) => {
 vi.mock('../../../services/stats/breakdown', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/stats/breakdown')>()
   return { ...actual, computeBreakdown: vi.fn(actual.computeBreakdown) }
-})
-// And one with options: a memo keeps one input set per choice (A9).
-vi.mock('../../../services/stats/pulse', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../services/stats/pulse')>()
-  return { ...actual, computePulse: vi.fn(actual.computePulse) }
 })
 
 beforeEach(() => {
@@ -98,7 +92,7 @@ describe('glance widgets share their data', () => {
     const tabs: GlanceTab[] = [
       numberTab('n'),
       createTab('breakdown', 't', { breakdown: { splitBy: 'tags' } }) as GlanceTab,
-      createTab('pulse', 'p') as GlanceTab,
+      createTab('trend', 'tr') as GlanceTab,
     ]
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
     vi.mocked(numberIds).mockClear()
@@ -139,34 +133,33 @@ describe('glance widgets share their data', () => {
 
   it('a dozen widgets, options differing, still hit on a re-render: no part recomputes and no memo warns', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    vi.mocked(computePulse).mockClear()
+    vi.mocked(computeBreakdown).mockClear()
     const tabs: GlanceTab[] = [
-      ...WIDGET_KINDS.filter(isGlanceKind).filter((k) => k !== 'pulse').map((k) => createTab(k, `w-${k}`) as GlanceTab),
+      ...WIDGET_KINDS.filter(isGlanceKind).map((k) => createTab(k, `w-${k}`) as GlanceTab),
       numberTab('n2', 'focus'),
       numberTab('n3', 'dueToday'),
+      numberTab('n4', 'overdue'),
       createTab('breakdown', 'b-tags', { breakdown: { splitBy: 'tags' } }) as GlanceTab,
       createTab('breakdown', 'b-status', { breakdown: { splitBy: 'status', style: 'stacked' } }) as GlanceTab,
-      { id: 'p1', kind: 'pulse', config: { tagIds: [TAGS[0]!.id!] } },
-      { id: 'p2', kind: 'pulse', config: { tagIds: [TAGS[1]!.id!] } },
-      { id: 'p12', kind: 'pulse', config: { tagIds: [TAGS[0]!.id!, TAGS[1]!.id!] } },
-      { id: 'p0', kind: 'pulse', config: { tagIds: [] } },
-      { id: 'p3', kind: 'pulse', config: { tagIds: [TAGS[2]!.id!] } },
+      createTab('breakdown', 'b-priority', { breakdown: { splitBy: 'priority' } }) as GlanceTab,
+      createTab('breakdown', 'b-due', { breakdown: { splitBy: 'due' } }) as GlanceTab,
+      createTab('breakdown', 'b-age', { breakdown: { splitBy: 'age', style: 'donut' } }) as GlanceTab,
     ]
     expect(tabs.length).toBeGreaterThanOrEqual(12)
     const tree = () => <DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>
     const { rerender } = render(tree())
-    // Once per tag pick on screen.
-    expect(vi.mocked(computePulse)).toHaveBeenCalledTimes(5)
-    for (const fn of [applyFilter, numberIds, computeBreakdown, computePulse]) vi.mocked(fn).mockClear()
+    // Once per split on screen.
+    const perOption = vi.mocked(computeBreakdown).mock.calls.length
+    expect(perOption).toBeGreaterThan(0)
+    for (const fn of [applyFilter, numberIds, computeBreakdown]) vi.mocked(fn).mockClear()
     for (let i = 0; i < 4; i++) rerender(tree())
     expect(vi.mocked(applyFilter)).not.toHaveBeenCalled()
     expect(vi.mocked(numberIds)).not.toHaveBeenCalled()
     expect(vi.mocked(computeBreakdown)).not.toHaveBeenCalled()
-    expect(vi.mocked(computePulse)).not.toHaveBeenCalled()
-    // A task write: each part recomputes once per option on screen, never per widget.
+    // A task write: each part recomputes once per option on screen, never per widget or per re-render.
     act(() => { useTodoStore.setState({ todos: SAMPLE_TASKS.map((t) => (t.id === SAMPLE_TASKS[0]!.id ? { ...t, title: 'Renamed' } : t)) }) })
     for (let i = 0; i < 4; i++) rerender(tree())
-    expect(vi.mocked(computePulse)).toHaveBeenCalledTimes(5)
+    expect(vi.mocked(computeBreakdown)).toHaveBeenCalledTimes(perOption)
     expect(warn.mock.calls.filter((c) => String(c[0]).includes(SHARED_MEMO_WARNING))).toEqual([])
     warn.mockRestore()
   })

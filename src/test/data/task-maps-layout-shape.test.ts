@@ -17,8 +17,8 @@ const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as 
 
 /** The task maps (2026-11-18): layout config only, no schema step. */
 describe('the task maps’ stored tabs', () => {
-  it('a new Pressure radar and Work clusters pass the check unchanged', () => {
-    for (const tab of [createTab('radar', 'r', { waitingStatusIds: [3] }), createTab('clusters', 'c'), createTab('listwall', 'w')]) {
+  it('a new Work clusters and List wall pass the check unchanged', () => {
+    for (const tab of [createTab('clusters', 'c'), createTab('listwall', 'w')]) {
       const row = layoutRow(tab as unknown as Record<string, unknown>)
       expect(checkLayoutBody(row)).toBe(true)
       expect(rowFixes('layouts', row)).toEqual([])
@@ -26,13 +26,14 @@ describe('the task maps’ stored tabs', () => {
     }
   })
 
-  it('a radar’s Waiting statuses keep their numbers once each; anything else is a fix', () => {
-    expect(tabOf(layoutRow({ id: 'r', kind: 'radar', config: { waitingStatusIds: [4, 2, 4] } }))).toEqual({ id: 'r', kind: 'radar', config: { waitingStatusIds: [4, 2] } })
-    const bad = layoutRow({ id: 'r', kind: 'radar', config: { waitingStatusIds: [4, 'x'] } })
-    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.waitingStatusIds')
-    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
-    expect(tabOf(bad)).toEqual({ id: 'r', kind: 'radar', config: { waitingStatusIds: [4] } })
-    expect(tabOf(layoutRow({ id: 'r', kind: 'radar', config: {} }))).toEqual({ id: 'r', kind: 'radar', config: { waitingStatusIds: [] } })
+  it.each(['radar', 'pulse'])('a stored %s tab (removed; v83 dropped every one) is an unknown kind: dropped by the repair, a fix', (kind) => {
+    const row = {
+      id: 1, name: 'Maps', sortOrder: 0, createdAt: DATE, modifiedAt: DATE,
+      ...single({ id: 'k', tabs: [{ id: 'gone', kind, config: {} } as unknown as LayoutTab, createTab('notes', 'n')] }),
+    }
+    expect(checkLayoutBody(row)).not.toBe(true)
+    expect(rowFixes('layouts', row).length).toBeGreaterThan(0)
+    expect((sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs).toEqual([createTab('notes', 'n')])
   })
 
   it('Work clusters has no settings: a stray key is dropped, a fix; view state goes', () => {

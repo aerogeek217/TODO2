@@ -33,8 +33,8 @@ export interface EditorDraft<C extends object> {
 }
 
 /**
- * A widget editor's Save / Discard (the Number's, a chart's, Project
- * pulse's), Edit list's pattern: the editor edits a copy of the widget's
+ * A widget editor's Save / Discard (the Number's, a chart's, Created vs
+ * completed's), Edit list's pattern: the editor edits a copy of the widget's
  * config, which the widget draws live (`widget-preview-store`, as a list
  * shows its draft), and nothing is written until Save — then, for good and
  * as one undo step, only the keys that changed (`configPatch`), so a write

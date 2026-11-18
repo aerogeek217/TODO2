@@ -194,8 +194,7 @@ function buildSeed(): Seed {
             numberTab('t5', 'noFollowup', { breakdown: 'tags', litWhen: 'below', litAt: 4 }),
             { id: 't6', kind: 'lens', config: {} },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
-            // The task maps: the Pressure radar's Waiting statuses, Work clusters (no settings).
-            { id: 't21', kind: 'radar', config: { waitingStatusIds: [1] } },
+            // The task maps: Work clusters and the List wall (no settings).
             { id: 't22', kind: 'clusters', config: {} },
             { id: 't23', kind: 'listwall', config: {} },
             // Item 12: a Review widget (no settings, 2A) and its sort.
@@ -206,7 +205,6 @@ function buildSeed(): Seed {
             { id: 'g5', kind: 'breakdown', config: { name: 'Waiting on', filter: { ...emptyPredicate(), statusIds: [1] }, splitBy: 'people', style: 'donut', show: 'oldest', oldestBy: 'lastFollowup', showNone: false, columns: [{ id: 'due', name: 'Late', color: '#e86bf0', filter: { ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: -1 } } } }, litWhen: 'above', litAt: 0 }, { id: 'col-w', name: 'Waiting', color: '#7ec4bc', filter: { ...emptyPredicate(), statusIds: [1] }, litWhen: 'never' }] }, viewState: { sorts: { people: { by: 'due', reversed: true } } } },
             { id: 'g6', kind: 'breakdown', config: { name: 'Status', filter: emptyPredicate(), splitBy: 'status', style: 'stacked', show: 'count', showNone: true, columns: [] } },
             { id: 'g7', kind: 'pivot', config: { name: 'Who × what', filter: { ...emptyPredicate(), statusIds: [1] }, rows: 'tags', cols: 'priority' } },
-            { id: 'g13', kind: 'pulse', config: { tagIds: [1] } },
           ])
           const k4 = cell('k4')
           const k5 = cell('k5', [{ id: 't12', kind: 'notes', config: {} }])

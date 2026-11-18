@@ -107,9 +107,6 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'services/stats/filter-history.ts': ['filterHistory', 'filterHistoryFields', 'FilterHistoryOptions', 'HistoryExactFrom', 'ReplayedTask'],
   'services/stats/number-count.ts': ['numberOrderField'],
   'services/stats/number-shapes.ts': ['oldestDate', 'percentOf', 'weekDaysGone'],
-  'services/stats/pulse.ts': [
-    'PULSE_GROWING_NET', 'PULSE_WEEKS', 'PulseContext', 'PulseMomentum', 'pulseMomentum', 'PulseRuleMatch', 'PulseRuleMatchers',
-  ],
   'services/stats/trend.ts': ['TrendFilter'],
   'services/subtask-convert.ts': ['droppedFields', 'makeSubtaskPrompt'],
   'services/task-copy.ts': ['buildTasksHtml', 'buildTasksPlain', 'copiedNotice', 'CopyTaskContext'],

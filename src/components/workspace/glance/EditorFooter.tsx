@@ -2,7 +2,7 @@ import { SAVE_UNREADABLE_TITLE, type EditorDraft } from './editor-draft'
 import styles from './EditorFooter.module.css'
 
 /**
- * A widget editor's foot (the Number's, a chart's, Project pulse's):
+ * A widget editor's foot (the Number's, a chart's, Created vs completed's):
  * Discard · Save, as Edit list's Revert · Save list — the quiet button
  * first, the accent one last. Save is off while nothing changed or while a
  * filter expression doesn't read; Discard closes without writing.

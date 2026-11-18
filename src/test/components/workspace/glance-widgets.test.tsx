@@ -350,8 +350,8 @@ describe('glance tab menus', () => {
 })
 
 describe('faces (D25 R)', () => {
-  // The section widgets' faces; the Number and Project pulse (pulse-widget.test) draw their own.
-  const SECTION_FACE_KINDS = GLANCE_KINDS.filter((k) => k !== 'number' && k !== 'pulse')
+  // The section widgets' faces; the Number draws its own.
+  const SECTION_FACE_KINDS = GLANCE_KINDS.filter((k) => k !== 'number')
   const smallFace = () => document.querySelector<HTMLElement>('[data-testid="glance-small-face"]')
   const smallValue = () => within(smallFace()!).getByTestId('glance-small-value').textContent
 

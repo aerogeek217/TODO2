@@ -104,6 +104,6 @@ describe('addWidgetAt: no editor opens on add (decision 8)', () => {
     const id = addWidgetAt(kind, { kind: 'cell', cellId: 'left' })
     expect(ws().cells.flatMap((c) => c.tabs).find((t) => t.id === id)?.kind).toBe(kind)
     expect(useUIStore.getState()).toMatchObject({ numberEditorTabId: null, listEditor: null })
-    expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, pulseEditorTabId: null })
+    expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, trendEditorTabId: null })
   })
 })

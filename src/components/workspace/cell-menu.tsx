@@ -33,7 +33,6 @@ import { isNumberStripCell } from '../../utils/workspace-rows'
 import { tabsCount } from './workspace-drag'
 import type { WidgetResult } from './WidgetBody'
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
-import { useRadarMenuEntries } from './radar/radar-menu'
 import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
 import { useListReviewMenuEntries } from './list/review-menu'
@@ -336,7 +335,6 @@ export function useWidgetMenuContent(
     listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined,
   )
   const neglectEntries = useNeglectMenuEntries(tab?.kind === 'neglect' ? tab : undefined)
-  const radarEntries = useRadarMenuEntries(tab?.kind === 'radar' ? tab : undefined)
   const listZoomEntries = useListZoomMenuEntries(tab?.kind === 'lens' ? tab : undefined)
   // A list tab's Review these N tasks (D26), above its zoom.
   const reviewEntries = useListReviewMenuEntries(tab?.kind === 'lens' ? tab : undefined)
@@ -399,8 +397,7 @@ export function useWidgetMenuContent(
       ? () => openEditList(tab.id, listId)
       : undefined,
     settingEntries: tab.kind === 'neglect' ? neglectEntries
-      : tab.kind === 'radar' ? radarEntries
-        : tab.kind === 'lens' ? zoomEntries : glance?.settingEntries,
+      : tab.kind === 'lens' ? zoomEntries : glance?.settingEntries,
     widgetActions: glance ? glance.actions : tab.kind === 'lens' ? listActions() : undefined,
   }
 }

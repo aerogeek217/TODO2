@@ -64,15 +64,6 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <circle cx="12" cy="4.5" r="1.5" fill="currentColor" stroke="none" />
     </>
   ),
-  // The Pressure radar: two rings, the cross, a dot near the middle.
-  radar: (
-    <>
-      <circle cx="8" cy="8" r="5.5" />
-      <circle cx="8" cy="8" r="2.5" />
-      <path d="M8 2.5v11M2.5 8h11" strokeWidth="1" />
-      <circle cx="10.4" cy="6" r="1.1" fill="currentColor" stroke="none" />
-    </>
-  ),
   // Work clusters: three bubbles of different sizes, joined.
   clusters: (
     <>
@@ -92,8 +83,6 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`GLANCE_GLYPH`).
   number: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
   trend: <path d={GLANCE_GLYPH.chart} />,
-  // Project pulse: a ring with its late share as a wedge.
-  pulse: <path d="M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11zM8 2.5V8h5.5" />,
   // D26 P8 — Breakdown: a bar per row, longest first.
   breakdown: <path d="M2.5 3.5h11M2.5 8h7M2.5 12.5h4" />,
   // Pivot: a table with a heading row and column.
@@ -133,6 +122,8 @@ export function LineIcon({ name, size = 14 }: { name: LineIconKey; size?: number
     case 'repeat': return <RepeatIcon size={size} />
     case 'checklist': return <ChecklistIcon size={size} />
     case 'link': return <LinkIcon size={size} />
+    case 'ring': return <RingIcon size={size} />
+    case 'radar': return <RadarIcon size={size} />
     default: return <WidgetKindIcon kind="lens" size={size} />
   }
 }
@@ -315,6 +306,23 @@ export function FunnelIcon({ size = 12 }: { size?: number }) {
 /** The funnel struck through: the screen filter paused (the top bar's funnel). */
 export function FunnelOffIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /><path d="M2 1.5 14 14.5" /></Svg>
+}
+
+/** A ring with a wedge: one of the pickable line icons (`LineIcon`; once Project pulse's glyph). */
+function RingIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11zM8 2.5V8h5.5" /></Svg>
+}
+
+/** A radar — two rings, the cross, a dot near the middle: one of the pickable line icons (`LineIcon`; once the Pressure radar's glyph). */
+function RadarIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="8" cy="8" r="5.5" />
+      <circle cx="8" cy="8" r="2.5" />
+      <path d="M8 2.5v11M2.5 8h11" strokeWidth="1" />
+      <circle cx="10.4" cy="6" r="1.1" fill="currentColor" stroke="none" />
+    </Svg>
+  )
 }
 
 /** Glasses: one of the pickable line icons (`LineIcon`). */

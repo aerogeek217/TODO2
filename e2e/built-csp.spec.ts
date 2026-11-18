@@ -314,8 +314,8 @@ test('the offline file requests nothing but itself through its main flows', asyn
 /**
  * The glance widgets and the Neglect map from the built file (cr33 security
  * I2): a Number's small face and its tasks in the task dialog, the Tags
- * Breakdown opened larger (the widget popup); Tags, Status and a
- * Project pulse card opening its tag's tasks; the Neglect map's dots,
+ * Breakdown opened larger (the widget popup); Tags, Status and Created
+ * vs completed; the Neglect map's dots,
  * one opening the editor. Nothing is requested but the file itself.
  */
 test('the offline file requests nothing through the glance widgets and the Neglect map', async ({ page, context }) => {
@@ -345,7 +345,7 @@ test('the offline file requests nothing through the glance widgets and the Negle
             { id: 'kc', tabs: [{ id: 'tags', kind: 'breakdown', glance: { name: 'Tags', splitBy: 'tags' } }] },
             { id: 'kt', tabs: [{ id: 'status', kind: 'breakdown', glance: { name: 'Status', splitBy: 'status', style: 'donut' } }] },
           ] },
-          wsRow({ id: 'kp', tabs: [{ id: 'pulse', kind: 'pulse', tagNames: ['Project: Atlas'] }] }),
+          wsRow({ id: 'kp', tabs: [{ id: 'trend', kind: 'trend' }] }),
         ] },
       ],
     }],
@@ -367,15 +367,10 @@ test('the offline file requests nothing through the glance widgets and the Negle
   await page.keyboard.press('Escape')
   await expect(taskDialog).toBeHidden()
 
-  // Tags and Status (Breakdowns), Project pulse.
+  // Tags and Status (Breakdowns), Created vs completed.
   await expect(page.locator('[data-chart="tags"] [data-breakdown-row]').first()).toContainText('#Project: Atlas')
   await expect(page.locator('[data-chart="status"]')).toContainText('4 open')
-  const card = page.locator('[data-glance="pulse"] [data-pulse-card]').first()
-  await expect(card).toContainText('Project: Atlas')
-  await card.click()
-  await expect(taskDialog.getByRole('heading')).toHaveText('#Project: Atlas')
-  await page.keyboard.press('Escape')
-  await expect(taskDialog).toBeHidden()
+  await expect(wsCell(page, 'kp').locator('[data-trend-head="trend"]')).toBeVisible()
 
   // The Neglect map: its dots, one opening the editor.
   const map = wsCell(page, 'km').locator('[data-neglect-map]')

@@ -165,12 +165,12 @@ describe('refreshAllStores', () => {
 
   it('closes every open editor — Edit list and each widget editor (M5: one roster)', async () => {
     useUIStore.setState({ listEditor: { listDefinitionId: 4, tabId: 'tab-l' }, numberEditorTabId: 'tab-n' })
-    useChartWidgetsStore.setState({ editorTabId: 'tab-c', pulseEditorTabId: 'tab-p', trendEditorTabId: 'tab-t' })
+    useChartWidgetsStore.setState({ editorTabId: 'tab-c', trendEditorTabId: 'tab-t' })
 
     await refreshAllStores()
 
     expect(useUIStore.getState()).toMatchObject({ listEditor: null, numberEditorTabId: null })
-    expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, pulseEditorTabId: null, trendEditorTabId: null })
+    expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, trendEditorTabId: null })
   })
 
   it('drops note text not saved yet, so it is not saved over the imported note', async () => {

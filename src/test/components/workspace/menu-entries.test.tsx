@@ -1,11 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
-import { glanceMenu } from '../../../components/workspace/glance/glance-menu'
 import { knownTagCount, tagPickEntries, toggledId } from '../../../components/workspace/glance/menu-entries'
 import { useNeglectMenuEntries } from '../../../components/workspace/neglect/neglect-menu'
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import type { Tag } from '../../../models'
-import { createTab, type GlanceTab, type NeglectTab } from '../../../models/workspace-layout'
+import type { NeglectTab } from '../../../models/workspace-layout'
 import { useTagStore } from '../../../stores/tag-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 
@@ -40,11 +39,9 @@ describe('the shared tag picks', () => {
   })
 })
 
-describe('one tag-pick submenu for the glance widgets and the Neglect map', () => {
-  it('a picked tag deleted since: both menus count the tags that are left', () => {
+describe('the Neglect map’s tag-pick submenu', () => {
+  it('a picked tag deleted since: the menu counts the tags that are left', () => {
     useTagStore.setState({ tags: [BETA] })
-    const pulse = createTab('pulse', 'p', { tagIds: [1, 2] }) as GlanceTab
-    expect(item(glanceMenu(pulse, undefined)!.settingEntries, 'Tags').note).toBe('1')
     const { result } = renderHook(() => useNeglectMenuEntries(neglectTab({ colourBy: { kind: 'tags', tagIds: [1, 2] } })))
     const colourBy = item(result.current, 'Color by')
     expect(colourBy.note).toBe('Tags (1)')

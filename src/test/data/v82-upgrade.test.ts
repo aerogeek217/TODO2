@@ -34,8 +34,8 @@ const cellsOf = (row: DataRow) => (row.cells as Array<{ id: string; area: unknow
   .map((c) => ({ id: c.id, area: c.area, tabs: c.tabs.map((t) => t.id), active: c.activeTabId }))
 
 describe('v82: registered', () => {
-  it('is the current schema, after v81', () => {
-    expect(CURRENT_DB_VERSION).toBe(82)
+  it('is registered after v81', () => {
+    expect(CURRENT_DB_VERSION).toBeGreaterThanOrEqual(82)
     expect(SCHEMA_UPGRADES.get(82)).toBe(upgradeV82)
   })
 })
