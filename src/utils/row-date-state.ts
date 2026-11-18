@@ -46,3 +46,19 @@ export function followupState(
   if (!todo.isCompleted && startOfDay(new Date(next)).getTime() === startOfDay(today).getTime()) return 'today'
   return 'upcoming'
 }
+
+/**
+ * How strongly a date's bar draws (date styling 2026-11-17) — the one ladder
+ * a calendar entry and a row date share: `later` a faint bar, `soon` (a due
+ * date in the due-soon range, a follow-up today) the full colour, `late`
+ * (before today) a heavier bar over a tint, the date bold.
+ */
+export type DateLevel = 'later' | 'soon' | 'late'
+
+export function dueLevel(state: DueState): DateLevel {
+  return state.past ? 'late' : state.soon ? 'soon' : 'later'
+}
+
+export function followupLevel(state: FollowupState | undefined): DateLevel {
+  return state === 'late' ? 'late' : state === 'today' ? 'soon' : 'later'
+}

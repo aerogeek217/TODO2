@@ -95,14 +95,13 @@ describe('CalendarWidget', () => {
     expect(dayCell(day(14))!.getAttribute('data-today')).toBe('true')
   })
 
-  it('entries carry their date type (the bar and glyph colour) and only urgent ones are marked urgent', () => {
+  it('entries carry their date type (the bar colour) and their level (its strength)', () => {
     setup()
     const entry = (d: number, title: string) => within(dayCell(day(d))!).getByText(title).closest('[data-cal-entry]')!
     expect(entry(12, 'Late due').getAttribute('data-cal-entry')).toBe('due')
-    expect(entry(12, 'Late due').getAttribute('data-urgent')).toBe('true')
-    expect(entry(16, 'Both dates').getAttribute('data-urgent')).toBeNull()
+    expect(entry(12, 'Late due').getAttribute('data-level')).toBe('late')
     expect(entry(20, 'Both dates').getAttribute('data-cal-entry')).toBe('followup')
-    expect(entry(20, 'Both dates').getAttribute('data-urgent')).toBeNull()
+    expect(entry(20, 'Both dates').getAttribute('data-level')).toBe('later')
   })
 
   it('the week has no past-day wash either', () => {
@@ -110,18 +109,10 @@ describe('CalendarWidget', () => {
     expect(dayCell(day(12))!.className).not.toMatch(/washDue|washFollowup/)
   })
 
-  it('entries carry their date-type glyph only while both Due and Follow-up show', () => {
+  it('entries draw no date-type glyph: its bar colour says it', () => {
     setup()
-    const glyphs = () => document.querySelectorAll('[data-cal-entry] [data-cal-entry-glyph]').length
-    const entries = () => document.querySelectorAll('[data-cal-entry]').length
-    expect(glyphs()).toBe(entries())
-    expect(glyphs()).toBeGreaterThan(0)
-    act(() => useWorkspaceStore.getState().patchTabConfig('cal', 'calendar', { dateTypes: { due: true, followup: false } }))
-    expect(entries()).toBeGreaterThan(0)
-    expect(glyphs()).toBe(0)
-    act(() => useWorkspaceStore.getState().patchTabConfig('cal', 'calendar', { dateTypes: { due: false, followup: true } }))
-    expect(document.querySelector('[data-cal-entry="followup"]')).not.toBeNull()
-    expect(glyphs()).toBe(0)
+    expect(document.querySelectorAll('[data-cal-entry]').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('[data-cal-entry] [data-cal-entry-glyph]').length).toBe(0)
   })
 
   it('occurrences render but do not drag; the task’s own entry drags', () => {

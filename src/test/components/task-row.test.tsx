@@ -142,6 +142,27 @@ describe('TaskRow', () => {
       expect(repeating.querySelector('circle')).toBeNull()
     })
 
+    it('a set date carries the calendar bar, its level the shared ladder (Rows and Stacked)', () => {
+      // Today is Thu 16 Apr; the due-soon range 3 days.
+      const level = (cell: string) => document.querySelector(`[data-row-cell="${cell}"] [data-date-bar]`)?.getAttribute('data-level')
+      for (const stacked of [false, true]) {
+        const cases: [Parameters<typeof makeTodo>[0], string, string][] = [
+          [{ dueDate: new Date(2026, 3, 10) }, 'due', 'late'],
+          [{ dueDate: new Date(2026, 3, 18) }, 'due', 'soon'],
+          [{ dueDate: new Date(2026, 3, 25) }, 'due', 'later'],
+          [{ nextFollowupAt: new Date(2026, 3, 10) }, 'followup', 'late'],
+          [{ nextFollowupAt: new Date(2026, 3, 16) }, 'followup', 'soon'],
+          [{ nextFollowupAt: new Date(2026, 3, 18) }, 'followup', 'later'],
+        ]
+        for (const [fields, cell, expected] of cases) {
+          const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, ...fields })} stacked={stacked} />)
+          expect(level(cell)).toBe(expected)
+          expect(document.querySelector(`[data-row-cell="${cell}"]`)?.getAttribute('data-date-level')).toBe(expected)
+          unmount()
+        }
+      }
+    })
+
     it('marks an overdue date (text colour + bold, no fill), not a future one', () => {
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 10) })} />)
       expect(screen.getByRole('button', { name: /^Due / })).toHaveAttribute('data-due-past', 'true')

@@ -12,13 +12,12 @@ import { rowSummaryText } from '../../utils/list-zoom'
 import { markerSummary } from '../../utils/markers'
 import { statusNotesPreview } from '../../utils/notes-preview'
 import { rowCue } from '../../utils/priority-cues'
-import { dueState, followupState } from '../../utils/row-date-state'
+import { dueLevel, dueState, followupLevel, followupState } from '../../utils/row-date-state'
 import { isStale } from '../../utils/stale'
 import { subtaskCount, type SubtaskCount } from '../../utils/subtasks'
 import { TODO_ID_ATTR } from '../../utils/dom-contract'
-import { FollowupFlagIcon } from '../shared/FollowupIcons'
+import { DateBar } from '../shared/DateBar'
 import { NotesIcon, RepeatIcon } from '../shared/icons'
-import { ClockIcon } from '../shared/MarkerIcons'
 import { POPOVER_LEVEL_ATTR } from '../shared/popover-level'
 import { PriorityRing } from '../shared/PriorityRing'
 import { TagPicker } from '../shared/TagChipSelector'
@@ -191,7 +190,8 @@ function MobileRowDetails({ todo, today, people, tags, count, hasNotes }: {
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const rowDates = useSettingsStore((s) => s.rowDates)
   const due = todo.dueDate
-  const { past, soon } = dueState(todo, today, urgentRange)
+  const dueDateState = dueState(todo, today, urgentRange)
+  const { past, soon } = dueDateState
   const next = todo.nextFollowupAt
   const followup = followupState(todo, today)
   const showFollowup = next != null && (followup === 'today' || followup === 'late')
@@ -207,14 +207,16 @@ function MobileRowDetails({ todo, today, people, tags, count, hasNotes }: {
           data-row-part="due"
           data-due-soon={soon || undefined}
           data-due-past={past || undefined}
+          data-date-level={dueLevel(dueDateState)}
         >
-          {todo.recurrenceRule ? <RepeatIcon size={11} /> : <ClockIcon />}
+          <DateBar type="due" level={dueLevel(dueDateState)} />
+          {todo.recurrenceRule && <RepeatIcon size={11} />}
           {formatRowDate(due, today, rowDates)}
         </span>
       )}
       {showFollowup && (
-        <span className={`${styles.part} ${styles.followup}`} data-row-part="followup" data-followup={followup}>
-          <FollowupFlagIcon filled />
+        <span className={`${styles.part} ${styles.followup}`} data-row-part="followup" data-followup={followup} data-date-level={followupLevel(followup)}>
+          <DateBar type="followup" level={followupLevel(followup)} />
           {formatRowDate(next, today, rowDates)}
         </span>
       )}

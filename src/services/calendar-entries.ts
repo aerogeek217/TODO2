@@ -2,6 +2,8 @@ import type { PersistedTodoItem, Person, Status } from '../models'
 import type { CalendarDateType, CalendarDateTypes } from '../models/workspace-layout'
 import { addDays, dayKey, startOfDay } from '../utils/date'
 import { generateRecurringInstances } from '../utils/recurrence'
+import type { DateLevel } from '../utils/row-date-state'
+import type { UrgentDueWithinDays } from '../utils/urgency'
 
 export interface CalendarEntry {
   todo: PersistedTodoItem
@@ -133,14 +135,22 @@ export function calendarEntryState(entry: CalendarEntry, today: Date): CalendarE
 }
 
 /**
- * Whether an entry asks for action now, so its line stands out over the
- * ordinary ones (a stronger bar and a faint tint of its date type's colour):
- * a late due date, and a follow-up today or late. A due date today stays
- * ordinary — today's column is marked already.
+ * How strongly an entry's bar draws — the ladder a row date's bar shares
+ * (`utils/row-date-state.DateLevel`): `late` an overdue date (a heavier bar
+ * over a faint tint), `soon` a follow-up today or an open task's due date
+ * inside the Settings due-soon range (`range` days from today, as
+ * `isUrgentByDate` reads a row's), else `later` (a faint bar). A completed
+ * task's entries and an occurrence of a recurring one are never late.
  */
-export function calendarEntryUrgent(state: CalendarEntryState): boolean {
-  return state === 'due-overdue' || state === 'followup-today' || state === 'followup-overdue'
+export function calendarEntryLevel(entry: CalendarEntry, today: Date, range: UrgentDueWithinDays): DateLevel {
+  if (isEntryOverdue(entry, today)) return 'late'
+  const days = Math.round((entry.day.getTime() - startOfDay(today).getTime()) / DAY_MS)
+  if (entry.todo.isCompleted || days < 0) return 'later'
+  if (entry.kind === 'followup') return days === 0 ? 'soon' : 'later'
+  return range != null && days <= range ? 'soon' : 'later'
 }
+
+const DAY_MS = 86_400_000
 
 /** A compact-month day dot. */
 type CalendarDot = 'due' | 'followup' | 'occurrence' | 'due-done' | 'followup-done'

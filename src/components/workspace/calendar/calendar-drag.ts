@@ -14,7 +14,6 @@ export interface CalendarEntryDragData {
     entry: CalendarEntry
     size: CalendarEntrySize
     wrap: boolean
-    showKind: boolean
     today: Date
   }
 }

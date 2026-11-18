@@ -1,0 +1,30 @@
+/* A date's bar: 2px in a 3px box, 3px when late; faint, then full colour. */
+.bar {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 2px;
+  height: 12px;
+  margin-right: 1px;
+  border-radius: 1px;
+  background: var(--date-bar-due-faint);
+}
+
+.bar[data-level='soon'],
+.bar[data-level='late'] {
+  background: var(--date-bar-due);
+}
+
+.bar[data-level='late'] {
+  width: 3px;
+  margin-right: 0;
+  border-radius: 1.5px;
+}
+
+.bar[data-date-bar='followup'] {
+  background: var(--date-bar-followup-faint);
+}
+
+.bar[data-date-bar='followup'][data-level='soon'],
+.bar[data-date-bar='followup'][data-level='late'] {
+  background: var(--date-bar-followup);
+}

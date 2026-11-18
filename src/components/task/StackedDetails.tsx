@@ -5,8 +5,9 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { formatRowDate, toDateInputValue } from '../../utils/date'
 import { dueTooltip } from '../../utils/effective-date'
 import { followupPillLabel, followupTooltip, formatFollowupDate } from '../../utils/followup'
-import { dueState, followupState } from '../../utils/row-date-state'
+import { dueLevel, dueState, followupLevel, followupState } from '../../utils/row-date-state'
 import type { SubtaskCount } from '../../utils/subtasks'
+import { DateBar } from '../shared/DateBar'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { RepeatIcon } from '../shared/icons'
 import { ClockIcon } from '../shared/MarkerIcons'
@@ -64,8 +65,9 @@ interface StackedDetailsProps {
 }
 
 /**
- * A stacked row's second line (D25 C), under the title: due (its clock) ·
- * follow-up (its flag) · the checklist's pie and count · people · tags, at
+ * A stacked row's second line (D25 C), under the title: due · follow-up,
+ * each after the calendar's bar (`DateBar`, date styling 2026-11-17; a
+ * repeating task's due date the repeat glyph after it) · the checklist's pie and count · people · tags, at
  * the row's meta size. Each part opens its picker as the Rows cells do; an
  * absent date, person or tag is its mark, shown on hover / focus like a
  * Rows placeholder. A narrow list clips the line from the right — the
@@ -93,7 +95,8 @@ function StackedDue({ todo, today, ghost, deadlineInputRef, onOpenDue, onDueInpu
   const due = todo.dueDate
   const { triggerProps, tooltip } = useTooltip(due ? dueTooltip(todo, today) : null)
   const range = useSettingsStore((s) => s.urgentDueWithinDays)
-  const { past, soon } = dueState(todo, today, range)
+  const state = dueState(todo, today, range)
+  const { past, soon } = state
   const rowDates = useSettingsStore((s) => s.rowDates)
   const repeats = todo.recurrenceRule != null
   return (
@@ -105,13 +108,15 @@ function StackedDue({ todo, today, ghost, deadlineInputRef, onOpenDue, onDueInpu
         data-row-cell="due"
         data-due-soon={soon || undefined}
         data-due-past={past || undefined}
+        data-date-level={due ? dueLevel(state) : undefined}
         disabled={ghost}
         onClick={partClick(onOpenDue)}
         {...triggerProps}
       >
         {due ? (
           <>
-            {repeats ? <RepeatIcon size={11} /> : <ClockIcon />}
+            <DateBar type="due" level={dueLevel(state)} />
+            {repeats && <RepeatIcon size={11} />}
             <span className={styles.dateText}>{formatRowDate(due, today, rowDates)}</span>
           </>
         ) : (
@@ -148,13 +153,14 @@ function StackedFollowup({ todo, today, ghost, followupAnchorRef, followupOpen, 
       aria-expanded={followupOpen}
       data-row-cell="followup"
       data-followup={state}
+      data-date-level={next ? followupLevel(state) : undefined}
       disabled={ghost}
       onClick={partClick(onToggleFollowup)}
       {...triggerProps}
     >
       {next ? (
         <>
-          <FollowupFlagIcon filled={state !== 'upcoming'} />
+          <DateBar type="followup" level={followupLevel(state)} />
           <span className={styles.dateText}>{formatRowDate(next, today, rowDates)}</span>
         </>
       ) : (

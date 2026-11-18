@@ -549,10 +549,42 @@
   min-width: 0;
 }
 
-/* A repeating task's due part with its date: the repeat glyph takes the padding's room (10 + 1 + 34 in 45). */
+/* A part showing its date: the bar's 3px box in the left padding, the text
+   still 5px in (3 + 2). */
+.dateWithBar {
+  gap: 2px;
+  padding-left: 0;
+}
+
+/* A repeating task's due part with its date: the bar, the repeat glyph and
+   the date in 45 (3 + 10 + 33, the glyph's own blank sides overlapping the
+   bar's and the date's room by 2px). */
 .dueRepeat {
-  gap: 1px;
+  gap: 0;
   padding: 0;
+}
+
+.dueRepeat svg {
+  margin: 0 -0.5px 0 -1.5px;
+}
+
+/* Late (`DateLevel`): the bold date over a faint band of its type's tint,
+   the calendar's late entry. */
+.datePartButton[data-date-level='late'] {
+  font-weight: 700;
+  background-image: linear-gradient(var(--date-tint-due), var(--date-tint-due));
+  background-size: 100% 18px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.followup.datePartButton[data-date-level='late'] {
+  background-image: linear-gradient(var(--date-tint-followup), var(--date-tint-followup));
+}
+
+/* Its popover open: the open trigger's fill alone. */
+.datePartButton.cellOpen[data-date-level] {
+  background-image: none;
 }
 
 /*
@@ -744,6 +776,16 @@
 /* A plain part brightens on hover; a coloured date keeps its colour. */
 .stackedButton:hover:not([data-due-soon], [data-due-past], [data-followup="today"], [data-followup="late"]) {
   color: var(--color-text-secondary);
+}
+
+/* A late date (`DateLevel`): bold over a faint tint of its type, as a Rows date cell. */
+.stackedButton[data-date-level='late'] {
+  font-weight: 700;
+  background: var(--date-tint-due);
+}
+
+.stackedButton.followup[data-date-level='late'] {
+  background: var(--date-tint-followup);
 }
 
 .stackedButton.cellOpen,

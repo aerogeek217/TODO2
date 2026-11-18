@@ -5,10 +5,11 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { formatRowDate, toDateInputValue } from '../../utils/date'
 import { dueTooltip } from '../../utils/effective-date'
 import { followupPillLabel, followupTooltip, formatFollowupDate } from '../../utils/followup'
-import { dueState, followupState } from '../../utils/row-date-state'
+import { dueLevel, dueState, followupLevel, followupState } from '../../utils/row-date-state'
 import type { MarkerSummary } from '../../utils/markers'
 import { statusNotesPreview } from '../../utils/notes-preview'
 import { datesParts, peopleFit, tagsFit, TASK_ROW, type PeopleFit } from '../../utils/task-row-columns'
+import { DateBar } from '../shared/DateBar'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { FlagIcon, NotesIcon, RepeatIcon } from '../shared/icons'
 import { ClockIcon } from '../shared/MarkerIcons'
@@ -275,9 +276,10 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
  * Appearance › Dates says (`formatRowDate`: `Today` / `Sat` / `11/20`, or
  * `MM/DD`; the aria-label and tooltip keep the full date), two parts
  * with their own click target, picker, tooltip and colours. A set date shows
- * its text alone (no clock or flag beside it; a repeating task's due date
- * keeps the repeat glyph before it); an absent date is its icon as the
- * placeholder. The details width (capped by the list's) sets which dates
+ * the calendar's bar before its text (`DateBar`: the date type's colour, its
+ * strength how soon — date styling 2026-11-17; no clock or flag; a repeating
+ * task's due date keeps the repeat glyph after the bar); an absent date is
+ * its icon as the placeholder. The details width (capped by the list's) sets which dates
  * show (`TaskRowColumns.datesTier`; the follow-up's date goes first, then
  * the due date's — a dropped date shows as its icon, the tooltip still has
  * it); the cell re-renders only when that changes, so a divider drag renders
@@ -367,7 +369,9 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
   const { triggerProps, tooltip } = useTooltip(due ? dueTooltip(todo, today) : null)
   // One tint step: muted until the date is inside the Settings "due soon" range (the one that makes a task urgent), then the deadline colour.
   const range = useSettingsStore((s) => s.urgentDueWithinDays)
-  const { past, soon } = dueState(todo, today, range)
+  const state = dueState(todo, today, range)
+  const { past, soon } = state
+  const level = dueLevel(state)
   const repeats = todo.recurrenceRule != null
   // The date alone; the repeat glyph (smaller, with the padding given up) stays before a repeating task's date.
   const dateOnly = due && showDate
@@ -378,17 +382,19 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
     <span className={styles.datePart} style={{ width }}>
       <button
         type="button"
-        className={`${styles.cell} ${styles.datePartButton} ${dateOnly ? '' : styles.cellCenter} ${dateOnly && repeats ? styles.dueRepeat : ''} ${styles.due} ${past ? styles.duePast : ''}`}
+        className={`${styles.cell} ${styles.datePartButton} ${dateOnly ? styles.dateWithBar : styles.cellCenter} ${dateOnly && repeats ? styles.dueRepeat : ''} ${styles.due} ${past ? styles.duePast : ''}`}
         aria-label={due ? `Due ${formatFollowupDate(due, today)}` : 'Set due date'}
         data-row-cell="due"
         data-due-soon={soon || undefined}
         data-due-past={past || undefined}
+        data-date-level={dateOnly ? level : undefined}
         onClick={cellClick(onOpen)}
         {...triggerProps}
       >
         {due ? (
           showDate ? (
             <>
+              <DateBar type="due" level={level} />
               {repeats && <RepeatIcon size={10} />}
               <span className={styles.dateText}>{text}</span>
             </>
@@ -430,23 +436,25 @@ function FollowupPart({ todo, today, width, showDate, anchorRef, open, onToggle,
   const late = state === 'late'
   const rowDates = useSettingsStore((s) => s.rowDates)
   const text = next ? formatRowDate(next, today, rowDates) : ''
+  const dateShown = showDate && next != null
   return (
     <span className={styles.datePart} style={{ width }}>
       <button
         ref={anchorRef}
         type="button"
-        className={`${styles.cell} ${styles.datePartButton} ${showDate && next ? '' : styles.cellCenter} ${styles.followup} ${open ? styles.cellOpen : ''}`}
+        className={`${styles.cell} ${styles.datePartButton} ${dateShown ? styles.dateWithBar : styles.cellCenter} ${styles.followup} ${open ? styles.cellOpen : ''}`}
         aria-label={next ? `Follow-up: ${followupPillLabel(todo, today)}${late ? ', late' : ''}` : 'Set follow-up'}
         aria-haspopup="dialog"
         aria-expanded={open}
         data-row-cell="followup"
         data-followup={state}
+        data-date-level={dateShown ? followupLevel(state) : undefined}
         onClick={cellClick(onToggle)}
         {...triggerProps}
       >
         {next ? (
           showDate
-            ? <span className={styles.dateText}>{text}</span>
+            ? <><DateBar type="followup" level={followupLevel(state)} /><span className={styles.dateText}>{text}</span></>
             : <FollowupFlagIcon filled={state !== 'upcoming'} />
         ) : (
           <Placeholder><FollowupFlagIcon /></Placeholder>

@@ -235,8 +235,17 @@
   color: var(--color-followup);
 }
 
-.followup[data-followup="late"] svg {
-  filter: drop-shadow(0 0 3px var(--color-followup-glow));
+/* A late date (`DateLevel`): bold over a faint tint of its type, as the desktop date cells. */
+.part[data-date-level='late'] {
+  padding: 0 4px 0 3px;
+  border-radius: 4px;
+  font-weight: 700;
+  line-height: 18px;
+  background: var(--date-tint-due);
+}
+
+.followup[data-date-level='late'] {
+  background: var(--date-tint-followup);
 }
 
 /* People: initials in 16px circles, muted (touch has no hover to colour them). */
