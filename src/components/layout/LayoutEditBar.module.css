@@ -108,6 +108,12 @@
   color: var(--color-text-on-accent);
 }
 
-.done:hover {
+.done:hover:not(:disabled) {
   background: var(--color-accent-dim);
+}
+
+/* Off while widgets brought from another layout wait to be placed. */
+.done:disabled {
+  opacity: 0.45;
+  cursor: default;
 }

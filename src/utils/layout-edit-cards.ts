@@ -216,6 +216,8 @@ export type TapOutcome =
   | { kind: 'join'; from: string; into: string }
   | { kind: 'swap'; from: string; with: string }
   | { kind: 'menu'; cellId: string }
+  /** The widgets in hand (Move / Copy to layout) placed in that slot or card (`workspace-store.tapEdit` only, never `tapOutcome`). */
+  | { kind: 'place'; cellId: string }
 
 export function tapOutcome(state: TapState, target: TapTarget): TapOutcome {
   const armed = state.moveArmed ? state.selectedCellId : null

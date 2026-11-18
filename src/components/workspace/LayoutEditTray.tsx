@@ -8,6 +8,7 @@ import { ChevronDownIcon, WidgetKindIcon } from '../shared/icons'
 import { focusEditItem } from './edit-focus'
 import { addWidgetKindAt, useCardName } from './widget-hooks'
 import { beginNewWidgetDrag } from './workspace-drag'
+import { incomingPlaced, type IncomingTransfer } from '../../utils/layout-transfer'
 import styles from './LayoutEditTray.module.css'
 
 /**
@@ -91,8 +92,28 @@ function MoveHint({ cellId }: { cellId: string }) {
   )
 }
 
+/**
+ * Move / Copy to layout: what the widgets in hand wait for (a slot, a card, a "+"), and once placed
+ * what Done does — in the tray's place.
+ */
+function IncomingHint({ incoming, placed }: { incoming: IncomingTransfer; placed: boolean }) {
+  const what = incoming.copy ? `a copy of “${incoming.name}”` : `“${incoming.name}”`
+  return (
+    <span className={styles.hint} data-testid="layout-edit-incoming-hint">
+      {placed
+        ? incoming.copy
+          ? `Done copies “${incoming.name}” here from “${incoming.sourceName}”`
+          : `Done moves “${incoming.name}” here from “${incoming.sourceName}”`
+        : `Place ${what} from “${incoming.sourceName}”: click a slot, a card to join it, or a +`}
+    </span>
+  )
+}
+
 export function LayoutEditTray() {
-  const armed = useWorkspaceStore((s) => (s.editing?.moveArmed ? s.editing.selectedCellId : null))
+  const incoming = useWorkspaceStore((s) => s.editing?.incoming ?? null)
+  const placed = useWorkspaceStore((s) => incomingPlaced(s.working, s.editing?.incoming))
+  const armedCell = useWorkspaceStore((s) => (s.editing?.moveArmed ? s.editing.selectedCellId : null))
+  const armed = incoming ? null : armedCell
   const [more, setMore] = useState(false)
   const moreRef = useRef<HTMLButtonElement | null>(null)
   const moreEntries: MenuEntry[] = moreKinds().map((kind) => ({
@@ -105,8 +126,9 @@ export function LayoutEditTray() {
     <div className={styles.tray} role="group" aria-label="Widgets">
       <span role="status" className={styles.status}>
         {armed != null && <MoveHint cellId={armed} />}
+        {incoming && <IncomingHint incoming={incoming} placed={placed} />}
       </span>
-      {armed == null && (
+      {armed == null && !incoming && (
         <>
           <span className={styles.caption} aria-hidden="true">Add</span>
           {COMMON_KINDS.map((kind) => <TrayChip key={kind} kind={kind} />)}

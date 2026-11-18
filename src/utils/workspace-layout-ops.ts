@@ -1471,6 +1471,59 @@ export function removeTabKeepCell<L extends LayoutBody>(layout: L, tabId: string
   return expandOrphanRows(setCell(layout, cell.id, withStrip(cell, { tabs: [] })))
 }
 
+/**
+ * Where widgets brought from another layout land (Move / Copy to layout,
+ * placed in the layout edit mode): a cell — an empty one they fill, or a
+ * card they join as its last tabs —, a new full-width row at the bottom, or
+ * a full track inserted on a line (a ruler's "+": `insertTrackAt`'s `index`
+ * and `through`).
+ */
+export type IncomingTarget =
+  | { kind: 'cell'; cellId: string }
+  | { kind: 'bottom' }
+  | { kind: 'line'; axis: GridAxis; index: number; through?: number }
+
+/**
+ * `tabs` (none of them in `layout`) placed at `target` (`IncomingTarget`);
+ * a cell they make or fill shows `activeTabId` (default the first), a card
+ * they join shows the first of them. Returns the layout and the cell that
+ * holds them — `null` (the same layout) when the target doesn't exist or a
+ * tab's id is taken.
+ */
+export function placeIncomingTabs<L extends LayoutBody>(
+  layout: L,
+  tabs: readonly LayoutTab[],
+  target: IncomingTarget,
+  genId: IdGen,
+  activeTabId?: string,
+): { layout: L; cellId: string | null } {
+  const ids = layoutIds(layout)
+  if (tabs.length === 0 || tabs.some((t) => ids.has(t.id))) return { layout, cellId: null }
+  switch (target.kind) {
+    case 'cell': {
+      const cell = cellById(layout, target.cellId)
+      if (!cell) return { layout, cellId: null }
+      if (cell.tabs.length === 0) return { layout: fillCell(layout, cell.id, tabs, activeTabId), cellId: cell.id }
+      const joined = placeTabs(layout, tabs, { kind: 'cell', cellId: cell.id }, genId)
+      return joined ? { layout: joined, cellId: cell.id } : { layout, cellId: null }
+    }
+    case 'bottom': {
+      const inserted = insertTrack(layout, 'bottom', genId)
+      return { layout: fillCell(inserted.layout, inserted.cellId, tabs, activeTabId), cellId: inserted.cellId }
+    }
+    case 'line': {
+      const inserted = insertTrackAt(layout, target.axis, target.index, genId, undefined, target.through)
+      if (inserted.cellId == null) return { layout, cellId: null }
+      return { layout: fillCell(inserted.layout, inserted.cellId, tabs, activeTabId), cellId: inserted.cellId }
+    }
+  }
+}
+
+/** `layout` without tabs `tabIds`, each removed as Remove widget removes it (`removeTabKeepCell`: a lone widget's cell stays, empty). */
+export function removeTabsKeepCell<L extends LayoutBody>(layout: L, tabIds: readonly string[]): L {
+  return tabIds.reduce((l, id) => removeTabKeepCell(l, id), layout)
+}
+
 // ── Cards (layout edit mode E3) ─────────────────────────────────────────────
 
 /** Whether `area` lies in `layout`'s grid: whole tracks, at least one each way, inside it. */

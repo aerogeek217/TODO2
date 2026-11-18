@@ -86,6 +86,20 @@ export async function restoreLists(removed: OwnedListsRemoved | null): Promise<v
   await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
 }
 
+/** Lists `ids`, as copies for another layout (each as saved; a list that is gone has none). */
+export function listCopiesOf(ids: Iterable<number>): ListCopy[] {
+  const wanted = new Set(ids)
+  return useListDefinitionStore.getState().listDefinitions
+    .filter((saved) => wanted.has(saved.id))
+    .map((saved) => {
+      const { id: _id, sortOrder: _order, owner: _owner, ...def } = saved
+      void _id
+      void _order
+      void _owner
+      return { from: saved.id, def }
+    })
+}
+
 /** The lists of layout `layoutId` that `body` shows, as copies for a new layout (each as saved). */
 export function ownedListCopies(layoutId: number, body: LayoutBody): ListCopy[] {
   const shown = layoutListRefs(body)

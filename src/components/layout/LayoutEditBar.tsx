@@ -6,6 +6,7 @@ import { leaveLayout } from '../../stores/editor-leave'
 import { DisabledLayoutTabs } from '../workspace/LayoutTabs'
 import { LayoutEditTray } from '../workspace/LayoutEditTray'
 import { RedoIcon, UndoIcon } from '../shared/icons'
+import { incomingPlaced } from '../../utils/layout-transfer'
 import topBarStyles from './TopBar.module.css'
 import { LAYOUT_EDIT_TRAY_ATTR } from '../../utils/dom-contract'
 import styles from './LayoutEditBar.module.css'
@@ -34,6 +35,11 @@ function useModeEscape(): void {
       if (e.key !== 'Escape' || e.defaultPrevented || layered) return
       e.preventDefault()
       const ws = useWorkspaceStore.getState()
+      // Widgets in hand (Move / Copy to layout), not placed yet: Esc goes back to their layout.
+      if (ws.editing?.incoming && !incomingPlaced(ws.working, ws.editing.incoming)) {
+        ws.cancelEdit()
+        return
+      }
       // A tap's pending move (E3): Esc cancels it, the mode stays.
       if (ws.editing?.moveArmed) {
         ws.disarmEditMove()
@@ -57,11 +63,12 @@ function useModeEscape(): void {
  * layout's tab (or the picker) — unless something else has taken it by then (Settings,
  * a dialog).
  */
-function useModeFocus(done: React.RefObject<HTMLButtonElement | null>): void {
+function useModeFocus(done: React.RefObject<HTMLButtonElement | null>, first: React.RefObject<HTMLButtonElement | null>): void {
   useLayoutEffect(() => {
     const active = document.activeElement
     const opener = active instanceof HTMLElement && active !== document.body ? active : null
-    done.current?.focus()
+    // With widgets in hand Done is off until they are placed: At the bottom takes the focus.
+    ;(first.current ?? done.current)?.focus()
     return () => {
       setTimeout(() => {
         const now = document.activeElement
@@ -70,7 +77,7 @@ function useModeFocus(done: React.RefObject<HTMLButtonElement | null>): void {
         else document.querySelector<HTMLElement>('[data-layout-controls] [role="tab"][aria-selected="true"], [data-testid="layout-picker"]')?.focus()
       }, 0)
     }
-  }, [done])
+  }, [done, first])
 }
 
 /**
@@ -108,8 +115,11 @@ export function LayoutEditBar() {
   const canRedo = useWorkspaceStore((s) => (s.editing?.redo.length ?? 0) > 0)
   const undoKeys = useShortcutLabel('undo')
   const redoKeys = useShortcutLabel('redo')
+  const incoming = useWorkspaceStore((s) => s.editing?.incoming ?? null)
+  const placed = useWorkspaceStore((s) => incomingPlaced(s.working, s.editing?.incoming))
   const doneRef = useRef<HTMLButtonElement | null>(null)
-  useModeFocus(doneRef)
+  const bottomRef = useRef<HTMLButtonElement | null>(null)
+  useModeFocus(doneRef, bottomRef)
   useModeEscape()
   useLayoutRequestsInMode()
   const store = useWorkspaceStore.getState
@@ -149,10 +159,34 @@ export function LayoutEditBar() {
           <RedoIcon />
           <span>Redo</span>
         </button>
-        <button type="button" className={styles.cancel} onClick={() => store().cancelEdit()}>
+        {incoming && !placed && (
+          <button
+            ref={bottomRef}
+            type="button"
+            className={styles.ghost}
+            data-testid="layout-edit-place-bottom"
+            data-tooltip={`Put “${incoming.name}” in a new row at the bottom`}
+            onClick={() => { store().placeIncoming({ kind: 'bottom' }) }}
+          >
+            At the bottom
+          </button>
+        )}
+        <button
+          type="button"
+          className={styles.cancel}
+          data-tooltip={incoming ? `Back to “${incoming.sourceName}”, nothing changed` : undefined}
+          onClick={() => store().cancelEdit()}
+        >
           Cancel
         </button>
-        <button ref={doneRef} type="button" className={styles.done} onClick={() => { void store().finishEdit() }}>
+        <button
+          ref={doneRef}
+          type="button"
+          className={styles.done}
+          disabled={incoming != null && !placed}
+          data-tooltip={incoming && !placed ? `Place “${incoming.name}” first` : undefined}
+          onClick={() => { void store().finishEdit() }}
+        >
           Done
         </button>
       </div>

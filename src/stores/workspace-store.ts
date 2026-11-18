@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { byLayoutOrder, layoutRepository, type OwnedListsRemoved, type ReadLayout } from '../data/layout-repository'
+import { byLayoutOrder, layoutRepository, type OwnedListsRemoved, type ReadLayout, type TransferWritten } from '../data/layout-repository'
 import { trackWrite } from './store-helpers'
-import { applyRemoved, foreignListRefs, ownedListCopies, pruneListsAmong, pruneOwnedLists, restoreLists } from './layout-lists'
+import { applyRemoved, foreignListRefs, listCopiesOf, ownedListCopies, pruneListsAmong, pruneOwnedLists, restoreLists } from './layout-lists'
 import { closeCellDescription, tabName } from './layout-step-names'
 import { UndoGone, UndoRefused, useUndoStore, type UndoEntry } from './undo-store'
 import { undoable } from './undoable'
@@ -62,7 +62,9 @@ import {
   moveTab,
   patchTabConfig,
   patchTabViewState,
+  placeIncomingTabs,
   removeTabKeepCell,
+  removeTabsKeepCell,
   removeTrack,
   replaceTab,
   setActiveTab,
@@ -75,12 +77,14 @@ import {
   withLabelOf,
   withTrackIdsOf,
   type IdGen,
+  type IncomingTarget,
   type LayoutDropTarget,
   type MoveEdgeOptions,
 } from '../utils/workspace-layout-ops'
 import type { EdgeStretch, Side } from '../utils/workspace-grid'
 import { samePreviewBody } from '../utils/workspace-preview'
-import { stretchedArea, tapOutcome, type StretchDirection, type TapOutcome, type TapTarget } from '../utils/layout-edit-cards'
+import { cardName, stretchedArea, tapOutcome, type StretchDirection, type TapOutcome, type TapTarget } from '../utils/layout-edit-cards'
+import { carriedTabs, incomingListIds, incomingPlaced, transferListPlan, type IncomingTransfer, type TransferWhat } from '../utils/layout-transfer'
 
 type Layout = PersistedWorkspaceLayout
 
@@ -141,6 +145,35 @@ interface LayoutEditSession {
    * (`layout-edit-cards.tapOutcome`). Esc, an edit, an undo disarm it.
    */
   moveArmed?: boolean
+  /**
+   * Move / Copy to layout: the widgets in hand, brought from another layout
+   * to be placed (`placeIncoming`); Done writes both layouts as one step.
+   */
+  incoming?: IncomingTransfer
+}
+
+/** One layout of a move between layouts (`TransferRun`): its body before and after. */
+interface TransferRunPart {
+  id: number
+  before: LayoutBody
+  after: LayoutBody
+}
+
+/**
+ * The undo step of a Move / Copy to layout: both layouts' bodies, the lists
+ * it handed over and the copies it made, what its writes removed — kept
+ * current across its undos and redos (an undo keeps the copies' rows for
+ * the redo to put back).
+ */
+interface TransferRun {
+  description: string
+  target: TransferRunPart
+  /** A move's source. */
+  source?: TransferRunPart
+  reown: number[]
+  copyIds: number[]
+  copyRows: OwnedListsRemoved['rows'] | null
+  removed: OwnedListsRemoved[]
 }
 
 /** Whether the layout edit mode's draft differs from the layout as stored (view state too). */
@@ -330,6 +363,24 @@ export interface WorkspaceState {
   endEditForReplace: () => void
   /** A list made while editing (`createListAndTab`): deleted with the mode's end unless the draft shows it. */
   noteEditList: (listDefinitionId: number) => void
+  /**
+   * Move / Copy to layout (2026-11-18): carries `what` — a widget or a whole
+   * cell of the open layout — to layout `to` (or a new layout named
+   * `newName`), which opens in the layout edit mode with it in hand
+   * (`LayoutEditSession.incoming`) to be placed. The open layout is left as
+   * any switch leaves it (an open editor with changes asks first; in the
+   * mode, its draft's Save / Discard / Keep editing). Nothing is written
+   * until Done (`finishEdit`: both layouts, one undo step); Cancel goes back
+   * to the source. Resolves whether the target's mode opened.
+   */
+  transferTo: (to: number | { newName: string }, what: TransferWhat, copy: boolean) => Promise<boolean>
+  /**
+   * Places the widgets in hand at `target` (`placeIncomingTabs`: a slot or a
+   * card, the bottom, a ruler's line) — a step of the mode's undo, the cell
+   * holding them selected. Whether it placed (nothing in hand, or placed
+   * already: false).
+   */
+  placeIncoming: (target: IncomingTarget) => boolean
 
   /**
    * Opens the active layout (creating an empty "Default" one when none
@@ -884,7 +935,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     if (refusedByReplaceHold()) return false
     let next = fn(working, idGenFor(working))
     if (next === working) return false
-    const foreign = foreignListRefs(working, next, working.id)
+    // The widgets in hand (Move / Copy to layout) may show the source's lists: Done gives them to this layout.
+    const carried = incomingListIds(get().editing?.incoming)
+    const foreign = foreignListRefs(working, next, working.id).filter((id) => !carried.has(id))
     if (foreign.length > 0) {
       console.warn('[workspace] refused an edit showing lists of another layout:', foreign)
       return false
@@ -1183,6 +1236,134 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     })
   }
 
+  // ── Move / Copy to layout ──
+
+  /** The layout `id` as the store holds it (the open one as committed). */
+  function storedRow(id: number): Layout | undefined {
+    const { saved, layouts } = get()
+    return saved?.id === id ? saved : layouts.find((l) => l.id === id)
+  }
+
+  /** Rows just written (a move's two layouts) taken into the store: the picker's, and the open layout's when it is one of them. */
+  function takeStored(rows: readonly Layout[]): void {
+    let layouts = get().layouts
+    for (const row of rows) layouts = replaceLayout(layouts, row)
+    const written = new Set(rows.map((r) => r.id))
+    const repairedIds = new Set([...get().repairedIds].filter((id) => !written.has(id)))
+    const open = rows.find((r) => r.id === get().saved?.id)
+    set({ layouts, repairedIds, ...(open && !get().editing ? { working: open, saved: open, writeFailed: false } : {}) })
+  }
+
+  /** After a move's write, its undo or its redo: the lists its layout writes removed into the stores, the list stores read again when lists changed hands. */
+  async function takeTransferLists(removed: readonly OwnedListsRemoved[], listsChanged: boolean): Promise<void> {
+    for (const r of removed) await applyRemoved(r)
+    if (listsChanged) await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
+  }
+
+  /**
+   * Done with the widgets in hand placed: the target's draft and (a move)
+   * the source without them written in one transaction, the carried lists
+   * handed over or copied (`transferListPlan`), as one undo step
+   * (`Moved “Inbox” to “Planning”`) that undoes from either layout. A write
+   * that fails, or a layout gone, keeps the mode open and says so.
+   */
+  async function finishTransfer(session: LayoutEditSession, incoming: IncomingTransfer): Promise<boolean> {
+    const verb = incoming.copy ? 'copy' : 'move'
+    const draft = get().working
+    const saved = get().saved
+    if (!draft || !saved || saved.id !== session.layoutId) return false
+    const now = new Date()
+    let sourceBefore: Layout | undefined
+    let sourceAfter: Layout | undefined
+    if (!incoming.copy) {
+      sourceBefore = (await layoutRepository.get(incoming.sourceLayoutId).catch(() => undefined))?.layout
+      if (!sourceBefore) {
+        useUndoStore.getState().notify(`Layout “${incoming.sourceName}” is gone: “${incoming.name}” can’t move from it.`)
+        return false
+      }
+      sourceAfter = { ...removeTabsKeepCell(sourceBefore, incoming.sourceTabIds), modifiedAt: now }
+    }
+    // The lists the session made that the draft doesn't show go first (as Done's).
+    await pruneListsAmong(session.layoutId, session.createdLists, draft)
+    const plan = transferListPlan(incoming, draft, sourceAfter ?? null)
+    let written: TransferWritten | null
+    try {
+      written = await trackWrite(() => layoutRepository.transfer({
+        target: { ...draft, modifiedAt: now },
+        ...(sourceAfter ? { source: sourceAfter } : {}),
+        reown: plan.reown,
+        copies: listCopiesOf(plan.copy),
+      }))
+    } catch (err) {
+      reportWriteFailure(`Couldn't ${verb} “${incoming.name}”.`, err)
+      return false
+    }
+    if (!written) {
+      useUndoStore.getState().notify(`A layout is gone: “${incoming.name}” wasn’t ${incoming.copy ? 'copied' : 'moved'}.`)
+      return false
+    }
+    endSession()
+    const target = written.target
+    takeStored(sourceAfter ? [target, sourceAfter] : [target])
+    await takeTransferLists(written.removed, plan.reown.length > 0 || written.copyIds.length > 0)
+    const description = `${incoming.copy ? 'Copied' : 'Moved'} “${incoming.name}” to “${saved.name}”`
+    const run: TransferRun = {
+      description,
+      target: { id: target.id, before: layoutBodyOf(saved), after: layoutBodyOf(target) },
+      ...(sourceBefore && sourceAfter ? { source: { id: sourceBefore.id, before: layoutBodyOf(sourceBefore), after: layoutBodyOf(sourceAfter) } } : {}),
+      reown: plan.reown,
+      copyIds: written.copyIds,
+      copyRows: null,
+      removed: written.removed,
+    }
+    useUndoStore.getState().push({ description, undo: () => undoTransfer(run), redo: () => redoTransfer(run) }, true)
+    return true
+  }
+
+  /** The rows a move's undo / redo writes: each of its layouts as stored now with `pick`'s body and the view state of now — `UndoGone` when one is gone, `UndoRefused` in the mode. */
+  function transferRows(run: TransferRun, verb: 'undo' | 'redo', pick: 'before' | 'after'): { target: Layout; source?: Layout } {
+    assertNoReplaceHold()
+    if (get().editing) throw new UndoRefused(`Finish editing the layout to ${verb}: ${run.description}.`)
+    const now = new Date()
+    const rowAs = (part: TransferRunPart): Layout => {
+      const current = storedRow(part.id)
+      if (!current) throw new UndoGone(`Can’t ${verb}: ${run.description} — its layout is gone.`)
+      return { ...withViewStateOf(withLayoutBody(current, part[pick]), current), modifiedAt: now }
+    }
+    const target = rowAs(run.target)
+    return run.source ? { target, source: rowAs(run.source) } : { target }
+  }
+
+  /** A move's undo: the copies deleted, the lists handed over back with the source, the lists its writes removed back, both layouts as they were. */
+  async function undoTransfer(run: TransferRun): Promise<void> {
+    await settleLayoutWrites()
+    const { target, source } = transferRows(run, 'undo', 'before')
+    const copyRows = await trackWrite(() => layoutRepository.untransfer({
+      target, ...(source ? { source } : {}), reown: run.reown, copyIds: run.copyIds, restore: run.removed,
+    }))
+    if (!copyRows) throw new UndoGone(`Can’t undo: ${run.description} — its layout is gone.`)
+    run.copyRows = copyRows
+    run.copyIds = []
+    run.removed = []
+    takeStored(source ? [target, source] : [target])
+    await takeTransferLists([], true)
+  }
+
+  /** A move's redo: the copies put back, the lists handed over again, both layouts as after it. */
+  async function redoTransfer(run: TransferRun): Promise<void> {
+    await settleLayoutWrites()
+    const { target, source } = transferRows(run, 'redo', 'after')
+    const written = await trackWrite(() => layoutRepository.transfer({
+      target, ...(source ? { source } : {}), reown: run.reown, copies: [], ...(run.copyRows ? { copyRows: run.copyRows } : {}),
+    }))
+    if (!written) throw new UndoGone(`Can’t redo: ${run.description} — its layout is gone.`)
+    run.copyIds = written.copyIds
+    run.copyRows = null
+    run.removed = written.removed
+    takeStored(source ? [written.target, source] : [written.target])
+    await takeTransferLists(written.removed, true)
+  }
+
   return {
     layouts: [],
     activeLayoutId: null,
@@ -1227,6 +1408,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     tapEdit(target) {
       const { editing } = get()
+      // Widgets in hand (Move / Copy to layout): a slot takes them, a card (anywhere on it) joins them as tabs.
+      if (editing?.incoming && !incomingPlaced(get().working, editing.incoming)) {
+        if (!get().placeIncoming({ kind: 'cell', cellId: target.cellId })) return { kind: 'disarm' }
+        return { kind: 'place', cellId: get().editing?.selectedCellId ?? target.cellId }
+      }
       const outcome = tapOutcome({ selectedCellId: editing?.selectedCellId ?? null, moveArmed: editing?.moveArmed ?? false }, target)
       if (!editing) return outcome
       switch (outcome.kind) {
@@ -1304,6 +1490,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const { editing: session, working } = get()
       if (!session || !working) return session == null
       if (refusedByReplaceHold()) return false
+      if (session.incoming && incomingPlaced(working, session.incoming)) return finishTransfer(session, session.incoming)
       endSession()
       // The lists it made that the draft doesn't show go first: the commit's
       // write would take them into its undo step, which would bring back
@@ -1322,6 +1509,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     cancelEdit() {
       const { editing: session, working, saved } = get()
       if (!session || !working || !saved) return
+      const incoming = session.incoming
+      if (incoming) {
+        // Move / Copy to layout: back to the source, nothing written (a layout made for it deleted again).
+        get().discardEdit()
+        void get().load(incoming.sourceLayoutId).then(() => {
+          if (incoming.madeLayout && get().activeLayoutId !== session.layoutId) void get().delete(session.layoutId)
+        })
+        return
+      }
       const changed = layoutEditChanged(get())
       endSession()
       set({ working: saved, resizePreview: null })
@@ -1388,6 +1584,71 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const { editing } = get()
       if (!editing || editing.createdLists.includes(listDefinitionId)) return
       set({ editing: { ...editing, createdLists: [...editing.createdLists, listDefinitionId] } })
+    },
+
+    async transferTo(to, what, copy) {
+      if (refusedByReplaceHold()) return false
+      if (get().editing) {
+        // A card's Move / Copy cell to layout: its draft first (Save / Discard / Keep editing).
+        if (layoutEditChanged(get())) {
+          if (!(await get().askLeaveEdit())) return false
+        } else {
+          get().leaveEdit()
+        }
+      }
+      if (layoutLeaveAsks() && !(await leaveLayout())) return false
+      quitLayoutEditors()
+      if (!(await readyToLeave())) return false
+      const source = get().saved
+      if (!source || refusedByReplaceHold()) return false
+      const carried = carriedTabs(source, what, source, idGenFor(source))
+      if (!carried) {
+        useUndoStore.getState().notify(`That widget isn’t in layout “${source.name}” any more.`)
+        return false
+      }
+      const titles = carried.sourceTabIds.map((id) => tabName(source, id))
+      const name = cardName({ tabs: carried.tabs }, titles)
+      let targetId: number
+      if (typeof to === 'number') {
+        if (to === source.id || !get().layouts.some((l) => l.id === to)) return false
+        if (!(await openLayout(to))) return false
+        targetId = to
+      } else {
+        const id = await get().createLayout(to.newName)
+        if (id == null) return false
+        targetId = id
+      }
+      const target = get().working
+      if (!target || target.id !== targetId || get().editing || refusedByReplaceHold()) return false
+      const landing = carriedTabs(source, what, target, idGenFor(target))
+      if (!landing) return false
+      clearForEdit()
+      const incoming: IncomingTransfer = {
+        copy,
+        sourceLayoutId: source.id,
+        sourceName: source.name,
+        ...landing,
+        name,
+        ...(typeof to === 'number' ? {} : { madeLayout: true }),
+      }
+      beginSession({ layoutId: targetId, selectedCellId: null, undo: [], redo: [], createdLists: [], incoming }, target)
+      return true
+    },
+
+    placeIncoming(target) {
+      const { editing, working } = get()
+      const incoming = editing?.incoming
+      if (!incoming || !working || incomingPlaced(working, incoming)) return false
+      let cellId: string | null = null
+      const changed = edit((layout, genId) => {
+        const placed = placeIncomingTabs(layout, incoming.tabs, target, genId, incoming.activeTabId)
+        cellId = placed.cellId
+        return placed.layout
+      }, `Placed “${incoming.name}”`)
+      const holder = cellId as string | null
+      if (!changed || holder == null) return false
+      get().selectEditCell(holder)
+      return true
     },
 
     init() {
