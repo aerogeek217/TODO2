@@ -1,0 +1,49 @@
+/* A "+" along a gutter in the layout edit mode (round two, concept A,
+ * `GutterPlus`): a pill centred on the pointer's place along the line,
+ * fixed over the table; the accent while its preview shows. Its noun shows
+ * on its hover. */
+.plus {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: var(--font-size-badge);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Its near edge beside the line, centred on the pointer along it (it grows away from the line). */
+.plus[data-axis='columns'] {
+  transform: translateY(-50%);
+}
+
+.plus[data-axis='rows'] {
+  transform: translateX(-50%);
+}
+
+.plus:hover,
+.plus[data-hot] {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.noun {
+  display: none;
+}
+
+.plus:hover .noun,
+.plus[data-hot] .noun {
+  display: inline;
+}

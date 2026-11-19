@@ -117,6 +117,26 @@ interface ResizePreview {
   handle: ResizeHandle
 }
 
+/**
+ * The layout edit mode's preview of a structural edit before it is made
+ * (layout editor round two, concept A): a "+" hovered or focused, a
+ * toolbar's Split hovered — the table drawn as the edit would leave it
+ * (`body`, from `utils/structure-preview.structureProbe`), its new empty
+ * cells and the cells that grow marked, and the edit said in words in the
+ * mode bar (`hint`). Transient: never saved, never an undo step; every edit
+ * clears it.
+ */
+export interface StructurePreview {
+  layoutId: number
+  body: LayoutBody
+  /** The cells the edit makes (empty): drawn as the new slots. */
+  newCellIds: readonly string[]
+  /** The cells that grow across the new track: outlined. */
+  grewCellIds: readonly string[]
+  /** The edit in words, for the mode bar. */
+  hint: string
+}
+
 /** What an undo step of a structural edit says to do with its undo / redo: a key that merges a run of steps into one. */
 interface EditUndoOptions {
   /** Steps passing the same key one after another stay one undo step (a divider stepped by the arrow keys). */
@@ -150,6 +170,11 @@ interface LayoutEditSession {
    * to be placed (`placeIncoming`); Done writes both layouts as one step.
    */
   incoming?: IncomingTransfer
+  /**
+   * The cards show their widgets' content, dimmed (the mode bar's Content
+   * toggle); off, each card is a blueprint — its icon, name and kind.
+   */
+  showContent?: boolean
 }
 
 /** One layout of a move between layouts (`TransferRun`): its body before and after. */
@@ -283,6 +308,8 @@ export interface WorkspaceState {
    * in the browser, never unsaved, never an undo step.
    */
   resizePreview: ResizePreview | null
+  /** Transient: the layout edit mode's preview of an edit not yet made (`StructurePreview`). */
+  structurePreview: StructurePreview | null
   /** The layout edit mode's session (`LayoutEditSession`), or `null` while the mode is off. */
   editing: LayoutEditSession | null
   /** After Cancel: the lists the session made, held for its Restore offer and deleted once it goes (`listsHeldByEdit`). */
@@ -515,6 +542,10 @@ export interface WorkspaceState {
   endResize: () => Promise<void>
   /** Sets (or clears, `null`) the structural resize preview; a preview drawing the same table as the current one changes nothing. */
   setResizePreview: (preview: ResizePreview | null) => void
+  /** Sets (or clears, `null`) the layout edit mode's preview of an edit; outside the mode, nothing. */
+  setStructurePreview: (preview: StructurePreview | null) => void
+  /** The layout edit mode's Content toggle: the cards show their widgets (dimmed), or blueprints. */
+  setEditContent: (on: boolean) => void
   /**
    * Layout config of a tab (e.g. a list tab's list, a calendar's date types,
    * an editor's Save): one undo step, `description` its name (default
@@ -951,7 +982,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const session = get().editing
     if (session) {
       // The layout edit mode: the draft changes, a step of its own undo.
-      set({ working: next, editing: withEditStep(session, working, opts.mergeKey), resizePreview: null })
+      set({ working: next, editing: withEditStep(session, working, opts.mergeKey), resizePreview: null, structurePreview: null })
       return true
     }
     const description = typeof describe === 'function' ? describe(working, next) : describe
@@ -1034,7 +1065,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     endSession()
     set({
       layouts, repairedIds, activeLayoutId: layout.id, working: layout, saved: layout,
-      writeFailed: false, hydrated: true, resizePreview: null,
+      writeFailed: false, hydrated: true, resizePreview: null, structurePreview: null,
     })
     if (fixes.length > 0) reportRepair(layout, fixes)
   }
@@ -1154,7 +1185,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   function beginSession(session: LayoutEditSession, draft: Layout): void {
     mode.unregister?.()
     mode.mergeKey = null
-    set({ editing: session, working: draft, resizePreview: null })
+    set({ editing: session, working: draft, resizePreview: null, structurePreview: null })
     mode.unregister = registerOpenEditor({
       layoutWide: true,
       changed: () => layoutEditChanged(get()),
@@ -1168,7 +1199,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     mode.unregister?.()
     mode.unregister = null
     mode.mergeKey = null
-    if (get().editing) set({ editing: null })
+    if (get().editing) set({ editing: null, structurePreview: null })
   }
 
   /** Closes what covers or edits the workspace before the mode opens: every editor, the widget popup, the filtered-tasks panel, the snackbar. */
@@ -1373,7 +1404,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     writesPending: 0,
     repairedIds: new Set(),
     hydrated: false,
-    resizePreview: null,
+    resizePreview: null, structurePreview: null,
     editing: null,
     discardedLists: [],
 
@@ -1468,7 +1499,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       set({
         working: next,
         editing: { ...editing, selectedCellId, moveArmed: false, undo: editing.undo.slice(0, -1), redo: [...editing.redo, layoutBodyOf(working)] },
-        resizePreview: null,
+        resizePreview: null, structurePreview: null,
       })
     },
 
@@ -1482,7 +1513,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       set({
         working: next,
         editing: { ...editing, selectedCellId, moveArmed: false, undo: [...editing.undo, layoutBodyOf(working)], redo: editing.redo.slice(0, -1) },
-        resizePreview: null,
+        resizePreview: null, structurePreview: null,
       })
     },
 
@@ -1520,7 +1551,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       }
       const changed = layoutEditChanged(get())
       endSession()
-      set({ working: saved, resizePreview: null })
+      set({ working: saved, resizePreview: null, structurePreview: null })
       if (!changed) {
         void pruneListsAmong(session.layoutId, session.createdLists, saved)
         return
@@ -1538,7 +1569,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const { editing: session, saved } = get()
       if (!session || !saved) return
       endSession()
-      set({ working: saved, resizePreview: null })
+      set({ working: saved, resizePreview: null, structurePreview: null })
       void pruneListsAmong(session.layoutId, session.createdLists, saved)
     },
 
@@ -1576,7 +1607,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (!get().editing) return
       const changed = layoutEditChanged(get())
       endSession()
-      set({ working: get().saved, resizePreview: null })
+      set({ working: get().saved, resizePreview: null, structurePreview: null })
       if (changed) useUndoStore.getState().notify('Edit layout closed: its changes weren’t saved.')
     },
 
@@ -1942,6 +1973,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     endResize() {
       return commitSizes()
+    },
+
+    setStructurePreview(preview) {
+      if (preview === get().structurePreview) return
+      if (preview && get().editing == null) return
+      set({ structurePreview: preview })
+    },
+
+    setEditContent(on) {
+      const editing = get().editing
+      if (!editing || (editing.showContent ?? false) === on) return
+      set({ editing: { ...editing, showContent: on } })
     },
 
     setResizePreview(preview) {

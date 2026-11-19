@@ -5,7 +5,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { leaveLayout } from '../../stores/editor-leave'
 import { DisabledLayoutTabs } from '../workspace/LayoutTabs'
 import { LayoutEditTray } from '../workspace/LayoutEditTray'
-import { RedoIcon, UndoIcon } from '../shared/icons'
+import { EyeIcon, RedoIcon, UndoIcon } from '../shared/icons'
 import { incomingPlaced } from '../../utils/layout-transfer'
 import topBarStyles from './TopBar.module.css'
 import { LAYOUT_EDIT_TRAY_ATTR } from '../../utils/dom-contract'
@@ -117,6 +117,7 @@ export function LayoutEditBar() {
   const redoKeys = useShortcutLabel('redo')
   const incoming = useWorkspaceStore((s) => s.editing?.incoming ?? null)
   const placed = useWorkspaceStore((s) => incomingPlaced(s.working, s.editing?.incoming))
+  const showContent = useWorkspaceStore((s) => s.editing?.showContent ?? false)
   const doneRef = useRef<HTMLButtonElement | null>(null)
   const bottomRef = useRef<HTMLButtonElement | null>(null)
   useModeFocus(doneRef, bottomRef)
@@ -137,6 +138,19 @@ export function LayoutEditBar() {
         <LayoutEditTray />
       </div>
       <div className={styles.actions}>
+        {/* Round two (concept A): the cards are blueprints; this shows their widgets, dimmed. */}
+        <button
+          type="button"
+          className={`${styles.ghost} ${showContent ? styles.ghostOn : ''}`}
+          aria-pressed={showContent}
+          data-tooltip={showContent ? 'Show the cards as blueprints' : 'Show the widgets’ content'}
+          aria-label="Content"
+          data-testid="layout-edit-content"
+          onClick={() => store().setEditContent(!showContent)}
+        >
+          <EyeIcon />
+          <span className={styles.contentLabel}>Content</span>
+        </button>
         <button
           type="button"
           className={styles.ghost}

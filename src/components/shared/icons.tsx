@@ -263,6 +263,16 @@ export function RedoIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M10.5 3l3 3-3 3" /><path d="M13.5 6h-7a4 4 0 0 0 0 8H9" /></Svg>
 }
 
+/** An eye: show what is hidden (the layout edit mode's Content toggle). */
+export function EyeIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" />
+      <circle cx="8" cy="8" r="2" />
+    </Svg>
+  )
+}
+
 export function TrashIcon({ size = 14 }: { size?: number }) {
   return (
     <Svg size={size}>

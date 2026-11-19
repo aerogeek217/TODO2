@@ -446,32 +446,6 @@ function insertTrackOverRun<L extends LayoutBody>(layout: L, axis: GridAxis, fir
   return insertTrackAt(next, axis, line, genId, own >= 0 ? own : undefined)
 }
 
-/**
- * Where `insertTrackAt` on lines `first` … `through` of `axis` puts new
- * empty cells: the stretches of the other axis (track ranges `[start,
- * end)` of `layout`'s other axis) between the cells that cross the line and
- * grow across the new track. Read off the op's own result, so a ruler's
- * guide and the insert can't disagree. An edge line is one stretch across
- * the whole layout.
- */
-export function insertPreviewGaps(layout: LayoutBody, axis: GridAxis, first: number, through = first): Array<[number, number]> {
-  let n = 0
-  const probe = '\u0000probe-'
-  const { layout: out } = insertTrackAt(layout, axis, first, () => `${probe}${n++}`, undefined, through)
-  if (out === layout) return []
-  const cross = crossAxis(axis)
-  const crossIds = layout.grid[cross].map((t) => t.id)
-  const gaps: Array<[number, number]> = []
-  for (const c of out.cells) {
-    if (!c.id.startsWith(probe)) continue
-    const [s, e] = spanOf(c.area, cross)
-    const start = crossIds.indexOf(out.grid[cross][s]?.id ?? '')
-    const end = crossIds.indexOf(out.grid[cross][e - 1]?.id ?? '')
-    if (start >= 0 && end >= start) gaps.push([start, end + 1])
-  }
-  return gaps.sort((a, b) => a[0] - b[0])
-}
-
 // ── Removing a track ────────────────────────────────────────────────────────
 
 /**

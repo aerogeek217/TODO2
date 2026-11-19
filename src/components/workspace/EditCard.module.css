@@ -86,7 +86,101 @@
   text-overflow: ellipsis;
 }
 
-/* Its ⋯: the card's menu (Cell layout). Always shown in the mode. */
+/* ── A blueprint (round two, concept A): the card named over its hidden body ── */
+
+.blueprint {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  container-type: size;
+  pointer-events: none;
+}
+
+.blueprintInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-sizing: border-box;
+  height: 100%;
+  min-width: 0;
+  padding: 10px 36px;
+  text-align: center;
+}
+
+.blueprint[data-below-strip] {
+  top: var(--cell-header-height);
+}
+
+.blueprintName {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.blueprintIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-accent-text);
+}
+
+.blueprintText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.blueprintKind {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A short card (a folded or Numbers-height row): the name and kind on one line. */
+@container (max-height: 64px) {
+  .blueprintInner {
+    flex-direction: row;
+    gap: 10px;
+  }
+}
+
+/* A blueprint names the card itself: no label pill over it, no dimmed body under it. */
+:global([data-ws-cell][data-blueprint]) .label:not(.stripLabel) {
+  display: none;
+}
+
+:global([data-layout-editing] [data-ws-cell][data-blueprint] [data-ws-cell-body]) {
+  visibility: hidden;
+}
+
+/* Its ⋯ and corner show on the card's hover, focus or selection (always on touch): opacity only, nothing moves. */
+.more,
+.corner {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+:global([data-ws-cell]):is(:hover, :focus-within, [data-edit-selected]) :is(.more, .corner) {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .more,
+  .corner {
+    opacity: 1;
+  }
+}
+
+/* Its ⋯: the card's menu (Cell layout). */
 .more {
   position: absolute;
   top: 16px;
@@ -128,11 +222,6 @@
   touch-action: none;
   background:
     linear-gradient(135deg, transparent 0 55%, var(--color-accent) 55% 62%, transparent 62% 72%, var(--color-accent) 72% 79%, transparent 79%);
-  opacity: 0.8;
-}
-
-.corner:hover {
-  opacity: 1;
 }
 
 /* ── A slot: an empty cell in the mode ── */

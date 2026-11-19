@@ -5,7 +5,6 @@ import { isFitTrack } from '../../utils/workspace-rows'
 import {
   evenTracks,
   insertTrack,
-  insertPreviewGaps,
   insertTrackAt,
   mergeTrackInto,
   removeTrack,
@@ -164,30 +163,6 @@ describe('insertTrackAt across a sliver (`through`)', () => {
     const out = insertTrackAt(base, 'rows', 2, ids(), undefined, 3)
     expect(picture(out.layout).at(-1)).toMatch(/^(n\d+) \1$/)
     expectValid(out.layout)
-  })
-})
-
-describe('insertPreviewGaps (where a ruler’s guide is drawn)', () => {
-  const a = cell('a')
-  const b = cell('b')
-  const c = cell('c')
-  const d = cell('d')
-
-  it('an edge line: the whole width; an inner line: the stretches between the cells crossing it', () => {
-    const t = cell('t')
-    const base = layout(grid([[a, b, b], [t, t, d]]))
-    expect(insertPreviewGaps(base, 'rows', 0)).toEqual([[0, 3]])
-    // Column line 2 is crossed by b (row 0) only: a new cell in row 1.
-    expect(insertPreviewGaps(base, 'columns', 2)).toEqual([[1, 2]])
-    // Column line 1 is crossed by t (row 1) only: a new cell in row 0.
-    expect(insertPreviewGaps(base, 'columns', 1)).toEqual([[0, 1]])
-  })
-
-  it('agrees with the insert: across a sliver the whole width, on one of its lines only the half', () => {
-    const base = layout(grid([[a, b], [a, d], [c, d]], { rows: [500, 10, 490] }))
-    expect(insertPreviewGaps(base, 'rows', 1, 2)).toEqual([[0, 2]])
-    expect(insertPreviewGaps(base, 'rows', 1)).toEqual([[1, 2]])
-    expect(insertPreviewGaps(base, 'rows', 2)).toEqual([[0, 1]])
   })
 })
 

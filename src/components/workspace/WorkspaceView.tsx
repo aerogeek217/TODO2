@@ -1,7 +1,8 @@
-import { memo, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { memo, useCallback, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { getActiveTab, type LayoutCell, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import { edgeBetween, edgeStretches, isWholeLine, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
 import { previewedLayout } from '../../utils/workspace-preview'
+import { withStructurePreview } from '../../utils/structure-preview'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
 import { isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
 import { isFitTrack } from '../../utils/workspace-rows'
@@ -22,6 +23,10 @@ import { useDrawnTracks } from './use-drawn-tracks'
 import { LayoutEditViewContext, type LayoutEditView, type StretchPreview } from './layout-edit-view'
 import { stretchLabel } from './edit-card-actions'
 import { trackNames } from '../../utils/layout-rulers'
+// Layout editor round two (concept A): the selected card's toolbar, the gutters' "+".
+import { EditCardToolbar } from './EditCardToolbar'
+import { GutterPlus } from './GutterPlus'
+import { GutterPlusContext, type GutterHover } from './gutter-plus'
 import styles from './WorkspaceView.module.css'
 
 function EmptyLayout() {
@@ -207,8 +212,22 @@ const UNMEASURED_TABLE = { current: null }
 function Table({ layout: working }: { layout: WorkspaceLayout }) {
   const preview = useWorkspaceStore((s) => s.resizePreview)
   const editing = useWorkspaceStore((s) => s.editing != null)
+  const structure = useWorkspaceStore((s) => (s.editing != null && s.structurePreview?.layoutId === working.id ? s.structurePreview : null))
   const live = preview != null && preview.layoutId === working.id ? preview : null
-  const layout = useMemo(() => (live ? previewedLayout(working, live.body) : working), [working, live])
+  const layout = useMemo(() => (
+    structure ? withStructurePreview(working, structure.body, structure.newCellIds)
+      : live ? previewedLayout(working, live.body) : working
+  ), [working, live, structure])
+  const newIds = useMemo(() => new Set(structure?.newCellIds ?? []), [structure])
+  const [gutter, setGutter] = useState<GutterHover | null>(null)
+  // A divider's pointer leaving hides the gutter's "+" a moment later: time to move onto it beside the line.
+  const gutterHide = useRef<number | undefined>(undefined)
+  const keepGutter = useCallback(() => window.clearTimeout(gutterHide.current), [])
+  const hoverGutter = useCallback((hover: GutterHover | null) => {
+    window.clearTimeout(gutterHide.current)
+    if (hover) setGutter(hover)
+    else gutterHide.current = window.setTimeout(() => setGutter(null), 250)
+  }, [])
   const { rows } = layout.grid
   const tableRef = useRef<HTMLDivElement | null>(null)
   // Measured only in the mode (the cards' and slots' ruler names).
@@ -221,6 +240,7 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
   const stretched = editing && stretch ? layout.cells.find((c) => c.id === stretch.cellId) : undefined
   return (
     <LayoutEditViewContext.Provider value={editView}>
+    <GutterPlusContext.Provider value={editing ? hoverGutter : null}>
     <div
       ref={tableRef}
       className={styles.table}
@@ -230,11 +250,24 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
       }}
       data-ws-table
       data-ws-row-tracks={rows.map((t) => t.id).join(' ')}
+      data-structure-preview={structure ? '' : undefined}
     >
       {/* Layout edit mode E2: the rulers and "+"s (first, so they come first in the Tab order). */}
-      <LayoutRulers layout={layout} />
+      <LayoutRulers layout={layout} working={working} />
       {layout.cells.map((cell) => {
         const { col, row, colSpan, rowSpan } = cell.area
+        if (newIds.has(cell.id)) {
+          // A preview's new slot: where the edit would put an empty cell.
+          return (
+            <div
+              key={cell.id}
+              className={styles.previewNew}
+              style={{ gridArea: `${row + 1} / ${col + 1} / span ${rowSpan} / span ${colSpan}` }}
+              data-preview-new=""
+              aria-hidden="true"
+            />
+          )
+        }
         const tracks = rows.slice(row, row + rowSpan)
         return (
           <TableCell
@@ -247,7 +280,22 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
           />
         )
       })}
-      <Dividers layout={layout} handle={live && layout !== working ? live.handle : null} />
+      {structure && layout.cells.filter((c) => structure.grewCellIds.includes(c.id)).map((c) => (
+        // A cell the edit grows across the new track: outlined over it.
+        <div
+          key={`grew:${c.id}`}
+          className={styles.previewGrew}
+          style={{ gridArea: `${c.area.row + 1} / ${c.area.col + 1} / span ${c.area.rowSpan} / span ${c.area.colSpan}` }}
+          data-preview-grew={c.id}
+          aria-hidden="true"
+        >
+          <span className={styles.previewGrewLabel}>stretches</span>
+        </div>
+      ))}
+      {/* While a preview shows, no divider: the table shows an edit not yet made. */}
+      {!structure && <Dividers layout={layout} handle={live && layout !== working ? live.handle : null} />}
+      {editing && gutter && <GutterPlus hover={gutter} layout={working} onKeep={keepGutter} onDone={() => setGutter(null)} />}
+      {editing && <EditCardToolbar layout={working} tableRef={tableRef} />}
       {stretched && stretch && editView && (
         <div
           className={styles.stretchGhost}
@@ -259,6 +307,7 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
         </div>
       )}
     </div>
+    </GutterPlusContext.Provider>
     </LayoutEditViewContext.Provider>
   )
 }

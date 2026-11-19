@@ -112,11 +112,11 @@ async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: n
   return b
 }
 
-test('the "+" beside a sliver inserts a full-width row, as its guide shows; a line a cell crosses has its guide broken there', async ({ page }) => {
+test('the "+" beside a sliver previews and inserts a full-width row; a line a cell crosses previews new slots only beside it', async ({ page }) => {
   await seedWorkspace(page, { layouts: [slivered] })
   await enterLayoutEdit(page)
   const table = page.locator('[data-ws-table]')
-  const guides = page.locator('[data-ruler-guide]')
+  const fresh = page.locator('[data-preview-new]')
 
   // The sliver: a tick, no number; one "+" for it and its two lines, named by the rows around it.
   await expect(page.getByRole('button', { name: 'Row 2 options' })).toBeVisible()
@@ -125,14 +125,17 @@ test('the "+" beside a sliver inserts a full-width row, as its guide shows; a li
   const plus = page.locator('[data-ruler-plus="rows:1"]')
   await expect(plus).toHaveAttribute('data-tooltip', 'Insert row between 1 and 2')
 
-  // Hovered: one guide across the whole table (no cell crosses the line the sliver merges into).
-  await plus.hover()
-  await expect(guides).toHaveCount(1)
+  // Hovered (round two, concept A): the table makes room — one new slot across the whole table —,
+  // the "+" pinned where it was, and the bar says it.
   const t = await boxOf(table)
-  expect((await boxOf(guides.first())).width).toBeGreaterThan(t.width * 0.9)
+  await plus.hover()
+  await expect(fresh).toHaveCount(1)
+  expect((await boxOf(fresh.first())).width).toBeGreaterThan(t.width * 0.9)
+  await expect(page.getByTestId('layout-edit-preview-hint')).toHaveText(/^Row between 1 and 2/)
 
-  // Clicked: a full-width empty row, the sliver gone; every widget kept.
-  await plus.click()
+  // Clicked: a full-width empty row, the sliver gone; every widget kept; the preview gone.
+  await page.locator('[data-pinned]').click()
+  await expect(fresh).toHaveCount(0)
   const slots = page.locator('[data-edit-slot]')
   await expect(slots).toHaveCount(1)
   expect((await boxOf(slots.first())).width).toBeGreaterThan(t.width * 0.9)
@@ -140,14 +143,20 @@ test('the "+" beside a sliver inserts a full-width row, as its guide shows; a li
   await expect(page.locator('[data-ruler^="rows:"]')).toHaveCount(3)
   await expect(page.locator('[data-ws-table] [data-ws-tab]')).toHaveCount(4)
 
-  // Column line 1 is crossed by the new row's cell: its guide runs over rows 1 and 3 only, broken across row 2.
+  // Column line 1 is crossed by the new row's cell: the new column's slots lie in rows 1 and 3 only, the row's cell growing across.
   await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2)
+  await expect(page.locator('[data-structure-preview]')).toHaveCount(0)
   await page.locator('[data-ruler-plus="columns:1"]').hover()
-  await expect(guides).toHaveCount(2)
+  await expect(fresh).toHaveCount(2)
   const slot = await boxOf(slots.first())
-  const [top, bottom] = [await boxOf(guides.nth(0)), await boxOf(guides.nth(1))]
+  const [top, bottom] = [await boxOf(fresh.nth(0)), await boxOf(fresh.nth(1))]
   expect(top.y + top.height).toBeLessThanOrEqual(slot.y + 1)
   expect(bottom.y).toBeGreaterThanOrEqual(slot.y + slot.height - 1)
+
+  // Left: the table back as it was.
+  await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2)
+  await expect(fresh).toHaveCount(0)
+  await expect(page.locator('[data-ruler^="columns:"]')).toHaveCount(2)
 })
 
 test('a Numbers row that fits its content keeps its height in the mode: no cell moves', async ({ page }) => {

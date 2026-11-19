@@ -114,6 +114,8 @@ export function LayoutEditTray() {
   const placed = useWorkspaceStore((s) => incomingPlaced(s.working, s.editing?.incoming))
   const armedCell = useWorkspaceStore((s) => (s.editing?.moveArmed ? s.editing.selectedCellId : null))
   const armed = incoming ? null : armedCell
+  // Round two (concept A): a preview of an edit not yet made, said in words in the chips' place.
+  const previewHint = useWorkspaceStore((s) => s.structurePreview?.hint ?? null)
   const [more, setMore] = useState(false)
   const moreRef = useRef<HTMLButtonElement | null>(null)
   const moreEntries: MenuEntry[] = moreKinds().map((kind) => ({
@@ -125,10 +127,11 @@ export function LayoutEditTray() {
   return (
     <div className={styles.tray} role="group" aria-label="Widgets">
       <span role="status" className={styles.status}>
-        {armed != null && <MoveHint cellId={armed} />}
-        {incoming && <IncomingHint incoming={incoming} placed={placed} />}
+        {previewHint != null && <span className={styles.hint} data-testid="layout-edit-preview-hint">{previewHint}</span>}
+        {previewHint == null && armed != null && <MoveHint cellId={armed} />}
+        {previewHint == null && incoming && <IncomingHint incoming={incoming} placed={placed} />}
       </span>
-      {armed == null && !incoming && (
+      {armed == null && !incoming && previewHint == null && (
         <>
           <span className={styles.caption} aria-hidden="true">Add</span>
           {COMMON_KINDS.map((kind) => <TrayChip key={kind} kind={kind} />)}
