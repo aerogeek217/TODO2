@@ -43,7 +43,7 @@ function HelpText({ state, today }: { state: FollowupInputState; today: Date }) 
  * (task layout B; `TaskFollowupFields` draws them): **Last** (a date, never
  * in the future; the calendar), then **Next** — the date in the rows' words
  * at rest, typed entry on a click or the focus (an interval or a date; ×
- * clears, the calendar picks), then the quick intervals 1w 2w 1m 3m; their
+ * clears, the calendar picks), then the quick intervals (Settings › Tasks); their
  * help lines in the footer's spare room. ⏎ / Tab / blur commit; Esc reverts;
  * invalid input keeps the old value until fixed.
  */

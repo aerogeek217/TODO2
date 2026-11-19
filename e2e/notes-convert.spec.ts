@@ -213,7 +213,7 @@ test.describe('notes → tasks', () => {
 
       await r.locator('[data-row-cell="followup"]').click()
       const follow = page.getByRole('dialog', { name: 'Next follow-up' })
-      await follow.getByRole('button', { name: 'Follow up in 2 weeks' }).click()
+      await follow.getByRole('button', { name: 'Follow up in 1 week' }).click()
       await expect(follow).toHaveCount(0)
       await expect(preview(page)).toBeVisible()
       expect(await stored(page)).toEqual([])
