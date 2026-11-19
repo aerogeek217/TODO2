@@ -11,7 +11,7 @@ import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { formatDateNumeric, formatRowDate } from '../../utils/date'
-import { addFollowupInterval, formatFollowupDate, QUICK_FOLLOWUP_INTERVALS, relativeDayPhrase } from '../../utils/followup'
+import { addFollowupInterval, formatFollowupDate, relativeDayPhrase } from '../../utils/followup'
 import { markerSummary, MARKER_LABELS } from '../../utils/markers'
 import { dueDateChanges, makeRecurrenceRule } from '../../utils/recurrence'
 import { dueState, followupState } from '../../utils/row-date-state'
@@ -295,7 +295,6 @@ function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnTyp
     ),
     quick: (
       <FollowupQuickButtons
-        intervals={QUICK_FOLLOWUP_INTERVALS}
         labelStyle="short"
         onPick={(i) => f.apply(addFollowupInterval(today, i))}
       />

@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { useFollowupInput, NEXT_FOLLOWUP_PLACEHOLDER, type FollowupInputState } from '../../hooks/use-followup-input'
 import { useSelectAllOnFocus } from '../../hooks/use-select-all-on-focus'
 import { useToday } from '../../hooks/use-today'
-import { addFollowupInterval, formatFollowupDate, relativeDayPhrase, QUICK_FOLLOWUP_INTERVALS } from '../../utils/followup'
+import { addFollowupInterval, formatFollowupDate, relativeDayPhrase } from '../../utils/followup'
 import { FactDateField, type FactDateTone } from './TaskFacts'
 import { TaskFollowupFields } from './TaskFollowupFields'
 import { FollowupDateButton } from '../shared/followup/FollowupDateButton'
@@ -130,7 +130,6 @@ export function FollowupEditorGroup({
         ),
         quick: (
           <FollowupQuickButtons
-            intervals={QUICK_FOLLOWUP_INTERVALS}
             labelStyle="short"
             onPick={(i) => {
               const d = addFollowupInterval(today, i)

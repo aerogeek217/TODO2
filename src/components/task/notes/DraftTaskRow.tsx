@@ -12,7 +12,7 @@ import { draftToTodo, type TaskDraft } from '../../../services/task-draft'
 import { startOfDay } from '../../../utils/date'
 import { markerSummary } from '../../../utils/markers'
 import { useSettingsStore } from '../../../stores/settings-store'
-import { addFollowupInterval, QUICK_FOLLOWUP_INTERVALS } from '../../../utils/followup'
+import { addFollowupInterval } from '../../../utils/followup'
 import { generateInitials, personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../../utils/person'
 import { AnchoredPicker } from '../../shared/AnchoredPicker'
 import { ChipSelector } from '../../shared/ChipSelector'
@@ -161,7 +161,7 @@ function DraftFollowupPopover({ value, today, anchorRef, onSet, onClose }: {
           <span className={followupStyles.helpError}>{closeHeld ? `${s.message} · close again to discard it` : s.message}</span>
         </div>
       )}
-      <FollowupQuickButtons intervals={QUICK_FOLLOWUP_INTERVALS} labelStyle="long" onPick={(i) => set(addFollowupInterval(today, i))} />
+      <FollowupQuickButtons labelStyle="long" onPick={(i) => set(addFollowupInterval(today, i))} />
     </PopoverRoot>,
     document.body,
   )

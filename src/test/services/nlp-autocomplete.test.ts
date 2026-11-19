@@ -187,8 +187,8 @@ describe('/followup argument', () => {
     const view = at('Vendor contract /followup ')
     expect(view?.header).toBe('Next follow-up')
     expect(view?.rows).toEqual([
+      expect.objectContaining({ label: '1d', detail: 'Sun 11 Oct' }),
       expect.objectContaining({ label: '1w', detail: 'Sat 17 Oct' }),
-      expect.objectContaining({ label: '2w', detail: 'Sat 24 Oct' }),
       expect.objectContaining({ label: '1m', detail: 'Tue 10 Nov', note: 'default' }),
       expect.objectContaining({ label: '3m', detail: 'Sun 10 Jan 2027' }),
       expect.objectContaining({ label: 'none', detail: 'No follow-up', separator: true }),
@@ -405,7 +405,7 @@ describe('bestMatchCompletion', () => {
     expect(complete('Plan #ba')).toBe('Plan #Backend ')
     expect(complete('Fix /ur')).toBe('Fix /urgent ')
     expect(complete('Renew /due tom')).toBe('Renew /due tomorrow ')
-    expect(complete('Ping /followup 2')).toBe('Ping /followup 2w ')
+    expect(complete('Ping /followup 3')).toBe('Ping /followup 3m ')
     expect(complete('Ship !in')).toBe('Ship !"In progress" ')
     expect(complete('Ship !wa')).toBe('Ship !Waiting ')
     expect(complete('Pay /repeat mon')).toBe('Pay /repeat monthly ')

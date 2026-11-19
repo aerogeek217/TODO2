@@ -26,7 +26,7 @@ describe('Tasks › New tasks, Rules and New lists', () => {
   it('New tasks holds what a new task gets; Rules what things mean; New lists how a new list starts', () => {
     const { container: newTasks, unmount } = render(<NewTasksSection />)
     expect(rowNames(newTasks)).toEqual([
-      'Default status for new tasks', 'Set a next follow-up automatically', 'Follow-up interval', 'Remove note lines after converting',
+      'Default status for new tasks', 'Set a next follow-up automatically', 'Follow-up interval', 'Quick follow-up intervals', 'Remove note lines after converting',
     ])
     unmount()
     const { container: rules, unmount: unmountRules } = render(<RulesSection />)

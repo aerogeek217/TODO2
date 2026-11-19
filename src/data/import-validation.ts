@@ -8,7 +8,7 @@ import { parsePriorityCues } from '../utils/priority-cues'
 import { parseAmbienceSettings } from '../utils/ambience-settings'
 import { parseTabBadgeRange, pickListTabBadges } from '../utils/tab-badges'
 import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
-import { parseFollowupInterval } from '../utils/followup'
+import { parseFollowupInterval, parseQuickFollowupIntervals } from '../utils/followup'
 import { parseUrgentDueWithinDays } from '../utils/urgency'
 import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcut-bindings'
 import { parseStaleAfterDays } from '../utils/stale'
@@ -418,6 +418,11 @@ function checkSetting(v: unknown): CheckResult {
     return parseFollowupInterval(v.value as string)
       ? true
       : 'value (followupDefaultInterval must look like 3d, 2w, 1m or 1y)'
+  }
+  if (v.key === SETTING_KEYS.followupQuickIntervals) {
+    return typeof v.value === 'string' && parseQuickFollowupIntervals(v.value)
+      ? true
+      : 'value (followupQuickIntervals must be 1–6 intervals like 1d 1w 1m 3m)'
   }
   if (v.key === SETTING_KEYS.urgentDueWithinDays) {
     return parseUrgentDueWithinDays(v.value as string) !== undefined

@@ -104,6 +104,7 @@ export function useNlpAutocomplete({
   /** The text the popup was last computed for (re-read when the candidates change). */
   const lastInputRef = useRef<{ value: string; cursor: number; input: TextInput | null } | null>(null)
   const followupDefault = useSettingsStore(autoFollowupInterval)
+  const followupIntervals = useSettingsStore((s) => s.followupQuickIntervals)
   const onApplyRef = useLatestRef(onApply)
   const onCreateRef = useLatestRef(onCreate)
   const stateRef = useLatestRef(state)
@@ -114,7 +115,7 @@ export function useNlpAutocomplete({
   const dismiss = useCallback(() => setState(initialState), [])
 
   const handleInputChange = useCallback((typedValue: string, typedCursor: number, input: TextInput | null) => {
-    const sources = { people, tags, statuses, commands, followupDefault, today: new Date() }
+    const sources = { people, tags, statuses, commands, followupDefault, followupIntervals, today: new Date() }
     const prev = lastInputRef.current
     const open = stateRef.current
     let value = typedValue
@@ -147,7 +148,7 @@ export function useNlpAutocomplete({
         caretLeft: measureCaretLeft(input, value, view.anchor),
       }
     })
-  }, [people, tags, statuses, commands, followupDefault, stateRef, onApplyRef, compute])
+  }, [people, tags, statuses, commands, followupDefault, followupIntervals, stateRef, onApplyRef, compute])
 
   // The candidates changed (a person renamed or deleted from a row's menu):
   // an open popup shows the new rows at once.

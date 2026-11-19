@@ -28,6 +28,7 @@ export function TaskMenu({ todo, anchorRef, point, selectionAware = true, handle
   const selected = useUIStore((s) => s.selectedTodoIds)
   const todos = useTodoStore((s) => s.todos)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
+  const followupIntervals = useSettingsStore((s) => s.followupQuickIntervals)
   const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
   const today = useToday()
   const targets = useMemo(() => {
@@ -43,6 +44,7 @@ export function TaskMenu({ todo, anchorRef, point, selectionAware = true, handle
     targets,
     today,
     urgentRange,
+    followupIntervals,
     handlers: { onCopy, ...handlers },
     copyKbd: shortcutLabel('copy-selected', shortcutOverrides),
   })

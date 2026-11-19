@@ -7,7 +7,7 @@ import {
   formatFollowupDate,
   formatFollowupDay,
   isFollowedUpToday,
-  QUICK_FOLLOWUP_INTERVALS,
+  type FollowupInterval,
 } from '../../utils/followup'
 import type { MenuEntry } from '../shared/MenuPopover'
 import { CheckCircleIcon, ChecklistIcon, CloseIcon, CopyIcon, FlagIcon, HashIcon, IndentIcon, OpenIcon, PersonIcon, TrashIcon, WidgetKindIcon } from '../shared/icons'
@@ -53,6 +53,8 @@ interface BuildTaskMenuOpts {
   targets: readonly PersistedTodoItem[]
   today: Date
   urgentRange: UrgentDueWithinDays
+  /** Follow-up ›'s intervals: Settings' quick follow-up intervals. */
+  followupIntervals: readonly FollowupInterval[]
   handlers: TaskMenuHandlers
   /** Copy's key hint: the copy shortcut's live keys. */
   copyKbd?: string
@@ -130,13 +132,13 @@ export function followedUpMenuEntry(
  * name the count, the subtask items are left out, and the markers can be
  * mixed.
  */
-export function buildTaskMenuEntries({ todo, targets, today, urgentRange, handlers, copyKbd }: BuildTaskMenuOpts): MenuEntry[] {
+export function buildTaskMenuEntries({ todo, targets, today, urgentRange, followupIntervals, handlers, copyKbd }: BuildTaskMenuOpts): MenuEntry[] {
   const several = targets.length > 1
   const h = handlers
   const hasFollowup = several ? targets.some((t) => t.nextFollowupAt) : !!todo.nextFollowupAt
 
   const followupChildren: MenuEntry[] = [
-    ...QUICK_FOLLOWUP_INTERVALS.map((interval): MenuEntry => {
+    ...followupIntervals.map((interval): MenuEntry => {
       const date = addFollowupInterval(today, interval)
       return {
         kind: 'item',

@@ -1,6 +1,6 @@
 import type { Person, RecurrenceType, Status, StatusIconKey, Tag } from '../models'
 import {
-  QUICK_FOLLOWUP_INTERVALS,
+  DEFAULT_QUICK_FOLLOWUP_INTERVALS,
   addFollowupInterval,
   formatFollowupDate,
   formatFollowupDay,
@@ -74,6 +74,8 @@ export interface AutocompleteSources {
    * none (then `none` is the default).
    */
   followupDefault: FollowupInterval | null
+  /** The `/followup` rows' intervals: Settings' quick follow-up intervals (absent: the default ones). */
+  followupIntervals?: readonly FollowupInterval[]
   today: Date
 }
 
@@ -415,7 +417,7 @@ function dateRows(
       return { kind: 'value' as const, insert, label: insert, matchLength: 0, detail: date ? formatFollowupDay(date, today) : undefined }
     })
     : [
-      ...QUICK_FOLLOWUP_INTERVALS.map((interval) => {
+      ...(sources.followupIntervals ?? DEFAULT_QUICK_FOLLOWUP_INTERVALS).map((interval) => {
         const insert = formatFollowupInterval(interval)
         return {
           kind: 'value' as const,

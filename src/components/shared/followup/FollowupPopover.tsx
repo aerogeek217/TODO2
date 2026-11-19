@@ -15,7 +15,6 @@ import {
   isFollowedUpToday,
   isFollowupOverdue,
   relativeDayPhrase,
-  QUICK_FOLLOWUP_INTERVALS,
 } from '../../../utils/followup'
 import { useTooltip } from '../use-tooltip'
 import { FollowupDateButton } from './FollowupDateButton'
@@ -314,7 +313,6 @@ export function FollowupPopover({
           : 'Future dates kept · the rest cleared')}
       </div>
       <FollowupQuickButtons
-        intervals={QUICK_FOLLOWUP_INTERVALS}
         labelStyle="long"
         onPick={(i) => apply(addFollowupInterval(today, i))}
       />

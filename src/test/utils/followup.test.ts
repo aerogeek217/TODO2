@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
+  DEFAULT_QUICK_FOLLOWUP_INTERVALS,
   addFollowupInterval,
+  formatQuickFollowupIntervals,
+  parseQuickFollowupIntervals,
   describeFollowupInterval,
   followupPillLabel,
   followupTooltip,
@@ -49,6 +52,21 @@ describe('parseFollowupInterval / format / describe', () => {
     expect(formatFollowupInterval({ count: 10, unit: 'd' })).toBe('10d')
     expect(describeFollowupInterval({ count: 1, unit: 'm' })).toBe('1 month')
     expect(describeFollowupInterval({ count: 2, unit: 'w' })).toBe('2 weeks')
+  })
+})
+
+describe('quick follow-up intervals', () => {
+  it('default to 1d 1w 1m 3m', () => {
+    expect(formatQuickFollowupIntervals(DEFAULT_QUICK_FOLLOWUP_INTERVALS)).toBe('1d 1w 1m 3m')
+  })
+
+  it('read spaces or commas, in the order typed, a repeat dropped; refuse a bad interval, none or more than six', () => {
+    expect(parseQuickFollowupIntervals(' 2w, 3d  1M ')).toEqual([{ count: 2, unit: 'w' }, { count: 3, unit: 'd' }, { count: 1, unit: 'm' }])
+    expect(parseQuickFollowupIntervals('1w 1w 2w')).toEqual([{ count: 1, unit: 'w' }, { count: 2, unit: 'w' }])
+    expect(parseQuickFollowupIntervals('1w soon')).toBeNull()
+    expect(parseQuickFollowupIntervals('  ')).toBeNull()
+    expect(parseQuickFollowupIntervals('1d 2d 3d 4d 5d 6d')).toHaveLength(6)
+    expect(parseQuickFollowupIntervals('1d 2d 3d 4d 5d 6d 7d')).toBeNull()
   })
 })
 

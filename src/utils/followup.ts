@@ -17,13 +17,20 @@ export interface FollowupInterval {
 
 export const DEFAULT_FOLLOWUP_INTERVAL: FollowupInterval = { count: 1, unit: 'm' }
 
-/** The quick intervals offered next to every next-follow-up input. */
-export const QUICK_FOLLOWUP_INTERVALS: readonly FollowupInterval[] = [
+/**
+ * The quick intervals offered next to every next-follow-up input, the task
+ * menu's Follow-up › and `/followup`, unless Settings › Tasks names its own
+ * (`settings-store.followupQuickIntervals`).
+ */
+export const DEFAULT_QUICK_FOLLOWUP_INTERVALS: readonly FollowupInterval[] = [
+  { count: 1, unit: 'd' },
   { count: 1, unit: 'w' },
-  { count: 2, unit: 'w' },
   { count: 1, unit: 'm' },
   { count: 3, unit: 'm' },
 ]
+
+/** The most quick intervals Settings takes: the footers give them way first, and more would crowd them. */
+export const MAX_QUICK_FOLLOWUP_INTERVALS = 6
 
 /** Largest count accepted in an interval (`999d` … `999y`). */
 const MAX_FOLLOWUP_INTERVAL_COUNT = 999
@@ -42,6 +49,28 @@ export function parseFollowupInterval(text: string): FollowupInterval | null {
 /** Compact form used for storage: `{1, 'm'}` → `1m`. */
 export function formatFollowupInterval(i: FollowupInterval): string {
   return `${i.count}${i.unit}`
+}
+
+/**
+ * Settings' quick intervals from their text (`1d 1w 1m 3m`, spaces or commas
+ * between): each a `parseFollowupInterval` interval, a repeat dropped, in
+ * the order typed; null when one doesn't read, none is given or there are
+ * more than {@link MAX_QUICK_FOLLOWUP_INTERVALS}.
+ */
+export function parseQuickFollowupIntervals(text: string): FollowupInterval[] | null {
+  const parts = text.split(/[\s,]+/).filter(Boolean)
+  const out: FollowupInterval[] = []
+  for (const part of parts) {
+    const interval = parseFollowupInterval(part)
+    if (!interval) return null
+    if (!out.some((i) => formatFollowupInterval(i) === formatFollowupInterval(interval))) out.push(interval)
+  }
+  return out.length > 0 && out.length <= MAX_QUICK_FOLLOWUP_INTERVALS ? out : null
+}
+
+/** Quick intervals as Settings stores and shows them: `1d 1w 1m 3m`. */
+export function formatQuickFollowupIntervals(intervals: readonly FollowupInterval[]): string {
+  return intervals.map(formatFollowupInterval).join(' ')
 }
 
 const UNIT_WORDS: Record<FollowupUnit, string> = { d: 'day', w: 'week', m: 'month', y: 'year' }

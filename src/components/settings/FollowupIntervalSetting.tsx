@@ -3,7 +3,10 @@ import { useSettingsStore } from '../../stores/settings-store'
 import {
   describeFollowupInterval,
   formatFollowupInterval,
+  formatQuickFollowupIntervals,
+  MAX_QUICK_FOLLOWUP_INTERVALS,
   parseFollowupInterval,
+  parseQuickFollowupIntervals,
 } from '../../utils/followup'
 import { SettingRow } from './sections/SettingRow'
 import styles from './sections/sections.module.css'
@@ -15,7 +18,8 @@ import styles from './sections/sections.module.css'
  * interval; off, new tasks get none and Mark followed up clears it. Either
  * way Mark followed up keeps a next follow-up after today
  * (`utils/followup.nextAfterFollowup`). The interval commits on Enter /
- * blur; invalid text reverts.
+ * blur; invalid text reverts. Then the quick intervals
+ * ({@link QuickIntervalsRow}).
  */
 export function FollowupIntervalSetting() {
   const autoFollowup = useSettingsStore((s) => s.autoFollowup)
@@ -90,6 +94,66 @@ export function FollowupIntervalSetting() {
           <span className={styles.muted} aria-live="polite">{describeFollowupInterval(parsed)}</span>
         )}
       </SettingRow>
+      <QuickIntervalsRow />
     </>
+  )
+}
+
+/**
+ * "Quick follow-up intervals": the chips beside every next follow-up date
+ * (the task editor, the follow-up popover, the review card), the task
+ * menu's Follow-up › and `/followup`'s rows — 1 to 6 intervals typed as
+ * `1d 1w 1m 3m`. Commits on Enter / blur; text that doesn't read reverts.
+ */
+function QuickIntervalsRow() {
+  const intervals = useSettingsStore((s) => s.followupQuickIntervals)
+  const setIntervals = useSettingsStore((s) => s.setFollowupQuickIntervals)
+  const stored = formatQuickFollowupIntervals(intervals)
+  const [draft, setDraft] = useState(stored)
+  const [syncedFrom, setSyncedFrom] = useState(stored)
+  if (stored !== syncedFrom) {
+    setSyncedFrom(stored)
+    setDraft(stored)
+  }
+  const parsed = parseQuickFollowupIntervals(draft)
+
+  const commit = () => {
+    if (!parsed) {
+      setDraft(stored)
+      return
+    }
+    const canonical = formatQuickFollowupIntervals(parsed)
+    setDraft(canonical)
+    if (canonical !== stored) void setIntervals(parsed)
+  }
+
+  return (
+    <SettingRow
+      label="Quick follow-up intervals"
+      help={`The intervals offered beside every next follow-up date, in the task menu and after /followup. Up to ${MAX_QUICK_FOLLOWUP_INTERVALS}, with spaces between — e.g. 1d 1w 1m 3m.`}
+    >
+      <input
+        type="text"
+        className={styles.input}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          // Esc reverts a changed draft and stays in Settings; with nothing to revert it reaches the modal.
+          if (e.key === 'Escape' && draft !== stored) {
+            e.preventDefault()
+            e.stopPropagation()
+            setDraft(stored)
+          }
+        }}
+        aria-label="Quick follow-up intervals"
+        aria-invalid={!parsed}
+        placeholder="1d 1w 1m 3m"
+        style={{ width: 140 }}
+        spellCheck={false}
+        autoComplete="off"
+      />
+    </SettingRow>
   )
 }

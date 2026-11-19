@@ -104,6 +104,7 @@ function buildSeed(): Seed {
       { key: 'seededAssignedStatusId', value: '1' },
       { key: 'weekStartsOn', value: '1' },
       { key: 'followupDefaultInterval', value: '2w' },
+      { key: 'followupQuickIntervals', value: '3d 2w 6m' },
       { key: 'newTaskFollowup', value: 'false' },
       { key: 'removeConvertedLines', value: 'true' },
       { key: 'tabBadgeDue', value: 'overdue' },
