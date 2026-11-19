@@ -248,3 +248,44 @@
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
 }
+
+/* ── The layout edit mode's preview of an edit (round two, concept A) ──
+   A "+" hovered or focused, a toolbar's Split hovered: the table draws the
+   layout the edit would leave (`structurePreview`) — its new empty cells as
+   solid accent slots, the cells that grow across the new track outlined in
+   the follow-up color. Over the cards (they are grid items of the table). */
+.previewNew {
+  position: relative;
+  z-index: var(--z-above-3);
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-card);
+  background: var(--color-accent-bg-medium);
+  pointer-events: none;
+  animation: preview-in 140ms ease-out;
+}
+
+.previewGrew {
+  position: relative;
+  z-index: var(--z-above-3);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 6px;
+  border: 2px solid var(--color-followup);
+  border-radius: var(--radius-card);
+  pointer-events: none;
+}
+
+.previewGrewLabel {
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-followup);
+  color: var(--color-surface);
+  font-size: var(--font-size-badge);
+  font-weight: var(--font-weight-bold);
+}
+
+@keyframes preview-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

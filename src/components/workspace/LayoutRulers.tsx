@@ -1,12 +1,13 @@
-import { useMemo, useRef, useState, type CSSProperties } from 'react'
-import type { GridAxis, LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { getActiveTab, type GridAxis, type LayoutCell, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { evenTracks, insertPreviewGaps, trackRemoval } from '../../utils/workspace-layout-ops'
+import { evenTracks, trackRemoval } from '../../utils/workspace-layout-ops'
 import { columnShare, isSliverTrack, removeTrackMessage, rowCanCollapse, rowMark, runPlaceWords, sliverRun, trackNames } from '../../utils/layout-rulers'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { PlusIcon } from '../shared/icons'
 import { useDrawnTracks, type DrawnTracks } from './use-drawn-tracks'
 import { useTabTitles } from './widget-hooks'
+import { insertPreview, showStructurePreview } from './insert-preview'
 import styles from './LayoutRulers.module.css'
 
 /**
@@ -15,9 +16,9 @@ import styles from './LayoutRulers.module.css'
  * share) and down the left of each row (1, 2, 3…, marked `fit` / `folded`),
  * each a button on its track that opens the track's menu; a "+" on every
  * line between them and at both ends, inserting a full column / row there
- * (while it is hovered or focused, a line shows where new empty cells will
- * be — broken where a cell crossing the line grows across the new track
- * instead, `insertPreviewGaps`). A sliver (`utils/layout-rulers`) gets an
+ * (while it is hovered the table draws the insert — its new slots, the
+ * cells that stretch across it — and the mode bar says it, the "+" pinned
+ * in place meanwhile: round two, `insert-preview`). A sliver (`utils/layout-rulers`) gets an
  * unlabelled tick whose menu merges it into a neighbour; it and its two
  * lines act as one line for an insert (`sliverRun`): one "+", which merges
  * the sliver away and inserts on the line left. They overlay the gutters and the cells' edges, so no
@@ -57,17 +58,36 @@ interface OpenMenu {
   index: number
 }
 
-export function LayoutRulers({ layout }: { layout: WorkspaceLayout }) {
+export function LayoutRulers({ layout, working }: {
+  /** The table as drawn: the draft, or a preview of an edit not yet made. */
+  layout: WorkspaceLayout
+  /** The draft: what a "+" inserts into. */
+  working: WorkspaceLayout
+}) {
   const editing = useWorkspaceStore((s) => s.editing != null)
   if (!editing || layout.cells.length === 0) return null
-  return <Rulers layout={layout} />
+  return <Rulers layout={layout} working={working} />
 }
 
-function Rulers({ layout }: { layout: WorkspaceLayout }) {
+/**
+ * A "+" pinned while its preview shows: where it was (the viewport's px),
+ * its line and the run it inserts on (the draft's lines). The same button
+ * stays there, fixed — the table reflows under it —, so the pointer stays on
+ * it and nothing flickers; leaving it ends the preview.
+ */
+interface Pinned {
+  rect: { left: number; top: number; width: number; height: number }
+  axis: GridAxis
+  line: number
+  first: number
+  last: number
+}
+
+function Rulers({ layout, working }: { layout: WorkspaceLayout; working: WorkspaceLayout }) {
   const anchor = useRef<HTMLDivElement | null>(null)
   const drawn = useDrawnTracks(anchor, layout)
   const [menu, setMenu] = useState<OpenMenu | null>(null)
-  const [hot, setHot] = useState<{ axis: GridAxis; line: number } | null>(null)
+  const [pinned, setPinned] = useState<Pinned | null>(null)
   const triggers = useRef(new Map<string, HTMLButtonElement>())
   const menuAnchor = useRef<HTMLButtonElement | null>(null)
 
@@ -95,12 +115,42 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
     const cellId = store().insertTrackAt(axis, first, undefined, last)
     if (cellId) store().selectEditCell(cellId)
   }
-  // The hovered or focused "+"'s run, and where its insert puts new empty cells.
-  const hotGaps = useMemo(() => {
-    if (!hot) return []
-    const [first, last] = sliverRun(layout, hot.axis, hot.line, drawn[hot.axis])
-    return insertPreviewGaps(layout, hot.axis, first, last)
-  }, [layout, hot, drawn])
+  /** A card by its active widget's title. */
+  const cellName = useCallback((cell: LayoutCell) => {
+    const tab = getActiveTab(cell)
+    return tab ? titleOf(tab.id) : 'An empty slot'
+  }, [titleOf])
+  /**
+   * A "+" hovered (round two, concept A): the table draws the insert
+   * (`insertPreview`), the "+" pinned where it is while the table reflows
+   * under it. Only while the table draws the draft — its lines are the
+   * draft's then.
+   */
+  const startPreview = (el: HTMLElement, axis: GridAxis, line: number, first: number, last: number, where: string) => {
+    if (layout !== working || pinned) return
+    const preview = insertPreview(working, axis, first, last, where, cellName)
+    if (!preview) return
+    const r = el.getBoundingClientRect()
+    setPinned({ rect: { left: r.left, top: r.top, width: r.width, height: r.height }, axis, line, first, last })
+    showStructurePreview(preview)
+  }
+  const endPreview = useCallback(() => {
+    setPinned(null)
+    showStructurePreview(null)
+  }, [])
+  // Gone while its preview shows (the mode closed, the table re-mounted): the preview goes with it.
+  const previewing = pinned != null
+  useEffect(() => (previewing ? () => showStructurePreview(null) : undefined), [previewing])
+  // A scroll or a resize moves the table under the pinned "+": the preview ends.
+  useEffect(() => {
+    if (!previewing) return
+    window.addEventListener('resize', endPreview)
+    window.addEventListener('scroll', endPreview, true)
+    return () => {
+      window.removeEventListener('resize', endPreview)
+      window.removeEventListener('scroll', endPreview, true)
+    }
+  }, [previewing, endPreview])
 
   const items: React.ReactNode[] = []
   for (const axis of ['columns', 'rows'] as const) {
@@ -111,7 +161,9 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
     for (let k = 0; k <= count; k++) {
       // A "+" on every line — but a sliver and its two lines are one line: one "+", on the first (the two would overlap).
       const [first, last] = sliverRun(layout, axis, k, sizes)
-      const plusShown = first === k
+      // The pinned "+" (its preview showing: the table drawn as the insert would leave it) stays, fixed where it was.
+      const pin = pinned?.axis === axis && pinned.line === k ? pinned : null
+      const plusShown = first === k || pin != null
       const between = runPlaceWords(names[axis], first, last, noun)
       if (plusShown) items.push(
         <button
@@ -121,15 +173,25 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
           data-axis={axis}
           data-end={k === 0 ? 'first' : k === count ? 'last' : undefined}
           data-sliver-run={last > first ? '' : undefined}
-          style={onLine(axis, k, count)}
+          data-pinned={pin ? '' : undefined}
+          style={pin
+            ? { position: 'fixed', left: pin.rect.left, top: pin.rect.top, width: pin.rect.width, height: pin.rect.height, margin: 0 }
+            : onLine(axis, k, count)}
           aria-label={`Insert ${noun} here`}
-          data-tooltip={`Insert ${noun} ${between}`}
+          data-tooltip={pin ? undefined : `Insert ${noun} ${between}`}
           data-ruler-plus={`${axis}:${k}`}
-          onMouseEnter={() => setHot({ axis, line: k })}
-          onMouseLeave={() => setHot((h) => (h?.axis === axis && h.line === k ? null : h))}
-          onFocus={() => setHot({ axis, line: k })}
-          onBlur={() => setHot((h) => (h?.axis === axis && h.line === k ? null : h))}
-          onClick={() => insertAt(axis, first, last)}
+          // A move onto it, not an enter (a "+" appearing under a resting pointer previews nothing), and not while a
+          // button is held (a card or tab dragged over it): a preview would move the table under the drop.
+          onMouseMove={(e) => { if (e.buttons === 0 && !pin) startPreview(e.currentTarget, axis, k, first, last, between) }}
+          onMouseLeave={pin ? endPreview : undefined}
+          onClick={() => {
+            if (pin) {
+              endPreview()
+              insertAt(axis, pin.first, pin.last)
+            } else {
+              insertAt(axis, first, last)
+            }
+          }}
         >
           <PlusIcon size={12} strokeWidth={2.2} />
         </button>,
@@ -177,17 +239,6 @@ function Rulers({ layout }: { layout: WorkspaceLayout }) {
 
   return (
     <div ref={anchor} className={styles.rulers} data-layout-rulers="">
-      {hot && hotGaps.map((gap) => (
-        <div
-          key={`guide:${gap[0]}`}
-          className={styles.guide}
-          data-axis={hot.axis}
-          data-end={hot.line === 0 ? 'first' : hot.line === layout.grid[hot.axis].length ? 'last' : undefined}
-          data-ruler-guide={`${gap[0]}-${gap[1]}`}
-          style={onLine(hot.axis, hot.line, layout.grid[hot.axis].length, gap)}
-          aria-hidden="true"
-        />
-      ))}
       {items}
       {menu && (
         <MenuPopover

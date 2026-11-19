@@ -13,6 +13,7 @@ import { useLatestRef } from '../../hooks/use-latest-ref'
 import { shortcutScope } from '../../utils/dom-contract'
 import { drawnGap, drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
 import styles from './WorkspaceDivider.module.css'
+import { GUTTER_PLUS_ATTR, useGutterPlus } from './gutter-plus'
 
 /** A divider's `aria-valuenow`, with its `aria-valuemax` (none for a px size) and `aria-valuetext`. */
 export interface DividerValue {
@@ -117,6 +118,7 @@ function SnapGuide({ axis, line, tracks }: { axis: GridAxis; line: number; track
  * midway between its own cells), or lets a fit row fit again.
  */
 export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, style, fitTrackIds = [], partOfLine = false }: WorkspaceDividerProps) {
+  const gutterPlus = useGutterPlus()
   const axisX = stretch.axis === 'columns'
   const dragRef = useRef<DragState | null>(null)
   const elRef = useRef<HTMLDivElement | null>(null)
@@ -257,6 +259,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
+    gutterPlus?.(null)
     const layout = useWorkspaceStore.getState().working
     const table = e.currentTarget.closest<HTMLElement>('[data-ws-table]')
     if (!layout || !table) return
@@ -357,6 +360,12 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     <>
       <div
         ref={elRef}
+        onPointerMove={(e) => {
+          // Round two (concept A): in the layout edit mode a "+" follows the pointer along the line.
+          if (!gutterPlus || dragRef.current || e.buttons !== 0) return
+          const r = e.currentTarget.getBoundingClientRect()
+          gutterPlus({ axis: stretch.axis, line: stretch.line, x: axisX ? r.left + r.width / 2 : e.clientX, y: axisX ? e.clientY : r.top + r.height / 2, from: axisX ? r.top : r.left, to: axisX ? r.bottom : r.right })
+        }}
         className={`${styles.divider} ${axisX ? styles.betweenColumns : styles.betweenCells} ${dragging ? styles.dragging : ''}`}
         data-tooltip={dragging ? undefined : dividerTooltip(partOfLine, fit)}
         style={style}
@@ -381,9 +390,12 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
           // Mid-drag the drag decides (a preview moving the element fires a fresh enter).
           if (!dragRef.current) setBreaking(e.altKey && partOfLine && !fit)
         }}
-        onPointerLeave={() => {
+        onPointerLeave={(e) => {
           setHovered(false)
           if (!dragRef.current) setBreaking(false)
+          // Onto its "+": it stays; anywhere else it goes.
+          const to = e.relatedTarget
+          if (gutterPlus && !(to instanceof Element && to.closest(`[${GUTTER_PLUS_ATTR}]`))) gutterPlus(null)
         }}
         onLostPointerCapture={(e) => recapture(e.currentTarget, e.pointerId, dragRef.current?.pointerId === e.pointerId)}
         onDoubleClick={onDoubleClick}

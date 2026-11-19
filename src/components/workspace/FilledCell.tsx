@@ -24,7 +24,7 @@ import { CELL_MENU_LABEL, cellMenuFor, useTransferMenu, useWidgetMenuContent, ty
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
 import { trackCellHot } from './cell-hot'
 import { CellControls } from './WidgetTopLine'
-import { EditCardControls, EditCardMenu, EditCardSurface } from './EditCard'
+import { EditBlueprint, EditCardControls, EditCardMenu, EditCardSurface } from './EditCard'
 import { tapCard } from './edit-card-actions'
 import { TabNameIconPopover } from './TabNameIconPopover'
 import { NumberStrip, NUMBER_SLOT_ATTR } from './NumberStrip'
@@ -129,6 +129,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const editing = useWorkspaceStore((s) => s.editing != null)
   /** The cell the mode selected (its ⋯ › Edit layout): ringed. */
   const editSelected = useWorkspaceStore((s) => s.editing?.selectedCellId === cell.id)
+  /** In the mode, unless its Content toggle is on: the card is a blueprint (round two, concept A). */
+  const showContent = useWorkspaceStore((s) => s.editing?.showContent ?? false)
   const drag = useWorkspaceDrag()
   /**
    * Whatever here can take a widget off the screen — a tab switched or
@@ -325,6 +327,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       style={{ ...style, viewTransitionName: transitionName('ws-cell', cell.id) }}
       data-ws-cell={cell.id}
       data-edit-selected={editSelected ? '' : undefined}
+      // A Numbers strip keeps its Numbers (each drags on its own): no blueprint.
+      data-blueprint={editing && !showContent && !numberStrip ? '' : undefined}
       data-ws-cell-title={activeTitle}
       data-ws-card-name={editing ? cardName : undefined}
       data-face={!collapsed && active ? cellFace.face : undefined}
@@ -470,6 +474,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         </div>
       )}
       {controls && claims.slots === 0 && <CellControls value={controls} floating standsForTab={claims.lines === 0} />}
+      {editing && !showContent && !numberStrip && active && <EditBlueprint tab={active} title={activeTitle} belowStrip={stripShown} />}
       {editing && active && (
         <EditCardControls
           cell={cell}

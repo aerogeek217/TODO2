@@ -300,41 +300,20 @@
   margin-top: calc(-1 * var(--ruler-plus));
 }
 
-/* ── The line a hovered or focused "+" inserts on: where its new empty cells go ──
- * 4px of the accent, ringed in the surface and glowing, so it reads over any
- * card, hue or the mode's dot grid. */
+/* ── Round two (concept A): a "+" pinned while its preview reflows the table ──
+ * (`LayoutRulers`: fixed where the pointer found it, inline), the accent
+ * disc; the table's other "+"s take no pointer meanwhile. */
+.plus[data-pinned] {
+  z-index: var(--z-dropdown);
+  color: var(--color-text-on-accent);
+}
 
-.guide {
-  position: relative;
-  z-index: calc(var(--z-above-3) + 1);
-  border-radius: 2px;
+.plus[data-pinned]::before {
   background: var(--color-accent);
-  box-shadow:
-    0 0 0 1.5px var(--color-surface),
-    0 0 12px 2px color-mix(in srgb, var(--color-accent) 65%, transparent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  transform: scale(1.12);
+}
+
+:global([data-structure-preview]) .plus:not([data-pinned]) {
   pointer-events: none;
-}
-
-.guide[data-axis='columns'] {
-  justify-self: start;
-  width: 4px;
-  margin-left: calc(-0.5 * var(--workspace-gutter) - 2px);
-}
-
-.guide[data-axis='columns'][data-end='last'] {
-  justify-self: end;
-  margin-left: 0;
-  margin-right: calc(-0.5 * var(--workspace-gutter) - 2px);
-}
-
-.guide[data-axis='rows'] {
-  align-self: start;
-  height: 4px;
-  margin-top: calc(-0.5 * var(--workspace-gutter) - 2px);
-}
-
-.guide[data-axis='rows'][data-end='last'] {
-  align-self: end;
-  margin-top: 0;
-  margin-bottom: calc(-0.5 * var(--workspace-gutter) - 2px);
 }

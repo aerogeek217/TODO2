@@ -140,7 +140,6 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/followup.ts': ['lastFollowupLine'],
   'utils/list-copy.ts': ['copiedListParts'],
   'utils/list-order.ts': ['placeInOrder', 'rankBetween'],
-  'utils/list-wall.ts': ['wallGridShape'],
   'utils/module-reset.ts': ['resetModuleState', 'settleModuleWork'],
   'utils/neglect-labels.ts': [
     'NEGLECT_LABEL_GAP_PX', 'NEGLECT_LABEL_HEIGHT_PX', 'NEGLECT_LABEL_MAX_PX', 'NEGLECT_LABEL_MIN_PX', 'NEGLECT_LABEL_WORK_MAX',

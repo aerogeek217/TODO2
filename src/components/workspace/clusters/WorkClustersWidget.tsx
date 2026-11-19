@@ -13,7 +13,7 @@ import { themeColor } from '../../../utils/theme-color'
 import { taskMapFaceFor, type WidgetFace } from '../../../utils/widget-face'
 import { buildClusterGraph, layoutClusters, type ClusterGraph, type ClusterNode } from '../../../utils/work-clusters'
 import { EntityMenu, type MenuEntity } from '../../shared/EntityMenu'
-import { HelpTip } from '../../shared/HelpTip'
+import type { TooltipLegendItem } from '../../shared/TooltipBubble'
 import { useTooltip } from '../../shared/use-tooltip'
 import { clusterDrill } from '../glance/glance-drills'
 import { WidgetNameLine } from '../WidgetTopLine'
@@ -25,8 +25,14 @@ const LAYOUT_STEP_PX = 24
 const NAME_MIN_R = 17
 const COUNT_MIN_R = 24
 
-/** How to read the map: the name line's ⓘ. */
-const CLUSTERS_HELP = 'People (gray) and tags (colored), sized by their open tasks. A line joins a person and a tag that share tasks, thicker the more they share; amber lines join two clusters. Each cluster is named by its biggest tag.'
+/** What the marks mean: the name's tooltip. */
+const CLUSTERS_LEGEND: readonly TooltipLegendItem[] = [
+  { label: 'Person', swatch: <span className={styles.legendPerson} /> },
+  { label: 'Tag', swatch: <span className={styles.legendTag} /> },
+  { label: 'Overdue tasks', swatch: <span className={styles.legendBadge} /> },
+  { label: 'Tasks shared', swatch: <span className={styles.legendLink} /> },
+  { label: 'Between clusters', swatch: <span className={styles.legendBridge} /> },
+]
 
 const graphMemo = sharedMemo((
   shown: readonly PersistedTodoItem[],
@@ -214,11 +220,10 @@ function ClustersFull() {
   const ready = field.width > 0 && field.height > 0
   return (
     <>
-      <WidgetNameLine name="Work clusters">
+      <WidgetNameLine name="Work clusters" legend={CLUSTERS_LEGEND}>
         <span className={styles.lineCount} data-testid="clusters-line-count">
           {plural(groups.length, 'cluster')}{graph.hidden > 0 && ` · ${graph.hidden} smaller hidden`}
         </span>
-        <HelpTip label="Work clusters" text={CLUSTERS_HELP} />
       </WidgetNameLine>
       <div className={styles.widget} data-mobile={isMobile ? 'true' : undefined}>
         <div ref={fieldRef} className={styles.field} role="group" aria-label="People and tags, drawn together by the tasks they share">

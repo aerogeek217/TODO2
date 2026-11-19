@@ -320,7 +320,8 @@ test.describe('a pane that goes leaves no void', () => {
     // A lone widget drags as its card: onto the other card's tab area it joins (its middle would swap).
     await dragTab(page, wsTab(page, 'mapTab'), await tabAreaPoint(page, 'b1'))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'mapTab']]])
-    await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
+    // Expanded: taller than a folded row's header (its body is hidden under the mode's blueprint).
+    await expect.poll(async () => (await box(wsCell(page, 'a1'))).height).toBeGreaterThan(100)
     await expect.poll(() => voidBelow(page, 'a1')).toBeLessThan(1)
   })
 })

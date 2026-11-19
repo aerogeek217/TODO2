@@ -12,20 +12,25 @@ import {
   WALL_TONES,
   wallListWords,
   wallRowsFit,
+  wallShape,
   wallSquaresShown,
   type WallList,
+  type WallShape,
   type WallTone,
 } from '../../../utils/list-wall'
 import { listWallFaceFor, type WidgetFace } from '../../../utils/widget-face'
-import { HelpTip } from '../../shared/HelpTip'
+import type { TooltipLegendItem } from '../../shared/TooltipBubble'
 import { useTooltip } from '../../shared/use-tooltip'
 import { WidgetNameLine } from '../WidgetTopLine'
 import styles from './ListWallWidget.module.css'
 
 type List = WallList<PersistedTodoItem>
 
-/** How to read the wall: the name line's ⓘ. */
-const WALL_HELP = 'A square for each open task a list shows, the trouble first: solid magenta overdue, a magenta outline due soon, yellow follow-up late, tinted on track, gray stale. A list’s name shows its tab in its cell; a square opens its task.'
+/** What the squares mean: the name's tooltip. */
+const WALL_LEGEND: readonly TooltipLegendItem[] = WALL_TONES.map((t) => ({
+  label: WALL_TONE_NAMES[t],
+  swatch: <span className={styles.legendSquare} data-tone={t} />,
+}))
 
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`
 
@@ -39,9 +44,10 @@ function countsText(list: List): string {
  * settings): every list tab of this layout at a glance, without opening
  * each (`hooks/use-list-wall`). Large: a block per list, a square per open
  * task it shows, the trouble first — overdue, due soon, follow-up late, on
- * track, stale (`utils/list-wall`); a big list stops at six rows with `+N`,
- * and in a short cell its block trades rows for columns, so a wide strip
- * shows the lists side by side (`wallGridShape`). Medium (a narrow cell): a bar per list in the same colors, its
+ * track, stale (`utils/list-wall`); the blocks sit side by side, as many
+ * as fit, sharing the width (`wallShape`: a wide cell shows every list in
+ * one row), a big list stopping at the rows the height has with `+N`; the
+ * name's tooltip is the legend. Medium (a narrow cell): a bar per list in the same colors, its
  * overdue and late follow-ups in the tab badge's capsule. A list's name (a
  * bar) brings its tab to the front of its cell (`showTab`); a square opens
  * its task.
@@ -72,9 +78,8 @@ function ListWallFace({ face }: { face: WidgetFace }) {
   }
   return (
     <>
-      <WidgetNameLine name="List wall">
+      <WidgetNameLine name="List wall" legend={WALL_LEGEND}>
         <span className={styles.lineCount}>{plural(lists.length, 'list')}</span>
-        <HelpTip label="List wall" text={WALL_HELP} />
       </WidgetNameLine>
       {lists.length === 0
         ? <p className={styles.empty} role="status">No list tabs in this layout.</p>
@@ -87,20 +92,28 @@ function ListWallFace({ face }: { face: WidgetFace }) {
 
 function Blocks({ lists }: { lists: List[] }) {
   const [wallRef, wall] = useElementSize()
+  const [blocksRef, blocks] = useElementSize()
   // Unmeasured: room for every row.
   const rowsFit = wall.height > 0 ? wallRowsFit(wall.height) : Number.POSITIVE_INFINITY
+  const shape = wallShape(lists.length, blocks.width, rowsFit)
   return (
     <div ref={wallRef} className={styles.wall} data-list-wall-face="large">
-      <div className={styles.blocks}>
-        {lists.map((l) => <Block key={l.tabId} list={l} rowsFit={rowsFit} />)}
+      <div
+        ref={blocksRef}
+        className={styles.blocks}
+        data-per-row={shape.perRow ?? undefined}
+        style={shape.perRow ? { '--wall-per-row': shape.perRow } as CSSProperties : undefined}
+      >
+        {lists.map((l) => <Block key={l.tabId} list={l} shape={shape} />)}
       </div>
     </div>
   )
 }
 
-function Block({ list, rowsFit }: { list: List; rowsFit: number }) {
+function Block({ list, shape }: { list: List; shape: WallShape }) {
   const { late, followup, calm } = wallListWords(list.counts)
-  const { squares, more, columns } = wallSquaresShown(list, rowsFit)
+  const { squares, more } = wallSquaresShown(list, shape)
+  const { columns } = shape
   const { triggerProps, tooltip } = useTooltip(`${list.name}\n${list.waiting ? 'Waits on its prompt' : countsText(list)}\nClick to show it in its cell`)
   return (
     <section className={styles.block} style={{ '--wall-columns': columns } as CSSProperties} aria-label={list.name} data-wall-list={list.tabId}>

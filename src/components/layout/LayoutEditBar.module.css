@@ -85,6 +85,12 @@
   color: var(--color-text-primary);
 }
 
+/* A pressed toggle (Content): the accent's tint. */
+.ghostOn {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-text-primary);
+}
+
 .ghost:disabled {
   color: var(--color-text-muted);
   opacity: 0.5;
@@ -116,4 +122,11 @@
 .done:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* The Content toggle's word gives way first in a narrow bar (its eye and its name stay). */
+@media (max-width: 1180px) {
+  .contentLabel {
+    display: none;
+  }
 }

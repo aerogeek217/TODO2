@@ -2,6 +2,8 @@ import { useContext, useLayoutEffect, type CSSProperties, type MouseEvent, type 
 import { tabTopLineIcon } from '../../models/workspace-layout'
 import { AppIcon } from '../shared/AppIcon'
 import { ChevronDownIcon, ExpandIcon, MoreIcon } from '../shared/icons'
+import type { TooltipLegendItem } from '../shared/TooltipBubble'
+import { useTooltip } from '../shared/use-tooltip'
 import { OPEN_LARGER_LABEL } from '../shared/widget-kind-menu-entries'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
 import styles from './WidgetTopLine.module.css'
@@ -144,13 +146,20 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
  * name — its tab's title, a name given in Name and icon… included; `name`
  * outside a cell — and `children` after it. Alone in its cell only.
  */
-export function WidgetNameLine({ name, children }: { name: string; children?: ReactNode }) {
+export function WidgetNameLine({ name, legend, children }: {
+  name: string
+  /** What the widget's marks mean: the name's tooltip (a map's colors and shapes). */
+  legend?: readonly TooltipLegendItem[]
+  children?: ReactNode
+}) {
   const value = useContext(CellControlsContext)
+  const title = value?.title || name
+  const { triggerProps, tooltip } = useTooltip(legend ? title : null, { legend })
   return (
     <WidgetTopLine
       alone
       className={styles.nameLine}
-      lead={<span className={styles.name} data-testid="top-line-name">{value?.title || name}</span>}
+      lead={<span className={styles.name} data-testid="top-line-name" data-legend={legend ? 'true' : undefined} {...triggerProps}>{title}{tooltip}</span>}
     >
       {children}
     </WidgetTopLine>

@@ -19,11 +19,11 @@ vi.mock('../../../components/shared/use-tooltip', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../components/shared/use-tooltip')>()
   return {
     ...actual,
-    useTooltip: (text: string) => {
+    useTooltip: (text: string | null, opts?: Parameters<typeof actual.useTooltip>[1]) => {
       // A dot's tooltip: its title, then its zone line.
-      const [title, meta] = text.split('\n')
+      const [title, meta] = (text ?? '').split('\n')
       if (title && meta) dotRenders.byTitle.set(title, (dotRenders.byTitle.get(title) ?? 0) + 1)
-      return actual.useTooltip(text)
+      return actual.useTooltip(text, opts)
     },
   }
 })

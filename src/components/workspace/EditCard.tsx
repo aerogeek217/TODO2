@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import type { LayoutCell, LayoutTab } from '../../models/workspace-layout'
+import { widgetKindLabel, type LayoutCell, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { cardName, cellRulerName, cornerArea, emptySlots, otherCards, stretchedArea, trackReached } from '../../utils/layout-edit-cards'
 import { mergeNeighbour, sameArea } from '../../utils/workspace-grid'
@@ -194,6 +194,27 @@ export function EditCardControls({ cell, label, stripLabel, labelTab, menuOpen, 
       </button>
       <EditCardCorner cell={cell} />
     </>
+  )
+}
+
+/**
+ * A card as a blueprint (layout editor round two, concept A): over its
+ * hidden body (still mounted), its active widget's icon, name and kind —
+ * under the tab strip on a card of tabs, whose strip stays (its tabs drag,
+ * and a drop there joins as a tab). Takes no presses: the surface under it
+ * does. The mode bar's Content shows the dimmed widgets instead.
+ */
+export function EditBlueprint({ tab, title, belowStrip }: { tab: LayoutTab; title: string; belowStrip: boolean }) {
+  return (
+    <span className={styles.blueprint} data-edit-blueprint="" data-below-strip={belowStrip ? '' : undefined} aria-hidden="true">
+      <span className={styles.blueprintInner}>
+        <span className={styles.blueprintName}>
+          <TabIcon tab={tab} size={14} className={styles.blueprintIcon} />
+          <span className={styles.blueprintText}>{title}</span>
+        </span>
+        <span className={styles.blueprintKind}>{widgetKindLabel(tab.kind)}</span>
+      </span>
+    </span>
   )
 }
 
