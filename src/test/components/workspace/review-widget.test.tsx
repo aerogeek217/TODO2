@@ -442,7 +442,7 @@ describe('the Review widget: the progress and its faces', () => {
     setFilter({ kind: 'and', items: [{ kind: 'or', items: [person(1), person(2)] }, { kind: 'not', item: { kind: 'priority', value: 'urgent' } }] })
     const pills = () => [...document.querySelectorAll('[data-review-pill]')].map((el) => el.getAttribute('data-review-pill'))
     expect(pills()).toEqual(['@Aisha', '@Ben', '/urgent'])
-    expect(screen.getByTestId('review-field-pills').textContent).toBe('(@Aisha× or @Ben×) and not /urgent×')
+    expect(screen.getByTestId('review-field-pills').textContent).toBe('(@Aisha or @Ben) and not /urgent')
     expect(document.querySelector('[data-review-pill="/urgent"]')).toHaveAttribute('data-tint', 'urgent')
     // The `not` goes with its term; a group left with one term loses its parentheses.
     fireEvent.click(screen.getByRole('button', { name: 'Remove /urgent' }))

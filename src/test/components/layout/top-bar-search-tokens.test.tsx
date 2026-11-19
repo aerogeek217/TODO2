@@ -125,14 +125,14 @@ describe('TopBar typed filter (P2)', () => {
     const pills = within(tray()).getByTestId('top-bar-pills')
     expect([...pills.querySelectorAll('[data-top-bar-pill]')].map((p) => p.getAttribute('data-top-bar-pill')))
       .toEqual(['#northwind', '@"Aisha Rahman"', '#q4'])
-    expect(pills).toHaveTextContent('#northwind× and (@"Aisha Rahman"× or #q4×)')
+    expect(pills).toHaveTextContent('#northwind and (@"Aisha Rahman" or #q4)')
     fireEvent.click(within(pills).getByRole('button', { name: 'Remove #q4' }))
     // The or left with one term: a chip now.
     expect(f().tags).toEqual(new Set([10]))
     expect(f().personIds).toEqual(new Set([1]))
     expect(f().expression).toBeUndefined()
     expect([...within(tray()).getByTestId('top-bar-pills').querySelectorAll('[data-top-bar-pill]')].map((p) => p.textContent))
-      .toEqual(['#northwind×', '@"Aisha Rahman"×'])
+      .toEqual(['#northwind', '@"Aisha Rahman"'])
   })
 
   it('a focus shows the whole filter as text — chips printed as their terms — and Escape leaves the field', () => {

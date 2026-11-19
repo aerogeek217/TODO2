@@ -2,6 +2,7 @@ import type { FilterAtom } from '../../../models/filter-expression'
 import { NO_PRIORITY } from '../../../models/filter-predicate'
 import { markerTint, type TokenTint } from '../../../services/nlp-token-tints'
 import type { ExpressionPiece } from '../../../utils/filter-expression'
+import { CloseIcon } from '../icons'
 import tintStyles from '../TintedText.module.css'
 import styles from './ExpressionPills.module.css'
 
@@ -44,7 +45,7 @@ export function ExpressionPills({ pieces, onRemove, pillAttr }: {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => onRemove(piece)}
           >
-            &times;
+            <CloseIcon size={8} />
           </button>
         </span>
       )))}

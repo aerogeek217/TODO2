@@ -445,7 +445,7 @@ test('at rest each term is a pill with its own ×: it takes that term out of the
   const pills = w.locator('[data-review-pill]')
   await expect(pills).toHaveCount(2)
   expect(await pills.evaluateAll((els) => els.map((el) => el.getAttribute('data-review-pill')))).toEqual(['@Aisha', '@Ben'])
-  await expect(w.getByTestId('review-field-pills')).toHaveText(/^@Aisha\s*×\s*or\s*@Ben\s*×$/)
+  await expect(w.getByTestId('review-field-pills')).toHaveText(/^@Aisha\s*or\s*@Ben$/)
   await expect(railRows(page, 'rev1')).toHaveCount(5)
   // Each × is inside its pill, on the field's one line.
   const [pb, xb] = [await pills.first().boundingBox(), await w.getByRole('button', { name: 'Remove @Aisha' }).boundingBox()]

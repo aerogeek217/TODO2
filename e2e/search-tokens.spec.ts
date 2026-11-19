@@ -114,5 +114,5 @@ test('! opens the statuses under the field; side by side, two statuses or', asyn
   await page.keyboard.type(' !"On Hold"', { delay: 20 })
   await expect.poll(() => listTitles(page)).toEqual(['Chase the invoice', 'Paused rollout'])
   await search(page).blur()
-  await expect(tray(page).getByTestId('top-bar-pills')).toHaveText('!Waiting× or !"On Hold"×')
+  await expect(tray(page).getByTestId('top-bar-pills')).toHaveText('!Waiting or !"On Hold"')
 })

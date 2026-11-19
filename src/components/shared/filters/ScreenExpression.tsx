@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useFilterStore } from '../../../stores/filter-store'
 import { expressionNamesOf } from '../../../utils/filter-chips'
 import { printExpression } from '../../../utils/filter-expression'
+import { CloseIcon } from '../icons'
 import { ExpressionWords } from './ExpressionWords'
 import { useChipNames } from './filter-menu'
 import styles from './ScreenExpression.module.css'
@@ -34,7 +35,7 @@ export function ScreenExpression({ className }: { className?: string }) {
           setAllFilters(chips)
         }}
       >
-        &times;
+        <CloseIcon size={10} />
       </button>
     </div>
   )
