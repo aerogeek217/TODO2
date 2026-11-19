@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useFilterStore } from '../../../stores/filter-store'
 import { expressionNamesOf } from '../../../utils/filter-chips'
 import { printExpression } from '../../../utils/filter-expression'
-import { CloseIcon } from '../icons'
+import { RemoveButton } from '../RemoveButton'
 import { ExpressionWords } from './ExpressionWords'
 import { useChipNames } from './filter-menu'
 import styles from './ScreenExpression.module.css'
@@ -23,20 +23,18 @@ export function ScreenExpression({ className }: { className?: string }) {
     <div className={`${styles.row} ${className ?? ''}`} data-screen-expression="">
       <span className={styles.label}>Also</span>
       <ExpressionWords expression={expression} text={text} />
-      <button
-        type="button"
+      <RemoveButton
         className={styles.clear}
-        aria-label="Clear the typed filter"
-        data-tooltip="Clear the typed filter"
+        iconSize={10}
+        label="Clear the typed filter"
+        tooltip
         onClick={() => {
           const { filters, setAllFilters } = useFilterStore.getState()
           const { expression: _expression, ...chips } = filters
           void _expression
           setAllFilters(chips)
         }}
-      >
-        <CloseIcon size={10} />
-      </button>
+      />
     </div>
   )
 }

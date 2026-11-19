@@ -127,7 +127,7 @@ describe('FilterSheet', () => {
     it('clears search with the clear button', () => {
       renderSheet()
       fireEvent.change(screen.getByRole('textbox', { name: 'Filter tasks' }), { target: { value: 'query' } })
-      fireEvent.click(screen.getByText('\u00d7'))
+      fireEvent.click(screen.getByRole('button', { name: 'Clear filter text' }))
       expect(useFilterStore.getState().filters.searchText).toBe('')
     })
   })

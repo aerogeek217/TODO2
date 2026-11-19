@@ -8,6 +8,7 @@ import { TaskFollowupFields } from './TaskFollowupFields'
 import { FollowupDateButton } from '../shared/followup/FollowupDateButton'
 import { FollowupQuickButtons } from '../shared/followup/FollowupQuickButtons'
 import styles from '../shared/followup/Followup.module.css'
+import { RemoveButton } from '../shared/RemoveButton'
 
 interface FollowupEditorGroupProps {
   next: Date | undefined
@@ -108,17 +109,15 @@ export function FollowupEditorGroup({
                 spellCheck={false}
               />
               {nextInput.text !== '' && (
-                <button
-                  type="button"
+                <RemoveButton
+                  size={24}
                   className={styles.inputClear}
-                  aria-label="Clear next follow-up"
-                  data-tooltip="Clear next follow-up"
+                  label="Clear next follow-up"
+                  tooltip
                   // Keep the input's blur from committing the text we're about to clear.
-                  onMouseDown={(e) => e.preventDefault()}
+                  keepFocus
                   onClick={() => { onNextChange(null); nextInput.settle(null) }}
-                >
-                  &times;
-                </button>
+                />
               )}
               <FollowupDateButton
                 label="Pick next follow-up date"

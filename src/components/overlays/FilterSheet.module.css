@@ -73,18 +73,12 @@
   border-color: var(--color-accent-dim);
 }
 
+/* The × (`RemoveButton`) at a phone's size: a 32px circle in the box's right end. */
 .searchClear {
   position: absolute;
-  right: 8px;
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-glyph-lg);
-  padding: 4px 8px;
-  cursor: pointer;
-  min-height: var(--touch-target-min);
-  display: flex;
-  align-items: center;
+  right: 6px;
+  width: 32px;
+  height: 32px;
 }
 
 /* Show N tasks: the foot while a filter is on */

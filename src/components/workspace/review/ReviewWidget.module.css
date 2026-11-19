@@ -170,16 +170,6 @@
   background: var(--color-accent-bg);
 }
 
-.clear {
-  composes: clear from '../../shared/ClearableField.module.css';
-}
-
-.field > .clear {
-  position: static;
-  transform: none;
-  flex-shrink: 0;
-}
-
 .fieldErrorText {
   font-size: var(--font-size-row-meta);
   color: var(--color-danger-text);

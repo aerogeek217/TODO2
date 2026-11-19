@@ -12,32 +12,10 @@
   padding-right: 26px;
 }
 
-/* The follow-up pill's ×, on the field's neutral colours. */
+/* The × (`RemoveButton`, 16px): inside the field's right end. */
 .clear {
   position: absolute;
   top: 50%;
   right: 5px;
   transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  line-height: 1;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity var(--transition-fast), background var(--transition-fast);
-}
-
-.clear:hover {
-  opacity: 1;
-  color: var(--color-text-primary);
-  background: var(--color-tint-8);
 }

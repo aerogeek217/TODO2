@@ -3,6 +3,7 @@ import { toDateInputValue } from '../../utils/date'
 import { factDateWords } from '../../utils/fact-dates'
 import { useToday } from '../../hooks/use-today'
 import { useSettingsStore } from '../../stores/settings-store'
+import { RemoveButton } from './RemoveButton'
 import styles from './DeadlinePicker.module.css'
 
 interface DeadlinePickerProps {
@@ -54,13 +55,13 @@ export function DeadlinePicker({ value, onChange, tone }: DeadlinePickerProps) {
         )}
       </button>
       {value && (
-        <button
-          type="button"
-          className={styles.clearButton}
-          onClick={(e) => { e.stopPropagation(); onChange(null) }}
-          data-tooltip="Clear due date"
-          aria-label="Clear due date"
-        >&times;</button>
+        <RemoveButton
+          size={20}
+          stopPropagation
+          onClick={() => onChange(null)}
+          label="Clear due date"
+          tooltip
+        />
       )}
       <input
         ref={inputRef}

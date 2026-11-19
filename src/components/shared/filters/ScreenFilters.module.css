@@ -66,35 +66,10 @@
   transform: rotate(180deg);
 }
 
-/* The 16px round × that clears one field. */
+/* The × that clears one field (`RemoveButton`, 16px; its 24px target over the row's right margin and
+ * its value's right padding, never over the value). */
 .clearField {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
   margin-right: 4px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-pill);
-  background: var(--color-tint-12);
-  color: inherit;
-  cursor: pointer;
-  flex-shrink: 0;
-  position: relative;
-}
-
-/* A 24px target round it (UX cleanup 5A): 4px each way — over the chip's
- * right margin and its value's right padding, never over the value. */
-.clearField::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-}
-
-.clearField:hover {
-  background: var(--color-tint-20);
-  color: var(--color-text-primary);
 }
 
 /* ═══ The Filter button and its menu ═══ */

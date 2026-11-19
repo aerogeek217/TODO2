@@ -22,7 +22,7 @@ import { useTooltip } from '../shared/use-tooltip'
 import { SearchResultContextMenu, SearchResultsGroups, type SearchResultPillContext } from './TopBarSearchResults'
 import styles from './TopBar.module.css'
 import pauseStyles from './FilterPause.module.css'
-import { CloseIcon } from '../shared/icons'
+import { RemoveButton } from '../shared/RemoveButton'
 
 /** What the empty field shows: what may be typed. */
 export const TOP_BAR_FILTER_PLACEHOLDER = '@person #tag due fri'
@@ -293,20 +293,18 @@ export function TopBarFilterField({ width, panelOpen, foldAttr }: {
         onKeyDown={onKeyDown}
       />
       {filterOn && (
-        <button
-          type="button"
+        <RemoveButton
+          size={20}
           className={pauseStyles.clear}
-          aria-label="Clear all filters"
+          label="Clear all filters"
           data-clear-filters=""
           // No tab stop, as the pills' × aren't (the Filter menu's Clear all filters is the keys').
           tabIndex={-1}
           // The press doesn't take the focus from the field (its text clears in place).
-          onMouseDown={(e) => e.preventDefault()}
+          keepFocus
           onClick={() => useFilterStore.getState().clearAll()}
           {...clearTip.triggerProps}
-        >
-          <CloseIcon size={10} />
-        </button>
+        />
       )}
       {clearTip.tooltip}
       {showResults && groups ? (

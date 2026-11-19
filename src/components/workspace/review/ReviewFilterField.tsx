@@ -20,6 +20,7 @@ import { parseExpression, printExpression, printPieces, withoutAtom, type Expres
 import { withExpression } from '../../../utils/predicate-expression'
 import { EnvelopeIcon, ReplyIcon } from '../../shared/icons'
 import { NlpPopup } from '../../shared/NlpPopup'
+import { RemoveButton } from '../../shared/RemoveButton'
 import { ExpressionPills } from '../../shared/filters/ExpressionPills'
 import { TintedText } from '../../shared/TintedText'
 import { useTooltip } from '../../shared/use-tooltip'
@@ -301,18 +302,14 @@ export function ReviewFilterField({ tabId, filter, inputRef, trailing }: {
             />
           </div>
           {(text !== '' || everyTask) && (
-            <button
-              type="button"
-              className={styles.clear}
+            <RemoveButton
               tabIndex={-1}
-              aria-label="Clear the filter"
-              data-tooltip="Clear the filter"
+              label="Clear the filter"
+              tooltip
               // The press keeps the focus (and the caret) in the field.
-              onMouseDown={(e) => e.preventDefault()}
+              keepFocus
               onClick={clear}
-            >
-              &times;
-            </button>
+            />
           )}
         </div>
         {checkinIds && <CheckinButtons personIds={checkinIds} />}

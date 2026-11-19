@@ -15,25 +15,9 @@
   font-size: var(--font-size-meta);
 }
 
+/* The × (`RemoveButton`) at a phone's size: a 32px circle. */
 .clear {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 32px;
   height: 32px;
   margin-left: auto;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  cursor: pointer;
-}
-
-.clear:hover {
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
 }

@@ -21,6 +21,7 @@ import { FollowupDateButton } from '../shared/followup/FollowupDateButton'
 import { FollowupQuickButtons } from '../shared/followup/FollowupQuickButtons'
 import { MarkFollowedUpButton } from '../shared/followup/MarkFollowedUpButton'
 import followupStyles from '../shared/followup/Followup.module.css'
+import { RemoveButton } from '../shared/RemoveButton'
 import { ChevronLeftIcon, ChevronRightIcon, CopyIcon, IndentIcon, MoreIcon, OpenIcon, TrashIcon } from '../shared/icons'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { useTaskNotesSource } from '../task/notes/use-task-notes-source'
@@ -338,16 +339,14 @@ function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnTyp
             spellCheck={false}
           />
           {input.text !== '' && (
-            <button
-              type="button"
+            <RemoveButton
+              size={24}
               className={followupStyles.inputClear}
-              aria-label="Clear next follow-up"
-              data-tooltip="Clear next follow-up"
-              onMouseDown={(e) => e.preventDefault()}
+              label="Clear next follow-up"
+              tooltip
+              keepFocus
               onClick={f.clearNext}
-            >
-              &times;
-            </button>
+            />
           )}
           <FollowupDateButton
             label="Pick next follow-up date"
