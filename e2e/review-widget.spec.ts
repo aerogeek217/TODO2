@@ -241,12 +241,12 @@ test('large face: sorted by Priority unless a sort is stored; a double-click on 
   await expect(w.getByTestId('review-sort')).toContainText('Priority')
   // Priority: the urgent task, then the important one, then the rest in the queue's order.
   await expect(railRows(page, 'rev1')).toHaveText([/Vendor contract/, /Onboarding checklist/, /Q4 headcount/, /Hiring scorecard/])
-  await expect(cardTitle(page, 'rev1')).toHaveText('Vendor contract renewal')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Vendor contract renewal')
   await shot(page, 'review-widget-large', page.locator('[data-ws-area]'))
 
   // A single click shows the card; a double-click opens the task's editor.
   await railRows(page, 'rev1').nth(2).click()
-  await expect(cardTitle(page, 'rev1')).toHaveText('Q4 headcount plan')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Q4 headcount plan')
   await railRows(page, 'rev1').nth(2).dblclick()
   const editor = page.getByRole('dialog', { name: 'Edit task' })
   await expect(editor).toBeVisible()
@@ -259,7 +259,7 @@ test('large face: sorted by Priority unless a sort is stored; a double-click on 
   await line.click()
   await line.fill('Legal signed off the clause')
   await page.keyboard.press('Enter')
-  await expect(cardTitle(page, 'rev1')).toHaveText('Onboarding checklist')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Onboarding checklist')
   await expect(railRows(page, 'rev1').first()).toHaveAttribute('data-mark', 'done')
   await expect(w.getByTestId('review-widget-progress')).toHaveText('1 followed up')
   await expect.poll(async () => isToday((await storedTask(page, 'Vendor contract renewal'))?.lastFollowupAt)).toBe(true)
@@ -267,10 +267,10 @@ test('large face: sorted by Priority unless a sort is stored; a double-click on 
 
   await railRows(page, 'rev1').nth(1).focus()
   await page.keyboard.press('ArrowRight')
-  await expect(cardTitle(page, 'rev1')).toHaveText('Q4 headcount plan')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Q4 headcount plan')
   await expect(railRows(page, 'rev1').nth(1)).toHaveAttribute('data-mark', 'skipped')
   await page.keyboard.press('ArrowLeft')
-  await expect(cardTitle(page, 'rev1')).toHaveText('Onboarding checklist')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Onboarding checklist')
 
   // The rail's sort is view state, saved at once — the layout stays saved, and a reload keeps it.
   await w.getByTestId('review-sort').click()
@@ -298,12 +298,12 @@ test('the live queue: a task leaving the filter leaves the rail — the current 
   await seedWorkspace(page, largeSeed())
   const w = widget(page, 'rev1')
   await pickInReview(page, 'rev1', 'Aisha')
-  await expect(cardTitle(page, 'rev1')).toHaveText('Vendor contract renewal')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Vendor contract renewal')
   await w.locator('[data-review-card]').getByRole('checkbox', { name: 'Mark complete' }).click()
-  await expect(cardTitle(page, 'rev1')).toHaveText('Vendor contract renewal')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Vendor contract renewal')
   await expect(railRows(page, 'rev1')).toHaveCount(4)
   await w.getByRole('button', { name: /^Skip/ }).click()
-  await expect(cardTitle(page, 'rev1')).toHaveText('Onboarding checklist')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Onboarding checklist')
   await expect(railRows(page, 'rev1')).toHaveCount(3)
 })
 
@@ -378,7 +378,7 @@ test('a short cell keeps the large face: the queue scrolls, and the card’s ban
   await shot(page, 'review-widget-short-end', wsCell(page, 'rv'))
   await line.fill('Short cell update')
   await page.keyboard.press('Enter')
-  await expect(cardTitle(page, 'rev1')).toHaveText('Onboarding checklist')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Onboarding checklist')
   // The title and the footer never scroll away.
   await expect(cardTitle(page, 'rev1')).toBeInViewport({ ratio: 1 })
   await expect(w.getByRole('button', { name: /^Skip/ })).toBeInViewport({ ratio: 1 })
@@ -398,7 +398,7 @@ test('the queue’s checkboxes: a row’s box completes its task without opening
   await seedWorkspace(page, largeSeed())
   const w = widget(page, 'rev1')
   await pickInReview(page, 'rev1', 'Aisha')
-  await expect(cardTitle(page, 'rev1')).toHaveText('Vendor contract renewal')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Vendor contract renewal')
   // The box sits where the picture was: on the title's line, between the mark and the title.
   const row = railRows(page, 'rev1').filter({ hasText: 'Q4 headcount plan' })
   const check = w.getByRole('checkbox', { name: 'Mark “Q4 headcount plan” complete' })
@@ -410,7 +410,7 @@ test('the queue’s checkboxes: a row’s box completes its task without opening
   // A press on it completes the task and never picks the row.
   await check.click()
   await expect(railRows(page, 'rev1')).toHaveCount(3)
-  await expect(cardTitle(page, 'rev1')).toHaveText('Vendor contract renewal')
+  await expect(cardTitle(page, 'rev1')).toHaveValue('Vendor contract renewal')
   await expect.poll(async () => (await readStore<{ title: string; isCompleted: boolean }>(page, 'todos')).find((t) => t.title === 'Q4 headcount plan')?.isCompleted).toBe(true)
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(railRows(page, 'rev1')).toHaveCount(4)
@@ -496,7 +496,7 @@ test('faces by size: medium — the card’s essentials; small — the filter an
   const med = widget(page, 'rm')
   await expect(med).toHaveAttribute('data-review-face', 'medium')
   await pickInReview(page, 'rm', 'Aisha')
-  await expect(med.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
+  await expect(med.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
   await expect(med.getByTestId('review-widget-progress')).toHaveText('0 followed up')
   await expect(med.getByTestId('review-facts')).toContainText('Waiting')
   await expect(med.locator('[data-review-row]')).toHaveCount(0)

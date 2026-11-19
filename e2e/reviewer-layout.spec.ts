@@ -254,7 +254,7 @@ test.describe('the Review widget’s queue (board BL)', () => {
     await w.getByTestId('review-sort').click()
     await page.getByRole('menu', { name: 'Sort the queue' }).getByRole('menuitemradio', { name: /^Next follow-up/ }).click()
     await rowOf('Vendor contract renewal').click()
-    await expect(w.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
+    await expect(w.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
 
     const row = rowOf('Vendor contract renewal')
     const [title, dates] = [await box(row.locator('[data-review-row-title]')), await box(row.locator('[data-review-row-dates]'))]
@@ -290,7 +290,7 @@ test.describe('the Review widget’s queue (board BL)', () => {
     await page.keyboard.press('ArrowRight')
     await expect(row).toHaveAttribute('data-mark', 'skipped')
     await page.keyboard.press('ArrowLeft')
-    await expect(w.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
+    await expect(w.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
     await shot(page, 'widget-queue')
   })
 })
@@ -318,7 +318,7 @@ test.describe('the Review widget’s faces (boards BL, BM)', () => {
     const med = widget(page, 'rm')
     await pickInReview(page, 'rm', 'Aisha')
     await expect(med).toHaveAttribute('data-review-face', 'medium')
-    await expect(med.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
+    await expect(med.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
     const dock = med.locator('[data-review-dock]')
     const heading = dock.getByRole('heading', { name: /Status updates/ })
     await expect(heading).toBeVisible()
@@ -341,7 +341,7 @@ test.describe('the Review widget’s faces (boards BL, BM)', () => {
 
     // A task with none: the heading still shows, no count, no entries.
     await med.getByRole('button', { name: /^Skip/ }).click()
-    await expect(med.getByTestId('review-card-title')).toHaveText('Empty task')
+    await expect(med.getByTestId('review-card-title')).toHaveValue('Empty task')
     await expect(dock.getByRole('heading', { name: 'Status updates' })).toBeVisible()
     await expect(dock.locator('[data-status-update]')).toHaveCount(0)
     await expect(dock.locator('[data-status-update-count]')).toHaveCount(0)
@@ -370,7 +370,7 @@ test.describe('the Review widget’s faces (boards BL, BM)', () => {
       await pickInReview(page, 'rev1', 'Aisha')
       await expect(w).toHaveAttribute('data-review-face', 'large')
       await w.locator('[data-review-row]').filter({ hasText: 'Vendor contract renewal' }).click()
-      await expect(w.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
+      await expect(w.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
       const [q, band, wr, up, whole] = [
         await box(w.locator('[data-review-rail]')),
         await box(w.locator('[data-task-facts]')),

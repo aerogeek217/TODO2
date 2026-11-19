@@ -148,7 +148,7 @@ test.describe('the review card’s Status menu', () => {
     await seedWorkspace(page, { ...SEED, layouts: [...SEED.layouts].reverse() })
     await pickInReview(page, 'rv', 'Aisha')
     const card = page.locator('[data-review-widget="rv"] [data-review-card]')
-    await expect(page.locator('[data-review-widget="rv"]').getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
+    await expect(page.locator('[data-review-widget="rv"]').getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
     const pill = card.getByRole('button', { name: 'Status: Waiting' })
     await pill.focus()
     await page.keyboard.press('Enter')

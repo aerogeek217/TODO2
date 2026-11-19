@@ -241,7 +241,7 @@ describe('the Review widget: its field', () => {
     fireEvent.keyDown(field(), { key: 'Enter' })
     expect(field()).toHaveValue('@Ben ')
     expect(stored()).toEqual({ expression: person(2), showCompleted: false })
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Onboarding checklist')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Onboarding checklist')
   })
 
   it('a typed expression is written on ⏎; the queue follows it', () => {
@@ -431,7 +431,7 @@ describe('the Review widget: the progress and its faces', () => {
     setFilter(person(1))
     const row = document.querySelector<HTMLElement>('[data-review-row="3"]')!
     fireEvent.click(row)
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Onboarding checklist')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Onboarding checklist')
     expect(openEditPopup).not.toHaveBeenCalled()
     fireEvent.doubleClick(row)
     expect(openEditPopup).toHaveBeenCalledWith(3)
@@ -463,14 +463,14 @@ describe('the Review widget: the progress and its faces', () => {
     useTodoStore.setState({ toggleComplete })
     renderAt('large')
     setFilter(person(1))
-    const title = screen.getByTestId('review-card-title').textContent
+    const title = (screen.getByTestId('review-card-title') as HTMLInputElement).value
     const box = screen.getByRole('checkbox', { name: 'Mark “Onboarding checklist” complete' })
     // Not inside the row's button (a button can't hold a checkbox).
     expect(box.closest('[data-review-row]')).toBeNull()
     expect(box.closest('li')?.querySelector('[data-review-row="3"]')).not.toBeNull()
     fireEvent.click(box)
     expect(toggleComplete).toHaveBeenCalledWith(3)
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent(title ?? '')
+    expect(screen.getByTestId('review-card-title')).toHaveValue(title ?? '')
   })
 })
 
@@ -480,15 +480,15 @@ describe('the Review widget: the queue and where it stands', () => {
     setFilter(person(1))
     const session = reviewWidgetSession('rv')
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Q4 headcount plan')
     act(() => {
       usePersonStore.setState({ assignedPeopleMap: new Map([[1, [aisha]], [2, [ben]], [3, [ben]], [4, [ben]]]) })
     })
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Q4 headcount plan')
     expect(session.getState().order).toEqual([1, 2])
     expect(session.getState().index).toBe(1)
     fireEvent.click(screen.getByRole('button', { name: /^Back/ }))
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
     expect(session.getState().order).toEqual([1])
   })
 
@@ -501,7 +501,7 @@ describe('the Review widget: the queue and where it stands', () => {
     expect(reviewWidgetSession('rv').getState().marks).toEqual({})
     expect(reviewWidgetSession('rv').getState().order).toEqual([])
     setFilter(person(1))
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
     expect(document.querySelector('[data-review-row="1"]')).not.toHaveAttribute('data-mark')
     expect(patchView).not.toHaveBeenCalled()
   })
@@ -511,12 +511,12 @@ describe('the Review widget: the queue and where it stands', () => {
     setFilter(person(1))
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Onboarding checklist')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Onboarding checklist')
     // Review #legal tasks: tasks 1 and 4 — task 1 was skipped under the old filter, task 3 was its card.
     setFilter({ kind: 'tag', id: 1 })
     const session = reviewWidgetSession('rv').getState()
     expect(session).toMatchObject({ order: [1, 4], index: 0, marks: {} })
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
     expect(document.querySelector('[data-review-row="1"]')).not.toHaveAttribute('data-mark')
     // Ben's tasks share task 3 with the first review: still from the top.
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
@@ -532,7 +532,7 @@ describe('the Review widget: the queue and where it stands', () => {
     // Review with Aisha, again: a new filter object, the same filter.
     setFilter(person(1))
     expect(reviewWidgetSession('rv').getState()).toMatchObject({ order: [1, 2, 3], index: 1, marks: { 1: 'skipped' }, drafts: { 2: 'Waiting on legal' } })
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Q4 headcount plan')
     expect(document.querySelector('[data-review-row="1"]')).toHaveAttribute('data-mark', 'skipped')
   })
 
@@ -542,13 +542,13 @@ describe('the Review widget: the queue and where it stands', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
     first.unmount()
     renderAt('medium', reviewTab({ viewState: { sort: 'queue' } }))
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Q4 headcount plan')
     expect(reviewWidgetSession('rv').getState().marks).toEqual({ 1: 'skipped' })
     cleanup()
     // Another Review button while it is closed: the next opening is a new review.
     setFilter({ kind: 'tag', id: 1 })
     renderAt('medium', reviewTab({ viewState: { sort: 'queue' } }))
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
     expect(reviewWidgetSession('rv').getState()).toMatchObject({ order: [1, 4], index: 0, marks: {} })
   })
 
@@ -576,9 +576,9 @@ describe('the Review widget: the queue and where it stands', () => {
       useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 7 ? { ...t, isCompleted: true } : t)) })
     })
     expect(rowIds()).toEqual(['1', '2', '3'])
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
     fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Q4 headcount plan')
     // A task that joins takes its sorted place among them (after task 3, by its due date).
     act(() => {
       useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 8, title: 'New one', sortOrder: 8, dueDate: new Date(2030, 0, 5) })] })
@@ -672,7 +672,7 @@ describe('the Review widget: the queue and where it stands', () => {
     expect(screen.getByTestId('review-empty')).toHaveTextContent('Pick who or what to review')
     expect(field()).toHaveValue('')
     setFilter(person(1))
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Another task with id 2')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Another task with id 2')
     expect(update()).toHaveValue('')
     expect(reviewWidgetSession('rv').getState()).toMatchObject({ order: [2], index: 0, marks: {}, drafts: {}, nextDrafts: {} })
   })
@@ -690,7 +690,7 @@ describe('the Review widget: the queue and where it stands', () => {
     renderAt('large', reviewTab({ viewState: { sort: 'title', currentId: 3, skipped: { day: '2000-01-01', ids: [1] } } as never }))
     setFilter(person(1))
     expect(screen.getByTestId('review-sort')).toHaveTextContent('Sort: Title')
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Onboarding checklist')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Onboarding checklist')
     expect(document.querySelector('[data-review-row="1"]')).not.toHaveAttribute('data-mark')
     expect(patchView).not.toHaveBeenCalled()
   })

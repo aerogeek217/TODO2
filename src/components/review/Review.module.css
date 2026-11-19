@@ -381,6 +381,103 @@
   text-decoration: line-through;
 }
 
+/* The title, edited in place (`ReviewTitleField`), as the task editor's: drawn as the title — no box;
+ * the caret marks the focus. Its look is `.cardTitle`'s / `.compactTitle`'s. */
+.titleInput {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: inherit;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+  cursor: text;
+}
+
+.titleInput:focus-visible {
+  box-shadow: none;
+}
+
+.titleInput::placeholder {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* The large face's: it wraps and grows with its text — the textarea over a hidden copy of it (one grid cell). */
+.titleField {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.titleField::after {
+  content: attr(data-replicated) ' ';
+  visibility: hidden;
+  white-space: pre-wrap;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.titleField > textarea,
+.titleField::after {
+  grid-area: 1 / 1;
+}
+
+/* Created · Modified, as the task editor's header has it: muted after the title; it gives way first. */
+.cardMeta {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-top: 6px;
+  overflow: hidden;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.01em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@container review-card (max-width: 559px) {
+  .cardMeta {
+    display: none;
+  }
+}
+
+/* The card's ⋯: the task's own actions (the editor header's). */
+.cardMore {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 -6px 0 -4px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.cardMore:hover,
+.cardMore[aria-expanded='true'] {
+  color: var(--color-text-primary);
+  background: var(--color-tint-5);
+}
+
+.cardMore:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
 /* The update line, last in Status updates: focused as each card opens; what ⏎ does at its end. */
 .updateLine {
   position: relative;
@@ -552,6 +649,7 @@
 }
 
 .compactTitle {
+  flex: 1 1 auto;
   min-width: 0;
   margin: 0;
   overflow: hidden;

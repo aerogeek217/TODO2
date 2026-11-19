@@ -198,7 +198,7 @@ test.describe('the task layout holds still while a field changes', () => {
     await seedWorkspace(page, REVIEW_SEED)
     await pickInReview(page, 'rv1', 'Aisha')
     const widget = page.locator('[data-review-widget="rv1"]')
-    await expect(widget.getByTestId('review-card-title')).toHaveText(TITLE)
+    await expect(widget.getByTestId('review-card-title')).toHaveValue(TITLE)
     const card = widget.locator('[data-review-card]')
     const header = {
       title: card.getByTestId('review-card-title'),

@@ -62,7 +62,7 @@ test('on the same layout: the list’s Review these N tasks sets the widget’s 
   await page.getByRole('menuitem', { name: 'Review these 2 tasks' }).click()
   await expect(reviewField(page, 'rv')).toHaveValue('@"Ana Lima"')
   // Beside the list the widget shows its medium face: the card, no queue column.
-  await expect(widget(page).getByTestId('review-card-title')).toHaveText(/^Ana (report|call)$/)
+  await expect(widget(page).getByTestId('review-card-title')).toHaveValue(/^Ana (report|call)$/)
   await expect(widget(page).getByLabel('Status update · today')).toBeFocused()
   // A jump saves nothing: no undo step, the layout as stored.
   expect(await undoCount(page)).toBe(steps)
@@ -72,7 +72,7 @@ test('on the same layout: the list’s Review these N tasks sets the widget’s 
   await page.getByPlaceholder(/Find tasks, commands/).pressSequentially('review with bo')
   await page.keyboard.press('Enter')
   await expect(reviewField(page, 'rv')).toHaveValue('@"Bo Chen"')
-  await expect(widget(page).getByTestId('review-card-title')).toHaveText('Bo plan')
+  await expect(widget(page).getByTestId('review-card-title')).toHaveValue('Bo plan')
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
@@ -94,17 +94,17 @@ test('a jump onto a review in progress: the same filter again resumes where it s
   await expect(rows).toHaveText([/Ana report/, /Ana call/, /Shared sync/])
   await widget(page).getByRole('button', { name: /^Skip/ }).click()
   await widget(page).getByRole('button', { name: /^Skip/ }).click()
-  await expect(title).toHaveText('Shared sync')
+  await expect(title).toHaveValue('Shared sync')
   await expect(widget(page).locator('[data-review-row][data-mark="skipped"]')).toHaveCount(2)
   // Review with Ana, again: the same review, where it stood.
   await reviewWith('ana')
   await expect(reviewField(page, 'rv')).toHaveValue('@"Ana Lima"')
-  await expect(title).toHaveText('Shared sync')
+  await expect(title).toHaveValue('Shared sync')
   await expect(widget(page).locator('[data-review-row][data-mark="skipped"]')).toHaveCount(2)
   // Review with Bo: a new review — from its first card (not the shared task the old one stood on), no marks.
   await reviewWith('bo')
   await expect(rows).toHaveText([/Bo plan/, /Shared sync/])
-  await expect(title).toHaveText('Bo plan')
+  await expect(title).toHaveValue('Bo plan')
   await expect(widget(page).locator('[data-review-row][data-mark]')).toHaveCount(0)
   await expect(widget(page).getByLabel('Status update · today')).toBeFocused()
 })
@@ -134,7 +134,7 @@ test('on another layout: the person menu’s Review opens the popup review with 
   await page.getByPlaceholder(/Find tasks, commands/).pressSequentially('review with bo')
   await page.keyboard.press('Enter')
   await expect(reviewField(page, 'review-popup')).toHaveValue('@"Bo Chen"')
-  await expect(popupReview(page).getByTestId('review-card-title')).toHaveText('Bo plan')
+  await expect(popupReview(page).getByTestId('review-card-title')).toHaveValue('Bo plan')
   await page.reload()
   await expect(popup(page)).toHaveCount(0)
 })

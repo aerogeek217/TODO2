@@ -15,7 +15,7 @@ import { reviewField, seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceS
  * (Duplicate, Make subtask of…, Delete); the footer's Mark followed up and
  * Done. The review card in the same layout (the Review widget, reached by a
  * list's Review these N tasks): queue (300px) beside the card; Next
- * follow-up's quick row is 1w 2w 1m 3m (no None — its × clears it); ⏎ in the
+ * follow-up's quick row is Settings' quick intervals (no None — its × clears it); ⏎ in the
  * update line still follows up. The person task dialog's Review button (a
  * jump; no check-in buttons, widget feedback 2B). Board BL's remaining checks
  * are `reviewer-layout.spec.ts`; the sizes and the overlaps of task layout B,
@@ -271,7 +271,7 @@ test.describe('the review card', () => {
     await page.getByRole('menu').getByRole('menuitem', { name: /Review these 3 tasks/ }).click()
     await expect(page.getByTestId('widget-popup')).toBeVisible() // no Review widget on this layout: the popup review
     const deck = page.locator('[data-review-widget="review-popup"]')
-    await expect(deck.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
+    await expect(deck.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
     await deck.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
     const card = deck.locator('[data-review-card]')
     const [queue, band, writing, updatesCol] = [
@@ -287,7 +287,7 @@ test.describe('the review card', () => {
     expect(await card.locator('[data-task-facts] [data-fact]').evaluateAll((els) => els.map((el) => el.getAttribute('data-fact')))).toEqual(FACT_ORDER)
 
     const followup = deck.locator('[data-review-footer] [data-task-followup]')
-    await expect(followup.getByRole('group', { name: 'Quick follow-up intervals' }).getByRole('button')).toHaveText(['1w', '2w', '1m', '3m'])
+    await expect(followup.getByRole('group', { name: 'Quick follow-up intervals' }).getByRole('button')).toHaveText(['1d', '1w', '1m', '3m'])
     await expect(deck.getByRole('button', { name: 'No next follow-up' })).toHaveCount(0)
     await expect(followup.getByRole('button', { name: 'Mark followed up' })).toHaveCount(0)
     await expect(deck.getByRole('button', { name: 'Mark followed up' })).toHaveCount(1)
@@ -308,7 +308,7 @@ test.describe('the review card', () => {
     // ⏎ keeps its meaning: the update and the follow-up, then the next card, its line focused.
     await updateLine.fill('Legal is on it')
     await updateLine.press('Enter')
-    await expect(deck.getByTestId('review-card-title')).toHaveText('Long running migration')
+    await expect(deck.getByTestId('review-card-title')).toHaveValue('Long running migration')
     await expect(deck.getByLabel('Status update · today')).toBeFocused()
   })
 })
