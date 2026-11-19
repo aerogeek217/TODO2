@@ -117,10 +117,10 @@ test('Stacked: the details line sits under the title, starting where it does; no
   const d = await box(details)
   expect(d.y).toBeGreaterThanOrEqual(t.y + t.height - 1)
   expect(Math.abs(d.x - t.x)).toBeLessThanOrEqual(1)
-  // Due (its clock) · follow-up (its flag) · the checklist · people · tags, in that order.
+  // Due · follow-up (each with its date bar) · the checklist · people · tags, in that order.
   const cells = await details.locator('[data-row-cell]').evaluateAll((els) => els.map((e) => e.getAttribute('data-row-cell')))
   expect(cells).toEqual(['due', 'followup', 'subtasks', 'people', 'tags'])
-  await expect(details.locator('[data-row-cell="due"] svg')).toHaveCount(1)
+  await expect(details.locator('[data-row-cell="due"] [data-date-bar="due"]')).toHaveCount(1)
   await expect(details.locator('[data-row-cell="tags"]')).toHaveText('#docs')
   // A part opens its picker, as a Rows cell does.
   await details.locator('[data-row-cell="tags"]').click()
