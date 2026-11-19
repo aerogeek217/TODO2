@@ -5,7 +5,7 @@ import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { DeadlinePicker } from '../shared/DeadlinePicker'
-import { PlusIcon, RepeatIcon } from '../shared/icons'
+import { CloseIcon, PlusIcon, RepeatIcon } from '../shared/icons'
 import { byName } from '../../utils/sort-order'
 import { FactSection } from './TaskFacts'
 import styles from './TaskDetails.module.css'
@@ -76,7 +76,7 @@ export function TaskEditMetadata({
                 <span className={styles.personName}>{person.name}</span>
               </button>
               <button type="button" className={styles.chipRemove} aria-label={`Remove ${person.name}`}
-                onClick={() => { if (person.id != null) onTogglePerson(person.id) }}>&times;</button>
+                onClick={() => { if (person.id != null) onTogglePerson(person.id) }}><CloseIcon size={8} /></button>
             </span>
           ))}
           <button type="button" className={styles.chipAdd} aria-label="Add person" data-tooltip="Add person"
@@ -112,7 +112,7 @@ export function TaskEditMetadata({
                 <span className={styles.personName}>#{tag.name}</span>
               </button>
               <button type="button" className={styles.chipRemove} aria-label={`Remove #${tag.name}`}
-                onClick={() => { if (tag.id != null) onToggleTag(tag.id) }}>&times;</button>
+                onClick={() => { if (tag.id != null) onToggleTag(tag.id) }}><CloseIcon size={8} /></button>
             </span>
           ))}
           <button type="button" className={styles.chipAdd} aria-label="Add tag" data-tooltip="Add tag"
