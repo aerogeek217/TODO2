@@ -6,6 +6,7 @@ import { DialogFrame } from '../../shared/Dialog'
 import { TaskRowGrid } from '../TaskRowGrid'
 import { convertActionLabel, plural } from './convert-action-label'
 import { DraftTaskRow, type PreviewLookups, type PreviewRow } from './DraftTaskRow'
+import { DialogCloseButton } from '../../shared/DialogCloseButton'
 import styles from './NotesConvert.module.css'
 
 export type { PreviewRow } from './DraftTaskRow'
@@ -117,7 +118,7 @@ export function NotesConvertPreview({
       <div className={styles.header}>
         <h2 id={titleId} className={styles.dialogTitle}>Convert to tasks</h2>
         <span className={styles.countBadge}>{plural(rows.length, 'draft', 'drafts')}</span>
-        <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onDismiss}>×</button>
+        <DialogCloseButton size={24} className={styles.closeBtn} onClick={onDismiss} />
       </div>
       <p className={styles.subline}>{sourceName} · not saved yet · click a title to rename, double-click for every detail</p>
       <TaskRowGrid className={styles.list}>

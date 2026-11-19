@@ -10,7 +10,8 @@ import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { layoutTabs } from '../../utils/workspace-layout-queries'
 import { DialogFrame } from '../shared/Dialog'
-import { CloseIcon, MoreIcon } from '../shared/icons'
+import { DialogCloseButton } from '../shared/DialogCloseButton'
+import { MoreIcon } from '../shared/icons'
 import { MenuPopover } from '../shared/MenuPopover'
 import { widgetKindMenuEntries } from '../shared/widget-kind-menu-entries'
 import { useWidgetMenuContent } from './cell-menu'
@@ -205,9 +206,8 @@ function WidgetPopup({ tab }: { tab: LayoutTab }) {
             <MoreIcon />
           </button>
         )}
-        <button type="button" className={styles.action} aria-label="Close" data-tooltip="Close" onClick={leavePopup}>
-          <CloseIcon size={12} />
-        </button>
+        {/* The ⋯'s class, so the two match. */}
+        <DialogCloseButton className={styles.action} tooltip onClick={leavePopup} />
       </div>
       <div className={styles.body}>
         <WidgetFaceContext.Provider value={face}>

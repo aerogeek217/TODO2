@@ -119,7 +119,7 @@ test.describe('phone', () => {
     await expect(confirm).toHaveCount(0)
     await expect(dialog.getByRole('group', { name: 'People' }).getByText('No unused people')).toBeVisible()
     expect((await readStore<{ name: string }>(page, 'people')).map((p) => p.name).sort()).toEqual(['Ann', 'Bob'])
-    await dialog.getByRole('button', { name: '×' }).tap()
+    await dialog.getByRole('button', { name: 'Close', exact: true }).tap()
     await expect(dialog).toHaveCount(0)
   })
 })

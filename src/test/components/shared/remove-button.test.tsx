@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup, screen, fireEvent, createEvent } from '@testing-library/react'
 import { RemoveButton } from '../../../components/shared/RemoveButton'
+import { DialogCloseButton } from '../../../components/shared/DialogCloseButton'
 
 afterEach(cleanup)
 
@@ -77,3 +78,19 @@ describe('RemoveButton', () => {
   })
 })
 
+describe('DialogCloseButton', () => {
+  it('is named Close by default and draws the × icon', () => {
+    const onClick = vi.fn()
+    render(<DialogCloseButton onClick={onClick} />)
+    const button = screen.getByRole('button', { name: 'Close' })
+    expect(button.querySelector('svg')).not.toBeNull()
+    expect(button.textContent).toBe('')
+    fireEvent.click(button)
+    expect(onClick).toHaveBeenCalledOnce()
+  })
+
+  it('takes its own name and tooltip', () => {
+    render(<DialogCloseButton label="Close Edit list" tooltip="Close" />)
+    expect(screen.getByRole('button', { name: 'Close Edit list' }).getAttribute('data-tooltip')).toBe('Close')
+  })
+})

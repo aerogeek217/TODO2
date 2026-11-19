@@ -27,6 +27,7 @@ import { describeFollowupInterval } from '../../utils/followup'
 import { formatDateNumeric, formatDateShort } from '../../utils/date'
 import { useUIStore } from '../../stores/ui-store'
 import { DialogFrame } from '../shared/Dialog'
+import { DialogCloseButton } from '../shared/DialogCloseButton'
 import styles from './CheckinImportDialog.module.css'
 import { collapseWhitespace, splitEdgeSpace } from '../../utils/text'
 import { byName } from '../../utils/sort-order'
@@ -241,7 +242,7 @@ function CheckinImportPanel() {
     >
       <div className={styles.header}>
         <h2 id={titleId} className={styles.title}>Import task update</h2>
-        <button type="button" className={styles.closeBtn} aria-label="Close" onClick={close}>×</button>
+        <DialogCloseButton onClick={close} />
       </div>
 
       {reply && (

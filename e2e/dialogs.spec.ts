@@ -447,7 +447,7 @@ test.describe('editor modals', () => {
         },
         trigger,
         inside: dialog.getByText(title, { exact: true }).first(),
-        initialFocus: dialog.getByRole('button', { name: '×' }).first(),
+        initialFocus: dialog.getByRole('button', { name: 'Close', exact: true }).first(),
       })
       await expect(settings).toBeVisible()
     })
@@ -470,7 +470,7 @@ test.describe('editor modals', () => {
         },
         trigger,
         inside: dialog.getByText(title).first(),
-        initialFocus: dialog.getByRole('button', { name: '×' }).first(),
+        initialFocus: dialog.getByRole('button', { name: 'Close', exact: true }).first(),
       })
       await expect(settings).toBeVisible()
     }
@@ -489,7 +489,7 @@ test.describe('editor modals', () => {
       },
       trigger,
       inside: dialog.getByText('Keyboard Shortcuts', { exact: true }),
-      initialFocus: dialog.getByRole('button', { name: '×' }),
+      initialFocus: dialog.getByRole('button', { name: 'Close', exact: true }),
     })
   })
 

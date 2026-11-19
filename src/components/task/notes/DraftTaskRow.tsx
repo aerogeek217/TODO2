@@ -20,6 +20,7 @@ import { FollowupDateButton } from '../../shared/followup/FollowupDateButton'
 import { FollowupQuickButtons } from '../../shared/followup/FollowupQuickButtons'
 import followupStyles from '../../shared/followup/Followup.module.css'
 import { PopoverRoot } from '../../shared/PopoverRoot'
+import { RemoveButton } from '../../shared/RemoveButton'
 import { TagPicker } from '../../shared/TagChipSelector'
 import { useTooltip } from '../../shared/use-tooltip'
 import { PriorityMenu } from '../PriorityMenu'
@@ -149,9 +150,7 @@ function DraftFollowupPopover({ value, today, anchorRef, onSet, onClose }: {
             {...selectOnFocus}
           />
           {input.text !== '' && (
-            <button type="button" className={followupStyles.inputClear} aria-label="Clear next follow-up" data-tooltip="Clear the date" onClick={() => set(null)}>
-              &times;
-            </button>
+            <RemoveButton size={24} className={followupStyles.inputClear} label="Clear next follow-up" tooltip="Clear the date" onClick={() => set(null)} />
           )}
           <FollowupDateButton label="Pick next follow-up date" value={s.kind === 'valid' ? s.date : value} onPick={set} />
         </div>
@@ -393,16 +392,14 @@ export function DraftTaskRow({ row, lookups, onChange, onCheck, onEdit, onRemove
             <path d="M10.5 2.5l3 3L6 13H3v-3l7.5-7.5z" />
           </svg>
         </button>
-        <button
-          type="button"
+        <RemoveButton
           className={`${styles.iconBtn} ${styles.removeBtn}`}
-          aria-label={`Remove "${draft.title}"`}
-          data-tooltip="Leave this line out: it stays in the note"
+          iconSize={10}
+          label={`Remove "${draft.title}"`}
+          tooltip="Leave this line out: it stays in the note"
           tabIndex={-1}
           onClick={onRemove}
-        >
-          ×
-        </button>
+        />
       </div>
 
       {draft.subtasks && draft.subtasks.length > 0 && (

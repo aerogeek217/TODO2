@@ -2,7 +2,8 @@ import { useRef, useState, type ReactNode } from 'react'
 import type { AutocompleteRow, AutocompleteState } from '../../hooks/use-nlp-autocomplete'
 import { NlpPopup } from '../shared/NlpPopup'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
-import { CloseIcon, MoreIcon } from '../shared/icons'
+import { DialogCloseButton } from '../shared/DialogCloseButton'
+import { MoreIcon } from '../shared/icons'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditHeaderProps {
@@ -96,9 +97,8 @@ export function TaskEditHeader({
           )}
         </>
       )}
-      <button type="button" className={styles.headerButton} onClick={onClose} aria-label="Close">
-        <CloseIcon size={12} />
-      </button>
+      {/* The ⋯'s class, so the two match. */}
+      <DialogCloseButton size={30} className={styles.headerButton} onClick={onClose} />
     </div>
   )
 }

@@ -26,6 +26,7 @@ import { TaskRow } from '../task/TaskRow'
 import { TaskRowGrid } from '../task/TaskRowGrid'
 import { GlanceGlyph } from '../shared/GlanceGlyph'
 import { GroupSortControl } from '../shared/GroupSortControl'
+import { DialogCloseButton } from '../shared/DialogCloseButton'
 import { ReviewIcon } from '../shared/icons'
 import { personReviewLabel, useEntityMenuOffers } from '../shared/person-menu-entries'
 import { personReviewFilter, reviewTasksLabel } from '../../services/review'
@@ -164,7 +165,7 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
         <h2 id={titleId} className={styles.title}>{payload.title}</h2>
         <span className={styles.countBadge} data-testid="task-dialog-count">{count}</span>
         <GroupSortControl value={view} onChange={pickView} className={styles.groupSort} />
-        <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}>×</button>
+        <DialogCloseButton size={24} className={styles.closeBtn} onClick={onClose} />
       </div>
       {personId != null && <PersonActions personId={personId} fallbackName={payload.title} onClose={onClose} />}
       {filterBar}

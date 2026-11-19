@@ -34,22 +34,9 @@
   line-height: 18px;
 }
 
+/* The × (`DialogCloseButton`, 24px): at the header's end. */
 .closeBtn {
   margin-left: auto;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-lg);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.closeBtn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text-primary);
 }
 
 .subline {
@@ -137,7 +124,7 @@
 .iconBtn.removeBtn {
   background: var(--color-tint-8);
   color: var(--color-text-primary);
-  font-size: var(--font-size-lg);
+  opacity: 1;
 }
 
 .iconBtn.removeBtn:hover {

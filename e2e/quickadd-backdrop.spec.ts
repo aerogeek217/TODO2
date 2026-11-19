@@ -130,7 +130,7 @@ test('the @ popup’s person menu and its Edit… still stack above the bar and 
   expect(await isOnTop(name)).toBe(true)
   await expect(bar(page)).toBeVisible()
 
-  await editor.getByRole('button', { name: '×' }).first().click()
+  await editor.getByRole('button', { name: 'Close', exact: true }).first().click()
   await expect(editor).toHaveCount(0)
   await expect(bar(page)).toBeVisible()
   await expect(input).toBeFocused()

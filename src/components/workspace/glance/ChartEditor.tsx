@@ -32,7 +32,9 @@ import { HUE_PRESET_HEX } from '../../../utils/layout-hue'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { ExpressionReportProvider } from '../../shared/filters/expression-report'
-import { CloseIcon, PlusIcon } from '../../shared/icons'
+import { DialogCloseButton } from '../../shared/DialogCloseButton'
+import { PlusIcon } from '../../shared/icons'
+import { RemoveButton } from '../../shared/RemoveButton'
 import { PopoverRoot } from '../../shared/PopoverRoot'
 import { ColorPicker } from '../../shared/ColorPicker'
 import { LitWhenControl } from './LitWhenField'
@@ -151,9 +153,7 @@ function CountColumnsField({ config, patch }: { config: BreakdownConfig; patch: 
                 aria-label={`Column ${i + 1} name`}
                 onChange={(e) => set(i, { ...column, name: e.target.value.slice(0, CHART_NAME_MAX) })}
               />
-              <button type="button" className={styles.close} aria-label={`Remove ${label}`} data-tooltip="Remove" onClick={() => write(columns.filter((_, j) => j !== i))}>
-                <CloseIcon size={12} />
-              </button>
+              <RemoveButton size={24} label={`Remove ${label}`} tooltip="Remove" onClick={() => write(columns.filter((_, j) => j !== i))} />
             </div>
             <ColorPicker value={column.color} onChange={(color) => set(i, { ...column, color })} />
             <div className={styles.columnRow}>
@@ -314,7 +314,7 @@ function ChartEditor({ tab, anchorRef, onClose }: {
     >
       <div className={styles.header}>
         <span id={`${id}-title`} className={styles.title}>{title}</span>
-        <button type="button" className={styles.close} aria-label="Close" onClick={() => { edit.requestClose() }}><CloseIcon size={14} /></button>
+        <DialogCloseButton size={24} onClick={() => { edit.requestClose() }} />
       </div>
       <ExpressionReportProvider value={edit.reportExpression}>
         <div className={styles.body}>

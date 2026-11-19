@@ -921,24 +921,9 @@ button.heatDay {
   color: var(--color-text-muted);
 }
 
+/* The × (`DialogCloseButton`, 24px): at the header's end. */
 .dayPopoverClose {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
   margin-left: auto;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.dayPopoverClose:hover {
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
 }
 
 .dayPopoverEntries {

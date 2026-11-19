@@ -1,5 +1,6 @@
 import { Fragment, useId } from 'react'
 import { DialogFrame } from '../Dialog'
+import { DialogCloseButton } from '../DialogCloseButton'
 import styles from './ExpressionSyntaxModal.module.css'
 
 interface SyntaxRow {
@@ -87,7 +88,7 @@ export function ExpressionSyntaxModal({ onClose }: { onClose: () => void }) {
     <DialogFrame onClose={onClose} layer="nested" aria-labelledby={titleId} className={styles.modal}>
       <div className={styles.header}>
         <div id={titleId} className={styles.title}>Filter expressions</div>
-        <button type="button" className={styles.close} aria-label="Close" onClick={onClose}>&times;</button>
+        <DialogCloseButton onClick={onClose} />
       </div>
       <div className={styles.body}>
         <p className={styles.lead}><b>( )</b> group · <b>"quotes"</b> are text</p>

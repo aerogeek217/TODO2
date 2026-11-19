@@ -32,24 +32,6 @@
   color: var(--color-text-primary);
 }
 
-.closeBtn {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-glyph-lg);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.closeBtn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text-primary);
-}
-
 .body {
   flex: 1;
   min-height: 0;

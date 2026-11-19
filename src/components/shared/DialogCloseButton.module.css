@@ -1,0 +1,48 @@
+/* A dialog's, popover's or panel's close (`DialogCloseButton`): a quiet
+ * square drawing `CloseIcon`. Every rule sits in `:where()` (no
+ * specificity), so a host's className overrides any of it. */
+
+:where(.close) {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  line-height: 0;
+  cursor: pointer;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+:where(.close) > svg {
+  display: block;
+  flex: none;
+}
+
+:where(.s24) {
+  width: 24px;
+  height: 24px;
+}
+
+:where(.s28) {
+  width: 28px;
+  height: 28px;
+}
+
+:where(.s30) {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+:where(.close:hover),
+:where(.close:focus-visible) {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}

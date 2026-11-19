@@ -38,7 +38,7 @@ describe('EntitiesSection — Unused people & tags', () => {
     const dialog = screen.getByRole('dialog', { name: 'Unused people & tags' })
     expect(within(dialog).getByRole('checkbox', { name: 'Ignore completed tasks' })).not.toBeChecked()
     await waitFor(() => expect(within(dialog).getByText('No unused people')).toBeInTheDocument())
-    fireEvent.click(within(dialog).getByRole('button', { name: '×' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
