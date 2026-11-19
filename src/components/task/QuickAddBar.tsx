@@ -74,6 +74,7 @@ import { DialogLayerContext, MODAL_BACKDROP_ATTR } from '../shared/dialog-layer'
 import { useBackdropPress } from '../shared/use-backdrop-press'
 import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusMark } from '../shared/StatusMark'
+import { RemoveButton } from '../shared/RemoveButton'
 import styles from './QuickAddBar.module.css'
 import { FLIGHT_SEE_THROUGH_ATTR, shortcutScope } from '../../utils/dom-contract'
 
@@ -196,20 +197,16 @@ type ChipRemoval = QuickAddChip | { kind: 'defaultFollowup' }
  */
 function ChipRemove({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <button
-      type="button"
+    <RemoveButton
+      size={14}
       className={styles.chipRemove}
       tabIndex={-1}
-      aria-label={label}
-      data-tooltip={label}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={(e) => {
-        e.stopPropagation()
-        onRemove()
-      }}
-    >
-      &times;
-    </button>
+      label={label}
+      tooltip
+      keepFocus
+      stopPropagation
+      onClick={onRemove}
+    />
   )
 }
 

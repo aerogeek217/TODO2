@@ -4,6 +4,7 @@ import { ESCAPE_OWN_ATTR, usePopoverAnchor } from '../../hooks/use-popover-ancho
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './PromptField.module.css'
 import { PopoverRoot } from './PopoverRoot'
+import { RemoveButton } from './RemoveButton'
 
 /** One choice of a `PromptField`. */
 export interface PromptOption {
@@ -231,15 +232,12 @@ export function PromptField({
           <span key={opt.id} className={styles.chip}>
             {chipMarks && opt.mark != null && <span className={styles.chipMark} aria-hidden="true">{opt.mark}</span>}
             <span className={styles.chipName}>{opt.name}</span>
-            <button
-              type="button"
-              className={styles.chipRemove}
-              onClick={(e) => { e.stopPropagation(); removeChip(opt.id) }}
-              aria-label={`Remove ${opt.name}`}
-              data-tooltip={`Remove ${opt.name}`}
-            >
-              ×
-            </button>
+            <RemoveButton
+              stopPropagation
+              onClick={() => removeChip(opt.id)}
+              label={`Remove ${opt.name}`}
+              tooltip
+            />
           </span>
         ))}
         <input
@@ -264,22 +262,18 @@ export function PromptField({
           aria-activedescendant={open && active >= 0 ? optionId(active) : undefined}
         />
         {selected.length > 0 && (
-          <button
-            type="button"
-            className={styles.clearAll}
+          <RemoveButton
             tabIndex={-1}
-            aria-label={`Clear ${label}`}
-            data-tooltip={`Clear ${label}`}
+            label={`Clear ${label}`}
+            tooltip
             // The press keeps the focus (and the caret) in the field.
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={(e) => {
-              e.stopPropagation()
+            keepFocus
+            stopPropagation
+            onClick={() => {
               onChange([])
               inputRef.current?.focus()
             }}
-          >
-            &times;
-          </button>
+          />
         )}
       </div>
       {trailing}

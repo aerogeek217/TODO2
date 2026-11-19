@@ -10,6 +10,7 @@ import { useTooltip } from './use-tooltip'
 import { StatusIcon } from './StatusIcon'
 import { StatusMark } from './StatusMark'
 import { AvatarStack } from './AvatarStack'
+import { RemoveButton } from './RemoveButton'
 import styles from './TaskPillBar.module.css'
 
 /**
@@ -146,17 +147,16 @@ export const TaskPillDates = memo(function TaskPillDates({
           </span>
         )}
         {onDeadlineClear && (
-          <span
+          <RemoveButton
+            as="span"
+            size={14}
             className={styles.chipClear}
-            role="button"
-            tabIndex={-1}
-            aria-label="Clear due date"
-            data-tooltip="Clear due date"
-            onClick={(e) => { e.stopPropagation(); onDeadlineClear(e) }}
+            label="Clear due date"
+            tooltip
+            stopPropagation
+            onClick={onDeadlineClear}
             onMouseDown={(e) => e.stopPropagation()}
-          >
-            &times;
-          </span>
+          />
         )}
       </button>
     ) : (
@@ -229,17 +229,15 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
       <FollowupFlagIcon />
       <span className={styles.followupLabel}>{label}</span>
       {showClear && (
-        <span
+        <RemoveButton
+          as="span"
           className={styles.followupClear}
-          role="button"
-          tabIndex={-1}
-          aria-label="Clear follow-up"
-          onClick={(e) => { e.stopPropagation(); onFollowupClear(e) }}
+          label="Clear follow-up"
+          stopPropagation
+          onClick={onFollowupClear}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
-        >
-          &times;
-        </span>
+        />
       )}
       {tooltip}
     </button>

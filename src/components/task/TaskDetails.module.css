@@ -531,32 +531,6 @@
   color: var(--color-text-on-accent);
 }
 
-/* The pill's ×: always there, quiet until hovered or focused. */
-.chipRemove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: inherit;
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  line-height: 1;
-  opacity: 0.45;
-  cursor: pointer;
-}
-
-.chipRemove:hover,
-.chipRemove:focus-visible {
-  opacity: 1;
-  background: var(--color-tint-8);
-}
-
 /* + : a dashed round button after the pills, always shown; it opens the picker. */
 .chipAdd {
   display: inline-flex;

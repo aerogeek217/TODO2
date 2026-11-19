@@ -70,36 +70,6 @@
   color: var(--color-text-muted);
 }
 
-.chipRemove {
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  margin: 0;
-  border: none;
-  border-radius: 50%;
-  background: none;
-  font-size: var(--font-size-md);
-  line-height: 1;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-/* Clears every pick: the clearable fields' ×, at the field's end (in the row, not over the text). */
-.clearAll {
-  composes: clear from './ClearableField.module.css';
-}
-
-.field > .clearAll {
-  position: static;
-  transform: none;
-  flex-shrink: 0;
-}
-
-.chipRemove:hover {
-  background: var(--color-tint-12);
-  color: var(--color-text-primary);
-}
-
 .input {
   flex: 1;
   min-width: 60px;

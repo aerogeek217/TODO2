@@ -5,7 +5,8 @@ import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { DeadlinePicker } from '../shared/DeadlinePicker'
-import { CloseIcon, PlusIcon, RepeatIcon } from '../shared/icons'
+import { PlusIcon, RepeatIcon } from '../shared/icons'
+import { RemoveButton } from '../shared/RemoveButton'
 import { byName } from '../../utils/sort-order'
 import { FactSection } from './TaskFacts'
 import styles from './TaskDetails.module.css'
@@ -75,8 +76,8 @@ export function TaskEditMetadata({
                 </span>
                 <span className={styles.personName}>{person.name}</span>
               </button>
-              <button type="button" className={styles.chipRemove} aria-label={`Remove ${person.name}`}
-                onClick={() => { if (person.id != null) onTogglePerson(person.id) }}><CloseIcon size={8} /></button>
+              <RemoveButton label={`Remove ${person.name}`}
+                onClick={() => { if (person.id != null) onTogglePerson(person.id) }} />
             </span>
           ))}
           <button type="button" className={styles.chipAdd} aria-label="Add person" data-tooltip="Add person"
@@ -111,8 +112,8 @@ export function TaskEditMetadata({
                 onClick={() => toggleDropdown('tags')}>
                 <span className={styles.personName}>#{tag.name}</span>
               </button>
-              <button type="button" className={styles.chipRemove} aria-label={`Remove #${tag.name}`}
-                onClick={() => { if (tag.id != null) onToggleTag(tag.id) }}><CloseIcon size={8} /></button>
+              <RemoveButton label={`Remove #${tag.name}`}
+                onClick={() => { if (tag.id != null) onToggleTag(tag.id) }} />
             </span>
           ))}
           <button type="button" className={styles.chipAdd} aria-label="Add tag" data-tooltip="Add tag"

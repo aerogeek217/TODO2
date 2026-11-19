@@ -1,5 +1,6 @@
 import type { FilterChip } from '../../../utils/filter-chips'
-import { ChevronDownIcon, CloseIcon } from '../icons'
+import { ChevronDownIcon } from '../icons'
+import { RemoveButton } from '../RemoveButton'
 import { useTooltip } from '../use-tooltip'
 import styles from './ListFilterChips.module.css'
 
@@ -80,19 +81,16 @@ export function ListFilterChip({ chip, open, disclosure, rowKey, owner, onPress,
           <span className={styles.chipLabel}>{chip.label}</span>
           {chip.value}
         </button>
-        <button
-          type="button"
+        <RemoveButton
           className={styles.chipRemove}
-          aria-label="Remove filter"
-          data-tooltip="Remove filter"
+          label="Remove filter"
+          tooltip
+          stopPropagation
           onClick={(e) => {
-            e.stopPropagation()
             const el = chipOf(e.currentTarget)
             if (el) onRemove(el)
           }}
-        >
-          <CloseIcon size={9} />
-        </button>
+        />
         {disclosure && (
           <span className={`${styles.chipChevron} ${open ? styles.chipChevronOpen : ''}`} aria-hidden="true">
             <ChevronDownIcon />

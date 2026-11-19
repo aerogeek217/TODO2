@@ -1,0 +1,79 @@
+/* The app's one × (`RemoveButton`): a round button drawing `CloseIcon`,
+ * centred, quiet until hovered or focused. Every rule sits in `:where()`
+ * (no specificity), so a host's className overrides any of it. */
+
+:where(.remove) {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 0;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+
+/* A target larger than the circle: 5px each way (a 14px circle's is 24px, UX cleanup 5A). */
+:where(.remove)::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
+
+:where(.remove) > svg {
+  display: block;
+  flex: none;
+}
+
+:where(.s14) {
+  width: 14px;
+  height: 14px;
+}
+
+:where(.s16) {
+  width: 16px;
+  height: 16px;
+}
+
+/* 4px each way: a 24px target. */
+:where(.s16)::after {
+  inset: -4px;
+}
+
+:where(.s20) {
+  width: 20px;
+  height: 20px;
+}
+
+:where(.s20)::after,
+:where(.s24)::after {
+  inset: -2px;
+}
+
+:where(.s24) {
+  width: 24px;
+  height: 24px;
+}
+
+:where(.remove:hover),
+:where(.remove:focus-visible) {
+  opacity: 1;
+  background: var(--color-tint-8);
+}
+
+:where(.remove:disabled),
+:where(.remove[aria-disabled='true']) {
+  opacity: 0.3;
+  cursor: default;
+}

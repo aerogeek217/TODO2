@@ -2,7 +2,7 @@ import type { FilterAtom } from '../../../models/filter-expression'
 import { NO_PRIORITY } from '../../../models/filter-predicate'
 import { markerTint, type TokenTint } from '../../../services/nlp-token-tints'
 import type { ExpressionPiece } from '../../../utils/filter-expression'
-import { CloseIcon } from '../icons'
+import { RemoveButton } from '../RemoveButton'
 import tintStyles from '../TintedText.module.css'
 import styles from './ExpressionPills.module.css'
 
@@ -35,18 +35,16 @@ export function ExpressionPills({ pieces, onRemove, pillAttr }: {
       ) : (
         <span key={i} className={`${tintStyles.tint} ${styles.pill}`} data-tint={pillTint(piece.term)} {...{ [pillAttr]: piece.text }}>
           <span aria-hidden="true">{piece.text}</span>
-          <button
-            type="button"
+          <RemoveButton
+            size={14}
             className={styles.pillRemove}
             tabIndex={-1}
-            aria-label={`Remove ${piece.text}`}
-            data-tooltip={`Remove ${piece.text}`}
+            label={`Remove ${piece.text}`}
+            tooltip
             // The press doesn't move the focus into the field.
-            onMouseDown={(e) => e.preventDefault()}
+            keepFocus
             onClick={() => onRemove(piece)}
-          >
-            <CloseIcon size={8} />
-          </button>
+          />
         </span>
       )))}
     </>
