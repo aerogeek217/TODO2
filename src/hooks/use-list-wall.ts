@@ -13,6 +13,7 @@ import { useWorkspaceStore } from '../stores/workspace-store'
 import { createPredicateEvaluator, createScreenComposedEvaluator } from '../utils/filter-match'
 import { rowTone } from '../utils/list-zoom'
 import { buildWallList, wallTone, type WallList } from '../utils/list-wall'
+import { markerSummary } from '../utils/markers'
 import { readingOrder } from '../utils/workspace-grid'
 import { useFilterSettings } from './use-filter-settings'
 import { useTodoNameLookups } from './use-todo-name-lookups'
@@ -23,7 +24,8 @@ import { useToday } from './use-today'
  * order (by cell, then strip order), each with the open tasks it shows on
  * opening — the list as edited, its prompt pick and the screen filter, as
  * its tab badge counts them (`use-tab-badges`) — and whether its cell is
- * showing it. A list still waiting on its prompt has an empty block.
+ * showing it, each task's state and priority. A list still waiting on its
+ * prompt has an empty block.
  */
 export function useListWall(): WallList<PersistedTodoItem>[] {
   const layout = useWorkspaceStore((s) => s.working)
@@ -50,6 +52,7 @@ export function useListWall(): WallList<PersistedTodoItem>[] {
       : createPredicateEvaluator(lookups, today, settings)
     const open = todos.filter((t) => !t.isCompleted)
     const toneOf = (t: PersistedTodoItem) => wallTone(rowTone(t, today, { urgentRange, staleAfterDays }))
+    const markersOf = (t: PersistedTodoItem) => markerSummary(t, today, urgentRange)
     const lists: WallList<PersistedTodoItem>[] = []
     for (const cell of readingOrder(layout)) {
       const active = getActiveTab(cell)?.id
@@ -65,7 +68,7 @@ export function useListWall(): WallList<PersistedTodoItem>[] {
           ? applyRuntimeFilter(def.membership.predicate, def.runtimeFilter, pick)
           : def.membership.predicate
         const tasks = waiting ? [] : open.filter((t) => matches(predicate, t))
-        lists.push(buildWallList({ tabId: tab.id, name: def.name, showing: active === tab.id, waiting }, tasks, toneOf))
+        lists.push(buildWallList({ tabId: tab.id, name: def.name, showing: active === tab.id, waiting }, tasks, toneOf, markersOf))
       }
     }
     return lists

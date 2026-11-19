@@ -15,16 +15,22 @@ import {
   wallShape,
   wallSquaresShown,
   type WallList,
+  type WallMarkers,
   type WallShape,
   type WallTone,
 } from '../../../utils/list-wall'
 import { listWallFaceFor, type WidgetFace } from '../../../utils/widget-face'
+import { PriorityRing } from '../../shared/PriorityRing'
 import type { TooltipLegendItem } from '../../shared/TooltipBubble'
 import { useTooltip } from '../../shared/use-tooltip'
 import { WidgetNameLine } from '../WidgetTopLine'
 import styles from './ListWallWidget.module.css'
 
 type List = WallList<PersistedTodoItem>
+
+/** A square's side and corner, px (the stylesheet's `.square`). */
+const SQUARE_PX = 10
+const SQUARE_CORNER_PX = 2
 
 /** What the squares mean: the name's tooltip. */
 const WALL_LEGEND: readonly TooltipLegendItem[] = WALL_TONES.map((t) => ({
@@ -145,7 +151,7 @@ function Block({ list, shape }: { list: List; shape: WallShape }) {
           </div>
           {list.squares.length > 0 && (
             <div className={styles.grid} role="group" aria-label={`${list.name}: its tasks`}>
-              {squares.map((sq) => <Square key={sq.task.id} task={sq.task} tone={sq.tone} />)}
+              {squares.map((sq) => <Square key={sq.task.id} task={sq.task} tone={sq.tone} markers={sq.markers} />)}
               {more > 0 && <span className={styles.more} aria-label={`${more} more`}>+{more}</span>}
             </div>
           )}
@@ -155,20 +161,47 @@ function Block({ list, shape }: { list: List; shape: WallShape }) {
   )
 }
 
-/** A task's square: its tooltip its title and state; a click opens it. Memoized: plain props. */
-const Square = memo(function Square({ task, tone }: { task: PersistedTodoItem; tone: WallTone }) {
-  const { triggerProps, tooltip } = useTooltip(`${task.title}\n${WALL_TONE_NAMES[tone]}`)
+/** A task's square: its state the fill, its priority a ring and Focus's glow (`PriorityRing`, as on the task's checkbox); its tooltip its title, state and priority; a click opens it. */
+function Square({ task, tone, markers }: { task: PersistedTodoItem; tone: WallTone; markers: WallMarkers | undefined }) {
+  return (
+    <SquareButton
+      task={task}
+      tone={tone}
+      focus={markers?.focus ?? false}
+      urgent={markers?.urgent ?? null}
+      important={markers?.important ?? false}
+      priority={markers?.label ?? null}
+    />
+  )
+}
+
+/** Memoized on plain props: the markers' object is new on every build of the wall. */
+const SquareButton = memo(function SquareButton({ task, tone, focus, urgent, important, priority }: {
+  task: PersistedTodoItem
+  tone: WallTone
+  focus: boolean
+  urgent: WallMarkers['urgent']
+  important: boolean
+  /** `Priority: Focus, Urgent` — null with no priority. */
+  priority: string | null
+}) {
+  const state = WALL_TONE_NAMES[tone]
+  const hasPriority = focus || urgent !== null || important
+  const words = hasPriority && priority ? `${state} · ${priority}` : state
+  const { triggerProps, tooltip } = useTooltip(`${task.title}\n${words}`)
   return (
     <button
       type="button"
       className={styles.square}
       data-tone={tone}
-      data-focus={task.focus === true ? 'true' : undefined}
-      aria-label={`${task.title}: ${WALL_TONE_NAMES[tone]}`}
+      aria-label={`${task.title}: ${words}`}
       {...{ [TODO_ID_ATTR]: task.id }}
       {...triggerProps}
       onClick={() => useUIStore.getState().openEditPopup(task.id)}
     >
+      {hasPriority && (
+        <PriorityRing summary={{ focus, urgent, important }} completed={false} size={SQUARE_PX} corner={SQUARE_CORNER_PX} />
+      )}
       {tooltip}
     </button>
   )

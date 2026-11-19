@@ -2,8 +2,11 @@
  * The List wall (task maps, 2026-11-18): every list tab of a layout as a
  * block of squares, one per open task the list shows, the trouble first.
  * A task's state is its Lines box's (`list-zoom.rowTone`): overdue, due
- * soon, follow-up late, on track, stale — the first that holds.
+ * soon, follow-up late, on track, stale — the first that holds — its fill;
+ * its priority a ring and Focus's glow, as on the task's checkbox.
  */
+
+import type { MarkerSummary } from './markers'
 
 export type WallTone = 'late' | 'soon' | 'followup' | 'ontrack' | 'stale'
 
@@ -41,7 +44,12 @@ export function wallTone(tone: 'late' | 'soon' | 'followup' | 'stale' | 'none'):
 interface WallSquare<T> {
   task: T
   tone: WallTone
+  /** Its priority, drawn as a task's checkbox draws it (`PriorityRing`); absent without `markersOf`. */
+  markers?: WallMarkers
 }
+
+/** A square's priority: `markerSummary`'s marks and name. */
+export type WallMarkers = Pick<MarkerSummary, 'focus' | 'urgent' | 'important' | 'label'>
 
 export interface WallList<T> {
   tabId: string
@@ -55,18 +63,19 @@ export interface WallList<T> {
   counts: Record<WallTone, number>
 }
 
-/** A list's block from its open tasks (`toneOf` each one's state). */
+/** A list's block from its open tasks (`toneOf` each one's state, `markersOf` its priority). */
 export function buildWallList<T>(
   list: { tabId: string; name: string; showing: boolean; waiting: boolean },
   tasks: readonly T[],
   toneOf: (task: T) => WallTone,
+  markersOf?: (task: T) => WallMarkers,
 ): WallList<T> {
   const counts = Object.fromEntries(WALL_TONES.map((t) => [t, 0])) as Record<WallTone, number>
   const byTone = new Map<WallTone, WallSquare<T>[]>(WALL_TONES.map((t) => [t, []]))
   for (const task of tasks) {
     const tone = toneOf(task)
     counts[tone]++
-    byTone.get(tone)!.push({ task, tone })
+    byTone.get(tone)!.push(markersOf ? { task, tone, markers: markersOf(task) } : { task, tone })
   }
   return { ...list, squares: WALL_TONES.flatMap((t) => byTone.get(t)!), counts }
 }

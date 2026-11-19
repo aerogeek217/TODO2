@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { CellControlsContext, type CellControlsValue } from '../../../components/workspace/cell-controls'
 import { ListWallWidget } from '../../../components/workspace/listwall/ListWallWidget'
 import { emptyPredicate } from '../../../models/filter-predicate'
@@ -80,6 +80,30 @@ describe('the List wall', () => {
     expect(setActive).toHaveBeenCalledWith('t-all')
     fireEvent.click(screen.getByRole('button', { name: 'Chase: Follow-up late' }))
     expect(open).toHaveBeenCalledWith(3)
+  })
+
+  it('draws a square’s priority as its task’s checkbox does: the rings, Focus’s glow', () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Both', urgent: true, important: true, modifiedAt: day(-1), sortOrder: 1 }),
+        makeTodo({ id: 2, title: 'Lit', focus: true, important: true, modifiedAt: day(-1), sortOrder: 2 }),
+        makeTodo({ id: 3, title: 'By date', dueDate: day(1), modifiedAt: day(-1), sortOrder: 3 }),
+        makeTodo({ id: 4, title: 'Plain', modifiedAt: day(-1), sortOrder: 4 }),
+      ],
+    })
+    render(<ListWallWidget tab={WALL} />)
+    const all = document.querySelector('[data-wall-list="t-all"]')!
+    const square = (name: RegExp) => within(all as HTMLElement).getByRole('button', { name })
+    expect(square(/^Both: /).querySelector('[data-priority-ring]')).toHaveAttribute('data-priority-ring', 'split')
+    expect(square(/^Both: /)).toHaveAccessibleName('Both: On track · Priority: Urgent, Important')
+    expect(square(/^Lit: /).querySelector('[data-priority-ring]')).toHaveAttribute('data-priority-ring', 'important')
+    expect(square(/^Lit: /).querySelector('[data-focus-glow]')).not.toBeNull()
+    // Urgent only by its due date: the dashed ring, over the due-soon fill.
+    const byDate = square(/^By date: /)
+    expect(byDate).toHaveAttribute('data-tone', 'soon')
+    expect(byDate.querySelector('[data-ring-part="urgent"]')).toHaveAttribute('data-dashed')
+    expect(square(/^Plain: /)).toHaveAccessibleName('Plain: On track')
+    expect(square(/^Plain: /).querySelector('[data-priority-ring], [data-focus-glow]')).toBeNull()
   })
 
   it('a narrow cell draws a bar per list; a small one how many are overdue', () => {

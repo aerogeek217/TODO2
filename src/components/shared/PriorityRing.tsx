@@ -42,11 +42,13 @@ function dashedLength(length: number): number {
  * empty element that carries the name. Decorative unless `label` names it —
  * the desktop row's marker gutter carries the name.
  */
-export function PriorityRing({ summary, completed, size, label }: {
+export function PriorityRing({ summary, completed, size, corner, label }: {
   summary: Pick<MarkerSummary, 'focus' | 'urgent' | 'important'>
   completed: boolean
   /** The box's side, px. */
   size: number
+  /** The box's corner radius, px, where it isn't a checkbox's or a Lines box's (a List wall square's 2px). */
+  corner?: number
   /** The ring's accessible name (the phone row's: it has no gutter); absent = hidden from assistive tech. */
   label?: string
 }) {
@@ -59,7 +61,7 @@ export function PriorityRing({ summary, completed, size, label }: {
       className={styles.glow}
       style={{
         // The box's corner: a row's checkbox 5px, a Lines box 4px.
-        borderRadius: size >= 16 ? RADIUS + STROKE / 2 : RADIUS,
+        borderRadius: corner ?? (size >= 16 ? RADIUS + STROKE / 2 : RADIUS),
         boxShadow: `0 0 ${half(size * GLOW_BLUR)}px ${half(size * GLOW_SPREAD)}px var(--color-marker-focus-glow)`,
       }}
       data-focus-glow=""
@@ -71,7 +73,9 @@ export function PriorityRing({ summary, completed, size, label }: {
   const lo = STROKE / 2
   const hi = size - STROKE / 2
   const side = hi - lo
-  const perimeter = 4 * (side - 2 * RADIUS) + 2 * Math.PI * RADIUS
+  // The ring's centre line follows the box's corner: a given one less half the stroke.
+  const r = corner != null ? Math.max(0, corner - STROKE / 2) : RADIUS
+  const perimeter = 4 * (side - 2 * r) + 2 * Math.PI * r
   const part = (marker: MarkerKey, fill: boolean, dashed: boolean, length: number): {
     style: CSSProperties
     pathLength?: number
@@ -87,10 +91,10 @@ export function PriorityRing({ summary, completed, size, label }: {
   let body
   if (ring.kind === 'split') {
     // Split where a CSS border would: through the top-left and bottom-right corners' 45° points.
-    const k = RADIUS * (1 - Math.SQRT1_2)
-    const arc = `A${RADIUS} ${RADIUS} 0 0 1`
-    const urgent = `M${lo + k} ${lo + k} ${arc} ${lo + RADIUS} ${lo} H${hi - RADIUS} ${arc} ${hi} ${lo + RADIUS} V${hi - RADIUS} ${arc} ${hi - k} ${hi - k}`
-    const important = `M${hi - k} ${hi - k} ${arc} ${hi - RADIUS} ${hi} H${lo + RADIUS} ${arc} ${lo} ${hi - RADIUS} V${lo + RADIUS} ${arc} ${lo + k} ${lo + k}`
+    const k = r * (1 - Math.SQRT1_2)
+    const arc = `A${r} ${r} 0 0 1`
+    const urgent = `M${lo + k} ${lo + k} ${arc} ${lo + r} ${lo} H${hi - r} ${arc} ${hi} ${lo + r} V${hi - r} ${arc} ${hi - k} ${hi - k}`
+    const important = `M${hi - k} ${hi - k} ${arc} ${hi - r} ${hi} H${lo + r} ${arc} ${lo} ${hi - r} V${lo + r} ${arc} ${lo + k} ${lo + k}`
     body = (
       <>
         <path d={urgent} {...part('urgent', false, ring.urgentDashed, perimeter / 2)} />
@@ -100,7 +104,7 @@ export function PriorityRing({ summary, completed, size, label }: {
   } else {
     const marker: MarkerKey = ring.kind
     const dashed = marker === 'urgent' && ring.urgentDashed
-    body = <rect x={lo} y={lo} width={side} height={side} rx={RADIUS} {...part(marker, !dashed, dashed, perimeter)} />
+    body = <rect x={lo} y={lo} width={side} height={side} rx={r} {...part(marker, !dashed, dashed, perimeter)} />
   }
 
   return (
