@@ -116,6 +116,10 @@ export function widgetElement(tabId: string, selector: string): HTMLElement | nu
 export const TOOLTIP_ATTR = 'data-tooltip'
 /** An optional muted key after a `data-tooltip`'s label (`Settings G S`). */
 export const TOOLTIP_SHORTCUT_ATTR = 'data-tooltip-shortcut'
+/** An optional colour bar before a `data-tooltip`'s label, as a CSS colour (a calendar entry's date type: `var(--date-bar-due)`). */
+export const TOOLTIP_BAR_ATTR = 'data-tooltip-bar'
+/** What the bar means, for assistive tech (the bar is its only sign on screen): `Due`. */
+export const TOOLTIP_BAR_LABEL_ATTR = 'data-tooltip-bar-label'
 
 /** The layout edit mode's bar's widget tray slot (`LayoutEditBar`; `LayoutEditTray` fills it). */
 export const LAYOUT_EDIT_TRAY_ATTR = 'data-layout-edit-tray'

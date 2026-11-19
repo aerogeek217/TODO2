@@ -35,6 +35,23 @@ afterEach(() => {
 })
 
 describe('TooltipHost', () => {
+  it('a data-tooltip-bar draws a colour bar before the label, named for assistive tech by its label', () => {
+    render(
+      <>
+        <TooltipHost />
+        <button type="button" data-tooltip="Renew lease" data-tooltip-bar="rgb(1, 2, 3)" data-tooltip-bar-label="Due">Entry</button>
+      </>,
+    )
+    pointer('pointerOver', screen.getByRole('button', { name: 'Entry' }))
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    const tip = screen.getByRole('tooltip')
+    expect(tip).toHaveTextContent(/^Renew lease$/)
+    const bar = tip.querySelector<HTMLElement>('[data-tooltip-bar-mark]')!
+    expect(bar.style.background).toBe('rgb(1, 2, 3)')
+    expect(bar).toHaveAttribute('role', 'img')
+    expect(bar).toHaveAccessibleName('Due')
+  })
+
   it('a hover shows the tooltip after the delay, with its shortcut; the trigger is described by it beside its own ids', () => {
     const button = setup()
     pointer('pointerOver', screen.getByTestId('inner'))

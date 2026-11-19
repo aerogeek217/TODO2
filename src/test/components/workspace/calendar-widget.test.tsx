@@ -125,6 +125,36 @@ describe('CalendarWidget', () => {
     expect(occurrence.getAttribute('data-tooltip')).toContain('Repeats every Monday')
   })
 
+  it('an entry’s tooltip is its title beside its date type’s bar, no Due / Next follow-up words', () => {
+    setup()
+    const entry = (d: number, title: string) => within(dayCell(day(d))!).getByText(title).closest('[data-cal-entry]')!
+    expect(entry(16, 'Both dates')).toHaveAttribute('data-tooltip', 'Both dates')
+    expect(entry(16, 'Both dates')).toHaveAttribute('data-tooltip-bar', 'var(--date-bar-due)')
+    expect(entry(16, 'Both dates')).toHaveAttribute('data-tooltip-bar-label', 'Due')
+    expect(entry(20, 'Both dates')).toHaveAttribute('data-tooltip-bar', 'var(--date-bar-followup)')
+    expect(entry(20, 'Both dates')).toHaveAttribute('data-tooltip-bar-label', 'Next follow-up')
+    expect(entry(12, 'Late due')).toHaveAttribute('data-tooltip', 'Late due · overdue')
+  })
+
+  it('a day’s date opens the day popover, as +N more does — month and week; a day with nothing has no button', () => {
+    setup()
+    const date = within(dayCell(day(12))!).getByRole('button', { name: 'Mon 12 Oct: 2 tasks' })
+    expect(date).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(date)
+    const popover = screen.getByTestId('calendar-day-popover')
+    expect(within(popover).getByText('Late due')).toBeInTheDocument()
+    expect(within(popover).getByText('Weekly')).toBeInTheDocument()
+    expect(date).toHaveAttribute('aria-expanded', 'true')
+    // A second click closes it.
+    fireEvent.click(date)
+    expect(screen.queryByTestId('calendar-day-popover')).toBeNull()
+    expect(within(dayCell(day(13))!).queryByRole('button', { name: /^Tue 13 Oct/ })).toBeNull()
+    cleanup()
+    setup(calendarTab({ viewState: { view: 'week' } }))
+    fireEvent.click(within(dayCell(day(12))!).getByRole('button', { name: 'Mon 12 Oct: 2 tasks' }))
+    expect(within(screen.getByTestId('calendar-day-popover')).getByText('Late due')).toBeInTheDocument()
+  })
+
   it('clicking an entry (or an occurrence) opens the task', () => {
     setup()
     fireEvent.click(within(dayCell(day(19))!).getByText('Weekly'))

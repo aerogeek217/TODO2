@@ -263,6 +263,24 @@
   padding: 0 6px;
 }
 
+/* A day's date while it has entries (`DayDate`): a button opening the day popover, as `+N more`. */
+.dayDate {
+  align-self: flex-start;
+  justify-self: start;
+  margin: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dayDate:hover,
+.dayDateOpen {
+  background: var(--color-tint-12);
+}
+
 .more:hover,
 .moreOpen {
   background: var(--color-tint-12);

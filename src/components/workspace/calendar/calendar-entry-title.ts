@@ -3,7 +3,18 @@ import { dayLabel, shortDayLabel } from '../../../utils/calendar-grid'
 import { startOfDay } from '../../../utils/date'
 import { describeRecurrence } from '../../../utils/recurrence'
 
-/** The entry's tooltip: task · date type (· overdue); an occurrence explains why it can't be dragged. */
+/** The entry's date type as its tooltip's bar draws it (`TooltipBubble`'s `bar`): its colour, and its name for assistive tech. */
+export function calendarEntryBar(entry: CalendarEntry): { color: string; label: string } {
+  return entry.kind === 'due'
+    ? { color: 'var(--date-bar-due)', label: 'Due' }
+    : { color: 'var(--date-bar-followup)', label: 'Next follow-up' }
+}
+
+/**
+ * The entry's tooltip: the task (· overdue) — its date type is the bar beside
+ * it (`calendarEntryBar`), as on the entry —; an occurrence explains why it
+ * can't be dragged.
+ */
 export function calendarEntryTitle(entry: CalendarEntry, today: Date): string {
   const { todo } = entry
   if (entry.isVirtual) {
@@ -17,7 +28,6 @@ export function calendarEntryTitle(entry: CalendarEntry, today: Date): string {
     ].join('\n')
   }
   const state = calendarEntryState(entry, today)
-  const type = entry.kind === 'due' ? 'Due' : 'Next follow-up'
   const overdue = state === 'due-overdue' || state === 'followup-overdue'
-  return `${todo.title} · ${type}${overdue ? ' · overdue' : ''}`
+  return `${todo.title}${overdue ? ' · overdue' : ''}`
 }

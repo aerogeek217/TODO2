@@ -187,7 +187,14 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
       body = (
         <div className={styles.weekColumns} data-cal-grid="columns">
           {range.days.map((day) => (
-            <WeekColumn key={day.getTime()} day={day} entries={entriesByDay.get(dayKey(day)) ?? []} ctx={ctx} />
+            <WeekColumn
+              key={day.getTime()}
+              day={day}
+              entries={entriesByDay.get(dayKey(day)) ?? []}
+              ctx={ctx}
+              onMore={openMore}
+              moreOpen={more?.dayMs === day.getTime()}
+            />
           ))}
         </div>
       )
