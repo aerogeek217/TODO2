@@ -30,6 +30,17 @@ const HTML_SINKS = [
 const NO_NATIVE_TITLE = 'Use data-tooltip (TooltipHost) or useTooltip instead of the native title attribute; give an icon-only control an aria-label.'
 const NATIVE_TITLE = { selector: "JSXOpeningElement[name.type='JSXIdentifier'][name.name=/^(?!iframe$)[a-z]/] > JSXAttribute[name.name='title']", message: NO_NATIVE_TITLE }
 
+// One × everywhere: a pill's remove, a field's clear, a small dismiss draw
+// `RemoveButton`, a dialog's or panel's close `DialogCloseButton` — the
+// icon, centred, with a name. The text character sits off-centre in its
+// line box. Caught: JSX text, or an expression, that is only the
+// character (a label such as `People × Status` reads it as a word).
+const NO_TEXT_TIMES = 'Draw a × with RemoveButton (a pill, a field, a dismiss) or DialogCloseButton (a dialog, popover or panel), not the text character: it sits off-centre.'
+const TEXT_TIMES = [
+  { selector: 'JSXText[value=/^\\s*(×|&times;|&#215;|&#x[dD]7;)\\s*$/]', message: NO_TEXT_TIMES },
+  { selector: 'JSXExpressionContainer > Literal[value=/^\\s*×\\s*$/]', message: NO_TEXT_TIMES },
+]
+
 export default defineConfig([
   // `.claude/` is gitignored tooling (agent worktrees hold whole checkouts of
   // the repo), not this checkout's code.
@@ -71,6 +82,13 @@ export default defineConfig([
         ...['sendBeacon', 'serviceWorker'].map((property) => ({ object: 'navigator', property, message: LOCAL_FIRST })),
       ],
       'no-restricted-syntax': ['error', ...HTML_SINKS, NATIVE_TITLE],
+    },
+  },
+  {
+    // The components: as above, and no text ×.
+    files: ['src/components/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': ['error', ...HTML_SINKS, NATIVE_TITLE, ...TEXT_TIMES],
     },
   },
 ])
