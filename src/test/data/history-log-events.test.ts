@@ -6,6 +6,7 @@ import { tagRepository } from '../../data/tag-repository'
 import { captureJoinRows } from '../../data/join-helpers'
 import { deletePeopleAndTags, restorePeopleAndTags } from '../../data/entity-removal'
 import { decodeMarkerFlags, encodeMarkerFlags, type TodoEvent } from '../../models'
+import { KEEP_STAMPS } from '../../utils/task-stamps'
 import { makeTodo, resetDb } from '../helpers'
 
 /**
@@ -59,6 +60,20 @@ describe('todoRepository — the H3 fields', () => {
       { type: 'marker', fromValue: 'important', toValue: 'urgent,important,focus' },
       { type: 'marker', fromValue: 'urgent,important,focus', toValue: 'urgent,focus' },
     ])
+  })
+
+  it('a task’s Do day is not history: setting, moving and clearing it log nothing (and with KEEP_STAMPS stamp nothing)', async () => {
+    const modifiedAt = new Date('2026-05-01T09:00:00Z')
+    const id = await todoRepository.insert(makeTodo({ modifiedAt }))
+    const before = await eventsOf(id)
+    await todoRepository.bulkUpdate([{ todoId: id, changes: { doDate: new Date(2026, 5, 1) } }], KEEP_STAMPS)
+    await todoRepository.bulkUpdate([{ todoId: id, changes: { doDate: new Date(2026, 5, 2) } }], KEEP_STAMPS)
+    expect((await db.todos.get(id))?.doDate).toEqual(new Date(2026, 5, 2))
+    await todoRepository.bulkUpdate([{ todoId: id, changes: { doDate: undefined } }], KEEP_STAMPS)
+    const row = await db.todos.get(id)
+    expect('doDate' in row!).toBe(false)
+    expect(row?.modifiedAt).toEqual(modifiedAt)
+    expect(await eventsOf(id)).toEqual(before)
   })
 
   it('bulkUpdate logs each task’s own change', async () => {

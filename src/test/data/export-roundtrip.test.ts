@@ -82,6 +82,7 @@ function buildSeed(): Seed {
         dueDate: at('2026-10-16T00:00:00.000Z'),
         lastFollowupAt: at('2026-09-13T14:25:31.000Z'),
         nextFollowupAt: at('2026-10-13T00:00:00.000Z'),
+        doDate: at('2026-10-14T00:00:00.000Z'),
         recurrenceRule: { every: { count: 1, unit: 'm' as const }, originalDayOfMonth: 31 },
         focus: true,
         urgent: true,

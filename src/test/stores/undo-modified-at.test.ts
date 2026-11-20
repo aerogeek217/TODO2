@@ -178,6 +178,41 @@ describe('undo puts back the task’s earlier Modified date, redo the one the st
   })
 })
 
+describe('the Do day is not an edit: its step never moves the Modified date', () => {
+  it('setting it, its undo and its redo leave the stamp the task had', async () => {
+    const ids = await staleTasks('A', 'B')
+    later(1)
+    await useTodoStore.getState().setDoDate(ids, new Date(2026, 10, 20))
+    for (const id of ids) expect(await stamp(id)).toEqual(T0)
+    later(2)
+    await useUndoStore.getState().undo()
+    for (const id of ids) expect(await stamp(id)).toEqual(T0)
+    later(3)
+    await useUndoStore.getState().redo()
+    for (const id of ids) expect(await stamp(id)).toEqual(T0)
+    expect(useTodoStore.getState().todos.filter((t) => ids.includes(t.id)).map((t) => t.doDate)).toEqual([new Date(2026, 10, 20), new Date(2026, 10, 20)])
+  })
+
+  it('its undo and redo leave a stamp a later edit wrote, and that edit’s undo still puts T0 back', async () => {
+    const [id] = await staleTasks('Quote') as [number]
+    await useTodoStore.getState().setDoDate([id], new Date(2026, 10, 20))
+    const edited = later(1)
+    await useTodoStore.getState().update(id, { title: 'Quote v2' })
+    expect(await stamp(id)).toEqual(edited)
+    later(2)
+    await useUndoStore.getState().undo() // the edit
+    expect(await stamp(id)).toEqual(T0)
+    later(3)
+    await useUndoStore.getState().undo() // the Do day
+    expect(await stamp(id)).toEqual(T0)
+    expect(useTodoStore.getState().todos.find((t) => t.id === id)?.doDate).toBeUndefined()
+    later(4)
+    await useUndoStore.getState().redo() // the Do day
+    await useUndoStore.getState().redo() // the edit, with the stamp it wrote
+    expect(await stamp(id)).toEqual(edited)
+  })
+})
+
 describe('a task touched since the step keeps its newer Modified date', () => {
   it('through the undo and the redo of a field edit', async () => {
     const [id] = await staleTasks('Quote') as [number]

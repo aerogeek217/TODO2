@@ -29,6 +29,16 @@ export type StampChanges = ReadonlyMap<number, StampChange>
  */
 export type Stamp = Date | StampChanges
 
+/**
+ * The no-stamp write: a `Stamp` that lists no task, so every task a write
+ * touches keeps the `modifiedAt` it holds — in the store and in the
+ * database, on the write and on its undo and redo (a step made with it
+ * records each task's stamp as unchanged, which is what both put back). For
+ * a write that is not activity on the task: its Do day
+ * (`todo-store.setDoDate`).
+ */
+export const KEEP_STAMPS: StampChanges = new Map<number, StampChange>()
+
 const sameTime = (a: Date | undefined, b: Date | undefined): boolean => a?.getTime() === b?.getTime()
 
 /** The `modifiedAt` task `todoId` holds after a write with `stamp`, given the one it holds now (`current`, returned when unchanged). */

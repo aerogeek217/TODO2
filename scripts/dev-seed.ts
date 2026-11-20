@@ -15,8 +15,9 @@
  * `Org: <name>` people; 10 plain tags; the seeded Assigned / Follow-up
  * statuses plus Waiting and Parked; due dates incl. overdue + today, some
  * pushed out (deadline history); next follow-ups incl. overdue and today,
- * some followed up before; recurring tasks (one monthly on the month's last
- * day); Focus / Urgent / Important flags; completed tasks old and recent
+ * some followed up before; a handful of open tasks planned for a day (the
+ * Do day: yesterday, today and the next few days); recurring tasks (one
+ * monthly on the month's last day); Focus / Urgent / Important flags; completed tasks old and recent
  * with `completed` events, one with no event, one reopened (with the 30-day
  * retention setting the old ones trigger the purge prompt); notes and
  * status updates (a few per task, one added with a follow-up); the global note; two layouts, each a
@@ -56,7 +57,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 84
+export const DEV_SEED_SCHEMA_VERSION = 85
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -225,6 +226,8 @@ interface TaskOpts {
   followup?: number
   /** Last followed up on this day (≤ 0). */
   followedUp?: number
+  /** The Do day: the day the (open) task is planned for (schema v85). */
+  doDay?: number
   recur?: RecurWord
   status?: StatusKey
   people?: PersonKey[]
@@ -318,7 +321,7 @@ const PROJECTS: ProjectDef[] = [
       'Review cost estimate for the new cluster',
       'Demo the migration dashboard at all-hands',
       'Retire the v1 API endpoints',
-      ['Reply to security review questions', { due: -1, people: ['nina'], tags: ['security', 'urgent'], status: 'followup', urgent: true, important: true }],
+      ['Reply to security review questions', { due: -1, doDay: 0, people: ['nina'], tags: ['security', 'urgent'], status: 'followup', urgent: true, important: true }],
       ['Plan the second dry run', { due: 9, dueMoves: 2, people: ['marcus', 'sarah'], important: true }],
     ],
   },
@@ -330,10 +333,10 @@ const PROJECTS: ProjectDef[] = [
     tags: ['budget', 'Q4', 'urgent'],
     tasks: [
       ['Submit Q4 budget draft to Finance', {
-        due: 0, orgs: ['finance'], tags: ['budget', 'Q4', 'urgent'], status: 'followup', important: true, update: 'waiting on numbers',
+        due: 0, doDay: 0, orgs: ['finance'], tags: ['budget', 'Q4', 'urgent'], status: 'followup', important: true, update: 'waiting on numbers',
         subtasks: ['[x] Send the template to all leads', '[x] Headcount from Aisha', 'Get travel actuals from Marco', 'Compare with Q3 actuals', 'Review with Ben'],
       }],
-      ['Reconcile September vendor invoices', { due: -6, dueMoves: 1, people: ['laura'], tags: ['budget'], status: 'followup' }],
+      ['Reconcile September vendor invoices', { due: -6, doDay: 1, dueMoves: 1, people: ['laura'], tags: ['budget'], status: 'followup' }],
       'Review headcount plan with Priya',
       ['Prepare board deck: engineering section', { recur: 'quarterly', due: 25, people: ['priya'], tags: ['Q4'], important: true }],
       ['Collect team OKR drafts', { done: -5, tags: ['Q4'] }],
@@ -407,13 +410,13 @@ const PROJECTS: ProjectDef[] = [
     orgs: [],
     tags: ['hiring', '1:1', 'docs'],
     tasks: [
-      ['1:1 with Marcus', { recur: 'weekly', due: 2, people: ['marcus'], tags: ['1:1'], notes: '- migration workload\n- conference talk?\n- feedback on the runbook' }],
+      ['1:1 with Marcus', { recur: 'weekly', due: 2, doDay: 2, people: ['marcus'], tags: ['1:1'], notes: '- migration workload\n- conference talk?\n- feedback on the runbook' }],
       ['1:1 with Sarah', { recur: 'biweekly', due: 9, people: ['sarah'], tags: ['1:1'] }],
-      ["Write Aisha's performance review", { due: -4, people: ['aisha'], status: 'followup', update: 'half way', important: true }],
+      ["Write Aisha's performance review", { due: -4, doDay: 1, people: ['aisha'], status: 'followup', update: 'half way', important: true }],
       'Prepare interview loop for the senior backend role',
       "Review Jonas's promotion packet",
       'Schedule team retro',
-      ['Plan the team offsite agenda', { followup: 9, tags: ['travel'] }],
+      ['Plan the team offsite agenda', { followup: 9, doDay: 4, tags: ['travel'] }],
       "Give feedback on Tom's design doc",
       'Onboarding checklist for the new hire',
       ['Phone screen: platform engineer candidate', { followup: 0, tags: ['hiring'] }],
@@ -450,7 +453,7 @@ const PROJECTS: ProjectDef[] = [
       'Update the vendor contact list',
       ['Review access for departing contractors', { due: 5, tags: ['security'], people: ['sam'] }],
       'Audit shared service accounts',
-      ['Book flights for the November offsite', { followup: 2, tags: ['travel'] }],
+      ['Book flights for the November offsite', { followup: 2, doDay: 2, tags: ['travel'] }],
       'Renew the parking permit',
       'File the security training certificate',
       'Order replacement laptop for Sam',
@@ -465,7 +468,7 @@ const PROJECTS: ProjectDef[] = [
       "Back up the team's dashboards",
       ['Organize the team wiki sidebar', { followup: -15 }],
       'Review the office move plan',
-      ['Request a new monitor', { followup: 0, tags: ['quick-win'] }],
+      ['Request a new monitor', { followup: 0, doDay: -1, tags: ['quick-win'] }],
       'Update the email signature with the new title',
       'Confirm the hotel booking for Berlin',
       'Submit the vendor onboarding form',
@@ -729,6 +732,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     if (due) todo.dueDate = iso(due)
     if (lastFollowupMs !== null) todo.lastFollowupAt = iso(lastFollowupMs)
     if (o.followup !== undefined && completedMs === null) todo.nextFollowupAt = iso(day(o.followup))
+    if (o.doDay !== undefined && completedMs === null) todo.doDate = iso(day(o.doDay))
     if (o.recur) {
       todo.recurrenceRule = o.recur === 'monthly' && due && due.getDate() >= 29
         ? { every: { ...RECUR_EVERY.monthly }, originalDayOfMonth: due.getDate() }
@@ -746,7 +750,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     if (todo.lastFollowupAt) ev('followedUp', lastFollowupMs ?? created, null, todo.lastFollowupAt)
     // Field order of the model (cosmetic — keeps diffs against real exports readable).
     todos.push(reorder(todo, ['id', 'uid', 'title', 'notes', 'isCompleted', 'completedAt', 'dueDate',
-      'lastFollowupAt', 'nextFollowupAt', 'recurrenceRule', 'focus', 'urgent', 'important', 'createdAt', 'modifiedAt',
+      'lastFollowupAt', 'nextFollowupAt', 'doDate', 'recurrenceRule', 'focus', 'urgent', 'important', 'createdAt', 'modifiedAt',
       'statusId', 'sortOrder']))
 
     const personIds = new Set([...(o.people ?? []).map((p) => IDS.people[p]), ...(o.orgs ?? []).map((g) => IDS.orgs[g])])
