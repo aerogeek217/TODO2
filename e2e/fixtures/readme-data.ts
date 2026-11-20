@@ -5,6 +5,12 @@
  * Every date is relative to `today`, so the pictures read the same on any
  * day: a few tasks overdue, most due within the next two weeks, some later.
  * Synthetic: fictional first names, no real people or companies.
+ *
+ * The Planner shot's week is in the tasks too: a few given a Do day
+ * (`doDay`), a few in Focus with no day, three completed today. A Do day is
+ * a v85 field in a file stamped `README_SCHEMA_VERSION`: no upgrade between
+ * the two rebuilds a task, and import validation keeps `doDate`, so it
+ * arrives as written.
  */
 
 type Obj = Record<string, unknown>
@@ -51,6 +57,8 @@ interface Task {
   urgent?: boolean
   important?: boolean
   focus?: boolean
+  /** Its Do day (the Planner's), this many days from today. */
+  doDay?: number
   notes?: string
   /** `[x] ` marks a line done. */
   subtasks?: string[]
@@ -84,26 +92,26 @@ const TASKS: Task[] = [
     title: 'Final dry run of the billing migration', age: 38, due: -2, people: ['jonas'], tags: ['billing'], urgent: true, important: true,
     subtasks: ['[x] Restore last night’s snapshot', '[x] Replay the October invoices', 'Compare totals', 'Sign-off from finance'],
   },
-  { title: 'Write the cutover rollback plan', age: 11, due: 4, people: ['jonas'], tags: ['billing', 'docs'], important: true },
+  { title: 'Write the cutover rollback plan', age: 11, due: 4, people: ['jonas'], tags: ['billing', 'docs'], important: true, focus: true, doDay: 0 },
   { title: 'Freeze schema changes', age: 7, due: 0, people: ['marcus'], tags: ['billing'] },
   { title: 'Verify backups restore in staging', age: 36, due: 5, people: ['jonas'], tags: ['billing'], status: 'assigned' },
   { title: 'Retire the old reporting jobs', age: 50, due: 13, people: ['marcus'], tags: ['billing'] },
-  { title: 'Tidy up the migration wiki page', age: 55, people: ['marcus'], tags: ['billing', 'docs'] },
+  { title: 'Tidy up the migration wiki page', age: 55, people: ['marcus'], tags: ['billing', 'docs'], focus: true },
   // ── Hiring ──
   { title: 'Schedule the backend onsite loop', age: 6, due: 1, followup: -1, people: ['aisha'], tags: ['hiring'], status: 'followup' },
-  { title: 'Review the take-home exercises', age: 33, due: -3, people: ['aisha'], tags: ['hiring'], status: 'waiting' },
-  { title: 'Draft the product designer job post', age: 5, due: 9, people: ['aisha'], tags: ['hiring', 'docs'] },
-  { title: 'Plan onboarding for the new support hire', age: 42, due: 12, people: ['elena'], tags: ['hiring'] },
+  { title: 'Review the take-home exercises', age: 33, due: -3, people: ['aisha'], tags: ['hiring'], status: 'waiting', doDay: 1 },
+  { title: 'Draft the product designer job post', age: 5, due: 9, people: ['aisha'], tags: ['hiring', 'docs'], focus: true, doDay: 0 },
+  { title: 'Plan onboarding for the new support hire', age: 42, due: 12, people: ['elena'], tags: ['hiring'], focus: true },
   // ── Vendor contract ──
   { title: 'Compare vendor support tiers', age: 30, due: 2, people: ['sam'], tags: ['vendor'] },
   {
     title: EDITOR_TASK, age: 16, due: 7, followup: 2, followedUp: -2, people: ['sam', 'priya'], tags: ['vendor'], status: 'waiting', important: true,
     notes: 'Contract ends on the 30th. Aim: same seats, a two-year term, premium support at the standard price.\n\n- Usage is down 18% since spring\n- Finance wants a counter-offer by the budget review',
     subtasks: ['[x] Pull the last 12 months of usage', '[x] Get two competing quotes', 'Draft the counter-offer', 'Review the terms with finance'],
-    updates: [[-9, 'Kick-off call with their account manager'], [-5, 'First renewal quote received: 12% up'], [-2, 'Sent our usage numbers; reply expected Friday']],
+    updates: [[-9, 'Kick-off call with their rep'], [-5, 'First renewal quote: 12% up'], [-2, 'Sent usage numbers; reply Friday']],
   },
   { title: 'Answer the vendor security questionnaire', age: 37, due: 5, followup: 1, people: ['sam'], tags: ['vendor'], status: 'waiting' },
-  { title: 'Check the data processing addendum', age: 48, due: 10, people: ['elena'], tags: ['vendor'] },
+  { title: 'Check the data processing addendum', age: 48, due: 10, people: ['elena'], tags: ['vendor'], focus: true },
   { title: 'Book the planning offsite', age: 2, due: 20, people: ['priya'] },
   // ── Completed in the last few weeks (the trend and the closed counts) ──
   { title: 'Agree the launch date with sales', age: 44, done: -24, people: ['priya'], tags: ['launch'] },
@@ -122,6 +130,8 @@ const TASKS: Task[] = [
   { title: 'Send the NDA back to the vendor', age: 6, done: -2, people: ['sam'], tags: ['vendor'] },
   { title: 'Book the interview rooms', age: 3, done: -1, people: ['aisha'], tags: ['hiring'] },
   { title: 'Reserve the launch-day war room', age: 3, done: 0, people: ['jonas'], tags: ['launch'] },
+  { title: 'Confirm the interview panel', age: 4, done: 0, people: ['aisha'], tags: ['hiring'] },
+  { title: 'Sign the staging access request', age: 2, done: 0, people: ['marcus'], tags: ['billing'] },
 ]
 
 /** A stored filter with `over` on top of none (every open task). */
@@ -168,12 +178,17 @@ const byPerson = (id: string) => ({
   },
 })
 
-/** Ids of the layouts and the cells the spec crops to. */
+/**
+ * Ids of the layouts and the cells the spec crops to. Each layout's three
+ * Numbers are written as three cells side by side, which the v82 upgrade
+ * merges into one strip under the first cell's id (`numbers`,
+ * `planningNumbers`).
+ */
 export const README_IDS = {
   layouts: { today: 1, planning: 2 },
   cells: {
-    list: 'cell-list', calendar: 'cell-cal', numbers: ['cell-n-open', 'cell-n-week', 'cell-n-late'],
-    planningNumbers: ['cell-p-open', 'cell-p-week', 'cell-p-late'], breakdown: 'cell-breakdown', trend: 'cell-trend',
+    list: 'cell-list', calendar: 'cell-cal', numbers: 'cell-n-open',
+    planningNumbers: 'cell-p-open', breakdown: 'cell-breakdown', trend: 'cell-trend',
   },
 }
 
@@ -225,6 +240,7 @@ export function readmeData(today: Date = new Date()): Obj {
     if (followedUp !== null) { todo.lastFollowupAt = iso(followedUp); ev('followedUp', followedUp, iso(followedUp)) }
     if (t.followup !== undefined && completed === null) { todo.nextFollowupAt = iso(day(t.followup)); ev('followup', created, iso(day(t.followup))) }
     if (t.focus) todo.focus = true
+    if (t.doDay !== undefined && completed === null) todo.doDate = iso(day(t.doDay))
     if (t.urgent) todo.urgent = true
     if (t.important) todo.important = true
     if (t.status) { todo.statusId = statusId(t.status); ev('status', created, statusId(t.status)) }
@@ -269,9 +285,9 @@ export function readmeData(today: Date = new Date()): Obj {
       },
       cells: [
         { id: C.list, tabs: [{ id: 'tab-list', kind: 'lens', config: { listDefinitionId: 1 } }], activeTabId: 'tab-list', area: { col: 0, row: 0, colSpan: 1, rowSpan: 2 } },
-        { id: C.numbers[0], tabs: [number('tab-n-open', 'Open', filter())], activeTabId: 'tab-n-open', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: C.numbers[1], tabs: [number('tab-n-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-n-week', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: C.numbers[2], tabs: [number('tab-n-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-n-late', area: { col: 3, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: C.numbers, tabs: [number('tab-n-open', 'Open', filter())], activeTabId: 'tab-n-open', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: 'cell-n-week', tabs: [number('tab-n-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-n-week', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: 'cell-n-late', tabs: [number('tab-n-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-n-late', area: { col: 3, row: 0, colSpan: 1, rowSpan: 1 } },
         { id: 'cell-t-breakdown', tabs: [byPerson('tab-t-breakdown')], activeTabId: 'tab-t-breakdown', area: { col: 1, row: 1, colSpan: 3, rowSpan: 1 } },
         { id: C.calendar, tabs: [{ id: 'tab-cal', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: 0 } }], activeTabId: 'tab-cal', area: { col: 0, row: 2, colSpan: 4, rowSpan: 1 } },
       ],
@@ -287,9 +303,9 @@ export function readmeData(today: Date = new Date()): Obj {
         rows: [{ id: 'p-r1', weight: 95 }, { id: 'p-r2', weight: 515 }, { id: 'p-r3', weight: 485 }],
       },
       cells: [
-        { id: C.planningNumbers[0], tabs: [number('tab-p-open', 'Open', filter())], activeTabId: 'tab-p-open', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: C.planningNumbers[1], tabs: [number('tab-p-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-p-week', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: C.planningNumbers[2], tabs: [number('tab-p-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-p-late', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: C.planningNumbers, tabs: [number('tab-p-open', 'Open', filter())], activeTabId: 'tab-p-open', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: 'cell-p-week', tabs: [number('tab-p-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-p-week', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: 'cell-p-late', tabs: [number('tab-p-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-p-late', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
         { id: C.breakdown, tabs: [byPerson('tab-breakdown')], activeTabId: 'tab-breakdown', area: { col: 0, row: 1, colSpan: 3, rowSpan: 1 } },
         { id: C.trend, tabs: [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }], activeTabId: 'tab-trend', area: { col: 0, row: 2, colSpan: 3, rowSpan: 1 } },
       ],
