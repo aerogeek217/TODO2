@@ -41,8 +41,9 @@ Data version 85.
 
 - **Launch could wait forever on the sync file.** When the browser never answered about the attached sync file (seen
   after a browser restart), the app stayed on `Loading…` with no way in. The browser now gets five seconds: if the
-  link can't be read the app opens without the file and the storage pill says so, and if only the permission check is
-  silent the usual Grant access question appears, noting that the link could not be checked.
+  link can't be read the app opens without the file and the storage pill shows **Sync off** until you reload or attach
+  the file again, and if only the permission check is silent the usual Grant access question appears, noting that the
+  link could not be checked. Either way your edits are tracked, so the file is never loaded over them later.
 
 ## 2026-11-19
 
