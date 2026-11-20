@@ -1,13 +1,13 @@
 import { useMemo, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
-import { columnIsLit, DEFAULT_BREAKDOWN_OLDEST_BY, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
+import { ageIsYellow, ageSortKey, breakdownSortKeys, columnIsLit, DEFAULT_BREAKDOWN_OLDEST_BY, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
 import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { useStatsBase } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { breakdownReviewFilter, breakdownReviews } from '../../../services/review'
 import { jumpToReview } from '../../../services/review-jump'
-import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
+import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows, type BreakdownRow, type FollowupAge } from '../../../services/stats/breakdown'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { EntityMenu, type MenuEntity } from '../../shared/EntityMenu'
@@ -17,7 +17,7 @@ import { PriorityRing } from '../../shared/PriorityRing'
 import { StatusMark } from '../../shared/StatusMark'
 import { useTooltip } from '../../shared/use-tooltip'
 import {
-  breakdownLines, columnHeading, countWordOf, oldestWords, rowFigure, sortHeading, SPLIT_GLYPHS,
+  breakdownLines, columnHeading, countWordOf, followupAgeLabel, followupAgeTooltip, oldestWords, rowFigure, sortHeading, SPLIT_GLYPHS,
 } from './breakdown-copy'
 import { breakdownColumnDrill, breakdownRowDrill, rowHeading } from './chart-drills'
 import { ChartPanel, SortHeading } from './chart-parts'
@@ -112,6 +112,94 @@ function ColumnCount({ n, column, label, onOpen }: {
 }
 
 /**
+ * A count column's follow-up age (board V1, option B), right after its
+ * count: `23d` — the oldest of the row's open tasks by last follow-up —,
+ * muted tabular text, in the follow-up color once past the column's
+ * `yellowAfterDays`; its tooltip names that task and the median. A dim `–`
+ * when the row has no open task. A click reviews the row's tasks as its
+ * Review button does (or opens them where there is no review).
+ */
+function FollowupAgeCell({ age, yellowAfterDays, label, onOpen }: {
+  age: FollowupAge | null
+  yellowAfterDays: number
+  /** What a click does, before the tooltip's words (`Review Aisha's tasks`). */
+  label: string
+  onOpen?: () => void
+}) {
+  if (!age) return <span className={`${styles.age} ${styles.ageNone}`} data-testid="breakdown-age" aria-label="No open tasks">–</span>
+  const days = age.oldest.days
+  const tip = followupAgeTooltip(age)
+  const marks = { 'data-testid': 'breakdown-age', 'data-yellow': ageIsYellow({ yellowAfterDays }, days) ? '' : undefined, 'data-tooltip': tip }
+  if (!onOpen) return <span className={styles.age} {...marks} aria-label={tip}>{followupAgeLabel(days)}</span>
+  return (
+    <button
+      type="button"
+      className={styles.age}
+      {...marks}
+      aria-label={`${label}: ${tip}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        onOpen()
+      }}
+    >
+      {followupAgeLabel(days)}
+    </button>
+  )
+}
+
+/**
+ * The heading of a count column with the follow-up age (board V1): its name,
+ * a sort by its count as any count column's, then a small `age` toggle that
+ * sorts by the follow-up age — oldest first, a second click reverses, a
+ * third goes back to the default order (`nextBreakdownSort`).
+ */
+function CountAgeHeading({ column, sortBy, reversed, onSort }: {
+  column: BreakdownColumn
+  sortBy: BreakdownSortKey | null
+  reversed: boolean
+  onSort: (by: BreakdownSortKey) => void
+}) {
+  const name = columnHeading(column)
+  const ageKey = ageSortKey(column.id)
+  const countActive = sortBy === column.id
+  const ageActive = sortBy === ageKey
+  const mark = (active: boolean) => (active ? <span className={styles.sortMark} aria-hidden="true">{reversed ? '▲' : '▼'}</span> : null)
+  return (
+    <span
+      role="columnheader"
+      className={`${styles.headCell} ${styles.headCountAge}`}
+      aria-sort={countActive || ageActive ? (reversed ? 'ascending' : 'descending') : 'none'}
+      data-age-heading={column.id}
+    >
+      <button
+        type="button"
+        className={styles.sortButton}
+        data-sort-key={column.id}
+        aria-pressed={countActive}
+        aria-label={`Sort by ${name} count`}
+        data-tooltip={name}
+        onClick={() => onSort(column.id)}
+      >
+        <span className={styles.sortLabel}>{name}</span>
+        {mark(countActive)}
+      </button>
+      <button
+        type="button"
+        className={`${styles.sortButton} ${styles.ageToggle}`}
+        data-sort-key={ageKey}
+        aria-pressed={ageActive}
+        aria-label="Sort by days since follow-up"
+        data-tooltip="Sort by days since follow-up"
+        onClick={() => onSort(ageKey)}
+      >
+        age
+        {mark(ageActive)}
+      </button>
+    </span>
+  )
+}
+
+/**
  * A row's Review button (board BC): a muted icon right after the row's name, shown on the row's hover or focus; jumps
  * to a Review widget with the row as its filter — or (`reviews` false: a Breakdown that counts completed tasks) shows
  * the row's tasks in the task dialog, and says so.
@@ -154,6 +242,12 @@ const COLUMN_PX = 40
 
 /** A count column's width in a narrow table (under 400px): a two-digit badge's. */
 const NARROW_COLUMN_PX = 30
+
+/** A count column with the follow-up age (board V1's 100px): the count, then `23d`; its heading the name and the `age` toggle. */
+const AGE_COLUMN_PX = 100
+
+/** The same in a narrow table: a two-digit badge and `99d`. */
+const NARROW_AGE_COLUMN_PX = 62
 
 interface TableProps {
   title: string
@@ -209,10 +303,12 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
     'minmax(0, 1fr)',
     bars && !compact && !narrow ? '84px' : null,
     figure ? '44px' : null,
-    ...columns.map(() => `${narrow ? NARROW_COLUMN_PX : COLUMN_PX}px`),
+    ...columns.map((c) => `${c.age ? (narrow ? NARROW_AGE_COLUMN_PX : AGE_COLUMN_PX) : narrow ? NARROW_COLUMN_PX : COLUMN_PX}px`),
   ].filter(Boolean).join(' ')
   const keys: BreakdownSortKey[] = ['name', ...(figure ? ['open'] : []), ...columns.map((c) => c.id)]
   const heading = (by: BreakdownSortKey) => {
+    const ageColumn = columns.find((c) => c.id === by && c.age)
+    if (ageColumn) return <CountAgeHeading key={by} column={ageColumn} sortBy={sortBy} reversed={reversed} onSort={onSort} />
     const label = sortHeading(by, splitBy, show, columns, countWordOf(config.filter))
     const fixed = by === 'name' || by === 'open'
     return (
@@ -306,15 +402,26 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
               {columns.map((column) => {
                 const count = columnCount(row, column.id)
                 const name = columnHeading(column)
+                const verb = review && reviews ? 'Review' : 'Show'
+                const countEl = (
+                  <ColumnCount
+                    n={count}
+                    column={column}
+                    label={`${verb} ${heading}'s ${count} in ${name}`}
+                    onOpen={review
+                      ? () => reviewRow(row, column)
+                      : onDrill ? () => onDrill(breakdownColumnDrill(title, row, column.id, name)) : undefined}
+                  />
+                )
+                if (!column.age) return <span key={column.id} role="cell" className={styles.countCell}>{countEl}</span>
                 return (
-                  <span key={column.id} role="cell" className={styles.countCell}>
-                    <ColumnCount
-                      n={count}
-                      column={column}
-                      label={`${review && reviews ? 'Review' : 'Show'} ${heading}'s ${count} in ${name}`}
-                      onOpen={review
-                        ? () => reviewRow(row, column)
-                        : onDrill ? () => onDrill(breakdownColumnDrill(title, row, column.id, name)) : undefined}
+                  <span key={column.id} role="cell" className={`${styles.countCell} ${styles.countAgeCell}`}>
+                    <span className={styles.countSlot}>{countEl}</span>
+                    <FollowupAgeCell
+                      age={row.followup}
+                      yellowAfterDays={column.age.yellowAfterDays}
+                      label={`${verb} ${heading}'s tasks`}
+                      onOpen={review ? () => reviewRow(row) : open}
                     />
                   </span>
                 )
@@ -416,8 +523,9 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   const [faceRef, face] = useWidgetFace()
   const offers = useEntityMenuOffers()
   const storedSort = tab.viewState?.sorts?.[config.splitBy]
-  const columnIds = useMemo(() => data.columns.map((c) => c.id), [data.columns])
-  // A sort by a column it no longer has reads as the default order; an older derived column's as the Due / Follow-up column.
+  // Every column's id and, for one with the follow-up age, `age:<id>`.
+  const columnIds = useMemo(() => breakdownSortKeys(data.columns), [data.columns])
+  // A sort by a column it no longer has (or by the age of one without it) reads as the default order.
   const sort = liveBreakdownSort(storedSort, columnIds)
 
   const title = config.name.trim() || 'Breakdown'

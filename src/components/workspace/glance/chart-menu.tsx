@@ -3,6 +3,7 @@ import {
   BREAKDOWN_SPLITS,
   BREAKDOWN_STYLES,
   breakdownColumns,
+  breakdownSortKeys,
   liveBreakdownSort,
   type BreakdownSort,
 } from '../../../models/chart-widgets'
@@ -31,15 +32,16 @@ function openChartEditor(tabId: string): void {
 
 const SHOWN_HIDDEN: readonly Choice<boolean>[] = [{ value: true, label: 'Shown' }, { value: false, label: 'Hidden' }]
 
-/** The sorts the headings give, as radio choices (the split's own order first, then the fixed headings', then each count column's). */
+/** The sorts the headings give, as radio choices (the split's own order first, then the fixed headings', then each count column's — and its follow-up age's, where it has one). */
 function sortEntry(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry {
   const { splitBy, show } = tab.config
   const columns = breakdownColumns(tab.config, useSettingsStore.getState().tabBadges)
   const stored = tab.viewState?.sorts?.[splitBy]
   // A sort by a column it no longer has reads as the default; an older derived column's as the Due / Follow-up column.
-  const current = liveBreakdownSort(stored, columns.map((c) => c.id))
+  const columnKeys = breakdownSortKeys(columns)
+  const current = liveBreakdownSort(stored, columnKeys)
   const key = (s: BreakdownSort | undefined) => (s ? `${s.by}${s.reversed ? '-r' : ''}` : 'default')
-  const keys = [...BREAKDOWN_FIXED_SORT_KEYS, ...columns.map((c) => c.id)]
+  const keys = [...BREAKDOWN_FIXED_SORT_KEYS, ...columnKeys]
   const sorts: Array<BreakdownSort | undefined> = [undefined, ...keys.flatMap((by): BreakdownSort[] => [{ by }, { by, reversed: true }])]
   // A Breakdown whose filter lets completed tasks through counts tasks, not open ones (cr34 G6).
   const word = countWordOf(tab.config.filter)

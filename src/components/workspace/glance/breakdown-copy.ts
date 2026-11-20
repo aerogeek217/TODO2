@@ -7,8 +7,9 @@ import type {
   BreakdownSplit,
   BreakdownStyle,
 } from '../../../models/chart-widgets'
+import { ageSortColumnId } from '../../../models/chart-widgets'
 import type { TodoPredicate } from '../../../models'
-import { columnCount, hasNaturalOrder, type BreakdownRow } from '../../../services/stats/breakdown'
+import { columnCount, hasNaturalOrder, type BreakdownRow, type FollowupAge } from '../../../services/stats/breakdown'
 import { admitsCompleted, predicateToCriteria } from '../../../utils/filter-criteria'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import { rowHeading } from './chart-drills'
@@ -83,7 +84,12 @@ export function countWordOf(filter: TodoPredicate): CountWord {
   return admitsCompleted(predicateToCriteria(filter)) ? 'tasks' : 'open'
 }
 
-/** A heading's name: the split's for `name`; for `open`, Oldest while it shows the oldest, else Open (Tasks while it counts completed ones); a count column's its name. */
+/**
+ * A heading's name: the split's for `name`; for `open`, Oldest while it
+ * shows the oldest, else Open (Tasks while it counts completed ones); a
+ * count column's its name; a column's follow-up age (`age:<id>`) its name
+ * and `age` (`Follow-up age`).
+ */
 export function sortHeading(
   by: BreakdownSortKey,
   split: BreakdownSplit,
@@ -95,6 +101,11 @@ export function sortHeading(
     case 'name': return SPLIT_ROW_LABELS[split]
     case 'open': return show === 'oldest' ? 'Oldest' : word === 'tasks' ? 'Tasks' : 'Open'
     default: {
+      const ageOf = ageSortColumnId(by)
+      if (ageOf != null) {
+        const column = columns.find((c) => c.id === ageOf)
+        return `${column ? columnHeading(column) : ageOf} age`
+      }
       const column = columns.find((c) => c.id === by)
       return column ? columnHeading(column) : by
     }
@@ -128,11 +139,36 @@ export function sortWords(
       if (show === 'oldest') return r ? 'Newest first' : 'Oldest first'
       return `${r ? 'Fewest' : 'Most'} ${word} first`
     default: {
-      const column = columns.find((c) => c.id === sort?.by)
+      const by = sort?.by ?? ''
+      const ageOf = ageSortColumnId(by)
+      if (ageOf != null) {
+        if (!columns.some((c) => c.id === ageOf && c.age)) return defaultSortWords(split, show, columns, word)
+        return r ? 'Latest follow-up first' : 'Longest since follow-up first'
+      }
+      const column = columns.find((c) => c.id === by)
       if (!column) return defaultSortWords(split, show, columns, word)
       return `${r ? 'Fewest' : 'Most'} ${columnHeading(column)} first`
     }
   }
+}
+
+/** A follow-up age as a column's cell draws it after the count: `23d` (whole days, today 0). */
+export function followupAgeLabel(days: number): string {
+  return `${Math.max(0, days)}d`
+}
+
+const daysWord = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`
+
+/**
+ * A follow-up age's tooltip (board V1): `Oldest: “Vendor contract renewal”
+ * · 23 days since followed up · median 9 days` — the oldest open task, its
+ * age, and the median over the row's open tasks; for a task never followed
+ * up, `23 days since created, never followed up`.
+ */
+export function followupAgeTooltip(age: FollowupAge): string {
+  const days = Math.max(0, age.oldest.days)
+  const since = age.neverFollowedUp ? `${daysWord(days)} since created, never followed up` : `${daysWord(days)} since followed up`
+  return `Oldest: “${age.oldest.title}” · ${since} · median ${daysWord(Math.max(0, age.medianDays))}`
 }
 
 /**
@@ -161,8 +197,10 @@ export function rowFigure(row: BreakdownRow, show: BreakdownShow, oldestBy?: Bre
 
 /**
  * Copy: `People 12 open`, then a line per row with its count columns by
- * name, `Aisha 3 · Due 2 · Follow-up 1` (or its oldest age first); with
- * no count columns the rows on one line, `Aisha 3 · Ben 2 · Unassigned 1`.
+ * name, `Aisha 3 · Due 2 · Follow-up 1` (or its oldest age first) — a
+ * column with the follow-up age adds it after its count, `Follow-up 1 ·
+ * 23d` (none without an open task); with no count columns the rows on one
+ * line, `Aisha 3 · Ben 2 · Unassigned 1`.
  */
 export function breakdownLines(
   title: string,
@@ -179,7 +217,11 @@ export function breakdownLines(
     head,
     ...rows.map((r) => [
       { label: rowHeading(r), count: rowFigure(r, show, oldestBy) },
-      ...columns.map((c) => ({ label: columnHeading(c), count: String(columnCount(r, c.id)) })),
+      ...columns.map((c) => {
+        const count = String(columnCount(r, c.id))
+        const age = c.age && r.followup ? ` · ${followupAgeLabel(r.followup.oldest.days)}` : ''
+        return { label: columnHeading(c), count: `${count}${age}` }
+      }),
     ]),
   ]
 }

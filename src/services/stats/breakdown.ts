@@ -1,5 +1,5 @@
 import type { PersistedTodoItem, Person, Status, Tag } from '../../models'
-import { BREAKDOWN_FIXED_SORT_KEYS, type BreakdownOldestBy, type BreakdownShow, type BreakdownSort, type BreakdownSortKey, type BreakdownSplit } from '../../models/chart-widgets'
+import { ageSortColumnId, BREAKDOWN_FIXED_SORT_KEYS, type BreakdownOldestBy, type BreakdownShow, type BreakdownSort, type BreakdownSortKey, type BreakdownSplit } from '../../models/chart-widgets'
 import { daysUntil } from '../../utils/effective-date'
 import { NO_PRIORITY_LABEL, priorityRank, type MarkerSummary } from '../../utils/markers'
 import { keepsNoneRow, restrictedRows, rowExcludes, type RowRestrictions } from './row-restrictions'
@@ -117,6 +117,24 @@ export interface BreakdownRow {
   oldest: OldestTask | null
   /** The median age of its tasks that have the date, days. */
   medianDays: number | null
+  /**
+   * Its **follow-up age** (board V1, a count column's `age`): the oldest of
+   * its open tasks by last follow-up (never followed up: since created) —
+   * `oldestBy: 'lastFollowup'`'s measure, over open tasks only, also while
+   * the Breakdown's filter lets completed ones through —, with the median
+   * over them; `null` with no open task.
+   */
+  followup: FollowupAge | null
+}
+
+/** A row's follow-up age (`BreakdownRow.followup`). */
+export interface FollowupAge {
+  /** The open task followed up longest ago, its age in whole days (today 0). */
+  oldest: OldestTask
+  /** The median of its open tasks' ages, whole days. */
+  medianDays: number
+  /** The oldest was never followed up: its age counts from its creation. */
+  neverFollowedUp: boolean
 }
 
 export interface BreakdownStats {
@@ -182,9 +200,24 @@ export function breakdownRow(
   const { today } = ctx
   let oldest: OldestTask | null = null
   const ages: number[] = []
+  let followupOldest: OldestTask | null = null
+  let neverFollowedUp = false
+  const followupAges: number[] = []
   let overdue = 0
   for (const t of tasks) {
     if (!t.isCompleted && (daysUntil(t.dueDate, today) ?? 0) < 0) overdue += 1
+    if (!t.isCompleted) {
+      const aged = ageDays(t, 'lastFollowup', today)
+      // Whole days, today 0 (never -0, never ahead of today).
+      const days = aged == null ? null : Math.max(0, aged)
+      if (days != null) {
+        followupAges.push(days)
+        if (!followupOldest || days > followupOldest.days) {
+          followupOldest = { id: t.id, title: t.title, days }
+          neverFollowedUp = t.lastFollowupAt == null
+        }
+      }
+    }
     const age = ageDays(t, opts.oldestBy, today)
     if (age == null) continue
     ages.push(age)
@@ -200,6 +233,7 @@ export function breakdownRow(
     columns,
     oldest,
     medianDays: median(ages),
+    followup: followupOldest ? { oldest: followupOldest, medianDays: median(followupAges) ?? followupOldest.days, neverFollowedUp } : null,
   }
 }
 
@@ -345,20 +379,30 @@ export function computeBreakdown(tasks: readonly PersistedTodoItem[], ctx: Stats
   return { rows, ids: idsByDate(counted, 'deadline') }
 }
 
-/** Each heading's comparator, its default direction first: counts largest first, the name A–Z; any other key a count column's. */
+/** A row's follow-up age, for sorting (rows without one are kept last apart: `sortBreakdownRows`). */
+const followupDays = (r: BreakdownRow) => r.followup?.oldest.days ?? 0
+
+/**
+ * Each heading's comparator, its default direction first: counts largest
+ * first, the name A–Z, a follow-up age (`age:<id>`) oldest first; any other
+ * key a count column's.
+ */
 function keyCompare(by: BreakdownSortKey, show: BreakdownShow): (a: BreakdownRow, b: BreakdownRow) => number {
   switch (by) {
     case 'name': return (a, b) => a.label.localeCompare(b.label)
     case 'open': return show === 'oldest' ? (a, b) => oldestDays(b) - oldestDays(a) : (a, b) => b.ids.length - a.ids.length
-    default: return (a, b) => columnCount(b, by) - columnCount(a, by)
+    default:
+      if (ageSortColumnId(by) != null) return (a, b) => followupDays(b) - followupDays(a)
+      return (a, b) => columnCount(b, by) - columnCount(a, by)
   }
 }
 
 /**
  * `rows` in the order `sort` asks (absent, or by a count column the
- * Breakdown no longer has — not among `columnIds`: the split's default
- * order, as `computeBreakdown` returns them), ties in the default order;
- * the none row stays last.
+ * Breakdown no longer has — not among `columnIds`, its sort keys
+ * (`breakdownSortKeys`): the split's default order, as `computeBreakdown`
+ * returns them), ties in the default order; the none row stays last, and by
+ * a follow-up age so do the rows without one (no open task), either way.
  */
 export function sortBreakdownRows(
   rows: readonly BreakdownRow[],
@@ -372,7 +416,9 @@ export function sortBreakdownRows(
   const cmp = keyCompare(sort.by, show)
   const sign = sort.reversed ? -1 : 1
   const index = new Map(rest.map((r, i) => [r.key, i]))
-  const sorted = [...rest].sort((a, b) => sign * cmp(a, b) || (index.get(a.key) ?? 0) - (index.get(b.key) ?? 0))
+  const byAge = ageSortColumnId(sort.by) != null
+  const unaged = (r: BreakdownRow) => (byAge && r.followup == null ? 1 : 0)
+  const sorted = [...rest].sort((a, b) => unaged(a) - unaged(b) || sign * cmp(a, b) || (index.get(a.key) ?? 0) - (index.get(b.key) ?? 0))
   return [...sorted, ...none]
 }
 
