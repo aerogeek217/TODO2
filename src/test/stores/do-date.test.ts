@@ -176,6 +176,84 @@ describe('setDoDate', () => {
   })
 })
 
+describe('completing a repeating task clears the Do day of the next occurrence', () => {
+  const DUE = new Date(2026, 10, 12)
+  const NEXT_DUE = new Date(2026, 10, 19)
+  const weekly = { dueDate: DUE, recurrenceRule: { every: { count: 1, unit: 'w' as const } } }
+
+  /** The task's due date and Do day, stored and shown. */
+  async function occurrence(id: number) {
+    const { doDate } = await planned(id)
+    const stored = await db.todos.get(id)
+    expect(useTodoStore.getState().todos.find((t) => t.id === id)?.dueDate?.getTime()).toBe(stored?.dueDate?.getTime())
+    return { dueDate: stored?.dueDate, doDate, isCompleted: stored?.isCompleted }
+  }
+
+  it('its checkbox: the day goes with the advance, the undo puts it back, the redo clears it again', async () => {
+    const [id] = await tasks('Weekly report') as [number]
+    await patch(id, { ...weekly, doDate: FRI })
+    later(1)
+    await useTodoStore.getState().toggleComplete(id)
+    expect(await occurrence(id)).toEqual({ dueDate: NEXT_DUE, doDate: undefined, isCompleted: false })
+    expect('doDate' in (await db.todos.get(id))!).toBe(false)
+    later(2)
+    await useUndoStore.getState().undo()
+    expect(await occurrence(id)).toEqual({ dueDate: DUE, doDate: FRI, isCompleted: false })
+    later(3)
+    await useUndoStore.getState().redo()
+    expect(await occurrence(id)).toEqual({ dueDate: NEXT_DUE, doDate: undefined, isCompleted: false })
+    expect(undoNames()).toEqual(['Advance recurring "Weekly report"'])
+  })
+
+  it('its checkbox, the write failing: the day stays', async () => {
+    const [id] = await tasks('Weekly report') as [number]
+    await patch(id, { ...weekly, doDate: FRI })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(todoRepository, 'bulkUpdate').mockRejectedValueOnce(new Error('disk full'))
+    await expect(useTodoStore.getState().toggleComplete(id)).rejects.toThrow('disk full')
+    expect(await occurrence(id)).toEqual({ dueDate: DUE, doDate: FRI, isCompleted: false })
+  })
+
+  it('a bulk completion (the bulk bar, a check-in reply): the repeating task’s day goes, a plain task keeps its own; the undo and redo follow', async () => {
+    const [repeating, plain, unplanned] = await tasks('Weekly report', 'Send the quote', 'Weekly sync') as [number, number, number]
+    await patch(repeating, { ...weekly, doDate: FRI })
+    await patch(plain, { doDate: MON })
+    await patch(unplanned, weekly)
+    later(1)
+    await useTodoStore.getState().bulkSetCompleted([repeating, plain, unplanned], true)
+    expect(await occurrence(repeating)).toEqual({ dueDate: NEXT_DUE, doDate: undefined, isCompleted: false })
+    expect(await occurrence(plain)).toEqual({ dueDate: undefined, doDate: MON, isCompleted: true })
+    expect(await occurrence(unplanned)).toEqual({ dueDate: NEXT_DUE, doDate: undefined, isCompleted: false })
+    later(2)
+    await useUndoStore.getState().undo()
+    expect(await occurrence(repeating)).toEqual({ dueDate: DUE, doDate: FRI, isCompleted: false })
+    expect(await occurrence(plain)).toEqual({ dueDate: undefined, doDate: MON, isCompleted: false })
+    expect(await occurrence(unplanned)).toEqual({ dueDate: DUE, doDate: undefined, isCompleted: false })
+    later(3)
+    await useUndoStore.getState().redo()
+    expect(await occurrence(repeating)).toEqual({ dueDate: NEXT_DUE, doDate: undefined, isCompleted: false })
+    expect(await occurrence(plain)).toEqual({ dueDate: undefined, doDate: MON, isCompleted: true })
+  })
+
+  it('a bulk completion, the write failing: the day stays', async () => {
+    const [id] = await tasks('Weekly report') as [number]
+    await patch(id, { ...weekly, doDate: FRI })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(todoRepository, 'bulkUpdate').mockRejectedValueOnce(new Error('disk full'))
+    // The rollback's own doing: the reload after it would mask a miss.
+    vi.spyOn(useTodoStore.getState(), 'loadAll').mockResolvedValue()
+    await expect(useTodoStore.getState().bulkSetCompleted([id], true)).rejects.toThrow('disk full')
+    expect(await occurrence(id)).toEqual({ dueDate: DUE, doDate: FRI, isCompleted: false })
+  })
+
+  it('a plain task completed by its checkbox keeps its day', async () => {
+    const [id] = await tasks('Send the quote') as [number]
+    await patch(id, { doDate: FRI })
+    await useTodoStore.getState().toggleComplete(id)
+    expect(await occurrence(id)).toMatchObject({ doDate: FRI, isCompleted: true })
+  })
+})
+
 describe('what leaves the Do day behind', () => {
   it('Duplicate: the copy is not planned', async () => {
     const [id] = await tasks('Quote') as [number]

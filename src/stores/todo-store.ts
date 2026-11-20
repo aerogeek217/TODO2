@@ -368,10 +368,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
   async function setCompleted(ids: number[], completed: boolean, stamp?: StampChanges): Promise<void> {
     // Split recurring tasks (advance their due date) from normal tasks (toggle completion)
     const allTodos = get().todos.filter((t) => ids.includes(t.id))
+    // The next occurrence: its due date advanced and its Do day (the
+    // occurrence just done was the one planned) cleared; `prev` puts both back.
+    type OccurrenceFields = Pick<PersistedTodoItem, 'dueDate' | 'doDate'>
     type RecurringAdvance = {
       id: number
-      prev: Date | undefined
-      nextChanges: Pick<PersistedTodoItem, 'dueDate'>
+      prev: OccurrenceFields
+      nextChanges: OccurrenceFields
     }
     const recurringAdvances: RecurringAdvance[] = []
     if (completed) {
@@ -379,7 +382,11 @@ export const useTodoStore = create<TodoState>((set, get) => {
         if (t.isCompleted || !t.recurrenceRule) continue
         const advance = advanceRecurring(t)
         if (!advance) continue
-        recurringAdvances.push({ id: t.id, prev: t.dueDate, nextChanges: { dueDate: advance.dueDate } })
+        recurringAdvances.push({
+          id: t.id,
+          prev: { dueDate: t.dueDate, doDate: t.doDate },
+          nextChanges: { dueDate: advance.dueDate, doDate: undefined },
+        })
       }
     }
     const recurringIds = new Set(recurringAdvances.map((r) => r.id))
@@ -444,7 +451,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         set({
           todos: get().todos.map((t) => {
             const r = recurringPrevMap.get(t.id)
-            if (r) return { ...t, dueDate: r.prev, ...keepStamp(t) }
+            if (r) return { ...t, ...r.prev, ...keepStamp(t) }
             const prevState = prevCompletedMap.get(t.id)
             if (prevState) {
               const rule = ruleDropped.has(t.id) && t.recurrenceRule == null ? { recurrenceRule: prevState.prevRule } : {}
@@ -460,9 +467,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
         redo: guardTasks(ids, (present) => setCompleted(present, completed, step)),
         undo: guardTasks(ids, async () => {
           // One transaction for every write of the undo, in the store and
-          // the DB: the recurring date advances go back, and the completions
-          // (re-completing restores the original completion time, resolved
-          // once per task); every task written gets its earlier stamp back.
+          // the DB: the recurring advances go back (the due date and the Do
+          // day), and the completions (re-completing restores the original
+          // completion time, resolved once per task); every task written
+          // gets its earlier stamp back.
           const undoNow = new Date()
           const back = undoStamps(step)
           const reverts = prevStates.map(s => {
@@ -478,14 +486,14 @@ export const useTodoStore = create<TodoState>((set, get) => {
           })
           if (recurringAdvances.length === 0 && reverts.length === 0) return
           await todoRepository.bulkUpdate([
-            ...recurringAdvances.map(r => ({ todoId: r.id, changes: { dueDate: r.prev } })),
+            ...recurringAdvances.map(r => ({ todoId: r.id, changes: r.prev })),
             ...reverts.map(r => ({ todoId: r.id, changes: r.changes })),
           ], back)
           const revertMap = new Map(reverts.map(r => [r.id, r.changes]))
           set({
             todos: restamped(get().todos.map((t) => {
               const r = recurringPrevMap.get(t.id)
-              if (r) return { ...t, dueDate: r.prev }
+              if (r) return { ...t, ...r.prev }
               const c = revertMap.get(t.id)
               return c ? { ...t, ...c } : t
             }), back),
@@ -708,16 +716,17 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const todo = get().todos.find((t) => t.id === id)
     if (!todo) return
 
-    // Recurring task: advance its due date instead of completing — and the
-    // checklist starts over (one undo step with the advance).
+    // Recurring task: advance its due date instead of completing — the next
+    // occurrence isn't planned, so its Do day goes — and the checklist
+    // starts over (one undo step with the advance).
     if (!todo.isCompleted && todo.recurrenceRule) {
       const advance = advanceRecurring(todo)
       if (advance) {
         const description = `Advance recurring "${todo.title}"`
-        const nextChanges = { dueDate: advance.dueDate }
-        const prevChanges = { dueDate: todo.dueDate }
-        // An undo / redo: the due date, and the step's stamp put back.
-        const write = async (changes: Pick<PersistedTodoItem, 'dueDate'>, stamp: StampChanges) => {
+        const nextChanges = { dueDate: advance.dueDate, doDate: undefined }
+        const prevChanges = { dueDate: todo.dueDate, doDate: todo.doDate }
+        // An undo / redo: the due date and the Do day, and the step's stamp put back.
+        const write = async (changes: Pick<PersistedTodoItem, 'dueDate' | 'doDate'>, stamp: StampChanges) => {
           await todoRepository.bulkUpdate([{ todoId: id, changes }], stamp)
           set({ todos: restamped(get().todos.map((t) => (t.id === id ? { ...t, ...changes } : t)), stamp) })
         }
