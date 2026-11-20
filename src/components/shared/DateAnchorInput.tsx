@@ -15,6 +15,7 @@ import {
 import { toDateInputValue } from '../../utils/date'
 import type { ChipDay } from '../../utils/filter-chips'
 import { formatFollowupDate } from '../../utils/followup'
+import { ESCAPE_OWN_ATTR } from '../../hooks/use-popover-anchor'
 import { ChevronDownIcon } from './icons'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
 import styles from './DateAnchorInput.module.css'
@@ -166,8 +167,8 @@ function RelativeEnd({ side, value, onChange, label, describedBy, touch, classNa
             if (e.key === 'Enter') {
               e.preventDefault()
               settle()
-            } else if (e.key === 'Escape' && draft !== null) {
-              // Puts the stored end back; the popover around it stays open.
+            } else if (e.key === 'Escape' && draft !== null && unreadable) {
+              // Puts the stored end back; the popover around it stays open. (Text that was written lets Esc close it.)
               e.preventDefault()
               e.stopPropagation()
               setDraft(null)
@@ -178,6 +179,7 @@ function RelativeEnd({ side, value, onChange, label, describedBy, touch, classNa
           aria-invalid={(unreadable && showHint) || undefined}
           aria-describedby={[describedBy, unreadable && showHint ? hintId : null].filter(Boolean).join(' ') || undefined}
           data-relative-end={side}
+          {...(draft !== null && unreadable ? { [ESCAPE_OWN_ATTR]: '' } : {})}
         />
         <button
           ref={ref}

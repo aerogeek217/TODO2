@@ -33,17 +33,34 @@ function dayWords(days: number): string {
   return d.getFullYear() === new Date().getFullYear() ? base : `${base} ${d.getFullYear()}`
 }
 
+/** A day as the line under a Relative end names it: `Thu, Dec 3` (`Thu, Dec 3, 2027` in another year). */
+function endDayWords(d: Date): string {
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString('en-US', sameYear ? { weekday: 'short', month: 'short', day: 'numeric' } : { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+/** Today + `days` (or `months` calendar months, clamped to the month's end), at local midnight. */
+function fromToday(days: number, months = 0): Date {
+  const t = new Date()
+  const first = new Date(t.getFullYear(), t.getMonth() + months, 1)
+  const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
+  return new Date(first.getFullYear(), first.getMonth(), Math.min(t.getDate(), last) + days)
+}
+
 function rows(page: Page, tabId: string) {
   return wsListWidget(page, tabId).locator('[data-todo-id]')
 }
 
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Date filters' })
 
-/** Picks `item` (its label) from an end's Relative dropdown in the open date panel. */
+/** Picks `item` (its label) from an end's Relative chevron (the rolling days, No start / No end) in the open date panel. */
 async function pickRelative(page: Page, end: 'From' | 'To', item: string) {
-  await dialog(page).getByRole('button', { name: new RegExp(`^${end}: (?!Set to)`) }).click()
-  await page.getByRole('menu', { name: end }).locator(`[data-menu-label="${item}"]`).click()
+  await dialog(page).getByRole('button', { name: `${end}: rolling days` }).click()
+  await page.getByRole('menu', { name: `${end}: rolling days` }).locator(`[data-menu-label="${item}"]`).click()
 }
+
+/** An end's typed Relative field in the open date panel. */
+const relativeEnd = (page: Page, end: 'From' | 'To') => dialog(page).getByRole('textbox', { name: end })
 
 /** Every date type on in the top bar (through the filter store), so every tab shows its dot. */
 async function lightEveryDateType(page: Page) {
@@ -113,11 +130,10 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await expect(panel.getByRole('tab', { name: 'Due' })).toBeFocused()
   await expect(panel.getByText('Not filtering')).toBeVisible()
   await expect(panel.getByRole('radio', { name: 'Relative' })).toHaveAttribute('aria-checked', 'true')
-  await pickRelative(page, 'To', 'In 2 weeks')
-  await expect(panel.getByLabel('To: number of days')).toHaveValue('14')
-  await expect(panel.getByRole('button', { name: 'To: days ahead' })).toBeVisible()
-  // Its day today under it (cr25 P8).
-  await expect(panel.getByText(`${dayWords(14)} and earlier`)).toBeVisible()
+  await relativeEnd(page, 'To').fill('+2w')
+  await expect(relativeEnd(page, 'To')).toHaveValue('+2w')
+  // Its day today under it (cr25 P8; typed intervals: `Thu, Dec 3`).
+  await expect(panel.getByText(`${endDayWords(fromToday(14))} and earlier`)).toBeVisible()
   await expect(rows(page, 't1')).toHaveCount(2)
   await expect(panel.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('data-filtering', '')
 
@@ -125,10 +141,10 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await panel.getByRole('tab', { name: 'Modified' }).click()
   await expect(panel.getByRole('tab', { name: 'Modified' })).toHaveAttribute('aria-selected', 'true')
   await expect(panel.getByRole('tab', { name: 'Modified' })).not.toHaveAttribute('data-filtering', '')
-  await expect(panel.getByRole('button', { name: 'From: No start' })).toBeVisible()
-  await expect(panel.getByRole('button', { name: 'To: No end' })).toBeVisible()
+  await expect(relativeEnd(page, 'From')).toHaveValue('')
+  await expect(relativeEnd(page, 'To')).toHaveValue('')
   await expect(rows(page, 't1')).toHaveCount(2)
-  await pickRelative(page, 'To', '1 week ago')
+  await relativeEnd(page, 'To').fill('-7d')
   await expect(rows(page, 't1')).toHaveCount(1)
   await expect(rows(page, 't1')).toHaveText([/Due soon, old/])
   await page.keyboard.press('Escape')
@@ -137,10 +153,10 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await expect(filterMenu(page)).toHaveCount(0)
 
   // The field's pills: a term per date type; the menu's row reads both names.
-  await expect(filterPills(page)).toHaveText([/^due <= \+14d/, /^modified <= -7d/])
+  await expect(filterPills(page)).toHaveText([/^due <= \+2w/, /^modified <= -7d/])
   await openFilterMenu(page)
   const row = filterMenuRow(page, 'Dates')
-  await expect(row).toHaveAccessibleName('Dates filter: Due in 14 days or earlier; Modified 7+ days ago')
+  await expect(row).toHaveAccessibleName('Dates filter: Due in 2 weeks or earlier; Modified 7+ days ago')
   await expect(row).toContainText('Due + Modified')
   // A list's line doesn't repeat the top bar's filters (J13): its count says they narrow it.
   await expect(wsListWidget(page, 't1').getByTestId('list-filter-row')).not.toContainText('Modified')
@@ -179,35 +195,42 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await expect(panel.getByRole('tab', { name: 'Next follow-up' })).toBeFocused()
   await page.keyboard.press('End')
   await expect(panel.getByRole('tab', { name: 'Modified' })).toBeFocused()
-  // Tab: Show (its checked Relative), the range's Is / Is not (its checked Is), then From's dropdown.
+  // Tab: Show (its checked Relative), the range's Is / Is not (its checked Is), then From's field.
   await page.keyboard.press('Tab')
   await expect(panel.getByRole('radiogroup', { name: 'Which tasks' }).getByRole('radio', { name: 'Relative' })).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(panel.getByRole('radiogroup', { name: 'Modified: is or is not' }).getByRole('radio', { name: 'Is', exact: true })).toBeFocused()
   await page.keyboard.press('Tab')
-  await expect(panel.getByRole('button', { name: 'From: No start' })).toBeFocused()
+  await expect(relativeEnd(page, 'From')).toBeFocused()
   // Nothing written so far.
   await expect(filterMenuRow(page, 'Dates')).toHaveAccessibleName('Dates filter')
   await expect(filterPills(page)).toHaveCount(0)
-  // Its menu by keyboard: Enter opens it, ↓ / Enter pick, Esc closes only the menu.
+  // Typed: written once it reads — a calendar month back; text on its way writes nothing.
+  await page.keyboard.type('-1')
+  await expect(filterPills(page)).toHaveCount(0)
+  await page.keyboard.type('m')
+  await expect(panel.getByRole('tabpanel')).toContainText('1 month ago or later')
+  await expect(panel.getByText(`${endDayWords(fromToday(0, -1))} and later`)).toBeVisible()
+  await expect(filterMenuRow(page, 'Dates')).toHaveAccessibleName('Dates filter: Modified 1 month ago or later')
+  // The chevron next: its menu by keyboard keeps the rolling days; Esc closes only the menu.
+  await page.keyboard.press('Tab')
+  await expect(panel.getByRole('button', { name: 'From: rolling days' })).toBeFocused()
   await page.keyboard.press('Enter')
-  const menu = page.getByRole('menu', { name: 'From' })
-  await expect(menu.getByRole('menuitemradio', { name: 'days ago' })).toBeFocused()
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('ArrowDown')
-  await expect(menu.getByRole('menuitem', { name: /^1 week ago/ })).toBeFocused()
+  const menu = page.getByRole('menu', { name: 'From: rolling days' })
+  await expect(menu.getByRole('menuitemradio', { name: 'today' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()
   await expect(panel).toBeVisible()
-  await expect(panel.getByRole('button', { name: 'From: No start' })).toBeFocused()
-  await page.keyboard.press('Enter')
-  await page.keyboard.press('Enter')
-  // days ago: the focus moves to the number.
-  await expect(panel.getByLabel('From: number of days')).toBeFocused()
-  await page.keyboard.type('30')
-  await expect(panel.getByLabel('From: number of days')).toHaveValue('30')
-  await expect(panel.getByRole('tabpanel')).toContainText('30 days ago or later')
-  await expect(filterMenuRow(page, 'Dates')).toHaveAccessibleName('Dates filter: Modified 30 days ago or later')
+  await expect(panel.getByRole('button', { name: 'From: rolling days' })).toBeFocused()
+  // Text that doesn't read: nothing written, its hint once the field is left.
+  await relativeEnd(page, 'From').fill('2 weeks')
+  await relativeEnd(page, 'From').press('Enter')
+  await expect(panel.getByRole('alert')).toHaveText('Type +2w, -1m, +3d or today, or pick a rolling day')
+  await expect(filterMenuRow(page, 'Dates')).toHaveAccessibleName('Dates filter: Modified 1 month ago or later')
+  // Esc puts the end back (and leaves the panel open); the next Esc closes it.
+  await relativeEnd(page, 'From').press('Escape')
+  await expect(relativeEnd(page, 'From')).toHaveValue('-1m')
+  await expect(panel).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(panel).toBeHidden()
 })
@@ -478,11 +501,12 @@ test.describe('phone, narrowest', () => {
     expect((await box(page.getByRole('radio', { name: 'Calendar' }))).height).toBeGreaterThanOrEqual(36)
     // The Relative ends at touch size, on Last follow-up (14+ days ago).
     await tablist.getByRole('tab', { name: 'Last follow-up, filtering' }).click()
-    const to = page.getByRole('button', { name: 'To: days ago' })
+    const to = page.getByRole('textbox', { name: 'To' })
     await to.scrollIntoViewIfNeeded()
     expect((await box(to)).height).toBeGreaterThanOrEqual(44)
-    await expect(page.getByLabel('To: number of days')).toHaveValue('14')
-    await expect(page.getByText(`${dayWords(-14)} and earlier`)).toBeVisible()
+    await expect(to).toHaveValue('-14d')
+    await expect(page.getByText(`${endDayWords(fromToday(-14))} and earlier`)).toBeVisible()
     await expectInsideViewport(page, to)
+    await expectInsideViewport(page, page.getByRole('button', { name: 'To: rolling days' }))
   })
 })
