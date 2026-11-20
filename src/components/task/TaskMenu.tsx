@@ -1,4 +1,4 @@
-import { useMemo, type RefObject } from 'react'
+import { useContext, useMemo, type RefObject } from 'react'
 import type { PersistedTodoItem } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -8,6 +8,7 @@ import { shortcutLabel } from '../../utils/shortcut-bindings'
 import { useToday } from '../../hooks/use-today'
 import { MenuPopover } from '../shared/MenuPopover'
 import { buildTaskMenuEntries, type TaskMenuHandlers } from './task-menu-entries'
+import { TaskMenuExtrasContext } from './task-menu-extras'
 
 /**
  * The task menu as a popover: at the pointer for right-click / long-press,
@@ -15,7 +16,8 @@ import { buildTaskMenuEntries, type TaskMenuHandlers } from './task-menu-entries
  * cell gets the focus back). With `selectionAware` (rows) it acts on the
  * selection the task belongs to; search results act on the one task. Copy
  * copies them in the order their widget shows them, as one list with no
- * heading.
+ * heading. The surface the row sits in may add entries of its own for the
+ * one task (`TaskMenuExtrasContext`: the Planner's Move to day ›).
  */
 export function TaskMenu({ todo, anchorRef, point, selectionAware = true, handlers, onClose }: {
   todo: PersistedTodoItem
@@ -31,6 +33,7 @@ export function TaskMenu({ todo, anchorRef, point, selectionAware = true, handle
   const followupIntervals = useSettingsStore((s) => s.followupQuickIntervals)
   const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
   const today = useToday()
+  const extras = useContext(TaskMenuExtrasContext)
   const targets = useMemo(() => {
     if (!selectionAware || selected.size < 2 || !selected.has(todo.id)) return [todo]
     return todos.filter((t) => selected.has(t.id))
@@ -46,6 +49,7 @@ export function TaskMenu({ todo, anchorRef, point, selectionAware = true, handle
     urgentRange,
     followupIntervals,
     handlers: { onCopy, ...handlers },
+    extra: extras && targets.length === 1 ? extras(todo) : undefined,
     copyKbd: shortcutLabel('copy-selected', shortcutOverrides),
   })
   return (
