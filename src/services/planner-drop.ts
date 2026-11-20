@@ -2,6 +2,7 @@ import type { PlannerDragPreview } from '../stores/planner-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { plannerDropPlan, type PlannerDropPlan, type PlannerDropPosition, type PlannerTarget, type PlannerWindow } from '../utils/planner'
+import { getTab } from '../utils/workspace-layout-queries'
 import type { PlannerDropRequest } from '../utils/task-dnd'
 
 /** A task moved to a day of a Planner: a row dropped on a tile or in a group, or Move to day ›. */
@@ -14,13 +15,27 @@ interface PlannerMove {
   position?: PlannerDropPosition | null
 }
 
+/** The hand order the Planner `tabId` of the open layout stores (none: no such tab, or it never had one). */
+function storedOrder(tabId: string): readonly string[] {
+  const layout = useWorkspaceStore.getState().working
+  const tab = layout ? getTab(layout, tabId) : undefined
+  return tab?.kind === 'planner' ? tab.viewState?.order ?? [] : []
+}
+
 /**
- * What `move` does now, for the task as the store holds it
- * (`utils/planner.plannerDropPlan`); null when the task is gone.
+ * What `move` does now in the Planner `tabId`, for the task as the store
+ * holds it (`utils/planner.plannerDropPlan`); null when the task is gone.
+ * A place is merged into the tab's stored hand order: the tasks it doesn't
+ * show now keep theirs, and only those the todo store no longer holds
+ * (deleted, purged) leave it.
  */
-function planPlannerMove(move: PlannerMove): PlannerDropPlan | null {
-  const todo = useTodoStore.getState().todos.find((t) => t.id === move.todoId)
-  return todo ? plannerDropPlan(todo, move.window, move.target, move.position ?? null) : null
+function planPlannerMove(tabId: string, move: PlannerMove): PlannerDropPlan | null {
+  const todos = useTodoStore.getState().todos
+  const todo = todos.find((t) => t.id === move.todoId)
+  if (!todo) return null
+  if (!move.position) return plannerDropPlan(todo, move.window, move.target)
+  const uids = new Set(todos.map((t) => t.uid))
+  return plannerDropPlan(todo, move.window, move.target, move.position, { order: storedOrder(tabId), exists: (uid) => uids.has(uid) })
 }
 
 /**
@@ -33,7 +48,7 @@ function planPlannerMove(move: PlannerMove): PlannerDropPlan | null {
 export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDragPreview | null): PlannerDropPlan | null {
   const { group } = request
   const index = group && preview?.tabId === request.tabId && preview.over === 'group' && preview.key === group.key ? preview.index : null
-  return planPlannerMove({
+  return planPlannerMove(request.tabId, {
     todoId: request.todo.id,
     target: request.target,
     window: request.window,
@@ -44,7 +59,8 @@ export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDra
 /**
  * Makes a planned move in the Planner `tabId` — the only place a Planner
  * drop or Move to day › writes from. The hand order first (the tab's view
- * state, `order`: saved at once, no undo step, as a list's manual order),
+ * state, `order` — the stored one with the row's new place merged in: saved
+ * at once, no undo step, as a list's manual order),
  * then the one task write: a follow-up moved to the day (local midnight) by
  * the ordinary task edit — stamped, one undo step — or the Do day set or
  * cleared (`setDoDate`: one undo step, no stamp). The due date is never
@@ -59,6 +75,6 @@ export async function applyPlannerMove(tabId: string, todoId: number, plan: Plan
 
 /** Plans and makes `move` (Move to day ›); resolves once it is written. */
 export function movePlannerTask(tabId: string, move: PlannerMove): Promise<void> {
-  const plan = planPlannerMove(move)
+  const plan = planPlannerMove(tabId, move)
   return plan ? applyPlannerMove(tabId, move.todoId, plan) : Promise.resolve()
 }

@@ -362,19 +362,63 @@ describe('the hand order', () => {
     expect(w.patch).not.toHaveBeenCalled()
   })
 
-  it('prunes to the tasks shown and keeps within the layout’s cap', async () => {
+  it('keeps the place of a task the screen filter hides (Today as C, A, B; C hidden; A dragged below B)', async () => {
+    const a = await seed('A', { doDate: day(0) })
+    const b = await seed('B', { doDate: day(0) })
+    const c = await seed('C', { doDate: day(0) })
+    await ws().patchTabViewState('plan', 'planner', { order: [c.uid, a.uid, b.uid] })
+    // The filter hides C: the Planner shows A, B.
+    await drop(a, group(on(0), '2026-11-20', [a.uid, b.uid], [a.uid, b.uid]), over('2026-11-20', 1))
+    // With the filter cleared: C first still, then B, A as dropped.
+    expect(await storedOrder()).toEqual([c.uid, b.uid, a.uid])
+  })
+
+  it('keeps a day’s order while the window is shifted past it (Wednesday ordered; a reorder in the shifted week)', async () => {
+    const t1 = await seed('T1', { dueDate: day(-1) })
+    const w1 = await seed('W1', { doDate: day(5) })
+    const w2 = await seed('W2', { doDate: day(5) })
+    const w3 = await seed('W3', { doDate: day(5) })
+    const n1 = await seed('N1', { doDate: day(8) })
+    const n2 = await seed('N2', { doDate: day(8) })
+    await ws().patchTabViewState('plan', 'planner', { order: [t1.uid, w2.uid, w1.uid, w3.uid] })
+    // Shifted a week: Today and next week show; Wednesday is in no group.
+    const shifted: PlannerDropData = {
+      type: TASK_DROP_KIND.plannerGroup,
+      scope: 'plan',
+      target: on(8),
+      window: { today: TODAY, last: day(13) },
+      group: { key: '2026-11-28', rows: [n1.uid, n2.uid], shown: [t1.uid, n1.uid, n2.uid] },
+    }
+    await drop(n2, shifted, over('2026-11-28', 0))
+    const order = await storedOrder()
+    expect(order?.filter((u) => [w1.uid, w2.uid, w3.uid].includes(u))).toEqual([w2.uid, w1.uid, w3.uid])
+    expect(order).toEqual([t1.uid, n2.uid, n1.uid, w2.uid, w1.uid, w3.uid])
+  })
+
+  it('drops from the order only the tasks the todo store no longer holds; a completed one keeps its place', async () => {
     const a = await seed('A', { dueDate: day(-1) })
     const b = await seed('B', { doDate: day(0) })
-    // An older order naming tasks no longer shown.
-    await ws().patchTabViewState('plan', 'planner', { order: ['gone-1', b.uid, 'gone-2', a.uid] })
+    const done = await seed('Done', { isCompleted: true, completedAt: NOW, doDate: day(0) })
+    await ws().patchTabViewState('plan', 'planner', { order: ['deleted-1', done.uid, b.uid, 'deleted-2', a.uid] })
     await drop(b, group(on(0), '2026-11-20', [b.uid, a.uid], [b.uid, a.uid]), over('2026-11-20', 1))
-    expect(await storedOrder()).toEqual([a.uid, b.uid])
+    expect(await storedOrder()).toEqual([done.uid, a.uid, b.uid])
+  })
 
-    const many = Array.from({ length: PLANNER_ORDER_MAX + 20 }, (_, i) => `u${i}`)
-    await drop(b, group(on(0), '2026-11-20', [a.uid, b.uid], [a.uid, b.uid, ...many]), over('2026-11-20', 0))
+  it('keeps within the layout’s cap: the tasks not shown go first, the earliest first', async () => {
+    const a = await seed('A', { dueDate: day(-1) })
+    const b = await seed('B', { doDate: day(0) })
+    // Existing tasks the Planner doesn't show, filling the order to its cap.
+    const hidden: string[] = []
+    const rows = Array.from({ length: PLANNER_ORDER_MAX - 1 }, (_, i) => ({ todo: { title: `H${i}`, isCompleted: false, createdAt: NOW, modifiedAt: NOW }, personIds: [], tagIds: [] }))
+    const ids = await useTodoStore.getState().addMany(rows, { description: 'Add hidden' })
+    for (const id of ids) hidden.push(useTodoStore.getState().todos.find((t) => t.id === id)!.uid)
+    await ws().patchTabViewState('plan', 'planner', { order: [...hidden, a.uid] })
+    await drop(b, group(on(0), '2026-11-20', [a.uid, b.uid], [a.uid, b.uid]), over('2026-11-20', 0))
     const order = await storedOrder()
     expect(order).toHaveLength(PLANNER_ORDER_MAX)
-    expect(order?.slice(0, 3)).toEqual([b.uid, a.uid, 'u0'])
+    // One too many: the first hidden one went; the shown rows are there, as dropped.
+    expect(order?.[0]).toBe(hidden[1])
+    expect(order?.slice(-2)).toEqual([b.uid, a.uid])
   })
 })
 

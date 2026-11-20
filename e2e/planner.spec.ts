@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { drag, expectLayoutStored, newestUndoStep, releaseDrag, seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
+import { filterClear, filterField } from './fixtures/filters'
 
 /**
  * The Planner's drags and Move to day ›: a row dropped on a day tile or in a
@@ -228,6 +229,53 @@ test('a row dragged within Today is reordered: no date changes, and the order su
 
   await page.reload()
   await expect(titles(todayGroup(page))).toHaveText(['Write the brief', 'Renew the domain', 'Chase the invoice'])
+})
+
+test('a reorder keeps the place of the rows it can’t see: one the screen filter hides, a day the shifted window leaves out', async ({ page }) => {
+  await seedWorkspace(page, WIDE)
+  const inTwo = await dayKeyIn(page, 2)
+  const today = todayGroup(page)
+  /** Drags a row of `scope` to just above another of its rows. */
+  const above = async (scope: Locator, title: string, other: string) => {
+    const to = await box(rowOf(scope, other))
+    const from = await grip(rowOf(scope, title))
+    await drag(page, from, { x: from.x, y: to.y + 3 })
+  }
+  /** Drags a row of `scope` to just under another of its rows. */
+  const below = async (scope: Locator, title: string, other: string) => {
+    const to = await box(rowOf(scope, other))
+    const from = await grip(rowOf(scope, title))
+    await drag(page, from, { x: from.x, y: to.y + to.height - 3 })
+  }
+
+  // Today by hand: the brief first. The day in two days by hand: the caterer first.
+  await above(today, 'Write the brief', 'Renew the domain')
+  await expect(titles(today)).toHaveText(['Write the brief', 'Renew the domain', 'Chase the invoice'])
+  await above(group(page, inTwo), 'Call the caterer', 'Book the venue')
+  await expect(titles(group(page, inTwo))).toHaveText(['Call the caterer', 'Book the venue'])
+
+  // The screen filter hides the brief; the two rows left are swapped.
+  await filterField(page).fill('not "brief"')
+  await filterField(page).press('Enter')
+  await expect(titles(today)).toHaveText(['Renew the domain', 'Chase the invoice'])
+  await below(today, 'Renew the domain', 'Chase the invoice')
+  await expect(titles(today)).toHaveText(['Chase the invoice', 'Renew the domain'])
+  // Cleared: the brief is first still.
+  await filterClear(page).click()
+  await expect(titles(today)).toHaveText(['Write the brief', 'Chase the invoice', 'Renew the domain'])
+
+  // A week ahead the day in two days is in no group; a reorder there leaves its order alone.
+  await planner(page).getByRole('button', { name: 'Next week' }).click()
+  await expect(group(page, inTwo)).toHaveCount(0)
+  await above(today, 'Renew the domain', 'Write the brief')
+  await expect(titles(today)).toHaveText(['Renew the domain', 'Write the brief', 'Chase the invoice'])
+  await wsCell(page, 'k1').getByRole('button', { name: /Back to this week$/ }).click()
+  await expect(titles(group(page, inTwo))).toHaveText(['Call the caterer', 'Book the venue'])
+
+  await expectLayoutStored(page)
+  await page.reload()
+  await expect(titles(todayGroup(page))).toHaveText(['Renew the domain', 'Write the brief', 'Chase the invoice'])
+  await expect(titles(group(page, inTwo))).toHaveText(['Call the caterer', 'Book the venue'])
 })
 
 test('a row dropped into another day’s group lands where it was dropped, with that day', async ({ page }) => {

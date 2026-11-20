@@ -16,7 +16,8 @@ import {
 
 /**
  * What a Planner drop does beyond the one write (`plannerDrop`, in
- * `planner.test.ts`): the hand order with the row where it was dropped
+ * `planner.test.ts`): the hand order with the row where it was dropped,
+ * merged into the stored one so the tasks not shown keep their places
  * (`plannerReorder`), the whole plan (`plannerDropPlan`: the write, the
  * order, whether the row leaves its group), and what the drag says of it
  * (`plannerDropLabel`).
@@ -70,10 +71,10 @@ describe('plannerReorder', () => {
     expect(plannerReorder('new', at([], 0, []))).toEqual(['new'])
   })
 
-  it('holds only the tasks shown, each once', () => {
-    // What it is written over is the displayed sequence: a uid an older order kept is not carried.
+  it('holds each task once', () => {
     expect(plannerReorder('c', at(['a', 'b', 'c'], 0, ['a', 'b', 'b', 'c', 'a', 'd']))).toEqual(['c', 'a', 'b', 'd'])
     expect(plannerReorder('a', at(['a', 'a', 'b'], 1, ['a', 'b']))).toEqual(['b', 'a'])
+    expect(plannerReorder('a', at(['a', 'b'], 1, ['a', 'b']), { order: ['b', 'a', 'b', 'x', 'a', 'x'] })).toEqual(['b', 'a', 'x'])
   })
 
   it('ignores a negative or fractional place', () => {
@@ -84,11 +85,22 @@ describe('plannerReorder', () => {
   it('keeps at most the cap, the group dropped into whole', () => {
     const many = Array.from({ length: 12 }, (_, i) => `u${i}`)
     // Dropped into the last group (u10, u11) of a sequence past a cap of 5: that group stays, the rest is cut from the end.
-    expect(plannerReorder('u0', at(['u10', 'u11'], 1, many), 5)).toEqual(['u1', 'u2', 'u10', 'u0', 'u11'])
+    expect(plannerReorder('u0', at(['u10', 'u11'], 1, many), { max: 5 })).toEqual(['u1', 'u2', 'u10', 'u0', 'u11'])
     // Within the cap nothing is cut.
-    expect(plannerReorder('u0', at(['u10', 'u11'], 1, many), 12)).toHaveLength(12)
+    expect(plannerReorder('u0', at(['u10', 'u11'], 1, many), { max: 12 })).toHaveLength(12)
     // A group larger than the cap is cut to it.
-    expect(plannerReorder('u0', at(many, 3, many), 4)).toHaveLength(4)
+    expect(plannerReorder('u0', at(many, 3, many), { max: 4 })).toHaveLength(4)
+  })
+
+  it('over the cap, drops the tasks not shown first — the earliest in the sequence first', () => {
+    // Shown: a b c; the order also holds four tasks not shown now.
+    const order = ['h1', 'a', 'h2', 'b', 'h3', 'c', 'h4']
+    const position = at(['a', 'b', 'c'], 0, ['a', 'b', 'c'])
+    expect(plannerReorder('c', position, { order })).toEqual(['h1', 'c', 'a', 'h2', 'b', 'h3', 'h4'])
+    expect(plannerReorder('c', position, { order, max: 6 })).toEqual(['c', 'a', 'h2', 'b', 'h3', 'h4'])
+    expect(plannerReorder('c', position, { order, max: 4 })).toEqual(['c', 'a', 'b', 'h4'])
+    // Every task shown stays while a hidden one can go.
+    expect(plannerReorder('c', position, { order, max: 3 })).toEqual(['c', 'a', 'b'])
   })
 
   it('caps at the layout’s limit by default', () => {
@@ -97,6 +109,72 @@ describe('plannerReorder', () => {
     expect(order).toHaveLength(PLANNER_ORDER_MAX)
     expect(order.slice(0, 3)).toEqual(['u5', 'u0', 'u1'])
     expect(new Set(order).size).toBe(order.length)
+  })
+})
+
+describe('plannerReorder — merged into the stored order', () => {
+  it('keeps the place of a task the screen filter hides', () => {
+    // Today was hand-ordered c, a, b; a filter hides c; a is dragged below b.
+    const order = ['c', 'a', 'b', 'd', 'e', 'f']
+    const filtered = at(['a', 'b'], 1, ['a', 'b', 'd', 'e', 'f'])
+    const next = plannerReorder('a', filtered, { order })
+    // With the filter cleared c is still first, then b, a as dropped.
+    expect(next).toEqual(['c', 'b', 'a', 'd', 'e', 'f'])
+    // A hidden task between the two rows stays between the rows that keep their places.
+    expect(plannerReorder('b', at(['a', 'b'], 0, ['a', 'b']), { order: ['a', 'c', 'b'] })).toEqual(['b', 'a', 'c'])
+    expect(plannerReorder('a', at(['a', 'b'], 1, ['a', 'b']), { order: ['a', 'c', 'b'] })).toEqual(['c', 'b', 'a'])
+  })
+
+  it('keeps the order of a day outside a shifted window', () => {
+    // Wednesday was hand-ordered w2, w1, w3. The window is shifted: Today (t1 t2) and next week (n1 n2) show, Wednesday doesn't.
+    const order = ['t1', 't2', 'w2', 'w1', 'w3']
+    const shifted = ['t1', 't2', 'n1', 'n2']
+    const next = plannerReorder('n2', at(['n1', 'n2'], 0, shifted), { order })
+    expect(next.filter((u) => u.startsWith('w'))).toEqual(['w2', 'w1', 'w3'])
+    expect(next).toEqual(['t1', 't2', 'n2', 'n1', 'w2', 'w1', 'w3'])
+    // A reorder in Today there leaves it alone too.
+    expect(plannerReorder('t2', at(['t1', 't2'], 0, shifted), { order })).toEqual(['t2', 't1', 'n1', 'n2', 'w2', 'w1', 'w3'])
+  })
+
+  it('moves only the dropped row: every other stored task keeps its position relative to every other', () => {
+    const order = ['h1', 'a', 'h2', 'b', 'h3', 'c', 'h4', 'd', 'h5']
+    const without = (list: string[], uid: string) => list.filter((u) => u !== uid)
+    for (const [uid, index] of [['a', 2], ['c', 0], ['b', 1], ['b', 0], ['a', 1]] as const) {
+      const next = plannerReorder(uid, at(['a', 'b', 'c'], index, ['a', 'b', 'c', 'd']), { order })
+      expect(without(next, uid)).toEqual(without(order, uid))
+      expect(next.filter((u) => ['a', 'b', 'c'].includes(u))).toEqual((() => {
+        const rows = without(['a', 'b', 'c'], uid)
+        rows.splice(index, 0, uid)
+        return rows
+      })())
+    }
+  })
+
+  it('gives every task shown a place, so each group reads as it does now', () => {
+    // The order holds a and b; Today shows a, b, then x and y the order never held (after them, by the default order).
+    const order = ['a', 'h', 'b']
+    const shown = ['a', 'b', 'x', 'y', 'm1', 'm2']
+    // y dragged above x: x must be listed for y to stand before it.
+    expect(plannerReorder('y', at(['a', 'b', 'x', 'y'], 2, shown), { order })).toEqual(['a', 'h', 'b', 'y', 'x', 'm1', 'm2'])
+    // A row of another group joining Today between a and b.
+    expect(plannerReorder('m2', at(['a', 'b', 'x', 'y'], 1, shown), { order })).toEqual(['a', 'm2', 'h', 'b', 'x', 'y', 'm1'])
+    // Nothing stored yet: the displayed sequence.
+    expect(plannerReorder('b', at(['a', 'b', 'x', 'y'], 0, shown))).toEqual(['b', 'a', 'x', 'y', 'm1', 'm2'])
+  })
+
+  it('drops only the tasks that no longer exist', () => {
+    const order = ['gone', 'c', 'a', 'purged', 'b', 'done']
+    const exists = (uid: string) => !['gone', 'purged'].includes(uid)
+    // c is hidden by a filter, done is completed (not shown, still a task): both stay.
+    expect(plannerReorder('a', at(['a', 'b'], 1, ['a', 'b']), { order, exists })).toEqual(['c', 'b', 'a', 'done'])
+    // Without a way to tell, nothing stored is dropped.
+    expect(plannerReorder('a', at(['a', 'b'], 1, ['a', 'b']), { order })).toEqual(['gone', 'c', 'purged', 'b', 'a', 'done'])
+    // A task shown exists, whatever the check says.
+    expect(plannerReorder('a', at(['a', 'b'], 1, ['a', 'b']), { order: ['a', 'b'], exists: () => false })).toEqual(['b', 'a'])
+  })
+
+  it('puts a row dropped into a group with no other row at the end, the rest as stored', () => {
+    expect(plannerReorder('a', at([], 0, ['a', 'b']), { order: ['a', 'h', 'b'] })).toEqual(['h', 'b', 'a'])
   })
 })
 
@@ -164,6 +242,14 @@ describe('plannerDropPlan', () => {
   it('doesn’t order a task a drop that writes nothing wouldn’t bring into the group', () => {
     // A list's row with no day, not in Focus, dropped on Focus, no day: nothing to do, and it won't show there.
     expect(plannerDropPlan(task({ uid: 'new' }), WINDOW, NO_DAY, at(['f'], 0))).toEqual({ drop: { kind: 'none' }, moves: false })
+  })
+
+  it('merges the place into the stored order it is given', () => {
+    const t = task({ uid: 'a', doDate: day(0) })
+    const exists = (uid: string) => uid !== 'gone'
+    expect(plannerDropPlan(t, WINDOW, on(0), at(['a', 'b'], 1, ['a', 'b']), { order: ['c', 'a', 'gone', 'b'], exists }).order).toEqual(['c', 'b', 'a'])
+    // Dropped where it is: nothing to store, whatever the stored order holds.
+    expect(plannerDropPlan(t, WINDOW, on(0), at(['a', 'b'], 0, ['a', 'b']), { order: ['c', 'a', 'gone', 'b'], exists }).order).toBeUndefined()
   })
 
   it('reads the placement against the window it is given', () => {
