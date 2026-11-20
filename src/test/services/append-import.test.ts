@@ -130,6 +130,25 @@ describe('appendImportTasks — archive from another database', () => {
     expect(events.map((e) => e.type).sort()).toEqual(['completed', 'created', 'status'])
     expect(events.find((e) => e.type === 'status')?.toValue).toBe(waiting)
   })
+
+  it('carries a task’s Do day (schema v85); a task without one gets none', async () => {
+    const doDate = new Date(2026, 10, 20)
+    const planned = await todoRepository.insert({ title: 'Planned', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(3), sortOrder: 1, doDate })
+    const plain = await todoRepository.insert({ title: 'Plain', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(3), sortOrder: 2 })
+    const json = JSON.stringify(await buildTaskArchive([planned, plain]))
+
+    await resetDb()
+    const data = prepareAppend(json)
+    const result = await appendImportTasks(data, defaultAppendChoices(findAppendDuplicates(data.todos, [])))
+    expect(result).toMatchObject({ imported: 2, skipped: 0 })
+    const rows = await db.todos.orderBy('sortOrder').toArray()
+    expect(rows.map((t) => t.title)).toEqual(['Planned', 'Plain'])
+    expect(rows[0]?.doDate).toBeInstanceOf(Date)
+    expect(rows[0]?.doDate).toEqual(doDate)
+    expect('doDate' in rows[1]!).toBe(false)
+    // A file's rows as they were written: the append stamps nothing.
+    expect(rows[0]?.modifiedAt).toEqual(data.todos[0]?.modifiedAt)
+  })
 })
 
 describe('appendImportTasks — the history log H3 (D26)', () => {
