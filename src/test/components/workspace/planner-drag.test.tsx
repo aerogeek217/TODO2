@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { PlannerDragLabel } from '../../../components/workspace/planner/PlannerDragLabel'
 import { PlannerWidget } from '../../../components/workspace/planner/PlannerWidget'
@@ -17,6 +17,7 @@ import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
  * `planner-drag-hook.test.tsx`): the target day's tile and group marked in
  * the tone of the date the drop changes, a blank slot where the row would
  * land, the lifted row's label, the not-allowed cursor for a refused drop.
+ * And Move to day › in a row's task menu.
  */
 
 // Fri 20 Nov 2026.
@@ -192,5 +193,62 @@ describe('the lifted row’s label', () => {
     act(() => { window.dispatchEvent(new Event('pointermove')) })
     expect(screen.getByTestId('planner-drag-label')).not.toHaveAttribute('data-above')
     vi.unstubAllGlobals()
+  })
+})
+
+describe('Move to day › in a row’s task menu', () => {
+  const openMenu = (title: string) => {
+    fireEvent.contextMenu(within(root()).getByText(title))
+    return screen.getByRole('menu', { name: 'Task actions' })
+  }
+  const openMove = (title: string) => {
+    const menu = openMenu(title)
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /^Move to day/ }))
+    return screen.getAllByRole('menu').at(-1)!
+  }
+
+  it('is in the menu of a Planner’s row, with the days and No day', () => {
+    show()
+    const sub = openMove('Monday deadline')
+    expect(within(sub).getByText('Sets the Do day')).toBeInTheDocument()
+    const items = within(sub).getAllByRole('menuitemradio')
+    expect(items.map((i) => i.getAttribute('data-menu-label'))).toEqual([
+      'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'No day',
+    ])
+    expect(within(sub).getByRole('menuitemradio', { name: /^Mon, Nov 23/ })).toHaveAttribute('aria-checked', 'true')
+    // Placed by its due date: No day is off and says why.
+    const noDay = within(sub).getByRole('menuitemradio', { name: /^No day/ })
+    expect(noDay).toBeDisabled()
+    expect(noDay).toHaveAttribute('aria-description', expect.stringMatching(/due date/))
+  })
+
+  it('a pick sets the Do day of a row placed by its due date, and moves the follow-up of one placed by it', () => {
+    const setDoDate = vi.fn(async () => {})
+    const update = vi.fn(async () => true)
+    useTodoStore.setState({ setDoDate, update })
+    show()
+    fireEvent.click(within(openMove('Monday deadline')).getByRole('menuitemradio', { name: /^Wed, Nov 25/ }))
+    expect(setDoDate).toHaveBeenCalledTimes(1)
+    expect(setDoDate).toHaveBeenCalledWith([4], day(5))
+    expect(update).not.toHaveBeenCalled()
+
+    const sub = openMove('Chase legal')
+    expect(within(sub).getByText('Moves the follow-up')).toBeInTheDocument()
+    fireEvent.click(within(sub).getByRole('menuitemradio', { name: /^Sat, Nov 21/ }))
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(update).toHaveBeenCalledWith(2, { nextFollowupAt: day(1) })
+    expect(setDoDate).toHaveBeenCalledTimes(1)
+  })
+
+  it('No day clears a Do day; the day the row is on writes nothing', () => {
+    const setDoDate = vi.fn(async () => {})
+    const update = vi.fn(async () => true)
+    useTodoStore.setState({ setDoDate, update })
+    show()
+    fireEvent.click(within(openMove('Monday plan')).getByRole('menuitemradio', { name: /^No day/ }))
+    expect(setDoDate).toHaveBeenCalledWith([5], undefined)
+    fireEvent.click(within(openMove('Monday plan')).getByRole('menuitemradio', { name: /^Mon, Nov 23/ }))
+    expect(setDoDate).toHaveBeenCalledTimes(1)
+    expect(update).not.toHaveBeenCalled()
   })
 })

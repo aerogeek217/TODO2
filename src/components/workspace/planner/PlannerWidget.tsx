@@ -8,6 +8,7 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { usePlanner, useTasksDoneToday, type PlannerData } from '../../../hooks/use-planner'
 import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
+import { movePlannerTask } from '../../../services/planner-drop'
 import { appliedScreenFilter, useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { usePlannerStore, type PlannerDragPreview } from '../../../stores/planner-store'
@@ -24,10 +25,12 @@ import { plannerFaceFor, plannerStripFits } from '../../../utils/widget-face'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
 import { CheckIcon, PlusIcon } from '../../shared/icons'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
+import { TaskMenuExtrasContext } from '../../task/task-menu-extras'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { DropSlot, ListWidgetRow, type ListRowDragLook } from '../list/ListWidgetRow'
 import listStyles from '../list/ListWidget.module.css'
 import { WidgetNameLine } from '../WidgetTopLine'
+import { plannerMoveEntries } from './planner-menu'
 import { PlannerStrip, type PlannerDropMark } from './PlannerStrip'
 import { usePlannerDrag, type PlannerActiveDrag } from './use-planner-drag'
 import styles from './PlannerWidget.module.css'
@@ -63,7 +66,8 @@ function groupLabel(group: Group): string {
  * `order`). While a task is dragged over it (`usePlannerDrag`) the target
  * day's tile and group are dashed in the color of the date the drop
  * changes, a blank slot shows where the row would land, and the lifted row
- * carries the label (`PlannerDragLabel`).
+ * carries the label (`PlannerDragLabel`). Without a pointer: **Move to
+ * day ›** in a row's task menu (`planner-menu`).
  */
 export function PlannerWidget({ tab }: { tab: PlannerTab }) {
   const [faceRef, face] = useWidgetFace(plannerFaceFor)
@@ -146,12 +150,18 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
     return { active, preview, mark: preview && tone ? { key: preview.key, tone } : null, shown }
   }, [active, preview, shown, data.today])
 
+  // ── Move to day ›, in each row's task menu ──
+  const plannerWindow = view.window
+  const menuExtras = useCallback((todo: Task) => plannerMoveEntries(todo, plannerWindow, (target) => {
+    void movePlannerTask(tabId, { todoId: todo.id, target, window: plannerWindow })
+  }), [tabId, plannerWindow])
+
   const today = <TodayGroup tabId={tabId} group={view.today} data={data} mobile={isMobile} drag={drag} />
   const ahead = days.map((g) => <DayGroup key={g.key} tabId={tabId} group={g} data={data} mobile={isMobile} drag={drag} />)
   const noDay = showNoDay ? <DayGroup tabId={tabId} group={view.noDay} data={data} mobile={isMobile} drag={drag} /> : null
 
   return (
-    <>
+    <TaskMenuExtrasContext.Provider value={menuExtras}>
       <WidgetNameLine name="Planner">
         {offset > 0 ? (
           <button
@@ -202,7 +212,7 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
           </Rows>
         </div>
       )}
-    </>
+    </TaskMenuExtrasContext.Provider>
   )
 }
 

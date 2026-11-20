@@ -4,7 +4,7 @@ import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
 import type { PersistedTodoItem } from '../../models'
 import { createTab, PLANNER_ORDER_MAX, type PersistedWorkspaceLayout, type PlannerTab } from '../../models/workspace-layout'
-import { applyPlannerMove, planPlannerDrop } from '../../services/planner-drop'
+import { applyPlannerMove, movePlannerTask, planPlannerDrop } from '../../services/planner-drop'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListOrderStore } from '../../stores/list-order-store'
 import type { PlannerDragPreview } from '../../stores/planner-store'
@@ -375,5 +375,29 @@ describe('the hand order', () => {
     const order = await storedOrder()
     expect(order).toHaveLength(PLANNER_ORDER_MAX)
     expect(order?.slice(0, 3)).toEqual([b.uid, a.uid, 'u0'])
+  })
+})
+
+describe('Move to day › (no pointer)', () => {
+  it('makes the same writes as a drop on the day, and never an order', async () => {
+    const chase = await seed('Chase', { nextFollowupAt: day(0) })
+    const venue = await seed('Venue', { dueDate: day(2) })
+    const w = watchWrites()
+    await movePlannerTask('plan', { todoId: chase.id, target: on(3), window: WINDOW })
+    await movePlannerTask('plan', { todoId: venue.id, target: on(4), window: WINDOW })
+    expect(w.update).toHaveBeenCalledTimes(1)
+    expect(w.setDoDate).toHaveBeenCalledTimes(1)
+    expect(w.patch).not.toHaveBeenCalled()
+    expect((await storedTask(chase.id)).nextFollowupAt).toEqual(day(3))
+    expect((await storedTask(venue.id)).doDate).toEqual(day(4))
+    expect((await storedTask(venue.id)).dueDate).toEqual(day(2))
+
+    // No day: a Do day cleared; a row placed by a date left as it is.
+    await movePlannerTask('plan', { todoId: venue.id, target: NO_DAY, window: WINDOW })
+    expect((await storedTask(venue.id)).doDate).toBeUndefined()
+    const before = w.tasks()
+    await movePlannerTask('plan', { todoId: venue.id, target: NO_DAY, window: WINDOW })
+    await movePlannerTask('plan', { todoId: chase.id, target: on(3), window: WINDOW })
+    expect(w.tasks()).toBe(before)
   })
 })

@@ -4,13 +4,13 @@ import { useWorkspaceStore } from '../stores/workspace-store'
 import { plannerDropPlan, type PlannerDropPlan, type PlannerDropPosition, type PlannerTarget, type PlannerWindow } from '../utils/planner'
 import type { PlannerDropRequest } from '../utils/task-dnd'
 
-/** A task moved to a day of a Planner: a row dropped on a tile or in a group. */
+/** A task moved to a day of a Planner: a row dropped on a tile or in a group, or Move to day ›. */
 interface PlannerMove {
   todoId: number
   target: PlannerTarget
   /** The Planner's window as it shows: what the task's placement is read against. */
   window: Pick<PlannerWindow, 'today' | 'last'>
-  /** Dropped into a group: where (`utils/planner.PlannerDropPosition`). Null: a tile. */
+  /** Dropped into a group: where (`utils/planner.PlannerDropPosition`). Null: a tile, the menu. */
   position?: PlannerDropPosition | null
 }
 
@@ -43,7 +43,7 @@ export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDra
 
 /**
  * Makes a planned move in the Planner `tabId` — the only place a Planner
- * drop writes from. The hand order first (the tab's view
+ * drop or Move to day › writes from. The hand order first (the tab's view
  * state, `order`: saved at once, no undo step, as a list's manual order),
  * then the one task write: a follow-up moved to the day (local midnight) by
  * the ordinary task edit — stamped, one undo step — or the Do day set or
@@ -55,4 +55,10 @@ export async function applyPlannerMove(tabId: string, todoId: number, plan: Plan
   if (order) void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { order })
   if (drop.kind === 'followup') await useTodoStore.getState().update(todoId, { nextFollowupAt: drop.date })
   else if (drop.kind === 'do') await useTodoStore.getState().setDoDate([todoId], drop.date)
+}
+
+/** Plans and makes `move` (Move to day ›); resolves once it is written. */
+export function movePlannerTask(tabId: string, move: PlannerMove): Promise<void> {
+  const plan = planPlannerMove(move)
+  return plan ? applyPlannerMove(tabId, move.todoId, plan) : Promise.resolve()
 }
