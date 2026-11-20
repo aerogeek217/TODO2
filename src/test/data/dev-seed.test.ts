@@ -75,7 +75,7 @@ describe('dev seed generator', () => {
     const next = open.map((t) => ms(t.nextFollowupAt)).filter((v) => v !== undefined)
     expect(next.some((v) => v < todayMs), 'overdue follow-up').toBe(true)
     expect(next.some((v) => v === todayMs), 'follow-up today').toBe(true)
-    // Planned tasks (the Do day, schema v85): open ones, around today — one missed, some today, some ahead.
+    // Planned tasks (the Planner's planned day, schema v85): open ones, around today — one missed, some today, some ahead.
     const planned = seed.todos.filter((t) => t.doDate !== undefined)
     expect(planned.length).toBeGreaterThanOrEqual(5)
     expect(planned.every((t) => !t.isCompleted)).toBe(true)
@@ -84,6 +84,11 @@ describe('dev seed generator', () => {
     expect(doDays.some((v) => v === todayMs), 'planned today').toBe(true)
     expect(doDays.some((v) => v > todayMs), 'planned ahead').toBe(true)
     expect(planned.some((t) => t.recurrenceRule !== undefined), 'a repeating task planned').toBe(true)
+    // Held in Unplanned (schema v86): open tasks with a date, never beside a planned day.
+    const held = seed.todos.filter((t) => t.unplanned !== undefined)
+    expect(held.length).toBeGreaterThanOrEqual(2)
+    expect(held.every((t) => t.unplanned === true && !t.isCompleted && t.doDate === undefined)).toBe(true)
+    expect(held.every((t) => t.dueDate !== undefined || t.nextFollowupAt !== undefined)).toBe(true)
     const exportedMs = Date.parse(seed.exportedAt)
     const last = seed.todos.map((t) => ms(t.lastFollowupAt)).filter((v) => v !== undefined)
     expect(last.length).toBeGreaterThan(0)

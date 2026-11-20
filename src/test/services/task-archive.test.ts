@@ -127,6 +127,18 @@ describe('buildTaskArchive', () => {
     expect(prepared.data.todos[1]?.doDate).toBeUndefined()
   })
 
+  it('carries a task held in Unplanned (schema v86) through the append pipeline', async () => {
+    const s = await seed()
+    await db.todos.update(s.oldDone, { unplanned: true })
+    const archive = await buildTaskArchive([s.oldDone, s.oldBare])
+    expect(archive.todos.map((t) => t.unplanned)).toEqual([true, undefined])
+    const json = JSON.stringify(archive)
+    expect(selfCheckTaskArchiveJson(json)).toBeNull()
+    const prepared = prepareImportText(json, { purpose: 'append' })
+    if (!prepared.ok) throw new Error(prepared.error)
+    expect(prepared.data.todos.map((t) => t.unplanned)).toEqual([true, undefined])
+  })
+
   it('skips ids that no longer exist', async () => {
     const s = await seed()
     const archive = await buildTaskArchive([s.oldBare, 9999])

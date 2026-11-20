@@ -35,15 +35,26 @@ export interface TodoItem {
    */
   nextFollowupAt?: Date
   /**
-   * The Do day: the day the user plans to do the task — a calendar day
-   * stored at local midnight. Planner-only: shown and set there and nowhere
-   * else (no filter, sort, column or export reads it). Planning is not an
-   * edit of the task: setting or clearing it never stamps `modifiedAt`
-   * (`todo-store.setDoDate`, `KEEP_STAMPS`) and logs no history event.
-   * Completing a repeating task clears it on the next occurrence; Duplicate
-   * doesn't copy it. Not indexed. Absent = not planned (schema v85).
+   * The planned day: the day the user plans to work on the task — a
+   * calendar day stored at local midnight. Planner-only: shown and set there
+   * and nowhere else (no filter, sort, column or export reads it). One of a
+   * task's two **plan states**, with `unplanned` (never both). Planning is
+   * not an edit of the task: a plan write never stamps `modifiedAt`
+   * (`todo-store.setPlan`, `KEEP_STAMPS`) and logs no history event, and it
+   * never changes a due date or a follow-up. Completing a repeating task
+   * clears it on the next occurrence; Duplicate doesn't copy it. Not
+   * indexed. Absent = no planned day (schema v85).
    */
   doDate?: Date
+  /**
+   * Held in the Planner's Unplanned tray: the task has a due date or a
+   * follow-up that would put it on a day, and the user took it off that day.
+   * Only `true` is stored, and never beside `doDate` (the other plan state).
+   * Written, cleared on a repeating completion and left out by Duplicate as
+   * `doDate` is; no stamp, no history event. Not indexed. Absent = not held
+   * (schema v86).
+   */
+  unplanned?: true
   recurrenceRule?: RecurrenceRule
   /**
    * On the user's short list of tasks to work on now. Shown as a marker on

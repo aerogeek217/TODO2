@@ -16,7 +16,8 @@
  * statuses plus Waiting and Parked; due dates incl. overdue + today, some
  * pushed out (deadline history); next follow-ups incl. overdue and today,
  * some followed up before; a handful of open tasks planned for a day (the
- * Do day: yesterday, today and the next few days); recurring tasks (one
+ * Planner's: yesterday, today and the next few days) and two held in its
+ * Unplanned tray; recurring tasks (one
  * monthly on the month's last day); Focus / Urgent / Important flags; completed tasks old and recent
  * with `completed` events, one with no event, one reopened (with the 30-day
  * retention setting the old ones trigger the purge prompt); notes and
@@ -57,7 +58,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 85
+export const DEV_SEED_SCHEMA_VERSION = 86
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -226,8 +227,10 @@ interface TaskOpts {
   followup?: number
   /** Last followed up on this day (≤ 0). */
   followedUp?: number
-  /** The Do day: the day the (open) task is planned for (schema v85). */
+  /** The planned day: the day the (open) task is planned for (schema v85). */
   doDay?: number
+  /** Held in the Planner's Unplanned tray (schema v86): an open task with a date, off its day. */
+  held?: true
   recur?: RecurWord
   status?: StatusKey
   people?: PersonKey[]
@@ -451,7 +454,7 @@ const PROJECTS: ProjectDef[] = [
       ['Submit timesheet', { recur: 'weekly', due: -2, tags: ['quick-win'] }],
       ['Clean up the shared drive', { followup: -12, status: 'parked' }],
       'Update the vendor contact list',
-      ['Review access for departing contractors', { due: 5, tags: ['security'], people: ['sam'] }],
+      ['Review access for departing contractors', { due: 5, held: true, tags: ['security'], people: ['sam'] }],
       'Audit shared service accounts',
       ['Book flights for the November offsite', { followup: 2, doDay: 2, tags: ['travel'] }],
       'Renew the parking permit',
@@ -466,7 +469,7 @@ const PROJECTS: ProjectDef[] = [
       'Respond to the IT asset inventory request',
       'Unsubscribe from noisy alert emails',
       "Back up the team's dashboards",
-      ['Organize the team wiki sidebar', { followup: -15 }],
+      ['Organize the team wiki sidebar', { followup: -15, held: true }],
       'Review the office move plan',
       ['Request a new monitor', { followup: 0, doDay: -1, tags: ['quick-win'] }],
       'Update the email signature with the new title',
@@ -733,6 +736,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     if (lastFollowupMs !== null) todo.lastFollowupAt = iso(lastFollowupMs)
     if (o.followup !== undefined && completedMs === null) todo.nextFollowupAt = iso(day(o.followup))
     if (o.doDay !== undefined && completedMs === null) todo.doDate = iso(day(o.doDay))
+    else if (o.held && completedMs === null) todo.unplanned = true
     if (o.recur) {
       todo.recurrenceRule = o.recur === 'monthly' && due && due.getDate() >= 29
         ? { every: { ...RECUR_EVERY.monthly }, originalDayOfMonth: due.getDate() }
@@ -750,7 +754,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     if (todo.lastFollowupAt) ev('followedUp', lastFollowupMs ?? created, null, todo.lastFollowupAt)
     // Field order of the model (cosmetic — keeps diffs against real exports readable).
     todos.push(reorder(todo, ['id', 'uid', 'title', 'notes', 'isCompleted', 'completedAt', 'dueDate',
-      'lastFollowupAt', 'nextFollowupAt', 'doDate', 'recurrenceRule', 'focus', 'urgent', 'important', 'createdAt', 'modifiedAt',
+      'lastFollowupAt', 'nextFollowupAt', 'doDate', 'unplanned', 'recurrenceRule', 'focus', 'urgent', 'important', 'createdAt', 'modifiedAt',
       'statusId', 'sortOrder']))
 
     const personIds = new Set([...(o.people ?? []).map((p) => IDS.people[p]), ...(o.orgs ?? []).map((g) => IDS.orgs[g])])
