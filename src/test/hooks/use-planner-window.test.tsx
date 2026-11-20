@@ -13,7 +13,7 @@ import { resetDb } from '../helpers'
 import { cell, grid } from '../helpers/layout-builders'
 
 /**
- * A Planner's window (its week and picked day, `stores/planner-store`) is
+ * A Planner's window (its week, `stores/planner-store`) is
  * its tab's **in its layout**: a duplicated layout keeps its tabs' ids, and
  * its Planner starts on this week all the same; and a tab that stops being
  * a Planner — Change widget, an undo — loses its window, so it starts on
@@ -32,8 +32,8 @@ function Harness() {
 }
 
 function Planner() {
-  const { offset, picked, windowKey } = usePlanner('p', undefined, false)
-  return <output data-testid="window" data-key={windowKey}>{`${offset}/${picked ?? 'none'}`}</output>
+  const { offset, windowKey } = usePlanner('p', undefined, false)
+  return <output data-testid="window" data-key={windowKey}>{String(offset)}</output>
 }
 
 const shown = () => screen.getByTestId('window').textContent
@@ -59,11 +59,10 @@ beforeEach(async () => {
 
 afterEach(cleanup)
 
-/** Moves the shown Planner a week on and picks a day there. */
+/** Moves the shown Planner a week on. */
 function moveOn() {
   act(() => {
     usePlannerStore.getState().shift(keyShown(), 1)
-    usePlannerStore.getState().pick(keyShown(), new Date(2026, 10, 30))
   })
 }
 
@@ -71,9 +70,9 @@ describe('a Planner’s window is its tab’s in its layout', () => {
   it('is keyed by the open layout and the tab', () => {
     render(<Harness />)
     expect(keyShown()).toBe(plannerWindowKey(layoutId, 'p'))
-    expect(shown()).toBe('0/none')
+    expect(shown()).toBe('0')
     moveOn()
-    expect(shown()).toBe(`7/${new Date(2026, 10, 30).getTime()}`)
+    expect(shown()).toBe('7')
   })
 
   it('a duplicated layout keeps its tabs’ ids, and its Planner starts on this week; the original keeps its week', async () => {
@@ -86,13 +85,13 @@ describe('a Planner’s window is its tab’s in its layout', () => {
     // The copy's Planner tab has the original's id.
     expect(tabIds(ws().working)).toEqual(['p:planner', 'n:notes'])
     expect(keyShown()).toBe(plannerWindowKey(copyId, 'p'))
-    expect(shown()).toBe('0/none')
+    expect(shown()).toBe('0')
     // A move in the copy is the copy's.
     act(() => usePlannerStore.getState().shift(keyShown(), 2))
-    expect(shown()).toBe('14/none')
+    expect(shown()).toBe('14')
     await act(async () => { await ws().load(layoutId) })
     expect(keyShown()).toBe(plannerWindowKey(layoutId, 'p'))
-    expect(shown()).toBe(`7/${new Date(2026, 10, 30).getTime()}`)
+    expect(shown()).toBe('7')
   })
 })
 
@@ -104,7 +103,7 @@ describe('a tab that stops being a Planner loses its window', () => {
     expect(screen.getByTestId('kind')).toHaveTextContent('notes')
     expect(usePlannerStore.getState().windows).toEqual({})
     act(() => ws().changeTabKind('p', 'planner'))
-    expect(shown()).toBe('0/none')
+    expect(shown()).toBe('0')
   })
 
   it('an undo that makes it another kind, and the redo that makes it a Planner again', async () => {
@@ -113,7 +112,7 @@ describe('a tab that stops being a Planner loses its window', () => {
     const key = plannerWindowKey(layoutId, 'n')
     act(() => usePlannerStore.getState().shift(key, 3))
     render(<Harness />)
-    expect(usePlannerStore.getState().windows[key]).toEqual({ offset: 21, picked: null })
+    expect(usePlannerStore.getState().windows[key]).toEqual({ offset: 21 })
     await act(async () => { await useUndoStore.getState().undo() })
     expect(tabIds(ws().working)).toEqual(['p:planner', 'n:notes'])
     expect(usePlannerStore.getState().windows[key]).toBeUndefined()
@@ -141,6 +140,6 @@ describe('a tab that stops being a Planner loses its window', () => {
     render(<Harness />)
     moveOn()
     act(() => { void ws().patchTabViewState('p', 'planner', { order: ['a', 'b'] }) })
-    expect(shown()).toBe(`7/${new Date(2026, 10, 30).getTime()}`)
+    expect(shown()).toBe('7')
   })
 })

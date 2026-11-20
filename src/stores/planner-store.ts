@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { startOfDay } from '../utils/date'
 import { PLANNER_WINDOW_DAYS, plannerOffset, type PlannerDrop } from '../utils/planner'
 
 /**
@@ -7,19 +6,17 @@ import { PLANNER_WINDOW_DAYS, plannerOffset, type PlannerDrop } from '../utils/p
  * config or view state, gone with a reload. Kept by its layout's id and its
  * tab's id (`plannerWindowKey`) — not in the widget — so the widget popup's
  * remount (Open larger: a tab has one live widget at a time) shows the same
- * week and day, while the same tab id in another layout (Duplicate layout
+ * week, while the same tab id in another layout (Duplicate layout
  * keeps the tabs' ids) has a window of its own. A tab that stops being a
  * Planner loses its window (`keep`).
  */
 interface PlannerTabWindow {
   /** Days from today to the window's first day: a multiple of 7, 0 or more. */
   offset: number
-  /** The day the days-ahead list starts at (local midnight, ms); null: the window's first. */
-  picked: number | null
 }
 
-/** A tab that never moved its window: this week, no day picked. */
-const DEFAULT_PLANNER_WINDOW: PlannerTabWindow = { offset: 0, picked: null }
+/** A tab that never moved its window: this week. */
+const DEFAULT_PLANNER_WINDOW: PlannerTabWindow = { offset: 0 }
 
 /**
  * A task dragged over a Planner's tile or group: what a drop there would do.
@@ -56,12 +53,10 @@ interface PlannerState {
   drag: PlannerDragPreview | null
   /** Sets, or with `null` clears, the drag preview. */
   setDrag: (drag: PlannerDragPreview | null) => void
-  /** Moves the window `key` by `weeks` (never before this week); the pick, a day of the old window, goes. */
+  /** Moves the window `key` by `weeks` (never before this week). */
   shift: (key: string, weeks: number) => void
-  /** Back to this week, no day picked. */
+  /** Back to this week. */
   reset: (key: string) => void
-  /** Picks the day the days-ahead list starts at; `null` — or the day already picked — clears it. */
-  pick: (key: string, day: Date | null) => void
   /**
    * Drops the windows of the layout `layoutId` whose tab isn't one of
    * `tabIds` — its Planner tabs now: a tab closed, or changed to another
@@ -82,7 +77,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
     const current = get().windows[key] ?? DEFAULT_PLANNER_WINDOW
     const offset = plannerOffset(current.offset + weeks * PLANNER_WINDOW_DAYS)
     if (offset === current.offset) return
-    set((s) => ({ windows: { ...s.windows, [key]: { offset, picked: null } } }))
+    set((s) => ({ windows: { ...s.windows, [key]: { offset } } }))
   },
 
   reset(key) {
@@ -92,14 +87,6 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
       void _gone
       return { windows: rest }
     })
-  },
-
-  pick(key, day) {
-    const current = get().windows[key] ?? DEFAULT_PLANNER_WINDOW
-    const at = day ? startOfDay(day).getTime() : null
-    const picked = at === current.picked ? null : at
-    if (picked === current.picked) return
-    set((s) => ({ windows: { ...s.windows, [key]: { ...current, picked } } }))
   },
 
   keep(layoutId, tabIds) {

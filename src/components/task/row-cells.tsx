@@ -285,11 +285,12 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
  * the due date's — a dropped date shows as its icon, the tooltip still has
  * it); the cell re-renders only when that changes, so a divider drag renders
  * it only as it crosses a tier. A part showing its date gets a clear × over
- * its right end on hover.
+ * its right end on hover. `late` (the surface's, `TaskRowExtras.late`)
+ * draws a date in its late look whatever today is.
  */
 export function DatesCell({
   todo, today, deadlineInputRef, onOpenDue, onClearDue, onDueInputChange,
-  followupAnchorRef, followupOpen, onToggleFollowup, onClearFollowup, inCluster = false,
+  followupAnchorRef, followupOpen, onToggleFollowup, onClearFollowup, inCluster = false, late,
 }: {
   todo: PersistedTodoItem
   today: Date
@@ -306,6 +307,8 @@ export function DatesCell({
    * use, as icons. Else the parts it does use, in its dates column.
    */
   inCluster?: boolean
+  /** Dates drawn late whatever today is. */
+  late?: { due?: boolean; followup?: boolean }
 }) {
   const columnTier = useTaskRowColumn((c) => c.datesTier)
   const dueUsed = useTaskRowColumn((c) => c.due > 0)
@@ -321,6 +324,7 @@ export function DatesCell({
         today={today}
         width={parts.due}
         showDate={tier !== 'icons'}
+        drawLate={late?.due === true}
         inputRef={deadlineInputRef}
         onOpen={onOpenDue}
         onClear={onClearDue}
@@ -331,6 +335,7 @@ export function DatesCell({
         today={today}
         width={parts.followup}
         showDate={tier === 'both'}
+        drawLate={late?.followup === true}
         anchorRef={followupAnchorRef}
         open={followupOpen}
         onToggle={onToggleFollowup}
@@ -354,11 +359,13 @@ function DateClear({ label, cell, onClear }: { label: string; cell: string; onCl
   )
 }
 
-function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onInputChange }: {
+function DuePart({ todo, today, width, showDate, drawLate, inputRef, onOpen, onClear, onInputChange }: {
   todo: PersistedTodoItem
   today: Date
   width: number
   showDate: boolean
+  /** Drawn late whatever today is (the look only: the name and tooltip keep the date's own state). */
+  drawLate: boolean
   inputRef: RefObject<HTMLInputElement | null>
   onOpen: () => void
   onClear: () => void
@@ -368,7 +375,8 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
   const { triggerProps, tooltip } = useTooltip(due ? dueTooltip(todo, today) : null)
   // One tint step: muted until the date is inside the Settings "due soon" range (the one that makes a task urgent), then the deadline colour.
   const range = useSettingsStore((s) => s.urgentDueWithinDays)
-  const state = dueState(todo, today, range)
+  const own = dueState(todo, today, range)
+  const state = drawLate && due ? { past: true, soon: own.soon } : own
   const { past, soon } = state
   const level = dueLevel(state)
   const repeats = todo.recurrenceRule != null
@@ -419,11 +427,13 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
   )
 }
 
-function FollowupPart({ todo, today, width, showDate, anchorRef, open, onToggle, onClear }: {
+function FollowupPart({ todo, today, width, showDate, drawLate, anchorRef, open, onToggle, onClear }: {
   todo: PersistedTodoItem
   today: Date
   width: number
   showDate: boolean
+  /** Drawn late whatever today is (the look only: the name and tooltip keep the date's own state). */
+  drawLate: boolean
   anchorRef: RefObject<HTMLButtonElement | null>
   open: boolean
   onToggle: (e: MouseEvent) => void
@@ -431,8 +441,9 @@ function FollowupPart({ todo, today, width, showDate, anchorRef, open, onToggle,
 }) {
   const next = todo.nextFollowupAt
   const { triggerProps, tooltip } = useTooltip(next ? followupTooltip(todo, today) : null)
-  const state = followupState(todo, today)
-  const late = state === 'late'
+  const own = followupState(todo, today)
+  const late = own === 'late'
+  const state = drawLate && next ? 'late' : own
   const rowDates = useSettingsStore((s) => s.rowDates)
   const text = next ? formatRowDate(next, today, rowDates) : ''
   const dateShown = showDate && next != null

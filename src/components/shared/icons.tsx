@@ -265,6 +265,16 @@ export function UndoIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M5.5 3L2.5 6l3 3" /><path d="M2.5 6h7a4 4 0 0 1 0 8H7" /></Svg>
 }
 
+/** Reset: an arrow round a circle, back to its start (the Planner's Reset plan). */
+export function ResetIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M3 8a5 5 0 1 0 1.6-3.7M3 2.8v2.7h2.7" /></Svg>
+}
+
+/** An arrow down (the Planner's Unplan: Delayed down into Unplanned). */
+export function ArrowDownIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size} strokeWidth={1.8}><path d="M8 3v10M4 9l4 4 4-4" /></Svg>
+}
+
 /** Redo: the undo arrow, mirrored. */
 export function RedoIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M10.5 3l3 3-3 3" /><path d="M13.5 6h-7a4 4 0 0 0 0 8H9" /></Svg>

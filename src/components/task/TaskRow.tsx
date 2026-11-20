@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useMemo, memo, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import { useRef, useState, useCallback, useLayoutEffect, useMemo, memo, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { type PersistedTodoItem, type Person, type Tag } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -18,6 +18,7 @@ import { EntityMenu, type MenuEntity } from '../shared/EntityMenu'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { useTaskRowClusterEnd, useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
 import { keepRowTextUnselected } from './row-events'
+import { useTaskRowExtras } from './task-row-extras'
 import { statusNotesPreview } from '../../utils/notes-preview'
 import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
 import { useSubtaskStore } from '../../stores/subtask-store'
@@ -67,6 +68,11 @@ const NO_PEOPLE: Person[] = []
  * checkbox and the title (wrapping to two lines), then under the title
  * `StackedDetails` — due · follow-up · checklist · people · tags; no notes
  * or status cell (the editor and the task menu keep them).
+ *
+ * The surface around it may add to it (`TaskRowExtrasContext`, the
+ * Planner's): a tag after the title (Stacked: leading the details line),
+ * buttons at the title's end on hover and focus, and real dates drawn late.
+ * With no provider there is none of it.
  */
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, isSelected, ghost, stacked = false,
@@ -102,6 +108,11 @@ export const TaskRow = memo(function TaskRow({
   const count = subtasks && subtasks.length > 0 ? subtaskCount(subtasks) : null
   // No checklist on an open task: the add mark stands where the count would be (shown on hover), and anchors the popover.
   const canAddSubtasks = count === null && !ghost && !todo.isCompleted
+  // What the surface around the row adds (the Planner's tag, hover buttons, late dates); null everywhere else.
+  const extras = useTaskRowExtras(todo, ghost)
+  const tag = extras?.tag
+  const actions = extras?.actions
+  const lateDates = extras?.late
 
   const {
     bulk, handleToggleComplete, assignedTags, allTags, tagPickerOpen, toggleTagPicker, closeTagPicker, toggleTag, createTag,
@@ -246,7 +257,7 @@ export const TaskRow = memo(function TaskRow({
         />
       ) : (
         <span
-          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${(count || canAddSubtasks) && !stacked ? styles.titleWithCount : ''}`}
+          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${(count || canAddSubtasks || tag) && !stacked ? styles.titleWithCount : ''} ${tag && !stacked ? styles.titleWithTag : ''}`}
           data-task-title={todo.title}
           {...titleTipProps}
           onPointerEnter={onTitlePointerEnter}
@@ -262,6 +273,7 @@ export const TaskRow = memo(function TaskRow({
           }}
         >
           <span className={styles.titleText} data-title-text="">{todo.title}</span>
+          {!stacked && tag}
           {count && !stacked && (ghost
             ? <SubtaskCountStatic count={count} />
             : <SubtaskCountButton count={count} open={subtasksOpen} buttonRef={subtasksRef} onClick={toggleSubtasks} />)}
@@ -281,6 +293,8 @@ export const TaskRow = memo(function TaskRow({
           count={count}
           canAddSubtasks={canAddSubtasks}
           ghost={ghost}
+          lead={tag}
+          late={lateDates}
           deadlineInputRef={deadlineInputRef}
           onOpenDue={openDeadlinePicker}
           onDueInputChange={onDeadlineInputChange}
@@ -341,12 +355,14 @@ export const TaskRow = memo(function TaskRow({
               followupOpen={followupOpen}
               onToggleFollowup={toggleFollowup}
               onClearFollowup={() => bulk.setFollowup(todo.id, null)}
+              late={lateDates}
             />
           )}
           {used.status && <StatusCell status={status} anchorRef={statusRef} open={showStatusMenu} onToggle={() => setShowStatusMenu((v) => !v)} />}
-          {anyUnused && !isEditing && (
-            // The fields the list has no column for, on hover / focus at the title's end (each its empty cell).
-            <RowFieldCluster>
+          {(anyUnused || actions) && !isEditing && (
+            // On hover / focus at the title's end: the surface's buttons, then the fields the list has no column for (each its empty cell).
+            <RowFieldCluster reserve={tag != null}>
+              {actions}
               {!used.notes && <NotesCell update={newestUpdate} notes={todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />}
               {!used.people && (
                 <PeopleCell
@@ -380,6 +396,7 @@ export const TaskRow = memo(function TaskRow({
                   followupOpen={followupOpen}
                   onToggleFollowup={toggleFollowup}
                   onClearFollowup={() => bulk.setFollowup(todo.id, null)}
+                  late={lateDates}
                   inCluster
                 />
               )}
@@ -387,6 +404,11 @@ export const TaskRow = memo(function TaskRow({
             </RowFieldCluster>
           )}
         </>
+      )}
+
+      {stacked && actions && !isEditing && (
+        // A stacked row has no cluster: the surface's buttons over the title line's end.
+        <span className={`${styles.fieldCluster} ${styles.stackedActions}`} data-row-cluster="">{actions}</span>
       )}
 
       {/* The people picker, the follow-up popover and the notes popover. */}
@@ -451,10 +473,30 @@ export const TaskRow = memo(function TaskRow({
  * A desktop row's hover cluster (flair P8): the empty cells of the fields its
  * list has no column for, over the title's end just left of the remaining
  * details (`useTaskRowClusterEnd`); shown with the placeholders — row hover,
- * focus, an open picker — by opacity only, so nothing moves.
+ * focus, an open picker — by opacity only, so nothing moves. It leads with
+ * the surface's buttons (`TaskRowExtras.actions`) when there are any.
+ *
+ * `reserve` (a row with the surface's tag after its title): the cluster's
+ * width is written on the row (`--row-cluster-width`), and the title keeps
+ * that room clear while the cluster shows — the title's text gives way, so
+ * the tag stays in view beside the cluster instead of under it.
  */
-function RowFieldCluster({ children }: { children: ReactNode }) {
+function RowFieldCluster({ reserve = false, children }: { reserve?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLSpanElement>(null)
   useTaskRowClusterEnd(ref)
+  /** The width was written on the row: a row that never reserves touches nothing. */
+  const reserved = useRef(false)
+  useLayoutEffect(() => {
+    const node = ref.current
+    const row = node?.parentElement
+    if (!node || !row) return
+    if (reserve) {
+      row.style.setProperty('--row-cluster-width', `${node.offsetWidth}px`)
+      reserved.current = true
+    } else if (reserved.current) {
+      row.style.removeProperty('--row-cluster-width')
+      reserved.current = false
+    }
+  })
   return <span ref={ref} className={styles.fieldCluster} data-row-cluster="">{children}</span>
 }

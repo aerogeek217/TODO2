@@ -6,11 +6,14 @@
  * day: a few tasks overdue, most due within the next two weeks, some later.
  * Synthetic: fictional first names, no real people or companies.
  *
- * The Planner shot's week is in the tasks too: a few given a planned day
- * (`doDay`), a few in Focus with no day, three completed today. A planned day is
- * a v85 field in a file stamped `README_SCHEMA_VERSION`: no upgrade between
- * the two rebuilds a task, and import validation keeps `doDate`, so it
- * arrives as written.
+ * The Planner shot's week is in the tasks too: two planned for today, one
+ * planned a day after its due date, two whose planned day has passed
+ * (Delayed), two held in Unplanned (`held`, one of them dated), a few in
+ * Focus with no day, three completed today. A planned day (`doDay`) is a
+ * v85 field and `held` a v86 one in a file stamped `README_SCHEMA_VERSION`:
+ * no upgrade between rebuilds a task, and import validation keeps `doDate`
+ * and `unplanned`, so they arrive as written. Nothing but the Planner shows
+ * them: the other shots are as they were.
  */
 
 type Obj = Record<string, unknown>
@@ -59,6 +62,8 @@ interface Task {
   focus?: boolean
   /** Its planned day (the Planner's), this many days from today. */
   doDay?: number
+  /** Held in the Planner's Unplanned tray (no planned day beside it). */
+  held?: true
   notes?: string
   /** `[x] ` marks a line done. */
   subtasks?: string[]
@@ -96,23 +101,24 @@ const TASKS: Task[] = [
   { title: 'Freeze schema changes', age: 7, due: 0, people: ['marcus'], tags: ['billing'] },
   { title: 'Verify backups restore in staging', age: 36, due: 5, people: ['jonas'], tags: ['billing'], status: 'assigned' },
   { title: 'Retire the old reporting jobs', age: 50, due: 13, people: ['marcus'], tags: ['billing'] },
-  { title: 'Tidy up the migration wiki page', age: 55, people: ['marcus'], tags: ['billing', 'docs'], focus: true },
+  { title: 'Tidy up the migration wiki page', age: 55, people: ['marcus'], tags: ['billing', 'docs'], focus: true, doDay: -2 },
   // ── Hiring ──
   { title: 'Schedule the backend onsite loop', age: 6, due: 1, followup: -1, people: ['aisha'], tags: ['hiring'], status: 'followup' },
-  { title: 'Review the take-home exercises', age: 33, due: -3, people: ['aisha'], tags: ['hiring'], status: 'waiting', doDay: 1 },
+  { title: 'Review the take-home exercises', age: 33, due: -3, people: ['aisha'], tags: ['hiring'], status: 'waiting', doDay: -1 },
   { title: 'Draft the product designer job post', age: 5, due: 9, people: ['aisha'], tags: ['hiring', 'docs'], focus: true, doDay: 0 },
   { title: 'Plan onboarding for the new support hire', age: 42, due: 12, people: ['elena'], tags: ['hiring'], focus: true },
   // ── Vendor contract ──
-  { title: 'Compare vendor support tiers', age: 30, due: 2, people: ['sam'], tags: ['vendor'] },
+  // Planned for the day after it is due: the Planner's tag and its fixes.
+  { title: 'Compare vendor support tiers', age: 30, due: 2, people: ['sam'], tags: ['vendor'], doDay: 3 },
   {
     title: EDITOR_TASK, age: 16, due: 7, followup: 2, followedUp: -2, people: ['sam', 'priya'], tags: ['vendor'], status: 'waiting', important: true,
     notes: 'Contract ends on the 30th. Aim: same seats, a two-year term, premium support at the standard price.\n\n- Usage is down 18% since spring\n- Finance wants a counter-offer by the budget review',
     subtasks: ['[x] Pull the last 12 months of usage', '[x] Get two competing quotes', 'Draft the counter-offer', 'Review the terms with finance'],
     updates: [[-9, 'Kick-off call with their rep'], [-5, 'First renewal quote: 12% up'], [-2, 'Sent usage numbers; reply Friday']],
   },
-  { title: 'Answer the vendor security questionnaire', age: 37, due: 5, followup: 1, people: ['sam'], tags: ['vendor'], status: 'waiting' },
+  { title: 'Answer the vendor security questionnaire', age: 37, due: 5, followup: 1, people: ['sam'], tags: ['vendor'], status: 'waiting', held: true },
   { title: 'Check the data processing addendum', age: 48, due: 10, people: ['elena'], tags: ['vendor'], focus: true },
-  { title: 'Book the planning offsite', age: 2, due: 20, people: ['priya'] },
+  { title: 'Book the planning offsite', age: 2, due: 20, people: ['priya'], held: true },
   // ── Completed in the last few weeks (the trend and the closed counts) ──
   { title: 'Agree the launch date with sales', age: 44, done: -24, people: ['priya'], tags: ['launch'] },
   { title: 'Set up the staging billing database', age: 50, done: -22, people: ['jonas'], tags: ['billing'] },
@@ -241,6 +247,7 @@ export function readmeData(today: Date = new Date()): Obj {
     if (t.followup !== undefined && completed === null) { todo.nextFollowupAt = iso(day(t.followup)); ev('followup', created, iso(day(t.followup))) }
     if (t.focus) todo.focus = true
     if (t.doDay !== undefined && completed === null) todo.doDate = iso(day(t.doDay))
+    if (t.held && t.doDay === undefined && completed === null) todo.unplanned = true
     if (t.urgent) todo.urgent = true
     if (t.important) todo.important = true
     if (t.status) { todo.statusId = statusId(t.status); ev('status', created, statusId(t.status)) }

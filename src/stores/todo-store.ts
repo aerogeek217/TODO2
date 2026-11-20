@@ -162,20 +162,21 @@ interface TodoState {
    * Sets the plan state (`TaskPlan`) of every task in `ids` — `setPlans`
    * with the same plan for each.
    */
-  setPlan: (ids: number[], plan: TaskPlan, description?: string) => Promise<void>
+  setPlan: (ids: number[], plan: TaskPlan, description?: string, snackbar?: boolean) => Promise<void>
   /**
    * Sets each task's **plan state** in the Planner, both of its fields in
    * the one task write: a planned day (`doDate`, its day at local midnight;
    * `unplanned` removed), held in Unplanned (`unplanned: true`; `doDate`
-   * removed), or — `null` — neither. One undo step for all of them, no
-   * snackbar, named `description` (default: `Planned “Title”`, `Unplanned
-   * “Title”`, `Cleared the plan of “Title”`, `Changed the plan of 3
-   * tasks`). Planning is not an edit: the write, its undo and its redo
+   * removed), or — `null` — neither. One undo step for all of them — with
+   * the snackbar and its Undo only when `snackbar` says so (the Planner's
+   * bulk actions: Reset plan, Unplan all Delayed) —, named `description`
+   * (default: `Planned “Title”`, `Unplanned “Title”`, `Cleared the plan of
+   * “Title”`, `Changed the plan of 3 tasks`). Planning is not an edit: the write, its undo and its redo
    * leave every task's `modifiedAt` as it is (`KEEP_STAMPS`), no history
    * event is logged, and no due date or follow-up is ever written. Only the
    * tasks whose plan changes are written; the undo puts back both fields.
    */
-  setPlans: (plans: readonly TaskPlanChange[], description?: string) => Promise<void>
+  setPlans: (plans: readonly TaskPlanChange[], description?: string, snackbar?: boolean) => Promise<void>
   /** Puts every task in `ids` in focus (`on`) or takes it out. One undo step. */
   bulkSetFocus: (ids: number[], on: boolean) => Promise<void>
   /** Flags every task in `ids` urgent (`on`) or clears the flag. One undo step. */
@@ -843,11 +844,11 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'lastFollowupAt', date ?? undefined, label, get, set)
   },
 
-  setPlan(ids: number[], plan: TaskPlan, description?: string) {
-    return get().setPlans(ids.map((id) => ({ id, plan })), description)
+  setPlan(ids: number[], plan: TaskPlan, description?: string, snackbar?: boolean) {
+    return get().setPlans(ids.map((id) => ({ id, plan })), description, snackbar)
   },
 
-  async setPlans(plans: readonly TaskPlanChange[], description?: string) {
+  async setPlans(plans: readonly TaskPlanChange[], description?: string, snackbar = false) {
     if (plans.length === 0) return
     // Both plan fields in each task's one write: a planned day or held, never both.
     const fields = (plan: TaskPlan): Pick<PersistedTodoItem, 'doDate' | 'unplanned'> => (
@@ -867,7 +868,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         label = `Changed the plan of ${plans.length} tasks`
       }
     }
-    await bulkUpdateTasks(changes, label, get, set, { stamp: KEEP_STAMPS })
+    await bulkUpdateTasks(changes, label, get, set, { stamp: KEEP_STAMPS, showSnackbar: snackbar })
   },
 
   async bulkSetFocus(ids: number[], on: boolean) {

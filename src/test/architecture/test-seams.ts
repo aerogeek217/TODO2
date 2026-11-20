@@ -96,7 +96,6 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'services/nlp-resolver.ts': ['TagStoreLike'],
   'services/note-lines.ts': ['classifyNoteLine', 'subtaskLinesUnder'],
   'services/notes-export.ts': ['normalizeToMarkdown'],
-  'services/planner-drop.ts': ['applyPlannerFix', 'resetPlannerPlan', 'unplanDelayedTasks'],
   'services/review-field.ts': ['ReviewFieldText', 'withPick'],
   'services/review-jump.ts': ['focusReviewWidget'],
   'services/review-queue.ts': ['joinOrder', 'keepPlace', 'reviewOrder', 'ReviewOrderEnv'],
@@ -150,8 +149,8 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/notes-preview.ts': ['NOTES_PREVIEW_MAX_CHARS', 'NOTES_PREVIEW_MAX_LINES', 'notesPreviewLines'],
   'utils/planner.ts': [
     'inPlanner', 'PLANNER_DELAYED_KEY', 'PLANNER_TILE_TICKS_MAX', 'PLANNER_UNPLANNED_KEY', 'PlannerConflict', 'plannerConflictLabel',
-    'plannerConflicts', 'PlannerDateKind', 'plannerFixLabel', 'PlannerNaturalDay', 'plannerNaturalDay', 'plannerOrder', 'PlannerPlacement',
-    'plannerReorder', 'plannerResetCounts', 'plannerSnooze', 'PlannerTask', 'plannerWindow',
+    'plannerConflicts', 'PlannerDateKind', 'PlannerNaturalDay', 'plannerNaturalDay', 'plannerOrder',
+    'plannerReorder', 'plannerSnooze', 'plannerTagDay', 'PlannerTask', 'plannerWindow',
   ],
   'utils/priority-cues.ts': ['rowGlow'],
   'utils/priority-groups.ts': ['PriorityGroupContext'],

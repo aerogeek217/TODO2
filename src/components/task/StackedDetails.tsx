@@ -43,6 +43,10 @@ interface StackedDetailsProps {
   canAddSubtasks?: boolean
   /** The drag overlay's copy: nothing to press. */
   ghost?: boolean
+  /** Before the parts: the surface's tag (`TaskRowExtras.tag`). */
+  lead?: ReactNode
+  /** Dates drawn late whatever today is (`TaskRowExtras.late`): the look only. */
+  late?: { due?: boolean; followup?: boolean }
   deadlineInputRef: RefObject<HTMLInputElement | null>
   onOpenDue: () => void
   onDueInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
@@ -72,11 +76,13 @@ interface StackedDetailsProps {
  * absent date, person or tag is its mark, shown on hover / focus like a
  * Rows placeholder. A narrow list clips the line from the right — the
  * tags first, which ellipsize. Every part is a row cell (`data-row-cell`).
+ * `lead` (the surface's tag) comes first, so it is never clipped.
  */
 export function StackedDetails(props: StackedDetailsProps) {
-  const { count, ghost, canAddSubtasks = false } = props
+  const { count, ghost, canAddSubtasks = false, lead } = props
   return (
     <div className={styles.stackedDetails} data-stacked-details="">
+      {lead}
       <StackedDue {...props} />
       <StackedFollowup {...props} />
       {count && (ghost
@@ -91,11 +97,12 @@ export function StackedDetails(props: StackedDetailsProps) {
   )
 }
 
-function StackedDue({ todo, today, ghost, deadlineInputRef, onOpenDue, onDueInputChange }: StackedDetailsProps) {
+function StackedDue({ todo, today, ghost, late, deadlineInputRef, onOpenDue, onDueInputChange }: StackedDetailsProps) {
   const due = todo.dueDate
   const { triggerProps, tooltip } = useTooltip(due ? dueTooltip(todo, today) : null)
   const range = useSettingsStore((s) => s.urgentDueWithinDays)
-  const state = dueState(todo, today, range)
+  const own = dueState(todo, today, range)
+  const state = late?.due && due ? { past: true, soon: own.soon } : own
   const { past, soon } = state
   const rowDates = useSettingsStore((s) => s.rowDates)
   const repeats = todo.recurrenceRule != null
@@ -137,11 +144,12 @@ function StackedDue({ todo, today, ghost, deadlineInputRef, onOpenDue, onDueInpu
   )
 }
 
-function StackedFollowup({ todo, today, ghost, followupAnchorRef, followupOpen, onToggleFollowup }: StackedDetailsProps) {
+function StackedFollowup({ todo, today, ghost, late: drawLate, followupAnchorRef, followupOpen, onToggleFollowup }: StackedDetailsProps) {
   const next = todo.nextFollowupAt
   const { triggerProps, tooltip } = useTooltip(next ? followupTooltip(todo, today) : null)
-  const state = followupState(todo, today)
-  const late = state === 'late'
+  const own = followupState(todo, today)
+  const late = own === 'late'
+  const state = drawLate?.followup && next ? 'late' : own
   const rowDates = useSettingsStore((s) => s.rowDates)
   return (
     <button
