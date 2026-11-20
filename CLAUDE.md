@@ -61,6 +61,7 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 - Push the feature branch regularly — `origin` is the only off-machine backup.
 - Commit messages: imperative mood, under 72 chars
 - One logical change per commit
+- **Changelog:** every deployment (a push to `main`) updates `CHANGELOG.md`. Work merged into the feature branch is listed under `Unreleased` as it lands; the deploy renames that section to its date (and names the data version when the schema changes) and starts a new empty `Unreleased`. Categories are Keep a Changelog's — Added, Changed, Deprecated, Removed, Fixed, Security — written for a user of the app, not as commit subjects.
 
 ## Planning
 - Active tasks are tracked in `docs/plans/TODO.md` — check it at session start
