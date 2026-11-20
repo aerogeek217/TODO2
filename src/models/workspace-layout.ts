@@ -60,7 +60,7 @@ import type { IconValue, LineIconKey } from './icon'
  * maps of 2026-11-18, whole widgets like the Neglect map. Project pulse
  * (`pulse`) and the Pressure radar (`radar`) were removed; v83 dropped
  * every saved one. `planner` is the Planner (2026-11-20): today and the
- * week ahead, a task on a day by its Do day, its follow-up or its due date.
+ * week ahead, a task on its planned day, else the day its follow-up or due date puts it.
  */
 export type WidgetKind =
   | 'lens' | 'calendar' | 'notes' | 'review' | 'planner' | 'neglect' | 'clusters' | 'listwall'

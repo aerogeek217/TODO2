@@ -1,26 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { PLANNER_ORDER_MAX } from '../../models/workspace-layout'
 import {
-  PLANNER_NO_DAY_KEY,
   plannerDayWords,
-  plannerDrop,
-  plannerDropLabel,
-  plannerDropPlan,
-  plannerPlacement,
+  plannerMovePlan,
   plannerReorder,
-  plannerTargetKey,
   type PlannerDropPosition,
   type PlannerTarget,
   type PlannerTask,
 } from '../../utils/planner'
 
 /**
- * What a Planner drop does beyond the one write (`plannerDrop`, in
+ * What a Planner drop does beyond the plan write (`plannerDrop`, in
  * `planner.test.ts`): the hand order with the row where it was dropped,
  * merged into the stored one so the tasks not shown keep their places
- * (`plannerReorder`), the whole plan (`plannerDropPlan`: the write, the
- * order, whether the row leaves its group), and what the drag says of it
- * (`plannerDropLabel`).
+ * (`plannerReorder` — the trays' rows in the same sequence), and the whole
+ * move (`plannerMovePlan`: the plan write, the order, whether the row
+ * leaves its group).
  */
 
 // Fri 20 Nov 2026.
@@ -28,7 +23,8 @@ const TODAY = new Date(2026, 10, 20)
 const day = (n: number, hour = 0) => new Date(2026, 10, 20 + n, hour)
 const WINDOW = { today: TODAY, last: day(6) }
 const on = (n: number): PlannerTarget => ({ kind: 'day', day: day(n, 10) })
-const NO_DAY: PlannerTarget = { kind: 'noday' }
+const UNPLANNED: PlannerTarget = { kind: 'unplanned' }
+const DELAYED: PlannerTarget = { kind: 'delayed' }
 
 let seq = 0
 function task(over: Partial<PlannerTask> = {}): PlannerTask {
@@ -36,7 +32,7 @@ function task(over: Partial<PlannerTask> = {}): PlannerTask {
   return { uid: `t${seq}`, isCompleted: false, sortOrder: seq, ...over }
 }
 
-/** Today: a b c; Monday: d e; Focus, no day: f. */
+/** Today: a b c; Monday: d e; Unplanned: f. */
 const SHOWN = ['a', 'b', 'c', 'd', 'e', 'f']
 const at = (rows: string[], index: number, shown: readonly string[] = SHOWN): PlannerDropPosition => ({ rows, index, shown })
 
@@ -178,119 +174,136 @@ describe('plannerReorder — merged into the stored order', () => {
   })
 })
 
-describe('plannerDropPlan', () => {
-  it('moves the follow-up of a row placed by it, to the day’s midnight, and the row leaves its group', () => {
-    const t = task({ uid: 'a', nextFollowupAt: day(0, 12) })
-    expect(plannerDropPlan(t, WINDOW, on(3))).toEqual({ drop: { kind: 'followup', date: day(3) }, moves: true })
+describe('the order merge with the two trays', () => {
+  /** Today: a b; Monday: d; Delayed: x y; Unplanned: f g. */
+  const WITH_TRAYS = ['a', 'b', 'd', 'x', 'y', 'f', 'g']
+
+  it('reorders inside Delayed and inside Unplanned, the rest as it was', () => {
+    expect(plannerReorder('y', at(['x', 'y'], 0, WITH_TRAYS))).toEqual(['a', 'b', 'd', 'y', 'x', 'f', 'g'])
+    expect(plannerReorder('f', at(['f', 'g'], 1, WITH_TRAYS))).toEqual(['a', 'b', 'd', 'x', 'y', 'g', 'f'])
   })
 
-  it('gives any other row the day as its Do day; Focus, no day clears one', () => {
-    expect(plannerDropPlan(task({ dueDate: day(1) }), WINDOW, on(3))).toEqual({ drop: { kind: 'do', date: day(3) }, moves: true })
-    expect(plannerDropPlan(task({ focus: true }), WINDOW, on(0))).toEqual({ drop: { kind: 'do', date: day(0) }, moves: true })
-    expect(plannerDropPlan(task({ doDate: day(2) }), WINDOW, NO_DAY)).toEqual({ drop: { kind: 'do', date: undefined }, moves: true })
+  it('moves a row between a day and a tray, where it was dropped', () => {
+    // Monday's row unplanned between f and g.
+    expect(plannerReorder('d', at(['f', 'g'], 1, WITH_TRAYS))).toEqual(['a', 'b', 'x', 'y', 'f', 'd', 'g'])
+    // A Delayed row planned for today, first.
+    expect(plannerReorder('x', at(['a', 'b'], 0, WITH_TRAYS))).toEqual(['x', 'a', 'b', 'd', 'y', 'f', 'g'])
+    // An Unplanned row onto Monday, last.
+    expect(plannerReorder('g', at(['d'], 1, WITH_TRAYS))).toEqual(['a', 'b', 'd', 'g', 'x', 'y', 'f'])
   })
 
-  it('writes the order with a row that changes day, where it was dropped', () => {
+  it('keeps the stored places of the trays’ rows while a filter hides them', () => {
+    const order = ['y', 'a', 'x', 'g', 'b', 'f']
+    // Only Today shows; b is dragged above a.
+    const next = plannerReorder('b', at(['a', 'b'], 0, ['a', 'b']), { order })
+    expect(next).toEqual(['y', 'b', 'a', 'x', 'g', 'f'])
+    expect(next.filter((u) => ['x', 'y'].includes(u))).toEqual(['y', 'x'])
+    expect(next.filter((u) => ['f', 'g'].includes(u))).toEqual(['g', 'f'])
+  })
+})
+
+describe('plannerMovePlan', () => {
+  it('plans a row for the day it is dropped on — by its follow-up, its due date or no date — and the row leaves its group', () => {
+    expect(plannerMovePlan(task({ nextFollowupAt: day(0, 12) }), WINDOW, on(3))).toEqual({ drop: { kind: 'plan', day: day(3) }, moves: true })
+    expect(plannerMovePlan(task({ dueDate: day(1) }), WINDOW, on(3))).toEqual({ drop: { kind: 'plan', day: day(3) }, moves: true })
+    expect(plannerMovePlan(task({ focus: true }), WINDOW, on(0))).toEqual({ drop: { kind: 'plan', day: day(0) }, moves: true })
+  })
+
+  it('clears the plan on the task’s own date’s day, and unplans on Unplanned', () => {
+    expect(plannerMovePlan(task({ doDate: day(4), dueDate: day(2) }), WINDOW, on(2))).toEqual({ drop: { kind: 'own', day: day(2) }, moves: true })
+    expect(plannerMovePlan(task({ doDate: day(2), dueDate: day(1) }), WINDOW, UNPLANNED)).toEqual({ drop: { kind: 'unplan', hold: true }, moves: true })
+    expect(plannerMovePlan(task({ doDate: day(2), focus: true }), WINDOW, UNPLANNED)).toEqual({ drop: { kind: 'unplan', hold: false }, moves: true })
+  })
+
+  it('writes the order with a row that changes group, where it was dropped', () => {
     const t = task({ uid: 'a', nextFollowupAt: day(0) })
-    expect(plannerDropPlan(t, WINDOW, on(3), at(['d', 'e'], 1))).toEqual({
-      drop: { kind: 'followup', date: day(3) },
+    expect(plannerMovePlan(t, WINDOW, on(3), at(['d', 'e'], 1))).toEqual({
+      drop: { kind: 'plan', day: day(3) },
       order: ['b', 'c', 'd', 'a', 'e', 'f'],
       moves: true,
     })
     // A list's row: the Planner did not show it yet.
     const foreign = task({ uid: 'new' })
-    expect(plannerDropPlan(foreign, WINDOW, on(3), at(['d', 'e'], 0))).toEqual({
-      drop: { kind: 'do', date: day(3) },
+    expect(plannerMovePlan(foreign, WINDOW, on(3), at(['d', 'e'], 0))).toEqual({
+      drop: { kind: 'plan', day: day(3) },
       order: ['a', 'b', 'c', 'new', 'd', 'e', 'f'],
+      moves: true,
+    })
+    // A dated row held in Unplanned, above f.
+    const dated = task({ uid: 'd', dueDate: day(3) })
+    expect(plannerMovePlan(dated, WINDOW, UNPLANNED, at(['f'], 0))).toEqual({
+      drop: { kind: 'unplan', hold: true },
+      order: ['a', 'b', 'c', 'e', 'd', 'f'],
       moves: true,
     })
   })
 
   it('reorders a row inside its own group without a write: it stays there', () => {
     const t = task({ uid: 'c', doDate: day(0) })
-    expect(plannerDropPlan(t, WINDOW, on(0), at(['a', 'b', 'c'], 0))).toEqual({
+    expect(plannerMovePlan(t, WINDOW, on(0), at(['a', 'b', 'c'], 0))).toEqual({
       drop: { kind: 'none' },
       order: ['c', 'a', 'b', 'd', 'e', 'f'],
       moves: false,
     })
     // A late task sits in Today: a drop there is a reorder too.
     const late = task({ uid: 'a', dueDate: day(-4) })
-    expect(plannerDropPlan(late, WINDOW, on(0), at(['a', 'b', 'c'], 2)).order).toEqual(['b', 'c', 'a', 'd', 'e', 'f'])
-    // Focus, no day among its own.
+    expect(plannerMovePlan(late, WINDOW, on(0), at(['a', 'b', 'c'], 2)).order).toEqual(['b', 'c', 'a', 'd', 'e', 'f'])
+    // Unplanned among its own: a Focus row and a held one.
     const focus = task({ uid: 'f', focus: true })
-    expect(plannerDropPlan(focus, WINDOW, NO_DAY, at(['f', 'g'], 1, [...SHOWN, 'g']))).toEqual({
+    expect(plannerMovePlan(focus, WINDOW, UNPLANNED, at(['f', 'g'], 1, [...SHOWN, 'g']))).toEqual({
       drop: { kind: 'none' },
       order: ['a', 'b', 'c', 'd', 'e', 'g', 'f'],
+      moves: false,
+    })
+    const held = task({ uid: 'g', unplanned: true, dueDate: day(1) })
+    expect(plannerMovePlan(held, WINDOW, UNPLANNED, at(['f', 'g'], 0, [...SHOWN, 'g'])).order).toEqual(['a', 'b', 'c', 'd', 'e', 'g', 'f'])
+    // Delayed among its own: the one drop Delayed takes.
+    const missed = task({ uid: 'y', doDate: day(-2) })
+    expect(plannerMovePlan(missed, WINDOW, DELAYED, at(['x', 'y'], 0, ['a', 'x', 'y']))).toEqual({
+      drop: { kind: 'none' },
+      order: ['a', 'y', 'x'],
       moves: false,
     })
   })
 
   it('stores nothing for a row dropped where it is', () => {
     const t = task({ uid: 'b', doDate: day(0) })
-    expect(plannerDropPlan(t, WINDOW, on(0), at(['a', 'b', 'c'], 1))).toEqual({ drop: { kind: 'none' }, moves: false })
+    expect(plannerMovePlan(t, WINDOW, on(0), at(['a', 'b', 'c'], 1))).toEqual({ drop: { kind: 'none' }, moves: false })
     // On a tile: no place at all.
-    expect(plannerDropPlan(t, WINDOW, on(0))).toEqual({ drop: { kind: 'none' }, moves: false })
+    expect(plannerMovePlan(t, WINDOW, on(0))).toEqual({ drop: { kind: 'none' }, moves: false })
   })
 
   it('changes nothing for a refused drop: no write, no order', () => {
+    // Delayed takes no drop.
     const dated = task({ uid: 'd', dueDate: day(3) })
-    expect(plannerDropPlan(dated, WINDOW, NO_DAY, at(['f'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
+    expect(plannerMovePlan(dated, WINDOW, DELAYED, at(['x'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
     const done = task({ uid: 'a', isCompleted: true, nextFollowupAt: day(0) })
-    expect(plannerDropPlan(done, WINDOW, on(3), at(['d', 'e'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
-  })
-
-  it('doesn’t order a task a drop that writes nothing wouldn’t bring into the group', () => {
-    // A list's row with no day, not in Focus, dropped on Focus, no day: nothing to do, and it won't show there.
-    expect(plannerDropPlan(task({ uid: 'new' }), WINDOW, NO_DAY, at(['f'], 0))).toEqual({ drop: { kind: 'none' }, moves: false })
+    expect(plannerMovePlan(done, WINDOW, on(3), at(['d', 'e'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
+    // A list's row with no plan and no date, not in Focus, dropped on Unplanned: it wouldn't show there.
+    expect(plannerMovePlan(task({ uid: 'new' }), WINDOW, UNPLANNED, at(['f'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
   })
 
   it('merges the place into the stored order it is given', () => {
     const t = task({ uid: 'a', doDate: day(0) })
     const exists = (uid: string) => uid !== 'gone'
-    expect(plannerDropPlan(t, WINDOW, on(0), at(['a', 'b'], 1, ['a', 'b']), { order: ['c', 'a', 'gone', 'b'], exists }).order).toEqual(['c', 'b', 'a'])
+    expect(plannerMovePlan(t, WINDOW, on(0), at(['a', 'b'], 1, ['a', 'b']), { order: ['c', 'a', 'gone', 'b'], exists }).order).toEqual(['c', 'b', 'a'])
     // Dropped where it is: nothing to store, whatever the stored order holds.
-    expect(plannerDropPlan(t, WINDOW, on(0), at(['a', 'b'], 0, ['a', 'b']), { order: ['c', 'a', 'gone', 'b'], exists }).order).toBeUndefined()
+    expect(plannerMovePlan(t, WINDOW, on(0), at(['a', 'b'], 0, ['a', 'b']), { order: ['c', 'a', 'gone', 'b'], exists }).order).toBeUndefined()
   })
 
-  it('reads the placement against the window it is given', () => {
-    // A follow-up past this week's window is no placement (a Do day); inside next week's it is the row's day.
-    const t = task({ nextFollowupAt: day(9) })
-    expect(plannerDropPlan(t, WINDOW, on(2)).drop).toEqual({ kind: 'do', date: day(2) })
-    expect(plannerDropPlan(t, { today: TODAY, last: day(13) }, on(8)).drop).toEqual({ kind: 'followup', date: day(8) })
-  })
-})
-
-describe('plannerDrop — a completed task', () => {
-  it('is refused everywhere: the Planner holds open tasks', () => {
-    const done = task({ isCompleted: true, doDate: day(1), nextFollowupAt: day(0) })
-    const placement = plannerPlacement(done, TODAY, day(6))
-    expect(plannerDrop(done, placement, on(3))).toEqual({ kind: 'refuse' })
-    expect(plannerDrop(done, placement, on(1))).toEqual({ kind: 'refuse' })
-    expect(plannerDrop(done, placement, NO_DAY)).toEqual({ kind: 'refuse' })
+  it('reads the task’s natural day against the window it is given', () => {
+    // A follow-up past this week's window is no natural day: the task is planned and stays planned there.
+    const t = task({ nextFollowupAt: day(9), doDate: day(3) })
+    expect(plannerMovePlan(t, WINDOW, on(2)).drop).toEqual({ kind: 'plan', day: day(2) })
+    // Next week's window reaches the follow-up: a drop on its day clears the plan.
+    expect(plannerMovePlan(t, { today: TODAY, last: day(13) }, on(9)).drop).toEqual({ kind: 'own', day: day(9) })
+    expect(plannerMovePlan(t, { today: TODAY, last: day(13) }, on(8)).drop).toEqual({ kind: 'plan', day: day(8) })
   })
 })
 
 describe('what the drag says', () => {
-  it('labels a drop that writes: which date, which day, in that date’s tone', () => {
-    expect(plannerDropLabel({ kind: 'followup', date: day(5) }, TODAY)).toEqual({ text: 'Follow-up · Wed, Nov 25', tone: 'followup' })
-    expect(plannerDropLabel({ kind: 'do', date: day(5) }, TODAY)).toEqual({ text: 'Do · Wed, Nov 25', tone: 'do' })
-    expect(plannerDropLabel({ kind: 'do', date: day(0) }, TODAY)).toEqual({ text: 'Do · Today', tone: 'do' })
-    expect(plannerDropLabel({ kind: 'followup', date: day(0) }, TODAY)).toEqual({ text: 'Follow-up · Today', tone: 'followup' })
-    expect(plannerDropLabel({ kind: 'do', date: undefined }, TODAY)).toEqual({ text: 'No day', tone: 'do' })
-  })
-
-  it('has no label for a refused drop or one that writes nothing', () => {
-    expect(plannerDropLabel({ kind: 'refuse' }, TODAY)).toBeNull()
-    expect(plannerDropLabel({ kind: 'none' }, TODAY)).toBeNull()
-  })
-
   it('names a day: Today, else in words', () => {
     expect(plannerDayWords(day(0, 15), TODAY)).toBe('Today')
     expect(plannerDayWords(day(1), TODAY)).toBe('Sat, Nov 21')
-  })
-
-  it('keys a target as its group and tile are keyed', () => {
-    expect(plannerTargetKey(on(3))).toBe('2026-11-23')
-    expect(plannerTargetKey(NO_DAY)).toBe(PLANNER_NO_DAY_KEY)
   })
 })

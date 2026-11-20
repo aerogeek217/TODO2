@@ -47,7 +47,7 @@ export interface PlannerDropData {
   type: typeof TASK_DROP_KIND.plannerDay | typeof TASK_DROP_KIND.plannerGroup
   /** The Planner's tab id. */
   scope: string
-  /** The day it stands for (Today's group and today's tile: today), or Focus, no day. */
+  /** The day it stands for (Today's group and today's tile: today), or a tray (Unplanned, Delayed). */
   target: PlannerTarget
   /** The Planner's window as it shows: today and its last day — what a task's placement is read against. */
   window: { today: Date; last: Date }
@@ -70,8 +70,9 @@ export interface PlannerDropRequest {
 interface PlannerOps {
   /**
    * Makes the drop: the one write the Planner's rule decides for the task
-   * (its follow-up moved, its Do day set or cleared, or nothing) and its
-   * place in the hand order. Called once per drop.
+   * (its plan state: a planned day, held in Unplanned, cleared — or
+   * nothing; never a real date) and its place in the hand order. Called
+   * once per drop.
    */
   drop: (request: PlannerDropRequest) => Promise<void> | void
 }
@@ -90,7 +91,7 @@ const isUids = (v: unknown): v is readonly string[] => Array.isArray(v) && v.eve
 function isPlannerTarget(v: unknown): v is PlannerTarget {
   if (v == null || typeof v !== 'object') return false
   const t = v as { kind?: unknown; day?: unknown }
-  return t.kind === 'noday' || (t.kind === 'day' && t.day instanceof Date)
+  return t.kind === 'unplanned' || t.kind === 'delayed' || (t.kind === 'day' && t.day instanceof Date)
 }
 
 /** Whether a droppable's data is a Planner tile's or group's. */
@@ -147,7 +148,7 @@ function dropPoint(event: DragEndEvent): { x: number; y: number } | null {
  * next follow-up (see {@link resolveCalendarDropType}); one dropped on a
  * Planner's day tile or group — a row of that Planner, of a list, a
  * calendar entry — is handed to the Planner's one drop (`deps.planner.drop`,
- * once: no chooser, never the due date).
+ * once: no chooser, only the task's plan, never a due date or a follow-up).
  *
  * Returns `true` when the drop was handled (the caller should stop
  * processing — also when the user cancelled the date-type choice or the

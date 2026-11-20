@@ -32,9 +32,9 @@ export interface PlannerDragPreview {
   tabId: string
   /** What is hovered: a day's tile, or a group. */
   over: 'tile' | 'group'
-  /** The target's key: its day's `dayKey` (Today's group and today's tile: today's); `PLANNER_NO_DAY_KEY` for Focus, no day. */
+  /** The target's key: its day's `dayKey` (Today's group and today's tile: today's), or its tray's (`PLANNER_DELAYED_KEY`, `PLANNER_UNPLANNED_KEY`). */
   key: string
-  /** What a drop there writes (`utils/planner.plannerDrop`). */
+  /** What a drop there does to the task's plan (`utils/planner.plannerDrop`). */
   drop: PlannerDrop
   /**
    * Over a group: the row would land before row `index` of the group's rows

@@ -8,7 +8,7 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { usePlanner, useTasksDoneToday, type PlannerData } from '../../../hooks/use-planner'
 import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { movePlannerTask } from '../../../services/planner-drop'
+import { movePlannerTask, snoozePlannerTask, unplanPlannerTask } from '../../../services/planner-drop'
 import { appliedScreenFilter, useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { usePlannerStore, type PlannerDragPreview } from '../../../stores/planner-store'
@@ -17,7 +17,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import { LIST_SECTION_ATTR } from '../../../utils/dom-contract'
 import { getFilterDefaults } from '../../../utils/filter-defaults'
 import { autoListZoom, UNMEASURED_LIST_ZOOM } from '../../../utils/list-zoom'
-import { plannerDayLabel, plannerDropLabel, plannerRangeLabel, type PlannerGroup, type PlannerTarget } from '../../../utils/planner'
+import { plannerDayLabel, plannerDropWrite, plannerRangeLabel, type PlannerGroup, type PlannerTarget } from '../../../utils/planner'
 import { rowKey } from '../../../utils/scoped-selection'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { plannerDropId, TASK_DROP_KIND, type PlannerDropData } from '../../../utils/task-dnd'
@@ -30,7 +30,7 @@ import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { DropSlot, ListWidgetRow, type ListRowDragLook } from '../list/ListWidgetRow'
 import listStyles from '../list/ListWidget.module.css'
 import { WidgetNameLine } from '../WidgetTopLine'
-import { plannerMoveEntries } from './planner-menu'
+import { plannerMenuEntries } from './planner-menu'
 import { PlannerStrip, type PlannerDropMark } from './PlannerStrip'
 import { usePlannerDrag, type PlannerActiveDrag } from './use-planner-drag'
 import styles from './PlannerWidget.module.css'
@@ -38,36 +38,47 @@ import styles from './PlannerWidget.module.css'
 type Task = PersistedTodoItem
 type Group = PlannerGroup<Task>
 
-/** A group's name: `Today`, a day in words, `Focus, no day`. */
+/** A group's name: `Today`, a day in words, `Delayed`, `Unplanned`. */
 function groupLabel(group: Group): string {
   if (group.kind === 'today') return 'Today'
-  return group.day ? plannerDayLabel(group.day) : 'Focus, no day'
+  if (group.kind === 'delayed') return 'Delayed'
+  return group.day ? plannerDayLabel(group.day) : 'Unplanned'
+}
+
+/** The drop target a group stands for: its day (Today's: today), or its tray. */
+function groupTarget(group: Group): PlannerTarget {
+  if (group.day) return { kind: 'day', day: group.day }
+  return group.kind === 'delayed' ? { kind: 'delayed' } : { kind: 'unplanned' }
 }
 
 /**
- * The Planner (widget kind `planner`, no settings): today and the week
- * ahead. Large — the strip of seven day tiles (`PlannerStrip`), then two
- * panes: **Today** on the left (every open task whose day is today or
- * earlier, an `N done` line, Add task) and on the right a group per day
- * ahead, with **Focus, no day** pinned under them. Medium (a narrow or
- * short cell, and the phone): the strip over one column — Today, the days
- * ahead, Focus, no day — in one scroll. Small: its name and today's count.
- * A task sits on a day by its Do day, else its follow-up or due date
- * (`utils/planner`); rows are the list's (`ListWidgetRow`, `MobileTaskRow`
- * on the phone), a click opening the task. The window and the picked day
- * are the tab's in its layout, in memory (`stores/planner-store`).
+ * The Planner (widget kind `planner`, no settings): a scratch pad for
+ * today and the week ahead. Large — the strip of seven day tiles
+ * (`PlannerStrip`), then two panes: **Today** on the left (the open tasks
+ * planned for today or put there by their own dates, an `N done` line, Add
+ * task) and on the right a group per day ahead, with the two trays pinned
+ * under them — **Delayed** (planned for a day that has passed; shown while
+ * it holds a task) over **Unplanned** (held there, and the Focus tasks with
+ * no plan and no date). Medium (a narrow or short cell, and the phone): the
+ * strip over one column — Today, the days ahead, Delayed, Unplanned — in
+ * one scroll. Small: its name and today's count. A task sits on its planned
+ * day, else the day its follow-up or due date puts it (`utils/planner`);
+ * rows are the list's (`ListWidgetRow`, `MobileTaskRow` on the phone), a
+ * click opening the task. The window and the picked day are the tab's in
+ * its layout, in memory (`stores/planner-store`).
  *
  * **Drops** (desktop): every tile and every group takes a dragged task — a
  * row of this Planner, a list's row, a calendar entry — as a dnd-kit
  * droppable (`TASK_DROP_KIND.plannerDay` / `.plannerGroup`); the page's one
- * dispatcher makes the drop (`services/planner-drop`: the follow-up moved,
- * the Do day set or cleared, or refused — never the due date), and a drop
- * into a group also stores the row's place in the hand order (the tab's
- * `order`). While a task is dragged over it (`usePlannerDrag`) the target
- * day's tile and group are dashed in the color of the date the drop
- * changes, a blank slot shows where the row would land, and the lifted row
- * carries the label (`PlannerDragLabel`). Without a pointer: **Move to
- * day ›** in a row's task menu (`planner-menu`).
+ * dispatcher makes the drop (`services/planner-drop`: the task planned for
+ * the day, its plan cleared on its own date's day, held in Unplanned, or
+ * refused — Delayed takes no drop — and never a due date or a follow-up),
+ * and a drop into a group also stores the row's place in the hand order
+ * (the tab's `order`). While a task is dragged over it (`usePlannerDrag`)
+ * the target's tile and group are dashed in one neutral color, a blank slot
+ * shows where the row would land, and the lifted row carries the label
+ * (`PlannerDragLabel`). Without a pointer: **Move to day ›**, **Snooze**
+ * and **Unplan** in a row's task menu (`planner-menu`).
  */
 export function PlannerWidget({ tab }: { tab: PlannerTab }) {
   const [faceRef, face] = useWidgetFace(plannerFaceFor)
@@ -108,7 +119,7 @@ interface GroupDrag {
   active: PlannerActiveDrag | null
   /** What a drop on this Planner would do, while the drag is over it. */
   preview: PlannerDragPreview | null
-  /** The target day's mark, when the drop writes. */
+  /** The target's mark, when the drop changes the plan. */
   mark: PlannerDropMark | null
   /** Every task the Planner shows, in display order: their `uid`s. */
   shown: readonly string[]
@@ -130,11 +141,16 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
   const twoPanes = panes && !isMobile
   // The phone has no drag, so a day with nothing on it has nothing to offer there.
   const days = useMemo(() => (isMobile ? view.days.filter((g) => g.tasks.length > 0) : view.days), [isMobile, view.days])
-  const showNoDay = !isMobile || view.noDay.tasks.length > 0
+  // Delayed takes no drop: it shows only while it holds a task. Unplanned is a target, so it always shows where rows drag.
+  const showDelayed = view.delayed.tasks.length > 0
+  const showUnplanned = !isMobile || view.unplanned.tasks.length > 0
   const range = plannerRangeLabel(view.window)
   const tabId = tab.id
-  // The right pane's two lists share their columns: the days ahead and Focus, no day line up.
-  const aheadTasks = useMemo(() => [...days.flatMap((g) => g.tasks), ...view.noDay.tasks], [days, view.noDay])
+  // The right pane's two lists share their columns: the days ahead and the trays line up.
+  const aheadTasks = useMemo(
+    () => [...days.flatMap((g) => g.tasks), ...view.delayed.tasks, ...view.unplanned.tasks],
+    [days, view.delayed, view.unplanned],
+  )
   const allTasks = useMemo(() => [...view.today.tasks, ...aheadTasks], [view.today, aheadTasks])
 
   const onPick = useCallback((day: Date | null) => usePlannerStore.getState().pick(windowKey, day), [windowKey])
@@ -146,19 +162,26 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
   useDropRefusedCursor(preview?.drop.kind === 'refuse')
   const shown = useMemo(() => view.tasks.map((t) => t.uid), [view.tasks])
   const drag = useMemo<GroupDrag>(() => {
-    const tone = preview ? plannerDropLabel(preview.drop, data.today)?.tone : undefined
-    return { active, preview, mark: preview && tone ? { key: preview.key, tone } : null, shown }
-  }, [active, preview, shown, data.today])
+    const writes = preview != null && plannerDropWrite(preview.drop) !== undefined
+    return { active, preview, mark: preview && writes ? { key: preview.key } : null, shown }
+  }, [active, preview, shown])
 
-  // ── Move to day ›, in each row's task menu ──
+  // ── Move to day ›, Snooze and Unplan, in each row's task menu ──
   const plannerWindow = view.window
-  const menuExtras = useCallback((todo: Task) => plannerMoveEntries(todo, plannerWindow, (target) => {
-    void movePlannerTask(tabId, { todoId: todo.id, target, window: plannerWindow })
+  const menuExtras = useCallback((todo: Task) => plannerMenuEntries(todo, plannerWindow, {
+    move: (target) => { void movePlannerTask(tabId, { todoId: todo.id, target, window: plannerWindow }) },
+    snooze: () => { void snoozePlannerTask(tabId, todo.id, plannerWindow) },
+    unplan: () => { void unplanPlannerTask(tabId, todo.id, plannerWindow) },
   }), [tabId, plannerWindow])
 
   const today = <TodayGroup tabId={tabId} group={view.today} data={data} mobile={isMobile} drag={drag} />
   const ahead = days.map((g) => <DayGroup key={g.key} tabId={tabId} group={g} data={data} mobile={isMobile} drag={drag} />)
-  const noDay = showNoDay ? <DayGroup tabId={tabId} group={view.noDay} data={data} mobile={isMobile} drag={drag} /> : null
+  const trays = (
+    <>
+      {showDelayed && <DayGroup tabId={tabId} group={view.delayed} data={data} mobile={isMobile} drag={drag} />}
+      {showUnplanned && <DayGroup tabId={tabId} group={view.unplanned} data={data} mobile={isMobile} drag={drag} />}
+    </>
+  )
 
   return (
     <TaskMenuExtrasContext.Provider value={menuExtras}>
@@ -198,8 +221,8 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
             <div ref={trackScrollEdges} className={styles.pane} data-planner-pane="ahead">
               <Rows tasks={aheadTasks} data={data} mobile={false}>{ahead}</Rows>
             </div>
-            <div ref={trackScrollEdges} className={`${styles.pane} ${styles.pinned}`} data-planner-pane="noday">
-              <Rows tasks={aheadTasks} data={data} mobile={false}>{noDay}</Rows>
+            <div ref={trackScrollEdges} className={`${styles.pane} ${styles.pinned}`} data-planner-pane="trays">
+              <Rows tasks={aheadTasks} data={data} mobile={false}>{trays}</Rows>
             </div>
           </div>
         </div>
@@ -208,7 +231,7 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
           <Rows tasks={allTasks} data={data} mobile={isMobile}>
             {today}
             {ahead}
-            {noDay}
+            {trays}
           </Rows>
         </div>
       )}
@@ -293,11 +316,11 @@ interface GroupProps {
  * completed here lingers, then folds (`PlannerData.leaving`).
  *
  * The whole group is a drop target (a droppable, not on the phone): its
- * day — Today's is today —, or Focus, no day; its drop data carries its
- * rows and every row shown, for the hand order. While a task is dragged
- * over it a blank slot (the list's `DropSlot`) shows where the row would
- * land, and the group is dashed in the color of the date the drop changes
- * (`data-planner-drop`).
+ * day — Today's is today —, or its tray (Delayed refuses every drop but a
+ * reorder of its own rows); its drop data carries its rows and every row
+ * shown, for the hand order. While a task is dragged over it a blank slot
+ * (the list's `DropSlot`) shows where the row would land, and the group is
+ * dashed while the drop changes the plan (`data-planner-drop`).
  */
 function DayGroup({ tabId, group, data, mobile, drag, children, empty }: GroupProps) {
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -310,11 +333,10 @@ function DayGroup({ tabId, group, data, mobile, drag, children, empty }: GroupPr
 
   const { today, last } = data.view.window
   const rows = useMemo(() => group.tasks.map((t) => t.uid), [group.tasks])
-  const target: PlannerTarget = group.day ? { kind: 'day', day: group.day } : { kind: 'noday' }
   const dropData: PlannerDropData = {
     type: TASK_DROP_KIND.plannerGroup,
     scope: tabId,
-    target,
+    target: groupTarget(group),
     window: { today, last },
     group: { key: group.key, rows, shown: drag.shown },
   }
@@ -336,7 +358,7 @@ function DayGroup({ tabId, group, data, mobile, drag, children, empty }: GroupPr
       aria-label={label}
       data-planner-group={group.key}
       data-planner-group-kind={group.kind}
-      data-planner-drop={drag.mark?.key === group.key ? drag.mark.tone : undefined}
+      data-planner-drop={drag.mark?.key === group.key ? '' : undefined}
       // A grouped body's rows draw no hairline (TaskRow / MobileTaskRow styles).
       data-row-group=""
       {...{ [LIST_SECTION_ATTR]: group.key }}
@@ -389,7 +411,7 @@ function TodayGroup({ tabId, group, data, mobile, drag }: Omit<GroupProps, 'chil
   const done = useTasksDoneToday()
   const { today } = data
   const addTask = () => {
-    // Where Quick Add would start anyway (the screen filter's seeds), plus the hidden Do day: the task lands in Today.
+    // Where Quick Add would start anyway (the screen filter's seeds), plus the hidden planned day: the task is planned for today.
     const seeds = getFilterDefaults(appliedScreenFilter(useFilterStore.getState()))
     useUIStore.getState().openQuickAdd({ defaults: { ...seeds, doDate: today } })
   }

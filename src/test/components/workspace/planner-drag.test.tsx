@@ -14,10 +14,11 @@ import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 /**
  * What a Planner shows while a task is dragged over it, from its drag
  * preview (`stores/planner-store`'s `drag`, which `use-planner-drag` sets —
- * `planner-drag-hook.test.tsx`): the target day's tile and group marked in
- * the tone of the date the drop changes, a blank slot where the row would
- * land, the lifted row's label, the not-allowed cursor for a refused drop.
- * And Move to day › in a row's task menu.
+ * `planner-drag-hook.test.tsx`): the target's tile and group marked — one
+ * neutral mark: a drop changes the plan, never a real date —, a blank slot
+ * where the row would land, the lifted row's label, the not-allowed cursor
+ * for a refused drop. And Move to day ›, Snooze and Unplan in a row's task
+ * menu.
  */
 
 // Fri 20 Nov 2026.
@@ -31,7 +32,9 @@ const TODOS = (): PersistedTodoItem[] => [
   makeTodo({ id: 3, uid: 'plan', title: 'Planned for today', doDate: day(0), dueDate: day(9), sortOrder: 3 }),
   makeTodo({ id: 4, uid: 'mon-due', title: 'Monday deadline', dueDate: day(3), sortOrder: 4 }),
   makeTodo({ id: 5, uid: 'mon-do', title: 'Monday plan', doDate: day(3), sortOrder: 5 }),
+  makeTodo({ id: 6, uid: 'missed', title: 'Missed plan', doDate: day(-1), sortOrder: 6 }),
   makeTodo({ id: 7, uid: 'focus', title: 'Someday focus', focus: true, sortOrder: 7 }),
+  makeTodo({ id: 8, uid: 'held', title: 'Held call', unplanned: true, nextFollowupAt: day(2), sortOrder: 8 }),
 ]
 
 function show(tab: PlannerTab = PLANNER) {
@@ -47,7 +50,7 @@ function show(tab: PlannerTab = PLANNER) {
 const root = () => document.querySelector<HTMLElement>('[data-planner="plan"]')!
 const group = (key: string) => root().querySelector<HTMLElement>(`[data-planner-group="${key}"]`)!
 const marked = () => [...root().querySelectorAll('[data-planner-drop]')].map((el) => (
-  `${el.hasAttribute('data-planner-tile') ? 'tile' : 'group'} ${el.getAttribute('data-planner-tile') ?? el.getAttribute('data-planner-group')}: ${el.getAttribute('data-planner-drop')}`
+  `${el.hasAttribute('data-planner-tile') ? 'tile' : 'group'} ${el.getAttribute('data-planner-tile') ?? el.getAttribute('data-planner-group')}`
 ))
 /** A group's rows and its drop slot, top to bottom. */
 const sequence = (key: string) => [...group(key).querySelectorAll('[data-task-title], [data-drop-slot]')].map((el) => el.getAttribute('data-task-title') ?? '(slot)')
@@ -74,32 +77,38 @@ afterEach(() => {
 })
 
 describe('the target of a drag', () => {
-  it('marks the day’s tile and group in the follow-up’s tone when the drop moves the follow-up', () => {
+  it('marks the day’s tile and group — in one neutral mark, whatever date put the row there — when the drop plans the task', () => {
     show()
     expect(marked()).toEqual([])
-    hover(preview('tile', '2026-11-23', { kind: 'followup', date: day(3) }))
-    expect(marked()).toEqual(['tile 2026-11-23: followup', 'group 2026-11-23: followup'])
+    hover(preview('tile', '2026-11-23', { kind: 'plan', day: day(3) }))
+    expect(marked()).toEqual(['tile 2026-11-23', 'group 2026-11-23'])
     // Over the group instead: the same day, the same marks.
-    hover(preview('group', '2026-11-23', { kind: 'followup', date: day(3) }, 0))
-    expect(marked()).toEqual(['tile 2026-11-23: followup', 'group 2026-11-23: followup'])
+    hover(preview('group', '2026-11-23', { kind: 'plan', day: day(3) }, 0))
+    expect(marked()).toEqual(['tile 2026-11-23', 'group 2026-11-23'])
+    // No tone: a drop changes no real date.
+    for (const el of root().querySelectorAll('[data-planner-drop]')) expect(el.getAttribute('data-planner-drop')).toBe('')
   })
 
-  it('marks them in the Do day’s tone when the drop sets it; Today’s group with today’s tile', () => {
+  it('marks Today’s group with today’s tile; and the day a drop clears the plan on', () => {
     show()
-    hover(preview('tile', '2026-11-20', { kind: 'do', date: day(0) }))
-    expect(marked()).toEqual(['tile 2026-11-20: do', 'group 2026-11-20: do'])
+    hover(preview('tile', '2026-11-20', { kind: 'plan', day: day(0) }))
+    expect(marked()).toEqual(['tile 2026-11-20', 'group 2026-11-20'])
     expect(group('2026-11-20')).toHaveAttribute('data-planner-group-kind', 'today')
+    hover(preview('group', '2026-11-23', { kind: 'own', day: day(3) }, 0))
+    expect(marked()).toEqual(['tile 2026-11-23', 'group 2026-11-23'])
   })
 
-  it('marks Focus, no day when the drop clears a Do day', () => {
+  it('marks Unplanned when the drop unplans', () => {
     show()
-    hover(preview('group', 'none', { kind: 'do', date: undefined }, 1))
-    expect(marked()).toEqual(['group none: do'])
+    hover(preview('group', 'unplanned', { kind: 'unplan', hold: true }, 1))
+    expect(marked()).toEqual(['group unplanned'])
+    hover(preview('group', 'unplanned', { kind: 'unplan', hold: false }, 0))
+    expect(marked()).toEqual(['group unplanned'])
   })
 
-  it('marks nothing for a refused drop and shows the not-allowed cursor; nor for a drop that writes nothing', () => {
+  it('marks nothing for a refused drop and shows the not-allowed cursor — Delayed takes no drop; nor for a drop that writes nothing', () => {
     show()
-    hover(preview('group', 'none', { kind: 'refuse' }))
+    hover(preview('group', 'delayed', { kind: 'refuse' }))
     expect(marked()).toEqual([])
     expect(document.documentElement).toHaveAttribute('data-drop-refused')
     expect(root().querySelector('[data-drop-slot]')).toBeNull()
@@ -112,9 +121,9 @@ describe('the target of a drag', () => {
 
   it('is another Planner’s to show when the drag is over that one', () => {
     show()
-    hover(preview('tile', '2026-11-23', { kind: 'do', date: day(3) }, null, 'another'))
+    hover(preview('tile', '2026-11-23', { kind: 'plan', day: day(3) }, null, 'another'))
     expect(marked()).toEqual([])
-    hover(preview('group', 'none', { kind: 'refuse' }, null, 'another'))
+    hover(preview('group', 'delayed', { kind: 'refuse' }, null, 'another'))
     expect(document.documentElement).not.toHaveAttribute('data-drop-refused')
   })
 })
@@ -123,24 +132,33 @@ describe('the drop slot', () => {
   it('shows where the row would land in the hovered group: before the row at its place', () => {
     show()
     expect(sequence('2026-11-23')).toEqual(['Monday deadline', 'Monday plan'])
-    hover(preview('group', '2026-11-23', { kind: 'do', date: day(3) }, 0))
+    hover(preview('group', '2026-11-23', { kind: 'plan', day: day(3) }, 0))
     expect(sequence('2026-11-23')).toEqual(['(slot)', 'Monday deadline', 'Monday plan'])
-    hover(preview('group', '2026-11-23', { kind: 'do', date: day(3) }, 1))
+    hover(preview('group', '2026-11-23', { kind: 'plan', day: day(3) }, 1))
     expect(sequence('2026-11-23')).toEqual(['Monday deadline', '(slot)', 'Monday plan'])
-    hover(preview('group', '2026-11-23', { kind: 'do', date: day(3) }, 2))
+    hover(preview('group', '2026-11-23', { kind: 'plan', day: day(3) }, 2))
     expect(sequence('2026-11-23')).toEqual(['Monday deadline', 'Monday plan', '(slot)'])
     // Only there.
     expect(root().querySelectorAll('[data-drop-slot]')).toHaveLength(1)
   })
 
+  it('shows in a tray too: among Unplanned’s rows, and in Delayed for a reorder of its own', () => {
+    show()
+    expect(sequence('unplanned')).toEqual(['Held call', 'Someday focus'])
+    hover(preview('group', 'unplanned', { kind: 'unplan', hold: true }, 1))
+    expect(sequence('unplanned')).toEqual(['Held call', '(slot)', 'Someday focus'])
+    hover(preview('group', 'delayed', { kind: 'none' }, 1))
+    expect(sequence('delayed')).toEqual(['Missed plan', '(slot)'])
+  })
+
   it('opens an empty day, and takes the place of Today’s empty line', () => {
     show()
-    hover(preview('group', '2026-11-21', { kind: 'do', date: day(1) }, 0))
+    hover(preview('group', '2026-11-21', { kind: 'plan', day: day(1) }, 0))
     expect(sequence('2026-11-21')).toEqual(['(slot)'])
     act(() => useTodoStore.setState({ todos: TODOS().filter((t) => t.id > 3) }))
     hover(null)
     expect(within(group('2026-11-20')).getByRole('status')).toHaveTextContent('Nothing for today')
-    hover(preview('group', '2026-11-20', { kind: 'do', date: day(0) }, 0))
+    hover(preview('group', '2026-11-20', { kind: 'plan', day: day(0) }, 0))
     expect(within(group('2026-11-20')).queryByRole('status')).toBeNull()
     // Before Add task, Today's last row.
     expect(group('2026-11-20').querySelector('[data-drop-slot]')?.nextElementSibling).toHaveTextContent('Add task')
@@ -148,34 +166,38 @@ describe('the drop slot', () => {
 
   it('has none over a tile, or with no place', () => {
     show()
-    hover(preview('tile', '2026-11-23', { kind: 'do', date: day(3) }))
+    hover(preview('tile', '2026-11-23', { kind: 'plan', day: day(3) }))
     expect(root().querySelector('[data-drop-slot]')).toBeNull()
-    hover(preview('group', '2026-11-23', { kind: 'do', date: day(3) }, null))
+    hover(preview('group', '2026-11-23', { kind: 'plan', day: day(3) }, null))
     expect(root().querySelector('[data-drop-slot]')).toBeNull()
   })
 })
 
 describe('the lifted row’s label', () => {
-  it('says which date a drop changes and to which day, in that date’s tone', () => {
+  it('says what a drop does to the plan — never a date it changes, and in no date’s tone', () => {
     render(<PlannerDragLabel />)
     expect(screen.queryByTestId('planner-drag-label')).toBeNull()
-    hover(preview('tile', '2026-11-25', { kind: 'followup', date: day(5) }))
-    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Follow-up · Wed, Nov 25')
-    expect(screen.getByTestId('planner-drag-label')).toHaveAttribute('data-tone', 'followup')
-    hover(preview('group', '2026-11-25', { kind: 'do', date: day(5) }, 0))
-    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Do · Wed, Nov 25')
-    expect(screen.getByTestId('planner-drag-label')).toHaveAttribute('data-tone', 'do')
-    hover(preview('group', 'none', { kind: 'do', date: undefined }, 0))
-    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('No day')
+    hover(preview('tile', '2026-11-25', { kind: 'plan', day: day(5) }))
+    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Plan · Wed, Nov 25')
+    expect(screen.getByTestId('planner-drag-label')).not.toHaveAttribute('data-tone')
+    hover(preview('group', '2026-11-20', { kind: 'plan', day: day(0) }, 0))
+    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Plan · Today')
+    hover(preview('group', '2026-11-25', { kind: 'own', day: day(5) }, 0))
+    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Its date · Wed, Nov 25')
+    hover(preview('group', 'unplanned', { kind: 'unplan', hold: true }, 0))
+    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Unplan')
+    hover(preview('group', 'unplanned', { kind: 'unplan', hold: false }, 0))
+    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Unplan')
+    expect(screen.getByTestId('planner-drag-label').textContent).not.toMatch(/Follow-up|Due|Do ·/)
   })
 
   it('is not there for a refused drop, one that writes nothing, or a drag over no Planner target', () => {
     render(<PlannerDragLabel />)
-    hover(preview('group', 'none', { kind: 'refuse' }))
+    hover(preview('group', 'delayed', { kind: 'refuse' }))
     expect(screen.queryByTestId('planner-drag-label')).toBeNull()
     hover(preview('group', '2026-11-20', { kind: 'none' }, 1))
     expect(screen.queryByTestId('planner-drag-label')).toBeNull()
-    hover(preview('tile', '2026-11-25', { kind: 'do', date: day(5) }))
+    hover(preview('tile', '2026-11-25', { kind: 'plan', day: day(5) }))
     expect(screen.getByTestId('planner-drag-label')).toBeInTheDocument()
     hover(null)
     expect(screen.queryByTestId('planner-drag-label')).toBeNull()
@@ -186,7 +208,7 @@ describe('the lifted row’s label', () => {
     rect.mockReturnValue({ top: 700, bottom: 730, left: 0, right: 200, width: 200, height: 30, x: 0, y: 700, toJSON: () => ({}) })
     vi.stubGlobal('innerHeight', 740)
     render(<div><PlannerDragLabel /></div>)
-    hover(preview('tile', '2026-11-25', { kind: 'do', date: day(5) }))
+    hover(preview('tile', '2026-11-25', { kind: 'plan', day: day(5) }))
     expect(screen.getByTestId('planner-drag-label')).toHaveAttribute('data-above')
     // Back up the window as the pointer moves: under the row again.
     rect.mockReturnValue({ top: 300, bottom: 330, left: 0, right: 200, width: 200, height: 30, x: 0, y: 300, toJSON: () => ({}) })
@@ -196,7 +218,7 @@ describe('the lifted row’s label', () => {
   })
 })
 
-describe('Move to day › in a row’s task menu', () => {
+describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
   const openMenu = (title: string) => {
     fireEvent.contextMenu(within(root()).getByText(title))
     return screen.getByRole('menu', { name: 'Task actions' })
@@ -206,49 +228,89 @@ describe('Move to day › in a row’s task menu', () => {
     fireEvent.click(within(menu).getByRole('menuitem', { name: /^Move to day/ }))
     return screen.getAllByRole('menu').at(-1)!
   }
-
-  it('is in the menu of a Planner’s row, with the days and No day', () => {
-    show()
-    const sub = openMove('Monday deadline')
-    expect(within(sub).getByText('Sets the Do day')).toBeInTheDocument()
-    const items = within(sub).getAllByRole('menuitemradio')
-    expect(items.map((i) => i.getAttribute('data-menu-label'))).toEqual([
-      'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'No day',
-    ])
-    expect(within(sub).getByRole('menuitemradio', { name: /^Mon, Nov 23/ })).toHaveAttribute('aria-checked', 'true')
-    // Placed by its due date: No day is off and says why.
-    const noDay = within(sub).getByRole('menuitemradio', { name: /^No day/ })
-    expect(noDay).toBeDisabled()
-    expect(noDay).toHaveAttribute('aria-description', expect.stringMatching(/due date/))
-  })
-
-  it('a pick sets the Do day of a row placed by its due date, and moves the follow-up of one placed by it', () => {
+  /** The store's writes, watched: the plan action, and the edit path no menu entry here may take. */
+  function watch() {
     const setPlan = vi.fn(async () => {})
     const update = vi.fn(async () => true)
     useTodoStore.setState({ setPlan, update })
+    return { setPlan, update }
+  }
+
+  it('Move to day › is in the menu of a Planner’s row, with the days — and no No day', () => {
+    show()
+    const sub = openMove('Monday deadline')
+    expect(within(sub).getByText('Plans it for that day')).toBeInTheDocument()
+    const items = within(sub).getAllByRole('menuitemradio')
+    expect(items.map((i) => i.getAttribute('data-menu-label'))).toEqual([
+      'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26',
+    ])
+    expect(within(sub).getByRole('menuitemradio', { name: /^Mon, Nov 23/ })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('a pick plans the task for the day — a row there by its due date and one there by its follow-up alike, no date moved', () => {
+    const { setPlan, update } = watch()
     show()
     fireEvent.click(within(openMove('Monday deadline')).getByRole('menuitemradio', { name: /^Wed, Nov 25/ }))
     expect(setPlan).toHaveBeenCalledTimes(1)
-    expect(setPlan).toHaveBeenCalledWith([4], { day: day(5) })
-    expect(update).not.toHaveBeenCalled()
+    expect(setPlan).toHaveBeenLastCalledWith([4], { day: day(5) })
 
     const sub = openMove('Chase legal')
-    expect(within(sub).getByText('Moves the follow-up')).toBeInTheDocument()
+    expect(within(sub).getByText('Plans it for that day')).toBeInTheDocument()
+    expect(within(sub).queryByText(/follow-up/i)).toBeNull()
     fireEvent.click(within(sub).getByRole('menuitemradio', { name: /^Sat, Nov 21/ }))
-    expect(update).toHaveBeenCalledTimes(1)
-    expect(update).toHaveBeenCalledWith(2, { nextFollowupAt: day(1) })
-    expect(setPlan).toHaveBeenCalledTimes(1)
+    expect(setPlan).toHaveBeenCalledTimes(2)
+    expect(setPlan).toHaveBeenLastCalledWith([2], { day: day(1) })
+    expect(update).not.toHaveBeenCalled()
   })
 
-  it('No day clears a Do day; the day the row is on writes nothing', () => {
-    const setPlan = vi.fn(async () => {})
-    const update = vi.fn(async () => true)
-    useTodoStore.setState({ setPlan, update })
+  it('a pick of the day its own date puts it clears the plan; the day the row is on writes nothing', () => {
+    const { setPlan, update } = watch()
     show()
-    fireEvent.click(within(openMove('Monday plan')).getByRole('menuitemradio', { name: /^No day/ }))
-    expect(setPlan).toHaveBeenCalledWith([5], null)
+    // Monday plan sits on Monday already.
     fireEvent.click(within(openMove('Monday plan')).getByRole('menuitemradio', { name: /^Mon, Nov 23/ }))
+    expect(setPlan).not.toHaveBeenCalled()
+    // Held call: its follow-up is Sunday — picking Sunday lets it go back there.
+    fireEvent.click(within(openMove('Held call')).getByRole('menuitemradio', { name: /^Sun, Nov 22/ }))
     expect(setPlan).toHaveBeenCalledTimes(1)
+    expect(setPlan).toHaveBeenLastCalledWith([8], null)
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('Snooze plans the row for the next day: the day after its own, tomorrow from a tray', () => {
+    const { setPlan, update } = watch()
+    show()
+    /** Picks Snooze in the row's menu; the item names the day it plans for. */
+    const snooze = (title: string, names: string) => {
+      const item = within(openMenu(title)).getByRole('menuitem', { name: /^Snooze/ })
+      expect(item).toHaveTextContent(names)
+      fireEvent.click(item)
+    }
+    snooze('Monday deadline', 'Tue, Nov 24')
+    expect(setPlan).toHaveBeenLastCalledWith([4], { day: day(4) })
+    snooze('Late invoice', 'Sat, Nov 21')
+    expect(setPlan).toHaveBeenLastCalledWith([1], { day: day(1) })
+    snooze('Missed plan', 'Sat, Nov 21')
+    expect(setPlan).toHaveBeenLastCalledWith([6], { day: day(1) })
+    snooze('Someday focus', 'Sat, Nov 21')
+    expect(setPlan).toHaveBeenLastCalledWith([7], { day: day(1) })
+    expect(setPlan).toHaveBeenCalledTimes(4)
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('Unplan holds a dated row in Unplanned and clears a Focus row’s plan; it is off in Unplanned', () => {
+    const { setPlan, update } = watch()
+    show()
+    fireEvent.click(within(openMenu('Monday deadline')).getByRole('menuitem', { name: /^Unplan/ }))
+    expect(setPlan).toHaveBeenLastCalledWith([4], 'unplanned')
+    fireEvent.click(within(openMenu('Monday plan')).getByRole('menuitem', { name: /^Unplan/ }))
+    expect(setPlan).toHaveBeenLastCalledWith([5], null)
+    fireEvent.click(within(openMenu('Missed plan')).getByRole('menuitem', { name: /^Unplan/ }))
+    expect(setPlan).toHaveBeenLastCalledWith([6], null)
+    expect(setPlan).toHaveBeenCalledTimes(3)
+
+    const off = within(openMenu('Someday focus')).getByRole('menuitem', { name: /^Unplan/ })
+    expect(off).toBeDisabled()
+    expect(off).toHaveAttribute('aria-description', expect.stringMatching(/Unplanned already/))
     expect(update).not.toHaveBeenCalled()
   })
 })

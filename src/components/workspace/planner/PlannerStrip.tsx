@@ -1,15 +1,14 @@
 import { useDroppable } from '@dnd-kit/core'
 import { formatDateWith } from '../../../utils/date'
-import { plannerRangeLabel, plannerTileLabel, type PlannerDropLabel, type PlannerTile, type PlannerWindow } from '../../../utils/planner'
+import { plannerRangeLabel, plannerTileLabel, type PlannerTile, type PlannerWindow } from '../../../utils/planner'
 import { plannerDropId, TASK_DROP_KIND, type PlannerDropData } from '../../../utils/task-dnd'
 import { ChevronLeftIcon, ChevronRightIcon } from '../../shared/icons'
 import styles from './PlannerWidget.module.css'
 
-/** The day a dragged task would be dropped on, and which date the drop changes (its tile is marked). */
+/** The target a dragged task's drop would change its plan on (its tile and its group are marked). */
 export interface PlannerDropMark {
   /** The target's key (`utils/planner.plannerTargetKey`). */
   key: string
-  tone: PlannerDropLabel['tone']
 }
 
 interface PlannerStripProps {
@@ -38,8 +37,8 @@ interface PlannerStripProps {
  * accent, the picked one ringed. A click picks the day the days-ahead list
  * starts at; the arrows move the window a week. Each tile takes a dragged
  * task (a droppable, `TASK_DROP_KIND.plannerDay`): the day a drop would
- * write to is dashed in the color of the date it changes (`mark`:
- * `data-planner-drop`). Too narrow for tiles (`showTiles` false), the
+ * plan it for is dashed, in one neutral color — no real date changes —
+ * (`mark`: `data-planner-drop`). Too narrow for tiles (`showTiles` false), the
  * arrows sit around the range in words.
  */
 export function PlannerStrip({ tabId, window, tiles, picked, offset, showTiles, onPick, onShift, mark }: PlannerStripProps) {
@@ -63,7 +62,7 @@ export function PlannerStrip({ tabId, window, tiles, picked, offset, showTiles, 
             window={window}
             tile={tile}
             picked={picked === tile.day.getTime()}
-            tone={mark?.key === tile.key ? mark.tone : undefined}
+            marked={mark?.key === tile.key}
             onPick={onPick}
           />
         ))
@@ -81,12 +80,12 @@ export function PlannerStrip({ tabId, window, tiles, picked, offset, showTiles, 
   )
 }
 
-function Tile({ tabId, window, tile, picked, tone, onPick }: {
+function Tile({ tabId, window, tile, picked, marked, onPick }: {
   tabId: string
   window: PlannerWindow
   tile: PlannerTile
   picked: boolean
-  tone: PlannerDropMark['tone'] | undefined
+  marked: boolean
   onPick: (day: Date | null) => void
 }) {
   const weekday = tile.day.getDay()
@@ -102,7 +101,7 @@ function Tile({ tabId, window, tile, picked, tone, onPick }: {
       ref={setNodeRef}
       type="button"
       className={styles.tile}
-      data-planner-drop={tone}
+      data-planner-drop={marked ? '' : undefined}
       aria-label={plannerTileLabel(tile)}
       aria-pressed={picked}
       data-planner-tile={tile.key}

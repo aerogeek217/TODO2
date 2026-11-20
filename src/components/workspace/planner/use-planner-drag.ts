@@ -3,7 +3,7 @@ import { useDndMonitor, type DragMoveEvent, type DragOverEvent, type DragStartEv
 import type { PersistedTodoItem } from '../../../models'
 import { usePlannerStore, type PlannerDragPreview } from '../../../stores/planner-store'
 import { contentY, listRowDropTarget, measureListGeometry, type ListGeometry } from '../../../utils/list-row-drop'
-import { plannerDrop, plannerPlacement, plannerTargetKey } from '../../../utils/planner'
+import { plannerDrop, plannerTargetKey, type PlannerDrop } from '../../../utils/planner'
 import { rowKey } from '../../../utils/scoped-selection'
 import { isPlannerDropData, TASK_DROP_KIND, type PlannerDropData } from '../../../utils/task-dnd'
 import { watchDragRelease } from '../drag-release'
@@ -20,7 +20,7 @@ export interface PlannerActiveDrag {
   row: { key: string; groupKey: string; index: number } | null
 }
 
-/** The scrollers a Planner's groups sit in: the large face's three panes, else its one column. */
+/** The scrollers a Planner's groups sit in: the large face's three panes (Today, the days ahead, the trays), else its one column. */
 const SCROLLERS = '[data-planner-pane], [data-planner-layout="column"]'
 
 interface Measured {
@@ -36,9 +36,12 @@ function ownRow(data: unknown, tabId: string): ListRowDragData | null {
     : null
 }
 
+/** A drop's day (planned for it, or its own date's) or whether it holds, for comparing two. */
+const dropDetail = (drop: PlannerDrop): number | boolean | null => ('day' in drop ? drop.day.getTime() : 'hold' in drop ? drop.hold : null)
+
 const samePreview = (a: PlannerDragPreview | null, b: PlannerDragPreview | null): boolean =>
   a === b || (a != null && b != null && a.tabId === b.tabId && a.over === b.over && a.key === b.key && a.index === b.index
-    && a.drop.kind === b.drop.kind && ('date' in a.drop ? a.drop.date?.getTime() : null) === ('date' in b.drop ? b.drop.date?.getTime() : null))
+    && a.drop.kind === b.drop.kind && dropDetail(a.drop) === dropDetail(b.drop))
 
 /**
  * Follows a task drag over the Planner `tabId` (the surrounding `DndContext`
@@ -86,12 +89,13 @@ export function usePlannerDrag(tabId: string, hostRef: RefObject<HTMLElement | n
       return
     }
     const { todo } = current
-    const drop = plannerDrop(todo, plannerPlacement(todo, over.window.today, over.window.last), over.target)
+    const drop = plannerDrop(todo, over.window, over.target)
     const group = over.type === TASK_DROP_KIND.plannerGroup ? over.group : undefined
     let index: number | null = null
     const pointer = pointerRef.current
-    // A place only where the drop brings the row into the group, or it is there already.
-    const lands = drop.kind === 'followup' || drop.kind === 'do' || (drop.kind === 'none' && group?.rows.includes(todo.uid) === true)
+    // A place only where the drop brings the row into the group (a plan cleared in Unplanned keeps only a Focus task there), or it is there already.
+    const lands = drop.kind === 'plan' || drop.kind === 'own' || (drop.kind === 'unplan' && (drop.hold || todo.focus === true))
+      || (drop.kind === 'none' && group?.rows.includes(todo.uid) === true)
     if (group && pointer && lands) {
       const measured = measuredRef.current.get(group.key)
       const section = measured?.geometry.sections.find((s) => s.key === group.key)

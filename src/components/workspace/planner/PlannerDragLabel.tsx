@@ -9,10 +9,11 @@ const LABEL_ROOM_PX = 26
 
 /**
  * The label a dragged task carries over a Planner, under the lifted row
- * (the page's drag overlay): which date a drop there would change and to
- * which day — `Follow-up · Wed, Nov 25` in the follow-up color, `Do · Wed,
- * Nov 25` or `No day` in the Do day's (`utils/planner.plannerDropLabel`,
- * from `stores/planner-store`'s drag preview). Nothing while the drag is
+ * (the page's drag overlay): what a drop there would do to its plan —
+ * `Plan · Wed, Nov 25`, `Unplan`, or `Its date · Wed, Nov 25` when the drop
+ * clears the plan on its own date's day (`utils/planner.plannerDropLabel`,
+ * from `stores/planner-store`'s drag preview) — in one neutral color: no
+ * real date changes. Nothing while the drag is
  * over no Planner target, or over one that would refuse the drop or change
  * nothing. Where it would leave the window at the bottom it sits above the
  * row (`data-above`, set as the pointer moves: the overlay moves without a
@@ -36,5 +37,5 @@ export function PlannerDragLabel() {
     return () => window.removeEventListener('pointermove', place)
   }, [shown])
   if (!label) return null
-  return <span ref={ref} className={styles.dragLabel} data-tone={label.tone} data-testid="planner-drag-label">{label.text}</span>
+  return <span ref={ref} className={styles.dragLabel} data-testid="planner-drag-label">{label}</span>
 }
