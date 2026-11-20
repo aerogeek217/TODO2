@@ -283,6 +283,19 @@ describe('a drop on Unplanned', () => {
     expect(await plan(chase.id)).toMatchObject({ doDate: day(3), unplanned: undefined, modifiedAt: STAMP })
   })
 
+  it('never takes a task out of the Planner: a planned task with no date, not in Focus, is held — and Unplan’s undo plans it again', async () => {
+    const bare = await seed('From a list', { doDate: day(2) })
+    const w = watchWrites()
+    await unplanPlannerTask('plan', bare.id, WINDOW)
+    expect(w.setPlan).toHaveBeenCalledWith([bare.id], 'unplanned')
+    expect(await plan(bare.id)).toMatchObject({ doDate: undefined, unplanned: true, modifiedAt: STAMP })
+    const shown = plannerView(useTodoStore.getState().todos, { today: TODAY })
+    expect(shown.unplanned.tasks.map((t) => t.id)).toEqual([bare.id])
+    expect(shown.placements.get(bare.uid)).toMatchObject({ where: 'unplanned', placed: true })
+    await useUndoStore.getState().undo()
+    expect(await plan(bare.id)).toMatchObject({ doDate: day(2), unplanned: undefined, modifiedAt: STAMP })
+  })
+
   it('a Focus task with no date just loses its plan (not held)', async () => {
     const task = await seed('Focus', { focus: true, doDate: day(1), dueDate: day(20) })
     const w = watchWrites()
@@ -758,7 +771,7 @@ describe('a conflict’s fixes', () => {
     return plannerPlacement(todo, WINDOW)?.conflicts.find((c) => c.date === date)?.fixes ?? []
   }
 
-  it('Move due date to the planned day: a real edit — the day at local midnight, stamped, in the history, one undo step; the plan stays', async () => {
+  it('Move due date to the planned day: a real edit — the day at local midnight, stamped, in the history — and the plan it makes redundant cleared, all one undo step', async () => {
     const task = await seed('Venue', { doDate: day(3), dueDate: day(1, 9) })
     const events = await eventCount(task.id)
     const [move] = fixes(task.id, 'due')
@@ -766,24 +779,45 @@ describe('a conflict’s fixes', () => {
     const w = watchWrites()
     await applyPlannerFix('plan', task.id, move!, WINDOW)
     expect(w.update).toHaveBeenCalledTimes(1)
-    expect(w.update).toHaveBeenCalledWith(task.id, { dueDate: day(3) })
+    expect(w.update).toHaveBeenCalledWith(task.id, { dueDate: day(3), doDate: undefined, unplanned: undefined })
     expect(w.setPlan).not.toHaveBeenCalled()
     const after = await storedTask(task.id)
     // The planned day at local midnight: not the old time of day, not noon.
     expect(after.dueDate).toEqual(day(3))
     expect(after.dueDate?.getHours()).toBe(0)
-    expect(after.doDate).toEqual(day(3))
+    // Its own date puts it on that day now: the plan went with the edit.
+    expect(after.doDate).toBeUndefined()
+    expect(after.unplanned).toBeUndefined()
     expect(after.modifiedAt).toEqual(NOW)
     expect(await eventCount(task.id)).toBe(events + 1)
     expect(steps()).toEqual(['Edit "Venue"'])
-    // No conflict left.
-    expect(plannerPlacement(useTodoStore.getState().todos.find((t) => t.id === task.id)!, WINDOW)?.conflicts).toEqual([])
+    // No conflict left, the row where it was and no longer placed.
+    expect(plannerPlacement(useTodoStore.getState().todos.find((t) => t.id === task.id)!, WINDOW)).toMatchObject({
+      where: 'day', day: day(3), reason: 'due', placed: false, conflicts: [],
+    })
 
     await useUndoStore.getState().undo()
     const undone = await storedTask(task.id)
     expect(undone.dueDate).toEqual(day(1, 9))
     expect(undone.modifiedAt).toEqual(STAMP)
     expect(undone.doDate).toEqual(day(3))
+    expect(steps()).toEqual([])
+    await useUndoStore.getState().redo()
+    expect(await plan(task.id)).toMatchObject({ dueDate: day(3), doDate: undefined, unplanned: undefined })
+  })
+
+  it('the plan stays while another, earlier date still puts the task elsewhere; the second fix clears it', async () => {
+    // Due Sat, follow-up Sun, planned Wed.
+    const task = await seed('Both', { doDate: day(5), dueDate: day(1), nextFollowupAt: day(2) })
+    const w = watchWrites()
+    await applyPlannerFix('plan', task.id, fixes(task.id, 'due')[0]!, WINDOW)
+    expect(w.update).toHaveBeenLastCalledWith(task.id, { dueDate: day(5) })
+    expect(await plan(task.id)).toMatchObject({ dueDate: day(5), nextFollowupAt: day(2), doDate: day(5) })
+    expect(plannerPlacement(useTodoStore.getState().todos.find((t) => t.id === task.id)!, WINDOW)).toMatchObject({ placed: true, conflicts: [{ date: 'followup' }] })
+    await applyPlannerFix('plan', task.id, fixes(task.id, 'followup')[0]!, WINDOW)
+    expect(w.update).toHaveBeenLastCalledWith(task.id, { nextFollowupAt: day(5), doDate: undefined, unplanned: undefined })
+    expect(await plan(task.id)).toMatchObject({ dueDate: day(5), nextFollowupAt: day(5), doDate: undefined })
+    expect(w.setPlan).not.toHaveBeenCalled()
   })
 
   it('Move follow-up to the planned day likewise', async () => {
@@ -793,13 +827,13 @@ describe('a conflict’s fixes', () => {
     expect(move).toEqual({ kind: 'move-date', date: 'followup', to: day(4) })
     const w = watchWrites()
     await applyPlannerFix('plan', task.id, move!, WINDOW)
-    expect(w.update).toHaveBeenCalledWith(task.id, { nextFollowupAt: day(4) })
+    expect(w.update).toHaveBeenCalledWith(task.id, { nextFollowupAt: day(4), doDate: undefined, unplanned: undefined })
     const after = await storedTask(task.id)
     expect(after.nextFollowupAt).toEqual(day(4))
     expect(after.nextFollowupAt?.getHours()).toBe(0)
     expect(after.dueDate).toBeUndefined()
     expect(after.lastFollowupAt).toBeUndefined()
-    expect(after.doDate).toEqual(day(4))
+    expect(after.doDate).toBeUndefined()
     expect(after.modifiedAt).toEqual(NOW)
     expect(await eventCount(task.id)).toBe(events + 1)
     expect(steps()).toEqual(['Edit "Chase"'])

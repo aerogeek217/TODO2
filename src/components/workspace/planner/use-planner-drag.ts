@@ -93,8 +93,8 @@ export function usePlannerDrag(tabId: string, hostRef: RefObject<HTMLElement | n
     const group = over.type === TASK_DROP_KIND.plannerGroup ? over.group : undefined
     let index: number | null = null
     const pointer = pointerRef.current
-    // A place only where the drop brings the row into the group (a plan cleared in Unplanned keeps only a Focus task there), or it is there already.
-    const lands = drop.kind === 'plan' || drop.kind === 'own' || (drop.kind === 'unplan' && (drop.hold || todo.focus === true))
+    // A place only where the drop brings the row into the group (an Unplan always does: held, or kept there by Focus), or it is there already.
+    const lands = drop.kind === 'plan' || drop.kind === 'own' || drop.kind === 'unplan'
       || (drop.kind === 'none' && group?.rows.includes(todo.uid) === true)
     if (group && pointer && lands) {
       const measured = measuredRef.current.get(group.key)

@@ -235,11 +235,12 @@ describe('over a group', () => {
     move(470)
     expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'refuse' }, index: null })
     end()
-    // A planned task with no date, not in Focus: its plan is cleared and it leaves the Planner — no place in Unplanned.
+    // A planned task with no date, not in Focus: held, so it has a place in Unplanned.
     start(makeTodo({ id: 10, uid: 'bare', doDate: day(1) }), null)
     over(group('unplanned'))
     move(470)
-    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan', hold: false }, index: null })
+    expect(preview()).toMatchObject({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan', hold: true } })
+    expect(preview()?.index).not.toBeNull()
     end()
     // A completed task is refused everywhere.
     start({ ...chase, isCompleted: true }, TODAY_KEY)

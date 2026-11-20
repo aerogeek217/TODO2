@@ -297,15 +297,15 @@ describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('Unplan holds a dated row in Unplanned and clears a Focus row’s plan; it is off in Unplanned', () => {
+  it('Unplan holds a row in Unplanned — a dated one, and one with no date that would leave the Planner; it is off in Unplanned', () => {
     const { setPlan, update } = watch()
     show()
     fireEvent.click(within(openMenu('Monday deadline')).getByRole('menuitem', { name: /^Unplan/ }))
     expect(setPlan).toHaveBeenLastCalledWith([4], 'unplanned')
     fireEvent.click(within(openMenu('Monday plan')).getByRole('menuitem', { name: /^Unplan/ }))
-    expect(setPlan).toHaveBeenLastCalledWith([5], null)
+    expect(setPlan).toHaveBeenLastCalledWith([5], 'unplanned')
     fireEvent.click(within(openMenu('Missed plan')).getByRole('menuitem', { name: /^Unplan/ }))
-    expect(setPlan).toHaveBeenLastCalledWith([6], null)
+    expect(setPlan).toHaveBeenLastCalledWith([6], 'unplanned')
     expect(setPlan).toHaveBeenCalledTimes(3)
 
     const off = within(openMenu('Someday focus')).getByRole('menuitem', { name: /^Unplan/ })

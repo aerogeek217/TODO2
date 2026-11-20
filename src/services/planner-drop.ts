@@ -5,6 +5,7 @@ import { useWorkspaceStore } from '../stores/workspace-store'
 import { startOfDay } from '../utils/date'
 import {
   plannerDropWrite,
+  plannerFixClearsPlan,
   plannerMovePlan,
   plannerPlacement,
   plannerResetTasks,
@@ -114,7 +115,7 @@ export function snoozePlannerTask(tabId: string, todoId: number, window: Planner
   return movePlannerTask(tabId, { todoId, target: { kind: 'day', day }, window })
 }
 
-/** **Unplan**: the Unplanned tray's drop for one row — held there with a natural day, else its plan cleared. */
+/** **Unplan**: the Unplanned tray's drop for one row — held there, or (a Focus task with no date in the window) its plan cleared. */
 export function unplanPlannerTask(tabId: string, todoId: number, window: PlannerSpan): Promise<void> {
   return movePlannerTask(tabId, { todoId, target: { kind: 'unplanned' }, window })
 }
@@ -125,8 +126,8 @@ const tasksWord = (n: number): string => `${n} ${n === 1 ? 'task' : 'tasks'}`
 
 /**
  * **Unplan all Delayed**: every task the Planner's Delayed tray shows
- * (`view`) to Unplanned — each held or just cleared, as its own Unplan
- * would — in one write and one undo step.
+ * (`view`) to Unplanned — each as its own Unplan would — in one write and
+ * one undo step.
  */
 export function unplanDelayedTasks(view: Pick<PlannerRows, 'window' | 'delayed'>): Promise<void> {
   const plans = plannerUnplanDelayed(view)
@@ -151,12 +152,20 @@ export function resetPlannerPlan(view: PlannerRows, scope: PlannerResetScope): P
  * - `move-date` — the due date or the follow-up moved to the planned day,
  *   as a day at local midnight: **a real edit** of the task, through the
  *   ordinary edit path (`todo-store.update`: stamped, one undo step, in the
- *   history log) — the one Planner write that touches a real date;
+ *   history log) — the one Planner write that touches a real date. When
+ *   the move makes the plan redundant — the task's own dates now put it on
+ *   its planned day (`plannerFixClearsPlan`) — the plan is cleared in the
+ *   same edit, one undo step: the row is no longer placed. With another,
+ *   earlier date still putting it elsewhere the plan stays;
  * - `plan` — the task planned for that date's day instead, through the
  *   drop rule (on its natural day the plan is cleared).
  */
 export async function applyPlannerFix(tabId: string, todoId: number, fix: PlannerFix, window: PlannerSpan): Promise<void> {
   if (fix.kind === 'plan') return movePlannerTask(tabId, { todoId, target: { kind: 'day', day: fix.day }, window })
+  const store = useTodoStore.getState()
+  const todo = store.todos.find((t) => t.id === todoId)
+  if (!todo) return
   const day = startOfDay(new Date(fix.to))
-  await useTodoStore.getState().update(todoId, fix.date === 'due' ? { dueDate: day } : { nextFollowupAt: day })
+  const date = fix.date === 'due' ? { dueDate: day } : { nextFollowupAt: day }
+  await store.update(todoId, plannerFixClearsPlan(todo, fix, window) ? { ...date, doDate: undefined, unplanned: undefined } : date)
 }
