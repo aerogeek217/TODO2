@@ -282,7 +282,8 @@ function sameFieldValue(a: unknown, b: unknown): boolean {
  * `modifiedAt`); when none does, nothing is written and no undo step added.
  * Undo puts back each task's earlier `modifiedAt`, redo the one this wrote
  * (`opts.stamp`, `utils/task-stamps`) — each only where the task still holds
- * the other.
+ * the other. A caller's `opts.stamp` of `KEEP_STAMPS` writes the field and
+ * leaves every `modifiedAt` as it is, on the write, its undo and its redo.
  */
 export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   ids: number[],

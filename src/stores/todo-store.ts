@@ -21,7 +21,9 @@ import { resolveCompletedAt } from '../utils/completed-at'
 import { formatFollowupDate, nextAfterFollowup } from '../utils/followup'
 import { fieldsOf, revertChanges, todoChanges, withOrphanedRuleDropped } from '../utils/todo-changes'
 import { compareStatusUpdates } from '../utils/status-updates'
-import { stampAfter, undoStamps, type Stamp, type StampChanges } from '../utils/task-stamps'
+import { KEEP_STAMPS, stampAfter, undoStamps, type Stamp, type StampChanges } from '../utils/task-stamps'
+import { startOfDay } from '../utils/date'
+import { shortTitle } from '../utils/text'
 
 /** A task to create with the people and tags it starts with (`addMany`). */
 interface NewTaskWithAssignments {
@@ -156,6 +158,15 @@ interface TodoState {
   bulkSetFollowup: (ids: number[], date: Date | null) => Promise<void>
   /** Sets (or, with `null`, clears) `lastFollowupAt` on every task in `ids`. */
   bulkSetLastFollowup: (ids: number[], date: Date | null) => Promise<void>
+  /**
+   * Sets the Do day (`doDate`, its day at local midnight) of every task in
+   * `ids`, or with `undefined` clears it. One undo step, no snackbar —
+   * `Set Do day of “Title”` / `Set Do day of 3 tasks`, `Cleared Do day of …`.
+   * Planning is not an edit: the write, its undo and its redo leave every
+   * task's `modifiedAt` as it is (`KEEP_STAMPS`), and no history event is
+   * logged. Only the tasks whose Do day changes are written.
+   */
+  setDoDate: (ids: number[], date: Date | undefined) => Promise<void>
   /** Puts every task in `ids` in focus (`on`) or takes it out. One undo step. */
   bulkSetFocus: (ids: number[], on: boolean) => Promise<void>
   /** Flags every task in `ids` urgent (`on`) or clears the flag. One undo step. */
@@ -811,6 +822,14 @@ export const useTodoStore = create<TodoState>((set, get) => {
   async bulkSetLastFollowup(ids: number[], date: Date | null) {
     const label = date ? `Set last follow-up on ${ids.length} tasks` : `Clear last follow-up on ${ids.length} tasks`
     await bulkUpdateField(ids, 'lastFollowupAt', date ?? undefined, label, get, set)
+  },
+
+  async setDoDate(ids: number[], date: Date | undefined) {
+    const day = date ? startOfDay(date) : undefined
+    const only = ids.length === 1 ? get().todos.find((t) => t.id === ids[0]) : undefined
+    const what = only ? `“${shortTitle(only.title)}”` : `${ids.length} tasks`
+    const label = `${day ? 'Set' : 'Cleared'} Do day of ${what}`
+    await bulkUpdateField(ids, 'doDate', day, label, get, set, { stamp: KEEP_STAMPS })
   },
 
   async bulkSetFocus(ids: number[], on: boolean) {
