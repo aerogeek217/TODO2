@@ -141,6 +141,7 @@ export const useFileStorageStore = create<FileStorageState>((set, get) => {
     error: null,
     paused: null,
     launchWait: null,
+    linkUnread: false,
     isSupported: fileStorageService.isSupported,
     isLoading: false,
     pendingConflict: null,

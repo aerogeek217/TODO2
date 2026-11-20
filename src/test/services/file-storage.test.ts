@@ -1191,7 +1191,6 @@ describe('FileStorageService — the browser never answers at launch', () => {
     const read = never<unknown>()
     mockLoadFileHandle.mockReturnValue(read.promise)
     const svc = await getService()
-    const { LINK_UNREAD_ERROR } = await import('../../services/file-storage')
     const ask = vi.fn(() => Promise.resolve())
     svc.onLaunchPermission(ask)
 
@@ -1205,7 +1204,8 @@ describe('FileStorageService — the browser never answers at launch', () => {
     await run
     expect(svc.status).toEqual({
       isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, paused: null, launchWait: null,
-      error: LINK_UNREAD_ERROR,
+      // Its own state, not an error: nothing dismisses it.
+      error: null, linkUnread: true,
     })
     expect(ask).not.toHaveBeenCalled()
     expect(mockClearFileHandle).not.toHaveBeenCalled()
@@ -1234,13 +1234,76 @@ describe('FileStorageService — the browser never answers at launch', () => {
     expect(vi.getTimerCount()).toBe(timersBefore)
   })
 
-  it('a stored link that can’t be read at all still fails launch’s step as before', async () => {
+  it('a stored link that can’t be read at all (the link database fails): as one not read in time, at once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
     const svc = await getService()
     const timersBefore = vi.getTimerCount()
-    await expect(svc.initialize()).rejects.toThrow('meta database blocked')
-    expect(svc.status.launchWait).toBeNull()
+    // Launch's step doesn't fail: it goes on without the file, and says so.
+    await expect(svc.initialize()).resolves.toBeUndefined()
+    expect(svc.status).toMatchObject({ launchWait: null, fileName: null, isConnected: false, error: null, linkUnread: true })
     expect(vi.getTimerCount()).toBe(timersBefore)
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith('[file-storage] the stored file handle could not be read', expect.any(Error))
+    // Tracked, as with an attached file.
+    for (const table of mockTables) expect(table.hook('creating').handlers.size).toBe(1)
+    fireLocalChange()
+    expect(syncState().dirtySince).not.toBeNull()
+  })
+
+  it('edits made after a link read that failed are unsynced at the next start: written to the unchanged file, never overwritten by it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // This browser last synced with the file as it still is, and was clean.
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
+    const svc = await getService()
+    await svc.initialize()
+    // The session's edit.
+    fireLocalChange()
+    expect(syncState()).toEqual({ fileSavedAt: FILE_SAVED_AT, dirtySince: expect.any(String) })
+
+    // The next start reads the link: the load decision finds the browser ahead.
+    svc.reset()
+    const { handle, writable } = createMockHandle()
+    mockLoadFileHandle.mockResolvedValue(handle)
+    await svc.initialize()
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledTimes(1)
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(svc.status).toMatchObject({ isConnected: true, paused: null, error: null })
+    expect(syncState().dirtySince).toBeNull()
+  })
+
+  it('the same start without that edit loads nothing either: the browser already holds the file', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
+    const svc = await getService()
+    await svc.initialize()
+    svc.reset()
+    const { handle, writable } = createMockHandle()
+    mockLoadFileHandle.mockResolvedValue(handle)
+    await svc.initialize()
+    // Clean and synced with this very file: the lossless load, no write.
+    expect(mockRestoreFromImportData).toHaveBeenCalledTimes(1)
+    expect(writable.write).not.toHaveBeenCalled()
+  })
+
+  it('a permission check that fails: as one not answered — the launch question, marked unchecked, edits tracked', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc, handle, writable } = await startWith(fileBody(), {
+      queryPermission: vi.fn().mockRejectedValue(new DOMException('gone', 'NotFoundError')),
+    })
+    const ask = vi.fn(() => Promise.resolve())
+    svc.onLaunchPermission(ask)
+    await expect(svc.initialize()).resolves.toBeUndefined()
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', unchecked: true })
+    expect(svc.status).toMatchObject({ needsPermission: true, launchWait: null, isConnected: false, fileName: 'todo2-data.json' })
+    expect(warn).toHaveBeenCalledWith('[file-storage] the permission check failed', expect.anything())
+    expect(handle.getFile).not.toHaveBeenCalled()
+    expectUntouched(writable)
+    await expectNoWriteAfterChange(writable)
   })
 
   it('Continue without the file while the file is read: launch goes on, sync paused; the late read changes nothing; Retry loads it', async () => {
@@ -1297,13 +1360,12 @@ describe('FileStorageService — the browser never answers at launch', () => {
     svc.reset()
     const read = never<unknown>()
     mockLoadFileHandle.mockReturnValue(read.promise)
-    const { LINK_UNREAD_ERROR } = await import('../../services/file-storage')
     const second = svc.initialize()
     await vi.advanceTimersByTimeAsync(0)
     expect(svc.status.launchWait).toBe('link')
     expect(svc.skipLaunchFile()).toBe(true)
     await second
-    expect(svc.status).toMatchObject({ error: LINK_UNREAD_ERROR, fileName: null })
+    expect(svc.status).toMatchObject({ linkUnread: true, error: null, fileName: null })
     expect(mockClearFileHandle).not.toHaveBeenCalled()
   })
 
@@ -1338,7 +1400,7 @@ describe('FileStorageService — the browser never answers at launch', () => {
     await run
     expect(mockClearFileHandle).toHaveBeenCalledTimes(1)
     expect(svc.status).toEqual({
-      isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, error: null, paused: null, launchWait: null,
+      isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, error: null, paused: null, launchWait: null, linkUnread: false,
     })
     expect(localStorage.getItem(SYNC_KEY)).toBeNull()
     // Neither side's data: no restore into the browser, no read or write of the file.
@@ -1366,6 +1428,77 @@ describe('FileStorageService — the browser never answers at launch', () => {
     await vi.advanceTimersByTimeAsync(1)
     await gone
     expect(svc.status.error).toMatch(/could not forget the file/)
+  })
+
+  it('Sync off lasts until a file is attached again or the link is forgotten — not until an error is cleared', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
+    const svc = await getService()
+    await svc.initialize()
+    expect(svc.status.linkUnread).toBe(true)
+
+    // A picker the user cancels attaches nothing: still off.
+    vi.mocked(window.showOpenFilePicker).mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
+    await svc.openFile()
+    expect(svc.status.linkUnread).toBe(true)
+
+    // The file attached again: the usual load decision, and the state is over.
+    const { handle } = createMockHandle()
+    vi.mocked(window.showOpenFilePicker).mockResolvedValueOnce([handle as unknown as FileSystemFileHandle])
+    await svc.openFile()
+    expect(mockSaveFileHandle).toHaveBeenCalledWith(handle)
+    expect(svc.status).toMatchObject({ linkUnread: false, fileName: 'todo2-data.json', isConnected: true })
+
+    // Forgetting the link ends it too.
+    svc.reset()
+    await svc.initialize()
+    expect(svc.status.linkUnread).toBe(true)
+    await svc.disconnect()
+    expect(mockClearFileHandle).toHaveBeenCalled()
+    expect(svc.status).toMatchObject({ linkUnread: false, fileName: null, error: null })
+
+    // And a later start that reads the link.
+    svc.reset()
+    await svc.initialize()
+    expect(svc.status.linkUnread).toBe(true)
+    mockLoadFileHandle.mockResolvedValue(null)
+    await svc.initialize()
+    expect(svc.status.linkUnread).toBe(false)
+  })
+
+  it('a second Disconnect while the first still clears the link: neither reports a failure the browser never had', async () => {
+    const { svc } = await startWith()
+    await svc.initialize()
+    const slow = never<void>()
+    mockClearFileHandle.mockReturnValueOnce(slow.promise)
+    const first = svc.disconnect()
+    await vi.advanceTimersByTimeAsync(TIMEOUT - 1)
+    // Again, before the first clear landed (its own clear answers at once).
+    await svc.disconnect()
+    expect(svc.status.error).toBeNull()
+
+    slow.answer()
+    await first
+    expect(mockClearFileHandle).toHaveBeenCalledTimes(2)
+    expect(svc.status).toMatchObject({ fileName: null, error: null })
+  })
+
+  it('giving another wait up leaves a Disconnect’s clear alone', async () => {
+    const check = never<PermissionState>()
+    const { svc } = await startWith()
+    await svc.initialize()
+    const slow = never<void>()
+    mockClearFileHandle.mockReturnValueOnce(slow.promise)
+    const gone = svc.disconnect()
+    // The next launch, while the browser still clears the old link: its wait is given up.
+    mockLoadFileHandle.mockResolvedValue(createMockHandle(fileBody(), { queryPermission: vi.fn(() => check.promise) }).handle)
+    const run = svc.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(svc.skipLaunchFile()).toBe(true)
+    await run
+    slow.answer()
+    await gone
+    expect(svc.status.error).toBeNull()
   })
 
   it('a Grant access the browser never answers can be given up: permission stays needed, a late grant changes nothing', async () => {
@@ -1634,7 +1767,7 @@ describe('FileStorageService — reset', () => {
 
     svc.reset()
     expect(svc.status).toEqual({
-      isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, error: null, paused: null, launchWait: null,
+      isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, error: null, paused: null, launchWait: null, linkUnread: false,
     })
     for (const table of mockTables) expect(table.hook('creating').handlers.size).toBe(0)
     await vi.advanceTimersByTimeAsync(2000)

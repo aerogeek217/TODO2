@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { runAppStartup } from '../../services/app-startup'
-import { fileStorageService, FILE_LINK_TIMEOUT_MS, LINK_UNREAD_ERROR, type LaunchPermissionInfo } from '../../services/file-storage'
+import { fileStorageService, FILE_LINK_TIMEOUT_MS, type LaunchPermissionInfo } from '../../services/file-storage'
 import { loadFileHandle, saveFileHandle } from '../../services/file-handle-idb'
+import { clearFileSyncState, readFileSyncState, writeFileSyncState } from '../../services/file-sync-state'
 import { storagePillState } from '../../components/layout/sync-status'
 import { useFileStorageStore } from '../../services/file-storage-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -181,7 +182,7 @@ describe('runAppStartup — a stored file handle the browser never hands over', 
     const s = useFileStorageStore.getState()
     return storagePillState({
       isConnected: s.isConnected, fileName: s.fileName, needsPermission: s.needsPermission, paused: s.paused,
-      error: s.error, dismissedError: s.dismissedError, snapshotWarning: null,
+      error: s.error, dismissedError: s.dismissedError, linkUnread: s.linkUnread, snapshotWarning: null,
     })
   }
 
@@ -203,9 +204,12 @@ describe('runAppStartup — a stored file handle the browser never hands over', 
     expect(result).toEqual({ expiredUids: new Set([expiredUid]) })
     expect(work.backups).toHaveBeenCalledTimes(1)
     expect(useFileStorageStore.getState()).toMatchObject({
-      launchWait: null, fileName: null, needsPermission: false, pendingLaunchPermission: null, error: LINK_UNREAD_ERROR,
+      launchWait: null, fileName: null, needsPermission: false, pendingLaunchPermission: null, error: null, linkUnread: true,
     })
-    expect(pill()).toMatchObject({ kind: 'error', text: 'Sync error' })
+    expect(pill()).toMatchObject({ kind: 'unchecked', text: 'Sync off' })
+    // Dismissing whatever error there is leaves it: it is no error.
+    useFileStorageStore.getState().dismissError()
+    expect(pill()).toMatchObject({ kind: 'unchecked', text: 'Sync off' })
     expect(await db.todos.count()).toBe(1)
     expect(await linkNow()).toEqual(storedLink)
   })
@@ -222,7 +226,7 @@ describe('runAppStartup — a stored file handle the browser never hands over', 
     // At once: no timeout to wait for.
     expect(result).toEqual({ expiredUids: new Set([expiredUid]) })
     expect(work.backups).toHaveBeenCalledTimes(1)
-    expect(useFileStorageStore.getState()).toMatchObject({ launchWait: null, fileName: null, needsPermission: false, error: null })
+    expect(useFileStorageStore.getState()).toMatchObject({ launchWait: null, fileName: null, needsPermission: false, error: null, linkUnread: false })
     expect(pill()).toMatchObject({ kind: 'local' })
     expect(await db.todos.count()).toBe(1)
     expect((await db.todos.toArray())[0]?.uid).toBe(expiredUid)
@@ -238,8 +242,48 @@ describe('runAppStartup — a stored file handle the browser never hands over', 
     useFileStorageStore.getState().skipLaunchFile()
     await settleReal()
     expect(result).not.toBeNull()
-    expect(useFileStorageStore.getState()).toMatchObject({ launchWait: null, fileName: null, error: LINK_UNREAD_ERROR })
+    expect(useFileStorageStore.getState()).toMatchObject({ launchWait: null, fileName: null, error: null, linkUnread: true })
     expect(await db.todos.count()).toBe(1)
     expect(await linkNow()).toEqual(storedLink)
+  })
+})
+
+// The real service over the real link database and the real tables: the
+// stored file handle can't be read at all (the link database's open is
+// blocked, which rejects).
+describe('runAppStartup — a stored file handle that can’t be read', () => {
+  const SYNCED = '2026-10-01T10:00:00.000Z'
+
+  beforeEach(() => {
+    vi.stubGlobal('showOpenFilePicker', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const realOpen = indexedDB.open.bind(indexedDB)
+    vi.spyOn(indexedDB, 'open').mockImplementation((name, version) => {
+      if (name !== 'todo2-meta') return realOpen(name, version)
+      const req = { onblocked: null as null | (() => void) }
+      queueMicrotask(() => { req.onblocked?.() })
+      return req as unknown as IDBOpenDBRequest
+    })
+  })
+
+  afterEach(() => {
+    fileStorageService.reset()
+    clearFileSyncState()
+    vi.unstubAllGlobals()
+  })
+
+  it('launch completes without the file and says so; an edit of this session is recorded as unsynced', async () => {
+    const work = spyLaunchWork()
+    // This browser last synced with a file, and was clean.
+    writeFileSyncState({ fileSavedAt: SYNCED, dirtySince: null })
+
+    await expect(runAppStartup()).resolves.toEqual({ expiredUids: new Set([expiredUid]) })
+    expect(work.backups).toHaveBeenCalledTimes(1)
+    expect(useFileStorageStore.getState()).toMatchObject({ launchWait: null, fileName: null, error: null, linkUnread: true })
+
+    // Whatever launch itself wrote aside: the user's edit alone marks the browser dirty.
+    writeFileSyncState({ fileSavedAt: SYNCED, dirtySince: null })
+    await db.todos.add(makeTodo({ id: 2 }))
+    expect(readFileSyncState()).toEqual({ fileSavedAt: SYNCED, dirtySince: expect.any(String) })
   })
 })

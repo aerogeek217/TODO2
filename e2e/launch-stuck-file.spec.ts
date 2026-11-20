@@ -8,10 +8,12 @@ import { attachSyncHandle, readSyncFile } from './fixtures/sync-file'
  * stored handle it can no longer resolve has been seen to do that): the app
  * must not sit on `Loading…` without end. The permission check is given a
  * few seconds, then the launch question says the link could not be checked;
+ * so is reading the stored link, after which the app opens with sync off;
  * a file read has no time limit, but the start screen names the step and
  * offers Continue without the file and Forget the sync file. The handle is a
  * real OPFS file stored where the app keeps its handle; `stubStuckFile`
- * makes its permission check or its read wait for as long as the test says.
+ * makes the read of that stored link, its permission check or its read wait
+ * for as long as the test says.
  */
 
 const SYNC_FILE = 'e2e-stuck.json'
@@ -19,10 +21,10 @@ const STUCK_KEY = 'e2e-stuck-file'
 /** The waits the app itself makes before it says anything (5 s, then 6 s), with room for a slow machine. */
 const SLOW = { timeout: 20_000 }
 
-type Stuck = 'permission' | 'read'
+type Stuck = 'link' | 'permission' | 'read'
 type StuckWindow = Window & { __e2eStuck?: Stuck | null }
 
-/** File handles whose `queryPermission` or `getFile` never answers while `stick` says so (kept across reloads). */
+/** File handles whose `queryPermission` or `getFile` — or whose stored link's read — never answers while `stick` says so (kept across reloads). */
 async function stubStuckFile(page: Page): Promise<void> {
   await page.addInitScript((key) => {
     const w = window as StuckWindow
@@ -35,6 +37,12 @@ async function stubStuckFile(page: Page): Promise<void> {
     proto.queryPermission = () => (w.__e2eStuck === 'permission' ? new Promise(() => {}) : Promise.resolve('granted'))
     proto.getFile = function getFile() {
       return w.__e2eStuck === 'read' ? new Promise(() => {}) : realGetFile.call(this)
+    }
+    // The stored link's row: a request that never fires.
+    const realGet = IDBObjectStore.prototype.get
+    IDBObjectStore.prototype.get = function get(this: IDBObjectStore, key: IDBValidKey | IDBKeyRange) {
+      if (w.__e2eStuck === 'link' && this.name === 'handles') return {} as IDBRequest
+      return realGet.call(this, key)
     }
   }, STUCK_KEY)
 }
@@ -87,6 +95,10 @@ async function storedLink(page: Page): Promise<string | null> {
     }
   }))
 }
+
+// Each test waits out the app's own timeouts (5 s, then 6 s) on top of two or
+// three launches: three times the usual limit.
+test.beforeEach(() => { test.slow() })
 
 const taskTitles = async (page: Page) => (await readStore<{ title: string }>(page, 'todos')).map((t) => t.title)
 const startScreen = (page: Page) => page.getByTestId('start-screen')
@@ -176,4 +188,46 @@ test('a file read that never ends: Continue without the file opens this browser�
   await expect(pill).toHaveAttribute('data-state', 'syncing')
   expect(await taskTitles(page)).toContain('Keep me')
   expect(JSON.parse(await readSyncFile(page, SYNC_FILE))).toMatchObject({ todos: JSON.parse(fileText).todos })
+})
+
+test('a stored link that is never read: the app opens with Sync off, which stays; its edits reach the file at the next start', async ({ page }) => {
+  await setUp(page)
+  // A first start that syncs: this browser and the file hold the same data, on record.
+  await page.reload()
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveAttribute('data-state', 'syncing')
+  const synced = await readSyncFile(page, SYNC_FILE)
+
+  await stick(page, 'link')
+  await page.reload()
+  await workspace(page).waitFor({ state: 'visible', ...SLOW })
+  await expect(pill).toHaveAttribute('data-state', 'unchecked')
+  await expect(pill).toHaveText('Sync off')
+
+  // Its section has Reload and nothing that dismisses it.
+  await pill.click()
+  const section = page.getByTestId('storage-popover').locator('[data-warning="unchecked"]')
+  await expect(section).toContainText('TODO2 could not check its sync file when it started')
+  await expect(section.getByRole('button')).toHaveText(['Reload'])
+  await page.keyboard.press('Escape')
+  await expect(pill).toHaveAttribute('data-state', 'unchecked')
+
+  // An edit meanwhile stays in this browser, recorded as unsynced.
+  await page.keyboard.press('Control+Space')
+  await page.getByRole('dialog', { name: 'Quick add task' }).getByPlaceholder('New task…').fill('Edit while sync was off')
+  await page.keyboard.press('Enter')
+  await expect.poll(() => taskTitles(page)).toContain('Edit while sync was off')
+  await expect(pill).toHaveAttribute('data-state', 'unchecked')
+  const record = JSON.parse(await page.evaluate(() => localStorage.getItem('todo2-file-sync-state')) ?? '{}') as { dirtySince?: string | null }
+  expect(record.dirtySince).toBeTruthy()
+  await stick(page, null)
+  expect(await readSyncFile(page, SYNC_FILE)).toBe(synced)
+  expect(await storedLink(page)).toBe(SYNC_FILE)
+
+  // The next start reads the link: the file is unchanged, so the edit is written to it — never the file loaded over it.
+  await page.reload()
+  await expect(pill).toHaveAttribute('data-state', 'syncing')
+  expect(await taskTitles(page)).toContain('Edit while sync was off')
+  const titles = (JSON.parse(await readSyncFile(page, SYNC_FILE)) as { todos: Array<{ title: string }> }).todos.map((t) => t.title)
+  expect(titles).toContain('Edit while sync was off')
 })
