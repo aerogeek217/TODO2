@@ -45,6 +45,19 @@ describe('storagePillState', () => {
     expect(storagePillState({ ...base, isConnected: true, fileName: 'todo2.json' })).toEqual({ kind: 'syncing', text: 'Synced', warningCount: 0 })
   })
 
+  it('the sync file’s link not read at launch: Sync off, amber, after a pause and before an error; no dismissal reaches it', () => {
+    const off = { ...base, linkUnread: true }
+    expect(storagePillState(off)).toEqual({ kind: 'unchecked', text: 'Sync off', warningCount: 1 })
+    expect(warningTone('unchecked')).toBe('warning')
+    expect(syncWarnings({ ...off, error: 'Failed to open file', dismissedError: 'Failed to open file' })).toEqual([{ kind: 'unchecked' }])
+    expect(syncWarnings({ ...off, error: 'Failed to open file', snapshotWarning: 'w' }).map((w) => w.kind)).toEqual(['unchecked', 'error', 'backup'])
+    expect(syncWarnings({ ...off, paused: conflictPause }).map((w) => w.kind)).toEqual(['paused', 'unchecked'])
+    const copy = syncWarningCopy({ kind: 'unchecked' })
+    expect(copy.title).toBe('Sync off')
+    expect(copy.body).toContain('Reload to try again, or attach the file again in File storage settings.')
+    expect(syncWarnings({ ...base, linkUnread: false })).toEqual([])
+  })
+
   it('each warning on its own: its text, one warning', () => {
     const texts = { permission: 'Permission needed', paused: 'Sync paused', error: 'Sync error', backup: 'Backup warning' }
     for (const kind of ['permission', 'paused', 'error', 'backup'] as const) {
@@ -182,6 +195,33 @@ describe('StoragePill', () => {
     const popover = screen.getByRole('dialog', { name: 'Syncing to todo2.json' })
     expect(popover).toHaveTextContent('Last saved 2m ago.')
     expect(screen.getByRole('button', { name: 'File storage settings…' })).toBeInTheDocument()
+  })
+
+  it('Sync off (the sync file’s link wasn’t read at launch): no Dismiss — it stays whatever is dismissed, until the state ends', () => {
+    useFileStorageStore.setState({ linkUnread: true, error: 'Failed to open file' })
+    render(<StoragePill />)
+    const pill = screen.getByRole('button', { name: 'Storage: Sync off, 2 warnings' })
+    expect(pill).toHaveAttribute('data-state', 'unchecked')
+    expect(pill).toHaveTextContent('Sync off')
+    fireEvent.click(pill)
+    const section = document.querySelector<HTMLElement>('[data-warning="unchecked"]')!
+    expect(section).toHaveTextContent('TODO2 could not check its sync file when it started')
+    expect(section).toHaveTextContent('Nothing is written to the file meanwhile.')
+    expect(within(section).getAllByRole('button').map((b) => b.textContent)).toEqual(['Reload'])
+
+    // The other warning is dismissed; the popover stays for this one.
+    const error = document.querySelector<HTMLElement>('[data-warning="error"]')!
+    fireEvent.click(within(error).getByRole('button', { name: 'Dismiss' }))
+    expect(document.querySelector('[data-warning="error"]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Storage: Sync off' })).toHaveAttribute('data-state', 'unchecked')
+    expect(screen.getByRole('dialog', { name: 'Sync off' })).toBeInTheDocument()
+    // Nor does clearing the error (Attach to File does, before its picker opens).
+    act(() => { useFileStorageStore.setState({ error: null }) })
+    expect(screen.getByRole('button', { name: 'Storage: Sync off' })).toBeInTheDocument()
+
+    // A file attached again (or the link forgotten): the service says the state is over.
+    act(() => { useFileStorageStore.setState({ linkUnread: false }) })
+    expect(screen.getByRole('button', { name: 'Storage: Local only' })).toHaveAttribute('data-state', 'local')
   })
 
   it('permission needed: the lock, Grant access asks the browser and closes the popover', () => {

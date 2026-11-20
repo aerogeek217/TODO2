@@ -56,6 +56,13 @@ export type FileStorageStatus = {
   error: string | null
   paused: SyncPause | null
   launchWait: LaunchFileWait | null
+  /**
+   * Launch went on without reading the stored link to the sync file (not
+   * read in time, not readable, or the start screen's Continue): a file may
+   * be attached, and sync is off until a reload reads the link or a file is
+   * attached again. Not an `error`: nothing dismisses it.
+   */
+  linkUnread: boolean
 }
 
 export interface SyncSideSummary {
@@ -124,9 +131,6 @@ const DEBOUNCE_MS = 500
  * seen to leave these waiting without end.
  */
 export const FILE_LINK_TIMEOUT_MS = 5000
-
-/** The status error after a launch that couldn't read the stored link (`FILE_LINK_TIMEOUT_MS`, or the start screen's Continue). */
-export const LINK_UNREAD_ERROR = 'The sync file could not be checked — your browser didn’t answer. Sync is off: reload to try again, or attach the file again in Settings › Database › File storage.'
 
 const PAUSED_PREFIX = 'File sync paused'
 
@@ -316,6 +320,7 @@ class FileStorageService {
   /** Bumped when launch's wait for the file is given up; the launch run still waiting stops when its answer comes. */
   private launchGen = 0
   private _launchWait: LaunchFileWait | null = null
+  private _linkUnread = false
   /** The waits on the browser under way (`orGivenUp`), each as its giving-up. */
   private waits = new Set<() => void>()
   private _lastSavedAt: Date | null = null
@@ -336,6 +341,7 @@ class FileStorageService {
       error: this._error,
       paused: this._paused,
       launchWait: this._launchWait,
+      linkUnread: this._linkUnread,
     }
   }
 
@@ -404,6 +410,7 @@ class FileStorageService {
     this.launchGen++
     this.initRun = null
     this._launchWait = null
+    this._linkUnread = false
     // Dropped, not given up: a launch a test left waiting stays waiting.
     this.waits.clear()
     this._lastSavedAt = null
@@ -461,11 +468,12 @@ class FileStorageService {
    *
    * The two steps before the question can't wait without end: the browser
    * gets `FILE_LINK_TIMEOUT_MS` to hand over the stored link and again to
-   * say whether it still has permission. A link not read in time: launch
-   * goes on without the file (`LINK_UNREAD_ERROR`, on the storage pill). A
-   * permission check not answered in time: the launch question, marked
-   * `unchecked`. Neither reads or writes the file, nor forgets the stored
-   * link, and an answer that comes later is dropped. Reading the file's
+   * say whether it still has permission. A link not read in time, or not
+   * readable at all: launch goes on without the file (`linkUnread`, the
+   * storage pill's Sync off). A permission check not answered in time, or
+   * that fails: the launch question, marked `unchecked`. Neither reads or
+   * writes the file, nor forgets the stored link, and an answer that comes
+   * later is dropped. Reading the file's
    * text has no time limit (a large file on a slow drive is no failure);
    * while launch waits there — and in the two steps above — the start
    * screen may give the wait up (`launchWait`, `skipLaunchFile`,
@@ -485,6 +493,7 @@ class FileStorageService {
   private async runInitialize(): Promise<void> {
     if (!this.isSupported) return
     const gen = ++this.launchGen
+    this._linkUnread = false
 
     this.setLaunchWait('link')
     // A link that can't be read (the link database fails or is blocked) is
@@ -539,17 +548,19 @@ class FileStorageService {
   }
 
   /**
-   * Launch goes on without the stored link (not read in time, or the start
-   * screen's Continue while it was being read): whether a file is attached
-   * is unknown, so nothing is read, written or forgotten — the stored link
-   * is there for the next start. Changes are tracked meanwhile, as with an
-   * attached file: the next start's load decision then sees this session's
-   * edits as unsynced rather than loading the file over them.
+   * Launch goes on without the stored link (not read in time, not readable,
+   * or the start screen's Continue while it was being read): whether a file
+   * is attached is unknown, so nothing is read, written or forgotten — the
+   * stored link is there for the next start. Changes are tracked meanwhile,
+   * as with an attached file: the next start's load decision then sees this
+   * session's edits as unsynced rather than loading the file over them.
+   * `linkUnread` says so for the rest of the session — until a file is
+   * attached (Open / Create file) or the link is forgotten (Disconnect).
    */
   private launchWithoutLink() {
     this._launchWait = null
     this.installTracking()
-    this._error = LINK_UNREAD_ERROR
+    this._linkUnread = true
     this.notify()
   }
 
@@ -648,6 +659,7 @@ class FileStorageService {
       if (!(await this.rememberHandle(handle, `Could not attach ${handle.name} — the browser could not remember the file, so nothing changed.`))) return
       this.stopSync()
       this.handle = handle
+      this._linkUnread = false
       this._error = null
       this._needsPermission = false
       this._paused = null
@@ -672,6 +684,7 @@ class FileStorageService {
       if (!(await this.rememberHandle(handle, `${handle.name} was created, but the browser could not remember it, so it was not attached. Nothing else changed.`))) return
       this.stopSync()
       this.handle = handle
+      this._linkUnread = false
       this._error = null
       this._needsPermission = false
       this._paused = null
@@ -714,6 +727,7 @@ class FileStorageService {
     this.removeTracking()
     this.handle = null
     this._launchWait = null
+    this._linkUnread = false
     this._needsPermission = false
     this._lastSavedAt = null
     this._error = null

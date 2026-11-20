@@ -16,6 +16,16 @@ describe('Settings → File storage, no file attached', () => {
     render(<FileStorageSection />)
     expect(screen.getByRole('button', { name: 'Create New File' })).toBeInTheDocument()
     expect(screen.getByText(/An existing file you replace is emptied by the browser before TODO2 can back it up\./)).toBeInTheDocument()
+    expect(screen.queryByText(/could not check its sync file/)).toBeNull()
+  })
+
+  it('says sync is off when the sync file’s link wasn’t read at launch, and still offers to attach the file', () => {
+    const openFile = vi.fn().mockResolvedValue(undefined)
+    useFileStorageStore.setState({ linkUnread: true, openFile })
+    render(<FileStorageSection />)
+    expect(screen.getByText('TODO2 could not check its sync file when it started, so sync is off. Reload to try again, or attach the file again here.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Attach to File' }))
+    expect(openFile).toHaveBeenCalledTimes(1)
   })
 })
 
