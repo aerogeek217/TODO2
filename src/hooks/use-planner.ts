@@ -24,7 +24,7 @@ export interface PlannerData {
   offset: number
   /** The picked day (local midnight, ms), or null. */
   picked: number | null
-  /** Today, the days ahead, Focus no day, and the tiles (`utils/planner.plannerView`). */
+  /** Today, the days ahead, the Delayed and Unplanned trays, and the tiles (`utils/planner.plannerView`). */
   view: PlannerView<Task>
   /** The rows lingering after a completion (`useLeavingRows`), by task id. */
   leaving: LeavingRows
@@ -62,7 +62,7 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
     const options = { today, offset, picked: picked == null ? null : new Date(picked), order }
     const built = plannerView(screenTasks, options)
     if (leaving.size === 0) return { view: built, kept: NO_IDS }
-    const rows = (v: PlannerView<Task>) => new Set(groupIds([v.today, ...v.days, v.noDay]))
+    const rows = (v: PlannerView<Task>) => new Set(groupIds([v.today, ...v.days, v.delayed, v.unplanned]))
     // The rows it would drop now (a completed task left the screen's tasks; a repeating one moved on).
     const dropped = keptOf(leaving, rows(built))
     if (dropped.size === 0) return { view: built, kept: NO_IDS }
@@ -70,7 +70,7 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
     return { view: plannerView([...screenTasks.filter((t) => !dropped.has(t.id)), ...before], options), kept: dropped }
   }, [screenTasks, today, offset, picked, order, leaving])
 
-  useEffect(() => { shownIdsRef.current = new Set(groupIds([view.today, ...view.days, view.noDay])) })
+  useEffect(() => { shownIdsRef.current = new Set(groupIds([view.today, ...view.days, view.delayed, view.unplanned])) })
   const keptTodos = useKeptTodos(kept, leaving)
 
   const badge = useMemo(() => {

@@ -246,17 +246,17 @@ test.describe('the Planner', () => {
     await expect(planner(page).locator(`[data-planner-tile="${today}"]`).getByTestId('planner-tile-count')).toHaveText('3')
     await expect(planner(page).locator(`[data-planner-tile="${inTwo}"] [data-reason]`)).toHaveCount(2)
 
-    // Two panes side by side: Today on the left, the six days ahead and Focus, no day on the right.
+    // Two panes side by side: Today on the left, the six days ahead and Unplanned on the right.
     await expect(plannerGroups(page)).toHaveCount(8)
     const left = await box(planner(page).locator('[data-planner-pane="today"]'))
     const right = await box(planner(page).locator('[data-planner-pane="ahead"]'))
-    const pinned = await box(planner(page).locator('[data-planner-pane="noday"]'))
+    const pinned = await box(planner(page).locator('[data-planner-pane="trays"]'))
     expect(left.x + left.width).toBeLessThanOrEqual(right.x + 1)
     expect(Math.abs(left.y - right.y)).toBeLessThan(2)
     expect(pinned.y).toBeGreaterThanOrEqual(right.y + right.height - 1)
     await expect(todayGroup(page).locator('[data-task-title]')).toHaveText(['Renew the domain', 'Chase the invoice', 'Write the brief'])
     await expect(planner(page).locator(`[data-planner-group="${inTwo}"] [data-task-title]`)).toHaveText(['Book the venue', 'Call the caterer'])
-    await expect(planner(page).locator('[data-planner-group="none"] [data-task-title]')).toHaveText(['Someday focus'])
+    await expect(planner(page).locator('[data-planner-group="unplanned"] [data-task-title]')).toHaveText(['Someday focus'])
     await expect(planner(page)).not.toContainText('Not planned')
     await expect(todayGroup(page).getByTestId('planner-done')).toContainText('1 done')
     await expect(todayGroup(page).getByTestId('planner-done')).toContainText('Sent the invites')
@@ -273,7 +273,7 @@ test.describe('the Planner', () => {
     await tile.click()
     await expect(plannerGroups(page)).toHaveCount(8)
 
-    // A row is the list's draggable row: it lifts, and a tile takes it — here its follow-up moves to the day (`planner.spec.ts` has the drops).
+    // A row is the list's draggable row: it lifts, and a tile takes it — it is planned for the day, its follow-up left alone (`planner.spec.ts` has the drops).
     const row = todayGroup(page).locator('[data-row-key]').filter({ hasText: 'Chase the invoice' })
     const r = await box(row)
     await drag(page, { x: r.x + 60, y: r.y + r.height / 2 }, await pointIn(tile), {
@@ -281,11 +281,11 @@ test.describe('the Planner', () => {
     })
     await expect(page.locator('[data-drag-overlay]')).toHaveCount(0)
     await expect(todayGroup(page).locator('[data-task-title]')).toHaveText(['Renew the domain', 'Write the brief'])
-    await expect(planner(page).locator(`[data-planner-group="${inTwo}"] [data-task-title]`)).toHaveText(['Book the venue', 'Chase the invoice', 'Call the caterer'])
+    await expect(planner(page).locator(`[data-planner-group="${inTwo}"] [data-task-title]`)).toHaveText(['Book the venue', 'Call the caterer', 'Chase the invoice'])
     await expect.poll(async () => {
       const chased = (await readStore<{ title: string; doDate?: Date; nextFollowupAt?: Date }>(page, 'todos')).find((t) => t.title === 'Chase the invoice')
-      return chased?.nextFollowupAt ? [new Date(chased.nextFollowupAt).getDate(), chased.doDate ?? null] : null
-    }).toEqual([await page.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 2); return d.getDate() }), null])
+      return chased?.doDate && chased.nextFollowupAt ? [new Date(chased.doDate).getDate(), new Date(chased.nextFollowupAt).getDate()] : null
+    }).toEqual(await page.evaluate(() => { const d = new Date(); const today = d.getDate(); d.setDate(d.getDate() + 2); return [d.getDate(), today] }))
 
     // The arrows move the window a week: Today stays, the tiles are next week's, and the range is the way back.
     await expect(planner(page).getByRole('button', { name: 'Previous week' })).toBeDisabled()
@@ -298,7 +298,7 @@ test.describe('the Planner', () => {
     await expect(tiles.first()).toHaveAttribute('data-planner-tile', today)
   })
 
-  test('Add task opens Quick Add; the new task lands in Today with today as its Do day', async ({ page }) => {
+  test('Add task opens Quick Add; the new task lands in Today, planned for today', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: PLAN_TASKS,
       layouts: [{ name: 'Week', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'plan', kind: 'planner' }] })] }] }],
@@ -306,7 +306,7 @@ test.describe('the Planner', () => {
     await todayGroup(page).getByRole('button', { name: 'Add task' }).click()
     const input = page.getByPlaceholder('New task…')
     await expect(input).toBeFocused()
-    // No Do-day control in Quick Add.
+    // No planned-day control in Quick Add.
     await expect(page.getByText(/do day/i)).toHaveCount(0)
     await input.fill('Ring the printer')
     await page.keyboard.press('Enter')
@@ -347,7 +347,7 @@ test.describe('the Planner', () => {
       expect(b.x + b.width).toBeLessThanOrEqual(host.x + host.width)
     }
     await expect(planner(page).locator('[data-planner-layout] > [data-zoom]')).toHaveAttribute('data-zoom', 'stacked')
-    // Today, the days ahead and Focus, no day stack in one scroll.
+    // Today, the days ahead and Unplanned stack in one scroll.
     const groups = await plannerGroups(page).evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().x)))
     expect(new Set(groups).size).toBe(1)
 
@@ -416,7 +416,7 @@ test.describe('phone', () => {
     await expect(tiles.first().getByTestId('planner-tile-count')).toHaveText('3')
     // No ticks at this width; the count says it.
     await expect(tiles.first().locator('[data-reason]').first()).toBeHidden()
-    // Today, then only the days with tasks, then Focus, no day — the phone's rows, nothing draggable.
+    // Today, then only the days with tasks, then Unplanned — the phone's rows, nothing draggable.
     await expect(plannerGroups(page)).toHaveCount(3)
     await expect(todayGroup(page).locator('[data-task-title]')).toHaveText(['Renew the domain', 'Chase the invoice', 'Write the brief'])
     await expect(planner(page).locator('[data-row-key]')).toHaveCount(0)

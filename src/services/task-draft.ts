@@ -27,7 +27,7 @@ export interface TaskDraft {
   nextFollowupAt?: Date | null
   /** Only the task editor's create mode sets it. */
   lastFollowupAt?: Date
-  /** The Do day (`TodoItem.doDate`): only the Planner's Add task seeds it (`FilterDefaults.doDate`); no form shows it. */
+  /** The planned day (`TodoItem.doDate`): only the Planner's Add task seeds it (`FilterDefaults.doDate`); no form shows it. */
   doDate?: Date
   personIds: number[]
   /** `@name`s that match nobody: created with the task. */
@@ -130,7 +130,7 @@ export function draftFromText(text: string, ctx: DraftContext): TaskDraft {
  * Parsed task text into a draft, plus the defaults of where the task is
  * added: the filter's people when the text names nobody, its tags and
  * markers, and a status (typed `!status`, else Settings' default and the
- * filter's, in `ctx.statusDefaultFirst` order), and the Do day they seed
+ * filter's, in `ctx.statusDefaultFirst` order), and the planned day they seed
  * (the Planner's Add task). `fallbackTitle` is the
  * title when the text is all tokens. Defaults naming a status / person / tag
  * that no longer exists are left out.
@@ -170,7 +170,7 @@ function withStatus(statusId: number | undefined): { statusId?: number } {
  * `@` / `#` / `!`), which is parsed again as on create. The editor passes
  * `nextFollowupAt` only once it differs from the default. A status / person
  * / tag that no longer exists (seeded from a filter naming it) is left out.
- * A Do day it was seeded with (the Planner's Add task, handed on from
+ * A planned day it was seeded with (the Planner's Add task, handed on from
  * Quick Add) comes through as it is.
  */
 export function draftFromEditor(

@@ -71,20 +71,21 @@ afterEach(() => {
 })
 
 describe('the Planner — large', () => {
-  it('draws the strip over two panes: Today, a group per day ahead, Focus, no day', () => {
+  it('draws the strip over two panes: Today, a group per day ahead, Unplanned', () => {
     show()
     expect(root()).toHaveAttribute('data-planner-face', 'large')
     expect(root().querySelector('[data-planner-layout]')).toHaveAttribute('data-planner-layout', 'panes')
-    expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Focus, no day'])
-    // Today on the left; the days ahead on the right, Focus, no day pinned under them.
+    expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned'])
+    // Today on the left; the days ahead on the right, the trays pinned under them (Delayed only while it holds a task).
     expect(root().querySelector('[data-planner-pane="today"]')).toContainElement(group('Today'))
     expect(root().querySelector('[data-planner-pane="ahead"]')).toContainElement(group('Mon, Nov 23'))
-    expect(root().querySelector('[data-planner-pane="noday"]')).toContainElement(group('Focus, no day'))
+    expect(root().querySelector('[data-planner-pane="trays"]')).toContainElement(group('Unplanned'))
+    expect(within(root()).queryByRole('group', { name: 'Delayed' })).toBeNull()
     // A late date sits in Today; deadlines first, then follow-ups, then plans.
     expect(titlesIn(group('Today'))).toEqual(['Late invoice', 'Chase legal', 'Planned for today'])
     expect(titlesIn(group('Mon, Nov 23'))).toEqual(['Monday deadline', 'Monday plan'])
     expect(titlesIn(group('Thu, Nov 26'))).toEqual(['Thursday call'])
-    expect(titlesIn(group('Focus, no day'))).toEqual(['Someday focus'])
+    expect(titlesIn(group('Unplanned'))).toEqual(['Someday focus'])
     expect(root()).not.toHaveTextContent('Not in the planner')
     expect(root()).not.toHaveTextContent('Next week deadline')
   })
@@ -96,7 +97,7 @@ describe('the Planner — large', () => {
     expect(count('Mon, Nov 23')).toBe('2')
     expect(count('Sat, Nov 21')).toBeNull()
     expect(titlesIn(group('Sat, Nov 21'))).toEqual([])
-    expect(count('Focus, no day')).toBe('1')
+    expect(count('Unplanned')).toBe('1')
   })
 
   it('shows the app’s task rows, as the list’s draggable occurrences — and is no list widget', () => {
@@ -106,9 +107,9 @@ describe('the Planner — large', () => {
     expect(row).toHaveAttribute('data-row-todo', '4')
     expect(row).toHaveAttribute('data-drag-id')
     expect(group('Mon, Nov 23')).toHaveAttribute('data-list-section', '2026-11-23')
-    expect(group('Focus, no day')).toHaveAttribute('data-list-section', 'none')
+    expect(group('Unplanned')).toHaveAttribute('data-list-section', 'unplanned')
     expect(group('Today')).toHaveAttribute('data-row-group')
-    // No Do-day words on a row, and the list zoom never finds it.
+    // No plan words on a row, and the list zoom never finds it.
     expect(root()).not.toHaveTextContent(/do day/i)
     expect(document.querySelector(`[${LIST_WIDGET_ATTR}]`)).toBeNull()
   })
@@ -135,6 +136,55 @@ describe('the Planner — large', () => {
   })
 })
 
+describe('the Planner — the trays', () => {
+  const withTrays = (): PersistedTodoItem[] => [
+    ...TODOS(),
+    makeTodo({ id: 40, uid: 'missed', title: 'Missed plan', doDate: day(-1), dueDate: day(0), sortOrder: 40 }),
+    makeTodo({ id: 41, uid: 'missed-old', title: 'Older missed plan', doDate: day(-6), sortOrder: 41 }),
+    makeTodo({ id: 42, uid: 'held', title: 'Held call', unplanned: true, nextFollowupAt: day(2), sortOrder: 42 }),
+  ]
+
+  it('a plan whose day has passed is in Delayed, above Unplanned — never in Today', () => {
+    useTodoStore.setState({ todos: withTrays() })
+    show()
+    expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Delayed', 'Unplanned'])
+    // Due today, but planned for yesterday: it waits in Delayed.
+    expect(titlesIn(group('Today'))).toEqual(['Late invoice', 'Chase legal', 'Planned for today'])
+    expect(titlesIn(group('Delayed'))).toEqual(['Older missed plan', 'Missed plan'])
+    const trays = root().querySelector('[data-planner-pane="trays"]')!
+    expect(trays).toContainElement(group('Delayed'))
+    expect(trays).toContainElement(group('Unplanned'))
+    expect(group('Delayed')).toHaveAttribute('data-list-section', 'delayed')
+    expect(group('Delayed')).toHaveAttribute('data-planner-group-kind', 'delayed')
+    expect(within(group('Delayed')).getByTestId('planner-group-count')).toHaveTextContent('2')
+    expect(tile('2026-11-20')).toHaveAccessibleName('Today, Nov 20: 3 tasks')
+  })
+
+  it('a dated task held in Unplanned sits there, before the Focus tasks, and on no day', () => {
+    useTodoStore.setState({ todos: withTrays() })
+    show()
+    expect(titlesIn(group('Unplanned'))).toEqual(['Held call', 'Someday focus'])
+    expect(titlesIn(group('Sun, Nov 22'))).toEqual([])
+    expect(group('Unplanned')).toHaveAttribute('data-planner-group-kind', 'unplanned')
+    expect(tile('2026-11-22')).toHaveAccessibleName('Sun, Nov 22: no tasks')
+  })
+
+  it('the trays stay while the window is shifted', () => {
+    useTodoStore.setState({ todos: withTrays() })
+    show()
+    fireEvent.click(screen.getByRole('button', { name: 'Next week' }))
+    expect(titlesIn(group('Delayed'))).toEqual(['Older missed plan', 'Missed plan'])
+    expect(titlesIn(group('Unplanned'))).toEqual(['Held call', 'Someday focus'])
+  })
+
+  it('one column and the phone keep the order: Today, the days, Delayed, Unplanned', () => {
+    useTodoStore.setState({ todos: withTrays() })
+    width = 500
+    show()
+    expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Delayed', 'Unplanned'])
+  })
+})
+
 describe('the Planner — the strip', () => {
   it('has seven day tiles between the arrows, each named with its day and count', () => {
     show()
@@ -156,8 +206,8 @@ describe('the Planner — the strip', () => {
   it('draws a tick per task by why it is on the day: deadlines, follow-ups, plans', () => {
     show()
     const ticks = (key: string) => [...tile(key).querySelectorAll('[data-reason]')].map((t) => t.getAttribute('data-reason'))
-    expect(ticks('2026-11-20')).toEqual(['due', 'followup', 'do'])
-    expect(ticks('2026-11-23')).toEqual(['due', 'do'])
+    expect(ticks('2026-11-20')).toEqual(['due', 'followup', 'plan'])
+    expect(ticks('2026-11-23')).toEqual(['due', 'plan'])
     expect(ticks('2026-11-26')).toEqual(['followup'])
     expect(ticks('2026-11-21')).toEqual([])
     expect(within(tile('2026-11-23')).getByTestId('planner-tile-count')).toHaveTextContent('2')
@@ -174,12 +224,12 @@ describe('the Planner — the strip', () => {
   it('a click on a tile starts the days ahead at that day; again, or on today, at tomorrow', () => {
     show()
     fireEvent.click(tile('2026-11-23'))
-    expect(groupNames()).toEqual(['Today', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Focus, no day'])
+    expect(groupNames()).toEqual(['Today', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned'])
     expect(tile('2026-11-23')).toHaveAttribute('aria-pressed', 'true')
     expect(tile('2026-11-23')).toHaveAttribute('data-picked', 'true')
     expect(tile('2026-11-24')).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(tile('2026-11-25'))
-    expect(groupNames()).toEqual(['Today', 'Wed, Nov 25', 'Thu, Nov 26', 'Focus, no day'])
+    expect(groupNames()).toEqual(['Today', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned'])
     fireEvent.click(tile('2026-11-25'))
     expect(groupNames()).toHaveLength(8)
     fireEvent.click(tile('2026-11-24'))
@@ -199,9 +249,9 @@ describe('the Planner — the strip', () => {
     expect(root().querySelector('[data-today]')).toBeNull()
     // Today is still today's; the days ahead are the window's, from its first day.
     expect(titlesIn(group('Today'))).toEqual(['Late invoice', 'Chase legal', 'Planned for today'])
-    expect(groupNames()).toEqual(['Today', 'Fri, Nov 27', 'Sat, Nov 28', 'Sun, Nov 29', 'Mon, Nov 30', 'Tue, Dec 1', 'Wed, Dec 2', 'Thu, Dec 3', 'Focus, no day'])
+    expect(groupNames()).toEqual(['Today', 'Fri, Nov 27', 'Sat, Nov 28', 'Sun, Nov 29', 'Mon, Nov 30', 'Tue, Dec 1', 'Wed, Dec 2', 'Thu, Dec 3', 'Unplanned'])
     expect(titlesIn(group('Sat, Nov 28'))).toEqual(['Next week deadline'])
-    // Planned for today is due on the 29th, but its Do day keeps it on today.
+    // Planned for today is due on the 29th, but its plan keeps it on today.
     expect(titlesIn(group('Sun, Nov 29'))).toEqual([])
     // This week's later days have no group while the window is shifted.
     expect(root()).not.toHaveTextContent('Monday deadline')
@@ -217,7 +267,7 @@ describe('the Planner — the strip', () => {
     first.unmount()
     show({ forced: 'large' })
     expect(tile('2026-11-30')).toHaveAttribute('aria-pressed', 'true')
-    expect(groupNames()).toEqual(['Today', 'Mon, Nov 30', 'Tue, Dec 1', 'Wed, Dec 2', 'Thu, Dec 3', 'Focus, no day'])
+    expect(groupNames()).toEqual(['Today', 'Mon, Nov 30', 'Tue, Dec 1', 'Wed, Dec 2', 'Thu, Dec 3', 'Unplanned'])
     expect(usePlannerStore.getState().windows).toEqual({ [plannerWindowKey(null, 'plan')]: { offset: 7, picked: new Date(2026, 10, 30).getTime() } })
   })
 })
@@ -289,7 +339,7 @@ describe('the Planner — Today’s foot', () => {
     expect(screen.queryByTestId('planner-done')).toBeNull()
   })
 
-  it('Add task is Today’s last row and seeds the new task’s Do day with today, beside the screen filter’s seeds', () => {
+  it('Add task is Today’s last row and plans the new task for today, beside the screen filter’s seeds', () => {
     show()
     const add = within(group('Today')).getByRole('button', { name: 'Add task' })
     expect(group('Today').querySelector('[data-planner-group-body]')?.lastElementChild).toBe(add)
@@ -345,7 +395,7 @@ describe('the Planner — a completed row leaves', () => {
     })
     show()
     expect(titlesIn(group('Today'))).toContain('Weekly report')
-    // The store's advance: the next due date, the Do day cleared, the task still open.
+    // The store's advance: the next due date, the plan cleared, the task still open.
     act(() => {
       useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 30 ? { ...t, dueDate: day(3), doDate: undefined } : t)) })
     })
@@ -385,7 +435,7 @@ describe('the Planner — its rows’ zoom', () => {
 })
 
 describe('the Planner — medium and small', () => {
-  it('a narrow cell shows the strip over one column: Today, the days ahead, Focus, no day', () => {
+  it('a narrow cell shows the strip over one column: Today, the days ahead, Delayed, Unplanned', () => {
     width = 500
     show()
     expect(root()).toHaveAttribute('data-planner-face', 'medium')
@@ -393,7 +443,7 @@ describe('the Planner — medium and small', () => {
     expect(root().querySelector('[data-planner-pane]')).toBeNull()
     expect(root().querySelector('[data-planner-strip]')).toHaveAttribute('data-planner-strip', 'tiles')
     expect(root().querySelectorAll('[data-planner-tile]')).toHaveLength(7)
-    expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Focus, no day'])
+    expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned'])
     expect(within(group('Today')).getByRole('button', { name: 'Add task' })).toBeInTheDocument()
   })
 
@@ -452,14 +502,14 @@ describe('the Planner — on the phone', () => {
     show({ heightFree: true })
     expect(root().querySelector('[data-planner-layout]')).toHaveAttribute('data-planner-layout', 'column')
     expect(root().querySelectorAll('[data-planner-tile]')).toHaveLength(7)
-    expect(groupNames()).toEqual(['Today', 'Mon, Nov 23', 'Thu, Nov 26', 'Focus, no day'])
+    expect(groupNames()).toEqual(['Today', 'Mon, Nov 23', 'Thu, Nov 26', 'Unplanned'])
     expect(titlesIn(group('Today'))).toEqual(['Late invoice', 'Chase legal', 'Planned for today'])
     // The phone's rows: no draggable occurrence.
     expect(root().querySelector('[data-row-key], [data-drag-id]')).toBeNull()
     expect(within(group('Today')).getByRole('button', { name: 'Add task' })).toBeInTheDocument()
   })
 
-  it('has no Focus, no day group with nothing in it', () => {
+  it('has no Unplanned group with nothing in it', () => {
     useTodoStore.setState({ todos: TODOS().filter((t) => !t.focus) })
     show({ heightFree: true })
     expect(groupNames()).toEqual(['Today', 'Mon, Nov 23', 'Thu, Nov 26'])

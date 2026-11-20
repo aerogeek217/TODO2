@@ -22,7 +22,7 @@ export const TASK_DROP_KIND = {
    * the Planner (`scope`), the day and its window, so the dispatcher can ask
    * for the write without consulting the DOM. */
   plannerDay: 'planner-day',
-  /** A Planner's group (Today, a day ahead, Focus no day): a `PlannerDropData`
+  /** A Planner's group (Today, a day ahead, the Delayed and Unplanned trays): a `PlannerDropData`
    * with the `group` too — its rows and every row shown, for the hand order. */
   plannerGroup: 'planner-group',
 } as const

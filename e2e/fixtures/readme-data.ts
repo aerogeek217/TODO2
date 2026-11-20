@@ -6,8 +6,8 @@
  * day: a few tasks overdue, most due within the next two weeks, some later.
  * Synthetic: fictional first names, no real people or companies.
  *
- * The Planner shot's week is in the tasks too: a few given a Do day
- * (`doDay`), a few in Focus with no day, three completed today. A Do day is
+ * The Planner shot's week is in the tasks too: a few given a planned day
+ * (`doDay`), a few in Focus with no day, three completed today. A planned day is
  * a v85 field in a file stamped `README_SCHEMA_VERSION`: no upgrade between
  * the two rebuilds a task, and import validation keeps `doDate`, so it
  * arrives as written.
@@ -57,7 +57,7 @@ interface Task {
   urgent?: boolean
   important?: boolean
   focus?: boolean
-  /** Its Do day (the Planner's), this many days from today. */
+  /** Its planned day (the Planner's), this many days from today. */
   doDay?: number
   notes?: string
   /** `[x] ` marks a line done. */
