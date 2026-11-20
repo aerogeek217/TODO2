@@ -22,7 +22,7 @@ export interface SettingRow {
  * `db.verno === CURRENT_DB_VERSION` after open, so a `this.version(N+1)`
  * without raising this constant fails the suite.
  */
-export const CURRENT_DB_VERSION = 84
+export const CURRENT_DB_VERSION = 85
 
 /**
  * Lowest database version this build reads. A browser database whose
@@ -280,6 +280,12 @@ export class Todo2Database extends Dexie {
     // v84: a repeat is any interval — each task's `recurrenceRule` type
     // written as its interval (`upgrades/v84`); no store changes.
     this.version(84).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 84))
+
+    // v85: a version marker. No index or data change (`upgrades/v85`
+    // returns its input); v85 data may hold a task's Do day (`doDate`, the
+    // Planner's), which an older build would drop silently, so older builds
+    // refuse it.
+    this.version(85).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 85))
 
     // The next schema step N goes here, after the last one:
     //

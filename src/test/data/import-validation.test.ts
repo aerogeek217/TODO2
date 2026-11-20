@@ -596,6 +596,29 @@ describe('validateImportData', () => {
     }
   })
 
+  it('a todo’s Do day (schema v85): a date passes and is kept with every other field, a non-date fails, an absent or null one is no Do day', () => {
+    const full = makeTodo({
+      notes: 'n', dueDate: now, lastFollowupAt: now, nextFollowupAt: now, doDate: '2026-11-20T06:00:00.000Z',
+      recurrenceRule: { every: { count: 1, unit: 'w' } }, focus: true, urgent: true, important: true, statusId: 2,
+    })
+    const result = validateImportData(validData({ todos: [full] }))
+    expect(result).toMatchObject({ ok: true, warnings: [] })
+    if (!result.ok) return
+    const picked = result.data.todos[0]!
+    expect(picked.doDate).toEqual(new Date('2026-11-20T06:00:00.000Z'))
+    // Nothing else is dropped: every key the file has comes back.
+    expect(Object.keys(picked).filter((k) => picked[k as keyof typeof picked] !== undefined).sort()).toEqual(Object.keys(full).sort())
+
+    for (const doDate of ['tomorrow', 20261120, true, {}, 'not-a-date']) {
+      expect(validateImportData(validData({ todos: [makeTodo({ doDate })] })).ok, JSON.stringify(doDate)).toBe(false)
+    }
+    for (const todo of [makeTodo(), makeTodo({ doDate: null })]) {
+      const none = validateImportData(validData({ todos: [todo] }))
+      expect(none.ok).toBe(true)
+      if (none.ok) expect(none.data.todos[0]!.doDate).toBeUndefined()
+    }
+  })
+
   it('rebuilds a recurrenceRule from its known keys, dropping stray ones', () => {
     const result = validateImportData(validData({
       todos: [
@@ -1044,7 +1067,7 @@ describe('validateImportData — Date revival', () => {
       todos: [
         makeTodo({
           id: 1, createdAt: iso, modifiedAt: iso, dueDate: iso,
-          lastFollowupAt: iso, nextFollowupAt: iso, completedAt: iso, isCompleted: true,
+          lastFollowupAt: iso, nextFollowupAt: iso, doDate: iso, completedAt: iso, isCompleted: true,
         }),
       ],
       notes: [{ id: 1, content: 'x', createdAt: iso, modifiedAt: iso }],
@@ -1059,6 +1082,7 @@ describe('validateImportData — Date revival', () => {
       ['todos.dueDate', t1.dueDate],
       ['todos.lastFollowupAt', t1.lastFollowupAt],
       ['todos.nextFollowupAt', t1.nextFollowupAt],
+      ['todos.doDate', t1.doDate],
       ['todos.completedAt', t1.completedAt],
       ['notes.createdAt', d.notes[0]!.createdAt],
       ['notes.modifiedAt', d.notes[0]!.modifiedAt],

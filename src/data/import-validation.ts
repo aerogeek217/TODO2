@@ -143,6 +143,7 @@ function checkTodo(v: unknown): CheckResult {
     ['dueDate', isOptDateLike(v.dueDate)],
     ['lastFollowupAt', isOptDateLike(v.lastFollowupAt)],
     ['nextFollowupAt', isOptDateLike(v.nextFollowupAt)],
+    ['doDate', isOptDateLike(v.doDate)],
     ['recurrenceRule', isOptRecurrenceRule(v.recurrenceRule)],
     ['focus', isOptTriBool(v.focus)],
     ['urgent', isOptTriBool(v.urgent)],
@@ -543,6 +544,7 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
     dueDate: toOptDate(v.dueDate),
     lastFollowupAt: toOptDate(v.lastFollowupAt),
     nextFollowupAt: toOptDate(v.nextFollowupAt),
+    doDate: toOptDate(v.doDate),
     // A repeat needs a due date (the UI offers it only with one; any later
     // write drops it — `withOrphanedRuleDropped`): without one it is dropped.
     recurrenceRule: v.dueDate != null ? pickRecurrenceRule(v.recurrenceRule) : undefined,
