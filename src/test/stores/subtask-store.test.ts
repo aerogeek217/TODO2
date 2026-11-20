@@ -344,7 +344,7 @@ describe('duplicate copies the checklist, all unchecked', () => {
 describe('a recurring task’s completion starts its checklist over', () => {
   async function recurring(names: readonly string[]): Promise<number> {
     const id = await checklist(names, 'Water the plants')
-    await useTodoStore.getState().update(id, { dueDate: startOfToday(), recurrenceRule: { type: 'weekly' } })
+    await useTodoStore.getState().update(id, { dueDate: startOfToday(), recurrenceRule: { every: { count: 1, unit: 'w' as const } } })
     const rows = useSubtaskStore.getState().byTodo.get(id) ?? []
     for (const r of rows) await useSubtaskStore.getState().setDone(r.id, true)
     useUndoStore.getState().clear()
@@ -370,7 +370,7 @@ describe('a recurring task’s completion starts its checklist over', () => {
 
   it('the last check’s Complete task offer on a recurring task advances it and starts the checklist over, one more undo step (cr31 tests 3.5)', async () => {
     const id = await checklist(['a', 'b'], 'Water the plants')
-    await useTodoStore.getState().update(id, { dueDate: startOfToday(), recurrenceRule: { type: 'weekly' } })
+    await useTodoStore.getState().update(id, { dueDate: startOfToday(), recurrenceRule: { every: { count: 1, unit: 'w' as const } } })
     useUndoStore.getState().clear()
     const [a, b] = useSubtaskStore.getState().byTodo.get(id) ?? []
     await useSubtaskStore.getState().setDone(a!.id, true)

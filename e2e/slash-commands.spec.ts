@@ -36,7 +36,7 @@ async function readTodo(page: Page, title: string): Promise<StoredTodo | null> {
     statusId: t.statusId as number | undefined,
     dueDate: day(t.dueDate),
     nextFollowupAt: t.nextFollowupAt ? day(t.nextFollowupAt) : null,
-    recurrence: (t.recurrenceRule as { type?: string } | undefined)?.type,
+    recurrence: ((r) => (r?.every ? `${r.every.count}${r.every.unit}` : undefined))(t.recurrenceRule as { every?: { count: number; unit: string } } | undefined),
   }
 }
 
@@ -189,7 +189,7 @@ test.describe('Quick Add slash commands', () => {
     expect(todo).toMatchObject({
       urgent: true,
       dueDate: await dayFromToday(page, 1),
-      recurrence: 'weekly',
+      recurrence: '1w',
       nextFollowupAt: null,
     })
     expect(todo?.statusId).toBeDefined()

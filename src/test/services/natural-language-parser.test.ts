@@ -314,15 +314,28 @@ describe('parseInput — /followup', () => {
 })
 
 describe('parseInput — /repeat', () => {
-  it.each(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'] as const)(
-    '/repeat %s with a due date',
-    (f) => {
+  it.each([
+    ['daily', 1, 'd'], ['weekly', 1, 'w'], ['biweekly', 2, 'w'],
+    ['monthly', 1, 'm'], ['quarterly', 3, 'm'], ['yearly', 1, 'y'],
+  ] as const)(
+    '/repeat %s with a due date reads as an interval',
+    (f, count, unit) => {
       const r = parse(`Standup /due today /repeat ${f}`)
-      expect(r.recurrence).toBe(f)
+      expect(r.recurrence).toEqual({ count, unit })
       expect(r.title).toBe('Standup')
       expect(r.problems).toHaveLength(0)
     },
   )
+
+  it.each([
+    ['2w', 2, 'w'], ['every 2w', 2, 'w'], ['every 3 days', 3, 'd'], ['every 6 months', 6, 'm'],
+    ['every week', 1, 'w'], ['every other week', 2, 'w'], ['Every 1 Year', 1, 'y'], ['10d', 10, 'd'],
+  ] as const)('/repeat %s reads as an interval, its words leaving the title', (arg, count, unit) => {
+    const r = parse(`Standup /due today /repeat ${arg} notes`)
+    expect(r.recurrence).toEqual({ count, unit })
+    expect(r.title).toBe('Standup notes')
+    expect(r.problems).toHaveLength(0)
+  })
 
   it('without /due it is recognised but ignored (dropped from the title)', () => {
     const r = parse('Standup /repeat weekly')
@@ -330,10 +343,10 @@ describe('parseInput — /repeat', () => {
     expect(r.tokens.filter((t) => t.command === 'repeat')).toHaveLength(0)
     expect(r.problems).toEqual([expect.objectContaining({ kind: 'ignored', command: 'repeat', raw: '/repeat weekly' })])
     // Kept so a due date picked in the editor can still anchor it.
-    expect(r.recurrence).toBe('weekly')
+    expect(r.recurrence).toEqual({ count: 1, unit: 'w' })
   })
 
-  it.each(['fortnightly', 'every', ''])('an unknown frequency stays in the title: "%s"', (arg) => {
+  it.each(['fortnightly', 'every', '', 'every mon', '0d', 'every x weeks'])('an unknown frequency stays in the title: "%s"', (arg) => {
     const r = parse(`x /due mon /repeat ${arg}`.trim())
     expect(r.recurrence).toBeUndefined()
     expect(r.problems.at(-1)).toMatchObject({ kind: 'unreadable', command: 'repeat' })
@@ -416,7 +429,7 @@ describe('parseInput — unknown commands and mixes', () => {
       title: '1:1 with Ben',
       persons: ['Ben'],
       dueDate: day(2026, 10, 12),
-      recurrence: 'weekly',
+      recurrence: { count: 1, unit: 'w' },
       status: 'waiting',
       followupNone: true,
     })

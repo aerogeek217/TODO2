@@ -49,7 +49,7 @@ async function readTask(page: Page, title: string): Promise<StoredTask | null> {
     statusId: t.statusId as number | undefined,
     dueDate: day(t.dueDate),
     nextFollowupAt: day(t.nextFollowupAt),
-    recurrence: (t.recurrenceRule as { type?: string } | undefined)?.type,
+    recurrence: ((r) => (r?.every ? `${r.every.count}${r.every.unit}` : undefined))(t.recurrenceRule as { every?: { count: number; unit: string } } | undefined),
     people: names(todoPeople, 'personId', people),
     tags: names(todoTags, 'tagId', tags),
   }
@@ -116,7 +116,7 @@ test('the same text makes the same task from Quick Add, a note’s line and the 
     urgent: true,
     dueDate: await dayFromToday(page, 1),
     nextFollowupAt: await dayFromToday(page, 14),
-    recurrence: 'monthly',
+    recurrence: '1m',
     people: ['Ben Ortiz'],
     tags: ['fresh', 'planning'],
   }
@@ -168,7 +168,7 @@ test('a Quick Add task is one undo step: Ctrl+Z removes it in one press, Ctrl+Sh
   await expect(dialog).toBeHidden()
   await expect.poll(() => readTask(page, 'Plan offsite')).not.toBeNull()
   const created = await readTask(page, 'Plan offsite')
-  expect(created).toMatchObject({ urgent: true, recurrence: 'monthly', people: ['Ben Ortiz'], tags: ['fresh', 'planning'] })
+  expect(created).toMatchObject({ urgent: true, recurrence: '1m', people: ['Ben Ortiz'], tags: ['fresh', 'planning'] })
 
   await page.keyboard.press('Control+z')
   await expect.poll(() => readTask(page, 'Plan offsite')).toBeNull()

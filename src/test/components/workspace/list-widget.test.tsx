@@ -888,7 +888,7 @@ describe('ListWidget — a completed row leaves (D19)', () => {
 
   /** Task `id` repeats weekly from `due`. */
   const repeatsWeekly = (id: number, due: Date) => useTodoStore.setState({
-    todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, recurrenceRule: { type: 'weekly' as const }, dueDate: due } : t)),
+    todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, recurrenceRule: { every: { count: 1, unit: 'w' as const } }, dueDate: due } : t)),
   })
   /** Its occurrence done, as the store does it: the due date advances, nothing is completed, the modified date moves. */
   const advance = (id: number, to: Date) => act(() => {

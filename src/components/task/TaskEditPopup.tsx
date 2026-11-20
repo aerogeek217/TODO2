@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import type { TodoChanges, PersistedTodoItem, Person, RecurrenceType, Tag } from '../../models'
+import type { Interval, TodoChanges, PersistedTodoItem, Person, Tag } from '../../models'
 import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -12,6 +12,7 @@ import { urgentMark, urgentToggleHint } from '../../utils/urgency'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { dueDateChanges, makeRecurrenceRule } from '../../utils/recurrence'
+import { formatInterval, parseInterval } from '../../utils/interval'
 import { parseTaskInput } from '../../services/nlp-task-creator'
 import { draftEditorTitle, type EditorTaskFields, type TaskDraft } from '../../services/task-draft'
 import { TaskEditHeader } from './TaskEditHeader'
@@ -213,9 +214,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const [draftImportant, setDraftImportant] = useState(seed?.important === true || filterDefaults?.markers?.important === true || quickAddSeed?.resolved.important === true)
   const [draftFocus, setDraftFocus] = useState(seed?.focus === true || filterDefaults?.markers?.focus === true || quickAddSeed?.resolved.focus === true)
   const [nextFollowupIsDefault, setNextFollowupIsDefault] = useState(mode === 'create' && !seededFollowup)
-  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType | ''>(
-    todo?.recurrenceRule?.type ?? seed?.recurrence ?? quickAddSeed?.resolved.recurrence ?? '',
-  )
+  // The repeat's interval as stored (`2w`), `''` for none (`editor-fields`).
+  const [repeat, setRepeat] = useState<string>(() => {
+    const every = todo?.recurrenceRule?.every ?? seed?.recurrence ?? quickAddSeed?.resolved.recurrence
+    return every ? formatInterval(every) : ''
+  })
   // Local state for create mode assignments (no todoId exists yet). QuickAdd
   // seed merges with filter defaults — both contribute pre-checked entities.
   const [pendingPersonIds, setPendingPersonIds] = useState<Set<number>>(
@@ -269,7 +272,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const todoRecurrenceRule = todo?.recurrenceRule
   const baselineRef = useRef<EditorFields | null>(todo ? editorFieldsOf(todo) : null)
   const baselineIdRef = useRef(todoId)
-  const formRef = useLatestRef<EditorFields>({ title, statusId, deadline, recurrenceType })
+  const formRef = useLatestRef<EditorFields>({ title, statusId, deadline, repeat })
   useEffect(() => {
     if (todoId === undefined || todoTitle === undefined) return
     const store = editorFieldsOf({
@@ -286,7 +289,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (show.title !== undefined) setTitle(show.title)
     if ('statusId' in show) setStatusId(show.statusId)
     if (show.deadline !== undefined) setDeadline(show.deadline)
-    if (show.recurrenceType !== undefined) setRecurrenceType(show.recurrenceType)
+    if (show.repeat !== undefined) setRepeat(show.repeat)
   }, [todoId, todoTitle, todoStatusId, todoDueDate, todoRecurrenceRule, formRef])
 
   // The first Esc in a text field only leaves the field (claimed, so the
@@ -303,10 +306,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }, [])
 
   const buildRule = useCallback(() => {
-    if (!recurrenceType) return undefined
-    if (deadline) return makeRecurrenceRule(recurrenceType, deadline)
-    return undefined
-  }, [recurrenceType, deadline])
+    const every = parseInterval(repeat)
+    return every && deadline ? makeRecurrenceRule(every, deadline) : undefined
+  }, [repeat, deadline])
 
   // Writes the fields the user changed since the last sync (the title on
   // blur; the other fields also save as they change).
@@ -349,21 +351,18 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const handleDeadlineChange = (next: Date | null) => {
     setDeadline(next)
     // The rule is anchored to the due date; clearing it drops the rule.
-    if (!next) setRecurrenceType('')
+    if (!next) setRepeat('')
     if (isEdit && todo) {
       void flushNotes()
-      props.onUpdate(dueDateChanges(next, recurrenceType))
+      props.onUpdate(dueDateChanges(next, parseInterval(repeat)))
     }
   }
 
-  const handleRecurrenceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value as RecurrenceType | ''
-    setRecurrenceType(val)
+  const handleRepeatChange = (every: Interval | null) => {
+    setRepeat(every ? formatInterval(every) : '')
     if (isEdit && todo) {
-      const nextRule: typeof todo.recurrenceRule =
-        val && deadline ? makeRecurrenceRule(val, deadline) : undefined
       void flushNotes()
-      props.onUpdate({ recurrenceRule: nextRule })
+      props.onUpdate({ recurrenceRule: every && deadline ? makeRecurrenceRule(every, deadline) : undefined })
     }
   }
 
@@ -508,7 +507,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     urgent: draftUrgent,
     important: draftImportant,
     focus: draftFocus,
-    recurrenceType,
+    repeat,
     people: [...pendingPersonIds].sort((a, b) => a - b),
     tags: [...pendingTagIds].sort((a, b) => a - b),
     updates: updates.map((u) => [u.date.getTime(), u.text]),
@@ -705,10 +704,10 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
               <StatusFacts statuses={statuses} statusId={statusId} onStatusChange={handleStatusChange} />
               <TaskEditMetadata
                 deadline={deadline}
-                recurrenceType={recurrenceType}
+                repeat={parseInterval(repeat)}
                 dueTone={dueTone}
                 onDeadlineChange={handleDeadlineChange}
-                onRecurrenceChange={handleRecurrenceChange}
+                onRepeatChange={handleRepeatChange}
                 assignedPeople={effectiveAssignedPeople}
                 assignedTags={effectiveAssignedTags}
                 allPeople={allPeople}

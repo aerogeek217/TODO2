@@ -723,16 +723,70 @@ describe('TaskEditPopup', () => {
 
     it('offers repeat only with a due date; clearing the due date drops the rule', () => {
       const todo = makeTodo({
-        id: 6, title: 'Water plants', dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' },
+        id: 6, title: 'Water plants', dueDate: new Date(2026, 3, 20), recurrenceRule: { every: { count: 1, unit: 'w' as const } },
       })
       const { onUpdate } = renderEditMode(todo)
-      expect(screen.getByDisplayValue('Weekly')).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'Repeat every' })).toHaveValue('1w')
 
       fireEvent.click(getByTooltip(document.body, 'Clear due date'))
       const updated = onUpdate.mock.calls.at(-1)![0] as PersistedTodoItem
       expect(updated.dueDate).toBeUndefined()
       expect(updated.recurrenceRule).toBeUndefined()
-      expect(screen.queryByText('No repeat')).toBeNull()
+      expect(screen.queryByRole('textbox', { name: 'Repeat every' })).toBeNull()
+    })
+
+    describe('the repeat field', () => {
+      beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(new Date(2026, 10, 19, 10)) // Thu 19 Nov 2026
+      })
+      afterEach(() => { vi.useRealTimers() })
+      const repeatField = () => screen.getByRole('textbox', { name: 'Repeat every' })
+      const readBack = () => document.querySelector('[data-repeat-readback]')
+
+      it('reads back the repeat and its next date; empty, No repeat', () => {
+        renderEditMode(makeTodo({ id: 7, title: 'Sync', dueDate: new Date(2026, 10, 23), recurrenceRule: { every: { count: 2, unit: 'w' } } }))
+        expect(repeatField()).toHaveValue('2w')
+        expect(readBack()).toHaveTextContent('Every 2 weeks · next Mon, Dec 7')
+        cleanup()
+        renderEditMode(makeTodo({ id: 8, title: 'Once', dueDate: new Date(2026, 10, 23) }))
+        expect(repeatField()).toHaveValue('')
+        expect(readBack()).toHaveTextContent('No repeat')
+      })
+
+      it('⏎ writes a typed interval as one update, its day of the month kept for months', () => {
+        const { onUpdate } = renderEditMode(makeTodo({ id: 9, title: 'Rent', dueDate: new Date(2026, 0, 31) }))
+        fireEvent.change(repeatField(), { target: { value: '1m' } })
+        expect(readBack()).toHaveTextContent('Every month · next')
+        fireEvent.keyDown(repeatField(), { key: 'Enter' })
+        expect(onUpdate).toHaveBeenCalledTimes(1)
+        expect(onUpdate).toHaveBeenLastCalledWith({ recurrenceRule: { every: { count: 1, unit: 'm' }, originalDayOfMonth: 31 } })
+      })
+
+      it('a blur writes it; emptied, the repeat goes; unchanged, nothing is written', () => {
+        const { onUpdate } = renderEditMode(makeTodo({ id: 10, title: 'Sync', dueDate: new Date(2026, 10, 23), recurrenceRule: { every: { count: 1, unit: 'w' } } }))
+        fireEvent.focus(repeatField())
+        fireEvent.blur(repeatField())
+        expect(onUpdate).not.toHaveBeenCalled()
+        fireEvent.change(repeatField(), { target: { value: '' } })
+        fireEvent.blur(repeatField())
+        expect(onUpdate).toHaveBeenLastCalledWith({ recurrenceRule: undefined })
+      })
+
+      it('a text that doesn’t read says how to write one and is never written; Esc puts the stored text back', () => {
+        const { onUpdate } = renderEditMode(makeTodo({ id: 11, title: 'Sync', dueDate: new Date(2026, 10, 23), recurrenceRule: { every: { count: 1, unit: 'w' } } }))
+        fireEvent.change(repeatField(), { target: { value: '2x' } })
+        expect(screen.getByRole('alert')).toHaveTextContent('Use a number and d, w, m or y: 3d, 2w, 1m, 1y')
+        expect(repeatField()).toHaveAttribute('aria-invalid', 'true')
+        fireEvent.keyDown(repeatField(), { key: 'Enter' })
+        fireEvent.blur(repeatField())
+        expect(onUpdate).not.toHaveBeenCalled()
+        expect(repeatField()).toHaveValue('2x')
+        fireEvent.keyDown(repeatField(), { key: 'Escape' })
+        expect(repeatField()).toHaveValue('1w')
+        expect(screen.queryByRole('alert')).toBeNull()
+        expect(onUpdate).not.toHaveBeenCalled()
+      })
     })
   })
 
@@ -769,7 +823,7 @@ describe('TaskEditPopup', () => {
         dueDate: new Date(2026, 9, 16),
         nextFollowupAt: new Date(2026, 9, 24),
       })
-      expect(partial.recurrenceRule?.type).toBe('weekly')
+      expect(partial.recurrenceRule?.every).toEqual({ count: 1, unit: 'w' })
       expect(assignments.personIds).toEqual([1])
       expect(assignments.tagIds).toEqual([1])
     })

@@ -9,7 +9,7 @@ import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
 import { addTask } from '../add-task'
 
-const WEEKLY = { type: 'weekly' as const }
+const WEEKLY = { every: { count: 1, unit: 'w' as const } }
 
 beforeEach(async () => {
   await resetDb()

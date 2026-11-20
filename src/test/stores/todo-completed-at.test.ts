@@ -141,7 +141,7 @@ describe('completedAt on every completion path', () => {
   it('completing a recurring task advances it instead and sets no completedAt', async () => {
     const id = await addTask('Weekly')
     const due = new Date('2026-10-12T00:00:00.000Z')
-    await useTodoStore.getState().update(id, { dueDate: due, recurrenceRule: { type: 'weekly' } })
+    await useTodoStore.getState().update(id, { dueDate: due, recurrenceRule: { every: { count: 1, unit: 'w' as const } } })
     await useTodoStore.getState().toggleComplete(id)
     const row = await stored(id)
     expect(row.isCompleted).toBe(false)

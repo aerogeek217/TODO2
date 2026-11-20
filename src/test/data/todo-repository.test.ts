@@ -154,7 +154,7 @@ describe('todoRepository — orphan-rule cleanup on write', () => {
     const id = await todoRepository.insert(makeTodo({
       dueDate: due,
       nextFollowupAt: followup,
-      recurrenceRule: { type: 'monthly', originalDayOfMonth: 10 },
+      recurrenceRule: { every: { count: 1, unit: 'm' as const }, originalDayOfMonth: 10 },
     }))
     await todoRepository.update(id, { dueDate: undefined })
 
@@ -167,37 +167,37 @@ describe('todoRepository — orphan-rule cleanup on write', () => {
   it('update preserves the rule when the due date still anchors it', async () => {
     const id = await todoRepository.insert(makeTodo({
       dueDate: due,
-      recurrenceRule: { type: 'weekly' },
+      recurrenceRule: { every: { count: 1, unit: 'w' as const } },
     }))
     await todoRepository.update(id, { nextFollowupAt: followup })
 
     const updated = await todoRepository.getById(id)
     expect(updated!.nextFollowupAt).toEqual(followup)
-    expect(updated!.recurrenceRule).toEqual({ type: 'weekly' })
+    expect(updated!.recurrenceRule).toEqual({ every: { count: 1, unit: 'w' as const } })
   })
 
   it('update of an unrelated field on a recurring task leaves the rule alone', async () => {
     const id = await todoRepository.insert(makeTodo({
       dueDate: due,
-      recurrenceRule: { type: 'weekly' },
+      recurrenceRule: { every: { count: 1, unit: 'w' as const } },
     }))
     await todoRepository.update(id, { title: 'Renamed' })
 
     const updated = await todoRepository.getById(id)
     expect(updated!.title).toBe('Renamed')
-    expect(updated!.recurrenceRule).toEqual({ type: 'weekly' })
+    expect(updated!.recurrenceRule).toEqual({ every: { count: 1, unit: 'w' as const } })
   })
 
   it('bulkUpdate clearing due dates drops orphaned rules and leaves rows without one alone', async () => {
     const orphanId = await todoRepository.insert(makeTodo({
       title: 'orphan',
       dueDate: due,
-      recurrenceRule: { type: 'weekly' },
+      recurrenceRule: { every: { count: 1, unit: 'w' as const } },
     }))
     const anchoredId = await todoRepository.insert(makeTodo({
       title: 'anchored',
       dueDate: due,
-      recurrenceRule: { type: 'weekly' },
+      recurrenceRule: { every: { count: 1, unit: 'w' as const } },
     }))
     const noRuleId = await todoRepository.insert(makeTodo({ title: 'no rule', dueDate: due }))
 
@@ -212,7 +212,7 @@ describe('todoRepository — orphan-rule cleanup on write', () => {
     expect(orphan!.recurrenceRule).toBeUndefined()
 
     const anchored = await todoRepository.getById(anchoredId)
-    expect(anchored!.recurrenceRule).toEqual({ type: 'weekly' })
+    expect(anchored!.recurrenceRule).toEqual({ every: { count: 1, unit: 'w' as const } })
 
     const noRule = await todoRepository.getById(noRuleId)
     expect(noRule!.dueDate).toBeUndefined()
@@ -222,7 +222,7 @@ describe('todoRepository — orphan-rule cleanup on write', () => {
   it('bulkUpdate of an unrelated field on a recurring task leaves the rule alone', async () => {
     const id = await todoRepository.insert(makeTodo({
       dueDate: due,
-      recurrenceRule: { type: 'weekly' },
+      recurrenceRule: { every: { count: 1, unit: 'w' as const } },
     }))
     await todoRepository.bulkUpdate([
       { todoId: id, changes: { title: 'Renamed' } },
@@ -230,6 +230,6 @@ describe('todoRepository — orphan-rule cleanup on write', () => {
 
     const updated = await todoRepository.getById(id)
     expect(updated!.title).toBe('Renamed')
-    expect(updated!.recurrenceRule).toEqual({ type: 'weekly' })
+    expect(updated!.recurrenceRule).toEqual({ every: { count: 1, unit: 'w' as const } })
   })
 })

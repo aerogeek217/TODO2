@@ -123,7 +123,7 @@ describe('TaskRow', () => {
     })
 
     it('another year’s date is MM/DD with the repeat glyph, its name keeping the year', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2027, 0, 15), recurrenceRule: { type: 'yearly' } })} />)
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2027, 0, 15), recurrenceRule: { every: { count: 1, unit: 'y' as const } } })} />)
       const due = screen.getByRole('button', { name: 'Due Fri 15 Jan 2027' })
       expect(due.textContent).toBe('01/15')
       expect(due.querySelectorAll('svg')).toHaveLength(1)
@@ -135,7 +135,7 @@ describe('TaskRow', () => {
       expect(once).toHaveTextContent('Mon')
       expect(once.querySelectorAll('svg')).toHaveLength(0)
       unmount()
-      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />)
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { every: { count: 1, unit: 'w' as const } } })} />)
       const repeating = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
       expect(repeating).toHaveTextContent('Mon')
       expect(repeating.querySelectorAll('svg')).toHaveLength(1)
@@ -200,10 +200,10 @@ describe('TaskRow', () => {
     })
 
     it('the tooltip gives the full date, the distance and the repeat rule', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />)
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { every: { count: 1, unit: 'w' as const } } })} />)
       fireEvent.pointerEnter(screen.getByRole('button', { name: 'Due Mon 20 Apr' }))
       act(() => { vi.advanceTimersByTime(400) })
-      expect(screen.getByRole('tooltip')).toHaveTextContent('Monday, April 20, 2026In 4 daysRepeats every Monday')
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Monday, April 20, 2026In 4 daysEvery Mon')
     })
   })
 

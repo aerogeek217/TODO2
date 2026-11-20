@@ -214,6 +214,7 @@ export interface WorkspaceSeed {
     followupInDays?: number
     /** Hour of the due date (default midnight). */
     dueHour?: number
+    /** The repeat, by its old name; stored as its interval (schema v84: weekly `{ count: 1, unit: 'w' }`). */
     recurrence?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
     /** Name of a status from `statuses`. */
     status?: string
@@ -375,7 +376,14 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         isCompleted: completed,
         ...(completed ? { completedAt: task.completedInDays != null ? atDay(task.completedInDays) : now } : {}),
         ...(task.dueInDays != null ? { dueDate: new Date(day(task.dueInDays).setHours(task.dueHour ?? 0)) } : {}),
-        ...(task.recurrence ? { recurrenceRule: { type: task.recurrence } } : {}),
+        ...(task.recurrence ? {
+          recurrenceRule: {
+            every: {
+              daily: { count: 1, unit: 'd' }, weekly: { count: 1, unit: 'w' }, biweekly: { count: 2, unit: 'w' },
+              monthly: { count: 1, unit: 'm' }, quarterly: { count: 3, unit: 'm' }, yearly: { count: 1, unit: 'y' },
+            }[task.recurrence],
+          },
+        } : {}),
         ...(task.followupInDays != null ? { nextFollowupAt: day(task.followupInDays) } : {}),
         ...(task.lastFollowupInDays != null ? { lastFollowupAt: atDay(task.lastFollowupInDays) } : {}),
         ...(task.status != null ? { statusId: statusIds.get(task.status) } : {}),

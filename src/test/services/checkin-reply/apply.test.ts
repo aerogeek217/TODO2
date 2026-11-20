@@ -195,7 +195,7 @@ describe('applyCheckinUpdates', () => {
   })
 
   it('a repeating task moves to its next due date, as when completed in the app', async () => {
-    const weekly = { ...tasks[1]!, recurrenceRule: { type: 'weekly' as const } }
+    const weekly = { ...tasks[1]!, recurrenceRule: { every: { count: 1, unit: 'w' as const } } }
     await db.todos.put(weekly)
     useTodoStore.setState({ todos: tasks.map((t) => (t.id === 2 ? weekly : t)) })
     await applyCheckinUpdates([{ todoId: 2, complete: true, changeCount: 1 }], { recordFollowup: false, personName: 'M' })

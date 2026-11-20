@@ -71,7 +71,7 @@ describe('draftFromText', () => {
     const d = draftFromText('Ask @Ben /urgent /important /focus /followup 2w !waiting', ctx)
     expect(d).toMatchObject({ title: 'Ask', urgent: true, important: true, focus: true, statusId: 8 })
     expect(d.nextFollowupAt).toEqual(new Date(2026, 9, 24))
-    expect(draftFromText('Pay rent /due fri /repeat monthly', ctx).recurrence).toBe('monthly')
+    expect(draftFromText('Pay rent /due fri /repeat monthly', ctx).recurrence).toEqual({ count: 1, unit: 'm' })
   })
 
   it('/followup none means no follow-up', () => {
@@ -199,9 +199,9 @@ describe('draftToTodo', () => {
   })
 
   it('keeps a repeat only with a due date', () => {
-    expect(draftToTodo({ ...base, recurrence: 'weekly' }, now, fallback).recurrenceRule).toBeUndefined()
+    expect(draftToTodo({ ...base, recurrence: { count: 1, unit: 'w' } }, now, fallback).recurrenceRule).toBeUndefined()
     const due = new Date(2026, 9, 12)
-    expect(draftToTodo({ ...base, recurrence: 'weekly', dueDate: due }, now, fallback).recurrenceRule).toEqual({ type: 'weekly' })
+    expect(draftToTodo({ ...base, recurrence: { count: 1, unit: 'w' }, dueDate: due }, now, fallback).recurrenceRule).toEqual({ every: { count: 1, unit: 'w' as const } })
   })
 
   it('stores only true markers and set fields', () => {
@@ -212,8 +212,8 @@ describe('draftToTodo', () => {
   it('keeps the editor’s Last follow-up and notes; a repeat keeps its day of month', () => {
     const due = new Date(2026, 9, 12)
     const d = new Date(2026, 9, 1)
-    const row = draftToTodo({ ...base, dueDate: due, recurrence: 'monthly', statusId: 7, lastFollowupAt: d, notes: 'n' }, now, fallback)
-    expect(row).toMatchObject({ dueDate: due, recurrenceRule: { type: 'monthly', originalDayOfMonth: 12 }, statusId: 7, lastFollowupAt: d, notes: 'n' })
+    const row = draftToTodo({ ...base, dueDate: due, recurrence: { count: 1, unit: 'm' }, statusId: 7, lastFollowupAt: d, notes: 'n' }, now, fallback)
+    expect(row).toMatchObject({ dueDate: due, recurrenceRule: { every: { count: 1, unit: 'm' as const }, originalDayOfMonth: 12 }, statusId: 7, lastFollowupAt: d, notes: 'n' })
   })
 
   it('leaves a draft’s status updates off the row (they are written after it)', () => {

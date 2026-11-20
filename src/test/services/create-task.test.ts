@@ -193,15 +193,15 @@ describe('create a task — due date and repeat', () => {
       const { todo } = await make('B /due tomorrow /repeat monthly')
       const tomorrow = addDays(startOfToday(), 1)
       expect(todo.dueDate).toEqual(tomorrow)
-      expect(todo.recurrenceRule).toEqual(makeRecurrenceRule('monthly', tomorrow))
+      expect(todo.recurrenceRule).toEqual(makeRecurrenceRule({ count: 1, unit: 'm' }, tomorrow))
     }
   })
 
   it('the editor: its due date and repeat; a typed /repeat repeats from the editor’s due date', async () => {
-    const rule = makeRecurrenceRule('weekly', day(11, 3))
+    const rule = makeRecurrenceRule({ count: 1, unit: 'w' }, day(11, 3))
     expect((await viaEditor({ title: 'A', dueDate: day(11, 3), recurrenceRule: rule })).todo).toMatchObject({ dueDate: day(11, 3), recurrenceRule: rule })
     expect((await viaEditor({ title: 'B /repeat monthly', dueDate: day(11, 3) })).todo.recurrenceRule)
-      .toEqual(makeRecurrenceRule('monthly', day(11, 3)))
+      .toEqual(makeRecurrenceRule({ count: 1, unit: 'm' }, day(11, 3)))
     // The editor's due date wins over a typed one.
     expect((await viaEditor({ title: 'C /due tomorrow', dueDate: day(11, 3) })).todo.dueDate).toEqual(day(11, 3))
   })
@@ -272,7 +272,7 @@ describe('create a task — undo', () => {
   for (const [name, make] of [
     ['Quick Add', () => viaQuickAdd('Plan offsite @Bob @Zed #home #fresh /urgent /focus /due tomorrow /repeat monthly /followup 2w', { ...NO_DEFAULTS, tagIds: [ids.work] })],
     ['the editor', () => viaEditor(
-      { title: 'Plan offsite @Zed #fresh /important', dueDate: day(11, 3), recurrenceRule: makeRecurrenceRule('monthly', day(11, 3)), urgent: true, notes: 'n', statusUpdates: [{ date: startOfToday(), text: 'p', createdAt: new Date() }] },
+      { title: 'Plan offsite @Zed #fresh /important', dueDate: day(11, 3), recurrenceRule: makeRecurrenceRule({ count: 1, unit: 'm' }, day(11, 3)), urgent: true, notes: 'n', statusUpdates: [{ date: startOfToday(), text: 'p', createdAt: new Date() }] },
       { personIds: [ids.ann], tagIds: [ids.work] },
     )],
   ] as const) {
@@ -282,7 +282,7 @@ describe('create a task — undo', () => {
       const before = await whole(todo.id)
       expect(before.people.length).toBeGreaterThan(1)
       expect(before.tags.length).toBeGreaterThan(1)
-      expect(before.row).toMatchObject({ recurrenceRule: { type: 'monthly' } })
+      expect(before.row).toMatchObject({ recurrenceRule: { every: { count: 1, unit: 'm' as const } } })
       expect(before.events.map(([, type]) => type)).toContain('created')
       expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual([`Add "${todo.title}"`])
 

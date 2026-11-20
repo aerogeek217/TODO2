@@ -46,7 +46,7 @@ import type { TodoEvent } from '../src/models/todo-event'
 import type { StatusUpdate } from '../src/models/status-update'
 import type { Subtask } from '../src/models/subtask'
 import type { ListOrder } from '../src/models/list-order'
-import type { RecurrenceType } from '../src/models/recurrence'
+import type { Interval } from '../src/models/interval'
 import type { ListDefinition } from '../src/models/list-definition'
 import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-predicate'
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
@@ -56,7 +56,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 83
+export const DEV_SEED_SCHEMA_VERSION = 84
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -185,12 +185,24 @@ const STATUSES = {
 } as const satisfies Record<string, Omit<Status, 'id' | 'sortOrder'>>
 type StatusKey = keyof typeof STATUSES
 
-const RECUR_DAYS: Record<RecurrenceType, number> = {
+/** How the seed names a task's repeat; each is written as its interval (schema v84). */
+type RecurWord = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
+
+const RECUR_EVERY: Record<RecurWord, Interval> = {
+  daily: { count: 1, unit: 'd' },
+  weekly: { count: 1, unit: 'w' },
+  biweekly: { count: 2, unit: 'w' },
+  monthly: { count: 1, unit: 'm' },
+  quarterly: { count: 3, unit: 'm' },
+  yearly: { count: 1, unit: 'y' },
+}
+
+const RECUR_DAYS: Record<RecurWord, number> = {
   daily: 1, weekly: 7, biweekly: 14, monthly: 30, quarterly: 91, yearly: 365,
 }
 
 /** Earlier due dates a recurring task rolled over from (its deadline history). */
-function rollovers(type: RecurrenceType): number {
+function rollovers(type: RecurWord): number {
   const days = RECUR_DAYS[type]
   return days <= 30 ? 2 : days <= 91 ? 1 : 0
 }
@@ -213,7 +225,7 @@ interface TaskOpts {
   followup?: number
   /** Last followed up on this day (≤ 0). */
   followedUp?: number
-  recur?: RecurrenceType
+  recur?: RecurWord
   status?: StatusKey
   people?: PersonKey[]
   orgs?: OrgKey[]
@@ -719,8 +731,8 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     if (o.followup !== undefined && completedMs === null) todo.nextFollowupAt = iso(day(o.followup))
     if (o.recur) {
       todo.recurrenceRule = o.recur === 'monthly' && due && due.getDate() >= 29
-        ? { type: 'monthly', originalDayOfMonth: due.getDate() }
-        : { type: o.recur }
+        ? { every: { ...RECUR_EVERY.monthly }, originalDayOfMonth: due.getDate() }
+        : { every: { ...RECUR_EVERY[o.recur] } }
     }
     if (FOCUS_TITLES.includes(spec.title)) todo.focus = true
     if (o.urgent) todo.urgent = true
