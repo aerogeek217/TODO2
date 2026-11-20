@@ -146,7 +146,9 @@ describe('filter expressions — relative days', () => {
   })
 
   it('refuses a number without its sign or its d', () => {
-    expect(errorOf('due +3')).toMatchObject({ message: "Can't read “+3” as a day", hint: 'Days from today with their sign and d: +3d, -30d (up to 3660)' })
+    expect(errorOf('due +3')).toMatchObject({ message: "Can't read “+3” as a day", hint: 'From today with a sign and d, w, m or y: +3d, -30d, +2w, -1m, +1y (days up to 3660)' })
+    expect(errorOf('due +2x').message).toBe("Can't read “+2x” as a day")
+    expect(errorOf('due +1000w').message).toBe("Can't read “+1000w” as a day")
     expect(errorOf('due -30').message).toBe("Can't read “-30” as a day")
     expect(errorOf('due +3661d').message).toBe("Can't read “+3661d” as a day")
     expect(errorOf('due 3d').message).toBe("Can't read “3d”")
@@ -357,5 +359,51 @@ describe('filter expressions — comparison tokens', () => {
       { start: 11, end: 14, kind: 'operator' },
       { start: 15, end: 19, kind: 'person' },
     ])
+  })
+})
+
+describe('filter expressions — weeks, months and years (typed intervals)', () => {
+  const unit = (days: number, u: 'w' | 'm' | 'y'): DateAnchor => ({ kind: 'offset', days, unit: u })
+
+  it('+2w, -3m, +1y read wherever +3d reads: a bare day, comparisons, a..b', () => {
+    expect(match('due +2w')).toEqual(range(unit(2, 'w'), unit(2, 'w')))
+    expect(match('due <= +2w')).toEqual(range(null, unit(2, 'w')))
+    expect(match('created >= -3m')).toEqual(range(unit(-3, 'm'), null))
+    expect(match('due -1m..+1y')).toEqual(range(unit(-1, 'm'), unit(1, 'y')))
+    expect(match('due +0w')).toEqual(range(rel('today'), rel('today')))
+    // A week is whole days, so < and > step a day; a month or year has no fixed length.
+    expect(match('due < +2w')).toEqual(range(null, off(13)))
+    expect(errorOf('due < +1m').message).toBe('Use <= with +1m')
+  })
+
+  it('in 2 weeks, 3 months ago and within 2 weeks read too', () => {
+    expect(match('due <= in 2 weeks')).toEqual(range(null, unit(2, 'w')))
+    expect(match('created >= 3 months ago')).toEqual(range(unit(-3, 'm'), null))
+    expect(match('due within 2 weeks')).toEqual(range(rel('today'), unit(2, 'w')))
+    expect(match('created within last 1 year')).toEqual(range(unit(-1, 'y'), rel('today')))
+    expect(match('due within 3 days')).toEqual(range(rel('today'), off(3)))
+  })
+
+  it('print back in the unit stored, and read back to the same clause', () => {
+    for (const [typed, printed] of [
+      ['due <= +2w', 'due <= +2w'],
+      ['created >= -3m', 'created >= -3m'],
+      ['due +1y', 'due +1y'],
+      ['due -1m..+2w', 'due -1m..+2w'],
+      ['due <= in 2 weeks', 'due <= +2w'],
+      ['created >= 3 months ago', 'created >= -3m'],
+      ['due today..+2w', 'due within 2 weeks'],
+      ['created -3m..today', 'created within last 3 months'],
+      ['due within 2 weeks', 'due within 2 weeks'],
+    ] as const) {
+      expect(canonical(typed)).toBe(printed)
+      expect(canonical(printed)).toBe(printed)
+    }
+    expect(print('deadline', range(null, unit(2, 'w')))).toBe('due <= +2w')
+    expect(print('created', range(unit(-1, 'm'), null))).toBe('created >= -1m')
+  })
+
+  it('a range in one unit that ends before it starts is an error', () => {
+    expect(errorOf('due +2w..+1w').message).toBe('This range ends before it starts')
   })
 })

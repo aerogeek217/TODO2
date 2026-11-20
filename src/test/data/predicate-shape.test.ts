@@ -129,6 +129,14 @@ describe('pickPredicate', () => {
     expect(fixes).toEqual([])
   })
 
+  it('an offset keeps its week, month or year unit (typed intervals); an unknown unit makes the anchor malformed', () => {
+    const withEnd = (end: unknown) => pickPredicate({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end } } }).predicate.dates
+    expect(withEnd({ kind: 'offset', days: 2, unit: 'w' })).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 2, unit: 'w' } } })
+    expect(withEnd({ kind: 'offset', days: -1, unit: 'm' })).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: -1, unit: 'm' } } })
+    expect(withEnd({ kind: 'offset', days: 5, unit: 'd' })).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 5 } } })
+    expect(withEnd({ kind: 'offset', days: 2, unit: 'h' })).not.toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 2, unit: 'h' } } })
+  })
+
   it('stores a clause in its one form: no clause that filters nothing, includeNoDate only when true on the due date / follow-up, date-type order', () => {
     const { predicate, fixes } = pickPredicate({
       ...emptyPredicate(),

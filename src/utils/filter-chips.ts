@@ -10,7 +10,7 @@ import { formatFollowupDate } from './followup'
 import { hasMarkers, MARKERS_LABEL, markerClauseNames, markersHideLine, withMarkerClause } from './markers'
 import { expressionWords, printExpression, type ExpressionNames } from './filter-expression'
 
-export { describeAnchor, describeDateMatch } from './date-words'
+export { describeDateMatch } from './date-words'
 
 /** The filter fields a chip stands for. */
 export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'markers' | 'text' | 'completed'

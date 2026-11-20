@@ -2,25 +2,26 @@ import { describe, expect, it } from 'vitest'
 import type { DateAnchor } from '../../models'
 import {
   CALENDAR_PRESETS,
-  DAY_PRESETS,
   ROLLING_DAYS,
   convertAnchor,
-  MAX_DAY_COUNT,
-  countAnchor,
   dateAnchorsEqual,
   entryModeOf,
   fitsCalendar,
   fixedAnchorOn,
-  relativeEndOf,
+  parseRelativeEnd,
+  readDateAnchor,
+  relativeEndText,
   resolvedEndWords,
   rollingDayLabel,
   switchAnchorMode,
 } from '../../utils/date-anchor'
+import { resolveDateAnchor } from '../../utils/effective-date'
 
 /**
  * The date entry model behind the panel's Calendar / Relative ends (cr25 P8,
- * D23 board B): stored anchors ⇄ a Relative end (number + count, rolling
- * day, a saved mix's date, no end), the mode a range opens in, switching
+ * D23 board B; typed intervals, board R1): stored anchors ⇄ a Relative end's
+ * typed text (`+2w`, `-1m`, `today`, a rolling day, a saved mix's date, no
+ * end), the offset's unit resolved with calendar months, the mode a range opens in, switching
  * modes (convert, then restore while unchanged), the presets of both modes
  * and the day under a Relative end. Nothing here changes a stored shape.
  */
@@ -28,36 +29,60 @@ import {
 const TODAY = new Date(2026, 10, 2) // Mon 2 Nov 2026
 const MON = 1 as const
 const fixed = (y: number, m: number, d: number): DateAnchor => ({ kind: 'fixed', iso: new Date(y, m - 1, d).toISOString() })
-const offset = (days: number): DateAnchor => ({ kind: 'offset', days })
+const offset = (days: number, unit?: 'w' | 'm' | 'y'): DateAnchor => (unit ? { kind: 'offset', days, unit } : { kind: 'offset', days })
 const token = (t: 'today' | 'end-of-week' | 'start-of-week' | 'end-of-next-month' | 'yesterday'): DateAnchor => ({ kind: 'relative', token: t })
 
 describe('a Relative end ⇄ the stored anchor', () => {
-  it('reads offsets as an unsigned number and what it counts; tokens as rolling days; a date as itself; null as no end', () => {
-    expect(relativeEndOf(offset(-7))).toEqual({ kind: 'count', days: 7, count: 'ago' })
-    expect(relativeEndOf(offset(14))).toEqual({ kind: 'count', days: 14, count: 'ahead' })
-    expect(relativeEndOf(token('end-of-week'))).toEqual({ kind: 'rolling', token: 'end-of-week' })
-    expect(relativeEndOf(fixed(2026, 10, 1))).toEqual({ kind: 'date', iso: new Date(2026, 9, 1).toISOString() })
-    expect(relativeEndOf(null)).toEqual({ kind: 'none' })
+  it('shows an offset signed and compact in its unit; tokens by their words; a date as M/D/YYYY; null as empty', () => {
+    expect(relativeEndText(offset(-7))).toBe('-7d')
+    expect(relativeEndText(offset(14))).toBe('+14d')
+    expect(relativeEndText(offset(2, 'w'))).toBe('+2w')
+    expect(relativeEndText(offset(-1, 'm'))).toBe('-1m')
+    expect(relativeEndText(offset(1, 'y'))).toBe('+1y')
+    expect(relativeEndText(offset(0))).toBe('today')
+    expect(relativeEndText(token('end-of-week'))).toBe('end of week')
+    expect(relativeEndText(fixed(2026, 10, 1))).toBe('10/1/2026')
+    expect(relativeEndText(null)).toBe('')
   })
 
-  it('an offset of 0 counts what was picked last (days ago by default); the today token stays a rolling day', () => {
-    expect(relativeEndOf(offset(0))).toEqual({ kind: 'count', days: 0, count: 'ago' })
-    expect(relativeEndOf(offset(0), 'ahead')).toEqual({ kind: 'count', days: 0, count: 'ahead' })
-    expect(relativeEndOf(token('today'))).toEqual({ kind: 'rolling', token: 'today' })
+  it('reads typed text: signed intervals, 0 and today, rolling days, a date; empty is no end', () => {
+    expect(parseRelativeEnd('+2w')).toEqual(offset(2, 'w'))
+    expect(parseRelativeEnd('-1m')).toEqual(offset(-1, 'm'))
+    expect(parseRelativeEnd(' +3D ')).toEqual(offset(3))
+    expect(parseRelativeEnd('-1y')).toEqual(offset(-1, 'y'))
+    expect(parseRelativeEnd('+3660d')).toEqual(offset(3660))
+    expect(parseRelativeEnd('0')).toEqual(token('today'))
+    expect(parseRelativeEnd('+0w')).toEqual(token('today'))
+    expect(parseRelativeEnd('Today')).toEqual(token('today'))
+    expect(parseRelativeEnd('end  of week')).toEqual(token('end-of-week'))
+    expect(parseRelativeEnd('yesterday')).toEqual(token('yesterday'))
+    expect(parseRelativeEnd('10/1/2026')).toEqual(fixed(2026, 10, 1))
+    expect(parseRelativeEnd('')).toBeNull()
   })
 
-  it('writes a number and its count as a day offset, never signed in the number', () => {
-    expect(countAnchor(7, 'ago')).toEqual(offset(-7))
-    expect(countAnchor(7, 'ahead')).toEqual(offset(7))
-    expect(countAnchor(0, 'ago')).toEqual(offset(0))
-    expect(countAnchor(0, 'ahead')).toEqual(offset(0))
-    // Round trip both ways.
-    for (const days of [-30, -14, -7, -1, 0, 1, 7, 14, 30, 999]) {
-      const end = relativeEndOf(offset(days))
-      if (end.kind !== 'count') throw new Error('expected a count')
-      expect(end.days).toBeGreaterThanOrEqual(0)
-      expect(countAnchor(end.days, end.count)).toEqual(offset(days))
+  it.each(['2w', '+2', '+2x', '2 weeks', '+1000w', '+3661d', '2/30/2026', 'soon'])('refuses %j', (text) => {
+    expect(parseRelativeEnd(text)).toBe('invalid')
+  })
+
+  it('round-trips what it shows', () => {
+    for (const a of [offset(-7), offset(2, 'w'), offset(-3, 'm'), offset(1, 'y'), token('end-of-week'), fixed(2026, 10, 1)]) {
+      expect(parseRelativeEnd(relativeEndText(a))).toEqual(a)
     }
+  })
+
+  it('a stored offset reads its unit; an unknown unit is malformed; a day unit is days', () => {
+    expect(readDateAnchor({ kind: 'offset', days: 2, unit: 'w' })).toEqual(offset(2, 'w'))
+    expect(readDateAnchor({ kind: 'offset', days: -7 })).toEqual(offset(-7))
+    expect(readDateAnchor({ kind: 'offset', days: 3, unit: 'd' })).toEqual(offset(3))
+    expect(readDateAnchor({ kind: 'offset', days: 2, unit: 'h' })).toBeNull()
+  })
+
+  it('an offset with a unit resolves in calendar weeks, months and years', () => {
+    const day = (a: DateAnchor) => resolveDateAnchor(a, new Date(2026, 2, 31), MON).toDateString()
+    expect(day(offset(-1, 'm'))).toBe('Sat Feb 28 2026')
+    expect(day(offset(2, 'w'))).toBe('Tue Apr 14 2026')
+    expect(day(offset(1, 'y'))).toBe('Wed Mar 31 2027')
+    expect(day(offset(-30))).toBe('Sun Mar 01 2026')
   })
 
   it('a calendar day is stored at its local midnight', () => {
@@ -99,14 +124,13 @@ describe('switching modes', () => {
     expect(convertAnchor(null, 'relative', TODAY, MON)).toBeNull()
   })
 
-  it('to Relative: a date more than 999 days away stays a date (the number box holds 3 digits) — P7–P8 review', () => {
+  it('to Relative: a date more than 999 days away stays a date — P7–P8 review', () => {
     // Jan 1 2023 is 1401 days back; Feb 7 2024 is 999 back, Jul 28 2029 999 ahead.
     expect(convertAnchor(fixed(2023, 1, 1), 'relative', TODAY, MON)).toEqual(fixed(2023, 1, 1))
     expect(convertAnchor(fixed(2024, 2, 6), 'relative', TODAY, MON)).toEqual(fixed(2024, 2, 6))
     expect(convertAnchor(fixed(2024, 2, 7), 'relative', TODAY, MON)).toEqual(offset(-999))
     expect(convertAnchor(fixed(2029, 7, 28), 'relative', TODAY, MON)).toEqual(offset(999))
     expect(convertAnchor(fixed(2029, 7, 29), 'relative', TODAY, MON)).toEqual(fixed(2029, 7, 29))
-    expect(MAX_DAY_COUNT).toBe(999)
   })
 
   it('switching back restores the exact end while it is unchanged; edited, it converts again', () => {
@@ -138,31 +162,26 @@ describe('switching modes', () => {
     expect(dateAnchorsEqual(offset(0), token('today'))).toBe(false)
     expect(dateAnchorsEqual(offset(-7), offset(-7))).toBe(true)
     expect(dateAnchorsEqual(fixed(2026, 10, 1), null)).toBe(false)
+    expect(dateAnchorsEqual(offset(2, 'w'), offset(2, 'w'))).toBe(true)
+    expect(dateAnchorsEqual(offset(2, 'w'), offset(2))).toBe(false)
+    expect(dateAnchorsEqual(offset(14), offset(2, 'w'))).toBe(false)
   })
 })
 
 describe('the presets', () => {
-  it('Relative Fill in: three weeks / month back and forth, a month 30 days', () => {
-    expect(DAY_PRESETS.map((p) => [p.label, p.days])).toEqual([
-      ['1 week ago', -7], ['2 weeks ago', -14], ['1 month ago', -30], ['In 1 week', 7], ['In 2 weeks', 14], ['In 1 month', 30],
-    ])
-  })
-
   it('Relative rolling days: From starts, To ends', () => {
     expect(ROLLING_DAYS.from.map(rollingDayLabel)).toEqual(['today', 'start of week', 'start of month'])
     expect(ROLLING_DAYS.to.map(rollingDayLabel)).toEqual(['today', 'end of week', 'end of month'])
     expect(rollingDayLabel('end-of-month-plus-3')).toBe('end of (month + 3)')
   })
 
-  it('Calendar Set to…: From the starts and past days, To the ends and future days, each a day today', () => {
+  it('Calendar Set to…: From the starts, To the ends, each a day today (day counts are typed in Relative)', () => {
     const resolved = (side: 'from' | 'to') => CALENDAR_PRESETS[side].map((g) => g.map((p) => [p.label, p.day(TODAY, MON).toDateString()]))
     expect(resolved('from')).toEqual([
       [['Today', 'Mon Nov 02 2026'], ['Start of this week', 'Mon Nov 02 2026'], ['Start of this month', 'Sun Nov 01 2026'], ['Start of last month', 'Thu Oct 01 2026']],
-      [['1 week ago', 'Mon Oct 26 2026'], ['2 weeks ago', 'Mon Oct 19 2026'], ['1 month ago', 'Sat Oct 03 2026']],
     ])
     expect(resolved('to')).toEqual([
       [['Today', 'Mon Nov 02 2026'], ['End of this week', 'Sun Nov 08 2026'], ['End of this month', 'Mon Nov 30 2026'], ['End of next month', 'Thu Dec 31 2026']],
-      [['In 1 week', 'Mon Nov 09 2026'], ['In 2 weeks', 'Mon Nov 16 2026'], ['In 1 month', 'Wed Dec 02 2026']],
     ])
     // Start of last month across a year.
     expect(CALENDAR_PRESETS.from[0]?.[3]?.day(new Date(2026, 0, 15), MON).toDateString()).toBe('Mon Dec 01 2025')
@@ -171,12 +190,13 @@ describe('the presets', () => {
 
 describe('the day under a Relative end', () => {
   it('its day today; with the other end open, which way the range runs', () => {
-    expect(resolvedEndWords('to', offset(-7), null, TODAY, MON)).toBe('10/26 and earlier')
-    expect(resolvedEndWords('from', offset(-7), null, TODAY, MON)).toBe('10/26 and later')
-    expect(resolvedEndWords('to', token('today'), offset(-7), TODAY, MON)).toBe('Mon 2 Nov')
-    expect(resolvedEndWords('to', token('end-of-next-month'), offset(-7), TODAY, MON)).toBe('Thu 31 Dec')
+    expect(resolvedEndWords('to', offset(-7), null, TODAY, MON)).toBe('Mon, Oct 26 and earlier')
+    expect(resolvedEndWords('from', offset(-7), null, TODAY, MON)).toBe('Mon, Oct 26 and later')
+    expect(resolvedEndWords('to', token('today'), offset(-7), TODAY, MON)).toBe('Mon, Nov 2')
+    expect(resolvedEndWords('to', token('end-of-next-month'), offset(-7), TODAY, MON)).toBe('Thu, Dec 31')
+    expect(resolvedEndWords('to', offset(1, 'm'), offset(-7), TODAY, MON)).toBe('Wed, Dec 2')
     expect(resolvedEndWords('from', null, offset(-7), TODAY, MON)).toBeNull()
     // Another year names it.
-    expect(resolvedEndWords('to', offset(90), offset(0), TODAY, MON)).toBe('Sun 31 Jan 2027')
+    expect(resolvedEndWords('to', offset(90), offset(0), TODAY, MON)).toBe('Sun, Jan 31, 2027')
   })
 })

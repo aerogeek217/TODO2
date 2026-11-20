@@ -128,7 +128,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/calendar-heat.ts': ['HeatEntry', 'heatStep'],
   'utils/date-anchor.ts': ['convertAnchor'],
   'utils/date-filters.ts': ['normalizeDateMatch'],
-  'utils/date-words.ts': ['describeRange'],
+  'utils/date-words.ts': ['describeAnchor', 'describeRange'],
   'utils/debug-flags.ts': ['DEBUG_DND', 'hasFlag', 'makeDndLog'],
   'utils/dom-contract.ts': ['WIDGET_POPUP_ATTR'],
   'utils/filter-chips.ts': ['orValue'],

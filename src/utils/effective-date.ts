@@ -3,6 +3,7 @@ import type { TodoItem, PersistedTodoItem } from '../models/todo-item'
 import type { DateAnchor, RelativeDateToken } from '../models/filter-predicate'
 import { bySortOrder } from './sort-order'
 import { describeRecurrence } from './recurrence'
+import { addInterval } from './interval'
 
 /**
  * 0 = Sunday-first week (week ends Saturday).
@@ -76,7 +77,9 @@ export function resolveRelativeToken(
 /**
  * Resolve a `DateAnchor` to a concrete midnight Date. `fixed` parses the ISO
  * string; `relative` resolves against `today` via `resolveRelativeToken`;
- * `offset` is `today` plus `days` calendar days (midnight).
+ * `offset` is `today` plus `days` calendar days (midnight) — or, with a
+ * `unit`, that many weeks, calendar months or years (`-1m` from Mar 31 is
+ * Feb 28).
  */
 export function resolveDateAnchor(
   anchor: DateAnchor,
@@ -85,7 +88,8 @@ export function resolveDateAnchor(
 ): Date {
   if (anchor.kind === 'fixed') return startOfDay(new Date(anchor.iso))
   if (anchor.kind === 'offset') {
-    return addDays(today, anchor.days)
+    if (anchor.unit == null) return addDays(today, anchor.days)
+    return addInterval(today, { count: Math.abs(anchor.days), unit: anchor.unit }, Math.sign(anchor.days))
   }
   return resolveRelativeToken(anchor.token, today, weekStartsOn)
 }

@@ -18,7 +18,10 @@ import {
   looksBack,
   periodRange,
   range,
-  relativeDayOf,
+  countAnchor,
+  relativeAnchorOf,
+  unitOfCountWord,
+  unitOffsetOf,
   shiftAnchor,
   tokenOfWords,
   type PeriodWord,
@@ -211,8 +214,8 @@ const ENTITY_KINDS: ReadonlyMap<string, IdAtomKind> = new Map([
 const SIGIL_KIND: Record<'@' | '#' | '!', IdAtomKind> = { '@': 'person', '#': 'tag', '!': 'status' }
 const KIND_NOUN: Record<IdAtomKind, string> = { person: 'person', tag: 'tag', status: 'status' }
 
-const DAY_HINT = 'Try today, fri, 11/30, +3d (in 3 days), -3d (3 days ago)'
-const WHEN_HINT = 'Try any, none, today, this week, <= fri, >= +3d, within 3 days, -3d..+7d'
+const DAY_HINT = 'Try today, fri, 11/30, +3d (in 3 days), -3d (3 days ago), +2w, -1m'
+const WHEN_HINT = 'Try any, none, today, this week, <= fri, >= +3d, <= +2w, within 3 days, -3d..+7d'
 /** A comparison where no date word is before it. */
 const CMP_HINT = 'As in due <= +7d — quote text that has one: "a<b"'
 
@@ -583,11 +586,12 @@ class Parser {
       let back = false
       if (this.isWord('last')) { back = true; this.next() } else if (this.isWord('next')) this.next()
       const num = this.next()
-      const days = num?.kind === 'word' ? countOf(num.value) : null
-      if (days == null || !num) fail(t.start, num?.end ?? t.end, 'within how many days?', 'within 3 days, within last 7 days')
-      const unit = this.next()
-      if (lower(unit) !== 'day' && lower(unit) !== 'days') fail(num.start, unit?.end ?? num.end, 'within N days', 'within 3 days, within last 7 days')
-      return back ? range(dayAnchor(-days), dayAnchor(0)) : range(dayAnchor(0), dayAnchor(days))
+      const count = num?.kind === 'word' ? countOf(num.value) : null
+      if (count == null || !num) fail(t.start, num?.end ?? t.end, 'within how many days?', 'within 3 days, within last 7 days, within 2 weeks')
+      const unitToken = this.next()
+      const unit = unitOfCountWord(lower(unitToken))
+      if (!unit) fail(num.start, unitToken?.end ?? num.end, 'within N days, weeks, months or years', 'within 3 days, within last 7 days, within 2 weeks')
+      return back ? range(countAnchor(-count, unit), dayAnchor(0)) : range(dayAnchor(0), countAnchor(count, unit))
     }
     const second = lower(this.peek(1))
     const period = `${w} ${second ?? ''}` as PeriodWord
@@ -633,8 +637,12 @@ class Parser {
     const b = to.anchor
     const fromDay = dayOffsetOf(a)
     const toDay = dayOffsetOf(b)
+    const fromUnits = unitOffsetOf(a)
+    const toUnits = unitOffsetOf(b)
+    // Two counts in one unit (`+2w..-1w`) are in order on any day, as two day counts are.
     const inverted = fromDay != null && toDay != null ? toDay < fromDay
-      : a.kind === 'fixed' && b.kind === 'fixed' && new Date(b.iso).getTime() < new Date(a.iso).getTime()
+      : fromUnits && toUnits && fromUnits.unit === toUnits.unit ? toUnits.n < fromUnits.n
+        : a.kind === 'fixed' && b.kind === 'fixed' && new Date(b.iso).getTime() < new Date(a.iso).getTime()
     if (inverted) {
       fail(from.start, to.end, 'This range ends before it starts', `It reads as ${anchorWords(a)}..${anchorWords(b)}: put the earlier day first`)
     }
@@ -684,7 +692,7 @@ class Parser {
     return op === '<' ? range(null, moved) : range(moved, null)
   }
 
-  /** One day: `today`, `fri`, `next fri`, `+3d`, `-3d`, `in 3 days`, `3 days ago`, `11/30`, `start of next week`, `end of month + 3`. */
+  /** One day: `today`, `fri`, `next fri`, `+3d`, `-3d`, `+2w`, `-1m`, `in 3 days`, `3 days ago`, `in 2 weeks`, `3 months ago`, `11/30`, `start of next week`, `end of month + 3`. */
   private day(field: DateField): { anchor: DateAnchor; start: number; end: number } {
     const t = this.next()
     if (!t) fail(this.length, this.length, 'A day goes here', DAY_HINT)
@@ -694,24 +702,28 @@ class Parser {
     if (w === 'today') return done(dayAnchor(0))
     if (w === 'tomorrow' || w === 'tmr') return done(dayAnchor(1))
     if (w === 'yesterday') return done(dayAnchor(-1))
-    const relative = relativeDayOf(w)
-    if (relative != null) return done(dayAnchor(relative))
-    if (/^[+-]\d+d?$/.test(w)) fail(t.start, t.end, `Can't read “${t.value}” as a day`, 'Days from today with their sign and d: +3d, -30d (up to 3660)')
+    const relative = relativeAnchorOf(w)
+    if (relative != null) return done(relative)
+    if (/^[+-]\d+[a-z]?$/.test(w)) {
+      fail(t.start, t.end, `Can't read “${t.value}” as a day`, 'From today with a sign and d, w, m or y: +3d, -30d, +2w, -1m, +1y (days up to 3660)')
+    }
     if (w === 'in') {
       const num = this.next()
-      const days = num?.kind === 'word' ? countOf(num.value) : null
-      const unit = this.next()
-      if (days == null || !num || (lower(unit) !== 'day' && lower(unit) !== 'days') || !unit) fail(t.start, unit?.end ?? num?.end ?? t.end, 'in how many days?', 'in 3 days')
-      return done(dayAnchor(days), unit.end)
+      const count = num?.kind === 'word' ? countOf(num.value) : null
+      const unitToken = this.next()
+      const unit = unitOfCountWord(lower(unitToken))
+      if (count == null || !num || !unit || !unitToken) fail(t.start, unitToken?.end ?? num?.end ?? t.end, 'in how many days?', 'in 3 days, in 2 weeks')
+      return done(countAnchor(count, unit), unitToken.end)
     }
     const count = countOf(w)
     if (count != null) {
-      const unit = this.next()
+      const unitToken = this.next()
+      const unit = unitOfCountWord(lower(unitToken))
       const ago = this.next()
-      if ((lower(unit) !== 'day' && lower(unit) !== 'days') || lower(ago) !== 'ago' || !ago) {
-        fail(t.start, ago?.end ?? unit?.end ?? t.end, `Can't read “${w}” as a day`, '3 days ago, in 3 days')
+      if (!unit || lower(ago) !== 'ago' || !ago) {
+        fail(t.start, ago?.end ?? unitToken?.end ?? t.end, `Can't read “${w}” as a day`, '3 days ago, in 3 days, 3 months ago')
       }
-      return done(dayAnchor(-count), ago.end)
+      return done(countAnchor(-count, unit), ago.end)
     }
     if (w === 'start' || w === 'end') {
       const words = [w]

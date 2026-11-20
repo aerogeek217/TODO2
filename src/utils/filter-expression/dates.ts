@@ -1,12 +1,13 @@
 import type { DateField } from '../../models/app-view'
-import type { DateAnchor, DateMatch, RelativeDateToken } from '../../models/filter-predicate'
+import type { DateAnchor, DateMatch, OffsetUnit, RelativeDateToken } from '../../models/filter-predicate'
 import { addDays, startOfDay } from '../date'
 import { dateAnchorsEqual } from '../date-anchor'
+import { unitWord } from '../interval'
 
 /**
  * The date words of a filter expression, both ways: what a date type is
  * called (`due`, `followed`), how an anchor reads (`today`, `+3d`, `-30d`,
- * `start of week`, `11/30/2026`) and which ranges have a name (`this week`,
+ * `+2w`, `-3m`, `+1y`, `start of week`, `11/30/2026`) and which ranges have a name (`this week`,
  * `overdue`). The parser and the printer share them, so what one writes the
  * other reads back as the same clause.
  */
@@ -120,15 +121,29 @@ export function tokenOfWords(words: string): RelativeDateToken | null {
   return found ? found[0] as RelativeDateToken : null
 }
 
-/** A day's distance from today, for the anchors that name one (`yesterday`, `in 3 days`); null for others. */
+/**
+ * A day's distance from today, for the anchors that name one (`yesterday`,
+ * `in 3 days`); null for others — an offset in weeks, months or years too
+ * (`+2w` stays in its unit: it prints as typed).
+ */
 export function dayOffsetOf(a: DateAnchor): number | null {
-  if (a.kind === 'offset') return a.days
+  if (a.kind === 'offset') return a.unit == null || a.days === 0 ? a.days : null
   if (a.kind === 'relative') {
     if (a.token === 'yesterday') return -1
     if (a.token === 'today') return 0
     if (a.token === 'tomorrow') return 1
   }
   return null
+}
+
+/** An offset in weeks, months or years as its signed count and unit (`+2w` → 2, `w`); null for any other anchor. */
+export function unitOffsetOf(a: DateAnchor): { n: number; unit: OffsetUnit } | null {
+  return a.kind === 'offset' && a.unit != null && a.days !== 0 ? { n: a.days, unit: a.unit } : null
+}
+
+/** The anchor `n` weeks, months or years from today (`+2w`); `today` for 0. */
+function unitAnchor(n: number, unit: OffsetUnit): DateAnchor {
+  return n === 0 ? rel('today') : { kind: 'offset', days: n, unit }
 }
 
 /** The anchor for a day `n` days from today: `yesterday` / `today` / `tomorrow` by name, any other as an offset. */
@@ -175,6 +190,9 @@ const DAY_BEFORE: Partial<Record<RelativeDateToken, RelativeDateToken>> = Object
  */
 export function shiftAnchor(a: DateAnchor, delta: number): DateAnchor | null {
   if (a.kind === 'fixed') return fixedAnchorOf(addDays(fixedDay(a.iso), delta))
+  // Weeks are whole days (`< +2w` is `<= +13d`); a month or a year has no fixed length, so no day beside it here.
+  const units = unitOffsetOf(a)
+  if (units) return units.unit === 'w' ? dayAnchor(units.n * 7 + delta) : null
   const n = dayOffsetOf(a)
   if (n != null) return dayAnchor(n + delta)
   if (a.kind !== 'relative' || Math.abs(delta) !== 1) return null
@@ -182,25 +200,56 @@ export function shiftAnchor(a: DateAnchor, delta: number): DateAnchor | null {
   return token ? rel(token) : null
 }
 
-/** A relative day as typed: `+3d`, `-30d`, `+0d` (signed, whole days), or null. */
-export function relativeDayOf(word: string): number | null {
-  const m = /^([+-])(\d{1,4})d$/i.exec(word)
+/** The most days a typed relative day takes (`+3660d`). */
+const MAX_RELATIVE_DAYS = 3660
+
+/** The most weeks, months or years a typed relative day takes (`+999m`). */
+const MAX_RELATIVE_COUNT = 999
+
+/**
+ * A relative day as typed (typed intervals): `+3d`, `-30d`, `+0d` (whole
+ * days), or `+2w`, `-3m`, `+1y` (weeks, calendar months, calendar years) —
+ * signed, as its anchor (a day count by name or as a day offset, the others
+ * keeping their unit); null when it isn't one.
+ */
+export function relativeAnchorOf(word: string): DateAnchor | null {
+  const m = /^([+-])(\d{1,4})([dwmy])$/i.exec(word)
   if (!m) return null
   const n = parseInt(m[2] ?? '', 10)
-  if (n > 3660) return null
-  return m[1] === '-' ? -n : n
+  const unit = (m[3] ?? 'd').toLowerCase()
+  if (n > (unit === 'd' ? MAX_RELATIVE_DAYS : MAX_RELATIVE_COUNT)) return null
+  const signed = m[1] === '-' ? -n : n
+  return unit === 'd' ? dayAnchor(signed) : unitAnchor(signed, unit as OffsetUnit)
+}
+
+/** A unit's word typed after a count (`within 2 weeks`, `in 3 months`, `1 year ago`): its unit, or null. */
+export function unitOfCountWord(word: string | null | undefined): 'd' | OffsetUnit | null {
+  switch (word) {
+    case 'day': case 'days': return 'd'
+    case 'week': case 'weeks': return 'w'
+    case 'month': case 'months': return 'm'
+    case 'year': case 'years': return 'y'
+    default: return null
+  }
+}
+
+/** The anchor `n` of `unit` from today: days as `dayAnchor`, the others as `unitAnchor`. */
+export function countAnchor(n: number, unit: 'd' | OffsetUnit): DateAnchor {
+  return unit === 'd' ? dayAnchor(n) : unitAnchor(n, unit)
 }
 
 /**
  * An anchor as the expression writes it: `today`, `tomorrow`, `yesterday`,
- * any other day from today compact and signed (`+3d`, `-30d`), `start of
- * week`, `11/30/2026`.
+ * any other day from today compact and signed (`+3d`, `-30d`) — in the unit
+ * it was stored in (`+2w`, `-3m`, `+1y`) —, `start of week`, `11/30/2026`.
  */
 export function anchorWords(a: DateAnchor): string {
   if (a.kind === 'fixed') {
     const d = fixedDay(a.iso)
     return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`
   }
+  const units = unitOffsetOf(a)
+  if (units) return `${units.n > 0 ? '+' : ''}${units.n}${units.unit}`
   const n = dayOffsetOf(a)
   if (n != null) {
     if (n === 0) return 'today'
@@ -219,7 +268,8 @@ function noDateWords(field: DateField): string {
 /**
  * One date clause as the expression writes it (the date type's word
  * first): `due any`, `no due`, `overdue`, `followup late`, `due this week`,
- * `due today`, `due within 3 days`, `created within last 7 days`, `due +3d`,
+ * `due today`, `due within 3 days`, `created within last 7 days`, `due
+ * within 2 weeks`, `created within last 3 months`, `due +3d`, `due <= +2w`,
  * `due -3d..+7d`, `due 11/1/2026..11/30/2026`, and a range open at one end
  * as a comparison — `due <= 11/13/2026`, `followup >= +7d`, `modified <=
  * -30d` (its end is included, so `<=` / `>=`; `<` / `>` read as the day
@@ -243,6 +293,10 @@ export function dateClauseWords(field: DateField, m: DateMatch): string {
     if (dateAnchorsEqual(start, end) || (s != null && s === e)) return `${word} ${anchorWords(start)}`
     if (s === 0 && e != null && e > 0) return `${word} within ${e} ${e === 1 ? 'day' : 'days'}`
     if (e === 0 && s != null && s < 0) return `${word} within last ${-s} ${s === -1 ? 'day' : 'days'}`
+    const eu = unitOffsetOf(end)
+    const su = unitOffsetOf(start)
+    if (s === 0 && eu && eu.n > 0) return `${word} within ${eu.n} ${unitWord(eu.unit, eu.n)}`
+    if (e === 0 && su && su.n < 0) return `${word} within last ${-su.n} ${unitWord(su.unit, -su.n)}`
     return `${word} ${anchorWords(start)}..${anchorWords(end)}`
   }
   if (end != null) return `${word} <= ${anchorWords(end)}`
