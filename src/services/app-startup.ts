@@ -12,9 +12,18 @@ interface AppStartupResult {
   expiredUids: ReadonlySet<string> | null
 }
 
+/**
+ * The parts of launch the start screen names when one takes long
+ * (`StartScreen`): the database opening (the version check before launch is
+ * part of it), the sync file's step, then everything read after it.
+ */
+export type LaunchStep = 'database' | 'sync-file' | 'tasks'
+
 interface AppStartupOptions {
   /** Called just before the completed-task check reads the database. */
   onPurgeCheck?: () => void
+  /** Called as each part of launch begins (`database` first). */
+  onStep?: (step: LaunchStep) => void
 }
 
 /**
@@ -37,14 +46,22 @@ interface AppStartupOptions {
  *    its interval);
  * 5. automatic backups.
  *
+ * Nothing here limits how long a step may take but the sync file's two
+ * checks before its question (`fileStorageService.initialize`); `onStep`
+ * tells the start screen which part is under way, so it can say so and
+ * offer that part's ways out.
+ *
  * Rejects when a step fails (the database can't be opened).
  */
-export async function runAppStartup({ onPurgeCheck }: AppStartupOptions = {}): Promise<AppStartupResult> {
+export async function runAppStartup({ onPurgeCheck, onStep }: AppStartupOptions = {}): Promise<AppStartupResult> {
+  onStep?.('database')
   await db.open().catch((err: unknown) => {
     if (findDatabaseTooNew(err) || findDatabaseTooOld(err)) throw err
   })
   await useSettingsStore.getState().load()
+  onStep?.('sync-file')
   await useFileStorageStore.getState().initialize()
+  onStep?.('tasks')
   await useSettingsStore.getState().stampHistoryLogSince()
   await navigator.storage?.persist?.().catch(() => false)
   await Promise.all([

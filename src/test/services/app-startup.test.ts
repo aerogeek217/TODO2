@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { runAppStartup } from '../../services/app-startup'
-import { fileStorageService, type LaunchPermissionInfo } from '../../services/file-storage'
+import { fileStorageService, FILE_LINK_TIMEOUT_MS, LINK_UNREAD_ERROR, type LaunchPermissionInfo } from '../../services/file-storage'
+import { loadFileHandle, saveFileHandle } from '../../services/file-handle-idb'
+import { storagePillState } from '../../components/layout/sync-status'
 import { useFileStorageStore } from '../../services/file-storage-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { usePersonStore } from '../../stores/person-store'
@@ -129,5 +131,115 @@ describe('runAppStartup — the launch question', () => {
     await db.listDefinitions.clear()
     await runAppStartup()
     expect(await db.listDefinitions.count()).toBe(0)
+  })
+})
+
+describe('runAppStartup — the steps it reports', () => {
+  it('database, then the sync file, then tasks: each as it begins', async () => {
+    const steps: string[] = []
+    const initialize = vi.spyOn(fileStorageService, 'initialize').mockImplementation(async () => { steps.push('(initialize)') })
+    const work = spyLaunchWork()
+    work.people.mockImplementation(async () => { steps.push('(stores)') })
+    await runAppStartup({ onStep: (step) => steps.push(step) })
+    expect(initialize).toHaveBeenCalledTimes(1)
+    expect(steps).toEqual(['database', 'sync-file', '(initialize)', 'tasks', '(stores)'])
+  })
+})
+
+// The real service over the real link database: the browser never hands the
+// stored file handle over (the read of its row never answers).
+describe('runAppStartup — a stored file handle the browser never hands over', () => {
+  const storedLink = { kind: 'file', name: 'todo2.json' }
+
+  /** Lets the database work in flight run (it schedules with setImmediate, which stays real). */
+  const settleReal = async () => { for (let i = 0; i < 30; i++) await new Promise((r) => setImmediate(r)) }
+
+  beforeEach(async () => {
+    vi.stubGlobal('showOpenFilePicker', vi.fn())
+    await saveFileHandle(storedLink as unknown as FileSystemFileHandle)
+    const realGet = IDBObjectStore.prototype.get
+    vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementation(function (this: IDBObjectStore, key) {
+      if (this.name !== 'handles') return realGet.call(this, key)
+      return {} as IDBRequest
+    })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  /** The stored link as the next start would read it. */
+  async function linkNow() {
+    vi.mocked(IDBObjectStore.prototype.get).mockRestore()
+    return loadFileHandle()
+  }
+
+  const pill = () => {
+    const s = useFileStorageStore.getState()
+    return storagePillState({
+      isConnected: s.isConnected, fileName: s.fileName, needsPermission: s.needsPermission, paused: s.paused,
+      error: s.error, dismissedError: s.dismissedError, snapshotWarning: null,
+    })
+  }
+
+  it('launch completes without the file after the timeout; the pill says so; tasks and the stored link are untouched', async () => {
+    const work = spyLaunchWork()
+    let result: Awaited<ReturnType<typeof runAppStartup>> | null = null
+    void runAppStartup().then((r) => { result = r })
+    await settleReal()
+
+    // Waiting for the browser: nothing else ran yet.
+    expect(useFileStorageStore.getState().launchWait).toBe('link')
+    expect(work.people).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(FILE_LINK_TIMEOUT_MS - 1)
+    await settleReal()
+    expect(result).toBeNull()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await settleReal()
+    expect(result).toEqual({ expiredUids: new Set([expiredUid]) })
+    expect(work.backups).toHaveBeenCalledTimes(1)
+    expect(useFileStorageStore.getState()).toMatchObject({
+      launchWait: null, fileName: null, needsPermission: false, pendingLaunchPermission: null, error: LINK_UNREAD_ERROR,
+    })
+    expect(pill()).toMatchObject({ kind: 'error', text: 'Sync error' })
+    expect(await db.todos.count()).toBe(1)
+    expect(await linkNow()).toEqual(storedLink)
+  })
+
+  it('Forget the sync file while it waits: the stored link is cleared and launch goes on; the tasks stay', async () => {
+    const work = spyLaunchWork()
+    let result: Awaited<ReturnType<typeof runAppStartup>> | null = null
+    void runAppStartup().then((r) => { result = r })
+    await settleReal()
+    expect(useFileStorageStore.getState().launchWait).toBe('link')
+
+    useFileStorageStore.getState().forgetLaunchFile()
+    await settleReal()
+    // At once: no timeout to wait for.
+    expect(result).toEqual({ expiredUids: new Set([expiredUid]) })
+    expect(work.backups).toHaveBeenCalledTimes(1)
+    expect(useFileStorageStore.getState()).toMatchObject({ launchWait: null, fileName: null, needsPermission: false, error: null })
+    expect(pill()).toMatchObject({ kind: 'local' })
+    expect(await db.todos.count()).toBe(1)
+    expect((await db.todos.toArray())[0]?.uid).toBe(expiredUid)
+    expect(await linkNow()).toBeNull()
+  })
+
+  it('Continue without the file while it waits: launch goes on at once, the stored link kept for the next start', async () => {
+    spyLaunchWork()
+    let result: Awaited<ReturnType<typeof runAppStartup>> | null = null
+    void runAppStartup().then((r) => { result = r })
+    await settleReal()
+
+    useFileStorageStore.getState().skipLaunchFile()
+    await settleReal()
+    expect(result).not.toBeNull()
+    expect(useFileStorageStore.getState()).toMatchObject({ launchWait: null, fileName: null, error: LINK_UNREAD_ERROR })
+    expect(await db.todos.count()).toBe(1)
+    expect(await linkNow()).toEqual(storedLink)
   })
 })
