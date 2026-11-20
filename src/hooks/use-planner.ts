@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { PersistedTodoItem } from '../models'
-import { usePlannerWindow } from '../stores/planner-store'
+import type { LayoutBody } from '../models/workspace-layout'
+import { plannerWindowKey, usePlannerStore, usePlannerWindow } from '../stores/planner-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTodoStore } from '../stores/todo-store'
+import { useWorkspaceStore } from '../stores/workspace-store'
 import { plannerView, type PlannerGroup, type PlannerView } from '../utils/planner'
 import { countTabBadges, tabBadgeSummary, type TabBadgeCounts } from '../utils/tab-badges'
 import { tasksDoneToday } from '../utils/tally'
+import { layoutTabs } from '../utils/workspace-layout-queries'
 import { useScreenTasks } from './use-glance-data'
 import { keptOf, useKeptTodos, useLeavingRows, type LeavingRows } from './use-leaving-rows'
 import { useToday } from './use-today'
@@ -15,6 +18,8 @@ type Task = PersistedTodoItem
 /** What a Planner draws (`components/workspace/planner`). */
 export interface PlannerData {
   today: Date
+  /** The key of the tab's window in `stores/planner-store`: its layout and tab (`plannerWindowKey`). */
+  windowKey: string
   /** The window's offset from today, days (`stores/planner-store`). */
   offset: number
   /** The picked day (local midnight, ms), or null. */
@@ -37,7 +42,7 @@ const groupIds = (groups: ReadonlyArray<PlannerGroup<Task>>): number[] => groups
 /**
  * A Planner tab's data: the open tasks the screen filter shows
  * (`useScreenTasks`) placed for the tab's window and picked day
- * (`stores/planner-store`) in its hand order (`order`, the tab's view
+ * (`stores/planner-store`, by the open layout and the tab) in its hand order (`order`, the tab's view
  * state). With `linger`, a row completed here lingers, then folds, as a
  * list's does (`useLeavingRows`): the view is built with it as it was just
  * before, and `keptTodos` says what it shows meanwhile.
@@ -45,7 +50,8 @@ const groupIds = (groups: ReadonlyArray<PlannerGroup<Task>>): number[] => groups
 export function usePlanner(tabId: string, order: readonly string[] | undefined, linger: boolean): PlannerData {
   const today = useToday()
   const screenTasks = useScreenTasks()
-  const { offset, picked } = usePlannerWindow(tabId)
+  const windowKey = plannerWindowKey(useWorkspaceStore((s) => s.working?.id), tabId)
+  const { offset, picked } = usePlannerWindow(windowKey)
   const ranges = useSettingsStore((s) => s.tabBadges)
 
   const shownIdsRef = useRef<ReadonlySet<number>>(NO_IDS)
@@ -72,7 +78,22 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
     return { counts, summary: tabBadgeSummary(counts, ranges) }
   }, [view, kept, ranges, today])
 
-  return { today, offset, picked, view, leaving, keptTodos, badge }
+  return { today, windowKey, offset, picked, view, leaving, keptTodos, badge }
+}
+
+/**
+ * Keeps `stores/planner-store`'s windows to the Planner tabs the open layout
+ * has (the workspace page calls it with `working`): a tab closed, or changed
+ * to another kind — by a menu, an undo, the layout edit mode — loses its
+ * window, so one that is a Planner again starts on this week.
+ */
+export function usePlannerWindowsOf(layout: (LayoutBody & { id: number }) | null): void {
+  const layoutId = layout?.id
+  const tabIds = useMemo(() => (layout ? layoutTabs(layout).filter((t) => t.kind === 'planner').map((t) => t.id).join('\n') : null), [layout])
+  useEffect(() => {
+    if (layoutId == null || tabIds == null) return
+    usePlannerStore.getState().keep(layoutId, tabIds === '' ? [] : tabIds.split('\n'))
+  }, [layoutId, tabIds])
 }
 
 /** The tasks completed today, the last one first (the tally's count, `utils/tally`): the Planner's `N done` line. */

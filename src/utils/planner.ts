@@ -293,32 +293,84 @@ export interface PlannerDropPosition {
   rows: readonly string[]
   /** Before row `index` of `rows` without the dropped one (`rows.length` or more: at the group's end). */
   index: number
-  /** Every task the Planner shows, in display order (`PlannerView.tasks`): what a hand order is written over. */
+  /** Every task the Planner shows now, in display order (`PlannerView.tasks`): the rows a place is read against. */
   shown: readonly string[]
 }
 
+/** The hand order a drop is merged into. */
+interface PlannerStoredOrder {
+  /** The stored order (`PlannerTabViewState.order`): `uid`s, the tasks the Planner doesn't show now among them. */
+  order?: readonly string[]
+  /**
+   * Whether a task still exists (not deleted, not purged). Only a `uid` it
+   * says is gone leaves the order; without it every stored `uid` stays.
+   */
+  exists?: (uid: string) => boolean
+  /** The most `uid`s kept (default `PLANNER_ORDER_MAX`). */
+  max?: number
+}
+
+/** The landing place among a group's rows without the dropped one. */
+function landingIndex(position: PlannerDropPosition, uid: string): number {
+  const others = position.rows.filter((u) => u !== uid).length
+  return Math.max(0, Math.min(Math.trunc(position.index), others))
+}
+
 /**
- * The hand order after `uid` lands at `position`: the whole displayed
- * sequence (`position.shown`: only the tasks the Planner shows, each once)
- * with `uid` before the row it was dropped before — after the group's last
- * row at its end; at the sequence's end in a group with no other row. At
- * most `max` `uid`s: past that, the group dropped into is kept whole and
- * the others are cut from the end.
+ * The hand order after `uid` lands at `position`: the new arrangement
+ * **merged into the stored order** (`stored.order`), so a task the Planner
+ * doesn't show just now — hidden by the screen filter, on a day outside a
+ * shifted window, completed — keeps its place.
+ *
+ * - Every stored `uid` but the moved one keeps its position relative to
+ *   every other; only one of a task that no longer exists (`stored.exists`)
+ *   goes.
+ * - Every task shown takes a place (the order is written over what is on
+ *   screen): one the order didn't hold goes right after the row shown
+ *   before it — so each group reads as it does now.
+ * - The moved row goes right after the row above its landing place, at a
+ *   group's top right before the row below it — its visible neighbours —,
+ *   and at the end in a group with no other row.
+ *
+ * At most `stored.max` `uid`s: over it, the tasks not shown go first, the
+ * earliest in the sequence first; were the shown ones alone still too many,
+ * the group dropped into is kept whole and the others are cut from the end.
  */
-export function plannerReorder(uid: string, position: PlannerDropPosition, max: number = PLANNER_ORDER_MAX): string[] {
+export function plannerReorder(uid: string, position: PlannerDropPosition, stored: PlannerStoredOrder = {}): string[] {
+  const { exists, max = PLANNER_ORDER_MAX } = stored
+  const shown = [...new Set(position.shown)].filter((u) => u !== uid)
+  const visible = new Set(shown)
+  const sequence = [...new Set(stored.order ?? [])].filter((u) => u !== uid && (visible.has(u) || !exists || exists(u)))
+  const listed = new Set(sequence)
+
+  // The shown tasks the order didn't hold: each right after the row shown before it.
+  let above: string | null = null
+  for (const u of shown) {
+    if (!listed.has(u)) {
+      sequence.splice(above == null ? 0 : sequence.indexOf(above) + 1, 0, u)
+      listed.add(u)
+    }
+    above = u
+  }
+
+  // The moved row, by its visible neighbours.
   const group = position.rows.filter((u) => u !== uid)
-  const at = Math.max(0, Math.min(Math.trunc(position.index), group.length))
-  const rest = [...new Set(position.shown)].filter((u) => u !== uid)
-  const before = group[at]
-  const after = group[at - 1]
-  let place = rest.length
-  if (before != null && rest.includes(before)) place = rest.indexOf(before)
-  else if (after != null && rest.includes(after)) place = rest.indexOf(after) + 1
-  const sequence = [...rest.slice(0, place), uid, ...rest.slice(place)]
+  const at = landingIndex(position, uid)
+  const before = group[at - 1]
+  const after = group[at]
+  let place = sequence.length
+  if (before != null && listed.has(before)) place = sequence.indexOf(before) + 1
+  else if (after != null && listed.has(after)) place = sequence.indexOf(after)
+  sequence.splice(place, 0, uid)
   if (sequence.length <= max) return sequence
+
+  // Over the cap: the tasks not shown first, the earliest first.
+  let over = sequence.length - max
+  const kept = sequence.filter((u) => u === uid || visible.has(u) || over-- <= 0)
+  if (kept.length <= max) return kept
   const keep = new Set([uid, ...group])
   let room = Math.max(0, max - keep.size)
-  return sequence.filter((u) => keep.has(u) || room-- > 0).slice(0, max)
+  return kept.filter((u) => keep.has(u) || room-- > 0).slice(0, max)
 }
 
 /** What a drop does, all of it: the write, the hand order, and whether the row leaves its group. */
@@ -335,27 +387,26 @@ export interface PlannerDropPlan {
  * What dropping `task` on `target` does in a Planner whose window is
  * `window`: the write `plannerDrop` decides for the task's placement there,
  * and — dropped into a group at `position` — the hand order with the row
- * where it was dropped (`plannerReorder`). A refused drop changes nothing;
- * one that writes nothing reorders only a task the group already shows, and
- * only when it lands somewhere else.
+ * where it was dropped, merged into the one stored (`plannerReorder`). A
+ * refused drop changes nothing; one that writes nothing reorders only a
+ * task the group already shows, and only when it lands somewhere else.
  */
 export function plannerDropPlan(
   task: PlannerTask,
   window: Pick<PlannerWindow, 'today' | 'last'>,
   target: PlannerTarget,
   position: PlannerDropPosition | null = null,
+  stored: PlannerStoredOrder = {},
 ): PlannerDropPlan {
   const drop = plannerDrop(task, plannerPlacement(task, window.today, window.last), target)
   const moves = drop.kind === 'followup' || drop.kind === 'do'
   if (!position || drop.kind === 'refuse') return { drop, moves }
-  if (drop.kind === 'none' && !position.rows.includes(task.uid)) return { drop, moves }
-  const order = plannerReorder(task.uid, position)
   if (drop.kind === 'none') {
-    // Dropped where it is: nothing to store.
-    const shown = [...new Set(position.shown)]
-    if (order.length === shown.length && order.every((u, i) => u === shown[i])) return { drop, moves }
+    const from = position.rows.indexOf(task.uid)
+    // Not a row of the group, or dropped where it is: nothing to store.
+    if (from === -1 || from === landingIndex(position, task.uid)) return { drop, moves }
   }
-  return { drop, order, moves }
+  return { drop, order: plannerReorder(task.uid, position, stored), moves }
 }
 
 /** What the lifted row's label says a drop will write, and in which color. */

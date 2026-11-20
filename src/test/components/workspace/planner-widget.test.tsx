@@ -6,7 +6,7 @@ import { PlannerWidget } from '../../../components/workspace/planner/PlannerWidg
 import { WidgetFaceContext, type WidgetFaceHost } from '../../../hooks/use-widget-face'
 import type { PersistedTodoItem } from '../../../models'
 import type { PlannerTab } from '../../../models/workspace-layout'
-import { usePlannerStore } from '../../../stores/planner-store'
+import { plannerWindowKey, usePlannerStore } from '../../../stores/planner-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -218,7 +218,7 @@ describe('the Planner — the strip', () => {
     show({ forced: 'large' })
     expect(tile('2026-11-30')).toHaveAttribute('aria-pressed', 'true')
     expect(groupNames()).toEqual(['Today', 'Mon, Nov 30', 'Tue, Dec 1', 'Wed, Dec 2', 'Thu, Dec 3', 'Focus, no day'])
-    expect(usePlannerStore.getState().windows).toEqual({ plan: { offset: 7, picked: new Date(2026, 10, 30).getTime() } })
+    expect(usePlannerStore.getState().windows).toEqual({ [plannerWindowKey(null, 'plan')]: { offset: 7, picked: new Date(2026, 10, 30).getTime() } })
   })
 })
 
