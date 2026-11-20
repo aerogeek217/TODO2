@@ -12,7 +12,10 @@ import styles from './LaunchPermissionDialog.module.css'
  * **Continue without the file** (this browser's data, sync paused, nothing
  * written to the file). Launch waits for the answer. No ×, no backdrop
  * close; Esc = Continue (the answer that changes nothing). Asked at every
- * launch while the file is attached and needs permission.
+ * launch while the file is attached and needs permission. Asked too when
+ * the browser didn't answer the permission check in time
+ * (`prompt.unchecked`): its words then say the link to the file could not
+ * be checked, and what to do if Grant access gets no answer either.
  */
 export function LaunchPermissionDialog({ prompt }: { prompt: LaunchPermissionPrompt }) {
   const grant = useFileStorageStore((s) => s.grantLaunchPermission)
@@ -21,7 +24,7 @@ export function LaunchPermissionDialog({ prompt }: { prompt: LaunchPermissionPro
   const titleId = useId()
   const bodyId = useId()
   const grantRef = useRef<HTMLButtonElement>(null)
-  const { fileName, phase } = prompt
+  const { fileName, phase, unchecked } = prompt
   const waiting = phase === 'waiting'
   const file = <strong className={styles.fileName}>{fileName}</strong>
   // Refused: focus back on the primary, now Try again (it was disabled while waiting).
@@ -114,7 +117,15 @@ export function LaunchPermissionDialog({ prompt }: { prompt: LaunchPermissionPro
         <span className={styles.icon}><FileIcon size={18} /></span>
         <h2 id={titleId} className={styles.title}>Allow access to {fileName}</h2>
         <p id={bodyId} className={styles.body}>
-          TODO2 syncs your tasks with {file}. After a browser restart, the browser needs your OK before TODO2 can open the file again.
+          {unchecked ? (
+            <>
+              TODO2 syncs your tasks with {file}, but its link to the file could not be checked: your browser didn’t answer.
+              Grant access to try again. If that gets no answer either, continue without the file, then disconnect it and
+              attach it again in Settings › Database › File storage.
+            </>
+          ) : (
+            <>TODO2 syncs your tasks with {file}. After a browser restart, the browser needs your OK before TODO2 can open the file again.</>
+          )}
         </p>
         {middle}
         <div className={styles.footer}>

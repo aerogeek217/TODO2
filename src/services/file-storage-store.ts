@@ -39,6 +39,8 @@ registerModuleReset(resetFileStoragePrompts)
 export interface LaunchPermissionPrompt {
   fileName: string
   phase: 'ask' | 'waiting' | 'refused'
+  /** The browser didn't answer the permission check in time: the question says the link to the file could not be checked. */
+  unchecked?: true
 }
 
 interface FileStorageState extends FileStorageStatus {
@@ -71,6 +73,19 @@ interface FileStorageState extends FileStorageStatus {
   grantLaunchPermission: () => void
   /** The launch question's Continue without the file: launch goes on with this browser's data, sync paused. */
   continueWithoutFile: () => void
+  /**
+   * The start screen's Continue without the file, while launch waits for the
+   * browser about the file (`launchWait`): launch goes on with this
+   * browser's data, nothing read from or written to the file, the stored
+   * link kept. Nothing while launch isn't waiting there.
+   */
+  skipLaunchFile: () => void
+  /**
+   * The start screen's Forget the sync file (after its confirm), while
+   * `launchWait`: the stored link is cleared — the tasks and the file itself
+   * untouched — and launch goes on. Nothing while launch isn't waiting there.
+   */
+  forgetLaunchFile: () => void
 }
 
 export const useFileStorageStore = create<FileStorageState>((set, get) => {
@@ -97,7 +112,11 @@ export const useFileStorageStore = create<FileStorageState>((set, get) => {
     return new Promise<void>((resolve) => {
       launchPermissionResolve?.()
       launchPermissionResolve = resolve
-      set({ pendingLaunchPermission: { fileName: info.fileName, phase: 'ask' } })
+      set({
+        pendingLaunchPermission: info.unchecked
+          ? { fileName: info.fileName, phase: 'ask', unchecked: true }
+          : { fileName: info.fileName, phase: 'ask' },
+      })
     })
   })
 
@@ -121,6 +140,7 @@ export const useFileStorageStore = create<FileStorageState>((set, get) => {
     needsPermission: false,
     error: null,
     paused: null,
+    launchWait: null,
     isSupported: fileStorageService.isSupported,
     isLoading: false,
     pendingConflict: null,
@@ -191,7 +211,14 @@ export const useFileStorageStore = create<FileStorageState>((set, get) => {
       const answer = launchPermissionResolve
       launchPermissionResolve = null
       set({ pendingLaunchPermission: null })
+      // A Grant access still waiting for the browser (its prompt never
+      // came) stops waiting, so nothing stays busy behind the app.
+      fileStorageService.giveUpGrant()
       answer?.()
     },
+
+    skipLaunchFile: () => { fileStorageService.skipLaunchFile() },
+
+    forgetLaunchFile: () => { fileStorageService.forgetLaunchFile() },
   }
 })

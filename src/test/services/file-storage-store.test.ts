@@ -6,7 +6,10 @@ const wiring = vi.hoisted(() => ({
   status: [] as Array<(s: unknown) => void>,
   conflict: null as null | ((info: unknown) => Promise<SyncConflictChoice>),
   upgrade: null as null | ((info: unknown) => Promise<boolean>),
-  launch: null as null | ((info: { fileName: string }) => Promise<void>),
+  launch: null as null | ((info: { fileName: string; unchecked?: true }) => Promise<void>),
+  giveUpGrant: vi.fn<() => void>(),
+  skip: vi.fn<() => boolean>(() => true),
+  forget: vi.fn<() => boolean>(() => true),
   /** What the next `reconnect` does: the browser's answer, and when it resolves. */
   reconnect: vi.fn<(opts?: { onGranted?: () => void }) => Promise<void>>(() => Promise.resolve()),
 }))
@@ -17,8 +20,11 @@ vi.mock('../../services/file-storage', () => ({
     onStatusChange: (l: (s: unknown) => void) => { wiring.status.push(l); return () => {} },
     onConflict: (h: (info: unknown) => Promise<SyncConflictChoice>) => { wiring.conflict = h; return () => {} },
     onConfirmFileUpgrade: (h: (info: unknown) => Promise<boolean>) => { wiring.upgrade = h; return () => {} },
-    onLaunchPermission: (h: (info: { fileName: string }) => Promise<void>) => { wiring.launch = h; return () => {} },
+    onLaunchPermission: (h: (info: { fileName: string; unchecked?: true }) => Promise<void>) => { wiring.launch = h; return () => {} },
     reconnect: (opts?: { onGranted?: () => void }) => wiring.reconnect(opts),
+    giveUpGrant: () => wiring.giveUpGrant(),
+    skipLaunchFile: () => wiring.skip(),
+    forgetLaunchFile: () => wiring.forget(),
   },
 }))
 
@@ -31,6 +37,9 @@ beforeEach(() => {
   resetFileStoragePrompts()
   useFileStorageStore.setState(useFileStorageStore.getInitialState(), true)
   wiring.reconnect.mockReset().mockResolvedValue(undefined)
+  wiring.giveUpGrant.mockReset()
+  wiring.skip.mockClear()
+  wiring.forget.mockClear()
 })
 
 /** Sets the store's status as the service would report it. */
@@ -181,5 +190,55 @@ describe('file-storage store — the launch question', () => {
     const question = wiring.launch!({ fileName: 'todo2.json' })
     resetFileStoragePrompts()
     await expect(question).resolves.toBeUndefined()
+  })
+})
+
+describe('file-storage store — launch that waits for the browser', () => {
+  it('the service’s wait lands in the store, and leaves it', () => {
+    expect(useFileStorageStore.getState().launchWait).toBeNull()
+    wiring.status[0]!({ isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, error: null, paused: null, launchWait: 'link' })
+    expect(useFileStorageStore.getState().launchWait).toBe('link')
+    wiring.status[0]!({ isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, error: null, paused: null, launchWait: null })
+    expect(useFileStorageStore.getState().launchWait).toBeNull()
+  })
+
+  it('an unchecked permission marks the question; a checked one doesn’t', () => {
+    void wiring.launch!({ fileName: 'todo2.json', unchecked: true })
+    expect(useFileStorageStore.getState().pendingLaunchPermission).toEqual({ fileName: 'todo2.json', phase: 'ask', unchecked: true })
+    void wiring.launch!({ fileName: 'todo2.json' })
+    expect(useFileStorageStore.getState().pendingLaunchPermission).toStrictEqual({ fileName: 'todo2.json', phase: 'ask' })
+  })
+
+  it('the mark stays through Grant access: waiting, then refused', async () => {
+    void wiring.launch!({ fileName: 'todo2.json', unchecked: true })
+    reportStatus({ needsPermission: true })
+    useFileStorageStore.getState().grantLaunchPermission()
+    expect(useFileStorageStore.getState().pendingLaunchPermission).toEqual({ fileName: 'todo2.json', phase: 'waiting', unchecked: true })
+    await flush()
+    expect(useFileStorageStore.getState().pendingLaunchPermission).toEqual({ fileName: 'todo2.json', phase: 'refused', unchecked: true })
+  })
+
+  it('the start screen’s Continue and Forget go to the service', () => {
+    useFileStorageStore.getState().skipLaunchFile()
+    expect(wiring.skip).toHaveBeenCalledTimes(1)
+    expect(wiring.forget).not.toHaveBeenCalled()
+    useFileStorageStore.getState().forgetLaunchFile()
+    expect(wiring.forget).toHaveBeenCalledTimes(1)
+  })
+
+  it('the question’s Continue gives up a Grant access the browser never answered, so nothing stays busy', async () => {
+    let giveUp!: () => void
+    wiring.reconnect.mockImplementation(() => new Promise<void>((resolve) => { giveUp = resolve }))
+    wiring.giveUpGrant.mockImplementation(() => giveUp())
+    const asked = wiring.launch!({ fileName: 'todo2.json', unchecked: true })
+    reportStatus({ needsPermission: true })
+    useFileStorageStore.getState().grantLaunchPermission()
+    expect(useFileStorageStore.getState().isLoading).toBe(true)
+
+    useFileStorageStore.getState().continueWithoutFile()
+    await asked
+    await flush()
+    expect(wiring.giveUpGrant).toHaveBeenCalledTimes(1)
+    expect(useFileStorageStore.getState()).toMatchObject({ isLoading: false, pendingLaunchPermission: null })
   })
 })
