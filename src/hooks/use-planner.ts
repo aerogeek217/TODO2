@@ -6,7 +6,7 @@ import { useSettingsStore } from '../stores/settings-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { resetPlannerPlan } from '../services/planner-drop'
-import { plannerResetCounts, plannerView, type PlannerGroup, type PlannerResetScope, type PlannerView } from '../utils/planner'
+import { plannerResetCounts, plannerResetWeekLabel, plannerView, type PlannerGroup, type PlannerResetScope, type PlannerView } from '../utils/planner'
 import { countTabBadges, tabBadgeSummary, type TabBadgeCounts } from '../utils/tab-badges'
 import { tasksDoneToday } from '../utils/tally'
 import { layoutTabs } from '../utils/workspace-layout-queries'
@@ -89,19 +89,21 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
 
 /**
  * Reports what Reset plan would do in `view` — the Planner as it is, no
- * lingering row — to `planner-store.resets[windowKey]`: its counts (a new
- * report only when one changes) and its action, which reads the view of the
- * moment it is called. The report goes when the widget unmounts.
+ * lingering row — to `planner-store.resets[windowKey]`: its counts and the
+ * week scope's name (a new report only when one of them changes) and its
+ * action, which reads the view of the moment it is called. The report goes
+ * when the widget unmounts.
  */
 function usePlannerResetReport(windowKey: string, view: PlannerView<Task>): void {
   const viewRef = useRef(view)
   useEffect(() => { viewRef.current = view })
   const counts = useMemo(() => plannerResetCounts(view), [view])
   const { week, today, delayed } = counts
+  const weekLabel = plannerResetWeekLabel(view.window)
   useEffect(() => {
     const run = (scope: PlannerResetScope) => { void resetPlannerPlan(viewRef.current, scope) }
-    usePlannerStore.getState().setReset(windowKey, { counts: { week, today, delayed }, run })
-  }, [windowKey, week, today, delayed])
+    usePlannerStore.getState().setReset(windowKey, { counts: { week, today, delayed }, week: weekLabel, run })
+  }, [windowKey, week, today, delayed, weekLabel])
   useEffect(() => () => usePlannerStore.getState().setReset(windowKey, null), [windowKey])
 }
 

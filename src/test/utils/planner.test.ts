@@ -23,6 +23,7 @@ import {
   plannerRangeLabel,
   plannerResetCounts,
   plannerResetTasks,
+  plannerResetWeekLabel,
   plannerSnooze,
   plannerSnoozeDay,
   plannerLateDates,
@@ -999,6 +1000,22 @@ describe('Reset plan', () => {
     const shifted = plannerView([...all, task({ doDate: day(4) })], { today: TODAY, offset: 7 })
     expect(uids(plannerResetTasks(shifted, 'week')).sort()).toEqual(uids([plannedToday, plannedTodayDated, delayedA, delayedB, held, plannedFar]).sort())
     expect(plannerResetCounts(shifted)).toEqual({ week: 6, today: 2, delayed: 2 })
+  })
+})
+
+describe('Reset plan’s week scope is the days shown', () => {
+  it('is named This week only while the window starts today; shifted, by its range', () => {
+    expect(plannerResetWeekLabel(plannerWindow(TODAY))).toBe('This week')
+    expect(plannerResetWeekLabel(plannerWindow(TODAY, 7))).toBe('Nov 27 – Dec 3')
+    expect(plannerResetWeekLabel(plannerWindow(TODAY, 42))).toBe('Jan 1 – 7')
+  })
+
+  it('shifted, it clears the plans of the window shown (and Today’s and the trays’), not tomorrow’s', () => {
+    const tomorrow = task({ doDate: day(1) })
+    const next = task({ doDate: day(8) })
+    const delayed = task({ doDate: day(-1) })
+    expect(uids(plannerResetTasks(plannerView([tomorrow, next, delayed], { today: TODAY }), 'week'))).toEqual(uids([tomorrow, delayed]))
+    expect(uids(plannerResetTasks(plannerView([tomorrow, next, delayed], { today: TODAY, offset: 7 }), 'week'))).toEqual(uids([next, delayed]))
   })
 })
 

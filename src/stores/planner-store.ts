@@ -50,6 +50,8 @@ export interface PlannerDragPreview {
 interface PlannerResetReport {
   /** How many tasks each scope would clear (`utils/planner.plannerResetCounts`). */
   counts: Record<PlannerResetScope, number>
+  /** The week scope's name: `This week`, or — the window shifted — the days shown (`Nov 27 – Dec 3`). */
+  week: string
   /** Clears the scope's plans in the Planner as it shows when called. */
   run: (scope: PlannerResetScope) => void
 }

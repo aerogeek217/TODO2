@@ -677,7 +677,8 @@ export type PlannerResetScope = 'week' | 'today' | 'delayed'
  *
  * - `week` — every task with a plan state that the Planner shows or holds:
  *   planned for a day it shows (Today and the window's days), in Delayed,
- *   or held in Unplanned;
+ *   or held in Unplanned — the days shown, so "this week" only while the
+ *   window starts today (`plannerResetWeekLabel`);
  * - `today` — the tasks planned for today;
  * - `delayed` — the tasks in Delayed.
  */
@@ -685,6 +686,15 @@ export function plannerResetTasks<T extends PlannerTask>(view: PlannerView<T>, s
   if (scope === 'delayed') return view.delayed.tasks
   if (scope === 'today') return view.today.tasks.filter((t) => view.placements.get(t.uid)?.reason === 'plan')
   return view.tasks.filter((t) => view.placements.get(t.uid)?.placed === true)
+}
+
+/**
+ * The week scope's name: `This week` only while the window starts today;
+ * shifted, it is the days shown that are reset, so their range in words
+ * (`Nov 27 – Dec 3`).
+ */
+export function plannerResetWeekLabel(window: Pick<PlannerWindow, 'today' | 'first' | 'last'>): string {
+  return dayTime(window.first) === dayTime(window.today) ? 'This week' : plannerRangeLabel(window)
 }
 
 /** How many tasks each Reset plan scope would clear. */

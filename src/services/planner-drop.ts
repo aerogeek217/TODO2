@@ -11,6 +11,7 @@ import {
   plannerMovePlan,
   plannerPlacement,
   plannerResetTasks,
+  plannerResetWeekLabel,
   plannerShows,
   plannerSnoozeDay,
   plannerUnplanDelayed,
@@ -143,16 +144,20 @@ export function unplanDelayedTasks(view: Pick<PlannerRows, 'window' | 'delayed'>
   return useTodoStore.getState().setPlans(plans, `Unplanned ${tasksWord(plans.length)} from Delayed`, true)
 }
 
-const RESET_WORDS: Record<PlannerResetScope, string> = { week: 'this week', today: 'today', delayed: 'Delayed' }
 
 /**
  * **Reset plan**: clears the plan state of the tasks of `scope` in the
  * Planner as it shows (`utils/planner.plannerResetTasks`: this week, today
- * only, or Delayed) — one write and one undo step, with the snackbar's Undo.
+ * only, or Delayed) — one write and one undo step, with the snackbar's Undo,
+ * named for what it cleared: `Reset plan: this week` — or, with the window
+ * shifted, the days shown, `Reset plan: Nov 27 – Dec 3` —, `… today`,
+ * `… Delayed`.
  */
 export function resetPlannerPlan(view: PlannerRows, scope: PlannerResetScope): Promise<void> {
   const ids = plannerResetTasks(view, scope).map((t) => t.id)
-  return useTodoStore.getState().setPlan(ids, null, `Reset plan: ${RESET_WORDS[scope]}`, true)
+  const week = plannerResetWeekLabel(view.window)
+  const words = scope === 'week' ? (week === 'This week' ? 'this week' : week) : scope === 'today' ? 'today' : 'Delayed'
+  return useTodoStore.getState().setPlan(ids, null, `Reset plan: ${words}`, true)
 }
 
 /**

@@ -485,6 +485,30 @@ describe('Reset plan', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
+  it('with the window shifted, the first choice is named for the days shown — it resets those, not this week — in the button’s menu and the ⋯ submenu alike', () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, uid: 'tomorrow', title: 'Planned tomorrow', doDate: day(1), sortOrder: 1 }),
+        makeTodo({ id: 2, uid: 'next', title: 'Planned next week', doDate: day(8), sortOrder: 2 }),
+      ],
+    })
+    const { setPlan } = watch()
+    alone()
+    expect(rows(openMenu())).toEqual([['This week', '1', false], ['Today only', '0', true], ['Delayed', '0', true]])
+    fireEvent.keyDown(screen.getByRole('menu', { name: 'Reset plan' }), { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button', { name: 'Next week' }))
+    // Fri 27 … Thu Dec 3: the task planned there, not tomorrow's.
+    expect(rows(openMenu())).toEqual([['Nov 27 – Dec 3', '1', false], ['Today only', '0', true], ['Delayed', '0', true]])
+    const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
+    const submenu = result.current[0]?.kind === 'item' ? result.current[0].children ?? [] : []
+    expect(submenu.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Nov 27 – Dec 3', 'Today only', 'Delayed'])
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Reset plan' })).getByRole('menuitem', { name: /^Nov 27 – Dec 3/ }))
+    expect(setPlan).toHaveBeenCalledWith([2], null, 'Reset plan: Nov 27 – Dec 3', true)
+    // Back on this week it is This week again.
+    fireEvent.click(screen.getByRole('button', { name: 'Nov 27 – Dec 3. Back to this week' }))
+    expect(rows(openMenu())[0]).toEqual(['This week', '1', false])
+  })
+
   it('has no top-line control in a cell of tabs: the same three are under Reset plan › in the widget’s ⋯ menu', () => {
     show()
     expect(screen.queryByRole('button', { name: 'Reset plan' })).toBeNull()

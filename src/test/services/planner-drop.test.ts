@@ -798,6 +798,17 @@ describe('Reset plan', () => {
     expect(plannerResetCounts(viewNow())).toEqual({ week: 3, today: 1, delayed: 0 })
   })
 
+  it('with the window shifted the step is named for the days shown', async () => {
+    const tomorrow = await seed('Tomorrow', { doDate: day(1) })
+    const next = await seed('Next week', { doDate: day(8) })
+    await resetPlannerPlan(plannerView(useTodoStore.getState().todos, { today: TODAY, offset: 7 }), 'week')
+    expect(steps()).toEqual(['Reset plan: Nov 27 – Dec 3'])
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Reset plan: Nov 27 – Dec 3' })
+    expect(await plan(next.id)).toMatchObject({ doDate: undefined })
+    // Tomorrow is not one of the days shown: its plan stands.
+    expect(await plan(tomorrow.id)).toMatchObject({ doDate: day(1) })
+  })
+
   it('a scope with nothing in it writes nothing', async () => {
     await seed('By date', { dueDate: day(0) })
     const w = watchWrites()

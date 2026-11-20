@@ -9,7 +9,7 @@ import { ResetIcon } from '../../shared/icons'
 /** Reset plan's name: its button, its submenu's item, its menu's label. */
 export const RESET_PLAN_LABEL = 'Reset plan'
 
-/** Reset plan's choices, in the menu's order. */
+/** Reset plan's choices, in the menu's order; the first is named by the report: `This week`, or the days shown while the window is shifted. */
 const RESET_SCOPES: ReadonlyArray<{ scope: PlannerResetScope; label: string; clears: string }> = [
   { scope: 'week', label: 'This week', clears: 'Clears every plan the Planner shows: planned days, Delayed, and tasks held in Unplanned' },
   { scope: 'today', label: 'Today only', clears: 'Clears the plans for today' },
@@ -21,7 +21,9 @@ const NO_ENTRIES: MenuEntry[] = []
 /**
  * **Reset plan**'s three choices for the Planner `tab` — This week · Today
  * only · Delayed, each with the count of tasks it would clear
- * (`utils/planner.plannerResetCounts`) and inert at 0 — over the Planner as
+ * (`utils/planner.plannerResetCounts`) and inert at 0; with the window
+ * shifted the first is named for the days shown (`Nov 27 – Dec 3`), which
+ * is what it resets — over the Planner as
  * it shows now: the screen filter's tasks placed for the tab's window, a
  * row lingering after its completion left out. A pick clears those tasks'
  * plan states in one write and one undo step, with the snackbar's Undo
@@ -40,7 +42,7 @@ export function usePlannerResetEntries(tab: PlannerTab | undefined): MenuEntry[]
     if (!report) return NO_ENTRIES
     return RESET_SCOPES.map(({ scope, label, clears }): MenuEntry => ({
       kind: 'item',
-      label,
+      label: scope === 'week' ? report.week : label,
       note: String(report.counts[scope]),
       disabled: report.counts[scope] === 0,
       description: clears,
