@@ -242,6 +242,17 @@ async function readFileText(handle: FileSystemFileHandle): Promise<FileRead> {
 /** A wait's outcome: the browser's answer, or none (it timed out, or the wait was given up). */
 type Answer<T> = { answered: true; value: T } | { answered: false }
 
+/** `promise`'s answer, or none once `ms` passed — its late answer or failure is then dropped. Nothing else ends the wait. */
+function answeredWithin<T>(promise: Promise<T>, ms: number): Promise<Answer<T>> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve({ answered: false }), ms)
+    promise.then(
+      (value) => { clearTimeout(timer); resolve({ answered: true, value }) },
+      (err: unknown) => { clearTimeout(timer); reject(err) },
+    )
+  })
+}
+
 /** Adds `listener` to `set`; returns its removal (a no-op once removed). */
 function subscribe<L>(set: Set<L>, listener: L): () => void {
   set.add(listener)
@@ -718,7 +729,10 @@ class FileStorageService {
     // so say so.
     const notForgotten = 'Disconnected, but the browser could not forget the file — it may reconnect on the next start. Disconnect again to retry.'
     try {
-      const cleared = await this.orGivenUp(clearFileHandle(), FILE_LINK_TIMEOUT_MS)
+      // Its own wait, not one of the shared ones: a second Disconnect (or
+      // anything else that gives the waits up) must not cut this clear short
+      // and report a failure the browser never had.
+      const cleared = await answeredWithin(clearFileHandle(), FILE_LINK_TIMEOUT_MS)
       if (!cleared.answered) {
         console.warn('[file-storage] the browser did not forget the file handle in time')
         // Unless a file was attached meanwhile: the error would be about the old one.

@@ -1432,6 +1432,41 @@ describe('FileStorageService — the browser never answers at launch', () => {
     expect(svc.status.error).toMatch(/could not forget the file/)
   })
 
+  it('a second Disconnect while the first still clears the link: neither reports a failure the browser never had', async () => {
+    const { svc } = await startWith()
+    await svc.initialize()
+    const slow = never<void>()
+    mockClearFileHandle.mockReturnValueOnce(slow.promise)
+    const first = svc.disconnect()
+    await vi.advanceTimersByTimeAsync(TIMEOUT - 1)
+    // Again, before the first clear landed (its own clear answers at once).
+    await svc.disconnect()
+    expect(svc.status.error).toBeNull()
+
+    slow.answer()
+    await first
+    expect(mockClearFileHandle).toHaveBeenCalledTimes(2)
+    expect(svc.status).toMatchObject({ fileName: null, error: null })
+  })
+
+  it('giving another wait up leaves a Disconnect’s clear alone', async () => {
+    const check = never<PermissionState>()
+    const { svc } = await startWith()
+    await svc.initialize()
+    const slow = never<void>()
+    mockClearFileHandle.mockReturnValueOnce(slow.promise)
+    const gone = svc.disconnect()
+    // The next launch, while the browser still clears the old link: its wait is given up.
+    mockLoadFileHandle.mockResolvedValue(createMockHandle(fileBody(), { queryPermission: vi.fn(() => check.promise) }).handle)
+    const run = svc.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(svc.skipLaunchFile()).toBe(true)
+    await run
+    slow.answer()
+    await gone
+    expect(svc.status.error).toBeNull()
+  })
+
   it('a Grant access the browser never answers can be given up: permission stays needed, a late grant changes nothing', async () => {
     const grant = never<PermissionState>()
     const { svc, handle, writable } = await startWith(fileBody(), {
