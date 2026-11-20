@@ -960,7 +960,8 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         'O O O',
         'X T E',
       ], {
-        F: cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), notes('tab-notes')]),
+        // The Planner (2026-11-20) as a tab: today and the week ahead, over the tasks' Do days, follow-ups and due dates.
+        F: cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), { id: 'tab-planner', kind: 'planner', config: {} }, notes('tab-notes')]),
         P: cell('cell-person', [lens('tab-person', L.byPerson)]),
         B: cell('cell-board', [lens('tab-board', L.focus)]),
         C: cell('cell-cal', [calendar('tab-cal', 'week', 0)]),

@@ -23,6 +23,9 @@ import {
   // Item 12: the Review widget.
   type ReviewTab,
   type ReviewTabViewState,
+  PLANNER_ORDER_MAX,
+  type PlannerTab,
+  type PlannerTabViewState,
   TAB_NAME_MAX,
 } from '../models/workspace-layout'
 import { isIconValue, pickIconValue } from '../models/icon'
@@ -256,6 +259,9 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       const bad = view ? reviewViewProblem(view) : null
       return bad ? `${path}.viewState.${bad}` : true
     }
+    // The Planner: no settings, and its hand order.
+    case 'planner':
+      return view && pickPlannerView(view).fixed ? `${path}.viewState.order` : true
   }
 }
 
@@ -275,6 +281,26 @@ function pickReviewView(view: Obj | undefined): { view: ReviewTabViewState; fixe
   let fixed = Object.keys(view).some((k) => k !== 'sort')
   if (isReviewSort(view.sort)) out.sort = view.sort
   else if (view.sort !== undefined) fixed = true
+  return { view: out, fixed }
+}
+
+/**
+ * A Planner's view state as read: its hand order's strings, each once, the
+ * first `PLANNER_ORDER_MAX` of them. Anything else in the order, an order
+ * that isn't a list, or a key it doesn't have, is dropped (a fix).
+ */
+function pickPlannerView(view: Obj | undefined): { view: PlannerTabViewState; fixed: boolean } {
+  const out: PlannerTabViewState = {}
+  if (!view) return { view: out, fixed: false }
+  let fixed = Object.keys(view).some((k) => k !== 'order')
+  const raw = view.order
+  if (Array.isArray(raw)) {
+    const order = [...new Set(raw.filter((uid): uid is string => typeof uid === 'string'))].slice(0, PLANNER_ORDER_MAX)
+    if (order.length !== raw.length) fixed = true
+    out.order = order
+  } else if (raw !== undefined) {
+    fixed = true
+  }
   return { view: out, fixed }
 }
 
@@ -615,6 +641,14 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const review: ReviewTab = { id, kind: 'review', config: {} }
         if (Object.keys(picked.view).length > 0) review.viewState = picked.view
         return review
+      }
+      // The Planner: no settings (a config key is dropped, a fix); its view state's order as checked.
+      case 'planner': {
+        const picked = pickPlannerView(view)
+        if (picked.fixed || Object.keys(config).length > 0) fix('settings')
+        const planner: PlannerTab = { id, kind: 'planner', config: {} }
+        if (picked.view.order !== undefined) planner.viewState = picked.view
+        return planner
       }
       // The glance kinds: a bad or missing setting is reset to its default;
       // no view state.

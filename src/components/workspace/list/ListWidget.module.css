@@ -221,11 +221,13 @@
  * sits 8px out (`overflow-clip-margin`), so they draw and take presses as
  * before. The containment also makes each row a stacking context, so the
  * row holding the focus is lifted over its neighbours, its ring over theirs
- * (the sticky group header, `--z-above-2`, stays over both).
+ * (the sticky group header, `--z-above-2`, stays over both). Another host of
+ * these rows (the Planner) names its rows' height with
+ * `--list-row-intrinsic-height`.
  */
 .row {
   content-visibility: auto;
-  contain-intrinsic-block-size: auto 30px;
+  contain-intrinsic-block-size: auto var(--list-row-intrinsic-height, 30px);
   overflow-clip-margin: 8px;
 }
 

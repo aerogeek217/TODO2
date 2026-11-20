@@ -1,0 +1,429 @@
+/* The Planner: a strip of day tiles over two panes of task rows (large), or
+ * one column (medium, the phone). The strip's narrow look is a container
+ * query against `.host`. */
+
+.host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  container-type: inline-size;
+}
+
+/* ── Top line ──────────────────────────────────────────────────────────── */
+
+.range,
+.rangeButton {
+  flex: none;
+  font-size: var(--font-size-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Shifted: the range is the way back to this week. */
+.rangeButton {
+  height: 20px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-6);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.rangeButton:hover {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+/* ── The strip ─────────────────────────────────────────────────────────── */
+
+.strip {
+  flex: none;
+  display: grid;
+  grid-template-columns: auto repeat(7, minmax(0, 1fr)) auto;
+  gap: 6px;
+  align-items: stretch;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--color-border-muted);
+  background: var(--color-inset-light);
+}
+
+/* No room for tiles: the arrows around the range. */
+.stripSlim {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 4px 6px;
+}
+
+.stripRange {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  font-size: var(--font-size-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.arrow {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.arrow:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  height: 52px;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--color-tint-4);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.tile[data-weekend] {
+  background: var(--color-tint-3);
+}
+
+.tile:hover {
+  background: var(--color-tint-8);
+}
+
+.tile[data-today] {
+  background: var(--color-accent-bg-medium);
+}
+
+.tile[data-today]:hover {
+  background: var(--color-accent-bg);
+}
+
+/* The picked day: ringed. */
+.tile[data-picked] {
+  border-color: var(--color-text-muted);
+  background: var(--color-tint-10);
+}
+
+.tileHead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.weekday {
+  font-size: var(--font-size-badge);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.dateNumber {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.tile[data-weekend] .dateNumber {
+  color: var(--color-text-secondary);
+}
+
+.tile[data-today] .weekday,
+.tile[data-today] .dateNumber {
+  color: var(--color-accent-text);
+}
+
+.tileCount {
+  margin-left: auto;
+  font-size: var(--font-size-row-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.ticks {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 10px;
+  min-width: 0;
+}
+
+/* The marks give way in a narrow tile; `+N` after them stays whole. */
+.tickMarks {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* A tick per task, colored by why it is on the day. */
+.tick {
+  flex: none;
+  width: 3px;
+  height: 10px;
+  border-radius: 1.5px;
+  background: var(--color-marker-focus);
+}
+
+.tick[data-reason='due'] {
+  background: var(--color-deadline);
+}
+
+.tick[data-reason='followup'] {
+  background: var(--color-followup);
+}
+
+.ticksMore {
+  flex: none;
+  font-size: var(--font-size-badge);
+  font-variant-numeric: tabular-nums;
+  line-height: 10px;
+  color: var(--color-text-muted);
+}
+
+/* A narrow strip (a narrow cell, the phone): each tile its weekday over its
+ * date over its count, no ticks. */
+@container (max-width: 520px) {
+  .strip {
+    gap: 3px;
+    padding: 6px 4px;
+  }
+
+  .tile {
+    justify-content: center;
+    height: 50px;
+    padding: 2px;
+  }
+
+  .tileHead {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .tileCount {
+    margin-left: 0;
+    min-height: 13px;
+    line-height: 13px;
+  }
+
+  .ticks {
+    display: none;
+  }
+}
+
+/* ── Panes ─────────────────────────────────────────────────────────────── */
+
+.panes {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.pane {
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+.todayPane {
+  flex: 0 0 46%;
+  min-width: 0;
+  border-right: 1px solid var(--color-border-muted);
+}
+
+.aheadPane {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.aheadPane > .pane:first-child {
+  flex: 1 1 auto;
+}
+
+/* Its two lists keep the scrollbar's room, so their columns line up whichever of them scrolls. */
+.aheadPane > .pane {
+  scrollbar-gutter: stable;
+}
+
+/* Focus, no day: pinned under the days ahead, with a short scroll of its own. */
+.pinned {
+  flex: 0 0 auto;
+  max-height: 42%;
+  border-top: 1px solid var(--color-border-muted);
+  background: var(--color-inset-light);
+}
+
+/* One column: Today, the days ahead, Focus, no day in one scroll. */
+.column {
+  flex: 1 1 auto;
+}
+
+.rows {
+  padding: 2px 6px 6px;
+}
+
+/* The rows' zoom (`data-zoom`): the height a row off screen is taken to have (the list's `.row`). */
+.rowsHost[data-zoom='stacked'] {
+  --list-row-intrinsic-height: var(--task-row-stacked-height);
+}
+
+.rowsHost[data-zoom='lines'] {
+  --list-row-intrinsic-height: var(--task-line-height);
+}
+
+/* ── Groups ────────────────────────────────────────────────────────────── */
+
+.group {
+  padding-top: 2px;
+}
+
+.group + .group {
+  margin-top: 6px;
+}
+
+/* The list's group-header look (its name, count and rule are the list's own classes); not a button: a group here never folds. */
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--list-group-header-height);
+  padding: 0 4px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+}
+
+.column[data-touch] .groupHeader {
+  height: var(--mobile-list-group-header-height);
+}
+
+.emptyLine {
+  margin: 0;
+  padding: 4px 8px 6px 12px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+/* ── Today's foot: N done, Add task ────────────────────────────────────── */
+
+.done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px 0 9px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.doneCheck {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-accent-text);
+}
+
+.doneCount {
+  flex: none;
+  color: var(--color-text-secondary);
+}
+
+.doneTitles {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: line-through;
+}
+
+/* The list's Add task row, inside the group's own padding. */
+.group .addTask {
+  width: 100%;
+  margin: 0;
+  padding-left: 8px;
+}
+
+/* ── Small face ────────────────────────────────────────────────────────── */
+
+.smallFace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.smallTitle {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.smallFigures {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.smallCaption {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.smallCount {
+  flex: none;
+  font-size: var(--font-size-display-md);
+  font-weight: var(--font-weight-bold);
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}

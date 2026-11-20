@@ -36,14 +36,14 @@ describe('WidgetKindMenu', () => {
     expect(screen.getByRole('menuitem', { name: /^Change widget/ })).toHaveTextContent('Notes')
     expect(screen.queryAllByRole('menuitemradio')).toEqual([])
     openChangeWidget()
-    // The kinds are radio items by group under its caption (Tasks: List, Calendar, Review, Notes; Insights the rest); the current one is checked.
+    // The kinds are radio items by group under its caption (Tasks: List, Calendar, Review, Planner, Notes; Insights the rest); the current one is checked.
     expect(panelWords(kindsMenu())).toEqual([
-      '[Tasks]', 'List', 'Calendar', 'Review', 'Notes',
+      '[Tasks]', 'List', 'Calendar', 'Review', 'Planner', 'Notes',
       '—', '[Insights]',
       'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
     ])
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
-      'List', 'Calendar', 'Review', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
+      'List', 'Calendar', 'Review', 'Planner', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
     ])
     expect(screen.getByRole('menuitemradio', { name: /^List(?! wall)/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /^Notes/ })).toHaveAttribute('aria-checked', 'true')
@@ -116,6 +116,8 @@ describe('WidgetKindMenu', () => {
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Number$/ }))
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
+    fireEvent.keyDown(kinds, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Planner/ }))
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Review/ }))
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
