@@ -127,7 +127,7 @@ export const DEFAULT_YELLOW_AFTER_DAYS = 14
 export const YELLOW_AFTER_DAYS_MAX = 999
 
 /** A stored yellow threshold: a whole number of days, 0 … `YELLOW_AFTER_DAYS_MAX`. */
-export function isYellowAfterDays(v: unknown): v is number {
+function isYellowAfterDays(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= YELLOW_AFTER_DAYS_MAX
 }
 

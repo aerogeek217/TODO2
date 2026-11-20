@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
-import { ageIsYellow, ageSortKey, breakdownSortKeys, columnIsLit, DEFAULT_BREAKDOWN_OLDEST_BY, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
+import { ageIsYellow, ageSortKey, breakdownSortKeys, columnIsLit, DEFAULT_BREAKDOWN_OLDEST_BY, liveBreakdownSort, type BreakdownColumn, type BreakdownColumnAge, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
 import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { useStatsBase } from '../../../hooks/use-glance-data'
@@ -119,9 +119,10 @@ function ColumnCount({ n, column, label, onOpen }: {
  * when the row has no open task. A click reviews the row's tasks as its
  * Review button does (or opens them where there is no review).
  */
-function FollowupAgeCell({ age, yellowAfterDays, label, onOpen }: {
+function FollowupAgeCell({ age, columnAge, label, onOpen }: {
   age: FollowupAge | null
-  yellowAfterDays: number
+  /** The column's setting: its yellow threshold. */
+  columnAge: BreakdownColumnAge
   /** What a click does, before the tooltip's words (`Review Aisha's tasks`). */
   label: string
   onOpen?: () => void
@@ -129,7 +130,7 @@ function FollowupAgeCell({ age, yellowAfterDays, label, onOpen }: {
   if (!age) return <span className={`${styles.age} ${styles.ageNone}`} data-testid="breakdown-age" aria-label="No open tasks">–</span>
   const days = age.oldest.days
   const tip = followupAgeTooltip(age)
-  const marks = { 'data-testid': 'breakdown-age', 'data-yellow': ageIsYellow({ yellowAfterDays }, days) ? '' : undefined, 'data-tooltip': tip }
+  const marks = { 'data-testid': 'breakdown-age', 'data-yellow': ageIsYellow(columnAge, days) ? '' : undefined, 'data-tooltip': tip }
   if (!onOpen) return <span className={styles.age} {...marks} aria-label={tip}>{followupAgeLabel(days)}</span>
   return (
     <button
@@ -419,7 +420,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                     <span className={styles.countSlot}>{countEl}</span>
                     <FollowupAgeCell
                       age={row.followup}
-                      yellowAfterDays={column.age.yellowAfterDays}
+                      columnAge={column.age}
                       label={`${verb} ${heading}'s tasks`}
                       onOpen={review ? () => reviewRow(row) : open}
                     />
