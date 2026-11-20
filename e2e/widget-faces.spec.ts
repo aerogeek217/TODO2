@@ -209,7 +209,7 @@ const dayKeyIn = (page: Page, days: number) => page.evaluate((n) => {
 test.describe('the Planner', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('large: the strip over two panes; a tile picks its day, the arrows move the week, a dragged row settles back', async ({ page }) => {
+  test('large: the strip over two panes; a tile picks its day and takes a dragged row, the arrows move the week', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: PLAN_TASKS,
       layouts: [{
@@ -273,24 +273,26 @@ test.describe('the Planner', () => {
     await tile.click()
     await expect(plannerGroups(page)).toHaveCount(8)
 
-    // A row is the list's draggable row: dragged onto a tile it lifts, and with nothing to take it yet it settles back.
+    // A row is the list's draggable row: it lifts, and a tile takes it — here its follow-up moves to the day (`planner.spec.ts` has the drops).
     const row = todayGroup(page).locator('[data-row-key]').filter({ hasText: 'Chase the invoice' })
     const r = await box(row)
     await drag(page, { x: r.x + 60, y: r.y + r.height / 2 }, await pointIn(tile), {
       lifted: async () => { await expect(page.locator('[data-drag-overlay]')).toBeVisible() },
     })
     await expect(page.locator('[data-drag-overlay]')).toHaveCount(0)
-    await expect(todayGroup(page).locator('[data-task-title]')).toHaveText(['Renew the domain', 'Chase the invoice', 'Write the brief'])
-    const chased = (await readStore<{ title: string; doDate?: Date; nextFollowupAt?: Date }>(page, 'todos')).find((t) => t.title === 'Chase the invoice')
-    expect(chased?.doDate).toBeUndefined()
-    expect(chased?.nextFollowupAt && new Date(chased.nextFollowupAt).getDate()).toBe(new Date().getDate())
+    await expect(todayGroup(page).locator('[data-task-title]')).toHaveText(['Renew the domain', 'Write the brief'])
+    await expect(planner(page).locator(`[data-planner-group="${inTwo}"] [data-task-title]`)).toHaveText(['Book the venue', 'Chase the invoice', 'Call the caterer'])
+    await expect.poll(async () => {
+      const chased = (await readStore<{ title: string; doDate?: Date; nextFollowupAt?: Date }>(page, 'todos')).find((t) => t.title === 'Chase the invoice')
+      return chased?.nextFollowupAt ? [new Date(chased.nextFollowupAt).getDate(), chased.doDate ?? null] : null
+    }).toEqual([await page.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 2); return d.getDate() }), null])
 
     // The arrows move the window a week: Today stays, the tiles are next week's, and the range is the way back.
     await expect(planner(page).getByRole('button', { name: 'Previous week' })).toBeDisabled()
     await planner(page).getByRole('button', { name: 'Next week' }).click()
     await expect(planner(page).locator('[data-today]')).toHaveCount(0)
     await expect(tiles.first()).toHaveAttribute('data-planner-tile', await dayKeyIn(page, 7))
-    await expect(todayGroup(page).locator('[data-task-title]')).toHaveCount(3)
+    await expect(todayGroup(page).locator('[data-task-title]')).toHaveCount(2)
     await expect(plannerGroups(page)).toHaveCount(9)
     await cell.getByRole('button', { name: /Back to this week$/ }).click()
     await expect(tiles.first()).toHaveAttribute('data-planner-tile', today)

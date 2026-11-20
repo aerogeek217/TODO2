@@ -62,3 +62,12 @@ export function taskDragId(
 export function calendarDayDropId(scope: string, dateMs: number): string {
   return `calday-${scope}-${dateMs}`
 }
+
+/**
+ * Drop-zone id for a Planner's day tile (`tile`) or group (`group`); `key`
+ * is the day's `dayKey` (the Focus, no day group: `PLANNER_NO_DAY_KEY`).
+ * `scope` is the Planner's tab id: several Planners share one `DndContext`.
+ */
+export function plannerDropId(scope: string, part: 'tile' | 'group', key: string): string {
+  return `planner-${part}-${scope}-${key}`
+}

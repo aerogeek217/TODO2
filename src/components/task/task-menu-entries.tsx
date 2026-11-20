@@ -58,6 +58,8 @@ interface BuildTaskMenuOpts {
   handlers: TaskMenuHandlers
   /** Copy's key hint: the copy shortcut's live keys. */
   copyKbd?: string
+  /** Entries of the surface the row sits in, for the one task (`TaskMenuExtrasContext`): they lead the dates group. */
+  extra?: readonly MenuEntry[]
 }
 
 const MARKER_ICON: Record<MarkerKey, React.ReactNode> = {
@@ -130,9 +132,9 @@ export function followedUpMenuEntry(
  * Assign people… · Add tag… | Add subtask… · Make subtask of… | Markers |
  * Delete. With several tasks a `N tasks` label replaces Open, Copy and Delete
  * name the count, the subtask items are left out, and the markers can be
- * mixed.
+ * mixed. `extra` (a row in a Planner: Move to day ›) leads the dates group.
  */
-export function buildTaskMenuEntries({ todo, targets, today, urgentRange, followupIntervals, handlers, copyKbd }: BuildTaskMenuOpts): MenuEntry[] {
+export function buildTaskMenuEntries({ todo, targets, today, urgentRange, followupIntervals, handlers, copyKbd, extra }: BuildTaskMenuOpts): MenuEntry[] {
   const several = targets.length > 1
   const h = handlers
   const hasFollowup = several ? targets.some((t) => t.nextFollowupAt) : !!todo.nextFollowupAt
@@ -178,6 +180,7 @@ export function buildTaskMenuEntries({ todo, targets, today, urgentRange, follow
     })
   }
   entries.push({ kind: 'separator' })
+  if (extra && !several) entries.push(...extra)
   if (h.onSetDueDate) {
     entries.push({
       kind: 'item',

@@ -1,9 +1,20 @@
+import { useDroppable } from '@dnd-kit/core'
 import { formatDateWith } from '../../../utils/date'
-import { plannerRangeLabel, plannerTileLabel, type PlannerTile, type PlannerWindow } from '../../../utils/planner'
+import { plannerRangeLabel, plannerTileLabel, type PlannerDropLabel, type PlannerTile, type PlannerWindow } from '../../../utils/planner'
+import { plannerDropId, TASK_DROP_KIND, type PlannerDropData } from '../../../utils/task-dnd'
 import { ChevronLeftIcon, ChevronRightIcon } from '../../shared/icons'
 import styles from './PlannerWidget.module.css'
 
+/** The day a dragged task would be dropped on, and which date the drop changes (its tile is marked). */
+export interface PlannerDropMark {
+  /** The target's key (`utils/planner.plannerTargetKey`). */
+  key: string
+  tone: PlannerDropLabel['tone']
+}
+
 interface PlannerStripProps {
+  /** The Planner's tab id: its tiles' drop scope. */
+  tabId: string
   window: PlannerWindow
   tiles: readonly PlannerTile[]
   /** The picked day (local midnight, ms), or null. */
@@ -16,6 +27,8 @@ interface PlannerStripProps {
   onPick: (day: Date | null) => void
   /** An arrow's click: a week earlier (-1) or later (1). */
   onShift: (weeks: -1 | 1) => void
+  /** The drop a task drag over this Planner would make, when it writes; null with none. */
+  mark: PlannerDropMark | null
 }
 
 /**
@@ -23,10 +36,13 @@ interface PlannerStripProps {
  * weekends too — and `›`. A tile shows its weekday, date, count and a tick
  * per task by why it is on that day (`data-reason`); today's is in the
  * accent, the picked one ringed. A click picks the day the days-ahead list
- * starts at; the arrows move the window a week. Too narrow for tiles
- * (`showTiles` false), the arrows sit around the range in words.
+ * starts at; the arrows move the window a week. Each tile takes a dragged
+ * task (a droppable, `TASK_DROP_KIND.plannerDay`): the day a drop would
+ * write to is dashed in the color of the date it changes (`mark`:
+ * `data-planner-drop`). Too narrow for tiles (`showTiles` false), the
+ * arrows sit around the range in words.
  */
-export function PlannerStrip({ window, tiles, picked, offset, showTiles, onPick, onShift }: PlannerStripProps) {
+export function PlannerStrip({ tabId, window, tiles, picked, offset, showTiles, onPick, onShift, mark }: PlannerStripProps) {
   return (
     <div className={`${styles.strip} ${showTiles ? '' : styles.stripSlim}`} role="group" aria-label="Days" data-planner-strip={showTiles ? 'tiles' : 'range'}>
       <button
@@ -40,7 +56,17 @@ export function PlannerStrip({ window, tiles, picked, offset, showTiles, onPick,
         <ChevronLeftIcon size={12} />
       </button>
       {showTiles
-        ? tiles.map((tile) => <Tile key={tile.key} tile={tile} picked={picked === tile.day.getTime()} onPick={onPick} />)
+        ? tiles.map((tile) => (
+          <Tile
+            key={tile.key}
+            tabId={tabId}
+            window={window}
+            tile={tile}
+            picked={picked === tile.day.getTime()}
+            tone={mark?.key === tile.key ? mark.tone : undefined}
+            onPick={onPick}
+          />
+        ))
         : <span className={styles.stripRange}>{plannerRangeLabel(window)}</span>}
       <button
         type="button"
@@ -55,12 +81,28 @@ export function PlannerStrip({ window, tiles, picked, offset, showTiles, onPick,
   )
 }
 
-function Tile({ tile, picked, onPick }: { tile: PlannerTile; picked: boolean; onPick: (day: Date | null) => void }) {
+function Tile({ tabId, window, tile, picked, tone, onPick }: {
+  tabId: string
+  window: PlannerWindow
+  tile: PlannerTile
+  picked: boolean
+  tone: PlannerDropMark['tone'] | undefined
+  onPick: (day: Date | null) => void
+}) {
   const weekday = tile.day.getDay()
+  const data: PlannerDropData = {
+    type: TASK_DROP_KIND.plannerDay,
+    scope: tabId,
+    target: { kind: 'day', day: tile.day },
+    window: { today: window.today, last: window.last },
+  }
+  const { setNodeRef } = useDroppable({ id: plannerDropId(tabId, 'tile', tile.key), data: { ...data } })
   return (
     <button
+      ref={setNodeRef}
       type="button"
       className={styles.tile}
+      data-planner-drop={tone}
       aria-label={plannerTileLabel(tile)}
       aria-pressed={picked}
       data-planner-tile={tile.key}
