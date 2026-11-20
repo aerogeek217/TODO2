@@ -84,7 +84,9 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'services/checkin-reply/parse.ts': ['CHECKIN_REPLY_MAX_CHARS', 'isCompletedMarked'],
   'services/command-registry.ts': ['CommandContext'],
   'services/file-storage-store.ts': ['resetFileStoragePrompts'],
-  'services/file-storage.ts': ['LaunchPermissionInfo', 'newSyncFileName', 'SyncPause', 'SyncSideSummary'],
+  'services/file-storage.ts': [
+    'FILE_LINK_TIMEOUT_MS', 'LaunchPermissionInfo', 'LINK_UNREAD_ERROR', 'newSyncFileName', 'SyncPause', 'SyncSideSummary',
+  ],
   'services/file-sync-compare.ts': ['importDataEqual'],
   'services/file-sync-state.ts': ['FILE_SYNC_STATE_KEY'],
   'services/keyboard-shortcuts.ts': ['SHORTCUT_HANDLERS'],
