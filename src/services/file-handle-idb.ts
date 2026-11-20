@@ -51,6 +51,11 @@ function openMetaDB(): Promise<IDBDatabase> {
       resolve(cachedDB)
     }
     req.onerror = () => reject(req.error)
+    // Another connection is holding the open up: say so rather than wait
+    // for it without end (launch reads the stored file handle through
+    // here). Should the open go through later, `onsuccess` still caches the
+    // connection for the next call.
+    req.onblocked = () => reject(new DOMException('The browser is holding the sync file’s link open elsewhere', 'InvalidStateError'))
   })
 }
 
