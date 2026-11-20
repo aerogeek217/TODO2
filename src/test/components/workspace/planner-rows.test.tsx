@@ -13,6 +13,7 @@ import { TaskRow } from '../../../components/task/TaskRow'
 import { WidgetFaceContext, type WidgetFaceHost } from '../../../hooks/use-widget-face'
 import type { PersistedTodoItem } from '../../../models'
 import type { PlannerTab } from '../../../models/workspace-layout'
+import { plannerWindowKey, usePlannerStore } from '../../../stores/planner-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { clearFilterStore, getByTooltip, makeTodo, resetEntityStores } from '../../helpers'
@@ -499,9 +500,43 @@ describe('Reset plan', () => {
     expect(setPlan).toHaveBeenCalledWith([8], null, 'Reset plan: Delayed', true)
   })
 
-  it('offers nothing for a tab that is no Planner', () => {
-    const { result } = renderHook(() => usePlannerMenuEntries(undefined))
+  it('offers nothing for a tab that is no Planner — and such a cell’s menu reads nothing: a task change doesn’t render it again', () => {
+    show()
+    let renders = 0
+    const { result } = renderHook(() => { renders++; return usePlannerMenuEntries(undefined) })
     expect(result.current).toEqual([])
+    const before = renders
+    // A plan cleared: the Planner's counts change, the other cell's menu hook is not run again.
+    act(() => { useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 4 ? { ...t, doDate: undefined } : t)) }) })
+    expect(usePlannerStore.getState().resets[plannerWindowKey(undefined, 'plan')]?.counts).toEqual({ week: 7, today: 1, delayed: 1 })
+    expect(renders).toBe(before)
+    expect(result.current).toEqual([])
+  })
+
+  it('the menus read what the drawn Planner reports: one report per change of a count, none once it is gone', () => {
+    const key = plannerWindowKey(undefined, 'plan')
+    const { unmount } = show()
+    const report = usePlannerStore.getState().resets[key]
+    expect(report?.counts).toEqual({ week: 8, today: 1, delayed: 1 })
+    // A change that moves no count (a title): the same report, so no menu is built again.
+    act(() => { useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 1 ? { ...t, title: 'Renamed' } : t)) }) })
+    expect(usePlannerStore.getState().resets[key]).toBe(report)
+    // A Planner that isn't drawn reports nothing, and its menu offers nothing.
+    unmount()
+    expect(usePlannerStore.getState().resets).toEqual({})
+    const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
+    expect(result.current).toEqual([])
+  })
+
+  it('the report’s action clears the scope as the Planner shows when it is called, not as it was when reported', () => {
+    const key = plannerWindowKey(undefined, 'plan')
+    show()
+    const { setPlan } = watch()
+    const report = usePlannerStore.getState().resets[key]!
+    // Another task planned for today too, with the count of Delayed unchanged: the Delayed report is the same object.
+    act(() => { useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 8 ? { ...t, title: 'Missed, renamed' } : t)) }) })
+    report.run('delayed')
+    expect(setPlan).toHaveBeenCalledWith([8], null, 'Reset plan: Delayed', true)
   })
 })
 
