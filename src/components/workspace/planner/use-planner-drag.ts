@@ -20,7 +20,7 @@ export interface PlannerActiveDrag {
   row: { key: string; groupKey: string; index: number } | null
 }
 
-/** The scrollers a Planner's groups sit in: the large face's three panes (Today, the days ahead, the trays), else its one column. */
+/** The scrollers a Planner's groups sit in: the large face's two panes (the days, the trays), else its one column. */
 const SCROLLERS = '[data-planner-pane], [data-planner-layout="column"]'
 
 interface Measured {

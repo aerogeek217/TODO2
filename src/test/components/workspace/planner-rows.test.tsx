@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { CellControlsContext, type CellControlsValue } from '../../../components/workspace/cell-controls'
 import { ListWidgetRow } from '../../../components/workspace/list/ListWidgetRow'
@@ -133,14 +133,23 @@ describe('the corner flag', () => {
     expect(flagged()).toEqual(PLACED)
   })
 
-  it('leaves a row that lingers after its completion', () => {
+  it('leaves a row that lingers after its completion, with its tag and its hover buttons', () => {
     vi.useFakeTimers()
     vi.setSystemTime(TODAY)
     show()
-    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 4 ? { ...t, isCompleted: true, completedAt: new Date() } : t)) })
-    cleanup()
-    show()
-    expect(flagged()).not.toContain('Monday plan')
+    expect(flagged()).toContain('Past its due date')
+    act(() => {
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 5 ? { ...t, isCompleted: true, completedAt: new Date() } : t)) })
+    })
+    // Still in its group, completed — and plain.
+    expect(rowOf('Past its due date')).toBeInTheDocument()
+    expect(rowOf('Past its due date').querySelector('[data-leaving]')).not.toBeNull()
+    expect(flagged()).not.toContain('Past its due date')
+    expect(tagOf('Past its due date')).toBeNull()
+    expect(actionsOf('Past its due date')).toEqual([])
+    expect(cell('Past its due date', 'due')).not.toHaveAttribute('data-date-level', 'late')
+    act(() => { vi.advanceTimersByTime(700) })
+    expect(root().querySelector('[data-task-title="Past its due date"]')).toBeNull()
   })
 })
 
