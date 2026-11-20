@@ -484,11 +484,19 @@ export const TaskRow = memo(function TaskRow({
 function RowFieldCluster({ reserve = false, children }: { reserve?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLSpanElement>(null)
   useTaskRowClusterEnd(ref)
+  /** The width was written on the row: a row that never reserves touches nothing. */
+  const reserved = useRef(false)
   useLayoutEffect(() => {
-    const row = ref.current?.parentElement
-    if (!row) return
-    if (reserve) row.style.setProperty('--row-cluster-width', `${ref.current?.offsetWidth ?? 0}px`)
-    else row.style.removeProperty('--row-cluster-width')
+    const node = ref.current
+    const row = node?.parentElement
+    if (!node || !row) return
+    if (reserve) {
+      row.style.setProperty('--row-cluster-width', `${node.offsetWidth}px`)
+      reserved.current = true
+    } else if (reserved.current) {
+      row.style.removeProperty('--row-cluster-width')
+      reserved.current = false
+    }
   })
   return <span ref={ref} className={styles.fieldCluster} data-row-cluster="">{children}</span>
 }
