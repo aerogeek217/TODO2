@@ -55,7 +55,7 @@ function groupLabel(group: Group): string {
  * A task sits on a day by its Do day, else its follow-up or due date
  * (`utils/planner`); rows are the list's (`ListWidgetRow`, `MobileTaskRow`
  * on the phone), a click opening the task. The window and the picked day
- * are the tab's, in memory (`stores/planner-store`).
+ * are the tab's in its layout, in memory (`stores/planner-store`).
  *
  * **Drops** (desktop): every tile and every group takes a dragged task — a
  * row of this Planner, a list's row, a calendar entry — as a dnd-kit
@@ -126,7 +126,7 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
   const isMobile = useIsMobile()
   // The phone has no fold: a completed row leaves at once, as a list's.
   const data = usePlanner(tab.id, tab.viewState?.order, !isMobile)
-  const { view, offset, picked, badge } = data
+  const { view, offset, picked, badge, windowKey } = data
   const twoPanes = panes && !isMobile
   // The phone has no drag, so a day with nothing on it has nothing to offer there.
   const days = useMemo(() => (isMobile ? view.days.filter((g) => g.tasks.length > 0) : view.days), [isMobile, view.days])
@@ -137,8 +137,8 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
   const aheadTasks = useMemo(() => [...days.flatMap((g) => g.tasks), ...view.noDay.tasks], [days, view.noDay])
   const allTasks = useMemo(() => [...view.today.tasks, ...aheadTasks], [view.today, aheadTasks])
 
-  const onPick = useCallback((day: Date | null) => usePlannerStore.getState().pick(tabId, day), [tabId])
-  const onShift = useCallback((weeks: -1 | 1) => usePlannerStore.getState().shift(tabId, weeks), [tabId])
+  const onPick = useCallback((day: Date | null) => usePlannerStore.getState().pick(windowKey, day), [windowKey])
+  const onShift = useCallback((weeks: -1 | 1) => usePlannerStore.getState().shift(windowKey, weeks), [windowKey])
 
   // ── A task dragged over it: the target marked, the place shown; a refused drop, the not-allowed cursor ──
   const active = usePlannerDrag(tabId, hostRef)
@@ -169,7 +169,7 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
             className={styles.rangeButton}
             aria-label={`${range}. Back to this week`}
             data-tooltip="Back to this week"
-            onClick={() => usePlannerStore.getState().reset(tabId)}
+            onClick={() => usePlannerStore.getState().reset(windowKey)}
           >
             {range}
           </button>

@@ -4,9 +4,12 @@ import { PLANNER_WINDOW_DAYS, plannerOffset, type PlannerDrop } from '../utils/p
 
 /**
  * A Planner's window as its tab shows it, in memory only: never layout
- * config or view state, gone with a reload. Kept by tab id — not in the
- * widget — so the widget popup's remount (Open larger: a tab has one live
- * widget at a time) shows the same week and day.
+ * config or view state, gone with a reload. Kept by its layout's id and its
+ * tab's id (`plannerWindowKey`) — not in the widget — so the widget popup's
+ * remount (Open larger: a tab has one live widget at a time) shows the same
+ * week and day, while the same tab id in another layout (Duplicate layout
+ * keeps the tabs' ids) has a window of its own. A tab that stops being a
+ * Planner loses its window (`keep`).
  */
 interface PlannerTabWindow {
   /** Days from today to the window's first day: a multiple of 7, 0 or more. */
@@ -41,18 +44,30 @@ export interface PlannerDragPreview {
   index: number | null
 }
 
+/** The key of a Planner's window: its tab in its layout (no layout open: the tab alone). */
+export function plannerWindowKey(layoutId: number | null | undefined, tabId: string): string {
+  return `${layoutId ?? ''}|${tabId}`
+}
+
 interface PlannerState {
+  /** Each Planner's window, by `plannerWindowKey`. */
   windows: Record<string, PlannerTabWindow>
   /** The task drag over a Planner now; null with none. */
   drag: PlannerDragPreview | null
   /** Sets, or with `null` clears, the drag preview. */
   setDrag: (drag: PlannerDragPreview | null) => void
-  /** Moves the tab's window by `weeks` (never before this week); the pick, a day of the old window, goes. */
-  shift: (tabId: string, weeks: number) => void
+  /** Moves the window `key` by `weeks` (never before this week); the pick, a day of the old window, goes. */
+  shift: (key: string, weeks: number) => void
   /** Back to this week, no day picked. */
-  reset: (tabId: string) => void
+  reset: (key: string) => void
   /** Picks the day the days-ahead list starts at; `null` — or the day already picked — clears it. */
-  pick: (tabId: string, day: Date | null) => void
+  pick: (key: string, day: Date | null) => void
+  /**
+   * Drops the windows of the layout `layoutId` whose tab isn't one of
+   * `tabIds` — its Planner tabs now: a tab closed, or changed to another
+   * kind, starts on this week if it is a Planner again.
+   */
+  keep: (layoutId: number, tabIds: readonly string[]) => void
 }
 
 export const usePlannerStore = create<PlannerState>((set, get) => ({
@@ -63,32 +78,41 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
     if (get().drag !== drag) set({ drag })
   },
 
-  shift(tabId, weeks) {
-    const current = get().windows[tabId] ?? DEFAULT_PLANNER_WINDOW
+  shift(key, weeks) {
+    const current = get().windows[key] ?? DEFAULT_PLANNER_WINDOW
     const offset = plannerOffset(current.offset + weeks * PLANNER_WINDOW_DAYS)
     if (offset === current.offset) return
-    set((s) => ({ windows: { ...s.windows, [tabId]: { offset, picked: null } } }))
+    set((s) => ({ windows: { ...s.windows, [key]: { offset, picked: null } } }))
   },
 
-  reset(tabId) {
-    if (!(tabId in get().windows)) return
+  reset(key) {
+    if (!(key in get().windows)) return
     set((s) => {
-      const { [tabId]: _gone, ...rest } = s.windows
+      const { [key]: _gone, ...rest } = s.windows
       void _gone
       return { windows: rest }
     })
   },
 
-  pick(tabId, day) {
-    const current = get().windows[tabId] ?? DEFAULT_PLANNER_WINDOW
+  pick(key, day) {
+    const current = get().windows[key] ?? DEFAULT_PLANNER_WINDOW
     const at = day ? startOfDay(day).getTime() : null
     const picked = at === current.picked ? null : at
     if (picked === current.picked) return
-    set((s) => ({ windows: { ...s.windows, [tabId]: { ...current, picked } } }))
+    set((s) => ({ windows: { ...s.windows, [key]: { ...current, picked } } }))
+  },
+
+  keep(layoutId, tabIds) {
+    const { windows } = get()
+    const kept = new Set(tabIds.map((tabId) => plannerWindowKey(layoutId, tabId)))
+    const ofLayout = plannerWindowKey(layoutId, '')
+    const gone = Object.keys(windows).filter((key) => key.startsWith(ofLayout) && !kept.has(key))
+    if (gone.length === 0) return
+    set({ windows: Object.fromEntries(Object.entries(windows).filter(([key]) => !gone.includes(key))) })
   },
 }))
 
-/** The tab's window (`DEFAULT_PLANNER_WINDOW` until it moves it). */
-export function usePlannerWindow(tabId: string): PlannerTabWindow {
-  return usePlannerStore((s) => s.windows[tabId] ?? DEFAULT_PLANNER_WINDOW)
+/** The window `key` (`DEFAULT_PLANNER_WINDOW` until it is moved). */
+export function usePlannerWindow(key: string): PlannerTabWindow {
+  return usePlannerStore((s) => s.windows[key] ?? DEFAULT_PLANNER_WINDOW)
 }

@@ -32,6 +32,7 @@ import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
 import { SyncStatusButton } from '../components/layout/SyncStatusButton'
 import { useIsMobile } from '../hooks/use-is-mobile'
+import { usePlannerWindowsOf } from '../hooks/use-planner'
 import { measureWorkspace } from '../components/workspace/measure'
 import { EditListHost } from '../components/workspace/list/EditList'
 import { WidgetPopupHost } from '../components/workspace/WidgetPopup'
@@ -473,6 +474,7 @@ export function WorkspacePage() {
   const isMobile = useIsMobile()
 
   useWorkspaceData()
+  usePlannerWindowsOf(working)
 
   // Opened from here, not at startup: the app's startup chain (incl. the sync
   // file load) has finished before any page mounts.
