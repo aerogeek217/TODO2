@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useMemo, memo, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import { useRef, useState, useCallback, useLayoutEffect, useMemo, memo, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { type PersistedTodoItem, type Person, type Tag } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -257,7 +257,7 @@ export const TaskRow = memo(function TaskRow({
         />
       ) : (
         <span
-          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${(count || canAddSubtasks || tag) && !stacked ? styles.titleWithCount : ''}`}
+          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${(count || canAddSubtasks || tag) && !stacked ? styles.titleWithCount : ''} ${tag && !stacked ? styles.titleWithTag : ''}`}
           data-task-title={todo.title}
           {...titleTipProps}
           onPointerEnter={onTitlePointerEnter}
@@ -361,7 +361,7 @@ export const TaskRow = memo(function TaskRow({
           {used.status && <StatusCell status={status} anchorRef={statusRef} open={showStatusMenu} onToggle={() => setShowStatusMenu((v) => !v)} />}
           {(anyUnused || actions) && !isEditing && (
             // On hover / focus at the title's end: the surface's buttons, then the fields the list has no column for (each its empty cell).
-            <RowFieldCluster>
+            <RowFieldCluster reserve={tag != null}>
               {actions}
               {!used.notes && <NotesCell update={newestUpdate} notes={todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />}
               {!used.people && (
@@ -473,10 +473,22 @@ export const TaskRow = memo(function TaskRow({
  * A desktop row's hover cluster (flair P8): the empty cells of the fields its
  * list has no column for, over the title's end just left of the remaining
  * details (`useTaskRowClusterEnd`); shown with the placeholders — row hover,
- * focus, an open picker — by opacity only, so nothing moves.
+ * focus, an open picker — by opacity only, so nothing moves. It leads with
+ * the surface's buttons (`TaskRowExtras.actions`) when there are any.
+ *
+ * `reserve` (a row with the surface's tag after its title): the cluster's
+ * width is written on the row (`--row-cluster-width`), and the title keeps
+ * that room clear while the cluster shows — the title's text gives way, so
+ * the tag stays in view beside the cluster instead of under it.
  */
-function RowFieldCluster({ children }: { children: ReactNode }) {
+function RowFieldCluster({ reserve = false, children }: { reserve?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLSpanElement>(null)
   useTaskRowClusterEnd(ref)
+  useLayoutEffect(() => {
+    const row = ref.current?.parentElement
+    if (!row) return
+    if (reserve) row.style.setProperty('--row-cluster-width', `${ref.current?.offsetWidth ?? 0}px`)
+    else row.style.removeProperty('--row-cluster-width')
+  })
   return <span ref={ref} className={styles.fieldCluster} data-row-cluster="">{children}</span>
 }

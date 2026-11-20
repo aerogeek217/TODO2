@@ -84,7 +84,9 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
   const scroller = group.closest<HTMLElement>(SCROLLERS)
   const behavior = scrollBehavior()
   if (scroller && scroller.scrollHeight > scroller.clientHeight) {
-    const top = group.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
+    // Today, the list's first group: the very top.
+    const first = group.getAttribute('data-planner-group-kind') === 'today'
+    const top = first ? 0 : group.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
     if (typeof scroller.scrollTo === 'function') scroller.scrollTo({ top, behavior })
     else scroller.scrollTop = top
   } else if (page && typeof group.scrollIntoView === 'function') {
