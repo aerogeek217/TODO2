@@ -76,6 +76,18 @@ export interface TodoItem {
   sortOrder: number
 }
 
+/**
+ * A task's plan state in the Planner: a planned day (`doDate`), held in its
+ * Unplanned tray (`unplanned`), or — `null` — neither. The two are exclusive.
+ */
+export type TaskPlan = { day: Date } | 'unplanned' | null
+
+/** One task's plan to write (`todo-store.setPlans`). */
+export interface TaskPlanChange {
+  id: number
+  plan: TaskPlan
+}
+
 /** TodoItem after persistence — id is always defined. */
 export type PersistedTodoItem = TodoItem & { id: number }
 

@@ -84,12 +84,12 @@ async function storedOrder(tabId = 'plan'): Promise<string[] | undefined> {
 /** Counts the task writes and the view-state writes a drop makes, without changing them. */
 function watchWrites() {
   const update = vi.spyOn(useTodoStore.getState(), 'update')
-  const setDoDate = vi.spyOn(useTodoStore.getState(), 'setDoDate')
+  const setPlan = vi.spyOn(useTodoStore.getState(), 'setPlan')
   const bulkSetDeadline = vi.spyOn(useTodoStore.getState(), 'bulkSetDeadline')
   const patch = vi.spyOn(ws(), 'patchTabViewState')
-  useTodoStore.setState({ update, setDoDate, bulkSetDeadline })
+  useTodoStore.setState({ update, setPlan, bulkSetDeadline })
   useWorkspaceStore.setState({ patchTabViewState: patch })
-  return { update, setDoDate, bulkSetDeadline, patch, tasks: () => update.mock.calls.length + setDoDate.mock.calls.length }
+  return { update, setPlan, bulkSetDeadline, patch, tasks: () => update.mock.calls.length + setPlan.mock.calls.length }
 }
 
 function tile(target: PlannerTarget, scope = 'plan'): PlannerDropData {
@@ -133,7 +133,7 @@ describe('a drop on a day', () => {
     await drop(task, tile(on(3)), null, { listTabId: 'plan', sectionKey: '2026-11-20', rowKey: `2026-11-20|${task.id}` })
     expect(w.update).toHaveBeenCalledTimes(1)
     expect(w.update).toHaveBeenCalledWith(task.id, { nextFollowupAt: day(3) })
-    expect(w.setDoDate).not.toHaveBeenCalled()
+    expect(w.setPlan).not.toHaveBeenCalled()
     const after = await storedTask(task.id)
     // The day, at local midnight — not the old time of day, not noon.
     expect(after.nextFollowupAt).toEqual(day(3))
@@ -152,8 +152,8 @@ describe('a drop on a day', () => {
     const task = await seed('Venue', { dueDate: day(2, 9) })
     const w = watchWrites()
     await drop(task, tile(on(4)))
-    expect(w.setDoDate).toHaveBeenCalledTimes(1)
-    expect(w.setDoDate).toHaveBeenCalledWith([task.id], day(4))
+    expect(w.setPlan).toHaveBeenCalledTimes(1)
+    expect(w.setPlan).toHaveBeenCalledWith([task.id], { day: day(4) })
     expect(w.update).not.toHaveBeenCalled()
     expect(w.bulkSetDeadline).not.toHaveBeenCalled()
     const after = await storedTask(task.id)
@@ -200,8 +200,8 @@ describe('a drop on Focus, no day', () => {
     const task = await seed('Focus', { focus: true, doDate: day(1), dueDate: day(20) })
     const w = watchWrites()
     await drop(task, group(NO_DAY, 'none', [], ['x']))
-    expect(w.setDoDate).toHaveBeenCalledTimes(1)
-    expect(w.setDoDate).toHaveBeenCalledWith([task.id], undefined)
+    expect(w.setPlan).toHaveBeenCalledTimes(1)
+    expect(w.setPlan).toHaveBeenCalledWith([task.id], null)
     expect(w.update).not.toHaveBeenCalled()
     const after = await storedTask(task.id)
     expect(after.doDate).toBeUndefined()
@@ -308,7 +308,7 @@ describe('the hand order', () => {
     const w = watchWrites()
     await drop(a, group(on(3), '2026-11-23', [d.uid, e.uid], shown), over('2026-11-23', 1))
     expect(w.update).toHaveBeenCalledTimes(1)
-    expect(w.setDoDate).not.toHaveBeenCalled()
+    expect(w.setPlan).not.toHaveBeenCalled()
     expect(w.patch).toHaveBeenCalledTimes(1)
     expect((await storedTask(a.id)).nextFollowupAt).toEqual(day(3))
     expect(await storedOrder()).toEqual([d.uid, a.uid, e.uid])
@@ -430,7 +430,7 @@ describe('Move to day › (no pointer)', () => {
     await movePlannerTask('plan', { todoId: chase.id, target: on(3), window: WINDOW })
     await movePlannerTask('plan', { todoId: venue.id, target: on(4), window: WINDOW })
     expect(w.update).toHaveBeenCalledTimes(1)
-    expect(w.setDoDate).toHaveBeenCalledTimes(1)
+    expect(w.setPlan).toHaveBeenCalledTimes(1)
     expect(w.patch).not.toHaveBeenCalled()
     expect((await storedTask(chase.id)).nextFollowupAt).toEqual(day(3))
     expect((await storedTask(venue.id)).doDate).toEqual(day(4))

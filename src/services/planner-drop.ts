@@ -70,7 +70,7 @@ export async function applyPlannerMove(tabId: string, todoId: number, plan: Plan
   const { drop, order } = plan
   if (order) void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { order })
   if (drop.kind === 'followup') await useTodoStore.getState().update(todoId, { nextFollowupAt: drop.date })
-  else if (drop.kind === 'do') await useTodoStore.getState().setDoDate([todoId], drop.date)
+  else if (drop.kind === 'do') await useTodoStore.getState().setPlan([todoId], drop.date ? { day: drop.date } : null)
 }
 
 /** Plans and makes `move` (Move to day ›); resolves once it is written. */
