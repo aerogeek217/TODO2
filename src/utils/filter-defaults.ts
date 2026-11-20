@@ -15,6 +15,12 @@ export interface FilterDefaults {
    * added. Several values in an "is" seed nothing, as a Status filter's.
    */
   markers?: MarkerConditions
+  /**
+   * The new task's Do day (the Planner's Add task: today, so the task lands
+   * in its Today). Hidden: no filter gives one, and neither Quick Add nor
+   * the editor shows it — it only travels to the create.
+   */
+  doDate?: Date
 }
 
 /**
@@ -54,13 +60,13 @@ export function markerFlags(fd: Pick<FilterDefaults, 'markers'> | null | undefin
 
 /**
  * `fd` without the given marker seeds (Quick Add: a preset marker chip
- * removed with its ×). The people / tags / status and other markers stay.
+ * removed with its ×). The people / tags / status, the Do day and other markers stay.
  */
 export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): FilterDefaults {
   if (keys.length === 0 || !fd.markers) return fd
   const markers: MarkerConditions = { ...fd.markers }
   for (const k of keys) delete markers[k]
-  const base: FilterDefaults = { personIds: fd.personIds, tagIds: fd.tagIds, statusId: fd.statusId }
+  const base: FilterDefaults = { personIds: fd.personIds, tagIds: fd.tagIds, statusId: fd.statusId, ...(fd.doDate ? { doDate: fd.doDate } : {}) }
   return activeMarkers(markers).length > 0 ? { ...base, markers } : base
 }
 

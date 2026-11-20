@@ -94,6 +94,14 @@ describe('draftFromText', () => {
     expect(draftFromText('With @Nobody', { ...ctx, defaults }).personIds).toEqual([])
   })
 
+  it('takes the defaults’ hidden Do day (the Planner’s Add task); none without it', () => {
+    const doDate = new Date(2026, 9, 10)
+    const defaults = { personIds: [], tagIds: [], statusId: undefined, doDate }
+    expect(draftFromText('Plan it /due mon', { ...ctx, defaults }).doDate).toBe(doDate)
+    expect('doDate' in draftFromText('Plain', { ...ctx, defaults: { personIds: [], tagIds: [], statusId: undefined } })).toBe(false)
+    expect('doDate' in draftFromText('Plain', ctx)).toBe(false)
+  })
+
   it('never seeds a status, person or tag that no longer exists (a filter or pane naming a deleted one)', () => {
     const defaults = { personIds: [2, 98], tagIds: [97, 11], statusId: 99 }
     const d = draftFromText('Plain', { ...ctx, defaults, statusDefaultFirst: 'filter' })
@@ -144,6 +152,12 @@ describe('draftFromEditor', () => {
     )
     expect(d).toMatchObject({ title: 'Ask for access', statusId: 7, urgent: true, personIds: [2], tagIds: [11], newPeople: ['Marco'] })
     expect(d.dueDate).toEqual(new Date(2026, 9, 12))
+  })
+
+  it('carries a Do day handed on from Quick Add (the Planner’s Add task); none = no key', () => {
+    const doDate = new Date(2026, 9, 10)
+    expect(draftFromEditor({ title: 'x', doDate }, { personIds: [], tagIds: [] }, ctx).doDate).toBe(doDate)
+    expect('doDate' in draftFromEditor({ title: 'x' }, { personIds: [], tagIds: [] }, ctx)).toBe(false)
   })
 
   it('drops a picked status, person or tag that no longer exists (seeded from a filter naming a deleted one)', () => {
@@ -214,6 +228,12 @@ describe('draftToTodo', () => {
     const d = new Date(2026, 9, 1)
     const row = draftToTodo({ ...base, dueDate: due, recurrence: { count: 1, unit: 'm' }, statusId: 7, lastFollowupAt: d, notes: 'n' }, now, fallback)
     expect(row).toMatchObject({ dueDate: due, recurrenceRule: { every: { count: 1, unit: 'm' as const }, originalDayOfMonth: 12 }, statusId: 7, lastFollowupAt: d, notes: 'n' })
+  })
+
+  it('writes the draft’s Do day on the row; none = no key', () => {
+    const doDate = new Date(2026, 9, 10)
+    expect(draftToTodo({ ...base, doDate }, now, fallback).doDate).toBe(doDate)
+    expect('doDate' in draftToTodo(base, now, fallback)).toBe(false)
   })
 
   it('leaves a draft’s status updates off the row (they are written after it)', () => {

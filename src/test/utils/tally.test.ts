@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { doneToday, tallyLabel, tallyLayout, tallyMarks, TALLY_GROUP_PITCH_PX, TALLY_GROUP_WIDTH_PX } from '../../utils/tally'
+import { doneToday, tallyLabel, tallyLayout, tallyMarks, tasksDoneToday, TALLY_GROUP_PITCH_PX, TALLY_GROUP_WIDTH_PX } from '../../utils/tally'
 
 /** The top bar's tally (flair P3): today's completions, the groups that fit, their shapes. */
 
@@ -33,6 +33,28 @@ describe('doneToday', () => {
   it('a new day starts at zero', () => {
     const todos = [{ isCompleted: true, completedAt: at(2026, 10, 15, 22) }]
     expect(doneToday(todos, at(2026, 10, 16, 0, 1))).toBe(0)
+  })
+})
+
+describe('tasksDoneToday', () => {
+  const today = at(2026, 10, 15, 9)
+
+  it('lists the tasks doneToday counts, the one completed last first', () => {
+    const todos = [
+      { title: 'morning', isCompleted: true, completedAt: at(2026, 10, 15, 8) },
+      { title: 'open', isCompleted: false, completedAt: at(2026, 10, 15, 9) },
+      { title: 'evening', isCompleted: true, completedAt: at(2026, 10, 15, 21) },
+      { title: 'yesterday', isCompleted: true, completedAt: at(2026, 10, 14, 23, 59) },
+      { title: 'no time', isCompleted: true, completedAt: undefined },
+      { title: 'noon', isCompleted: true, completedAt: at(2026, 10, 15, 12).toISOString() as unknown as Date },
+    ]
+    const done = tasksDoneToday(todos, today)
+    expect(done.map((t) => t.title)).toEqual(['evening', 'noon', 'morning'])
+    expect(done).toHaveLength(doneToday(todos, today))
+  })
+
+  it('is empty with none', () => {
+    expect(tasksDoneToday([], today)).toEqual([])
   })
 })
 

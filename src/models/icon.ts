@@ -18,7 +18,7 @@ import { DEFAULT_STATUS_ICON, type StatusIconKey, type StatusLook } from './stat
 /** The built-in line icons, in the picker's order: the widget kinds' glyphs first, then a generic set (the icons board). */
 export const LINE_ICON_KEYS = [
   'list', 'calendar', 'notes', 'review', 'number', 'chart', 'ring', 'bars', 'table', 'scatter',
-  'radar', 'clusters', 'wall', 'layout', 'flag', 'check', 'person', 'at', 'hash', 'envelope', 'search', 'file', 'lock',
+  'radar', 'clusters', 'wall', 'planner', 'layout', 'flag', 'check', 'person', 'at', 'hash', 'envelope', 'search', 'file', 'lock',
   'funnel', 'glasses', 'repeat', 'checklist', 'link',
 ] as const
 
@@ -27,7 +27,7 @@ export type LineIconKey = (typeof LINE_ICON_KEYS)[number]
 /** Each line icon's name (its picker cell's accessible name and tooltip). */
 export const LINE_ICON_LABELS: Readonly<Record<LineIconKey, string>> = {
   list: 'List', calendar: 'Calendar', notes: 'Notes', review: 'Review', number: 'Number', chart: 'Chart',
-  ring: 'Ring', bars: 'Bars', table: 'Table', scatter: 'Scatter plot', radar: 'Radar', clusters: 'Clusters', wall: 'Wall', layout: 'Layout', flag: 'Flag',
+  ring: 'Ring', bars: 'Bars', table: 'Table', scatter: 'Scatter plot', radar: 'Radar', clusters: 'Clusters', wall: 'Wall', planner: 'Planner', layout: 'Layout', flag: 'Flag',
   check: 'Check', person: 'Person', at: 'At', hash: 'Hash', envelope: 'Envelope', search: 'Search',
   file: 'File', lock: 'Lock', funnel: 'Funnel', glasses: 'Glasses', repeat: 'Repeat', checklist: 'Checklist',
   link: 'Link',

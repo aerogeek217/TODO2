@@ -55,6 +55,13 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M9.5 9.5v4.5l3.75-2.25z" />
     </>
   ),
+  // The Planner: a strip of day tiles, today's filled, over two task lines.
+  planner: (
+    <>
+      <path d="M2.5 2.5h3v3.5h-3z" fill="currentColor" />
+      <path d="M6.5 2.5h3v3.5h-3zM10.5 2.5h3v3.5h-3zM2.5 9.5h11M2.5 13h7" />
+    </>
+  ),
   // A scatter plot: two axes and three dots, the largest top right (Slipping).
   neglect: (
     <>

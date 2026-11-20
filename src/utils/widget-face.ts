@@ -108,6 +108,32 @@ export function taskMapFaceFor(size: { width: number; height: number }): WidgetF
   return height <= TASK_MAP_MEDIUM_MAX_HEIGHT_PX || width <= TASK_MAP_MEDIUM_MAX_WIDTH_PX ? 'medium' : 'large'
 }
 
+/** A Planner's body narrower than this (and not small) shows its medium face, one column: its two panes of task rows need the width. */
+const PLANNER_PANES_MIN_WIDTH_PX = 720
+/** A Planner's body shorter than this (and not small) shows its medium face: under it the strip leaves the panes no room. */
+const PLANNER_PANES_MIN_HEIGHT_PX = 300
+/** A Planner's body narrower than this has no strip: seven day tiles and the two arrows no longer fit. */
+const PLANNER_STRIP_MIN_WIDTH_PX = 300
+
+/**
+ * A Planner's face (2026-11-20): small as every widget's; medium — one
+ * column: Today, the days ahead, Focus, no day — while the body is too
+ * narrow or too short for its two panes (`PLANNER_PANES_MIN_*`); else
+ * large. Unmeasured is `large`.
+ */
+export function plannerFaceFor(size: { width: number; height: number }): WidgetFace {
+  const face = widgetFaceFor(size)
+  if (face === 'small') return face
+  const { width, height } = size
+  if (width <= 0 && height <= 0) return 'large'
+  return width < PLANNER_PANES_MIN_WIDTH_PX || height < PLANNER_PANES_MIN_HEIGHT_PX ? 'medium' : 'large'
+}
+
+/** Whether a Planner of `width` has room for its strip (`PLANNER_STRIP_MIN_WIDTH_PX`); unmeasured (0) it has. */
+export function plannerStripFits(width: number): boolean {
+  return width <= 0 || width >= PLANNER_STRIP_MIN_WIDTH_PX
+}
+
 /** A List wall's body this narrow or narrower (and not small) shows its bars, a line per list. */
 const LIST_WALL_BARS_MAX_WIDTH_PX = 560
 

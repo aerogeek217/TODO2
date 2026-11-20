@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { createTab, type NumberTab } from '../../models/workspace-layout'
 import {
   MEDIUM_FACE_MAX_HEIGHT_PX,
+  plannerFaceFor,
+  plannerStripFits,
   SMALL_FACE_MAX_HEIGHT_PX,
   SMALL_FACE_MAX_WIDTH_PX,
   tabOpensLarger,
@@ -16,6 +18,7 @@ describe('tabOpensLarger', () => {
 
   it('every kind but a Number, at any face (its large one too)', () => {
     for (const face of ['small', 'medium', 'large'] as const) {
+      expect(tabOpensLarger(createTab('planner', 'p'), face)).toBe(true)
       expect(tabOpensLarger(createTab('neglect', 'm'), face)).toBe(true)
       expect(tabOpensLarger(createTab('calendar', 'c'), face)).toBe(true)
       expect(tabOpensLarger(createTab('review', 'r'), face)).toBe(true)
@@ -58,5 +61,40 @@ describe('widgetFaceFor', () => {
 
   it('taller is large', () => {
     expect(widgetFaceFor({ width: 600, height: MEDIUM_FACE_MAX_HEIGHT_PX + 1 })).toBe('large')
+  })
+})
+
+describe('plannerFaceFor', () => {
+  it('is small as every widget is', () => {
+    expect(plannerFaceFor({ width: 1200, height: SMALL_FACE_MAX_HEIGHT_PX })).toBe('small')
+    expect(plannerFaceFor({ width: SMALL_FACE_MAX_WIDTH_PX, height: 900 })).toBe('small')
+  })
+
+  it('is large from 720 × 300: room for its two panes', () => {
+    expect(plannerFaceFor({ width: 720, height: 300 })).toBe('large')
+    expect(plannerFaceFor({ width: 1400, height: 860 })).toBe('large')
+  })
+
+  it('is medium, one column, while narrower or shorter', () => {
+    expect(plannerFaceFor({ width: 719, height: 900 })).toBe('medium')
+    expect(plannerFaceFor({ width: 1400, height: 299 })).toBe('medium')
+    expect(plannerFaceFor({ width: SMALL_FACE_MAX_WIDTH_PX + 1, height: SMALL_FACE_MAX_HEIGHT_PX + 1 })).toBe('medium')
+  })
+
+  it('goes by the width alone where the height is the content’s (the phone)', () => {
+    expect(plannerFaceFor({ width: 359, height: Number.POSITIVE_INFINITY })).toBe('medium')
+    expect(plannerFaceFor({ width: 900, height: Number.POSITIVE_INFINITY })).toBe('large')
+  })
+
+  it('unmeasured is large', () => {
+    expect(plannerFaceFor({ width: 0, height: 0 })).toBe('large')
+  })
+})
+
+describe('plannerStripFits', () => {
+  it('has room for seven tiles from 300px; unmeasured it has', () => {
+    expect(plannerStripFits(300)).toBe(true)
+    expect(plannerStripFits(299)).toBe(false)
+    expect(plannerStripFits(0)).toBe(true)
   })
 })

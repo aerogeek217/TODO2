@@ -25,15 +25,27 @@ export const TALLY_HEIGHT_PX = 18
  * date, so it never counts.
  */
 export function doneToday(todos: ReadonlyArray<Pick<TodoItem, 'isCompleted' | 'completedAt'>>, today: Date): number {
+  const done = doneOn(today)
+  let n = 0
+  for (const t of todos) if (done(t)) n++
+  return n
+}
+
+/** Whether a task was completed on `today`'s local day (what `doneToday` counts). */
+function doneOn(today: Date): (t: Pick<TodoItem, 'isCompleted' | 'completedAt'>) => boolean {
   const from = startOfDay(today).getTime()
   const to = addDays(startOfDay(today), 1).getTime()
-  let n = 0
-  for (const t of todos) {
-    if (!t.isCompleted || t.completedAt == null) continue
+  return (t) => {
+    if (!t.isCompleted || t.completedAt == null) return false
     const ms = new Date(t.completedAt).getTime()
-    if (ms >= from && ms < to) n++
+    return ms >= from && ms < to
   }
-  return n
+}
+
+/** The tasks `doneToday` counts, the one completed last first (the Planner's `N done` line). */
+export function tasksDoneToday<T extends Pick<TodoItem, 'isCompleted' | 'completedAt'>>(todos: readonly T[], today: Date): T[] {
+  const at = (t: T) => (t.completedAt ? new Date(t.completedAt).getTime() : 0)
+  return todos.filter(doneOn(today)).sort((a, b) => at(b) - at(a))
 }
 
 /** What the tally draws in a gap: the newest whole groups that fit, then the open group's strokes. */

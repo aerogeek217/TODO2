@@ -27,6 +27,8 @@ export interface TaskDraft {
   nextFollowupAt?: Date | null
   /** Only the task editor's create mode sets it. */
   lastFollowupAt?: Date
+  /** The Do day (`TodoItem.doDate`): only the Planner's Add task seeds it (`FilterDefaults.doDate`); no form shows it. */
+  doDate?: Date
   personIds: number[]
   /** `@name`s that match nobody: created with the task. */
   newPeople: string[]
@@ -128,7 +130,8 @@ export function draftFromText(text: string, ctx: DraftContext): TaskDraft {
  * Parsed task text into a draft, plus the defaults of where the task is
  * added: the filter's people when the text names nobody, its tags and
  * markers, and a status (typed `!status`, else Settings' default and the
- * filter's, in `ctx.statusDefaultFirst` order). `fallbackTitle` is the
+ * filter's, in `ctx.statusDefaultFirst` order), and the Do day they seed
+ * (the Planner's Add task). `fallbackTitle` is the
  * title when the text is all tokens. Defaults naming a status / person / tag
  * that no longer exists are left out.
  */
@@ -153,6 +156,7 @@ export function draftFromResolved(resolved: ResolvedInput, fallbackTitle: string
     newPeople: resolved.unmatchedPersons,
     tagIds: union(tags.ids, existing(fd?.tagIds ?? [], ctx.tags)),
     newTags: tags.missing,
+    ...(fd?.doDate ? { doDate: fd.doDate } : {}),
   }
 }
 
@@ -166,6 +170,8 @@ function withStatus(statusId: number | undefined): { statusId?: number } {
  * `@` / `#` / `!`), which is parsed again as on create. The editor passes
  * `nextFollowupAt` only once it differs from the default. A status / person
  * / tag that no longer exists (seeded from a filter naming it) is left out.
+ * A Do day it was seeded with (the Planner's Add task, handed on from
+ * Quick Add) comes through as it is.
  */
 export function draftFromEditor(
   partial: EditorTaskFields,
@@ -194,6 +200,7 @@ export function draftFromEditor(
     tagIds: union(existing(assignments.tagIds, ctx.tags), tags.ids),
     newTags: tags.missing,
     ...(partial.lastFollowupAt ? { lastFollowupAt: partial.lastFollowupAt } : {}),
+    ...(partial.doDate ? { doDate: partial.doDate } : {}),
     ...(partial.notes ? { notes: partial.notes } : {}),
     ...(partial.statusUpdates && partial.statusUpdates.length > 0 ? { statusUpdates: [...partial.statusUpdates] } : {}),
     ...(partial.subtasks && partial.subtasks.length > 0 ? { subtasks: [...partial.subtasks] } : {}),
@@ -241,6 +248,7 @@ function draftFields(draft: TaskDraft): Omit<TodoChanges, 'nextFollowupAt' | 'ti
     ...(draft.important ? { important: true as const } : {}),
     ...(draft.focus ? { focus: true as const } : {}),
     ...(draft.lastFollowupAt ? { lastFollowupAt: draft.lastFollowupAt } : {}),
+    ...(draft.doDate ? { doDate: draft.doDate } : {}),
     ...(draft.notes ? { notes: draft.notes } : {}),
   }
 }

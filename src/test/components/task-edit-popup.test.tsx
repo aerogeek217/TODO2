@@ -828,6 +828,24 @@ describe('TaskEditPopup', () => {
       expect(assignments.tagIds).toEqual([1])
     })
 
+    it('a handoff from the Planner’s Add task passes its hidden Do day to the create, and shows no field for it', async () => {
+      const doDate = new Date(2026, 9, 10)
+      useUIStore.setState({ quickAddDraft: { rawTitle: 'Plan the week', defaults: { personIds: [], tagIds: [], statusId: undefined, doDate } } })
+      const { onCreate } = renderCreateMode()
+      expect(screen.queryByText(/Do day/i)).toBeNull()
+      clickCreate()
+      await waitFor(() => expect(onCreate).toHaveBeenCalled())
+      expect(onCreate.mock.calls[0]![0].doDate).toBe(doDate)
+    })
+
+    it('a create without that handoff has no Do day', async () => {
+      useUIStore.setState({ quickAddDraft: { rawTitle: 'Plain' } })
+      const { onCreate } = renderCreateMode()
+      clickCreate()
+      await waitFor(() => expect(onCreate).toHaveBeenCalled())
+      expect('doDate' in onCreate.mock.calls[0]![0]).toBe(false)
+    })
+
     it('a handoff with /followup none starts with no next follow-up', async () => {
       useUIStore.setState({ quickAddDraft: { rawTitle: 'Vendor /followup none' } })
       const { onCreate } = renderCreateMode()
