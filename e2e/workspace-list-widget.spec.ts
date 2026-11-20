@@ -149,7 +149,7 @@ test('a list’s date filters: a due-date range and Next follow-up Any both narr
   await page.getByRole('menuitem', { name: 'Dates' }).click()
   await expect(picker.getByRole('tab', { name: 'Next follow-up' })).toHaveAttribute('aria-selected', 'true')
   await expect(picker.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('aria-selected', 'false')
-  await expect(picker.getByRole('button', { name: 'To: No end' })).toBeVisible()
+  await expect(picker.getByRole('textbox', { name: 'To' })).toHaveValue('')
   await expect(rows(page, 't1')).toHaveCount(2)
   await picker.getByRole('radio', { name: 'Any' }).click()
   await expect(rows(page, 't1')).toHaveCount(1)
