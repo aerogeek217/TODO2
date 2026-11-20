@@ -77,6 +77,8 @@ const later = (minutes: number) => { vi.setSystemTime(new Date(NOW.getTime() + m
 const undoNames = () => useUndoStore.getState().undoStack.map((e) => e.description)
 const eventCount = (todoId: number) => db.todoEvents.where('todoId').equals(todoId).count()
 const store = () => useTodoStore.getState()
+/** The task as the store shows it now. */
+const shown = (id: number) => useTodoStore.getState().todos.find((t) => t.id === id)!
 
 describe('setPlan', () => {
   it('plans a day at local midnight, stored and shown, as one quiet undo step', async () => {
@@ -221,13 +223,49 @@ describe('setPlan', () => {
     expect(await db.todos.get(id)).toMatchObject({ dueDate: due, nextFollowupAt: followup, doDate: MON })
   })
 
-  it('a failed write puts the plan back and adds no step', async () => {
-    const [id] = await tasks('Quote') as [number]
+  it('a failed write puts the plan back, adds no step, and says so — it never rejects', async () => {
+    const [id, other] = await tasks('Quote', 'Brief') as [number, number]
     await patch(id, { doDate: FRI })
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(todoRepository, 'bulkUpdate').mockRejectedValueOnce(new Error('disk full'))
-    await expect(store().setPlan([id], 'unplanned')).rejects.toThrow('disk full')
+    await expect(store().setPlan([id], 'unplanned')).resolves.toBe(false)
     expect(await planned(id)).toEqual(onDay(FRI))
+    expect(undoNames()).toEqual([])
+    expect(useUndoStore.getState().snackbar).toEqual({ description: "Couldn't save the plan of “Quote”.", notice: true })
+    // Several tasks: counted. A write that goes through resolves true.
+    vi.spyOn(todoRepository, 'bulkUpdate').mockRejectedValueOnce(new Error('disk full'))
+    await expect(store().setPlan([id, other], { day: MON })).resolves.toBe(false)
+    expect(useUndoStore.getState().snackbar?.description).toBe("Couldn't save the plan of 2 tasks.")
+    expect(await planned(id)).toEqual(onDay(FRI))
+    await expect(store().setPlan([id], { day: MON })).resolves.toBe(true)
+    await expect(store().setPlans([])).resolves.toBe(true)
+  })
+
+  it('two overlapping failed writes never leave a planned day beside `unplanned`: each takes its pair back whole, or not at all', async () => {
+    const [id] = await tasks('Quote') as [number]
+    // Held in Unplanned to begin with.
+    await patch(id, { unplanned: true })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Both writes hang, then fail — the first one first.
+    const fails: Array<(e: Error) => void> = []
+    vi.spyOn(todoRepository, 'bulkUpdate').mockImplementation(() => new Promise<void>((_, reject) => { fails.push(reject) }))
+    const first = store().setPlan([id], { day: FRI })
+    const second = store().setPlan([id], { day: MON })
+    // Shown meanwhile: the second's plan.
+    expect(shown(id)).toMatchObject({ doDate: MON, unplanned: undefined })
+    await vi.waitFor(() => expect(fails).toHaveLength(2))
+    fails[0]!(new Error('disk full'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // The first's `unplanned: undefined` still stands, but its day doesn't: it takes nothing back
+    // (field by field it would have put `unplanned` back beside the second's day).
+    const between = shown(id)
+    expect(between.doDate != null && between.unplanned === true).toBe(false)
+    expect(between).toMatchObject({ doDate: MON, unplanned: undefined })
+    fails[1]!(new Error('disk full'))
+    await expect(first).resolves.toBe(false)
+    await expect(second).resolves.toBe(false)
+    // Read back from the database: as stored — held, no day.
+    expect(await planned(id)).toEqual({ doDate: undefined, unplanned: true, modifiedAt: T0 })
     expect(undoNames()).toEqual([])
   })
 

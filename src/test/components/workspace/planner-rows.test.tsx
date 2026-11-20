@@ -82,8 +82,8 @@ const cell = (title: string, name: 'due' | 'followup') => rowOf(title).querySele
 
 /** The store's plan and edit writes, watched (nothing is stored). */
 function watch() {
-  const setPlan = vi.fn(() => Promise.resolve())
-  const setPlans = vi.fn(() => Promise.resolve())
+  const setPlan = vi.fn(() => Promise.resolve(true))
+  const setPlans = vi.fn(() => Promise.resolve(true))
   const update = vi.fn(() => Promise.resolve(true))
   useTodoStore.setState({ setPlan, setPlans, update })
   return { setPlan, setPlans, update }

@@ -52,6 +52,8 @@ function storedOrder(tabId: string): readonly string[] {
   return tab?.kind === 'planner' ? tab.viewState?.order ?? [] : []
 }
 
+const sameOrder = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((uid, i) => uid === b[i])
+
 /**
  * What `move` does now in the Planner `tabId`, for the task as the store
  * holds it (`utils/planner.plannerMovePlan`); null when the task is gone.
@@ -96,15 +98,24 @@ export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDra
  * takes the task **out of view** (`plan.hidden`: a day the Planner shows it
  * on nowhere — a Snooze past the window with no real date inside it) shows
  * the snackbar, named for the day, with its Undo (`Planned for Fri, Nov
- * 27`): nothing leaves the Planner silently.
+ * 27`): nothing leaves the Planner silently. A plan write that fails
+ * (`setPlan` says so and tells the user) takes the hand order back to what
+ * the tab stored before, so the row doesn't keep a place among the rows of
+ * a group it never reached.
  */
 export async function applyPlannerMove(tabId: string, todoId: number, plan: PlannerMovePlan): Promise<void> {
   const { drop, order, hidden } = plan
+  const before = order ? storedOrder(tabId) : null
   if (order) void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { order })
   const write = plannerDropWrite(drop)
   if (write === undefined) return
-  if (hidden) await useTodoStore.getState().setPlan([todoId], write, `Planned for ${plannerDayLabel(hidden)}`, true)
-  else await useTodoStore.getState().setPlan([todoId], write)
+  const saved = hidden
+    ? await useTodoStore.getState().setPlan([todoId], write, `Planned for ${plannerDayLabel(hidden)}`, true)
+    : await useTodoStore.getState().setPlan([todoId], write)
+  // Only while the tab still stores this move's order: a later drop's stays.
+  if (!saved && order && before && sameOrder(storedOrder(tabId), order)) {
+    void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { order: [...before] })
+  }
 }
 
 /** Plans and makes `move` (Move to day ›, Unplan); resolves once it is written. */
@@ -139,9 +150,9 @@ const tasksWord = (n: number): string => `${n} ${n === 1 ? 'task' : 'tasks'}`
  * (`view`) to Unplanned — each as its own Unplan would — in one write and
  * one undo step, with the snackbar's Undo.
  */
-export function unplanDelayedTasks(view: Pick<PlannerRows, 'window' | 'delayed'>): Promise<void> {
+export async function unplanDelayedTasks(view: Pick<PlannerRows, 'window' | 'delayed'>): Promise<void> {
   const plans = plannerUnplanDelayed(view)
-  return useTodoStore.getState().setPlans(plans, `Unplanned ${tasksWord(plans.length)} from Delayed`, true)
+  await useTodoStore.getState().setPlans(plans, `Unplanned ${tasksWord(plans.length)} from Delayed`, true)
 }
 
 
@@ -153,11 +164,11 @@ export function unplanDelayedTasks(view: Pick<PlannerRows, 'window' | 'delayed'>
  * shifted, the days shown, `Reset plan: Nov 27 – Dec 3` —, `… today`,
  * `… Delayed`.
  */
-export function resetPlannerPlan(view: PlannerRows, scope: PlannerResetScope): Promise<void> {
+export async function resetPlannerPlan(view: PlannerRows, scope: PlannerResetScope): Promise<void> {
   const ids = plannerResetTasks(view, scope).map((t) => t.id)
   const week = plannerResetWeekLabel(view.window)
   const words = scope === 'week' ? (week === 'This week' ? 'this week' : week) : scope === 'today' ? 'today' : 'Delayed'
-  return useTodoStore.getState().setPlan(ids, null, `Reset plan: ${words}`, true)
+  await useTodoStore.getState().setPlan(ids, null, `Reset plan: ${words}`, true)
 }
 
 /**

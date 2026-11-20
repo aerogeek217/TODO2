@@ -435,6 +435,27 @@ describe('the hand order', () => {
     expect(await storedOrder()).toEqual([d.uid, a.uid, e.uid])
   })
 
+  it('a plan write that fails: the user is told, the plan is as it was, and the hand order goes back to the one stored before', async () => {
+    const a = await seed('A', { nextFollowupAt: day(0) })
+    const b = await seed('B', { dueDate: day(0) })
+    const d = await seed('D', { dueDate: day(3) })
+    const e = await seed('E', { doDate: day(3) })
+    const shown = [b.uid, a.uid, d.uid, e.uid]
+    // An order stored before: a dragged above b in Today.
+    await drop(a, group(on(0), '2026-11-20', [b.uid, a.uid], shown), over('2026-11-20', 0))
+    const before = await storedOrder()
+    expect(before).toEqual([a.uid, b.uid, d.uid, e.uid])
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const bulkUpdate = vi.spyOn(todoRepository, 'bulkUpdate').mockRejectedValueOnce(new Error('disk full'))
+    await drop(a, group(on(3), '2026-11-23', [d.uid, e.uid], [a.uid, b.uid, d.uid, e.uid]), over('2026-11-23', 1))
+    bulkUpdate.mockRestore()
+    expect(await plan(a.id)).toMatchObject({ doDate: undefined, nextFollowupAt: day(0), modifiedAt: STAMP })
+    expect(steps()).toEqual([])
+    expect(useUndoStore.getState().snackbar).toEqual({ description: "Couldn't save the plan of “A”.", notice: true })
+    // The row never reached Monday: no place among its rows is kept.
+    expect(await storedOrder()).toEqual(before)
+  })
+
   it('a dated row dropped into Unplanned is held where it was dropped, among the tray’s rows', async () => {
     const a = await seed('A', { dueDate: day(1) })
     const f = await seed('F', { focus: true })

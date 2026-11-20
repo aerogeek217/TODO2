@@ -212,7 +212,7 @@ describe('the Planner — the trays', () => {
 
   it('the Unplan button moves every Delayed task to Unplanned in one write', () => {
     useTodoStore.setState({ todos: withTrays() })
-    const setPlans = vi.fn(() => Promise.resolve())
+    const setPlans = vi.fn(() => Promise.resolve(true))
     useTodoStore.setState({ setPlans })
     show()
     fireEvent.click(within(root()).getByRole('button', { name: 'Move all Delayed tasks to Unplanned' }))
