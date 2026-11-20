@@ -153,7 +153,7 @@ test('workspace', async ({ browser }) => {
 })
 
 test('list', async ({ browser }) => {
-  await withPage(browser, 1150, 780, 2, false, async (page) => {
+  await withPage(browser, 1150, 860, 2, false, async (page) => {
     await shoot(page, 'list', [cell(page, README_IDS.cells.list)], 4)
   })
 })
@@ -195,11 +195,12 @@ test('review', async ({ browser }) => {
     await shoot(page, 'review', [widget], 6)
   })
 })
+
 test('insights', async ({ browser }) => {
   await withPage(browser, 880, 720, 2, false, async (page) => {
     await layout(page, 'Planning')
     const C = README_IDS.cells
-    await shoot(page, 'insights', [...C.planningNumbers.map((c) => cell(page, c)), cell(page, C.breakdown), cell(page, C.trend)], 4)
+    await shoot(page, 'insights', [cell(page, C.planningNumbers), cell(page, C.breakdown), cell(page, C.trend)], 4)
   })
 })
 

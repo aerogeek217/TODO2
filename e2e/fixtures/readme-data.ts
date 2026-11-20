@@ -100,7 +100,7 @@ const TASKS: Task[] = [
     title: EDITOR_TASK, age: 16, due: 7, followup: 2, followedUp: -2, people: ['sam', 'priya'], tags: ['vendor'], status: 'waiting', important: true,
     notes: 'Contract ends on the 30th. Aim: same seats, a two-year term, premium support at the standard price.\n\n- Usage is down 18% since spring\n- Finance wants a counter-offer by the budget review',
     subtasks: ['[x] Pull the last 12 months of usage', '[x] Get two competing quotes', 'Draft the counter-offer', 'Review the terms with finance'],
-    updates: [[-9, 'Kick-off call with their account manager'], [-5, 'First renewal quote received: 12% up'], [-2, 'Sent our usage numbers; reply expected Friday']],
+    updates: [[-9, 'Kick-off call with their rep'], [-5, 'First renewal quote: 12% up'], [-2, 'Sent usage numbers; reply Friday']],
   },
   { title: 'Answer the vendor security questionnaire', age: 37, due: 5, followup: 1, people: ['sam'], tags: ['vendor'], status: 'waiting' },
   { title: 'Check the data processing addendum', age: 48, due: 10, people: ['elena'], tags: ['vendor'] },
@@ -168,12 +168,17 @@ const byPerson = (id: string) => ({
   },
 })
 
-/** Ids of the layouts and the cells the spec crops to. */
+/**
+ * Ids of the layouts and the cells the spec crops to. Each layout's three
+ * Numbers are written as three cells side by side, which the v82 upgrade
+ * merges into one strip under the first cell's id (`numbers`,
+ * `planningNumbers`).
+ */
 export const README_IDS = {
   layouts: { today: 1, planning: 2 },
   cells: {
-    list: 'cell-list', calendar: 'cell-cal', numbers: ['cell-n-open', 'cell-n-week', 'cell-n-late'],
-    planningNumbers: ['cell-p-open', 'cell-p-week', 'cell-p-late'], breakdown: 'cell-breakdown', trend: 'cell-trend',
+    list: 'cell-list', calendar: 'cell-cal', numbers: 'cell-n-open',
+    planningNumbers: 'cell-p-open', breakdown: 'cell-breakdown', trend: 'cell-trend',
   },
 }
 
@@ -269,9 +274,9 @@ export function readmeData(today: Date = new Date()): Obj {
       },
       cells: [
         { id: C.list, tabs: [{ id: 'tab-list', kind: 'lens', config: { listDefinitionId: 1 } }], activeTabId: 'tab-list', area: { col: 0, row: 0, colSpan: 1, rowSpan: 2 } },
-        { id: C.numbers[0], tabs: [number('tab-n-open', 'Open', filter())], activeTabId: 'tab-n-open', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: C.numbers[1], tabs: [number('tab-n-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-n-week', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: C.numbers[2], tabs: [number('tab-n-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-n-late', area: { col: 3, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: C.numbers, tabs: [number('tab-n-open', 'Open', filter())], activeTabId: 'tab-n-open', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: 'cell-n-week', tabs: [number('tab-n-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-n-week', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: 'cell-n-late', tabs: [number('tab-n-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-n-late', area: { col: 3, row: 0, colSpan: 1, rowSpan: 1 } },
         { id: 'cell-t-breakdown', tabs: [byPerson('tab-t-breakdown')], activeTabId: 'tab-t-breakdown', area: { col: 1, row: 1, colSpan: 3, rowSpan: 1 } },
         { id: C.calendar, tabs: [{ id: 'tab-cal', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: 0 } }], activeTabId: 'tab-cal', area: { col: 0, row: 2, colSpan: 4, rowSpan: 1 } },
       ],
@@ -287,9 +292,9 @@ export function readmeData(today: Date = new Date()): Obj {
         rows: [{ id: 'p-r1', weight: 95 }, { id: 'p-r2', weight: 515 }, { id: 'p-r3', weight: 485 }],
       },
       cells: [
-        { id: C.planningNumbers[0], tabs: [number('tab-p-open', 'Open', filter())], activeTabId: 'tab-p-open', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: C.planningNumbers[1], tabs: [number('tab-p-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-p-week', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: C.planningNumbers[2], tabs: [number('tab-p-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-p-late', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: C.planningNumbers, tabs: [number('tab-p-open', 'Open', filter())], activeTabId: 'tab-p-open', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: 'cell-p-week', tabs: [number('tab-p-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-p-week', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 } },
+        { id: 'cell-p-late', tabs: [number('tab-p-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-p-late', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
         { id: C.breakdown, tabs: [byPerson('tab-breakdown')], activeTabId: 'tab-breakdown', area: { col: 0, row: 1, colSpan: 3, rowSpan: 1 } },
         { id: C.trend, tabs: [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }], activeTabId: 'tab-trend', area: { col: 0, row: 2, colSpan: 3, rowSpan: 1 } },
       ],
