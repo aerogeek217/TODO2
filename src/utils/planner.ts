@@ -1,4 +1,5 @@
 import type { TodoItem } from '../models/todo-item'
+import { PLANNER_ORDER_MAX } from '../models/workspace-layout'
 import { addDays, dayKey, formatDateWith, startOfDay } from './date'
 
 /**
@@ -247,13 +248,18 @@ export function plannerView<T extends PlannerTask>(tasks: readonly T[], options:
 /** Where a row is dropped: a day (a tile, a day's group, Today), or Focus, no day. */
 export type PlannerTarget = { kind: 'day'; day: Date } | { kind: 'noday' }
 
+/** A target's key: its day's `dayKey` — Today's group and today's tile share it —, or `PLANNER_NO_DAY_KEY`. */
+export function plannerTargetKey(target: PlannerTarget): string {
+  return target.kind === 'day' ? dayKey(target.day) : PLANNER_NO_DAY_KEY
+}
+
 /** What a drop writes. */
 export type PlannerDrop =
   /** Move the task's next follow-up to the day (it sat on its day by it). */
   | { kind: 'followup'; date: Date }
   /** Set the task's Do day; `undefined` clears it. */
   | { kind: 'do'; date: Date | undefined }
-  /** Not allowed there: a task on its day by a date can't go to Focus, no day. */
+  /** Not allowed there: a task on its day by a date can't go to Focus, no day; a completed task goes nowhere. */
   | { kind: 'refuse' }
   /** Nothing to do: it is there already. */
   | { kind: 'none' }
@@ -263,9 +269,15 @@ export type PlannerDrop =
  * no day) — on `target` writes. A day: nothing on the day it is on; a task
  * there by its follow-up has the follow-up moved; any other gets the day as
  * its Do day. Focus, no day: a Do day is cleared; a task placed by its due
- * date or follow-up is refused. Never the due date.
+ * date or follow-up is refused. A completed task is refused everywhere (the
+ * Planner holds open tasks). Never the due date.
  */
-export function plannerDrop(task: Pick<PlannerTask, 'doDate'>, placement: PlannerPlacement | null, target: PlannerTarget): PlannerDrop {
+export function plannerDrop(
+  task: Pick<PlannerTask, 'doDate' | 'isCompleted'>,
+  placement: PlannerPlacement | null,
+  target: PlannerTarget,
+): PlannerDrop {
+  if (task.isCompleted) return { kind: 'refuse' }
   if (target.kind === 'noday') {
     if (task.doDate != null) return { kind: 'do', date: undefined }
     return placement ? { kind: 'refuse' } : { kind: 'none' }
@@ -273,6 +285,100 @@ export function plannerDrop(task: Pick<PlannerTask, 'doDate'>, placement: Planne
   const date = startOfDay(new Date(target.day))
   if (placement && placement.day.getTime() === date.getTime()) return { kind: 'none' }
   return placement?.reason === 'followup' ? { kind: 'followup', date } : { kind: 'do', date }
+}
+
+/** Where in a group a dropped row lands. */
+export interface PlannerDropPosition {
+  /** The group's tasks as it shows them: their `uid`s. */
+  rows: readonly string[]
+  /** Before row `index` of `rows` without the dropped one (`rows.length` or more: at the group's end). */
+  index: number
+  /** Every task the Planner shows, in display order (`PlannerView.tasks`): what a hand order is written over. */
+  shown: readonly string[]
+}
+
+/**
+ * The hand order after `uid` lands at `position`: the whole displayed
+ * sequence (`position.shown`: only the tasks the Planner shows, each once)
+ * with `uid` before the row it was dropped before — after the group's last
+ * row at its end; at the sequence's end in a group with no other row. At
+ * most `max` `uid`s: past that, the group dropped into is kept whole and
+ * the others are cut from the end.
+ */
+export function plannerReorder(uid: string, position: PlannerDropPosition, max: number = PLANNER_ORDER_MAX): string[] {
+  const group = position.rows.filter((u) => u !== uid)
+  const at = Math.max(0, Math.min(Math.trunc(position.index), group.length))
+  const rest = [...new Set(position.shown)].filter((u) => u !== uid)
+  const before = group[at]
+  const after = group[at - 1]
+  let place = rest.length
+  if (before != null && rest.includes(before)) place = rest.indexOf(before)
+  else if (after != null && rest.includes(after)) place = rest.indexOf(after) + 1
+  const sequence = [...rest.slice(0, place), uid, ...rest.slice(place)]
+  if (sequence.length <= max) return sequence
+  const keep = new Set([uid, ...group])
+  let room = Math.max(0, max - keep.size)
+  return sequence.filter((u) => keep.has(u) || room-- > 0).slice(0, max)
+}
+
+/** What a drop does, all of it: the write, the hand order, and whether the row leaves its group. */
+export interface PlannerDropPlan {
+  /** The write (`plannerDrop`). */
+  drop: PlannerDrop
+  /** The hand order to store; absent: it stays as it is. */
+  order?: string[]
+  /** The write moves the row to another group (or out of the Planner): it shows there once the write lands. */
+  moves: boolean
+}
+
+/**
+ * What dropping `task` on `target` does in a Planner whose window is
+ * `window`: the write `plannerDrop` decides for the task's placement there,
+ * and — dropped into a group at `position` — the hand order with the row
+ * where it was dropped (`plannerReorder`). A refused drop changes nothing;
+ * one that writes nothing reorders only a task the group already shows, and
+ * only when it lands somewhere else.
+ */
+export function plannerDropPlan(
+  task: PlannerTask,
+  window: Pick<PlannerWindow, 'today' | 'last'>,
+  target: PlannerTarget,
+  position: PlannerDropPosition | null = null,
+): PlannerDropPlan {
+  const drop = plannerDrop(task, plannerPlacement(task, window.today, window.last), target)
+  const moves = drop.kind === 'followup' || drop.kind === 'do'
+  if (!position || drop.kind === 'refuse') return { drop, moves }
+  if (drop.kind === 'none' && !position.rows.includes(task.uid)) return { drop, moves }
+  const order = plannerReorder(task.uid, position)
+  if (drop.kind === 'none') {
+    // Dropped where it is: nothing to store.
+    const shown = [...new Set(position.shown)]
+    if (order.length === shown.length && order.every((u, i) => u === shown[i])) return { drop, moves }
+  }
+  return { drop, order, moves }
+}
+
+/** What the lifted row's label says a drop will write, and in which color. */
+export interface PlannerDropLabel {
+  text: string
+  /** The date the drop changes: the follow-up's color, or the Do day's (Focus). */
+  tone: 'followup' | 'do'
+}
+
+/** A day in the drag's and the menu's words: `Today`, else `Wed, Nov 25`. */
+export function plannerDayWords(day: Date, today: Date): string {
+  return startOfDay(new Date(day)).getTime() === startOfDay(new Date(today)).getTime() ? 'Today' : plannerDayLabel(day)
+}
+
+/**
+ * The label a drop that writes carries: `Follow-up · Wed, Nov 25`,
+ * `Do · Wed, Nov 25`, `No day` (a Do day cleared); none for a drop that is
+ * refused or writes nothing.
+ */
+export function plannerDropLabel(drop: PlannerDrop, today: Date): PlannerDropLabel | null {
+  if (drop.kind === 'followup') return { text: `Follow-up · ${plannerDayWords(drop.date, today)}`, tone: 'followup' }
+  if (drop.kind === 'do') return { text: drop.date ? `Do · ${plannerDayWords(drop.date, today)}` : 'No day', tone: 'do' }
+  return null
 }
 
 /** A day in words: `Mon, Nov 23` (a group's header, a tile's name). */

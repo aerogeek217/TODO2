@@ -1,6 +1,8 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useDroppable } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../../models'
 import { kindTabTitle, type ListZoom, type PlannerTab } from '../../../models/workspace-layout'
+import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { usePlanner, useTasksDoneToday, type PlannerData } from '../../../hooks/use-planner'
@@ -8,24 +10,26 @@ import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { appliedScreenFilter, useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { usePlannerStore } from '../../../stores/planner-store'
+import { usePlannerStore, type PlannerDragPreview } from '../../../stores/planner-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { LIST_SECTION_ATTR } from '../../../utils/dom-contract'
 import { getFilterDefaults } from '../../../utils/filter-defaults'
 import { autoListZoom, UNMEASURED_LIST_ZOOM } from '../../../utils/list-zoom'
-import { plannerDayLabel, plannerRangeLabel, type PlannerGroup } from '../../../utils/planner'
+import { plannerDayLabel, plannerDropLabel, plannerRangeLabel, type PlannerGroup, type PlannerTarget } from '../../../utils/planner'
 import { rowKey } from '../../../utils/scoped-selection'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
+import { plannerDropId, TASK_DROP_KIND, type PlannerDropData } from '../../../utils/task-dnd'
 import { plannerFaceFor, plannerStripFits } from '../../../utils/widget-face'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
 import { CheckIcon, PlusIcon } from '../../shared/icons'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
-import { ListWidgetRow } from '../list/ListWidgetRow'
+import { DropSlot, ListWidgetRow, type ListRowDragLook } from '../list/ListWidgetRow'
 import listStyles from '../list/ListWidget.module.css'
 import { WidgetNameLine } from '../WidgetTopLine'
-import { PlannerStrip } from './PlannerStrip'
+import { PlannerStrip, type PlannerDropMark } from './PlannerStrip'
+import { usePlannerDrag, type PlannerActiveDrag } from './use-planner-drag'
 import styles from './PlannerWidget.module.css'
 
 type Task = PersistedTodoItem
@@ -49,11 +53,24 @@ function groupLabel(group: Group): string {
  * (`utils/planner`); rows are the list's (`ListWidgetRow`, `MobileTaskRow`
  * on the phone), a click opening the task. The window and the picked day
  * are the tab's, in memory (`stores/planner-store`).
+ *
+ * **Drops** (desktop): every tile and every group takes a dragged task — a
+ * row of this Planner, a list's row, a calendar entry — as a dnd-kit
+ * droppable (`TASK_DROP_KIND.plannerDay` / `.plannerGroup`); the page's one
+ * dispatcher makes the drop (`services/planner-drop`: the follow-up moved,
+ * the Do day set or cleared, or refused — never the due date), and a drop
+ * into a group also stores the row's place in the hand order (the tab's
+ * `order`). While a task is dragged over it (`usePlannerDrag`) the target
+ * day's tile and group are dashed in the color of the date the drop
+ * changes, a blank slot shows where the row would land, and the lifted row
+ * carries the label (`PlannerDragLabel`).
  */
 export function PlannerWidget({ tab }: { tab: PlannerTab }) {
   const [faceRef, face] = useWidgetFace(plannerFaceFor)
   const [sizeRef, size] = useElementSize()
+  const hostRef = useRef<HTMLElement | null>(null)
   const setHost = useCallback((el: HTMLElement | null) => {
+    hostRef.current = el
     faceRef(el)
     sizeRef(el)
   }, [faceRef, sizeRef])
@@ -61,7 +78,7 @@ export function PlannerWidget({ tab }: { tab: PlannerTab }) {
     <div ref={setHost} className={styles.host} data-planner={tab.id} data-planner-face={face}>
       {face === 'small'
         ? <SmallFace tab={tab} />
-        : <PlannerBody tab={tab} panes={face === 'large'} tiles={plannerStripFits(size.width)} />}
+        : <PlannerBody tab={tab} panes={face === 'large'} tiles={plannerStripFits(size.width)} hostRef={hostRef} />}
     </div>
   )
 }
@@ -81,12 +98,26 @@ function SmallFace({ tab }: { tab: PlannerTab }) {
   )
 }
 
-function PlannerBody({ tab, panes, tiles }: {
+/** A task drag as the Planner's groups see it. */
+interface GroupDrag {
+  /** The task dragged anywhere in the workspace; null with none. */
+  active: PlannerActiveDrag | null
+  /** What a drop on this Planner would do, while the drag is over it. */
+  preview: PlannerDragPreview | null
+  /** The target day's mark, when the drop writes. */
+  mark: PlannerDropMark | null
+  /** Every task the Planner shows, in display order: their `uid`s. */
+  shown: readonly string[]
+}
+
+function PlannerBody({ tab, panes, tiles, hostRef }: {
   tab: PlannerTab
   /** Two panes (the large face); else one column. */
   panes: boolean
   /** The strip has room for its tiles. */
   tiles: boolean
+  /** The widget's element: its scrollers are measured when a task drag starts. */
+  hostRef: RefObject<HTMLElement | null>
 }) {
   const isMobile = useIsMobile()
   // The phone has no fold: a completed row leaves at once, as a list's.
@@ -105,9 +136,19 @@ function PlannerBody({ tab, panes, tiles }: {
   const onPick = useCallback((day: Date | null) => usePlannerStore.getState().pick(tabId, day), [tabId])
   const onShift = useCallback((weeks: -1 | 1) => usePlannerStore.getState().shift(tabId, weeks), [tabId])
 
-  const today = <TodayGroup tabId={tabId} group={view.today} data={data} mobile={isMobile} />
-  const ahead = days.map((g) => <DayGroup key={g.key} tabId={tabId} group={g} data={data} mobile={isMobile} />)
-  const noDay = showNoDay ? <DayGroup tabId={tabId} group={view.noDay} data={data} mobile={isMobile} /> : null
+  // ── A task dragged over it: the target marked, the place shown; a refused drop, the not-allowed cursor ──
+  const active = usePlannerDrag(tabId, hostRef)
+  const preview = usePlannerStore((s) => (s.drag?.tabId === tabId ? s.drag : null))
+  useDropRefusedCursor(preview?.drop.kind === 'refuse')
+  const shown = useMemo(() => view.tasks.map((t) => t.uid), [view.tasks])
+  const drag = useMemo<GroupDrag>(() => {
+    const tone = preview ? plannerDropLabel(preview.drop, data.today)?.tone : undefined
+    return { active, preview, mark: preview && tone ? { key: preview.key, tone } : null, shown }
+  }, [active, preview, shown, data.today])
+
+  const today = <TodayGroup tabId={tabId} group={view.today} data={data} mobile={isMobile} drag={drag} />
+  const ahead = days.map((g) => <DayGroup key={g.key} tabId={tabId} group={g} data={data} mobile={isMobile} drag={drag} />)
+  const noDay = showNoDay ? <DayGroup tabId={tabId} group={view.noDay} data={data} mobile={isMobile} drag={drag} /> : null
 
   return (
     <>
@@ -127,7 +168,17 @@ function PlannerBody({ tab, panes, tiles }: {
           <BadgeCapsule counts={badge.counts} label={badge.summary.join('; ')} data-testid="planner-badge" />
         )}
       </WidgetNameLine>
-      <PlannerStrip window={view.window} tiles={view.tiles} picked={picked} offset={offset} showTiles={tiles} onPick={onPick} onShift={onShift} />
+      <PlannerStrip
+        tabId={tabId}
+        window={view.window}
+        tiles={view.tiles}
+        picked={picked}
+        offset={offset}
+        showTiles={tiles}
+        onPick={onPick}
+        onShift={onShift}
+        mark={drag.mark}
+      />
       {twoPanes ? (
         <div className={styles.panes} data-planner-layout="panes">
           <div ref={trackScrollEdges} className={`${styles.pane} ${styles.todayPane}`} data-planner-pane="today">
@@ -195,11 +246,29 @@ function useRowsZoom(): [(el: HTMLElement | null) => void, ListZoom] {
   return [ref, setting === 'auto' ? next ?? UNMEASURED_LIST_ZOOM : setting]
 }
 
+/**
+ * How a row looks while a task is dragged — the list's manual-order looks:
+ * one of this Planner's rows dragged in its own group (or over no target)
+ * shows as its slot until the pointer picks another spot (then it is gone
+ * and the slot shows there), the other rows dimmed while they make room;
+ * headed for another day it stays where it is, faded.
+ */
+function plannerRowLook(drag: GroupDrag, key: string): ListRowDragLook {
+  const row = drag.active?.row
+  if (!row) return 'idle'
+  const { preview } = drag
+  const reordering = !preview || (preview.over === 'group' && preview.key === row.groupKey)
+  if (key !== row.key) return reordering ? 'dim' : 'idle'
+  if (!reordering) return 'origin'
+  return preview?.index != null && preview.index !== row.index ? 'gone' : 'slot'
+}
+
 interface GroupProps {
   tabId: string
   group: Group
   data: PlannerData
   mobile: boolean
+  drag: GroupDrag
   /** After the rows, inside the group (Today's done line and Add task). */
   children?: ReactNode
   /** In place of the rows of a group with none. */
@@ -212,8 +281,15 @@ interface GroupProps {
  * occurrences (`ListWidgetRow`: the tab's scope, the group's key as their
  * section), a click opening the task; `MobileTaskRow` on the phone. A row
  * completed here lingers, then folds (`PlannerData.leaving`).
+ *
+ * The whole group is a drop target (a droppable, not on the phone): its
+ * day — Today's is today —, or Focus, no day; its drop data carries its
+ * rows and every row shown, for the hand order. While a task is dragged
+ * over it a blank slot (the list's `DropSlot`) shows where the row would
+ * land, and the group is dashed in the color of the date the drop changes
+ * (`data-planner-drop`).
  */
-function DayGroup({ tabId, group, data, mobile, children, empty }: GroupProps) {
+function DayGroup({ tabId, group, data, mobile, drag, children, empty }: GroupProps) {
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const onSelect = useCallback((_rowKey: string, todoId: number) => openEditPopup(todoId), [openEditPopup])
@@ -221,13 +297,36 @@ function DayGroup({ tabId, group, data, mobile, children, empty }: GroupProps) {
   const zoom = useContext(RowsZoomContext)
   const label = groupLabel(group)
   const count = group.tasks.length
+
+  const { today, last } = data.view.window
+  const rows = useMemo(() => group.tasks.map((t) => t.uid), [group.tasks])
+  const target: PlannerTarget = group.day ? { kind: 'day', day: group.day } : { kind: 'noday' }
+  const dropData: PlannerDropData = {
+    type: TASK_DROP_KIND.plannerGroup,
+    scope: tabId,
+    target,
+    window: { today, last },
+    group: { key: group.key, rows, shown: drag.shown },
+  }
+  const { setNodeRef } = useDroppable({ id: plannerDropId(tabId, 'group', group.key), disabled: mobile, data: { ...dropData } })
+
+  // Where the dragged row would land here: before row `slotAt` of the rows without it.
+  const { active, preview } = drag
+  const here = preview?.over === 'group' && preview.key === group.key ? preview : null
+  const ownIndex = active?.row?.groupKey === group.key ? active.row.index : null
+  const slotAt = here?.index != null && here.index !== ownIndex ? here.index : null
+  const draggedKey = active ? rowKey(group.key, active.todo.id) : null
+  let placed = 0
+
   return (
     <div
+      ref={setNodeRef}
       className={styles.group}
       role="group"
       aria-label={label}
       data-planner-group={group.key}
       data-planner-group-kind={group.kind}
+      data-planner-drop={drag.mark?.key === group.key ? drag.mark.tone : undefined}
       // A grouped body's rows draw no hairline (TaskRow / MobileTaskRow styles).
       data-row-group=""
       {...{ [LIST_SECTION_ATTR]: group.key }}
@@ -238,13 +337,17 @@ function DayGroup({ tabId, group, data, mobile, children, empty }: GroupProps) {
         <span className={listStyles.groupRule} aria-hidden="true" />
       </div>
       <div className={styles.groupBody} data-planner-group-body={group.key}>
-        {count === 0 && empty}
-        {group.tasks.map((built) => {
+        {count === 0 && slotAt == null && empty}
+        {group.tasks.flatMap((built) => {
           const todo = keptTodos?.get(built.id) ?? built
           const key = rowKey(group.key, todo.id)
           const people = assignedPeopleMap.get(todo.id)
-          if (mobile) return <MobileTaskRow key={key} todo={todo} assignedPeople={people} onOpenDetail={openEditPopup} />
-          return (
+          if (mobile) return [<MobileTaskRow key={key} todo={todo} assignedPeople={people} onOpenDetail={openEditPopup} />]
+          // The slot's place counts the rows without the dragged one.
+          const slot = key !== draggedKey && slotAt === placed ? <DropSlot key="drop-slot" /> : null
+          if (key !== draggedKey) placed++
+          return [
+            slot,
             <ListWidgetRow
               key={key}
               todo={todo}
@@ -256,14 +359,15 @@ function DayGroup({ tabId, group, data, mobile, children, empty }: GroupProps) {
               selFirst
               selLast
               cursor={false}
-              look="idle"
+              look={plannerRowLook(drag, key)}
               leaving={keptTodos?.has(todo.id) ? leaving.get(todo.id)?.phase : undefined}
               zoom={zoom}
               onSelect={onSelect}
               onOpenDetail={openEditPopup}
-            />
-          )
+            />,
+          ]
         })}
+        {slotAt != null && slotAt >= placed && <DropSlot key="drop-slot" />}
         {children}
       </div>
     </div>
@@ -271,7 +375,7 @@ function DayGroup({ tabId, group, data, mobile, children, empty }: GroupProps) {
 }
 
 /** Today: its rows, then `N done` — the tasks completed today, struck, on one line — and Add task, its last row. */
-function TodayGroup({ tabId, group, data, mobile }: Omit<GroupProps, 'children' | 'empty'>) {
+function TodayGroup({ tabId, group, data, mobile, drag }: Omit<GroupProps, 'children' | 'empty'>) {
   const done = useTasksDoneToday()
   const { today } = data
   const addTask = () => {
@@ -285,6 +389,7 @@ function TodayGroup({ tabId, group, data, mobile }: Omit<GroupProps, 'children' 
       group={group}
       data={data}
       mobile={mobile}
+      drag={drag}
       empty={<p className={styles.emptyLine} role="status">Nothing for today</p>}
     >
       {done.length > 0 && (

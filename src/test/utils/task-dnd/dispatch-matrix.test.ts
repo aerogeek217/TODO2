@@ -5,6 +5,8 @@
  * relies on:
  *   - calendar-day target → reschedule (which date: the entry's own, the
  *     one the calendar shows, or the user's pick when it shows both)
+ *   - a Planner's tile or group → the Planner's one drop
+ *     (`dispatch-planner.test.ts` has that branch)
  *   - any other target (or none) → not handled; the caller's own
  *     handler runs
  */
@@ -205,18 +207,22 @@ describe('resolveCalendarDropType', () => {
 describe('dispatchTaskDrop — every drop kind, and nothing else', () => {
   // One handled drop per TASK_DROP_KIND: a new kind without a case here
   // doesn't compile, and one the dispatcher ignores fails.
+  const PLANNER_WINDOW = { today: new Date(2026, 9, 12), last: new Date(2026, 9, 18) }
   const OVER_DATA: Record<TaskDropKind, Record<string, unknown>> = {
     'calendar-day': { date: new Date(2026, 9, 13), scope: 't1', dateTypes: { due: true, followup: false } },
+    'planner-day': { scope: 'p1', target: { kind: 'day', day: new Date(2026, 9, 13) }, window: PLANNER_WINDOW },
+    'planner-group': { scope: 'p1', target: { kind: 'noday' }, window: PLANNER_WINDOW, group: { key: 'none', rows: [], shown: [] } },
   }
   const deps = () => ({
     calendar: { reschedule: vi.fn(async () => {}) },
+    planner: { drop: vi.fn(async () => {}) },
   })
 
-  it.each(Object.values(TASK_DROP_KIND))('a drop on a %s is handled', async (kind) => {
+  it.each(Object.values(TASK_DROP_KIND))('a drop on a %s is handled, by one write', async (kind) => {
     const d = deps()
     const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 1, over: { id: `${kind}-x`, type: kind, extra: OVER_DATA[kind] } }), d)
     expect(handled).toBe(true)
-    expect(d.calendar.reschedule.mock.calls.length).toBe(1)
+    expect(d.calendar.reschedule.mock.calls.length + d.planner.drop.mock.calls.length).toBe(1)
   })
 
   it('over=null is not handled', async () => {
@@ -224,6 +230,7 @@ describe('dispatchTaskDrop — every drop kind, and nothing else', () => {
     const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 99, over: null }), d)
     expect(handled).toBe(false)
     expect(d.calendar.reschedule).not.toHaveBeenCalled()
+    expect(d.planner.drop).not.toHaveBeenCalled()
   })
 
   it('a target of any other type is not handled, so the caller\'s own drop runs', async () => {
@@ -234,6 +241,7 @@ describe('dispatchTaskDrop — every drop kind, and nothing else', () => {
     )
     expect(handled).toBe(false)
     expect(d.calendar.reschedule).not.toHaveBeenCalled()
+    expect(d.planner.drop).not.toHaveBeenCalled()
   })
 })
 

@@ -149,8 +149,8 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/neglect-map.ts': ['isDueNear', 'NEGLECT_JITTER', 'NeglectFields', 'neglectZone'],
   'utils/notes-preview.ts': ['NOTES_PREVIEW_MAX_CHARS', 'NOTES_PREVIEW_MAX_LINES', 'notesPreviewLines'],
   'utils/planner.ts': [
-    'inPlanner', 'PLANNER_NO_DAY_KEY', 'PLANNER_TILE_TICKS_MAX', 'plannerDrop', 'PlannerDrop', 'plannerOrder', 'plannerPlacement',
-    'PlannerPlacement', 'PlannerTarget', 'PlannerTask', 'plannerWindow',
+    'inPlanner', 'PLANNER_NO_DAY_KEY', 'PLANNER_TILE_TICKS_MAX', 'plannerDayWords', 'plannerOrder', 'PlannerPlacement', 'plannerReorder',
+    'PlannerTask', 'plannerWindow',
   ],
   'utils/priority-cues.ts': ['rowGlow'],
   'utils/priority-groups.ts': ['PriorityGroupContext'],

@@ -2,6 +2,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../models'
 import type { CalendarDateType, CalendarDateTypes } from '../../models/workspace-layout'
 import { dndLog } from '../debug-flags'
+import type { PlannerTarget } from '../planner'
 import { TASK_DROP_KIND } from './kinds'
 
 /** A list drag dropped on a day of a calendar showing both date types. */
@@ -31,11 +32,77 @@ interface CalendarOps {
   chooseType?: (request: CalendarDropChoiceRequest) => Promise<CalendarDateType | null>
 }
 
+/** A Planner group as its droppable describes it: what the hand order is written over. */
+interface PlannerDropGroup {
+  /** The group's key (`PlannerGroup.key`). */
+  key: string
+  /** Its tasks as it shows them: their `uid`s. */
+  rows: readonly string[]
+  /** Every task the Planner shows, in display order: their `uid`s. */
+  shown: readonly string[]
+}
+
+/** The drop data of a Planner's day tile or group (`TASK_DROP_KIND.plannerDay` / `.plannerGroup`). */
+export interface PlannerDropData {
+  type: typeof TASK_DROP_KIND.plannerDay | typeof TASK_DROP_KIND.plannerGroup
+  /** The Planner's tab id. */
+  scope: string
+  /** The day it stands for (Today's group and today's tile: today), or Focus, no day. */
+  target: PlannerTarget
+  /** The Planner's window as it shows: today and its last day — what a task's placement is read against. */
+  window: { today: Date; last: Date }
+  /** A group's rows; absent on a tile. */
+  group?: PlannerDropGroup
+}
+
+/** A task dropped on a Planner's tile or group. */
+export interface PlannerDropRequest {
+  todo: PersistedTodoItem
+  /** The Planner's tab id. */
+  tabId: string
+  target: PlannerTarget
+  window: { today: Date; last: Date }
+  /** The group dropped into; null for a tile. */
+  group: PlannerDropGroup | null
+}
+
+/** Planner side of {@link dispatchTaskDrop}. */
+interface PlannerOps {
+  /**
+   * Makes the drop: the one write the Planner's rule decides for the task
+   * (its follow-up moved, its Do day set or cleared, or nothing) and its
+   * place in the hand order. Called once per drop.
+   */
+  drop: (request: PlannerDropRequest) => Promise<void> | void
+}
+
 interface TaskDropDispatchDeps {
   /** Optional — required by surfaces that host calendar day droppables (the
    * workspace). When omitted, calendar-day drops fall through to the
    * caller's own handler. */
   calendar?: CalendarOps
+  /** Optional — required by surfaces that host Planner tiles and groups (the workspace). */
+  planner?: PlannerOps
+}
+
+const isUids = (v: unknown): v is readonly string[] => Array.isArray(v) && v.every((u) => typeof u === 'string')
+
+function isPlannerTarget(v: unknown): v is PlannerTarget {
+  if (v == null || typeof v !== 'object') return false
+  const t = v as { kind?: unknown; day?: unknown }
+  return t.kind === 'noday' || (t.kind === 'day' && t.day instanceof Date)
+}
+
+/** Whether a droppable's data is a Planner tile's or group's. */
+export function isPlannerDropData(v: unknown): v is PlannerDropData {
+  if (v == null || typeof v !== 'object') return false
+  const d = v as Partial<Record<keyof PlannerDropData, unknown>>
+  if (d.type !== TASK_DROP_KIND.plannerDay && d.type !== TASK_DROP_KIND.plannerGroup) return false
+  const w = d.window as { today?: unknown; last?: unknown } | undefined
+  if (typeof d.scope !== 'string' || !isPlannerTarget(d.target) || !(w?.today instanceof Date) || !(w.last instanceof Date)) return false
+  if (d.type === TASK_DROP_KIND.plannerDay) return true
+  const g = d.group as Partial<PlannerDropGroup> | undefined
+  return g != null && typeof g.key === 'string' && isUids(g.rows) && isUids(g.shown)
 }
 
 function isDateType(v: unknown): v is CalendarDateType {
@@ -77,7 +144,10 @@ function dropPoint(event: DragEndEvent): { x: number; y: number } | null {
 /**
  * Shared drop dispatcher for task-shaped drags that land on a shared drop
  * target: a task dropped on a calendar day gets that day as its due date or
- * next follow-up (see {@link resolveCalendarDropType}).
+ * next follow-up (see {@link resolveCalendarDropType}); one dropped on a
+ * Planner's day tile or group — a row of that Planner, of a list, a
+ * calendar entry — is handed to the Planner's one drop (`deps.planner.drop`,
+ * once: no chooser, never the due date).
  *
  * Returns `true` when the drop was handled (the caller should stop
  * processing — also when the user cancelled the date-type choice or the
@@ -127,6 +197,19 @@ export async function dispatchTaskDrop(
       await deps.calendar.reschedule(activeTodo.id, date, type)
       return true
     }
+  }
+
+  // ── Planner tile or group → the Planner's one drop ──
+  if (isPlannerDropData(overData) && deps.planner) {
+    dndLog('dispatch.planner', { todoId: activeTodo.id, tabId: overData.scope, type: overData.type })
+    await deps.planner.drop({
+      todo: activeTodo,
+      tabId: overData.scope,
+      target: overData.target,
+      window: overData.window,
+      group: overData.group ?? null,
+    })
+    return true
   }
 
   dndLog('dispatch.unhandled', {

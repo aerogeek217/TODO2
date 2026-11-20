@@ -132,6 +132,24 @@
   background: var(--color-tint-10);
 }
 
+/* The day a dragged task would be dropped on: dashed in the color of the
+ * date the drop changes — the follow-up's, or the Do day's (Focus). */
+.tile[data-planner-drop] {
+  border-style: dashed;
+}
+
+.tile[data-planner-drop='followup'],
+.tile[data-planner-drop='followup']:hover {
+  border-color: var(--color-followup);
+  background: var(--color-followup-bg);
+}
+
+.tile[data-planner-drop='do'],
+.tile[data-planner-drop='do']:hover {
+  border-color: var(--color-marker-focus);
+  background: var(--color-marker-focus-bg);
+}
+
 .tileHead {
   display: flex;
   align-items: baseline;
@@ -299,13 +317,19 @@
   padding: 2px 6px 6px;
 }
 
-/* The rows' zoom (`data-zoom`): the height a row off screen is taken to have (the list's `.row`). */
+/* The rows' zoom (`data-zoom`): the height a row off screen is taken to have (the list's `.row`), and a drop slot's — a row's. */
+.rowsHost {
+  --list-drop-slot-height: 30px;
+}
+
 .rowsHost[data-zoom='stacked'] {
   --list-row-intrinsic-height: var(--task-row-stacked-height);
+  --list-drop-slot-height: var(--task-row-stacked-height);
 }
 
 .rowsHost[data-zoom='lines'] {
   --list-row-intrinsic-height: var(--task-line-height);
+  --list-drop-slot-height: var(--task-line-height);
 }
 
 /* ── Groups ────────────────────────────────────────────────────────────── */
@@ -316,6 +340,70 @@
 
 .group + .group {
   margin-top: 6px;
+}
+
+/* The group a dragged task would land in: dashed in the color of the date the drop changes, as its day's tile
+ * (no tint: Today's group is a whole pane). */
+.group[data-planner-drop] {
+  border-radius: 7px;
+  outline: 1px dashed var(--color-followup);
+  outline-offset: -1px;
+}
+
+.group[data-planner-drop='do'] {
+  outline-color: var(--color-marker-focus);
+}
+
+/* Today and Focus, no day fill their panes: a drop anywhere in the pane is one on them. */
+.todayPane .rowsHost,
+.pinned .rowsHost {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.todayPane .rows,
+.pinned .rows {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.todayPane .group,
+.pinned .group {
+  flex: 1 0 auto;
+}
+
+/* ── The lifted row's label ────────────────────────────────────────────── */
+
+/* Under the dragged row (the page's drag overlay): which date a drop changes, in that date's color. */
+.dragLabel {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  display: flex;
+  align-items: center;
+  height: 20px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: var(--cal-followup-solid);
+  color: var(--cal-on-followup);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.dragLabel[data-tone='do'] {
+  background: var(--color-marker-focus);
+  color: var(--color-text-on-accent);
+}
+
+/* No room under the row (the window's foot): above it. */
+.dragLabel[data-above] {
+  top: auto;
+  bottom: calc(100% + 5px);
 }
 
 /* The list's group-header look (its name, count and rule are the list's own classes); not a button: a group here never folds. */
