@@ -1234,13 +1234,77 @@ describe('FileStorageService — the browser never answers at launch', () => {
     expect(vi.getTimerCount()).toBe(timersBefore)
   })
 
-  it('a stored link that can’t be read at all still fails launch’s step as before', async () => {
+  it('a stored link that can’t be read at all (the link database fails): as one not read in time, at once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
     const svc = await getService()
+    const { LINK_UNREAD_ERROR } = await import('../../services/file-storage')
     const timersBefore = vi.getTimerCount()
-    await expect(svc.initialize()).rejects.toThrow('meta database blocked')
-    expect(svc.status.launchWait).toBeNull()
+    // Launch's step doesn't fail: it goes on without the file, and says so.
+    await expect(svc.initialize()).resolves.toBeUndefined()
+    expect(svc.status).toMatchObject({ launchWait: null, fileName: null, isConnected: false, error: LINK_UNREAD_ERROR })
     expect(vi.getTimerCount()).toBe(timersBefore)
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith('[file-storage] the stored file handle could not be read', expect.any(Error))
+    // Tracked, as with an attached file.
+    for (const table of mockTables) expect(table.hook('creating').handlers.size).toBe(1)
+    fireLocalChange()
+    expect(syncState().dirtySince).not.toBeNull()
+  })
+
+  it('edits made after a link read that failed are unsynced at the next start: written to the unchanged file, never overwritten by it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // This browser last synced with the file as it still is, and was clean.
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
+    const svc = await getService()
+    await svc.initialize()
+    // The session's edit.
+    fireLocalChange()
+    expect(syncState()).toEqual({ fileSavedAt: FILE_SAVED_AT, dirtySince: expect.any(String) })
+
+    // The next start reads the link: the load decision finds the browser ahead.
+    svc.reset()
+    const { handle, writable } = createMockHandle()
+    mockLoadFileHandle.mockResolvedValue(handle)
+    await svc.initialize()
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledTimes(1)
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(svc.status).toMatchObject({ isConnected: true, paused: null, error: null })
+    expect(syncState().dirtySince).toBeNull()
+  })
+
+  it('the same start without that edit loads nothing either: the browser already holds the file', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
+    const svc = await getService()
+    await svc.initialize()
+    svc.reset()
+    const { handle, writable } = createMockHandle()
+    mockLoadFileHandle.mockResolvedValue(handle)
+    await svc.initialize()
+    // Clean and synced with this very file: the lossless load, no write.
+    expect(mockRestoreFromImportData).toHaveBeenCalledTimes(1)
+    expect(writable.write).not.toHaveBeenCalled()
+  })
+
+  it('a permission check that fails: as one not answered — the launch question, marked unchecked, edits tracked', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc, handle, writable } = await startWith(fileBody(), {
+      queryPermission: vi.fn().mockRejectedValue(new DOMException('gone', 'NotFoundError')),
+    })
+    const ask = vi.fn(() => Promise.resolve())
+    svc.onLaunchPermission(ask)
+    await expect(svc.initialize()).resolves.toBeUndefined()
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', unchecked: true })
+    expect(svc.status).toMatchObject({ needsPermission: true, launchWait: null, isConnected: false, fileName: 'todo2-data.json' })
+    expect(warn).toHaveBeenCalledWith('[file-storage] the permission check failed', expect.anything())
+    expect(handle.getFile).not.toHaveBeenCalled()
+    expectUntouched(writable)
+    await expectNoWriteAfterChange(writable)
   })
 
   it('Continue without the file while the file is read: launch goes on, sync paused; the late read changes nothing; Retry loads it', async () => {

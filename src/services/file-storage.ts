@@ -476,7 +476,19 @@ class FileStorageService {
     const gen = ++this.launchGen
 
     this.setLaunchWait('link')
-    const link = await this.orGivenUp(loadFileHandle(), FILE_LINK_TIMEOUT_MS)
+    // A link that can't be read (the link database fails or is blocked) is
+    // as one not read in time: a file may be attached all the same, so the
+    // session must be tracked — going on untracked, the next start would
+    // find the browser clean and load the file over this session's edits.
+    let link: Answer<FileSystemFileHandle | null>
+    try {
+      link = await this.orGivenUp(loadFileHandle(), FILE_LINK_TIMEOUT_MS)
+    } catch (err) {
+      if (gen !== this.launchGen) return
+      console.warn('[file-storage] the stored file handle could not be read', err)
+      this.launchWithoutLink()
+      return
+    }
     if (gen !== this.launchGen) return
     if (!link.answered) {
       console.warn('[file-storage] the browser did not hand over the stored file handle in time')
@@ -489,7 +501,16 @@ class FileStorageService {
     this.handle = handle
     this.installTracking()
     this.setLaunchWait('permission')
-    const perm = await this.orGivenUp(handle.queryPermission({ mode: 'readwrite' }), FILE_LINK_TIMEOUT_MS)
+    // A permission check that fails is as one not answered: whether access
+    // is still granted is unknown, so the launch question asks.
+    let perm: Answer<PermissionState>
+    try {
+      perm = await this.orGivenUp(handle.queryPermission({ mode: 'readwrite' }), FILE_LINK_TIMEOUT_MS)
+    } catch (err) {
+      if (gen !== this.launchGen) return
+      console.warn('[file-storage] the permission check failed', err)
+      perm = { answered: false }
+    }
     if (gen !== this.launchGen) return
     this.setLaunchWait(null)
 
