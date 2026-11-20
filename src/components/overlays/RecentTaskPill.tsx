@@ -30,6 +30,7 @@ import { TaskRowGrid } from '../task/TaskRowGrid'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { prefersReducedMotion } from '../../utils/motion'
 import { findFlightRow, flyTaskHome, NOT_A_FLIGHT_TARGET_ATTR } from './task-fly'
+import { DialogCloseButton } from '../shared/DialogCloseButton'
 import styles from './RecentTaskPill.module.css'
 
 export function RecentTaskPill() {
@@ -87,14 +88,7 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
           onOpenDetail={handleOpenDetail}
         />
       </TaskRowGrid>
-      <button
-        type="button"
-        className={styles.dismissButton}
-        onClick={() => clearRecent()}
-        aria-label="Dismiss"
-      >
-        ×
-      </button>
+      <DialogCloseButton size={24} label="Dismiss" onClick={() => clearRecent()} />
     </div>
   )
 }

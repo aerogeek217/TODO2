@@ -263,6 +263,24 @@
   padding: 0 6px;
 }
 
+/* A day's date while it has entries (`DayDate`): a button opening the day popover, as `+N more`. */
+.dayDate {
+  align-self: flex-start;
+  justify-self: start;
+  margin: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dayDate:hover,
+.dayDateOpen {
+  background: var(--color-tint-12);
+}
+
 .more:hover,
 .moreOpen {
   background: var(--color-tint-12);
@@ -903,24 +921,9 @@ button.heatDay {
   color: var(--color-text-muted);
 }
 
+/* The × (`DialogCloseButton`, 24px): at the header's end. */
 .dayPopoverClose {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
   margin-left: auto;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.dayPopoverClose:hover {
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
 }
 
 .dayPopoverEntries {

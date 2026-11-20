@@ -59,7 +59,7 @@ test.describe('task menu', () => {
     await page.keyboard.press('ArrowRight')
     const sub = page.getByRole('menu', { name: 'Follow-up' })
     await expect(sub).toBeVisible()
-    await expect(page.getByRole('menuitem', { name: /^1 week/ })).toBeFocused()
+    await expect(page.getByRole('menuitem', { name: /^1 day/ })).toBeFocused()
     const ib = (await item.boundingBox())!
     const sb = (await sub.boundingBox())!
     // Beside the parent menu, its first item level with the parent item.
@@ -77,7 +77,7 @@ test.describe('task menu', () => {
     await expect(page.getByRole('menu', { name: 'Task actions' })).toBeVisible()
 
     await item.click()
-    await page.getByRole('menuitem', { name: /^2 weeks/ }).click()
+    await page.getByRole('menuitem', { name: /^1 week/ }).click()
     await expect(page.getByRole('menu')).toHaveCount(0)
     await expect(taskRowByTitle(page, 'alpha').locator('[data-row-cell="followup"]')).toHaveAttribute('data-followup', 'upcoming')
   })

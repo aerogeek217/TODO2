@@ -148,10 +148,9 @@
   --font-size-badge-capsule: 10.5px;
   /* A glyph drawn as text or at 1em, sized to its box rather than read:
      a sort mark ▲▼ (xs), a ▾ caret, a phone checkbox's ✓ or the review
-     rail's clock at its flag's size (sm), a dialog's or sheet's × (lg). */
+     rail's clock at its flag's size (sm). */
   --font-size-glyph-xs: 8px;
   --font-size-glyph-sm: 10px;
-  --font-size-glyph-lg: 18px;
   /* The total in a Breakdown's donut, in its 42-unit viewBox (≈ 21px drawn). */
   --font-size-donut-total: 8px;
   --font-size-title: 24px;

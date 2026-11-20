@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { TooltipBubble } from './TooltipBubble'
 import { popoverOpenElsewhere, releaseTooltipSlot, takeTooltipSlot, TOOLTIP_DELAY_MS } from './use-tooltip'
-import { TOOLTIP_ATTR, TOOLTIP_SHORTCUT_ATTR } from '../../utils/dom-contract'
+import { TOOLTIP_ATTR, TOOLTIP_BAR_ATTR, TOOLTIP_BAR_LABEL_ATTR, TOOLTIP_SHORTCUT_ATTR } from '../../utils/dom-contract'
 
 const SELECTOR = `[${TOOLTIP_ATTR}]`
 
@@ -24,11 +24,19 @@ interface Open {
   el: HTMLElement
   text: string
   shortcut?: string
+  bar?: string
+  barLabel?: string
 }
 
 /** What an element's tooltip says now. */
 function openFor(el: HTMLElement, text: string): Open {
-  return { el, text, shortcut: el.getAttribute(TOOLTIP_SHORTCUT_ATTR) ?? undefined }
+  return {
+    el,
+    text,
+    shortcut: el.getAttribute(TOOLTIP_SHORTCUT_ATTR) ?? undefined,
+    bar: el.getAttribute(TOOLTIP_BAR_ATTR) ?? undefined,
+    barLabel: el.getAttribute(TOOLTIP_BAR_LABEL_ATTR) ?? undefined,
+  }
 }
 
 /**
@@ -136,10 +144,10 @@ export function TooltipHost() {
         return
       }
       const now = openFor(el, text)
-      setOpen((o) => (o && o.el === el && (o.text !== now.text || o.shortcut !== now.shortcut) ? now : o))
+      setOpen((o) => (o && o.el === el && (o.text !== now.text || o.shortcut !== now.shortcut || o.bar !== now.bar || o.barLabel !== now.barLabel) ? now : o))
     })
     watch.observe(document.body, { childList: true, subtree: true })
-    watch.observe(el, { attributes: true, attributeFilter: [TOOLTIP_ATTR, TOOLTIP_SHORTCUT_ATTR] })
+    watch.observe(el, { attributes: true, attributeFilter: [TOOLTIP_ATTR, TOOLTIP_SHORTCUT_ATTR, TOOLTIP_BAR_ATTR, TOOLTIP_BAR_LABEL_ATTR] })
     return () => {
       watch.disconnect()
       describedBy(el, id, false)
@@ -147,5 +155,5 @@ export function TooltipHost() {
   }, [el, id])
 
   if (!open) return null
-  return <TooltipBubble id={id} anchorRef={anchorRef} text={open.text} shortcut={open.shortcut} onClose={() => hideRef.current()} />
+  return <TooltipBubble id={id} anchorRef={anchorRef} text={open.text} shortcut={open.shortcut} bar={open.bar} barLabel={open.barLabel} onClose={() => hideRef.current()} />
 }

@@ -13,10 +13,6 @@
   composes: title from './CheckinDialog.module.css';
 }
 
-.closeBtn {
-  composes: closeBtn from './CheckinDialog.module.css';
-}
-
 .footer {
   composes: footer from './CheckinDialog.module.css';
 }

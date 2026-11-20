@@ -56,7 +56,7 @@ describe('buildEntries (shared)', () => {
 
   it('adds virtual entries for the other recurrences in range', () => {
     const start = days[0]!
-    const t = makeTodo({ id: 1, dueDate: start, recurrenceRule: { type: 'daily' } })
+    const t = makeTodo({ id: 1, dueDate: start, recurrenceRule: { every: { count: 1, unit: 'd' as const } } })
     const map = buildEntries([t], days, { dateTypes: DUE })
     expect(map.get(dayKey(start))?.[0]?.isVirtual).toBe(false)
     for (const d of days.slice(1)) {
@@ -85,7 +85,7 @@ describe('buildEntries — date types', () => {
   })
 
   it('follow-ups only: due dates and occurrences are left out', () => {
-    const t = makeTodo({ id: 1, dueDate: days[0], recurrenceRule: { type: 'daily' }, nextFollowupAt: days[2] })
+    const t = makeTodo({ id: 1, dueDate: days[0], recurrenceRule: { every: { count: 1, unit: 'd' as const } }, nextFollowupAt: days[2] })
     const all = [...buildEntries([t], days, { dateTypes: { due: false, followup: true } }).values()].flat()
     expect(all.map((e) => [e.kind, e.day.toISOString()])).toEqual([['followup', days[2]!.toISOString()]])
   })
@@ -133,7 +133,7 @@ describe('entry state, overdue washes and dots', () => {
   it('completed tasks and occurrences are never overdue', () => {
     const [done] = entriesOn(yesterday, [makeTodo({ id: 1, dueDate: yesterday, isCompleted: true })])
     expect(isEntryOverdue(done!, today)).toBe(false)
-    const occurrences = entriesOn(yesterday, [makeTodo({ id: 2, dueDate: days[0], recurrenceRule: { type: 'daily' } })])
+    const occurrences = entriesOn(yesterday, [makeTodo({ id: 2, dueDate: days[0], recurrenceRule: { every: { count: 1, unit: 'd' as const } } })])
     expect(occurrences[0]?.isVirtual).toBe(true)
     expect(isEntryOverdue(occurrences[0]!, today)).toBe(false)
   })
@@ -156,7 +156,7 @@ describe('entry state, overdue washes and dots', () => {
     ])
     expect(dayDots(e)).toEqual(['due', 'due', 'followup'])
     expect(dayDots(e.slice(0, 3))).toEqual(['due', 'due', 'due-done'])
-    const occ = entriesOn(tomorrow, [makeTodo({ id: 5, dueDate: days[0], recurrenceRule: { type: 'daily' } })])
+    const occ = entriesOn(tomorrow, [makeTodo({ id: 5, dueDate: days[0], recurrenceRule: { every: { count: 1, unit: 'd' as const } } })])
     expect(dayDots(occ)).toEqual(['occurrence'])
   })
 })

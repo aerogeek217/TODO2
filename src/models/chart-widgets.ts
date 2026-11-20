@@ -105,6 +105,42 @@ export interface BreakdownColumn {
   litWhen: NumberLitWhen
   /** The threshold of `above` / `below` (a whole number); absent with `never`. */
   litAt?: number
+  /**
+   * The row's **follow-up age** after its count (board V1, option B): the
+   * oldest of the row's open tasks by last follow-up (never followed up:
+   * since created), in the follow-up color once past `yellowAfterDays`.
+   * Absent: off. Optional, no schema step (the layout repair checks it).
+   */
+  age?: BreakdownColumnAge
+}
+
+/** A count column's follow-up age (`BreakdownColumn.age`): how many days it stays muted before it turns yellow. */
+export interface BreakdownColumnAge {
+  /** A whole number of days, 0 … `YELLOW_AFTER_DAYS_MAX`: an age past it draws in the follow-up color. */
+  yellowAfterDays: number
+}
+
+/** A follow-up age's yellow threshold as a new column (and the editor's tick) writes it. */
+export const DEFAULT_YELLOW_AFTER_DAYS = 14
+
+/** The largest yellow threshold kept. */
+export const YELLOW_AFTER_DAYS_MAX = 999
+
+/** A stored yellow threshold: a whole number of days, 0 … `YELLOW_AFTER_DAYS_MAX`. */
+function isYellowAfterDays(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= YELLOW_AFTER_DAYS_MAX
+}
+
+/** A stored `age`: `{ yellowAfterDays }`, nothing else. */
+function isColumnAge(v: unknown): v is BreakdownColumnAge {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
+  const { yellowAfterDays, ...rest } = v as Obj
+  return Object.keys(rest).length === 0 && isYellowAfterDays(yellowAfterDays)
+}
+
+/** Whether a follow-up age of `days` draws in the follow-up color (past the column's threshold). */
+export function ageIsYellow(age: BreakdownColumnAge, days: number): boolean {
+  return days > age.yellowAfterDays
 }
 
 /** The most count columns a Breakdown holds. */
@@ -142,12 +178,16 @@ function rangeColumn(range: TabBadgeRange, field: 'deadline' | 'followup', id: s
  * + N, overdue included) and **Follow-up** (the next follow-up likewise),
  * each lit above 0 in its colour, in Settings › Tasks' ranges of the moment
  * — a range `off` drops its column, `overdue` counts only its late tasks —;
- * ordinary columns from then on, no longer following Settings.
+ * ordinary columns from then on, no longer following Settings. With
+ * `followupAge` (the People preset, and People via Change widget — board
+ * V1) the Follow-up column carries the follow-up age, yellow past
+ * `DEFAULT_YELLOW_AFTER_DAYS`.
  */
-export function defaultBreakdownColumns(app: TabBadgeRanges): BreakdownColumn[] {
+export function defaultBreakdownColumns(app: TabBadgeRanges, opts: { followupAge?: boolean } = {}): BreakdownColumn[] {
+  const followup = rangeColumn(app.followup, 'followup', FOLLOWUP_COLUMN_ID, 'Follow-up', FOLLOWUP_COLUMN_COLOR)
   return [
     ...rangeColumn(app.due, 'deadline', DUE_COLUMN_ID, 'Due', DUE_COLUMN_COLOR),
-    ...rangeColumn(app.followup, 'followup', FOLLOWUP_COLUMN_ID, 'Follow-up', FOLLOWUP_COLUMN_COLOR),
+    ...(opts.followupAge ? followup.map((c) => ({ ...c, age: { yellowAfterDays: DEFAULT_YELLOW_AFTER_DAYS } })) : followup),
   ]
 }
 
@@ -198,10 +238,35 @@ export const BREAKDOWN_FIXED_SORT_KEYS = ['name', 'open'] as const
 
 /**
  * A heading a Breakdown's rows sort by: a fixed one (`BREAKDOWN_FIXED_SORT_KEYS`)
- * or a count column's id. A sort by a column it no longer has reads as the
- * split's default order.
+ * a count column's id, or a column's follow-up age (`age:<columnId>`,
+ * `ageSortKey`). A sort by a column it no longer has — or by the age of a
+ * column without one — reads as the split's default order.
  */
 export type BreakdownSortKey = string
+
+/** The prefix of a follow-up age's sort key. */
+const AGE_SORT_PREFIX = 'age:'
+
+/** The sort key of column `id`'s follow-up age: `age:<id>`. */
+export function ageSortKey(id: string): BreakdownSortKey {
+  return `${AGE_SORT_PREFIX}${id}`
+}
+
+/** The column a follow-up age's sort key names (`age:<id>` → `id`), else `null`. */
+export function ageSortColumnId(by: BreakdownSortKey): string | null {
+  if (!by.startsWith(AGE_SORT_PREFIX)) return null
+  const id = by.slice(AGE_SORT_PREFIX.length)
+  return isBreakdownColumnId(id) ? id : null
+}
+
+/**
+ * The sort keys `columns` give besides the fixed headings: each column's
+ * id, and `age:<id>` for each that carries its follow-up age — what a
+ * stored sort must name to be live (`liveBreakdownSort`).
+ */
+export function breakdownSortKeys(columns: readonly Pick<BreakdownColumn, 'id' | 'age'>[]): string[] {
+  return columns.flatMap((c) => (c.age ? [c.id, ageSortKey(c.id)] : [c.id]))
+}
 
 /**
  * A heading a Breakdown is sorted by (view state, one per split): counts
@@ -213,10 +278,11 @@ export interface BreakdownSort {
 }
 
 /**
- * A stored sort as the headings read it, given the Breakdown's column ids:
- * a fixed heading or one of its columns as stored; a column it no longer
- * has (removed in the editor): `undefined`, the split's default order. (The
- * older derived columns' keys and the Priority column's, v79 rewrote.)
+ * A stored sort as the headings read it, given the Breakdown's column sort
+ * keys (`breakdownSortKeys`): a fixed heading or one of its columns as
+ * stored; a column it no longer has (removed in the editor), or the age of
+ * a column without one: `undefined`, the split's default order. (The older
+ * derived columns' keys and the Priority column's, v79 rewrote.)
  */
 export function liveBreakdownSort(sort: BreakdownSort | undefined, columnIds: readonly string[]): BreakdownSort | undefined {
   if (!sort) return undefined
@@ -240,9 +306,9 @@ export function isBreakdownColumnId(v: unknown): v is string {
   return typeof v === 'string' && COLUMN_ID.test(v) && !includes(BREAKDOWN_FIXED_SORT_KEYS, v) && !isPrototypeKey(v)
 }
 
-/** A stored sort key: a fixed heading's, or a column id. */
+/** A stored sort key: a fixed heading's, a column id, or a column's follow-up age (`age:<id>`). */
 function isSortKey(v: unknown): v is BreakdownSortKey {
-  return includes(BREAKDOWN_FIXED_SORT_KEYS, v) || isBreakdownColumnId(v)
+  return includes(BREAKDOWN_FIXED_SORT_KEYS, v) || isBreakdownColumnId(v) || (typeof v === 'string' && ageSortColumnId(v) != null)
 }
 
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean'
@@ -262,15 +328,16 @@ export function breakdownConfigProblem(raw: Obj): string | null {
   return null
 }
 
-/** Whether a stored column list goes wrong in its scalar fields (its filters are the caller's): too many, a bad or repeated id, a bad name or colour. */
+/** Whether a stored column list goes wrong in its scalar fields (its filters are the caller's): too many, a bad or repeated id, a bad name, colour, rule or follow-up age. */
 function columnsProblem(raw: unknown): boolean {
   if (!Array.isArray(raw) || raw.length > BREAKDOWN_COLUMNS_MAX) return true
   const ids = new Set<string>()
   for (const c of raw as unknown[]) {
     if (typeof c !== 'object' || c === null || Array.isArray(c)) return true
-    const { id, name, color, litWhen, litAt } = c as Obj
+    const { id, name, color, litWhen, litAt, age } = c as Obj
     if (!isBreakdownColumnId(id) || ids.has(id) || !isChartName(name) || !isNumberColor(color)) return true
     if (!includes(NUMBER_LIT_WHEN, litWhen) || (litWhen === 'never' ? litAt !== undefined : !isNumberLitAt(litAt))) return true
+    if (age !== undefined && !isColumnAge(age)) return true
     ids.add(id)
   }
   return false
@@ -323,8 +390,9 @@ export function pickBreakdownConfig(raw: Obj, filter: PickedConfig<TodoPredicate
 /**
  * Count columns read from untrusted input: the first `BREAKDOWN_COLUMNS_MAX`,
  * each filter read as a Number's; a bad or repeated id gets a new one, a bad
- * name a blank one, a bad colour the Due magenta, a bad rule above 0 (`fixed`
- * on any change).
+ * name a blank one, a bad colour the Due magenta, a bad rule above 0, a
+ * follow-up age with a bad threshold `DEFAULT_YELLOW_AFTER_DAYS`, an `age`
+ * that isn't an object none (`fixed` on any change).
  */
 function pickColumns(raw: readonly unknown[], readPredicate: NumberPredicateRead): PickedConfig<BreakdownColumn[]> {
   let fixed = raw.length > BREAKDOWN_COLUMNS_MAX
@@ -339,10 +407,20 @@ function pickColumns(raw: readonly unknown[], readPredicate: NumberPredicateRead
     const litWhen: NumberLitWhen = includes(NUMBER_LIT_WHEN, col.litWhen) ? col.litWhen : 'above'
     const column: BreakdownColumn = { id, name, color, filter: filter.config, litWhen }
     if (litWhen !== 'never') column.litAt = isNumberLitAt(col.litAt) ? col.litAt : 0
+    const age = pickColumnAge(col.age)
+    if (age) column.age = age
     if (filter.fixed || !fresh || name !== col.name || color !== col.color || litWhen !== col.litWhen || column.litAt !== col.litAt) fixed = true
+    if (col.age !== undefined && !isColumnAge(col.age)) fixed = true
     columns.push(column)
   }
   return { config: columns, fixed }
+}
+
+/** A stored follow-up age read: an object keeps the age (its threshold `DEFAULT_YELLOW_AFTER_DAYS` where it isn't one); anything else is none. */
+function pickColumnAge(raw: unknown): BreakdownColumnAge | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const days = (raw as Obj).yellowAfterDays
+  return { yellowAfterDays: isYellowAfterDays(days) ? days : DEFAULT_YELLOW_AFTER_DAYS }
 }
 
 function isBreakdownSort(v: unknown): v is BreakdownSort {

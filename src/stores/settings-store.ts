@@ -11,10 +11,13 @@ import { DEFAULT_THEMED_COLORS, PRIORITY_TINT_FILL, PRIORITY_TINT_VARS, THEME_CO
 import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 import {
   DEFAULT_FOLLOWUP_INTERVAL,
+  DEFAULT_QUICK_FOLLOWUP_INTERVALS,
   addFollowupInterval,
   describeFollowupInterval,
   formatFollowupInterval,
+  formatQuickFollowupIntervals,
   parseFollowupInterval,
+  parseQuickFollowupIntervals,
   type FollowupInterval,
 } from '../utils/followup'
 import {
@@ -100,6 +103,8 @@ interface SettingsData {
   weekStartsOn: WeekStart
   /** Next follow-up for new tasks and after "Mark followed up" = today + this (while `autoFollowup` is on). */
   followupDefaultInterval: FollowupInterval
+  /** The quick follow-up intervals: the chips beside every next-follow-up field, the task menu's Follow-up ›, `/followup`'s rows. */
+  followupQuickIntervals: readonly FollowupInterval[]
   /**
    * "Set a next follow-up automatically": new tasks and "Mark followed up"
    * set it to today + `followupDefaultInterval`; off, new tasks get none and
@@ -179,6 +184,7 @@ interface SettingsState extends SettingsData {
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
+  setFollowupQuickIntervals: (intervals: readonly FollowupInterval[]) => Promise<void>
   /** "Set a next follow-up automatically". */
   setAutoFollowup: (on: boolean) => Promise<void>
   setRemoveConvertedLines: (on: boolean) => Promise<void>
@@ -479,6 +485,18 @@ export const SETTINGS = {
     failure: 'Couldn’t save the follow-up interval.',
     undo: ({ followupDefaultInterval: i }) => `Follow-up interval ${describeFollowupInterval(i)}`,
   }),
+  followupQuickIntervals: setting(['followupQuickIntervals'], {
+    read: (rows) => ({
+      followupQuickIntervals: rowOr(rows, K.followupQuickIntervals, DEFAULT_QUICK_FOLLOWUP_INTERVALS, (v) => parseQuickFollowupIntervals(v) ?? DEFAULT_QUICK_FOLLOWUP_INTERVALS),
+    }),
+    rows: ({ followupQuickIntervals: list }) => {
+      const text = formatQuickFollowupIntervals(list)
+      return rowUnlessDefault(K.followupQuickIntervals, text, text === formatQuickFollowupIntervals(DEFAULT_QUICK_FOLLOWUP_INTERVALS))
+    },
+    label: 'the quick follow-up intervals',
+    failure: 'Couldn’t save the quick follow-up intervals.',
+    undo: ({ followupQuickIntervals: list }) => `Quick follow-up intervals ${formatQuickFollowupIntervals(list)}`,
+  }),
   autoFollowup: setting(['autoFollowup'], {
     read: (rows) => ({ autoFollowup: rows.get(K.newTaskFollowup) !== 'false' }),
     // Stored only when off: absent = on.
@@ -717,6 +735,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   async setFollowupDefaultInterval(interval) {
     if (!parseFollowupInterval(formatFollowupInterval(interval))) return
     await SETTINGS.followupDefaultInterval.write({ followupDefaultInterval: { ...interval } })
+  },
+
+  async setFollowupQuickIntervals(intervals) {
+    const parsed = parseQuickFollowupIntervals(formatQuickFollowupIntervals(intervals))
+    if (parsed) await SETTINGS.followupQuickIntervals.write({ followupQuickIntervals: parsed })
   },
 
   async setAutoFollowup(on) {

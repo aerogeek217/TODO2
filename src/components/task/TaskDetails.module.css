@@ -531,32 +531,6 @@
   color: var(--color-text-on-accent);
 }
 
-/* The pill's ×: always there, quiet until hovered or focused. */
-.chipRemove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: inherit;
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  line-height: 1;
-  opacity: 0.45;
-  cursor: pointer;
-}
-
-.chipRemove:hover,
-.chipRemove:focus-visible {
-  opacity: 1;
-  background: var(--color-tint-8);
-}
-
 /* + : a dashed round button after the pills, always shown; it opens the picker. */
 .chipAdd {
   display: inline-flex;
@@ -591,37 +565,82 @@
 
 /* ── Due ── */
 
-/* The date, then the repeat under it. The repeat's line is kept while there is no date (and so no
- * repeat), so setting or clearing the date never changes the band's height. */
+/* The date, then the repeat under it — its field's line and its read-back's. The repeat's lines are
+ * kept while there is no date (and so no repeat), so setting or clearing the date never changes the
+ * band's height. */
 .dueLine {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
   min-width: 0;
-  min-height: calc(26px + 2px + 21px);
+  min-height: calc(26px + 2px + 24px + 2px + 16px);
 }
 
+/* The repeat (schema v84, board R1): `Repeat every [2w]`, then its read-back `Every 2 weeks · next
+ * Mon, Dec 7` on a line of its own — one line, cut with an ellipsis in a narrow cell (its tooltip
+ * the whole), so the band's height never changes with it. A text that doesn't read: its hint there
+ * instead, wrapping (the one time the cell may grow, until the text is fixed or Esc puts it back). */
 .repeat {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-self: stretch;
+  min-width: 0;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
-.repeatSelect {
-  max-width: 96px;
-  padding: 2px 0;
+.repeatLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+}
+
+.repeatLine > svg {
+  flex: none;
+}
+
+.repeatLabel {
+  white-space: nowrap;
+}
+
+.repeatInput {
+  width: 40px;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 0 6px;
   border: none;
-  background: transparent;
-  color: var(--color-text-muted);
+  border-radius: 5px;
+  background: var(--color-tint-6);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
   font-family: inherit;
   font-size: var(--font-size-sm);
-  cursor: pointer;
+  font-variant-numeric: tabular-nums;
 }
 
-.repeatSelect:hover {
+.repeatInput[aria-invalid='true'] {
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
+.repeatReadBack {
+  overflow: hidden;
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-secondary);
+}
+
+.repeatReadBack b {
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+}
+
+.repeatError {
+  line-height: 16px;
+  color: var(--color-danger);
 }
 
 /* ── The writing ── */

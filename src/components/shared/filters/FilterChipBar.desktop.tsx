@@ -15,7 +15,6 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  CloseIcon,
   HashIcon,
   StatusRingIcon,
   WidgetKindIcon,
@@ -33,6 +32,7 @@ import {
 } from './FilterChipBar.shared'
 import styles from './ScreenFilters.module.css'
 import { PopoverRoot } from '../PopoverRoot'
+import { RemoveButton } from '../RemoveButton'
 import { PopoverLevelContext, usePopoverLevel } from '../popover-level'
 
 type FieldKey = Extract<FilterChipField, 'people' | 'tags' | 'dates' | 'status' | 'markers'>
@@ -305,14 +305,11 @@ function FilterMenu({ fields, showCompleted, onToggleCompleted, active, onClearA
                   : <span className={styles.menuRowAny}>Any <ChevronRightIcon size={10} /></span>}
               </button>
               {field.value != null && (
-                <button
-                  type="button"
+                <RemoveButton
                   className={styles.clearField}
-                  aria-label={clearName(field)}
+                  label={clearName(field)}
                   onClick={() => { if (sub?.key === field.key) closeSub(); field.onClear() }}
-                >
-                  <CloseIcon size={8} />
-                </button>
+                />
               )}
             </div>
           ))}

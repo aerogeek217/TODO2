@@ -27,29 +27,13 @@
   text-decoration: line-through;
 }
 
-/* The field's ×, inside its right end while a filter is on: clears them all. */
+/* The field's × (`RemoveButton`, 20px), inside its right end while a filter is on: clears them all. */
 .clear {
   position: absolute;
   top: 50%;
   right: 3px;
   z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
   transform: translateY(-50%);
-  cursor: pointer;
-}
-
-.clear:hover {
-  color: var(--color-text-primary);
-  background: var(--color-tint-12);
 }
 
 /* The field's text, pills and `+N more` keep clear of the ×. */

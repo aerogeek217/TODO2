@@ -70,7 +70,7 @@ describe('todoStore', () => {
     const completedAt = new Date(2026, 8, 20, 9, 30)
     const id = await db.todos.add(makeTodo({
       title: 'Water plants', isCompleted: true, completedAt, dueDate: due,
-      recurrenceRule: { type: 'weekly' }, modifiedAt: completedAt,
+      recurrenceRule: { every: { count: 1, unit: 'w' as const } }, modifiedAt: completedAt,
     })) as number
     await useTodoStore.getState().loadAll()
     await useTodoStore.getState().toggleComplete(id)

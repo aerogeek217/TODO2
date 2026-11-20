@@ -5,6 +5,8 @@ import { usePersonAssignmentsForLoadedTodos } from '../../hooks/use-entity-assig
 import { countTodosByEntity } from '../../stores/assignment-helpers'
 import { generateInitials } from '../../utils/person'
 import { ColorPicker } from '../shared/ColorPicker'
+import { TrashIcon } from '../shared/icons'
+import { RemoveButton } from '../shared/RemoveButton'
 import { DeletePersonConfirm } from './EntityDeleteConfirm'
 import type { Person } from '../../models'
 import type { DialogLayer } from '../shared/Dialog'
@@ -39,15 +41,13 @@ function PersonColorField({ color, onChange }: { color: string | undefined; onCh
     <>
       <ColorPicker value={color ?? NEUTRAL_PERSON_COLOR} onChange={onChange} />
       {color && (
-        <button
-          type="button"
+        <RemoveButton
+          size={20}
           className={styles.iconBtn}
           onClick={() => onChange(undefined)}
-          data-tooltip="Remove color"
-          aria-label="Remove color"
-        >
-          &times;
-        </button>
+          label="Remove color"
+          tooltip
+        />
       )}
     </>
   )
@@ -188,7 +188,7 @@ export function PeopleEditor({ onClose, editPersonId, layer }: PeopleEditorProps
         <span className={styles.initials}>{p.initials}</span>
         <TaskCount count={counts.get(p.id!) ?? 0} />
         <div className={styles.actions}>
-          <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDeletePerson(p.id!)} aria-label="Delete" data-tooltip="Delete">&times;</button>
+          <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDeletePerson(p.id!)} aria-label={`Delete ${p.name}`} data-tooltip={`Delete ${p.name}`}><TrashIcon /></button>
         </div>
       </div>
     )

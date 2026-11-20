@@ -24,25 +24,6 @@
   font-weight: var(--font-weight-bold);
 }
 
-.close {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.close:hover,
-.close:focus-visible {
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
-}
-
 .body {
   display: flex;
   flex-direction: column;

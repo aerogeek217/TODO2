@@ -71,7 +71,7 @@ test('the follow-up: default → No follow-up and back, and ⏎ adds the task wi
 
   await chips(page).getByRole('button', { name: 'No follow-up' }).click()
   await expect(input).toHaveValue('Vendor call /followup none')
-  await expect(chips(page)).toHaveText('No follow-up×')
+  await expect(chips(page)).toHaveText('No follow-up')
   await expect(input).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(taskRowByTitle(page, 'Vendor call')).toBeVisible()

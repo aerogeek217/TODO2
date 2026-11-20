@@ -1,4 +1,4 @@
-import type { TodoItem, Person, TodoPerson, RecurrenceRule, RecurrenceType, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, StatusUpdate, Subtask, ListOrder } from '../models'
+import type { TodoItem, Person, TodoPerson, RecurrenceRule, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, StatusUpdate, Subtask, ListOrder } from '../models'
 import { TODO_EVENT_TYPES, isTodoSortBy, isTodoGroupBy, isTodoSortDirection, STATUS_UPDATE_TEXT_MAX, SUBTASK_TITLE_MAX } from '../models'
 import type { ListDefinition, ListOwner, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
@@ -8,7 +8,7 @@ import { parsePriorityCues } from '../utils/priority-cues'
 import { parseAmbienceSettings } from '../utils/ambience-settings'
 import { parseTabBadgeRange, pickListTabBadges } from '../utils/tab-badges'
 import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
-import { parseFollowupInterval } from '../utils/followup'
+import { parseFollowupInterval, parseQuickFollowupIntervals } from '../utils/followup'
 import { parseUrgentDueWithinDays } from '../utils/urgency'
 import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcut-bindings'
 import { parseStaleAfterDays } from '../utils/stale'
@@ -21,13 +21,20 @@ import { isEmoji, isIconValue, pickIconValue } from '../models/icon'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
 import { normalizeInitials } from '../utils/person'
+import { MAX_INTERVAL_COUNT } from '../utils/interval'
+import type { IntervalUnit } from '../models/interval'
 
-const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
+/** A repeat's interval as stored (schema v84): a whole count 1–999 and a unit (`models/interval`). */
+function isStoredInterval(v: unknown): boolean {
+  if (!isRecord(v)) return false
+  return typeof v.count === 'number' && Number.isInteger(v.count) && v.count >= 1 && v.count <= MAX_INTERVAL_COUNT
+    && typeof v.unit === 'string' && ['d', 'w', 'm', 'y'].includes(v.unit)
+}
 
 function isOptRecurrenceRule(v: unknown): boolean {
   if (v === undefined || v === null) return true
   if (!isRecord(v)) return false
-  if (typeof v.type !== 'string' || !VALID_RECURRENCE_TYPES.includes(v.type)) return false
+  if (!isStoredInterval(v.every)) return false
   if ('originalDayOfMonth' in v && v.originalDayOfMonth !== undefined) {
     if (typeof v.originalDayOfMonth !== 'number' || v.originalDayOfMonth < 1 || v.originalDayOfMonth > 31) return false
   }
@@ -419,6 +426,11 @@ function checkSetting(v: unknown): CheckResult {
       ? true
       : 'value (followupDefaultInterval must look like 3d, 2w, 1m or 1y)'
   }
+  if (v.key === SETTING_KEYS.followupQuickIntervals) {
+    return typeof v.value === 'string' && parseQuickFollowupIntervals(v.value)
+      ? true
+      : 'value (followupQuickIntervals must be 1–6 intervals like 1d 1w 1m 3m)'
+  }
   if (v.key === SETTING_KEYS.urgentDueWithinDays) {
     return parseUrgentDueWithinDays(v.value as string) !== undefined
       ? true
@@ -511,12 +523,12 @@ const optStr = (v: unknown): string | undefined => (v != null ? v as string : un
 
 /**
  * A task's repeat rule rebuilt from its known keys (`checkTodo` vetted the
- * type and day of month); stray keys go, as at the row level.
+ * interval and day of month); stray keys go, as at the row level.
  */
 function pickRecurrenceRule(v: unknown): RecurrenceRule | undefined {
-  if (!isRecord(v)) return undefined
+  if (!isRecord(v) || !isRecord(v.every)) return undefined
   return compactRow<RecurrenceRule>({
-    type: v.type as RecurrenceType,
+    every: { count: v.every.count as number, unit: v.every.unit as IntervalUnit },
     originalDayOfMonth: typeof v.originalDayOfMonth === 'number' ? v.originalDayOfMonth : undefined,
   } satisfies AllFields<RecurrenceRule>)
 }

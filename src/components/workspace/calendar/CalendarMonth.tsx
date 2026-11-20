@@ -8,7 +8,7 @@ import { useElementSize } from '../../../hooks/use-element-size'
 import { useTooltip } from '../../shared/use-tooltip'
 import styles from './CalendarWidget.module.css'
 import { MONTH_GRID_PAD, MONTH_GRID_GAP, MONTH_LEGEND_HEIGHT, type DayContext, useDayTarget, dayClasses } from './calendar-day'
-import { DropLabel, EntryItem, MoreButton } from './CalendarDayParts'
+import { DayDate, DropLabel, EntryItem, MoreButton } from './CalendarDayParts'
 
 /** The calendar's month: the grid of days, a heat-map day and its legend. */
 
@@ -34,9 +34,9 @@ function MonthDay({ day, month, entries, fit, ctx, onMore, moreOpen }: {
       data-outside={outside ? 'true' : undefined}
       data-drop-target={highlighted ? 'true' : undefined}
     >
-      <div className={styles.dayNumber}>
+      <DayDate day={day} count={entries.length} open={moreOpen} onMore={onMore} className={styles.dayNumber}>
         <span className={isToday ? styles.todayPill : undefined}>{day.getDate()}</span>
-      </div>
+      </DayDate>
       {entries.slice(0, shown).map((e) => <EntryItem key={e.key} entry={e} size="sm" ctx={ctx} />)}
       {more > 0 && <MoreButton day={day} more={more} open={moreOpen} onMore={onMore} />}
       {highlighted && <DropLabel ctx={ctx} />}

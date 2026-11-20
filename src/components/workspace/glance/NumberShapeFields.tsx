@@ -24,7 +24,8 @@ import { hasFilterClause } from '../../../utils/filter-clauses'
 import { bySortOrder } from '../../../utils/sort-order'
 import { ColorPicker } from '../../shared/ColorPicker'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
-import { CloseIcon, PlusIcon } from '../../shared/icons'
+import { PlusIcon } from '../../shared/icons'
+import { RemoveButton } from '../../shared/RemoveButton'
 import styles from './NumberEditor.module.css'
 
 /**
@@ -220,9 +221,7 @@ export function GroupItemsField({ config, patch }: { config: NumberConfig; patch
               onChange={(e) => set(i, { ...item, name: e.target.value.slice(0, NUMBER_NAME_MAX) })}
             />
             {items.length > 1 && (
-              <button type="button" className={styles.close} aria-label={`Remove count ${i + 1}`} data-tooltip="Remove" onClick={() => write(items.filter((_, j) => j !== i))}>
-                <CloseIcon size={12} />
-              </button>
+              <RemoveButton size={24} label={`Remove count ${i + 1}`} tooltip="Remove" onClick={() => write(items.filter((_, j) => j !== i))} />
             )}
           </div>
           <div className={styles.colors} data-on-auto={item.color == null || undefined}>

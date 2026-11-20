@@ -409,7 +409,7 @@ async function goTo(page: Page, scope: Locator, title: string) {
     await scope.locator('[data-review-queue-button]').click()
     await page.locator('[data-review-queue-popover] [data-review-row]').filter({ hasText: title }).click()
   }
-  await expect(scope.getByTestId('review-card-title')).toHaveText(title)
+  await expect(scope.getByTestId('review-card-title')).toHaveValue(title)
 }
 
 async function storedLast(page: Page): Promise<number | null> {
@@ -467,7 +467,7 @@ test.describe('the review card’s footer', () => {
       stops.push(name)
       if (/Skip/.test(name)) break
     }
-    expect(stops.slice(0, 9)).toEqual(['Last follow-up', 'Pick last follow-up date', 'Next follow-up', 'Clear next follow-up', 'Pick next follow-up date', 'Follow up in 1 week', 'Follow up in 2 weeks', 'Follow up in 1 month', 'Follow up in 3 months'])
+    expect(stops.slice(0, 9)).toEqual(['Last follow-up', 'Pick last follow-up date', 'Next follow-up', 'Clear next follow-up', 'Pick next follow-up date', 'Follow up in 1 day', 'Follow up in 1 week', 'Follow up in 1 month', 'Follow up in 3 months'])
     expect(stops.slice(9).join(' | ')).toMatch(/Mark followed up.*\|.*Back.*\|.*Skip/)
 
     // A future day is refused: nothing written.
@@ -563,7 +563,7 @@ test.describe('the Review widget across widths', () => {
     const widget = await sizeWidget(page, 660, 300)
     await expect(widget).toHaveAttribute('data-review-face', 'medium')
     for (const title of [HEAVY, EMPTY]) {
-      while ((await widget.getByTestId('review-card-title').textContent()) !== title) {
+      while ((await widget.getByTestId('review-card-title').inputValue()) !== title) {
         await widget.getByRole('button', { name: /^Skip/ }).click()
       }
       const update = widget.getByLabel('Status update · today')

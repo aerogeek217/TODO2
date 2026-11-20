@@ -63,7 +63,7 @@ beforeEach(() => {
     todos: [
       makeTodo({ id: 1, title: 'Both dates', dueDate: day(16), nextFollowupAt: day(20), sortOrder: 1 }),
       makeTodo({ id: 2, title: 'Late due', dueDate: day(12), sortOrder: 2 }),
-      makeTodo({ id: 3, title: 'Weekly', dueDate: day(5), recurrenceRule: { type: 'weekly' }, sortOrder: 3 }),
+      makeTodo({ id: 3, title: 'Weekly', dueDate: day(5), recurrenceRule: { every: { count: 1, unit: 'w' as const } }, sortOrder: 3 }),
       makeTodo({ id: 4, title: 'Done', dueDate: day(15), isCompleted: true, sortOrder: 4 }),
     ],
   })
@@ -122,7 +122,37 @@ describe('CalendarWidget', () => {
     expect(own.getAttribute('aria-roledescription')).toBe('draggable')
     expect(occurrence.getAttribute('data-virtual')).toBe('true')
     expect(occurrence.getAttribute('aria-roledescription')).toBeNull()
-    expect(occurrence.getAttribute('data-tooltip')).toContain('Repeats every Monday')
+    expect(occurrence.getAttribute('data-tooltip')).toContain('Every Mon. Click')
+  })
+
+  it('an entry’s tooltip is its title beside its date type’s bar, no Due / Next follow-up words', () => {
+    setup()
+    const entry = (d: number, title: string) => within(dayCell(day(d))!).getByText(title).closest('[data-cal-entry]')!
+    expect(entry(16, 'Both dates')).toHaveAttribute('data-tooltip', 'Both dates')
+    expect(entry(16, 'Both dates')).toHaveAttribute('data-tooltip-bar', 'var(--date-bar-due)')
+    expect(entry(16, 'Both dates')).toHaveAttribute('data-tooltip-bar-label', 'Due')
+    expect(entry(20, 'Both dates')).toHaveAttribute('data-tooltip-bar', 'var(--date-bar-followup)')
+    expect(entry(20, 'Both dates')).toHaveAttribute('data-tooltip-bar-label', 'Next follow-up')
+    expect(entry(12, 'Late due')).toHaveAttribute('data-tooltip', 'Late due · overdue')
+  })
+
+  it('a day’s date opens the day popover, as +N more does — month and week; a day with nothing has no button', () => {
+    setup()
+    const date = within(dayCell(day(12))!).getByRole('button', { name: 'Mon 12 Oct: 2 tasks' })
+    expect(date).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(date)
+    const popover = screen.getByTestId('calendar-day-popover')
+    expect(within(popover).getByText('Late due')).toBeInTheDocument()
+    expect(within(popover).getByText('Weekly')).toBeInTheDocument()
+    expect(date).toHaveAttribute('aria-expanded', 'true')
+    // A second click closes it.
+    fireEvent.click(date)
+    expect(screen.queryByTestId('calendar-day-popover')).toBeNull()
+    expect(within(dayCell(day(13))!).queryByRole('button', { name: /^Tue 13 Oct/ })).toBeNull()
+    cleanup()
+    setup(calendarTab({ viewState: { view: 'week' } }))
+    fireEvent.click(within(dayCell(day(12))!).getByRole('button', { name: 'Mon 12 Oct: 2 tasks' }))
+    expect(within(screen.getByTestId('calendar-day-popover')).getByText('Late due')).toBeInTheDocument()
   })
 
   it('clicking an entry (or an occurrence) opens the task', () => {

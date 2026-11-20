@@ -1,6 +1,6 @@
-import type { Person, RecurrenceType, Status, StatusIconKey, Tag } from '../models'
+import type { Interval, Person, Status, StatusIconKey, Tag } from '../models'
 import {
-  QUICK_FOLLOWUP_INTERVALS,
+  DEFAULT_QUICK_FOLLOWUP_INTERVALS,
   addFollowupInterval,
   formatFollowupDate,
   formatFollowupDay,
@@ -13,7 +13,11 @@ import { TYPED_NAME_MAX_RANK, rankByName } from './nlp-resolver'
 import {
   COMMAND_SHAPE,
   DATE_ARGUMENT_HINT,
-  REPEAT_FREQUENCIES,
+  MAX_REPEAT_WORDS,
+  REPEAT_ARGUMENT_HINT,
+  REPEAT_WORDS,
+  isPartialRepeatArgument,
+  parseRepeatArgument,
   SLASH_COMMANDS,
   lookupSlashCommand,
   parseCommandDate,
@@ -23,6 +27,7 @@ import {
 } from './slash-commands'
 import { collapseWhitespace } from '../utils/text'
 import { byName } from '../utils/sort-order'
+import { describeRecurrence } from '../utils/recurrence'
 
 /**
  * The autocomplete popup for task text, as pure functions over
@@ -74,6 +79,8 @@ export interface AutocompleteSources {
    * none (then `none` is the default).
    */
   followupDefault: FollowupInterval | null
+  /** The `/followup` rows' intervals: Settings' quick follow-up intervals (absent: the default ones). */
+  followupIntervals?: readonly FollowupInterval[]
   today: Date
 }
 
@@ -289,9 +296,12 @@ function findArgumentContext(before: string, today: Date): ArgumentContext | nul
   // The words before the one being typed must still be an argument in progress.
   const done = endsWithSpace ? words : words.slice(0, -1)
   if (done.length > 0) {
-    // `/repeat` takes one word; a date argument runs while it is still one in progress.
-    if (spec.name === 'repeat') return null
+    // An argument runs while it is still one in progress (`every 3` before `days`).
     const doneText = done.join(' ')
+    if (spec.name === 'repeat') {
+      if (words.length > MAX_REPEAT_WORDS || parseRepeatArgument(doneText)) return null
+      return isPartialRepeatArgument(doneText) ? { spec, slash, argStart, arg } : null
+    }
     const dateCommand = spec.name as 'due' | 'followup'
     if (words.length > MAX_ARGUMENT_WORDS) return null
     if (parseCommandDate(doneText, today) !== null || doneText.toLowerCase() === 'none') return null
@@ -415,7 +425,7 @@ function dateRows(
       return { kind: 'value' as const, insert, label: insert, matchLength: 0, detail: date ? formatFollowupDay(date, today) : undefined }
     })
     : [
-      ...QUICK_FOLLOWUP_INTERVALS.map((interval) => {
+      ...(sources.followupIntervals ?? DEFAULT_QUICK_FOLLOWUP_INTERVALS).map((interval) => {
         const insert = formatFollowupInterval(interval)
         return {
           kind: 'value' as const,
@@ -447,12 +457,27 @@ function dateRows(
   return { rows: [{ kind: 'error', text: `Can't read "${typed}"`, hint: `Try ${DATE_ARGUMENT_HINT[command]}` }] }
 }
 
-const weekdayShort = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short' })
+/** A repeat row's detail: the repeat in words (`Every Mon`, `Every 3 months`). */
+function repeatDetail(every: Interval, due: Date | undefined): string {
+  return describeRecurrence({ every }, due)
+}
 
-function repeatDetail(frequency: RecurrenceType, due: Date | undefined): string | undefined {
-  if (frequency === 'weekly') return due ? `every ${weekdayShort(due)}` : 'every week'
-  if (frequency === 'biweekly') return 'every 2 weeks'
-  return undefined
+/**
+ * `/repeat`'s rows: the common repeats (`REPEAT_WORDS`) the typed text
+ * starts, each with its words; any other text that reads (`2w`, `every 3
+ * days`) as one row of its own; text still on its way (`every 3`) waits with
+ * the hint.
+ */
+function repeatRows(arg: string, due: Date | undefined): { rows: AutocompleteRow[]; hint?: string } {
+  const q = collapseWhitespace(arg.toLowerCase())
+  const rows: AutocompleteRow[] = REPEAT_WORDS
+    .filter((r) => r.word.startsWith(q))
+    .map((r) => ({ kind: 'value', insert: r.word, label: r.word, matchLength: q.length, detail: repeatDetail(r.every, due) }))
+  if (rows.length > 0) return { rows }
+  const typed = parseRepeatArgument(q)
+  if (typed) return { rows: [{ kind: 'value', insert: arg.trim(), label: arg.trim(), matchLength: arg.trim().length, detail: repeatDetail(typed, due) }] }
+  if (isPartialRepeatArgument(q) || /^\d{1,3}$/.test(q)) return { rows: [], hint: REPEAT_ARGUMENT_HINT }
+  return { rows: [] }
 }
 
 function argumentView(
@@ -477,13 +502,15 @@ function argumentView(
     const { rows, hint } = dateRows(name, ctx.arg, sources)
     return { ...base, rows, ...(hint !== undefined ? { hint } : {}) }
   }
-  const q = ctx.arg.trim().toLowerCase()
   const due = parseInput(value, sources.today).dueDate
-  const rows: AutocompleteRow[] = REPEAT_FREQUENCIES
-    .filter((f) => f.startsWith(q))
-    .map((f) => ({ kind: 'value', insert: f, label: f, matchLength: q.length, detail: repeatDetail(f, due) }))
-  if (rows.length === 0) return null
-  return { ...base, rows, ...(due ? { headerNote: `from ${formatFollowupDay(due, sources.today)}` } : {}) }
+  const { rows, hint } = repeatRows(ctx.arg, due)
+  if (rows.length === 0 && hint === undefined) return null
+  return {
+    ...base,
+    rows,
+    ...(hint !== undefined ? { hint } : {}),
+    ...(due ? { headerNote: `from ${formatFollowupDay(due, sources.today)}` } : {}),
+  }
 }
 
 /**

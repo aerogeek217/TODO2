@@ -1,4 +1,5 @@
 import { useUndoStore } from '../../stores/undo-store'
+import { DialogCloseButton } from '../shared/DialogCloseButton'
 import styles from './UndoSnackbar.module.css'
 import { KEEPS_SELECTION_ATTR } from '../../utils/dom-contract'
 
@@ -45,9 +46,7 @@ export function UndoSnackbar() {
           Undo
         </button>
       )}
-      <button className={styles.dismissButton} onClick={dismissSnackbar} aria-label="Dismiss">
-        &times;
-      </button>
+      <DialogCloseButton size={24} className={styles.dismissButton} label="Dismiss" onClick={dismissSnackbar} />
     </div>
     )}
     </div>

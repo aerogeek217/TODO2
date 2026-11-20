@@ -15,7 +15,6 @@ import {
   isFollowedUpToday,
   isFollowupOverdue,
   relativeDayPhrase,
-  QUICK_FOLLOWUP_INTERVALS,
 } from '../../../utils/followup'
 import { useTooltip } from '../use-tooltip'
 import { FollowupDateButton } from './FollowupDateButton'
@@ -24,6 +23,7 @@ import { MarkFollowedUpButton } from './MarkFollowedUpButton'
 import { followedUpWords, sameDay, useNextFollowupField } from './use-next-followup-field'
 import styles from './Followup.module.css'
 import { PopoverRoot } from '../PopoverRoot'
+import { RemoveButton } from '../RemoveButton'
 
 interface FollowupPopoverProps {
   todo: PersistedTodoItem
@@ -281,15 +281,13 @@ export function FollowupPopover({
           <span className={styles.inputHint}>{input.storedHint}</span>
         )}
         {input.text !== '' && (
-          <button
-            type="button"
+          <RemoveButton
+            size={24}
             className={styles.inputClear}
-            aria-label="Clear next follow-up"
-            data-tooltip="Clear the date"
+            label="Clear next follow-up"
+            tooltip="Clear the date"
             onClick={clearNext}
-          >
-            &times;
-          </button>
+          />
         )}
         <FollowupDateButton
           label="Pick next follow-up date"
@@ -314,7 +312,6 @@ export function FollowupPopover({
           : 'Future dates kept · the rest cleared')}
       </div>
       <FollowupQuickButtons
-        intervals={QUICK_FOLLOWUP_INTERVALS}
         labelStyle="long"
         onPick={(i) => apply(addFollowupInterval(today, i))}
       />

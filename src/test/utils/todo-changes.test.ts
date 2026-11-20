@@ -9,9 +9,9 @@ describe('sameFieldValue', () => {
   })
 
   it('compares a recurrence rule by value; a missing key equals undefined', () => {
-    expect(sameFieldValue({ type: 'monthly', originalDayOfMonth: 31 }, { type: 'monthly', originalDayOfMonth: 31 })).toBe(true)
-    expect(sameFieldValue({ type: 'weekly' }, { type: 'weekly', originalDayOfMonth: undefined })).toBe(true)
-    expect(sameFieldValue({ type: 'weekly' }, { type: 'monthly' })).toBe(false)
+    expect(sameFieldValue({ every: { count: 1, unit: 'm' as const }, originalDayOfMonth: 31 }, { every: { count: 1, unit: 'm' as const }, originalDayOfMonth: 31 })).toBe(true)
+    expect(sameFieldValue({ every: { count: 1, unit: 'w' as const } }, { every: { count: 1, unit: 'w' as const }, originalDayOfMonth: undefined })).toBe(true)
+    expect(sameFieldValue({ every: { count: 1, unit: 'w' as const } }, { every: { count: 1, unit: 'm' as const } })).toBe(false)
   })
 })
 

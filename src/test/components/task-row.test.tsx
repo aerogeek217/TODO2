@@ -123,7 +123,7 @@ describe('TaskRow', () => {
     })
 
     it('another year’s date is MM/DD with the repeat glyph, its name keeping the year', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2027, 0, 15), recurrenceRule: { type: 'yearly' } })} />)
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2027, 0, 15), recurrenceRule: { every: { count: 1, unit: 'y' as const } } })} />)
       const due = screen.getByRole('button', { name: 'Due Fri 15 Jan 2027' })
       expect(due.textContent).toBe('01/15')
       expect(due.querySelectorAll('svg')).toHaveLength(1)
@@ -135,7 +135,7 @@ describe('TaskRow', () => {
       expect(once).toHaveTextContent('Mon')
       expect(once.querySelectorAll('svg')).toHaveLength(0)
       unmount()
-      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />)
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { every: { count: 1, unit: 'w' as const } } })} />)
       const repeating = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
       expect(repeating).toHaveTextContent('Mon')
       expect(repeating.querySelectorAll('svg')).toHaveLength(1)
@@ -200,10 +200,10 @@ describe('TaskRow', () => {
     })
 
     it('the tooltip gives the full date, the distance and the repeat rule', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />)
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { every: { count: 1, unit: 'w' as const } } })} />)
       fireEvent.pointerEnter(screen.getByRole('button', { name: 'Due Mon 20 Apr' }))
       act(() => { vi.advanceTimersByTime(400) })
-      expect(screen.getByRole('tooltip')).toHaveTextContent('Monday, April 20, 2026In 4 daysRepeats every Monday')
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Monday, April 20, 2026In 4 daysEvery Mon')
     })
   })
 
@@ -448,7 +448,7 @@ describe('TaskRow', () => {
       await act(async () => { await Promise.resolve() })
       expect(followup).toHaveAttribute('aria-expanded', 'true')
       expect(screen.getByRole('menu', { name: 'Follow-up' })).toHaveTextContent('Clear follow-up')
-      expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /^1 week/ }))
+      expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /^1 day/ }))
       fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
       expect(screen.queryByRole('menu', { name: 'Follow-up' })).toBeNull()
       expect(document.activeElement).toBe(followup)
@@ -458,8 +458,8 @@ describe('TaskRow', () => {
       expect(screen.queryByRole('menu', { name: 'Follow-up' })).toBeNull()
       expect(screen.getByRole('menu', { name: 'Task actions' })).toBeInTheDocument()
       fireEvent.click(followup)
-      fireEvent.click(screen.getByRole('menuitem', { name: /^2 weeks/ }))
-      expect(mockBulk.setFollowup).toHaveBeenCalledWith(5, new Date(2026, 3, 30))
+      fireEvent.click(screen.getByRole('menuitem', { name: /^1 week/ }))
+      expect(mockBulk.setFollowup).toHaveBeenCalledWith(5, new Date(2026, 3, 23))
       expect(screen.queryByRole('menu')).toBeNull()
     })
 

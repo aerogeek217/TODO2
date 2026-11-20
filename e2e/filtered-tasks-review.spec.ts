@@ -73,7 +73,7 @@ test('the text search comes along as a quoted phrase', async ({ page }) => {
   await expect(panel(page)).toBeVisible()
   await reviewButton(page).or(panel(page).getByRole('button', { name: 'Review this task' })).click()
   await expect(reviewField(page, 'review-popup')).toHaveValue('"report"')
-  await expect(page.locator('[data-review-widget="review-popup"]').getByTestId('review-card-title')).toHaveText('Ann report')
+  await expect(page.locator('[data-review-widget="review-popup"]').getByTestId('review-card-title')).toHaveValue('Ann report')
 })
 
 test('no layout has a Review widget: the Review button is there and opens the popup review', async ({ page }) => {

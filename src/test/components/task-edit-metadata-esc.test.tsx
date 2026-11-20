@@ -12,9 +12,9 @@ function renderBlock() {
   render(
     <TaskEditMetadata
       deadline={null}
-      recurrenceType=""
+      repeat={null}
       onDeadlineChange={vi.fn()}
-      onRecurrenceChange={vi.fn()}
+      onRepeatChange={vi.fn()}
       assignedPeople={[]}
       assignedTags={[]}
       allPeople={[makePerson({ id: 1, name: 'Aisha' })]}

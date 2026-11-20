@@ -25,22 +25,6 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.close {
-  padding: 2px 6px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-glyph-lg);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.close:hover {
-  background: var(--color-surface-high);
-  color: var(--color-text-primary);
-}
-
 .body {
   flex: 1;
   min-height: 0;

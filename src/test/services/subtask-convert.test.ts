@@ -54,7 +54,7 @@ describe('droppedFields', () => {
     await useTagStore.getState().assignTag(id, travel)
     const statusId = await useStatusStore.getState().add('Waiting', '#888')
     await useTodoStore.getState().update(id, {
-      dueDate: new Date(2026, 10, 20), recurrenceRule: { type: 'weekly' }, nextFollowupAt: new Date(2026, 10, 10),
+      dueDate: new Date(2026, 10, 20), recurrenceRule: { every: { count: 1, unit: 'w' as const } }, nextFollowupAt: new Date(2026, 10, 10),
       lastFollowupAt: new Date(2026, 10, 3), statusId, urgent: true, focus: true, notes: 'bring the deck',
     })
     await useStatusUpdateStore.getState().add(id, { date: startOfToday(), text: 'asked' })

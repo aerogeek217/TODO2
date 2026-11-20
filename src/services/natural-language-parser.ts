@@ -1,9 +1,10 @@
-import type { RecurrenceType } from '../models'
+import type { Interval } from '../models'
 import { normalizeTag } from '../utils/tags'
 import {
   COMMAND_SHAPE,
   lookupSlashCommand,
   parseCommandDate,
+  MAX_REPEAT_WORDS,
   parseRepeatArgument,
   takesArgument,
   type SlashCommandName,
@@ -22,7 +23,7 @@ export { BARE_MENTION_NAME, BARE_TAG_NAME, mentionToken, statusToken, tagToken }
  *    `!` counts);
  *  - slash commands (`services/slash-commands`): `/urgent`, `/important`,
  *    `/focus`, `/due <date>`, `/followup <date|interval|none>`,
- *    `/repeat <frequency>`.
+ *    `/repeat <interval>` (`weekly`, `2w`, `every 3 days`).
  * Everything else — dates, weekday names, `every week` — is plain title
  * text. The parser is store-free; `nlp-resolver.resolveInput` matches names.
  */
@@ -69,7 +70,7 @@ export interface ParsedInput {
   tokens: ParsedToken[]
   dueDate?: Date
   /** From `/repeat` — only applied when there is a due date to anchor on. */
-  recurrence?: RecurrenceType
+  recurrence?: Interval
   persons: string[]
   /** User-supplied tag names in first-seen order (trimmed, original case
    * preserved). Dedup is by case-folded slug so `#Foo` and `#foo` collapse to
@@ -157,14 +158,21 @@ function readArgument(
   text: string,
   nameEnd: number,
   today: Date,
-): { arg: ArgumentMatch; date?: Date; recurrence?: RecurrenceType; none?: boolean } | null {
+): { arg: ArgumentMatch; date?: Date; recurrence?: Interval; none?: boolean } | null {
   const argStart = skipSpaces(text, nameEnd)
   if (argStart === nameEnd) return null // no space after the command
   if (command === 'repeat') {
-    const [word] = wordsFrom(text, argStart, 1)
-    if (!word || word.start !== argStart) return null
-    const recurrence = parseRepeatArgument(word.text)
-    return recurrence ? { arg: { value: word.text, end: word.end }, recurrence } : null
+    // The longest run of words that reads as a repeat (`weekly`, `2w`, `every 3 days`).
+    const repeatWords = wordsFrom(text, argStart, MAX_REPEAT_WORDS)
+    if (repeatWords[0]?.start !== argStart) return null
+    for (let n = repeatWords.length; n > 0; n--) {
+      const last = repeatWords[n - 1]
+      if (!last) continue
+      const value = text.slice(argStart, last.end)
+      const recurrence = parseRepeatArgument(value)
+      if (recurrence) return { arg: { value, end: last.end }, recurrence }
+    }
+    return null
   }
   // due / followup: the longest run of words that reads as a date.
   const words = wordsFrom(text, argStart, MAX_DATE_WORDS)
@@ -200,7 +208,7 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
   // Slash commands first: their arguments own the words they read.
   const seen = new Set<SlashCommandName>()
   let dueDate: Date | undefined
-  let recurrence: RecurrenceType | undefined
+  let recurrence: Interval | undefined
   let repeatToken: ParsedToken | undefined
   let nextFollowupAt: Date | undefined
   let followupNone = false

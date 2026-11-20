@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { buildTaskMenuEntries, type TaskMenuHandlers } from '../../../components/task/task-menu-entries'
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import type { PersistedTodoItem } from '../../../models'
+import { DEFAULT_QUICK_FOLLOWUP_INTERVALS } from '../../../utils/followup'
 import { makeTodo } from '../../helpers'
 
 const TODAY = new Date(2026, 9, 10) // Sat 10 Oct 2026
@@ -29,6 +30,7 @@ function build(todo: PersistedTodoItem, opts: { targets?: PersistedTodoItem[]; h
     targets: opts.targets ?? [todo],
     today: TODAY,
     urgentRange: opts.range === undefined ? 3 : opts.range,
+    followupIntervals: DEFAULT_QUICK_FOLLOWUP_INTERVALS,
     handlers: opts.h ?? handlers(),
     copyKbd: opts.copyKbd,
   })
@@ -85,7 +87,7 @@ describe('buildTaskMenuEntries — the one task menu', () => {
       'Mark complete', '--', 'Follow-up', 'Mark followed up', '--',
       '[Priority]', 'Focus', 'Urgent', 'Important', '--', 'Delete',
     ])
-    expect(shape(item(entries, 'Follow-up').children!)).toEqual(['1 week', '2 weeks', '1 month', '3 months'])
+    expect(shape(item(entries, 'Follow-up').children!)).toEqual(['1 day', '1 week', '1 month', '3 months'])
   })
 
   it('shows current dates as trailing notes and Mark incomplete for a completed task', () => {
@@ -101,11 +103,11 @@ describe('buildTaskMenuEntries — the one task menu', () => {
   it('Follow-up submenu: intervals with their dates, Pick…, and Clear only when set', () => {
     const h = handlers()
     const none = item(build(makeTodo({ id: 1 }), { h }), 'Follow-up').children!
-    expect(shape(none)).toEqual(['1 week', '2 weeks', '1 month', '3 months', '--', 'Pick a date or interval…'])
+    expect(shape(none)).toEqual(['1 day', '1 week', '1 month', '3 months', '--', 'Pick a date or interval…'])
     expect(none.filter((e): e is MenuItemEntry => e.kind === 'item').map((e) => e.note))
-      .toEqual(['Sat 17 Oct', 'Sat 24 Oct', 'Tue 10 Nov', 'Sun 10 Jan 2027', undefined])
-    item(none, '2 weeks').onSelect!()
-    expect(h.onSetFollowup).toHaveBeenCalledWith(new Date(2026, 9, 24))
+      .toEqual(['Sun 11 Oct', 'Sat 17 Oct', 'Tue 10 Nov', 'Sun 10 Jan 2027', undefined])
+    item(none, '1 week').onSelect!()
+    expect(h.onSetFollowup).toHaveBeenCalledWith(new Date(2026, 9, 17))
     item(none, 'Pick a date or interval…').onSelect!()
     expect(h.onPickFollowup).toHaveBeenCalled()
 

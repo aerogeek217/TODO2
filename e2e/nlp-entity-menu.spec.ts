@@ -214,7 +214,7 @@ test.describe('task row notes popover', () => {
     await page.keyboard.press('Escape')
     await expect(peopleEditor.getByPlaceholder('Name')).toHaveCount(0)
     await expect(notesPopover).toBeVisible()
-    await peopleEditor.getByRole('button', { name: '×' }).first().click()
+    await peopleEditor.getByRole('button', { name: 'Close', exact: true }).first().click()
     await expect(peopleEditor).toHaveCount(0)
     await expect(notesPopover).toBeVisible()
     await expect(editor).toBeFocused()

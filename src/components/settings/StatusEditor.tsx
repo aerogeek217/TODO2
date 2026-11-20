@@ -20,6 +20,7 @@ import { DEFAULT_ENTITY_COLOR, DRAG_ACTIVATION_DISTANCE_PX } from '../../constan
 import { ColorPicker } from '../shared/ColorPicker'
 import { ConfirmDialog } from '../shared/Dialog'
 import { DragHandle } from '../shared/DragHandle'
+import { TrashIcon } from '../shared/icons'
 import { IconPicker } from '../shared/IconPicker'
 import { STATUS_GLYPH_CHOICES } from '../shared/icon-picker-choices'
 import { StatusMark } from '../shared/StatusMark'
@@ -111,7 +112,7 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
       </span>
       <span className={styles.nameEditable} onClick={() => onEdit(status)}>{status.name}</span>
       <div className={styles.actions}>
-        <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => onDelete(status.id)} aria-label="Delete" data-tooltip="Delete">&times;</button>
+        <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => onDelete(status.id)} aria-label={`Delete ${status.name}`} data-tooltip={`Delete ${status.name}`}><TrashIcon /></button>
       </div>
     </div>
   )

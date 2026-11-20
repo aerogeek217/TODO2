@@ -2,12 +2,12 @@ import { memo } from 'react'
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core'
 import { calendarEntryLevel, calendarEntryState, type CalendarEntry } from '../../../services/calendar-entries'
 import { useSettingsStore } from '../../../stores/settings-store'
-import { calendarEntryTitle } from './calendar-entry-title'
+import { calendarEntryBar, calendarEntryTitle } from './calendar-entry-title'
 import { AvatarStack } from '../../shared/AvatarStack'
 import { TaskPillStatus } from '../../shared/TaskPillBar'
 import { RepeatIcon } from '../../shared/icons'
 import styles from './CalendarWidget.module.css'
-import { TODO_ID_ATTR } from '../../../utils/dom-contract'
+import { TODO_ID_ATTR, TOOLTIP_BAR_ATTR, TOOLTIP_BAR_LABEL_ATTR } from '../../../utils/dom-contract'
 
 /** Entry sizes: `sm` month cells, `md` week / day list / day popover, `touch` mobile day list. */
 export type CalendarEntrySize = 'sm' | 'md' | 'touch'
@@ -34,7 +34,8 @@ interface CalendarEntryButtonProps {
  * edge in its date type's colour (due magenta, follow-up yellow; flair P6,
  * E6) whose strength is how soon (`data-level`, the ladder a row date's bar
  * shares: faint later, full soon, heavier over a faint tint late). Repeat
- * glyph · title · meta (people + status at `md` / `touch`). Click opens the
+ * glyph · title · meta (people + status at `md` / `touch`). Its tooltip is
+ * the title beside the same bar, the date type's colour. Click opens the
  * task.
  */
 export const CalendarEntryButton = memo(function CalendarEntryButton({
@@ -45,6 +46,7 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
   const state = calendarEntryState(entry, today)
   const range = useSettingsStore((s) => s.urgentDueWithinDays)
   const showMeta = size !== 'sm'
+  const bar = calendarEntryBar(entry)
   const cls = [
     styles.entry,
     size === 'md' ? styles.entryMd : size === 'touch' ? styles.entryTouch : '',
@@ -65,6 +67,7 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-virtual={entry.isVirtual ? 'true' : undefined}
       data-tooltip={ghost ? undefined : calendarEntryTitle(entry, today)}
+      {...(ghost ? {} : { [TOOLTIP_BAR_ATTR]: bar.color, [TOOLTIP_BAR_LABEL_ATTR]: bar.label })}
       onClick={(e) => {
         e.stopPropagation()
         onOpen?.(todo.id)

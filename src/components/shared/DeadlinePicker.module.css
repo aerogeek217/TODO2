@@ -54,29 +54,6 @@
   color: var(--color-text-muted);
 }
 
-.clearButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-family: inherit;
-  font-size: var(--font-size-body);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.clearButton:hover {
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
-}
-
 /* Under the trigger's left edge, where the browser opens its picker. */
 .hiddenDateInput {
   position: absolute;

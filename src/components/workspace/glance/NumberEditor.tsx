@@ -15,7 +15,7 @@ import { hasFilterClause } from '../../../utils/filter-clauses'
 import { ColorPicker } from '../../shared/ColorPicker'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { ExpressionReportProvider } from '../../shared/filters/expression-report'
-import { CloseIcon } from '../../shared/icons'
+import { DialogCloseButton } from '../../shared/DialogCloseButton'
 import { PopoverRoot } from '../../shared/PopoverRoot'
 import { LitWhenControl } from './LitWhenField'
 import {
@@ -180,7 +180,7 @@ function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
     >
       <div className={styles.header}>
         <span id={`${id}-title`} className={styles.title}>Edit number</span>
-        <button type="button" className={styles.close} aria-label="Close" onClick={() => { edit.requestClose() }}><CloseIcon size={14} /></button>
+        <DialogCloseButton size={24} onClick={() => { edit.requestClose() }} />
       </div>
       <ExpressionReportProvider value={edit.reportExpression}>
         <div className={styles.body}>

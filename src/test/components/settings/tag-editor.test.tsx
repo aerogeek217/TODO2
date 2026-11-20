@@ -95,12 +95,10 @@ describe('TagEditor', () => {
     await useTodoStore.getState().loadAll()
     await useTagStore.getState().loadAssignments([todoId])
 
-    const { getByText, findByText } = await renderEditor()
+    const { getByText, findByText, findByRole } = await renderEditor()
     await findByText('urgent')
 
-    const deleteBtn = document.body.querySelector('[data-tooltip="Delete"]') as HTMLButtonElement | null
-    expect(deleteBtn).not.toBeNull()
-    fireEvent.click(deleteBtn!)
+    fireEvent.click(await findByRole('button', { name: 'Delete urgent' }))
 
     await waitFor(() => expect(document.body.textContent).toMatch(/1 task currently tagged/i))
 

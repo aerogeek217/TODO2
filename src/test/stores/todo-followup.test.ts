@@ -54,7 +54,7 @@ describe('new tasks get the default next follow-up', () => {
 
   it('a recurring task advancing on completion keeps its follow-up (not a new task)', async () => {
     const id = await addTask('R')
-    await useTodoStore.getState().update(id, { dueDate: day(2026, 10, 12), recurrenceRule: { type: 'weekly' } })
+    await useTodoStore.getState().update(id, { dueDate: day(2026, 10, 12), recurrenceRule: { every: { count: 1, unit: 'w' as const } } })
     const before = (await db.todos.get(id))!.nextFollowupAt
     await useTodoStore.getState().toggleComplete(id)
     const row = (await db.todos.get(id))!

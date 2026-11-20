@@ -7,6 +7,7 @@ import type { Tag } from '../../models'
 import type { DialogLayer } from '../shared/Dialog'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorPicker } from '../shared/ColorPicker'
+import { TrashIcon } from '../shared/icons'
 import { DeleteTagConfirm } from './EntityDeleteConfirm'
 import styles from './EntityEditor.module.css'
 import { EditorModal } from './EditorModal'
@@ -170,7 +171,7 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
         <span className={styles.nameEditable} onClick={() => startEdit(tag)}>{tag.name}</span>
         <TaskCount count={count} />
         <div className={styles.actions}>
-          <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDelete(tag.id!)} aria-label="Delete" data-tooltip="Delete">&times;</button>
+          <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDelete(tag.id!)} aria-label={`Delete ${tag.name}`} data-tooltip={`Delete ${tag.name}`}><TrashIcon /></button>
         </div>
       </div>
     )

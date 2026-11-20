@@ -1,5 +1,5 @@
-import { useId, useLayoutEffect, useRef, type ChangeEvent as ReactChangeEvent, type ReactNode, type RefObject } from 'react'
-import { STATUS_UPDATE_TEXT_MAX, type Person, type PersistedTodoItem, type RecurrenceType, type Tag, type TodoChanges } from '../../models'
+import { useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { STATUS_UPDATE_TEXT_MAX, type Person, type Interval, type PersistedTodoItem, type Tag, type TodoChanges } from '../../models'
 import { NEXT_FOLLOWUP_PLACEHOLDER } from '../../hooks/use-followup-input'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useSelectAllOnFocus } from '../../hooks/use-select-all-on-focus'
@@ -10,8 +10,8 @@ import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
-import { formatDateNumeric, formatRowDate } from '../../utils/date'
-import { addFollowupInterval, formatFollowupDate, QUICK_FOLLOWUP_INTERVALS, relativeDayPhrase } from '../../utils/followup'
+import { formatDate, formatDateNumeric, formatRelativeTime, formatRowDate } from '../../utils/date'
+import { addFollowupInterval, formatFollowupDate, relativeDayPhrase } from '../../utils/followup'
 import { markerSummary, MARKER_LABELS } from '../../utils/markers'
 import { dueDateChanges, makeRecurrenceRule } from '../../utils/recurrence'
 import { dueState, followupState } from '../../utils/row-date-state'
@@ -21,7 +21,9 @@ import { FollowupDateButton } from '../shared/followup/FollowupDateButton'
 import { FollowupQuickButtons } from '../shared/followup/FollowupQuickButtons'
 import { MarkFollowedUpButton } from '../shared/followup/MarkFollowedUpButton'
 import followupStyles from '../shared/followup/Followup.module.css'
-import { ChevronLeftIcon, ChevronRightIcon, OpenIcon } from '../shared/icons'
+import { RemoveButton } from '../shared/RemoveButton'
+import { ChevronLeftIcon, ChevronRightIcon, CopyIcon, IndentIcon, MoreIcon, OpenIcon, TrashIcon } from '../shared/icons'
+import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { useTaskNotesSource } from '../task/notes/use-task-notes-source'
 import { RowCheckbox } from '../task/row-cells'
 import { StatusUpdatesSection } from '../task/status-updates/StatusUpdatesSection'
@@ -35,6 +37,7 @@ import { TaskEditMetadata } from '../task/TaskEditMetadata'
 import { useEditorStatusUpdates, useEditorSubtasks } from '../task/use-editor-entries'
 import { useReviewSessionApi } from './review-session-context'
 import { useReviewFollowUp, type ReviewFollowUp } from './use-review-follow-up'
+import { ReviewTitleField } from './ReviewTitleField'
 import styles from './Review.module.css'
 
 const NO_PEOPLE: Person[] = []
@@ -92,10 +95,8 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
   const urgentHint = urgentToggleHint([urgentSubject], today, urgentRange)
 
   // ── The fields: due + repeat, people, tags.
-  const recurrenceType = todo.recurrenceRule?.type ?? ''
-  const onRecurrenceChange = (e: ReactChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value as RecurrenceType | ''
-    update({ recurrenceRule: val && todo.dueDate ? makeRecurrenceRule(val, todo.dueDate) : undefined })
+  const onRepeatChange = (every: Interval | null) => {
+    update({ recurrenceRule: every && todo.dueDate ? makeRecurrenceRule(every, todo.dueDate) : undefined })
   }
   const togglePerson = (personId: number) => afterNotes(() => {
     const store = usePersonStore.getState()
@@ -132,7 +133,15 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
               aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
             />
           </div>
-          <h3 className={`${styles.cardTitle} ${todo.isCompleted ? styles.cardTitleDone : ''}`} data-testid="review-card-title">{todo.title}</h3>
+          <ReviewTitleField
+            todo={todo}
+            className={`${styles.cardTitle} ${todo.isCompleted ? styles.cardTitleDone : ''}`}
+            write={(title) => update({ title })}
+          />
+          <span className={styles.cardMeta} data-task-meta="">
+            Created {formatDate(todo.createdAt)} · Modified {formatRelativeTime(todo.modifiedAt)}
+          </span>
+          <ReviewCardMenu todoId={todoId} afterNotes={afterNotes} />
         </div>
         <TaskDetailsBody
           facts={(
@@ -150,10 +159,10 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
               <StatusFacts statuses={statuses} statusId={todo.statusId} onStatusChange={(statusId) => update({ statusId })} />
               <TaskEditMetadata
                 deadline={todo.dueDate ?? null}
-                recurrenceType={recurrenceType}
+                repeat={todo.recurrenceRule?.every ?? null}
                 dueTone={dues.past ? 'past' : dues.soon ? 'soon' : undefined}
-                onDeadlineChange={(next) => update(dueDateChanges(next, todo.recurrenceRule?.type))}
-                onRecurrenceChange={onRecurrenceChange}
+                onDeadlineChange={(next) => update(dueDateChanges(next, todo.recurrenceRule?.every))}
+                onRepeatChange={onRepeatChange}
                 assignedPeople={assignedPeople}
                 assignedTags={assignedTags}
                 allPeople={allPeople}
@@ -241,10 +250,64 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
 }
 
 /**
+ * The card's ⋯ (the task editor header's): Open in editor, Duplicate (the
+ * copy opens in the editor, as the editor's Duplicate switches to it), Make
+ * subtask of… and Delete — each after the notes typed so far. A task that
+ * goes (Delete, Make subtask of…) leaves the live queue; the review moves on
+ * to the next card.
+ */
+function ReviewCardMenu({ todoId, afterNotes }: { todoId: number; afterNotes: ReviewFollowUp['afterNotes'] }) {
+  const [open, setOpen] = useState(false)
+  const moreRef = useRef<HTMLButtonElement>(null)
+  const ui = () => useUIStore.getState()
+  const entries: MenuEntry[] = [
+    { kind: 'item', label: 'Open in editor', icon: <OpenIcon />, onSelect: () => afterNotes(() => ui().openEditPopup(todoId)) },
+    {
+      kind: 'item',
+      label: 'Duplicate',
+      icon: <CopyIcon />,
+      onSelect: () => afterNotes(async () => {
+        const copy = await useTodoStore.getState().duplicate(todoId)
+        if (copy) ui().openEditPopup(copy)
+      }),
+    },
+    { kind: 'item', label: 'Make subtask of…', icon: <IndentIcon />, onSelect: () => afterNotes(() => ui().openTaskPicker({ kind: 'make-subtask', todoId })) },
+    { kind: 'separator' },
+    { kind: 'item', label: 'Delete', icon: <TrashIcon />, danger: true, onSelect: () => afterNotes(() => ui().showBulkConfirmation('delete', [todoId])) },
+  ]
+  return (
+    <>
+      <button
+        ref={moreRef}
+        type="button"
+        className={styles.cardMore}
+        aria-label="More actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-tooltip="More actions"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <MoreIcon size={16} />
+      </button>
+      {open && (
+        <MenuPopover
+          anchorRef={moreRef}
+          placement="bottom-end"
+          label="Task actions"
+          entries={entries}
+          width={200}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  )
+}
+
+/**
  * The review's Next follow-up field (the card's footer and the medium face's row): the
  * field — starting on what Mark followed up would leave; ⏎ or a quick button
  * sets the date at once and hands the focus back to the update line; ×
- * clears it —, the quick intervals 1w 2w 1m 3m, then what the typed text
+ * clears it —, the quick intervals (Settings › Tasks), then what the typed text
  * means (`aria-live`).
  */
 function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnType<typeof useSelectAllOnFocus>): FollowupFieldParts {
@@ -274,16 +337,14 @@ function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnTyp
             spellCheck={false}
           />
           {input.text !== '' && (
-            <button
-              type="button"
+            <RemoveButton
+              size={24}
               className={followupStyles.inputClear}
-              aria-label="Clear next follow-up"
-              data-tooltip="Clear next follow-up"
-              onMouseDown={(e) => e.preventDefault()}
+              label="Clear next follow-up"
+              tooltip
+              keepFocus
               onClick={f.clearNext}
-            >
-              &times;
-            </button>
+            />
           )}
           <FollowupDateButton
             label="Pick next follow-up date"
@@ -295,7 +356,6 @@ function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnTyp
     ),
     quick: (
       <FollowupQuickButtons
-        intervals={QUICK_FOLLOWUP_INTERVALS}
         labelStyle="short"
         onPick={(i) => f.apply(addFollowupInterval(today, i))}
       />
@@ -477,7 +537,12 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
               onChange={toggleComplete}
               aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
             />
-            <h3 className={`${styles.compactTitle} ${todo.isCompleted ? styles.cardTitleDone : ''}`} data-testid="review-card-title">{todo.title}</h3>
+            <ReviewTitleField
+              todo={todo}
+              compact
+              className={`${styles.compactTitle} ${todo.isCompleted ? styles.cardTitleDone : ''}`}
+              write={(title) => { void useTodoStore.getState().update(todoId, { title }) }}
+            />
           </div>
           <p className={styles.compactFacts} data-testid="review-facts">
             {facts.map((fact, i) => (

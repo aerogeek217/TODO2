@@ -24,22 +24,6 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.closeBtn {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font-size: var(--font-size-glyph-lg);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  line-height: 1;
-}
-
-.closeBtn:hover {
-  color: var(--color-text-primary);
-  background: var(--color-surface-high);
-}
-
 /* Scrollable list */
 .list {
   display: flex;
@@ -146,10 +130,15 @@
   opacity: 1;
 }
 
+/* A row's icon button (Delete, a person's Remove color — `RemoveButton`). */
 .iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--color-text-muted);
+  opacity: 1;
   cursor: pointer;
   padding: 2px 4px;
   font-size: var(--font-size-task);

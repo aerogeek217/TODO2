@@ -118,10 +118,13 @@ async function expectStillThroughChanges(page: Page, host: Locator, header: Reco
   await check('the Urgent clock shows')
 
   // Its repeat.
-  const repeat = facts.getByRole('combobox', { name: 'Repeat' })
-  for (const value of ['weekly', 'quarterly', '']) {
-    await repeat.selectOption(value)
+  const repeat = facts.getByRole('textbox', { name: 'Repeat every' })
+  const readBack = facts.locator('[data-repeat-readback]')
+  for (const [value, words] of [['1w', /^Every \w{3} · next /], ['3m', /^Every 3 months · next /], ['', /^No repeat$/]] as const) {
+    await repeat.fill(value)
+    await repeat.press('Enter')
     await expect(repeat).toHaveValue(value)
+    await expect(readBack).toHaveText(words)
     await check(`repeat ${value || 'none'}`)
   }
 
@@ -198,7 +201,7 @@ test.describe('the task layout holds still while a field changes', () => {
     await seedWorkspace(page, REVIEW_SEED)
     await pickInReview(page, 'rv1', 'Aisha')
     const widget = page.locator('[data-review-widget="rv1"]')
-    await expect(widget.getByTestId('review-card-title')).toHaveText(TITLE)
+    await expect(widget.getByTestId('review-card-title')).toHaveValue(TITLE)
     const card = widget.locator('[data-review-card]')
     const header = {
       title: card.getByTestId('review-card-title'),

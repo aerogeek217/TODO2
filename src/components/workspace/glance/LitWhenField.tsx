@@ -8,8 +8,11 @@ const LIT_WHEN: ReadonlyArray<{ value: NumberLitWhen; label: string }> = [
   { value: 'below', label: 'Below' },
 ]
 
-/** A threshold: a whole number 0 – `NUMBER_LIT_AT_MAX`, written once it reads; a blur puts back the value. */
-function LitAtField({ value, onChange, label }: { value: number; onChange: (n: number) => void; label: string }) {
+/**
+ * A threshold: a whole number 0 – `max` (default `NUMBER_LIT_AT_MAX`), written once it reads; a blur puts back the
+ * value. Also a count column's follow-up age's Yellow past field.
+ */
+export function LitAtField({ value, onChange, label, max = NUMBER_LIT_AT_MAX }: { value: number; onChange: (n: number) => void; label: string; max?: number }) {
   const [text, setText] = useState(String(value))
   const [shown, setShown] = useState(value)
   if (shown !== value) {
@@ -21,7 +24,7 @@ function LitAtField({ value, onChange, label }: { value: number; onChange: (n: n
       type="number"
       inputMode="numeric"
       min={0}
-      max={NUMBER_LIT_AT_MAX}
+      max={max}
       step={1}
       className={styles.number}
       aria-label={label}
@@ -29,7 +32,7 @@ function LitAtField({ value, onChange, label }: { value: number; onChange: (n: n
       onChange={(e) => {
         setText(e.target.value)
         const n = Number(e.target.value)
-        if (e.target.value.trim() !== '' && Number.isInteger(n) && n >= 0 && n <= NUMBER_LIT_AT_MAX) onChange(n)
+        if (e.target.value.trim() !== '' && Number.isInteger(n) && n >= 0 && n <= max) onChange(n)
       }}
       onBlur={() => setText(String(value))}
     />

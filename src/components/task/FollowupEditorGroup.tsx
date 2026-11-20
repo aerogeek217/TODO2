@@ -2,12 +2,13 @@ import { useRef } from 'react'
 import { useFollowupInput, NEXT_FOLLOWUP_PLACEHOLDER, type FollowupInputState } from '../../hooks/use-followup-input'
 import { useSelectAllOnFocus } from '../../hooks/use-select-all-on-focus'
 import { useToday } from '../../hooks/use-today'
-import { addFollowupInterval, formatFollowupDate, relativeDayPhrase, QUICK_FOLLOWUP_INTERVALS } from '../../utils/followup'
+import { addFollowupInterval, formatFollowupDate, relativeDayPhrase } from '../../utils/followup'
 import { FactDateField, type FactDateTone } from './TaskFacts'
 import { TaskFollowupFields } from './TaskFollowupFields'
 import { FollowupDateButton } from '../shared/followup/FollowupDateButton'
 import { FollowupQuickButtons } from '../shared/followup/FollowupQuickButtons'
 import styles from '../shared/followup/Followup.module.css'
+import { RemoveButton } from '../shared/RemoveButton'
 
 interface FollowupEditorGroupProps {
   next: Date | undefined
@@ -43,7 +44,7 @@ function HelpText({ state, today }: { state: FollowupInputState; today: Date }) 
  * (task layout B; `TaskFollowupFields` draws them): **Last** (a date, never
  * in the future; the calendar), then **Next** — the date in the rows' words
  * at rest, typed entry on a click or the focus (an interval or a date; ×
- * clears, the calendar picks), then the quick intervals 1w 2w 1m 3m; their
+ * clears, the calendar picks), then the quick intervals (Settings › Tasks); their
  * help lines in the footer's spare room. ⏎ / Tab / blur commit; Esc reverts;
  * invalid input keeps the old value until fixed.
  */
@@ -108,17 +109,15 @@ export function FollowupEditorGroup({
                 spellCheck={false}
               />
               {nextInput.text !== '' && (
-                <button
-                  type="button"
+                <RemoveButton
+                  size={24}
                   className={styles.inputClear}
-                  aria-label="Clear next follow-up"
-                  data-tooltip="Clear next follow-up"
+                  label="Clear next follow-up"
+                  tooltip
                   // Keep the input's blur from committing the text we're about to clear.
-                  onMouseDown={(e) => e.preventDefault()}
+                  keepFocus
                   onClick={() => { onNextChange(null); nextInput.settle(null) }}
-                >
-                  &times;
-                </button>
+                />
               )}
               <FollowupDateButton
                 label="Pick next follow-up date"
@@ -130,7 +129,6 @@ export function FollowupEditorGroup({
         ),
         quick: (
           <FollowupQuickButtons
-            intervals={QUICK_FOLLOWUP_INTERVALS}
             labelStyle="short"
             onPick={(i) => {
               const d = addFollowupInterval(today, i)

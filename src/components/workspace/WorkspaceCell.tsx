@@ -2,7 +2,8 @@ import type { CSSProperties } from 'react'
 import type { LayoutCell } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { AddWidgetButtons } from './AddWidgetFlow'
-import { CloseIcon, PencilIcon, PlusIcon } from '../shared/icons'
+import { DialogCloseButton } from '../shared/DialogCloseButton'
+import { PencilIcon, PlusIcon } from '../shared/icons'
 import { FilledCell } from './FilledCell'
 import { EditSlot } from './EditCard'
 import styles from './WorkspaceCell.module.css'
@@ -45,9 +46,7 @@ function EmptyCell({ cell, style }: { cell: LayoutCell; style?: CSSProperties })
       {editing ? (
         <>
           <EditSlot cell={cell} />
-          <button type="button" className={styles.emptyClose} aria-label="Close empty cell" data-tooltip="Close cell" onClick={() => closeCell(cell.id)}>
-            <CloseIcon size={12} />
-          </button>
+          <DialogCloseButton size={24} className={styles.emptyClose} label="Close empty cell" tooltip="Close cell" onClick={() => closeCell(cell.id)} />
         </>
       ) : (
         <>

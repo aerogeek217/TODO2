@@ -313,6 +313,69 @@
   min-width: 0;
 }
 
+/* A count column with the follow-up age (board V1, option B): the count in a slot of its own, then the age. */
+.countAgeCell {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+}
+
+.countSlot {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  min-width: 28px;
+}
+
+/* Its heading: the column's name (a sort by the count), then the small `age` toggle (a sort by the age). */
+.headCountAge {
+  align-items: center;
+  gap: 4px;
+}
+
+.ageToggle {
+  flex: none;
+  margin: 0 -1px 0 1px;
+  padding: 1px 4px;
+}
+
+.ageToggle[aria-pressed='true'] {
+  background: var(--color-tint-8);
+}
+
+/* The age: muted tabular text, in the follow-up color past the column's threshold. */
+.age {
+  flex: none;
+  padding: 1px 3px;
+  margin-left: -3px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.age[data-yellow] {
+  color: var(--color-followup);
+  font-weight: var(--font-weight-semibold);
+}
+
+button.age {
+  cursor: pointer;
+}
+
+button.age:hover,
+button.age:focus-visible {
+  background: var(--color-tint-8);
+}
+
+.ageNone {
+  opacity: 0.6;
+}
+
 /* The row's action: Review, a muted icon button right after its name (the name ellipsizes before
    it). Shown while the row is hovered or holds the focus; opacity only, so nothing shifts. Always
    shown without hover (touch). */

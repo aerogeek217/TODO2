@@ -101,22 +101,6 @@
   cursor: default;
 }
 
-.dismissButton {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-lg);
-  line-height: 1;
-  padding: 2px 4px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-.dismissButton:hover {
-  color: var(--color-text-secondary);
-}
-
 @media (max-width: 640px) {
   .pill {
     top: 16px;

@@ -9,6 +9,8 @@ import {
   BREAKDOWN_STYLES,
   CHART_NAME_MAX,
   DEFAULT_BREAKDOWN_OLDEST_BY,
+  DEFAULT_YELLOW_AFTER_DAYS,
+  YELLOW_AFTER_DAYS_MAX,
   breakdownColumns,
   newBreakdownColumnId,
   type BreakdownColumn,
@@ -32,10 +34,12 @@ import { HUE_PRESET_HEX } from '../../../utils/layout-hue'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { ExpressionReportProvider } from '../../shared/filters/expression-report'
-import { CloseIcon, PlusIcon } from '../../shared/icons'
+import { DialogCloseButton } from '../../shared/DialogCloseButton'
+import { PlusIcon } from '../../shared/icons'
+import { RemoveButton } from '../../shared/RemoveButton'
 import { PopoverRoot } from '../../shared/PopoverRoot'
 import { ColorPicker } from '../../shared/ColorPicker'
-import { LitWhenControl } from './LitWhenField'
+import { LitAtField, LitWhenControl } from './LitWhenField'
 import { OLDEST_BY_LABELS, SHOW_LABELS, SPLIT_CHOICE_LABELS, STYLE_LABELS } from './breakdown-copy'
 import { useEditorDraft, widgetEditorElsewhere } from './editor-draft'
 import { useEscapeCloses, usePressElsewhereCloses } from '../../../hooks/use-close-events'
@@ -120,8 +124,9 @@ function freshColor(columns: readonly BreakdownColumn[]): string {
 
 /**
  * A Breakdown's **Count columns** (board BC): each a name, a colour, when
- * its count fills solid (Light up when, a Number's rule) and a filter
- * (Graphical / Expression), × to remove it; + Add column, up to
+ * its count fills solid (Light up when, a Number's rule), whether the
+ * follow-up age follows its count and the days it turns yellow past (board
+ * V1) and a filter (Graphical / Expression), × to remove it; + Add column, up to
  * `BREAKDOWN_COLUMNS_MAX`. A config without `columns` (a hand-made file)
  * shows the defaults in Settings' ranges (`breakdownColumns`); the first
  * edit writes them all as `columns`.
@@ -151,9 +156,7 @@ function CountColumnsField({ config, patch }: { config: BreakdownConfig; patch: 
                 aria-label={`Column ${i + 1} name`}
                 onChange={(e) => set(i, { ...column, name: e.target.value.slice(0, CHART_NAME_MAX) })}
               />
-              <button type="button" className={styles.close} aria-label={`Remove ${label}`} data-tooltip="Remove" onClick={() => write(columns.filter((_, j) => j !== i))}>
-                <CloseIcon size={12} />
-              </button>
+              <RemoveButton size={24} label={`Remove ${label}`} tooltip="Remove" onClick={() => write(columns.filter((_, j) => j !== i))} />
             </div>
             <ColorPicker value={column.color} onChange={(color) => set(i, { ...column, color })} />
             <div className={styles.columnRow}>
@@ -169,6 +172,32 @@ function CountColumnsField({ config, patch }: { config: BreakdownConfig; patch: 
                 }}
               />
             </div>
+            <div className={styles.columnRow} data-testid="chart-editor-age">
+              <label className={styles.check}>
+                <input
+                  type="checkbox"
+                  checked={column.age != null}
+                  onChange={(e) => {
+                    const { age: _old, ...rest } = column
+                    void _old
+                    set(i, e.target.checked ? { ...rest, age: { yellowAfterDays: DEFAULT_YELLOW_AFTER_DAYS } } : rest)
+                  }}
+                />
+                Days since follow-up after the count
+              </label>
+            </div>
+            {column.age && (
+              <div className={`${styles.columnRow} ${styles.ageRow}`}>
+                <span>Yellow past</span>
+                <LitAtField
+                  value={column.age.yellowAfterDays}
+                  max={YELLOW_AFTER_DAYS_MAX}
+                  label={`${label}: yellow past (days)`}
+                  onChange={(yellowAfterDays) => set(i, { ...column, age: { yellowAfterDays } })}
+                />
+                <span>days</span>
+              </div>
+            )}
             <div className={styles.filter}>
               <PredicateChips
                 predicate={column.filter}
@@ -314,7 +343,7 @@ function ChartEditor({ tab, anchorRef, onClose }: {
     >
       <div className={styles.header}>
         <span id={`${id}-title`} className={styles.title}>{title}</span>
-        <button type="button" className={styles.close} aria-label="Close" onClick={() => { edit.requestClose() }}><CloseIcon size={14} /></button>
+        <DialogCloseButton size={24} onClick={() => { edit.requestClose() }} />
       </div>
       <ExpressionReportProvider value={edit.reportExpression}>
         <div className={styles.body}>

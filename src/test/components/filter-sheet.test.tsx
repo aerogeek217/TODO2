@@ -127,7 +127,7 @@ describe('FilterSheet', () => {
     it('clears search with the clear button', () => {
       renderSheet()
       fireEvent.change(screen.getByRole('textbox', { name: 'Filter tasks' }), { target: { value: 'query' } })
-      fireEvent.click(screen.getByText('\u00d7'))
+      fireEvent.click(screen.getByRole('button', { name: 'Clear filter text' }))
       expect(useFilterStore.getState().filters.searchText).toBe('')
     })
   })
@@ -181,10 +181,10 @@ describe('FilterSheet', () => {
       expect(dateRangeStart.iso).toBe(new Date(2026, 3, 1).toISOString())
     })
 
-    it('sets a rolling day from the Relative dropdown', () => {
+    it('sets a rolling day from the Relative end’s chevron', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Dates'))
-      fireEvent.click(screen.getByRole('button', { name: 'From: No start' }))
+      fireEvent.click(screen.getByRole('button', { name: 'From: rolling days' }))
       fireEvent.click(screen.getByRole('menuitemradio', { name: 'start of week' }))
 
       const due = useFilterStore.getState().filters.dates.deadline

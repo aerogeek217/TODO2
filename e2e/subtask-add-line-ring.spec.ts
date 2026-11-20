@@ -80,7 +80,7 @@ for (const count of [0, 3, 14]) {
     await seedWorkspace(page, seed(count, true))
     await pickInReview(page, 'rv1', 'Aisha')
     const widget = page.locator('[data-review-widget="rv1"]')
-    await expect(widget.getByTestId('review-card-title')).toHaveText(TITLE)
+    await expect(widget.getByTestId('review-card-title')).toHaveValue(TITLE)
     await expectRingShown(widget.locator('[data-review-card]'), `review card, ${count}`)
   })
 }

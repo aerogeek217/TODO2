@@ -5,6 +5,7 @@ import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { trackHot } from '../../utils/hot-attr'
 import type { WidgetFace } from '../../utils/widget-face'
 import { PlusIcon } from '../shared/icons'
+import { RemoveButton } from '../shared/RemoveButton'
 import { CellControlsContext, type CellControlsValue } from './cell-controls'
 import { smallFaceClick, useCellFace, useHeldBodyHeight } from './cell-face'
 import { OpenLargerPlaceholder } from './OpenLargerPlaceholder'
@@ -162,18 +163,16 @@ function NumberSlot({ cell, tab, smallFaces, dragging, menuOpen, onMore, onClose
         </CellControlsContext.Provider>
       </div>
       <CellControls value={controls} floating standsForTab={lines === 0} />
-      <button
-        type="button"
+      <RemoveButton
         className={styles.close}
-        aria-label={`Remove “${title}”`}
-        data-tooltip={`Remove “${title}”`}
+        iconSize={10}
+        label={`Remove “${title}”`}
+        tooltip
         onClick={(e) => {
           e.preventDefault()
           onClose(tab.id)
         }}
-      >
-        ×
-      </button>
+      />
     </div>
   )
 }

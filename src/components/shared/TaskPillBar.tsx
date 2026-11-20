@@ -5,11 +5,13 @@ import { formatDateShort } from '../../utils/date'
 import { isDeadlinePast } from '../../utils/effective-date'
 import { followupPillLabel, followupTooltip, isFollowupOverdue } from '../../utils/followup'
 import { startOfDay } from '../../utils/date'
+import { describeRecurrence } from '../../utils/recurrence'
 import { FollowupFlagIcon } from './FollowupIcons'
 import { useTooltip } from './use-tooltip'
 import { StatusIcon } from './StatusIcon'
 import { StatusMark } from './StatusMark'
 import { AvatarStack } from './AvatarStack'
+import { RemoveButton } from './RemoveButton'
 import styles from './TaskPillBar.module.css'
 
 /**
@@ -107,6 +109,7 @@ export const TaskPillDates = memo(function TaskPillDates({
   if (!hasDeadline) return null
 
   const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
+  const repeatWords = todo.recurrenceRule ? describeRecurrence(todo.recurrenceRule, startOfDay(todo.dueDate!)) : undefined
 
   if (compact) {
     return (
@@ -117,7 +120,7 @@ export const TaskPillDates = memo(function TaskPillDates({
         {todo.recurrenceRule && (
           <span
             className={styles.markerRecurrence}
-            data-tooltip={`Repeats ${todo.recurrenceRule.type}`}
+            data-tooltip={repeatWords}
             aria-label="Recurring"
           >
             &#x21bb;
@@ -141,22 +144,21 @@ export const TaskPillDates = memo(function TaskPillDates({
         <StatusIcon icon="clock" />
         {formatDateShort(todo.dueDate!)}
         {todo.recurrenceRule && (
-          <span className={styles.recurrenceIndicator} role="img" aria-label={`Repeats ${todo.recurrenceRule.type}`} data-tooltip={`Repeats ${todo.recurrenceRule.type}`}>
+          <span className={styles.recurrenceIndicator} role="img" aria-label={repeatWords} data-tooltip={repeatWords}>
             &#x21bb;
           </span>
         )}
         {onDeadlineClear && (
-          <span
+          <RemoveButton
+            as="span"
+            size={14}
             className={styles.chipClear}
-            role="button"
-            tabIndex={-1}
-            aria-label="Clear due date"
-            data-tooltip="Clear due date"
-            onClick={(e) => { e.stopPropagation(); onDeadlineClear(e) }}
+            label="Clear due date"
+            tooltip
+            stopPropagation
+            onClick={onDeadlineClear}
             onMouseDown={(e) => e.stopPropagation()}
-          >
-            &times;
-          </span>
+          />
         )}
       </button>
     ) : (
@@ -167,7 +169,7 @@ export const TaskPillDates = memo(function TaskPillDates({
         <StatusIcon icon="clock" />
         {formatDateShort(todo.dueDate!)}
         {todo.recurrenceRule && (
-          <span className={styles.recurrenceIndicator} role="img" aria-label={`Repeats ${todo.recurrenceRule.type}`} data-tooltip={`Repeats ${todo.recurrenceRule.type}`}>
+          <span className={styles.recurrenceIndicator} role="img" aria-label={repeatWords} data-tooltip={repeatWords}>
             &#x21bb;
           </span>
         )}
@@ -229,17 +231,15 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
       <FollowupFlagIcon />
       <span className={styles.followupLabel}>{label}</span>
       {showClear && (
-        <span
+        <RemoveButton
+          as="span"
           className={styles.followupClear}
-          role="button"
-          tabIndex={-1}
-          aria-label="Clear follow-up"
-          onClick={(e) => { e.stopPropagation(); onFollowupClear(e) }}
+          label="Clear follow-up"
+          stopPropagation
+          onClick={onFollowupClear}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
-        >
-          &times;
-        </span>
+        />
       )}
       {tooltip}
     </button>

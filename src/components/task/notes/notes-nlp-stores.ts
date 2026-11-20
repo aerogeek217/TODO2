@@ -42,6 +42,7 @@ export function storeNotesNlpConfig(): NotesNlpConfig {
       statuses: statuses(useStatusStore.getState().statuses),
       commands: true,
       followupDefault: autoFollowupInterval(useSettingsStore.getState()),
+      followupIntervals: useSettingsStore.getState().followupQuickIntervals,
       today: new Date(),
     }),
     resolverData: () => ({

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ageIsYellow,
+  ageSortColumnId,
+  ageSortKey,
   breakdownColumns,
+  breakdownSortKeys,
+  DEFAULT_YELLOW_AFTER_DAYS,
   columnIsLit,
   defaultBreakdownColumns,
   DUE_COLUMN_COLOR,
@@ -97,6 +102,39 @@ describe('liveBreakdownSort: a stored sort as the headings read it', () => {
 
   it('a stored view keeps a sort by a column it no longer has as it is (read at render, never a fix that marks the layout)', () => {
     const sorts = { people: { by: 'col-gone' }, tags: { by: 'due', reversed: true } }
+    expect(pickBreakdownView({ sorts })).toEqual({ config: { sorts }, fixed: false })
+  })
+})
+
+describe('a count column’s follow-up age (board V1)', () => {
+  it('a new Breakdown’s Follow-up column carries it with `followupAge` (the People preset), yellow past 14 days; else none', () => {
+    expect(DEFAULT_YELLOW_AFTER_DAYS).toBe(14)
+    expect(defaultBreakdownColumns(APP, { followupAge: true }).map((c) => [c.id, c.age])).toEqual([['due', undefined], ['followup', { yellowAfterDays: 14 }]])
+    expect(defaultBreakdownColumns(APP).every((c) => c.age === undefined)).toBe(true)
+    // No Follow-up column (its range off): no age anywhere.
+    expect(defaultBreakdownColumns({ due: 3, followup: 'off' }, { followupAge: true }).every((c) => c.age === undefined)).toBe(true)
+  })
+
+  it('turns yellow only past its threshold', () => {
+    expect(ageIsYellow({ yellowAfterDays: 14 }, 14)).toBe(false)
+    expect(ageIsYellow({ yellowAfterDays: 14 }, 15)).toBe(true)
+    expect(ageIsYellow({ yellowAfterDays: 0 }, 1)).toBe(true)
+  })
+
+  it('its sort key `age:<id>`: live only while the column carries the age', () => {
+    expect(ageSortKey('followup')).toBe('age:followup')
+    expect(ageSortColumnId('age:followup')).toBe('followup')
+    expect(ageSortColumnId('followup')).toBeNull()
+    expect(ageSortColumnId('age:open')).toBeNull()
+    const withAge = defaultBreakdownColumns(APP, { followupAge: true })
+    expect(breakdownSortKeys(withAge)).toEqual(['due', 'followup', 'age:followup'])
+    expect(liveBreakdownSort({ by: 'age:followup', reversed: true }, breakdownSortKeys(withAge))).toEqual({ by: 'age:followup', reversed: true })
+    expect(liveBreakdownSort({ by: 'age:followup' }, breakdownSortKeys(defaultBreakdownColumns(APP)))).toBeUndefined()
+    expect(liveBreakdownSort({ by: 'age:due' }, breakdownSortKeys(withAge))).toBeUndefined()
+  })
+
+  it('a stored view keeps an age sort (read at render)', () => {
+    const sorts = { people: { by: 'age:followup' } }
     expect(pickBreakdownView({ sorts })).toEqual({ config: { sorts }, fixed: false })
   })
 })

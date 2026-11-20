@@ -36,8 +36,8 @@ import { createPortal } from 'react-dom'
 import type {
   PersistedPerson,
   PersistedStatus,
+  Interval,
   Person,
-  RecurrenceType,
   Status,
 } from '../../models'
 import { MARKER_KEYS, type MarkerKey } from '../../models'
@@ -60,7 +60,8 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { parseInput, type CommandProblem } from '../../services/natural-language-parser'
 import { NO_PICKS, resolveInput, withPicked, type PickedIds, type ResolvedInput } from '../../services/nlp-resolver'
-import { DATE_ARGUMENT_HINT, REPEAT_FREQUENCIES } from '../../services/slash-commands'
+import { DATE_ARGUMENT_HINT, REPEAT_ARGUMENT_HINT } from '../../services/slash-commands'
+import { describeRecurrence } from '../../utils/recurrence'
 import { markerTint, tokenTints } from '../../services/nlp-token-tints'
 import { TintedText } from '../shared/TintedText'
 import { formatFollowupDate, formatFollowupDay } from '../../utils/followup'
@@ -74,6 +75,7 @@ import { DialogLayerContext, MODAL_BACKDROP_ATTR } from '../shared/dialog-layer'
 import { useBackdropPress } from '../shared/use-backdrop-press'
 import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusMark } from '../shared/StatusMark'
+import { RemoveButton } from '../shared/RemoveButton'
 import styles from './QuickAddBar.module.css'
 import { FLIGHT_SEE_THROUGH_ATTR, shortcutScope } from '../../utils/dom-contract'
 
@@ -98,7 +100,7 @@ type ParsedTokens = {
   /** Tag names in first-seen order. */
   tags: string[]
   deadlineAt?: Date
-  recurrence?: RecurrenceType
+  recurrence?: Interval
   /** Person names from `@` tokens that didn't match any known person. */
   unmatchedPersons: string[]
   /** The `!` name when it matched no status. */
@@ -172,19 +174,9 @@ function Kbd({ children }: { children: React.ReactNode }) {
   return <span className={styles.kbd}>{children}</span>
 }
 
-const RECURRENCE_LABEL: Record<RecurrenceType, string> = {
-  daily: 'Daily',
-  weekly: 'Weekly',
-  biweekly: 'Every 2 weeks',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  yearly: 'Yearly',
-}
-
-/** `Every Mon` for weekly from a Monday due date; the frequency otherwise. */
-function repeatLabel(recurrence: RecurrenceType, due: Date): string {
-  if (recurrence === 'weekly') return `Every ${due.toLocaleDateString('en-US', { weekday: 'short' })}`
-  return RECURRENCE_LABEL[recurrence]
+/** The repeat chip's words: `Every Mon` for a week from a Monday due date, `Every 3 months` (`describeRecurrence`). */
+function repeatLabel(recurrence: Interval, due: Date): string {
+  return describeRecurrence({ every: recurrence }, due)
 }
 
 /** What a chip's × does: remove what the chip came from, or (the default follow-up) say "none". */
@@ -196,20 +188,16 @@ type ChipRemoval = QuickAddChip | { kind: 'defaultFollowup' }
  */
 function ChipRemove({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <button
-      type="button"
+    <RemoveButton
+      size={14}
       className={styles.chipRemove}
       tabIndex={-1}
-      aria-label={label}
-      data-tooltip={label}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={(e) => {
-        e.stopPropagation()
-        onRemove()
-      }}
-    >
-      &times;
-    </button>
+      label={label}
+      tooltip
+      keepFocus
+      stopPropagation
+      onClick={onRemove}
+    />
   )
 }
 
@@ -335,7 +323,7 @@ function problemLine(p: CommandProblem): { label: string; explain: string; error
       if (p.command === 'due' || p.command === 'followup') {
         return { label: "Can't read date:", explain: `— try ${DATE_ARGUMENT_HINT[p.command]}`, error: true }
       }
-      return { label: "Can't read repeat:", explain: `— try ${REPEAT_FREQUENCIES.join(', ')}`, error: true }
+      return { label: "Can't read repeat:", explain: `— try ${REPEAT_ARGUMENT_HINT}`, error: true }
   }
 }
 

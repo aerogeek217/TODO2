@@ -359,7 +359,7 @@ test('Settings: contract; Esc over it closes the people editor only, focused or 
 test('Settings: Esc in the follow-up interval reverts the typed value and keeps Settings; the next Esc closes it', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const settings = await openSettings(page, 'New tasks')
-  const interval = settings.getByRole('textbox', { name: 'Follow-up interval' })
+  const interval = settings.getByRole('textbox', { name: 'Follow-up interval', exact: true })
   const stored = await interval.inputValue()
   await interval.fill('3w')
   await page.keyboard.press('Escape')
@@ -447,7 +447,7 @@ test.describe('editor modals', () => {
         },
         trigger,
         inside: dialog.getByText(title, { exact: true }).first(),
-        initialFocus: dialog.getByRole('button', { name: '×' }).first(),
+        initialFocus: dialog.getByRole('button', { name: 'Close', exact: true }).first(),
       })
       await expect(settings).toBeVisible()
     })
@@ -470,7 +470,7 @@ test.describe('editor modals', () => {
         },
         trigger,
         inside: dialog.getByText(title).first(),
-        initialFocus: dialog.getByRole('button', { name: '×' }).first(),
+        initialFocus: dialog.getByRole('button', { name: 'Close', exact: true }).first(),
       })
       await expect(settings).toBeVisible()
     }
@@ -489,7 +489,7 @@ test.describe('editor modals', () => {
       },
       trigger,
       inside: dialog.getByText('Keyboard Shortcuts', { exact: true }),
-      initialFocus: dialog.getByRole('button', { name: '×' }),
+      initialFocus: dialog.getByRole('button', { name: 'Close', exact: true }),
     })
   })
 

@@ -12,6 +12,7 @@ import { screenTaskDialog, showTasksLabel } from '../../services/task-dialog'
 import { unmatchedNote, useSearchBox } from '../../hooks/use-search-box'
 import { NlpPopup } from '../shared/NlpPopup'
 import { TintedText } from '../shared/TintedText'
+import { RemoveButton } from '../shared/RemoveButton'
 import { useBlockTouchScroll } from '../../hooks/use-block-touch-scroll'
 import styles from './FilterSheet.module.css'
 
@@ -117,9 +118,7 @@ export function FilterSheet() {
               <TintedText text={box.text} spans={box.tints} />
             </div>
             {box.text && (
-              <button type="button" className={styles.searchClear} aria-label="Clear filter text" onClick={box.clear}>
-                ×
-              </button>
+              <RemoveButton className={styles.searchClear} iconSize={10} label="Clear filter text" onClick={box.clear} />
             )}
           </div>
           {/* The `@ # ! /` popup inside the sheet, under the box. */}

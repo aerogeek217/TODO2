@@ -1,36 +1,29 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { DateAnchor } from '../../models'
 import {
   CALENDAR_PRESETS,
-  DAY_PRESETS,
-  MAX_DAY_COUNT,
+  RELATIVE_END_HINT,
   ROLLING_DAYS,
-  countAnchor,
+  dateAnchorsEqual,
   fixedAnchorOn,
-  relativeEndOf,
+  parseRelativeEnd,
+  relativeEndText,
   rollingDayLabel,
   type DateAnchorSide,
   type DateEntryMode,
-  type DayCount,
-  type RelativeEnd,
 } from '../../utils/date-anchor'
 import { toDateInputValue } from '../../utils/date'
-import { daysUntil, resolveDateAnchor } from '../../utils/effective-date'
 import type { ChipDay } from '../../utils/filter-chips'
-import { describeAnchor } from '../../utils/filter-chips'
 import { formatFollowupDate } from '../../utils/followup'
+import { ESCAPE_OWN_ATTR } from '../../hooks/use-popover-anchor'
 import { ChevronDownIcon } from './icons'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
 import styles from './DateAnchorInput.module.css'
 
-const COUNT_WORDS: Record<DayCount, { one: string; many: string }> = {
-  ago: { one: 'day ago', many: 'days ago' },
-  ahead: { one: 'day ahead', many: 'days ahead' },
-}
 const MENU_WIDTH_PX = 220
 
 interface DateAnchorInputProps {
-  /** Calendar: a date + Set to…; Relative: a number + what it counts, or a rolling day. */
+  /** Calendar: a date + Set to…; Relative: an interval from today typed (`+2w`), or a rolling day. */
   mode: DateEntryMode
   /** Which end: its presets (From: starts and past days; To: ends and future days) and its open end's name. */
   side: DateAnchorSide
@@ -40,29 +33,16 @@ interface DateAnchorInputProps {
   label: string
   /** Today and the week start the presets resolve against. */
   day: ChipDay
-  /**
-   * What an offset of 0 counts here (it has no sign of its own); default
-   * `days ago`. The owner holds it so it outlives this input (a tab or mode
-   * switch remounts it) — see `onZeroCountChange`.
-   */
-  zeroCount?: DayCount
-  /** The count of every day count this input writes, for the owner to hold as `zeroCount`. */
-  onZeroCountChange?: (count: DayCount) => void
-  /** The id of the line under a Relative end (its day today), read with the number and the dropdown. */
+  /** The id of the line under a Relative end (its day today), read with its field and chevron. */
   describedBy?: string
   /** The phone sheet's touch sizes. */
   touch?: boolean
   className?: string
 }
 
-/** The Relative dropdown's text for an end — what the number counts, never the number itself. */
-function relativeEndText(end: RelativeEnd, side: DateAnchorSide): string {
-  switch (end.kind) {
-    case 'none': return side === 'from' ? 'No start' : 'No end'
-    case 'count': return end.days === 1 ? COUNT_WORDS[end.count].one : COUNT_WORDS[end.count].many
-    case 'rolling': return rollingDayLabel(end.token)
-    case 'date': return `on ${describeAnchor({ kind: 'fixed', iso: end.iso })}`
-  }
+/** An open end's name in the Relative chevron's menu. */
+function noEndText(side: DateAnchorSide): string {
+  return side === 'from' ? 'No start' : 'No end'
 }
 
 /**
@@ -70,13 +50,13 @@ function relativeEndText(end: RelativeEnd, side: DateAnchorSide): string {
  * board B). **Calendar**: a native date input and a **Set to…** action menu
  * (`CALENDAR_PRESETS` for the end, each with its day today; Clear the
  * date) that fills the date and reads Set to… again — always a fixed date.
- * **Relative**: a number box (0–999, digits only — what it counts is the
- * dropdown's job) and a dropdown: Count (`days ago` / `days ahead`), Fill
- * in (`DAY_PRESETS`: fills the number and the count), Rolling day
- * (`ROLLING_DAYS` for the end; another token is listed with them while it is
- * the value), a saved mix's date as `on Oct 1` while it is the value, and No
- * start / No end. The number shows only for a count; the dropdown never
- * repeats it. Picking a count moves the focus to the number.
+ * **Relative** (typed intervals, board R1): a field the end is typed into —
+ * an interval from today in the app's one grammar, signed (`+2w`, `-1m`,
+ * `+3d`), `today`, or a rolling day's words (`parseRelativeEnd`) — written as
+ * soon as it reads, never while it doesn't (its hint shows once the field is
+ * left or ⏎ is pressed; Esc puts the stored end back); and a chevron whose
+ * menu keeps the rolling days (`ROLLING_DAYS` for the end; another token is
+ * listed with them while it is the value) and No start / No end.
  */
 export function DateAnchorInput(props: DateAnchorInputProps) {
   return props.mode === 'calendar' ? <CalendarEnd {...props} /> : <RelativeEnd {...props} />
@@ -130,104 +110,92 @@ function CalendarEnd({ side, value, onChange, label, day, touch, className }: Da
   )
 }
 
-function RelativeEnd({ side, value, onChange, label, day, zeroCount, onZeroCountChange, describedBy, touch, className }: DateAnchorInputProps) {
+function RelativeEnd({ side, value, onChange, label, describedBy, touch, className }: DateAnchorInputProps) {
   const ref = useRef<HTMLButtonElement | null>(null)
-  const numberRef = useRef<HTMLInputElement | null>(null)
   const [open, setOpen] = useState(false)
-  const end = relativeEndOf(value, zeroCount)
-  // A day count written: its count is what a 0 here counts from now on.
-  const writeCount = (days: number, count: DayCount) => {
-    onZeroCountChange?.(count)
-    onChange(countAnchor(days, count))
-  }
-  // The number box's text while it can't be stored (cleared to retype).
+  // What is typed; null while not typing — the stored end shows.
   const [draft, setDraft] = useState<string | null>(null)
-  if (end.kind !== 'count' && draft !== null) setDraft(null)
-  // Picking a count hands the focus to the number (after the menu gives it back to its button).
-  const [focusNumber, setFocusNumber] = useState(0)
-  useEffect(() => {
-    if (focusNumber === 0) return
-    numberRef.current?.focus()
-    numberRef.current?.select()
-  }, [focusNumber])
+  // The hint shows for unreadable text once the field was left (or ⏎ pressed), not while typing.
+  const [showHint, setShowHint] = useState(false)
+  const stored = relativeEndText(value)
+  const text = draft ?? stored
+  const unreadable = parseRelativeEnd(text) === 'invalid'
 
-  const pickCount = (count: DayCount) => {
-    // A count keeps the number; from anything else, the end's day if it lies that way from today (at most
-    // what the box holds), else 0.
-    const distance = end.kind === 'count' || value == null ? null : daysUntil(resolveDateAnchor(value, day.today, day.weekStartsOn), day.today)
-    const days = end.kind === 'count' ? end.days : Math.min(MAX_DAY_COUNT, Math.max(0, (distance ?? 0) * (count === 'ago' ? -1 : 1)))
-    setDraft(null)
-    writeCount(days, count)
-    setFocusNumber((n) => n + 1)
+  const type = (next: string) => {
+    setDraft(next)
+    setShowHint(false)
+    const read = parseRelativeEnd(next)
+    if (read !== 'invalid' && !dateAnchorsEqual(read, value)) onChange(read)
   }
-  const fill = (days: number) => {
+  const settle = () => {
+    if (unreadable) setShowHint(true)
+    else setDraft(null)
+  }
+  const pick = (next: DateAnchor | null) => {
     setDraft(null)
-    writeCount(days, days < 0 ? 'ago' : 'ahead')
+    setShowHint(false)
+    onChange(next)
   }
 
   const rolling = ROLLING_DAYS[side]
-  const extraToken = end.kind === 'rolling' && !rolling.includes(end.token) ? end.token : null
+  const extraToken = value?.kind === 'relative' && !rolling.includes(value.token) ? value.token : null
   const entries: MenuEntry[] = [
-    { kind: 'label', text: 'Count' },
-    ...(['ago', 'ahead'] as const).map((c): MenuEntry => ({
-      kind: 'item', label: COUNT_WORDS[c].many, radio: true, checked: end.kind === 'count' && end.count === c, onSelect: () => pickCount(c),
-    })),
-    { kind: 'separator' },
-    { kind: 'label', text: 'Fill in' },
-    ...DAY_PRESETS.map((p): MenuEntry => ({ kind: 'item', label: p.label, note: String(Math.abs(p.days)), onSelect: () => fill(p.days) })),
-    { kind: 'separator' },
     { kind: 'label', text: 'Rolling day' },
     ...[...rolling, ...(extraToken ? [extraToken] : [])].map((t): MenuEntry => ({
-      kind: 'item', label: rollingDayLabel(t), radio: true, checked: end.kind === 'rolling' && end.token === t,
-      onSelect: () => onChange({ kind: 'relative', token: t }),
+      kind: 'item', label: rollingDayLabel(t), radio: true, checked: value?.kind === 'relative' && value.token === t,
+      onSelect: () => pick({ kind: 'relative', token: t }),
     })),
     { kind: 'separator' },
-    ...(end.kind === 'date' ? [{ kind: 'item' as const, label: relativeEndText(end, side), radio: true, checked: true }] : []),
-    { kind: 'item', label: relativeEndText({ kind: 'none' }, side), radio: true, checked: end.kind === 'none', onSelect: () => onChange(null) },
+    { kind: 'item', label: noEndText(side), radio: true, checked: value == null, onSelect: () => pick(null) },
   ]
-  const text = relativeEndText(end, side)
+  const hintId = `${describedBy ?? label}-hint`
 
   return (
-    <div className={`${styles.wrapper} ${touch ? styles.touch : ''} ${className ?? ''}`}>
-      {end.kind === 'count' && (
+    <div className={`${styles.relative} ${touch ? styles.touch : ''} ${className ?? ''}`}>
+      <div className={styles.wrapper}>
         <input
-          ref={numberRef}
           type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          className={`${styles.field} ${styles.number}`}
-          value={draft ?? String(end.days)}
-          onChange={(e) => {
-            // Its digits only, 0–999: a pasted `-7` is 7 of the count the dropdown shows.
-            const digits = e.target.value.replace(/\D/g, '')
-            if (digits === '') {
-              setDraft('')
-              return
+          className={`${styles.field} ${styles.typed}`}
+          value={text}
+          placeholder={noEndText(side)}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(e) => type(e.target.value)}
+          onBlur={settle}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              settle()
+            } else if (e.key === 'Escape' && draft !== null && unreadable) {
+              // Puts the stored end back; the popover around it stays open. (Text that was written lets Esc close it.)
+              e.preventDefault()
+              e.stopPropagation()
+              setDraft(null)
+              setShowHint(false)
             }
-            const days = Math.min(MAX_DAY_COUNT, parseInt(digits, 10))
-            setDraft(String(days))
-            writeCount(days, end.count)
           }}
-          onBlur={() => setDraft(null)}
-          aria-label={`${label}: number of days`}
-          aria-describedby={describedBy}
+          aria-label={label}
+          aria-invalid={(unreadable && showHint) || undefined}
+          aria-describedby={[describedBy, unreadable && showHint ? hintId : null].filter(Boolean).join(' ') || undefined}
+          data-relative-end={side}
+          {...(draft !== null && unreadable ? { [ESCAPE_OWN_ATTR]: '' } : {})}
         />
-      )}
-      <button
-        ref={ref}
-        type="button"
-        className={`${styles.field} ${styles.select} ${end.kind === 'none' ? styles.placeholder : ''} ${open ? styles.open : ''}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`${label}: ${text}`}
-        aria-describedby={describedBy}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span className={styles.selectValue}>{text}</span>
-        <ChevronDownIcon />
-      </button>
+        <button
+          ref={ref}
+          type="button"
+          className={`${styles.field} ${styles.chevron} ${open ? styles.open : ''}`}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`${label}: rolling days`}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <ChevronDownIcon />
+        </button>
+      </div>
+      {unreadable && showHint && <p id={hintId} className={styles.hint} role="alert">{RELATIVE_END_HINT}</p>}
       {open && (
-        <MenuPopover anchorRef={ref} width={MENU_WIDTH_PX} label={label} entries={entries} onClose={() => setOpen(false)} />
+        <MenuPopover anchorRef={ref} width={MENU_WIDTH_PX} label={`${label}: rolling days`} entries={entries} onClose={() => setOpen(false)} />
       )}
     </div>
   )

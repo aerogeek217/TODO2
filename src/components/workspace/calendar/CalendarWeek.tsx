@@ -4,7 +4,7 @@ import { dayKey } from '../../../utils/date'
 import { useElementSize } from '../../../hooks/use-element-size'
 import styles from './CalendarWidget.module.css'
 import { type DayContext, useDayTarget, dayClasses } from './calendar-day'
-import { DropLabel, EntryItem, MoreButton } from './CalendarDayParts'
+import { DayDate, DropLabel, EntryItem, MoreButton } from './CalendarDayParts'
 
 /** The calendar's week: as rows (narrow) or seven columns. */
 
@@ -31,10 +31,10 @@ function WeekRow({ day, entries, fit, ctx, onMore, moreOpen }: {
       data-today={isToday ? 'true' : undefined}
       data-drop-target={highlighted ? 'true' : undefined}
     >
-      <div className={styles.dateBlock} aria-label={dayLabel(day)}>
+      <DayDate day={day} count={entries.length} open={moreOpen} onMore={onMore} className={styles.dateBlock} label={dayLabel(day)}>
         <span className={styles.weekdayName}>{weekdayShort(day)}</span>
         <span className={styles.weekDate}>{day.getDate()}</span>
-      </div>
+      </DayDate>
       <div className={styles.weekEntries}>
         {entries.length === 0
           ? <span className={styles.emptyDash} aria-hidden="true">—</span>
@@ -79,7 +79,13 @@ export function WeekRows({ days, entriesByDay, ctx, onMore, moreDayMs }: {
   )
 }
 
-export function WeekColumn({ day, entries, ctx }: { day: Date; entries: CalendarEntry[]; ctx: DayContext }) {
+export function WeekColumn({ day, entries, ctx, onMore, moreOpen }: {
+  day: Date
+  entries: CalendarEntry[]
+  ctx: DayContext
+  onMore: (day: Date, cell: HTMLElement) => void
+  moreOpen: boolean
+}) {
   const { setNodeRef, highlighted } = useDayTarget(ctx, day)
   const isToday = day.getTime() === ctx.today.getTime()
   return (
@@ -90,10 +96,10 @@ export function WeekColumn({ day, entries, ctx }: { day: Date; entries: Calendar
       data-today={isToday ? 'true' : undefined}
       data-drop-target={highlighted ? 'true' : undefined}
     >
-      <div className={styles.columnHeader} aria-label={dayLabel(day)}>
+      <DayDate day={day} count={entries.length} open={moreOpen} onMore={onMore} className={styles.columnHeader} label={dayLabel(day)}>
         <span className={styles.weekdayName}>{weekdayShort(day)}</span>
         <span className={styles.weekDate}>{day.getDate()}</span>
-      </div>
+      </DayDate>
       <div className={styles.columnEntries}>
         {entries.map((e) => <EntryItem key={e.key} entry={e} size="md" wrap ctx={ctx} />)}
       </div>

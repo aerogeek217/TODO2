@@ -95,9 +95,9 @@ describe('the task layout in the editor', () => {
     expect(Array.from(followup.querySelectorAll('[data-followup-field]')).map((r) => r.getAttribute('data-followup-field'))).toEqual(['last', 'next'])
     expect(follows(f.getByRole('textbox', { name: 'Last follow-up' }), f.getByRole('textbox', { name: 'Next follow-up' }))).toBe(true)
     expect(f.queryByRole('button', { name: 'Mark followed up' })).toBeNull()
-    // The quick intervals: 1w 2w 1m 3m, after Next.
+    // The quick intervals (Settings' defaults: 1d 1w 1m 3m), after Next.
     expect(within(f.getByRole('group', { name: 'Quick follow-up intervals' })).getAllByRole('button').map((b) => b.textContent))
-      .toEqual(['1w', '2w', '1m', '3m'])
+      .toEqual(['1d', '1w', '1m', '3m'])
     // The footer: the fields, Mark followed up, then Done; Created · Modified in the header.
     const done = within(footer).getByRole('button', { name: 'Done' })
     const mark = within(footer).getByRole('button', { name: 'Mark followed up' })

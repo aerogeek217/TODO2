@@ -1,4 +1,5 @@
 import { DATE_FIELD_VALUES, type DateField } from '../models'
+import { readOffsetAnchor } from '../utils/date-anchor'
 import {
   MARKER_CLAUSES_MAX,
   NO_PRIORITY,
@@ -70,7 +71,7 @@ function readAnchor(v: unknown): DateAnchor | undefined {
   if (v.kind === 'relative' && typeof v.token === 'string' && (RELATIVE_DATE_TOKENS as readonly string[]).includes(v.token)) {
     return { kind: 'relative', token: v.token as RelativeDateToken }
   }
-  if (v.kind === 'offset' && typeof v.days === 'number' && Number.isFinite(v.days)) return { kind: 'offset', days: v.days }
+  if (v.kind === 'offset') return readOffsetAnchor(v) ?? undefined
   return undefined
 }
 

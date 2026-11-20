@@ -6,7 +6,8 @@ import { useFilterStore } from '../../stores/filter-store'
 import { countActiveFilters, criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { ScreenExpression } from '../shared/filters/ScreenExpression'
-import { CloseIcon, FunnelIcon, SearchIcon } from '../shared/icons'
+import { FunnelIcon, SearchIcon } from '../shared/icons'
+import { RemoveButton } from '../shared/RemoveButton'
 import { NlpPopup } from '../shared/NlpPopup'
 import { TintedText } from '../shared/TintedText'
 import styles from './TaskDialogFilterBar.module.css'
@@ -113,15 +114,13 @@ function SearchField() {
         </div>
         {box.text && (
           // A mouse target only, as the top bar's (from the keyboard, Esc clears).
-          <button
-            type="button"
+          <RemoveButton
             className={styles.searchClear}
-            aria-label="Clear filter text"
+            label="Clear filter text"
             tabIndex={-1}
-            onMouseDown={(e) => { e.preventDefault(); box.clear(); inputRef.current?.focus() }}
-          >
-            <CloseIcon size={8} />
-          </button>
+            keepFocus
+            onMouseDown={() => { box.clear(); inputRef.current?.focus() }}
+          />
         )}
       </div>
       {/* Under the bar's first line, full width: the popup, else a note per unmatched name. */}

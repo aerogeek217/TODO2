@@ -18,7 +18,8 @@ import { withCopiedParts } from '../../../utils/list-copy'
 import { findTab, layoutTabs } from '../../../utils/workspace-layout-queries'
 import { ListEditorBody } from '../../shared/ListEditorBody'
 import { ExpressionReportProvider, useExpressionReports } from '../../shared/filters/expression-report'
-import { CloseIcon, LinkIcon } from '../../shared/icons'
+import { DialogCloseButton } from '../../shared/DialogCloseButton'
+import { LinkIcon } from '../../shared/icons'
 import { SAVE_UNREADABLE_TITLE } from '../glance/editor-draft'
 import { EDIT_LIST_KEEP_ATTR, setEditListCloseRequest } from './edit-list-keep'
 import styles from './EditList.module.css'
@@ -413,9 +414,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
       {arrow && <span className={`${styles.arrow} ${arrow === 'right' ? styles.arrowRight : ''}`} aria-hidden="true" />}
       <header className={styles.header}>
         <span className={styles.eyebrow}>Edit list</span>
-        <button type="button" className={styles.close} aria-label="Close Edit list" data-tooltip="Close" onClick={() => { model.requestClose() }}>
-          <CloseIcon size={12} />
-        </button>
+        <DialogCloseButton size={24} label="Close Edit list" tooltip="Close" onClick={() => { model.requestClose() }} />
       </header>
       <ExpressionReportProvider value={model.reportExpression}>
         <div className={styles.body}>
@@ -515,9 +514,7 @@ function EditListSheet({ listDefinitionId, tabId, onClose }: SurfaceProps) {
         />
         <header className={styles.sheetHeader}>
           <span className={styles.sheetTitle}>Edit list</span>
-          <button type="button" className={styles.sheetClose} aria-label="Close Edit list" onClick={() => { model.requestClose() }}>
-            <CloseIcon size={14} />
-          </button>
+          <DialogCloseButton className={styles.sheetClose} iconSize={14} label="Close Edit list" onClick={() => { model.requestClose() }} />
         </header>
         <ExpressionReportProvider value={model.reportExpression}>
           <div className={styles.sheetBody}>

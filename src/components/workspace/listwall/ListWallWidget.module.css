@@ -12,11 +12,12 @@
   min-height: 0;
 }
 
-[data-tone='late'] { --tone-fill: var(--color-overdue); --tone-edge: transparent; }
-[data-tone='soon'] { --tone-fill: transparent; --tone-edge: var(--color-overdue); }
-[data-tone='followup'] { --tone-fill: var(--color-followup); --tone-edge: transparent; }
-[data-tone='ontrack'] { --tone-fill: color-mix(in srgb, var(--color-accent) 38%, var(--color-surface)); --tone-edge: transparent; }
-[data-tone='stale'] { --tone-fill: var(--color-row-tone-stale); --tone-edge: transparent; }
+/* Every state a fill, as a Lines box's (due soon its overdue colour, faint): a square's outline is its priority's ring. */
+[data-tone='late'] { --tone-fill: var(--color-overdue); }
+[data-tone='soon'] { --tone-fill: color-mix(in srgb, var(--color-overdue) 45%, transparent); }
+[data-tone='followup'] { --tone-fill: var(--color-followup); }
+[data-tone='ontrack'] { --tone-fill: color-mix(in srgb, var(--color-accent) 38%, var(--color-surface)); }
+[data-tone='stale'] { --tone-fill: var(--color-row-tone-stale); }
 
 .empty {
   margin: auto;
@@ -73,8 +74,6 @@
   display: block;
   width: 10px;
   height: 10px;
-  box-sizing: border-box;
-  border: 1.5px solid var(--tone-edge);
   border-radius: 2px;
   background: var(--tone-fill);
 }
@@ -150,20 +149,18 @@
   gap: 2px;
 }
 
+/* Its fill the task's state; its priority a ring over it and Focus's glow (`PriorityRing`, which fills the square: it is `position: relative`). */
 .square {
+  position: relative;
   display: block;
   width: 10px;
   height: 10px;
   padding: 0;
   box-sizing: border-box;
-  border: 1.5px solid var(--tone-edge);
+  border: none;
   border-radius: 2px;
   background: var(--tone-fill);
   cursor: pointer;
-}
-
-.square[data-focus='true'] {
-  box-shadow: 0 0 0 1px var(--color-surface), 0 0 0 2.2px var(--color-accent);
 }
 
 button.square:hover {
@@ -322,10 +319,6 @@ button.square:hover {
   flex-basis: 0;
   height: 100%;
   background: var(--tone-fill);
-}
-
-.segment[data-tone='soon'] {
-  background: color-mix(in srgb, var(--color-overdue) 38%, transparent);
 }
 
 .barWaiting {

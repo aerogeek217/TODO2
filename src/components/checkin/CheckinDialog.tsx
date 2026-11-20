@@ -28,6 +28,7 @@ import type { ListFilterField } from '../../stores/list-widget-store'
 import { DialogFrame } from '../shared/Dialog'
 import { PredicateChips } from '../shared/filters/PredicateChips'
 import type { DateFilterHost } from '../shared/filters/DateFilterPanel'
+import { DialogCloseButton } from '../shared/DialogCloseButton'
 import { CopyIcon } from '../shared/icons'
 import { useTooltip } from '../shared/use-tooltip'
 import styles from './CheckinDialog.module.css'
@@ -179,7 +180,7 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
     >
       <div className={styles.header}>
         <h2 id={titleId} className={styles.title}>Task check-ins</h2>
-        <button type="button" className={styles.closeBtn} aria-label="Close" onClick={close}>×</button>
+        <DialogCloseButton onClick={close} />
       </div>
 
       <div className={styles.body}>

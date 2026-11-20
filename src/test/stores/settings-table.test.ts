@@ -34,6 +34,7 @@ const CASES: Record<string, Case> = {
   completedRetentionDays: { value: { completedRetentionDays: 30 }, undo: 'Offer to delete completed tasks after 30 days', failure: 'Couldn’t save when to offer to delete completed tasks.' },
   weekStartsOn: { value: { weekStartsOn: 0 }, undo: 'Weeks start on Sunday', failure: 'Couldn’t save the first day of the week.' },
   followupDefaultInterval: { value: { followupDefaultInterval: { count: 2, unit: 'w' } }, undo: 'Follow-up interval 2 weeks', failure: 'Couldn’t save the follow-up interval.' },
+  followupQuickIntervals: { value: { followupQuickIntervals: [{ count: 3, unit: 'd' }, { count: 2, unit: 'w' }] }, undo: 'Quick follow-up intervals 3d 2w', failure: 'Couldn’t save the quick follow-up intervals.' },
   autoFollowup: { value: { autoFollowup: false }, undo: 'Don’t set a next follow-up automatically', failure: 'Couldn’t save whether a next follow-up is set automatically.' },
   removeConvertedLines: { value: { removeConvertedLines: true }, undo: 'Remove note lines after converting', failure: 'Couldn’t save what converted note lines become.' },
   staleCobwebs: { value: { staleCobwebs: false }, undo: 'No cobwebs on stale tasks', failure: 'Couldn’t save whether stale tasks show cobwebs.' },

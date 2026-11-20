@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react'
-import type { Person, Tag, RecurrenceType } from '../../models'
+import type { Interval, Person, Tag } from '../../models'
 import { ChipSelector } from '../shared/ChipSelector'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { DeadlinePicker } from '../shared/DeadlinePicker'
-import { PlusIcon, RepeatIcon } from '../shared/icons'
+import { PlusIcon } from '../shared/icons'
+import { RepeatField } from './RepeatField'
+import { RemoveButton } from '../shared/RemoveButton'
 import { byName } from '../../utils/sort-order'
 import { FactSection } from './TaskFacts'
 import styles from './TaskDetails.module.css'
@@ -15,9 +17,11 @@ type MetadataDropdown = 'people' | 'tags'
 interface TaskEditMetadataProps {
   // Due date + repeat
   deadline: Date | null
-  recurrenceType: RecurrenceType | ''
+  /** The repeat (schema v84); null for none. */
+  repeat: Interval | null
   onDeadlineChange: (next: Date | null) => void
-  onRecurrenceChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
+  /** A new repeat typed (`RepeatField`: only when it changed; null removes it). */
+  onRepeatChange: (every: Interval | null) => void
   /** The due date's state, as its row colours it (`row-date-state.dueState`). */
   dueTone?: 'past' | 'soon'
 
@@ -43,11 +47,11 @@ interface TaskEditMetadataProps {
  * layer stacked above (a person's / tag's menu or the dialog it opened), and
  * not one on the pills, whose own toggle runs. Due: the date in the rows'
  * words (its tooltip the full date), a click opens the date picker, ×
- * clears it; its repeat after it.
+ * clears it; its repeat under it, typed (`RepeatField`: `Repeat every [2w]`).
  */
 export function TaskEditMetadata({
-  deadline, recurrenceType, dueTone,
-  onDeadlineChange, onRecurrenceChange,
+  deadline, repeat, dueTone,
+  onDeadlineChange, onRepeatChange,
   assignedPeople, assignedTags, allPeople, allTags,
   onTogglePerson, onToggleTag,
   onCreatePerson, onCreateTag,
@@ -75,8 +79,8 @@ export function TaskEditMetadata({
                 </span>
                 <span className={styles.personName}>{person.name}</span>
               </button>
-              <button type="button" className={styles.chipRemove} aria-label={`Remove ${person.name}`}
-                onClick={() => { if (person.id != null) onTogglePerson(person.id) }}>&times;</button>
+              <RemoveButton label={`Remove ${person.name}`}
+                onClick={() => { if (person.id != null) onTogglePerson(person.id) }} />
             </span>
           ))}
           <button type="button" className={styles.chipAdd} aria-label="Add person" data-tooltip="Add person"
@@ -111,8 +115,8 @@ export function TaskEditMetadata({
                 onClick={() => toggleDropdown('tags')}>
                 <span className={styles.personName}>#{tag.name}</span>
               </button>
-              <button type="button" className={styles.chipRemove} aria-label={`Remove #${tag.name}`}
-                onClick={() => { if (tag.id != null) onToggleTag(tag.id) }}>&times;</button>
+              <RemoveButton label={`Remove #${tag.name}`}
+                onClick={() => { if (tag.id != null) onToggleTag(tag.id) }} />
             </span>
           ))}
           <button type="button" className={styles.chipAdd} aria-label="Add tag" data-tooltip="Add tag"
@@ -142,23 +146,7 @@ export function TaskEditMetadata({
         <div className={styles.dueLine}>
           <DeadlinePicker value={deadline} onChange={onDeadlineChange} tone={dueTone} />
           {deadline && (
-            <label className={styles.repeat}>
-              <RepeatIcon size={11} />
-              <select
-                className={styles.repeatSelect}
-                value={recurrenceType}
-                onChange={onRecurrenceChange}
-                aria-label="Repeat"
-              >
-                <option value="">No repeat</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Biweekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="yearly">Yearly</option>
-              </select>
-            </label>
+            <RepeatField value={repeat} due={deadline} onChange={onRepeatChange} />
           )}
         </div>
       </FactSection>

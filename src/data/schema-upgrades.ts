@@ -14,6 +14,7 @@ import { upgradeV80 } from './upgrades/v80'
 import { upgradeV81 } from './upgrades/v81'
 import { upgradeV82 } from './upgrades/v82'
 import { upgradeV83 } from './upgrades/v83'
+import { upgradeV84 } from './upgrades/v84'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -109,7 +110,8 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * (`upgrades/v81/index.ts`), and v82, each row track's runs of side-by-side
  * Number cells merged into one strip cell (`upgrades/v82/index.ts`), and
  * v83, the Project pulse and Pressure radar tabs dropped and the cells they
- * empty closed (`upgrades/v83/index.ts`). Each transform lives in
+ * empty closed (`upgrades/v83/index.ts`), and v84, each task's repeat
+ * type written as its interval (`upgrades/v84/index.ts`). Each transform lives in
  * `data/upgrades/v<N>-*.ts` (or `v<N>/`, by parts); the tab walk v78, v79,
  * v81 and v83 share is `upgrades/layout-tabs.ts`.
  */
@@ -129,6 +131,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [81, upgradeV81],
   [82, upgradeV82],
   [83, upgradeV83],
+  [84, upgradeV84],
 ])
 
 /**

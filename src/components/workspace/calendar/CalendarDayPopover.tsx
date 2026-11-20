@@ -4,7 +4,7 @@ import { useDndMonitor } from '@dnd-kit/core'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import type { CalendarEntry } from '../../../services/calendar-entries'
 import { dayLabel } from '../../../utils/calendar-grid'
-import { CloseIcon } from '../../shared/icons'
+import { DialogCloseButton } from '../../shared/DialogCloseButton'
 import styles from './CalendarWidget.module.css'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { PopoverRoot } from '../../shared/PopoverRoot'
@@ -53,9 +53,7 @@ export function CalendarDayPopover({ day, at, entries, renderEntry, onClose }: C
       <div className={styles.dayPopoverHeader}>
         <span className={styles.dayPopoverTitle}>{dayLabel(day)}</span>
         <span className={styles.dayPopoverCount}>{count}</span>
-        <button type="button" className={styles.dayPopoverClose} aria-label="Close" onClick={onClose}>
-          <CloseIcon size={10} />
-        </button>
+        <DialogCloseButton size={24} className={styles.dayPopoverClose} onClick={onClose} />
       </div>
       <div ref={trackScrollEdges} className={styles.dayPopoverEntries}>
         {entries.map((e) => renderEntry(e))}

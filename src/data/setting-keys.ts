@@ -19,6 +19,12 @@ export const SETTING_KEYS = {
   /** Default next-follow-up interval for new tasks / "Mark followed up", compact form (`1m`, `2w`, `10d`). */
   followupDefaultInterval: 'followupDefaultInterval',
   /**
+   * The quick follow-up intervals (Settings › Tasks › New tasks): their
+   * compact forms, space-separated (`1d 1w 1m 3m`), 1–6. Absent = the
+   * default (`utils/followup.DEFAULT_QUICK_FOLLOWUP_INTERVALS`).
+   */
+  followupQuickIntervals: 'followupQuickIntervals',
+  /**
    * "Set a next follow-up automatically" (the key predates its wider
    * meaning): whether new tasks and "Mark followed up" set the next
    * follow-up to today + the default interval (off: new tasks get none, Mark

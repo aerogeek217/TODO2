@@ -84,18 +84,7 @@
   top: 50%;
   right: 1px;
   transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-md);
-  line-height: 1;
-  color: currentColor;
   opacity: 0;
-  transition: opacity var(--transition-fast), background var(--transition-fast);
-  cursor: pointer;
 }
 
 .deadlineChip:hover .chipClear {
@@ -253,23 +242,7 @@
   box-shadow: inset 0 0 0 1px var(--color-followup);
 }
 
-.followupClear {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  font-size: var(--font-size-md);
-  line-height: 1;
-  color: currentColor;
-  opacity: 0.7;
-  transition: opacity var(--transition-fast), background var(--transition-fast);
-}
-
 .followupClear:hover {
-  opacity: 1;
   background: var(--color-followup-bg-strong);
 }
 

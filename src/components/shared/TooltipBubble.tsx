@@ -17,11 +17,15 @@ export interface TooltipLegendItem {
  * kept inside the viewport. Escape, a scroll or a window resize closes it.
  * `prose`: a description in plain sentences — wider, regular weight, no label line.
  */
-export function TooltipBubble({ id, anchorRef, text, shortcut, labelLines = 1, prose = false, legend, consumeEscape = false, onClose }: {
+export function TooltipBubble({ id, anchorRef, text, shortcut, bar, barLabel, labelLines = 1, prose = false, legend, consumeEscape = false, onClose }: {
   id: string
   anchorRef: RefObject<HTMLElement | null>
   text: string
   shortcut?: string
+  /** A colour bar before the label (a CSS colour): what a calendar entry's own bar says, its date type. */
+  bar?: string
+  /** What the bar means, for assistive tech (`Due`): it names the bar, which is otherwise hidden. */
+  barLabel?: string
   /** How many of the text's first lines are the label; the rest are muted. */
   labelLines?: number
   /** A description in sentences: wider, regular weight, every line alike. */
@@ -40,7 +44,7 @@ export function TooltipBubble({ id, anchorRef, text, shortcut, labelLines = 1, p
     closeOnOutsideClick: false,
     consumeEscape,
     onClose,
-    contentKey: `${text}|${shortcut ?? ''}|${legend?.map((l) => l.label).join('|') ?? ''}`,
+    contentKey: `${text}|${shortcut ?? ''}|${bar ?? ''}|${legend?.map((l) => l.label).join('|') ?? ''}`,
   })
 
   if (prose) {
@@ -71,7 +75,15 @@ export function TooltipBubble({ id, anchorRef, text, shortcut, labelLines = 1, p
       style={{ left: style.left, top: style.top }}
       data-placed={placed ? 'true' : undefined}
     >
-      <span className={styles.label}>
+      <span className={`${styles.label} ${bar ? styles.barred : ''}`}>
+        {bar && (
+          <span
+            className={styles.bar}
+            style={{ background: bar }}
+            {...(barLabel ? { role: 'img', 'aria-label': barLabel } : { 'aria-hidden': true })}
+            data-tooltip-bar-mark=""
+          />
+        )}
         {first}
         {shortcut && <span className={styles.shortcut}> {shortcut}</span>}
       </span>

@@ -14,6 +14,7 @@ import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { FlagIcon, NotesIcon, RepeatIcon } from '../shared/icons'
 import { ClockIcon } from '../shared/MarkerIcons'
 import { PriorityRing } from '../shared/PriorityRing'
+import { RemoveButton } from '../shared/RemoveButton'
 import { StatusMark } from '../shared/StatusMark'
 import { useTooltip } from '../shared/use-tooltip'
 import { tagTextWidth } from './text-width'
@@ -342,16 +343,14 @@ export function DatesCell({
 /** A date part's clear ×: over the part's right end on hover — takes no width. */
 function DateClear({ label, cell, onClear }: { label: string; cell: string; onClear: () => void }) {
   return (
-    <button
-      type="button"
+    <RemoveButton
+      size={14}
       className={styles.dateClear}
       tabIndex={-1}
-      aria-label={label}
+      label={label}
       data-row-cell={cell}
       onClick={cellClick(onClear)}
-    >
-      &times;
-    </button>
+    />
   )
 }
 

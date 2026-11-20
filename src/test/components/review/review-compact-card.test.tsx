@@ -44,7 +44,7 @@ describe('the review card’s essentials (the widget’s medium face)', () => {
     // The update line comes after the log.
     const line = screen.getByLabelText('Status update · today')
     expect(lines[1]!.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
+    expect(screen.getByTestId('review-card-title')).toHaveValue('Vendor contract renewal')
   })
 
   it('one entry: just that one', () => {

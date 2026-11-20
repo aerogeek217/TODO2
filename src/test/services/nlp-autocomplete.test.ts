@@ -187,8 +187,8 @@ describe('/followup argument', () => {
     const view = at('Vendor contract /followup ')
     expect(view?.header).toBe('Next follow-up')
     expect(view?.rows).toEqual([
+      expect.objectContaining({ label: '1d', detail: 'Sun 11 Oct' }),
       expect.objectContaining({ label: '1w', detail: 'Sat 17 Oct' }),
-      expect.objectContaining({ label: '2w', detail: 'Sat 24 Oct' }),
       expect.objectContaining({ label: '1m', detail: 'Tue 10 Nov', note: 'default' }),
       expect.objectContaining({ label: '3m', detail: 'Sun 10 Jan 2027' }),
       expect.objectContaining({ label: 'none', detail: 'No follow-up', separator: true }),
@@ -274,9 +274,23 @@ describe('/repeat argument', () => {
     expect(view?.header).toBe('Repeat')
     expect(view?.headerNote).toBe('from Mon 12')
     expect(view?.rows.map((r) => r.kind === 'value' && [r.label, r.detail ?? ''])).toEqual([
-      ['daily', ''], ['weekly', 'every Mon'], ['biweekly', 'every 2 weeks'],
-      ['monthly', ''], ['quarterly', ''], ['yearly', ''],
+      ['daily', 'Every day'], ['weekly', 'Every Mon'], ['biweekly', 'Every 2 weeks'],
+      ['monthly', 'Every month'], ['quarterly', 'Every 3 months'], ['yearly', 'Every year'],
     ])
+  })
+
+  it('a typed interval reads as one row, in words; `every` and a number wait with the hint', () => {
+    for (const [typed, detail] of [['2w', 'Every 2 weeks'], ['every 3 days', 'Every 3 days'], ['every 6 months', 'Every 6 months']] as const) {
+      const view = at(`x /repeat ${typed}`)
+      expect(view?.rows.map((r) => r.kind === 'value' && [r.insert, r.detail])).toEqual([[typed, detail]])
+    }
+    for (const typed of ['every', 'every 3', 'every 3 ', '2']) {
+      const view = at(`x /repeat ${typed}`)
+      expect(view?.rows, typed).toEqual([])
+      expect(view?.hint, typed).toBe('weekly, monthly, 2w, every 3 days')
+    }
+    expect(at('x /repeat zz')).toBeNull()
+    expect(at('x /repeat weekly ')).toBeNull()
   })
 
   it('without a due date there is no anchor note', () => {
@@ -405,7 +419,7 @@ describe('bestMatchCompletion', () => {
     expect(complete('Plan #ba')).toBe('Plan #Backend ')
     expect(complete('Fix /ur')).toBe('Fix /urgent ')
     expect(complete('Renew /due tom')).toBe('Renew /due tomorrow ')
-    expect(complete('Ping /followup 2')).toBe('Ping /followup 2w ')
+    expect(complete('Ping /followup 3')).toBe('Ping /followup 3m ')
     expect(complete('Ship !in')).toBe('Ship !"In progress" ')
     expect(complete('Ship !wa')).toBe('Ship !Waiting ')
     expect(complete('Pay /repeat mon')).toBe('Pay /repeat monthly ')

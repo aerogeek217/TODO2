@@ -87,33 +87,10 @@
   color: var(--color-text-muted);
 }
 
+/* The chip's × (`RemoveButton`, 16px, a 24px target: to the chip's right edge and 1px past its top
+ * and bottom). */
 .chipRemove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
   margin-right: -2px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  position: relative;
-}
-
-/* A 24px target round it (UX cleanup 5A): 4px each way, to the chip's
- * right edge and 1px past its top and bottom. */
-.chipRemove::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-}
-
-.chipRemove:hover {
-  background: var(--color-tint-12);
-  color: var(--color-text-primary);
 }
 
 .addFilter {
@@ -186,8 +163,7 @@
   flex-shrink: 1;
 }
 
-.stack .chipLabel,
-.stack .chipRemove {
+.stack .chipLabel {
   flex-shrink: 0;
 }
 

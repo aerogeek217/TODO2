@@ -76,21 +76,6 @@
   filter: brightness(1.1);
 }
 
-.dismissButton {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-lg);
-  line-height: 1;
-  padding: 2px 4px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-}
-
-.dismissButton:hover {
-  color: var(--color-text-secondary);
-}
-
 @keyframes slideUp {
   from {
     opacity: 0;
@@ -116,8 +101,8 @@
   }
 
   .dismissButton {
-    padding: 6px 8px;
-    min-height: var(--touch-target-min);
+    width: var(--touch-target-min);
+    height: var(--touch-target-min);
   }
 }
 

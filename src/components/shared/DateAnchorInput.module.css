@@ -1,5 +1,5 @@
 /* One end of a date range (`DateAnchorInput`): Calendar — a date + Set to…;
- * Relative — a number + its dropdown. The date panel's inset fields;
+ * Relative — the typed end + its chevron of rolling days. The date panel's inset fields;
  * `.touch` is the phone sheet's size. */
 
 .wrapper {
@@ -37,13 +37,47 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* The count: up to three digits, right-aligned as numbers are. */
-.number {
-  flex-shrink: 0;
-  width: 48px;
+/* A Relative end: its field and chevron, the hint under them when its text doesn't read. */
+.relative {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The typed end (`+2w`, `-1m`, `today`, `end of week`). */
+.typed {
+  flex: 1;
+  min-width: 0;
   padding: 0 8px;
-  text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.typed::placeholder {
+  color: var(--color-text-muted);
+}
+
+.typed[aria-invalid='true'] {
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
+/* The chevron: the rolling days and No start / No end. */
+.chevron {
+  flex-shrink: 0;
+  width: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
 }
 
 /* A select-button: its value + a chevron, opening a menu under it. */
@@ -76,11 +110,6 @@
   color: var(--color-text-secondary);
 }
 
-/* No start / No end: an open end. */
-.placeholder {
-  color: var(--color-text-muted);
-}
-
 /* ── Phone sheet: touch sizes (16px text: no zoom on focus) ── */
 
 .touch .field {
@@ -93,6 +122,6 @@
   width: 160px;
 }
 
-.touch .number {
-  width: 64px;
+.touch .chevron {
+  width: 44px;
 }

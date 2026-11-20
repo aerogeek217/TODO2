@@ -37,6 +37,21 @@
   overflow-wrap: normal;
 }
 
+/* A colour bar before the label (`bar`): a calendar entry's, its date type. */
+.barred {
+  position: relative;
+  padding-left: 8px;
+}
+
+.bar {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  border-radius: 1.5px;
+}
+
 .shortcut,
 .line {
   color: var(--color-tooltip-muted);

@@ -142,9 +142,11 @@ describe('QuickAddBar', () => {
   it('/repeat shows with a due date, and is reported as ignored without one', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
     changeInput('Standup /due today /repeat daily ')
-    expect(chipTexts()).toContain('Daily')
+    expect(chipTexts()).toContain('Every day')
+    changeInput('Standup /due today /repeat every 6 months ')
+    expect(chipTexts()).toContain('Every 6 months')
     changeInput('Standup /repeat weekly ')
-    expect(chipTexts()).not.toContain('Weekly')
+    expect(chipTexts().some((t) => t.startsWith('Every'))).toBe(false)
     expect(screen.getByText('Ignored:')).toBeInTheDocument()
     expect(screen.getByText('— repeating needs a /due date')).toBeInTheDocument()
   })

@@ -165,40 +165,10 @@
 }
 
 /* A chip's × (the follow-up pill's ×, always shown: phones have no hover). */
+/* `RemoveButton`, 14px: its 24px target reaches 2px into the 4px gap after the chip, never onto the
+ * next chip. */
 .chipRemove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
   margin: 0 -3px 0 -1px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  font-weight: 400;
-  line-height: 1;
-  color: currentColor;
-  opacity: 0.6;
-  cursor: pointer;
-  transition: opacity var(--transition-fast), background var(--transition-fast);
-  position: relative;
-}
-
-/* A 24px target round the 14px circle (UX cleanup 5A): 5px each way — 2px
- * into the 4px gap after the chip, never onto the next chip. */
-.chipRemove::after {
-  content: '';
-  position: absolute;
-  inset: -5px;
-}
-
-.chipRemove:hover {
-  opacity: 1;
-  background: var(--color-tint-12);
 }
 
 /* Where the task is being added (e.g. "Adding to Schedule"), at the row's end. */

@@ -49,18 +49,9 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The × (`DialogCloseButton`, 24px): at the header's end. */
 .closeBtn {
-  flex: none;
   margin-left: auto;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-lg);
-  line-height: 1;
-  cursor: pointer;
 }
 
 /* The group · sort control: at the header's end, before the ×. */
@@ -73,11 +64,6 @@
 
 .groupSort + .closeBtn {
   margin-left: 0;
-}
-
-.closeBtn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text-primary);
 }
 
 .description {

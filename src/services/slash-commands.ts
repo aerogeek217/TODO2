@@ -1,5 +1,6 @@
-import type { RecurrenceType } from '../models'
+import type { Interval } from '../models'
 import { parseFollowupInput } from '../utils/followup'
+import { MAX_INTERVAL_COUNT, parseInterval, unitOfWord } from '../utils/interval'
 
 /**
  * Slash commands typed into a new task's text (Quick Add, the editor's title
@@ -45,15 +46,63 @@ export function lookupSlashCommand(word: string): SlashCommandSpec | undefined {
 /** A `/name` that could be a command: letters (and hyphens) up to whitespace or the end. */
 export const COMMAND_SHAPE = /^[A-Za-z][A-Za-z-]*$/
 
-/** `/repeat` frequencies in menu order. */
-export const REPEAT_FREQUENCIES: readonly RecurrenceType[] = [
-  'daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly',
+/**
+ * The words `/repeat` has always read, each now an interval (schema v84):
+ * the autocomplete offers them, in this order, as the common repeats.
+ */
+export const REPEAT_WORDS: readonly { word: string; every: Interval }[] = [
+  { word: 'daily', every: { count: 1, unit: 'd' } },
+  { word: 'weekly', every: { count: 1, unit: 'w' } },
+  { word: 'biweekly', every: { count: 2, unit: 'w' } },
+  { word: 'monthly', every: { count: 1, unit: 'm' } },
+  { word: 'quarterly', every: { count: 3, unit: 'm' } },
+  { word: 'yearly', every: { count: 1, unit: 'y' } },
 ]
 
-/** The frequency a `/repeat` argument names (any case), else undefined. */
-export function parseRepeatArgument(text: string): RecurrenceType | undefined {
-  const w = text.trim().toLowerCase()
-  return REPEAT_FREQUENCIES.find((f) => f === w)
+/** Most words a `/repeat` argument spans (`every 3 days`). */
+export const MAX_REPEAT_WORDS = 3
+
+/** Examples shown when a `/repeat` argument can't be read. */
+export const REPEAT_ARGUMENT_HINT = 'weekly, monthly, 2w, every 3 days'
+
+/**
+ * The repeat a `/repeat` argument names (any case), else undefined: one of
+ * the words (`weekly`, `biweekly`, `quarterly`…), an interval (`2w`, `3m`),
+ * or `every` and one — `every 2w`, `every 3 days`, `every 6 months`, `every
+ * week`, `every other week`.
+ */
+export function parseRepeatArgument(text: string): Interval | undefined {
+  const w = text.trim().toLowerCase().replace(/\s+/g, ' ')
+  const named = REPEAT_WORDS.find((r) => r.word === w)
+  if (named) return { ...named.every }
+  const bare = parseInterval(w)
+  if (bare) return bare
+  const every = /^every (.+)$/.exec(w)?.[1]
+  if (every == null) return undefined
+  const compact = parseInterval(every)
+  if (compact) return compact
+  const parts = every.split(' ')
+  const [first = '', second] = parts
+  if (second == null) {
+    // `every week`: a unit's whole word (a lone letter is the compact form's).
+    const unit = first.length > 1 ? unitOfWord(first) : null
+    return unit ? { count: 1, unit } : undefined
+  }
+  const unit = parts.length === 2 && second.length > 1 ? unitOfWord(second) : null
+  if (!unit) return undefined
+  if (first === 'other') return { count: 2, unit }
+  if (!/^\d{1,3}$/.test(first)) return undefined
+  const count = parseInt(first, 10)
+  return count >= 1 && count <= MAX_INTERVAL_COUNT ? { count, unit } : undefined
+}
+
+/**
+ * Whether `text` may still become a `/repeat` argument as more is typed:
+ * `every`, `every 3`, `every other` (what the popup keeps open on).
+ */
+export function isPartialRepeatArgument(text: string): boolean {
+  const w = text.trim().toLowerCase().replace(/\s+/g, ' ')
+  return /^every(?: (?:\d{1,3}|other))?$/.test(w)
 }
 
 /**
