@@ -28,20 +28,19 @@ const KEPT = ['Lately, next overdue', 'Long ago, next soon', 'Never followed up'
 const titles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
 const datePanel = (page: Page) => page.getByTestId('list-filter-picker')
 
-/** Picks `item` (its label) from an end's Relative dropdown in the open date panel. */
-async function pickRelative(page: Page, end: 'From' | 'To', item: string) {
-  await datePanel(page).getByRole('button', { name: new RegExp(`^${end}: (?!Set to)`) }).click()
-  await page.getByRole('menu', { name: end }).locator(`[data-menu-label="${item}"]`).click()
+/** Types `text` into an end's Relative field in the open date panel (`-7d`, `+2w`, `today`). */
+async function typeRelative(page: Page, end: 'From' | 'To', text: string) {
+  await datePanel(page).getByRole('textbox', { name: end }).fill(text)
 }
 
-/** In the open date panel: `type`'s tab, Is not, then From / To by their Relative dropdown items (a new range is Relative, cr25 P8). */
+/** In the open date panel: `type`'s tab, Is not, then From / To typed into their Relative fields (a new range is Relative, cr25 P8). */
 async function setNotRange(page: Page, type: string, from: string, to: string) {
   const panel = datePanel(page)
   await panel.getByRole('tab', { name: new RegExp(`^${type}`) }).click()
   await expect(panel.getByRole('radio', { name: 'Relative' })).toHaveAttribute('aria-checked', 'true')
   await panel.getByRole('radiogroup', { name: `${type}: is or is not` }).getByRole('radio', { name: 'Is not' }).click()
-  await pickRelative(page, 'From', from)
-  await pickRelative(page, 'To', to)
+  await typeRelative(page, 'From', from)
+  await typeRelative(page, 'To', to)
 }
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -55,10 +54,9 @@ test('the user\'s filter: hides only the tasks followed up lately with a next fo
   // + Filter › Dates: Last follow-up is not 1 week ago – Today.
   await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Dates' }).click()
-  await setNotRange(page, 'Last follow-up', '1 week ago', 'today')
-  await expect(datePanel(page).getByLabel('From: number of days')).toHaveValue('7')
-  await expect(datePanel(page).getByRole('button', { name: 'From: days ago' })).toBeVisible()
-  await expect(datePanel(page).getByRole('button', { name: 'To: today' })).toBeVisible()
+  await setNotRange(page, 'Last follow-up', '-7d', 'today')
+  await expect(datePanel(page).getByRole('textbox', { name: 'From' })).toHaveValue('-7d')
+  await expect(datePanel(page).getByRole('textbox', { name: 'To' })).toHaveValue('today')
   await expect(datePanel(page).getByRole('tabpanel')).toContainText('not within the last 7 days')
   await expect(datePanel(page).getByText('Tasks never followed up are kept.')).toBeVisible()
   await expect(datePanel(page).getByRole('checkbox')).toHaveCount(0)

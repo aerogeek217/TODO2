@@ -3,15 +3,16 @@ import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { DateAnchorInput } from '../../components/shared/DateAnchorInput'
 import type { DateAnchor } from '../../models'
-import type { DateAnchorSide, DateEntryMode, DayCount } from '../../utils/date-anchor'
+import type { DateAnchorSide, DateEntryMode } from '../../utils/date-anchor'
 
 /**
  * One end of a date range (cr25 P8, D23 boards B / C). Calendar: a date
  * input and a Set to… action menu (each item with its day today) that fills
- * a fixed date. Relative: a number box (digits only) + a dropdown saying
- * what it counts — never the number — with Count / Fill in / Rolling day /
- * No end; a saved mix's date and a token the lists no longer offer show
- * while they are the value.
+ * a fixed date. Relative (typed intervals, board R1): a field the end is
+ * typed into — `+2w`, `-1m`, `+3d`, `today`, a rolling day's words —
+ * written as soon as it reads, and a chevron of rolling days and No end; a
+ * saved mix's date and a token the lists no longer offer show while they are
+ * the value.
  */
 
 afterEach(cleanup)
@@ -27,8 +28,6 @@ function Harness({ mode, side, initial = null, log, describedBy }: {
   describedBy?: string
 }) {
   const [value, setValue] = useState<DateAnchor | null>(initial)
-  // Held by the owner, as DateFilterPanel does.
-  const [zeroCount, setZeroCount] = useState<DayCount | undefined>(undefined)
   const label = side === 'from' ? 'From' : 'To'
   return (
     <DateAnchorInput
@@ -37,8 +36,6 @@ function Harness({ mode, side, initial = null, log, describedBy }: {
       value={value}
       label={label}
       day={DAY}
-      zeroCount={zeroCount}
-      onZeroCountChange={setZeroCount}
       describedBy={describedBy}
       onChange={(v) => { log.push(v); setValue(v) }}
     />
@@ -62,7 +59,7 @@ describe('DateAnchorInput: Calendar', () => {
     render(<Harness mode="calendar" side="from" initial={{ kind: 'fixed', iso: '2026-04-18T12:00:00.000Z' }} log={[]} />)
     expect(screen.getByLabelText('From')).toHaveValue('2026-04-18')
     expect(screen.getByRole('button', { name: 'From: Set to…' })).toHaveTextContent('Set to…')
-    expect(screen.queryByLabelText('From: number of days')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'From: rolling days' })).toBeNull()
   })
 
   it('shows the date’s local day, not its UTC one (P7–P8 review)', () => {
@@ -84,23 +81,21 @@ describe('DateAnchorInput: Calendar', () => {
     expect(log.at(-1)).toBeNull()
   })
 
-  it('To’s Set to… lists the ends and future days with their day today, then Clear the date (off while empty)', () => {
+  it('To’s Set to… lists the ends with their day today, then Clear the date (off while empty)', () => {
     render(<Harness mode="calendar" side="to" log={[]} />)
     fireEvent.click(screen.getByRole('button', { name: 'To: Set to…' }))
     expect(menuRows('Set To to')).toEqual([
       'Today · Mon 2 Nov', 'End of this week · Sun 8 Nov', 'End of this month · Mon 30 Nov', 'End of next month · Thu 31 Dec',
-      '—', 'In 1 week · Mon 9 Nov', 'In 2 weeks · Mon 16 Nov', 'In 1 month · Wed 2 Dec',
       '—', 'Clear the date',
     ])
     expect(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Clear the date' })).toBeDisabled()
   })
 
-  it('From’s Set to… lists the starts and past days', () => {
+  it('From’s Set to… lists the starts (no day counts: those are typed in Relative)', () => {
     render(<Harness mode="calendar" side="from" log={[]} />)
     fireEvent.click(screen.getByRole('button', { name: 'From: Set to…' }))
     expect(menuRows('Set From to')).toEqual([
       'Today · Mon 2 Nov', 'Start of this week · Mon 2 Nov', 'Start of this month · 11/01', 'Start of last month · 10/01',
-      '—', '1 week ago · 10/26', '2 weeks ago · 10/19', '1 month ago · 10/03',
       '—', 'Clear the date',
     ])
   })
@@ -120,192 +115,115 @@ describe('DateAnchorInput: Calendar', () => {
 })
 
 describe('DateAnchorInput: Relative', () => {
-  it('no end: the dropdown reads No start / No end and there is no number', () => {
+  const field = (label = 'To') => screen.getByRole('textbox', { name: label })
+
+  it('no end: an empty field (its placeholder No start / No end) and the chevron', () => {
     render(<Harness mode="relative" side="from" log={[]} />)
-    expect(screen.getByRole('button', { name: 'From: No start' })).toHaveTextContent('No start')
-    expect(screen.queryByLabelText('From: number of days')).toBeNull()
+    expect(field('From')).toHaveValue('')
+    expect(field('From')).toHaveAttribute('placeholder', 'No start')
+    expect(screen.getByRole('button', { name: 'From: rolling days' })).toHaveAttribute('aria-haspopup', 'menu')
     cleanup()
     render(<Harness mode="relative" side="to" log={[]} />)
-    expect(screen.getByRole('button', { name: 'To: No end' })).toBeInTheDocument()
+    expect(field()).toHaveAttribute('placeholder', 'No end')
   })
 
-  it('a count: the number unsigned, the dropdown says what it counts and never repeats the number', () => {
-    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: -7 }} log={[]} describedBy="day-line" />)
-    expect(screen.getByLabelText('To: number of days')).toHaveValue('7')
-    const dropdown = screen.getByRole('button', { name: 'To: days ago' })
-    expect(dropdown).toHaveTextContent(/^days ago$/)
-    expect(dropdown).toHaveAttribute('aria-haspopup', 'menu')
-    // Both read the day line under the end.
-    expect(screen.getByLabelText('To: number of days')).toHaveAttribute('aria-describedby', 'day-line')
-    expect(dropdown).toHaveAttribute('aria-describedby', 'day-line')
-    expect(document.body.textContent).not.toMatch(/-\s*\d|−/)
+  it.each([
+    [{ kind: 'offset', days: -7 }, '-7d'],
+    [{ kind: 'offset', days: 14 }, '+14d'],
+    [{ kind: 'offset', days: 2, unit: 'w' }, '+2w'],
+    [{ kind: 'offset', days: -1, unit: 'm' }, '-1m'],
+    [{ kind: 'offset', days: 0 }, 'today'],
+    [{ kind: 'relative', token: 'today' }, 'today'],
+    [{ kind: 'relative', token: 'end-of-week' }, 'end of week'],
+  ] as const)('shows %o as %s, in the unit it was stored in', (initial, text) => {
+    render(<Harness mode="relative" side="to" initial={initial} log={[]} describedBy="day-line" />)
+    expect(field()).toHaveValue(text)
+    expect(field()).toHaveAttribute('aria-describedby', 'day-line')
   })
 
-  it('one day reads in the singular', () => {
-    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: 1 }} log={[]} />)
-    expect(screen.getByRole('button', { name: 'To: day ahead' })).toBeInTheDocument()
-  })
-
-  it('the number takes digits only, at most 999; a cleared box holds until blur', () => {
+  it('a typed interval is written as soon as it reads: +2w, -1m, +3d, today, a rolling day', () => {
     const log: (DateAnchor | null)[] = []
-    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: 14 }} log={log} />)
-    const box = screen.getByLabelText('To: number of days')
-    expect(box).toHaveAttribute('inputmode', 'numeric')
-    fireEvent.change(box, { target: { value: '21' } })
-    expect(log.at(-1)).toEqual({ kind: 'offset', days: 21 })
-    // Anything else typed or pasted keeps its digits (a pasted `-7` is 7 of the count shown) — P7–P8 review.
-    const typed: [string, number, string][] = [['-7', 7, '7'], ['2a', 2, '2'], ['1.5', 15, '15'], ['007', 7, '7'], ['1000', 999, '999'], ['-123', 123, '123']]
-    for (const [raw, days, shown] of typed) {
-      fireEvent.change(box, { target: { value: raw } })
-      expect(log.at(-1), raw).toEqual({ kind: 'offset', days })
-      expect(box, raw).toHaveValue(shown)
+    render(<Harness mode="relative" side="to" log={log} />)
+    const typed: [string, DateAnchor | null][] = [
+      ['+2w', { kind: 'offset', days: 2, unit: 'w' }],
+      ['-1m', { kind: 'offset', days: -1, unit: 'm' }],
+      ['+3d', { kind: 'offset', days: 3 }],
+      ['+1y', { kind: 'offset', days: 1, unit: 'y' }],
+      ['today', { kind: 'relative', token: 'today' }],
+      ['End of Month', { kind: 'relative', token: 'end-of-month' }],
+      ['', null],
+    ]
+    for (const [text, anchor] of typed) {
+      fireEvent.change(field(), { target: { value: text } })
+      expect(log.at(-1), text).toEqual(anchor)
     }
-    const writes = log.length
-    fireEvent.change(box, { target: { value: 'abc' } })
-    expect(box).toHaveValue('')
-    fireEvent.change(box, { target: { value: '' } })
-    expect(log).toHaveLength(writes)
-    fireEvent.blur(box)
-    expect(box).toHaveValue('123')
   })
 
-  it('a pasted negative under days ago stays days ago', () => {
+  it('text on its way (+2) writes nothing and says nothing until the field is left; then its hint, and Esc puts the end back', () => {
     const log: (DateAnchor | null)[] = []
-    render(<Harness mode="relative" side="from" initial={{ kind: 'offset', days: -3 }} log={log} />)
-    fireEvent.change(screen.getByLabelText('From: number of days'), { target: { value: '-7' } })
-    expect(log.at(-1)).toEqual({ kind: 'offset', days: -7 })
-    expect(screen.getByRole('button', { name: 'From: days ago' })).toBeInTheDocument()
+    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: 2, unit: 'w' }} log={log} />)
+    fireEvent.change(field(), { target: { value: '+2' } })
+    expect(log).toEqual([])
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.blur(field())
+    expect(screen.getByRole('alert')).toHaveTextContent('Type +2w, -1m, +3d or today, or pick a rolling day')
+    expect(field()).toHaveAttribute('aria-invalid', 'true')
+    expect(field()).toHaveValue('+2')
+    fireEvent.keyDown(field(), { key: 'Escape' })
+    expect(field()).toHaveValue('+2w')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(log).toEqual([])
   })
 
-  it('the dropdown: Count, Fill in (with the number each fills), Rolling day for the end, then No end', () => {
+  it('⏎ on text that doesn’t read shows the hint; typing again hides it', () => {
+    render(<Harness mode="relative" side="to" log={[]} />)
+    fireEvent.change(field(), { target: { value: '2 weeks' } })
+    fireEvent.keyDown(field(), { key: 'Enter' })
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    fireEvent.change(field(), { target: { value: '+2w' } })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('the chevron: the end’s rolling days, then No end', () => {
     render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: -7 }} log={[]} />)
-    fireEvent.click(screen.getByRole('button', { name: 'To: days ago' }))
-    expect(menuRows('To')).toEqual([
-      '[Count]', 'days ago ✓', 'days ahead',
-      '—', '[Fill in]', '1 week ago · 7', '2 weeks ago · 14', '1 month ago · 30', 'In 1 week · 7', 'In 2 weeks · 14', 'In 1 month · 30',
-      '—', '[Rolling day]', 'today', 'end of week', 'end of month',
-      '—', 'No end',
-    ])
-    fireEvent.click(screen.getByRole('menuitem', { name: /^In 2 weeks/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'To: rolling days' }))
+    expect(menuRows('To: rolling days')).toEqual(['[Rolling day]', 'today', 'end of week', 'end of month', '—', 'No end'])
   })
 
   it('From’s rolling days are starts', () => {
     render(<Harness mode="relative" side="from" log={[]} />)
-    fireEvent.click(screen.getByRole('button', { name: 'From: No start' }))
-    const rows = menuRows('From')
-    expect(rows.slice(rows.indexOf('[Rolling day]'))).toEqual(['[Rolling day]', 'today', 'start of week', 'start of month', '—', 'No start ✓'])
+    fireEvent.click(screen.getByRole('button', { name: 'From: rolling days' }))
+    expect(menuRows('From: rolling days')).toEqual(['[Rolling day]', 'today', 'start of week', 'start of month', '—', 'No start ✓'])
   })
 
-  it('Fill in fills the number and the count, then the dropdown reads the count', () => {
-    const log: (DateAnchor | null)[] = []
-    render(<Harness mode="relative" side="to" log={log} />)
-    fireEvent.click(screen.getByRole('button', { name: 'To: No end' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: /^1 week ago/ }))
-    expect(log.at(-1)).toEqual({ kind: 'offset', days: -7 })
-    expect(screen.getByLabelText('To: number of days')).toHaveValue('7')
-    expect(screen.getByRole('button', { name: 'To: days ago' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'To: days ago' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: /^In 1 month/ }))
-    expect(log.at(-1)).toEqual({ kind: 'offset', days: 30 })
-    expect(screen.getByLabelText('To: number of days')).toHaveValue('30')
-    expect(screen.getByRole('button', { name: 'To: days ahead' })).toBeInTheDocument()
-  })
-
-  it('a count keeps the number and turns it round; picking one moves the focus to the number', () => {
+  it('a rolling day picked fills the field with its words; No end clears it', () => {
     const log: (DateAnchor | null)[] = []
     render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: -7 }} log={log} />)
-    fireEvent.click(screen.getByRole('button', { name: 'To: days ago' }))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'days ahead' }))
-    expect(log.at(-1)).toEqual({ kind: 'offset', days: 7 })
-    expect(screen.getByLabelText('To: number of days')).toHaveFocus()
-  })
-
-  it('a count from a rolling day starts at that day’s distance when it lies that way, else 0', () => {
-    const log: (DateAnchor | null)[] = []
-    render(<Harness mode="relative" side="to" initial={{ kind: 'relative', token: 'end-of-week' }} log={log} />)
-    fireEvent.click(screen.getByRole('button', { name: 'To: end of week' }))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'days ahead' }))
-    expect(log.at(-1)).toEqual({ kind: 'offset', days: 6 }) // Sun 8 Nov
-    cleanup()
-    const log2: (DateAnchor | null)[] = []
-    render(<Harness mode="relative" side="to" log={log2} />)
-    fireEvent.click(screen.getByRole('button', { name: 'To: No end' }))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'days ago' }))
-    expect(log2.at(-1)).toEqual({ kind: 'offset', days: 0 })
-    expect(screen.getByLabelText('To: number of days')).toHaveValue('0')
-  })
-
-  it('0 keeps the count it was typed under (the owner holds it: zeroCount)', () => {
-    const log: (DateAnchor | null)[] = []
-    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: 5 }} log={log} />)
-    fireEvent.change(screen.getByLabelText('To: number of days'), { target: { value: '0' } })
-    expect(log.at(-1)).toEqual({ kind: 'offset', days: 0 })
-    expect(screen.getByRole('button', { name: 'To: days ahead' })).toBeInTheDocument()
-  })
-
-  it('an offset of 0 reads zeroCount, days ago without one; each count written is reported', () => {
-    const onZero = vi.fn()
-    const at0 = { kind: 'offset' as const, days: 0 }
-    const { rerender } = render(<DateAnchorInput mode="relative" side="to" value={at0} label="To" day={DAY} onChange={() => {}} onZeroCountChange={onZero} />)
-    expect(screen.getByRole('button', { name: 'To: days ago' })).toBeInTheDocument()
-    rerender(<DateAnchorInput mode="relative" side="to" value={at0} label="To" day={DAY} zeroCount="ahead" onChange={() => {}} onZeroCountChange={onZero} />)
-    expect(screen.getByRole('button', { name: 'To: days ahead' })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('To: number of days'), { target: { value: '3' } })
-    expect(onZero).toHaveBeenLastCalledWith('ahead')
-    fireEvent.click(screen.getByRole('button', { name: 'To: days ahead' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: /^1 week ago/ }))
-    expect(onZero).toHaveBeenLastCalledWith('ago')
-  })
-
-  it('a count from a date more than 999 days away starts at 999 (P7–P8 review)', () => {
-    const log: (DateAnchor | null)[] = []
-    render(<Harness mode="relative" side="from" initial={{ kind: 'fixed', iso: fixedIso(2023, 1, 1) }} log={log} />)
-    fireEvent.click(screen.getByRole('button', { name: 'From: on Jan 1' }))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'days ago' }))
-    expect(log.at(-1)).toEqual({ kind: 'offset', days: -999 })
-    expect(screen.getByLabelText('From: number of days')).toHaveValue('999')
-  })
-
-  it('a rolling day hides the number; No end clears', () => {
-    const log: (DateAnchor | null)[] = []
-    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: -7 }} log={log} />)
-    fireEvent.click(screen.getByRole('button', { name: 'To: days ago' }))
+    fireEvent.click(screen.getByRole('button', { name: 'To: rolling days' }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'end of month' }))
     expect(log.at(-1)).toEqual({ kind: 'relative', token: 'end-of-month' })
-    expect(screen.queryByLabelText('To: number of days')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'To: end of month' }))
-    expect(menuRows('To')).toContain('end of month ✓')
+    expect(field()).toHaveValue('end of month')
+    fireEvent.click(screen.getByRole('button', { name: 'To: rolling days' }))
+    expect(menuRows('To: rolling days')).toContain('end of month ✓')
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'No end' }))
     expect(log.at(-1)).toBeNull()
+    expect(field()).toHaveValue('')
   })
 
   it('a token the lists no longer offer is the value, listed under Rolling day only while it is', () => {
-    const log: (DateAnchor | null)[] = []
-    render(<Harness mode="relative" side="to" initial={{ kind: 'relative', token: 'end-of-next-month' }} log={log} />)
-    fireEvent.click(screen.getByRole('button', { name: 'To: end of next month' }))
-    const rows = menuRows('To')
-    expect(rows.slice(rows.indexOf('[Rolling day]'))).toEqual(['[Rolling day]', 'today', 'end of week', 'end of month', 'end of next month ✓', '—', 'No end'])
+    render(<Harness mode="relative" side="to" initial={{ kind: 'relative', token: 'end-of-next-month' }} log={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'To: rolling days' }))
+    expect(menuRows('To: rolling days')).toEqual(['[Rolling day]', 'today', 'end of week', 'end of month', 'end of next month ✓', '—', 'No end'])
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'today' }))
-    fireEvent.click(screen.getByRole('button', { name: 'To: today' }))
-    expect(menuRows('To')).not.toContain('end of next month')
+    fireEvent.click(screen.getByRole('button', { name: 'To: rolling days' }))
+    expect(menuRows('To: rolling days')).not.toContain('end of next month')
   })
 
-  it('the other end’s week token on this end is listed too (a From holding end of week)', () => {
-    render(<Harness mode="relative" side="from" initial={{ kind: 'relative', token: 'end-of-week' }} log={[]} />)
-    fireEvent.click(screen.getByRole('button', { name: 'From: end of week' }))
-    expect(menuRows('From')).toContain('end of week ✓')
-  })
-
-  it('a saved mix: the date end is its own choice (on Oct 1) while it is the value', () => {
+  it('a saved mix: the date end shows as its date while it is the value; typed again unchanged, nothing is written', () => {
     const onChange = vi.fn()
     render(<DateAnchorInput mode="relative" side="from" value={{ kind: 'fixed', iso: fixedIso(2026, 10, 1) }} label="From" day={DAY} onChange={onChange} />)
-    expect(screen.getByRole('button', { name: 'From: on Oct 1' })).toBeInTheDocument()
-    expect(screen.queryByLabelText('From: number of days')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'From: on Oct 1' }))
-    const rows = menuRows('From')
-    expect(rows.slice(-3)).toEqual(['—', 'on Oct 1 ✓', 'No start'])
-    // Picking it again changes nothing.
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'on Oct 1' }))
+    expect(field('From')).toHaveValue('10/1/2026')
+    fireEvent.change(field('From'), { target: { value: '10/1/2026 ' } })
     expect(onChange).not.toHaveBeenCalled()
   })
 })

@@ -63,7 +63,7 @@ beforeEach(() => {
     todos: [
       makeTodo({ id: 1, title: 'Both dates', dueDate: day(16), nextFollowupAt: day(20), sortOrder: 1 }),
       makeTodo({ id: 2, title: 'Late due', dueDate: day(12), sortOrder: 2 }),
-      makeTodo({ id: 3, title: 'Weekly', dueDate: day(5), recurrenceRule: { type: 'weekly' }, sortOrder: 3 }),
+      makeTodo({ id: 3, title: 'Weekly', dueDate: day(5), recurrenceRule: { every: { count: 1, unit: 'w' as const } }, sortOrder: 3 }),
       makeTodo({ id: 4, title: 'Done', dueDate: day(15), isCompleted: true, sortOrder: 4 }),
     ],
   })
@@ -122,7 +122,7 @@ describe('CalendarWidget', () => {
     expect(own.getAttribute('aria-roledescription')).toBe('draggable')
     expect(occurrence.getAttribute('data-virtual')).toBe('true')
     expect(occurrence.getAttribute('aria-roledescription')).toBeNull()
-    expect(occurrence.getAttribute('data-tooltip')).toContain('Repeats every Monday')
+    expect(occurrence.getAttribute('data-tooltip')).toContain('Every Mon. Click')
   })
 
   it('an entry’s tooltip is its title beside its date type’s bar, no Due / Next follow-up words', () => {

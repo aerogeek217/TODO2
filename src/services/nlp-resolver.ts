@@ -1,4 +1,4 @@
-import type { Person, RecurrenceType, Status, Tag } from '../models'
+import type { Interval, Person, Status, Tag } from '../models'
 import { removeSpans, type CommandProblem, type ParsedInput } from './natural-language-parser'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { byName } from '../utils/sort-order'
@@ -12,7 +12,7 @@ export interface ResolvedInput {
    * carry the commands and the status. Absent when nothing was parsed. */
   textWithoutCommands?: string
   dueDate?: Date
-  recurrence?: RecurrenceType
+  recurrence?: Interval
   personIds: number[]
   /** Person names that didn't match any existing person — created on submit
    * (`resolveUnmatchedPeople`). */

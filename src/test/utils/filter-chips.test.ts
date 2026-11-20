@@ -4,12 +4,12 @@ import type { ListDefinition } from '../../models/list-definition'
 import { emptyPredicate, type TodoPredicate } from '../../models'
 import { expectWithin } from '../timing'
 import { predicateToCriteria } from '../../utils/filter-criteria'
+import { describeAnchor } from '../../utils/date-words'
 import {
   chipKey,
   clearChipField,
   datesSpokenValue,
   datesValue,
-  describeAnchor,
   describeFilters,
   describeDateMatch,
   filterChips,

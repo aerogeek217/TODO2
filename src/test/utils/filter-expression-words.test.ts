@@ -137,3 +137,14 @@ describe('expressionWords — every tree reads distinctly', () => {
     expect(words('/urgent and (#Ops or (not @Aisha and not #q4))')).toBe('Urgent · (#Ops or not Aisha and not #q4)')
   })
 })
+
+describe('expressionWords — weeks, months and years', () => {
+  it('words a unit offset as its chip does', () => {
+    expect(words('due within 2 weeks')).toBe('Due within the next 2 weeks')
+    expect(words('created within last 3 months')).toBe('Created within the last 3 months')
+    expect(words('due <= +2w')).toBe('Due in 2 weeks or earlier')
+    expect(words('followed <= -1m')).toBe('Last follow-up 1+ months ago')
+    expect(words('due >= +1y')).toBe('Due 1+ years ahead')
+    expect(words('created >= -1m')).toBe('Created 1 month ago or later')
+  })
+})

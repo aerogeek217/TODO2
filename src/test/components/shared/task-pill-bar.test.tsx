@@ -124,7 +124,7 @@ describe('<TaskPillBar>', () => {
       const todo = makeTodo({
         id: 1,
         dueDate: new Date(2026, 3, 25),
-        recurrenceRule: { type: 'weekly' },
+        recurrenceRule: { every: { count: 1, unit: 'w' as const } },
       })
       const { container } = render(
         <TaskPillBar

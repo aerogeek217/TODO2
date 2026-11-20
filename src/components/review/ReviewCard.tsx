@@ -1,5 +1,5 @@
-import { useId, useLayoutEffect, useRef, useState, type ChangeEvent as ReactChangeEvent, type ReactNode, type RefObject } from 'react'
-import { STATUS_UPDATE_TEXT_MAX, type Person, type PersistedTodoItem, type RecurrenceType, type Tag, type TodoChanges } from '../../models'
+import { useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { STATUS_UPDATE_TEXT_MAX, type Person, type Interval, type PersistedTodoItem, type Tag, type TodoChanges } from '../../models'
 import { NEXT_FOLLOWUP_PLACEHOLDER } from '../../hooks/use-followup-input'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useSelectAllOnFocus } from '../../hooks/use-select-all-on-focus'
@@ -95,10 +95,8 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
   const urgentHint = urgentToggleHint([urgentSubject], today, urgentRange)
 
   // ── The fields: due + repeat, people, tags.
-  const recurrenceType = todo.recurrenceRule?.type ?? ''
-  const onRecurrenceChange = (e: ReactChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value as RecurrenceType | ''
-    update({ recurrenceRule: val && todo.dueDate ? makeRecurrenceRule(val, todo.dueDate) : undefined })
+  const onRepeatChange = (every: Interval | null) => {
+    update({ recurrenceRule: every && todo.dueDate ? makeRecurrenceRule(every, todo.dueDate) : undefined })
   }
   const togglePerson = (personId: number) => afterNotes(() => {
     const store = usePersonStore.getState()
@@ -161,10 +159,10 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
               <StatusFacts statuses={statuses} statusId={todo.statusId} onStatusChange={(statusId) => update({ statusId })} />
               <TaskEditMetadata
                 deadline={todo.dueDate ?? null}
-                recurrenceType={recurrenceType}
+                repeat={todo.recurrenceRule?.every ?? null}
                 dueTone={dues.past ? 'past' : dues.soon ? 'soon' : undefined}
-                onDeadlineChange={(next) => update(dueDateChanges(next, todo.recurrenceRule?.type))}
-                onRecurrenceChange={onRecurrenceChange}
+                onDeadlineChange={(next) => update(dueDateChanges(next, todo.recurrenceRule?.every))}
+                onRepeatChange={onRepeatChange}
                 assignedPeople={assignedPeople}
                 assignedTags={assignedTags}
                 allPeople={allPeople}

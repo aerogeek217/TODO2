@@ -1,6 +1,8 @@
 import type { TodoItem } from '../models/todo-item'
 import { parseDatePhrase } from './date-phrase'
 import { formatDateNumeric, formatDateWith, MS_PER_DAY, startOfDay } from './date'
+import type { Interval } from '../models/interval'
+import { addInterval, describeInterval, formatInterval, parseInterval } from './interval'
 
 /**
  * Follow-up dates. `nextFollowupAt` is a calendar day stored at local
@@ -8,12 +10,8 @@ import { formatDateNumeric, formatDateWith, MS_PER_DAY, startOfDay } from './dat
  * Settings default interval is stored as the compact string form (`1m`).
  */
 
-type FollowupUnit = 'd' | 'w' | 'm' | 'y'
-
-export interface FollowupInterval {
-  count: number
-  unit: FollowupUnit
-}
+/** A follow-up interval: the app's one interval (`models/interval`). */
+export type FollowupInterval = Interval
 
 export const DEFAULT_FOLLOWUP_INTERVAL: FollowupInterval = { count: 1, unit: 'm' }
 
@@ -32,24 +30,11 @@ export const DEFAULT_QUICK_FOLLOWUP_INTERVALS: readonly FollowupInterval[] = [
 /** The most quick intervals Settings takes: the footers give them way first, and more would crowd them. */
 export const MAX_QUICK_FOLLOWUP_INTERVALS = 6
 
-/** Largest count accepted in an interval (`999d` … `999y`). */
-const MAX_FOLLOWUP_INTERVAL_COUNT = 999
-
-const INTERVAL_PATTERN = /^\s*(\d{1,3})\s*([dwmy])\s*$/i
-
-/** `3d` / `2w` / `1m` / `1y` (case-insensitive, count 1–999) → interval, else null. */
-export function parseFollowupInterval(text: string): FollowupInterval | null {
-  const m = text.match(INTERVAL_PATTERN)
-  if (!m || m[1] == null || m[2] == null) return null
-  const count = parseInt(m[1], 10)
-  if (count < 1 || count > MAX_FOLLOWUP_INTERVAL_COUNT) return null
-  return { count, unit: m[2].toLowerCase() as FollowupUnit }
-}
+/** `3d` / `2w` / `1m` / `1y` (case-insensitive, count 1–999) → interval, else null (`utils/interval`). */
+export const parseFollowupInterval = parseInterval
 
 /** Compact form used for storage: `{1, 'm'}` → `1m`. */
-export function formatFollowupInterval(i: FollowupInterval): string {
-  return `${i.count}${i.unit}`
-}
+export const formatFollowupInterval = formatInterval
 
 /**
  * Settings' quick intervals from their text (`1d 1w 1m 3m`, spaces or commas
@@ -73,31 +58,12 @@ export function formatQuickFollowupIntervals(intervals: readonly FollowupInterva
   return intervals.map(formatFollowupInterval).join(' ')
 }
 
-const UNIT_WORDS: Record<FollowupUnit, string> = { d: 'day', w: 'week', m: 'month', y: 'year' }
-
 /** Human form: `{2, 'w'}` → `2 weeks`. */
-export function describeFollowupInterval(i: FollowupInterval): string {
-  const word = UNIT_WORDS[i.unit]
-  return `${i.count} ${word}${i.count === 1 ? '' : 's'}`
-}
+export const describeFollowupInterval = describeInterval
 
-/** Calendar months, clamped to the target month's last day (Jan 31 + 1m → Feb 28/29). */
-function addMonths(d: Date, months: number): Date {
-  const y = d.getFullYear()
-  const m = d.getMonth() + months
-  const lastDay = new Date(y, m + 1, 0).getDate()
-  return new Date(y, m, Math.min(d.getDate(), lastDay))
-}
-
-/** The day `interval` after `from`'s day, at local midnight. */
+/** The day `interval` after `from`'s day, at local midnight (calendar months for `m` / `y`). */
 export function addFollowupInterval(from: Date, interval: FollowupInterval): Date {
-  const base = startOfDay(from)
-  switch (interval.unit) {
-    case 'd': return startOfDay(new Date(base.getFullYear(), base.getMonth(), base.getDate() + interval.count))
-    case 'w': return startOfDay(new Date(base.getFullYear(), base.getMonth(), base.getDate() + interval.count * 7))
-    case 'm': return addMonths(base, interval.count)
-    case 'y': return addMonths(base, interval.count * 12)
-  }
+  return addInterval(from, interval)
 }
 
 const MONTHS = [

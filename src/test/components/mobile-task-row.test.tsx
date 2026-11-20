@@ -216,7 +216,7 @@ describe('MobileTaskRow', () => {
     })
 
     it('a repeating task’s due date carries the repeat glyph', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: TODAY, recurrenceRule: { type: 'weekly' } })} />)
+      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: TODAY, recurrenceRule: { every: { count: 1, unit: 'w' as const } } })} />)
       expect(part('due')!.querySelector('svg')).not.toBeNull()
       expect(part('due')).toHaveTextContent('Today')
     })

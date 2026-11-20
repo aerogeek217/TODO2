@@ -1,4 +1,4 @@
-import type { NewTodoItem, Person, RecurrenceType, Status, StatusUpdateDraft, SubtaskDraft, Tag, TodoChanges, TodoItem } from '../models'
+import type { Interval, NewTodoItem, Person, Status, StatusUpdateDraft, SubtaskDraft, Tag, TodoChanges, TodoItem } from '../models'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import { mentionToken, parseInput, tagToken } from './natural-language-parser'
 import { matchTag, resolveInput, type ResolvedInput } from './nlp-resolver'
@@ -18,7 +18,7 @@ export interface TaskDraft {
   title: string
   dueDate?: Date
   /** Applied only with a due date to anchor on. */
-  recurrence?: RecurrenceType
+  recurrence?: Interval
   statusId?: number
   urgent: boolean
   important: boolean
@@ -179,7 +179,7 @@ export function draftFromEditor(
     ? (partial.nextFollowupAt ?? null)
     : resolved.followupNone ? null : resolved.nextFollowupAt
   const dueDate = partial.dueDate ?? resolved.dueDate
-  const recurrence = partial.recurrenceRule?.type ?? resolved.recurrence
+  const recurrence = partial.recurrenceRule?.every ?? resolved.recurrence
   return {
     title: resolved.title || rawTitle,
     ...(dueDate ? { dueDate } : {}),

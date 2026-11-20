@@ -46,14 +46,21 @@ export const RELATIVE_DATE_TOKENS: readonly RelativeDateToken[] = [
 
 /**
  * Serializable date-range anchor. `fixed` matches the legacy ISO-string
- * behavior; `relative` carries a named token; `offset` carries an integer
- * day-count from today (negative = past, positive = future) for arbitrary
- * windows like "stale > 7 days" that don't map to a named token.
+ * behavior; `relative` carries a named token; `offset` carries a signed
+ * whole count from today (negative = past, positive = future) for arbitrary
+ * windows like "stale > 7 days" that don't map to a named token — `days`
+ * days, or with a `unit` (typed intervals, 2026-11-19) that many weeks,
+ * calendar months or calendar years (`+2w`, `-1m`, `+1y`; `-1m` from Mar 31
+ * is Feb 28). Every offset stored before the unit is days, and a day count
+ * never stores one.
  */
 export type DateAnchor =
   | { kind: 'fixed'; iso: string }
   | { kind: 'relative'; token: RelativeDateToken }
-  | { kind: 'offset'; days: number }
+  | { kind: 'offset'; days: number; unit?: OffsetUnit }
+
+/** The units an offset anchor may name beside days (`models/interval`'s, `d` left implicit). */
+export type OffsetUnit = 'w' | 'm' | 'y'
 
 /**
  * A date filter on one date type:

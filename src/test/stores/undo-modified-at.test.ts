@@ -96,7 +96,7 @@ describe('undo puts back the task’s earlier Modified date, redo the one the st
     const [id] = await staleTasks('Report') as [number]
     await useTodoStore.getState().update(id, {
       dueDate: new Date(2026, 10, 10),
-      recurrenceRule: { type: 'daily' },
+      recurrenceRule: { every: { count: 1, unit: 'd' as const } },
     })
     await setStamp(id, T0)
     useUndoStore.getState().clear()

@@ -85,8 +85,8 @@ describe('the store and the database hold the same modifiedAt', () => {
 
   it('completing a repeating task (it moves to its next due date), then undo and redo', async () => {
     const due = new Date(2026, 9, 10)
-    const a = await addTask('Weekly', { dueDate: due, recurrenceRule: makeRecurrenceRule('weekly', due) })
-    const b = await addTask('Also weekly', { dueDate: due, recurrenceRule: makeRecurrenceRule('weekly', due) })
+    const a = await addTask('Weekly', { dueDate: due, recurrenceRule: makeRecurrenceRule({ count: 1, unit: 'w' }, due) })
+    const b = await addTask('Also weekly', { dueDate: due, recurrenceRule: makeRecurrenceRule({ count: 1, unit: 'w' }, due) })
     await useTodoStore.getState().loadAll()
     installSteppingClock()
 

@@ -33,7 +33,7 @@ const SECTIONS: NlpSyntaxSection[] = [
       { syntax: '/important', description: 'Priority: mark important' },
       { syntax: '/due <date>', description: 'Set the due date' },
       { syntax: '/followup <date | interval | none>', description: 'Set the next follow-up (instead of the default); none = no follow-up' },
-      { syntax: '/repeat <frequency>', description: 'Repeat from the due date: daily, weekly, biweekly, monthly, quarterly, yearly' },
+      { syntax: '/repeat <interval>', description: 'Repeat from the due date: daily, weekly, biweekly, monthly, quarterly, yearly, or any interval — 2w, every 3 days, every 6 months' },
     ],
   },
   {

@@ -1,11 +1,22 @@
-import type { RecurrenceRule, RecurrenceType } from '../models/recurrence'
+import type { Interval } from '../models/interval'
+import type { RecurrenceRule } from '../models/recurrence'
 import type { TodoItem } from '../models/todo-item'
-import { startOfToday } from './date'
+import { formatDateWith, startOfToday } from './date'
+import { addInterval, unitWord } from './interval'
 
-/** Build a RecurrenceRule, capturing originalDayOfMonth for monthly/yearly to prevent drift. */
-export function makeRecurrenceRule(type: RecurrenceType, dueDate?: Date | null): RecurrenceRule {
-  const rule: RecurrenceRule = { type }
-  if ((type === 'monthly' || type === 'quarterly' || type === 'yearly') && dueDate) {
+/** Whether an interval counts calendar months (`m`, `y`): a repeat by it keeps its day of the month. */
+function countsMonths(every: Interval): boolean {
+  return every.unit === 'm' || every.unit === 'y'
+}
+
+/**
+ * Build a repeat every `every` from `dueDate`, keeping the due date's day of
+ * the month for a month or year interval (`originalDayOfMonth`) so it never
+ * drifts.
+ */
+export function makeRecurrenceRule(every: Interval, dueDate?: Date | null): RecurrenceRule {
+  const rule: RecurrenceRule = { every: { count: every.count, unit: every.unit } }
+  if (countsMonths(every) && dueDate) {
     rule.originalDayOfMonth = new Date(dueDate).getDate()
   }
   return rule
@@ -19,111 +30,79 @@ export function makeRecurrenceRule(type: RecurrenceType, dueDate?: Date | null):
  */
 export function dueDateChanges(
   next: Date | null,
-  recurrenceType: RecurrenceType | '' | undefined,
+  every: Interval | null | undefined,
 ): Pick<TodoItem, 'dueDate' | 'recurrenceRule'> {
   return {
     dueDate: next ?? undefined,
-    recurrenceRule: recurrenceType && next ? makeRecurrenceRule(recurrenceType, next) : undefined,
-  }
-}
-
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-function ordinal(n: number): string {
-  const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')
-  return `${n}${s}`
-}
-
-/** `Repeats every Monday` etc., from the rule and the task's due date. */
-export function describeRecurrence(rule: RecurrenceRule, anchor: Date | undefined): string {
-  const wd = anchor ? WEEKDAYS[anchor.getDay()] : undefined
-  const dom = rule.originalDayOfMonth ?? anchor?.getDate()
-  switch (rule.type) {
-    case 'daily': return 'Repeats every day'
-    case 'weekly': return wd ? `Repeats every ${wd}` : 'Repeats every week'
-    case 'biweekly': return wd ? `Repeats every other ${wd}` : 'Repeats every two weeks'
-    case 'monthly': return dom ? `Repeats monthly on the ${ordinal(dom)}` : 'Repeats every month'
-    case 'quarterly': return 'Repeats every quarter'
-    case 'yearly': return 'Repeats every year'
+    recurrenceRule: every && next ? makeRecurrenceRule(every, next) : undefined,
   }
 }
 
 /**
- * Advance a due date by one recurrence interval.
+ * A repeat in words, as rows, the calendar, the stacked details and Quick
+ * Add's chip say it: `Every day`, `Every week` — `Every Mon` for a week from
+ * a due date —, `Every 2 weeks`, `Every month`, `Every 3 months`, `Every year`.
+ */
+export function describeRecurrence(rule: Pick<RecurrenceRule, 'every'>, anchor: Date | undefined): string {
+  const { count, unit } = rule.every
+  if (count === 1) {
+    if (unit === 'w' && anchor) return `Every ${formatDateWith(anchor, { weekday: 'short' })}`
+    return `Every ${unitWord(unit, 1)}`
+  }
+  return `Every ${count} ${unitWord(unit, count)}`
+}
+
+/** A day as the repeat's read-back names it: `Mon, Dec 7`. */
+function repeatDay(d: Date): string {
+  return formatDateWith(d, { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+/**
+ * The repeat field's read-back (the task editor's and the review card's Due
+ * cell): `Every 2 weeks · next Mon, Dec 7` — the next due date completing the
+ * task would give —, the words alone without a due date.
+ */
+export function repeatReadBack(rule: RecurrenceRule, due: Date | null | undefined): string {
+  const words = describeRecurrence(rule, due ?? undefined)
+  if (due == null) return words
+  return `${words} · next ${repeatDay(computeNextDueDate(new Date(due), rule))}`
+}
+
+/**
+ * Advance a due date by one repeat interval.
  *
- * Day-of-month integrity: monthly/quarterly/yearly read `originalDayOfMonth`
- * from the rule (captured at creation), so a Jan-31 monthly rule that lands on
- * Feb-28 elevates back to Mar-31; a Feb-29 yearly rule that lands on Feb-28 in
- * year N+1 elevates back to Feb-29 in the next leap year. The fallback to
- * `next.getDate()` only applies when the rule was constructed without a date
- * anchor (legacy rules); those will lock to whatever day they last landed on.
+ * Day-of-month integrity: a month or year interval reads `originalDayOfMonth`
+ * from the rule (captured when it was set), so a Jan-31 monthly rule that
+ * lands on Feb-28 elevates back to Mar-31; a Feb-29 yearly rule that lands on
+ * Feb-28 in year N+1 elevates back to Feb-29 in the next leap year. The
+ * fallback to the date's own day only applies when the rule was constructed
+ * without a date anchor (legacy rules); those lock to whatever day they last
+ * landed on.
  *
- * DST: `setHours(0, 0, 0, 0)` re-anchors to local midnight so spring-forward
- * (which can shift 00:00 → 01:00) and fall-back (00:00 → 23:00 prev day) don't
- * leak into the stored date. Local-midnight semantics mean a same-day fixture
- * is timezone-stable across the DST boundaries.
+ * DST: `addInterval` re-anchors to local midnight, so spring-forward (which
+ * can shift 00:00 → 01:00) and fall-back (00:00 → 23:00 prev day) don't leak
+ * into the stored date.
  */
 function advanceOnce(date: Date, rule: RecurrenceRule): Date {
-  const next = new Date(date)
-  switch (rule.type) {
-    case 'daily':
-      next.setDate(next.getDate() + 1)
-      break
-    case 'weekly':
-      next.setDate(next.getDate() + 7)
-      break
-    case 'biweekly':
-      next.setDate(next.getDate() + 14)
-      break
-    case 'monthly': {
-      const targetDay = rule.originalDayOfMonth ?? next.getDate()
-      // Set to 1 first to avoid overflow (e.g. Jan 31 + 1 month → Mar 3)
-      next.setDate(1)
-      next.setMonth(next.getMonth() + 1)
-      const maxDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
-      next.setDate(Math.min(targetDay, maxDay))
-      break
-    }
-    case 'quarterly': {
-      const targetDay = rule.originalDayOfMonth ?? next.getDate()
-      next.setDate(1)
-      next.setMonth(next.getMonth() + 3)
-      const maxDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
-      next.setDate(Math.min(targetDay, maxDay))
-      break
-    }
-    case 'yearly': {
-      const targetDay = rule.originalDayOfMonth ?? next.getDate()
-      next.setDate(1)
-      next.setFullYear(next.getFullYear() + 1)
-      const maxDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
-      next.setDate(Math.min(targetDay, maxDay))
-      break
-    }
-  }
-  // Re-anchor to local midnight; see advanceOnce JSDoc for DST rationale.
-  next.setHours(0, 0, 0, 0)
-  return next
+  return addInterval(date, rule.every, 1, countsMonths(rule.every) ? rule.originalDayOfMonth : undefined)
 }
 
 const MAX_ITERATIONS = 10_000
-
-const DAY_STEP: Partial<Record<RecurrenceRule['type'], number>> = { daily: 1, weekly: 7, biweekly: 14 }
-const MONTH_STEP: Partial<Record<RecurrenceRule['type'], number>> = { monthly: 1, quarterly: 3, yearly: 12 }
 
 /**
  * The occurrence a few steps short of `target`, reached arithmetically
  * instead of one step at a time: `date` advanced by the whole steps that
  * still end before `target`, less one (the walk that follows takes it from
  * there). Exactly what that many `advanceOnce` calls give — local midnight
- * of the stepped calendar day; for the month rules the kept day of the
- * month, clamped to the month's length. `date` itself when no step can be
- * skipped, or for a month rule without a kept day on the 29th or later
- * (each step locks to the day it lands on, so only a walk knows it).
+ * of the stepped calendar day; for a month or year interval the kept day of
+ * the month, clamped to the month's length. `date` itself when no step can
+ * be skipped, or for a month interval without a kept day on the 29th or
+ * later (each step locks to the day it lands on, so only a walk knows it).
  */
 function skipToward(date: Date, rule: RecurrenceRule, target: Date): Date {
-  const days = DAY_STEP[rule.type]
-  if (days != null) {
+  const { count, unit } = rule.every
+  if (unit === 'd' || unit === 'w') {
+    const days = count * (unit === 'w' ? 7 : 1)
     const between = Math.round(
       (Date.UTC(target.getFullYear(), target.getMonth(), target.getDate())
         - Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())) / 86_400_000,
@@ -134,8 +113,7 @@ function skipToward(date: Date, rule: RecurrenceRule, target: Date): Date {
     next.setHours(0, 0, 0, 0)
     return next
   }
-  const months = MONTH_STEP[rule.type]
-  if (months == null) return date
+  const months = count * (unit === 'y' ? 12 : 1)
   if (rule.originalDayOfMonth == null && date.getDate() > 28) return date
   const targetDay = rule.originalDayOfMonth ?? date.getDate()
   const between = (target.getFullYear() - date.getFullYear()) * 12 + target.getMonth() - date.getMonth()

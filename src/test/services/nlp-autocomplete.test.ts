@@ -274,9 +274,23 @@ describe('/repeat argument', () => {
     expect(view?.header).toBe('Repeat')
     expect(view?.headerNote).toBe('from Mon 12')
     expect(view?.rows.map((r) => r.kind === 'value' && [r.label, r.detail ?? ''])).toEqual([
-      ['daily', ''], ['weekly', 'every Mon'], ['biweekly', 'every 2 weeks'],
-      ['monthly', ''], ['quarterly', ''], ['yearly', ''],
+      ['daily', 'Every day'], ['weekly', 'Every Mon'], ['biweekly', 'Every 2 weeks'],
+      ['monthly', 'Every month'], ['quarterly', 'Every 3 months'], ['yearly', 'Every year'],
     ])
+  })
+
+  it('a typed interval reads as one row, in words; `every` and a number wait with the hint', () => {
+    for (const [typed, detail] of [['2w', 'Every 2 weeks'], ['every 3 days', 'Every 3 days'], ['every 6 months', 'Every 6 months']] as const) {
+      const view = at(`x /repeat ${typed}`)
+      expect(view?.rows.map((r) => r.kind === 'value' && [r.insert, r.detail])).toEqual([[typed, detail]])
+    }
+    for (const typed of ['every', 'every 3', 'every 3 ', '2']) {
+      const view = at(`x /repeat ${typed}`)
+      expect(view?.rows, typed).toEqual([])
+      expect(view?.hint, typed).toBe('weekly, monthly, 2w, every 3 days')
+    }
+    expect(at('x /repeat zz')).toBeNull()
+    expect(at('x /repeat weekly ')).toBeNull()
   })
 
   it('without a due date there is no anchor note', () => {

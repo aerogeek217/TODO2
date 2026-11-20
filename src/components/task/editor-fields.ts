@@ -1,4 +1,5 @@
-import type { PersistedTodoItem, RecurrenceType, TodoChanges } from '../../models'
+import type { PersistedTodoItem, TodoChanges } from '../../models'
+import { formatInterval, parseInterval } from '../../utils/interval'
 import { makeRecurrenceRule } from '../../utils/recurrence'
 import { sameFieldValue } from '../../utils/todo-changes'
 
@@ -14,12 +15,13 @@ export interface EditorFields {
   title: string
   statusId: number | undefined
   deadline: Date | null
-  recurrenceType: RecurrenceType | ''
+  /** The repeat's interval as typed and stored (`2w`), `''` for none. */
+  repeat: string
 }
 
 type EditorField = keyof EditorFields
 
-const FIELDS: readonly EditorField[] = ['title', 'statusId', 'deadline', 'recurrenceType']
+const FIELDS: readonly EditorField[] = ['title', 'statusId', 'deadline', 'repeat']
 
 /** A stored task's values in the editor's terms. */
 export function editorFieldsOf(
@@ -29,7 +31,7 @@ export function editorFieldsOf(
     title: todo.title,
     statusId: todo.statusId,
     deadline: todo.dueDate ?? null,
-    recurrenceType: todo.recurrenceRule?.type ?? '',
+    repeat: todo.recurrenceRule ? formatInterval(todo.recurrenceRule.every) : '',
   }
 }
 
@@ -69,10 +71,9 @@ export function editorChanges(form: EditorFields, baseline: EditorFields): TodoC
   if (edited.has('title') && title) changes.title = title
   if (edited.has('statusId')) changes.statusId = form.statusId
   if (edited.has('deadline')) changes.dueDate = form.deadline ?? undefined
-  if (edited.has('recurrenceType') || edited.has('deadline')) {
-    changes.recurrenceRule = form.recurrenceType && form.deadline
-      ? makeRecurrenceRule(form.recurrenceType, form.deadline)
-      : undefined
+  if (edited.has('repeat') || edited.has('deadline')) {
+    const every = parseInterval(form.repeat)
+    changes.recurrenceRule = every && form.deadline ? makeRecurrenceRule(every, form.deadline) : undefined
   }
   return changes
 }

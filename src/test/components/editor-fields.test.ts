@@ -21,10 +21,18 @@ describe('editorChanges', () => {
   })
 
   it('a due-date change rebuilds the repeat rule from the new date', () => {
-    const repeating = { ...base, recurrenceType: 'monthly' as const }
+    const repeating = { ...base, repeat: '1m' }
     const changes = editorChanges({ ...repeating, deadline: new Date(2026, 0, 31) }, repeating)
     expect(changes.dueDate).toEqual(new Date(2026, 0, 31))
-    expect(changes.recurrenceRule).toMatchObject({ type: 'monthly' })
+    expect(changes.recurrenceRule).toEqual({ every: { count: 1, unit: 'm' }, originalDayOfMonth: 31 })
+  })
+
+  it('the repeat is its interval as typed: a new one writes its rule, an empty one removes it', () => {
+    expect(editorFieldsOf({ title: 'R', dueDate: new Date(2026, 0, 5), recurrenceRule: { every: { count: 2, unit: 'w' } } }).repeat).toBe('2w')
+    expect(base.repeat).toBe('')
+    expect(editorChanges({ ...base, repeat: '3m' }, base)).toEqual({ recurrenceRule: { every: { count: 3, unit: 'm' }, originalDayOfMonth: 5 } })
+    const repeating = { ...base, repeat: '2w' }
+    expect(editorChanges({ ...repeating, repeat: '' }, repeating)).toEqual({ recurrenceRule: undefined })
   })
 })
 

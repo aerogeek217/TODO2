@@ -10,7 +10,7 @@ import { DateFilterPanel, type DateFilterHost } from '../../../../components/sha
  * edited, lit = filtering), a range per type, Show (Calendar · Relative, and
  * Any · None on Due / Next follow-up / Last follow-up — cr25 P8), Completed
  * a range only (no Is not), Clear <Type> and Clear all. Selecting a tab
- * never writes. Today is Mon 2 Nov 2026.
+ * never writes. A Relative end is typed (`+2w`, `-1m`) or a rolling day picked from its chevron. Today is Mon 2 Nov 2026.
  */
 
 function Harness({ initial = {}, initialField, variant, host, log }: {
@@ -36,13 +36,16 @@ const tab = (name: RegExp | string) => screen.getByRole('tab', { name })
 const today = { kind: 'relative' as const, token: 'today' as const }
 const fixedIso = (y: number, m: number, d: number) => new Date(y, m - 1, d).toISOString()
 
-/** An end's Relative dropdown (`From: No start`, `To: days ago`, …). */
-const relative = (end: 'From' | 'To') => screen.getByRole('button', { name: new RegExp(`^${end}: (?!Set to)`) })
+/** An end's Relative field, typed into (`+2w`, `-1m`, `today`, `end of week`). */
+const relative = (end: 'From' | 'To') => screen.getByRole('textbox', { name: end })
 
-/** Picks `item` (its label) from an end's Relative dropdown. */
+/** Types `text` into an end's Relative field. */
+const typeEnd = (end: 'From' | 'To', text: string) => fireEvent.change(relative(end), { target: { value: text } })
+
+/** Picks `item` (its label) from an end's Relative chevron: the rolling days, No start / No end. */
 function pickRelative(end: 'From' | 'To', item: string) {
-  fireEvent.click(relative(end))
-  const menu = screen.getByRole('menu', { name: end })
+  fireEvent.click(screen.getByRole('button', { name: `${end}: rolling days` }))
+  const menu = screen.getByRole('menu', { name: `${end}: rolling days` })
   const row = Array.from(menu.querySelectorAll<HTMLElement>('[data-menu-label]')).find((el) => el.dataset.menuLabel === item)
   if (!row) throw new Error(`no ${item} in ${end}`)
   fireEvent.click(row)
@@ -89,8 +92,8 @@ describe('DateFilterPanel', () => {
     for (const name of ['Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified', 'Due']) fireEvent.click(tab(name))
     expect(log).toEqual([])
     for (const t of screen.getAllByRole('tab')) expect(t).not.toHaveAttribute('data-filtering')
-    expect(relative('From')).toHaveAccessibleName('From: No start')
-    expect(relative('To')).toHaveAccessibleName('To: No end')
+    expect(relative('From')).toHaveValue('')
+    expect(relative('To')).toHaveValue('')
   })
 
   it('setting a range lights its tab (accent + “filtering”); a second type adds its own clause', () => {
@@ -103,7 +106,7 @@ describe('DateFilterPanel', () => {
 
     fireEvent.click(tab('Created'))
     expect(log).toHaveLength(1)
-    expect(relative('From')).toHaveAccessibleName('From: No start')
+    expect(relative('From')).toHaveValue('')
     pickRelative('From', 'start of week')
     expect(log.at(-1)).toEqual({
       deadline: { match: 'range', start: today, end: null },
@@ -113,28 +116,34 @@ describe('DateFilterPanel', () => {
     expect(tab('Created, filtering')).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('a new range is Relative: Fill in fills the number and the count, the number edits, its day today is under it', () => {
+  it('a new range is Relative: a typed end is written as soon as it reads, in its unit; its day today is under it', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
     expect(show('Relative')).toHaveAttribute('aria-checked', 'true')
-    pickRelative('To', 'In 2 weeks')
-    expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 14 } } })
-    expect(screen.getByLabelText('To: number of days')).toHaveValue('14')
-    expect(relative('To')).toHaveAccessibleName('To: days ahead')
-    expect(within(screen.getByRole('tabpanel')).getByText('in 14 days or earlier')).toBeInTheDocument()
-    // The day under the end, read with its inputs.
-    const line = screen.getByText('Mon 16 Nov and earlier')
-    expect(screen.getByLabelText('To: number of days')).toHaveAccessibleDescription('Mon 16 Nov and earlier')
-    expect(relative('To').getAttribute('aria-describedby')).toBe(line.id)
+    typeEnd('To', '+2w')
+    expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 2, unit: 'w' } } })
+    expect(relative('To')).toHaveValue('+2w')
+    expect(within(screen.getByRole('tabpanel')).getByText('in 2 weeks or earlier')).toBeInTheDocument()
+    // The day under the end, read with its field.
+    screen.getByText('Mon, Nov 16 and earlier')
+    expect(relative('To')).toHaveAccessibleDescription('Mon, Nov 16 and earlier')
 
-    fireEvent.change(screen.getByLabelText('To: number of days'), { target: { value: '10' } })
+    typeEnd('To', '+10d')
     expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 10 } } })
-    expect(relative('To')).toHaveAccessibleName('To: days ahead')
-    // With a From, each end its day alone.
-    pickRelative('From', '1 week ago')
-    expect(screen.getByText('10/26')).toBeInTheDocument()
-    expect(screen.getByText('Thu 12 Nov')).toBeInTheDocument()
-    expect(document.body.textContent).not.toMatch(/-\d|−/)
+    // With a From, each end its day alone; a month back is a calendar month.
+    typeEnd('From', '-1m')
+    expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: { kind: 'offset', days: -1, unit: 'm' }, end: { kind: 'offset', days: 10 } } })
+    expect(screen.getByText('Fri, Oct 2')).toBeInTheDocument()
+    expect(screen.getByText('Thu, Nov 12')).toBeInTheDocument()
+  })
+
+  it('a typed end that doesn’t read writes nothing; its hint shows once the field is left', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} />)
+    typeEnd('To', '2 weeks')
+    expect(log).toEqual([])
+    fireEvent.blur(relative('To'))
+    expect(screen.getByRole('alert')).toHaveTextContent('Type +2w, -1m, +3d or today, or pick a rolling day')
   })
 
   it('Calendar: the ends are dates with Set to…, no day line; a range of dates opens in Calendar', () => {
@@ -170,7 +179,7 @@ describe('DateFilterPanel', () => {
     fireEvent.click(show('Relative'))
     // Not `6 days ahead`: end of week, as it was.
     expect(log.at(-1)).toEqual({ followup: range })
-    expect(relative('To')).toHaveAccessibleName('To: end of week')
+    expect(relative('To')).toHaveValue('end of week')
 
     // An end edited in Calendar converts from its new date; the other end is still restored.
     fireEvent.click(show('Calendar'))
@@ -187,16 +196,15 @@ describe('DateFilterPanel', () => {
     fireEvent.click(show('Relative'))
     expect(log.at(-1)).toEqual({ created: { match: 'range', start: jan1, end: null } })
     expect(show('Relative')).toHaveAttribute('aria-checked', 'true')
-    expect(relative('From')).toHaveAccessibleName('From: on Jan 1')
-    expect(screen.queryByLabelText('From: number of days')).toBeNull()
+    expect(relative('From')).toHaveValue('1/1/2023')
   })
 
   it('a saved mix (a date and today) opens in Relative with the date as its own choice', () => {
     render(<Harness log={[]} initial={{ deadline: { match: 'range', start: { kind: 'fixed', iso: fixedIso(2026, 10, 1) }, end: today } }} />)
     expect(show('Relative')).toHaveAttribute('aria-checked', 'true')
-    expect(relative('From')).toHaveAccessibleName('From: on Oct 1')
-    expect(relative('To')).toHaveAccessibleName('To: today')
-    expect(screen.getByText('10/01')).toBeInTheDocument()
+    expect(relative('From')).toHaveValue('10/1/2026')
+    expect(relative('To')).toHaveValue('today')
+    expect(screen.getByText('Thu, Oct 1')).toBeInTheDocument()
   })
 
   describe('the mode shown stays for the panel’s life (P7–P8 review)', () => {
@@ -235,7 +243,7 @@ describe('DateFilterPanel', () => {
       pickRelative('To', 'No end')
       expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: { kind: 'fixed', iso: fixedIso(2026, 10, 1) }, end: null } })
       expect(show('Relative')).toHaveAttribute('aria-checked', 'true')
-      expect(relative('From')).toHaveAccessibleName('From: on Oct 1')
+      expect(relative('From')).toHaveValue('10/1/2026')
     })
 
     it('another tab and back keeps it; Clear <Type> puts it back to Relative (a new range)', () => {
@@ -251,36 +259,18 @@ describe('DateFilterPanel', () => {
     })
   })
 
-  describe('0 days keeps its count while the panel is open (P7–P8 review)', () => {
-    it('another tab and back: still days ahead, and a typed number counts ahead', () => {
-      const log: DateFilters[] = []
-      render(<Harness log={log} />)
-      pickRelative('To', 'days ahead')
-      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 0 } } })
-      expect(relative('To')).toHaveAccessibleName('To: days ahead')
-      fireEvent.click(tab('Created'))
-      fireEvent.click(tab('Due, filtering'))
-      expect(relative('To')).toHaveAccessibleName('To: days ahead')
-      fireEvent.change(screen.getByLabelText('To: number of days'), { target: { value: '5' } })
-      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 5 } } })
-    })
-
-    it('Calendar and back: still days ahead; each end keeps its own', () => {
-      const log: DateFilters[] = []
-      render(<Harness log={log} />)
-      pickRelative('To', 'days ahead')
-      pickRelative('From', 'days ago')
-      fireEvent.click(show('Calendar'))
-      fireEvent.click(show('Relative'))
-      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: { kind: 'offset', days: 0 }, end: { kind: 'offset', days: 0 } } })
-      expect(relative('To')).toHaveAccessibleName('To: days ahead')
-      expect(relative('From')).toHaveAccessibleName('From: days ago')
-    })
-
-    it('with nothing picked, a saved 0 reads days ago', () => {
-      render(<Harness log={[]} initial={{ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 0 } } }} />)
-      expect(relative('To')).toHaveAccessibleName('To: days ago')
-    })
+  it('a typed unit stays as typed through another tab and back, and Calendar and back', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} />)
+    typeEnd('To', '+1m')
+    fireEvent.click(tab('Created'))
+    fireEvent.click(tab('Due, filtering'))
+    expect(relative('To')).toHaveValue('+1m')
+    fireEvent.click(show('Calendar'))
+    expect(screen.getByLabelText('To')).toHaveValue('2026-12-02')
+    fireEvent.click(show('Relative'))
+    expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 1, unit: 'm' } } })
+    expect(relative('To')).toHaveValue('+1m')
   })
 
   it('Created / Modified: Show is Calendar · Relative only, and no “also tasks with no …”', () => {
@@ -506,7 +496,7 @@ describe('DateFilterPanel', () => {
       expect(screen.queryByRole('checkbox')).toBeNull()
       expect(screen.getByText('Tasks with no next follow-up are kept.')).toBeInTheDocument()
       pickRelative('From', 'today')
-      pickRelative('To', 'In 2 weeks')
+      typeEnd('To', '+14d')
       expect(log.at(-1)).toEqual({ followup: { match: 'range', start: today, end: { kind: 'offset', days: 14 }, not: true } })
       expect(within(screen.getByRole('tabpanel')).getByText('not within the next 14 days')).toBeInTheDocument()
       // Back to Is: the same range, the box back (unticked).
@@ -575,7 +565,7 @@ describe('DateFilterPanel', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} variant="sheet" initial={{ deadline: { match: 'range', start: today, end: null } }} />)
     expect(within(screen.getByRole('radiogroup', { name: 'Which tasks' })).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Calendar', 'Relative', 'Any', 'None'])
-    expect(screen.getByText('Mon 2 Nov and later')).toBeInTheDocument()
+    expect(screen.getByText('Mon, Nov 2 and later')).toBeInTheDocument()
     const sw = screen.getByRole('switch', { name: 'Also tasks with no due date' })
     fireEvent.click(sw)
     expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: today, end: null, includeNoDate: true } })

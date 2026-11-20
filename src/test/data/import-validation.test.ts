@@ -578,46 +578,53 @@ describe('validateImportData', () => {
     })
   })
 
-  it('todo with valid recurrenceRule passes; invalid type fails', () => {
+  it('todo with a valid recurrenceRule (schema v84: an interval) passes; an old type or a bad interval fails', () => {
     const validResult = validateImportData(validData({
-      todos: [makeTodo({ recurrenceRule: { type: 'weekly' } })],
+      todos: [makeTodo({ recurrenceRule: { every: { count: 2, unit: 'w' } } })],
     }))
     expect(validResult.ok).toBe(true)
 
-    const invalidResult = validateImportData(validData({
-      todos: [makeTodo({ recurrenceRule: { type: 'invalid' } })],
-    }))
-    expect(invalidResult.ok).toBe(false)
+    for (const recurrenceRule of [
+      { type: 'weekly' },
+      { every: { count: 0, unit: 'd' } },
+      { every: { count: 1000, unit: 'd' } },
+      { every: { count: 1.5, unit: 'w' } },
+      { every: { count: 1, unit: 'h' } },
+      { every: '2w' },
+    ]) {
+      expect(validateImportData(validData({ todos: [makeTodo({ recurrenceRule })] })).ok, JSON.stringify(recurrenceRule)).toBe(false)
+    }
   })
 
   it('rebuilds a recurrenceRule from its known keys, dropping stray ones', () => {
     const result = validateImportData(validData({
       todos: [
-        makeTodo({ id: 1, dueDate: now, recurrenceRule: { type: 'monthly', originalDayOfMonth: 31, every: 2, note: 'x' } }),
-        makeTodo({ id: 2, dueDate: now, recurrenceRule: { type: 'weekly', legacy: true } }),
+        makeTodo({ id: 1, dueDate: now, recurrenceRule: { every: { count: 1, unit: 'm', x: 1 }, originalDayOfMonth: 31, type: 'monthly', note: 'x' } }),
+        makeTodo({ id: 2, dueDate: now, recurrenceRule: { every: { count: 1, unit: 'w' }, legacy: true } }),
         makeTodo({ id: 3, recurrenceRule: null }),
       ],
     }))
     if (!result.ok) throw new Error(result.error)
     expect(result.warnings).toEqual([])
     expect(result.data.todos.map((t) => t.recurrenceRule)).toEqual([
-      { type: 'monthly', originalDayOfMonth: 31 },
-      { type: 'weekly' },
+      { every: { count: 1, unit: 'm' }, originalDayOfMonth: 31 },
+      { every: { count: 1, unit: 'w' } },
       undefined,
     ])
     expect('recurrenceRule' in result.data.todos[2]!).toBe(false)
   })
 
   it('drops a repeat on a task without a due date, with a warning (the UI repeats only with one)', () => {
+    const weekly = { every: { count: 1, unit: 'w' } }
     const result = validateImportData(validData({
       todos: [
-        makeTodo({ id: 1, title: 'Weekly report', dueDate: now, recurrenceRule: { type: 'weekly' } }),
-        makeTodo({ id: 2, title: 'Water plants', recurrenceRule: { type: 'daily' } }),
-        makeTodo({ id: 3, title: 'Gym', dueDate: null, recurrenceRule: { type: 'weekly' } }),
+        makeTodo({ id: 1, title: 'Weekly report', dueDate: now, recurrenceRule: weekly }),
+        makeTodo({ id: 2, title: 'Water plants', recurrenceRule: { every: { count: 1, unit: 'd' } } }),
+        makeTodo({ id: 3, title: 'Gym', dueDate: null, recurrenceRule: weekly }),
       ],
     }))
     if (!result.ok) throw new Error(result.error)
-    expect(result.data.todos.map((t) => t.recurrenceRule)).toEqual([{ type: 'weekly' }, undefined, undefined])
+    expect(result.data.todos.map((t) => t.recurrenceRule)).toEqual([weekly, undefined, undefined])
     expect(result.warnings).toEqual(['Fixed 2 tasks: "Water plants" (repeat without a due date dropped); "Gym" (repeat without a due date dropped)'])
   })
 

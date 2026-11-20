@@ -730,7 +730,7 @@ describe('orphan-recurrence-rule audit', () => {
   it('detects a recurring task whose only date is a follow-up', async () => {
     await db.todos.add(makeTodo({
       nextFollowupAt: followup,
-      recurrenceRule: { type: 'weekly' },
+      recurrenceRule: { every: { count: 1, unit: 'w' as const } },
     }) as any)
 
     const report = await auditData()
@@ -745,7 +745,7 @@ describe('orphan-recurrence-rule audit', () => {
 
   it('detects a recurring task with no dates at all', async () => {
     await db.todos.add(makeTodo({
-      recurrenceRule: { type: 'monthly', originalDayOfMonth: 15 },
+      recurrenceRule: { every: { count: 1, unit: 'm' as const }, originalDayOfMonth: 15 },
     }) as any)
 
     const report = await auditData()
@@ -756,7 +756,7 @@ describe('orphan-recurrence-rule audit', () => {
   it('does not flag a recurring task anchored on a due date', async () => {
     await db.todos.add(makeTodo({
       dueDate: new Date(2026, 5, 10),
-      recurrenceRule: { type: 'weekly' },
+      recurrenceRule: { every: { count: 1, unit: 'w' as const } },
     }) as any)
 
     const report = await auditData()
@@ -776,7 +776,7 @@ describe('orphan-recurrence-rule audit', () => {
     const todoId = await db.todos.add(makeTodo({
       title: 'Stale recurring',
       nextFollowupAt: followup,
-      recurrenceRule: { type: 'weekly' },
+      recurrenceRule: { every: { count: 1, unit: 'w' as const } },
     }) as any) as number
 
     const report = await auditData()
@@ -792,7 +792,7 @@ describe('orphan-recurrence-rule audit', () => {
   it('is idempotent: re-running audit after cleanup reports no recurrence issues', async () => {
     await db.todos.add(makeTodo({
       nextFollowupAt: followup,
-      recurrenceRule: { type: 'weekly' },
+      recurrenceRule: { every: { count: 1, unit: 'w' as const } },
     }) as any)
 
     const first = await auditData()
