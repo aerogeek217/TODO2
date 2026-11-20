@@ -20,7 +20,19 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
-Nothing yet.
+### Added
+
+- **A start screen that explains a slow launch.** After a few seconds on `Loading…` it says which step is waiting
+  (opening the database, checking the sync file, loading tasks) and offers Reload. While the browser is being asked
+  about the sync file it also offers **Continue without the file** and **Forget the sync file…**, which removes only
+  the app's link to the file: your tasks and the file itself are untouched.
+
+### Fixed
+
+- **Launch could wait forever on the sync file.** When the browser never answered about the attached sync file (seen
+  after a browser restart), the app stayed on `Loading…` with no way in. The browser now gets five seconds: if the
+  link can't be read the app opens without the file and the storage pill says so, and if only the permission check is
+  silent the usual Grant access question appears, noting that the link could not be checked.
 
 ## 2026-11-19
 
