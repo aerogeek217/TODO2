@@ -75,6 +75,15 @@ describe('dev seed generator', () => {
     const next = open.map((t) => ms(t.nextFollowupAt)).filter((v) => v !== undefined)
     expect(next.some((v) => v < todayMs), 'overdue follow-up').toBe(true)
     expect(next.some((v) => v === todayMs), 'follow-up today').toBe(true)
+    // Planned tasks (the Do day, schema v85): open ones, around today — one missed, some today, some ahead.
+    const planned = seed.todos.filter((t) => t.doDate !== undefined)
+    expect(planned.length).toBeGreaterThanOrEqual(5)
+    expect(planned.every((t) => !t.isCompleted)).toBe(true)
+    const doDays = planned.map((t) => ms(t.doDate)).filter((v) => v !== undefined)
+    expect(doDays.some((v) => v < todayMs), 'a Do day missed').toBe(true)
+    expect(doDays.some((v) => v === todayMs), 'planned today').toBe(true)
+    expect(doDays.some((v) => v > todayMs), 'planned ahead').toBe(true)
+    expect(planned.some((t) => t.recurrenceRule !== undefined), 'a repeating task planned').toBe(true)
     const exportedMs = Date.parse(seed.exportedAt)
     const last = seed.todos.map((t) => ms(t.lastFollowupAt)).filter((v) => v !== undefined)
     expect(last.length).toBeGreaterThan(0)
@@ -142,7 +151,7 @@ describe('dev seed generator', () => {
     expect(seed.layouts.some((l) => l.cells.some((c) => c.area.rowSpan > 1)), 'a cell spanning rows').toBe(true)
     const kinds = new Set(seed.layouts.flatMap((l) => l.cells)
       .flatMap((p) => p.tabs.map((t) => t.kind)))
-    expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'clusters', 'lens', 'listwall', 'neglect', 'notes', 'number', 'pivot', 'trend'])
+    expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'clusters', 'lens', 'listwall', 'neglect', 'notes', 'number', 'pivot', 'planner', 'trend'])
   })
 
   it('shows a list tab at each zoom and a Neglect map by project, kept whole by the layout repair (D25)', () => {

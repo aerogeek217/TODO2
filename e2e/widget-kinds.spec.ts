@@ -19,6 +19,7 @@ function body(cell: Locator, kind: WidgetKind): Locator {
     case 'calendar': return cell.locator('[data-calendar-widget]')
     case 'notes': return cell.locator('.cm-content')
     case 'review': return cell.locator('[data-review-widget]')
+    case 'planner': return cell.locator('[data-planner]')
     case 'neglect': return cell.locator('[data-neglect-map]')
     case 'clusters': return cell.locator('[data-clusters]')
     case 'listwall': return cell.locator('[data-list-wall]')

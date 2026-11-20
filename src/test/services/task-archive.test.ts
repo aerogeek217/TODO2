@@ -112,6 +112,21 @@ describe('buildTaskArchive', () => {
     expect(prepared.data.subtasks[0]?.createdAt).toBeInstanceOf(Date)
   })
 
+  it('carries a task’s Do day (schema v85), a Date again after the append pipeline', async () => {
+    const s = await seed()
+    const doDate = new Date(2026, 10, 20)
+    await db.todos.update(s.oldDone, { doDate })
+    const archive = await buildTaskArchive([s.oldDone, s.oldBare])
+    expect(archive.todos.map((t) => t.doDate)).toEqual([doDate, undefined])
+    const json = JSON.stringify(archive)
+    expect(selfCheckTaskArchiveJson(json)).toBeNull()
+    const prepared = prepareImportText(json, { purpose: 'append' })
+    if (!prepared.ok) throw new Error(prepared.error)
+    expect(prepared.data.todos[0]?.doDate).toBeInstanceOf(Date)
+    expect(prepared.data.todos[0]?.doDate).toEqual(doDate)
+    expect(prepared.data.todos[1]?.doDate).toBeUndefined()
+  })
+
   it('skips ids that no longer exist', async () => {
     const s = await seed()
     const archive = await buildTaskArchive([s.oldBare, 9999])

@@ -11,6 +11,7 @@ export function SyncWarningIcon({ kind, size }: { kind: SyncWarning['kind']; siz
   switch (kind) {
     case 'permission': return <LockIcon size={size} />
     case 'paused': return <PauseIcon size={size} />
+    case 'unchecked': return <AlertCircleIcon size={size} />
     case 'error': return <AlertCircleIcon size={size} />
     case 'backup': return <WarningIcon size={size} />
     case 'purge': return <TrashIcon size={size} />
@@ -56,6 +57,9 @@ export function SyncWarningSections({ warnings, variant, titleId, onClose, onOpe
         )
       case 'paused':
         return <FileSyncPausedControls buttonClassName={styles.secondary} primaryButtonClassName={styles.warningFill} onDone={onClose} />
+      case 'unchecked':
+        // No Dismiss: sync stays off until a reload reads the link or a file is attached again.
+        return <button type="button" className={styles.secondary} onClick={() => window.location.reload()}>Reload</button>
       case 'error':
         return <button type="button" className={styles.secondary} onClick={dismiss(dismissError)}>Dismiss</button>
       case 'backup':

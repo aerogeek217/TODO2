@@ -59,10 +59,11 @@ import type { IconValue, LineIconKey } from './icon'
  * `clusters` (Work clusters) and `listwall` (the List wall) are the task
  * maps of 2026-11-18, whole widgets like the Neglect map. Project pulse
  * (`pulse`) and the Pressure radar (`radar`) were removed; v83 dropped
- * every saved one.
+ * every saved one. `planner` is the Planner (2026-11-20): today and the
+ * week ahead, a task on a day by its Do day, its follow-up or its due date.
  */
 export type WidgetKind =
-  | 'lens' | 'calendar' | 'notes' | 'review' | 'neglect' | 'clusters' | 'listwall'
+  | 'lens' | 'calendar' | 'notes' | 'review' | 'planner' | 'neglect' | 'clusters' | 'listwall'
   | GlanceWidgetKind
 
 /** The glance widget kinds (D25 N): a Number and the charts, each a widget. */
@@ -184,6 +185,19 @@ export interface ReviewTabViewState {
 }
 
 /**
+ * A Planner's view state (saved at once, no undo step): its hand order —
+ * task `uid`s, one sequence for the whole widget, each group listing its
+ * tasks in that order and the rest after them (`utils/planner.plannerOrder`).
+ * Its window and picked day are never saved (`stores/planner-store`).
+ */
+export interface PlannerTabViewState {
+  order?: string[]
+}
+
+/** The most `uid`s a Planner's hand order keeps (the layout repair cuts a longer one). */
+export const PLANNER_ORDER_MAX = 1000
+
+/**
  * What colours a Neglect map's dots: the picked tags (a task with several
  * takes the first of the picks it has, in pick order), the task's first
  * person, or nothing (every dot neutral).
@@ -227,7 +241,7 @@ interface TabOf<K extends WidgetKind, C, V> {
   viewState?: V
   /**
    * Layout config (items 11, 14): the tab's own name, for a kind without a
-   * name of its own (`tabOwnsName` false — Calendar, Notes, Review, the
+   * name of its own (`tabOwnsName` false — Calendar, Notes, Review, the Planner, the
    * Neglect map, Work clusters, the List wall); it replaces the kind's label wherever the
    * tab is named. Absent or blank = the kind's label. A kind with a name of
    * its own (a list's, a Number's or a chart's) never reads it.
@@ -246,6 +260,7 @@ export type ListTab = TabOf<'lens', ListTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
+export type PlannerTab = TabOf<'planner', NoTabSettings, PlannerTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
 export type ClustersTab = TabOf<'clusters', NoTabSettings, NoTabSettings>
 export type ListWallTab = TabOf<'listwall', NoTabSettings, NoTabSettings>
@@ -261,7 +276,7 @@ export type ChartTab = BreakdownTab | PivotTab
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | ChartTab
 
-export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | NeglectTab | ClustersTab | ListWallTab | GlanceTab
+export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | PlannerTab | NeglectTab | ClustersTab | ListWallTab | GlanceTab
 
 type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -424,7 +439,7 @@ export interface TabSeed {
 
 /**
  * The add-widget menus' groups: **Tasks** (the widgets that show tasks to
- * work on — List, Calendar, Review, Notes) and **Insights** (the
+ * work on — List, Calendar, Review, Planner, Notes) and **Insights** (the
  * numbers and charts, and the Neglect map). The grouping is the menus' only:
  * nothing behavioural reads it — the glance minimums, fit rows and the
  * right-click rule read `glance` / `fitHeight`, which the Calendar and the
@@ -493,6 +508,8 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   },
   // Item 12: a review in a cell, nothing to review yet (its field takes a filter).
   review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: {} }) },
+  // The Planner (2026-11-20): no settings; its hand order is view state.
+  planner: { label: 'Planner', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'planner', config: {} }) },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
   // Insights.
   number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
@@ -607,6 +624,7 @@ export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
   calendar: 'calendar',
   notes: 'notes',
   review: 'review',
+  planner: 'planner',
   number: 'number',
   trend: 'chart',
   breakdown: 'bars',

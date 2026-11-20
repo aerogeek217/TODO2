@@ -82,6 +82,7 @@ function buildSeed(): Seed {
         dueDate: at('2026-10-16T00:00:00.000Z'),
         lastFollowupAt: at('2026-09-13T14:25:31.000Z'),
         nextFollowupAt: at('2026-10-13T00:00:00.000Z'),
+        doDate: at('2026-10-14T00:00:00.000Z'),
         recurrenceRule: { every: { count: 1, unit: 'm' as const }, originalDayOfMonth: 31 },
         focus: true,
         urgent: true,
@@ -200,6 +201,8 @@ function buildSeed(): Seed {
             { id: 't23', kind: 'listwall', config: {} },
             // Item 12: a Review widget (no settings, 2A) and its sort.
             { id: 't14', kind: 'review', config: {}, viewState: { sort: 'next' } },
+            // The Planner (no settings) and its hand order.
+            { id: 't24', kind: 'planner', config: {}, viewState: { order: ['uid-b', 'uid-a'] } },
             // The glance widgets, each with a setting off its default.
             numberTab('g1', 'closedThisWeek'),
             { id: 'g4', kind: 'trend', config: { range: '12w', name: 'Opened and closed', show: 'cumulative', filter: { ...emptyPredicate(), tags: [1] } } },

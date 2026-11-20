@@ -13,6 +13,8 @@ import {
 import type { PersistedTodoItem } from '../models'
 import type { CalendarDateType } from '../models/workspace-layout'
 import { useWorkspaceStore } from '../stores/workspace-store'
+import { usePlannerStore } from '../stores/planner-store'
+import { applyPlannerMove, planPlannerDrop } from '../services/planner-drop'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
@@ -22,7 +24,7 @@ import { useStatusUpdateStore } from '../stores/status-update-store'
 import { useSubtaskStore } from '../stores/subtask-store'
 import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignments-for-todos'
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
-import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
+import { buildTaskCollision, dispatchTaskDrop, isPlannerDropData, type CalendarDropChoiceRequest, type PlannerDropRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
 import { dropChangesLayout, dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, ownStripHit, sameDropHit } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
@@ -30,6 +32,7 @@ import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
 import { SyncStatusButton } from '../components/layout/SyncStatusButton'
 import { useIsMobile } from '../hooks/use-is-mobile'
+import { usePlannerWindowsOf } from '../hooks/use-planner'
 import { measureWorkspace } from '../components/workspace/measure'
 import { EditListHost } from '../components/workspace/list/EditList'
 import { WidgetPopupHost } from '../components/workspace/WidgetPopup'
@@ -71,6 +74,7 @@ import { CheckinDialog } from '../components/checkin/CheckinDialog'
 import { CheckinImportDialog } from '../components/checkin/CheckinImportDialog'
 import { TaskDialog } from '../components/overlays/TaskDialog'
 import { DragOverlayTask } from '../components/workspace/DragOverlayTask'
+import { PlannerDragLabel } from '../components/workspace/planner/PlannerDragLabel'
 import { createTaskDropAnimation } from '../components/workspace/task-drop-animation'
 import { TaskDropLandingContext } from '../components/task/dnd/task-drop-landing'
 import styles from './WorkspacePage.module.css'
@@ -470,6 +474,7 @@ export function WorkspacePage() {
   const isMobile = useIsMobile()
 
   useWorkspaceData()
+  usePlannerWindowsOf(working)
 
   // Opened from here, not at startup: the app's startup chain (incl. the sync
   // file load) has finished before any page mounts.
@@ -482,8 +487,8 @@ export function WorkspacePage() {
   const sensors = useSensors(isMobile ? noDragSensor : pointerSensor)
 
   // Tab and panel drags find their target from pointer geometry, not dnd-kit
-  // droppables; task drags match the widgets' droppables (calendar days)
-  // under the pointer.
+  // droppables; task drags match the widgets' droppables (calendar days, a
+  // Planner's tiles and groups) under the pointer.
   const collisionDetection = useMemo(() => buildTaskCollision([
     { when: (active) => isWorkspaceDragType(active.data.current?.type), accept: () => false },
   ]), [])
@@ -503,6 +508,21 @@ export function WorkspacePage() {
     if (todo) setActiveDrag({ todo, calendarEntry })
   }, [startTabDrag, landDrop])
 
+  /**
+   * A task dropped on a Planner's tile or group — the Planner's one write
+   * (`services/planner-drop`). The place in a group is the one its drag
+   * preview shows (`stores/planner-store`, still set here: the Planner
+   * clears it after this handler). A drop that moves the row to another day
+   * lands where it was let go; a reorder, a refused drop and one that
+   * changes nothing settle onto the row.
+   */
+  const dropOnPlanner = useCallback((request: PlannerDropRequest) => {
+    const plan = planPlannerDrop(request, usePlannerStore.getState().drag)
+    if (!plan) return
+    if (plan.moves) landDrop('in-place')
+    return applyPlannerMove(request.tabId, request.todo.id, plan)
+  }, [landDrop])
+
   const chooseType = calendarChoice.choose
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     if (isWorkspaceDragType(event.active.data.current?.type)) {
@@ -510,8 +530,8 @@ export function WorkspacePage() {
       return
     }
     setActiveDrag(null)
-    // A calendar day: the row changes there, later.
-    if (event.over) landDrop('in-place')
+    // A calendar day: the row changes there, later. A Planner's target says how its own drop lands.
+    if (event.over && !isPlannerDropData(event.over.data.current)) landDrop('in-place')
     await dispatchTaskDrop(event, {
       calendar: {
         reschedule: async (todoId, date, type) => {
@@ -521,8 +541,9 @@ export function WorkspacePage() {
         },
         chooseType,
       },
+      planner: { drop: dropOnPlanner },
     })
-  }, [endTabDrag, chooseType, landDrop])
+  }, [endTabDrag, chooseType, landDrop, dropOnPlanner])
   const onDragEnd = useCallback((event: DragEndEvent) => { void runDrop(() => handleDragEnd(event)) }, [handleDragEnd])
 
   const handleDragCancel = useCallback(() => {
@@ -572,9 +593,10 @@ export function WorkspacePage() {
               wrap={activeDrag.calendarEntry.wrap}
               ghost
             />
+            <PlannerDragLabel />
           </div>
         ) : activeDrag ? (
-          <DragOverlayTask todo={activeDrag.todo} />
+          <DragOverlayTask todo={activeDrag.todo} label={<PlannerDragLabel />} />
         ) : null}
       </DragOverlay>
       {calendarChoice.request && (

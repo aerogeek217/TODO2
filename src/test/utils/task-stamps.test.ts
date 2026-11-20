@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { stampAfter, undoStamps } from '../../utils/task-stamps'
+import { KEEP_STAMPS, stampAfter, undoStamps, type StampChanges } from '../../utils/task-stamps'
 
 const d = (n: number) => new Date(2026, 10, n)
 
@@ -17,6 +17,28 @@ describe('stampAfter', () => {
     expect(stampAfter(step, 1, current)).toBe(current)
     // Not listed: unchanged.
     expect(stampAfter(step, 2, current)).toBe(current)
+  })
+})
+
+describe('KEEP_STAMPS', () => {
+  it('lists no task: every task keeps the stamp it holds', () => {
+    expect(KEEP_STAMPS.size).toBe(0)
+    expect(KEEP_STAMPS).not.toBeInstanceOf(Date)
+    const current = d(7)
+    expect(stampAfter(KEEP_STAMPS, 1, current)).toBe(current)
+    expect(stampAfter(KEEP_STAMPS, 99, current)).toBe(current)
+  })
+
+  it('a step made with it puts back what it found: its undo and redo move no stamp either', () => {
+    const current = d(7)
+    // What a write records: each task from its stamp to the stamp the write left.
+    const step: StampChanges = new Map([[1, { before: current, after: stampAfter(KEEP_STAMPS, 1, current) }]])
+    expect(stampAfter(undoStamps(step), 1, current)).toBe(current)
+    expect(stampAfter(step, 1, current)).toBe(current)
+    // Touched since: the newer stamp stays.
+    const newer = d(9)
+    expect(stampAfter(undoStamps(step), 1, newer)).toBe(newer)
+    expect(stampAfter(step, 1, newer)).toBe(newer)
   })
 })
 

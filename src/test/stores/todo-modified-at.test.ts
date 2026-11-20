@@ -64,6 +64,8 @@ const writes: Array<[string, Write]> = [
   ['bulkSetFocus', (ids) => useTodoStore.getState().bulkSetFocus(ids, true)],
   ['setMarkerFlags', (ids) => useTodoStore.getState().setMarkerFlags(ids.map((todoId) => ({ todoId, urgent: true })), 'Urgent')],
   ['markFollowedUp', (ids) => useTodoStore.getState().markFollowedUp(ids)],
+  // Writes the row and leaves the stamp: the two copies still agree.
+  ['setDoDate', (ids) => useTodoStore.getState().setDoDate(ids, new RealDate(2026, 9, 20))],
 ]
 
 describe('the store and the database hold the same modifiedAt', () => {

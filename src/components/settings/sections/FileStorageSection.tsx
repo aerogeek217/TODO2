@@ -20,6 +20,7 @@ export function FileStorageSection() {
     error: s.error,
     fileName: s.fileName,
     lastSavedAt: s.lastSavedAt,
+    linkUnread: s.linkUnread,
     openFile: s.openFile,
     createFile: s.createFile,
     disconnect: s.disconnect,
@@ -89,6 +90,9 @@ export function FileStorageSection() {
       <SettingRow
         label="Sync file"
         help="Your tasks live in this browser’s storage. Attach a file to keep a copy you can back up or move to another machine. An existing file you replace is emptied by the browser before TODO2 can back it up."
+        status={fileStorage.linkUnread
+          ? 'TODO2 could not check its sync file when it started, so sync is off. Reload to try again, or attach the file again here.'
+          : undefined}
       >
         <button type="button" className={primary} onClick={fileStorage.openFile} disabled={fileStorage.isLoading}>
           Attach to File

@@ -113,6 +113,27 @@ describe('create a task — plain text', () => {
   })
 })
 
+describe('create a task — the Do day (the Planner’s Add task)', () => {
+  it('Quick Add and a note’s drafts store the defaults’ hidden Do day; the editor the one handed on to it', async () => {
+    const doDate = startOfToday()
+    const fd = { ...NO_DEFAULTS, doDate }
+    expect((await viaQuickAdd('A', fd)).todo.doDate).toEqual(doDate)
+    expect((await viaDrafts('B', fd)).todo.doDate).toEqual(doDate)
+    expect((await viaEditor({ title: 'C', doDate })).todo.doDate).toEqual(doDate)
+    // In the database too, and as one undo step with the task.
+    const stored = await db.todos.toArray()
+    expect(stored.map((t) => t.doDate)).toEqual([doDate, doDate, doDate])
+  })
+
+  it('no pipeline gives a task a Do day of its own', async () => {
+    for (const make of [() => viaQuickAdd('Plain /due mon'), () => viaDrafts('Plain /due mon'), () => viaEditor({ title: 'Plain', dueDate: addDays(startOfToday(), 2) })]) {
+      const { todo } = await make()
+      expect(todo.doDate).toBeUndefined()
+      expect('doDate' in todo).toBe(false)
+    }
+  })
+})
+
 describe('create a task — status', () => {
   it('Settings default status, nothing else: every pipeline uses it', async () => {
     useSettingsStore.setState({ defaultStatusId: ids.waiting })

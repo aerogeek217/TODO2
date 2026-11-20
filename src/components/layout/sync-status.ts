@@ -8,10 +8,11 @@ import type { SyncPauseReason } from '../../services/file-storage'
 /**
  * Everything the storage pill (desktop) and the phone's status button say
  * about where the data lives and what needs the user: one state, the most
- * urgent first — Permission needed › Sync paused › Sync error › Backup
- * warning › the purge notice (`17 old completed`) › Synced / Local only.
+ * urgent first — Permission needed › Sync paused › Sync off › Sync error ›
+ * Backup warning › the purge notice (`17 old completed`) › Synced / Local
+ * only.
  */
-type StoragePillKind = 'local' | 'syncing' | 'permission' | 'paused' | 'error' | 'backup' | 'purge'
+type StoragePillKind = 'local' | 'syncing' | 'permission' | 'paused' | 'unchecked' | 'error' | 'backup' | 'purge'
 
 /** The purge notice, as the pill reads it: how many completed tasks are past the retention, and the settings its words name. */
 interface PurgeNoticeInput {
@@ -27,6 +28,8 @@ export interface StoragePillInput {
   paused: { reason?: SyncPauseReason; message: string } | null
   error: string | null
   dismissedError: string | null
+  /** Launch went on without reading the stored link to the sync file (`FileStorageStatus.linkUnread`); absent: it didn't. */
+  linkUnread?: boolean
   /** A backup that would not restore, or an operation run without one (`file-ops-store`). */
   snapshotWarning: string | null
   /** Completed tasks past the retention, offered for review (`purge-notice-store`); absent or null: none. Not about file storage, but one more thing waiting for the user in the same place. */
@@ -37,6 +40,7 @@ export interface StoragePillInput {
 export type SyncWarning =
   | { kind: 'permission'; fileName: string; refused: boolean }
   | { kind: 'paused'; reason: SyncPauseReason | null; message: string; fileName: string | null }
+  | { kind: 'unchecked' }
   | { kind: 'error'; message: string }
   | { kind: 'backup'; message: string }
   | ({ kind: 'purge' } & PurgeNoticeInput)
@@ -55,7 +59,9 @@ const REFUSED_ERRORS: ReadonlySet<string> = new Set(['Permission denied', 'Could
  * The active warnings, most urgent first. An error isn't its own warning
  * while permission is needed or sync is paused (it is that state's cause —
  * a refused grant shows as the permission warning's flag), nor once the
- * user dismissed that error.
+ * user dismissed that error. Sync off (the sync file's link wasn't read at
+ * launch) is a state, not an error: nothing dismisses it — it shows until a
+ * reload reads the link or a file is attached again.
  */
 export function syncWarnings(s: StoragePillInput): SyncWarning[] {
   const out: SyncWarning[] = []
@@ -65,6 +71,7 @@ export function syncWarnings(s: StoragePillInput): SyncWarning[] {
   // Sync paused (unreadable / newer / older file, or a cancelled prompt):
   // nothing has been written either way until the user picks a way forward.
   if (s.paused) out.push({ kind: 'paused', reason: s.paused.reason ?? null, message: s.paused.message, fileName: s.fileName })
+  if (s.linkUnread) out.push({ kind: 'unchecked' })
   if (s.error != null && s.error !== s.dismissedError && !s.needsPermission && !s.paused) {
     out.push({ kind: 'error', message: s.error })
   }
@@ -77,6 +84,7 @@ export function syncWarnings(s: StoragePillInput): SyncWarning[] {
 const WARNING_TEXT: Record<Exclude<SyncWarning['kind'], 'purge'>, string> = {
   permission: 'Permission needed',
   paused: 'Sync paused',
+  unchecked: 'Sync off',
   error: 'Sync error',
   backup: 'Backup warning',
 }
@@ -169,6 +177,13 @@ export function syncWarningCopy(w: SyncWarning): SyncWarningCopy {
       }
     case 'paused':
       return { title: WARNING_TEXT.paused, why: pausedWhy(w.message, w.fileName), flag: null, body: pausedBody(w.reason) }
+    case 'unchecked':
+      return {
+        title: WARNING_TEXT.unchecked,
+        why: 'TODO2 could not check its sync file when it started: your browser didn’t hand over the link to it.',
+        flag: null,
+        body: 'You’re working on this browser’s data. Nothing is written to the file meanwhile. Reload to try again, or attach the file again in File storage settings.',
+      }
     case 'error':
       return {
         title: WARNING_TEXT.error,
@@ -203,14 +218,15 @@ function useStoragePillInput(): StoragePillInput {
   const paused = useFileStorageStore((s) => s.paused)
   const error = useFileStorageStore((s) => s.error)
   const dismissedError = useFileStorageStore((s) => s.dismissedError)
+  const linkUnread = useFileStorageStore((s) => s.linkUnread)
   const snapshotWarning = useFileOpsStore((s) => s.snapshotWarning)
   const purgeCount = usePurgeNoticeStore((s) => s.count)
   const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
   const intervalDays = useSettingsStore((s) => s.purgePromptIntervalDays)
   return useMemo(() => {
     const purge = purgeCount > 0 && retentionDays != null ? { count: purgeCount, retentionDays, intervalDays } : null
-    return { isConnected, fileName, needsPermission, paused, error, dismissedError, snapshotWarning, purge }
-  }, [isConnected, fileName, needsPermission, paused, error, dismissedError, snapshotWarning, purgeCount, retentionDays, intervalDays])
+    return { isConnected, fileName, needsPermission, paused, error, dismissedError, linkUnread, snapshotWarning, purge }
+  }, [isConnected, fileName, needsPermission, paused, error, dismissedError, linkUnread, snapshotWarning, purgeCount, retentionDays, intervalDays])
 }
 
 /** The storage pill's state and its active warnings, from the stores. */

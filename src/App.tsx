@@ -7,6 +7,7 @@ import { useSettingsStore } from './stores/settings-store'
 import { useWorkspaceStore } from './stores/workspace-store'
 import { useFileStorageStore } from './services/file-storage-store'
 import { TopBar } from './components/layout/TopBar'
+import { StartScreen } from './components/layout/StartScreen'
 import { removeLegacySyncKeys } from './components/layout/sync-status'
 import { useUIStore } from './stores/ui-store'
 import { CommandPalette } from './components/overlays/CommandPalette'
@@ -32,7 +33,7 @@ import type { ShortcutCallbacks } from './services/keyboard-shortcuts'
 import { openTaskCounts } from './services/checkin-email/recipients'
 import { backupScheduler } from './data/backup-scheduler'
 import { CURRENT_DB_VERSION, findDatabaseTooNew, findDatabaseTooOld } from './data/database'
-import { runAppStartup } from './services/app-startup'
+import { runAppStartup, type LaunchStep } from './services/app-startup'
 import { onDataReplaced } from './services/replace-data'
 import { createQuickAddTask } from './services/create-task'
 import { getFilterDefaults, markerFlags, withoutMarkers } from './utils/filter-defaults'
@@ -267,6 +268,8 @@ function SettingsModalHost() {
 function AppShell() {
   const isMobile = useIsMobile()
   const [initialized, setInitialized] = useState(false)
+  /** The part of launch under way, for the start screen. */
+  const [launchStep, setLaunchStep] = useState<LaunchStep>('database')
   const [initError, setInitError] = useState<string | null>(null)
   /** Launch stopped because a newer version saved the database (where the version check before it couldn't see that). */
   const [initTooNew, setInitTooNew] = useState<TooNewDBInfo | null>(null)
@@ -276,8 +279,6 @@ function AppShell() {
   const [overlays] = useState(() => ({ palette: createValueStore(false), shortcuts: createValueStore(false) }))
   /** Set once launch's completed-task check began reading: a sync-file load from then on gets its own check. */
   const purgeCheckStartedRef = useRef(false)
-  /** While launch waits for the sync file's permission answer the start screen shows no spinner. */
-  const launchQuestion = useFileStorageStore((s) => s.pendingLaunchPermission != null)
   const location = useLocation()
   // Desktop: New task leads the top bar. Mobile: a floating + above the tab bar.
   const showFab = isMobile && location.pathname !== ROUTE_SETTINGS
@@ -311,7 +312,7 @@ function AppShell() {
     removeLegacySyncKeys()
     // Waits at the sync file's step for the launch question's answer when
     // the file needs permission (`runAppStartup`).
-    runAppStartup({ onPurgeCheck: () => { purgeCheckStartedRef.current = true } })
+    runAppStartup({ onPurgeCheck: () => { purgeCheckStartedRef.current = true }, onStep: setLaunchStep })
       .then(({ expiredUids }) => {
         // Completed tasks past retention are never purged silently, and
         // launch opens no dialog about them: the storage pill's notice
@@ -380,16 +381,8 @@ function AppShell() {
     )
   }
 
-  if (!initialized) {
-    // The start screen; the launch question (`LaunchPermissionDialog`) shows over it.
-    if (launchQuestion) return <div className={styles.initLoading} data-testid="start-screen" />
-    return (
-      <div className={styles.initLoading} data-testid="start-screen">
-        <div className={styles.spinner} />
-        Loading…
-      </div>
-    )
-  }
+  // The start screen; the launch question (`LaunchPermissionDialog`) shows over it.
+  if (!initialized) return <StartScreen step={launchStep} />
 
   return (
     <div className={styles.app}>
@@ -464,14 +457,8 @@ export default function App() {
       .catch(() => setDbVersionChecked(true))
   }, [])
 
-  if (!dbVersionChecked) {
-    return (
-      <div className={styles.initLoading}>
-        <div className={styles.spinner} />
-        Loading…
-      </div>
-    )
-  }
+  // Reading the database's version is the first part of opening it.
+  if (!dbVersionChecked) return <StartScreen step="database" />
 
   // Saved by a newer version, or below the floor: nothing here may open it.
   if (tooNewDBInfo) return <DatabaseTooNewDialog info={tooNewDBInfo} />

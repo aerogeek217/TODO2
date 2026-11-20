@@ -212,6 +212,8 @@ export interface WorkspaceSeed {
     /** Days from today. */
     dueInDays?: number
     followupInDays?: number
+    /** The Do day (the Planner's `doDate`, schema v85), days from today. */
+    doInDays?: number
     /** Hour of the due date (default midnight). */
     dueHour?: number
     /** The repeat, by its old name; stored as its interval (schema v84: weekly `{ count: 1, unit: 'w' }`). */
@@ -385,6 +387,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
           },
         } : {}),
         ...(task.followupInDays != null ? { nextFollowupAt: day(task.followupInDays) } : {}),
+        ...(task.doInDays != null ? { doDate: day(task.doInDays) } : {}),
         ...(task.lastFollowupInDays != null ? { lastFollowupAt: atDay(task.lastFollowupInDays) } : {}),
         ...(task.status != null ? { statusId: statusIds.get(task.status) } : {}),
         ...(task.urgent ? { urgent: true } : {}),

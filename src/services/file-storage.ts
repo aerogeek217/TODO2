@@ -31,11 +31,21 @@ export type SyncPauseReason =
   | 'upgrade-cancelled'
   | 'backup-failed'
   | 'write-failed'
+  | 'launch-skipped'
 
 export interface SyncPause {
   reason: SyncPauseReason
   message: string
 }
+
+/**
+ * What launch is waiting for the browser to hand over: the stored link to
+ * the sync file (`link`), that link's permission (`permission`) or the
+ * file's text (`file`) — the waits the start screen may give up
+ * (`skipLaunchFile`, `forgetLaunchFile`). Null otherwise: no launch, a
+ * question is up, or the load decision is being carried out.
+ */
+type LaunchFileWait = 'link' | 'permission' | 'file'
 
 export type FileStorageStatus = {
   /** True only while changes are actively being written to the file. */
@@ -45,6 +55,14 @@ export type FileStorageStatus = {
   needsPermission: boolean
   error: string | null
   paused: SyncPause | null
+  launchWait: LaunchFileWait | null
+  /**
+   * Launch went on without reading the stored link to the sync file (not
+   * read in time, not readable, or the start screen's Continue): a file may
+   * be attached, and sync is off until a reload reads the link or a file is
+   * attached again. Not an `error`: nothing dismisses it.
+   */
+  linkUnread: boolean
 }
 
 export interface SyncSideSummary {
@@ -82,6 +100,8 @@ export interface FileUpgradeInfo {
 /** The launch question: the attached sync file needs the browser's permission again. */
 export interface LaunchPermissionInfo {
   fileName: string
+  /** Set when the browser didn't answer the permission check in time (`FILE_LINK_TIMEOUT_MS`), so whether access is still granted is unknown. */
+  unchecked?: true
 }
 
 type StatusListener = (status: FileStorageStatus) => void
@@ -102,6 +122,15 @@ export function newSyncFileName(now: Date = new Date()): string {
   return `todo2-data-${toDateInputValue(now)}.json`
 }
 const DEBOUNCE_MS = 500
+
+/**
+ * How long the browser gets to answer about the stored link to the sync
+ * file — reading it and checking its permission at launch, forgetting it on
+ * Disconnect — before the app goes on without the answer. A stored handle
+ * the browser can no longer resolve (after its restart or update) has been
+ * seen to leave these waiting without end.
+ */
+export const FILE_LINK_TIMEOUT_MS = 5000
 
 const PAUSED_PREFIX = 'File sync paused'
 
@@ -214,6 +243,20 @@ async function readFileText(handle: FileSystemFileHandle): Promise<FileRead> {
   return { ok: false, reason: 'read-error', error: replacedError }
 }
 
+/** A wait's outcome: the browser's answer, or none (it timed out, or the wait was given up). */
+type Answer<T> = { answered: true; value: T } | { answered: false }
+
+/** `promise`'s answer, or none once `ms` passed — its late answer or failure is then dropped. Nothing else ends the wait. */
+function answeredWithin<T>(promise: Promise<T>, ms: number): Promise<Answer<T>> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve({ answered: false }), ms)
+    promise.then(
+      (value) => { clearTimeout(timer); resolve({ answered: true, value }) },
+      (err: unknown) => { clearTimeout(timer); reject(err) },
+    )
+  })
+}
+
 /** Adds `listener` to `set`; returns its removal (a no-op once removed). */
 function subscribe<L>(set: Set<L>, listener: L): () => void {
   set.add(listener)
@@ -274,6 +317,12 @@ class FileStorageService {
   private launchPermissionHandler: LaunchPermissionHandler | null = null
   /** The `initialize` run in flight, shared by concurrent callers. */
   private initRun: Promise<void> | null = null
+  /** Bumped when launch's wait for the file is given up; the launch run still waiting stops when its answer comes. */
+  private launchGen = 0
+  private _launchWait: LaunchFileWait | null = null
+  private _linkUnread = false
+  /** The waits on the browser under way (`orGivenUp`), each as its giving-up. */
+  private waits = new Set<() => void>()
   private _lastSavedAt: Date | null = null
   private _error: string | null = null
   private _needsPermission = false
@@ -291,6 +340,8 @@ class FileStorageService {
       needsPermission: this._needsPermission,
       error: this._error,
       paused: this._paused,
+      launchWait: this._launchWait,
+      linkUnread: this._linkUnread,
     }
   }
 
@@ -356,12 +407,54 @@ class FileStorageService {
     this.changeGen = 0
     this.lastLoadBackCheck = null
     this.loadGen++
+    this.launchGen++
     this.initRun = null
+    this._launchWait = null
+    this._linkUnread = false
+    // Dropped, not given up: a launch a test left waiting stays waiting.
+    this.waits.clear()
     this._lastSavedAt = null
     this._error = null
     this._needsPermission = false
     this._paused = null
     this.checkIdle()
+  }
+
+  /**
+   * `promise`'s answer — or none once `timeoutMs` passed or the wait was
+   * given up (`giveUpWaits`). Its late answer or failure is then dropped:
+   * whoever stopped waiting has said what happens instead.
+   */
+  private orGivenUp<T>(promise: Promise<T>, timeoutMs?: number): Promise<Answer<T>> {
+    return new Promise((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | null = null
+      const giveUp = () => {
+        if (timer) clearTimeout(timer)
+        this.waits.delete(giveUp)
+        resolve({ answered: false })
+      }
+      // Answered (or failed): no longer a wait to give up.
+      const done = () => {
+        if (timer) clearTimeout(timer)
+        this.waits.delete(giveUp)
+      }
+      if (timeoutMs != null) timer = setTimeout(giveUp, timeoutMs)
+      this.waits.add(giveUp)
+      promise.then(
+        (value) => { done(); resolve({ answered: true, value }) },
+        (err: unknown) => { done(); reject(err) },
+      )
+    })
+  }
+
+  private giveUpWaits() {
+    for (const giveUp of [...this.waits]) giveUp()
+  }
+
+  private setLaunchWait(wait: LaunchFileWait | null) {
+    if (this._launchWait === wait) return
+    this._launchWait = wait
+    this.notify()
   }
 
   /**
@@ -372,11 +465,26 @@ class FileStorageService {
    * between the file and this browser. Concurrent callers (React's
    * StrictMode runs the startup effect twice) share one run: one question,
    * one load decision.
+   *
+   * The two steps before the question can't wait without end: the browser
+   * gets `FILE_LINK_TIMEOUT_MS` to hand over the stored link and again to
+   * say whether it still has permission. A link not read in time, or not
+   * readable at all: launch goes on without the file (`linkUnread`, the
+   * storage pill's Sync off). A permission check not answered in time, or
+   * that fails: the launch question, marked `unchecked`. Neither reads or
+   * writes the file, nor forgets the stored link, and an answer that comes
+   * later is dropped. Reading the file's
+   * text has no time limit (a large file on a slow drive is no failure);
+   * while launch waits there — and in the two steps above — the start
+   * screen may give the wait up (`launchWait`, `skipLaunchFile`,
+   * `forgetLaunchFile`).
    */
   initialize(): Promise<void> {
     if (this.initRun) return this.initRun
     const run: Promise<void> = this.runInitialize().finally(() => {
-      if (this.initRun === run) this.initRun = null
+      if (this.initRun !== run) return
+      this.initRun = null
+      this.setLaunchWait(null)
     })
     this.initRun = run
     return run
@@ -384,24 +492,118 @@ class FileStorageService {
 
   private async runInitialize(): Promise<void> {
     if (!this.isSupported) return
+    const gen = ++this.launchGen
+    this._linkUnread = false
 
-    const handle = await loadFileHandle()
+    this.setLaunchWait('link')
+    // A link that can't be read (the link database fails or is blocked) is
+    // as one not read in time: a file may be attached all the same, so the
+    // session must be tracked — going on untracked, the next start would
+    // find the browser clean and load the file over this session's edits.
+    let link: Answer<FileSystemFileHandle | null>
+    try {
+      link = await this.orGivenUp(loadFileHandle(), FILE_LINK_TIMEOUT_MS)
+    } catch (err) {
+      if (gen !== this.launchGen) return
+      console.warn('[file-storage] the stored file handle could not be read', err)
+      this.launchWithoutLink()
+      return
+    }
+    if (gen !== this.launchGen) return
+    if (!link.answered) {
+      console.warn('[file-storage] the browser did not hand over the stored file handle in time')
+      this.launchWithoutLink()
+      return
+    }
+    const handle = link.value
     if (!handle) return
 
     this.handle = handle
     this.installTracking()
-    const perm = await handle.queryPermission({ mode: 'readwrite' })
+    this.setLaunchWait('permission')
+    // A permission check that fails is as one not answered: whether access
+    // is still granted is unknown, so the launch question asks.
+    let perm: Answer<PermissionState>
+    try {
+      perm = await this.orGivenUp(handle.queryPermission({ mode: 'readwrite' }), FILE_LINK_TIMEOUT_MS)
+    } catch (err) {
+      if (gen !== this.launchGen) return
+      console.warn('[file-storage] the permission check failed', err)
+      perm = { answered: false }
+    }
+    if (gen !== this.launchGen) return
+    this.setLaunchWait(null)
 
-    if (perm === 'granted') {
+    if (perm.answered && perm.value === 'granted') {
       await this.loadFromFile()
     } else {
+      if (!perm.answered) console.warn('[file-storage] the browser did not answer the permission check in time')
       this._needsPermission = true
       this.notify()
       if (this.launchPermissionHandler && this.handle === handle) {
-        await this.launchPermissionHandler({ fileName: handle.name })
+        await this.launchPermissionHandler(perm.answered ? { fileName: handle.name } : { fileName: handle.name, unchecked: true })
       }
     }
     this.notify()
+  }
+
+  /**
+   * Launch goes on without the stored link (not read in time, not readable,
+   * or the start screen's Continue while it was being read): whether a file
+   * is attached is unknown, so nothing is read, written or forgotten — the
+   * stored link is there for the next start. Changes are tracked meanwhile,
+   * as with an attached file: the next start's load decision then sees this
+   * session's edits as unsynced rather than loading the file over them.
+   * `linkUnread` says so for the rest of the session — until a file is
+   * attached (Open / Create file) or the link is forgotten (Disconnect).
+   */
+  private launchWithoutLink() {
+    this._launchWait = null
+    this.installTracking()
+    this._linkUnread = true
+    this.notify()
+  }
+
+  /**
+   * The start screen's Continue without the file, while launch waits for the
+   * browser (`launchWait`): launch goes on with this browser's data and
+   * nothing is read from or written to the file. Waiting for the link —
+   * as a link not read in time (`launchWithoutLink`); for its permission —
+   * permission needed, as after the launch question's Continue; for the
+   * file's text — sync paused (`launch-skipped`; Retry loads the file).
+   * The browser's late answer is dropped. Returns false, changing nothing,
+   * when launch isn't waiting for the browser (the load decision is being
+   * carried out: giving up then could leave the data half loaded).
+   */
+  skipLaunchFile(): boolean {
+    const wait = this._launchWait
+    if (!wait) return false
+    this.launchGen++
+    this.loadGen++
+    this.stopSync()
+    this._launchWait = null
+    if (wait === 'link' || !this.handle) {
+      this.launchWithoutLink()
+    } else if (wait === 'permission') {
+      this._needsPermission = true
+      this.notify()
+    } else {
+      this.pause('launch-skipped', `${PAUSED_PREFIX} — you continued without ${this.handle.name} while your browser was still reading it. Retry loads it.`)
+    }
+    this.giveUpWaits()
+    return true
+  }
+
+  /**
+   * The start screen's Forget the sync file, while launch waits for the
+   * browser (`launchWait`): `disconnect` — the stored link is cleared, the
+   * tasks and the file itself are untouched — and launch goes on. Returns
+   * false, changing nothing, when launch isn't waiting for the browser.
+   */
+  forgetLaunchFile(): boolean {
+    if (!this._launchWait) return false
+    void this.disconnect()
+    return true
   }
 
   /**
@@ -412,7 +614,11 @@ class FileStorageService {
   async reconnect({ onGranted }: { onGranted?: () => void } = {}): Promise<void> {
     if (!this.handle) return
     try {
-      const perm = await this.handle.requestPermission({ mode: 'readwrite' })
+      // No time limit: the browser's prompt waits for the user. Given up by
+      // `giveUpGrant` and Disconnect, which say what happens instead.
+      const answer = await this.orGivenUp(this.handle.requestPermission({ mode: 'readwrite' }))
+      if (!answer.answered) return
+      const perm = answer.value
       if (perm === 'granted') {
         this._needsPermission = false
         this._error = null
@@ -426,6 +632,17 @@ class FileStorageService {
       this._error = 'Could not get file access'
     }
     this.notify()
+  }
+
+  /**
+   * Stops waiting for the browser's answer to Grant access (`reconnect`):
+   * the launch question's Continue without the file, pressed while the
+   * browser's prompt never came. Permission stays needed and the browser's
+   * late answer is dropped. Nothing when no grant is waiting.
+   */
+  giveUpGrant(): void {
+    // While permission is needed the only wait there can be is a grant's.
+    if (this._needsPermission) this.giveUpWaits()
   }
 
   /** Re-run the load decision (banner "Retry" / after a cancelled prompt). */
@@ -442,6 +659,7 @@ class FileStorageService {
       if (!(await this.rememberHandle(handle, `Could not attach ${handle.name} — the browser could not remember the file, so nothing changed.`))) return
       this.stopSync()
       this.handle = handle
+      this._linkUnread = false
       this._error = null
       this._needsPermission = false
       this._paused = null
@@ -466,6 +684,7 @@ class FileStorageService {
       if (!(await this.rememberHandle(handle, `${handle.name} was created, but the browser could not remember it, so it was not attached. Nothing else changed.`))) return
       this.stopSync()
       this.handle = handle
+      this._linkUnread = false
       this._error = null
       this._needsPermission = false
       this._paused = null
@@ -500,24 +719,42 @@ class FileStorageService {
   }
 
   async disconnect(): Promise<void> {
-    // A load still running for this file stops at its next await.
+    // A load still running for this file stops at its next await — at once
+    // where it waits for the browser (launch's steps, the file's text).
     this.loadGen++
+    this.launchGen++
     this.stopSync()
     this.removeTracking()
     this.handle = null
+    this._launchWait = null
+    this._linkUnread = false
     this._needsPermission = false
     this._lastSavedAt = null
     this._error = null
     this._paused = null
     clearFileSyncState()
-    // Never rejects (its callers don't wait on it): this tab has let the
-    // file go either way; a handle the browser couldn't forget would come
-    // back at the next start, so say so.
+    this.giveUpWaits()
+    // Said now, not after the browser forgot the link: a launch that was
+    // waiting goes on at once.
+    this.notify()
+    // Never rejects (its callers don't wait on it), nor waits without end
+    // (`FILE_LINK_TIMEOUT_MS`): this tab has let the file go either way; a
+    // handle the browser couldn't forget would come back at the next start,
+    // so say so.
+    const notForgotten = 'Disconnected, but the browser could not forget the file — it may reconnect on the next start. Disconnect again to retry.'
     try {
-      await clearFileHandle()
+      // Its own wait, not one of the shared ones: a second Disconnect (or
+      // anything else that gives the waits up) must not cut this clear short
+      // and report a failure the browser never had.
+      const cleared = await answeredWithin(clearFileHandle(), FILE_LINK_TIMEOUT_MS)
+      if (!cleared.answered) {
+        console.warn('[file-storage] the browser did not forget the file handle in time')
+        // Unless a file was attached meanwhile: the error would be about the old one.
+        if (!this.handle) this._error = notForgotten
+      }
     } catch (err) {
       console.warn('[file-storage] forgetting the file handle failed', err)
-      this._error = 'Disconnected, but the browser could not forget the file — it may reconnect on the next start. Disconnect again to retry.'
+      this._error = notForgotten
     }
     this.notify()
   }
@@ -625,8 +862,14 @@ class FileStorageService {
     await this.whenIdle()
     if (this.handle !== handle || gen !== this.loadGen) return
 
-    const read = await readFileText(handle)
-    if (gen !== this.loadGen) return
+    // At launch (its own load, or Grant access from its question) the start
+    // screen may give this wait up; so may Disconnect, at any time.
+    const atLaunch = this.initRun !== null
+    if (atLaunch) this.setLaunchWait('file')
+    const answer = await this.orGivenUp(readFileText(handle))
+    if (!answer.answered || gen !== this.loadGen) return
+    if (atLaunch) this.setLaunchWait(null)
+    const read = answer.value
     if (!read.ok) {
       if (read.reason === 'too-large') {
         this.pause('too-large', `${PAUSED_PREFIX} — the file is too large (50 MB max).`)

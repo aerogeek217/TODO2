@@ -18,7 +18,7 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 - Test watch: `npm run test:watch`
 - E2E: `npm run test:e2e` (Playwright, `fullyParallel`; starts its own dev server on port 5173 — separate from the 5180 dev server; `PW_PORT=<port>` picks another, so two checkouts can run their suites at once; `PW_TIMEOUT=<ms>` raises the 30 s per-test limit). A full local run: `npm run test:e2e:local` (`--workers=4 --timeout=300000`). A reused dev server must be freshly started: after a source edit under a running server the specs fail at once with "restart it". Single spec: `npx playwright test e2e/<name>.spec.ts`
 - Lint: `npm run lint` (`eslint . --max-warnings 0`). No per-file ignores — don't add any to dodge fixes.
-- Dev seed: `npm run seed:dev` → `dev-data/seed-v84.json` (gitignored; realistic export in the current schema for manual testing via Settings → Import / Export → Import JSON — replaces that browser's data; dates relative to today, re-run when stale). Needs Node ≥ 22.6.
+- Dev seed: `npm run seed:dev` → `dev-data/seed-v85.json` (gitignored; realistic export in the current schema for manual testing via Settings → Import / Export → Import JSON — replaces that browser's data; dates relative to today, re-run when stale). Needs Node ≥ 22.6.
 
 ## Tech Stack
 - React 19 + TypeScript + Vite
@@ -61,6 +61,7 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 - Push the feature branch regularly — `origin` is the only off-machine backup.
 - Commit messages: imperative mood, under 72 chars
 - One logical change per commit
+- **Changelog:** every deployment (a push to `main`) updates `CHANGELOG.md`. Work merged into the feature branch is listed under `Unreleased` as it lands; the deploy renames that section to its date (and names the data version when the schema changes) and starts a new empty `Unreleased`. Categories are Keep a Changelog's — Added, Changed, Deprecated, Removed, Fixed, Security — written for a user of the app, not as commit subjects.
 
 ## Planning
 - Active tasks are tracked in `docs/plans/TODO.md` — check it at session start

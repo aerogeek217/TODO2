@@ -9,6 +9,7 @@ import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 import { NeglectMapWidget } from './neglect/NeglectMapWidget'
 import { WorkClustersWidget } from './clusters/WorkClustersWidget'
 import { ListWallWidget } from './listwall/ListWallWidget'
+import { PlannerWidget } from './planner/PlannerWidget'
 import { GlanceWidget } from './glance/GlanceWidget'
 import styles from './WidgetBody.module.css'
 
@@ -41,6 +42,8 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
       return <CalendarWidget tab={tab} />
     case 'review':
       return <ReviewWidget tab={tab} />
+    case 'planner':
+      return <PlannerWidget tab={tab} />
     case 'notes':
       return <NotesWidget />
     case 'neglect':

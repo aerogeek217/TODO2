@@ -1056,8 +1056,8 @@ describe('FileStorageService — launch question (permission needed at start)', 
     let answer!: () => void
     const ask = vi.fn(() => new Promise<void>((resolve) => { answer = resolve }))
     svc.onLaunchPermission(ask)
-    const statuses: boolean[] = []
-    svc.onStatusChange((s) => statuses.push(s.needsPermission))
+    const statuses: Array<[string | null, boolean]> = []
+    svc.onStatusChange((s) => statuses.push([s.launchWait, s.needsPermission]))
 
     let done = false
     const run = svc.initialize().then(() => { done = true })
@@ -1065,7 +1065,8 @@ describe('FileStorageService — launch question (permission needed at start)', 
 
     expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json' })
     expect(done).toBe(false)
-    expect(statuses).toEqual([true])
+    // The two checks before the question, each a wait on the browser; then permission needed.
+    expect(statuses).toEqual([['link', false], ['permission', false], [null, false], [null, true]])
     expectUntouched(writable)
 
     answer()
@@ -1126,6 +1127,403 @@ describe('FileStorageService — launch question (permission needed at start)', 
     await svc.reconnect({ onGranted })
     expect(onGranted).not.toHaveBeenCalled()
     expect(svc.status).toMatchObject({ needsPermission: true, error: 'Permission denied' })
+    expectUntouched(writable)
+  })
+})
+
+// ─── Launch can't wait without end ────────────────────────────────────
+
+describe('FileStorageService — the browser never answers at launch', () => {
+  /** A promise that never settles on its own: the browser not answering. `answer` settles it late. */
+  function never<T>() {
+    let answer!: (value: T) => void
+    const promise = new Promise<T>((resolve) => { answer = resolve })
+    return { promise, answer }
+  }
+  const TIMEOUT = 5000
+
+  it('the timeout is about five seconds', async () => {
+    const { FILE_LINK_TIMEOUT_MS } = await import('../../services/file-storage')
+    expect(FILE_LINK_TIMEOUT_MS).toBe(TIMEOUT)
+  })
+
+  it('a permission check that never answers: the launch question after the timeout, marked unchecked; nothing read, written or forgotten', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const check = never<PermissionState>()
+    const { svc, handle, writable } = await startWith(fileBody(), { queryPermission: vi.fn(() => check.promise) })
+    let answer!: () => void
+    const ask = vi.fn(() => new Promise<void>((resolve) => { answer = resolve }))
+    svc.onLaunchPermission(ask)
+
+    let done = false
+    const run = svc.initialize().then(() => { done = true })
+    await vi.advanceTimersByTimeAsync(TIMEOUT - 1)
+    // Not before the timeout: launch waits for the browser, and says so.
+    expect(ask).not.toHaveBeenCalled()
+    expect(svc.status).toMatchObject({ launchWait: 'permission', needsPermission: false })
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', unchecked: true })
+    expect(svc.status).toMatchObject({ launchWait: null, needsPermission: true, isConnected: false, fileName: 'todo2-data.json' })
+    expect(done).toBe(false)
+    expectUntouched(writable)
+    expect(handle.getFile).not.toHaveBeenCalled()
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+
+    // The browser answers after all, behind the question: nothing changes.
+    check.answer('granted')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(svc.status).toMatchObject({ needsPermission: true, isConnected: false })
+    expect(handle.getFile).not.toHaveBeenCalled()
+    expectUntouched(writable)
+    expect(done).toBe(false)
+
+    answer()
+    await run
+    expect(svc.status.needsPermission).toBe(true)
+    // Edits meanwhile are recorded as unsynced, never written.
+    await expectNoWriteAfterChange(writable)
+  })
+
+  it('a stored link that is never read: launch goes on without the file after the timeout, the pill told; a late link changes nothing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { handle, writable } = createMockHandle()
+    const read = never<unknown>()
+    mockLoadFileHandle.mockReturnValue(read.promise)
+    const svc = await getService()
+    const ask = vi.fn(() => Promise.resolve())
+    svc.onLaunchPermission(ask)
+
+    let done = false
+    const run = svc.initialize().then(() => { done = true })
+    await vi.advanceTimersByTimeAsync(TIMEOUT - 1)
+    expect(done).toBe(false)
+    expect(svc.status.launchWait).toBe('link')
+
+    await vi.advanceTimersByTimeAsync(1)
+    await run
+    expect(svc.status).toEqual({
+      isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, paused: null, launchWait: null,
+      // Its own state, not an error: nothing dismisses it.
+      error: null, linkUnread: true,
+    })
+    expect(ask).not.toHaveBeenCalled()
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalled()
+
+    // The link arrives late: it is not attached behind the user's back.
+    read.answer(handle)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(handle.queryPermission).not.toHaveBeenCalled()
+    expect(svc.status.fileName).toBeNull()
+    expectUntouched(writable)
+
+    // A file may be attached: this session's edits are recorded as unsynced,
+    // so the next start doesn't load the file over them.
+    fireLocalChange()
+    expect(syncState().dirtySince).not.toBeNull()
+  })
+
+  it('answers in time leave no timer behind and no mark on the question', async () => {
+    const { svc } = await startWith(fileBody(), { queryPermission: vi.fn().mockResolvedValue('prompt') })
+    const ask = vi.fn(() => Promise.resolve())
+    svc.onLaunchPermission(ask)
+    const timersBefore = vi.getTimerCount()
+    await svc.initialize()
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json' })
+    expect(vi.getTimerCount()).toBe(timersBefore)
+  })
+
+  it('a stored link that can’t be read at all (the link database fails): as one not read in time, at once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
+    const svc = await getService()
+    const timersBefore = vi.getTimerCount()
+    // Launch's step doesn't fail: it goes on without the file, and says so.
+    await expect(svc.initialize()).resolves.toBeUndefined()
+    expect(svc.status).toMatchObject({ launchWait: null, fileName: null, isConnected: false, error: null, linkUnread: true })
+    expect(vi.getTimerCount()).toBe(timersBefore)
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith('[file-storage] the stored file handle could not be read', expect.any(Error))
+    // Tracked, as with an attached file.
+    for (const table of mockTables) expect(table.hook('creating').handlers.size).toBe(1)
+    fireLocalChange()
+    expect(syncState().dirtySince).not.toBeNull()
+  })
+
+  it('edits made after a link read that failed are unsynced at the next start: written to the unchanged file, never overwritten by it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // This browser last synced with the file as it still is, and was clean.
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
+    const svc = await getService()
+    await svc.initialize()
+    // The session's edit.
+    fireLocalChange()
+    expect(syncState()).toEqual({ fileSavedAt: FILE_SAVED_AT, dirtySince: expect.any(String) })
+
+    // The next start reads the link: the load decision finds the browser ahead.
+    svc.reset()
+    const { handle, writable } = createMockHandle()
+    mockLoadFileHandle.mockResolvedValue(handle)
+    await svc.initialize()
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledTimes(1)
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(svc.status).toMatchObject({ isConnected: true, paused: null, error: null })
+    expect(syncState().dirtySince).toBeNull()
+  })
+
+  it('the same start without that edit loads nothing either: the browser already holds the file', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
+    const svc = await getService()
+    await svc.initialize()
+    svc.reset()
+    const { handle, writable } = createMockHandle()
+    mockLoadFileHandle.mockResolvedValue(handle)
+    await svc.initialize()
+    // Clean and synced with this very file: the lossless load, no write.
+    expect(mockRestoreFromImportData).toHaveBeenCalledTimes(1)
+    expect(writable.write).not.toHaveBeenCalled()
+  })
+
+  it('a permission check that fails: as one not answered — the launch question, marked unchecked, edits tracked', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc, handle, writable } = await startWith(fileBody(), {
+      queryPermission: vi.fn().mockRejectedValue(new DOMException('gone', 'NotFoundError')),
+    })
+    const ask = vi.fn(() => Promise.resolve())
+    svc.onLaunchPermission(ask)
+    await expect(svc.initialize()).resolves.toBeUndefined()
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', unchecked: true })
+    expect(svc.status).toMatchObject({ needsPermission: true, launchWait: null, isConnected: false, fileName: 'todo2-data.json' })
+    expect(warn).toHaveBeenCalledWith('[file-storage] the permission check failed', expect.anything())
+    expect(handle.getFile).not.toHaveBeenCalled()
+    expectUntouched(writable)
+    await expectNoWriteAfterChange(writable)
+  })
+
+  it('Continue without the file while the file is read: launch goes on, sync paused; the late read changes nothing; Retry loads it', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const file = never<File>()
+    const { svc, handle, writable } = await startWith(fileBody(), { getFile: vi.fn(() => file.promise) })
+
+    let done = false
+    const run = svc.initialize().then(() => { done = true })
+    // No time limit on the read itself: a large file on a slow drive is no failure.
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(done).toBe(false)
+    expect(svc.status.launchWait).toBe('file')
+
+    expect(svc.skipLaunchFile()).toBe(true)
+    await run
+    expect(svc.status).toMatchObject({ launchWait: null, isConnected: false, needsPermission: false, fileName: 'todo2-data.json' })
+    expect(svc.status.paused).toEqual({
+      reason: 'launch-skipped',
+      message: 'File sync paused — you continued without todo2-data.json while your browser was still reading it. Retry loads it.',
+    })
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+
+    file.answer(new File([JSON.stringify(fileBody())], 'todo2-data.json'))
+    await vi.advanceTimersByTimeAsync(0)
+    expectUntouched(writable)
+    expect(svc.status.paused?.reason).toBe('launch-skipped')
+    await expectNoWriteAfterChange(writable)
+
+    // Retry reads the file again and runs the load decision (the browser has
+    // unsynced edits over an unchanged file: they are written to it).
+    handle.getFile.mockResolvedValue(new File([JSON.stringify(fileBody())], 'todo2-data.json'))
+    await svc.retry()
+    expect(svc.status).toMatchObject({ paused: null, isConnected: true })
+  })
+
+  it('Continue without the file while the link or its permission is awaited: as their timeouts, at once', async () => {
+    const check = never<PermissionState>()
+    const { svc, handle, writable } = await startWith(fileBody(), { queryPermission: vi.fn(() => check.promise) })
+    const ask = vi.fn(() => Promise.resolve())
+    svc.onLaunchPermission(ask)
+    const run = svc.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(svc.skipLaunchFile()).toBe(true)
+    await run
+    // Permission needed (the pill's Grant access), with no question asked.
+    expect(svc.status).toMatchObject({ needsPermission: true, launchWait: null, fileName: 'todo2-data.json' })
+    expect(ask).not.toHaveBeenCalled()
+    check.answer('granted')
+    await vi.advanceTimersByTimeAsync(TIMEOUT)
+    expect(handle.getFile).not.toHaveBeenCalled()
+    expectUntouched(writable)
+
+    svc.reset()
+    const read = never<unknown>()
+    mockLoadFileHandle.mockReturnValue(read.promise)
+    const second = svc.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(svc.status.launchWait).toBe('link')
+    expect(svc.skipLaunchFile()).toBe(true)
+    await second
+    expect(svc.status).toMatchObject({ linkUnread: true, error: null, fileName: null })
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+  })
+
+  it('nothing to give up while a question is up or the decision is carried out: Continue and Forget change nothing', async () => {
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
+    mockBrowserTaskCount.mockResolvedValue(5)
+    const { svc } = await startWith()
+    let choose!: (choice: 'cancel') => void
+    svc.onConflict(() => new Promise((resolve) => { choose = resolve }))
+    const run = svc.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(svc.status.launchWait).toBeNull()
+    expect(svc.skipLaunchFile()).toBe(false)
+    expect(svc.forgetLaunchFile()).toBe(false)
+    expect(svc.status).toMatchObject({ fileName: 'todo2-data.json', paused: null })
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    choose('cancel')
+    await run
+    expect(svc.status.paused?.reason).toBe('conflict-cancelled')
+    // Launch over: nothing to give up either.
+    expect(svc.skipLaunchFile()).toBe(false)
+  })
+
+  it('Forget the sync file while the browser doesn’t answer: the stored link is cleared, launch goes on, no data touched', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const check = never<PermissionState>()
+    const { svc, handle, writable } = await startWith(fileBody(), { queryPermission: vi.fn(() => check.promise) })
+    const run = svc.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(svc.forgetLaunchFile()).toBe(true)
+    await run
+    expect(mockClearFileHandle).toHaveBeenCalledTimes(1)
+    expect(svc.status).toEqual({
+      isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, error: null, paused: null, launchWait: null, linkUnread: false,
+    })
+    expect(localStorage.getItem(SYNC_KEY)).toBeNull()
+    // Neither side's data: no restore into the browser, no read or write of the file.
+    expectUntouched(writable)
+    expect(handle.getFile).not.toHaveBeenCalled()
+    expect(mockBuildExportData).not.toHaveBeenCalled()
+
+    check.answer('granted')
+    await vi.advanceTimersByTimeAsync(TIMEOUT)
+    expect(svc.status.fileName).toBeNull()
+    expectUntouched(writable)
+  })
+
+  it('Disconnect when the browser never forgets the link: it says so after the timeout instead of waiting', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { svc } = await startWith()
+    await svc.initialize()
+    mockClearFileHandle.mockReturnValue(never<void>().promise)
+    let done = false
+    const gone = svc.disconnect().then(() => { done = true })
+    await vi.advanceTimersByTimeAsync(TIMEOUT - 1)
+    expect(done).toBe(false)
+    // Let go at once, whatever the browser does.
+    expect(svc.status).toMatchObject({ fileName: null, isConnected: false, error: null })
+    await vi.advanceTimersByTimeAsync(1)
+    await gone
+    expect(svc.status.error).toMatch(/could not forget the file/)
+  })
+
+  it('Sync off lasts until a file is attached again or the link is forgotten — not until an error is cleared', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockLoadFileHandle.mockRejectedValue(new Error('meta database blocked'))
+    const svc = await getService()
+    await svc.initialize()
+    expect(svc.status.linkUnread).toBe(true)
+
+    // A picker the user cancels attaches nothing: still off.
+    vi.mocked(window.showOpenFilePicker).mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
+    await svc.openFile()
+    expect(svc.status.linkUnread).toBe(true)
+
+    // The file attached again: the usual load decision, and the state is over.
+    const { handle } = createMockHandle()
+    vi.mocked(window.showOpenFilePicker).mockResolvedValueOnce([handle as unknown as FileSystemFileHandle])
+    await svc.openFile()
+    expect(mockSaveFileHandle).toHaveBeenCalledWith(handle)
+    expect(svc.status).toMatchObject({ linkUnread: false, fileName: 'todo2-data.json', isConnected: true })
+
+    // Forgetting the link ends it too.
+    svc.reset()
+    await svc.initialize()
+    expect(svc.status.linkUnread).toBe(true)
+    await svc.disconnect()
+    expect(mockClearFileHandle).toHaveBeenCalled()
+    expect(svc.status).toMatchObject({ linkUnread: false, fileName: null, error: null })
+
+    // And a later start that reads the link.
+    svc.reset()
+    await svc.initialize()
+    expect(svc.status.linkUnread).toBe(true)
+    mockLoadFileHandle.mockResolvedValue(null)
+    await svc.initialize()
+    expect(svc.status.linkUnread).toBe(false)
+  })
+
+  it('a second Disconnect while the first still clears the link: neither reports a failure the browser never had', async () => {
+    const { svc } = await startWith()
+    await svc.initialize()
+    const slow = never<void>()
+    mockClearFileHandle.mockReturnValueOnce(slow.promise)
+    const first = svc.disconnect()
+    await vi.advanceTimersByTimeAsync(TIMEOUT - 1)
+    // Again, before the first clear landed (its own clear answers at once).
+    await svc.disconnect()
+    expect(svc.status.error).toBeNull()
+
+    slow.answer()
+    await first
+    expect(mockClearFileHandle).toHaveBeenCalledTimes(2)
+    expect(svc.status).toMatchObject({ fileName: null, error: null })
+  })
+
+  it('giving another wait up leaves a Disconnect’s clear alone', async () => {
+    const check = never<PermissionState>()
+    const { svc } = await startWith()
+    await svc.initialize()
+    const slow = never<void>()
+    mockClearFileHandle.mockReturnValueOnce(slow.promise)
+    const gone = svc.disconnect()
+    // The next launch, while the browser still clears the old link: its wait is given up.
+    mockLoadFileHandle.mockResolvedValue(createMockHandle(fileBody(), { queryPermission: vi.fn(() => check.promise) }).handle)
+    const run = svc.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(svc.skipLaunchFile()).toBe(true)
+    await run
+    slow.answer()
+    await gone
+    expect(svc.status.error).toBeNull()
+  })
+
+  it('a Grant access the browser never answers can be given up: permission stays needed, a late grant changes nothing', async () => {
+    const grant = never<PermissionState>()
+    const { svc, handle, writable } = await startWith(fileBody(), {
+      queryPermission: vi.fn().mockResolvedValue('prompt'),
+      requestPermission: vi.fn(() => grant.promise),
+    })
+    await svc.initialize()
+    const onGranted = vi.fn()
+    let done = false
+    const asking = svc.reconnect({ onGranted }).then(() => { done = true })
+    // The browser's prompt waits for the user: no time limit.
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(done).toBe(false)
+
+    svc.giveUpGrant()
+    await asking
+    expect(svc.status).toMatchObject({ needsPermission: true, error: null })
+
+    grant.answer('granted')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onGranted).not.toHaveBeenCalled()
+    expect(handle.getFile).not.toHaveBeenCalled()
+    expect(svc.status.needsPermission).toBe(true)
     expectUntouched(writable)
   })
 })
@@ -1369,7 +1767,7 @@ describe('FileStorageService — reset', () => {
 
     svc.reset()
     expect(svc.status).toEqual({
-      isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, error: null, paused: null,
+      isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, error: null, paused: null, launchWait: null, linkUnread: false,
     })
     for (const table of mockTables) expect(table.hook('creating').handlers.size).toBe(0)
     await vi.advanceTimersByTimeAsync(2000)

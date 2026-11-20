@@ -20,8 +20,8 @@ const task = (id: number, extra: DataRow = {}): DataRow => ({
 const ruleOf = (data: DataSet, i: number) => (data.todos![i] as { recurrenceRule?: unknown }).recurrenceRule
 
 describe('v84: registered', () => {
-  it('is the current schema, after v83', () => {
-    expect(CURRENT_DB_VERSION).toBe(84)
+  it('is registered after v83', () => {
+    expect(CURRENT_DB_VERSION).toBeGreaterThanOrEqual(84)
     expect(SCHEMA_UPGRADES.get(84)).toBe(upgradeV84)
   })
 })

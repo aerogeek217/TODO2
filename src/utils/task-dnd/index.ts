@@ -4,8 +4,15 @@ export {
   type TaskDropKind,
 } from './kinds'
 
-export { taskDragId, calendarDayDropId, type TaskSurfaceKey } from './ids'
+export { taskDragId, calendarDayDropId, plannerDropId, type TaskSurfaceKey } from './ids'
 
 export { buildTaskCollision } from './collision'
 
-export { dispatchTaskDrop, resolveCalendarDropType, type CalendarDropChoiceRequest } from './dispatch'
+export {
+  dispatchTaskDrop,
+  isPlannerDropData,
+  resolveCalendarDropType,
+  type CalendarDropChoiceRequest,
+  type PlannerDropData,
+  type PlannerDropRequest,
+} from './dispatch'

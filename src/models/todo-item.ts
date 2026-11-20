@@ -34,6 +34,16 @@ export interface TodoItem {
    * Optional: clearing it leaves the task with no follow-up.
    */
   nextFollowupAt?: Date
+  /**
+   * The Do day: the day the user plans to do the task — a calendar day
+   * stored at local midnight. Planner-only: shown and set there and nowhere
+   * else (no filter, sort, column or export reads it). Planning is not an
+   * edit of the task: setting or clearing it never stamps `modifiedAt`
+   * (`todo-store.setDoDate`, `KEEP_STAMPS`) and logs no history event.
+   * Completing a repeating task clears it on the next occurrence; Duplicate
+   * doesn't copy it. Not indexed. Absent = not planned (schema v85).
+   */
+  doDate?: Date
   recurrenceRule?: RecurrenceRule
   /**
    * On the user's short list of tasks to work on now. Shown as a marker on

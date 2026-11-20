@@ -16,16 +16,16 @@ import { emptyPredicate } from '../../models/filter-predicate'
 /** The widget-kind table and what derives from it. */
 describe('widget kinds', () => {
   it('lists the kinds in menu order, with their names', () => {
-    // Tasks (List, Calendar, Review, Notes), then Insights — the Neglect map and the task maps last.
+    // Tasks (List, Calendar, Review, Planner, Notes), then Insights — the Neglect map and the task maps last.
     expect(WIDGET_KINDS).toEqual([
-      'lens', 'calendar', 'review', 'notes',
+      'lens', 'calendar', 'review', 'planner', 'notes',
       'number', 'breakdown', 'pivot', 'trend', 'neglect', 'clusters', 'listwall',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
-      'List', 'Calendar', 'Review', 'Notes',
+      'List', 'Calendar', 'Review', 'Planner', 'Notes',
       'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
     ])
-    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'notes'])
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'planner', 'notes'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])
   })
 
