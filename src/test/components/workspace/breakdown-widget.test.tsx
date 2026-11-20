@@ -621,4 +621,157 @@ describe('Add widget › Insights › Breakdown › its presets', () => {
     act(() => { useWorkspaceStore.getState().changeTabKind('b', 'breakdown') })
     expect(current().config.columns?.map((c) => c.id)).toEqual(['due', 'followup'])
   })
+
+  it('the follow-up age (board V1): on the People preset’s and Change widget’s Follow-up column, off for the other presets', () => {
+    inLayout(breakdown())
+    render(<DndContext><AddWidgetFlow cellId="c" anchor={{ x: 10, y: 10 }} onClose={() => {}} /></DndContext>)
+    const added = () => useWorkspaceStore.getState().working!.cells[0]!.tabs.at(-1) as BreakdownTab
+    const ages = () => added().config.columns?.map((c) => [c.id, c.age])
+    fireEvent.click(openPresets()[0]!)
+    expect(ages()).toEqual([['due', undefined], ['followup', { yellowAfterDays: 14 }]])
+    for (const i of [1, 2, 3]) {
+      fireEvent.click(byLabel('Insights'))
+      fireEvent.click(byLabel('Breakdown'))
+      fireEvent.click([...document.querySelectorAll<HTMLElement>('[role="menu"][aria-label="Breakdown"] [role="menuitem"]')][i]!)
+      expect(ages()).toEqual([['due', undefined], ['followup', undefined]])
+    }
+    cleanup()
+    inLayout(createTab('notes', 'b'))
+    act(() => { useWorkspaceStore.getState().changeTabKind('b', 'breakdown') })
+    expect(current().config.columns?.find((c) => c.id === 'followup')?.age).toEqual({ yellowAfterDays: 14 })
+  })
+})
+
+describe('a count column’s follow-up age (board V1, option B)', () => {
+  const followupColumn = (yellowAfterDays = 14) => ({
+    id: 'followup', name: 'Follow-up', color: '#f5c842', filter: { ...current0().config.filter }, litWhen: 'above' as const, litAt: 0, age: { yellowAfterDays },
+  })
+  const withAge = (yellowAfterDays?: number, over: Partial<BreakdownConfig> = {}) => breakdown({ columns: [followupColumn(yellowAfterDays)], ...over })
+  const ageOf = (key: string) => rowOf(key).querySelector<HTMLElement>('[data-testid="breakdown-age"]')!
+  const shownAges = () => rows().filter((r) => r.dataset.breakdownRow !== 'none').map((r) => r.querySelector('[data-testid="breakdown-age"]')!.textContent)
+
+  it('draws `Nd` after the count in the column’s cell, its tooltip the oldest open task and the median; the cell widens (100px)', () => {
+    setup(withAge())
+    const cell = ageOf('person-4').closest('[role="cell"]')!
+    // Right after the count pill, in the same cell.
+    const count = cell.querySelector('[data-column="followup"]') ?? cell.querySelector('[aria-label^="No tasks in"]')
+    expect(count).not.toBeNull()
+    expect(count!.compareDocumentPosition(ageOf('person-4')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(ageOf('person-4').textContent).toMatch(/^\d+d$/)
+    expect(ageOf('person-4').getAttribute('data-tooltip')).toMatch(/^Oldest: “.+” · \d+ days? since (followed up|created, never followed up) · median \d+ days?$/)
+    const table = document.querySelector<HTMLElement>('[role="table"]')!
+    expect(table.style.getPropertyValue('--bd-cols')).toBe('minmax(0, 1fr) 84px 44px 100px')
+    expect(table.style.getPropertyValue('--bd-cols-narrow')).toBe('minmax(0, 1fr) 44px 62px')
+  })
+
+  it('muted while within its threshold, in the follow-up color past it', () => {
+    setup(withAge(999))
+    expect(document.querySelectorAll('[data-testid="breakdown-age"][data-yellow]')).toHaveLength(0)
+    act(() => { useWorkspaceStore.getState().patchTabConfig('b', 'breakdown', { columns: [followupColumn(0)] }) })
+    const aged = [...document.querySelectorAll<HTMLElement>('[data-testid="breakdown-age"]')].filter((el) => /^[1-9]\d*d$/.test(el.textContent ?? ''))
+    expect(aged.length).toBeGreaterThan(0)
+    for (const el of aged) expect(el.hasAttribute('data-yellow')).toBe(true)
+  })
+
+  it('a row with no open task shows a dim –', () => {
+    const [first, second] = PEOPLE
+    useTodoStore.setState({ todos: [makeTodo({ id: 900, title: 'Closed', isCompleted: true }), makeTodo({ id: 901, title: 'Open' })] })
+    usePersonStore.setState({ assignedPeopleMap: new Map([[900, [first!]], [901, [second!]]]) })
+    setup(withAge(14, { filter: { ...current0().config.filter, showCompleted: true } }))
+    const none = ageOf(`person-${first!.id}`)
+    expect(none.textContent).toBe('–')
+    expect(none.tagName).toBe('SPAN')
+    expect(none).toHaveAccessibleName('No open tasks')
+    expect(ageOf(`person-${second!.id}`).textContent).toBe('0d')
+  })
+
+  it('its heading: the column’s name sorts by the count, the `age` toggle by the age — oldest first, reversed, then back', async () => {
+    setup(withAge())
+    const heading = document.querySelector<HTMLElement>('[data-age-heading="followup"]')!
+    expect(heading.querySelector('[data-sort-key="followup"]')!.textContent).toBe('Follow-up')
+    const toggle = () => document.querySelector<HTMLButtonElement>('[data-sort-key="age:followup"]')!
+    expect(toggle().textContent).toBe('age')
+    expect(toggle()).toHaveAccessibleName('Sort by days since follow-up')
+    const before = keys()
+    await act(async () => { fireEvent.click(toggle()) })
+    expect(current().viewState?.sorts?.people).toEqual({ by: 'age:followup' })
+    expect(toggle().getAttribute('aria-pressed')).toBe('true')
+    expect(heading.getAttribute('aria-sort')).toBe('descending')
+    const days = (texts: Array<string | null>) => texts.map((t) => (t === '–' ? -1 : Number.parseInt(t ?? '', 10)))
+    expect(days(shownAges())).toEqual([...days(shownAges())].sort((a, b) => b - a))
+    expect(keys().at(-1)).toBe('none')
+    await act(async () => { fireEvent.click(toggle()) })
+    expect(current().viewState?.sorts?.people).toEqual({ by: 'age:followup', reversed: true })
+    expect(heading.getAttribute('aria-sort')).toBe('ascending')
+    await act(async () => { fireEvent.click(toggle()) })
+    expect(current().viewState?.sorts).toEqual({})
+    expect(keys()).toEqual(before)
+    // The name still sorts by the count.
+    await act(async () => { fireEvent.click(heading.querySelector('[data-sort-key="followup"]')!) })
+    expect(current().viewState?.sorts?.people).toEqual({ by: 'followup' })
+    expect(layoutSteps()).toEqual([])
+  })
+
+  it('a stored age sort on a column without the age reads as the default order', () => {
+    setup(breakdown({ columns: [{ ...followupColumn(), age: undefined }] }))
+    const before = keys()
+    act(() => { useWorkspaceStore.getState().patchTabViewState('b', 'breakdown', { sorts: { people: { by: 'age:followup' } } }) })
+    expect(keys()).toEqual(before)
+    expect(document.querySelector('[data-sort-key="age:followup"]')).toBeNull()
+    expect(document.querySelector('[data-testid="breakdown-age"]')).toBeNull()
+  })
+
+  it('a click jumps to the Review widget with the row’s tasks, as the row’s Review button does', async () => {
+    setup(withAge(14, { filter: { ...current0().config.filter, tags: [1] } }))
+    fireEvent.click(ageOf('person-4'))
+    await vi.waitFor(() => expect(reviewFilter()).toEqual({
+      expression: { kind: 'and', items: [{ kind: 'tag', id: 1 }, { kind: 'person', id: 4 }] },
+      showCompleted: false,
+    }))
+  })
+
+  it('where a row falls back to the task dialog (a Breakdown that counts completed tasks), the age does too', async () => {
+    const onDrill = vi.fn()
+    setup(withAge(14, { name: 'Done or not', filter: { ...current0().config.filter, showCompleted: true } }), { onDrill })
+    const age = ageOf('person-4')
+    expect(age).toHaveAccessibleName(/^Show Priya Nair's tasks: Oldest: /)
+    fireEvent.click(age)
+    expect((onDrill.mock.lastCall?.[0] as GlanceDrill).title).toBe('Done or not · Priya Nair')
+    await act(async () => { await Promise.resolve() })
+    expect(reviewFilter()).toBeUndefined()
+  })
+
+  it('the medium face shows it too; Copy adds it after the count', () => {
+    let result: GlanceResult | null = null
+    const tab = withAge()
+    inLayout(tab)
+    render(<DndContext><WidgetFaceContext.Provider value={{ forced: 'medium' }}><GlanceWidget tab={tab} onResult={(r) => { result = r }} /></WidgetFaceContext.Provider></DndContext>)
+    expect(ageOf('person-4').textContent).toMatch(/^\d+d$/)
+    const line = (result as GlanceResult | null)?.summary.plain.split('\n').find((l) => l.startsWith('Priya Nair'))
+    expect(line).toMatch(/ · Follow-up \d+ · \d+d$/)
+  })
+
+  it('the Sort menu lists its age sorts', () => {
+    setup(withAge())
+    const labels = item(glanceMenu(current(), undefined)!.settingEntries, 'Sort').children!.flatMap((e) => (e.kind === 'item' ? [e.label] : []))
+    expect(labels).toContain('Follow-up age: Longest since follow-up first')
+    expect(labels).toContain('Follow-up age: Latest follow-up first')
+  })
+
+  it('Edit breakdown › Count columns: the checkbox turns it on and off; Yellow past writes its days', () => {
+    setup(breakdown({ columns: [{ ...followupColumn(), age: undefined }] }))
+    act(() => { useChartWidgetsStore.getState().openEditor('b') })
+    const box = () => chartEditor().querySelector<HTMLElement>('[data-column-editor="followup"]')!
+    const check = () => within(box()).getByRole('checkbox', { name: 'Days since follow-up after the count' })
+    expect(check()).not.toBeChecked()
+    expect(within(box()).queryByRole('spinbutton', { name: /yellow past/ })).toBeNull()
+    fireEvent.click(check())
+    fireEvent.change(within(box()).getByRole('spinbutton', { name: 'Follow-up: yellow past (days)' }), { target: { value: '21' } })
+    saveAndReopen()
+    expect(current().config.columns?.[0]?.age).toEqual({ yellowAfterDays: 21 })
+    expect(document.querySelector('[data-sort-key="age:followup"]')).not.toBeNull()
+    fireEvent.click(check())
+    saveAndReopen()
+    expect(current().config.columns?.[0]).not.toHaveProperty('age')
+  })
 })

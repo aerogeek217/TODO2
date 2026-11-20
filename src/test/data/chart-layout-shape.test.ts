@@ -106,6 +106,37 @@ describe('a Breakdown in a stored layout (D26 P8)', () => {
     }
   })
 
+  it('a column’s follow-up age (board V1) and a sort by it (`age:<id>`) round-trip; no schema step', () => {
+    const columns = [{ id: 'followup', name: 'Follow-up', color: '#f5c842', filter: emptyPredicate(), litWhen: 'above', litAt: 0, age: { yellowAfterDays: 14 } }]
+    const tab = { id: 't', kind: 'breakdown', config: { ...full, columns }, viewState: { sorts: { people: { by: 'age:followup', reversed: true } } } }
+    const row = layoutRow(tab)
+    expect(validateRow('layouts', row)).toBe(true)
+    expect(rowFixes('layouts', row)).toEqual([])
+    expect(tabOf(row)).toEqual(tab)
+  })
+
+  it.each([
+    ['a negative threshold', { yellowAfterDays: -1 }, { yellowAfterDays: 14 }],
+    ['a fractional threshold', { yellowAfterDays: 2.5 }, { yellowAfterDays: 14 }],
+    ['a threshold past the limit', { yellowAfterDays: 1000 }, { yellowAfterDays: 14 }],
+    ['no threshold', {}, { yellowAfterDays: 14 }],
+    ['an extra key', { yellowAfterDays: 7, color: 'red' }, { yellowAfterDays: 7 }],
+    ['no object', true, undefined],
+  ])('a follow-up age with %s is repaired (a fix)', (_what, age, repaired) => {
+    const column = { id: 'followup', name: 'Follow-up', color: '#f5c842', filter: emptyPredicate(), litWhen: 'never', age }
+    const row = layoutRow({ id: 't', kind: 'breakdown', config: { ...full, columns: [column] } })
+    expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].config.columns')
+    expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+    const picked = (tabOf(row)?.config as { columns: Array<{ age?: unknown }> }).columns
+    expect(picked[0]?.age).toEqual(repaired)
+  })
+
+  it('a sort key `age:` naming no valid column id is dropped (a fix)', () => {
+    const row = layoutRow({ id: 't', kind: 'breakdown', config: full, viewState: { sorts: { people: { by: 'age:' }, tags: { by: 'age:open' } } } })
+    expect(checkLayoutBody(row)).toMatch(/^cells\[0\]\.tabs\[0\]\.viewState\.sorts\./)
+    expect(tabOf(row)).toEqual({ id: 't', kind: 'breakdown', config: full })
+  })
+
   it('a column filter that doesn’t read is checked as a Number’s', () => {
     const row = layoutRow({ id: 't', kind: 'breakdown', config: { ...full, columns: [{ id: 'c', name: 'A', color: '#7ec4bc', filter: { nope: 1 }, litWhen: 'never' }] } })
     expect(checkLayoutBody(row)).toMatch(/^cells\[0\]\.tabs\[0\]\.config\.columns\.0\.filter/)

@@ -157,6 +157,11 @@
   color: var(--color-text-secondary);
 }
 
+/* A follow-up age's Yellow past field, under its checkbox. */
+.ageRow {
+  padding-left: 22px;
+}
+
 .addColumn {
   display: inline-flex;
   align-items: center;
