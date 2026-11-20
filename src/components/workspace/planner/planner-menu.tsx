@@ -2,7 +2,6 @@ import type { PersistedTodoItem } from '../../../models'
 import { formatDateWith } from '../../../utils/date'
 import {
   plannerDayWords,
-  plannerDrop,
   plannerPlacement,
   plannerSnoozeDay,
   plannerUnplan,
@@ -61,7 +60,7 @@ export function plannerMenuEntries(
       label: plannerDayWords(day, today),
       note: isToday ? formatDateWith(day, { month: 'short', day: 'numeric' }) : undefined,
       radio: true,
-      checked: plannerDrop(todo, window, { kind: 'day', day }).kind === 'none',
+      checked: placement?.where === 'day' && placement.day?.getTime() === day.getTime(),
       onSelect: () => actions.move({ kind: 'day', day }),
     }
   })

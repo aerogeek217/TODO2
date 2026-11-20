@@ -93,6 +93,23 @@ export function plannerNaturalDay(task: Pick<PlannerTask, 'dueDate' | 'nextFollo
   return { day: date.getTime() < today.getTime() ? today : date, date, reason: byDue ? 'due' : 'followup' }
 }
 
+/**
+ * A task's **planned day**: its `doDate`'s day — unless that is the very day
+ * of its earliest real date (the earlier of its next follow-up and its due
+ * date, wherever it lies: no window bounds it). Such a plan is **redundant**
+ * — the task's own date puts it on that day anyway — and reads as no plan:
+ * the row is not placed, and once the day has passed it is simply overdue
+ * in Today, never in Delayed. Read here, not at the write, so it holds
+ * whichever came last: the plan, or an edit of the date onto its day.
+ */
+export function plannerPlannedDay(task: Pick<PlannerTask, 'doDate' | 'dueDate' | 'nextFollowupAt'>): Date | null {
+  if (task.doDate == null) return null
+  const planned = dayOf(task.doDate)
+  const { dueDate: due, nextFollowupAt: followup } = task
+  const own = due != null && (followup == null || dayTime(due) <= dayTime(followup)) ? due : followup
+  return own != null && dayTime(own) === planned.getTime() ? null : planned
+}
+
 /** A fix for a plan that falls after a real date. */
 export type PlannerFix =
   /** Move that date to the planned day: a real edit of the task (stamped, undoable, in its history). */
@@ -160,7 +177,7 @@ export function plannerConflicts(task: Pick<PlannerTask, 'dueDate' | 'nextFollow
  */
 export function inPlanner(task: PlannerTask, span: PlannerSpan): boolean {
   if (task.isCompleted) return false
-  return task.focus === true || task.doDate != null || task.unplanned === true || plannerNaturalDay(task, span) != null
+  return task.focus === true || plannerPlannedDay(task) != null || task.unplanned === true || plannerNaturalDay(task, span) != null
 }
 
 /**
@@ -169,9 +186,10 @@ export function inPlanner(task: PlannerTask, span: PlannerSpan): boolean {
  * planned nor dated, or planned for a day past the window).
  *
  * - held (`unplanned`) → the **Unplanned** tray;
- * - a planned day (`doDate`) before today → the **Delayed** tray — nothing
- *   joins Today on its own —, on or before the window's last day → that
- *   day, later → not shown in this window;
+ * - a planned day (`plannerPlannedDay`: its `doDate`, unless redundant)
+ *   before today → the **Delayed** tray — nothing joins Today on its own —,
+ *   on or before the window's last day → that day, later → not shown in
+ *   this window;
  * - no plan → its natural day (`plannerNaturalDay`);
  * - no plan and no natural day: a Focus task → **Unplanned**.
  */
@@ -182,8 +200,8 @@ export function plannerPlacement(task: PlannerTask, span: PlannerSpan): PlannerP
   if (task.unplanned === true && task.doDate == null) {
     return { where: 'unplanned', day: null, reason: 'held', placed: true, planned: null, natural, conflicts: [] }
   }
-  if (task.doDate != null) {
-    const planned = dayOf(task.doDate)
+  const planned = plannerPlannedDay(task)
+  if (planned) {
     if (planned.getTime() < today.getTime()) {
       return { where: 'delayed', day: null, reason: 'plan', placed: true, planned, natural, conflicts: [] }
     }
@@ -198,9 +216,10 @@ export function plannerPlacement(task: PlannerTask, span: PlannerSpan): PlannerP
 /**
  * Whether the `move-date` fix `fix` makes `task`'s plan redundant: with that
  * date moved, the task's own dates put it on its planned day (its natural
- * day is the planned one) — the fix then clears the plan with the date's
- * move, and the row is no longer placed. With another, earlier date still
- * putting it elsewhere, the plan stays.
+ * day is the planned one, or its earliest date is that very day, wherever
+ * the window ends) — the fix then clears the plan with the date's move, and
+ * the row is no longer placed. With another, earlier date still putting it
+ * elsewhere, the plan stays.
  */
 export function plannerFixClearsPlan(
   task: Pick<PlannerTask, 'doDate' | 'dueDate' | 'nextFollowupAt'>,
@@ -209,7 +228,9 @@ export function plannerFixClearsPlan(
 ): boolean {
   if (task.doDate == null) return false
   const to = dayOf(fix.to)
-  const natural = plannerNaturalDay(fix.date === 'due' ? { ...task, dueDate: to } : { ...task, nextFollowupAt: to }, span)
+  const moved = fix.date === 'due' ? { ...task, dueDate: to } : { ...task, nextFollowupAt: to }
+  if (plannerPlannedDay(moved) == null) return true
+  const natural = plannerNaturalDay(moved, span)
   return natural != null && natural.day.getTime() === dayTime(task.doDate)
 }
 
@@ -376,8 +397,9 @@ export function plannerView<T extends PlannerTask>(tasks: readonly T[], options:
       if (list) list.push(kind)
       else dates.set(key, [kind])
     }
-    if (task.doDate != null) {
-      const key = dayKey(dayOf(task.doDate))
+    const plannedDay = plannerPlannedDay(task)
+    if (plannedDay) {
+      const key = dayKey(plannedDay)
       if (windowKeys.has(key)) plans.set(key, (plans.get(key) ?? 0) + 1)
     }
 
@@ -529,10 +551,11 @@ export type PlannerDrop =
  * whose window is `span`:
  *
  * - a completed task is refused everywhere (the Planner holds open tasks);
- * - where it sits already → nothing (the order only);
  * - on a day `T` (a tile, a day's group, Today = today): `T` its natural
- *   day → its plan state is cleared (`own`); otherwise it is planned for
- *   `T` (`plan`). A day before today is refused;
+ *   day → whatever plan state it has is cleared (`own` — a redundant plan
+ *   for that very day too; with none to clear, nothing); otherwise, where
+ *   it sits already → nothing (the order only), else it is planned for `T`
+ *   (`plan`). A day before today is refused;
  * - on **Unplanned**: a task with a natural day is held (`unplan`,
  *   `hold`); a planned one without: in Focus it just loses its plan (Focus
  *   keeps it there), else it is held too — **Unplan never takes a task out
@@ -554,8 +577,11 @@ export function plannerDrop(task: PlannerTask, span: PlannerSpan, target: Planne
   }
   const day = dayOf(target.day)
   if (day.getTime() < dayTime(span.today)) return { kind: 'refuse' }
+  // Its own day first: a plan state it still holds there (a redundant one) is cleared; with none it is there already.
+  if (natural && natural.day.getTime() === day.getTime()) {
+    return task.doDate != null || task.unplanned === true ? { kind: 'own', day } : { kind: 'none' }
+  }
   if (at?.where === 'day' && at.day?.getTime() === day.getTime()) return { kind: 'none' }
-  if (natural && natural.day.getTime() === day.getTime()) return { kind: 'own', day }
   return { kind: 'plan', day }
 }
 

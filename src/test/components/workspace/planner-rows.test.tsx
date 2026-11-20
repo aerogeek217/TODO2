@@ -121,6 +121,23 @@ describe('the corner flag', () => {
     expect(flag.closest('[data-row-key]')).toBeNull()
   })
 
+  it('is not on a row whose plan is redundant — planned for the very day its own date puts it', () => {
+    useTodoStore.setState({
+      todos: [
+        // Added in the Planner with a due date of today; and a planned task whose due date was edited onto its planned day.
+        makeTodo({ id: 1, title: 'Added due today', doDate: day(0), dueDate: day(0) }),
+        makeTodo({ id: 2, title: 'Edited onto its day', doDate: day(3), dueDate: day(3) }),
+        // Yesterday's: overdue in Today, not in Delayed.
+        makeTodo({ id: 3, title: 'Yesterday’s', doDate: day(-1), dueDate: day(-1) }),
+      ],
+    })
+    show()
+    expect(flagged()).toEqual([])
+    expect(rowOf('Yesterday’s').closest('[data-planner-group]')).toHaveAttribute('data-planner-group-kind', 'today')
+    expect(root().querySelector('[data-planner-group="delayed"]')).toBeNull()
+    expect(root().querySelector('[data-mark="plan"]')).toBeNull()
+  })
+
   it('is there in the Stacked and the Lines styles too', () => {
     width = 400
     show({ forced: 'large' })
