@@ -5,6 +5,12 @@
  * Every date is relative to `today`, so the pictures read the same on any
  * day: a few tasks overdue, most due within the next two weeks, some later.
  * Synthetic: fictional first names, no real people or companies.
+ *
+ * The Planner shot's week is in the tasks too: a few given a Do day
+ * (`doDay`), a few in Focus with no day, three completed today. A Do day is
+ * a v85 field in a file stamped `README_SCHEMA_VERSION`: no upgrade between
+ * the two rebuilds a task, and import validation keeps `doDate`, so it
+ * arrives as written.
  */
 
 type Obj = Record<string, unknown>
@@ -51,6 +57,8 @@ interface Task {
   urgent?: boolean
   important?: boolean
   focus?: boolean
+  /** Its Do day (the Planner's), this many days from today. */
+  doDay?: number
   notes?: string
   /** `[x] ` marks a line done. */
   subtasks?: string[]
@@ -84,16 +92,16 @@ const TASKS: Task[] = [
     title: 'Final dry run of the billing migration', age: 38, due: -2, people: ['jonas'], tags: ['billing'], urgent: true, important: true,
     subtasks: ['[x] Restore last night’s snapshot', '[x] Replay the October invoices', 'Compare totals', 'Sign-off from finance'],
   },
-  { title: 'Write the cutover rollback plan', age: 11, due: 4, people: ['jonas'], tags: ['billing', 'docs'], important: true },
+  { title: 'Write the cutover rollback plan', age: 11, due: 4, people: ['jonas'], tags: ['billing', 'docs'], important: true, focus: true, doDay: 0 },
   { title: 'Freeze schema changes', age: 7, due: 0, people: ['marcus'], tags: ['billing'] },
   { title: 'Verify backups restore in staging', age: 36, due: 5, people: ['jonas'], tags: ['billing'], status: 'assigned' },
   { title: 'Retire the old reporting jobs', age: 50, due: 13, people: ['marcus'], tags: ['billing'] },
-  { title: 'Tidy up the migration wiki page', age: 55, people: ['marcus'], tags: ['billing', 'docs'] },
+  { title: 'Tidy up the migration wiki page', age: 55, people: ['marcus'], tags: ['billing', 'docs'], focus: true },
   // ── Hiring ──
   { title: 'Schedule the backend onsite loop', age: 6, due: 1, followup: -1, people: ['aisha'], tags: ['hiring'], status: 'followup' },
-  { title: 'Review the take-home exercises', age: 33, due: -3, people: ['aisha'], tags: ['hiring'], status: 'waiting' },
-  { title: 'Draft the product designer job post', age: 5, due: 9, people: ['aisha'], tags: ['hiring', 'docs'] },
-  { title: 'Plan onboarding for the new support hire', age: 42, due: 12, people: ['elena'], tags: ['hiring'] },
+  { title: 'Review the take-home exercises', age: 33, due: -3, people: ['aisha'], tags: ['hiring'], status: 'waiting', doDay: 1 },
+  { title: 'Draft the product designer job post', age: 5, due: 9, people: ['aisha'], tags: ['hiring', 'docs'], focus: true, doDay: 0 },
+  { title: 'Plan onboarding for the new support hire', age: 42, due: 12, people: ['elena'], tags: ['hiring'], focus: true },
   // ── Vendor contract ──
   { title: 'Compare vendor support tiers', age: 30, due: 2, people: ['sam'], tags: ['vendor'] },
   {
@@ -103,7 +111,7 @@ const TASKS: Task[] = [
     updates: [[-9, 'Kick-off call with their rep'], [-5, 'First renewal quote: 12% up'], [-2, 'Sent usage numbers; reply Friday']],
   },
   { title: 'Answer the vendor security questionnaire', age: 37, due: 5, followup: 1, people: ['sam'], tags: ['vendor'], status: 'waiting' },
-  { title: 'Check the data processing addendum', age: 48, due: 10, people: ['elena'], tags: ['vendor'] },
+  { title: 'Check the data processing addendum', age: 48, due: 10, people: ['elena'], tags: ['vendor'], focus: true },
   { title: 'Book the planning offsite', age: 2, due: 20, people: ['priya'] },
   // ── Completed in the last few weeks (the trend and the closed counts) ──
   { title: 'Agree the launch date with sales', age: 44, done: -24, people: ['priya'], tags: ['launch'] },
@@ -122,6 +130,8 @@ const TASKS: Task[] = [
   { title: 'Send the NDA back to the vendor', age: 6, done: -2, people: ['sam'], tags: ['vendor'] },
   { title: 'Book the interview rooms', age: 3, done: -1, people: ['aisha'], tags: ['hiring'] },
   { title: 'Reserve the launch-day war room', age: 3, done: 0, people: ['jonas'], tags: ['launch'] },
+  { title: 'Confirm the interview panel', age: 4, done: 0, people: ['aisha'], tags: ['hiring'] },
+  { title: 'Sign the staging access request', age: 2, done: 0, people: ['marcus'], tags: ['billing'] },
 ]
 
 /** A stored filter with `over` on top of none (every open task). */
@@ -230,6 +240,7 @@ export function readmeData(today: Date = new Date()): Obj {
     if (followedUp !== null) { todo.lastFollowupAt = iso(followedUp); ev('followedUp', followedUp, iso(followedUp)) }
     if (t.followup !== undefined && completed === null) { todo.nextFollowupAt = iso(day(t.followup)); ev('followup', created, iso(day(t.followup))) }
     if (t.focus) todo.focus = true
+    if (t.doDay !== undefined && completed === null) todo.doDate = iso(day(t.doDay))
     if (t.urgent) todo.urgent = true
     if (t.important) todo.important = true
     if (t.status) { todo.statusId = statusId(t.status); ev('status', created, statusId(t.status)) }

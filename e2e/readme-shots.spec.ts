@@ -196,6 +196,34 @@ test('review', async ({ browser }) => {
   })
 })
 
+// The Planner alone on a layout of its own (only this page sees it), wide enough for its two panes:
+// Today beside the days ahead. Its Do days, Focus tasks and today's completions are the dataset's.
+test('planner', async ({ browser }) => {
+  await withPage(browser, 1200, 810, 1.5, false, async (page) => {
+    await page.evaluate(async () => {
+      const ws = (await import(/* @vite-ignore */ '/src/stores/workspace-store.ts' as string)) as {
+        useWorkspaceStore: { getState: () => {
+          createLayout: (name: string) => Promise<number | null>
+          addWidget: (kind: string, target: { kind: 'layout' }) => string | null
+        } }
+      }
+      await ws.useWorkspaceStore.getState().createLayout('This week')
+      ws.useWorkspaceStore.getState().addWidget('planner', { kind: 'layout' })
+      // Adding the widget is an undo step: its snackbar would sit over the widget's foot.
+      const undo = (await import(/* @vite-ignore */ '/src/stores/undo-store.ts' as string)) as {
+        useUndoStore: { getState: () => { dismissSnackbar: () => void } }
+      }
+      undo.useUndoStore.getState().dismissSnackbar()
+    })
+    const widget = page.locator('[data-planner][data-planner-face="large"]').first()
+    await widget.waitFor()
+    await widget.locator('[data-planner-group-kind="today"] [data-todo-id]').first().waitFor()
+    await page.mouse.move(2, 2)
+    await settled(page)
+    await shoot(page, 'planner', [page.locator('[data-ws-cell]').filter({ has: widget })], 4)
+  })
+})
+
 test('insights', async ({ browser }) => {
   await withPage(browser, 880, 720, 2, false, async (page) => {
     await layout(page, 'Planning')
