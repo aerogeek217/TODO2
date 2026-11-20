@@ -28,6 +28,12 @@ A task holds its priority, status, people, tags and due date beside its notes, a
 
 ![The Review widget: a queue of one person's tasks on the left and the current task's full card on the right](docs/screenshots/review.png)
 
+### Plan the day and the week
+
+The Planner shows today beside the next seven days. Tasks land on the day they are due or due for a follow-up, and you drag anything else onto the day you plan to do it. Dragging a follow-up moves its date, a due date never moves, and Focus tasks without a day wait in a group of their own.
+
+![The Planner: a strip of the next seven days over today's tasks on the left and the days ahead on the right, with Focus tasks that have no day below them](docs/screenshots/planner.png)
+
 ### Numbers and charts from your own filters
 
 Count anything you can filter. Break your open work down by person, tag, status or priority, and click any number to see the tasks behind it.
