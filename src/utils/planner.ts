@@ -141,8 +141,10 @@ export interface PlannerPlacement {
   /**
    * Why it is there: its planned day (`plan` — on that day, or in Delayed
    * once the day has passed), held in Unplanned (`held`), its due date or
-   * follow-up (`due` / `followup`: its natural day), or in Focus with no
-   * plan and no natural day (`focus`, in Unplanned).
+   * follow-up (`due` / `followup`: its natural day — also for a task
+   * **planned later**, for a day past the window: it shows on its natural
+   * day meanwhile, `planned` set and `placed`), or in Focus with no plan
+   * and no natural day (`focus`, in Unplanned).
    */
   reason: 'plan' | 'held' | PlannerDateKind | 'focus'
   /** It has a plan state: a planned day or held in Unplanned (the row's placed mark). */
@@ -183,13 +185,17 @@ export function inPlanner(task: PlannerTask, span: PlannerSpan): boolean {
 /**
  * Where `task` sits for the window ending on `span.last`; null when the
  * Planner doesn't show it there (completed, or neither in Focus nor
- * planned nor dated, or planned for a day past the window).
+ * planned nor dated, or planned for a day past the window with no real
+ * date inside it).
  *
  * - held (`unplanned`) → the **Unplanned** tray;
  * - a planned day (`plannerPlannedDay`: its `doDate`, unless redundant)
  *   before today → the **Delayed** tray — nothing joins Today on its own —,
- *   on or before the window's last day → that day, later → not shown in
- *   this window;
+ *   on or before the window's last day → that day; later (**planned
+ *   later**) → its natural day when it has one — a real date on or before
+ *   the window's last day still shows the task: a placed row there, its
+ *   plan's conflicts with that date and their fixes on it — else not shown
+ *   in this window;
  * - no plan → its natural day (`plannerNaturalDay`);
  * - no plan and no natural day: a Focus task → **Unplanned**.
  */
@@ -205,12 +211,35 @@ export function plannerPlacement(task: PlannerTask, span: PlannerSpan): PlannerP
     if (planned.getTime() < today.getTime()) {
       return { where: 'delayed', day: null, reason: 'plan', placed: true, planned, natural, conflicts: [] }
     }
-    if (planned.getTime() > dayTime(span.last)) return null
-    return { where: 'day', day: planned, reason: 'plan', placed: true, planned, natural, conflicts: plannerConflicts(task, planned, today) }
+    const conflicts = plannerConflicts(task, planned, today)
+    if (planned.getTime() > dayTime(span.last)) {
+      // Planned later: no day of the window is its planned day, but a real date in it (or overdue) still shows it.
+      return natural ? { where: 'day', day: natural.day, reason: natural.reason, placed: true, planned, natural, conflicts } : null
+    }
+    return { where: 'day', day: planned, reason: 'plan', placed: true, planned, natural, conflicts }
   }
   if (natural) return { where: 'day', day: natural.day, reason: natural.reason, placed: false, planned: null, natural, conflicts: [] }
   if (task.focus === true) return { where: 'unplanned', day: null, reason: 'focus', placed: false, planned: null, natural: null, conflicts: [] }
   return null
+}
+
+/** Whether a row is **planned later**: it sits on its natural day while its planned day lies past the window. */
+export function plannerPlannedLater(placement: Pick<PlannerPlacement, 'where' | 'reason' | 'planned'> | null | undefined): boolean {
+  return placement != null && placement.where === 'day' && placement.reason !== 'plan' && placement.planned != null
+}
+
+/**
+ * Whether a Planner whose window ends on `span.last` shows `task` in one
+ * of its groups: it has a placement there (`plannerPlacement`), and — while
+ * the window is shifted — its day is today or a day of the window, not one
+ * between tomorrow and the window (`plannerView` has no group for those).
+ */
+export function plannerShows(task: PlannerTask, span: PlannerSpan): boolean {
+  const placement = plannerPlacement(task, span)
+  if (!placement) return false
+  if (placement.where !== 'day' || !placement.day) return true
+  const at = placement.day.getTime()
+  return at === dayTime(span.today) || at >= addDays(dayOf(span.last), 1 - PLANNER_WINDOW_DAYS).getTime()
 }
 
 /**
@@ -460,12 +489,15 @@ export type PlannerRowTag =
   | { kind: 'natural'; day: Date }
   /** A row planned past a real date: that conflict (the due date's when both are passed), and every fix on offer. */
   | { kind: 'conflict'; conflict: PlannerConflict; fixes: PlannerFix[] }
+  /** A row planned later — for a day past the window, shown on its natural day meanwhile: the planned day, and the fixes of the dates that plan passes. */
+  | { kind: 'later'; day: Date; fixes: PlannerFix[] }
 
 /**
  * The tag of a row placed as `placement` says, or null: a Delayed row's
  * planned day; a held row's natural day; a row planned past a real date,
  * the conflict — the due date's first — with the fixes of every date it
- * passes (the same Plan for day once).
+ * passes (the same Plan for day once); a row planned later, its planned
+ * day with those fixes.
  */
 export function plannerRowTag(placement: PlannerPlacement | null | undefined): PlannerRowTag | null {
   if (!placement) return null
@@ -473,8 +505,6 @@ export function plannerRowTag(placement: PlannerPlacement | null | undefined): P
   if (placement.where === 'unplanned') {
     return placement.reason === 'held' && placement.natural ? { kind: 'natural', day: placement.natural.day } : null
   }
-  const conflict = placement.conflicts[0]
-  if (!conflict) return null
   const seen = new Set<string>()
   const fixes = placement.conflicts.flatMap((c) => c.fixes).filter((fix) => {
     const key = fix.kind === 'plan' ? `plan|${dayTime(fix.day)}` : `move|${fix.date}|${dayTime(fix.to)}`
@@ -482,7 +512,9 @@ export function plannerRowTag(placement: PlannerPlacement | null | undefined): P
     seen.add(key)
     return true
   })
-  return { kind: 'conflict', conflict, fixes }
+  if (plannerPlannedLater(placement) && placement.planned) return { kind: 'later', day: placement.planned, fixes }
+  const conflict = placement.conflicts[0]
+  return conflict ? { kind: 'conflict', conflict, fixes } : null
 }
 
 /** The real dates of a row its plan falls after: each is drawn in its late look, whatever today is. */
@@ -504,14 +536,20 @@ export function plannerTagDay(day: Date, today: Date): string {
   return formatDateWith(day, Math.abs(days) <= 6 ? { weekday: 'short' } : { month: 'short', day: 'numeric' })
 }
 
-/** A tag's text: the day in words (`Wed`), or the conflict's (`1 day after due`). */
+/** A tag's text: the day in words (`Wed`), the conflict's (`1 day after due`), or a later plan's day (`planned Fri, Nov 27`). */
 export function plannerRowTagLabel(tag: PlannerRowTag, today: Date): string {
+  if (tag.kind === 'later') return `planned ${plannerDayLabel(tag.day)}`
   return tag.kind === 'conflict' ? plannerConflictLabel(tag.conflict) : plannerTagDay(tag.day, today)
 }
 
-/** What a tag says in full (its tooltip): `Planned for Wed, Nov 18`, `Its own date puts it on Mon, Nov 23`, `Planned 1 day after its due date`. */
+/**
+ * What a tag says in full (its tooltip): `Planned for Wed, Nov 18`, `Its own
+ * date puts it on Mon, Nov 23`, `Planned 1 day after its due date`, `Planned
+ * for Fri, Nov 27, after the days shown`.
+ */
 export function plannerRowTagHint(tag: PlannerRowTag, today: Date): string {
   if (tag.kind === 'planned') return `Planned for ${plannerDayLabel(tag.day)}`
+  if (tag.kind === 'later') return `Planned for ${plannerDayLabel(tag.day)}, after the days shown`
   if (tag.kind === 'natural') return `Its own date puts it on ${plannerDayWords(tag.day, today)}`
   const { days, date } = tag.conflict
   return `Planned ${days} ${days === 1 ? 'day' : 'days'} after its ${date === 'due' ? 'due date' : 'follow-up'}`
@@ -594,14 +632,15 @@ export function plannerDropWrite(drop: PlannerDrop): TaskPlan | undefined {
 }
 
 /**
- * The day **Snooze** plans a task for: the day after the day it sits on,
- * never earlier than tomorrow — a row in Delayed or Unplanned (or not shown)
- * goes to tomorrow.
+ * The day **Snooze** plans a task for: the day after the day it sits on —
+ * after its planned day, for a row planned later —, never earlier than
+ * tomorrow; a row in Delayed or Unplanned (or not shown) goes to tomorrow.
  */
-export function plannerSnoozeDay(placement: Pick<PlannerPlacement, 'where' | 'day'> | null, today: Date): Date {
+export function plannerSnoozeDay(placement: Pick<PlannerPlacement, 'where' | 'day' | 'reason' | 'planned'> | null, today: Date): Date {
   const tomorrow = addDays(dayOf(today), 1)
   if (placement?.where !== 'day' || !placement.day) return tomorrow
-  const next = addDays(dayOf(placement.day), 1)
+  const from = plannerPlannedLater(placement) && placement.planned ? placement.planned : placement.day
+  const next = addDays(dayOf(from), 1)
   return next.getTime() < tomorrow.getTime() ? tomorrow : next
 }
 
@@ -754,6 +793,13 @@ export interface PlannerMovePlan {
   order?: string[]
   /** The write moves the row to another group (or out of the Planner): it shows there once the write lands. */
   moves: boolean
+  /**
+   * The write takes the task **out of view**: planned for this day, which
+   * the Planner shows in no group (past the window, with no real date
+   * inside it; or between tomorrow and a shifted window) — the write then
+   * says so (`services/planner-drop`: the snackbar names the day, with Undo).
+   */
+  hidden?: Date
 }
 
 /**
@@ -762,7 +808,8 @@ export interface PlannerMovePlan {
  * `position` — the hand order with the row where it was dropped, merged
  * into the one stored (`plannerReorder`). A refused drop changes nothing;
  * one that writes nothing reorders only a task the group already shows,
- * and only when it lands somewhere else.
+ * and only when it lands somewhere else. A plan for a day the Planner then
+ * shows the task on nowhere is `hidden` (`plannerShows`).
  */
 export function plannerMovePlan(
   task: PlannerTask,
@@ -773,13 +820,14 @@ export function plannerMovePlan(
 ): PlannerMovePlan {
   const drop = plannerDrop(task, span, target)
   const moves = plannerDropWrite(drop) !== undefined
-  if (!position || drop.kind === 'refuse') return { drop, moves }
+  const hidden = drop.kind === 'plan' && !plannerShows({ ...task, doDate: drop.day, unplanned: undefined }, span) ? drop.day : undefined
+  if (!position || drop.kind === 'refuse') return { drop, moves, hidden }
   if (drop.kind === 'none') {
     const from = position.rows.indexOf(task.uid)
     // Not a row of the group, or dropped where it is: nothing to store.
     if (from === -1 || from === landingIndex(position, task.uid)) return { drop, moves }
   }
-  return { drop, order: plannerReorder(task.uid, position, stored), moves }
+  return { drop, order: plannerReorder(task.uid, position, stored), moves, hidden }
 }
 
 /** A day in the drag's and the menu's words: `Today`, else `Wed, Nov 25`. */

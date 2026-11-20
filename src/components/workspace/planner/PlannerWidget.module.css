@@ -517,6 +517,17 @@
   background: var(--color-overdue-bg-strong);
 }
 
+/* A later plan's day: muted like a day tag, and a button — its menu holds the fixes. */
+.rowTagButton {
+  cursor: pointer;
+}
+
+.rowTagButton:hover,
+.rowTagButton[data-open] {
+  background: var(--color-tint-14);
+  color: var(--color-text-primary);
+}
+
 /* A Lines row is 15px high: its tag smaller. */
 .rowsHost[data-zoom='lines'] .rowTag {
   height: 13px;

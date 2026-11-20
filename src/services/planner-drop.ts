@@ -1,14 +1,17 @@
 import type { PersistedTodoItem } from '../models'
 import type { PlannerDragPreview } from '../stores/planner-store'
 import { useTodoStore } from '../stores/todo-store'
+import { useUndoStore } from '../stores/undo-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { startOfDay } from '../utils/date'
 import {
+  plannerDayLabel,
   plannerDropWrite,
   plannerFixClearsPlan,
   plannerMovePlan,
   plannerPlacement,
   plannerResetTasks,
+  plannerShows,
   plannerSnoozeDay,
   plannerUnplanDelayed,
   type PlannerDropPosition,
@@ -88,13 +91,19 @@ export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDra
  * merged in: saved at once, no undo step, as a list's manual order), then
  * the one task write: its plan state (`plannerDropWrite` → `setPlan`: a
  * planned day, held in Unplanned, or cleared — one undo step, no stamp). A
- * refused drop, and one that changes nothing, write no task.
+ * refused drop, and one that changes nothing, write no task. A plan that
+ * takes the task **out of view** (`plan.hidden`: a day the Planner shows it
+ * on nowhere — a Snooze past the window with no real date inside it) shows
+ * the snackbar, named for the day, with its Undo (`Planned for Fri, Nov
+ * 27`): nothing leaves the Planner silently.
  */
 export async function applyPlannerMove(tabId: string, todoId: number, plan: PlannerMovePlan): Promise<void> {
-  const { drop, order } = plan
+  const { drop, order, hidden } = plan
   if (order) void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { order })
   const write = plannerDropWrite(drop)
-  if (write !== undefined) await useTodoStore.getState().setPlan([todoId], write)
+  if (write === undefined) return
+  if (hidden) await useTodoStore.getState().setPlan([todoId], write, `Planned for ${plannerDayLabel(hidden)}`, true)
+  else await useTodoStore.getState().setPlan([todoId], write)
 }
 
 /** Plans and makes `move` (Move to day ›, Unplan); resolves once it is written. */
@@ -156,7 +165,10 @@ export function resetPlannerPlan(view: PlannerRows, scope: PlannerResetScope): P
  *   the move makes the plan redundant — the task's own dates now put it on
  *   its planned day (`plannerFixClearsPlan`) — the plan is cleared in the
  *   same edit, one undo step: the row is no longer placed. With another,
- *   earlier date still putting it elsewhere the plan stays;
+ *   earlier date still putting it elsewhere the plan stays. A move that
+ *   takes the task out of view (the date moved past the window, for a row
+ *   planned later) shows the snackbar with its Undo (`Moved the due date to
+ *   Fri, Nov 27`);
  * - `plan` — the task planned for that date's day instead, through the
  *   drop rule (on its natural day the plan is cleared).
  */
@@ -167,5 +179,12 @@ export async function applyPlannerFix(tabId: string, todoId: number, fix: Planne
   if (!todo) return
   const day = startOfDay(new Date(fix.to))
   const date = fix.date === 'due' ? { dueDate: day } : { nextFollowupAt: day }
-  await store.update(todoId, plannerFixClearsPlan(todo, fix, window) ? { ...date, doDate: undefined, unplanned: undefined } : date)
+  const changes = plannerFixClearsPlan(todo, fix, window) ? { ...date, doDate: undefined, unplanned: undefined } : date
+  const undo = useUndoStore.getState()
+  // The edit leaves the task in view, or a compound step is already running: the plain edit.
+  if (plannerShows({ ...todo, ...changes }, window) || undo.groupToken != null || undo.isPerformingUndoRedo) {
+    await store.update(todoId, changes)
+    return
+  }
+  await undo.runGroup(`Moved the ${fix.date === 'due' ? 'due date' : 'follow-up'} to ${plannerDayLabel(day)}`, () => store.update(todoId, changes))
 }

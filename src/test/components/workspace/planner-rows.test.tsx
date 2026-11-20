@@ -270,6 +270,61 @@ describe('the tag after the title', () => {
   })
 })
 
+describe('a row planned later — for a day past the days shown', () => {
+  beforeEach(() => {
+    useTodoStore.setState({
+      todos: [
+        // On the window's last day (Thu 26) by its due date, planned for Fri 27.
+        makeTodo({ id: 1, title: 'Snoozed past the week', dueDate: day(6), doDate: day(7), sortOrder: 1 }),
+        // Overdue, planned for next Saturday: still in Today.
+        makeTodo({ id: 2, title: 'Overdue, planned next week', nextFollowupAt: day(-3), doDate: day(8), sortOrder: 2 }),
+        // Planned past the window with no date: not shown.
+        makeTodo({ id: 3, title: 'No date, next week', doDate: day(9), sortOrder: 3 }),
+      ],
+    })
+  })
+
+  it('stays on the day its date puts it, flagged, with a muted tag naming the planned day and its date drawn late', () => {
+    show()
+    expect(rowOf('Snoozed past the week').closest('[data-planner-group]')).toHaveAttribute('aria-label', 'Thu, Nov 26')
+    expect(rowOf('Overdue, planned next week').closest('[data-planner-group]')).toHaveAttribute('aria-label', 'Today')
+    expect(root().querySelector('[data-task-title="No date, next week"]')).toBeNull()
+    expect(flagged()).toEqual(['Overdue, planned next week', 'Snoozed past the week'])
+    expect(tags()).toEqual({ 'Snoozed past the week': 'planned Fri, Nov 27', 'Overdue, planned next week': 'planned Sat, Nov 28' })
+    const tag = tagOf('Snoozed past the week')!
+    expect(tag).toHaveAttribute('data-planner-tag', 'later')
+    expect(tag.tagName).toBe('BUTTON')
+    expect(getByTooltip(rowOf('Snoozed past the week'), 'Planned for Fri, Nov 27, after the days shown. Click to fix')).toBe(tag)
+    expect(cell('Snoozed past the week', 'due')).toHaveAttribute('data-date-level', 'late')
+    // The tile counts the row; the plan, on no day shown, marks none.
+    const thu = root().querySelector('[data-planner-tile="2026-11-26"]')!
+    expect(within(thu as HTMLElement).getByTestId('planner-tile-count')).toHaveTextContent('1')
+    expect(thu.querySelector('[data-mark="plan"]')).toBeNull()
+  })
+
+  it('its tag opens the fixes: move the date to the planned day, or plan for the date’s day', () => {
+    const { setPlan, update } = watch()
+    show()
+    fireEvent.click(tagOf('Snoozed past the week')!)
+    const menu = screen.getByRole('menu', { name: 'Fix the plan' })
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.getAttribute('data-menu-label'))).toEqual(['Move due date to Fri, Nov 27', 'Plan for Thu, Nov 26'])
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Plan for Thu, Nov 26' }))
+    expect(setPlan).toHaveBeenCalledWith([1], null)
+    expect(update).not.toHaveBeenCalled()
+    // An overdue date has only the move.
+    fireEvent.click(tagOf('Overdue, planned next week')!)
+    expect(within(screen.getByRole('menu', { name: 'Fix the plan' })).getAllByRole('menuitem').map((i) => i.getAttribute('data-menu-label'))).toEqual(['Move follow-up to Sat, Nov 28'])
+  })
+
+  it('Snooze moves the plan on from the planned day; Reset plan counts the row', () => {
+    const { setPlan } = watch()
+    show()
+    fireEvent.click(within(rowOf('Snoozed past the week')).getByRole('button', { name: 'Snooze' }))
+    expect(setPlan).toHaveBeenLastCalledWith([1], { day: day(8) })
+    expect(getByTooltip(rowOf('Snoozed past the week'), 'Plan for Sat, Nov 28')).toHaveTextContent('Snooze')
+  })
+})
+
 describe('the date a plan falls after', () => {
   it('is drawn late — bold over its band — though it is not past; the others as they are', () => {
     show()

@@ -1070,6 +1070,83 @@ test('Plan for … moves the plan to the date’s day and leaves the date alone'
   expect(await stored(page, 'Migrate the invoices')).toEqual({ doDate: null, held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
 })
 
+// ── A plan past the days shown ──────────────────────────────────────────────
+
+test('Snooze from the window’s last day: a dated row stays there, planned later; one with no date leaves with a snackbar naming the day', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...ALONE,
+    tasks: [
+      { title: 'Due on the last day', dueInDays: 6, modifiedAt: STAMP },
+      { title: 'Planned on the last day', doInDays: 6, modifiedAt: STAMP },
+    ],
+  })
+  const last = group(page, await dayKeyIn(page, 6))
+  const nextDay = await dayWords(page, 7)
+  await expect(titles(last)).toHaveText(['Due on the last day', 'Planned on the last day'])
+
+  // A real date inside the window: the row stays on its day, flagged, tagged with the planned day, its date drawn late.
+  const dated = rowOf(last, 'Due on the last day')
+  await dated.hover({ position: { x: 80, y: 10 } })
+  await dated.getByRole('button', { name: 'Snooze' }).click()
+  await expect.poll(async () => (await stored(page, 'Due on the last day')).doDate).toEqual([7, 0, 0])
+  await expect(rowOf(last, 'Due on the last day')).toBeVisible()
+  await expect(flagOf(dated)).toHaveCount(1)
+  await expect(tagOf(dated)).toHaveText(`planned ${nextDay}`)
+  await expect(dated.locator('[data-row-cell="due"]')).toHaveAttribute('data-date-level', 'late')
+  await expect(page.locator('[data-snackbar-live]')).not.toContainText('Planned for')
+  expect(await stored(page, 'Due on the last day')).toEqual({ doDate: [7, 0, 0], held: false, dueDate: [6, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  // Its tag offers the fixes.
+  await tagOf(dated).click()
+  await expect(page.getByRole('menu', { name: 'Fix the plan' }).getByRole('menuitem')).toHaveText([`Move due date to ${nextDay}`, `Plan for ${await dayWords(page, 6)}`])
+  await page.keyboard.press('Escape')
+
+  // No real date: the row leaves the days shown — and the snackbar says where it went, with Undo.
+  const plain = rowOf(last, 'Planned on the last day')
+  await plain.hover({ position: { x: 80, y: 10 } })
+  await plain.getByRole('button', { name: 'Snooze' }).click()
+  await expect(rowOf(planner(page), 'Planned on the last day')).toHaveCount(0)
+  const snackbar = page.locator('[data-snackbar-live]')
+  await expect(snackbar).toContainText(`Planned for ${nextDay}`)
+  expect((await stored(page, 'Planned on the last day')).doDate).toEqual([7, 0, 0])
+  // The next week shows it on that day.
+  await planner(page).getByRole('button', { name: 'Next week' }).click()
+  await expect(rowOf(group(page, await dayKeyIn(page, 7)), 'Planned on the last day')).toBeVisible()
+  await planner(page).getByRole('button', { name: /Back to this week$/ }).click()
+  await snackbar.getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(rowOf(last, 'Planned on the last day')).toBeVisible()
+  await expect.poll(async () => (await stored(page, 'Planned on the last day')).doDate).toEqual([6, 0, 0])
+})
+
+test('an overdue row planned for next week is still in Today on this week, planned later — counted by the badge and by Reset plan', async ({ page }) => {
+  await seedWorkspace(page, { ...ALONE, tasks: [{ title: 'Renew the domain', dueInDays: -2, modifiedAt: STAMP }] })
+  const inEight = await dayKeyIn(page, 8)
+  await expect(page.getByTestId('planner-badge')).toBeVisible()
+  await planner(page).getByRole('button', { name: 'Next week' }).click()
+  await drag(page, await grip(rowOf(todayGroup(page), 'Renew the domain')), await pointIn(tile(page, inEight)), {
+    during: async () => { await expect(label(page)).toHaveText(`Plan · ${await dayWords(page, 8)}`) },
+  })
+  await expect(rowOf(group(page, inEight), 'Renew the domain')).toBeVisible()
+  await expect.poll(async () => (await stored(page, 'Renew the domain')).doDate).toEqual([8, 0, 0])
+
+  // Back on this week: not gone — in Today by its overdue date, flagged, with the day it is planned for.
+  await planner(page).getByRole('button', { name: /Back to this week$/ }).click()
+  const row = rowOf(todayGroup(page), 'Renew the domain')
+  await expect(row).toBeVisible()
+  await expect(flagOf(row)).toHaveCount(1)
+  await expect(tagOf(row)).toHaveText(`planned ${await dayWords(page, 8)}`)
+  await expect(delayedGroup(page)).toHaveCount(0)
+  await expect(tile(page, await dayKeyIn(page, 0)).getByTestId('planner-tile-count')).toHaveText('1')
+  await expect(page.getByTestId('planner-badge')).toBeVisible()
+  // Reset plan counts it, and clears it.
+  await planner(page).getByRole('button', { name: 'Reset plan' }).click()
+  const week = page.getByRole('menu', { name: 'Reset plan' }).getByRole('menuitem').first()
+  await expect(week).toContainText('1')
+  await week.click()
+  await expect(flagOf(rowOf(todayGroup(page), 'Renew the domain'))).toHaveCount(0)
+  await expect.poll(async () => (await stored(page, 'Renew the domain')).doDate).toBeNull()
+  expect((await stored(page, 'Renew the domain')).dueDate).toEqual([-2, 0, 0])
+})
+
 // ── Narrow panes (Stacked rows), and the phone ──────────────────────────────
 
 test.describe('panes narrow enough for Stacked rows', () => {

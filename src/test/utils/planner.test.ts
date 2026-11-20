@@ -19,6 +19,7 @@ import {
   plannerOrder,
   plannerPlacement,
   plannerPlannedDay,
+  plannerPlannedLater,
   plannerRangeLabel,
   plannerResetCounts,
   plannerResetTasks,
@@ -28,6 +29,7 @@ import {
   plannerRowTag,
   plannerRowTagHint,
   plannerRowTagLabel,
+  plannerShows,
   plannerTagDay,
   plannerTargetKey,
   plannerTileLabel,
@@ -182,11 +184,56 @@ describe('plannerPlacement: where a task sits', () => {
     expect(shape(place({ doDate: day(6) }))).toEqual(['day', '2026-11-26', 'plan', true])
   })
 
-  it('a planned day beyond the window’s last day → not shown in this window', () => {
+  it('a planned day beyond the window’s last day, with no real date inside the window → not shown in this window', () => {
     expect(place({ doDate: day(7) })).toBeNull()
-    expect(place({ doDate: day(20), dueDate: day(1), focus: true })).toBeNull()
+    expect(place({ doDate: day(20), focus: true })).toBeNull()
+    // A date past the window doesn't show it either.
+    expect(place({ doDate: day(20), dueDate: day(9) })).toBeNull()
     // The window that reaches it shows it.
     expect(shape(plannerPlacement(task({ doDate: day(7) }), plannerWindow(TODAY, 7)))).toEqual(['day', '2026-11-27', 'plan', true])
+  })
+
+  it('planned later, with a real date inside the window or overdue → on its natural day, placed, in conflict with that date', () => {
+    // Due tomorrow, planned for three weeks on.
+    const later = place({ doDate: day(20), dueDate: day(1), focus: true })
+    expect(shape(later)).toEqual(['day', '2026-11-21', 'due', true])
+    expect(later?.planned).toEqual(day(20))
+    expect(later?.conflicts).toEqual([{
+      date: 'due', on: day(1), days: 19,
+      fixes: [{ kind: 'move-date', date: 'due', to: day(20) }, { kind: 'plan', day: day(1) }],
+    }])
+    expect(plannerPlannedLater(later)).toBe(true)
+    // An overdue row dragged onto a tile of next week, seen from this week: still in Today.
+    const overdue = place({ doDate: day(8), nextFollowupAt: day(-3) })
+    expect(shape(overdue)).toEqual(['day', '2026-11-20', 'followup', true])
+    expect(overdue?.conflicts.map((c) => [c.date, c.days, c.fixes.map((f) => f.kind)])).toEqual([['followup', 11, ['move-date']]])
+    // A row on the window's last day by its date, snoozed past it: it stays there.
+    expect(shape(place({ doDate: day(7), dueDate: day(6) }))).toEqual(['day', '2026-11-26', 'due', true])
+    // Seen from the window that reaches the planned day: on that day, by its plan.
+    const there = plannerPlacement(task({ doDate: day(8), nextFollowupAt: day(-3) }), plannerWindow(TODAY, 7))
+    expect(shape(there)).toEqual(['day', '2026-11-28', 'plan', true])
+    expect(plannerPlannedLater(there)).toBe(false)
+    // Not planned later: a plain dated row, a row on its planned day, the trays.
+    for (const fields of [{ dueDate: day(1) }, { doDate: day(2) }, { doDate: day(-2) }, { unplanned: true as const }]) {
+      expect(plannerPlannedLater(place(fields))).toBe(false)
+    }
+    expect(plannerPlannedLater(null)).toBe(false)
+  })
+
+  it('shows a task where its placement puts it — not on a day between tomorrow and a shifted window', () => {
+    expect(plannerShows(task({ dueDate: day(1) }), SPAN)).toBe(true)
+    expect(plannerShows(task({ doDate: day(7) }), SPAN)).toBe(false)
+    expect(plannerShows(task({ doDate: day(7), dueDate: day(6) }), SPAN)).toBe(true)
+    expect(plannerShows(task({ doDate: day(-1) }), SPAN)).toBe(true)
+    expect(plannerShows(task({ focus: true }), SPAN)).toBe(true)
+    expect(plannerShows(task({}), SPAN)).toBe(false)
+    // Next week's window: today's rows and the window's show; tomorrow's has no group.
+    const next = plannerWindow(TODAY, 7)
+    expect(plannerShows(task({ doDate: day(0) }), next)).toBe(true)
+    expect(plannerShows(task({ doDate: day(1) }), next)).toBe(false)
+    expect(plannerShows(task({ dueDate: day(6) }), next)).toBe(false)
+    expect(plannerShows(task({ doDate: day(7) }), next)).toBe(true)
+    expect(plannerShows(task({ doDate: day(13) }), next)).toBe(true)
   })
 
   it('no plan → its natural day, with the reason; not placed', () => {
@@ -457,7 +504,7 @@ describe('plannerView', () => {
         task({ nextFollowupAt: day(1), dueDate: day(3) }),
         // Planned for a day that passed (Delayed): its due date still marks Tue; its plan marks no tile.
         task({ dueDate: day(4), doDate: day(-2) }),
-        // Planned past the window (not shown): its follow-up still marks Mon.
+        // Planned past the window: it shows on Mon by its follow-up, which marks Mon; its plan marks no tile here.
         task({ nextFollowupAt: day(3), doDate: day(9) }),
         // A Focus task with a plan and no dates: a plan mark only.
         task({ focus: true, doDate: day(1) }),
@@ -468,7 +515,7 @@ describe('plannerView', () => {
         [[], 0, 0],
         [['followup'], 1, 2],
         [['due', 'due', 'followup'], 0, 0],
-        [['due', 'followup'], 0, 0],
+        [['due', 'followup'], 0, 1],
         [['due'], 1, 1],
         [[], 0, 0],
         [[], 0, 0],
@@ -694,6 +741,12 @@ describe('Snooze', () => {
     expect(snoozeDay({ doDate: day(6) })).toBe('2026-11-27')
   })
 
+  it('a row planned later moves on from its planned day, not from the day it shows on', () => {
+    // On Thu by its due date, planned for Fri 27: Sat 28.
+    expect(snoozeDay({ doDate: day(7), dueDate: day(6) })).toBe('2026-11-28')
+    expect(snooze({ doDate: day(7), dueDate: day(6) })).toEqual({ kind: 'plan', day: day(8) })
+  })
+
   it('a Delayed or Unplanned row (or one not shown) goes to tomorrow', () => {
     expect(snoozeDay({ doDate: day(-4) })).toBe('2026-11-21')
     expect(snoozeDay({ unplanned: true, dueDate: day(5) })).toBe('2026-11-21')
@@ -720,6 +773,30 @@ describe('Snooze', () => {
 
   it('a completed task is refused', () => {
     expect(snooze({ isCompleted: true, doDate: day(1) })).toEqual({ kind: 'refuse' })
+  })
+})
+
+describe('a task planned later, in the view', () => {
+  it('is a row of its natural day — in Today when overdue — and counts where the view counts: the tile, Reset plan', () => {
+    const overdue = task({ doDate: day(8), dueDate: day(-2) })
+    const sunday = task({ doDate: day(9), nextFollowupAt: day(2) })
+    const gone = task({ doDate: day(9) })
+    const view = plannerView([overdue, sunday, gone], { today: TODAY })
+    expect(uids(view.today.tasks)).toEqual([overdue.uid])
+    expect(uids(view.days[1]?.tasks ?? [])).toEqual([sunday.uid])
+    expect(view.delayed.tasks).toEqual([])
+    expect(view.unplanned.tasks).toEqual([])
+    expect(uids(view.tasks)).toEqual(uids([overdue, sunday]))
+    expect(view.placements.has(gone.uid)).toBe(false)
+    // The rows sit on those days; their plans mark no tile of this window.
+    expect(view.tiles.map((t) => [t.count, t.plans])).toEqual([[1, 0], [0, 0], [1, 0], [0, 0], [0, 0], [0, 0], [0, 0]])
+    // Reset plan › This week clears both (they are placed rows it shows); Today only clears plans *for* today.
+    expect(plannerResetCounts(view)).toEqual({ week: 2, today: 0, delayed: 0 })
+    expect(uids(plannerResetTasks(view, 'week'))).toEqual(uids([overdue, sunday]))
+    // The window that reaches the planned days shows them there, by their plans.
+    const next = plannerView([overdue, sunday, gone], { today: TODAY, offset: 7 })
+    expect(next.today.tasks).toEqual([])
+    expect(next.tiles.map((t) => [t.count, t.plans])).toEqual([[0, 0], [1, 1], [2, 2], [0, 0], [0, 0], [0, 0], [0, 0]])
   })
 })
 
@@ -772,6 +849,19 @@ describe('a row’s tag and late dates', () => {
     // A date already past offers no Plan for it.
     const past = plannerRowTag(placed({ doDate: day(1), dueDate: day(-2) }))
     expect(past?.kind === 'conflict' && past.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual(['Move due date to Sat, Nov 21'])
+  })
+
+  it('a row planned later: its planned day, with the fixes of the dates that plan passes', () => {
+    const tag = plannerRowTag(placed({ doDate: day(7), dueDate: day(6) }))
+    expect(tag).toEqual({ kind: 'later', day: day(7), fixes: [{ kind: 'move-date', date: 'due', to: day(7) }, { kind: 'plan', day: day(6) }] })
+    expect(plannerRowTagLabel(tag!, TODAY)).toBe('planned Fri, Nov 27')
+    expect(plannerRowTagHint(tag!, TODAY)).toBe('Planned for Fri, Nov 27, after the days shown')
+    expect(tag?.kind === 'later' && tag.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual(['Move due date to Fri, Nov 27', 'Plan for Thu, Nov 26'])
+    // Its date is drawn late, as for any plan past a date.
+    expect(plannerLateDates(placed({ doDate: day(7), dueDate: day(6) }))).toEqual({ due: true, followup: false })
+    // An overdue date offers no Plan for it.
+    const overdue = plannerRowTag(placed({ doDate: day(8), nextFollowupAt: day(-3) }))
+    expect(overdue?.kind === 'later' && overdue.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual(['Move follow-up to Sat, Nov 28'])
   })
 
   it('no tag on a row its own date puts there, on a plan before its dates, or on no placement', () => {

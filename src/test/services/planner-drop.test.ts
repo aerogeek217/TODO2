@@ -594,6 +594,44 @@ describe('Snooze', () => {
     expect(steps()).toEqual(['Planned “Planned”', 'Planned “Due”', 'Planned “Late”'])
   })
 
+  it('past the window with no real date inside it: the task leaves the view, and the snackbar names the day with its Undo', async () => {
+    // A plan on the window's last day (Thu 26), no date.
+    const task = await seed('Last day', { doDate: day(6) })
+    const w = watchWrites()
+    await snoozePlannerTask('plan', task.id, WINDOW)
+    expect(w.setPlan).toHaveBeenCalledWith([task.id], { day: day(7) }, 'Planned for Fri, Nov 27', true)
+    expect(await plan(task.id)).toMatchObject({ doDate: day(7), modifiedAt: STAMP })
+    expect(plannerPlacement(useTodoStore.getState().todos.find((t) => t.id === task.id)!, WINDOW)).toBeNull()
+    expect(steps()).toEqual(['Planned for Fri, Nov 27'])
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Planned for Fri, Nov 27' })
+    expect(useUndoStore.getState().snackbar?.notice).toBeUndefined()
+    await useUndoStore.getState().undo()
+    expect(await plan(task.id)).toMatchObject({ doDate: day(6), modifiedAt: STAMP })
+    expect(viewNow().days.at(-1)?.tasks.map((t) => t.id)).toEqual([task.id])
+  })
+
+  it('past the window with a real date inside it: the row stays in view on its natural day, planned later — no snackbar', async () => {
+    // On the window's last day by its due date.
+    const due = await seed('Due last day', { dueDate: day(6) })
+    // Overdue, in Today.
+    const late = await seed('Overdue', { nextFollowupAt: day(-2), doDate: day(6) })
+    const w = watchWrites()
+    await snoozePlannerTask('plan', due.id, WINDOW)
+    await snoozePlannerTask('plan', late.id, WINDOW)
+    expect(w.setPlan.mock.calls).toEqual([[[due.id], { day: day(7) }], [[late.id], { day: day(7) }]])
+    expect(useUndoStore.getState().snackbar).toBeNull()
+    expect(w.realDates()).toBe(0)
+    const view = viewNow()
+    expect(view.days.at(-1)?.tasks.map((t) => t.id)).toEqual([due.id])
+    expect(view.today.tasks.map((t) => t.id)).toEqual([late.id])
+    expect(view.placements.get(due.uid)).toMatchObject({ where: 'day', day: day(6), reason: 'due', placed: true, planned: day(7) })
+    expect(view.placements.get(late.uid)).toMatchObject({ where: 'day', day: day(0), reason: 'followup', placed: true, planned: day(7) })
+    // Again: a day further, still in view.
+    await snoozePlannerTask('plan', due.id, WINDOW)
+    expect(await plan(due.id)).toMatchObject({ doDate: day(8), dueDate: day(6) })
+    expect(viewNow().placements.get(due.uid)).toMatchObject({ day: day(6), planned: day(8) })
+  })
+
   it('a Delayed or Unplanned row goes to tomorrow', async () => {
     const delayed = await seed('Delayed', { doDate: day(-3) })
     const held = await seed('Held', { unplanned: true, dueDate: day(4) })
@@ -842,6 +880,29 @@ describe('a conflict’s fixes', () => {
     expect(after.modifiedAt).toEqual(NOW)
     expect(await eventCount(task.id)).toBe(events + 1)
     expect(steps()).toEqual(['Edit "Chase"'])
+  })
+
+  it('a row planned later: Plan for its date’s day clears the plan; Move date to the planned day takes it out of view, with the snackbar', async () => {
+    // Due Thu 26, planned Fri 27 (past the window): it shows on Thu.
+    const a = await seed('Plan back', { doDate: day(7), dueDate: day(6) })
+    const b = await seed('Move on', { doDate: day(7), dueDate: day(6) })
+    expect(fixes(a.id, 'due')).toEqual([{ kind: 'move-date', date: 'due', to: day(7) }, { kind: 'plan', day: day(6) }])
+    const w = watchWrites()
+    await applyPlannerFix('plan', a.id, fixes(a.id, 'due')[1]!, WINDOW)
+    expect(w.setPlan).toHaveBeenLastCalledWith([a.id], null)
+    expect(await plan(a.id)).toMatchObject({ doDate: undefined, dueDate: day(6), modifiedAt: STAMP })
+    expect(useUndoStore.getState().snackbar).toBeNull()
+
+    await applyPlannerFix('plan', b.id, fixes(b.id, 'due')[0]!, WINDOW)
+    // The due date is the planned day now: the plan goes with the edit, and the task is past the window.
+    expect(w.update).toHaveBeenLastCalledWith(b.id, { dueDate: day(7), doDate: undefined, unplanned: undefined })
+    expect(await plan(b.id)).toMatchObject({ doDate: undefined, dueDate: day(7) })
+    expect(viewNow().placements.has(b.uid)).toBe(false)
+    expect(steps().at(-1)).toBe('Moved the due date to Fri, Nov 27')
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Moved the due date to Fri, Nov 27' })
+    await useUndoStore.getState().undo()
+    expect(await plan(b.id)).toMatchObject({ doDate: day(7), dueDate: day(6) })
+    expect(viewNow().placements.get(b.uid)).toMatchObject({ day: day(6), planned: day(7) })
   })
 
   it('a fix handed a time of day still writes the day’s midnight', async () => {
