@@ -30,9 +30,9 @@ A task holds its priority, status, people, tags and due date beside its notes, a
 
 ### Plan the day and the week
 
-The Planner shows today beside the next seven days. Tasks land on the day they are due or due for a follow-up, and you drag anything else onto the day you plan to do it. Dragging a follow-up moves its date, a due date never moves, and Focus tasks without a day wait in a group of their own.
+The Planner is a scratch pad for the week. Today and the days ahead sit in one list, and each task lands on the day it is due or due for a follow-up. Drag a task onto another day to plan it there: planning a task for a day never changes its dates. When a plan runs past a due date, the Planner says so on the row and offers to fix it, by moving the due date or by planning the task for the day it is due. Plans you didn't get to wait in Delayed, and Unplanned holds whatever you have set aside.
 
-![The Planner: a strip of the next seven days over today's tasks on the left and the days ahead on the right, with Focus tasks that have no day below them](docs/screenshots/planner.png)
+![The Planner: a strip of the next seven days over a list of today and the days ahead on the left, with Delayed and Unplanned tasks on the right](docs/screenshots/planner.png)
 
 ### Numbers and charts from your own filters
 
