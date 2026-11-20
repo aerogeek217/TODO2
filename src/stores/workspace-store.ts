@@ -583,12 +583,16 @@ function randomId(): string {
  * A new tab's seed: a Neglect map with no tags given colours by the
  * `Project: …` tags; a Breakdown
  * (every preset) writes its Due and Follow-up count columns in Settings ›
- * Tasks' ranges of the moment (`defaultBreakdownColumns`).
+ * Tasks' ranges of the moment (`defaultBreakdownColumns`) — its Follow-up
+ * column with the follow-up age for the People preset (`splitBy: 'people'`
+ * in the seed) and for Change widget, which seeds nothing and splits by
+ * people (board V1); every other preset, Custom among them, without.
  */
 function seedFor(kind: WidgetKind, seed: TabSeed | undefined): TabSeed | undefined {
   if (kind === 'neglect' && !seed?.neglectTagIds) return { ...seed, neglectTagIds: projectTagIds(useTagStore.getState().tags) }
   if (kind === 'breakdown' && !seed?.breakdown?.columns) {
-    return { ...seed, breakdown: { ...seed?.breakdown, columns: defaultBreakdownColumns(useSettingsStore.getState().tabBadges) } }
+    const followupAge = !seed?.breakdown || seed.breakdown.splitBy === 'people'
+    return { ...seed, breakdown: { ...seed?.breakdown, columns: defaultBreakdownColumns(useSettingsStore.getState().tabBadges, { followupAge }) } }
   }
   return seed
 }

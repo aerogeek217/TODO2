@@ -288,3 +288,46 @@ describe('sorting the rows by a heading', () => {
     expect(nextBreakdownSort({ by: 'open', reversed: true }, 'name')).toEqual({ by: 'name' })
   })
 })
+
+describe('a row’s follow-up age (board V1)', () => {
+  // Amy: 1 (followed up 23 days ago), 2 (never: created 9 days ago), 3 (completed, followed up 40 days ago)
+  // · Bob: 4 (followed up today) · Zed: 5 (completed only) · 6: nobody, followed up 2 days ago.
+  const tasks = [
+    makeTodo({ id: 1, title: 'Vendor contract renewal', lastFollowupAt: day(-23), createdAt: day(-60) }),
+    makeTodo({ id: 2, title: 'Draft', lastFollowupAt: undefined, createdAt: day(-9) }),
+    makeTodo({ id: 3, title: 'Done long ago', isCompleted: true, lastFollowupAt: day(-40), createdAt: day(-90) }),
+    makeTodo({ id: 4, title: 'Fresh', lastFollowupAt: day(0), createdAt: day(-5) }),
+    makeTodo({ id: 5, title: 'Closed', isCompleted: true, lastFollowupAt: day(-50), createdAt: day(-80) }),
+    makeTodo({ id: 6, title: 'Lone', lastFollowupAt: day(-2), createdAt: day(-3) }),
+  ]
+  const people = new Map([[1, [amy]], [2, [amy]], [3, [amy]], [4, [bob]], [5, [zed]]])
+  const out = computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), opts('people'))
+  const row = (label: string) => out.rows.find((r) => r.label === label)!
+
+  it('the oldest open task by last follow-up (never followed up: since created), whole days, today 0, with the median', () => {
+    expect(row('Amy').followup).toEqual({ oldest: { id: 1, title: 'Vendor contract renewal', days: 23 }, medianDays: 16, neverFollowedUp: false })
+    expect(row('Bob').followup).toEqual({ oldest: { id: 4, title: 'Fresh', days: 0 }, medianDays: 0, neverFollowedUp: false })
+    expect(row('Unassigned').followup?.oldest.days).toBe(2)
+  })
+
+  it('a completed task never ages a row (also while the filter lets completed tasks through); a row with none open has none', () => {
+    expect(row('Amy').followup?.oldest.id).not.toBe(3)
+    expect(row('Zed').followup).toBeNull()
+  })
+
+  it('names a never-followed-up oldest', () => {
+    const lone = computeBreakdown([tasks[1]!], ctx({ assignedPeopleMap: people }), opts('people'))
+    expect(lone.rows[0]?.followup).toEqual({ oldest: { id: 2, title: 'Draft', days: 9 }, medianDays: 9, neverFollowedUp: true })
+  })
+
+  it('sorts by `age:<column>` oldest first, reversed latest first; rows without an age stay last either way, the none row after them', () => {
+    const labels = (reversed?: true) => sortBreakdownRows(out.rows, reversed ? { by: 'age:followup', reversed } : { by: 'age:followup' }, 'count', ['followup', 'age:followup']).map((r) => r.label)
+    expect(labels()).toEqual(['Amy', 'Bob', 'Zed', 'Unassigned'])
+    expect(labels(true)).toEqual(['Bob', 'Amy', 'Zed', 'Unassigned'])
+  })
+
+  it('an age sort naming a column without the age reads as the default order', () => {
+    const shown = (keys: readonly string[]) => sortBreakdownRows(out.rows, { by: 'age:followup' }, 'count', keys).map((r) => r.label)
+    expect(shown(['followup'])).toEqual(sortBreakdownRows(out.rows, undefined, 'count').map((r) => r.label))
+  })
+})
