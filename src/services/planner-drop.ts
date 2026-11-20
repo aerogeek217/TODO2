@@ -127,11 +127,11 @@ const tasksWord = (n: number): string => `${n} ${n === 1 ? 'task' : 'tasks'}`
 /**
  * **Unplan all Delayed**: every task the Planner's Delayed tray shows
  * (`view`) to Unplanned — each as its own Unplan would — in one write and
- * one undo step.
+ * one undo step, with the snackbar's Undo.
  */
 export function unplanDelayedTasks(view: Pick<PlannerRows, 'window' | 'delayed'>): Promise<void> {
   const plans = plannerUnplanDelayed(view)
-  return useTodoStore.getState().setPlans(plans, `Unplanned ${tasksWord(plans.length)} from Delayed`)
+  return useTodoStore.getState().setPlans(plans, `Unplanned ${tasksWord(plans.length)} from Delayed`, true)
 }
 
 const RESET_WORDS: Record<PlannerResetScope, string> = { week: 'this week', today: 'today', delayed: 'Delayed' }
@@ -139,11 +139,11 @@ const RESET_WORDS: Record<PlannerResetScope, string> = { week: 'this week', toda
 /**
  * **Reset plan**: clears the plan state of the tasks of `scope` in the
  * Planner as it shows (`utils/planner.plannerResetTasks`: this week, today
- * only, or Delayed) — one write and one undo step.
+ * only, or Delayed) — one write and one undo step, with the snackbar's Undo.
  */
 export function resetPlannerPlan(view: PlannerRows, scope: PlannerResetScope): Promise<void> {
   const ids = plannerResetTasks(view, scope).map((t) => t.id)
-  return useTodoStore.getState().setPlan(ids, null, `Reset plan: ${RESET_WORDS[scope]}`)
+  return useTodoStore.getState().setPlan(ids, null, `Reset plan: ${RESET_WORDS[scope]}`, true)
 }
 
 /**

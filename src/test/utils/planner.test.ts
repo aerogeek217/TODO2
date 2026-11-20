@@ -23,8 +23,14 @@ import {
   plannerResetTasks,
   plannerSnooze,
   plannerSnoozeDay,
+  plannerLateDates,
+  plannerRowTag,
+  plannerRowTagHint,
+  plannerRowTagLabel,
+  plannerTagDay,
   plannerTargetKey,
   plannerTileLabel,
+  plannerTileMarks,
   plannerUnplan,
   plannerUnplanDelayed,
   plannerView,
@@ -340,21 +346,14 @@ describe('plannerView', () => {
     expect(view.tasks.filter((t) => view.placements.get(t.uid)?.placed).map((t) => t.uid)).toEqual(uids([plannedToday, mon, missed, held]))
   })
 
-  it('starts the days ahead at the picked day', () => {
+  it('lists every later day of the window after Today, the empty ones too', () => {
     const sat = task({ doDate: day(1) })
     const tue = task({ doDate: day(4) })
-    const view = plannerView([sat, tue], { today: TODAY, picked: day(3, 9) })
-    expect(view.days.map((g) => g.key)).toEqual(['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26'])
-    // The tiles and the count of what it holds don't follow the pick.
+    const view = plannerView([sat, tue], { today: TODAY })
+    expect(view.days.map((g) => g.key)).toEqual(['2026-11-21', '2026-11-22', '2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26'])
+    expect(view.days.map((g) => g.tasks.length)).toEqual([1, 0, 0, 1, 0, 0])
     expect(view.tiles.map((t) => t.count)).toEqual([0, 1, 0, 0, 1, 0, 0])
     expect(uids(view.tasks)).toEqual(uids([sat, tue]))
-  })
-
-  it('reads a pick of today, or one outside the window, as none', () => {
-    const tomorrowOn = ['2026-11-21', '2026-11-22', '2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26']
-    expect(plannerView([], { today: TODAY, picked: day(0) }).days.map((g) => g.key)).toEqual(tomorrowOn)
-    expect(plannerView([], { today: TODAY, picked: day(-2) }).days.map((g) => g.key)).toEqual(tomorrowOn)
-    expect(plannerView([], { today: TODAY, picked: day(9) }).days.map((g) => g.key)).toEqual(tomorrowOn)
   })
 
   it('applies the hand order inside each group', () => {
@@ -368,7 +367,7 @@ describe('plannerView', () => {
   })
 
   describe('tiles', () => {
-    it('count the rows sitting on each day, with a tick per row by why it is there', () => {
+    it('count the rows sitting on each day', () => {
       const tasks = [
         task({ dueDate: day(-1) }), task({ nextFollowupAt: day(0) }), task({ doDate: day(0) }),
         task({ doDate: day(2) }), task({ dueDate: day(2) }), task({ nextFollowupAt: day(2) }),
@@ -378,17 +377,24 @@ describe('plannerView', () => {
       const view = plannerView(tasks, { today: TODAY })
       expect(view.tiles.map((t) => t.key)).toEqual(view.window.days.map(dayKey))
       expect(view.tiles.map((t) => t.isToday)).toEqual([true, false, false, false, false, false, false])
-      expect(view.tiles[0]).toMatchObject({ count: 3, ticks: ['due', 'followup', 'plan'], more: 0 })
-      expect(view.tiles[2]).toMatchObject({ count: 3, ticks: ['due', 'followup', 'plan'], more: 0 })
-      expect(view.tiles[1]).toMatchObject({ count: 0, ticks: [], more: 0 })
+      expect(view.tiles[0]).toMatchObject({ count: 3, dates: ['due', 'followup'], plans: 1 })
+      expect(view.tiles[2]).toMatchObject({ count: 3, dates: ['due', 'followup'], plans: 1 })
+      // The held task's due date still marks its day; nothing sits there.
+      expect(view.tiles[1]).toMatchObject({ count: 0, dates: ['due'], plans: 0 })
     })
 
-    it('draw at most eight ticks, then say how many more', () => {
+    it('draw the real dates as solid ticks, then the plans as hollow ones: at most eight marks, then how many more', () => {
+      expect(plannerTileMarks({ dates: ['due', 'followup'], plans: 2 })).toEqual({ dates: ['due', 'followup'], plans: 2, more: 0 })
+      expect(plannerTileMarks({ dates: [], plans: 0 })).toEqual({ dates: [], plans: 0, more: 0 })
       const tasks = Array.from({ length: PLANNER_TILE_TICKS_MAX + 3 }, () => task({ doDate: day(1) }))
-      const tile = plannerView(tasks, { today: TODAY }).tiles[1]
-      expect(tile?.count).toBe(11)
-      expect(tile?.ticks).toHaveLength(8)
-      expect(tile?.more).toBe(3)
+      const tile = plannerView(tasks, { today: TODAY }).tiles[1]!
+      expect(tile.count).toBe(11)
+      expect(plannerTileMarks(tile)).toEqual({ dates: [], plans: 8, more: 3 })
+      // The real dates first: the plans take what room is left.
+      expect(plannerTileMarks({ dates: ['due', 'due', 'due', 'followup', 'followup', 'followup'], plans: 5 }))
+        .toEqual({ dates: ['due', 'due', 'due', 'followup', 'followup', 'followup'], plans: 2, more: 3 })
+      const many = Array.from({ length: 10 }, () => 'due' as const)
+      expect(plannerTileMarks({ dates: many, plans: 1 })).toEqual({ dates: many.slice(0, 8), plans: 0, more: 3 })
     })
 
     it('mark the real dates falling on each day wherever the task is planned, and the plans on it', () => {
@@ -486,9 +492,9 @@ describe('plannerView', () => {
       expect(shifted.days.find((g) => g.key === '2026-11-29')?.tasks).toEqual([t])
     })
 
-    it('honors a pick inside the shifted window', () => {
-      const picked = plannerView([], { today: TODAY, offset: 7, picked: day(11) })
-      expect(picked.days.map((g) => g.key)).toEqual(['2026-12-01', '2026-12-02', '2026-12-03'])
+    it('lists all seven days of a shifted window', () => {
+      const shifted = plannerView([], { today: TODAY, offset: 7 })
+      expect(shifted.days.map((g) => g.key)).toEqual(['2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30', '2026-12-01', '2026-12-02', '2026-12-03'])
     })
   })
 })
@@ -567,7 +573,7 @@ describe('plannerDrop: the drop rule', () => {
         // What it writes leaves the task in the Unplanned tray.
         const write = plannerDropWrite(decided)
         expect(write).toBe('unplanned')
-        const after = { ...planned, doDate: undefined, unplanned: true }
+        const after: PlannerTask = { ...planned, doDate: undefined, unplanned: true }
         expect(plannerPlacement(after, SPAN)).toMatchObject({ where: 'unplanned', reason: 'held', placed: true })
       }
     })
@@ -659,6 +665,86 @@ describe('Snooze', () => {
   })
 })
 
+describe('a row’s tag and late dates', () => {
+  const placed = (over: Partial<PlannerTask>) => plannerPlacement(task(over), SPAN)
+
+  it('a Delayed row: the day it was planned for', () => {
+    const tag = plannerRowTag(placed({ doDate: day(-2), dueDate: day(3) }))
+    expect(tag).toEqual({ kind: 'planned', day: day(-2) })
+    expect(plannerRowTagLabel(tag!, TODAY)).toBe('Wed')
+    expect(plannerRowTagHint(tag!, TODAY)).toBe('Planned for Wed, Nov 18')
+  })
+
+  it('a row held in Unplanned with a natural day: that day; without one, no tag', () => {
+    const tag = plannerRowTag(placed({ unplanned: true, nextFollowupAt: day(3) }))
+    expect(tag).toEqual({ kind: 'natural', day: day(3) })
+    expect(plannerRowTagLabel(tag!, TODAY)).toBe('Mon')
+    expect(plannerRowTagHint(tag!, TODAY)).toBe('Its own date puts it on Mon, Nov 23')
+    // A late date puts it on today.
+    const late = plannerRowTag(placed({ unplanned: true, dueDate: day(-4) }))
+    expect(plannerRowTagLabel(late!, TODAY)).toBe('Today')
+    expect(plannerRowTagHint(late!, TODAY)).toBe('Its own date puts it on Today')
+    expect(plannerRowTag(placed({ unplanned: true }))).toBeNull()
+    expect(plannerRowTag(placed({ unplanned: true, dueDate: day(30) }))).toBeNull()
+    expect(plannerRowTag(placed({ focus: true }))).toBeNull()
+  })
+
+  it('a row planned past a real date: the conflict in words, with its fixes', () => {
+    const tag = plannerRowTag(placed({ doDate: day(4), dueDate: day(3) }))
+    expect(tag).toMatchObject({ kind: 'conflict', conflict: { date: 'due', days: 1 } })
+    expect(plannerRowTagLabel(tag!, TODAY)).toBe('1 day after due')
+    expect(plannerRowTagHint(tag!, TODAY)).toBe('Planned 1 day after its due date')
+    expect(tag?.kind === 'conflict' && tag.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual(['Move due date to Tue, Nov 24', 'Plan for Mon, Nov 23'])
+    const followup = plannerRowTag(placed({ doDate: day(4), nextFollowupAt: day(2) }))
+    expect(plannerRowTagLabel(followup!, TODAY)).toBe('2 days after follow-up')
+    expect(plannerRowTagHint(followup!, TODAY)).toBe('Planned 2 days after its follow-up')
+  })
+
+  it('with both dates passed the tag is the due date’s, and the menu holds every fix once', () => {
+    const tag = plannerRowTag(placed({ doDate: day(5), dueDate: day(2), nextFollowupAt: day(1) }))
+    expect(plannerRowTagLabel(tag!, TODAY)).toBe('3 days after due')
+    expect(tag?.kind === 'conflict' && tag.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual([
+      'Move due date to Wed, Nov 25', 'Plan for Sun, Nov 22', 'Move follow-up to Wed, Nov 25', 'Plan for Sat, Nov 21',
+    ])
+    // Both dates on one day: one Plan for it.
+    const same = plannerRowTag(placed({ doDate: day(5), dueDate: day(2), nextFollowupAt: day(2) }))
+    expect(same?.kind === 'conflict' && same.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual([
+      'Move due date to Wed, Nov 25', 'Plan for Sun, Nov 22', 'Move follow-up to Wed, Nov 25',
+    ])
+    // A date already past offers no Plan for it.
+    const past = plannerRowTag(placed({ doDate: day(1), dueDate: day(-2) }))
+    expect(past?.kind === 'conflict' && past.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual(['Move due date to Sat, Nov 21'])
+  })
+
+  it('no tag on a row its own date puts there, on a plan before its dates, or on no placement', () => {
+    expect(plannerRowTag(placed({ dueDate: day(2) }))).toBeNull()
+    expect(plannerRowTag(placed({ doDate: day(1), dueDate: day(3) }))).toBeNull()
+    expect(plannerRowTag(placed({ doDate: day(3), dueDate: day(3) }))).toBeNull()
+    expect(plannerRowTag(null)).toBeNull()
+    expect(plannerRowTag(undefined)).toBeNull()
+  })
+
+  it('a tag’s day in words: Today, a weekday within six days, else the date', () => {
+    expect(plannerTagDay(day(0, 15), TODAY)).toBe('Today')
+    expect(plannerTagDay(day(-1), TODAY)).toBe('Thu')
+    expect(plannerTagDay(day(-6), TODAY)).toBe('Sat')
+    expect(plannerTagDay(day(6), TODAY)).toBe('Thu')
+    expect(plannerTagDay(day(-7), TODAY)).toBe('Nov 13')
+    expect(plannerTagDay(day(-30), TODAY)).toBe('Oct 21')
+  })
+
+  it('the dates a plan falls after are the ones drawn late', () => {
+    expect(plannerLateDates(placed({ doDate: day(4), dueDate: day(3) }))).toEqual({ due: true, followup: false })
+    expect(plannerLateDates(placed({ doDate: day(4), dueDate: day(6), nextFollowupAt: day(1) }))).toEqual({ due: false, followup: true })
+    expect(plannerLateDates(placed({ doDate: day(5), dueDate: day(2), nextFollowupAt: day(1) }))).toEqual({ due: true, followup: true })
+    expect(plannerLateDates(placed({ doDate: day(1), dueDate: day(3) }))).toBeNull()
+    // Delayed and held rows have no conflict: nothing is drawn late that isn't.
+    expect(plannerLateDates(placed({ doDate: day(-2), dueDate: day(-3) }))).toBeNull()
+    expect(plannerLateDates(placed({ unplanned: true, dueDate: day(1) }))).toBeNull()
+    expect(plannerLateDates(null)).toBeNull()
+  })
+})
+
 describe('a Move date fix that makes the plan redundant', () => {
   const move = (date: 'due' | 'followup', n: number) => ({ kind: 'move-date' as const, date, to: day(n) })
 
@@ -711,7 +797,7 @@ describe('Unplan and Unplan all Delayed', () => {
     ]))
     // Every one of them is in Unplanned afterwards.
     const written = new Map(plans.map((p) => [p.id, p.plan]))
-    const after = [dated, late, focus, bare, farDate].map((t) => ({ ...t, doDate: undefined, unplanned: written.get(t.id) === 'unplanned' ? true : undefined }))
+    const after = [dated, late, focus, bare, farDate].map((t): PlannerTask => ({ ...t, doDate: undefined, unplanned: written.get(t.id) === 'unplanned' ? true : undefined }))
     const next = plannerView([...after, ...others], { today: TODAY })
     expect(next.delayed.tasks).toEqual([])
     for (const t of after) expect(next.placements.get(t.uid)?.where).toBe('unplanned')

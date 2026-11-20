@@ -90,6 +90,15 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* The title, then the surface's tag (`TaskRowExtras.tag`): the title gives way first. */
+.titleWithTag {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 /* A stale line's muted title is its fade (Fade stale tasks); the box's fill still says stale. */
 .line[data-faded] .title {
   color: var(--color-text-muted);

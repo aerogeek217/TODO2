@@ -71,16 +71,20 @@ afterEach(() => {
 })
 
 describe('the Planner — large', () => {
-  it('draws the strip over two panes: Today, a group per day ahead, Unplanned', () => {
+  it('draws the strip over two panes: the days in one list on the left — Today, then every later day —, the trays on the right', () => {
     show()
     expect(root()).toHaveAttribute('data-planner-face', 'large')
     expect(root().querySelector('[data-planner-layout]')).toHaveAttribute('data-planner-layout', 'panes')
     expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned'])
-    // Today on the left; the days ahead on the right, the trays pinned under them (Delayed only while it holds a task).
-    expect(root().querySelector('[data-planner-pane="today"]')).toContainElement(group('Today'))
-    expect(root().querySelector('[data-planner-pane="ahead"]')).toContainElement(group('Mon, Nov 23'))
-    expect(root().querySelector('[data-planner-pane="trays"]')).toContainElement(group('Unplanned'))
+    // Two panes, in this order: the days, then the trays (Delayed and its Unplan button only while Delayed holds a task).
+    expect([...root().querySelectorAll('[data-planner-pane]')].map((p) => p.getAttribute('data-planner-pane'))).toEqual(['days', 'trays'])
+    const days = root().querySelector<HTMLElement>('[data-planner-pane="days"]')!
+    expect([...days.querySelectorAll('[data-planner-group]')].map((g) => g.getAttribute('aria-label')))
+      .toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26'])
+    const trays = root().querySelector<HTMLElement>('[data-planner-pane="trays"]')!
+    expect([...trays.querySelectorAll('[data-planner-group]')].map((g) => g.getAttribute('aria-label'))).toEqual(['Unplanned'])
     expect(within(root()).queryByRole('group', { name: 'Delayed' })).toBeNull()
+    expect(within(root()).queryByRole('button', { name: 'Move all Delayed tasks to Unplanned' })).toBeNull()
     // A late date sits in Today; deadlines first, then follow-ups, then plans.
     expect(titlesIn(group('Today'))).toEqual(['Late invoice', 'Chase legal', 'Planned for today'])
     expect(titlesIn(group('Mon, Nov 23'))).toEqual(['Monday deadline', 'Monday plan'])
@@ -90,7 +94,7 @@ describe('the Planner — large', () => {
     expect(root()).not.toHaveTextContent('Next week deadline')
   })
 
-  it('heads each group with its name and count; an empty day has no count', () => {
+  it('heads each group with its name and count; a day with nothing on it is a quiet heading with no count', () => {
     show()
     const count = (name: string) => within(group(name)).queryByTestId('planner-group-count')?.textContent ?? null
     expect(count('Today')).toBe('3')
@@ -98,6 +102,20 @@ describe('the Planner — large', () => {
     expect(count('Sat, Nov 21')).toBeNull()
     expect(titlesIn(group('Sat, Nov 21'))).toEqual([])
     expect(count('Unplanned')).toBe('1')
+    const quiet = [...root().querySelectorAll('[data-planner-empty]')].map((g) => g.getAttribute('aria-label'))
+    expect(quiet).toEqual(['Sat, Nov 21', 'Sun, Nov 22', 'Tue, Nov 24', 'Wed, Nov 25'])
+    // Still a drop target: the day's group, its section and all.
+    expect(group('Sat, Nov 21')).toHaveAttribute('data-list-section', '2026-11-21')
+  })
+
+  it('Today with nothing, and Unplanned with nothing, keep their headings and say so', () => {
+    useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Monday only', dueDate: day(3) })] })
+    show()
+    expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned'])
+    expect(within(group('Today')).getByRole('status')).toHaveTextContent('Nothing for today')
+    expect(within(group('Unplanned')).getByRole('status')).toHaveTextContent('Nothing unplanned')
+    expect(group('Today')).not.toHaveAttribute('data-planner-empty')
+    expect(group('Unplanned')).not.toHaveAttribute('data-planner-empty')
   })
 
   it('shows the app’s task rows, as the list’s draggable occurrences — and is no list widget', () => {
@@ -154,6 +172,12 @@ describe('the Planner — the trays', () => {
     const trays = root().querySelector('[data-planner-pane="trays"]')!
     expect(trays).toContainElement(group('Delayed'))
     expect(trays).toContainElement(group('Unplanned'))
+    // Between them, the Unplan button on its rule.
+    const button = within(root()).getByRole('button', { name: 'Move all Delayed tasks to Unplanned' })
+    expect([...trays.querySelectorAll('[data-planner-group], [data-planner-unplan-all]')].map((el) => el.getAttribute('aria-label') ?? 'unplan'))
+      .toEqual(['Delayed', 'unplan', 'Unplanned'])
+    expect(button).toHaveTextContent('Unplan')
+    expect(getByTooltip(trays as HTMLElement, 'Move all Delayed tasks to Unplanned')).toBe(button)
     expect(group('Delayed')).toHaveAttribute('data-list-section', 'delayed')
     expect(group('Delayed')).toHaveAttribute('data-planner-group-kind', 'delayed')
     expect(within(group('Delayed')).getByTestId('planner-group-count')).toHaveTextContent('2')
@@ -177,11 +201,24 @@ describe('the Planner — the trays', () => {
     expect(titlesIn(group('Unplanned'))).toEqual(['Held call', 'Someday focus'])
   })
 
-  it('one column and the phone keep the order: Today, the days, Delayed, Unplanned', () => {
+  it('one column keeps the order: Today, the days, Delayed, the Unplan button, Unplanned', () => {
     useTodoStore.setState({ todos: withTrays() })
     width = 500
     show()
-    expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Delayed', 'Unplanned'])
+    const column = root().querySelector('[data-planner-layout="column"]')!
+    expect([...column.querySelectorAll('[data-planner-group], [data-planner-unplan-all]')].map((el) => el.getAttribute('aria-label') ?? 'unplan'))
+      .toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Delayed', 'unplan', 'Unplanned'])
+  })
+
+  it('the Unplan button moves every Delayed task to Unplanned in one write', () => {
+    useTodoStore.setState({ todos: withTrays() })
+    const setPlans = vi.fn(() => Promise.resolve())
+    useTodoStore.setState({ setPlans })
+    show()
+    fireEvent.click(within(root()).getByRole('button', { name: 'Move all Delayed tasks to Unplanned' }))
+    // Each as its own Unplan would: held — dated or not —, one undo step with the snackbar.
+    expect(setPlans).toHaveBeenCalledTimes(1)
+    expect(setPlans).toHaveBeenCalledWith([{ id: 41, plan: 'unplanned' }, { id: 40, plan: 'unplanned' }], 'Unplanned 2 tasks from Delayed', true)
   })
 })
 
@@ -203,39 +240,134 @@ describe('the Planner — the strip', () => {
     expect(root().querySelector('[title]')).toBeNull()
   })
 
-  it('draws a tick per task by why it is on the day: deadlines, follow-ups, plans', () => {
+  const marks = (key: string) => [...tile(key).querySelectorAll('[data-mark]')].map((t) => t.getAttribute('data-mark'))
+
+  it('marks each day: a solid tick per real date on it — due dates, then follow-ups —, then a hollow one per plan', () => {
     show()
-    const ticks = (key: string) => [...tile(key).querySelectorAll('[data-reason]')].map((t) => t.getAttribute('data-reason'))
-    expect(ticks('2026-11-20')).toEqual(['due', 'followup', 'plan'])
-    expect(ticks('2026-11-23')).toEqual(['due', 'plan'])
-    expect(ticks('2026-11-26')).toEqual(['followup'])
-    expect(ticks('2026-11-21')).toEqual([])
+    // Today: the late invoice's due date and Chase legal's follow-up count on today; one plan.
+    expect(marks('2026-11-20')).toEqual(['due', 'followup', 'plan'])
+    expect(marks('2026-11-23')).toEqual(['due', 'plan'])
+    expect(marks('2026-11-26')).toEqual(['followup'])
+    expect(marks('2026-11-21')).toEqual([])
+    // The count stays the rows sitting on the day.
     expect(within(tile('2026-11-23')).getByTestId('planner-tile-count')).toHaveTextContent('2')
     expect(within(tile('2026-11-21')).getByTestId('planner-tile-count')).toBeEmptyDOMElement()
   })
 
-  it('stops at eight ticks and says how many more', () => {
+  it('a real date marks its own day wherever the task is planned or held; its plan marks the planned day', () => {
+    useTodoStore.setState({
+      todos: [
+        // Due Sun, planned Tue: a solid tick on Sun (no row there), a hollow one on Tue (its row).
+        makeTodo({ id: 1, title: 'Moved', dueDate: day(2), doDate: day(4) }),
+        // Held in Unplanned, a follow-up on Mon: its tick stays on Mon.
+        makeTodo({ id: 2, title: 'Held', nextFollowupAt: day(3), unplanned: true }),
+      ],
+    })
+    show()
+    expect(marks('2026-11-22')).toEqual(['due'])
+    expect(within(tile('2026-11-22')).getByTestId('planner-tile-count')).toBeEmptyDOMElement()
+    expect(marks('2026-11-24')).toEqual(['plan'])
+    expect(within(tile('2026-11-24')).getByTestId('planner-tile-count')).toHaveTextContent('1')
+    expect(marks('2026-11-23')).toEqual(['followup'])
+  })
+
+  it('stops at eight marks and says how many more', () => {
     useTodoStore.setState({ todos: Array.from({ length: 11 }, (_, i) => makeTodo({ id: i + 1, doDate: day(1), sortOrder: i })) })
     show()
-    expect(tile('2026-11-21').querySelectorAll('[data-reason]')).toHaveLength(8)
+    expect(marks('2026-11-21')).toEqual(Array.from({ length: 8 }, () => 'plan'))
     expect(tile('2026-11-21')).toHaveTextContent('+3')
   })
 
-  it('a click on a tile starts the days ahead at that day; again, or on today, at tomorrow', () => {
+  const weekRules = () => [...root().querySelectorAll('[data-planner-week-rule]')].map((r) => r.getAttribute('data-planner-week-rule'))
+
+  it('stands a rule before the tile that starts a week — by Settings’ first day of the week, never before the first tile', () => {
+    // Fri 20 … Thu 26, weeks starting on Monday (the default): before Mon 23.
     show()
-    fireEvent.click(tile('2026-11-23'))
-    expect(groupNames()).toEqual(['Today', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned'])
-    expect(tile('2026-11-23')).toHaveAttribute('aria-pressed', 'true')
-    expect(tile('2026-11-23')).toHaveAttribute('data-picked', 'true')
-    expect(tile('2026-11-24')).toHaveAttribute('aria-pressed', 'false')
-    fireEvent.click(tile('2026-11-25'))
-    expect(groupNames()).toEqual(['Today', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned'])
-    fireEvent.click(tile('2026-11-25'))
-    expect(groupNames()).toHaveLength(8)
-    fireEvent.click(tile('2026-11-24'))
-    fireEvent.click(tile('2026-11-20'))
-    expect(groupNames()).toHaveLength(8)
-    expect(root().querySelector('[data-picked]')).toBeNull()
+    expect(weekRules()).toEqual(['2026-11-23'])
+    const strip = within(root()).getByRole('group', { name: 'Days' })
+    expect(strip.querySelector('[data-planner-week-rule]')?.nextElementSibling).toBe(tile('2026-11-23'))
+    // Still seven tiles between the arrows, and the rule is no button.
+    expect(strip.querySelectorAll('[data-planner-tile]')).toHaveLength(7)
+    expect(strip.querySelectorAll('button')).toHaveLength(9)
+    cleanup()
+    // Weeks starting on Sunday: before Sun 22.
+    useSettingsStore.setState({ weekStartsOn: 0 })
+    show()
+    expect(weekRules()).toEqual(['2026-11-22'])
+  })
+
+  it('has no rule in a window that starts on the week’s first day', () => {
+    // Today a Monday: the window is one whole week.
+    vi.setSystemTime(new Date(2026, 10, 23, 10))
+    show()
+    expect(tileNames()[0]).toMatch(/^Today, Nov 23/)
+    expect(weekRules()).toEqual([])
+  })
+
+  describe('a click on a tile', () => {
+    /** The days pane as a scroller 300px high over 900px of content, each group 100px under the last. */
+    function scrollable() {
+      const scrollTo = vi.fn()
+      const pane = root().querySelector<HTMLElement>('[data-planner-pane="days"]')!
+      pane.scrollTo = scrollTo as unknown as typeof pane.scrollTo
+      vi.spyOn(pane, 'scrollHeight', 'get').mockReturnValue(900)
+      vi.spyOn(pane, 'clientHeight', 'get').mockReturnValue(300)
+      pane.scrollTop = 40
+      const rect = (top: number) => ({ top, bottom: top + 100, left: 0, right: 500, width: 500, height: 100, x: 0, y: top, toJSON: () => ({}) })
+      vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(rect(200))
+      const groups = [...pane.querySelectorAll<HTMLElement>('[data-planner-group]')]
+      // As drawn with the pane scrolled 40px: its content starts at 160.
+      groups.forEach((g, i) => vi.spyOn(g, 'getBoundingClientRect').mockReturnValue(rect(160 + i * 100)))
+      return scrollTo
+    }
+
+    it('scrolls the day list to that day — it picks nothing, and every day stays listed', () => {
+      show()
+      const scrollTo = scrollable()
+      fireEvent.click(tile('2026-11-23'))
+      // Mon is the fourth group: 300px into the content.
+      expect(scrollTo).toHaveBeenCalledWith({ top: 300, behavior: 'smooth' })
+      expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned'])
+      expect(tile('2026-11-23')).not.toHaveAttribute('aria-pressed')
+      expect(root().querySelector('[data-picked]')).toBeNull()
+      // An empty day's tile goes to its quiet heading; today's to Today.
+      fireEvent.click(tile('2026-11-22'))
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 200, behavior: 'smooth' })
+      fireEvent.click(tile('2026-11-20'))
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: 'smooth' })
+      expect(scrollTo).toHaveBeenCalledTimes(3)
+    })
+
+    it('scrolls at once under reduced motion', () => {
+      const original = window.matchMedia
+      window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('prefers-reduced-motion') })) as typeof window.matchMedia
+      try {
+        show()
+        const scrollTo = scrollable()
+        fireEvent.click(tile('2026-11-24'))
+        expect(scrollTo).toHaveBeenCalledWith({ top: 400, behavior: 'auto' })
+      } finally {
+        window.matchMedia = original
+      }
+    })
+
+    it('does nothing where the list has nothing to scroll', () => {
+      show()
+      const into = vi.fn()
+      for (const g of root().querySelectorAll<HTMLElement>('[data-planner-group]')) g.scrollIntoView = into
+      fireEvent.click(tile('2026-11-23'))
+      expect(into).not.toHaveBeenCalled()
+      expect(root().querySelector<HTMLElement>('[data-planner-pane="days"]')!.scrollTop).toBe(0)
+    })
+
+    it('in a shifted window goes to that window’s day', () => {
+      show()
+      fireEvent.click(screen.getByRole('button', { name: 'Next week' }))
+      const scrollTo = scrollable()
+      // Today, then Fri 27 … : Sat 28 is the third group.
+      fireEvent.click(tile('2026-11-28'))
+      expect(scrollTo).toHaveBeenCalledWith({ top: 200, behavior: 'smooth' })
+    })
   })
 
   it('the arrows move the window a week; Today stays, and there is no week before this one', () => {
@@ -260,15 +392,13 @@ describe('the Planner — the strip', () => {
     expect(screen.getByRole('button', { name: 'Previous week' })).toBeDisabled()
   })
 
-  it('keeps the window and the picked day by tab, across a remount (Open larger)', () => {
+  it('keeps the window by tab, across a remount (Open larger)', () => {
     const first = show()
     fireEvent.click(screen.getByRole('button', { name: 'Next week' }))
-    fireEvent.click(tile('2026-11-30'))
     first.unmount()
     show({ forced: 'large' })
-    expect(tile('2026-11-30')).toHaveAttribute('aria-pressed', 'true')
-    expect(groupNames()).toEqual(['Today', 'Mon, Nov 30', 'Tue, Dec 1', 'Wed, Dec 2', 'Thu, Dec 3', 'Unplanned'])
-    expect(usePlannerStore.getState().windows).toEqual({ [plannerWindowKey(null, 'plan')]: { offset: 7, picked: new Date(2026, 10, 30).getTime() } })
+    expect(tileNames()[0]).toBe('Fri, Nov 27: no tasks')
+    expect(usePlannerStore.getState().windows).toEqual({ [plannerWindowKey(null, 'plan')]: { offset: 7 } })
   })
 })
 
@@ -411,6 +541,11 @@ describe('the Planner — a completed row leaves', () => {
 describe('the Planner — its rows’ zoom', () => {
   const zooms = () => [...new Set([...root().querySelectorAll('[data-planner-pane] > [data-zoom]')].map((el) => el.getAttribute('data-zoom')))]
 
+  it('each pane’s rows share their columns: the days one list, the trays another', () => {
+    show()
+    expect(root().querySelectorAll('[data-planner-pane] > [data-zoom]')).toHaveLength(2)
+  })
+
   it('follows Default list zoom’s Auto: Rows in a wide pane, Stacked in a narrow one', () => {
     show()
     expect(zooms()).toEqual(['rows'])
@@ -435,7 +570,7 @@ describe('the Planner — its rows’ zoom', () => {
 })
 
 describe('the Planner — medium and small', () => {
-  it('a narrow cell shows the strip over one column: Today, the days ahead, Delayed, Unplanned', () => {
+  it('a narrow cell shows the strip over one column: Today, the days ahead, the trays', () => {
     width = 500
     show()
     expect(root()).toHaveAttribute('data-planner-face', 'medium')

@@ -16,6 +16,7 @@ import { PriorityRing } from '../shared/PriorityRing'
 import { useTooltip } from '../shared/use-tooltip'
 import { TagPicker } from '../shared/TagChipSelector'
 import { keepRowTextUnselected } from './row-events'
+import { useTaskRowExtras } from './task-row-extras'
 import { TaskMenu } from './TaskMenu'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import styles from './TaskLine.module.css'
@@ -76,7 +77,9 @@ const NO_PEOPLE: readonly Person[] = []
  * right-click opens the task menu at the pointer, and Shift+F10 / the
  * context-menu key on the focused line (a tab stop, as a row's cells are)
  * under it, the focus back on the line after (`LineActions`). Its list
- * wraps it as the drag source, as a row.
+ * wraps it as the drag source, as a row. The surface around it may add a
+ * tag after the title and draw its date late (`TaskRowExtrasContext`, the
+ * Planner's; nothing without a provider).
  */
 export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect, onOpenDetail }: {
   todo: PersistedTodoItem
@@ -91,7 +94,12 @@ export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect,
   // Clicks in the menu and its pickers (portaled, but children here) aren't the line's.
   const own = (e: React.SyntheticEvent) => e.target instanceof Node && e.currentTarget.contains(e.target)
   const today = useToday()
-  const { tone, stale, faded, markers, date } = useLineState(todo, today)
+  const { tone, stale, faded, markers, date: ownDate } = useLineState(todo, today)
+  // The surface's tag and late dates (the Planner's); null everywhere else.
+  const extras = useTaskRowExtras(todo)
+  const tag = extras?.tag
+  const drawnLate = ownDate != null && extras?.late?.[ownDate.kind] === true
+  const date = ownDate && drawnLate ? { ...ownDate, tone: ownDate.kind === 'due' ? 'late' as const : 'followup' as const } : ownDate
   const tags = useTagStore((s) => s.assignedTagsMap.get(todo.id))
   const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
@@ -145,7 +153,14 @@ export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect,
       <span className={styles.box} aria-hidden="true" data-line-box="">
         <PriorityRing summary={markers} completed={todo.isCompleted} size={LINE_BOX} />
       </span>
-      <span className={styles.title} data-task-title={todo.title}>{todo.title}</span>
+      {tag ? (
+        <span className={styles.titleWithTag}>
+          <span className={styles.title} data-task-title={todo.title}>{todo.title}</span>
+          {tag}
+        </span>
+      ) : (
+        <span className={styles.title} data-task-title={todo.title}>{todo.title}</span>
+      )}
       {date && (
         <span className={styles.date} data-line-date={date.kind} data-date-tone={date.tone} aria-hidden="true">
           {date.kind === 'followup' && <FlagIcon size={9} />}

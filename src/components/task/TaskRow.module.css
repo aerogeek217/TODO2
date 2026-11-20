@@ -355,6 +355,13 @@
   pointer-events: auto;
 }
 
+/* A stacked row's hover buttons (the surface's, `TaskRowExtras.actions`): over its title line's end. */
+.fieldCluster.stackedActions {
+  top: 1px;
+  bottom: auto;
+  height: 22px;
+}
+
 /* The add-subtasks mark of a task with no checklist (`SubtaskAddButton`): revealed as the placeholders are, and while its popover is open. */
 .subtaskAdd {
   opacity: 0;

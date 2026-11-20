@@ -22,8 +22,6 @@ export interface PlannerData {
   windowKey: string
   /** The window's offset from today, days (`stores/planner-store`). */
   offset: number
-  /** The picked day (local midnight, ms), or null. */
-  picked: number | null
   /** Today, the days ahead, the Delayed and Unplanned trays, and the tiles (`utils/planner.plannerView`). */
   view: PlannerView<Task>
   /** The rows lingering after a completion (`useLeavingRows`), by task id. */
@@ -41,7 +39,7 @@ const groupIds = (groups: ReadonlyArray<PlannerGroup<Task>>): number[] => groups
 
 /**
  * A Planner tab's data: the open tasks the screen filter shows
- * (`useScreenTasks`) placed for the tab's window and picked day
+ * (`useScreenTasks`) placed for the tab's window
  * (`stores/planner-store`, by the open layout and the tab) in its hand order (`order`, the tab's view
  * state). With `linger`, a row completed here lingers, then folds, as a
  * list's does (`useLeavingRows`): the view is built with it as it was just
@@ -51,7 +49,7 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
   const today = useToday()
   const screenTasks = useScreenTasks()
   const windowKey = plannerWindowKey(useWorkspaceStore((s) => s.working?.id), tabId)
-  const { offset, picked } = usePlannerWindow(windowKey)
+  const { offset } = usePlannerWindow(windowKey)
   const ranges = useSettingsStore((s) => s.tabBadges)
 
   const shownIdsRef = useRef<ReadonlySet<number>>(NO_IDS)
@@ -59,7 +57,7 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
   const leaving = linger ? completed : NO_LEAVING
 
   const { view, kept } = useMemo(() => {
-    const options = { today, offset, picked: picked == null ? null : new Date(picked), order }
+    const options = { today, offset, order }
     const built = plannerView(screenTasks, options)
     if (leaving.size === 0) return { view: built, kept: NO_IDS }
     const rows = (v: PlannerView<Task>) => new Set(groupIds([v.today, ...v.days, v.delayed, v.unplanned]))
@@ -68,7 +66,7 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
     if (dropped.size === 0) return { view: built, kept: NO_IDS }
     const before = [...dropped].flatMap((id) => leaving.get(id)?.before ?? [])
     return { view: plannerView([...screenTasks.filter((t) => !dropped.has(t.id)), ...before], options), kept: dropped }
-  }, [screenTasks, today, offset, picked, order, leaving])
+  }, [screenTasks, today, offset, order, leaving])
 
   useEffect(() => { shownIdsRef.current = new Set(groupIds([view.today, ...view.days, view.delayed, view.unplanned])) })
   const keptTodos = useKeptTodos(kept, leaving)
@@ -78,7 +76,7 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
     return { counts, summary: tabBadgeSummary(counts, ranges) }
   }, [view, kept, ranges, today])
 
-  return { today, windowKey, offset, picked, view, leaving, keptTodos, badge }
+  return { today, windowKey, offset, view, leaving, keptTodos, badge }
 }
 
 /**

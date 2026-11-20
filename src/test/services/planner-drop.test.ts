@@ -671,6 +671,8 @@ describe('Unplan all Delayed', () => {
     expect(w.tasks()).toBe(1)
     expect(w.realDates()).toBe(0)
     expect(steps()).toEqual(['Unplanned 3 tasks from Delayed'])
+    // With the snackbar and its Undo.
+    expect(useUndoStore.getState().snackbar?.description).toBe('Unplanned 3 tasks from Delayed')
     expect(await plan(dated.id)).toMatchObject({ doDate: undefined, unplanned: true, dueDate: day(2), modifiedAt: STAMP })
     expect(await plan(late.id)).toMatchObject({ doDate: undefined, unplanned: true, nextFollowupAt: day(-5), modifiedAt: STAMP })
     expect(await plan(focus.id)).toMatchObject({ doDate: undefined, unplanned: undefined, modifiedAt: STAMP })
@@ -720,6 +722,9 @@ describe('Reset plan', () => {
     expect(w.tasks()).toBe(1)
     expect(w.realDates()).toBe(0)
     expect(steps()).toEqual(['Reset plan: this week'])
+    // With the snackbar and its Undo.
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Reset plan: this week' })
+    expect(useUndoStore.getState().snackbar?.notice).toBeUndefined()
     for (const task of [t.plannedToday, t.plannedMon, t.delayed, t.held]) expect(await plan(task.id)).toMatchObject(NO_PLAN)
     expect(await plan(t.plannedToday.id)).toMatchObject({ dueDate: day(3) })
     expect(await plan(t.delayed.id)).toMatchObject({ nextFollowupAt: day(1) })
