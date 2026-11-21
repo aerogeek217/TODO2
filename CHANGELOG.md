@@ -20,6 +20,8 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-21, second deployment
+
 ### Security
 
 - **Imports check the ids that link rows together.** A file whose task, person, tag or list links aren't whole
