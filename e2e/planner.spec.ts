@@ -206,7 +206,8 @@ test('a dated row dropped on Unplanned is held there, keeps its date, and is sti
   const inTwo = await dayKeyIn(page, 2)
   const unplanned = unplannedGroup(page)
   await expect(titles(unplanned)).toHaveText(['Someday focus'])
-  await expect(tile(page, inTwo)).toHaveAccessibleName(/: 2 tasks$/)
+  // The tile's name: its rows, then its marks — a due date and a follow-up fall on the day.
+  await expect(tile(page, inTwo)).toHaveAccessibleName(/: 2 tasks, 1 due, 1 follow-up$/)
 
   await drag(page, await grip(rowOf(group(page, inTwo), 'Book the venue')), await pointIn(unplanned, 0.5, 0.7), {
     during: async () => {
@@ -218,7 +219,8 @@ test('a dated row dropped on Unplanned is held there, keeps its date, and is sti
   await expect(titles(unplanned)).toContainText(['Book the venue'])
   await expect(titles(unplanned)).toHaveCount(2)
   await expect(titles(group(page, inTwo))).toHaveText(['Call the caterer'])
-  await expect(tile(page, inTwo)).toHaveAccessibleName(/: 1 task$/)
+  // One row fewer; the held task's due date still marks the day.
+  await expect(tile(page, inTwo)).toHaveAccessibleName(/: 1 task, 1 due, 1 follow-up$/)
   await expect.poll(async () => (await stored(page, 'Book the venue')).held).toBe(true)
   expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, held: true, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
   await expect.poll(() => newestUndoStep(page)).toMatch(/^Unplanned “Book the venue”/)
