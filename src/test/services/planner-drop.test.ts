@@ -20,6 +20,7 @@ import { useListOrderStore } from '../../stores/list-order-store'
 import type { PlannerDragPreview } from '../../stores/planner-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useUIStore, type ConfirmPrompt } from '../../stores/ui-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-store'
 import {
@@ -42,7 +43,7 @@ import { resetStores } from '../store-tracking'
  * and database: each decision of the drop rule is exactly one task write —
  * the task's plan state (a planned day, held in Unplanned, cleared: both
  * fields at once, one undo step, no stamp, no history event) — or none; a
- * due date or a follow-up is never written by a drop, Move to day ›,
+ * due date or a follow-up is never written by a drop, Plan for day ›,
  * Snooze, Unplan, Unplan all Delayed or Reset plan — only by a conflict's
  * Move date fix, which is a real edit. A drop into a group stores the hand
  * order on the Planner's tab. Drops are driven as the page drives them:
@@ -304,17 +305,26 @@ describe('a drop on Unplanned', () => {
     expect(await plan(task.id)).toEqual({ doDate: undefined, unplanned: undefined, nextFollowupAt: undefined, dueDate: day(20), modifiedAt: STAMP })
   })
 
-  it('writes nothing for a row that is there already, and refuses a task that wouldn’t show there', async () => {
+  it('writes nothing for a row that is there already', async () => {
     const focus = await seed('Focus', { focus: true })
     const held = await seed('Held', { unplanned: true, dueDate: day(1) })
-    const plain = await seed('Plain')
     const w = watchWrites()
     await drop(focus, unplanned([focus.uid, held.uid], [focus.uid, held.uid]))
     await drop(held, unplanned([focus.uid, held.uid], [focus.uid, held.uid]))
-    await drop(plain, unplanned([focus.uid], [focus.uid]), over(PLANNER_UNPLANNED_KEY, 0))
     expect(w.tasks()).toBe(0)
     expect(w.patch).not.toHaveBeenCalled()
     expect(steps()).toEqual([])
+  })
+
+  it('holds a task with no plan, no date and no Focus: it joins the Planner, flagged, one undo step', async () => {
+    const focus = await seed('Focus', { focus: true })
+    const plain = await seed('Plain')
+    const w = watchWrites()
+    await drop(plain, unplanned([focus.uid], [focus.uid]), over(PLANNER_UNPLANNED_KEY, 0))
+    expect(w.tasks()).toBe(1)
+    expect(w.realDates()).toBe(0)
+    expect(await plan(plain.id)).toMatchObject({ unplanned: true, doDate: undefined, modifiedAt: STAMP })
+    expect(steps()).toEqual(['Unplanned “Plain”'])
   })
 })
 
@@ -574,7 +584,7 @@ describe('the hand order', () => {
   })
 })
 
-describe('Move to day › (no pointer)', () => {
+describe('Plan for day › (no pointer)', () => {
   it('makes the same writes as a drop on the day, and never an order or a real date', async () => {
     const chase = await seed('Chase', { nextFollowupAt: day(0) })
     const venue = await seed('Venue', { dueDate: day(2) })
@@ -771,6 +781,31 @@ describe('Reset plan', () => {
     }
   }
   const NO_PLAN = { doDate: undefined, unplanned: undefined, modifiedAt: STAMP }
+  /** The confirm prompt Reset plan asks, answered `answer`; its questions. */
+  let asked: ConfirmPrompt[] = []
+  function answer(yes: boolean) {
+    asked = []
+    useUIStore.setState({
+      askConfirmation: (prompt) => {
+        asked.push(prompt)
+        return Promise.resolve(yes)
+      },
+    })
+  }
+  beforeEach(() => answer(true))
+
+  it('asks first — how many plans it clears, and how many of those tasks then leave the Planner; Cancel writes nothing', async () => {
+    await week()
+    await seed('Parked', { unplanned: true })
+    answer(false)
+    const w = watchWrites()
+    await resetPlannerPlan(viewNow(), 'week')
+    expect(asked).toHaveLength(1)
+    expect(asked[0]).toMatchObject({ title: 'Reset plan: this week?', confirmLabel: 'Reset plan' })
+    expect(asked[0]?.message).toBe('This clears the plan of 5 tasks: each goes back to where its own dates put it. 2 of them have no date in the Planner and leave it. No due date or follow-up changes.')
+    expect(w.tasks()).toBe(0)
+    expect(steps()).toEqual([])
+  })
 
   it('this week: clears every plan state the Planner shows or holds, one write and one undo step; real dates and plans past the window stay', async () => {
     const t = await week()
@@ -836,6 +871,8 @@ describe('Reset plan', () => {
     for (const scope of ['week', 'today', 'delayed'] as const) await resetPlannerPlan(viewNow(), scope)
     expect(w.tasks()).toBe(0)
     expect(steps()).toEqual([])
+    // Nor asks.
+    expect(asked).toEqual([])
   })
 })
 

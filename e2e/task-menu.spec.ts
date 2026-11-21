@@ -39,6 +39,8 @@ test.describe('task menu', () => {
     await page.keyboard.press('ArrowDown')
     expect(await focusedLabel(page)).toBe('Copy')
     await page.keyboard.press('ArrowDown')
+    expect(await focusedLabel(page)).toBe('Plan for day')
+    await page.keyboard.press('ArrowDown')
     expect(await focusedLabel(page)).toBe('Set due date…')
     await page.keyboard.press('Home')
     await page.keyboard.press('ArrowUp')

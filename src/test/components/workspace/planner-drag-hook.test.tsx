@@ -221,7 +221,7 @@ describe('over a group', () => {
     expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: MON_KEY, drop: { kind: 'none' }, index: 0 })
   })
 
-  it('has no place for a refused drop, nor for a task a drop wouldn’t bring into the group', () => {
+  it('has no place for a refused drop; a list’s row with no date has one in Unplanned', () => {
     render(<Harness />)
     // Delayed takes no drop.
     start(monday, MON_KEY)
@@ -229,11 +229,12 @@ describe('over a group', () => {
     move(410)
     expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'delayed', drop: { kind: 'refuse' }, index: null })
     end()
-    // A list's row with no plan and no date, not in Focus: it wouldn't show in Unplanned.
+    // A list's row with no plan and no date, not in Focus: held, so it joins the Planner in Unplanned.
     start(makeTodo({ id: 9, uid: 'plain' }), null, { listTabId: 'a-list', sectionKey: 'all', rowKey: 'all|9' })
     over(group('unplanned'))
     move(470)
-    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'refuse' }, index: null })
+    expect(preview()).toMatchObject({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan', hold: true } })
+    expect(preview()?.index).not.toBeNull()
     end()
     // A planned task with no date, not in Focus: held, so it has a place in Unplanned.
     start(makeTodo({ id: 10, uid: 'bare', doDate: day(1) }), null)

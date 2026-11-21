@@ -20,7 +20,37 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
-Nothing yet.
+## 2026-11-21
+
+### Added
+
+- **Plan any task from anywhere.** Every task's right-click menu, and the ⋯ menu in the task editor and the review
+  card, has **Plan for day ›**: today, the next six days, or **Unplanned**. A task with no date or Focus can now be
+  held in Unplanned, by the menu or by dropping it there, and joins the Planner with its corner flag. **Clear plan**
+  takes the plan back off; it reads **Remove from Planner** when that takes the task out of the Planner.
+- **Remove and Clear on the Planner's Unplanned rows.** A row held there shows **Remove** beside Today, or **Clear**
+  when its date or Focus keeps it in the Planner anyway. A row's menu in the Planner also has Clear plan.
+
+### Changed
+
+- **A task in the Planner's Unplanned tray offers Today instead of Snooze.** Nothing there is planned, so there was
+  nothing to put off: Snooze only planned it for tomorrow. Its hover button is now **Today**, which plans it for
+  today. Its menu has no Snooze; Plan for day › still offers every day.
+- **The Planner's Move to day › is now Plan for day ›**, in a row's menu.
+- **Reset plan asks before it clears anything.** It says how many plans it clears, and how many of those tasks then
+  leave the Planner.
+
+### Removed
+
+- **The Planner's Today no longer ends with an Add task row.** Add tasks from Quick Add or a list.
+
+### Fixed
+
+- **Calendar entries have a right-click menu.** Right-clicking a task in the calendar, or in a day's "+N more"
+  popover, opened the browser's menu. It now opens the task menu, Shift+F10 and the Menu key too.
+- **Deleting a selected bullet line in notes took the bullet off the line below.** Selecting a whole list line by
+  dragging down to the start of the next one, then pressing Delete or Backspace, left the next line as plain text.
+  Now the lines below keep their bullets and checkboxes.
 
 ## 2026-11-20, second deployment
 

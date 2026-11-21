@@ -17,7 +17,7 @@ import { addDays, dayKey, formatDateWith, MS_PER_DAY, startOfDay } from './date'
  * groups and tiles of a seven-day window (`plannerView`), a tile's marks
  * (`plannerTileMarks`) and a row's tag (`plannerRowTag`), the hand order
  * (`plannerOrder`, `plannerReorder`), what a drop writes (`plannerDrop` —
- * the only place the drop rule lives; Snooze, Unplan and Move to day › go
+ * the only place the drop rule lives; Snooze, Unplan and Plan for day › go
  * through it), and what Unplan all Delayed and Reset plan change.
  */
 
@@ -221,6 +221,22 @@ export function plannerPlacement(task: PlannerTask, span: PlannerSpan): PlannerP
   if (natural) return { where: 'day', day: natural.day, reason: natural.reason, placed: false, planned: null, natural, conflicts: [] }
   if (task.focus === true) return { where: 'unplanned', day: null, reason: 'focus', placed: false, planned: null, natural: null, conflicts: [] }
   return null
+}
+
+/** Whether `task` has a plan state: a planned day (`doDate`, even a redundant one) or held in Unplanned. */
+export function plannerHasPlan(task: Pick<PlannerTask, 'doDate' | 'unplanned'>): boolean {
+  return task.doDate != null || task.unplanned === true
+}
+
+/**
+ * Whether clearing `task`'s plan state takes it **out of** a Planner whose
+ * window is `span` (it shows it now, and with no plan it would show it
+ * nowhere: no date in the window, not in Focus) — Clear plan then reads
+ * **Remove from Planner**, and says so in the snackbar.
+ */
+export function plannerClearLeaves(task: PlannerTask, span: PlannerSpan): boolean {
+  if (!plannerHasPlan(task)) return false
+  return plannerShows(task, span) && !plannerShows({ ...task, doDate: undefined, unplanned: undefined }, span)
 }
 
 /** Whether a row is **planned later**: it sits on its natural day while its planned day lies past the window. */
@@ -587,12 +603,12 @@ export type PlannerDrop =
   | { kind: 'own'; day: Date }
   /**
    * Dropped on Unplanned: held there (`hold`) — a task with a natural day to
-   * be kept off, and one that would otherwise leave the Planner (no such
-   * date and not in Focus) —, else (a Focus task with no such date) its plan
+   * be kept off, and any other open task (one the Planner doesn't hold yet
+   * joins it so) —, else (a planned Focus task with no such date) its plan
    * is just cleared: Focus keeps it in Unplanned.
    */
   | { kind: 'unplan'; hold: boolean }
-  /** Not allowed there: Delayed takes no drop, a completed task goes nowhere, a task the Planner doesn't hold has no plan to lose. */
+  /** Not allowed there: Delayed takes no drop, a completed task goes nowhere, a day before today is past. */
   | { kind: 'refuse' }
   /** Nothing to write: it is there already (order only). */
   | { kind: 'none' }
@@ -610,8 +626,9 @@ export type PlannerDrop =
  * - on **Unplanned**: a task with a natural day is held (`unplan`,
  *   `hold`); a planned one without: in Focus it just loses its plan (Focus
  *   keeps it there), else it is held too — **Unplan never takes a task out
- *   of the Planner**. A task with no plan, no natural day and not in Focus
- *   is refused (the Planner doesn't hold it: nothing to unplan);
+ *   of the Planner**. Any other open task is held as well: Unplanned is how
+ *   a task with no date joins the Planner (Clear plan takes it out again,
+ *   `plannerClearLeaves`);
  * - **Delayed** takes no drop.
  *
  * Never a due date or a follow-up.
@@ -624,7 +641,8 @@ export function plannerDrop(task: PlannerTask, span: PlannerSpan, target: Planne
   if (target.kind === 'unplanned') {
     if (at?.where === 'unplanned') return { kind: 'none' }
     if (natural) return { kind: 'unplan', hold: true }
-    return task.doDate != null ? { kind: 'unplan', hold: task.focus !== true } : { kind: 'refuse' }
+    // A Focus task with no plan is in Unplanned already (above): only a planned one is left, which just loses its plan.
+    return { kind: 'unplan', hold: task.focus !== true }
   }
   const day = dayOf(target.day)
   if (day.getTime() < dayTime(span.today)) return { kind: 'refuse' }
@@ -647,7 +665,9 @@ export function plannerDropWrite(drop: PlannerDrop): TaskPlan | undefined {
 /**
  * The day **Snooze** plans a task for: the day after the day it sits on —
  * after its planned day, for a row planned later —, never earlier than
- * tomorrow; a row in Delayed or Unplanned (or not shown) goes to tomorrow.
+ * tomorrow; a row in Delayed (or not shown) goes to tomorrow. (A row in
+ * Unplanned offers no Snooze — its button is Today — so only the rule's
+ * callers outside the row see it go to tomorrow too.)
  */
 export function plannerSnoozeDay(placement: Pick<PlannerPlacement, 'where' | 'day' | 'reason' | 'planned'> | null, today: Date): Date {
   const tomorrow = addDays(dayOf(today), 1)

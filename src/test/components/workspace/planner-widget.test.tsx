@@ -471,15 +471,9 @@ describe('the Planner — Today’s foot', () => {
     expect(screen.queryByTestId('planner-done')).toBeNull()
   })
 
-  it('Add task is Today’s last row and plans the new task for today, beside the screen filter’s seeds', () => {
+  it('has no Add task row', () => {
     show()
-    const add = within(group('Today')).getByRole('button', { name: 'Add task' })
-    expect(group('Today').querySelector('[data-planner-group-body]')?.lastElementChild).toBe(add)
-    act(() => patchScreenFilter({ personIds: new Set([4]) }))
-    fireEvent.click(add)
-    const ui = useUIStore.getState()
-    expect(ui.quickAddOpen).toBe(true)
-    expect(ui.quickAddDraft?.defaults).toEqual({ personIds: [4], tagIds: [], statusId: undefined, doDate: new Date(2026, 10, 20) })
+    expect(within(root()).queryByRole('button', { name: 'Add task' })).toBeNull()
   })
 })
 
@@ -581,7 +575,6 @@ describe('the Planner — medium and small', () => {
     expect(root().querySelector('[data-planner-strip]')).toHaveAttribute('data-planner-strip', 'tiles')
     expect(root().querySelectorAll('[data-planner-tile]')).toHaveLength(7)
     expect(groupNames()).toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned'])
-    expect(within(group('Today')).getByRole('button', { name: 'Add task' })).toBeInTheDocument()
   })
 
   it('a short cell is one column too', () => {
@@ -643,7 +636,6 @@ describe('the Planner — on the phone', () => {
     expect(titlesIn(group('Today'))).toEqual(['Late invoice', 'Chase legal', 'Planned for today'])
     // The phone's rows: no draggable occurrence.
     expect(root().querySelector('[data-row-key], [data-drag-id]')).toBeNull()
-    expect(within(group('Today')).getByRole('button', { name: 'Add task' })).toBeInTheDocument()
   })
 
   it('has no Unplanned group with nothing in it', () => {

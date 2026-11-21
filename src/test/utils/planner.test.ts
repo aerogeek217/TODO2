@@ -37,6 +37,8 @@ import {
   plannerTileLabel,
   plannerTileMarks,
   plannerUnplan,
+  plannerClearLeaves,
+  plannerHasPlan,
   plannerUnplanDelayed,
   plannerView,
   plannerWindow,
@@ -691,9 +693,10 @@ describe('plannerDrop: the drop rule', () => {
       expect(drop({ unplanned: true }, UNPLANNED)).toEqual({ kind: 'none' })
     })
 
-    it('a task with no plan to lose that wouldn’t show there is refused', () => {
-      expect(drop({}, UNPLANNED)).toEqual({ kind: 'refuse' })
-      expect(drop({ dueDate: day(30) }, UNPLANNED)).toEqual({ kind: 'refuse' })
+    it('any other open task is held: Unplanned is how a task with no date joins the Planner', () => {
+      expect(drop({}, UNPLANNED)).toEqual({ kind: 'unplan', hold: true })
+      expect(drop({ dueDate: day(30) }, UNPLANNED)).toEqual({ kind: 'unplan', hold: true })
+      expect(drop({ isCompleted: true }, UNPLANNED)).toEqual({ kind: 'refuse' })
     })
   })
 
@@ -950,7 +953,7 @@ describe('Unplan and Unplan all Delayed', () => {
     expect(plannerUnplan(task({ focus: true, doDate: day(2) }), SPAN)).toEqual({ kind: 'unplan', hold: false })
     expect(plannerUnplan(task({ doDate: day(2) }), SPAN)).toEqual({ kind: 'unplan', hold: true })
     expect(plannerUnplan(task({ focus: true }), SPAN)).toEqual({ kind: 'none' })
-    expect(plannerUnplan(task({}), SPAN)).toEqual({ kind: 'refuse' })
+    expect(plannerUnplan(task({}), SPAN)).toEqual({ kind: 'unplan', hold: true })
   })
 
   it('Unplan all Delayed: every Delayed task held, a Focus one with no date its plan cleared — each stays in the Planner; nothing else', () => {
@@ -1117,5 +1120,28 @@ describe('across a daylight-saving change', () => {
     const sat: PlannerTask = { uid: 'c', isCompleted: false, sortOrder: 3, doDate: new Date(2026, 9, 31) }
     expect(plannerSnooze(sat, span)).toEqual({ kind: 'plan', day: new Date(2026, 10, 1) })
     expect(plannerSnooze({ ...sat, doDate: new Date(2026, 10, 1) }, span)).toEqual({ kind: 'plan', day: new Date(2026, 10, 2) })
+  })
+})
+
+describe('Clear plan', () => {
+  it('a task has a plan state with a planned day (a redundant one too) or held in Unplanned', () => {
+    expect(plannerHasPlan(task({ doDate: day(2) }))).toBe(true)
+    expect(plannerHasPlan(task({ unplanned: true }))).toBe(true)
+    expect(plannerHasPlan(task({ dueDate: day(2), doDate: day(2) }))).toBe(true)
+    expect(plannerHasPlan(task({ dueDate: day(2), focus: true }))).toBe(false)
+  })
+
+  it('takes the task out of the Planner only when nothing else keeps it there: no date in the window, not in Focus', () => {
+    expect(plannerClearLeaves(task({ unplanned: true }), SPAN)).toBe(true)
+    expect(plannerClearLeaves(task({ doDate: day(3) }), SPAN)).toBe(true)
+    expect(plannerClearLeaves(task({ doDate: day(-2) }), SPAN)).toBe(true)
+    expect(plannerClearLeaves(task({ unplanned: true, dueDate: day(30) }), SPAN)).toBe(true)
+    expect(plannerClearLeaves(task({ unplanned: true, dueDate: day(2) }), SPAN)).toBe(false)
+    expect(plannerClearLeaves(task({ unplanned: true, nextFollowupAt: day(-4) }), SPAN)).toBe(false)
+    expect(plannerClearLeaves(task({ doDate: day(3), focus: true }), SPAN)).toBe(false)
+    // No plan state: nothing to clear.
+    expect(plannerClearLeaves(task({}), SPAN)).toBe(false)
+    // Planned past the window with no date in it: the Planner doesn't show it now, so clearing takes nothing out.
+    expect(plannerClearLeaves(task({ doDate: day(12) }), SPAN)).toBe(false)
   })
 })

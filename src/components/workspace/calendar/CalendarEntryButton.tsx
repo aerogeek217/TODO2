@@ -1,11 +1,14 @@
-import { memo } from 'react'
+import { memo, useCallback, useRef, useState } from 'react'
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core'
 import { calendarEntryLevel, calendarEntryState, type CalendarEntry } from '../../../services/calendar-entries'
 import { useSettingsStore } from '../../../stores/settings-store'
+import { useUIStore } from '../../../stores/ui-store'
 import { calendarEntryBar, calendarEntryTitle } from './calendar-entry-title'
 import { AvatarStack } from '../../shared/AvatarStack'
 import { TaskPillStatus } from '../../shared/TaskPillBar'
 import { RepeatIcon } from '../../shared/icons'
+import { oneTaskMenuHandlers } from '../../task/one-task-menu'
+import { TaskMenu } from '../../task/TaskMenu'
 import styles from './CalendarWidget.module.css'
 import { TODO_ID_ATTR, TOOLTIP_BAR_ATTR, TOOLTIP_BAR_LABEL_ATTR } from '../../../utils/dom-contract'
 
@@ -36,7 +39,10 @@ interface CalendarEntryButtonProps {
  * shares: faint later, full soon, heavier over a faint tint late). Repeat
  * glyph · title · meta (people + status at `md` / `touch`). Its tooltip is
  * the title beside the same bar, the date type's colour. Click opens the
- * task.
+ * task; a right-click (Shift+F10 / the Menu key on it) opens the task menu
+ * for that one task (`oneTaskMenuHandlers`: no row pickers), Plan for day ›
+ * among it — beside the button, not inside it, so no key in the menu
+ * reaches the entry's drag.
  */
 export const CalendarEntryButton = memo(function CalendarEntryButton({
   entry, today, size, wrap = false, onOpen, dragging = false, ghost = false,
@@ -47,6 +53,13 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
   const range = useSettingsStore((s) => s.urgentDueWithinDays)
   const showMeta = size !== 'sm'
   const bar = calendarEntryBar(entry)
+  const [menu, setMenu] = useState<{ x: number; y: number } | 'anchor' | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const setRefs = useCallback((node: HTMLButtonElement | null) => {
+    buttonRef.current = node
+    dragRef?.(node)
+  }, [dragRef])
+  const open = onOpen ?? ((id: number) => useUIStore.getState().openEditPopup(id))
   const cls = [
     styles.entry,
     size === 'md' ? styles.entryMd : size === 'touch' ? styles.entryTouch : '',
@@ -57,8 +70,9 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
   ].filter(Boolean).join(' ')
 
   return (
+    <>
     <button
-      ref={dragRef}
+      ref={setRefs}
       type="button"
       className={cls}
       data-cal-entry={entry.kind}
@@ -71,6 +85,12 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
       onClick={(e) => {
         e.stopPropagation()
         onOpen?.(todo.id)
+      }}
+      onContextMenu={ghost ? undefined : (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        // From the keyboard (no right button): under the entry.
+        setMenu(e.button === 2 ? { x: e.clientX, y: e.clientY } : 'anchor')
       }}
       {...(dragAttributes ?? {})}
       {...(dragListeners ?? {})}
@@ -87,5 +107,16 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
         </span>
       )}
     </button>
+    {menu && (
+      <TaskMenu
+        todo={todo}
+        anchorRef={menu === 'anchor' ? buttonRef : undefined}
+        point={menu === 'anchor' ? undefined : menu}
+        selectionAware={false}
+        handlers={oneTaskMenuHandlers({ todo, onOpen: open })}
+        onClose={() => setMenu(null)}
+      />
+    )}
+    </>
   )
 })

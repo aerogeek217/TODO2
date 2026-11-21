@@ -7,7 +7,7 @@ import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { PopoverRoot } from '../shared/PopoverRoot'
 import { TaskMenu } from '../task/TaskMenu'
-import { searchMenuHandlers } from './top-bar-search-menu'
+import { oneTaskMenuHandlers } from '../task/one-task-menu'
 import styles from './TopBar.module.css'
 
 /**
@@ -160,7 +160,7 @@ function SearchResultRow({ todo, field, query, pillCtx, onOpen, onKeyDown, onOpe
 /**
  * Right-click menu for a search result. Its own component so TopBar hands the
  * ref-touching `handleOpenTodo` over as a JSX prop instead of passing it into
- * a render-time `searchMenuHandlers` call (`react-hooks/refs`).
+ * a render-time `oneTaskMenuHandlers` call (`react-hooks/refs`).
  */
 export function SearchResultContextMenu({ x, y, todo, onOpen, onClose }: {
   x: number
@@ -174,7 +174,7 @@ export function SearchResultContextMenu({ x, y, todo, onOpen, onClose }: {
       todo={todo}
       point={{ x, y }}
       selectionAware={false}
-      handlers={searchMenuHandlers({ todo, onOpen })}
+      handlers={oneTaskMenuHandlers({ todo, onOpen })}
       onClose={onClose}
     />
   )

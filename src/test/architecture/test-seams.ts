@@ -38,7 +38,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'components/workspace/glance/menu-entries.tsx': ['toggledId'],
   'components/workspace/glance/number-colors.ts': ['dimmed'],
   'components/workspace/neglect/NeglectMapWidget.tsx': ['SLIPPING_LISTED'],
-  'components/workspace/planner/planner-menu.tsx': ['MOVE_PLAN_LABEL', 'PlannerMenuActions', 'UNPLAN_OFF'],
+  'components/workspace/planner/planner-menu.tsx': ['PlannerMenuActions', 'UNPLAN_OFF'],
   'components/workspace/widget-hooks.ts': ['addWidgetAt', 'tabTitle'],
   'components/workspace/workspace-drag.ts': ['DROP_FAILED_NOTICE'],
   'data/audit.ts': ['MAX_SAMPLES_PER_ISSUE'],
@@ -150,7 +150,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/planner.ts': [
     'inPlanner', 'PLANNER_DELAYED_KEY', 'PLANNER_TILE_TICKS_MAX', 'PLANNER_UNPLANNED_KEY', 'PlannerConflict', 'plannerConflictLabel',
     'plannerConflicts', 'PlannerDateKind', 'PlannerNaturalDay', 'plannerNaturalDay', 'plannerOrder', 'plannerPlannedDay', 'plannerPlannedLater',
-    'plannerReorder', 'plannerSnooze', 'plannerTagDay', 'PlannerTask', 'plannerWindow',
+    'plannerReorder', 'plannerSnooze', 'plannerTagDay', 'PlannerTask',
   ],
   'utils/priority-cues.ts': ['rowGlow'],
   'utils/priority-groups.ts': ['PriorityGroupContext'],

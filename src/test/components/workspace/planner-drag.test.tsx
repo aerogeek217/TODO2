@@ -17,7 +17,7 @@ import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
  * `planner-drag-hook.test.tsx`): the target's tile and group marked — one
  * neutral mark: a drop changes the plan, never a real date —, a blank slot
  * where the row would land, the lifted row's label, the not-allowed cursor
- * for a refused drop. And Move to day ›, Snooze and Unplan in a row's task
+ * for a refused drop. And Plan for day ›, Snooze and Unplan in a row's task
  * menu.
  */
 
@@ -160,8 +160,7 @@ describe('the drop slot', () => {
     expect(within(group('2026-11-20')).getByRole('status')).toHaveTextContent('Nothing for today')
     hover(preview('group', '2026-11-20', { kind: 'plan', day: day(0) }, 0))
     expect(within(group('2026-11-20')).queryByRole('status')).toBeNull()
-    // Before Add task, Today's last row.
-    expect(group('2026-11-20').querySelector('[data-drop-slot]')?.nextElementSibling).toHaveTextContent('Add task')
+    expect(group('2026-11-20').querySelector('[data-drop-slot]')).not.toBeNull()
   })
 
   it('has none over a tile, or with no place', () => {
@@ -218,14 +217,14 @@ describe('the lifted row’s label', () => {
   })
 })
 
-describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
+describe('Plan for day ›, Snooze and Unplan in a row’s task menu', () => {
   const openMenu = (title: string) => {
     fireEvent.contextMenu(within(root()).getByText(title))
     return screen.getByRole('menu', { name: 'Task actions' })
   }
   const openMove = (title: string) => {
     const menu = openMenu(title)
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /^Move to day/ }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /^Plan for day/ }))
     return screen.getAllByRole('menu').at(-1)!
   }
   /** The store's writes, watched: the plan action, and the edit path no menu entry here may take. */
@@ -236,7 +235,7 @@ describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
     return { setPlan, update }
   }
 
-  it('Move to day › is in the menu of a Planner’s row, with the days — and no No day', () => {
+  it('Plan for day › is in the menu of a Planner’s row, with the days — and no No day', () => {
     show()
     const sub = openMove('Monday deadline')
     expect(within(sub).getByText('Plans it for that day')).toBeInTheDocument()
@@ -276,7 +275,7 @@ describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('Snooze plans the row for the next day: the day after its own, tomorrow from a tray', () => {
+  it('Snooze plans the row for the next day: the day after its own, tomorrow from Delayed; none on an Unplanned row', () => {
     const { setPlan, update } = watch()
     show()
     /** Picks Snooze in the row's menu; the item names the day it plans for. */
@@ -291,9 +290,8 @@ describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
     expect(setPlan).toHaveBeenLastCalledWith([1], { day: day(1) })
     snooze('Missed plan', 'Sat, Nov 21')
     expect(setPlan).toHaveBeenLastCalledWith([6], { day: day(1) })
-    snooze('Someday focus', 'Sat, Nov 21')
-    expect(setPlan).toHaveBeenLastCalledWith([7], { day: day(1) })
-    expect(setPlan).toHaveBeenCalledTimes(4)
+    expect(within(openMenu('Someday focus')).queryByRole('menuitem', { name: /^Snooze/ })).toBeNull()
+    expect(setPlan).toHaveBeenCalledTimes(3)
     expect(update).not.toHaveBeenCalled()
   })
 

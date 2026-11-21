@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 import { buildTaskMenuEntries, type TaskMenuHandlers } from '../../../components/task/task-menu-entries'
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
-import { MOVE_PLAN_LABEL, plannerMenuEntries, UNPLAN_OFF, type PlannerMenuActions } from '../../../components/workspace/planner/planner-menu'
+import { plannerMenuEntries, UNPLAN_OFF, type PlannerMenuActions } from '../../../components/workspace/planner/planner-menu'
+import { PLAN_FOR_DAY_LABEL } from '../../../components/task/plan-menu'
 import type { PersistedTodoItem } from '../../../models'
 import { plannerWindow } from '../../../utils/planner'
 import { makeTodo } from '../../helpers'
 
 /**
  * A Planner row's entries in its task menu (`planner-menu.plannerMenuEntries`):
- * **Move to day ›** — the drag's moves, a first line saying a pick plans
+ * **Plan for day ›** — the drag's moves, a first line saying a pick plans
  * the task, Today and the window's days after it —, **Snooze** and
  * **Unplan** (off, with its reason, where there is nothing to unplan) — and
  * where the task menu puts them.
@@ -22,26 +23,32 @@ const WINDOW = plannerWindow(TODAY)
 const todo = (over: Partial<PersistedTodoItem> = {}) => makeTodo({ id: 1, uid: 'a', title: 'Task', ...over })
 
 function build(task: PersistedTodoItem, window = WINDOW) {
-  const actions = { move: vi.fn<PlannerMenuActions['move']>(), snooze: vi.fn(), unplan: vi.fn() }
+  const actions = { move: vi.fn<PlannerMenuActions['move']>(), snooze: vi.fn(), unplan: vi.fn(), clear: vi.fn() }
   const entries = plannerMenuEntries(task, window, actions)
-  expect(entries).toHaveLength(3)
-  const [move, snooze, unplan] = entries as [MenuItemEntry, MenuItemEntry, MenuItemEntry]
+  const item = (label: string) => (entries as MenuItemEntry[]).find((e) => e.label === label)
+  const move = item('Plan for day')!
+  const unplan = item('Unplan')!
+  /** Absent on a row in Unplanned. */
+  const snooze = item('Snooze')
+  /** Only with a plan state: Clear plan, or Remove from Planner. */
+  const clear = item('Clear plan') ?? item('Remove from Planner')
+  expect(entries).toHaveLength(2 + (snooze ? 1 : 0) + (clear ? 1 : 0))
   const children = [...(move.children ?? [])]
   const items = children.filter((c): c is MenuItemEntry => c.kind === 'item')
-  return { move, snooze, unplan, children, items, actions, byLabel: (label: string) => items.find((i) => i.label === label)! }
+  return { move, snooze, unplan, clear, children, items, actions, byLabel: (label: string) => items.find((i) => i.label === label)! }
 }
 
 const labels = (entries: readonly MenuEntry[]) => entries.map((e) => (e.kind === 'item' ? e.label : e.kind === 'label' ? `# ${e.text}` : `(${e.kind})`))
 
-describe('Move to day ›', () => {
+describe('Plan for day ›', () => {
   it('lists Today and the window’s six days after it in words, under the line saying a pick plans the task — no No day', () => {
     const { move, children } = build(todo({ dueDate: day(2) }))
-    expect(move.label).toBe('Move to day')
+    expect(move.label).toBe('Plan for day')
     expect(labels(children)).toEqual([
-      `# ${MOVE_PLAN_LABEL}`,
+      `# ${PLAN_FOR_DAY_LABEL}`,
       'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26',
     ])
-    expect(MOVE_PLAN_LABEL).toBe('Plans it for that day')
+    expect(PLAN_FOR_DAY_LABEL).toBe('Plans it for that day')
   })
 
   it('says the same whatever put the row on its day: nothing moves a follow-up or a due date', () => {
@@ -89,18 +96,21 @@ describe('Move to day ›', () => {
 })
 
 describe('Snooze', () => {
-  it('names the day it plans for: the day after the row’s, tomorrow from a tray or a late row', () => {
+  it('names the day it plans for: the day after the row’s, tomorrow from Delayed or a late row', () => {
     expect(build(todo({ dueDate: day(2) })).snooze).toMatchObject({ label: 'Snooze', note: 'Mon, Nov 23' })
-    expect(build(todo({ doDate: day(4) })).snooze.note).toBe('Wed, Nov 25')
-    expect(build(todo({ dueDate: day(-5) })).snooze.note).toBe('Sat, Nov 21')
-    expect(build(todo({ doDate: day(-2) })).snooze.note).toBe('Sat, Nov 21')
-    expect(build(todo({ focus: true })).snooze.note).toBe('Sat, Nov 21')
-    expect(build(todo({ unplanned: true, dueDate: day(3) })).snooze.note).toBe('Sat, Nov 21')
+    expect(build(todo({ doDate: day(4) })).snooze?.note).toBe('Wed, Nov 25')
+    expect(build(todo({ dueDate: day(-5) })).snooze?.note).toBe('Sat, Nov 21')
+    expect(build(todo({ doDate: day(-2) })).snooze?.note).toBe('Sat, Nov 21')
+  })
+
+  it('is not offered on a row in Unplanned: nothing there is planned to put off', () => {
+    expect(build(todo({ focus: true })).snooze).toBeUndefined()
+    expect(build(todo({ unplanned: true, dueDate: day(3) })).snooze).toBeUndefined()
   })
 
   it('a pick snoozes', () => {
     const { snooze, actions } = build(todo({ dueDate: day(2) }))
-    snooze.onSelect?.()
+    snooze?.onSelect?.()
     expect(actions.snooze).toHaveBeenCalledTimes(1)
     expect(actions.move).not.toHaveBeenCalled()
   })
@@ -123,9 +133,28 @@ describe('Unplan', () => {
   })
 })
 
+describe('Clear plan', () => {
+  it('is offered only with a plan state: Remove from Planner when that takes the task out, else Clear plan', () => {
+    expect(build(todo({ dueDate: day(2) })).clear).toBeUndefined()
+    expect(build(todo({ focus: true })).clear).toBeUndefined()
+    expect(build(todo({ unplanned: true })).clear?.label).toBe('Remove from Planner')
+    expect(build(todo({ doDate: day(2) })).clear?.label).toBe('Remove from Planner')
+    expect(build(todo({ unplanned: true, dueDate: day(1) })).clear?.label).toBe('Clear plan')
+    expect(build(todo({ doDate: day(2), focus: true })).clear?.label).toBe('Clear plan')
+  })
+
+  it('comes last, and a pick clears the plan', () => {
+    const { clear, actions } = build(todo({ unplanned: true }))
+    const entries = plannerMenuEntries(todo({ unplanned: true }), WINDOW, actions)
+    expect(entries.at(-1)).toMatchObject({ label: 'Remove from Planner' })
+    clear?.onSelect?.()
+    expect(actions.clear).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('a completed task', () => {
   it('is offered nothing', () => {
-    expect(plannerMenuEntries(todo({ isCompleted: true, dueDate: day(1) }), WINDOW, { move: vi.fn(), snooze: vi.fn(), unplan: vi.fn() })).toEqual([])
+    expect(plannerMenuEntries(todo({ isCompleted: true, dueDate: day(1) }), WINDOW, { move: vi.fn(), snooze: vi.fn(), unplan: vi.fn(), clear: vi.fn() })).toEqual([])
   })
 })
 
@@ -134,20 +163,20 @@ describe('the task menu with a surface’s entries', () => {
     onOpen: vi.fn(), onToggleComplete: vi.fn(), onSetDueDate: vi.fn(), onSetFollowup: vi.fn(), onFollowedUp: vi.fn(), onSetMarker: vi.fn(), onDelete: vi.fn(),
   }
   const base = { today: TODAY, urgentRange: 3 as const, followupIntervals: [], handlers }
-  const extra = plannerMenuEntries(todo({ dueDate: day(2) }), WINDOW, { move: vi.fn(), snooze: vi.fn(), unplan: vi.fn() })
+  const extra = plannerMenuEntries(todo({ dueDate: day(2) }), WINDOW, { move: vi.fn(), snooze: vi.fn(), unplan: vi.fn(), clear: vi.fn() })
 
   it('leads the dates group with them: after Open · Mark complete, before Set due date…', () => {
     const task = todo({ dueDate: day(2) })
     const entries = labels(buildTaskMenuEntries({ ...base, todo: task, targets: [task], extra }))
-    expect(entries.slice(0, 7)).toEqual(['Open', 'Mark complete', '(separator)', 'Move to day', 'Snooze', 'Unplan', 'Set due date…'])
+    expect(entries.slice(0, 7)).toEqual(['Open', 'Mark complete', '(separator)', 'Plan for day', 'Snooze', 'Unplan', 'Set due date…'])
   })
 
   it('has none without a surface that adds them, and none for several tasks', () => {
     const task = todo({ dueDate: day(2) })
     const without = labels(buildTaskMenuEntries({ ...base, todo: task, targets: [task] }))
-    for (const label of ['Move to day', 'Snooze', 'Unplan']) expect(without).not.toContain(label)
+    for (const label of ['Plan for day', 'Snooze', 'Unplan']) expect(without).not.toContain(label)
     const other = makeTodo({ id: 2, uid: 'b' })
     const several = labels(buildTaskMenuEntries({ ...base, todo: task, targets: [task, other], extra }))
-    for (const label of ['Move to day', 'Snooze', 'Unplan']) expect(several).not.toContain(label)
+    for (const label of ['Plan for day', 'Snooze', 'Unplan']) expect(several).not.toContain(label)
   })
 })

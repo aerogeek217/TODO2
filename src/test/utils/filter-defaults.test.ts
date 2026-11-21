@@ -102,17 +102,11 @@ describe('getFilterDefaults — Priority', () => {
 })
 
 describe('withoutMarkers', () => {
-  it('drops the named marker seeds and keeps the rest — the hidden Do day too (the Planner’s Add task)', () => {
-    const doDate = new Date(2026, 10, 20)
-    const fd = { personIds: [1], tagIds: [2], statusId: 3, markers: { urgent: true as const, focus: true as const }, doDate }
-    expect(withoutMarkers(fd, ['urgent'])).toEqual({ personIds: [1], tagIds: [2], statusId: 3, markers: { focus: true }, doDate })
-    expect(withoutMarkers(fd, ['urgent', 'focus'])).toEqual({ personIds: [1], tagIds: [2], statusId: 3, doDate })
+  it('drops the named marker seeds and keeps the rest', () => {
+    const fd = { personIds: [1], tagIds: [2], statusId: 3, markers: { urgent: true as const, focus: true as const } }
+    expect(withoutMarkers(fd, ['urgent'])).toEqual({ personIds: [1], tagIds: [2], statusId: 3, markers: { focus: true } })
+    expect(withoutMarkers(fd, ['urgent', 'focus'])).toEqual({ personIds: [1], tagIds: [2], statusId: 3 })
     expect(withoutMarkers(fd, [])).toBe(fd)
-    expect('doDate' in withoutMarkers({ personIds: [], tagIds: [], statusId: undefined, markers: { urgent: true as const } }, ['urgent'])).toBe(false)
-  })
-
-  it('no filter seeds a Do day', () => {
-    expect('doDate' in getFilterDefaults(makeFilters({ personIds: new Set([1]) }))).toBe(false)
   })
 })
 

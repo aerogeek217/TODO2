@@ -299,8 +299,12 @@ describe('plannerMovePlan', () => {
     expect(plannerMovePlan(dated, WINDOW, DELAYED, at(['x'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
     const done = task({ uid: 'a', isCompleted: true, nextFollowupAt: day(0) })
     expect(plannerMovePlan(done, WINDOW, on(3), at(['d', 'e'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
-    // A list's row with no plan and no date, not in Focus, dropped on Unplanned: it wouldn't show there.
-    expect(plannerMovePlan(task({ uid: 'new' }), WINDOW, UNPLANNED, at(['f'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
+  })
+
+  it('holds a list’s row with no plan and no date dropped on Unplanned, at its place there', () => {
+    const plan = plannerMovePlan(task({ uid: 'new' }), WINDOW, UNPLANNED, at(['f'], 0))
+    expect(plan).toMatchObject({ drop: { kind: 'unplan', hold: true }, moves: true })
+    expect(plan.order?.slice(-2)).toEqual(['new', 'f'])
   })
 
   it('merges the place into the stored order it is given', () => {

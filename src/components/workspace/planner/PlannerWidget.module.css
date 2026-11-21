@@ -663,13 +663,6 @@
   text-decoration: line-through;
 }
 
-/* The list's Add task row, inside the group's own padding. */
-.group .addTask {
-  width: 100%;
-  margin: 0;
-  padding-left: 8px;
-}
-
 /* ── Small face ────────────────────────────────────────────────────────── */
 
 .smallFace {

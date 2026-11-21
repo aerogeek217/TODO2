@@ -8,14 +8,12 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { usePlanner, useTasksDoneToday, type PlannerData } from '../../../hooks/use-planner'
 import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { movePlannerTask, snoozePlannerTask, unplanDelayedTasks, unplanPlannerTask } from '../../../services/planner-drop'
-import { appliedScreenFilter, useFilterStore } from '../../../stores/filter-store'
+import { clearPlannerTask, movePlannerTask, snoozePlannerTask, unplanDelayedTasks, unplanPlannerTask } from '../../../services/planner-drop'
 import { usePersonStore } from '../../../stores/person-store'
 import { usePlannerStore, type PlannerDragPreview } from '../../../stores/planner-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { LIST_SECTION_ATTR } from '../../../utils/dom-contract'
-import { getFilterDefaults } from '../../../utils/filter-defaults'
 import { autoListZoom, UNMEASURED_LIST_ZOOM } from '../../../utils/list-zoom'
 import { scrollBehavior } from '../../../utils/motion'
 import {
@@ -31,7 +29,7 @@ import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { plannerDropId, TASK_DROP_KIND, type PlannerDropData } from '../../../utils/task-dnd'
 import { plannerFaceFor, plannerStripFits } from '../../../utils/widget-face'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
-import { ArrowDownIcon, CheckIcon, PlusIcon, ResetIcon } from '../../shared/icons'
+import { ArrowDownIcon, CheckIcon, ResetIcon } from '../../shared/icons'
 import { MenuPopover } from '../../shared/MenuPopover'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskMenuExtrasContext } from '../../task/task-menu-extras'
@@ -135,7 +133,7 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
  * (the tab's `order`). While a task is dragged over it (`usePlannerDrag`)
  * the target's tile and group are dashed in one neutral color, a blank slot
  * shows where the row would land, and the lifted row carries the label
- * (`PlannerDragLabel`). Without a pointer: **Move to day ›**, **Snooze**
+ * (`PlannerDragLabel`). Without a pointer: **Plan for day ›**, **Snooze**
  * and **Unplan** in a row's task menu (`planner-menu`).
  */
 export function PlannerWidget({ tab }: { tab: PlannerTab }) {
@@ -223,12 +221,13 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
     return { active, preview, mark: preview && writes ? { key: preview.key } : null, shown }
   }, [active, preview, shown])
 
-  // ── Move to day ›, Snooze and Unplan, in each row's task menu ──
+  // ── Plan for day ›, Snooze, Unplan and Clear plan, in each row's task menu ──
   const plannerWindow = view.window
   const menuExtras = useCallback((todo: Task) => plannerMenuEntries(todo, plannerWindow, {
     move: (target) => { void movePlannerTask(tabId, { todoId: todo.id, target, window: plannerWindow }) },
     snooze: () => { void snoozePlannerTask(tabId, todo.id, plannerWindow) },
     unplan: () => { void unplanPlannerTask(tabId, todo.id, plannerWindow) },
+    clear: () => { void clearPlannerTask(todo.id, plannerWindow) },
   }), [tabId, plannerWindow])
 
   // ── Each row's tag, hover buttons and late dates ──
@@ -592,15 +591,9 @@ function PlannerRowWrap({ todoId, flagged, children }: { todoId: number; flagged
   )
 }
 
-/** Today: its rows, then `N done` — the tasks completed today, struck, on one line — and Add task, its last row. */
+/** Today: its rows, then `N done` — the tasks completed today, struck, on one line. */
 function TodayGroup({ tabId, group, data, mobile, drag }: Omit<GroupProps, 'children' | 'empty'>) {
   const done = useTasksDoneToday()
-  const { today } = data
-  const addTask = () => {
-    // Where Quick Add would start anyway (the screen filter's seeds), plus the hidden planned day: the task is planned for today.
-    const seeds = getFilterDefaults(appliedScreenFilter(useFilterStore.getState()))
-    useUIStore.getState().openQuickAdd({ defaults: { ...seeds, doDate: today } })
-  }
   return (
     <DayGroup
       tabId={tabId}
@@ -617,10 +610,6 @@ function TodayGroup({ tabId, group, data, mobile, drag }: Omit<GroupProps, 'chil
           <span className={styles.doneTitles}>{done.map((t) => t.title).join(' · ')}</span>
         </div>
       )}
-      <button type="button" className={`${listStyles.addTask} ${styles.addTask}`} data-tooltip="Add a task for today" onClick={addTask}>
-        <span className={listStyles.addTaskIcon} aria-hidden="true"><PlusIcon size={12} strokeWidth={2} /></span>
-        Add task
-      </button>
     </DayGroup>
   )
 }

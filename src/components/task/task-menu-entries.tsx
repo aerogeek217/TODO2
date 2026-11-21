@@ -132,7 +132,7 @@ export function followedUpMenuEntry(
  * Assign people… · Add tag… | Add subtask… · Make subtask of… | Markers |
  * Delete. With several tasks a `N tasks` label replaces Open, Copy and Delete
  * name the count, the subtask items are left out, and the markers can be
- * mixed. `extra` (a row in a Planner: Move to day ›) leads the dates group.
+ * mixed. `extra` (a row in a Planner: Plan for day ›) leads the dates group.
  */
 export function buildTaskMenuEntries({ todo, targets, today, urgentRange, followupIntervals, handlers, copyKbd, extra }: BuildTaskMenuOpts): MenuEntry[] {
   const several = targets.length > 1
