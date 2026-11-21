@@ -16,7 +16,7 @@ export interface FilterDefaults {
    */
   markers?: MarkerConditions
   /**
-   * The new task's Do day (the Planner's Add task: today, so the task lands
+   * The new task's planned day (the Planner's Add task: today, so the task lands
    * in its Today). Hidden: no filter gives one, and neither Quick Add nor
    * the editor shows it — it only travels to the create.
    */
@@ -60,7 +60,7 @@ export function markerFlags(fd: Pick<FilterDefaults, 'markers'> | null | undefin
 
 /**
  * `fd` without the given marker seeds (Quick Add: a preset marker chip
- * removed with its ×). The people / tags / status, the Do day and other markers stay.
+ * removed with its ×). The people / tags / status, the planned day and other markers stay.
  */
 export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): FilterDefaults {
   if (keys.length === 0 || !fd.markers) return fd

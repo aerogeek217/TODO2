@@ -211,7 +211,7 @@ describe('dispatchTaskDrop — every drop kind, and nothing else', () => {
   const OVER_DATA: Record<TaskDropKind, Record<string, unknown>> = {
     'calendar-day': { date: new Date(2026, 9, 13), scope: 't1', dateTypes: { due: true, followup: false } },
     'planner-day': { scope: 'p1', target: { kind: 'day', day: new Date(2026, 9, 13) }, window: PLANNER_WINDOW },
-    'planner-group': { scope: 'p1', target: { kind: 'noday' }, window: PLANNER_WINDOW, group: { key: 'none', rows: [], shown: [] } },
+    'planner-group': { scope: 'p1', target: { kind: 'unplanned' }, window: PLANNER_WINDOW, group: { key: 'unplanned', rows: [], shown: [] } },
   }
   const deps = () => ({
     calendar: { reschedule: vi.fn(async () => {}) },

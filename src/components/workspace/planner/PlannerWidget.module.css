@@ -1,6 +1,7 @@
-/* The Planner: a strip of day tiles over two panes of task rows (large), or
- * one column (medium, the phone). The strip's narrow look is a container
- * query against `.host`. */
+/* The Planner: a strip of day tiles over two panes of task rows (large: the
+ * days on the left, the trays on a darker ground on the right), or one
+ * column (medium, the phone). The strip's narrow look is a container query
+ * against `.host`. */
 
 .host {
   display: flex;
@@ -38,12 +39,55 @@
   color: var(--color-text-primary);
 }
 
+/* The room between the line's start (name, range, badge) and Reset plan at its end. */
+.topLineGap {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Reset plan: an icon and the words, quiet until hovered; its menu open, pressed. */
+.resetButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px 0 7px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.resetButton:hover,
+.resetButton[data-open] {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+/* A narrow widget: the icon alone (its name and tooltip say it). */
+@container (max-width: 420px) {
+  .resetButton {
+    width: 24px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .resetWords {
+    display: none;
+  }
+}
+
 /* ── The strip ─────────────────────────────────────────────────────────── */
 
+/* The arrows keep their width; the seven tiles share the rest equally, whatever stands between them (the week rule). */
 .strip {
   flex: none;
-  display: grid;
-  grid-template-columns: auto repeat(7, minmax(0, 1fr)) auto;
+  display: flex;
   gap: 6px;
   align-items: stretch;
   padding: 8px 6px;
@@ -53,12 +97,12 @@
 
 /* No room for tiles: the arrows around the range. */
 .stripSlim {
-  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   padding: 4px 6px;
 }
 
 .stripRange {
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -70,6 +114,7 @@
 }
 
 .arrow {
+  flex: none;
   display: grid;
   place-items: center;
   width: 24px;
@@ -93,6 +138,7 @@
 }
 
 .tile {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -126,28 +172,23 @@
   background: var(--color-accent-bg);
 }
 
-/* The picked day: ringed. */
-.tile[data-picked] {
-  border-color: var(--color-text-muted);
-  background: var(--color-tint-10);
+/* Where the week turns: a thin rule before the tile that starts a week, in a slightly wider gap (its margins beside the strip's). */
+.weekRule {
+  flex: none;
+  align-self: center;
+  width: 1px;
+  height: 30px;
+  margin: 0 3px;
+  background: var(--color-tint-16);
 }
 
-/* The day a dragged task would be dropped on: dashed in the color of the
- * date the drop changes — the follow-up's, or the Do day's (Focus). */
-.tile[data-planner-drop] {
+/* The day a dragged task would be planned for: dashed, in one neutral
+ * color — a drop changes the plan, never a real date. */
+.tile[data-planner-drop],
+.tile[data-planner-drop]:hover {
   border-style: dashed;
-}
-
-.tile[data-planner-drop='followup'],
-.tile[data-planner-drop='followup']:hover {
-  border-color: var(--color-followup);
-  background: var(--color-followup-bg);
-}
-
-.tile[data-planner-drop='do'],
-.tile[data-planner-drop='do']:hover {
-  border-color: var(--color-marker-focus);
-  background: var(--color-marker-focus-bg);
+  border-color: var(--color-text-secondary);
+  background: var(--color-tint-12);
 }
 
 .tileHead {
@@ -206,21 +247,31 @@
   overflow: hidden;
 }
 
-/* A tick per task, colored by why it is on the day. */
+/* A solid tick per real date on the day: a due date in the deadline color, a follow-up in the follow-up color. */
 .tick {
   flex: none;
   width: 3px;
   height: 10px;
   border-radius: 1.5px;
-  background: var(--color-marker-focus);
-}
-
-.tick[data-reason='due'] {
   background: var(--color-deadline);
 }
 
-.tick[data-reason='followup'] {
+.tick[data-mark='followup'] {
   background: var(--color-followup);
+}
+
+/* A hollow tick per plan on the day: outlined (not dashed) in the secondary text color. */
+.tickPlan {
+  box-sizing: border-box;
+  width: 5px;
+  border: 1.5px solid var(--color-text-secondary);
+  border-radius: 2px;
+  background: transparent;
+}
+
+/* The plans stand a little apart from the real dates before them. */
+.tick:not(.tickPlan) + .tickPlan {
+  margin-left: 3px;
 }
 
 .ticksMore {
@@ -243,6 +294,10 @@
     justify-content: center;
     height: 50px;
     padding: 2px;
+  }
+
+  .weekRule {
+    margin: 0 1px;
   }
 
   .tileHead {
@@ -277,38 +332,21 @@
   scrollbar-color: var(--color-tint-8) transparent;
 }
 
-.todayPane {
-  flex: 0 0 46%;
+/* The days: Today, then every later day of the window, in one scroll. */
+.daysPane {
+  flex: 0 0 50%;
   min-width: 0;
-  border-right: 1px solid var(--color-border-muted);
 }
 
-.aheadPane {
+/* The trays — Delayed, the Unplan button, Unplanned — on a darker ground, with a scroll of their own. */
+.traysPane {
   flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
   min-width: 0;
-  min-height: 0;
+  border-left: 1px solid var(--color-tint-12);
+  background: var(--color-inset-deep);
 }
 
-.aheadPane > .pane:first-child {
-  flex: 1 1 auto;
-}
-
-/* Its two lists keep the scrollbar's room, so their columns line up whichever of them scrolls. */
-.aheadPane > .pane {
-  scrollbar-gutter: stable;
-}
-
-/* Focus, no day: pinned under the days ahead, with a short scroll of its own. */
-.pinned {
-  flex: 0 0 auto;
-  max-height: 42%;
-  border-top: 1px solid var(--color-border-muted);
-  background: var(--color-inset-light);
-}
-
-/* One column: Today, the days ahead, Focus, no day in one scroll. */
+/* One column: Today, the days ahead, Delayed, the Unplan button, Unplanned in one scroll. */
 .column {
   flex: 1 1 auto;
 }
@@ -342,41 +380,210 @@
   margin-top: 6px;
 }
 
-/* The group a dragged task would land in: dashed in the color of the date the drop changes, as its day's tile
- * (no tint: Today's group is a whole pane). */
+/* The group a dragged task would land in: dashed in the neutral color of its day's tile (no tint). */
 .group[data-planner-drop] {
   border-radius: 7px;
-  outline: 1px dashed var(--color-followup);
+  outline: 1px dashed var(--color-text-secondary);
   outline-offset: -1px;
 }
 
-.group[data-planner-drop='do'] {
-  outline-color: var(--color-marker-focus);
-}
-
-/* Today and Focus, no day fill their panes: a drop anywhere in the pane is one on them. */
-.todayPane .rowsHost,
-.pinned .rowsHost {
+/* The trays fill their pane: a drop anywhere under their rows is one on Unplanned, the last group. */
+.traysPane .rowsHost {
   display: flex;
   flex-direction: column;
   min-height: 100%;
 }
 
-.todayPane .rows,
-.pinned .rows {
+.traysPane .rows {
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
 }
 
-.todayPane .group,
-.pinned .group {
+.traysPane .group:last-child {
   flex: 1 0 auto;
+}
+
+/* A tile's tap on the phone scrolls the page to the day: clear of the top bar. */
+.column[data-touch] .group {
+  scroll-margin-top: 56px;
+}
+
+/* A day with nothing on it: a quiet heading — its name muted and lighter, no count. */
+.groupHeader .quietName {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ── The Unplan button: every Delayed task to Unplanned ────────────────── */
+
+/* Centered on a hairline rule between Delayed and Unplanned. */
+.unplanAll {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  margin-top: 6px;
+  padding: 0 6px 0 4px;
+}
+
+.unplanAll + .group {
+  margin-top: 2px;
+}
+
+.unplanRule {
+  flex: 1 1 0;
+  height: 1px;
+  background: var(--color-tint-10);
+}
+
+.unplanButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 12px 0 9px;
+  border: none;
+  border-radius: 13px;
+  background: var(--color-tint-8);
+  box-shadow: inset 0 0 0 1px var(--color-tint-16);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.unplanButton:hover {
+  background: var(--color-tint-14);
+}
+
+.unplanButton:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-tint-16), var(--focus-ring);
+}
+
+/* ── A row's Planner marks ─────────────────────────────────────────────── */
+
+/* A row in a box of its own: the corner flag is placed against it. */
+.rowWrap {
+  position: relative;
+}
+
+/* The corner flag of a placed row: a small filled triangle at the row's top-left, over whatever the row draws
+ * (its hover fill, the slot it leaves while lifted). It takes no press. */
+.flag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--z-above);
+  width: 9px;
+  height: 9px;
+  border-top-left-radius: 2px;
+  background: var(--color-text-secondary);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  pointer-events: none;
+}
+
+/* The tag after a row's title: a muted pill — the day a Delayed row was planned for, the day a held row came off. */
+.rowTag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border: none;
+  border-radius: 9px;
+  background: var(--color-tint-7);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Planned past a real date: in the deadline color, and a button — its menu holds the fixes. */
+.rowTagLate {
+  background: var(--color-deadline-bg);
+  color: var(--color-deadline);
+  cursor: pointer;
+}
+
+.rowTagLate:hover,
+.rowTagLate[data-open] {
+  background: var(--color-overdue-bg-strong);
+}
+
+/* A later plan's day: muted like a day tag, and a button — its menu holds the fixes. */
+.rowTagButton {
+  cursor: pointer;
+}
+
+.rowTagButton:hover,
+.rowTagButton[data-open] {
+  background: var(--color-tint-14);
+  color: var(--color-text-primary);
+}
+
+/* A Lines row is 15px high: its tag smaller. */
+.rowsHost[data-zoom='lines'] .rowTag {
+  height: 13px;
+  padding: 0 5px;
+  font-size: var(--font-size-badge);
+}
+
+/* The phone row's tag: on a line of its own under the row, from the title's start. */
+.mobileTag {
+  display: flex;
+  margin-top: -4px;
+  padding: 0 12px 8px 44px;
+}
+
+.mobileTag .rowTag {
+  height: 22px;
+  padding: 0 9px;
+  font-size: var(--font-size-meta);
+}
+
+/* The hover buttons at a row's title end (in the row's hover cluster): Snooze and Unplan, small and quiet. */
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+}
+
+.rowAction {
+  flex: none;
+  height: 22px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-tint-10);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-row-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rowAction:hover {
+  background: var(--color-tint-16);
+}
+
+/* A screen with no hover keeps a row's cluster shown: no buttons over the title there (the row's menu has both). */
+@media (hover: none) {
+  .rowActions {
+    display: none;
+  }
 }
 
 /* ── The lifted row's label ────────────────────────────────────────────── */
 
-/* Under the dragged row (the page's drag overlay): which date a drop changes, in that date's color. */
+/* Under the dragged row (the page's drag overlay): what a drop does to the plan, in one neutral color. */
 .dragLabel {
   position: absolute;
   top: calc(100% + 5px);
@@ -387,17 +594,13 @@
   box-sizing: border-box;
   padding: 0 8px;
   border-radius: 5px;
-  background: var(--cal-followup-solid);
-  color: var(--cal-on-followup);
+  background: var(--color-tooltip-bg);
+  box-shadow: 0 0 0 1px var(--color-tint-12);
+  color: var(--color-tooltip-text);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   white-space: nowrap;
   pointer-events: none;
-}
-
-.dragLabel[data-tone='do'] {
-  background: var(--color-marker-focus);
-  color: var(--color-text-on-accent);
 }
 
 /* No room under the row (the window's foot): above it. */

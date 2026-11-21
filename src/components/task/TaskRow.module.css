@@ -355,6 +355,27 @@
   pointer-events: auto;
 }
 
+/* A title with the surface's tag after it (`TaskRowExtras.tag`): while the hover cluster shows, the title keeps the
+ * cluster's room clear (`--row-cluster-width`, measured by the cluster) — its text gives way, the tag stays in view.
+ * The room is given back only once the cluster has faded out (its 0.12s), so the tag never slides under it. */
+.titleWithTag {
+  transition: padding-right 0s linear 0.12s;
+}
+
+.row:hover .titleWithTag,
+.row:focus-within .titleWithTag,
+.rowDropdownOpen .titleWithTag {
+  padding-right: var(--row-cluster-width, 4px);
+  transition-delay: 0s;
+}
+
+/* A stacked row's hover buttons (the surface's, `TaskRowExtras.actions`): over its title line's end. */
+.fieldCluster.stackedActions {
+  top: 1px;
+  bottom: auto;
+  height: 22px;
+}
+
 /* The add-subtasks mark of a task with no checklist (`SubtaskAddButton`): revealed as the placeholders are, and while its popover is open. */
 .subtaskAdd {
   opacity: 0;

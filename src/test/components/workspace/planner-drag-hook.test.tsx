@@ -12,7 +12,7 @@ import { makeTodo } from '../../helpers'
 /**
  * `usePlannerDrag`: what a Planner says of a task dragged over it — the
  * drag preview in `stores/planner-store` (the target, what a drop would
- * write, the place in a hovered group) — from dnd-kit's `over` and the
+ * do to the task's plan, the place in a hovered group) — from dnd-kit's `over` and the
  * pointer, over the groups' geometry as the drag started. dnd-kit's monitor
  * is stood in for, so the drag's events are sent by hand.
  */
@@ -31,13 +31,14 @@ const WINDOW = { today: TODAY, last: day(6) }
 const TODAY_KEY = '2026-11-20'
 const MON_KEY = '2026-11-23'
 
-/** The Planner's tasks: Today holds a late deadline, a follow-up and a plan; Monday a deadline; Focus, no day one. */
+/** The Planner's tasks: Today holds a late deadline, a follow-up and a plan; Monday a deadline; Delayed a missed plan; Unplanned a Focus task. */
 const late = makeTodo({ id: 1, uid: 'late', dueDate: day(-2) })
 const chase = makeTodo({ id: 2, uid: 'chase', nextFollowupAt: day(0) })
 const plan = makeTodo({ id: 3, uid: 'plan', doDate: day(0) })
 const monday = makeTodo({ id: 4, uid: 'mon', dueDate: day(3) })
 const focus = makeTodo({ id: 5, uid: 'focus', focus: true })
-const SHOWN = ['late', 'chase', 'plan', 'mon', 'focus']
+const missed = makeTodo({ id: 7, uid: 'missed', doDate: day(-2) })
+const SHOWN = ['late', 'chase', 'plan', 'mon', 'missed', 'focus']
 
 /** A row 30px high from `top`, in the group `key`. */
 function Row({ group, todo, top }: { group: string; todo: PersistedTodoItem; top: number }) {
@@ -47,7 +48,7 @@ function Row({ group, todo, top }: { group: string; todo: PersistedTodoItem; top
 /**
  * The Planner's scrollers as the large face lays them out: Today's pane
  * (rows at 100, 130, 160), the days-ahead pane (Monday: one row at 100) and
- * the pinned Focus, no day (one row at 400).
+ * the pinned trays (Delayed: one row at 400; Unplanned: one row at 460).
  */
 function Harness({ tabId = 'plan' }: { tabId?: string }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -67,9 +68,12 @@ function Harness({ tabId = 'plan' }: { tabId?: string }) {
           <Row group={MON_KEY} todo={monday} top={100} />
         </div>
       </div>
-      <div data-planner-pane="noday" data-rect="380,600">
-        <div data-list-section="none" data-rect="380,440">
-          <Row group="none" todo={focus} top={400} />
+      <div data-planner-pane="trays" data-rect="380,600">
+        <div data-list-section="delayed" data-rect="380,440">
+          <Row group="delayed" todo={missed} top={400} />
+        </div>
+        <div data-list-section="unplanned" data-rect="440,500">
+          <Row group="unplanned" todo={focus} top={460} />
         </div>
       </div>
     </div>
@@ -81,7 +85,8 @@ const tile = (n: number, scope = 'plan'): PlannerDropData => ({ type: TASK_DROP_
 const groups: Record<string, { target: PlannerTarget; rows: string[] }> = {
   [TODAY_KEY]: { target: target(0), rows: ['late', 'chase', 'plan'] },
   [MON_KEY]: { target: target(3), rows: ['mon'] },
-  none: { target: { kind: 'noday' }, rows: ['focus'] },
+  delayed: { target: { kind: 'delayed' }, rows: ['missed'] },
+  unplanned: { target: { kind: 'unplanned' }, rows: ['focus'] },
 }
 const group = (key: string, scope = 'plan'): PlannerDropData => ({
   type: TASK_DROP_KIND.plannerGroup, scope, target: groups[key]!.target, window: WINDOW, group: { key, rows: groups[key]!.rows, shown: SHOWN },
@@ -150,19 +155,27 @@ describe('a task picked up', () => {
 })
 
 describe('over a tile', () => {
-  it('says what the drop writes for that day, with no place', () => {
+  it('says what the drop does to the plan for that day, with no place', () => {
     render(<Harness />)
+    // A row there by its follow-up: planned, the follow-up left alone.
     start(chase, TODAY_KEY)
     over(tile(3))
-    expect(preview()).toEqual({ tabId: 'plan', over: 'tile', key: MON_KEY, drop: { kind: 'followup', date: day(3) }, index: null })
-    // A row placed by its due date: a Do day.
+    expect(preview()).toEqual({ tabId: 'plan', over: 'tile', key: MON_KEY, drop: { kind: 'plan', day: day(3) }, index: null })
+    // A row placed by its due date: planned too.
     end()
     start(monday, MON_KEY)
     over(tile(5))
-    expect(preview()).toEqual({ tabId: 'plan', over: 'tile', key: '2026-11-25', drop: { kind: 'do', date: day(5) }, index: null })
+    expect(preview()).toEqual({ tabId: 'plan', over: 'tile', key: '2026-11-25', drop: { kind: 'plan', day: day(5) }, index: null })
     // Its own day: nothing to write.
     over(tile(3))
     expect(preview()?.drop).toEqual({ kind: 'none' })
+    // A planned row over the day its own date puts it: the plan cleared.
+    end()
+    start(makeTodo({ id: 8, uid: 'venue', doDate: day(1), dueDate: day(3) }), null)
+    over(tile(3))
+    expect(preview()).toEqual({ tabId: 'plan', over: 'tile', key: MON_KEY, drop: { kind: 'own', day: day(3) }, index: null })
+    over(tile(4))
+    expect(preview()?.drop).toEqual({ kind: 'plan', day: day(4) })
   })
 })
 
@@ -189,7 +202,7 @@ describe('over a group', () => {
     start(chase, TODAY_KEY)
     over(group(MON_KEY))
     move(90)
-    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: MON_KEY, drop: { kind: 'followup', date: day(3) }, index: 0 })
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: MON_KEY, drop: { kind: 'plan', day: day(3) }, index: 0 })
     move(125)
     expect(preview()?.index).toBe(1)
   })
@@ -201,7 +214,7 @@ describe('over a group', () => {
     expect(active()).toBe('mon:elsewhere')
     over(group(TODAY_KEY))
     move(150)
-    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: TODAY_KEY, drop: { kind: 'do', date: TODAY }, index: 2 })
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: TODAY_KEY, drop: { kind: 'plan', day: TODAY }, index: 2 })
     // Over its own day's group: nothing to write, a reorder among the rows without it.
     over(group(MON_KEY))
     move(135)
@@ -210,16 +223,24 @@ describe('over a group', () => {
 
   it('has no place for a refused drop, nor for a task a drop wouldn’t bring into the group', () => {
     render(<Harness />)
+    // Delayed takes no drop.
     start(monday, MON_KEY)
-    over(group('none'))
+    over(group('delayed'))
     move(410)
-    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'none', drop: { kind: 'refuse' }, index: null })
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'delayed', drop: { kind: 'refuse' }, index: null })
     end()
-    // A list's row with no day, not in Focus: Focus, no day has nothing to do with it.
+    // A list's row with no plan and no date, not in Focus: it wouldn't show in Unplanned.
     start(makeTodo({ id: 9, uid: 'plain' }), null, { listTabId: 'a-list', sectionKey: 'all', rowKey: 'all|9' })
-    over(group('none'))
-    move(410)
-    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'none', drop: { kind: 'none' }, index: null })
+    over(group('unplanned'))
+    move(470)
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'refuse' }, index: null })
+    end()
+    // A planned task with no date, not in Focus: held, so it has a place in Unplanned.
+    start(makeTodo({ id: 10, uid: 'bare', doDate: day(1) }), null)
+    over(group('unplanned'))
+    move(470)
+    expect(preview()).toMatchObject({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan', hold: true } })
+    expect(preview()?.index).not.toBeNull()
     end()
     // A completed task is refused everywhere.
     start({ ...chase, isCompleted: true }, TODAY_KEY)
@@ -227,13 +248,27 @@ describe('over a group', () => {
     expect(preview()).toMatchObject({ drop: { kind: 'refuse' }, index: null })
   })
 
-  it('clears a Do day on Focus, no day, with a place there', () => {
+  it('unplans on Unplanned with a place there: a dated row held, a Focus row’s plan cleared', () => {
     render(<Harness />)
+    start(monday, MON_KEY)
+    over(group('unplanned'))
+    // Above the middle of the tray's one row (475).
+    move(465)
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan', hold: true }, index: 0 })
+    end()
     start(makeTodo({ id: 6, uid: 'planned', focus: true, doDate: day(1) }), null)
-    over(group('none'))
+    over(group('unplanned'))
     // Past the middle of the group's one row.
-    move(430)
-    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'none', drop: { kind: 'do', date: undefined }, index: 1 })
+    move(490)
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan', hold: false }, index: 1 })
+  })
+
+  it('reorders a Delayed row among its own', () => {
+    render(<Harness />)
+    start(missed, 'delayed')
+    over(group('delayed'))
+    move(405)
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'delayed', drop: { kind: 'none' }, index: 0 })
   })
 })
 

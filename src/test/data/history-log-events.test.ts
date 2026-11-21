@@ -62,16 +62,20 @@ describe('todoRepository — the H3 fields', () => {
     ])
   })
 
-  it('a task’s Do day is not history: setting, moving and clearing it log nothing (and with KEEP_STAMPS stamp nothing)', async () => {
+  it('a task’s plan state is not history: planning, moving, holding and clearing it log nothing (and with KEEP_STAMPS stamp nothing)', async () => {
     const modifiedAt = new Date('2026-05-01T09:00:00Z')
     const id = await todoRepository.insert(makeTodo({ modifiedAt }))
     const before = await eventsOf(id)
     await todoRepository.bulkUpdate([{ todoId: id, changes: { doDate: new Date(2026, 5, 1) } }], KEEP_STAMPS)
     await todoRepository.bulkUpdate([{ todoId: id, changes: { doDate: new Date(2026, 5, 2) } }], KEEP_STAMPS)
     expect((await db.todos.get(id))?.doDate).toEqual(new Date(2026, 5, 2))
-    await todoRepository.bulkUpdate([{ todoId: id, changes: { doDate: undefined } }], KEEP_STAMPS)
+    await todoRepository.bulkUpdate([{ todoId: id, changes: { doDate: undefined, unplanned: true } }], KEEP_STAMPS)
+    expect(await db.todos.get(id)).toMatchObject({ unplanned: true })
+    expect('doDate' in (await db.todos.get(id))!).toBe(false)
+    await todoRepository.bulkUpdate([{ todoId: id, changes: { doDate: undefined, unplanned: undefined } }], KEEP_STAMPS)
     const row = await db.todos.get(id)
     expect('doDate' in row!).toBe(false)
+    expect('unplanned' in row!).toBe(false)
     expect(row?.modifiedAt).toEqual(modifiedAt)
     expect(await eventsOf(id)).toEqual(before)
   })

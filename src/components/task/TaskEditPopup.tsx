@@ -479,7 +479,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       ...(draftUrgent ? { urgent: true } : {}),
       ...(draftImportant ? { important: true } : {}),
       ...(draftFocus ? { focus: true } : {}),
-      // The Planner's Add task, handed on from Quick Add: its hidden Do day goes to the create.
+      // The Planner's Add task, handed on from Quick Add: its hidden planned day goes to the create.
       ...(filterDefaults?.doDate ? { doDate: filterDefaults.doDate } : {}),
     }
     const assignments = { personIds: [...pendingPersonIds], tagIds: [...pendingTagIds] }

@@ -34,8 +34,8 @@ export type Stamp = Date | StampChanges
  * touches keeps the `modifiedAt` it holds — in the store and in the
  * database, on the write and on its undo and redo (a step made with it
  * records each task's stamp as unchanged, which is what both put back). For
- * a write that is not activity on the task: its Do day
- * (`todo-store.setDoDate`).
+ * a write that is not activity on the task: its plan state in the Planner
+ * (`todo-store.setPlans`).
  */
 export const KEEP_STAMPS: StampChanges = new Map<number, StampChange>()
 

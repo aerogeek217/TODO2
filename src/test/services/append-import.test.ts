@@ -149,6 +149,28 @@ describe('appendImportTasks — archive from another database', () => {
     // A file's rows as they were written: the append stamps nothing.
     expect(rows[0]?.modifiedAt).toEqual(data.todos[0]?.modifiedAt)
   })
+
+  it('carries a task held in Unplanned (schema v86); a planned or plain task is not held', async () => {
+    const base = { isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(3) }
+    const held = await todoRepository.insert({ ...base, title: 'Held', sortOrder: 1, nextFollowupAt: new Date(2026, 10, 23), unplanned: true })
+    const planned = await todoRepository.insert({ ...base, title: 'Planned', sortOrder: 2, doDate: new Date(2026, 10, 20) })
+    const plain = await todoRepository.insert({ ...base, title: 'Plain', sortOrder: 3 })
+    const json = JSON.stringify(await buildTaskArchive([held, planned, plain]))
+
+    await resetDb()
+    const data = prepareAppend(json)
+    const result = await appendImportTasks(data, defaultAppendChoices(findAppendDuplicates(data.todos, [])))
+    expect(result).toMatchObject({ imported: 3, skipped: 0 })
+    const rows = await db.todos.orderBy('sortOrder').toArray()
+    expect(rows.map((t) => [t.title, t.unplanned, t.doDate])).toEqual([
+      ['Held', true, undefined],
+      ['Planned', undefined, new Date(2026, 10, 20)],
+      ['Plain', undefined, undefined],
+    ])
+    expect('unplanned' in rows[1]!).toBe(false)
+    expect('unplanned' in rows[2]!).toBe(false)
+    expect(rows[0]?.modifiedAt).toEqual(data.todos[0]?.modifiedAt)
+  })
 })
 
 describe('appendImportTasks — the history log H3 (D26)', () => {

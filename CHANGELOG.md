@@ -22,6 +22,39 @@ History before 2026-11-19 is in the git log.
 
 Nothing yet.
 
+## 2026-11-20, second deployment
+
+Data version 86.
+
+### Changed
+
+- **The Planner is a scratch pad: planning a task never changes its dates.** Dragging a task to a day only plans it
+  there. The earlier behavior, where dragging a follow-up task moved its follow-up date, is gone. A task you haven't
+  planned sits on the day it is due or due for a follow-up, so an untouched Planner matches the Calendar.
+- **One list of days, two trays.** Today and the days after it are one scrolling list on the left. On the right, on a
+  darker ground, are **Delayed** and **Unplanned**. A click on a day in the strip scrolls the list to that day.
+- **A plan you didn't get to goes to Delayed** instead of joining Today by itself. The **Unplan** button between the
+  trays moves every Delayed task to Unplanned.
+- **The strip shows real dates and plans separately:** a solid tick for a due date or follow-up that falls on a day,
+  a hollow tick for a task planned there. A thin rule marks where the week turns.
+
+### Added
+
+- **A flag on placed tasks.** A task you planned or set aside carries a small folded corner, so you can tell your plan
+  from what the dates alone would show.
+- **Planned past a date.** When a plan falls after a task's due date or follow-up, that date shows as late and a tag
+  after the title says by how much (`1 day after due`). The tag offers two fixes: move the date to the planned day, or
+  plan the task for that date.
+- **Snooze and Unplan** on a row's hover and in its menu. Snooze moves the plan to the next day. Unplan sets the task
+  aside in Unplanned; any task can go there, and one with dates keeps them and shows the day it came off.
+- **Reset plan,** in the Planner's header and its menu: put placed tasks back for the whole week, for today only, or
+  for the Delayed ones.
+
+### Removed
+
+- **The "Focus, no day" group** is now Unplanned, and the "No day" entry in a row's Move to day menu is replaced by
+  Unplan.
+
 ## 2026-11-20
 
 Data version 85.

@@ -5,7 +5,8 @@ import { plannerWindowKey, usePlannerStore, usePlannerWindow } from '../stores/p
 import { useSettingsStore } from '../stores/settings-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
-import { plannerView, type PlannerGroup, type PlannerView } from '../utils/planner'
+import { resetPlannerPlan } from '../services/planner-drop'
+import { plannerResetCounts, plannerResetWeekLabel, plannerView, type PlannerGroup, type PlannerResetScope, type PlannerView } from '../utils/planner'
 import { countTabBadges, tabBadgeSummary, type TabBadgeCounts } from '../utils/tab-badges'
 import { tasksDoneToday } from '../utils/tally'
 import { layoutTabs } from '../utils/workspace-layout-queries'
@@ -22,9 +23,7 @@ export interface PlannerData {
   windowKey: string
   /** The window's offset from today, days (`stores/planner-store`). */
   offset: number
-  /** The picked day (local midnight, ms), or null. */
-  picked: number | null
-  /** Today, the days ahead, Focus no day, and the tiles (`utils/planner.plannerView`). */
+  /** Today, the days ahead, the Delayed and Unplanned trays, and the tiles (`utils/planner.plannerView`). */
   view: PlannerView<Task>
   /** The rows lingering after a completion (`useLeavingRows`), by task id. */
   leaving: LeavingRows
@@ -41,36 +40,43 @@ const groupIds = (groups: ReadonlyArray<PlannerGroup<Task>>): number[] => groups
 
 /**
  * A Planner tab's data: the open tasks the screen filter shows
- * (`useScreenTasks`) placed for the tab's window and picked day
+ * (`useScreenTasks`) placed for the tab's window
  * (`stores/planner-store`, by the open layout and the tab) in its hand order (`order`, the tab's view
  * state). With `linger`, a row completed here lingers, then folds, as a
  * list's does (`useLeavingRows`): the view is built with it as it was just
  * before, and `keptTodos` says what it shows meanwhile.
+ *
+ * It also **reports Reset plan** for the tab (`planner-store.resets`, by
+ * `windowKey`): the counts each scope would clear, over the view without
+ * the lingering rows, and the action — so the top line's button and the
+ * cell's ⋯ menu read them from the store instead of building the view again.
+ * Written only when a count changes; removed when the widget unmounts.
  */
 export function usePlanner(tabId: string, order: readonly string[] | undefined, linger: boolean): PlannerData {
   const today = useToday()
   const screenTasks = useScreenTasks()
   const windowKey = plannerWindowKey(useWorkspaceStore((s) => s.working?.id), tabId)
-  const { offset, picked } = usePlannerWindow(windowKey)
+  const { offset } = usePlannerWindow(windowKey)
   const ranges = useSettingsStore((s) => s.tabBadges)
 
   const shownIdsRef = useRef<ReadonlySet<number>>(NO_IDS)
   const completed = useLeavingRows((id) => shownIdsRef.current.has(id))
   const leaving = linger ? completed : NO_LEAVING
 
-  const { view, kept } = useMemo(() => {
-    const options = { today, offset, picked: picked == null ? null : new Date(picked), order }
+  const { view, kept, current } = useMemo(() => {
+    const options = { today, offset, order }
     const built = plannerView(screenTasks, options)
-    if (leaving.size === 0) return { view: built, kept: NO_IDS }
-    const rows = (v: PlannerView<Task>) => new Set(groupIds([v.today, ...v.days, v.noDay]))
+    if (leaving.size === 0) return { view: built, kept: NO_IDS, current: built }
+    const rows = (v: PlannerView<Task>) => new Set(groupIds([v.today, ...v.days, v.delayed, v.unplanned]))
     // The rows it would drop now (a completed task left the screen's tasks; a repeating one moved on).
     const dropped = keptOf(leaving, rows(built))
-    if (dropped.size === 0) return { view: built, kept: NO_IDS }
+    if (dropped.size === 0) return { view: built, kept: NO_IDS, current: built }
     const before = [...dropped].flatMap((id) => leaving.get(id)?.before ?? [])
-    return { view: plannerView([...screenTasks.filter((t) => !dropped.has(t.id)), ...before], options), kept: dropped }
-  }, [screenTasks, today, offset, picked, order, leaving])
+    return { view: plannerView([...screenTasks.filter((t) => !dropped.has(t.id)), ...before], options), kept: dropped, current: built }
+  }, [screenTasks, today, offset, order, leaving])
+  usePlannerResetReport(windowKey, current)
 
-  useEffect(() => { shownIdsRef.current = new Set(groupIds([view.today, ...view.days, view.noDay])) })
+  useEffect(() => { shownIdsRef.current = new Set(groupIds([view.today, ...view.days, view.delayed, view.unplanned])) })
   const keptTodos = useKeptTodos(kept, leaving)
 
   const badge = useMemo(() => {
@@ -78,7 +84,27 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
     return { counts, summary: tabBadgeSummary(counts, ranges) }
   }, [view, kept, ranges, today])
 
-  return { today, windowKey, offset, picked, view, leaving, keptTodos, badge }
+  return { today, windowKey, offset, view, leaving, keptTodos, badge }
+}
+
+/**
+ * Reports what Reset plan would do in `view` — the Planner as it is, no
+ * lingering row — to `planner-store.resets[windowKey]`: its counts and the
+ * week scope's name (a new report only when one of them changes) and its
+ * action, which reads the view of the moment it is called. The report goes
+ * when the widget unmounts.
+ */
+function usePlannerResetReport(windowKey: string, view: PlannerView<Task>): void {
+  const viewRef = useRef(view)
+  useEffect(() => { viewRef.current = view })
+  const counts = useMemo(() => plannerResetCounts(view), [view])
+  const { week, today, delayed } = counts
+  const weekLabel = plannerResetWeekLabel(view.window)
+  useEffect(() => {
+    const run = (scope: PlannerResetScope) => { void resetPlannerPlan(viewRef.current, scope) }
+    usePlannerStore.getState().setReset(windowKey, { counts: { week, today, delayed }, week: weekLabel, run })
+  }, [windowKey, week, today, delayed, weekLabel])
+  useEffect(() => () => usePlannerStore.getState().setReset(windowKey, null), [windowKey])
 }
 
 /**

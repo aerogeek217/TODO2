@@ -8,7 +8,7 @@
  * - `mutate` / `optimistic` — tracked store writes
  * - `updateEntityInMap` — refresh entity references in assignment maps
  * - `captureAssignments` — capture a task's people and tags for undo
- * - `bulkUpdateField` — shared bulk field update with undo
+ * - `bulkUpdateTasks` / `bulkUpdateField` — shared bulk field updates with undo
  * - `saveOrReport` — a tracked write that never rejects (the entry stores')
  *
  * Capture/restore for soft-delete undo lives in `data/join-helpers.ts`
@@ -25,7 +25,7 @@ import { undoable } from './undoable'
 import { guardTasks } from './task-undo-guard'
 import { useUndoStore } from './undo-store'
 import { registerModuleReset, registerModuleSettle } from '../utils/module-reset'
-import { withOrphanedRuleDropped } from '../utils/todo-changes'
+import { fieldsOf, withOrphanedRuleDropped } from '../utils/todo-changes'
 import { stampAfter, undoStamps, type Stamp, type StampChanges } from '../utils/task-stamps'
 
 type SetFn = (partial: Record<string, unknown>) => void
@@ -275,17 +275,125 @@ function sameFieldValue(a: unknown, b: unknown): boolean {
   return a === b
 }
 
+/** The fields a bulk write sets on one task (`undefined` removes a field). */
+type TaskFields = Partial<Omit<PersistedTodoItem, 'id' | 'modifiedAt'>>
+
+const valueOf = (row: object, key: string): unknown => (row as Record<string, unknown>)[key]
+
 /**
- * Bulk update a single field on multiple todos, with undo support.
+ * Writes each task its own fields (`changes`: task id → the fields, all of
+ * them in **one** database write and one undo step), with undo support.
  * Uses optimistic update: state changes immediately, DB write follows.
- * Only the tasks whose field changes are written (and get a new
+ * Only the tasks one of whose fields changes are written (and get a new
  * `modifiedAt`); when none does, nothing is written and no undo step added.
- * Undo puts back each task's earlier `modifiedAt`, redo the one this wrote
- * (`opts.stamp`, `utils/task-stamps`) — each only where the task still holds
- * the other. A caller's `opts.stamp` of `KEEP_STAMPS` writes the field and
- * leaves every `modifiedAt` as it is, on the write, its undo and its redo.
+ * Undo puts back each task's earlier values and its earlier `modifiedAt`,
+ * redo the ones this wrote (`opts.stamp`, `utils/task-stamps`) — each stamp
+ * only where the task still holds the other. A caller's `opts.stamp` of
+ * `KEEP_STAMPS` writes the fields and leaves every `modifiedAt` as it is, on
+ * the write, its undo and its redo. `opts.together`: a task's fields are one
+ * value (a task's plan state: `doDate` and `unplanned`, never both) — a
+ * failed write takes them back **all or none**, only while every one still
+ * holds what this write set, so an overlapping write's failure can't leave
+ * one field of each.
  */
-export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
+export async function bulkUpdateTasks(
+  changes: ReadonlyMap<number, TaskFields>,
+  label: string,
+  get: () => { todos: PersistedTodoItem[] },
+  set: SetFn,
+  opts: { showSnackbar?: boolean; stamp?: StampChanges; together?: boolean } = {},
+): Promise<void> {
+  const saved = get().todos.flatMap((t) => {
+    const next = changes.get(t.id)
+    if (!next) return []
+    const keys = Object.keys(next)
+    if (keys.every((key) => sameFieldValue(valueOf(t, key), valueOf(next, key)))) return []
+    return [{
+      id: t.id,
+      next,
+      keys,
+      prev: fieldsOf(t, next),
+      modifiedAt: t.modifiedAt,
+      // A rule this write leaves without a due date: the repository drops it
+      // (`withOrphanedRuleDropped`); the store does the same, undo puts it back.
+      droppedRule: !('recurrenceRule' in next) && 'recurrenceRule' in withOrphanedRuleDropped({ ...t, ...next }, next)
+        ? t.recurrenceRule
+        : undefined,
+    }]
+  })
+  if (saved.length === 0) return
+  const savedById = new Map(saved.map((s) => [s.id, s]))
+  // One stamp for the store and the database write: now, or a redo's put back.
+  const write: Stamp = opts.stamp ?? new Date()
+  const stampOf = new Map(saved.map((s) => [s.id, stampAfter(write, s.id, s.modifiedAt)]))
+  const step: StampChanges = new Map(saved.map((s) => [s.id, { before: s.modifiedAt, after: stampOf.get(s.id) ?? s.modifiedAt }]))
+  /**
+   * The tasks back to their earlier values. For a failed write (`onlyOwn`),
+   * only the fields that still hold the value this write set — an edit of
+   * one that landed meanwhile stays; with `opts.together`, all of the
+   * task's fields or none — and the `modifiedAt` only where no later write
+   * stamped it. For an undo, the earlier `modifiedAt` as the undo's
+   * database write puts it back (`back`).
+   */
+  const revert = (onlyOwn: boolean, back?: StampChanges) => {
+    set({
+      todos: get().todos.map((t) => {
+        const s = savedById.get(t.id)
+        if (!s) return t
+        const own = onlyOwn ? s.keys.filter((key) => sameFieldValue(valueOf(t, key), valueOf(s.next, key))) : s.keys
+        // Fields that are one value go back together, and only while the task still holds all this write set.
+        const keys = onlyOwn && opts.together && own.length < s.keys.length ? [] : own
+        if (keys.length === 0) return t
+        const stamp = back
+          ? { modifiedAt: stampAfter(back, t.id, t.modifiedAt) }
+          : t.modifiedAt === stampOf.get(t.id) ? { modifiedAt: s.modifiedAt } : {}
+        const rule = s.droppedRule != null && t.recurrenceRule == null ? { recurrenceRule: s.droppedRule } : {}
+        return { ...t, ...Object.fromEntries(keys.map((key) => [key, valueOf(s.prev, key)])), ...rule, ...stamp }
+      }),
+    })
+  }
+
+  await optimistic(
+    () => {
+      set({
+        todos: get().todos.map((t) => {
+          const s = savedById.get(t.id)
+          return s
+            ? { ...t, ...s.next, ...(s.droppedRule != null ? { recurrenceRule: undefined } : {}), modifiedAt: stampOf.get(t.id) ?? t.modifiedAt }
+            : t
+        }),
+      })
+    },
+    () => todoRepository.bulkUpdate(saved.map((s) => ({ todoId: s.id, changes: s.next })), write),
+    () => revert(true),
+    label,
+    {
+      description: label,
+      redo: guardTasks(changes.keys(), (present) => bulkUpdateTasks(
+        new Map(present.flatMap((id) => { const next = changes.get(id); return next ? [[id, next] as const] : [] })),
+        label, get, set, { ...opts, stamp: step },
+      )),
+      undo: guardTasks(savedById.keys(), async () => {
+        // The rows the edit changed get their values and modifiedAt back, in
+        // the database and the store alike; the others are left as they are.
+        const back = undoStamps(step)
+        await todoRepository.bulkUpdate(saved.map((s) => ({
+          todoId: s.id,
+          changes: { ...s.prev, ...(s.droppedRule != null ? { recurrenceRule: s.droppedRule } : {}) },
+        })), back)
+        revert(false, back)
+      }),
+      showSnackbar: opts.showSnackbar,
+    },
+  )
+}
+
+/**
+ * Bulk update a single field on multiple todos, with undo support: every
+ * task in `ids` gets `value` (`bulkUpdateTasks`, which says what is written,
+ * stamped and undone).
+ */
+export function bulkUpdateField<K extends keyof TaskFields>(
   ids: number[],
   field: K,
   value: PersistedTodoItem[K],
@@ -294,76 +402,6 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   set: SetFn,
   opts: { showSnackbar?: boolean; stamp?: StampChanges } = {},
 ): Promise<void> {
-  const idSet = new Set(ids)
-  const prevValues = get().todos
-    .filter((t) => idSet.has(t.id) && !sameFieldValue(t[field], value))
-    .map((t) => ({
-      id: t.id,
-      prev: t[field],
-      modifiedAt: t.modifiedAt,
-      // A rule this write leaves without a due date: the repository drops it
-      // (`withOrphanedRuleDropped`); the store does the same, undo puts it back.
-      droppedRule: field !== 'recurrenceRule' && 'recurrenceRule' in withOrphanedRuleDropped({ ...t, [field]: value }, { [field]: value })
-        ? t.recurrenceRule
-        : undefined,
-    }))
-  if (prevValues.length === 0) return
-  const changedIds = new Set(prevValues.map((s) => s.id))
-  const dropsRule = new Set(prevValues.filter((s) => s.droppedRule != null).map((s) => s.id))
-  // One stamp for the store and the database write: now, or a redo's put back.
-  const write: Stamp = opts.stamp ?? new Date()
-  const stampOf = new Map(prevValues.map((s) => [s.id, stampAfter(write, s.id, s.modifiedAt)]))
-  const step: StampChanges = new Map(prevValues.map((s) => [s.id, { before: s.modifiedAt, after: stampOf.get(s.id) ?? s.modifiedAt }]))
-  /**
-   * The tasks back to `prevValues`. For a failed write (`onlyOwn`), only where
-   * the field still holds the value this write set — an edit of it that
-   * landed meanwhile stays — and the `modifiedAt` only where no later write
-   * stamped it. For an undo, the earlier `modifiedAt` as the undo's database
-   * write puts it back (`back`).
-   */
-  const revert = (onlyOwn: boolean, back?: StampChanges) => {
-    const prevMap = new Map(prevValues.map((s) => [s.id, s]))
-    set({
-      todos: get().todos.map((t) => {
-        const saved = prevMap.get(t.id)
-        if (!saved) return t
-        if (onlyOwn && !sameFieldValue(t[field], value)) return t
-        const stamp = back
-          ? { modifiedAt: stampAfter(back, t.id, t.modifiedAt) }
-          : t.modifiedAt === stampOf.get(t.id) ? { modifiedAt: saved.modifiedAt } : {}
-        const rule = saved.droppedRule != null && t.recurrenceRule == null ? { recurrenceRule: saved.droppedRule } : {}
-        return { ...t, [field]: saved.prev, ...rule, ...stamp }
-      }),
-    })
-  }
-
-  await optimistic(
-    () => {
-      set({
-        todos: get().todos.map((t) =>
-          changedIds.has(t.id)
-            ? { ...t, [field]: value, ...(dropsRule.has(t.id) ? { recurrenceRule: undefined } : {}), modifiedAt: stampOf.get(t.id) ?? t.modifiedAt }
-            : t,
-        ),
-      })
-    },
-    () => todoRepository.bulkUpdate([...changedIds].map((id) => ({ todoId: id, changes: { [field]: value } })), write),
-    () => revert(true),
-    label,
-    {
-      description: label,
-      redo: guardTasks(ids, (present) => bulkUpdateField(present, field, value, label, get, set, { ...opts, stamp: step })),
-      undo: guardTasks(changedIds, async () => {
-        // The rows the edit changed get their value and modifiedAt back, in
-        // the database and the store alike; the others are left as they are.
-        const back = undoStamps(step)
-        await todoRepository.bulkUpdate(prevValues.map((s) => ({
-          todoId: s.id,
-          changes: { [field]: s.prev, ...(s.droppedRule != null ? { recurrenceRule: s.droppedRule } : {}) },
-        })), back)
-        revert(false, back)
-      }),
-      showSnackbar: opts.showSnackbar,
-    },
-  )
+  const fields = { [field]: value } as TaskFields
+  return bulkUpdateTasks(new Map(ids.map((id) => [id, fields])), label, get, set, opts)
 }

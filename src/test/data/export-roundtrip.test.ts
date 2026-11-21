@@ -96,6 +96,13 @@ function buildSeed(): Seed {
         createdAt: at('2026-09-03T11:00:00.000Z'), modifiedAt: at('2026-09-10T09:30:00.000Z'),
         sortOrder: 1,
       },
+      {
+        id: 3, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e03', title: 'Call the vendor', isCompleted: false,
+        nextFollowupAt: at('2026-10-13T00:00:00.000Z'),
+        unplanned: true as const,
+        createdAt: at('2026-09-04T11:00:00.000Z'), modifiedAt: at('2026-09-05T09:30:00.000Z'),
+        sortOrder: 2,
+      },
     ],
     people: [{ id: 1, name: 'Ann Lee', initials: 'AL', color: '#e05050' }],
     tags: [{ id: 1, name: 'urgent', color: '#ff0000' }],

@@ -513,6 +513,8 @@
   /* Inset backgrounds (recessed areas) */
   --color-inset: rgba(0, 0, 0, 0.18);
   --color-inset-light: rgba(0, 0, 0, 0.14);
+  /* A visibly darker ground beside the surface (the Planner's trays pane). */
+  --color-inset-deep: rgba(0, 0, 0, 0.32);
 
   /* Segmented control (the date filter's type tabs and Show choice, a
      picker's Is / Is not): the selected segment lighter than either
@@ -806,6 +808,7 @@
   /* Inset backgrounds */
   --color-inset: rgba(0, 0, 0, 0.04);
   --color-inset-light: rgba(0, 0, 0, 0.025);
+  --color-inset-deep: rgba(60, 45, 20, 0.08);
 
   /* Segmented control */
   --color-seg-track: rgba(0, 0, 0, 0.06);

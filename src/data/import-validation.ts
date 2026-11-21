@@ -144,6 +144,7 @@ function checkTodo(v: unknown): CheckResult {
     ['lastFollowupAt', isOptDateLike(v.lastFollowupAt)],
     ['nextFollowupAt', isOptDateLike(v.nextFollowupAt)],
     ['doDate', isOptDateLike(v.doDate)],
+    ['unplanned', isOptTriBool(v.unplanned)],
     ['recurrenceRule', isOptRecurrenceRule(v.recurrenceRule)],
     ['focus', isOptTriBool(v.focus)],
     ['urgent', isOptTriBool(v.urgent)],
@@ -545,6 +546,8 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
     lastFollowupAt: toOptDate(v.lastFollowupAt),
     nextFollowupAt: toOptDate(v.nextFollowupAt),
     doDate: toOptDate(v.doDate),
+    // Only `true` is stored, and never beside a planned day: the two plan states are exclusive, the day wins.
+    unplanned: v.unplanned === true && v.doDate == null ? true : undefined,
     // A repeat needs a due date (the UI offers it only with one; any later
     // write drops it — `withOrphanedRuleDropped`): without one it is dropped.
     recurrenceRule: v.dueDate != null ? pickRecurrenceRule(v.recurrenceRule) : undefined,

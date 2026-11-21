@@ -60,7 +60,7 @@ import type { IconValue, LineIconKey } from './icon'
  * maps of 2026-11-18, whole widgets like the Neglect map. Project pulse
  * (`pulse`) and the Pressure radar (`radar`) were removed; v83 dropped
  * every saved one. `planner` is the Planner (2026-11-20): today and the
- * week ahead, a task on a day by its Do day, its follow-up or its due date.
+ * week ahead, a task on its planned day, else the day its follow-up or due date puts it.
  */
 export type WidgetKind =
   | 'lens' | 'calendar' | 'notes' | 'review' | 'planner' | 'neglect' | 'clusters' | 'listwall'
@@ -188,7 +188,7 @@ export interface ReviewTabViewState {
  * A Planner's view state (saved at once, no undo step): its hand order —
  * task `uid`s, one sequence for the whole widget, each group listing its
  * tasks in that order and the rest after them (`utils/planner.plannerOrder`).
- * Its window and picked day are never saved (`stores/planner-store`).
+ * Its window is never saved (`stores/planner-store`).
  */
 export interface PlannerTabViewState {
   order?: string[]

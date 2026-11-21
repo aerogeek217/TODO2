@@ -117,7 +117,7 @@ const PLANNER_STRIP_MIN_WIDTH_PX = 300
 
 /**
  * A Planner's face (2026-11-20): small as every widget's; medium — one
- * column: Today, the days ahead, Focus, no day — while the body is too
+ * column: Today, the days ahead, Delayed, Unplanned — while the body is too
  * narrow or too short for its two panes (`PLANNER_PANES_MIN_*`); else
  * large. Unmeasured is `large`.
  */

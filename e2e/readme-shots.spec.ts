@@ -197,7 +197,8 @@ test('review', async ({ browser }) => {
 })
 
 // The Planner alone on a layout of its own (only this page sees it), wide enough for its two panes:
-// Today beside the days ahead. Its Do days, Focus tasks and today's completions are the dataset's.
+// the days on the left — Today, then the days ahead, one row planned a day after its due date —, Delayed and
+// Unplanned on the right. Its planned days, held and Focus tasks and today's completions are the dataset's.
 test('planner', async ({ browser }) => {
   await withPage(browser, 1200, 810, 1.5, false, async (page) => {
     await page.evaluate(async () => {

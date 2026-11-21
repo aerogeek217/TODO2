@@ -23,6 +23,7 @@ import { PriorityRing } from '../shared/PriorityRing'
 import { TagPicker } from '../shared/TagChipSelector'
 import { SubtaskCountStatic } from './subtasks/SubtaskCountButton'
 import { keepRowTextUnselected } from './row-events'
+import { useTaskRowExtras } from './task-row-extras'
 import { TaskMenu } from './TaskMenu'
 import { Cobweb } from './Cobweb'
 import { useTaskRowPickers } from './use-task-row-pickers'
@@ -100,6 +101,10 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
     stale,
   }).split('\n').slice(1).join('. ')
   const own = (e: React.SyntheticEvent) => e.target instanceof Node && e.currentTarget.contains(e.target)
+  // What the surface around the row adds (the Planner's): dates drawn late, its flag's words; none everywhere else.
+  const extras = useTaskRowExtras(todo)
+  const late = extras?.late
+  const described = [description, extras?.description].filter(Boolean).join('. ')
 
   return (
     <div
@@ -143,7 +148,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
           className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
           data-task-title={todo.title}
           // What the details line says, in words (an attribute, so no text search finds it twice).
-          aria-description={description || undefined}
+          aria-description={described || undefined}
           // A press that closes an open popover or menu goes no further: it doesn't open the task too.
           onPointerDown={(e) => { swallowClick.current = popoverOpenOutside(e.currentTarget) }}
           onClick={() => {
@@ -156,7 +161,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
         >
           <span className={styles.titleText}>{todo.title}</span>
         </button>
-        <MobileRowDetails todo={todo} today={today} people={people} tags={tags} count={count} hasNotes={hasNotes} />
+        <MobileRowDetails todo={todo} today={today} people={people} tags={tags} count={count} hasNotes={hasNotes} late={late} />
       </div>
 
       {actions && (
@@ -177,23 +182,26 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
 /**
  * The details line (drawn only; the title's description says it in words):
  * due · follow-up (today or late only) · checklist count · notes mark ·
- * initials · first tag `+N`. Nothing when there is nothing to say.
+ * initials · first tag `+N`. Nothing when there is nothing to say. A date
+ * in `late` is drawn late whatever today is (and a follow-up then shows).
  */
-function MobileRowDetails({ todo, today, people, tags, count, hasNotes }: {
+function MobileRowDetails({ todo, today, people, tags, count, hasNotes, late }: {
   todo: PersistedTodoItem
   today: Date
   people: readonly Person[]
   tags: readonly Tag[]
   count: SubtaskCount | null
   hasNotes: boolean
+  late?: { due?: boolean; followup?: boolean }
 }) {
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const rowDates = useSettingsStore((s) => s.rowDates)
   const due = todo.dueDate
-  const dueDateState = dueState(todo, today, urgentRange)
+  const ownDue = dueState(todo, today, urgentRange)
+  const dueDateState = late?.due && due ? { past: true, soon: ownDue.soon } : ownDue
   const { past, soon } = dueDateState
   const next = todo.nextFollowupAt
-  const followup = followupState(todo, today)
+  const followup = late?.followup && next ? 'late' : followupState(todo, today)
   const showFollowup = next != null && (followup === 'today' || followup === 'late')
   const shownPeople = people.slice(0, SHOWN_PEOPLE)
   const morePeople = people.length - shownPeople.length

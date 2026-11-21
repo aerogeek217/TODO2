@@ -32,12 +32,19 @@ const GROUP: PlannerDropData = {
   window: WINDOW,
   group: { key: '2026-11-23', rows: ['d', 'e'], shown: ['a', 'b', 'd', 'e'] },
 }
-const NO_DAY: PlannerDropData = {
+const UNPLANNED: PlannerDropData = {
   type: TASK_DROP_KIND.plannerGroup,
   scope: 'plan',
-  target: { kind: 'noday' },
+  target: { kind: 'unplanned' },
   window: WINDOW,
-  group: { key: 'none', rows: ['f'], shown: ['a', 'f'] },
+  group: { key: 'unplanned', rows: ['f'], shown: ['a', 'f'] },
+}
+const DELAYED: PlannerDropData = {
+  type: TASK_DROP_KIND.plannerGroup,
+  scope: 'plan',
+  target: { kind: 'delayed' },
+  window: WINDOW,
+  group: { key: 'delayed', rows: ['x'], shown: ['a', 'x'] },
 }
 
 const todo = makeTodo({ id: 7, uid: 'a' })
@@ -59,7 +66,7 @@ function event(over: Record<string, unknown> | null, activeExtra: Record<string,
 const SOURCES: Array<[string, Record<string, unknown>]> = [
   ['a row of that Planner', { listTabId: 'plan', sectionKey: '2026-11-20', rowKey: '2026-11-20|7' }],
   ['a list widget’s row', { listTabId: 'list-1', sectionKey: 'all', rowKey: 'all|7' }],
-  ['another Planner’s row', { listTabId: 'plan-2', sectionKey: 'none', rowKey: 'none|7' }],
+  ['another Planner’s row', { listTabId: 'plan-2', sectionKey: 'unplanned', rowKey: 'unplanned|7' }],
   ['a calendar entry', { calendarDateType: 'due' }],
   ['any other task drag', {}],
 ]
@@ -88,10 +95,12 @@ describe('dispatchTaskDrop — a Planner’s tile or group', () => {
     expect(reschedule).not.toHaveBeenCalled()
   })
 
-  it('Focus, no day is a target like any group', async () => {
+  it('the trays — Unplanned, Delayed — are targets like any group: the Planner’s drop decides what each takes', async () => {
     const drop = vi.fn(async () => {})
-    await dispatchTaskDrop(event({ ...NO_DAY }), { planner: { drop } })
-    expect(drop).toHaveBeenCalledWith({ todo, tabId: 'plan', target: { kind: 'noday' }, window: WINDOW, group: NO_DAY.group })
+    await dispatchTaskDrop(event({ ...UNPLANNED }), { planner: { drop } })
+    expect(drop).toHaveBeenCalledWith({ todo, tabId: 'plan', target: { kind: 'unplanned' }, window: WINDOW, group: UNPLANNED.group })
+    await dispatchTaskDrop(event({ ...DELAYED }), { planner: { drop } })
+    expect(drop).toHaveBeenLastCalledWith({ todo, tabId: 'plan', target: { kind: 'delayed' }, window: WINDOW, group: DELAYED.group })
   })
 
   it('makes the drop before it returns to the page: the hand order and the landing are set in the drop’s own turn', () => {
@@ -126,6 +135,7 @@ describe('dispatchTaskDrop — a Planner’s tile or group', () => {
     ['no target', { ...TILE, target: undefined }],
     ['a day target without a date', { ...TILE, target: { kind: 'day', day: '2026-11-23' } }],
     ['an unknown target', { ...TILE, target: { kind: 'week' } }],
+    ['the old no-day target', { ...TILE, target: { kind: 'noday' } }],
     ['no window', { ...TILE, window: undefined }],
     ['a window without dates', { ...TILE, window: { today: 1, last: 2 } }],
     ['a group without its rows', { ...GROUP, group: undefined }],
@@ -142,7 +152,8 @@ describe('Planner drop targets', () => {
   it('reads a tile’s and a group’s data', () => {
     expect(isPlannerDropData(TILE)).toBe(true)
     expect(isPlannerDropData(GROUP)).toBe(true)
-    expect(isPlannerDropData(NO_DAY)).toBe(true)
+    expect(isPlannerDropData(UNPLANNED)).toBe(true)
+    expect(isPlannerDropData(DELAYED)).toBe(true)
     expect(isPlannerDropData(null)).toBe(false)
     expect(isPlannerDropData({ type: TASK_DROP_KIND.calendarDay, date: MONDAY, scope: 'c', dateTypes: { due: true, followup: true } })).toBe(false)
   })
@@ -151,7 +162,8 @@ describe('Planner drop targets', () => {
     const ids = [
       plannerDropId('plan', 'tile', '2026-11-20'),
       plannerDropId('plan', 'group', '2026-11-20'),
-      plannerDropId('plan', 'group', 'none'),
+      plannerDropId('plan', 'group', 'unplanned'),
+      plannerDropId('plan', 'group', 'delayed'),
       plannerDropId('plan-2', 'tile', '2026-11-20'),
       taskDragId('list-widget', 7, { scope: 'plan', sectionKey: '2026-11-20' }),
     ]
