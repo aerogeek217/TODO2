@@ -241,6 +241,7 @@ export const TaskRow = memo(function TaskRow({
         onChange={handleToggleComplete}
         onClick={(e) => e.stopPropagation()}
         aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+        aria-description={extras?.description}
       />
 
       {isEditing ? (

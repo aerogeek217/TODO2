@@ -29,6 +29,7 @@ import {
   plannerLateDates,
   plannerRowTag,
   plannerRowTagHint,
+  plannerRowStateWords,
   plannerRowTagLabel,
   plannerShows,
   plannerTagDay,
@@ -873,6 +874,21 @@ describe('a row’s tag and late dates', () => {
     expect(plannerRowTag(undefined)).toBeNull()
   })
 
+  it('a placed row’s plan state in words, for its accessible description: planned, planned for a day, set aside', () => {
+    expect(plannerRowStateWords(placed({ doDate: day(2) }), TODAY)).toBe('planned')
+    expect(plannerRowStateWords(placed({ doDate: day(4), dueDate: day(3) }), TODAY)).toBe('planned')
+    expect(plannerRowStateWords(placed({ doDate: day(-2) }), TODAY)).toBe('planned for Wed')
+    expect(plannerRowStateWords(placed({ doDate: day(-9) }), TODAY)).toBe('planned for Nov 11')
+    expect(plannerRowStateWords(placed({ doDate: day(7), dueDate: day(6) }), TODAY)).toBe('planned for Fri, Nov 27')
+    expect(plannerRowStateWords(placed({ unplanned: true }), TODAY)).toBe('set aside')
+    expect(plannerRowStateWords(placed({ unplanned: true, dueDate: day(1) }), TODAY)).toBe('set aside')
+    // Not placed: nothing to say.
+    expect(plannerRowStateWords(placed({ dueDate: day(1) }), TODAY)).toBeNull()
+    expect(plannerRowStateWords(placed({ focus: true }), TODAY)).toBeNull()
+    expect(plannerRowStateWords(placed({ doDate: day(2), dueDate: day(2) }), TODAY)).toBeNull()
+    expect(plannerRowStateWords(null, TODAY)).toBeNull()
+  })
+
   it('a tag’s day in words: Today, a weekday within six days, else the date', () => {
     expect(plannerTagDay(day(0, 15), TODAY)).toBe('Today')
     expect(plannerTagDay(day(-1), TODAY)).toBe('Thu')
@@ -1025,6 +1041,11 @@ describe('labels', () => {
     expect(plannerTileLabel({ day: day(3), count: 3, isToday: false })).toBe('Mon, Nov 23: 3 tasks')
     expect(plannerTileLabel({ day: day(3), count: 1, isToday: false })).toBe('Mon, Nov 23: 1 task')
     expect(plannerTileLabel({ day: day(0), count: 0, isToday: true })).toBe('Today, Nov 20: no tasks')
+    // With its marks: the real dates on the day, then the plans for it.
+    expect(plannerTileLabel({ day: day(3), count: 2, isToday: false, dates: ['due'], plans: 1 })).toBe('Mon, Nov 23: 2 tasks, 1 due, 1 planned')
+    expect(plannerTileLabel({ day: day(2), count: 0, isToday: false, dates: ['followup', 'followup'], plans: 0 })).toBe('Sun, Nov 22: no tasks, 2 follow-ups')
+    expect(plannerTileLabel({ day: day(0), count: 5, isToday: true, dates: ['due', 'due', 'followup'], plans: 3 })).toBe('Today, Nov 20: 5 tasks, 2 due, 1 follow-up, 3 planned')
+    expect(plannerTileLabel({ day: day(1), count: 1, isToday: false, dates: [], plans: 0 })).toBe('Sat, Nov 21: 1 task')
   })
 
   it('names the window', () => {

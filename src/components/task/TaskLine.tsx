@@ -121,6 +121,7 @@ export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect,
       data-faded={faded || undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       data-task-line=""
+      aria-description={extras?.description}
       // A tab stop, as a row's cells are: Shift+F10 / the context-menu key on it opens the task menu.
       tabIndex={0}
       {...hoverProps(todo.id)}

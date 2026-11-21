@@ -699,7 +699,7 @@ const daysPane = (page: Page) => planner(page).locator('[data-planner-pane="days
 const traysPane = (page: Page) => planner(page).locator('[data-planner-pane="trays"]')
 const flagOf = (row: Locator) => row.locator('xpath=ancestor::*[@data-planner-row][1]').locator('[data-planner-flag]')
 const tagOf = (row: Locator) => row.locator('[data-planner-tag]')
-const unplanAll = (page: Page) => planner(page).getByRole('button', { name: 'Move all Delayed tasks to Unplanned' })
+const unplanAll = (page: Page) => planner(page).getByRole('button', { name: 'Unplan all Delayed tasks' })
 /** A day's short weekday (`Wed`), `days` from today: a tag's words within six days. */
 const weekday = (page: Page, days: number) => page.evaluate((n) => {
   const d = new Date()

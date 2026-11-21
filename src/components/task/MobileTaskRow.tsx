@@ -101,8 +101,10 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
     stale,
   }).split('\n').slice(1).join('. ')
   const own = (e: React.SyntheticEvent) => e.target instanceof Node && e.currentTarget.contains(e.target)
-  // Dates the surface around the row draws late (the Planner's); none everywhere else.
-  const late = useTaskRowExtras(todo)?.late
+  // What the surface around the row adds (the Planner's): dates drawn late, its flag's words; none everywhere else.
+  const extras = useTaskRowExtras(todo)
+  const late = extras?.late
+  const described = [description, extras?.description].filter(Boolean).join('. ')
 
   return (
     <div
@@ -146,7 +148,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
           className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
           data-task-title={todo.title}
           // What the details line says, in words (an attribute, so no text search finds it twice).
-          aria-description={description || undefined}
+          aria-description={described || undefined}
           // A press that closes an open popover or menu goes no further: it doesn't open the task too.
           onPointerDown={(e) => { swallowClick.current = popoverOpenOutside(e.currentTarget) }}
           onClick={() => {

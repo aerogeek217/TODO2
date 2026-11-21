@@ -18,12 +18,19 @@ export interface TaskRowExtras {
    * type) whatever today is; the date's name and tooltip stay as they are.
    */
   late?: { due?: boolean; followup?: boolean }
+  /**
+   * Words added to the row's accessible description — what a mark the
+   * surface draws on the row says (the Planner's corner flag: `planned`,
+   * `set aside`): on a desktop row's checkbox, on a line, and after the
+   * phone row's own description.
+   */
+  description?: string
 }
 
 /**
  * What the surface around a row adds to the row itself, for the one task it
- * shows (`TaskRow`, `TaskLine` and the phone row's details read it): the
- * Planner's tag, hover buttons and late dates. Null — the default, so
+ * shows (`TaskRow`, `TaskLine` and the phone row read it): the Planner's
+ * tag, hover buttons, late dates and its flag's words. Null — the default, so
  * everywhere else — : nothing, and a row draws exactly as it always has.
  */
 export const TaskRowExtrasContext = createContext<((todo: PersistedTodoItem) => TaskRowExtras | null) | null>(null)

@@ -357,6 +357,7 @@ function PlannerResetButton({ tab }: { tab: PlannerTab }) {
  * The **↓ Unplan** button, centered on a hairline rule between Delayed and
  * Unplanned (only while Delayed holds a task): every Delayed task to
  * Unplanned, one undo step (`services/planner-drop.unplanDelayedTasks`).
+ * Named `Unplan all Delayed tasks` — its visible word leads its name.
  */
 function UnplanAll({ onUnplan }: { onUnplan: () => void }) {
   return (
@@ -365,7 +366,7 @@ function UnplanAll({ onUnplan }: { onUnplan: () => void }) {
       <button
         type="button"
         className={styles.unplanButton}
-        aria-label="Move all Delayed tasks to Unplanned"
+        aria-label="Unplan all Delayed tasks"
         data-tooltip="Move all Delayed tasks to Unplanned"
         onClick={onUnplan}
       >
@@ -578,7 +579,9 @@ function DayGroup({ tabId, group, data, mobile, drag, children, empty }: GroupPr
  * triangle at the box's top-left corner, over the row, in the secondary
  * text color. It takes no pointer events and is drawn whatever the row
  * shows: its hover fill, the slot it leaves while it is lifted, the Stacked
- * and Lines styles, the phone row.
+ * and Lines styles, the phone row. It is drawn only (`aria-hidden`): the
+ * row's accessible description says the same in words (`planned`, `set
+ * aside` — `TaskRowExtras.description`).
  */
 function PlannerRowWrap({ todoId, flagged, children }: { todoId: number; flagged: boolean; children: ReactNode }) {
   return (

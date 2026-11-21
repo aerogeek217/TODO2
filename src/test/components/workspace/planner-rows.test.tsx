@@ -139,6 +139,26 @@ describe('the corner flag', () => {
     expect(root().querySelector('[data-mark="plan"]')).toBeNull()
   })
 
+  it('is drawn only: the row’s accessible description says it in words — planned, planned for a day, set aside', () => {
+    show()
+    const box = (title: string) => within(rowOf(title)).getByRole('checkbox')
+    expect(box('Monday plan')).toHaveAccessibleDescription('planned')
+    expect(box('Past its due date')).toHaveAccessibleDescription('planned')
+    expect(box('Missed plan')).toHaveAccessibleDescription('planned for Wed')
+    expect(box('Held call')).toHaveAccessibleDescription('set aside')
+    expect(box('Held, no date')).toHaveAccessibleDescription('set aside')
+    // A row with no flag has none; its checkbox keeps its name.
+    expect(box('Monday deadline')).not.toHaveAttribute('aria-description')
+    expect(box('Someday focus')).not.toHaveAttribute('aria-description')
+    expect(box('Monday plan')).toHaveAccessibleName('Mark complete')
+    cleanup()
+    // A line (its own tab stop) carries it too.
+    useSettingsStore.setState({ listZoom: 'lines' })
+    show()
+    expect(rowOf('Missed plan').querySelector('[data-task-line]')).toHaveAttribute('aria-description', 'planned for Wed')
+    expect(rowOf('Monday deadline').querySelector('[data-task-line]')).not.toHaveAttribute('aria-description')
+  })
+
   it('is there in the Stacked and the Lines styles too', () => {
     width = 400
     show({ forced: 'large' })
@@ -515,6 +535,9 @@ describe('on the phone', () => {
     // A follow-up the plan falls after shows there, late (the phone shows a follow-up only when it asks for action).
     expect(rowOf('Past its follow-up').querySelector('[data-row-part="followup"]')).toHaveAttribute('data-date-level', 'late')
     expect(rowOf('Held call').querySelector('[data-row-part="followup"]')).toBeNull()
+    // The flag in words, after what the row's details say.
+    expect(within(rowOf('Held, no date')).getByRole('button', { name: 'Held, no date' })).toHaveAttribute('aria-description', 'set aside')
+    expect(within(rowOf('Missed plan')).getByRole('button', { name: 'Missed plan' }).getAttribute('aria-description')).toMatch(/planned for Wed$/)
     // The conflict's tag opens its fixes there too.
     fireEvent.click(tagOf('Past its due date')!)
     expect(within(screen.getByRole('menu', { name: 'Fix the plan' })).getAllByRole('menuitem')).toHaveLength(2)

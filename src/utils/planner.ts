@@ -536,6 +536,19 @@ export function plannerTagDay(day: Date, today: Date): string {
   return formatDateWith(day, Math.abs(days) <= 6 ? { weekday: 'short' } : { month: 'short', day: 'numeric' })
 }
 
+/**
+ * A placed row's plan state in words — the corner flag's text equivalent,
+ * for the row's accessible description: `planned` (on its planned day),
+ * `planned for Wed` (a Delayed row; `planned for Fri, Nov 27` a row planned
+ * later), `set aside` (held in Unplanned). Null for a row that isn't placed.
+ */
+export function plannerRowStateWords(placement: PlannerPlacement | null | undefined, today: Date): string | null {
+  if (!placement?.placed) return null
+  if (placement.where === 'unplanned') return 'set aside'
+  if (placement.where === 'delayed') return placement.planned ? `planned for ${plannerTagDay(placement.planned, today)}` : 'planned'
+  return plannerPlannedLater(placement) && placement.planned ? `planned for ${plannerDayLabel(placement.planned)}` : 'planned'
+}
+
 /** A tag's text: the day in words (`Wed`), the conflict's (`1 day after due`), or a later plan's day (`planned Fri, Nov 27`). */
 export function plannerRowTagLabel(tag: PlannerRowTag, today: Date): string {
   if (tag.kind === 'later') return `planned ${plannerDayLabel(tag.day)}`
@@ -863,10 +876,22 @@ export function plannerDayLabel(day: Date): string {
   return formatDateWith(day, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-/** A tile's accessible name: `Mon, Nov 23: 3 tasks`. */
-export function plannerTileLabel(tile: Pick<PlannerTile, 'day' | 'count' | 'isToday'>): string {
+/**
+ * A tile's accessible name: its day, the rows on it, then what its marks
+ * say — the real dates falling on it and the plans for it: `Mon, Nov 23: 2
+ * tasks, 1 due, 1 planned`, `Sun, Nov 22: no tasks, 2 follow-ups`, `Today,
+ * Nov 20: no tasks`.
+ */
+export function plannerTileLabel(tile: Pick<PlannerTile, 'day' | 'count' | 'isToday'> & Partial<Pick<PlannerTile, 'dates' | 'plans'>>): string {
   const day = tile.isToday ? `Today, ${formatDateWith(tile.day, { month: 'short', day: 'numeric' })}` : plannerDayLabel(tile.day)
-  return `${day}: ${tile.count === 0 ? 'no tasks' : `${tile.count} ${tile.count === 1 ? 'task' : 'tasks'}`}`
+  const due = (tile.dates ?? []).filter((d) => d === 'due').length
+  const followups = (tile.dates ?? []).length - due
+  const marks = [
+    due > 0 ? `${due} due` : null,
+    followups > 0 ? `${followups} ${followups === 1 ? 'follow-up' : 'follow-ups'}` : null,
+    (tile.plans ?? 0) > 0 ? `${tile.plans} planned` : null,
+  ].filter((part) => part != null)
+  return [`${day}: ${tile.count === 0 ? 'no tasks' : `${tile.count} ${tile.count === 1 ? 'task' : 'tasks'}`}`, ...marks].join(', ')
 }
 
 /** The window in words: `Nov 20 – 26`, `Nov 28 – Dec 4`, `Dec 28, 2026 – Jan 3, 2027`. */
