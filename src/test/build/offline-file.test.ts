@@ -150,6 +150,11 @@ describe('checkOfflineFile', () => {
     ['a resource hint', 'Im(`prerender`,u)'],
     ["React DOM's resource hints", 'Mr.preconnect(h)'],
     ['speculation rules', 's.type=`speculationrules`'],
+    ['a navigation', 'location.href=u'],
+    ['a navigation', 'window.location=u'],
+    ['a navigation', 'e.location.assign(u)'],
+    ['a navigation', 'document.location.replace(u)'],
+    ['a navigation', 'navigation.navigate(u)'],
   ])('fails %s in the code: %s', (name, code) => {
     const script = `${APP}${code};`
     const csp = `default-src 'none'; script-src ${scriptHash(script)}; base-uri 'none'; form-action 'none'`
@@ -190,6 +195,12 @@ describe('checkOfflineFile', () => {
   it('reads a CSP hash source whose base64 holds `//` as no URL', () => {
     // A digest can start with `//` (`'sha256-//o5Gm…'`): the policy's own, or the text in a script.
     const script = `${APP}const h="'sha256-//o5GmChP+gDkMU2xu8Jjykw4yn3YW1CjQGEzBXyxHM='";`
+    const csp = `default-src 'none'; script-src ${scriptHash(script)}; base-uri 'none'; form-action 'none'`
+    expect(checkOfflineFile(offlineFile({ script, csp }))).toEqual([])
+  })
+
+  it('reads a reload, and a read or comparison of the location, as no navigation', () => {
+    const script = `${APP}window.location.reload();const p=location.pathname;if(e.location===t.location||n.location==r)o={location:i.location};`
     const csp = `default-src 'none'; script-src ${scriptHash(script)}; base-uri 'none'; form-action 'none'`
     expect(checkOfflineFile(offlineFile({ script, csp }))).toEqual([])
   })

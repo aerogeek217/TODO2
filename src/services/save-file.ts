@@ -81,9 +81,9 @@ export function downloadedMessage(fileName: string): string {
  */
 export function downloadTextFile(text: string, fileName: string, mimeType: string): void {
   const blob = new Blob([text], { type: mimeType })
-  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url
+  a.href = URL.createObjectURL(blob)
+  const url = a.href
   a.download = fileName
   document.body.appendChild(a)
   a.click()

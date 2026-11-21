@@ -23,6 +23,25 @@ const HTML_SINKS = [
   { selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']", message: NO_HTML_SINK },
 ]
 
+// Nor does it navigate away: a navigation is no fetch, so no CSP directive
+// stops it (the offline file's policy has no navigate-to). The page stays
+// itself — a reload (`location.reload()`) and the hash router's own history
+// are all it does; a link the app makes is a download's blob: URL, set from
+// `URL.createObjectURL` where it is made.
+const NO_NAVIGATION = 'TODO2 never navigates away (CLAUDE.md › Constraints): no location assignment, location.assign / replace, navigation.navigate, form submit, or link / form target in markup; a download\'s link takes URL.createObjectURL(…) directly.'
+const NAVIGATION = [
+  { selector: "AssignmentExpression[left.type='Identifier'][left.name='location']", message: NO_NAVIGATION },
+  { selector: "AssignmentExpression > MemberExpression.left[property.name='location']", message: NO_NAVIGATION },
+  { selector: "AssignmentExpression > MemberExpression.left[property.name='href'][object.name='location']", message: NO_NAVIGATION },
+  { selector: "AssignmentExpression > MemberExpression.left[property.name='href'][object.property.name='location']", message: NO_NAVIGATION },
+  { selector: "AssignmentExpression[left.property.name='href']:not([right.callee.object.name='URL'][right.callee.property.name='createObjectURL'])", message: NO_NAVIGATION },
+  { selector: "CallExpression[callee.property.name=/^(assign|replace)$/][callee.object.name='location']", message: NO_NAVIGATION },
+  { selector: "CallExpression[callee.property.name=/^(assign|replace)$/][callee.object.property.name='location']", message: NO_NAVIGATION },
+  { selector: "CallExpression[callee.property.name='navigate'][callee.object.name='navigation']", message: NO_NAVIGATION },
+  { selector: "CallExpression[callee.property.name=/^(submit|requestSubmit)$/]", message: NO_NAVIGATION },
+  { selector: "JSXOpeningElement[name.type='JSXIdentifier'][name.name=/^[a-z]/] > JSXAttribute[name.name=/^(href|action|formAction|target|ping)$/]", message: NO_NAVIGATION },
+]
+
 // One tooltip everywhere (flair P9): an element's hover text is the app's
 // tooltip — `data-tooltip` (read by `TooltipHost`) or `useTooltip` — never
 // the browser's native `title`, which waits and looks different. (An
@@ -81,14 +100,14 @@ export default defineConfig([
         ...GLOBAL_OBJECTS.flatMap((object) => NETWORK_GLOBALS.map((property) => ({ object, property, message: LOCAL_FIRST }))),
         ...['sendBeacon', 'serviceWorker'].map((property) => ({ object: 'navigator', property, message: LOCAL_FIRST })),
       ],
-      'no-restricted-syntax': ['error', ...HTML_SINKS, NATIVE_TITLE],
+      'no-restricted-syntax': ['error', ...HTML_SINKS, ...NAVIGATION, NATIVE_TITLE],
     },
   },
   {
     // The components: as above, and no text ×.
     files: ['src/components/**/*.tsx'],
     rules: {
-      'no-restricted-syntax': ['error', ...HTML_SINKS, NATIVE_TITLE, ...TEXT_TIMES],
+      'no-restricted-syntax': ['error', ...HTML_SINKS, ...NAVIGATION, NATIVE_TITLE, ...TEXT_TIMES],
     },
   },
 ])

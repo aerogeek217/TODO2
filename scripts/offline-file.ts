@@ -144,6 +144,11 @@ export const INERT_API_TEXTS: readonly InertText[] = [
   { text: 'e.rel===`stylesheet`||e.rel===`preload`).map(e=>e.rel===`stylesheet`?{...e,rel:`prefetch`,as:`style`}:{...e,rel:`prefetch`})', reason: "React Router's framework-mode <PrefetchPageLinks>: the data router renders none" },
   { text: '{key:e,rel:`prefetch`,as:`fetch`,href:e,...n}', reason: "React Router's framework-mode <PrefetchPageLinks> (data links): the data router renders none" },
   { text: '{key:e,rel:`modulepreload`,href:e,...n}', reason: "React Router's framework-mode <PrefetchPageLinks> (module links): the data router renders none" },
+  // Navigations: library code for cases the app never reaches.
+  { text: '`DataCloneError`)throw e;i.location.assign(f)', reason: "React Router's history push falling back to a load of the same in-app URL when pushState can't clone its state: the app's history state is the router's own, which clones" },
+  { text: 'u?t.location.replace(d):t.location.assign(d)', reason: "React Router's data-router redirect to another origin or a document reload: only a loader's or action's redirect, and the app has none" },
+  { text: 'if(a.isExternal||e.reloadDocument)window.location.href=o', reason: "React Router's framework-mode (single fetch) redirect: the data router never runs it" },
+  { text: 'navigation.navigate(e.url,{state:e.getState(),info:`react-transition`', reason: "React DOM's view-transition hook re-navigating to the current entry's own URL (the same document)" },
 ]
 
 /**
@@ -172,6 +177,11 @@ export const NETWORK_APIS: readonly { name: string; pattern: RegExp }[] = [
   { name: 'a resource hint', pattern: /["'`](?:preconnect|dns-prefetch|prefetch|prerender|modulepreload|preload)["'`]/gi },
   { name: "React DOM's resource hints", pattern: /\.(?:preconnect|prefetchDNS)\s*\(/g },
   { name: 'speculation rules', pattern: /speculationrules/gi },
+  // A navigation is no fetch: no CSP directive stops it (no navigate-to).
+  // Assigning the location (or its href), its assign / replace, the
+  // Navigation API's navigate. (A reload, `location.reload()`, stays on the
+  // file.)
+  { name: 'a navigation', pattern: /\blocation\s*\.\s*(?:assign|replace)\s*\(|\blocation(?:\s*\.\s*href)?\s*=(?![=>])|\bnavigation\s*\.\s*navigate\s*\(/g },
 ]
 
 /** An absolute URL (any scheme with `//`), up to a quote, a bracket, a backslash or a space. */
