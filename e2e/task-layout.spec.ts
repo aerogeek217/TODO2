@@ -220,7 +220,7 @@ test.describe('the task editor', () => {
     await expect(dialog).toBeVisible()
   })
 
-  test('the header’s ⋯: Duplicate, Make subtask of…, Delete; the footer ends with Mark followed up and Done', async ({ page }) => {
+  test('the header’s ⋯: Plan for day ›, Duplicate, Make subtask of…, Delete; the footer ends with Mark followed up and Done', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page)
     const footer = dialog.locator('button', { hasText: 'Done' })
@@ -232,7 +232,7 @@ test.describe('the task editor', () => {
     await expect(dialog.getByRole('button', { name: 'Duplicate', exact: true })).toHaveCount(0)
     await dialog.getByRole('button', { name: 'More actions' }).click()
     const menu = page.getByRole('menu', { name: 'Task actions' })
-    await expect(menu.getByRole('menuitem')).toHaveText(['Duplicate', 'Make subtask of…', 'Delete'])
+    await expect(menu.getByRole('menuitem')).toHaveText([/^Plan for day/, 'Duplicate', 'Make subtask of…', 'Delete'])
     await menu.getByRole('menuitem', { name: 'Delete' }).click()
     // The same confirm as the task menu's Delete.
     await page.getByRole('dialog', { name: 'Delete task' }).getByRole('button', { name: 'Delete' }).click()

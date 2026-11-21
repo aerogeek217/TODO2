@@ -25,6 +25,7 @@ import { FollowupEditorGroup } from './FollowupEditorGroup'
 import { CopyIcon, IndentIcon, TrashIcon } from '../shared/icons'
 import type { MenuEntry } from '../shared/MenuPopover'
 import { useToday } from '../../hooks/use-today'
+import { planForDayEntries } from './plan-menu'
 import { dueState, followupState } from '../../utils/row-date-state'
 import { StatusUpdatesSection } from './status-updates/StatusUpdatesSection'
 import { useEditorStatusUpdates, useEditorSubtasks } from './use-editor-entries'
@@ -620,8 +621,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }, today)
   const nextTone = nextState === 'late' ? 'followup-late' as const : nextState === 'today' ? 'followup-today' as const : undefined
 
-  // The header's ⋯ (edit mode): the task's own actions, each after the notes typed so far.
+  // The header's ⋯ (edit mode): Plan for day › (the plan only: nothing typed to flush), then the task's own actions, each after the notes typed so far.
+  const planEntries = todo ? planForDayEntries(todo, today) : []
   const menuEntries: MenuEntry[] | undefined = props.mode === 'edit' && todo ? [
+    ...planEntries,
+    ...(planEntries.length > 0 ? [{ kind: 'separator' as const }] : []),
     ...(props.onDuplicate ? [{ kind: 'item' as const, label: 'Duplicate', icon: <CopyIcon />, onSelect: afterNotes(props.onDuplicate) }] : []),
     {
       kind: 'item',

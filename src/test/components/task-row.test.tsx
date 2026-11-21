@@ -392,7 +392,7 @@ describe('TaskRow', () => {
       fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
       expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Copy' }))
       fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
-      expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Set due date…' }))
+      expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /^Plan for day/ }))
       fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
       expect(screen.queryByRole('menu')).toBeNull()
       expect(document.activeElement).toBe(status)

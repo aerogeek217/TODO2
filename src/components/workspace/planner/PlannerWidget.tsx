@@ -8,7 +8,7 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { usePlanner, useTasksDoneToday, type PlannerData } from '../../../hooks/use-planner'
 import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { movePlannerTask, snoozePlannerTask, unplanDelayedTasks, unplanPlannerTask } from '../../../services/planner-drop'
+import { clearPlannerTask, movePlannerTask, snoozePlannerTask, unplanDelayedTasks, unplanPlannerTask } from '../../../services/planner-drop'
 import { usePersonStore } from '../../../stores/person-store'
 import { usePlannerStore, type PlannerDragPreview } from '../../../stores/planner-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -221,12 +221,13 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
     return { active, preview, mark: preview && writes ? { key: preview.key } : null, shown }
   }, [active, preview, shown])
 
-  // ── Plan for day ›, Snooze and Unplan, in each row's task menu ──
+  // ── Plan for day ›, Snooze, Unplan and Clear plan, in each row's task menu ──
   const plannerWindow = view.window
   const menuExtras = useCallback((todo: Task) => plannerMenuEntries(todo, plannerWindow, {
     move: (target) => { void movePlannerTask(tabId, { todoId: todo.id, target, window: plannerWindow }) },
     snooze: () => { void snoozePlannerTask(tabId, todo.id, plannerWindow) },
     unplan: () => { void unplanPlannerTask(tabId, todo.id, plannerWindow) },
+    clear: () => { void clearPlannerTask(todo.id, plannerWindow) },
   }), [tabId, plannerWindow])
 
   // ── Each row's tag, hover buttons and late dates ──

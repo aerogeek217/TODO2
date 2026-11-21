@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../../components/layout/TopBar'
-import { searchMenuHandlers } from '../../../components/layout/top-bar-search-menu'
+import { oneTaskMenuHandlers } from '../../../components/task/one-task-menu'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -16,12 +16,12 @@ import { makeTodo } from '../../helpers'
  *
  * The menu lives on `TopBar` (not `SearchResultRow`) so it outlives the
  * search dropdown closing when the menu opens. It is the shared task menu
- * (`TaskMenu`) driven by `searchMenuHandlers`, which act on just the one
+ * (`TaskMenu`) driven by `oneTaskMenuHandlers`, which act on just the one
  * task (search rows aren't part of the selection) and leave out the picker
  * items (the row has none). These tests pin that each handler dispatches
  * the expected store call.
  */
-describe('searchMenuHandlers — search context menu', () => {
+describe('oneTaskMenuHandlers — search context menu', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
   })
@@ -31,7 +31,7 @@ describe('searchMenuHandlers — search context menu', () => {
   })
 
   it('has no picker handlers, so the menu leaves those items out', () => {
-    const h = searchMenuHandlers({ todo: makeTodo({ id: 1 }), onOpen: vi.fn() })
+    const h = oneTaskMenuHandlers({ todo: makeTodo({ id: 1 }), onOpen: vi.fn() })
     expect(h.onSetDueDate).toBeUndefined()
     expect(h.onPickFollowup).toBeUndefined()
     expect(h.onAssignPeople).toBeUndefined()
@@ -40,14 +40,14 @@ describe('searchMenuHandlers — search context menu', () => {
 
   it('Open calls onOpen with the todo id', () => {
     const onOpen = vi.fn()
-    searchMenuHandlers({ todo: makeTodo({ id: 42 }), onOpen }).onOpen!()
+    oneTaskMenuHandlers({ todo: makeTodo({ id: 42 }), onOpen }).onOpen!()
     expect(onOpen).toHaveBeenCalledWith(42)
   })
 
   it('Mark complete calls todoStore.toggleComplete', () => {
     const toggleComplete = vi.fn()
     vi.spyOn(useTodoStore, 'getState').mockReturnValue({ toggleComplete } as never)
-    searchMenuHandlers({ todo: makeTodo({ id: 7 }), onOpen: vi.fn() }).onToggleComplete()
+    oneTaskMenuHandlers({ todo: makeTodo({ id: 7 }), onOpen: vi.fn() }).onToggleComplete()
     expect(toggleComplete).toHaveBeenCalledWith(7)
   })
 
@@ -56,7 +56,7 @@ describe('searchMenuHandlers — search context menu', () => {
     const bulkSetImportant = vi.fn()
     const bulkSetUrgent = vi.fn()
     vi.spyOn(useTodoStore, 'getState').mockReturnValue({ bulkSetFocus, bulkSetImportant, bulkSetUrgent, todos: [] } as never)
-    const h = searchMenuHandlers({ todo: makeTodo({ id: 9 }), onOpen: vi.fn() })
+    const h = oneTaskMenuHandlers({ todo: makeTodo({ id: 9 }), onOpen: vi.fn() })
     h.onSetMarker('focus', true)
     h.onSetMarker('important', false)
     h.onSetMarker('urgent', true)
@@ -69,7 +69,7 @@ describe('searchMenuHandlers — search context menu', () => {
     const markFollowedUp = vi.fn()
     const bulkSetFollowup = vi.fn()
     vi.spyOn(useTodoStore, 'getState').mockReturnValue({ markFollowedUp, bulkSetFollowup } as never)
-    const h = searchMenuHandlers({ todo: makeTodo({ id: 5 }), onOpen: vi.fn() })
+    const h = oneTaskMenuHandlers({ todo: makeTodo({ id: 5 }), onOpen: vi.fn() })
     h.onFollowedUp()
     h.onSetFollowup(null)
     expect(markFollowedUp).toHaveBeenCalledWith([5])
@@ -79,7 +79,7 @@ describe('searchMenuHandlers — search context menu', () => {
   it('Delete queues a single-id bulk confirmation', () => {
     const showBulkConfirmation = vi.fn()
     vi.spyOn(useUIStore, 'getState').mockReturnValue({ showBulkConfirmation } as never)
-    searchMenuHandlers({ todo: makeTodo({ id: 99 }), onOpen: vi.fn() }).onDelete()
+    oneTaskMenuHandlers({ todo: makeTodo({ id: 99 }), onOpen: vi.fn() }).onDelete()
     expect(showBulkConfirmation).toHaveBeenCalledWith('delete', [99])
   })
 })

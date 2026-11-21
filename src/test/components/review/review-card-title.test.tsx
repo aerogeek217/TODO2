@@ -93,7 +93,7 @@ describe('the review card’s header', () => {
     renderCard()
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
     const items = screen.getAllByRole('menuitem').map((m) => m.textContent)
-    expect(items).toEqual(['Open in editor', 'Duplicate', 'Make subtask of…', 'Delete'])
+    expect(items).toEqual(['Open in editor', 'Duplicate', 'Make subtask of…', 'Plan for day', 'Delete'])
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
     await waitFor(() => expect(showBulkConfirmation).toHaveBeenCalledWith('delete', [1]))
   })

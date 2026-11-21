@@ -955,6 +955,11 @@ test('the ↓ Unplan button moves every Delayed task to Unplanned in one step; U
 
 // ── Reset plan ──────────────────────────────────────────────────────────────
 
+/** Reset plan asks first: its confirm prompt's Reset plan. */
+async function confirmReset(page: Page): Promise<void> {
+  await page.getByRole('dialog', { name: /^Reset plan/ }).getByRole('button', { name: 'Reset plan', exact: true }).click()
+}
+
 test('Reset plan › This week clears every plan the Planner shows; Undo puts them back', async ({ page }) => {
   await seedWorkspace(page, ALONE)
   await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(6)
@@ -963,6 +968,9 @@ test('Reset plan › This week clears every plan the Planner shows; Undo puts th
   // Six placed tasks; one planned for today; two Delayed.
   await expect(menu.getByRole('menuitem')).toHaveText([/^This week\s*6$/, /^Today only\s*1$/, /^Delayed\s*2$/])
   await menu.getByRole('menuitem', { name: /^This week/ }).click()
+  // It asks first: how many plans, and how many tasks then leave the Planner.
+  await expect(page.getByRole('dialog', { name: 'Reset plan: this week?' })).toContainText('This clears the plan of 6 tasks')
+  await confirmReset(page)
   // No flag left; a planned task with no date and no Focus leaves the widget (Reset may remove it), the dated ones sit by their dates.
   await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(0)
   await expect(delayedGroup(page)).toHaveCount(0)
@@ -991,6 +999,7 @@ test('Reset plan › This week clears every plan the Planner shows; Undo puts th
   // A choice with nothing to clear is inert.
   await planner(page).getByRole('button', { name: 'Reset plan' }).click()
   await page.getByRole('menu', { name: 'Reset plan' }).getByRole('menuitem', { name: /^Delayed/ }).click()
+  await confirmReset(page)
   await expect(delayedGroup(page)).toHaveCount(0)
   await planner(page).getByRole('button', { name: 'Reset plan' }).click()
   await expect(page.getByRole('menu', { name: 'Reset plan' }).getByRole('menuitem', { name: /^Delayed/ })).toBeDisabled()
@@ -1009,6 +1018,7 @@ test('in a cell of tabs Reset plan is under the widget’s ⋯ menu', async ({ p
   const today = page.getByRole('menuitem', { name: /^Today only/ })
   await expect(today).toContainText('1')
   await today.click()
+  await confirmReset(page)
   await expect.poll(async () => (await stored(page, 'Write the brief')).doDate).toBeNull()
   expect(await newestUndoStep(page)).toBe('Reset plan: today')
   // The rest of the plan stands.
@@ -1206,6 +1216,7 @@ test('an overdue row planned for next week is still in Today on this week, plann
   const week = page.getByRole('menu', { name: 'Reset plan' }).getByRole('menuitem').first()
   await expect(week).toContainText('1')
   await week.click()
+  await confirmReset(page)
   await expect(flagOf(rowOf(todayGroup(page), 'Renew the domain'))).toHaveCount(0)
   await expect.poll(async () => (await stored(page, 'Renew the domain')).doDate).toBeNull()
   expect((await stored(page, 'Renew the domain')).dueDate).toEqual([-2, 0, 0])
@@ -1290,4 +1301,98 @@ test.describe('on the phone', () => {
     await expect(delayedGroup(page)).toHaveCount(0)
     await expect.poll(async () => (await stored(page, 'Old plan')).held).toBe(true)
   })
+})
+
+// ── Any task into the Planner: Plan for day › in every task menu, the editor's ⋯, a calendar entry's menu ──
+
+/** The Planner beside a list of every task and a month calendar of due dates. */
+const ANYWHERE: WorkspaceSeed = {
+  tasks: [
+    ...['One', 'Two', 'Three', 'Four', 'Five', 'Six'].map((title) => ({ title, dueInDays: 1, modifiedAt: STAMP })),
+    { title: 'Loose idea', modifiedAt: STAMP },
+  ],
+  listDefinitions: [{ name: 'Everything', sort: 'manual' }],
+  layouts: [{
+    name: 'Week',
+    columns: [
+      { id: 'c1', weight: 4, rows: [wsRow({ id: 'k1', tabs: [{ id: 'plan', kind: 'planner' }] })] },
+      { id: 'c2', weight: 4, rows: [
+        wsRow({ id: 'k2', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }),
+        wsRow({ id: 'k3', tabs: [{ id: 'cal', kind: 'calendar', view: 'month', offset: 0, titles: true, dateTypes: { due: true, followup: false } }] }),
+      ] },
+    ],
+  }],
+}
+
+/** Opens Plan for day › in the task menu that is open, and picks the day or Unplanned (`item`: its name's start). */
+async function planFor(page: Page, item: string): Promise<void> {
+  const menu = page.getByRole('menu', { name: 'Task actions' })
+  await menu.getByRole('menuitem', { name: /^Plan for day/ }).hover()
+  await page.getByRole('menuitemradio', { name: new RegExp(`^${item}`) }).click()
+}
+
+test('a task with no date joins the Planner from a list row’s menu — Unplanned, flagged — and Remove takes it out again', async ({ page }) => {
+  await seedWorkspace(page, ANYWHERE)
+  const list = wsCell(page, 'k2')
+  await expect(rowOf(planner(page), 'Loose idea')).toHaveCount(0)
+  await rowOf(list, 'Loose idea').locator('[data-title-text]').click({ button: 'right' })
+  await planFor(page, 'Unplanned')
+  const row = rowOf(unplannedGroup(page), 'Loose idea')
+  await expect(row).toHaveCount(1)
+  await expect(planner(page).locator('[data-planner-row]').filter({ hasText: 'Loose idea' }).locator('[data-planner-flag]')).toHaveCount(1)
+  await expect.poll(async () => (await stored(page, 'Loose idea')).held).toBe(true)
+  expect((await stored(page, 'Loose idea')).modifiedAt).toBe(STAMP_MS)
+
+  // Held with no date: its hover offers Today and Remove.
+  await row.hover()
+  await expect(row.locator('[data-planner-actions] button')).toHaveText(['Today', 'Remove'])
+  await row.getByRole('button', { name: 'Remove' }).click()
+  await expect(rowOf(planner(page), 'Loose idea')).toHaveCount(0)
+  await expect.poll(async () => (await stored(page, 'Loose idea')).held).toBe(false)
+  const snackbar = page.locator('[data-snackbar-live]')
+  await expect(snackbar).toContainText('Removed “Loose idea” from the Planner')
+  await snackbar.getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(rowOf(unplannedGroup(page), 'Loose idea')).toHaveCount(1)
+})
+
+test('a list row dropped on Unplanned joins the Planner, even with no date', async ({ page }) => {
+  await seedWorkspace(page, ANYWHERE)
+  const list = wsCell(page, 'k2')
+  await drag(page, await grip(rowOf(list, 'Loose idea')), await pointIn(unplannedGroup(page)), {
+    during: async () => {
+      await expectMarked(unplannedGroup(page))
+      await expect(label(page)).toHaveText('Unplan')
+    },
+  })
+  await expect(rowOf(unplannedGroup(page), 'Loose idea')).toHaveCount(1)
+  await expect.poll(async () => (await stored(page, 'Loose idea')).held).toBe(true)
+})
+
+test('the task editor’s ⋯ plans the task for a day: the plan only', async ({ page }) => {
+  await seedWorkspace(page, ANYWHERE)
+  await rowOf(wsCell(page, 'k2'), 'Loose idea').locator('[data-task-title]').dblclick()
+  const editor = page.getByRole('dialog', { name: 'Edit task' })
+  await editor.getByRole('button', { name: 'More actions' }).click()
+  await page.getByRole('menuitem', { name: /^Plan for day/ }).hover()
+  await page.getByRole('menuitemradio', { name: await dayWords(page, 3), exact: true }).click()
+  await expect.poll(async () => (await stored(page, 'Loose idea')).doDate).toEqual([3, 0, 0])
+  expect(await stored(page, 'Loose idea')).toEqual({ doDate: [3, 0, 0], held: false, dueDate: null, followup: null, modifiedAt: STAMP_MS })
+  await editor.getByRole('button', { name: 'Done' }).click()
+  await expect(titles(group(page, await dayKeyIn(page, 3)))).toHaveText(['Loose idea'])
+})
+
+test('a calendar entry — in the +N more day popover too — opens the task menu on a right-click, not the browser’s', async ({ page }) => {
+  await seedWorkspace(page, ANYWHERE)
+  const tomorrow = wsCell(page, 'k3').locator(`[data-day="${await dayKeyIn(page, 1)}"]`)
+  await tomorrow.getByRole('button', { name: /^\+\d+ more$/ }).click()
+  const popover = page.getByTestId('calendar-day-popover')
+  await expect(popover).toBeVisible()
+  await popover.locator('[data-cal-entry]').filter({ hasText: 'Six' }).click({ button: 'right' })
+  const menu = page.getByRole('menu', { name: 'Task actions' })
+  await expect(menu).toBeVisible()
+  await planFor(page, 'Today')
+  await expect(rowOf(todayGroup(page), 'Six')).toHaveCount(1)
+  await expect.poll(async () => (await stored(page, 'Six')).doDate).toEqual([0, 0, 0])
+  // The due date stands.
+  expect((await stored(page, 'Six')).dueDate).toEqual([1, 0, 0])
 })

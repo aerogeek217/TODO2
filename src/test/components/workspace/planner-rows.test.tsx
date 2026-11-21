@@ -16,6 +16,7 @@ import type { PlannerTab } from '../../../models/workspace-layout'
 import { plannerWindowKey, usePlannerStore } from '../../../stores/planner-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useUIStore } from '../../../stores/ui-store'
 import { clearFilterStore, getByTooltip, makeTodo, resetEntityStores } from '../../helpers'
 
 /**
@@ -86,7 +87,10 @@ function watch() {
   const setPlans = vi.fn(() => Promise.resolve(true))
   const update = vi.fn(() => Promise.resolve(true))
   useTodoStore.setState({ setPlan, setPlans, update })
-  return { setPlan, setPlans, update }
+  // Reset plan asks first: answered yes.
+  const askConfirmation = vi.fn(() => Promise.resolve(true))
+  useUIStore.setState({ askConfirmation })
+  return { setPlan, setPlans, update, askConfirmation }
 }
 
 beforeEach(() => {
@@ -381,12 +385,15 @@ describe('the date a plan falls after', () => {
 })
 
 describe('the hover buttons', () => {
-  it('Snooze and Unplan on a row of a day and of Delayed; Today alone on a row in Unplanned', () => {
+  it('Snooze and Unplan on a row of a day and of Delayed; Today on a row in Unplanned — and, held there, Remove or Clear', () => {
     show()
     for (const title of ['Due today', 'Planned for today', 'Monday deadline', 'Monday plan', 'Past its due date', 'Missed plan']) {
       expect(actionsOf(title)).toEqual(['Snooze', 'Unplan'])
     }
-    for (const title of ['Held call', 'Held, no date', 'Someday focus']) expect(actionsOf(title)).toEqual(['Today'])
+    // Held with no date: clearing takes it out of the Planner. Held with a date in the window: back on that day. Focus: nothing to clear.
+    expect(actionsOf('Held, no date')).toEqual(['Today', 'Remove'])
+    expect(actionsOf('Held call')).toEqual(['Today', 'Clear'])
+    expect(actionsOf('Someday focus')).toEqual(['Today'])
     // In the row's hover cluster, at the title's end.
     expect(rowOf('Due today').querySelector('[data-planner-actions]')?.closest('[data-row-cluster]')).not.toBeNull()
   })
@@ -395,7 +402,7 @@ describe('the hover buttons', () => {
     width = 400
     show({ forced: 'large' })
     expect(actionsOf('Monday plan')).toEqual(['Snooze', 'Unplan'])
-    expect(actionsOf('Held call')).toEqual(['Today'])
+    expect(actionsOf('Held call')).toEqual(['Today', 'Clear'])
     cleanup()
     useSettingsStore.setState({ listZoom: 'lines' })
     show({ forced: 'large' })
@@ -436,6 +443,18 @@ describe('the hover buttons', () => {
     expect(setPlan).toHaveBeenLastCalledWith([10], { day: day(0) })
     expect(update).not.toHaveBeenCalled()
     expect(getByTooltip(rowOf('Held call'), 'Plan for today')).toHaveTextContent('Today')
+  })
+
+  it('Remove and Clear clear a held row’s plan: one write, no date', async () => {
+    const { setPlan, update } = watch()
+    show()
+    fireEvent.click(within(rowOf('Held, no date')).getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([10], null, 'Removed “Held, no date” from the Planner', true))
+    fireEvent.click(within(rowOf('Held call')).getByRole('button', { name: 'Clear' }))
+    await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([9], null))
+    expect(update).not.toHaveBeenCalled()
+    expect(getByTooltip(rowOf('Held, no date'), 'Remove from the Planner')).toHaveTextContent('Remove')
+    expect(getByTooltip(rowOf('Held call'), 'Clear the plan')).toHaveTextContent('Clear')
   })
 
   it('say what they do in a tooltip', () => {
@@ -483,6 +502,14 @@ describe('the focus follows a row moved from the keyboard', () => {
     keyPress(button('Monday deadline', 'Unplan'))
     await waitFor(() => expect(groupOf('Monday deadline')).toBe('Unplanned'))
     await waitFor(() => expect(document.activeElement).toBe(button('Monday deadline', 'Today')))
+  })
+
+  it('Remove: the row gone, to the row that took its place', async () => {
+    livePlans()
+    show()
+    keyPress(button('Held, no date', 'Remove'))
+    await waitFor(() => expect(root().querySelector('[data-task-title="Held, no date"]')).toBeNull())
+    await waitFor(() => expect(document.activeElement?.closest('[data-planner-group]')?.getAttribute('aria-label')).toBe('Unplanned'))
   })
 
   it('Today: to the row in Today — its Snooze button', async () => {
@@ -598,20 +625,21 @@ describe('Reset plan', () => {
     expect(rows(openMenu())).toEqual([['This week', '0', true], ['Today only', '0', true], ['Delayed', '0', true]])
   })
 
-  it('each choice clears those tasks’ plans in one write, one undo step with the snackbar — and no date', () => {
-    const { setPlan, update } = watch()
+  it('each choice asks, then clears those tasks’ plans in one write, one undo step with the snackbar — and no date', async () => {
+    const { setPlan, update, askConfirmation } = watch()
     alone()
     fireEvent.click(within(openMenu()).getByRole('menuitem', { name: /^This week/ }))
-    expect(setPlan).toHaveBeenLastCalledWith([2, 4, 5, 6, 7, 8, 10, 9], null, 'Reset plan: this week', true)
+    await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([2, 4, 5, 6, 7, 8, 10, 9], null, 'Reset plan: this week', true))
     fireEvent.click(within(openMenu()).getByRole('menuitem', { name: /^Today only/ }))
-    expect(setPlan).toHaveBeenLastCalledWith([2], null, 'Reset plan: today', true)
+    await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([2], null, 'Reset plan: today', true))
     fireEvent.click(within(openMenu()).getByRole('menuitem', { name: /^Delayed/ }))
-    expect(setPlan).toHaveBeenLastCalledWith([8], null, 'Reset plan: Delayed', true)
+    await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([8], null, 'Reset plan: Delayed', true))
+    expect(askConfirmation).toHaveBeenCalledTimes(3)
     expect(setPlan).toHaveBeenCalledTimes(3)
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('with the window shifted, the first choice is named for the days shown — it resets those, not this week — in the button’s menu and the ⋯ submenu alike', () => {
+  it('with the window shifted, the first choice is named for the days shown — it resets those, not this week — in the button’s menu and the ⋯ submenu alike', async () => {
     useTodoStore.setState({
       todos: [
         makeTodo({ id: 1, uid: 'tomorrow', title: 'Planned tomorrow', doDate: day(1), sortOrder: 1 }),
@@ -629,13 +657,13 @@ describe('Reset plan', () => {
     const submenu = result.current[0]?.kind === 'item' ? result.current[0].children ?? [] : []
     expect(submenu.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Nov 27 – Dec 3', 'Today only', 'Delayed'])
     fireEvent.click(within(screen.getByRole('menu', { name: 'Reset plan' })).getByRole('menuitem', { name: /^Nov 27 – Dec 3/ }))
-    expect(setPlan).toHaveBeenCalledWith([2], null, 'Reset plan: Nov 27 – Dec 3', true)
+    await waitFor(() => expect(setPlan).toHaveBeenCalledWith([2], null, 'Reset plan: Nov 27 – Dec 3', true))
     // Back on this week it is This week again.
     fireEvent.click(screen.getByRole('button', { name: 'Nov 27 – Dec 3. Back to this week' }))
     expect(rows(openMenu())[0]).toEqual(['This week', '1', false])
   })
 
-  it('has no top-line control in a cell of tabs: the same three are under Reset plan › in the widget’s ⋯ menu', () => {
+  it('has no top-line control in a cell of tabs: the same three are under Reset plan › in the widget’s ⋯ menu', async () => {
     show()
     expect(screen.queryByRole('button', { name: 'Reset plan' })).toBeNull()
     const { setPlan } = watch()
@@ -646,8 +674,8 @@ describe('Reset plan', () => {
     expect(choices.map((e) => (e.kind === 'item' ? [e.label, e.note, e.disabled] : e.kind))).toEqual([
       ['This week', '8', false], ['Today only', '1', false], ['Delayed', '1', false],
     ])
-    item(choices, 'Delayed').onSelect?.()
-    expect(setPlan).toHaveBeenCalledWith([8], null, 'Reset plan: Delayed', true)
+    act(() => { item(choices, 'Delayed').onSelect?.() })
+    await waitFor(() => expect(setPlan).toHaveBeenCalledWith([8], null, 'Reset plan: Delayed', true))
   })
 
   it('offers nothing for a tab that is no Planner — and such a cell’s menu reads nothing: a task change doesn’t render it again', () => {
@@ -678,15 +706,15 @@ describe('Reset plan', () => {
     expect(result.current).toEqual([])
   })
 
-  it('the report’s action clears the scope as the Planner shows when it is called, not as it was when reported', () => {
+  it('the report’s action clears the scope as the Planner shows when it is called, not as it was when reported', async () => {
     const key = plannerWindowKey(undefined, 'plan')
     show()
     const { setPlan } = watch()
     const report = usePlannerStore.getState().resets[key]!
     // Another task planned for today too, with the count of Delayed unchanged: the Delayed report is the same object.
     act(() => { useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 8 ? { ...t, title: 'Missed, renamed' } : t)) }) })
-    report.run('delayed')
-    expect(setPlan).toHaveBeenCalledWith([8], null, 'Reset plan: Delayed', true)
+    act(() => { report.run('delayed') })
+    await waitFor(() => expect(setPlan).toHaveBeenCalledWith([8], null, 'Reset plan: Delayed', true))
   })
 })
 

@@ -1,5 +1,5 @@
 import type { PersistedTodoItem } from '../../../models'
-import { plannerLateDates, plannerRowStateWords, plannerRowTag, type PlannerPlacement, type PlannerWindow } from '../../../utils/planner'
+import { plannerClearLeaves, plannerLateDates, plannerRowStateWords, plannerRowTag, type PlannerPlacement, type PlannerWindow } from '../../../utils/planner'
 import type { TaskRowExtras } from '../../task/task-row-extras'
 import { PlannerRowActions, PlannerRowTag } from './PlannerRowExtras'
 
@@ -22,7 +22,7 @@ export function plannerRowExtras(
   const tag = plannerRowTag(placement)
   return {
     tag: tag ? <PlannerRowTag tabId={tabId} todoId={todo.id} tag={tag} window={window} /> : undefined,
-    actions: <PlannerRowActions tabId={tabId} todoId={todo.id} placement={placement} window={window} />,
+    actions: <PlannerRowActions tabId={tabId} todoId={todo.id} placement={placement} window={window} leaves={plannerClearLeaves(todo, window)} />,
     late: plannerLateDates(placement) ?? undefined,
     description: plannerRowStateWords(placement, window.today) ?? undefined,
   }

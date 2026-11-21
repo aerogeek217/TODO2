@@ -9,6 +9,7 @@ import { useToday } from '../../hooks/use-today'
 import { MenuPopover } from '../shared/MenuPopover'
 import { buildTaskMenuEntries, type TaskMenuHandlers } from './task-menu-entries'
 import { TaskMenuExtrasContext } from './task-menu-extras'
+import { planForDayEntries } from './plan-menu'
 
 /**
  * The task menu as a popover: at the pointer for right-click / long-press,
@@ -16,8 +17,9 @@ import { TaskMenuExtrasContext } from './task-menu-extras'
  * cell gets the focus back). With `selectionAware` (rows) it acts on the
  * selection the task belongs to; search results act on the one task. Copy
  * copies them in the order their widget shows them, as one list with no
- * heading. The surface the row sits in may add entries of its own for the
- * one task (`TaskMenuExtrasContext`: the Planner's Plan for day ›).
+ * heading. For one task it offers Plan for day › (`plan-menu`), unless the
+ * surface the row sits in has entries of its own for it
+ * (`TaskMenuExtrasContext`: a Planner row's Plan for day ›, Snooze, Unplan).
  */
 export function TaskMenu({ todo, anchorRef, point, selectionAware = true, handlers, onClose }: {
   todo: PersistedTodoItem
@@ -49,7 +51,8 @@ export function TaskMenu({ todo, anchorRef, point, selectionAware = true, handle
     urgentRange,
     followupIntervals,
     handlers: { onCopy, ...handlers },
-    extra: extras && targets.length === 1 ? extras(todo) : undefined,
+    // The surface's own (a Planner row's), else Plan for day › against this week.
+    extra: targets.length === 1 ? (extras ? extras(todo) : planForDayEntries(todo, today)) : undefined,
     copyKbd: shortcutLabel('copy-selected', shortcutOverrides),
   })
   return (

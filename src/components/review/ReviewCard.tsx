@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObjec
 import { STATUS_UPDATE_TEXT_MAX, type Person, type Interval, type PersistedTodoItem, type Tag, type TodoChanges } from '../../models'
 import { NEXT_FOLLOWUP_PLACEHOLDER } from '../../hooks/use-followup-input'
 import { useLatestRef } from '../../hooks/use-latest-ref'
+import { useToday } from '../../hooks/use-today'
 import { useSelectAllOnFocus } from '../../hooks/use-select-all-on-focus'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -30,6 +31,7 @@ import { StatusUpdatesSection } from '../task/status-updates/StatusUpdatesSectio
 import { SubtasksSection } from '../task/subtasks/SubtasksSection'
 import { storedSubtaskMenuEntries } from '../task/subtasks/subtask-menu'
 import { TaskDetailsBody, TaskNotesSection } from '../task/TaskDetailsBody'
+import { planForDayEntries } from '../task/plan-menu'
 import { taskLayoutClasses } from '../task/task-layout-classes'
 import { FactDateField, PriorityFacts, StatusFacts, type FactDateTone } from '../task/TaskFacts'
 import { TaskFollowupFields, type FollowupFieldParts } from '../task/TaskFollowupFields'
@@ -252,7 +254,7 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
 /**
  * The card's ⋯ (the task editor header's): Open in editor, Duplicate (the
  * copy opens in the editor, as the editor's Duplicate switches to it), Make
- * subtask of… and Delete — each after the notes typed so far. A task that
+ * subtask of…, Plan for day › (`task/plan-menu`) and Delete — each after the notes typed so far. A task that
  * goes (Delete, Make subtask of…) leaves the live queue; the review moves on
  * to the next card.
  */
@@ -260,6 +262,9 @@ function ReviewCardMenu({ todoId, afterNotes }: { todoId: number; afterNotes: Re
   const [open, setOpen] = useState(false)
   const moreRef = useRef<HTMLButtonElement>(null)
   const ui = () => useUIStore.getState()
+  const today = useToday()
+  const todo = useTodoStore((s) => s.todos.find((t) => t.id === todoId))
+  const planEntries = todo ? planForDayEntries(todo, today) : []
   const entries: MenuEntry[] = [
     { kind: 'item', label: 'Open in editor', icon: <OpenIcon />, onSelect: () => afterNotes(() => ui().openEditPopup(todoId)) },
     {
@@ -272,6 +277,7 @@ function ReviewCardMenu({ todoId, afterNotes }: { todoId: number; afterNotes: Re
       }),
     },
     { kind: 'item', label: 'Make subtask of…', icon: <IndentIcon />, onSelect: () => afterNotes(() => ui().openTaskPicker({ kind: 'make-subtask', todoId })) },
+    ...(planEntries.length > 0 ? [{ kind: 'separator' as const }, ...planEntries] : []),
     { kind: 'separator' },
     { kind: 'item', label: 'Delete', icon: <TrashIcon />, danger: true, onSelect: () => afterNotes(() => ui().showBulkConfirmation('delete', [todoId])) },
   ]

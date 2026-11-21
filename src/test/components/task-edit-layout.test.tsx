@@ -185,7 +185,7 @@ describe('the task layout in the editor', () => {
     expect(follows(list, within(column).getByRole('textbox', { name: 'New status update' }))).toBe(true)
   })
 
-  it('the header’s ⋯ holds Duplicate, Make subtask of… and Delete; the footer is the dates, Mark followed up and Done', async () => {
+  it('the header’s ⋯ holds Plan for day ›, Duplicate, Make subtask of… and Delete; the footer is the dates, Mark followed up and Done', async () => {
     const dialog = await openStored()
     const footerButtons = Array.from(dialog.querySelectorAll('button')).filter((b) => ['Duplicate', 'Delete', 'Make subtask of…'].includes(b.textContent ?? ''))
     expect(footerButtons).toEqual([])
@@ -193,7 +193,7 @@ describe('the task layout in the editor', () => {
     expect(dialog.querySelector('[data-task-meta]')?.textContent).toMatch(/Created .* · Modified /)
     fireEvent.click(within(dialog).getByRole('button', { name: 'More actions' }))
     const menu = screen.getByRole('menu', { name: 'Task actions' })
-    expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Duplicate', 'Make subtask of…', 'Delete'])
+    expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Plan for day', 'Duplicate', 'Make subtask of…', 'Delete'])
     // Make subtask of… opens the task picker for this task.
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Make subtask of…' }))
     await act(async () => { await Promise.resolve() })
