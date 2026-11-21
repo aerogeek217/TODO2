@@ -14,7 +14,7 @@ import { filterClear, filterField } from './fixtures/filters'
  * layout). While it is dragged the target is dashed in one neutral color
  * and the lifted row's label says what the drop does (`Plan · Wed, Nov 25`,
  * `Its date · …`, `Unplan`). A plan write never stamps the task. Snooze,
- * Unplan and Move to day › make the same moves from the keyboard. A list's
+ * Unplan and Plan for day › make the same moves from the keyboard. A list's
  * row is taken by the same rule; a Planner row on a calendar day is the
  * calendar's drop; one on a list does nothing.
  *
@@ -503,7 +503,7 @@ test('a Planner row dropped on a list does nothing; on a calendar day it is the 
   expect((await stored(page, 'Write the brief')).doDate).toEqual([0, 0, 0])
 })
 
-test('Snooze, Unplan and Move to day › from the keyboard: the plan moves, no date does', async ({ page }) => {
+test('Snooze, Unplan and Plan for day › from the keyboard: the plan moves, no date does', async ({ page }) => {
   await seedWorkspace(page, WIDE)
   const inTwo = await dayKeyIn(page, 2)
   const inThree = await dayKeyIn(page, 3)
@@ -558,8 +558,8 @@ test('Snooze, Unplan and Move to day › from the keyboard: the plan moves, no d
   await expect(unplan).toHaveAttribute('aria-description', /Unplanned already/)
   await expect(menu.getByRole('menuitem', { name: /^Snooze/ })).toHaveCount(0)
 
-  // Move to day ›: with →, its submenu — a pick plans the task; no No day.
-  await arrowTo(menu.getByRole('menuitem', { name: /^Move to day/ }))
+  // Plan for day ›: with →, its submenu — a pick plans the task; no No day.
+  await arrowTo(menu.getByRole('menuitem', { name: /^Plan for day/ }))
   await page.keyboard.press('ArrowRight')
   let sub = page.getByRole('menu').last()
   await expect(sub.getByRole('menuitemradio', { name: /^Today/ })).toBeVisible()
@@ -577,7 +577,7 @@ test('Snooze, Unplan and Move to day › from the keyboard: the plan moves, no d
 
   // A row there by its follow-up: the same words, the day it sits on checked; a pick plans it and leaves the follow-up.
   menu = await openMenu(rowOf(todayGroup(page), 'Chase the invoice'))
-  await arrowTo(menu.getByRole('menuitem', { name: /^Move to day/ }))
+  await arrowTo(menu.getByRole('menuitem', { name: /^Plan for day/ }))
   await page.keyboard.press('ArrowRight')
   sub = page.getByRole('menu').last()
   await expect(sub).toContainText('Plans it for that day')

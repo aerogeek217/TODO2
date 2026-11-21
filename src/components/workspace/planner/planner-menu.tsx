@@ -11,7 +11,7 @@ import {
 import type { MenuEntry } from '../../shared/MenuPopover'
 import { WidgetKindIcon } from '../../shared/icons'
 
-/** The Move to day › submenu's first line: a pick changes the plan, nothing else. */
+/** The Plan for day › submenu's first line: a pick changes the plan, nothing else. */
 export const MOVE_PLAN_LABEL = 'Plans it for that day'
 
 /** Why Unplan is off: the row is where Unplan would put it. */
@@ -19,7 +19,7 @@ export const UNPLAN_OFF = 'It is in Unplanned already.'
 
 /** What the menu's entries do: the Planner's writes for the row (`services/planner-drop`). */
 export interface PlannerMenuActions {
-  /** Move to day ›: the drop rule on the picked day. */
+  /** Plan for day ›: the drop rule on the picked day. */
   move: (target: PlannerTarget) => void
   /** Snooze: the next day. */
   snooze: () => void
@@ -31,7 +31,7 @@ export interface PlannerMenuActions {
  * A Planner row's entries in its task menu — the drag's moves without a
  * pointer (the task menu's extra entries, `TaskMenuExtrasContext`):
  *
- * - **Move to day ›** — a muted first line (`Plans it for that day`), Today,
+ * - **Plan for day ›** — a muted first line (`Plans it for that day`), Today,
  *   then the window's days after it, in words — the day the row sits on
  *   checked. A pick is the drop rule (`plannerDrop`): the task is planned
  *   for the day, or — on the day its own date puts it — loses its plan.
@@ -70,7 +70,7 @@ export function plannerMenuEntries(
     : placement?.where === 'delayed' ? 'Delayed' : placement ? 'Unplanned' : undefined
   // A row the Planner shows is on a day or in Delayed (Unplan moves it) or in Unplanned already.
   const unplanOff = plannerUnplan(todo, window).kind === 'unplan' ? undefined : UNPLAN_OFF
-  // Nothing in Unplanned is planned to put off: no Snooze there (Move to day › Today plans it).
+  // Nothing in Unplanned is planned to put off: no Snooze there (Plan for day › Today plans it).
   const snooze: MenuEntry[] = placement?.where === 'unplanned' ? [] : [{
     kind: 'item',
     label: 'Snooze',
@@ -80,7 +80,7 @@ export function plannerMenuEntries(
   return [
     {
       kind: 'item',
-      label: 'Move to day',
+      label: 'Plan for day',
       icon: <WidgetKindIcon kind="planner" />,
       note: where,
       childrenWidth: 216,

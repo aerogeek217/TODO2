@@ -106,7 +106,7 @@ export function PlannerRowTag({ tabId, todoId, tag, window }: { tabId: string; t
  * placeholders are: hover, focus within; desktop only): **Snooze** — the
  * next day — and **Unplan** — to Unplanned. A row in Unplanned has neither:
  * nothing there is planned to put off, so its one button is **Today** —
- * planned for today (Move to day › Today in its menu). Pressed from the
+ * planned for today (Plan for day › Today in its menu). Pressed from the
  * keyboard, the focus follows the row to its new place (`planner-focus`).
  */
 export function PlannerRowActions({ tabId, todoId, placement, window }: {

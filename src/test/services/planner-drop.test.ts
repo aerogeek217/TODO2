@@ -42,7 +42,7 @@ import { resetStores } from '../store-tracking'
  * and database: each decision of the drop rule is exactly one task write —
  * the task's plan state (a planned day, held in Unplanned, cleared: both
  * fields at once, one undo step, no stamp, no history event) — or none; a
- * due date or a follow-up is never written by a drop, Move to day ›,
+ * due date or a follow-up is never written by a drop, Plan for day ›,
  * Snooze, Unplan, Unplan all Delayed or Reset plan — only by a conflict's
  * Move date fix, which is a real edit. A drop into a group stores the hand
  * order on the Planner's tab. Drops are driven as the page drives them:
@@ -574,7 +574,7 @@ describe('the hand order', () => {
   })
 })
 
-describe('Move to day › (no pointer)', () => {
+describe('Plan for day › (no pointer)', () => {
   it('makes the same writes as a drop on the day, and never an order or a real date', async () => {
     const chase = await seed('Chase', { nextFollowupAt: day(0) })
     const venue = await seed('Venue', { dueDate: day(2) })

@@ -27,7 +27,7 @@ import { getTab } from '../utils/workspace-layout-queries'
 import type { PlannerDropRequest } from '../utils/task-dnd'
 
 /**
- * The Planner's writes — the only place a Planner drop, Move to day ›,
+ * The Planner's writes — the only place a Planner drop, Plan for day ›,
  * Snooze, Unplan, Unplan all Delayed, Reset plan or a conflict's fix writes
  * from. Everything but a fix's date move changes **the plan only**
  * (`todo-store.setPlans`: both plan fields in one task write, one undo step,
@@ -118,7 +118,7 @@ export async function applyPlannerMove(tabId: string, todoId: number, plan: Plan
   }
 }
 
-/** Plans and makes `move` (Move to day ›, Unplan); resolves once it is written. */
+/** Plans and makes `move` (Plan for day ›, Unplan); resolves once it is written. */
 export function movePlannerTask(tabId: string, move: PlannerMove): Promise<void> {
   const plan = planPlannerMove(tabId, move)
   return plan ? applyPlannerMove(tabId, move.todoId, plan) : Promise.resolve()

@@ -17,7 +17,7 @@ import { TaskMenuExtrasContext } from './task-menu-extras'
  * selection the task belongs to; search results act on the one task. Copy
  * copies them in the order their widget shows them, as one list with no
  * heading. The surface the row sits in may add entries of its own for the
- * one task (`TaskMenuExtrasContext`: the Planner's Move to day ›).
+ * one task (`TaskMenuExtrasContext`: the Planner's Plan for day ›).
  */
 export function TaskMenu({ todo, anchorRef, point, selectionAware = true, handlers, onClose }: {
   todo: PersistedTodoItem

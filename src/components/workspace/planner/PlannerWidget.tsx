@@ -133,7 +133,7 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
  * (the tab's `order`). While a task is dragged over it (`usePlannerDrag`)
  * the target's tile and group are dashed in one neutral color, a blank slot
  * shows where the row would land, and the lifted row carries the label
- * (`PlannerDragLabel`). Without a pointer: **Move to day ›**, **Snooze**
+ * (`PlannerDragLabel`). Without a pointer: **Plan for day ›**, **Snooze**
  * and **Unplan** in a row's task menu (`planner-menu`).
  */
 export function PlannerWidget({ tab }: { tab: PlannerTab }) {
@@ -221,7 +221,7 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
     return { active, preview, mark: preview && writes ? { key: preview.key } : null, shown }
   }, [active, preview, shown])
 
-  // ── Move to day ›, Snooze and Unplan, in each row's task menu ──
+  // ── Plan for day ›, Snooze and Unplan, in each row's task menu ──
   const plannerWindow = view.window
   const menuExtras = useCallback((todo: Task) => plannerMenuEntries(todo, plannerWindow, {
     move: (target) => { void movePlannerTask(tabId, { todoId: todo.id, target, window: plannerWindow }) },

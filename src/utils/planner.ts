@@ -17,7 +17,7 @@ import { addDays, dayKey, formatDateWith, MS_PER_DAY, startOfDay } from './date'
  * groups and tiles of a seven-day window (`plannerView`), a tile's marks
  * (`plannerTileMarks`) and a row's tag (`plannerRowTag`), the hand order
  * (`plannerOrder`, `plannerReorder`), what a drop writes (`plannerDrop` —
- * the only place the drop rule lives; Snooze, Unplan and Move to day › go
+ * the only place the drop rule lives; Snooze, Unplan and Plan for day › go
  * through it), and what Unplan all Delayed and Reset plan change.
  */
 

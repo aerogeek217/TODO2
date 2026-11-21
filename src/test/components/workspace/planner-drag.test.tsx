@@ -17,7 +17,7 @@ import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
  * `planner-drag-hook.test.tsx`): the target's tile and group marked — one
  * neutral mark: a drop changes the plan, never a real date —, a blank slot
  * where the row would land, the lifted row's label, the not-allowed cursor
- * for a refused drop. And Move to day ›, Snooze and Unplan in a row's task
+ * for a refused drop. And Plan for day ›, Snooze and Unplan in a row's task
  * menu.
  */
 
@@ -217,14 +217,14 @@ describe('the lifted row’s label', () => {
   })
 })
 
-describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
+describe('Plan for day ›, Snooze and Unplan in a row’s task menu', () => {
   const openMenu = (title: string) => {
     fireEvent.contextMenu(within(root()).getByText(title))
     return screen.getByRole('menu', { name: 'Task actions' })
   }
   const openMove = (title: string) => {
     const menu = openMenu(title)
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /^Move to day/ }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /^Plan for day/ }))
     return screen.getAllByRole('menu').at(-1)!
   }
   /** The store's writes, watched: the plan action, and the edit path no menu entry here may take. */
@@ -235,7 +235,7 @@ describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
     return { setPlan, update }
   }
 
-  it('Move to day › is in the menu of a Planner’s row, with the days — and no No day', () => {
+  it('Plan for day › is in the menu of a Planner’s row, with the days — and no No day', () => {
     show()
     const sub = openMove('Monday deadline')
     expect(within(sub).getByText('Plans it for that day')).toBeInTheDocument()
