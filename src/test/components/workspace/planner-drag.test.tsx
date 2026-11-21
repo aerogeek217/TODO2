@@ -160,8 +160,7 @@ describe('the drop slot', () => {
     expect(within(group('2026-11-20')).getByRole('status')).toHaveTextContent('Nothing for today')
     hover(preview('group', '2026-11-20', { kind: 'plan', day: day(0) }, 0))
     expect(within(group('2026-11-20')).queryByRole('status')).toBeNull()
-    // Before Add task, Today's last row.
-    expect(group('2026-11-20').querySelector('[data-drop-slot]')?.nextElementSibling).toHaveTextContent('Add task')
+    expect(group('2026-11-20').querySelector('[data-drop-slot]')).not.toBeNull()
   })
 
   it('has none over a tile, or with no place', () => {

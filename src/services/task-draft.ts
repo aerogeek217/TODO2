@@ -27,8 +27,6 @@ export interface TaskDraft {
   nextFollowupAt?: Date | null
   /** Only the task editor's create mode sets it. */
   lastFollowupAt?: Date
-  /** The planned day (`TodoItem.doDate`): only the Planner's Add task seeds it (`FilterDefaults.doDate`); no form shows it. */
-  doDate?: Date
   personIds: number[]
   /** `@name`s that match nobody: created with the task. */
   newPeople: string[]
@@ -156,7 +154,6 @@ export function draftFromResolved(resolved: ResolvedInput, fallbackTitle: string
     newPeople: resolved.unmatchedPersons,
     tagIds: union(tags.ids, existing(fd?.tagIds ?? [], ctx.tags)),
     newTags: tags.missing,
-    ...(fd?.doDate ? { doDate: fd.doDate } : {}),
   }
 }
 
@@ -200,7 +197,6 @@ export function draftFromEditor(
     tagIds: union(existing(assignments.tagIds, ctx.tags), tags.ids),
     newTags: tags.missing,
     ...(partial.lastFollowupAt ? { lastFollowupAt: partial.lastFollowupAt } : {}),
-    ...(partial.doDate ? { doDate: partial.doDate } : {}),
     ...(partial.notes ? { notes: partial.notes } : {}),
     ...(partial.statusUpdates && partial.statusUpdates.length > 0 ? { statusUpdates: [...partial.statusUpdates] } : {}),
     ...(partial.subtasks && partial.subtasks.length > 0 ? { subtasks: [...partial.subtasks] } : {}),
@@ -248,7 +244,6 @@ function draftFields(draft: TaskDraft): Omit<TodoChanges, 'nextFollowupAt' | 'ti
     ...(draft.important ? { important: true as const } : {}),
     ...(draft.focus ? { focus: true as const } : {}),
     ...(draft.lastFollowupAt ? { lastFollowupAt: draft.lastFollowupAt } : {}),
-    ...(draft.doDate ? { doDate: draft.doDate } : {}),
     ...(draft.notes ? { notes: draft.notes } : {}),
   }
 }

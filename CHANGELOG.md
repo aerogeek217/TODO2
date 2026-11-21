@@ -26,6 +26,10 @@ History before 2026-11-19 is in the git log.
   nothing to put off: Snooze only planned it for tomorrow. Its hover button is now **Today**, which plans it for
   today. Its menu has no Snooze; Move to day › still offers every day.
 
+### Removed
+
+- **The Planner's Today no longer ends with an Add task row.** Add tasks from Quick Add or a list.
+
 ## 2026-11-20, second deployment
 
 Data version 86.
