@@ -20,6 +20,8 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-21
+
 ### Added
 
 - **Plan any task from anywhere.** Every task's right-click menu, and the ⋯ menu in the task editor and the review
