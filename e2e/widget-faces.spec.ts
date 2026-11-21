@@ -301,25 +301,13 @@ test.describe('the Planner', () => {
     await expect(tiles.first()).toHaveAttribute('data-planner-tile', today)
   })
 
-  test('Add task opens Quick Add; the new task lands in Today, planned for today', async ({ page }) => {
+  test('Today has no Add task row', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: PLAN_TASKS,
       layouts: [{ name: 'Week', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'plan', kind: 'planner' }] })] }] }],
     })
-    await todayGroup(page).getByRole('button', { name: 'Add task' }).click()
-    const input = page.getByPlaceholder('New task…')
-    await expect(input).toBeFocused()
-    // No planned-day control in Quick Add.
-    await expect(page.getByText(/do day/i)).toHaveCount(0)
-    await input.fill('Ring the printer')
-    await page.keyboard.press('Enter')
-    await expect(todayGroup(page).locator('[data-task-title="Ring the printer"]')).toBeVisible()
-    await expect(todayGroup(page).getByTestId('planner-group-count')).toHaveText('4')
-    await expect.poll(async () => {
-      const stored = (await readStore<{ title: string; doDate?: Date }>(page, 'todos')).find((t) => t.title === 'Ring the printer')
-      const d = stored?.doDate ? new Date(stored.doDate) : null
-      return d ? [d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()] : null
-    }).toEqual(await page.evaluate(() => { const d = new Date(); return [d.getFullYear(), d.getMonth(), d.getDate(), 0] }))
+    await expect(todayGroup(page).locator('[data-task-title]').first()).toBeVisible()
+    await expect(planner(page).getByRole('button', { name: 'Add task' })).toHaveCount(0)
   })
 
   test('medium: a narrow cell is one column under the strip; narrower still, the arrows sit around the range', async ({ page }) => {
@@ -423,7 +411,6 @@ test.describe('phone', () => {
     await expect(plannerGroups(page)).toHaveCount(3)
     await expect(todayGroup(page).locator('[data-task-title]')).toHaveText(['Renew the domain', 'Chase the invoice', 'Write the brief'])
     await expect(planner(page).locator('[data-row-key]')).toHaveCount(0)
-    await expect(todayGroup(page).getByRole('button', { name: 'Add task' })).toBeVisible()
   })
 
   test('a fit row’s Number cells have no tab row (one widget each), the small face', async ({ page }) => {
