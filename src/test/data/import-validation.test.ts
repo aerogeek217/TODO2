@@ -183,6 +183,31 @@ describe('validateImportData', () => {
     }
   })
 
+  it('rejects a reference to another row that isn’t a whole number from 1 — a join’s key, a task’s status', () => {
+    const rows: Array<[string, Record<string, unknown>, string]> = [
+      ['todoPeople', { todoId: 1, personId: 1 }, 'personId'],
+      ['todoPeople', { todoId: 1, personId: 1 }, 'todoId'],
+      ['todoTags', { todoId: 1, tagId: 1 }, 'tagId'],
+      ['listOrders', { listDefinitionId: 1, todoId: 1, rank: 1.5 }, 'listDefinitionId'],
+      ['todoEvents', { todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: now }, 'todoId'],
+      ['statusUpdates', { todoId: 1, date: now, text: 'x', createdAt: now }, 'todoId'],
+      ['subtasks', { todoId: 1, title: 'x', isCompleted: false, sortOrder: 0, createdAt: now }, 'todoId'],
+    ]
+    for (const [table, row, field] of rows) {
+      expect(validateImportData(validData({ [table]: [row] })).ok, `${table} as is`).toBe(true)
+      for (const bad of [1.5, 0, -3, 2 ** 60, '1']) {
+        const result = validateImportData(validData({ [table]: [{ ...row, [field]: bad }] }))
+        expect(result.ok ? 'accepted' : result.error, `${table}.${field} = ${String(bad)}`).toMatch(new RegExp(`bad field "${field}"$`))
+      }
+    }
+    // A task's status: absent, or a whole number from 1.
+    expect(validateImportData(validData({ todos: [makeTodo({ statusId: 2 })] })).ok).toBe(true)
+    expect(validateImportData(validData({ todos: [makeTodo({ statusId: undefined })] })).ok).toBe(true)
+    for (const bad of [1.5, 0, 2 ** 60]) {
+      expect(validateImportData(validData({ todos: [makeTodo({ statusId: bad })] }))).toEqual({ ok: false, error: 'Invalid "todos" record at index 0 ("Task"): bad field "statusId"' })
+    }
+  })
+
   it('rejects a repeated id within a table, and a repeated settings key, with a message', () => {
     const dupTodo = validateImportData(validData({ todos: [makeTodo({ id: 4 }), makeTodo({ id: 5 }), makeTodo({ id: 4, title: 'Again' })] }))
     expect(dupTodo).toEqual({ ok: false, error: 'Invalid "todos" record at index 2 ("Again"): duplicate id 4 (same as index 0)' })

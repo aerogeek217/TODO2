@@ -20,6 +20,15 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-21, second deployment
+
+### Security
+
+- **Imports check the ids that link rows together.** A file whose task, person, tag or list links aren't whole
+  numbers is refused with a message, instead of storing links that point nowhere.
+- **Stricter guards against leaving the app.** The build and the code checks now also refuse any code that would
+  navigate the page to another address, so the offline file stays offline as the app changes.
+
 ## 2026-11-21
 
 ### Added

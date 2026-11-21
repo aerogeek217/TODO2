@@ -270,7 +270,7 @@ describe('NotesEditor — Markdown editing', () => {
     ['- [x] |done', '- [ ] \n- [x] done'],
   ])('Enter just after a marker (%j) leaves a whole empty item above, never a bare dash', (doc, expected) => {
     const caret = doc.indexOf('|')
-    const view = editorWith(doc.replace('|', ''))
+    const view = editorWith(doc.slice(0, caret) + doc.slice(caret + 1))
     view.dispatch({ selection: { anchor: caret } })
     press(view, 'Enter')
     expect(view.state.doc.toString()).toBe(expected)
