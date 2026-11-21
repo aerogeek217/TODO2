@@ -29,6 +29,11 @@ History before 2026-11-19 is in the git log.
   layout the day tiles keep their date marks, the week arrows move up beside the range, and a line under the tiles
   shows which days are in view as you scroll.
 
+### Fixed
+
+- **The cobweb on a stale task fills its corner.** Its threads now fan evenly across the whole corner of the
+  checkbox, and its arcs reach both sides of the box.
+
 ## 2026-11-21, second deployment
 
 ### Security
