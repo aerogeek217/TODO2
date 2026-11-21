@@ -77,3 +77,36 @@ describe('the Planner’s stored tab', () => {
     expect(tabOf(row)).toEqual({ id: 'p', kind: 'planner', config: {} })
   })
 })
+
+/** Board R1 (2026-11-21): the portrait layout's trays dock — its share and its fold — is view state too. */
+describe('the Planner’s trays dock in its stored tab', () => {
+  it('keeps a share from 0.1 to 0.9 and a fold as they are', () => {
+    for (const viewState of [{ dockShare: 0.1 }, { dockShare: 0.9 }, { dockShare: 0.45, dockFolded: true }, { order: ['a'], dockFolded: true }]) {
+      const row = planner(viewState)
+      expect(checkLayoutBody(row)).toBe(true)
+      expect(rowFixes('layouts', row)).toEqual([])
+      expect(tabOf(row)).toEqual({ id: 'p', kind: 'planner', config: {}, viewState })
+    }
+  })
+
+  it('drops a share that doesn’t read or is out of bounds, and a fold that isn’t true — a fix; the rest stays', () => {
+    for (const bad of [{ dockShare: 0.05 }, { dockShare: 0.95 }, { dockShare: '0.4' }, { dockShare: Number.NaN }]) {
+      const row = planner({ order: ['a'], ...bad })
+      expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].viewState.dockShare')
+      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+      expect(tabOf(row)).toEqual({ id: 'p', kind: 'planner', config: {}, viewState: { order: ['a'] } })
+    }
+    for (const bad of [false, 'yes', 1]) {
+      const row = planner({ dockShare: 0.5, dockFolded: bad })
+      expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].viewState.dockFolded')
+      expect(tabOf(row)).toEqual({ id: 'p', kind: 'planner', config: {}, viewState: { dockShare: 0.5 } })
+    }
+  })
+
+  it('a share cleared to undefined (a double-click) reads as none, no fix', () => {
+    const row = planner({ order: ['a'], dockShare: undefined, dockFolded: undefined })
+    expect(checkLayoutBody(row)).toBe(true)
+    expect(rowFixes('layouts', row)).toEqual([])
+    expect(tabOf(row)).toEqual({ id: 'p', kind: 'planner', config: {}, viewState: { order: ['a'] } })
+  })
+})

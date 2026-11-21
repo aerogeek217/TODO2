@@ -27,7 +27,8 @@ import {
 import { rowKey } from '../../../utils/scoped-selection'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { plannerDropId, TASK_DROP_KIND, type PlannerDropData } from '../../../utils/task-dnd'
-import { plannerFaceFor, plannerStripFits } from '../../../utils/widget-face'
+import { plannerFaceFor, plannerPortrait, plannerStripFits } from '../../../utils/widget-face'
+import { CellControlsContext } from '../cell-controls'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
 import { ArrowDownIcon, CheckIcon, ResetIcon } from '../../shared/icons'
 import { MenuPopover } from '../../shared/MenuPopover'
@@ -43,7 +44,9 @@ import { plannerMenuEntries } from './planner-menu'
 import { RESET_PLAN_LABEL, usePlannerResetEntries } from './planner-reset'
 import { plannerRowExtras } from './planner-row-extras'
 import { PlannerRowTag } from './PlannerRowExtras'
-import { PlannerStrip, type PlannerDropMark } from './PlannerStrip'
+import { PlannerDock, PlannerFoldedDock } from './PlannerDock'
+import { useDaysInView } from './planner-dock'
+import { PlannerStrip, WeekArrow, type PlannerDropMark } from './PlannerStrip'
 import { usePlannerDrag, type PlannerActiveDrag } from './use-planner-drag'
 import styles from './PlannerWidget.module.css'
 
@@ -105,10 +108,16 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
  * ground, the trays: **Delayed** (planned for a day that has passed; shown
  * while it holds a task), the **↓ Unplan** button on a rule (every Delayed
  * task to Unplanned; with Delayed) and **Unplanned** (held there, and the
- * Focus tasks with no plan and no date; always there). Medium (a narrow or
- * short cell, and the phone): the strip over one column in that order, in
- * one scroll — the phone, which has no drag, without the empty days and
- * without an empty Unplanned. Small: its name and today's count. A task sits on its
+ * Focus tasks with no plan and no date; always there). Medium in a tall,
+ * narrow cell (`plannerPortrait`, board R1): the strip over the day list,
+ * and the trays **docked** under it on the darker ground (`PlannerDock`:
+ * its top edge shares the height, its chevron folds it to one bar that
+ * still takes a drop to Unplanned); the week arrows sit in the top line,
+ * and a line under the tiles marks the days in view. Medium otherwise (a
+ * short or squarish narrow cell, and the phone): the strip over one column
+ * in that order, in one scroll — the phone, which has no drag, without the
+ * empty days and without an empty Unplanned. Small: its name and today's
+ * count. A task sits on its
  * planned day, else the day its follow-up or due date puts it
  * (`utils/planner`); rows are the list's (`ListWidgetRow`, `MobileTaskRow`
  * on the phone), a click opening the task. A tile's click scrolls the day
@@ -139,20 +148,31 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
 export function PlannerWidget({ tab }: { tab: PlannerTab }) {
   const [faceRef, face] = useWidgetFace(plannerFaceFor)
   const [sizeRef, size] = useElementSize()
+  const isMobile = useIsMobile()
   const hostRef = useRef<HTMLElement | null>(null)
   const setHost = useCallback((el: HTMLElement | null) => {
     hostRef.current = el
     faceRef(el)
     sizeRef(el)
   }, [faceRef, sizeRef])
+  // The phone keeps its one column; a tall, narrow cell docks the trays under the days (board R1).
+  const layout: PlannerLayout = isMobile ? 'column' : face === 'large' ? 'panes' : plannerPortrait(size) ? 'stack' : 'column'
   return (
     <div ref={setHost} className={styles.host} data-planner={tab.id} data-planner-face={face}>
       {face === 'small'
         ? <SmallFace tab={tab} />
-        : <PlannerBody tab={tab} panes={face === 'large'} tiles={plannerStripFits(size.width)} hostRef={hostRef} />}
+        : <PlannerBody tab={tab} layout={layout} tiles={plannerStripFits(size.width)} hostRef={hostRef} />}
     </div>
   )
 }
+
+/**
+ * How a Planner's body lays out its groups: `panes` — the large face's days
+ * and trays side by side; `stack` — the portrait layout, the days over the
+ * trays dock (`PlannerDock`); `column` — one scroll (a short or squarish
+ * narrow cell, the phone).
+ */
+type PlannerLayout = 'panes' | 'stack' | 'column'
 
 function SmallFace({ tab }: { tab: PlannerTab }) {
   const { view } = usePlanner(tab.id, tab.viewState?.order, false)
@@ -181,10 +201,9 @@ interface GroupDrag {
   shown: readonly string[]
 }
 
-function PlannerBody({ tab, panes, tiles, hostRef }: {
+function PlannerBody({ tab, layout, tiles, hostRef }: {
   tab: PlannerTab
-  /** Two panes (the large face); else one column. */
-  panes: boolean
+  layout: PlannerLayout
   /** The strip has room for its tiles. */
   tiles: boolean
   /** The widget's element: its scrollers are measured when a task drag starts, and scrolled by a tile's click. */
@@ -194,7 +213,18 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
   // The phone has no fold: a completed row leaves at once, as a list's.
   const data = usePlanner(tab.id, tab.viewState?.order, !isMobile)
   const { view, offset, badge, windowKey, keptTodos } = data
-  const twoPanes = panes && !isMobile
+  const stack = layout === 'stack'
+  // Alone in its cell the top line shows: in the portrait layout the week arrows move there, giving the tiles the strip's width.
+  const alone = useContext(CellControlsContext) != null
+  const arrowsInTopLine = stack && alone && tiles
+  const stackRef = useRef<HTMLDivElement | null>(null)
+  // The portrait layout's day list, for the strip's "days in view" line.
+  const [daysPane, setDaysPane] = useState<HTMLElement | null>(null)
+  const daysPaneRef = useCallback((el: HTMLDivElement | null) => {
+    setDaysPane(el)
+    return trackScrollEdges(el)
+  }, [])
+  const inView = useDaysInView(stack ? daysPane : null)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   // The phone has no drag, so a day with nothing on it has nothing to offer there.
   const days = useMemo(() => (isMobile ? view.days.filter((g) => g.tasks.length > 0) : view.days), [isMobile, view.days])
@@ -266,6 +296,7 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
     <TaskMenuExtrasContext.Provider value={menuExtras}>
       <TaskRowExtrasContext.Provider value={rowExtras}>
         <WidgetNameLine name="Planner">
+          {arrowsInTopLine && <WeekArrow direction={-1} disabled={offset <= 0} onShift={onShift} compact />}
           {offset > 0 ? (
             <button
               type="button"
@@ -277,6 +308,7 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
               {range}
             </button>
           ) : <span className={styles.range} data-testid="planner-range">{range}</span>}
+          {arrowsInTopLine && <WeekArrow direction={1} disabled={false} onShift={onShift} compact />}
           {badge.counts.due + badge.counts.followup > 0 && (
             <BadgeCapsule counts={badge.counts} label={badge.summary.join('; ')} data-testid="planner-badge" />
           )}
@@ -293,8 +325,33 @@ function PlannerBody({ tab, panes, tiles, hostRef }: {
           onGo={onGo}
           onShift={onShift}
           mark={drag.mark}
+          arrows={!arrowsInTopLine}
+          portrait={stack}
+          inView={stack ? inView : undefined}
         />
-        {twoPanes ? (
+        {stack ? (
+          <div ref={stackRef} className={styles.stack} data-planner-layout="stack">
+            <div ref={daysPaneRef} className={`${styles.pane} ${styles.stackDays}`} data-planner-pane="days">
+              <Rows tasks={dayTasks} data={data} mobile={false}>
+                {today}
+                {ahead}
+              </Rows>
+            </div>
+            {tab.viewState?.dockFolded ? (
+              <PlannerFoldedDock
+                tabId={tabId}
+                window={view.window}
+                delayed={view.delayed.tasks.length}
+                unplanned={view.unplanned.tasks.length}
+                marked={drag.mark?.key === view.unplanned.key}
+              />
+            ) : (
+              <PlannerDock tabId={tabId} share={tab.viewState?.dockShare} stackRef={stackRef}>
+                <Rows tasks={trayTasks} data={data} mobile={false}>{trays}</Rows>
+              </PlannerDock>
+            )}
+          </div>
+        ) : layout === 'panes' ? (
           <div className={styles.panes} data-planner-layout="panes">
             <div ref={trackScrollEdges} className={`${styles.pane} ${styles.daysPane}`} data-planner-pane="days">
               <Rows tasks={dayTasks} data={data} mobile={false}>

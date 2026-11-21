@@ -3,6 +3,7 @@ import { createTab, type NumberTab } from '../../models/workspace-layout'
 import {
   MEDIUM_FACE_MAX_HEIGHT_PX,
   plannerFaceFor,
+  plannerPortrait,
   plannerStripFits,
   SMALL_FACE_MAX_HEIGHT_PX,
   SMALL_FACE_MAX_WIDTH_PX,
@@ -96,5 +97,20 @@ describe('plannerStripFits', () => {
     expect(plannerStripFits(300)).toBe(true)
     expect(plannerStripFits(299)).toBe(false)
     expect(plannerStripFits(0)).toBe(true)
+  })
+})
+
+describe('plannerPortrait (board R1)', () => {
+  it('a tall, narrow cell: under 720px wide, at least 560px tall and 1.4 × as tall as wide', () => {
+    expect(plannerPortrait({ width: 340, height: 800 })).toBe(true)
+    expect(plannerPortrait({ width: 400, height: 560 })).toBe(true)
+    expect(plannerPortrait({ width: 500, height: 700 })).toBe(true)
+  })
+
+  it('not when short, squarish, wide enough for the panes or unmeasured', () => {
+    expect(plannerPortrait({ width: 300, height: 559 })).toBe(false)
+    expect(plannerPortrait({ width: 500, height: 699 })).toBe(false)
+    expect(plannerPortrait({ width: 720, height: 1200 })).toBe(false)
+    expect(plannerPortrait({ width: 0, height: 900 })).toBe(false)
   })
 })

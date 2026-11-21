@@ -315,6 +315,83 @@
   .ticks {
     display: none;
   }
+
+  /* The portrait layout (board R1): the arrows in the top line, so the tiles have the width to keep their ticks —
+   * the weekday; the date with the count at its right; the ticks. */
+  .stripPortrait {
+    gap: 4px;
+    padding: 6px 8px;
+  }
+
+  .stripPortrait .tile {
+    justify-content: space-between;
+    padding: 5px 6px;
+    container-type: inline-size;
+  }
+
+  .stripPortrait .weekRule {
+    margin: 0 2px;
+  }
+
+  .stripPortrait .tileHead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    column-gap: 3px;
+  }
+
+  .stripPortrait .weekday {
+    grid-column: 1 / -1;
+  }
+
+  .stripPortrait .tileCount {
+    min-height: 0;
+  }
+
+  .stripPortrait .ticks {
+    display: flex;
+    height: 8px;
+  }
+
+  .stripPortrait .tickMarks {
+    gap: 2px;
+  }
+
+  .stripPortrait .tick {
+    height: 8px;
+  }
+
+  .stripPortrait .tick:not(.tickPlan) + .tickPlan {
+    margin-left: 2px;
+  }
+}
+
+/* A portrait tile (its own container) too narrow for its date beside a two-digit count: the count gives way —
+ * the day's heading and the tile's name still say it. */
+@container (max-width: 33px) {
+  .stripPortrait .tile[data-count-wide] .tileCount {
+    display: none;
+  }
+}
+
+/* The top line's week arrows (the portrait layout): narrower, so the name keeps its room. */
+.arrowCompact {
+  width: 18px;
+  min-height: 20px;
+}
+
+/* The days in view (the portrait layout): a 2px line under each tile whose day shows in the day list — drawn
+ * by the tile's own shadow, past its clipped edge, so the line keeps the tile's width and the week rule's gap. */
+.stripInView {
+  padding-bottom: 10px;
+}
+
+.stripInView .tile[data-in-view] {
+  box-shadow: 0 5px 0 -3px color-mix(in srgb, var(--color-text-secondary) 55%, transparent);
+}
+
+.stripInView .tile[data-in-view]:focus-visible {
+  box-shadow: 0 5px 0 -3px color-mix(in srgb, var(--color-text-secondary) 55%, transparent), var(--focus-ring);
 }
 
 /* ── Panes ─────────────────────────────────────────────────────────────── */
@@ -349,6 +426,123 @@
 /* One column: Today, the days ahead, Delayed, the Unplan button, Unplanned in one scroll. */
 .column {
   flex: 1 1 auto;
+}
+
+/* ── The portrait layout (board R1): the days over the trays dock ───────── */
+
+.stack {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The days take what the dock leaves, keeping Today's heading and a row. */
+.stackDays {
+  flex: 1 1 0;
+  min-height: 74px;
+}
+
+/* The dock: its height the tab's share (inline), its grip on top, the trays under it on the darker ground. */
+.dock {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 88px;
+  border-top: 1px solid var(--color-tint-12);
+  background: var(--color-inset-deep);
+}
+
+/* The trays pane inside the dock: no side border, the dock's ground. */
+.traysPane.dockPane {
+  flex: 1 1 0;
+  min-height: 0;
+  border-left: none;
+  background: transparent;
+}
+
+/* The dock's top edge: a separator that shares the height; its handle centred, the fold chevron at its right. */
+.dockGrip {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 14px;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.dockHandle {
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-tint-16);
+}
+
+.dockGrip:hover .dockHandle,
+.dockGrip:focus-visible .dockHandle,
+.dock[data-resizing] .dockHandle {
+  background: var(--color-text-secondary);
+}
+
+.dockFold {
+  position: absolute;
+  top: 1px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 12px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.dockFold:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+/* The dock folded: one bar — the trays' names and counts, an up chevron —, a drop target meaning Unplanned. */
+.dockBar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px 0 12px;
+  border: 1px solid transparent;
+  border-top-color: var(--color-tint-12);
+  background: var(--color-inset-deep);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dockBar:hover {
+  background: var(--color-tint-8);
+}
+
+/* A dragged task's drop here changes its plan: dashed in the neutral color of the targets. */
+.dockBar[data-planner-drop] {
+  border: 1px dashed var(--color-text-secondary);
+  border-radius: 7px;
+  background: var(--color-tint-12);
+}
+
+.dockBarName {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.dockBarCount {
+  font-variant-numeric: tabular-nums;
 }
 
 .rows {

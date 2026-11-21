@@ -317,10 +317,11 @@ test.describe('the Planner', () => {
       settings: { rowDensity: null },
       layouts: [{
         name: 'Week',
+        // Half the height: narrow but not tall, so one column (a tall, narrow cell docks the trays — the portrait layout).
         columns: [{ id: 'c1', rows: [{ id: 'r1', cells: [
           { id: 'k1', weight: 2, tabs: [{ id: 'plan', kind: 'planner' }] },
           { id: 'k2', weight: 5, tabs: [{ id: 'notes', kind: 'notes' }] },
-        ] }] }],
+        ] }, wsRow({ id: 'k3', tabs: [{ id: 'cal', kind: 'calendar' }] })] }],
       }],
     })
     const cell = wsCell(page, 'k1')

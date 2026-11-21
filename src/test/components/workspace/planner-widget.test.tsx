@@ -9,6 +9,7 @@ import type { PlannerTab } from '../../../models/workspace-layout'
 import { plannerWindowKey, usePlannerStore } from '../../../stores/planner-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { LIST_WIDGET_ATTR } from '../../../utils/dom-contract'
 import { clearFilterStore, getByTooltip, makeTodo, patchScreenFilter, resetEntityStores } from '../../helpers'
@@ -205,6 +206,7 @@ describe('the Planner — the trays', () => {
   it('one column keeps the order: Today, the days, Delayed, the Unplan button, Unplanned', () => {
     useTodoStore.setState({ todos: withTrays() })
     width = 500
+    height = 600 // not tall enough for the portrait layout
     show()
     const column = root().querySelector('[data-planner-layout="column"]')!
     expect([...column.querySelectorAll('[data-planner-group], [data-planner-unplan-all]')].map((el) => el.getAttribute('aria-label') ?? 'unplan'))
@@ -568,6 +570,7 @@ describe('the Planner — its rows’ zoom', () => {
 describe('the Planner — medium and small', () => {
   it('a narrow cell shows the strip over one column: Today, the days ahead, the trays', () => {
     width = 500
+    height = 600 // not tall enough for the portrait layout
     show()
     expect(root()).toHaveAttribute('data-planner-face', 'medium')
     expect(root().querySelector('[data-planner-layout]')).toHaveAttribute('data-planner-layout', 'column')
@@ -652,5 +655,122 @@ describe('the Planner — on the phone', () => {
       useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 2 ? { ...t, isCompleted: true, completedAt: new Date() } : t)) })
     })
     expect(titlesIn(group('Today'))).toEqual(['Late invoice', 'Planned for today'])
+  })
+})
+
+/** Board R1 (2026-11-21): a tall, narrow cell docks the trays under the days. */
+describe('the Planner — portrait', () => {
+  const withTrays = (): PersistedTodoItem[] => [
+    ...TODOS(),
+    makeTodo({ id: 40, uid: 'missed', title: 'Missed plan', doDate: day(-1), sortOrder: 40 }),
+  ]
+  const controls: CellControlsValue = {
+    cellId: 'c', tabs: [PLANNER], tabId: 'plan', title: 'Planner', touch: false, setMoreButton: () => undefined, menuOpen: false,
+    onMore: () => {}, collapsed: false, onExpand: () => {}, claim: () => () => {},
+  }
+  const alone = (tab: PlannerTab = PLANNER) =>
+    render(<DndContext><CellControlsContext.Provider value={{ ...controls, tabs: [tab] }}><PlannerWidget tab={tab} /></CellControlsContext.Provider></DndContext>)
+  const patch = () => vi.spyOn(useWorkspaceStore.getState(), 'patchTabViewState').mockResolvedValue()
+  const dock = () => root().querySelector<HTMLElement>('[data-planner-dock]')
+  const grip = () => within(root()).getByRole('separator', { name: 'Resize the trays' })
+
+  beforeEach(() => {
+    width = 400
+    height = 800
+    useTodoStore.setState({ todos: withTrays() })
+  })
+
+  it('draws the days over the trays dock: Today and the days above, Delayed and Unplanned below', () => {
+    show()
+    expect(root()).toHaveAttribute('data-planner-face', 'medium')
+    const stack = root().querySelector('[data-planner-layout="stack"]')!
+    const days = stack.querySelector('[data-planner-pane="days"]')!
+    expect([...days.querySelectorAll('[data-planner-group]')].map((g) => g.getAttribute('aria-label')))
+      .toEqual(['Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26'])
+    const trays = dock()!.querySelector('[data-planner-pane="trays"]')!
+    expect([...trays.querySelectorAll('[data-planner-group]')].map((g) => g.getAttribute('aria-label'))).toEqual(['Delayed', 'Unplanned'])
+    expect(within(trays as HTMLElement).getByRole('button', { name: 'Unplan all Delayed tasks' })).toBeInTheDocument()
+    expect(dock()!.style.height).toBe('38%')
+    expect(grip()).toHaveAttribute('aria-valuenow', '38')
+  })
+
+  it('only in a cell tall enough and taller than wide by 1.4: else one column', () => {
+    for (const [w, h] of [[400, 559], [500, 690], [720, 1100]] as const) {
+      width = w
+      height = h
+      const { unmount } = show()
+      expect(root().querySelector('[data-planner-layout="stack"]')).toBeNull()
+      unmount()
+    }
+  })
+
+  it('draws the stored share', () => {
+    show({}, { ...PLANNER, viewState: { dockShare: 0.5 } })
+    expect(dock()!.style.height).toBe('50%')
+  })
+
+  it('alone in its cell, the week arrows sit in the top line and the strip is all tiles', () => {
+    alone()
+    const strip = within(root()).getByRole('group', { name: 'Days' })
+    expect(strip).toHaveAttribute('data-planner-strip-arrows', 'top-line')
+    expect(within(strip).queryByRole('button', { name: 'Next week' })).toBeNull()
+    fireEvent.click(within(root()).getByRole('button', { name: 'Next week' }))
+    expect(root()).toHaveTextContent('Nov 27 – Dec 3')
+  })
+
+  it('in a cell of tabs (no top line), the arrows stay on the strip', () => {
+    show()
+    const strip = within(root()).getByRole('group', { name: 'Days' })
+    expect(strip).not.toHaveAttribute('data-planner-strip-arrows')
+    expect(within(strip).getByRole('button', { name: 'Next week' })).toBeInTheDocument()
+  })
+
+  it('the arrow keys on the grip step the share 16px, each step saved as view state', () => {
+    const spy = patch()
+    show()
+    fireEvent.keyDown(grip(), { key: 'ArrowUp' })
+    expect(spy).toHaveBeenLastCalledWith('plan', 'planner', { dockShare: 0.4 })
+    fireEvent.keyDown(grip(), { key: 'ArrowDown' })
+    expect(spy).toHaveBeenLastCalledWith('plan', 'planner', { dockShare: 0.36 })
+  })
+
+  it('a press on the grip that doesn’t move saves nothing', () => {
+    const spy = patch()
+    show()
+    fireEvent.pointerDown(grip(), { button: 0, pointerId: 1, clientY: 400 })
+    fireEvent.pointerMove(grip(), { pointerId: 1, clientY: 401 })
+    fireEvent.pointerUp(grip(), { pointerId: 1, clientY: 401 })
+    expect(spy).not.toHaveBeenCalled()
+    expect(dock()!.style.height).toBe('38%')
+  })
+
+  it('a double-click on the grip clears the share back to the default', () => {
+    const spy = patch()
+    show({}, { ...PLANNER, viewState: { dockShare: 0.6 } })
+    fireEvent.doubleClick(grip())
+    expect(spy).toHaveBeenCalledWith('plan', 'planner', { dockShare: undefined })
+  })
+
+  it('the chevron folds the dock; folded, it is one bar that unfolds on a click', () => {
+    const spy = patch()
+    const { unmount } = show()
+    fireEvent.click(within(root()).getByRole('button', { name: 'Fold the trays' }))
+    expect(spy).toHaveBeenCalledWith('plan', 'planner', { dockFolded: true })
+    unmount()
+
+    show({}, { ...PLANNER, viewState: { dockFolded: true } })
+    expect(dock()).toBeNull()
+    expect(root().querySelector('[data-planner-group="unplanned"]')).toBeNull()
+    const bar = within(root()).getByRole('button', { name: 'Show the trays: Delayed 1, Unplanned 1' })
+    expect(bar).toHaveAttribute('aria-expanded', 'false')
+    expect(bar).toHaveTextContent('Delayed1·Unplanned1')
+    fireEvent.click(bar)
+    expect(spy).toHaveBeenLastCalledWith('plan', 'planner', { dockFolded: undefined })
+  })
+
+  it('folded with Delayed empty, the bar names Unplanned alone', () => {
+    useTodoStore.setState({ todos: TODOS() })
+    show({}, { ...PLANNER, viewState: { dockFolded: true } })
+    expect(within(root()).getByRole('button', { name: 'Show the trays: Unplanned 1' })).toHaveTextContent('Unplanned1')
   })
 })

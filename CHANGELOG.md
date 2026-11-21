@@ -20,6 +20,15 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Added
+
+- **The Planner in a tall, narrow cell.** When the Planner sits in a narrow column that is much taller than it is
+  wide, Delayed and Unplanned are docked under the days instead of after them, so they stay in view and you can
+  always drop a task on Unplanned. Drag the dock's top edge to share the height between the days and the trays
+  (double-click it to reset), or fold the dock to a single bar, which still takes a drop to Unplanned. In this
+  layout the day tiles keep their date marks, the week arrows move up beside the range, and a line under the tiles
+  shows which days are in view as you scroll.
+
 ## 2026-11-21, second deployment
 
 ### Security

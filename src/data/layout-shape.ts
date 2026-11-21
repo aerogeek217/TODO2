@@ -23,6 +23,8 @@ import {
   // Item 12: the Review widget.
   type ReviewTab,
   type ReviewTabViewState,
+  PLANNER_DOCK_SHARE_MAX,
+  PLANNER_DOCK_SHARE_MIN,
   PLANNER_ORDER_MAX,
   type PlannerTab,
   type PlannerTabViewState,
@@ -259,9 +261,11 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       const bad = view ? reviewViewProblem(view) : null
       return bad ? `${path}.viewState.${bad}` : true
     }
-    // The Planner: no settings, and its hand order.
-    case 'planner':
-      return view && pickPlannerView(view).fixed ? `${path}.viewState.order` : true
+    // The Planner: no settings, its hand order and its trays dock.
+    case 'planner': {
+      const problem = view ? pickPlannerView(view).problem : null
+      return problem ? `${path}.viewState.${problem}` : true
+    }
   }
 }
 
@@ -284,24 +288,36 @@ function pickReviewView(view: Obj | undefined): { view: ReviewTabViewState; fixe
   return { view: out, fixed }
 }
 
+const PLANNER_VIEW_KEYS = new Set(['order', 'dockShare', 'dockFolded'])
+
 /**
  * A Planner's view state as read: its hand order's strings, each once, the
- * first `PLANNER_ORDER_MAX` of them. Anything else in the order, an order
- * that isn't a list, or a key it doesn't have, is dropped (a fix).
+ * first `PLANNER_ORDER_MAX` of them; the trays dock's share when it is a
+ * number from `PLANNER_DOCK_SHARE_MIN` to `PLANNER_DOCK_SHARE_MAX`; its fold
+ * when `true`. Anything else in the order, an order that isn't a list, a
+ * share or fold that doesn't read, or a key it doesn't have, is dropped (a
+ * fix; `problem` names the first such key). A key stored as `undefined` (a
+ * share cleared by a double-click) reads as absent.
  */
-function pickPlannerView(view: Obj | undefined): { view: PlannerTabViewState; fixed: boolean } {
+function pickPlannerView(view: Obj | undefined): { view: PlannerTabViewState; fixed: boolean; problem: string | null } {
   const out: PlannerTabViewState = {}
-  if (!view) return { view: out, fixed: false }
-  let fixed = Object.keys(view).some((k) => k !== 'order')
+  if (!view) return { view: out, fixed: false, problem: null }
+  let problem = Object.keys(view).find((k) => !PLANNER_VIEW_KEYS.has(k)) ?? null
+  const flag = (key: string) => { problem ??= key }
   const raw = view.order
   if (Array.isArray(raw)) {
     const order = [...new Set(raw.filter((uid): uid is string => typeof uid === 'string'))].slice(0, PLANNER_ORDER_MAX)
-    if (order.length !== raw.length) fixed = true
+    if (order.length !== raw.length) flag('order')
     out.order = order
   } else if (raw !== undefined) {
-    fixed = true
+    flag('order')
   }
-  return { view: out, fixed }
+  const share = view.dockShare
+  if (typeof share === 'number' && Number.isFinite(share) && share >= PLANNER_DOCK_SHARE_MIN && share <= PLANNER_DOCK_SHARE_MAX) out.dockShare = share
+  else if (share !== undefined) flag('dockShare')
+  if (view.dockFolded === true) out.dockFolded = true
+  else if (view.dockFolded !== undefined) flag('dockFolded')
+  return { view: out, fixed: problem != null, problem }
 }
 
 /** A chart's filter as stored: a predicate with nothing its read (`pickPredicate`) would change. */
@@ -642,12 +658,12 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         if (Object.keys(picked.view).length > 0) review.viewState = picked.view
         return review
       }
-      // The Planner: no settings (a config key is dropped, a fix); its view state's order as checked.
+      // The Planner: no settings (a config key is dropped, a fix); its view state as checked.
       case 'planner': {
         const picked = pickPlannerView(view)
         if (picked.fixed || Object.keys(config).length > 0) fix('settings')
         const planner: PlannerTab = { id, kind: 'planner', config: {} }
-        if (picked.view.order !== undefined) planner.viewState = picked.view
+        if (Object.keys(picked.view).length > 0) planner.viewState = picked.view
         return planner
       }
       // The glance kinds: a bad or missing setting is reset to its default;
