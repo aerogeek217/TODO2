@@ -88,10 +88,6 @@ function isFiniteNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
 }
 
-function isOptNum(v: unknown): boolean {
-  return v === undefined || v === null || isFiniteNum(v)
-}
-
 /**
  * A row's primary key: absent (the database numbers it), or a whole number
  * from 1 — what the database gives. A string or fractional id would be
@@ -99,6 +95,15 @@ function isOptNum(v: unknown): boolean {
  */
 function isOptId(v: unknown): boolean {
   return v === undefined || v === null || (Number.isSafeInteger(v) && (v as number) >= 1)
+}
+
+/**
+ * A reference to another table's row (a join's `todoId` / `tagId` /
+ * `personId` / `listDefinitionId`): a whole number from 1, as `isOptId`'s
+ * key — a fractional or huge one would be stored as a key no row has.
+ */
+function isRef(v: unknown): v is number {
+  return Number.isSafeInteger(v) && (v as number) >= 1
 }
 
 function isBool(v: unknown): v is boolean {
@@ -151,7 +156,7 @@ function checkTodo(v: unknown): CheckResult {
     ['important', isOptTriBool(v.important)],
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
-    ['statusId', isOptNum(v.statusId)],
+    ['statusId', isOptId(v.statusId)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
   ])
 }
@@ -266,8 +271,8 @@ function checkTodoTag(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['id', isOptId(v.id)],
-    ['todoId', isFiniteNum(v.todoId)],
-    ['tagId', isFiniteNum(v.tagId)],
+    ['todoId', isRef(v.todoId)],
+    ['tagId', isRef(v.tagId)],
   ])
 }
 
@@ -275,8 +280,8 @@ function checkListOrder(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['id', isOptId(v.id)],
-    ['listDefinitionId', isFiniteNum(v.listDefinitionId)],
-    ['todoId', isFiniteNum(v.todoId)],
+    ['listDefinitionId', isRef(v.listDefinitionId)],
+    ['todoId', isRef(v.todoId)],
     ['rank', isFiniteNum(v.rank)],
   ])
 }
@@ -285,8 +290,8 @@ function checkTodoPerson(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['id', isOptId(v.id)],
-    ['todoId', isFiniteNum(v.todoId)],
-    ['personId', isFiniteNum(v.personId)],
+    ['todoId', isRef(v.todoId)],
+    ['personId', isRef(v.personId)],
   ])
 }
 
@@ -319,7 +324,7 @@ function checkTodoEvent(v: unknown): CheckResult {
   const assignment = v.type === 'person' || v.type === 'tag'
   return checkFields(v, [
     ['id', isOptId(v.id)],
-    ['todoId', isFiniteNum(v.todoId)],
+    ['todoId', isRef(v.todoId)],
     ['type', typeof v.type === 'string' && (TODO_EVENT_TYPES as readonly string[]).includes(v.type)],
     ['fromValue', isOptScalarValue(v.fromValue)],
     ['toValue', isOptScalarValue(v.toValue)],
@@ -332,7 +337,7 @@ function checkStatusUpdate(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['id', isOptId(v.id)],
-    ['todoId', isFiniteNum(v.todoId)],
+    ['todoId', isRef(v.todoId)],
     ['date', isDateLike(v.date)],
     ['text', isStr(v.text, STATUS_UPDATE_TEXT_MAX)],
     ['createdAt', isDateLike(v.createdAt)],
@@ -344,7 +349,7 @@ function checkSubtask(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['id', isOptId(v.id)],
-    ['todoId', isFiniteNum(v.todoId)],
+    ['todoId', isRef(v.todoId)],
     ['title', isStr(v.title, SUBTASK_TITLE_MAX)],
     ['isCompleted', isBool(v.isCompleted)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
