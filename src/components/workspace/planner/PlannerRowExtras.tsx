@@ -11,17 +11,32 @@ import {
   type PlannerWindow,
 } from '../../../utils/planner'
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
+import { keepPlannerRowFocus } from './planner-focus'
 import styles from './PlannerWidget.module.css'
 
 type Span = Pick<PlannerWindow, 'today' | 'last'>
 
 /** A button's click in a row: its own, never the row's (select, edit, open), and once for a double-click. */
-function rowClick(run: () => void) {
-  return (e: MouseEvent) => {
+function rowClick(run: (e: MouseEvent<HTMLElement>) => void) {
+  return (e: MouseEvent<HTMLElement>) => {
     e.stopPropagation()
     if (e.detail > 1) return
-    run()
+    run(e)
   }
+}
+
+/** A click made from the keyboard (Enter or Space on the focused button): no pointer press counted. */
+const fromKeyboard = (e: MouseEvent): boolean => e.detail === 0
+
+/**
+ * Makes a row's move from one of its own controls. From the keyboard, the
+ * focus then follows the row (`keepPlannerRowFocus`): it would otherwise
+ * fall to the page's body when the row remounts under another group. A
+ * pointer's press leaves the focus alone, as everywhere.
+ */
+function moveRow(from: Element, keyboard: boolean, todoId: number, write: () => Promise<void>): void {
+  if (keyboard) void keepPlannerRowFocus(from, todoId, write)
+  else void write()
 }
 
 /**
@@ -38,7 +53,9 @@ function rowClick(run: () => void) {
  *   day meanwhile: `planned Fri, Nov 27`, muted, a button with the same
  *   fixes.
  *
- * Its tooltip says it in full.
+ * Its tooltip says it in full. A fix picked from a menu opened with the
+ * keyboard hands the focus to the row where it then is (the tag itself may
+ * be gone with the conflict).
  */
 export function PlannerRowTag({ tabId, todoId, tag, window }: { tabId: string; todoId: number; tag: RowTag; window: Span }) {
   const { today } = window
@@ -46,13 +63,19 @@ export function PlannerRowTag({ tabId, todoId, tag, window }: { tabId: string; t
   const hint = plannerRowTagHint(tag, today)
   const ref = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
+  /** The menu was opened from the keyboard: its pick's focus follows the row. */
+  const [keyboard, setKeyboard] = useState(false)
   if (tag.kind !== 'conflict' && tag.kind !== 'later') {
     return <span className={styles.rowTag} data-planner-tag={tag.kind} data-row-cell="planner-tag" data-tooltip={hint}>{label}</span>
   }
   const entries: MenuEntry[] = tag.fixes.map((fix) => ({
     kind: 'item',
     label: plannerFixLabel(fix, today),
-    onSelect: () => { void applyPlannerFix(tabId, todoId, fix, window) },
+    onSelect: () => {
+      const write = () => applyPlannerFix(tabId, todoId, fix, window)
+      if (ref.current) moveRow(ref.current, keyboard, todoId, write)
+      else void write()
+    },
   }))
   return (
     <>
@@ -66,7 +89,10 @@ export function PlannerRowTag({ tabId, todoId, tag, window }: { tabId: string; t
         data-row-cell="planner-tag"
         data-open={open ? '' : undefined}
         data-tooltip={`${hint}. Click to fix`}
-        onClick={rowClick(() => setOpen((v) => !v))}
+        onClick={rowClick((e) => {
+          setKeyboard(fromKeyboard(e))
+          setOpen((v) => !v)
+        })}
       >
         {label}
       </button>
@@ -79,7 +105,8 @@ export function PlannerRowTag({ tabId, todoId, tag, window }: { tabId: string; t
  * A Planner row's hover buttons, at its title's end (shown as the row's
  * placeholders are: hover, focus within; desktop only): **Snooze** — the
  * next day — and **Unplan** — to Unplanned; no Unplan on a row that is
- * there already. The row's menu keeps both.
+ * there already. The row's menu keeps both. Pressed from the keyboard, the
+ * focus follows the row to its new place (`planner-focus`).
  */
 export function PlannerRowActions({ tabId, todoId, placement, window }: {
   tabId: string
@@ -95,7 +122,7 @@ export function PlannerRowActions({ tabId, todoId, placement, window }: {
         className={styles.rowAction}
         data-row-cell="planner-snooze"
         data-tooltip={`Plan for ${snoozeTo === 'Today' ? 'today' : snoozeTo}`}
-        onClick={rowClick(() => { void snoozePlannerTask(tabId, todoId, window) })}
+        onClick={rowClick((e) => moveRow(e.currentTarget, fromKeyboard(e), todoId, () => snoozePlannerTask(tabId, todoId, window)))}
       >
         Snooze
       </button>
@@ -105,7 +132,7 @@ export function PlannerRowActions({ tabId, todoId, placement, window }: {
           className={styles.rowAction}
           data-row-cell="planner-unplan"
           data-tooltip="Move to Unplanned"
-          onClick={rowClick(() => { void unplanPlannerTask(tabId, todoId, window) })}
+          onClick={rowClick((e) => moveRow(e.currentTarget, fromKeyboard(e), todoId, () => unplanPlannerTask(tabId, todoId, window)))}
         >
           Unplan
         </button>

@@ -40,6 +40,7 @@ import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { DropSlot, ListWidgetRow, type ListRowDragLook } from '../list/ListWidgetRow'
 import listStyles from '../list/ListWidget.module.css'
 import { WidgetNameLine } from '../WidgetTopLine'
+import { PLANNER_HEADING_ATTR } from './planner-focus'
 import { plannerMenuEntries } from './planner-menu'
 import { RESET_PLAN_LABEL, usePlannerResetEntries } from './planner-reset'
 import { plannerRowExtras } from './planner-row-extras'
@@ -509,7 +510,8 @@ function DayGroup({ tabId, group, data, mobile, drag, children, empty }: GroupPr
       data-row-group=""
       {...{ [LIST_SECTION_ATTR]: group.key }}
     >
-      <div className={styles.groupHeader}>
+      {/* Focusable from code only: where the focus goes when a row moved from the keyboard leaves no row behind (`planner-focus`). */}
+      <div className={styles.groupHeader} tabIndex={-1} {...{ [PLANNER_HEADING_ATTR]: '' }}>
         <span className={`${listStyles.groupName} ${quiet ? styles.quietName : ''}`} data-testid="planner-group-name">{label}</span>
         {count > 0 && <span className={listStyles.groupCount} data-testid="planner-group-count">{count}</span>}
         <span className={listStyles.groupRule} aria-hidden="true" />

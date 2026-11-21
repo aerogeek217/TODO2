@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { CellControlsContext, type CellControlsValue } from '../../../components/workspace/cell-controls'
 import { ListWidgetRow } from '../../../components/workspace/list/ListWidgetRow'
@@ -408,6 +408,87 @@ describe('the hover buttons', () => {
     show()
     expect(getByTooltip(rowOf('Monday plan'), 'Plan for Tue, Nov 24')).toHaveTextContent('Snooze')
     expect(getByTooltip(rowOf('Monday plan'), 'Move to Unplanned')).toHaveTextContent('Unplan')
+  })
+})
+
+describe('the focus follows a row moved from the keyboard', () => {
+  /** The plan writes applied to the store's tasks (no database): the rows move as they would. */
+  function livePlans() {
+    const setPlan = vi.fn((ids: number[], plan: { day: Date } | 'unplanned' | null) => {
+      act(() => {
+        useTodoStore.setState({
+          todos: useTodoStore.getState().todos.map((t) => (ids.includes(t.id)
+            ? { ...t, doDate: plan && plan !== 'unplanned' ? plan.day : undefined, unplanned: plan === 'unplanned' ? true as const : undefined }
+            : t)),
+        })
+      })
+      return Promise.resolve(true)
+    })
+    useTodoStore.setState({ setPlan })
+    return setPlan
+  }
+  const groupOf = (title: string) => rowOf(title).closest('[data-planner-group]')?.getAttribute('aria-label')
+  const button = (title: string, name: string) => within(rowOf(title)).getByRole('button', { name })
+  /** A press of Enter or Space on the focused button: a click that counts no pointer press. */
+  const keyPress = (el: HTMLElement) => { el.focus(); fireEvent.click(el, { detail: 0 }) }
+
+  it('Snooze: to the same button of the row at its new place — so Enter again snoozes on', async () => {
+    livePlans()
+    show()
+    keyPress(button('Monday deadline', 'Snooze'))
+    await waitFor(() => expect(groupOf('Monday deadline')).toBe('Tue, Nov 24'))
+    await waitFor(() => expect(document.activeElement).toBe(button('Monday deadline', 'Snooze')))
+    keyPress(button('Monday deadline', 'Snooze'))
+    await waitFor(() => expect(groupOf('Monday deadline')).toBe('Wed, Nov 25'))
+    await waitFor(() => expect(document.activeElement).toBe(button('Monday deadline', 'Snooze')))
+  })
+
+  it('Unplan: to the row in Unplanned — its Snooze button, the row having no Unplan there', async () => {
+    livePlans()
+    show()
+    keyPress(button('Monday deadline', 'Unplan'))
+    await waitFor(() => expect(groupOf('Monday deadline')).toBe('Unplanned'))
+    await waitFor(() => expect(document.activeElement).toBe(button('Monday deadline', 'Snooze')))
+  })
+
+  it('a fix: the tag gone with the conflict, to the row it was on', async () => {
+    livePlans()
+    show()
+    // Planned Thu 26, follow-up Tue 24: Plan for Tue clears the plan — the row moves to Tue and has no tag.
+    keyPress(tagOf('Past its follow-up')!)
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Fix the plan' })).getByRole('menuitem', { name: 'Plan for Tue, Nov 24' }))
+    await waitFor(() => expect(groupOf('Past its follow-up')).toBe('Tue, Nov 24'))
+    expect(tagOf('Past its follow-up')).toBeNull()
+    await waitFor(() => expect(document.activeElement).toBe(button('Past its follow-up', 'Snooze')))
+  })
+
+  it('a row that leaves the view: to the row that took its place, else to its group’s heading', async () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Last day, first', doDate: day(6), sortOrder: 1 }),
+        makeTodo({ id: 2, title: 'Last day, second', doDate: day(6), sortOrder: 2 }),
+      ],
+    })
+    livePlans()
+    show()
+    // Snoozed past the window with no date: gone from the days shown.
+    keyPress(button('Last day, first', 'Snooze'))
+    await waitFor(() => expect(root().querySelector('[data-task-title="Last day, first"]')).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(button('Last day, second', 'Snooze')))
+    keyPress(button('Last day, second', 'Snooze'))
+    await waitFor(() => expect(root().querySelector('[data-task-title="Last day, second"]')).toBeNull())
+    const heading = root().querySelector('[data-planner-group="2026-11-26"] [data-planner-heading]')
+    await waitFor(() => expect(document.activeElement).toBe(heading))
+    expect(heading).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('a pointer’s press moves no focus', async () => {
+    livePlans()
+    show()
+    fireEvent.click(button('Monday deadline', 'Snooze'), { detail: 1 })
+    await waitFor(() => expect(groupOf('Monday deadline')).toBe('Tue, Nov 24'))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    expect(document.activeElement).toBe(document.body)
   })
 })
 

@@ -1070,6 +1070,58 @@ test('Plan for … moves the plan to the date’s day and leaves the date alone'
   expect(await stored(page, 'Migrate the invoices')).toEqual({ doDate: null, held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
 })
 
+// ── The keyboard: the focus follows the row ─────────────────────────────────
+
+test('from the keyboard, the focus follows a row that Snooze, Unplan or a fix moves — it never falls to the page', async ({ page }) => {
+  await seedWorkspace(page, ALONE)
+  const [inTwo, inThree, inFour, inFive, inSix] = await Promise.all([2, 3, 4, 5, 6].map((n) => dayKeyIn(page, n)))
+  /** What holds the focus: its text, the task of its row and its group. */
+  const focused = () => page.evaluate(() => {
+    const el = document.activeElement
+    if (!el || el === document.body) return null
+    return {
+      on: el.tagName === 'BUTTON' ? el.textContent : el.tagName,
+      row: el.closest('[data-planner-row]')?.querySelector('[data-task-title]')?.getAttribute('data-task-title') ?? null,
+      group: el.closest('[data-planner-group]')?.getAttribute('data-planner-group') ?? null,
+    }
+  })
+
+  // Snooze, Enter: the row moves a day on and its Snooze button still has the focus; Enter again moves it on again.
+  await rowOf(group(page, inTwo!), 'Book the venue').getByRole('button', { name: 'Snooze' }).focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(focused).toEqual({ on: 'Snooze', row: 'Book the venue', group: inThree })
+  await expect(rowOf(group(page, inThree!), 'Book the venue').getByRole('button', { name: 'Snooze' })).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect.poll(focused).toEqual({ on: 'Snooze', row: 'Book the venue', group: inFour })
+  expect((await stored(page, 'Book the venue')).doDate).toEqual([4, 0, 0])
+
+  // Tab to Unplan, Space: the row goes to Unplanned, in the other pane, and the focus with it (its Snooze: it has no Unplan there).
+  await page.keyboard.press('Tab')
+  await expect.poll(focused).toEqual({ on: 'Unplan', row: 'Book the venue', group: inFour })
+  await page.keyboard.press('Space')
+  await expect.poll(focused).toEqual({ on: 'Snooze', row: 'Book the venue', group: 'unplanned' })
+  await expect(rowOf(unplannedGroup(page), 'Book the venue')).toBeInViewport()
+
+  // A fix: Enter on the tag opens its menu, Enter picks Move due date — the tag goes with the conflict, the focus stays in the row.
+  await tagOf(rowOf(group(page, inThree!), 'Migrate the invoices')).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('menu', { name: 'Fix the plan' })).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect(tagOf(rowOf(group(page, inThree!), 'Migrate the invoices'))).toHaveCount(0)
+  await expect.poll(focused).toEqual({ on: 'Snooze', row: 'Migrate the invoices', group: inThree })
+
+  // A row that leaves the view (snoozed past the last day, no date): the focus goes to its group's heading, and the snackbar says where it went.
+  await rowOf(group(page, inFour!), 'From a list').getByRole('button', { name: 'Snooze' }).focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(focused).toEqual({ on: 'Snooze', row: 'From a list', group: inFive })
+  await page.keyboard.press('Enter')
+  await expect.poll(focused).toEqual({ on: 'Snooze', row: 'From a list', group: inSix })
+  await page.keyboard.press('Enter')
+  await expect(rowOf(planner(page), 'From a list')).toHaveCount(0)
+  await expect.poll(focused).toEqual({ on: 'DIV', row: null, group: inSix })
+  await expect(page.locator('[data-snackbar-live]')).toContainText(`Planned for ${await dayWords(page, 7)}`)
+})
+
 // ── A plan past the days shown ──────────────────────────────────────────────
 
 test('Snooze from the window’s last day: a dated row stays there, planned later; one with no date leaves with a snackbar naming the day', async ({ page }) => {
