@@ -40,6 +40,7 @@ import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { DropSlot, ListWidgetRow, type ListRowDragLook } from '../list/ListWidgetRow'
 import listStyles from '../list/ListWidget.module.css'
 import { WidgetNameLine } from '../WidgetTopLine'
+import { PLANNER_HEADING_ATTR } from './planner-focus'
 import { plannerMenuEntries } from './planner-menu'
 import { RESET_PLAN_LABEL, usePlannerResetEntries } from './planner-reset'
 import { plannerRowExtras } from './planner-row-extras'
@@ -356,6 +357,7 @@ function PlannerResetButton({ tab }: { tab: PlannerTab }) {
  * The **↓ Unplan** button, centered on a hairline rule between Delayed and
  * Unplanned (only while Delayed holds a task): every Delayed task to
  * Unplanned, one undo step (`services/planner-drop.unplanDelayedTasks`).
+ * Named `Unplan all Delayed tasks` — its visible word leads its name.
  */
 function UnplanAll({ onUnplan }: { onUnplan: () => void }) {
   return (
@@ -364,7 +366,7 @@ function UnplanAll({ onUnplan }: { onUnplan: () => void }) {
       <button
         type="button"
         className={styles.unplanButton}
-        aria-label="Move all Delayed tasks to Unplanned"
+        aria-label="Unplan all Delayed tasks"
         data-tooltip="Move all Delayed tasks to Unplanned"
         onClick={onUnplan}
       >
@@ -509,7 +511,8 @@ function DayGroup({ tabId, group, data, mobile, drag, children, empty }: GroupPr
       data-row-group=""
       {...{ [LIST_SECTION_ATTR]: group.key }}
     >
-      <div className={styles.groupHeader}>
+      {/* Focusable from code only: where the focus goes when a row moved from the keyboard leaves no row behind (`planner-focus`). */}
+      <div className={styles.groupHeader} tabIndex={-1} {...{ [PLANNER_HEADING_ATTR]: '' }}>
         <span className={`${listStyles.groupName} ${quiet ? styles.quietName : ''}`} data-testid="planner-group-name">{label}</span>
         {count > 0 && <span className={listStyles.groupCount} data-testid="planner-group-count">{count}</span>}
         <span className={listStyles.groupRule} aria-hidden="true" />
@@ -576,7 +579,9 @@ function DayGroup({ tabId, group, data, mobile, drag, children, empty }: GroupPr
  * triangle at the box's top-left corner, over the row, in the secondary
  * text color. It takes no pointer events and is drawn whatever the row
  * shows: its hover fill, the slot it leaves while it is lifted, the Stacked
- * and Lines styles, the phone row.
+ * and Lines styles, the phone row. It is drawn only (`aria-hidden`): the
+ * row's accessible description says the same in words (`planned`, `set
+ * aside` — `TaskRowExtras.description`).
  */
 function PlannerRowWrap({ todoId, flagged, children }: { todoId: number; flagged: boolean; children: ReactNode }) {
   return (

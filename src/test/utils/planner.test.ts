@@ -18,15 +18,20 @@ import {
   plannerOffset,
   plannerOrder,
   plannerPlacement,
+  plannerPlannedDay,
+  plannerPlannedLater,
   plannerRangeLabel,
   plannerResetCounts,
   plannerResetTasks,
+  plannerResetWeekLabel,
   plannerSnooze,
   plannerSnoozeDay,
   plannerLateDates,
   plannerRowTag,
   plannerRowTagHint,
+  plannerRowStateWords,
   plannerRowTagLabel,
+  plannerShows,
   plannerTagDay,
   plannerTargetKey,
   plannerTileLabel,
@@ -181,11 +186,56 @@ describe('plannerPlacement: where a task sits', () => {
     expect(shape(place({ doDate: day(6) }))).toEqual(['day', '2026-11-26', 'plan', true])
   })
 
-  it('a planned day beyond the window’s last day → not shown in this window', () => {
+  it('a planned day beyond the window’s last day, with no real date inside the window → not shown in this window', () => {
     expect(place({ doDate: day(7) })).toBeNull()
-    expect(place({ doDate: day(20), dueDate: day(1), focus: true })).toBeNull()
+    expect(place({ doDate: day(20), focus: true })).toBeNull()
+    // A date past the window doesn't show it either.
+    expect(place({ doDate: day(20), dueDate: day(9) })).toBeNull()
     // The window that reaches it shows it.
     expect(shape(plannerPlacement(task({ doDate: day(7) }), plannerWindow(TODAY, 7)))).toEqual(['day', '2026-11-27', 'plan', true])
+  })
+
+  it('planned later, with a real date inside the window or overdue → on its natural day, placed, in conflict with that date', () => {
+    // Due tomorrow, planned for three weeks on.
+    const later = place({ doDate: day(20), dueDate: day(1), focus: true })
+    expect(shape(later)).toEqual(['day', '2026-11-21', 'due', true])
+    expect(later?.planned).toEqual(day(20))
+    expect(later?.conflicts).toEqual([{
+      date: 'due', on: day(1), days: 19,
+      fixes: [{ kind: 'move-date', date: 'due', to: day(20) }, { kind: 'plan', day: day(1) }],
+    }])
+    expect(plannerPlannedLater(later)).toBe(true)
+    // An overdue row dragged onto a tile of next week, seen from this week: still in Today.
+    const overdue = place({ doDate: day(8), nextFollowupAt: day(-3) })
+    expect(shape(overdue)).toEqual(['day', '2026-11-20', 'followup', true])
+    expect(overdue?.conflicts.map((c) => [c.date, c.days, c.fixes.map((f) => f.kind)])).toEqual([['followup', 11, ['move-date']]])
+    // A row on the window's last day by its date, snoozed past it: it stays there.
+    expect(shape(place({ doDate: day(7), dueDate: day(6) }))).toEqual(['day', '2026-11-26', 'due', true])
+    // Seen from the window that reaches the planned day: on that day, by its plan.
+    const there = plannerPlacement(task({ doDate: day(8), nextFollowupAt: day(-3) }), plannerWindow(TODAY, 7))
+    expect(shape(there)).toEqual(['day', '2026-11-28', 'plan', true])
+    expect(plannerPlannedLater(there)).toBe(false)
+    // Not planned later: a plain dated row, a row on its planned day, the trays.
+    for (const fields of [{ dueDate: day(1) }, { doDate: day(2) }, { doDate: day(-2) }, { unplanned: true as const }]) {
+      expect(plannerPlannedLater(place(fields))).toBe(false)
+    }
+    expect(plannerPlannedLater(null)).toBe(false)
+  })
+
+  it('shows a task where its placement puts it — not on a day between tomorrow and a shifted window', () => {
+    expect(plannerShows(task({ dueDate: day(1) }), SPAN)).toBe(true)
+    expect(plannerShows(task({ doDate: day(7) }), SPAN)).toBe(false)
+    expect(plannerShows(task({ doDate: day(7), dueDate: day(6) }), SPAN)).toBe(true)
+    expect(plannerShows(task({ doDate: day(-1) }), SPAN)).toBe(true)
+    expect(plannerShows(task({ focus: true }), SPAN)).toBe(true)
+    expect(plannerShows(task({}), SPAN)).toBe(false)
+    // Next week's window: today's rows and the window's show; tomorrow's has no group.
+    const next = plannerWindow(TODAY, 7)
+    expect(plannerShows(task({ doDate: day(0) }), next)).toBe(true)
+    expect(plannerShows(task({ doDate: day(1) }), next)).toBe(false)
+    expect(plannerShows(task({ dueDate: day(6) }), next)).toBe(false)
+    expect(plannerShows(task({ doDate: day(7) }), next)).toBe(true)
+    expect(plannerShows(task({ doDate: day(13) }), next)).toBe(true)
   })
 
   it('no plan → its natural day, with the reason; not placed', () => {
@@ -216,6 +266,55 @@ describe('plannerPlacement: where a task sits', () => {
 
   it('a row both planned and held (a hand-made row) reads as planned', () => {
     expect(shape(place({ doDate: day(2), unplanned: true }))).toEqual(['day', '2026-11-22', 'plan', true])
+  })
+})
+
+describe('a redundant plan: the planned day is the day the task’s own date puts it', () => {
+  it('the planned day is the `doDate`’s — unless the earliest real date is that very day, wherever the window ends', () => {
+    expect(plannerPlannedDay(task({ doDate: day(2, 15) }))).toEqual(day(2))
+    expect(plannerPlannedDay(task({ doDate: day(2), dueDate: day(3) }))).toEqual(day(2))
+    expect(plannerPlannedDay(task({}))).toBeNull()
+    // Due that day (at any time of day), or due for a follow-up that day: no plan.
+    expect(plannerPlannedDay(task({ doDate: day(2), dueDate: day(2, 9) }))).toBeNull()
+    expect(plannerPlannedDay(task({ doDate: day(2), nextFollowupAt: day(2), dueDate: day(5) }))).toBeNull()
+    // Past the window too: no window bounds it.
+    expect(plannerPlannedDay(task({ doDate: day(30), dueDate: day(30) }))).toBeNull()
+    // Only the earliest date counts: the later one's day is a real plan.
+    expect(plannerPlannedDay(task({ doDate: day(5), nextFollowupAt: day(2), dueDate: day(5) }))).toEqual(day(5))
+  })
+
+  it('reads as no plan: on its date’s day, not placed, no conflict — and no plan mark on the tile', () => {
+    // Add task in the Planner, typed with a due date of today: planned for today and due today.
+    const added = task({ doDate: day(0), dueDate: day(0) })
+    expect(plannerPlacement(added, SPAN)).toEqual({
+      where: 'day', day: day(0), reason: 'due', placed: false, planned: null, natural: { day: day(0), date: day(0), reason: 'due' }, conflicts: [],
+    })
+    // A planned task whose due date was then edited onto its planned day.
+    const edited = task({ doDate: day(3), dueDate: day(3) })
+    expect(plannerPlacement(edited, SPAN)).toMatchObject({ where: 'day', day: day(3), reason: 'due', placed: false, planned: null })
+    const view = plannerView([added, edited], { today: TODAY })
+    expect(view.tiles[0]).toMatchObject({ count: 1, dates: ['due'], plans: 0 })
+    expect(view.tiles[3]).toMatchObject({ count: 1, dates: ['due'], plans: 0 })
+    expect(plannerResetCounts(view)).toEqual({ week: 0, today: 0, delayed: 0 })
+  })
+
+  it('never lands in Delayed: once the day has passed the task is overdue in Today', () => {
+    // The same task a day later: due yesterday, "planned" for yesterday.
+    const stale = task({ doDate: day(-1), dueDate: day(-1) })
+    expect(plannerPlacement(stale, SPAN)).toMatchObject({ where: 'day', day: day(0), reason: 'due', placed: false })
+    const view = plannerView([stale], { today: TODAY })
+    expect(uids(view.today.tasks)).toEqual([stale.uid])
+    expect(view.delayed.tasks).toEqual([])
+    // A real plan that has passed still waits in Delayed.
+    expect(plannerPlacement(task({ doDate: day(-1), dueDate: day(-2) }), SPAN)).toMatchObject({ where: 'delayed', placed: true })
+  })
+
+  it('a plan for a date just past the window is no plan either: out of view until the window reaches the date', () => {
+    // Snooze from the window's last day onto the day the task is due.
+    const snoozed = task({ doDate: day(7), dueDate: day(7) })
+    expect(plannerPlacement(snoozed, SPAN)).toBeNull()
+    expect(inPlanner(snoozed, SPAN)).toBe(false)
+    expect(plannerPlacement(snoozed, plannerWindow(TODAY, 7))).toMatchObject({ where: 'day', day: day(7), reason: 'due', placed: false })
   })
 })
 
@@ -407,7 +506,7 @@ describe('plannerView', () => {
         task({ nextFollowupAt: day(1), dueDate: day(3) }),
         // Planned for a day that passed (Delayed): its due date still marks Tue; its plan marks no tile.
         task({ dueDate: day(4), doDate: day(-2) }),
-        // Planned past the window (not shown): its follow-up still marks Mon.
+        // Planned past the window: it shows on Mon by its follow-up, which marks Mon; its plan marks no tile here.
         task({ nextFollowupAt: day(3), doDate: day(9) }),
         // A Focus task with a plan and no dates: a plan mark only.
         task({ focus: true, doDate: day(1) }),
@@ -418,7 +517,7 @@ describe('plannerView', () => {
         [[], 0, 0],
         [['followup'], 1, 2],
         [['due', 'due', 'followup'], 0, 0],
-        [['due', 'followup'], 0, 0],
+        [['due', 'followup'], 0, 1],
         [['due'], 1, 1],
         [[], 0, 0],
         [[], 0, 0],
@@ -542,8 +641,16 @@ describe('plannerDrop: the drop rule', () => {
       expect(drop({ nextFollowupAt: day(2) }, on(2))).toEqual({ kind: 'none' })
       // A late task sits on today.
       expect(drop({ dueDate: day(-4) }, on(0))).toEqual({ kind: 'none' })
-      // Planned on the very day its date would put it: it is there.
-      expect(drop({ dueDate: day(2), doDate: day(2) }, on(2))).toEqual({ kind: 'none' })
+    })
+
+    it('its own day comes before "where it sits": a redundant plan for that day is cleared by a drop there', () => {
+      // Planned on the very day its date puts it: a drop there clears the plan it still holds.
+      expect(drop({ dueDate: day(2), doDate: day(2) }, on(2))).toEqual({ kind: 'own', day: day(2) })
+      expect(plannerDropWrite(drop({ dueDate: day(2), doDate: day(2) }, on(2)))).toBeNull()
+      // A late date, a plan for today that its date makes redundant only in place: cleared too.
+      expect(drop({ dueDate: day(-3), doDate: day(0) }, on(0))).toEqual({ kind: 'own', day: day(0) })
+      // With no plan state to clear it is simply there.
+      expect(drop({ dueDate: day(2) }, on(2))).toEqual({ kind: 'none' })
     })
 
     it('a day before today is refused', () => {
@@ -636,6 +743,12 @@ describe('Snooze', () => {
     expect(snoozeDay({ doDate: day(6) })).toBe('2026-11-27')
   })
 
+  it('a row planned later moves on from its planned day, not from the day it shows on', () => {
+    // On Thu by its due date, planned for Fri 27: Sat 28.
+    expect(snoozeDay({ doDate: day(7), dueDate: day(6) })).toBe('2026-11-28')
+    expect(snooze({ doDate: day(7), dueDate: day(6) })).toEqual({ kind: 'plan', day: day(8) })
+  })
+
   it('a Delayed or Unplanned row (or one not shown) goes to tomorrow', () => {
     expect(snoozeDay({ doDate: day(-4) })).toBe('2026-11-21')
     expect(snoozeDay({ unplanned: true, dueDate: day(5) })).toBe('2026-11-21')
@@ -662,6 +775,30 @@ describe('Snooze', () => {
 
   it('a completed task is refused', () => {
     expect(snooze({ isCompleted: true, doDate: day(1) })).toEqual({ kind: 'refuse' })
+  })
+})
+
+describe('a task planned later, in the view', () => {
+  it('is a row of its natural day — in Today when overdue — and counts where the view counts: the tile, Reset plan', () => {
+    const overdue = task({ doDate: day(8), dueDate: day(-2) })
+    const sunday = task({ doDate: day(9), nextFollowupAt: day(2) })
+    const gone = task({ doDate: day(9) })
+    const view = plannerView([overdue, sunday, gone], { today: TODAY })
+    expect(uids(view.today.tasks)).toEqual([overdue.uid])
+    expect(uids(view.days[1]?.tasks ?? [])).toEqual([sunday.uid])
+    expect(view.delayed.tasks).toEqual([])
+    expect(view.unplanned.tasks).toEqual([])
+    expect(uids(view.tasks)).toEqual(uids([overdue, sunday]))
+    expect(view.placements.has(gone.uid)).toBe(false)
+    // The rows sit on those days; their plans mark no tile of this window.
+    expect(view.tiles.map((t) => [t.count, t.plans])).toEqual([[1, 0], [0, 0], [1, 0], [0, 0], [0, 0], [0, 0], [0, 0]])
+    // Reset plan › This week clears both (they are placed rows it shows); Today only clears plans *for* today.
+    expect(plannerResetCounts(view)).toEqual({ week: 2, today: 0, delayed: 0 })
+    expect(uids(plannerResetTasks(view, 'week'))).toEqual(uids([overdue, sunday]))
+    // The window that reaches the planned days shows them there, by their plans.
+    const next = plannerView([overdue, sunday, gone], { today: TODAY, offset: 7 })
+    expect(next.today.tasks).toEqual([])
+    expect(next.tiles.map((t) => [t.count, t.plans])).toEqual([[0, 0], [1, 1], [2, 2], [0, 0], [0, 0], [0, 0], [0, 0]])
   })
 })
 
@@ -716,12 +853,40 @@ describe('a row’s tag and late dates', () => {
     expect(past?.kind === 'conflict' && past.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual(['Move due date to Sat, Nov 21'])
   })
 
+  it('a row planned later: its planned day, with the fixes of the dates that plan passes', () => {
+    const tag = plannerRowTag(placed({ doDate: day(7), dueDate: day(6) }))
+    expect(tag).toEqual({ kind: 'later', day: day(7), fixes: [{ kind: 'move-date', date: 'due', to: day(7) }, { kind: 'plan', day: day(6) }] })
+    expect(plannerRowTagLabel(tag!, TODAY)).toBe('planned Fri, Nov 27')
+    expect(plannerRowTagHint(tag!, TODAY)).toBe('Planned for Fri, Nov 27, after the days shown')
+    expect(tag?.kind === 'later' && tag.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual(['Move due date to Fri, Nov 27', 'Plan for Thu, Nov 26'])
+    // Its date is drawn late, as for any plan past a date.
+    expect(plannerLateDates(placed({ doDate: day(7), dueDate: day(6) }))).toEqual({ due: true, followup: false })
+    // An overdue date offers no Plan for it.
+    const overdue = plannerRowTag(placed({ doDate: day(8), nextFollowupAt: day(-3) }))
+    expect(overdue?.kind === 'later' && overdue.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual(['Move follow-up to Sat, Nov 28'])
+  })
+
   it('no tag on a row its own date puts there, on a plan before its dates, or on no placement', () => {
     expect(plannerRowTag(placed({ dueDate: day(2) }))).toBeNull()
     expect(plannerRowTag(placed({ doDate: day(1), dueDate: day(3) }))).toBeNull()
     expect(plannerRowTag(placed({ doDate: day(3), dueDate: day(3) }))).toBeNull()
     expect(plannerRowTag(null)).toBeNull()
     expect(plannerRowTag(undefined)).toBeNull()
+  })
+
+  it('a placed row’s plan state in words, for its accessible description: planned, planned for a day, set aside', () => {
+    expect(plannerRowStateWords(placed({ doDate: day(2) }), TODAY)).toBe('planned')
+    expect(plannerRowStateWords(placed({ doDate: day(4), dueDate: day(3) }), TODAY)).toBe('planned')
+    expect(plannerRowStateWords(placed({ doDate: day(-2) }), TODAY)).toBe('planned for Wed')
+    expect(plannerRowStateWords(placed({ doDate: day(-9) }), TODAY)).toBe('planned for Nov 11')
+    expect(plannerRowStateWords(placed({ doDate: day(7), dueDate: day(6) }), TODAY)).toBe('planned for Fri, Nov 27')
+    expect(plannerRowStateWords(placed({ unplanned: true }), TODAY)).toBe('set aside')
+    expect(plannerRowStateWords(placed({ unplanned: true, dueDate: day(1) }), TODAY)).toBe('set aside')
+    // Not placed: nothing to say.
+    expect(plannerRowStateWords(placed({ dueDate: day(1) }), TODAY)).toBeNull()
+    expect(plannerRowStateWords(placed({ focus: true }), TODAY)).toBeNull()
+    expect(plannerRowStateWords(placed({ doDate: day(2), dueDate: day(2) }), TODAY)).toBeNull()
+    expect(plannerRowStateWords(null, TODAY)).toBeNull()
   })
 
   it('a tag’s day in words: Today, a weekday within six days, else the date', () => {
@@ -765,6 +930,12 @@ describe('a Move date fix that makes the plan redundant', () => {
     expect(plannerFixClearsPlan(both, move('due', 5), SPAN)).toBe(false)
     // The second fix, once the first was made, does clear it.
     expect(plannerFixClearsPlan({ ...both, dueDate: day(5) }, move('followup', 5), SPAN)).toBe(true)
+  })
+
+  it('clears it for a date moved past the window too: the earliest date is the planned day', () => {
+    // Planned for next Friday (past the window), due Sunday: the due date moved to that Friday.
+    expect(plannerFixClearsPlan(task({ doDate: day(7), dueDate: day(2) }), move('due', 7), SPAN)).toBe(true)
+    expect(plannerFixClearsPlan(task({ doDate: day(7), dueDate: day(2), nextFollowupAt: day(4) }), move('due', 7), SPAN)).toBe(false)
   })
 
   it('is false for a task with no planned day', () => {
@@ -848,12 +1019,33 @@ describe('Reset plan', () => {
   })
 })
 
+describe('Reset plan’s week scope is the days shown', () => {
+  it('is named This week only while the window starts today; shifted, by its range', () => {
+    expect(plannerResetWeekLabel(plannerWindow(TODAY))).toBe('This week')
+    expect(plannerResetWeekLabel(plannerWindow(TODAY, 7))).toBe('Nov 27 – Dec 3')
+    expect(plannerResetWeekLabel(plannerWindow(TODAY, 42))).toBe('Jan 1 – 7')
+  })
+
+  it('shifted, it clears the plans of the window shown (and Today’s and the trays’), not tomorrow’s', () => {
+    const tomorrow = task({ doDate: day(1) })
+    const next = task({ doDate: day(8) })
+    const delayed = task({ doDate: day(-1) })
+    expect(uids(plannerResetTasks(plannerView([tomorrow, next, delayed], { today: TODAY }), 'week'))).toEqual(uids([tomorrow, delayed]))
+    expect(uids(plannerResetTasks(plannerView([tomorrow, next, delayed], { today: TODAY, offset: 7 }), 'week'))).toEqual(uids([next, delayed]))
+  })
+})
+
 describe('labels', () => {
   it('names a day and a tile', () => {
     expect(plannerDayLabel(day(3))).toBe('Mon, Nov 23')
     expect(plannerTileLabel({ day: day(3), count: 3, isToday: false })).toBe('Mon, Nov 23: 3 tasks')
     expect(plannerTileLabel({ day: day(3), count: 1, isToday: false })).toBe('Mon, Nov 23: 1 task')
     expect(plannerTileLabel({ day: day(0), count: 0, isToday: true })).toBe('Today, Nov 20: no tasks')
+    // With its marks: the real dates on the day, then the plans for it.
+    expect(plannerTileLabel({ day: day(3), count: 2, isToday: false, dates: ['due'], plans: 1 })).toBe('Mon, Nov 23: 2 tasks, 1 due, 1 planned')
+    expect(plannerTileLabel({ day: day(2), count: 0, isToday: false, dates: ['followup', 'followup'], plans: 0 })).toBe('Sun, Nov 22: no tasks, 2 follow-ups')
+    expect(plannerTileLabel({ day: day(0), count: 5, isToday: true, dates: ['due', 'due', 'followup'], plans: 3 })).toBe('Today, Nov 20: 5 tasks, 2 due, 1 follow-up, 3 planned')
+    expect(plannerTileLabel({ day: day(1), count: 1, isToday: false, dates: [], plans: 0 })).toBe('Sat, Nov 21: 1 task')
   })
 
   it('names the window', () => {

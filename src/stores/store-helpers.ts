@@ -290,14 +290,18 @@ const valueOf = (row: object, key: string): unknown => (row as Record<string, un
  * redo the ones this wrote (`opts.stamp`, `utils/task-stamps`) — each stamp
  * only where the task still holds the other. A caller's `opts.stamp` of
  * `KEEP_STAMPS` writes the fields and leaves every `modifiedAt` as it is, on
- * the write, its undo and its redo.
+ * the write, its undo and its redo. `opts.together`: a task's fields are one
+ * value (a task's plan state: `doDate` and `unplanned`, never both) — a
+ * failed write takes them back **all or none**, only while every one still
+ * holds what this write set, so an overlapping write's failure can't leave
+ * one field of each.
  */
 export async function bulkUpdateTasks(
   changes: ReadonlyMap<number, TaskFields>,
   label: string,
   get: () => { todos: PersistedTodoItem[] },
   set: SetFn,
-  opts: { showSnackbar?: boolean; stamp?: StampChanges } = {},
+  opts: { showSnackbar?: boolean; stamp?: StampChanges; together?: boolean } = {},
 ): Promise<void> {
   const saved = get().todos.flatMap((t) => {
     const next = changes.get(t.id)
@@ -326,16 +330,19 @@ export async function bulkUpdateTasks(
   /**
    * The tasks back to their earlier values. For a failed write (`onlyOwn`),
    * only the fields that still hold the value this write set — an edit of
-   * one that landed meanwhile stays — and the `modifiedAt` only where no
-   * later write stamped it. For an undo, the earlier `modifiedAt` as the
-   * undo's database write puts it back (`back`).
+   * one that landed meanwhile stays; with `opts.together`, all of the
+   * task's fields or none — and the `modifiedAt` only where no later write
+   * stamped it. For an undo, the earlier `modifiedAt` as the undo's
+   * database write puts it back (`back`).
    */
   const revert = (onlyOwn: boolean, back?: StampChanges) => {
     set({
       todos: get().todos.map((t) => {
         const s = savedById.get(t.id)
         if (!s) return t
-        const keys = onlyOwn ? s.keys.filter((key) => sameFieldValue(valueOf(t, key), valueOf(s.next, key))) : s.keys
+        const own = onlyOwn ? s.keys.filter((key) => sameFieldValue(valueOf(t, key), valueOf(s.next, key))) : s.keys
+        // Fields that are one value go back together, and only while the task still holds all this write set.
+        const keys = onlyOwn && opts.together && own.length < s.keys.length ? [] : own
         if (keys.length === 0) return t
         const stamp = back
           ? { modifiedAt: stampAfter(back, t.id, t.modifiedAt) }

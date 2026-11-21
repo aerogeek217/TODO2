@@ -162,7 +162,7 @@ interface TodoState {
    * Sets the plan state (`TaskPlan`) of every task in `ids` — `setPlans`
    * with the same plan for each.
    */
-  setPlan: (ids: number[], plan: TaskPlan, description?: string, snackbar?: boolean) => Promise<void>
+  setPlan: (ids: number[], plan: TaskPlan, description?: string, snackbar?: boolean) => Promise<boolean>
   /**
    * Sets each task's **plan state** in the Planner, both of its fields in
    * the one task write: a planned day (`doDate`, its day at local midnight;
@@ -175,8 +175,14 @@ interface TodoState {
    * leave every task's `modifiedAt` as it is (`KEEP_STAMPS`), no history
    * event is logged, and no due date or follow-up is ever written. Only the
    * tasks whose plan changes are written; the undo puts back both fields.
+   * **It never rejects**: a write that fails is taken back — each task's two
+   * fields together, and only where the task still holds both of this
+   * write's values, so two overlapping failures can't leave a planned day
+   * beside `unplanned` —, the tasks are read back from the database, the
+   * user is told (`Couldn't save the plan of
+   * “Title”.` / `… of 3 tasks.`), and it resolves `false`; `true` otherwise.
    */
-  setPlans: (plans: readonly TaskPlanChange[], description?: string, snackbar?: boolean) => Promise<void>
+  setPlans: (plans: readonly TaskPlanChange[], description?: string, snackbar?: boolean) => Promise<boolean>
   /** Puts every task in `ids` in focus (`on`) or takes it out. One undo step. */
   bulkSetFocus: (ids: number[], on: boolean) => Promise<void>
   /** Flags every task in `ids` urgent (`on`) or clears the flag. One undo step. */
@@ -849,7 +855,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
   },
 
   async setPlans(plans: readonly TaskPlanChange[], description?: string, snackbar = false) {
-    if (plans.length === 0) return
+    if (plans.length === 0) return true
     // Both plan fields in each task's one write: a planned day or held, never both.
     const fields = (plan: TaskPlan): Pick<PersistedTodoItem, 'doDate' | 'unplanned'> => (
       plan === 'unplanned' ? { doDate: undefined, unplanned: true }
@@ -868,7 +874,15 @@ export const useTodoStore = create<TodoState>((set, get) => {
         label = `Changed the plan of ${plans.length} tasks`
       }
     }
-    await bulkUpdateTasks(changes, label, get, set, { stamp: KEEP_STAMPS, showSnackbar: snackbar })
+    try {
+      await reloadOnFailure(bulkUpdateTasks(changes, label, get, set, { stamp: KEEP_STAMPS, showSnackbar: snackbar, together: true }))
+      return true
+    } catch {
+      // Rolled back and logged by `bulkUpdateTasks`, and the tasks read back; most callers fire and forget.
+      const only = plans.length === 1 ? get().todos.find((t) => t.id === plans[0]?.id) : undefined
+      useUndoStore.getState().notify(`Couldn't save the plan of ${only ? `“${shortTitle(only.title)}”` : `${plans.length} tasks`}.`)
+      return false
+    }
   },
 
   async bulkSetFocus(ids: number[], on: boolean) {

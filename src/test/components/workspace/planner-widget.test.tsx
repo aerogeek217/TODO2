@@ -84,7 +84,7 @@ describe('the Planner — large', () => {
     const trays = root().querySelector<HTMLElement>('[data-planner-pane="trays"]')!
     expect([...trays.querySelectorAll('[data-planner-group]')].map((g) => g.getAttribute('aria-label'))).toEqual(['Unplanned'])
     expect(within(root()).queryByRole('group', { name: 'Delayed' })).toBeNull()
-    expect(within(root()).queryByRole('button', { name: 'Move all Delayed tasks to Unplanned' })).toBeNull()
+    expect(within(root()).queryByRole('button', { name: 'Unplan all Delayed tasks' })).toBeNull()
     // A late date sits in Today; deadlines first, then follow-ups, then plans.
     expect(titlesIn(group('Today'))).toEqual(['Late invoice', 'Chase legal', 'Planned for today'])
     expect(titlesIn(group('Mon, Nov 23'))).toEqual(['Monday deadline', 'Monday plan'])
@@ -173,7 +173,8 @@ describe('the Planner — the trays', () => {
     expect(trays).toContainElement(group('Delayed'))
     expect(trays).toContainElement(group('Unplanned'))
     // Between them, the Unplan button on its rule.
-    const button = within(root()).getByRole('button', { name: 'Move all Delayed tasks to Unplanned' })
+    // Named with its visible word first; its tooltip says what it does.
+    const button = within(root()).getByRole('button', { name: 'Unplan all Delayed tasks' })
     expect([...trays.querySelectorAll('[data-planner-group], [data-planner-unplan-all]')].map((el) => el.getAttribute('aria-label') ?? 'unplan'))
       .toEqual(['Delayed', 'unplan', 'Unplanned'])
     expect(button).toHaveTextContent('Unplan')
@@ -181,7 +182,7 @@ describe('the Planner — the trays', () => {
     expect(group('Delayed')).toHaveAttribute('data-list-section', 'delayed')
     expect(group('Delayed')).toHaveAttribute('data-planner-group-kind', 'delayed')
     expect(within(group('Delayed')).getByTestId('planner-group-count')).toHaveTextContent('2')
-    expect(tile('2026-11-20')).toHaveAccessibleName('Today, Nov 20: 3 tasks')
+    expect(tile('2026-11-20')).toHaveAccessibleName('Today, Nov 20: 3 tasks, 2 due, 1 follow-up, 1 planned')
   })
 
   it('a dated task held in Unplanned sits there, before the Focus tasks, and on no day', () => {
@@ -190,7 +191,7 @@ describe('the Planner — the trays', () => {
     expect(titlesIn(group('Unplanned'))).toEqual(['Held call', 'Someday focus'])
     expect(titlesIn(group('Sun, Nov 22'))).toEqual([])
     expect(group('Unplanned')).toHaveAttribute('data-planner-group-kind', 'unplanned')
-    expect(tile('2026-11-22')).toHaveAccessibleName('Sun, Nov 22: no tasks')
+    expect(tile('2026-11-22')).toHaveAccessibleName('Sun, Nov 22: no tasks, 1 follow-up')
   })
 
   it('the trays stay while the window is shifted', () => {
@@ -212,10 +213,10 @@ describe('the Planner — the trays', () => {
 
   it('the Unplan button moves every Delayed task to Unplanned in one write', () => {
     useTodoStore.setState({ todos: withTrays() })
-    const setPlans = vi.fn(() => Promise.resolve())
+    const setPlans = vi.fn(() => Promise.resolve(true))
     useTodoStore.setState({ setPlans })
     show()
-    fireEvent.click(within(root()).getByRole('button', { name: 'Move all Delayed tasks to Unplanned' }))
+    fireEvent.click(within(root()).getByRole('button', { name: 'Unplan all Delayed tasks' }))
     // Each as its own Unplan would: held — dated or not —, one undo step with the snackbar.
     expect(setPlans).toHaveBeenCalledTimes(1)
     expect(setPlans).toHaveBeenCalledWith([{ id: 41, plan: 'unplanned' }, { id: 40, plan: 'unplanned' }], 'Unplanned 2 tasks from Delayed', true)
@@ -223,13 +224,13 @@ describe('the Planner — the trays', () => {
 })
 
 describe('the Planner — the strip', () => {
-  it('has seven day tiles between the arrows, each named with its day and count', () => {
+  it('has seven day tiles between the arrows, each named with its day, its count and what its marks say', () => {
     show()
     const strip = within(root()).getByRole('group', { name: 'Days' })
     expect([...strip.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'))).toEqual([
       'Previous week',
-      'Today, Nov 20: 3 tasks', 'Sat, Nov 21: no tasks', 'Sun, Nov 22: no tasks', 'Mon, Nov 23: 2 tasks',
-      'Tue, Nov 24: no tasks', 'Wed, Nov 25: no tasks', 'Thu, Nov 26: 1 task',
+      'Today, Nov 20: 3 tasks, 1 due, 1 follow-up, 1 planned', 'Sat, Nov 21: no tasks', 'Sun, Nov 22: no tasks', 'Mon, Nov 23: 2 tasks, 1 due, 1 planned',
+      'Tue, Nov 24: no tasks', 'Wed, Nov 25: no tasks', 'Thu, Nov 26: 1 task, 1 follow-up',
       'Next week',
     ])
     expect(tile('2026-11-20')).toHaveAttribute('data-today', 'true')
@@ -375,7 +376,8 @@ describe('the Planner — the strip', () => {
     expect(screen.getByRole('button', { name: 'Previous week' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Next week' }))
     expect(tileNames()).toEqual([
-      'Fri, Nov 27: no tasks', 'Sat, Nov 28: 1 task', 'Sun, Nov 29: no tasks', 'Mon, Nov 30: no tasks',
+      // Sun 29: the due date of the task planned for today — a mark, no row.
+      'Fri, Nov 27: no tasks', 'Sat, Nov 28: 1 task, 1 due', 'Sun, Nov 29: no tasks, 1 due', 'Mon, Nov 30: no tasks',
       'Tue, Dec 1: no tasks', 'Wed, Dec 2: no tasks', 'Thu, Dec 3: no tasks',
     ])
     expect(root().querySelector('[data-today]')).toBeNull()

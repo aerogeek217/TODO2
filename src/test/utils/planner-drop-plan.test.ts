@@ -209,6 +209,26 @@ describe('plannerMovePlan', () => {
     expect(plannerMovePlan(task({ focus: true }), WINDOW, on(0))).toEqual({ drop: { kind: 'plan', day: day(0) }, moves: true })
   })
 
+  it('a plan that takes the task out of view says so: `hidden`, the day it is planned for', () => {
+    // Snooze from the window's last day, no real date: planned for the day after, which no group shows.
+    const snoozed = plannerMovePlan(task({ doDate: day(6) }), WINDOW, on(7))
+    expect(snoozed).toEqual({ drop: { kind: 'plan', day: day(7) }, moves: true, hidden: day(7) })
+    // With a real date inside the window the row stays in view, on its natural day: not hidden.
+    expect(plannerMovePlan(task({ dueDate: day(6) }), WINDOW, on(7)).hidden).toBeUndefined()
+    expect(plannerMovePlan(task({ doDate: day(6), nextFollowupAt: day(-1) }), WINDOW, on(7)).hidden).toBeUndefined()
+    // A day of the window: never hidden.
+    expect(plannerMovePlan(task({ focus: true }), WINDOW, on(6)).hidden).toBeUndefined()
+    // Next week's window: a plan for tomorrow, between today and the window, shows in no group.
+    const next = { today: TODAY, last: day(13) }
+    expect(plannerMovePlan(task({ dueDate: day(0) }), next, on(1)).hidden).toEqual(day(1))
+    expect(plannerMovePlan(task({ dueDate: day(0) }), next, on(8)).hidden).toBeUndefined()
+    // Dropped into a group with a place: the order and the flag both.
+    expect(plannerMovePlan(task({ uid: 'a', doDate: day(6) }), WINDOW, on(7), at(['d'], 0)).hidden).toEqual(day(7))
+    // What writes no plan hides nothing.
+    expect(plannerMovePlan(task({ doDate: day(4), dueDate: day(2) }), WINDOW, on(2)).hidden).toBeUndefined()
+    expect(plannerMovePlan(task({ doDate: day(2) }), WINDOW, UNPLANNED).hidden).toBeUndefined()
+  })
+
   it('clears the plan on the task’s own date’s day, and unplans on Unplanned', () => {
     expect(plannerMovePlan(task({ doDate: day(4), dueDate: day(2) }), WINDOW, on(2))).toEqual({ drop: { kind: 'own', day: day(2) }, moves: true })
     expect(plannerMovePlan(task({ doDate: day(2), dueDate: day(1) }), WINDOW, UNPLANNED)).toEqual({ drop: { kind: 'unplan', hold: true }, moves: true })

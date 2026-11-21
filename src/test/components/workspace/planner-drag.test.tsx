@@ -230,7 +230,7 @@ describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
   }
   /** The store's writes, watched: the plan action, and the edit path no menu entry here may take. */
   function watch() {
-    const setPlan = vi.fn(async () => {})
+    const setPlan = vi.fn(async () => true)
     const update = vi.fn(async () => true)
     useTodoStore.setState({ setPlan, update })
     return { setPlan, update }
