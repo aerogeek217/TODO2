@@ -20,6 +20,10 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+Nothing yet.
+
+## 2026-11-20, second deployment
+
 Data version 86.
 
 ### Changed
