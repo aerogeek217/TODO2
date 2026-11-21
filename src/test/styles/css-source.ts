@@ -47,7 +47,7 @@ export function themeTokens(theme: ThemeName): Map<string, string> {
 export type Rgb = [number, number, number]
 
 function parseHex(hex: string): Rgb {
-  const h = hex.replace('#', '')
+  const h = hex.replace(/^#/, '')
   const full = h.length === 3 ? [...h].map((c) => c + c).join('') : h
   return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16)) as Rgb
 }

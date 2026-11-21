@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { skyColors, sunColor } from '../../utils/sky'
 import { declarations, sourceFiles, themeTokens, TOKENS_CSS } from './css-source'
+import { escapeRegExp } from '../helpers/escape-reg-exp'
 
 /** A selector that forks a rule per theme (`[data-theme="light"] .x`, `:global([data-theme='light']) .x`). */
 const THEME_FORK = /\[data-theme\s*=/
@@ -120,7 +121,7 @@ describe('theming lives in tokens.css', () => {
     const files = new Map(sourceFiles(/\.module\.css$/))
     for (const [path, selector] of panels) {
       const css = files.get(path) ?? ''
-      const start = css.search(new RegExp(`(^|\\n)${selector.replace('.', '\\.')} \\{`))
+      const start = css.search(new RegExp(`(^|\\n)${escapeRegExp(selector)} \\{`))
       const rule = css.slice(start, css.indexOf('\n}', start))
       expect(rule, `${path} ${selector}`).toContain('background: var(--color-popover-bg);')
     }
@@ -135,7 +136,7 @@ describe('theming lives in tokens.css', () => {
     const files = new Map(sourceFiles(/\.module\.css$/))
     for (const [path, selector] of dialogs) {
       const css = files.get(path) ?? ''
-      const start = css.search(new RegExp(`(^|\\n)${selector.replace('.', '\\.')} \\{`))
+      const start = css.search(new RegExp(`(^|\\n)${escapeRegExp(selector)} \\{`))
       const rule = css.slice(start, css.indexOf('\n}', start))
       expect(rule, `${path} ${selector}`).toContain('background: var(--color-dialog-bg);')
     }

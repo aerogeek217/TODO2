@@ -22,7 +22,7 @@ function coordinateText(v: number): string {
 
 /** A typed coordinate (a minus or a `−`), or `null` when it isn't a number within `max`. */
 function readCoordinate(text: string, max: number): number | null {
-  const t = text.trim().replace('−', '-')
+  const t = text.trim().replaceAll('−', '-')
   if (t === '') return null
   const v = Number(t)
   return Number.isFinite(v) && Math.abs(v) <= max ? v : null

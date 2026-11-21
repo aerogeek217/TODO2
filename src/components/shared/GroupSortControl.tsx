@@ -64,7 +64,7 @@ export function GroupSortControl({ value, onChange, className }: {
         {...tip.triggerProps}
         aria-describedby={tipId}
       />
-      <span id={tipId} hidden>{GROUP_SORT_TIP.replace('\n', ': ')}</span>
+      <span id={tipId} hidden>{GROUP_SORT_TIP.replaceAll('\n', ': ')}</span>
       {tip.tooltip}
       {open && (
         <AnchoredPicker anchorRef={buttonRef} onClose={() => setOpen(false)} closeOnEscape dialogLabel={GROUP_SORT_LABEL}>

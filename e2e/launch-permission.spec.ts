@@ -3,6 +3,7 @@ import { expect, test } from './fixtures/test'
 import { readStore, readStores, writeStores } from './fixtures/db'
 import { answerPermission, attachSyncHandle, readSyncFile, setPermissionAnswer, stubFilePermission } from './fixtures/sync-file'
 import { dismissPurgeNotice, reviewPurge } from './fixtures/purge-notice'
+import { escapeRegExp } from './fixtures/escape-reg-exp'
 
 /**
  * The launch question: an attached sync file whose handle needs the
@@ -157,7 +158,7 @@ test('Continue, then Grant access from the pill: the file loads and its own expi
   await popover.getByRole('button', { name: 'Grant access' }).click()
   await expect(popover).toBeHidden()
   const conflict = page.getByRole('dialog', { name: 'Browser data and sync file differ' })
-  await conflict.getByRole('radio', { name: new RegExp(SYNC_FILE.replace('.', '\\.')) }).check()
+  await conflict.getByRole('radio', { name: new RegExp(escapeRegExp(SYNC_FILE)) }).check()
   await conflict.getByRole('button', { name: `Keep ${SYNC_FILE}` }).click()
   // The notice offers the file's expired task only — the other was answered this session.
   await expect(pill).toHaveText('1 old completed')
@@ -208,7 +209,7 @@ test('Grant access: waiting for the browser, then the load decision — its prom
   await expect(purgePrompt(page)).toHaveCount(0)
   expect(await storesLoaded(page)).toMatchObject({ people: false, todos: false })
 
-  await conflict.getByRole('radio', { name: new RegExp(SYNC_FILE.replace('.', '\\.')) }).check()
+  await conflict.getByRole('radio', { name: new RegExp(escapeRegExp(SYNC_FILE)) }).check()
   await conflict.getByRole('button', { name: `Keep ${SYNC_FILE}` }).click()
   // Launch goes on with the file's data; its old completed task is in the notice.
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
