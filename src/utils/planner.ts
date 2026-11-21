@@ -647,7 +647,9 @@ export function plannerDropWrite(drop: PlannerDrop): TaskPlan | undefined {
 /**
  * The day **Snooze** plans a task for: the day after the day it sits on —
  * after its planned day, for a row planned later —, never earlier than
- * tomorrow; a row in Delayed or Unplanned (or not shown) goes to tomorrow.
+ * tomorrow; a row in Delayed (or not shown) goes to tomorrow. (A row in
+ * Unplanned offers no Snooze — its button is Today — so only the rule's
+ * callers outside the row see it go to tomorrow too.)
  */
 export function plannerSnoozeDay(placement: Pick<PlannerPlacement, 'where' | 'day' | 'reason' | 'planned'> | null, today: Date): Date {
   const tomorrow = addDays(dayOf(today), 1)

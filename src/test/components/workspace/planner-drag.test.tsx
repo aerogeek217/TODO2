@@ -276,7 +276,7 @@ describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('Snooze plans the row for the next day: the day after its own, tomorrow from a tray', () => {
+  it('Snooze plans the row for the next day: the day after its own, tomorrow from Delayed; none on an Unplanned row', () => {
     const { setPlan, update } = watch()
     show()
     /** Picks Snooze in the row's menu; the item names the day it plans for. */
@@ -291,9 +291,8 @@ describe('Move to day ›, Snooze and Unplan in a row’s task menu', () => {
     expect(setPlan).toHaveBeenLastCalledWith([1], { day: day(1) })
     snooze('Missed plan', 'Sat, Nov 21')
     expect(setPlan).toHaveBeenLastCalledWith([6], { day: day(1) })
-    snooze('Someday focus', 'Sat, Nov 21')
-    expect(setPlan).toHaveBeenLastCalledWith([7], { day: day(1) })
-    expect(setPlan).toHaveBeenCalledTimes(4)
+    expect(within(openMenu('Someday focus')).queryByRole('menuitem', { name: /^Snooze/ })).toBeNull()
+    expect(setPlan).toHaveBeenCalledTimes(3)
     expect(update).not.toHaveBeenCalled()
   })
 

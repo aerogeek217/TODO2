@@ -551,12 +551,12 @@ test('Snooze, Unplan and Move to day › from the keyboard: the plan moves, no d
   await expect(titles(group(page, inFour))).toHaveCount(0)
   await expect.poll(async () => (await stored(page, 'Book the venue')).held).toBe(true)
   expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, held: true, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
-  // There, Unplan is off and says why; Snooze goes to tomorrow.
+  // There, Unplan is off and says why, and there is no Snooze: nothing there is planned to put off.
   menu = await openMenu(rowOf(unplannedGroup(page), 'Book the venue'))
   const unplan = menu.getByRole('menuitem', { name: /^Unplan/ })
   await expect(unplan).toBeDisabled()
   await expect(unplan).toHaveAttribute('aria-description', /Unplanned already/)
-  await expect(menu.getByRole('menuitem', { name: /^Snooze/ })).toContainText(await dayWords(page, 1))
+  await expect(menu.getByRole('menuitem', { name: /^Snooze/ })).toHaveCount(0)
 
   // Move to day ›: with →, its submenu — a pick plans the task; no No day.
   await arrowTo(menu.getByRole('menuitem', { name: /^Move to day/ }))
@@ -852,7 +852,7 @@ test.describe('a short Planner', () => {
 
 // ── A row's hover buttons ───────────────────────────────────────────────────
 
-test('hover Snooze moves a Today row to tomorrow; hover Unplan moves it to Unplanned — the plan only', async ({ page }) => {
+test('hover Snooze moves a Today row to tomorrow; hover Unplan moves it to Unplanned; hover Today brings it back — the plan only', async ({ page }) => {
   await seedWorkspace(page, ALONE)
   const tomorrow = await dayKeyIn(page, 1)
   const row = rowOf(todayGroup(page), 'Renew the domain')
@@ -875,7 +875,7 @@ test('hover Snooze moves a Today row to tomorrow; hover Unplan moves it to Unpla
   // The editor did not open.
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
-  // Unplan, from the row's hover: held in Unplanned, with a tag of the day it came off; no Unplan button there.
+  // Unplan, from the row's hover: held in Unplanned, with a tag of the day it came off; there only a Today button.
   await moved.hover({ position: { x: 80, y: 10 } })
   await moved.getByRole('button', { name: 'Unplan' }).click()
   const held = rowOf(unplannedGroup(page), 'Renew the domain')
@@ -885,10 +885,20 @@ test('hover Snooze moves a Today row to tomorrow; hover Unplan moves it to Unpla
   await expect.poll(async () => (await stored(page, 'Renew the domain')).held).toBe(true)
   expect(await stored(page, 'Renew the domain')).toEqual({ doDate: null, held: true, dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
   await held.hover({ position: { x: 80, y: 10 } })
-  await expect(held.getByRole('button', { name: 'Snooze' })).toBeVisible()
+  const today = held.getByRole('button', { name: 'Today' })
+  await expect(today).toBeVisible()
+  await expect(held.getByRole('button', { name: 'Snooze' })).toHaveCount(0)
   await expect(held.getByRole('button', { name: 'Unplan' })).toHaveCount(0)
   // Each a step of its own.
   expect(await newestUndoStep(page)).toBe('Unplanned “Renew the domain”')
+
+  // Today: due today, so it goes back to Today by its own date — no longer held, no plan, no flag.
+  await today.click()
+  const back = rowOf(todayGroup(page), 'Renew the domain')
+  await expect(back).toBeVisible()
+  await expect(flagOf(back)).toHaveCount(0)
+  await expect.poll(async () => (await stored(page, 'Renew the domain')).held).toBe(false)
+  expect(await stored(page, 'Renew the domain')).toEqual({ doDate: null, held: false, dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
 })
 
 test('Unplan keeps a planned task with no date, not in Focus, in the Planner: it is held in Unplanned', async ({ page }) => {
@@ -1097,11 +1107,11 @@ test('from the keyboard, the focus follows a row that Snooze, Unplan or a fix mo
   await expect.poll(focused).toEqual({ on: 'Snooze', row: 'Book the venue', group: inFour })
   expect((await stored(page, 'Book the venue')).doDate).toEqual([4, 0, 0])
 
-  // Tab to Unplan, Space: the row goes to Unplanned, in the other pane, and the focus with it (its Snooze: it has no Unplan there).
+  // Tab to Unplan, Space: the row goes to Unplanned, in the other pane, and the focus with it (its Today: it has no Snooze or Unplan there).
   await page.keyboard.press('Tab')
   await expect.poll(focused).toEqual({ on: 'Unplan', row: 'Book the venue', group: inFour })
   await page.keyboard.press('Space')
-  await expect.poll(focused).toEqual({ on: 'Snooze', row: 'Book the venue', group: 'unplanned' })
+  await expect.poll(focused).toEqual({ on: 'Today', row: 'Book the venue', group: 'unplanned' })
   await expect(rowOf(unplannedGroup(page), 'Book the venue')).toBeInViewport()
 
   // A fix: Enter on the tag opens its menu, Enter picks Move due date — the tag goes with the conflict, the focus stays in the row.

@@ -381,12 +381,12 @@ describe('the date a plan falls after', () => {
 })
 
 describe('the hover buttons', () => {
-  it('Snooze and Unplan on a row of a day and of Delayed; Snooze alone on a row already in Unplanned', () => {
+  it('Snooze and Unplan on a row of a day and of Delayed; Today alone on a row in Unplanned', () => {
     show()
     for (const title of ['Due today', 'Planned for today', 'Monday deadline', 'Monday plan', 'Past its due date', 'Missed plan']) {
       expect(actionsOf(title)).toEqual(['Snooze', 'Unplan'])
     }
-    for (const title of ['Held call', 'Held, no date', 'Someday focus']) expect(actionsOf(title)).toEqual(['Snooze'])
+    for (const title of ['Held call', 'Held, no date', 'Someday focus']) expect(actionsOf(title)).toEqual(['Today'])
     // In the row's hover cluster, at the title's end.
     expect(rowOf('Due today').querySelector('[data-planner-actions]')?.closest('[data-row-cluster]')).not.toBeNull()
   })
@@ -395,7 +395,7 @@ describe('the hover buttons', () => {
     width = 400
     show({ forced: 'large' })
     expect(actionsOf('Monday plan')).toEqual(['Snooze', 'Unplan'])
-    expect(actionsOf('Held call')).toEqual(['Snooze'])
+    expect(actionsOf('Held call')).toEqual(['Today'])
     cleanup()
     useSettingsStore.setState({ listZoom: 'lines' })
     show({ forced: 'large' })
@@ -411,9 +411,9 @@ describe('the hover buttons', () => {
     // From Mon 23 to Tue 24.
     press('Monday plan', 'Snooze')
     expect(setPlan).toHaveBeenLastCalledWith([4], { day: day(4) })
-    // A tray's row: tomorrow.
-    press('Someday focus', 'Snooze')
-    expect(setPlan).toHaveBeenLastCalledWith([11], { day: day(1) })
+    // A Delayed row: tomorrow.
+    press('Missed plan', 'Snooze')
+    expect(setPlan).toHaveBeenLastCalledWith([8], { day: day(1) })
     press('Monday deadline', 'Unplan')
     expect(setPlan).toHaveBeenLastCalledWith([3], 'unplanned')
     // No date of its own and not in Focus: held, so it stays in the Planner.
@@ -422,6 +422,20 @@ describe('the hover buttons', () => {
     expect(setPlan).toHaveBeenCalledTimes(5)
     expect(update).not.toHaveBeenCalled()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('Today plans an Unplanned row for today, held or in Focus', () => {
+    const { setPlan, update } = watch()
+    show()
+    const press = (title: string) => fireEvent.click(within(rowOf(title)).getByRole('button', { name: 'Today' }))
+    press('Someday focus')
+    expect(setPlan).toHaveBeenLastCalledWith([11], { day: day(0) })
+    press('Held call')
+    expect(setPlan).toHaveBeenLastCalledWith([9], { day: day(0) })
+    press('Held, no date')
+    expect(setPlan).toHaveBeenLastCalledWith([10], { day: day(0) })
+    expect(update).not.toHaveBeenCalled()
+    expect(getByTooltip(rowOf('Held call'), 'Plan for today')).toHaveTextContent('Today')
   })
 
   it('say what they do in a tooltip', () => {
@@ -463,12 +477,20 @@ describe('the focus follows a row moved from the keyboard', () => {
     await waitFor(() => expect(document.activeElement).toBe(button('Monday deadline', 'Snooze')))
   })
 
-  it('Unplan: to the row in Unplanned — its Snooze button, the row having no Unplan there', async () => {
+  it('Unplan: to the row in Unplanned — its Today button, the row having no Unplan there', async () => {
     livePlans()
     show()
     keyPress(button('Monday deadline', 'Unplan'))
     await waitFor(() => expect(groupOf('Monday deadline')).toBe('Unplanned'))
-    await waitFor(() => expect(document.activeElement).toBe(button('Monday deadline', 'Snooze')))
+    await waitFor(() => expect(document.activeElement).toBe(button('Monday deadline', 'Today')))
+  })
+
+  it('Today: to the row in Today — its Snooze button', async () => {
+    livePlans()
+    show()
+    keyPress(button('Held call', 'Today'))
+    await waitFor(() => expect(groupOf('Held call')).toBe('Today'))
+    await waitFor(() => expect(document.activeElement).toBe(button('Held call', 'Snooze')))
   })
 
   it('a fix: the tag gone with the conflict, to the row it was on', async () => {

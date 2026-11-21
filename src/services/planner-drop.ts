@@ -136,6 +136,15 @@ export function snoozePlannerTask(tabId: string, todoId: number, window: Planner
   return movePlannerTask(tabId, { todoId, target: { kind: 'day', day }, window })
 }
 
+/**
+ * **Today** (an Unplanned row's button, in Snooze's place): the drop on
+ * today — planned for today, or, when today is its own date's day, its plan
+ * state cleared — so the row lands in Today.
+ */
+export function planPlannerTaskToday(tabId: string, todoId: number, window: PlannerSpan): Promise<void> {
+  return movePlannerTask(tabId, { todoId, target: { kind: 'day', day: window.today }, window })
+}
+
 /** **Unplan**: the Unplanned tray's drop for one row — held there, or (a Focus task with no date in the window) its plan cleared. */
 export function unplanPlannerTask(tabId: string, todoId: number, window: PlannerSpan): Promise<void> {
   return movePlannerTask(tabId, { todoId, target: { kind: 'unplanned' }, window })

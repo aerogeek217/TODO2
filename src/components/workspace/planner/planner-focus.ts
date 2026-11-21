@@ -18,13 +18,14 @@ const rowOf = (host: Element, todoId: number): HTMLElement | null => host.queryS
 
 /**
  * What takes the focus in a row: the control pressed (`cell`, its
- * `data-row-cell`) when the row still has it, else its Snooze button, else
- * its checkbox, a line's own stop, or whatever it has that takes focus.
+ * `data-row-cell`) when the row still has it, else its Snooze button (a
+ * row in Unplanned: its Today button), else its checkbox, a line's own stop, or whatever it has that takes focus.
  */
 function rowTarget(row: Element, cell: string | null): HTMLElement | null {
   const picks = [
     cell ? `[data-row-cell="${cell}"]` : null,
     '[data-row-cell="planner-snooze"]',
+    '[data-row-cell="planner-today"]',
     'input[type="checkbox"]',
     '[data-task-line]',
     'button, [tabindex]',

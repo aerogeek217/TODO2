@@ -24,8 +24,12 @@ const todo = (over: Partial<PersistedTodoItem> = {}) => makeTodo({ id: 1, uid: '
 function build(task: PersistedTodoItem, window = WINDOW) {
   const actions = { move: vi.fn<PlannerMenuActions['move']>(), snooze: vi.fn(), unplan: vi.fn() }
   const entries = plannerMenuEntries(task, window, actions)
-  expect(entries).toHaveLength(3)
-  const [move, snooze, unplan] = entries as [MenuItemEntry, MenuItemEntry, MenuItemEntry]
+  const item = (label: string) => (entries as MenuItemEntry[]).find((e) => e.label === label)
+  const move = item('Move to day')!
+  const unplan = item('Unplan')!
+  /** Absent on a row in Unplanned. */
+  const snooze = item('Snooze')
+  expect(entries).toHaveLength(snooze ? 3 : 2)
   const children = [...(move.children ?? [])]
   const items = children.filter((c): c is MenuItemEntry => c.kind === 'item')
   return { move, snooze, unplan, children, items, actions, byLabel: (label: string) => items.find((i) => i.label === label)! }
@@ -89,18 +93,21 @@ describe('Move to day ›', () => {
 })
 
 describe('Snooze', () => {
-  it('names the day it plans for: the day after the row’s, tomorrow from a tray or a late row', () => {
+  it('names the day it plans for: the day after the row’s, tomorrow from Delayed or a late row', () => {
     expect(build(todo({ dueDate: day(2) })).snooze).toMatchObject({ label: 'Snooze', note: 'Mon, Nov 23' })
-    expect(build(todo({ doDate: day(4) })).snooze.note).toBe('Wed, Nov 25')
-    expect(build(todo({ dueDate: day(-5) })).snooze.note).toBe('Sat, Nov 21')
-    expect(build(todo({ doDate: day(-2) })).snooze.note).toBe('Sat, Nov 21')
-    expect(build(todo({ focus: true })).snooze.note).toBe('Sat, Nov 21')
-    expect(build(todo({ unplanned: true, dueDate: day(3) })).snooze.note).toBe('Sat, Nov 21')
+    expect(build(todo({ doDate: day(4) })).snooze?.note).toBe('Wed, Nov 25')
+    expect(build(todo({ dueDate: day(-5) })).snooze?.note).toBe('Sat, Nov 21')
+    expect(build(todo({ doDate: day(-2) })).snooze?.note).toBe('Sat, Nov 21')
+  })
+
+  it('is not offered on a row in Unplanned: nothing there is planned to put off', () => {
+    expect(build(todo({ focus: true })).snooze).toBeUndefined()
+    expect(build(todo({ unplanned: true, dueDate: day(3) })).snooze).toBeUndefined()
   })
 
   it('a pick snoozes', () => {
     const { snooze, actions } = build(todo({ dueDate: day(2) }))
-    snooze.onSelect?.()
+    snooze?.onSelect?.()
     expect(actions.snooze).toHaveBeenCalledTimes(1)
     expect(actions.move).not.toHaveBeenCalled()
   })

@@ -38,6 +38,7 @@ export interface PlannerMenuActions {
  *   The item names where the row is (a day, `Delayed`, `Unplanned`);
  * - **Snooze** — the day after the one it sits on, never before tomorrow
  *   (`plannerSnoozeDay`, through the drop rule); the item names that day;
+ *   none on a row in Unplanned (nothing there is planned to put off);
  * - **Unplan** — to the Unplanned tray (`plannerUnplan`); off, saying why,
  *   for a row that is there already.
  *
@@ -69,6 +70,13 @@ export function plannerMenuEntries(
     : placement?.where === 'delayed' ? 'Delayed' : placement ? 'Unplanned' : undefined
   // A row the Planner shows is on a day or in Delayed (Unplan moves it) or in Unplanned already.
   const unplanOff = plannerUnplan(todo, window).kind === 'unplan' ? undefined : UNPLAN_OFF
+  // Nothing in Unplanned is planned to put off: no Snooze there (Move to day › Today plans it).
+  const snooze: MenuEntry[] = placement?.where === 'unplanned' ? [] : [{
+    kind: 'item',
+    label: 'Snooze',
+    note: plannerDayWords(plannerSnoozeDay(placement, today), today),
+    onSelect: actions.snooze,
+  }]
   return [
     {
       kind: 'item',
@@ -78,12 +86,7 @@ export function plannerMenuEntries(
       childrenWidth: 216,
       children: [{ kind: 'label', text: MOVE_PLAN_LABEL }, ...dayItems],
     },
-    {
-      kind: 'item',
-      label: 'Snooze',
-      note: plannerDayWords(plannerSnoozeDay(placement, today), today),
-      onSelect: actions.snooze,
-    },
+    ...snooze,
     {
       kind: 'item',
       label: 'Unplan',

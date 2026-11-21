@@ -20,7 +20,11 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
-Nothing yet.
+### Changed
+
+- **A task in the Planner's Unplanned tray offers Today instead of Snooze.** Nothing there is planned, so there was
+  nothing to put off: Snooze only planned it for tomorrow. Its hover button is now **Today**, which plans it for
+  today. Its menu has no Snooze; Move to day › still offers every day.
 
 ## 2026-11-20, second deployment
 
