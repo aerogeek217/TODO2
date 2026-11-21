@@ -377,7 +377,7 @@ describe('Convert preview', () => {
 
   it('a selection-scoped convert says so', async () => {
     const s = setup(NOTE)
-    act(() => s.view.dispatch({ selection: { anchor: lineStart(s.view, 2), head: lineStart(s.view, 5) + 3 } }))
+    act(() => s.view.dispatch({ selection: { anchor: lineStart(s.view, 2), head: lineStart(s.view, 5) + 8 } }))
     fireEvent.click(screen.getByRole('button', { name: 'Convert 3 selected lines to tasks' }))
     const dialog = await screen.findByRole('dialog', { name: 'Convert to tasks' })
     expect(within(dialog).getByText(/From your selection in "Weekly sync"/)).toBeInTheDocument()

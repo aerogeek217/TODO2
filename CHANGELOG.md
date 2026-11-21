@@ -31,6 +31,12 @@ History before 2026-11-19 is in the git log.
 
 - **The Planner's Today no longer ends with an Add task row.** Add tasks from Quick Add or a list.
 
+### Fixed
+
+- **Deleting a selected bullet line in notes took the bullet off the line below.** Selecting a whole list line by
+  dragging down to the start of the next one, then pressing Delete or Backspace, left the next line as plain text.
+  Now the lines below keep their bullets and checkboxes.
+
 ## 2026-11-20, second deployment
 
 Data version 86.

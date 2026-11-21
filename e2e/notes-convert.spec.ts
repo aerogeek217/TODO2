@@ -442,6 +442,27 @@ test.describe('notes → tasks', () => {
       await expect(editor.locator('.cm-line').last()).toHaveText('- [ ] WZXbox')
     })
 
+    test('a list line selected by a drag down to the next line’s start deletes without that line’s bullet', async ({ page }) => {
+      // The drag ends at the next line's left edge, inside its marker (no
+      // width): Delete and Backspace leave the lines below as they were.
+      const text = ['- one', '- [ ] two', '- three'].join('\n')
+      const editor = await writeNote(page, text)
+      const lines = editor.locator('.cm-line')
+      for (const key of ['Delete', 'Backspace']) {
+        const first = await lines.nth(0).boundingBox()
+        const second = await lines.nth(1).boundingBox()
+        if (!first || !second) throw new Error('no line')
+        await page.mouse.move(first.x + 1, first.y + first.height / 2)
+        await page.mouse.down()
+        await page.mouse.move(second.x + 1, second.y + second.height / 2, { steps: 5 })
+        await page.mouse.up()
+        await page.keyboard.press(key)
+        await expect(lines).toHaveText(['- [ ] two', '- three'])
+        await page.keyboard.press('Control+z')
+        await expect(lines).toHaveText(['- one', '- [ ] two', '- three'])
+      }
+    })
+
     test('a press in the side margin stays on that line; below the text it goes to the end of the note', async ({ page }) => {
       // ✓ lines: the icon sits in the margin of any line it can convert.
       const editor = await writeNote(page, ['✓ one', 'two', '', '✓ four', 'last'].join('\n'))

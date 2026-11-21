@@ -48,19 +48,51 @@ function outOfMarker(state: EditorState, pos: number, caret: boolean): number {
 }
 
 /**
+ * Where a selection's end `to` rests when the selection starts at `from` on an
+ * earlier line, at that line's start (only whitespace before it): the
+ * selection takes whole lines, so it stops before the marker of the line it
+ * reaches, at `from`'s column (at most the marker's start). A drag down to the
+ * left edge of the next line ends inside that line's marker — it has no width
+ * — and pushing the end past it would have a Delete take that line's bullet
+ * too. Null when the rule doesn't apply.
+ */
+function wholeLinesEnd(state: EditorState, from: number, to: number): number | null {
+  const fromLine = state.doc.lineAt(from)
+  const line = state.doc.lineAt(to)
+  if (fromLine.number >= line.number) return null
+  const column = from - fromLine.from
+  if (/\S/.test(fromLine.text.slice(0, column))) return null
+  const marker = markerAt(state, line.from, line.text)
+  if (!marker || to > line.from + marker.to) return null
+  const end = line.from + Math.min(column, marker.from)
+  return to > end ? end : null
+}
+
+/**
  * No end of the selection rests inside a marker, and a caret not at its start:
  * the symbol is drawn at the marker's start, so a caret there would show after
  * the symbol while typing went in front of it. Atomic ranges don't cover this:
  * Home and ↑ / ↓ ask for the text under a pixel, and a marker has no width, so
- * they can land anywhere in it — where typing would break its Markdown.
+ * they can land anywhere in it — where typing would break its Markdown. A
+ * selection of whole lines ends before the marker of the line it reaches
+ * (`wholeLinesEnd`), so deleting it leaves that line's bullet.
  */
 const selectionOutOfMarkers = EditorState.transactionFilter.of((tr) => {
   if (!tr.selection || tr.docChanged) return tr
   const state = tr.startState
   let moved = false
   const ranges = tr.selection.ranges.map((range) => {
-    const anchor = outOfMarker(state, range.anchor, range.empty)
-    const head = outOfMarker(state, range.head, range.empty)
+    let anchor = outOfMarker(state, range.anchor, range.empty)
+    let head = outOfMarker(state, range.head, range.empty)
+    if (!range.empty) {
+      const forward = range.head >= range.anchor
+      const from = forward ? anchor : head
+      const end = wholeLinesEnd(state, from, forward ? range.head : range.anchor)
+      if (end !== null) {
+        if (forward) head = end
+        else anchor = end
+      }
+    }
     if (anchor === range.anchor && head === range.head) return range
     moved = true
     return EditorSelection.range(anchor, head)
