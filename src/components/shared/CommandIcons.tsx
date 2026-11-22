@@ -39,6 +39,15 @@ export function RepeatGlyph() {
   )
 }
 
+/** The Planner's plan mark: a hollow bar — a planned day. */
+export function PlanBarIcon() {
+  return (
+    <svg {...strokeSvg} strokeWidth={1.4}>
+      <rect x="6.5" y="2.5" width="3" height="11" rx="1" />
+    </svg>
+  )
+}
+
 /** The menu glyph of a command. */
 export function CommandIcon({ command }: { command: SlashCommandName }) {
   switch (command) {
@@ -48,5 +57,6 @@ export function CommandIcon({ command }: { command: SlashCommandName }) {
     case 'due': return <CalendarIcon />
     case 'followup': return <FollowupFlagIcon />
     case 'repeat': return <RepeatGlyph />
+    case 'plan': return <PlanBarIcon />
   }
 }

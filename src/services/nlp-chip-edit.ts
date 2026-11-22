@@ -22,7 +22,7 @@ export type QuickAddChip =
   | { kind: 'person'; personId: number }
   | { kind: 'newPerson'; name: string }
   | { kind: 'status' }
-  | { kind: 'command'; command: 'due' | 'followup' | 'repeat' }
+  | { kind: 'command'; command: 'due' | 'followup' | 'repeat' | 'plan' }
 
 /** What the default follow-up chip's × adds: no next follow-up. */
 export const FOLLOWUP_NONE_TOKEN = '/followup none'

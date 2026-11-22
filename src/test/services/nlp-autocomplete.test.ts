@@ -90,7 +90,7 @@ describe('command list', () => {
   it('lists every command, in order, with the footer', () => {
     const view = at('Call legal /')
     expect(view?.header).toBe('Commands')
-    expect(labels(view)).toEqual(['/focus', '/urgent', '/important', '/due', '/followup', '/repeat'])
+    expect(labels(view)).toEqual(['/focus', '/urgent', '/important', '/due', '/followup', '/repeat', '/plan'])
     expect(view?.footer).toBe(true)
     expect(view?.anchor).toBe(11)
   })
@@ -125,6 +125,17 @@ describe('command list', () => {
   it('keeps the text after the cursor', () => {
     const view = computeAutocomplete('a /fo b', 5, sources)!
     expect(applyAutocompletePick('a /fo b', view, view.rows[0]!)?.value).toBe('a /focus b')
+  })
+})
+
+describe('/plan argument', () => {
+  it('offers /due’s days under its own header, and reads the same dates', () => {
+    const view = at('Draft deck /plan ')
+    expect(view).toMatchObject({ mode: 'argument', command: 'plan', header: 'Planned day' })
+    expect(view?.hint).toBe('fri, tomorrow, 5/4, 10/30, 2w')
+    expect(view?.rows.map((r) => r.kind === 'value' && r.label)).toEqual(['today', 'tomorrow', 'mon', 'fri', '1w'])
+    expect(labels(at('x /plan next mon'))).toEqual(['= Mon 12 Oct'])
+    expect(at('x /plan frday')?.rows).toEqual([expect.objectContaining({ kind: 'error' })])
   })
 })
 

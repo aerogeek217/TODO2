@@ -20,7 +20,7 @@
  * does ⏎ after ↑/↓. Text that is only tokens adds nothing and says so.
  *
  * Inline syntax (parsed live, removed from the title):
- *   @person   #tag   !status   /focus /urgent /important /due /followup /repeat
+ *   @person   #tag   !status   /focus /urgent /important /due /followup /repeat /plan
  * Plain words are never read as dates.
  *
  * The bar sits on the command palette's backdrop (dimmed, blurred): a click
@@ -67,7 +67,7 @@ import { TintedText } from '../shared/TintedText'
 import { formatFollowupDate, formatFollowupDay } from '../../utils/followup'
 import { startOfToday } from '../../utils/date'
 import { MARKER_LABELS } from '../../utils/markers'
-import { CalendarIcon, RepeatGlyph } from '../shared/CommandIcons'
+import { CalendarIcon, PlanBarIcon, RepeatGlyph } from '../shared/CommandIcons'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { MarkerIcon } from '../shared/MarkerIcons'
 import { NlpPopup } from '../shared/NlpPopup'
@@ -100,6 +100,8 @@ type ParsedTokens = {
   /** Tag names in first-seen order. */
   tags: string[]
   deadlineAt?: Date
+  /** From `/plan <date>`: the planned day. */
+  doDate?: Date
   recurrence?: Interval
   /** Person names from `@` tokens that didn't match any known person. */
   unmatchedPersons: string[]
@@ -272,6 +274,12 @@ function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
           <ChipRemove label="Remove due date" onRemove={() => onRemove({ kind: 'command', command: 'due' })} />
         </span>
       )}
+      {draft.doDate && (
+        <span className={styles.chip} data-chip="plan">
+          <PlanBarIcon /> {formatFollowupDay(draft.doDate, today)}
+          <ChipRemove label="Remove planned day" onRemove={() => onRemove({ kind: 'command', command: 'plan' })} />
+        </span>
+      )}
       {draft.followupNone ? (
         <span className={`${styles.chip} ${styles.chipRing}`}>
           <FollowupFlagIcon /> No follow-up
@@ -320,7 +328,7 @@ function problemLine(p: CommandProblem): { label: string; explain: string; error
     case 'ignored': return { label: 'Ignored:', explain: '— repeating needs a /due date' }
     case 'unmatched': return { label: 'Unknown status:', explain: '— stays in the title', error: true }
     case 'unreadable':
-      if (p.command === 'due' || p.command === 'followup') {
+      if (p.command === 'due' || p.command === 'followup' || p.command === 'plan') {
         return { label: "Can't read date:", explain: `— try ${DATE_ARGUMENT_HINT[p.command]}`, error: true }
       }
       return { label: "Can't read repeat:", explain: `— try ${REPEAT_ARGUMENT_HINT}`, error: true }
@@ -376,6 +384,7 @@ function runParse(
       people: peopleResolved,
       tags: resolved.tags,
       deadlineAt: resolved.dueDate,
+      doDate: resolved.doDate,
       recurrence: resolved.recurrence,
       unmatchedPersons: resolved.unmatchedPersons,
       unmatchedStatuses: resolved.unmatchedStatuses,

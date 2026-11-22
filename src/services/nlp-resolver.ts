@@ -12,6 +12,8 @@ export interface ResolvedInput {
    * carry the commands and the status. Absent when nothing was parsed. */
   textWithoutCommands?: string
   dueDate?: Date
+  /** From `/plan <date>`: the planned day. */
+  doDate?: Date
   recurrence?: Interval
   personIds: number[]
   /** Person names that didn't match any existing person — created on submit
@@ -317,6 +319,7 @@ export function resolveInput(
     title: unknownStatus ? removeSpans(parsed.text, [...kept, ...ignored]) : parsed.title,
     textWithoutCommands: removeSpans(parsed.text, [...kept.filter((t) => t.type === 'command' || t.type === 'status'), ...ignored]),
     dueDate: parsed.dueDate,
+    ...(parsed.doDate ? { doDate: parsed.doDate } : {}),
     recurrence: parsed.recurrence,
     personIds: persons.ids,
     unmatchedPersons: persons.unmatched,

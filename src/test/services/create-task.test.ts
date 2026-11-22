@@ -113,13 +113,36 @@ describe('create a task — plain text', () => {
   })
 })
 
-describe('create a task — the Do day', () => {
-  it('no pipeline gives a task a Do day of its own', async () => {
+describe('create a task — the planned day', () => {
+  it('no pipeline gives a task a planned day of its own', async () => {
     for (const make of [() => viaQuickAdd('Plain /due mon'), () => viaDrafts('Plain /due mon'), () => viaEditor({ title: 'Plain', dueDate: addDays(startOfToday(), 2) })]) {
       const { todo } = await make()
       expect(todo.doDate).toBeUndefined()
       expect('doDate' in todo).toBe(false)
     }
+  })
+
+  it('/plan <date> plans it, in the create’s one write: no stamp beyond creation, one undo step', async () => {
+    const inTwo = addDays(startOfToday(), 2)
+    const text = `Deck /plan ${inTwo.getMonth() + 1}/${inTwo.getDate()}`
+    for (const make of [() => viaQuickAdd(text), () => viaDrafts(text), () => viaEditor({ title: text })]) {
+      const steps = useUndoStore.getState().undoStack.length
+      const { todo } = await make()
+      expect(todo).toMatchObject({ title: 'Deck', doDate: inTwo })
+      expect(todo.unplanned).toBeUndefined()
+      expect(todo.modifiedAt).toEqual(todo.createdAt)
+      expect((await db.todos.get(todo.id))?.doDate).toEqual(inTwo)
+      expect(useUndoStore.getState().undoStack).toHaveLength(steps + 1)
+    }
+  })
+
+  it('the editor’s Planned cell wins over a typed /plan; held in Unplanned is kept', async () => {
+    const inThree = addDays(startOfToday(), 3)
+    const picked = await viaEditor({ title: 'Deck /plan tomorrow', doDate: inThree })
+    expect(picked.todo.doDate).toEqual(inThree)
+    const held = await viaEditor({ title: 'Notes /plan tomorrow', unplanned: true })
+    expect(held.todo.unplanned).toBe(true)
+    expect(held.todo.doDate).toBeUndefined()
   })
 })
 

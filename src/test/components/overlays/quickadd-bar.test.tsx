@@ -603,7 +603,7 @@ describe('QuickAddBar', () => {
       typeAtCaret('Call legal /')
       expect(screen.getByRole('listbox', { name: 'Commands' })).toBeInTheDocument()
       expect(options().map((t) => t.split(/[A-Z]/)[0])).toEqual([
-        '/focus', '/urgent', '/important', '/due', '/followup', '/repeat',
+        '/focus', '/urgent', '/important', '/due', '/followup', '/repeat', '/plan',
       ])
       typeAtCaret('Call legal /fo')
       expect(options()).toEqual(['/focusAdd to Focus', '/followupNext follow-up…'])
@@ -1051,6 +1051,20 @@ describe('QuickAddBar — chip ×', () => {
     pressRemove('Remove due date')
     expect(input).toHaveValue('Standup')
     expect(chipTexts()).toHaveLength(1) // the default follow-up
+  })
+
+  it('/plan: a chip with the hollow bar after the due date’s; its × cuts the command; an unreadable date says so', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const input = typeAt('Deck /due today /plan tomorrow')
+    const chip = document.querySelector('[data-chip="plan"]') as HTMLElement
+    expect(chip).not.toBeNull()
+    expect(chip.querySelector('svg rect')).not.toBeNull()
+    expect(chip.previousElementSibling).toHaveAttribute('data-tint', 'due')
+    pressRemove('Remove planned day')
+    expect(input).toHaveValue('Deck /due today')
+    expect(document.querySelector('[data-chip="plan"]')).toBeNull()
+    changeInput('Deck /plan soon ')
+    expect(screen.getByText("Can't read date:")).toBeInTheDocument()
   })
 
   it('removing the due date leaves /repeat to the Ignored line', () => {

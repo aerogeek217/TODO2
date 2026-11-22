@@ -144,6 +144,7 @@ export function draftFromResolved(resolved: ResolvedInput, fallbackTitle: string
     title: resolved.title || fallbackTitle,
     ...(resolved.dueDate ? { dueDate: resolved.dueDate } : {}),
     ...(resolved.recurrence ? { recurrence: resolved.recurrence } : {}),
+    ...(resolved.doDate ? { doDate: resolved.doDate } : {}),
     ...withStatus(newTaskStatus(
       resolved.statusId,
       { settings: existingId(ctx.defaultStatusId, ctx.statuses), filter: existingId(fd?.statusId, ctx.statuses) },
@@ -170,7 +171,7 @@ function withStatus(statusId: number | undefined): { statusId?: number } {
  * `@` / `#` / `!`), which is parsed again as on create. The editor passes
  * `nextFollowupAt` only once it differs from the default. A status / person
  * / tag that no longer exists (seeded from a filter naming it) is left out.
- * The plan its Planned cell holds comes through as it is.
+ * The plan its Planned cell holds wins over a `/plan` in the title.
  */
 export function draftFromEditor(
   partial: EditorTaskFields,
@@ -185,7 +186,7 @@ export function draftFromEditor(
     : resolved.followupNone ? null : resolved.nextFollowupAt
   const dueDate = partial.dueDate ?? resolved.dueDate
   const recurrence = partial.recurrenceRule?.every ?? resolved.recurrence
-  const doDate = partial.doDate
+  const doDate = partial.doDate ?? (partial.unplanned === true ? undefined : resolved.doDate)
   return {
     title: resolved.title || rawTitle,
     ...(dueDate ? { dueDate } : {}),

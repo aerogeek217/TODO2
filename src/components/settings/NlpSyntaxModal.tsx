@@ -34,10 +34,11 @@ const SECTIONS: NlpSyntaxSection[] = [
       { syntax: '/due <date>', description: 'Set the due date' },
       { syntax: '/followup <date | interval | none>', description: 'Set the next follow-up (instead of the default); none = no follow-up' },
       { syntax: '/repeat <interval>', description: 'Repeat from the due date: daily, weekly, biweekly, monthly, quarterly, yearly, or any interval — 2w, every 3 days, every 6 months' },
+      { syntax: '/plan <date>', description: 'Plan it for that day (the Planner’s planned day)' },
     ],
   },
   {
-    label: 'Dates (after /due or /followup)',
+    label: 'Dates (after /due, /followup or /plan)',
     rows: [
       { syntax: 'today / tomorrow / tmr', description: 'That day' },
       { syntax: 'mon … sun, next fri', description: 'The next one of that day (never today)' },

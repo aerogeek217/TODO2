@@ -23,7 +23,8 @@ export { BARE_MENTION_NAME, BARE_TAG_NAME, mentionToken, statusToken, tagToken }
  *    `!` counts);
  *  - slash commands (`services/slash-commands`): `/urgent`, `/important`,
  *    `/focus`, `/due <date>`, `/followup <date|interval|none>`,
- *    `/repeat <interval>` (`weekly`, `2w`, `every 3 days`).
+ *    `/repeat <interval>` (`weekly`, `2w`, `every 3 days`), `/plan <date>`
+ *    (the planned day; `/due`'s date forms).
  * Everything else — dates, weekday names, `every week` — is plain title
  * text. The parser is store-free; `nlp-resolver.resolveInput` matches names.
  */
@@ -69,6 +70,8 @@ export interface ParsedInput {
   /** Recognised tokens in text order (problems excluded). */
   tokens: ParsedToken[]
   dueDate?: Date
+  /** From `/plan <date>`: the planned day (`TodoItem.doDate`). */
+  doDate?: Date
   /** From `/repeat` — only applied when there is a due date to anchor on. */
   recurrence?: Interval
   persons: string[]
@@ -174,7 +177,7 @@ function readArgument(
     }
     return null
   }
-  // due / followup: the longest run of words that reads as a date.
+  // due / followup / plan: the longest run of words that reads as a date.
   const words = wordsFrom(text, argStart, MAX_DATE_WORDS)
   if (words[0]?.start !== argStart) return null
   if (command === 'followup' && words[0].text.toLowerCase() === 'none') {
@@ -208,6 +211,7 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
   // Slash commands first: their arguments own the words they read.
   const seen = new Set<SlashCommandName>()
   let dueDate: Date | undefined
+  let doDate: Date | undefined
   let recurrence: Interval | undefined
   let repeatToken: ParsedToken | undefined
   let nextFollowupAt: Date | undefined
@@ -250,6 +254,7 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
     const token: ParsedToken = { type: 'command', command, value: read.arg.value, raw: text.slice(start, end), start, end }
     tokens.push(token)
     if (command === 'due') dueDate = read.date
+    if (command === 'plan') doDate = read.date
     if (command === 'followup') {
       if (read.none) followupNone = true
       else nextFollowupAt = read.date
@@ -331,6 +336,7 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
     title: removeSpans(text, removed),
     tokens,
     dueDate,
+    ...(doDate ? { doDate } : {}),
     recurrence,
     persons,
     tags,

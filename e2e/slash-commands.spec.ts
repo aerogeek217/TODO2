@@ -20,6 +20,9 @@ interface StoredTodo {
   focus?: boolean
   statusId?: number
   dueDate?: string
+  doDate?: string
+  modifiedAt?: unknown
+  createdAt?: unknown
   nextFollowupAt?: string | null
   recurrence?: string
 }
@@ -35,6 +38,9 @@ async function readTodo(page: Page, title: string): Promise<StoredTodo | null> {
     focus: t.focus as boolean | undefined,
     statusId: t.statusId as number | undefined,
     dueDate: day(t.dueDate),
+    doDate: day(t.doDate),
+    modifiedAt: t.modifiedAt,
+    createdAt: t.createdAt,
     nextFollowupAt: t.nextFollowupAt ? day(t.nextFollowupAt) : null,
     recurrence: ((r) => (r?.every ? `${r.every.count}${r.every.unit}` : undefined))(t.recurrenceRule as { every?: { count: number; unit: string } } | undefined),
   }
@@ -68,7 +74,7 @@ test.describe('Quick Add slash commands', () => {
 
     const menu = page.getByRole('listbox', { name: 'Commands' })
     await expect(menu).toBeVisible()
-    await expect(menu.getByRole('option')).toHaveCount(6)
+    await expect(menu.getByRole('option')).toHaveCount(7)
     await expect(menu.getByRole('option').first()).toHaveAttribute('aria-selected', 'true')
     await expect(menu).toContainText('or type the whole command')
 
@@ -193,6 +199,22 @@ test.describe('Quick Add slash commands', () => {
       nextFollowupAt: null,
     })
     expect(todo?.statusId).toBeDefined()
+  })
+
+  test('/plan <date> plans the new task: a chip with the hollow bar, no stamp beyond the create', async ({ page }) => {
+    const { dialog, input } = await openQuickAdd(page)
+    await input.pressSequentially('Draft the deck /plan tomorrow ')
+    await expect(page.getByRole('listbox')).toBeHidden()
+    const chip = dialog.locator('[data-chip="plan"]')
+    await expect(chip).toBeVisible()
+    await expect(chip.locator('svg rect')).toHaveCount(1)
+    await page.keyboard.press('Enter')
+    await expect(dialog).toBeHidden()
+    await expect.poll(() => readTodo(page, 'Draft the deck')).not.toBeNull()
+    const todo = await readTodo(page, 'Draft the deck')
+    expect(todo?.doDate).toBe(await dayFromToday(page, 1))
+    expect(todo?.dueDate).toBeUndefined()
+    expect(String(todo?.modifiedAt)).toBe(String(todo?.createdAt))
   })
 
   test('plain date words stay in the title', async ({ page }) => {

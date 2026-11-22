@@ -28,6 +28,8 @@ In normal use a task write goes UI → Zustand stores → repositories → Dexie
 
 `addMany(items, { description, snackbar? })` is every create. Quick Add and the editor come through `services/create-task`, notes through `services/note-tasks`, and a subtask's Make a task through `services/subtask-convert`. They stamp Settings' default status and next follow-up.
 
+A `/plan <date>` in the text (Quick Add, the editor's title, a note's line; `/due`'s date forms, never a bare `plan fri`) plans the new task for that day: `doDate` in the create's one write, no stamp of its own. The editor's create mode also takes the plan from its [Planned cell](review.md#the-fact-band), which wins over a typed `/plan`; a Quick Add handed on to the editor (Details) seeds that cell. Quick Add shows it as a chip with the hollow bar, after the due date's; its × cuts the command. The search box offers no `/plan`.
+
 - The tasks go in with their people and tag ids in one transaction, last in order. The repository picks `sortOrder` in its insert transaction, so creates that start together never share one.
 - The rows come back from the insert itself. The assignment caches are then reloaded.
 - It is one undo step: undo takes the tasks out, and redo puts them back as they were when undone.

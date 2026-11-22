@@ -216,11 +216,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const [draftImportant, setDraftImportant] = useState(seed?.important === true || filterDefaults?.markers?.important === true || quickAddSeed?.resolved.important === true)
   const [draftFocus, setDraftFocus] = useState(seed?.focus === true || filterDefaults?.markers?.focus === true || quickAddSeed?.resolved.focus === true)
   const [nextFollowupIsDefault, setNextFollowupIsDefault] = useState(mode === 'create' && !seededFollowup)
-  // Create mode: the plan, held until Create (edit mode reads and writes the task's own), seeded from a draft's.
+  // Create mode: the plan, held until Create (edit mode reads and writes the task's own), seeded from a draft's or a Quick Add `/plan`.
   const [draftPlan, setDraftPlan] = useState<TaskPlan>(() => {
     if (mode !== 'create') return null
     if (seed?.doDate) return { day: seed.doDate }
-    return seed?.unplanned ? 'unplanned' : null
+    if (seed?.unplanned) return 'unplanned'
+    return quickAddSeed?.resolved.doDate ? { day: quickAddSeed.resolved.doDate } : null
   })
   // The repeat's interval as stored (`2w`), `''` for none (`editor-fields`).
   const [repeat, setRepeat] = useState<string>(() => {

@@ -10,7 +10,10 @@ import { MAX_INTERVAL_COUNT, parseInterval, unitOfWord } from '../utils/interval
  * space. A status is named with `!`, not a command (`natural-language-parser`).
  */
 
-export type SlashCommandName = 'urgent' | 'important' | 'focus' | 'due' | 'followup' | 'repeat'
+export type SlashCommandName = 'urgent' | 'important' | 'focus' | 'due' | 'followup' | 'repeat' | 'plan'
+
+/** The commands that take a date: the same forms, read by `parseCommandDate`. */
+export type DateCommandName = 'due' | 'followup' | 'plan'
 
 export interface SlashCommandSpec {
   name: SlashCommandName
@@ -30,11 +33,12 @@ export const SLASH_COMMANDS: readonly SlashCommandSpec[] = [
   { name: 'due', aliases: [], description: 'Due date…', argumentLabel: 'Due date' },
   { name: 'followup', aliases: ['follow-up'], description: 'Next follow-up…', argumentLabel: 'Next follow-up' },
   { name: 'repeat', aliases: [], description: 'Repeat…', argumentLabel: 'Repeat' },
+  { name: 'plan', aliases: [], description: 'Planned day…', argumentLabel: 'Planned day' },
 ]
 
 /** Whether the command takes an argument. */
 export function takesArgument(name: SlashCommandName): boolean {
-  return name === 'due' || name === 'followup' || name === 'repeat'
+  return name === 'due' || name === 'followup' || name === 'repeat' || name === 'plan'
 }
 
 /** The command a typed name (without the `/`) spells, any case; aliases count. */
@@ -106,7 +110,7 @@ export function isPartialRepeatArgument(text: string): boolean {
 }
 
 /**
- * A `/due` or `/followup` date: an interval from today (`3d`, `2w`, `1m`,
+ * A `/due`, `/followup` or `/plan` date: an interval from today (`3d`, `2w`, `1m`,
  * `1y`), a relative date (`today`, `tomorrow`, `fri`, `next fri`,
  * `in 3 days`), `MM/DD[/YY[YY]]`, a day and month (`24 Oct`, `Oct 24 2027`)
  * or ISO `2026-10-24`. Year-less dates resolve forward. Local midnight, or
@@ -118,7 +122,8 @@ export function parseCommandDate(text: string, today: Date): Date | null {
 }
 
 /** Example arguments shown when a date argument can't be read. */
-export const DATE_ARGUMENT_HINT: Record<'due' | 'followup', string> = {
+export const DATE_ARGUMENT_HINT: Record<DateCommandName, string> = {
   due: 'fri, tomorrow, 5/4, 10/30, 2w',
   followup: '2w, 1m, fri or a date',
+  plan: 'fri, tomorrow, 5/4, 10/30, 2w',
 }

@@ -195,6 +195,17 @@ describe('create mode', () => {
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
     expect(onCreate.mock.calls[0]?.[0]).toMatchObject({ title: 'Book the venue', doDate: day(3) })
   })
+
+  it('a Quick Add `/plan` handed to the editor seeds its Planned cell; the title drops the command', () => {
+    useUIStore.setState({ quickAddDraft: { rawTitle: 'Book the venue /plan 11/24' } })
+    render(
+      <TaskEditPopup mode="create" assignedPeople={[]} allPeople={[]} onClose={vi.fn()} onCreate={vi.fn()} onAssignPerson={vi.fn()} onUnassignPerson={vi.fn()} />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'New task' })
+    expect(within(dialog).getByPlaceholderText(/^New task/)).toHaveValue('Book the venue')
+    const cell = dialog.querySelector('[data-fact="planned"]') as HTMLElement
+    expect(within(cell).getByRole('button', { name: /^Planned:/ })).toHaveTextContent('11/24')
+  })
 })
 
 describe('the review card', () => {
