@@ -20,6 +20,49 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+Data version 87. Older copies of the app will refuse the data once it is upgraded: update them, the offline file on
+another computer included.
+
+### Added
+
+- **The planned date, shown and set like due and follow-up.** The day you plan to work on a task (the Planner's plan)
+  now appears wherever dates do:
+  - **On the Calendar**, with a new **Plans** toggle beside Due and Follow-up. A plan is a line with a hollow bar;
+    drag it to another day to plan the task for that day (its due date and follow-up stay put). A plan whose day has
+    passed shows faded. When you drop a list row on a calendar day showing more than one kind of date, the menu
+    offers **Plan** beside Due date and Follow-up (`P`).
+  - **In filters.** The date filter has **Planned**, with Any, None and **Only tasks held in Unplanned**. Filter
+    expressions take `planned` like any date word (`planned fri`, `planned < today`, `planned none`) and the shortcut
+    `unplanned`; the Syntax sheet lists them.
+  - **In lists**: sort by Planned (earliest first), or group by it: Delayed · Today · This Week · Later · Unplanned ·
+    Not planned.
+  - **In task details and the review card**, as **Planned** beside Due: click it to plan the task for a day, hold it in
+    Unplanned or clear the plan. It says when the plan falls after the task's due date or follow-up, and offers the
+    Planner's fixes. The Review widget's medium card shows it too.
+  - **In Quick Add**: `/plan fri` plans the new task for that day.
+  - **Pick a date…** in every **Plan for day ›** menu plans any day, not only this week's.
+  - Setting a plan never changes a task's Modified date, wherever you set it.
+- **Choose what joins the Planner's Unplanned tray.** Unplanned used to take Focus tasks with no date; now it takes
+  whatever its filter says (Focus to begin with), such as `/focus or #errands`, or nothing at all, so only what you
+  unplan by hand is there. Click the filter's words under Unplanned, or **What counts as unplanned…** in the widget's
+  ⋯ menu.
+
+### Changed
+
+- **The date filter picks its date from a menu.** One button names the date being edited, with how many dates are
+  filtering; its menu lists every date, the filtering ones lit with what they filter.
+- **The task editor is wider** (up to 1060px), so its facts, Planned included, stay on one row.
+- **Picking a day plans that day**, even the task's own due or follow-up day: in Plan for day ›, Snooze and an
+  Unplanned row's Today button. Only dragging a task in the Planner onto its own date's day clears its plan.
+- **A plan on a task's due day stays a plan.** It is placed and flagged in the Planner like any other plan, and goes to
+  Delayed once the day has passed.
+- **Small calendars mark their days with ticks**, as the Planner's day strip does: a solid tick per due date and
+  follow-up, a hollow tick per plan. This applies to the Calendar's small and medium faces and its compact month; the
+  full month keeps its heat map.
+- **The Planner's day strip hides when there's no room** for its tiles' ticks. The week's range and arrows then move up
+  to the top line, or to a slim row in a cell of tabs.
+- **The calendar's toggles show only their icons below 690px** of widget width (was 620px), so the Plans toggle fits.
+
 ## 2026-11-21, fifth deployment
 
 Nothing changes in the app. This deployment reorganizes more of the project's developer documentation.
