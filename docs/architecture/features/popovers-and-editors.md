@@ -20,29 +20,42 @@ A change a popover shows either sticks or the user is warned. A popover saves wh
 
 ## The leave rule
 
-**Nothing leaves an editor with changes without that question.** It is one rule, `stores/editor-leave`. Each editor registers through `hooks/use-editor-leave` while mounted. Whatever would close it, or take its subject off the screen from outside, asks first and then carries on:
+**Nothing leaves an editor with changes without that question.** It is one rule, `stores/editor-leave`. Whatever would close an editor, or take its subject off the screen from outside, asks first and then carries on:
 
 - Save or Discard: it then does what was asked.
 - Keep editing: nothing changes.
 
-Inside a layout the askers go through `afterLeavingEditors` / `leaveOpenEditors`. Leaving the layout goes through `leaveLayout`, which asks the layout edit mode too.
+### How it asks
+
+- Each editor registers `{ changed(), ask() }` while mounted (`registerOpenEditor`, through `hooks/use-editor-leave`).
+- `afterLeavingEditors(run)` runs `run` at once when no editor holds changes (`editorsHoldChanges`). Else it asks each in turn (`leaveOpenEditors`) and runs only once all were saved or discarded, never on Keep editing.
+- Everything inside a layout asks through these three, at their default scope, `cell`: a tab switch, Add widget, the widget popup.
+- The layout edit mode is a **layout-wide editor** (`OpenEditor.layoutWide`). The `cell` scope passes it by, so the mode never questions its own edits. It is asked only when something leaves the layout.
+- `leaveLayout()` asks every editor holding changes, the mode too. Then it leaves the layout-wide ones that hold none (`quitLayoutEditors`, their `leave`). `layoutLeaveAsks()` says whether it would ask.
+- A layout switch, New / Duplicate / delete layout (`workspace-store`), Settings opening (`ui-store.openSettings`) and an in-app route change (`WorkspacePage`'s blocker) leave the layout. They ask through `leaveLayout` and `layoutLeaveAsks`.
+
+### One editor at a time
+
+`editor-leave` also keeps the one roster of open editors.
+
+- Each store that holds a "which editor is open" field registers how its fields close (`registerEditorFields`): `ui-store` for Edit list and the Number editor, `chart-widgets-store` for a chart's and Created vs completed's.
+- `openOneEditor(open)` is how each opens: asked first, then every other one closed. So there is one editor at a time, whatever its kind.
+- `closeOpenEditors()` closes them all. Settings opening, the widget popup, the layout edit mode opening and a data replace (`refresh-all`) call it.
 
 ### What asks
 
 - **Opening Settings**: the gear, `G S`, the palette, the storage pill (`ui-store.openSettings`).
-- **Opening another editor**: `openListEditor` / `openNumberEditor` / a chart's or Created vs completed's.
+- **Opening another editor**: `ui-store.openListEditor` / `openNumberEditor`, `chart-widgets-store.openEditor` / `openTrendEditor`.
   - Another list's Edit list opens once this one was saved or discarded. `widget-hooks.openEditList` asks before it shows the tab.
-  - There is one editor at a time, whatever its kind: `editor-leave.openOneEditor` closes any other.
-  - `closeOpenEditors` is the one roster Settings, the widget popup and a data replace close them through.
-- **Adding a widget** (`widget-hooks.addTabToCell` / `AddWidgetFlow`): a ⋯'s **Add widget as tab ›**, an empty cell's kinds, the strip's `+`, the palette's **Add Widget ›**.
+- **Adding a widget** (`widget-hooks.addTabToCell` / `AddWidgetFlow`): a ⋯'s **Add widget as tab ›**, an empty cell's kinds, the strip's `+`, the palette's **Add Widget ›**. The palette and a menu run by the keys reach it with an editor still open.
 - **Opening the layout edit mode** (`workspace-store.enterEdit`, which then closes every editor).
-- **Whatever in a cell can take a widget off the screen** (`FilledCell`, `cell-menu`, the phone's cell):
+- **Whatever in a cell can take a widget off the screen** (`FilledCell`, `cell-menu`, the phone's `MobileCell`):
   - a tab switched (a click, Enter, the arrow keys, the `+N` menu) or closed;
   - Collapse / Expand row;
   - the menu's Remove widget and Change widget.
 
   These ask from the keys or a menu; a press elsewhere has asked already.
-- **Opening an editor on a tab out of sight** (`widget-hooks.openBeside`, every editor's way in).
+- **Opening an editor on a tab out of sight** (`widget-hooks.openBeside`, every editor's way in, `widget-hooks.openNumberEditor` included). It asks before it shows the tab.
 - **Closing the widget popup** over an editor opened from it: its ×, its scrim, Esc (`WidgetPopup`).
 - **A Review jump** that would close the widget popup, or hide another tab of the Review widget's cell (`services/review-jump.jumpToReview`; see [Review](review.md)).
 - **A layout switch** from the tabs, the picker, the palette or a shortcut (`workspace-store.load`).
@@ -75,3 +88,13 @@ Nothing exists yet behind Quick Add, the new-task editor and the convert preview
 - They ask on Esc, a press on the backdrop and the new-task editor's ×.
 - They ask only when the form differs from how it opened.
 - The editor's Cancel button discards without asking.
+
+## Questions code awaits
+
+A question code awaits is a prompt in `ui-store`.
+
+- `askConfirmation(prompt): Promise<boolean>` asks a yes / no question.
+- `askChoice(prompt): Promise<PromptAnswer>` has three answers, `confirm` / `discard` / `cancel`. The prompt's `discardLabel` adds the third button, and `askConfirmation` drops it. An editor's Save / Discard / Keep editing is one.
+- A prompt holds a title, a message and its labels (`cancelLabel` among them), `danger` and `cancelIsDefault`.
+- `confirmPrompts` is a queue. `ConfirmPromptHost` renders one at a time ([components](../components.md)), and `answerConfirmation(answer: boolean | PromptAnswer)` answers the one on screen.
+- The Settings modal leaves Esc to a prompt while one is open.
