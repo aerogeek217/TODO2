@@ -44,6 +44,7 @@ const FULL_PREDICATE: TodoPredicate = {
   searchText: 'invoice',
   dates: {
     deadline: { match: 'range', start: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' }, end: { kind: 'offset', days: 30 }, includeNoDate: true },
+    planned: { match: 'held' },
     followup: { match: 'unset' },
     lastFollowup: { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true },
     completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'today' } },
@@ -149,7 +150,7 @@ function buildSeed(): Seed {
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
-      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: [{ values: ['focus'], not: true }], negate: { personIds: true, statusIds: true, tags: true } } },
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, planned: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null, not: true }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: [{ values: ['focus'], not: true }], negate: { personIds: true, statusIds: true, tags: true } } },
       sort: 'followup', grouping: 'followup',
       owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' },
     }, {
@@ -322,7 +323,7 @@ describe('export → JSON → import round-trip', () => {
     // Every date type and every kind of date clause.
     const clauses = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.entries(d.membership.predicate.dates) : [])
     expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(DATE_FIELD_VALUES))
-    expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset']))
+    expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset', 'held']))
     expect(clauses.some(([, m]) => m.match === 'range' && m.includeNoDate === true)).toBe(true)
     expect(clauses.some(([, m]) => m.match === 'range' && m.not === true)).toBe(true)
     const rows = seed.layouts.flatMap((l) => l.grid.rows)

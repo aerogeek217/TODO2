@@ -24,6 +24,7 @@ import {
   unitOffsetOf,
   shiftAnchor,
   tokenOfWords,
+  UNPLANNED_WORD,
   type PeriodWord,
 } from './dates'
 import { expressionDepth, expressionSize, normalizeExpression } from './tree'
@@ -40,12 +41,13 @@ import { expressionDepth, expressionSize, normalizeExpression } from './tree'
  * - `@Aisha` `@"Aisha Rahman"` · `#q4` `#"R&D"` · `!Waiting` `!"On Hold"` ·
  *   `/urgent` `/important` `/focus`;
  * - `no person|tag|status|priority`, `any person|tag|status|priority`;
- * - a date type (`due`, `followup`, `followed`, `created`, `modified`,
- *   `completed`) with `any` / `none`, a day, a period (`this week`), a
+ * - a date type (`due`, `planned`, `followup`, `followed`, `created`,
+ *   `modified`, `completed`) with `any` / `none`, a day, a period (`this week`), a
  *   comparison with a day (`<` `<=` `>` `>=` `=`: `due <= fri`, `followup >=
  *   +7d`; `<` / `>` step to the day before / after, `= this week` is the
  *   period), `a..b`, `within [last] N days`; `no due`, `no followup`, `never
- *   followed`, `overdue`, `followup late`. The older words `before` / `by` /
+ *   followed`, `overdue`, `followup late`; `unplanned` — held in the
+ *   Planner's Unplanned tray (`planned none` keeps those too). The older words `before` / `by` /
  *   `after` / `from` a day still read (as `<` / `<=` / `>` / `>=`);
  * - a day: `today`, `tomorrow`, `yesterday`, `+3d` / `-30d` (days from
  *   today), `fri`, `next fri`, `11/30`, `start of next week`, and the older
@@ -203,7 +205,7 @@ function lex(text: string): Lex[] {
 // ── Parser ──────────────────────────────────────────────────────────────────
 
 /** Words that end a text phrase: they start a term or join terms. */
-export const KEYWORDS: ReadonlySet<string> = new Set(['and', 'or', 'not', 'no', 'any', 'never', 'overdue', 'done', ...DATE_WORDS.keys()])
+export const KEYWORDS: ReadonlySet<string> = new Set(['and', 'or', 'not', 'no', 'any', 'never', 'overdue', 'done', UNPLANNED_WORD, ...DATE_WORDS.keys()])
 
 const PRIORITIES: ReadonlyMap<string, MarkerKey> = new Map([['urgent', 'urgent'], ['important', 'important'], ['focus', 'focus']])
 
@@ -240,6 +242,12 @@ function nameKind(node: Node | undefined): IdAtomKind | 'priority' | null {
 }
 
 const lower = (t: Lex | undefined) => (t?.kind === 'word' ? t.value.toLowerCase() : null)
+
+/** A date term's tint: Due and the follow-ups their own, the other types the plain date one. */
+function dateSpanKind(field: DateField): ExpressionSpanKind {
+  if (field === 'deadline') return 'due'
+  return field === 'followup' || field === 'lastFollowup' ? 'followup' : 'date'
+}
 
 /**
  * Deepest `(` / `not` nesting the text may have while it is read: far past
@@ -447,6 +455,10 @@ class Parser {
       this.span(t, 'due')
       return { kind: 'date', field: 'deadline', match: BEFORE_TODAY }
     }
+    if (w === UNPLANNED_WORD) {
+      this.span(t, 'date')
+      return { kind: 'date', field: 'planned', match: { match: 'held' } }
+    }
     if (w === 'no') return this.noTerm(t)
     if (w === 'any') return this.anyTerm(t)
     if (w === 'never') {
@@ -516,7 +528,7 @@ class Parser {
       if (field === 'completed') fail(t.start, what.end, 'Open tasks show unless you add “and done”')
       if (!dateTypeIsOptional(field)) fail(t.start, what.end, `Every task has a ${DATE_WORD[field]} date`)
       this.next()
-      this.span({ start: t.start, end: what.end }, field === 'deadline' ? 'due' : 'followup')
+      this.span({ start: t.start, end: what.end }, dateSpanKind(field))
       return { kind: 'date', field, match: { match: 'unset' } }
     }
     fail(t.start, what?.end ?? t.end, 'no what?', 'no person, no tag, no status, no priority, no due, no followup')
@@ -542,7 +554,7 @@ class Parser {
 
   private dateTerm(t: Lex, field: DateField): FilterExpr {
     if (field === 'completed' && this.opts.allowCompleted === false) fail(t.start, t.end, 'Leave completed out', 'This filter takes open tasks only')
-    const kind: ExpressionSpanKind = field === 'deadline' ? 'due' : field === 'followup' || field === 'lastFollowup' ? 'followup' : 'date'
+    const kind = dateSpanKind(field)
     const startPos = this.pos
     const match = this.when(t, field)
     const last = this.tokens[this.pos - 1]

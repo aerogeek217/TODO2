@@ -163,7 +163,8 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const hasEnd = start !== null || end !== null
   // The mode picked or pinned for the type, else the one its ends read as (a new range: Relative); ends only Relative can show, Relative.
   const entryMode: DateEntryMode = fitsCalendar(start, end) ? modes[field] ?? entryModeOf(start, end) : 'relative'
-  const show: ShowMode = optional && clause && clause.match !== 'range' ? clause.match : entryMode
+  // Planned's `held` (not among the tabs) reads as its None.
+  const show: ShowMode = optional && clause && clause.match !== 'range' ? (clause.match === 'held' ? 'unset' : clause.match) : entryMode
   const inRange = show === 'calendar' || show === 'relative'
   const showChoices = optional ? OPTIONAL_CHOICES : RANGE_CHOICES
   const negatable = isNegatableDateField(field)

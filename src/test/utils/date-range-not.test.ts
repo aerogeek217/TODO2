@@ -87,7 +87,7 @@ describe('matchesDateMatch: an "is not" range', () => {
 
 describe('the stored form (date-filters)', () => {
   it('offers "is not" on every type but Completed', () => {
-    expect(NEGATABLE_DATE_FIELDS).toEqual(['deadline', 'followup', 'lastFollowup', 'created', 'modified'])
+    expect(NEGATABLE_DATE_FIELDS).toEqual(['deadline', 'planned', 'followup', 'lastFollowup', 'created', 'modified'])
     expect(isNegatableDateField('completed')).toBe(false)
     expect(isNegatableDateField('created')).toBe(true)
   })

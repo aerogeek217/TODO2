@@ -146,6 +146,7 @@ export interface ChipDay {
  */
 const RANGE_WORDS: Record<DateField, { subject: string; tasks: string; orNone?: string; noneStay?: string }> = {
   deadline: { subject: 'Due', tasks: 'tasks due', orNone: 'or no due date', noneStay: 'tasks with no due date stay' },
+  planned: { subject: 'Planned', tasks: 'tasks planned', orNone: 'or not planned', noneStay: 'tasks not planned stay' },
   followup: { subject: 'Next follow-up', tasks: 'tasks with a next follow-up', orNone: 'or no next follow-up', noneStay: 'tasks with none stay' },
   lastFollowup: { subject: 'Last followed up', tasks: 'tasks last followed up', orNone: 'or never', noneStay: 'tasks never followed up stay' },
   completed: { subject: 'Completed', tasks: 'tasks completed' },
