@@ -127,7 +127,7 @@ The layer tables. Each is a table of `Abstraction | Location | Purpose` rows: wh
 
 ## Keeping the docs short
 
-`src/test/architecture/doc-budgets.test.ts` fails `npm test`, and so the deploy, when this file is over 3,000 words, when a feature file is over 4,000 or is not listed under [Features](#features), or when a row of a layer table the test holds is over 300.
+`src/test/architecture/doc-budgets.test.ts` fails `npm test`, and so the deploy, when this file is over 3,000 words, when a feature file is over 4,000 or is not listed under [Features](#features), or when a layer-table row is over 300. `services-and-utils.md` and `components.md` still have rows over 300: a baseline beside the test lists them, and they may not grow or multiply.
 
 - **A new module** gets one row in its layer table: what it is, where it is and what it is for.
 - **How it behaves** goes in its feature file. A feature file that outgrows its budget is split in two, and both are listed above.
