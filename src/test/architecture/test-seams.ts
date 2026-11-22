@@ -152,7 +152,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/planner.ts': [
     'inPlanner', 'PLANNER_DELAYED_KEY', 'PlannerConflict',
     'PlannerDateKind', 'PlannerNaturalDay', 'plannerNaturalDay', 'plannerOrder', 'plannerPlannedLater',
-    'plannerReorder', 'plannerSnooze', 'plannerTagDay', 'PlannerTask',
+    'plannerReorder', 'plannerSnooze', 'plannerTagDay',
   ],
   'utils/priority-cues.ts': ['rowGlow'],
   'utils/priority-groups.ts': ['PriorityGroupContext'],

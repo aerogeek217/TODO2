@@ -63,7 +63,7 @@ const JOINS_NOTHING: PlannerJoins = () => false
  * Planner holds, which the screen filter already narrowed. An empty filter
  * joins nothing: only what is unplanned by hand is in Unplanned.
  */
-export function plannerUnplannedJoins(filter: TodoPredicate, lookups: TodoNameLookups, today: Date, settings: FilterSettings): PlannerJoins {
+function plannerUnplannedJoins(filter: TodoPredicate, lookups: TodoNameLookups, today: Date, settings: FilterSettings): PlannerJoins {
   if (!hasFilterClause(filter) && !filter.expression) return JOINS_NOTHING
   const criteria = predicateToCriteria(filter)
   return (task) => isStoredTask(task) && matchesFilterWithLookups(criteria, task, lookups, today, settings)
