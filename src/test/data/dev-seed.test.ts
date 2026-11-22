@@ -159,6 +159,27 @@ describe('dev seed generator', () => {
     expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'clusters', 'lens', 'listwall', 'neglect', 'notes', 'number', 'pivot', 'planner', 'trend'])
   })
 
+  it('shows the planned date: plans on and after real dates, a Planner filter, a list and a Number', () => {
+    const seed = seedFor()
+    const dayOf = (iso: string | undefined) => (iso === undefined ? undefined : new Date(iso).setHours(0, 0, 0, 0))
+    const planned = seed.todos.filter((t) => t.doDate !== undefined)
+    expect(planned.some((t) => dayOf(t.doDate) === dayOf(t.dueDate)), 'a plan on its due day').toBe(true)
+    expect(planned.some((t) => t.dueDate !== undefined && dayOf(t.doDate)! > dayOf(t.dueDate)!), 'a plan after its due date').toBe(true)
+    expect(planned.some((t) => t.nextFollowupAt !== undefined && dayOf(t.doDate)! > dayOf(t.nextFollowupAt)!), 'a plan after its follow-up').toBe(true)
+    expect(planned.filter((t) => dayOf(t.doDate)! < TODAY.getTime()).length, 'Delayed').toBeGreaterThanOrEqual(2)
+    expect(seed.todos.filter((t) => t.unplanned === true).length, 'held').toBeGreaterThanOrEqual(3)
+
+    const tabs = seed.layouts.flatMap((l) => l.cells.flatMap((c) => c.tabs))
+    const planner = tabs.find((t) => t.kind === 'planner')
+    expect(planner?.kind === 'planner' ? planner.config.unplanned?.expression : undefined).toEqual({
+      kind: 'or',
+      items: [{ kind: 'priority', value: 'focus' }, { kind: 'tag', id: DEV_SEED_IDS.tags['quick-win'] }],
+    })
+    const list = seed.listDefinitions.find((d) => d.id === DEV_SEED_IDS.lists.planned)
+    expect(list && { sort: list.sort, grouping: list.grouping }).toEqual({ sort: 'planned', grouping: 'planned' })
+    expect(tabs.some((t) => t.kind === 'number' && t.config.filter.dates.planned !== undefined), 'a Number filtered by Planned').toBe(true)
+  })
+
   it('shows a list tab at each zoom and a Neglect map by project, kept whole by the layout repair (D25)', () => {
     const seed = seedFor()
     const tabsOf = (l: DevSeed['layouts'][number]) => l.cells.flatMap((p) => p.tabs)
