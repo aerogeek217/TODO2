@@ -20,6 +20,10 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-21, fourth deployment
+
+Nothing changes in the app. This deployment reorganizes the project's developer documentation.
+
 ## 2026-11-21, third deployment
 
 ### Added

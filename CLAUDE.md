@@ -5,6 +5,9 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 ## Architecture
 @docs/ARCHITECTURE.md
 
+- That file is the map. **Before changing a feature, read its file under `docs/architecture/features/`** (the map's Features table lists them). For a module, read its row in the layer tables under `docs/architecture/`.
+- The docs have word budgets, held by `src/test/architecture/doc-budgets.test.ts`. How a feature behaves goes in its feature file; a new module gets one row in its layer table; the map changes only when a folder, a layer or a feature file does. Describe the app as it is: no plan names, dates or notes about what was removed.
+
 ## Build & Test Commands
 - Node: ≥ 22.13 (`engines` in package.json — the floor jsdom and Vite set on Node 22). The GitHub Pages deploy (`.github/workflows/deploy.yml`) runs on Node 22 / ubuntu-latest (UTC): `npm ci` → `npm test` → `npm run test:shuffle` (a failing vitest run blocks the deploy; Playwright is not run there) → `npm run build`.
 - Install: `npm install`
@@ -64,8 +67,8 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 - **Changelog:** every deployment (a push to `main`) updates `CHANGELOG.md`. Work merged into the feature branch is listed under `Unreleased` as it lands; the deploy renames that section to its date (and names the data version when the schema changes) and starts a new empty `Unreleased`. Categories are Keep a Changelog's — Added, Changed, Deprecated, Removed, Fixed, Security — written for a user of the app, not as commit subjects.
 
 ## Planning
-- Active tasks are tracked in `docs/plans/TODO.md` — check it at session start
+- Active tasks are tracked in `docs/plans/TODO.md` — check it at session start. It holds open work only (under 2,500 words); deferred work is in `docs/plans/DEFERRED.md` and finished items in `docs/plans/TODO-archive.md`, neither read at session start
 - Before starting a multi-step feature, create a plan in `docs/plans/features/`
-- Update TODO.md when completing tasks
+- When a task is finished, move its TODO.md item to the top of `TODO-archive.md` as one or two lines with its plan folder
 - Run `/closeout` at end of session to verify and update docs
 - `docs/plans/`, `docs/reviews/`, and `.claude/` are local-only by design (gitignored) — git holds only the application. Never `git add -f` them.
