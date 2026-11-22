@@ -76,6 +76,10 @@ In normal use a task write goes UI → Zustand stores → repositories → Dexie
 - More than `BULK_DELETE_SNAPSHOT_MIN` (5) tasks are backed up first (`takeSafetySnapshot`), outside the tracked write. Cancelled, nothing is deleted. Without a backup the snackbar says `Delete N tasks — no backup was taken`. A redo skips the gate.
 - `opts.beforeDelete` runs only once the delete goes ahead. The bulk confirm clears the selection and closes the editor there, so a cancel keeps them.
 
+### Confirming a bulk write
+
+Task deletes and bulk completions are confirmed through `ui-store.bulkConfirmation`: `showBulkConfirmation(action, ids, options?)` sets it and `clearBulkConfirmation` clears it. The action is `delete`, `complete`, `uncomplete`, or `custom` with its own title, message, confirm label and `onConfirm`. `App.tsx`'s `AppBulkConfirmDialog` draws it.
+
 ### A task goes, a task comes back
 
 There is one take and one put-back for every way a task goes or comes back.

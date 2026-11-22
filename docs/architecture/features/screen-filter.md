@@ -64,9 +64,11 @@ The field is `components/layout/TopBarFilterField`, with the placeholder `@perso
 
 - The phone keeps its chip sheet and its own field (`services/search-tokens` → `filter-store.applySearchTokens`). Each token becomes a chip as it completes. Backspace in the empty box takes the last one back.
 - A typed expression shows there read-only, in words, with a × that clears it (`shared/filters/ScreenExpression`).
+- The sheet's state is in `ui-store`: `isFilterSheetOpen` and `filterSheetFocusSearch`. `toggleFilterSheet` and `setFilterSheetOpen` clear `filterSheetFocusSearch`; `openFilterSheetSearch` opens the sheet with its search box focused.
 
 ## The counter
 
 - The counter `61 of 109` says what the chips keep of every open task.
 - While the chips let completed tasks through, it also counts the completed ones they admit. Show completed admits every one; a chips' Completed range admits the ones in it. So `of N` never grows with the whole history.
 - The counter, and the phone's pill, carry a list tab's badge over the tasks the screen filter shows, in the app's ranges (see [Lists](lists.md#tab-badges)).
+- The filtered-tasks panel's state is in `ui-store`: `filterPanelOpen` and `filterPanelFocusKey`. `openFilterPanel()` opens it and bumps the key, which focuses it, also when it is open already (the palette's **Show Tasks Matching the Filter**); it clears the selection as `showTaskDialog` does. `closeFilterPanel()` closes it. `TopBar` renders it as `overlays/FilteredTasksPanel` (desktop), and `App.tsx` closes it when the window turns phone-sized.

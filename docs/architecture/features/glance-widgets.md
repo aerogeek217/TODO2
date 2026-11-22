@@ -80,6 +80,7 @@ A new one (`newNumberConfig`) is `Open` over an empty filter, never lit, against
 
 - **Edit number…** in the ⋯ opens `NumberEditor` beside the Number's body. Adding a Number opens nothing.
 - It is hosted on `WorkspacePage` outside the widget tree (`NumberEditorHost`, `ui-store.numberEditorTabId`).
+- `openNumberEditor(tabId)` sets `numberEditorTabId` and `closeNumberEditor()` clears it. One is open at a time, and `openSettings` closes it, as it closes Edit list.
 - Its fields: name; **Color when lit** and **Color otherwise**, each a `ColorPicker` with Auto before its swatches; the filter, with the Graphical / Expression switch and Reads as; the shape and its fields; Light up when; Compare with.
 - With Light up when set to Never it shows one **Color** field, the color otherwise. The lit color is kept as stored.
 

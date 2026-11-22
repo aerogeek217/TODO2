@@ -5,6 +5,7 @@ A change a popover shows either sticks or the user is warned. A popover saves wh
 ## Popovers
 
 - Esc or a click off saves what was typed: `FollowupPopover`, `SubtaskChecklist` in every host, `TaskNotePopover`.
+- A row's follow-up popover is `ui-store.followupPopover` (`openFollowupPopover` / `closeFollowupPopover`), shown by `FollowupPopoverHost`.
 - So do, in the task editor, the Status updates add line and the **+ Add subtask** line: Esc leaves them, and the editor's close adds what they hold.
 - Each writes it in an unmount cleanup, so every way of closing is covered. Only a Cancel button drops it.
 - Esc inside an inline edit (a subtask rename, a status entry) cancels that edit and leaves the popover or editor open.
