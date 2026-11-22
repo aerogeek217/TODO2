@@ -164,7 +164,7 @@ Every day tile and every group — Today (today), each day ahead (an empty day's
 | | any other | held too — Unplanned is how a task with no date joins the Planner, flagged |
 | **Delayed** | any | **takes no drop**; a row already in it only reorders |
 
-**A menu's pick is not a drop.** Plan for day ›, Pick a date… and a conflict's Plan for {day} plan the day outright (`target.pick`): `T` its natural day too. Nothing is written only when it is planned for `T` already, and a day before today is refused.
+**Only a drag is a drop.** Every other move to a day is a pick (`target.pick`) and plans the day outright, `T` its natural day too: Plan for day ›, Pick a date…, a conflict's Plan for {day}, Snooze and an Unplanned row's Today. Nothing is written only when it is planned for `T` already, and a day before today is refused.
 
 **No due date and no follow-up is ever written.** Each drop is one task write of both plan fields and one undo step (`todo-store.setPlan`: [the plan write](#the-plan-write), no stamp, no history event).
 
@@ -188,7 +188,7 @@ A Planner row dropped on a Calendar widget's day is the calendar's drop, as any 
 - **Snooze** plans the task for the day after the day it sits on — after its planned day, for a row planned later — never earlier than tomorrow. A Delayed row goes to tomorrow. A row in Unplanned offers no Snooze.
 - **Unplan** is the Unplanned drop for one row.
 
-Both go through the same decision (`plannerSnooze`, `plannerUnplan`), so a snoozed task landing on its natural day loses its plan. They are a row's [buttons](planner-widget.md#four-planner-only-things) and entries in its [menu](planner-widget.md#menus).
+Both go through the same decision (`plannerSnooze`, `plannerUnplan`). Snooze is a pick: a task landing on its natural day is planned for it. They are a row's [buttons](planner-widget.md#four-planner-only-things) and entries in its [menu](planner-widget.md#menus).
 
 ### Nothing leaves the Planner silently
 

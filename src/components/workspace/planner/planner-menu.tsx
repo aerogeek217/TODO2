@@ -39,7 +39,7 @@ export interface PlannerMenuActions {
  *   the plan). The item names where the row is (a day, `Delayed`,
  *   `Unplanned`);
  * - **Snooze** — the day after the one it sits on, never before tomorrow
- *   (`plannerSnoozeDay`, through the drop rule); the item names that day;
+ *   (`plannerSnoozeDay`, planned outright as a pick); the item names that day;
  *   none on a row in Unplanned (nothing there is planned to put off);
  * - **Unplan** — to the Unplanned tray (`plannerUnplan`); off, saying why,
  *   for a row that is there already;

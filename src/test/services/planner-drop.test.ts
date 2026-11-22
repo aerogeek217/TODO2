@@ -10,6 +10,7 @@ import {
   applyPlannerMove,
   movePlannerTask,
   planPlannerDrop,
+  planPlannerTaskToday,
   resetPlannerPlan,
   snoozePlannerTask,
   unplanDelayedTasks,
@@ -696,15 +697,35 @@ describe('Snooze', () => {
     for (const t of [delayed, held, focus]) expect(await plan(t.id)).toMatchObject({ doDate: day(1), unplanned: undefined })
   })
 
-  it('goes through the drop rule: landing on its own date’s day clears the plan', async () => {
+  it('is a pick: landing on its own date’s day plans it there outright', async () => {
     const task = await seed('Venue', { doDate: day(1), dueDate: day(2) })
     const held = await seed('Held', { unplanned: true, nextFollowupAt: day(1) })
     const w = watchWrites()
     await snoozePlannerTask('plan', task.id, WINDOW)
     await snoozePlannerTask('plan', held.id, WINDOW)
-    expect(w.setPlan.mock.calls).toEqual([[[task.id], null], [[held.id], null]])
-    expect(await plan(task.id)).toMatchObject({ doDate: undefined, unplanned: undefined, dueDate: day(2) })
-    expect(await plan(held.id)).toMatchObject({ doDate: undefined, unplanned: undefined, nextFollowupAt: day(1) })
+    expect(w.setPlan.mock.calls).toEqual([[[task.id], { day: day(2) }], [[held.id], { day: day(1) }]])
+    expect(await plan(task.id)).toMatchObject({ doDate: day(2), unplanned: undefined, dueDate: day(2), modifiedAt: STAMP })
+    expect(await plan(held.id)).toMatchObject({ doDate: day(1), unplanned: undefined, nextFollowupAt: day(1), modifiedAt: STAMP })
+    expect(w.realDates()).toBe(0)
+  })
+
+  it('a Snooze past the window with no real date inside it still says so, with Undo', async () => {
+    const task = await seed('Last day', { doDate: day(6) })
+    const w = watchWrites()
+    await snoozePlannerTask('plan', task.id, WINDOW)
+    expect(w.setPlan).toHaveBeenLastCalledWith([task.id], { day: day(7) }, 'Planned for Fri, Nov 27', true)
+  })
+})
+
+describe('Today (an Unplanned row’s button)', () => {
+  it('is a pick: today planned outright, today its own date’s day too', async () => {
+    const held = await seed('Held', { unplanned: true, nextFollowupAt: day(0) })
+    const loose = await seed('Loose', { focus: true })
+    const w = watchWrites()
+    await planPlannerTaskToday('plan', held.id, WINDOW)
+    await planPlannerTaskToday('plan', loose.id, WINDOW)
+    expect(w.setPlan.mock.calls).toEqual([[[held.id], { day: day(0) }], [[loose.id], { day: day(0) }]])
+    expect(await plan(held.id)).toMatchObject({ doDate: day(0), unplanned: undefined, modifiedAt: STAMP })
   })
 
   it('snoozing twice moves on a day each time; one undo step each', async () => {

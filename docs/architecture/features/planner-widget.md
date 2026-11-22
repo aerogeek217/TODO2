@@ -68,7 +68,7 @@ A click opens the task. There is no selection or bulk bar. The Planner is no lis
    - The last two are buttons whose menu lists that row's [fixes](planner.md#conflicts) (`plannerFixLabel`: `Move due date to Tue, Nov 24`, `Plan for Mon, Nov 23`). Esc hands the focus back to the tag.
 3. **The date the plan falls after, drawn late** (bold over its type's faint band) though it may not be past. This is the look only: its name and tooltip are unchanged.
 4. **Snooze** and **Unplan** text buttons ([what they do](planner.md#snooze-and-unplan)) at the title's end, on the row's hover and focus (in the row's hover cluster). None on a screen with no hover, on a Lines row or on the phone. A row in Unplanned has neither, nothing there being planned to put off. It has:
-   - **Today** — the drop on today (`planner-drop.planPlannerTaskToday`);
+   - **Today** — planned for today outright, a pick (`planner-drop.planPlannerTaskToday`);
    - when held there (flagged), **Remove** — its plan cleared, out of the Planner — or, when a date in the window or Focus keeps it there, **Clear** (`clearPlannerTask`).
 
 Pressed from the keyboard — the buttons, a fix from a menu opened with Enter — **the focus follows the row** (`planner/planner-focus`): to the row at its new place, on the same control when it has it. When the row left the view, it goes to the row that took its place, else to its group's heading.

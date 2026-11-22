@@ -33,7 +33,8 @@ import type { PlannerDropRequest } from '../utils/task-dnd'
 /**
  * The Planner's writes — the only place a Planner drop, Plan for day ›,
  * Snooze, Unplan, Unplan all Delayed, Reset plan or a conflict's fix writes
- * from. Everything but a fix's date move changes **the plan only**
+ * from (a drag is the drop rule; every other move to a day is a pick,
+ * planned outright). Everything but a fix's date move changes **the plan only**
  * (`todo-store.setPlans`: both plan fields in one task write, one undo step,
  * no stamp, no history event) — never a due date or a follow-up; what to
  * write is `utils/planner`'s decision (`plannerDrop`).
@@ -137,23 +138,24 @@ export function movePlannerTask(tabId: string | null, move: PlannerMove): Promis
 
 /**
  * **Snooze**: plans the task for the day after the day it sits on, never
- * earlier than tomorrow (a Delayed or Unplanned row: tomorrow) — through
- * the drop rule, so a task landing on its natural day loses its plan.
+ * earlier than tomorrow (a Delayed or Unplanned row: tomorrow) — as a pick
+ * (`PlannerTarget.pick`): planned for that day outright, its own date's day
+ * too. A Snooze that takes it out of view says so (`applyPlannerMove`).
  */
 export function snoozePlannerTask(tabId: string, todoId: number, window: PlannerSpan): Promise<void> {
   const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
   if (!todo) return Promise.resolve()
   const day = plannerSnoozeDay(plannerPlacement(todo, window), window.today)
-  return movePlannerTask(tabId, { todoId, target: { kind: 'day', day }, window })
+  return movePlannerTask(tabId, { todoId, target: { kind: 'day', day, pick: true }, window })
 }
 
 /**
- * **Today** (an Unplanned row's button, in Snooze's place): the drop on
- * today — planned for today, or, when today is its own date's day, its plan
- * state cleared — so the row lands in Today.
+ * **Today** (an Unplanned row's button, in Snooze's place): planned for
+ * today outright, as a pick — today its own date's day too —, so the row
+ * lands in Today.
  */
 export function planPlannerTaskToday(tabId: string, todoId: number, window: PlannerSpan): Promise<void> {
-  return movePlannerTask(tabId, { todoId, target: { kind: 'day', day: window.today }, window })
+  return movePlannerTask(tabId, { todoId, target: { kind: 'day', day: window.today, pick: true }, window })
 }
 
 /** **Unplan**: the Unplanned tray's drop for one row — held there, or (a Focus task with no date in the window) its plan cleared. */

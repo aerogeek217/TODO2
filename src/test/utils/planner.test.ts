@@ -764,13 +764,15 @@ describe('Snooze', () => {
     expect(snooze({ focus: true })).toEqual({ kind: 'plan', day: day(1) })
   })
 
-  it('landing on its natural day clears the plan', () => {
+  it('landing on its natural day plans it there outright (a pick, not a drag)', () => {
     // Planned Sat, due Sun: snoozed onto Sun, its own date's day.
-    expect(snooze({ doDate: day(1), dueDate: day(2) })).toEqual({ kind: 'own', day: day(2) })
+    expect(snooze({ doDate: day(1), dueDate: day(2) })).toEqual({ kind: 'plan', day: day(2) })
     // Delayed, follow-up tomorrow.
-    expect(snooze({ doDate: day(-1), nextFollowupAt: day(1) })).toEqual({ kind: 'own', day: day(1) })
+    expect(snooze({ doDate: day(-1), nextFollowupAt: day(1) })).toEqual({ kind: 'plan', day: day(1) })
     // Held, due tomorrow.
-    expect(snooze({ unplanned: true, dueDate: day(1) })).toEqual({ kind: 'own', day: day(1) })
+    expect(snooze({ unplanned: true, dueDate: day(1) })).toEqual({ kind: 'plan', day: day(1) })
+    // A drag onto that day still clears the plan.
+    expect(plannerDrop(task({ doDate: day(1), dueDate: day(2) }), SPAN, { kind: 'day', day: day(2) })).toEqual({ kind: 'own', day: day(2) })
   })
 
   it('a completed task is refused', () => {

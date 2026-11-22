@@ -584,8 +584,8 @@ export function plannerRowTagHint(tag: PlannerRowTag, today: Date): string {
 
 /**
  * Where a row is dropped: a day (a tile, a day's group, Today), the
- * Unplanned tray, or the Delayed tray. A day `pick`ed in a menu (Plan for
- * day ›, a conflict's Plan for {day}) is planned outright, not dropped.
+ * Unplanned tray, or the Delayed tray. A day `pick`ed (Plan for day ›, a
+ * conflict's Plan for {day}, Snooze, Today) is planned outright, not dropped.
  */
 export type PlannerTarget = { kind: 'day'; day: Date; pick?: true } | { kind: 'unplanned' } | { kind: 'delayed' }
 
@@ -631,8 +631,9 @@ export type PlannerDrop =
  *   `plannerClearLeaves`);
  * - **Delayed** takes no drop.
  *
- * A day **picked** in a menu (`target.pick`: Plan for day ›, Pick a date…,
- * a conflict's Plan for {day}) plans the task for that day outright — its
+ * A day **picked** (`target.pick`: Plan for day ›, Pick a date…, a
+ * conflict's Plan for {day}, Snooze, an Unplanned row's Today — every
+ * move to a day but a drag) plans the task for that day outright — its
  * natural day too; nothing only when it is planned for that day already. A
  * day before today is refused there as well.
  *
@@ -686,9 +687,9 @@ export function plannerSnoozeDay(placement: Pick<PlannerPlacement, 'where' | 'da
   return next.getTime() < tomorrow.getTime() ? tomorrow : next
 }
 
-/** **Snooze**: the drop rule on `plannerSnoozeDay` — so a task landing on its natural day loses its plan. */
+/** **Snooze**: `plannerSnoozeDay` as a pick — planned for it outright, the task's natural day too. */
 export function plannerSnooze(task: PlannerTask, span: PlannerSpan): PlannerDrop {
-  return plannerDrop(task, span, { kind: 'day', day: plannerSnoozeDay(plannerPlacement(task, span), span.today) })
+  return plannerDrop(task, span, { kind: 'day', day: plannerSnoozeDay(plannerPlacement(task, span), span.today), pick: true })
 }
 
 /** **Unplan**: the drop rule on the Unplanned tray, for one task — it stays in the Planner, in Unplanned. */

@@ -14,7 +14,8 @@ import { filterClear, filterField } from './fixtures/filters'
  * layout). While it is dragged the target is dashed in one neutral color
  * and the lifted row's label says what the drop does (`Plan · Wed, Nov 25`,
  * `Its date · …`, `Unplan`). A plan write never stamps the task. Snooze,
- * Unplan and Plan for day › make the same moves from the keyboard. A list's
+ * Unplan and Plan for day › move it from the keyboard (a day they pick is
+ * planned outright, its own date's day too). A list's
  * row is taken by the same rule; a Planner row on a calendar day is the
  * calendar's drop; one on a list does nothing.
  *
@@ -894,13 +895,13 @@ test('hover Snooze moves a Today row to tomorrow; hover Unplan moves it to Unpla
   // Each a step of its own.
   expect(await newestUndoStep(page)).toBe('Unplanned “Renew the domain”')
 
-  // Today: due today, so it goes back to Today by its own date — no longer held, no plan, no flag.
+  // Today: planned for today outright — due today too, so a plan on its own date's day — no longer held, flagged.
   await today.click()
   const back = rowOf(todayGroup(page), 'Renew the domain')
   await expect(back).toBeVisible()
-  await expect(flagOf(back)).toHaveCount(0)
+  await expect(flagOf(back)).toHaveCount(1)
   await expect.poll(async () => (await stored(page, 'Renew the domain')).held).toBe(false)
-  expect(await stored(page, 'Renew the domain')).toEqual({ doDate: null, held: false, dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Renew the domain')).toEqual({ doDate: [0, 0, 0], held: false, dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
 })
 
 test('Unplan keeps a planned task with no date, not in Focus, in the Planner: it is held in Unplanned', async ({ page }) => {
