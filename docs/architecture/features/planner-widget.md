@@ -21,8 +21,10 @@ How the [Planner](planner.md) is drawn: its faces, its rows, the feedback during
 - **A tile's click scrolls the day list to its day** — smoothly, at once under reduced motion — and picks nothing.
 - A tile's name says its [marks](planner.md#the-view) (`Mon, Nov 23: 2 tasks, 1 due, 1 planned`).
 - The arrows move the [window](planner.md#the-window) a week. `‹` is off on this week.
-- In a widget 520px wide or less, the strip stacks each tile's weekday, date and count and draws no ticks.
-- A widget under 300px wide has the two arrows around the range in words instead of tiles.
+- In a widget 520px wide or less, each tile keeps its ticks: its weekday; its date with its count at its right; its ticks. A two-digit count gives way in a tile under 34px of content.
+- **The strip shows only where it fits** (`utils/widget-face.plannerStripFits`): each tile has room for its ticks (38px, measured: the portrait layout's tiles at 320px of widget), so a widget at least 315px wide with the arrows in the top line, 371px with them in the strip; and the widget is tall enough for the strip over Today's heading and one row (165px with its top line, 135px without).
+- Hidden, the week's range and arrows sit in the [top line](planner.md#top-line-and-reset-plan) (`‹ Nov 20 – 26 ›`). With no top line (a cell of tabs, the widget popup) they are a slim range row instead (`data-planner-strip="range"`).
+- A 390px phone keeps the strip; a 375px one hides it.
 
 ### Large: two panes
 
@@ -30,16 +32,15 @@ How the [Planner](planner.md) is drawn: its faces, its rows, the feedback during
 - On the right, on a darker ground (`--color-inset-deep`), the trays in a scroll of their own:
   - **Delayed**, only while it holds a task;
   - the **↓ Unplan** button, centered on a hairline rule, shown with Delayed, named `Unplan all Delayed tasks`, its tooltip `Move all Delayed tasks to Unplanned` ([what it writes](planner.md#unplan-all-delayed-and-reset-plan));
-  - **Unplanned**, always there, reading `Nothing unplanned` while empty.
+  - **Unplanned**, always there, reading `Nothing unplanned` while empty, its [filter line](#the-unplanned-filters-editor) under its heading.
 
 ### Medium: the portrait layout
 
 The strip sits over the days in one scroll. Under them **the trays dock** (`planner/PlannerDock`): Delayed, the Unplan button and Unplanned on the darker ground, in a scroll of their own.
 
 - The dock's top edge is a separator sharing the height. A drag moves it, ↑ / ↓ step it 16px and a double-click resets it. The share is saved as the tab's view state `dockShare` (default 0.38).
-- Its chevron folds it (`dockFolded`) to one bar — `Delayed 2 · Unplanned 6` — that unfolds on a click and is a drop target meaning Unplanned.
+- Its chevron folds it (`dockFolded`) to one bar — `Delayed 2 · Unplanned 6` — that unfolds on a click and is a drop target meaning Unplanned. In a widget 400px wide or more, Unplanned's filter line sits over the bar's end, before the chevron, never past its middle.
 - Alone in its cell, the week arrows sit in the [top line](planner.md#top-line-and-reset-plan) around the range.
-- The narrow tiles keep their ticks.
 - A 2px line under the tiles marks the days whose groups show in the day list (`planner-dock.useDaysInView`).
 
 ## Rows
@@ -69,7 +70,7 @@ A click opens the task. There is no selection or bulk bar. The Planner is no lis
 3. **The date the plan falls after, drawn late** (bold over its type's faint band) though it may not be past. This is the look only: its name and tooltip are unchanged.
 4. **Snooze** and **Unplan** text buttons ([what they do](planner.md#snooze-and-unplan)) at the title's end, on the row's hover and focus (in the row's hover cluster). None on a screen with no hover, on a Lines row or on the phone. A row in Unplanned has neither, nothing there being planned to put off. It has:
    - **Today** — planned for today outright, a pick (`planner-drop.planPlannerTaskToday`);
-   - when held there (flagged), **Remove** — its plan cleared, out of the Planner — or, when a date in the window or Focus keeps it there, **Clear** (`clearPlannerTask`).
+   - when held there (flagged), **Remove** — its plan cleared, out of the Planner — or, when a date in the window or the Unplanned filter keeps it there, **Clear** (`clearPlannerTask`).
 
 Pressed from the keyboard — the buttons, a fix from a menu opened with Enter — **the focus follows the row** (`planner/planner-focus`): to the row at its new place, on the same control when it has it. When the row left the view, it goes to the row that took its place, else to its group's heading.
 
@@ -113,6 +114,22 @@ A row's task menu in a Planner — right-click, Shift+F10, the phone's long-pres
 - On a placed row, **Clear plan** (**Remove from Planner** when that takes it out).
 
 The task menus outside a Planner have their own **Plan for day ›**: see [Plan state](planner.md#plan-state).
+
+The widget's ⋯ menu (the cell's and the widget popup's, `planner-reset.usePlannerMenuEntries`) has **What counts as unplanned…**, then **Reset plan ›** while the Planner is drawn.
+
+## The Unplanned filter's editor
+
+**The filter line** (`planner/PlannerFilterLine`, `[data-planner-filter-line]`) sits under the Unplanned heading wherever the tray shows: the large face, the medium column, the portrait dock and its folded bar where it fits.
+
+- It is a button on a faint plate: the funnel, then the [filter](planner.md#the-unplanned-filter) read back in words as a list's filter line reads it (`wholeExpression` → `ExpressionWords`: `Focus`, `Focus, or errands`), fading with `+N more`, the exact text in its tooltip. Its name is `What counts as unplanned: …`.
+- An empty filter reads `Nothing joins on its own`.
+
+A click on it, or **What counts as unplanned…** in the widget's ⋯, opens the **Planner settings** (`planner/PlannerSettings`, `role=dialog` `Planner settings`, hosted on the workspace page like the other widget editors, `planner-store.settingsTabId`). It opens beside the filter line, else the folded bar, else the widget.
+
+- Its title is `Planner`. **Unplanned holds** is the Number editor's filter field (`PredicateChips` stacked: Graphical / Expression, Reads as, Syntax…); an empty one reads `No filter — nothing joins on its own`.
+- A muted line under it: `An open task with no day that matches joins Unplanned on its own. Empty, nothing joins on its own: only what you unplan.`
+- Its foot is Cancel · Save (`EditorFooter`'s `discardLabel`).
+- It is a [widget editor](glance-widgets.md#the-widget-editors-save--discard): the Planner draws the filter as edited (`widget-preview-store`), Save writes it as one layout config update and one undo step (`Changed what counts as unplanned`), and leaving it with changes asks Save / Discard / Keep editing (`Save changes to the Planner?`).
 
 ## Completed rows and the phone
 

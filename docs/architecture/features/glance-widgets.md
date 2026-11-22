@@ -124,7 +124,7 @@ Only Count and Share of… compare.
 
 ## The widget editors: Save / Discard
 
-Every widget editor (the Number's, and a chart's and Created vs completed's in [Charts](charts.md)) is Edit list's Save / Discard. The draft is `glance/editor-draft.useEditorDraft`; the foot is `EditorFooter`.
+Every widget editor (the Number's, a chart's and Created vs completed's in [Charts](charts.md), and the [Planner settings](planner-widget.md#the-unplanned-filters-editor)) is Edit list's Save / Discard. The draft is `glance/editor-draft.useEditorDraft`; the foot is `EditorFooter`.
 
 - Its controls edit a copy of the config, which the widget draws live (`stores/widget-preview-store`, read by `GlanceWidget`).
 - **Save** writes only the keys that changed, for good, as one layout config update: one undo step. A ⋯ menu's write made meanwhile (Tags, for example) stays.

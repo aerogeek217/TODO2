@@ -56,7 +56,7 @@ Detail reference for the test setup (`src/test/`, `e2e/`, `vitest.config.ts`, `p
 | README screenshots | e2e/readme-shots.spec.ts, e2e/fixtures/readme-data.ts | Opt-in, not a regression (`README_SHOTS=1`, or a folder to write to): the README's five pictures in `docs/screenshots/` — the workspace, a list, the Review widget (the README's layouts hold none, so the shot makes one on a layout of its own and jumps to it with a person, as a Review button does — `services/review-jump.jumpToReview`), the insight widgets, Quick Add — in the dark theme over a small made-up dataset (a product team's tasks, dates relative to the run day), each cropped to what it shows. Run with `--workers=1 --timeout=600000` |
 | Review jumps | e2e/review-jump.spec.ts, e2e/filtered-tasks-review.spec.ts, src/test/services/review-jump.test.ts, src/test/services/review.test.ts | A Review button's jump. The specs, in a real browser: on the open layout a list's Review these N tasks sets the widget's field to the list's filter and the focus lands on the card's update line, nothing saved; with the Review widget on another layout the person menu's Review with X opens the popup review with `@Name` instead — no layout switch, the other widget left alone —, a second Review replaces it, a reload clears it; with no Review widget anywhere every entry point still shows (the person menu, the palette, the tab menu) and opens the popup review, the task editor over it; an open editor with changes asks first — Keep editing cancels, Discard goes on; the filtered-tasks panel's Review and the phone's screen-filter dialog's open the popup review (the phone's full screen at the Review widget's medium face). The unit tests: `jumpToReview` (the open layout's widget, a replace without asking, the popup review with none there — another layout's never switched to —, the editor-leave question, a widget open larger closed unless it is that widget, the task dialog and the filtered-tasks panel closed) and each entry point's filter (`services/review`: a person, a tag, several people — names with spaces, quotes and parentheses printing as the field reads them —, a list as it shows incl. its prompt pick, every open task as an empty `and`, the top bar's chips and text search, every Breakdown split's rows keeping exactly the row's tasks, ANDed with the chart's and a count column's filter). The Review widget's session (place, marks, drafts, ✓) is `src/test/stores/review-session.test.ts` |
 | Open larger | e2e/widget-popup.spec.ts, e2e/widget-faces.spec.ts, e2e/dialogs.spec.ts, src/test/services/widget-popup.test.ts, src/test/components/workspace/widget-popup.test.tsx, src/test/utils/widget-face.test.ts | Specs and unit tests for the widget popup: opening a widget larger from the cell, the menu and the palette, closing it, the dialog contract, the popup's store state and its editor-leave question, and one live widget per tab between the cell and the popup. Detail: [The Open larger tests](#the-open-larger-tests). |
-| The Planner | src/test/utils/planner.test.ts, src/test/utils/planner-drop-plan.test.ts, src/test/utils/task-dnd/dispatch-planner.test.ts, src/test/services/planner-drop.test.ts, src/test/stores/planner-store.test.ts, src/test/stores/task-plan.test.ts, src/test/hooks/use-planner-window.test.tsx, src/test/data/planner-layout-shape.test.ts, src/test/components/workspace/planner-widget.test.tsx, src/test/components/workspace/planner-rows.test.tsx, src/test/components/workspace/planner-drag.test.tsx, src/test/components/workspace/planner-drag-hook.test.tsx, src/test/components/workspace/planner-menu.test.tsx, src/test/components/workspace/planner-dock.test.ts, e2e/planner.spec.ts, e2e/widget-faces.spec.ts, e2e/widget-kinds.spec.ts | The Planner's tests: the pure rules (the window, where a task sits, conflicts, the drop rule, the hand order), the window store, the stored tab's shape, the widget's faces, rows, menus and drag feedback in JSDOM, the plan and drop writes on the real stores and database, and real-browser specs for drags, faces, the dock and the keyboard. Detail: [The Planner's tests](#the-planners-tests). |
+| The Planner | src/test/utils/planner.test.ts, src/test/utils/planner-drop-plan.test.ts, src/test/utils/task-dnd/dispatch-planner.test.ts, src/test/services/planner-drop.test.ts, src/test/stores/planner-store.test.ts, src/test/stores/task-plan.test.ts, src/test/hooks/use-planner-window.test.tsx, src/test/data/planner-layout-shape.test.ts, src/test/components/workspace/planner-widget.test.tsx, src/test/components/workspace/planner-rows.test.tsx, src/test/components/workspace/planner-settings.test.tsx, src/test/components/workspace/planner-drag.test.tsx, src/test/components/workspace/planner-drag-hook.test.tsx, src/test/components/workspace/planner-menu.test.tsx, src/test/components/workspace/planner-dock.test.ts, e2e/planner.spec.ts, e2e/widget-faces.spec.ts, e2e/widget-kinds.spec.ts | The Planner's tests: the pure rules (the window, where a task sits, conflicts, the drop rule, the hand order), the window store, the stored tab's shape, the widget's faces, rows, menus and drag feedback in JSDOM, the plan and drop writes on the real stores and database, and real-browser specs for drags, faces, the dock and the keyboard. Detail: [The Planner's tests](#the-planners-tests). |
 | Popup lists' group · sort | e2e/popup-sort-group.spec.ts, src/test/services/task-dialog.test.ts, src/test/components/overlays/task-dialog.test.tsx | The X of Y panel and a Number's task dialog open on Settings' new-list grouping and sort; a pick in one (Group by Priority, Sort by Due date) holds in the other until a reload, which brings back the defaults; the popover's Esc closes it before the panel; a phone's dialog takes a pick too. The unit tests: `popupListView` (defaults, the pick over them), every source in the view, a `groups` source's own headings kept until a grouping is picked |
 | Hit targets | e2e/hit-targets.spec.ts | The 24px hit areas by `elementFromPoint` (UX cleanup 5A): the tab ×, the top bar's and an editor's filter-chip ×, Quick Add's chip × and the desktop checkbox each take presses over 24 × 24 px at their drawn size, while the tab's label, the chip's value, the next chip, the priority gutter and the title keep theirs; a hidden × takes none; Lines rows have no checkbox |
 | Offline file check | src/test/build/offline-file.test.ts | `scripts/offline-file.ts` on fixtures: script elements found as the parser finds them (a `<script>` inside a script's text, a comment, `<scripts>`), the CSP hash over the parsed text (CR LF / CR → LF, NUL → U+FFFD), and `checkOfflineFile` — a file shaped like the built one passes; each rule fails on its own (a second or loaded script, a `<!--` in the script's text, a looser or misplaced CSP, a directive named twice (a browser enforces the first copy; cr31 L3), a wrong hash, no referrer policy or DNS prefetch control, a link / element that loads, each network API (a `window.open` reference uncalled, a resource hint's rel value quoted in script however it is set), a URL off the inert list (a dotless `//fileserver/share` and a bracketed IPv6 host too), base64 noise and escaped-slash regexes not mistaken for either) |
@@ -204,7 +204,7 @@ What each Planner test file covers. The rules are in [planner](features/planner.
 - **Where a task sits**, in every plan state:
   - held, also when its dates move;
   - a planned day passed → Delayed; in the window; beyond it → not shown;
-  - no plan → its natural day; a Focus task with none → Unplanned;
+  - no plan → its natural day; a Focus task with none → Unplanned (the default filter);
   - completed.
 - **Conflicts**: a plan's conflicts with the due date and the follow-up, and their fixes.
 - **The order**, in the trays too.
@@ -216,7 +216,7 @@ What each Planner test file covers. The rules are in [planner](features/planner.
   - The shifted window: Today and the trays kept, all seven days listed, a task between tomorrow and the window in no group.
 - **The drop rule**, as a table:
   - on a day: planned; cleared on its natural day; nothing where it sits; refused before today;
-  - on Unplanned: held (a planned task with no date and not in Focus too, so Unplan never takes a task out of the Planner); a Focus task's plan cleared; nothing; refused;
+  - on Unplanned: held (a planned task with no date the filter doesn't match too, so Unplan never takes a task out of the Planner); a matching task's plan cleared; nothing; refused;
   - on Delayed: no drop;
   - a completed task;
   - what each writes;
@@ -229,6 +229,7 @@ What each Planner test file covers. The rules are in [planner](features/planner.
 - **Snooze, Unplan and Unplan all Delayed**: each task is in Unplanned afterwards.
 - **Reset plan**: its scopes and counts, and the week scope's name (This week, or the shifted window's range).
 - **The labels**: a tile's name with its marks; a placed row's state in words.
+- **The Unplanned filter** (`PlannerJoins`): absent is Focus; a custom one and an empty one decide Unplanned only (a dated task stays on its day); asked without the plan state; Unplan, Clear vs Remove and Unplan all Delayed with each.
 - **Daylight saving** (`pinTimeZone`): the same over both changes, for the window, a plan across the change, conflict days and Snooze.
 
 ### The window: `planner-store.test` and the hook
@@ -248,6 +249,7 @@ What each Planner test file covers. The rules are in [planner](features/planner.
 - A stray key or config is a fix.
 - The trays dock's share (0.1–0.9) and fold (`true`) are kept; anything else is dropped, a fix.
 - A key stored as `undefined` reads as absent.
+- The Unplanned filter: absent stays absent; a stored one and an empty one kept; a malformed clause repaired, one that is no predicate dropped, each a fix.
 
 ### The widget: `planner-widget.test`
 
@@ -272,6 +274,7 @@ JSDOM, with the body's size mocked.
 - A completed row and a repeating occurrence linger, then leave.
 - The rows' zoom: one grid per pane.
 - The medium and small faces, and the phone.
+- **The strip's room** (`plannerStripFits`'s thresholds): hidden under 371px with the arrows on it and under 165px tall with a top line, the range and arrows then in the top line; the slim range row in a cell of tabs; the portrait tiles down to 315px.
 - **The portrait layout**:
   - the days over the trays dock in a tall, narrow cell, and one column elsewhere (short, squarish, wide);
   - the stored share drawn;
@@ -317,7 +320,7 @@ The faces follow `ResizeObserver`, so specs test them.
 
 - **Large**: seven tiles of one width between the arrows; their marks; the two panes' geometry and groups; a tile's click picking nothing; a row dragged onto a tile, lifting and landing on that day with its tag; the week arrows and the range's way back.
 - Today has no Add task row.
-- **Medium**: one column; Stacked rows at Auto (the seed's `rowDensity: null`); the arrows around the range when too narrow.
+- **Medium**: one column; Stacked rows at Auto (the seed's `rowDensity: null`); too narrow, no strip and the arrows around the range in the top line.
 - **Small**: its count; a click opens it larger; the week kept across the popup.
 - **The phone**: seven tiles inside the screen, phone rows, the empty days left out.
 
@@ -439,6 +442,11 @@ Trusted-mouse drags. Dates are read from the database as days from today and a t
 - The medium face's one column.
 - A Planner under the widget popup takes no drop.
 - Esc cancels a drag over a group.
+
+**The strip's room and the Unplanned filter**
+
+- A cell too narrow for the tiles' ticks: no strip, the range between the top line's arrows; a narrow cell of tabs: the slim range row.
+- The filter line opens the Planner settings; `#errands` draws live (the dated errand on its day), Save is one undo step, stored; from the ⋯, emptied: nothing joins.
 
 **The portrait layout**
 

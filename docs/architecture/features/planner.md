@@ -1,8 +1,8 @@
 # Planner
 
-The Planner (widget kind `planner`, under Tasks after Review, no settings) shows today and the week ahead in one widget. It is a scratch pad: **a drag only ever changes the plan, never a task's real dates**. Its components are in `components/workspace/planner`, its rules (all pure) in `utils/planner`, its writes in `services/planner-drop`, its data in `hooks/use-planner` and its in-memory state in `stores/planner-store`.
+The Planner (widget kind `planner`, under Tasks after Review; its one setting is the [Unplanned filter](#the-unplanned-filter)) shows today and the week ahead in one widget. It is a scratch pad: **a drag only ever changes the plan, never a task's real dates**. Its components are in `components/workspace/planner`, its rules (all pure) in `utils/planner`, its writes in `services/planner-drop`, its data in `hooks/use-planner` and its in-memory state in `stores/planner-store`.
 
-This file is the rules: a task's plan state, where a task sits, the window, what a drop writes, and the moves without a drag. How the widget is drawn (its faces, its rows, drag feedback and menus) is in [planner-widget](planner-widget.md).
+This file is the rules: a task's plan state, where a task sits, the Unplanned filter, the window, what a drop writes, and the moves without a drag. How the widget is drawn (its faces, its rows, drag feedback and menus) is in [planner-widget](planner-widget.md).
 
 ## Plan state
 
@@ -48,7 +48,7 @@ What other operations do with the plan state:
 
 ## Which tasks it holds
 
-The Planner holds the open tasks the [screen filter](screen-filter.md) shows (`useScreenTasks`) that are in Focus, have a plan state, or have a natural day (`inPlanner`).
+The Planner holds the open tasks the [screen filter](screen-filter.md) shows (`useScreenTasks`) that have a plan state, have a natural day, or match its [Unplanned filter](#the-unplanned-filter) (`inPlanner`).
 
 A task's **natural day** (`utils/planner.plannerNaturalDay`) is the earlier of its next follow-up and its due date, when that date is on or before the window's last day. A date before today counts as today. When both fall on the same day, it is the due date's.
 
@@ -63,8 +63,8 @@ A task's **natural day** (`utils/planner.plannerNaturalDay`) is the earlier of i
 | Planned for a day inside the window, today included | that day |
 | Planned for a day past the window's last day (**planned later**) | its natural day when it has one — a real date inside the window, or overdue, still shows the task, as a placed row there; else not shown in this window |
 | No plan, a natural day | its natural day |
-| No plan, no natural day, in Focus | the **Unplanned** tray |
-| No plan, no natural day, not in Focus | not in the widget |
+| No plan, no natural day, matching the Unplanned filter | the **Unplanned** tray |
+| No plan, no natural day, not matching it | not in the widget |
 
 A row is **placed** when it has a plan state.
 
@@ -78,6 +78,20 @@ A row on its planned day — and one planned later — carries its **conflicts**
 - plan for that date's day, outright (only when it is today or later).
 
 The row shows them in its [tag](planner-widget.md#four-planner-only-things); what a fix writes is under [A conflict's fix](#a-conflicts-fix).
+
+## The Unplanned filter
+
+**What joins Unplanned on its own** is the tab's filter, `PlannerTab.config.unplanned` (a `TodoPredicate`, layout config):
+
+- Absent, it is Focus (`plannerUnplannedFilter`: `/focus`), so a Planner that never set one holds what it always did.
+- Empty, nothing joins on its own: Unplanned holds only the tasks unplanned by hand.
+- It decides **Unplanned only**. A task with a date in the window sits on its day, matching or not.
+- The hook evaluates it with a list's matcher (`matchesFilterWithLookups`) over the tasks the screen filter already narrowed, and hands it to the rules in the window (`PlannerJoins`, `window.joins`). Every rule that read "in Focus" reads it: the placement, `inPlanner`, the Unplanned drop and Unplan, Unplan all Delayed, and Clear vs Remove (`plannerClearLeaves`).
+- It is asked of the task as it would be with no plan state.
+- Outside a Planner (Plan for day › in a task menu, the task layout's Planned cell) there is no tab: the rules read Focus.
+- The layout repair reads it as a list's predicate. One that is no predicate is dropped (Focus again), a fix.
+
+How it is shown and edited is in [The Unplanned filter's editor](planner-widget.md#the-unplanned-filters-editor).
 
 ## The window
 
@@ -115,7 +129,7 @@ Where each part is drawn is in [Faces](planner-widget.md#faces).
 
 ## Hand order
 
-Inside a group the tasks follow the tab's **hand order** (`PlannerTabViewState.order`): task `uid`s, one sequence for the widget, view state, written by a drop into a group (see [The row's place](#the-rows-place)). The rest come after them by reason (due, follow-up, plan, held, Focus), then date, then `sortOrder` (`plannerOrder`).
+Inside a group the tasks follow the tab's **hand order** (`PlannerTabViewState.order`): task `uid`s, one sequence for the widget, view state, written by a drop into a group (see [The row's place](#the-rows-place)). The rest come after them by reason (due, follow-up, plan, held, the Unplanned filter), then date, then `sortOrder` (`plannerOrder`).
 
 ## Top line and Reset plan
 
@@ -160,7 +174,7 @@ Every day tile and every group — Today (today), each day ahead (an empty day's
 | | any other | planned for `T` (`plan`: `doDate = T`, `unplanned` cleared) |
 | **Unplanned** | sits there already | nothing (the order only) |
 | | has a natural day | **held** (`unplanned`, `doDate` cleared) |
-| | planned, without one | in Focus it just loses its plan (Focus keeps it there), else it is held too — **Unplan never takes a task out of the Planner** |
+| | planned, without one | matching the Unplanned filter it just loses its plan (the filter keeps it there), else it is held too — **Unplan never takes a task out of the Planner** |
 | | any other | held too — Unplanned is how a task with no date joins the Planner, flagged |
 | **Delayed** | any | **takes no drop**; a row already in it only reorders |
 
