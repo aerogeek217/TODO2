@@ -67,14 +67,7 @@ A task's **natural day** (`utils/planner.plannerNaturalDay`) is the earlier of i
 
 A row is **placed** when it has a plan state.
 
-### Redundant plans
-
-The planned day is the `doDate`'s day (`plannerPlannedDay`) — unless that is the very day of the task's earliest real date, wherever it lies. Such a plan is **redundant** and reads as no plan:
-
-- the row is not placed and carries no plan mark;
-- once the day has passed, the task is overdue in Today, never in Delayed.
-
-It is decided when the plan is read, not when it is written, so it holds whether the plan or an edit of the date came last: Add task typed with a due date of today, or a due date edited onto the planned day.
+The planned day is the `doDate`'s day (`plannerPlannedDay`). A plan on the very day of the task's due date or follow-up is a plan like any other: the row is placed and carries its plan mark, and once the day has passed it is in Delayed.
 
 ### Conflicts
 
@@ -160,7 +153,8 @@ Every day tile and every group — Today (today), each day ahead (an empty day's
 | Dropped on | The task | What the drop does |
 |---|---|---|
 | A day `T` (a tile, a day's group; Today = today) | `T` is before today | refused |
-| | `T` is its natural day | whatever plan state it has is cleared (`own`) — a redundant plan for that very day too, and a later plan; with none to clear, nothing |
+| | planned for `T` and sits there | nothing (the order only): a plan on its natural day is kept |
+| | `T` is its natural day | whatever plan state it has is cleared (`own`) — a later plan too; with none to clear, nothing |
 | | sits there already | nothing (the order only) |
 | | any other | planned for `T` (`plan`: `doDate = T`, `unplanned` cleared) |
 | **Unplanned** | sits there already | nothing (the order only) |
@@ -215,5 +209,5 @@ Unplan all Delayed and each reset are one write and one undo step, with the snac
 
 **Move due date / follow-up to the planned day** is the one Planner write that touches a real date (`applyPlannerFix`). It is the ordinary task edit, the day at local midnight: stamped, undoable, in the history.
 
-- When the task's own dates then put it on its planned day, the plan is cleared in the same edit (one undo step), so the row is no longer placed (`plannerFixClearsPlan`).
-- With another, earlier date still putting it elsewhere, the plan stays.
+- When the task's own dates then put it on its planned day in the window (its natural day), the plan is cleared in the same edit (one undo step), so the row is no longer placed (`plannerFixClearsPlan`).
+- With another, earlier date still putting it elsewhere, or the planned day past the window, the plan stays.

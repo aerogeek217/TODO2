@@ -220,12 +220,12 @@ What each Planner test file covers. The rules are in [planner](features/planner.
   - on Delayed: no drop;
   - a completed task;
   - what each writes;
-  - a task's own day is tested before where it sits.
-- **A redundant plan** (the planned day is the earliest date's own day): no plan, not placed, no tile mark, overdue in Today rather than Delayed, out of view past the window.
+  - a task planned for its own day keeps its plan where it sits; another task's own day is tested before where it sits.
+- **A plan on a real date's day**: placed, a tile mark, Delayed once past, planned later past the window.
 - **A task planned later**: on its natural day, placed, in conflict; `plannerShows`; in the view, the tiles and Reset plan's counts; Snooze from its planned day.
 - **A row's tag**: a Delayed row's planned day; a held row's natural day; a conflict with every fix once; its words and tooltip; the day in words.
 - The dates drawn late.
-- **A Move date fix** that makes the plan redundant, and one that does not (another, earlier date).
+- **A Move date fix** that puts the task on its planned day by its own dates (the plan cleared), and ones that do not (another, earlier date; past the window).
 - **Snooze, Unplan and Unplan all Delayed**: each task is in Unplanned afterwards.
 - **Reset plan**: its scopes and counts, and the week scope's name (This week, or the shifted window's range).
 - **The labels**: a tile's name with its marks; a placed row's state in words.
@@ -287,7 +287,7 @@ JSDOM.
 
 - **The corner flag**: on placed rows only (Rows, Stacked, Lines, the phone); around the row, not in it.
 - **Each tag**: a Delayed row's day; a held row's; a conflict's words, as a button. It sits after the title's text, leads a Stacked row's details, and is on a line.
-- **The fix menu**: its entries for a due date, a follow-up and both; a pick's write (the date edited with the redundant plan cleared; the plan moved); Esc handing the focus back.
+- **The fix menu**: its entries for a due date, a follow-up and both; a pick's write (the date edited, the plan cleared; the plan moved); Esc handing the focus back.
 - The passed date is drawn late, and no other.
 - **The hover buttons**:
   - Snooze and Unplan on a row of a day or of Delayed;
@@ -386,7 +386,7 @@ The faces follow `ResizeObserver`, so specs test them.
   - a date in the window: the row stays, planned later, no snackbar.
 - **A failed plan write**: the user told, the plan as it was, the hand order back to the one stored before.
 - **A conflict's fixes**:
-  - Move due date / follow-up is a real edit: the day at local midnight, stamped, a history event, the redundant plan cleared in the same undo step;
+  - Move due date / follow-up is a real edit: the day at local midnight, stamped, a history event, the plan cleared in the same undo step when the task's dates then put it on its planned day;
   - the plan is kept while another, earlier date still puts the task elsewhere; the second fix then clears it;
   - Plan for that date's day goes through the drop rule.
 - **A row planned later**: Plan for its date's day; Move date to the planned day takes it out of view, with the snackbar `Moved the due date to …`.

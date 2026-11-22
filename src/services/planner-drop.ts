@@ -224,9 +224,8 @@ export async function resetPlannerPlan(view: PlannerRows, scope: PlannerResetSco
  *   as a day at local midnight: **a real edit** of the task, through the
  *   ordinary edit path (`todo-store.update`: stamped, one undo step, in the
  *   history log) — the one Planner write that touches a real date. When
- *   the move makes the plan redundant — the task's own dates now put it on
- *   its planned day (`plannerFixClearsPlan`) — the plan is cleared in the
- *   same edit, one undo step: the row is no longer placed. With another,
+ *   the task's own dates then put it on its planned day in the window
+ *   (`plannerFixClearsPlan`), the plan is cleared in the same edit, one undo step: the row is no longer placed. With another,
  *   earlier date still putting it elsewhere the plan stays. A move that
  *   takes the task out of view (the date moved past the window, for a row
  *   planned later) shows the snackbar with its Undo (`Moved the due date to

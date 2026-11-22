@@ -963,9 +963,9 @@ describe('a conflict’s fixes', () => {
     expect(useUndoStore.getState().snackbar).toBeNull()
 
     await applyPlannerFix('plan', b.id, fixes(b.id, 'due')[0]!, WINDOW)
-    // The due date is the planned day now: the plan goes with the edit, and the task is past the window.
-    expect(w.update).toHaveBeenLastCalledWith(b.id, { dueDate: day(7), doDate: undefined, unplanned: undefined })
-    expect(await plan(b.id)).toMatchObject({ doDate: undefined, dueDate: day(7) })
+    // The due date is the planned day now, past the window: the plan stays (a plan like any other), out of view.
+    expect(w.update).toHaveBeenLastCalledWith(b.id, { dueDate: day(7) })
+    expect(await plan(b.id)).toMatchObject({ doDate: day(7), dueDate: day(7) })
     expect(viewNow().placements.has(b.uid)).toBe(false)
     expect(steps().at(-1)).toBe('Moved the due date to Fri, Nov 27')
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Moved the due date to Fri, Nov 27' })

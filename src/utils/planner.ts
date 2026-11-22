@@ -94,20 +94,12 @@ export function plannerNaturalDay(task: Pick<PlannerTask, 'dueDate' | 'nextFollo
 }
 
 /**
- * A task's **planned day**: its `doDate`'s day — unless that is the very day
- * of its earliest real date (the earlier of its next follow-up and its due
- * date, wherever it lies: no window bounds it). Such a plan is **redundant**
- * — the task's own date puts it on that day anyway — and reads as no plan:
- * the row is not placed, and once the day has passed it is simply overdue
- * in Today, never in Delayed. Read here, not at the write, so it holds
- * whichever came last: the plan, or an edit of the date onto its day.
+ * A task's **planned day**: its `doDate`'s day (local midnight), or null
+ * without one. A plan on the very day of a real date is a plan like any
+ * other: placed, and Delayed once its day has passed.
  */
-export function plannerPlannedDay(task: Pick<PlannerTask, 'doDate' | 'dueDate' | 'nextFollowupAt'>): Date | null {
-  if (task.doDate == null) return null
-  const planned = dayOf(task.doDate)
-  const { dueDate: due, nextFollowupAt: followup } = task
-  const own = due != null && (followup == null || dayTime(due) <= dayTime(followup)) ? due : followup
-  return own != null && dayTime(own) === planned.getTime() ? null : planned
+export function plannerPlannedDay(task: Pick<PlannerTask, 'doDate'>): Date | null {
+  return task.doDate == null ? null : dayOf(task.doDate)
 }
 
 /** A fix for a plan that falls after a real date. */
@@ -189,8 +181,8 @@ export function inPlanner(task: PlannerTask, span: PlannerSpan): boolean {
  * date inside it).
  *
  * - held (`unplanned`) → the **Unplanned** tray;
- * - a planned day (`plannerPlannedDay`: its `doDate`, unless redundant)
- *   before today → the **Delayed** tray — nothing joins Today on its own —,
+ * - a planned day (`plannerPlannedDay`: its `doDate`'s day) before today →
+ *   the **Delayed** tray — nothing joins Today on its own —,
  *   on or before the window's last day → that day; later (**planned
  *   later**) → its natural day when it has one — a real date on or before
  *   the window's last day still shows the task: a placed row there, its
@@ -223,7 +215,7 @@ export function plannerPlacement(task: PlannerTask, span: PlannerSpan): PlannerP
   return null
 }
 
-/** Whether `task` has a plan state: a planned day (`doDate`, even a redundant one) or held in Unplanned. */
+/** Whether `task` has a plan state: a planned day (`doDate`) or held in Unplanned. */
 export function plannerHasPlan(task: Pick<PlannerTask, 'doDate' | 'unplanned'>): boolean {
   return task.doDate != null || task.unplanned === true
 }
@@ -259,12 +251,12 @@ export function plannerShows(task: PlannerTask, span: PlannerSpan): boolean {
 }
 
 /**
- * Whether the `move-date` fix `fix` makes `task`'s plan redundant: with that
- * date moved, the task's own dates put it on its planned day (its natural
- * day is the planned one, or its earliest date is that very day, wherever
- * the window ends) — the fix then clears the plan with the date's move, and
- * the row is no longer placed. With another, earlier date still putting it
- * elsewhere, the plan stays.
+ * Whether the `move-date` fix `fix` clears `task`'s plan with the date's
+ * move: with that date moved, the task's natural day in the window is its
+ * planned day — the task's own dates put it there, as a drop on its natural
+ * day clears the plan (`plannerDrop`'s `own`) — and the row is no longer
+ * placed. With another, earlier date still putting it elsewhere, or the
+ * planned day past the window, the plan stays.
  */
 export function plannerFixClearsPlan(
   task: Pick<PlannerTask, 'doDate' | 'dueDate' | 'nextFollowupAt'>,
@@ -274,7 +266,6 @@ export function plannerFixClearsPlan(
   if (task.doDate == null) return false
   const to = dayOf(fix.to)
   const moved = fix.date === 'due' ? { ...task, dueDate: to } : { ...task, nextFollowupAt: to }
-  if (plannerPlannedDay(moved) == null) return true
   const natural = plannerNaturalDay(moved, span)
   return natural != null && natural.day.getTime() === dayTime(task.doDate)
 }
@@ -618,11 +609,11 @@ export type PlannerDrop =
  * whose window is `span`:
  *
  * - a completed task is refused everywhere (the Planner holds open tasks);
- * - on a day `T` (a tile, a day's group, Today = today): `T` its natural
- *   day → whatever plan state it has is cleared (`own` — a redundant plan
- *   for that very day too; with none to clear, nothing); otherwise, where
- *   it sits already → nothing (the order only), else it is planned for `T`
- *   (`plan`). A day before today is refused;
+ * - on a day `T` (a tile, a day's group, Today = today): planned for `T`
+ *   and sitting there → nothing (the order only); `T` its natural day →
+ *   whatever plan state it has is cleared (`own` — a later plan too; with
+ *   none to clear, nothing); otherwise, where it sits already → nothing,
+ *   else it is planned for `T` (`plan`). A day before today is refused;
  * - on **Unplanned**: a task with a natural day is held (`unplan`,
  *   `hold`); a planned one without: in Focus it just loses its plan (Focus
  *   keeps it there), else it is held too — **Unplan never takes a task out
@@ -646,11 +637,14 @@ export function plannerDrop(task: PlannerTask, span: PlannerSpan, target: Planne
   }
   const day = dayOf(target.day)
   if (day.getTime() < dayTime(span.today)) return { kind: 'refuse' }
-  // Its own day first: a plan state it still holds there (a redundant one) is cleared; with none it is there already.
+  const sits = at?.where === 'day' && at.day?.getTime() === day.getTime()
+  // Planned for its natural day and sitting there: a plan like any other, kept.
+  if (sits && at?.reason === 'plan') return { kind: 'none' }
+  // Its own day: a plan state it holds elsewhere is cleared; with none it is there already.
   if (natural && natural.day.getTime() === day.getTime()) {
     return task.doDate != null || task.unplanned === true ? { kind: 'own', day } : { kind: 'none' }
   }
-  if (at?.where === 'day' && at.day?.getTime() === day.getTime()) return { kind: 'none' }
+  if (sits) return { kind: 'none' }
   return { kind: 'plan', day }
 }
 
