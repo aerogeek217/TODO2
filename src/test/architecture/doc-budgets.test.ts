@@ -6,19 +6,25 @@ import path from 'node:path'
  * The docs stay small enough to load. `docs/ARCHITECTURE.md` is read into
  * every session, so it is a map with a word budget. How a feature behaves is
  * in one file per feature under `docs/architecture/features/`, each with its
- * own budget and each listed in the map. A word is a run of non-whitespace.
+ * own budget and each listed in the map. A layer table under
+ * `docs/architecture/` has one row per module, and a row says what the module
+ * is, where it is and what it is for. A word is a run of non-whitespace.
  *
- * Over budget: move the detail from the map to the feature file, or split
- * the feature file in two and list both in the map ("Keeping the docs short"
- * there says what goes where).
+ * Over budget: move the detail from the map or the row to the feature file,
+ * or split the feature file in two and list both in the map ("Keeping the
+ * docs short" there says what goes where).
  */
 
 const MAP_WORDS = 3000
 const FEATURE_WORDS = 4000
+const ROW_WORDS = 300
 
 const DOCS = path.resolve(__dirname, '../../../docs')
 const MAP = path.join(DOCS, 'ARCHITECTURE.md')
 const FEATURES = path.join(DOCS, 'architecture', 'features')
+
+/** The layer tables held to the row budget. */
+const LAYER_TABLES = ['testing.md']
 
 const read = (file: string): string => fs.readFileSync(file, 'utf8')
 const wordCount = (file: string): number => read(file).split(/\s+/).filter(Boolean).length
@@ -28,12 +34,31 @@ const featureFiles = (): string[] =>
     .filter((name) => name.endsWith('.md'))
     .sort()
     .map((name) => path.join(FEATURES, name))
+const layerTables = (): string[] => LAYER_TABLES.map((name) => path.join(DOCS, 'architecture', name))
 const shown = (file: string): string => path.relative(DOCS, file).split(path.sep).join('/')
 
-/** The files a doc links to: every `[text](target)` that is not a URL or a bare `#anchor`. */
+/** A file's table rows over the row budget. A row's words leave out the pipes between its cells. */
+function longRows(file: string): string[] {
+  const out: string[] = []
+  read(file)
+    .split(/\r?\n/)
+    .forEach((text, index) => {
+      const line = text.trim()
+      if (!line.startsWith('|') || /^\|[\s:|-]+$/.test(line)) return
+      const words = line.split(/\s+/).filter((word) => word && word !== '|').length
+      if (words > ROW_WORDS) out.push(`${shown(file)}:${index + 1} has ${words} words`)
+    })
+  return out
+}
+
+/**
+ * The files a doc links to: every `[text](target)` that is not a URL or a
+ * bare `#anchor`. A link written inside a code span is text, not a link.
+ */
 function linkedFiles(file: string): string[] {
   const out: string[] = []
-  for (const m of read(file).matchAll(/\]\(([^)\s]+)\)/g)) {
+  const prose = read(file).replace(/`[^`\n]*`/g, '')
+  for (const m of prose.matchAll(/\]\(([^)\s]+)\)/g)) {
     const target = (m[1] ?? '').split('#')[0] ?? ''
     if (!target || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue
     out.push(path.resolve(path.dirname(file), target))
@@ -57,6 +82,14 @@ describe('doc budgets', () => {
     expect(over, 'Split an over-budget feature file in two and list both in docs/ARCHITECTURE.md.').toEqual([])
   })
 
+  it(`keeps each layer-table row to ${ROW_WORDS} words`, () => {
+    const over = layerTables().flatMap(longRows)
+    expect(
+      over,
+      'A row says what the module is, where it is and what it is for. Move how it behaves to its feature file.',
+    ).toEqual([])
+  })
+
   it('lists every feature file in the map', () => {
     const listed = new Set(linkedFiles(MAP))
     const unlisted = featureFiles()
@@ -66,7 +99,7 @@ describe('doc budgets', () => {
   })
 
   it('links only to files that exist', () => {
-    const broken = [MAP, ...featureFiles()].flatMap((file) =>
+    const broken = [MAP, ...featureFiles(), ...layerTables()].flatMap((file) =>
       linkedFiles(file)
         .filter((target) => !fs.existsSync(target))
         .map((target) => `${shown(file)} → ${shown(target)}`),

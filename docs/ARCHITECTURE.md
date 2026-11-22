@@ -126,9 +126,9 @@ The layer tables. Each is a table of `Abstraction | Location | Purpose` rows: wh
 
 ## Keeping the docs short
 
-`src/test/architecture/doc-budgets.test.ts` fails `npm test`, and so the deploy, when this file is over 3,000 words, when a feature file is over 4,000, or when a feature file is not listed under [Features](#features).
+`src/test/architecture/doc-budgets.test.ts` fails `npm test`, and so the deploy, when this file is over 3,000 words, when a feature file is over 4,000 or is not listed under [Features](#features), or when a row of a layer table the test holds is over 300.
 
-- **A new module** gets one row in its layer table.
+- **A new module** gets one row in its layer table: what it is, where it is and what it is for.
 - **How it behaves** goes in its feature file. A feature file that outgrows its budget is split in two, and both are listed above.
 - **This file changes** only when a folder, a layer, a feature file or the outline of the data flow changes.
 - **Describe the app as it is.** No plan names, dates or notes about what was removed: history is in git and `CHANGELOG.md`. What a schema upgrade does is in [architecture/models-and-data.md](architecture/models-and-data.md).
