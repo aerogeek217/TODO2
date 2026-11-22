@@ -137,7 +137,7 @@ describe('NewListsSection', () => {
     render(<NewListsSection />)
     const sort = screen.getByRole('combobox', { name: 'New lists sort by' })
     expect(sort).toHaveValue('manual')
-    expect(within(sort).getAllByRole('option').map((o) => o.textContent)).toEqual(['Manual', 'Priority', 'Due date', 'Next follow-up', 'Last followed up', 'Completed', 'Name', 'People', 'Status', 'Created', 'Modified'])
+    expect(within(sort).getAllByRole('option').map((o) => o.textContent)).toEqual(['Manual', 'Priority', 'Due date', 'Planned date', 'Next follow-up', 'Last followed up', 'Completed', 'Name', 'People', 'Status', 'Created', 'Modified'])
     expect(screen.queryByRole('combobox', { name: 'New lists sort order' })).toBeNull()
 
     fireEvent.change(sort, { target: { value: 'deadline' } })
@@ -174,7 +174,7 @@ describe('NewListsSection', () => {
     render(<NewListsSection />)
     const group = screen.getByRole('combobox', { name: 'New lists group by' })
     expect(group).toHaveValue('none')
-    expect(within(group).getAllByRole('option').map((o) => o.textContent)).toEqual(['No grouping', 'Priority', 'Due date', 'Next follow-up date', 'People', 'Status', 'Tag'])
+    expect(within(group).getAllByRole('option').map((o) => o.textContent)).toEqual(['No grouping', 'Priority', 'Due date', 'Planned date', 'Next follow-up date', 'People', 'Status', 'Tag'])
     fireEvent.change(group, { target: { value: 'tag' } })
     await waitFor(() => expect(useSettingsStore.getState().newListGroup).toBe('tag'))
     await waitFor(async () => expect((await db.settings.get('newListGroup'))?.value).toBe('tag'))

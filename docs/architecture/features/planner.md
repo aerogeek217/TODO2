@@ -12,7 +12,7 @@ A task's **plan state** is one of three, kept on the task (`models/todo-item.Tas
 - a **planned day** (`doDate?: Date` on `TodoItem`): the day the user plans to work on the task, a day at local midnight;
 - **held in Unplanned** (`unplanned?: true`; only `true` is stored).
 
-Never both. Neither field is indexed. The plan state is the Planner's: it is shown nowhere else, and no filter, expression, sort, row column, calendar, Quick Add, Markdown export or check-in reads it.
+Never both. Neither field is indexed. The plan state is shown nowhere but the Planner. Filters read it as the **Planned** date type (`DateField` `planned`: the planned day; its `held` clause, the expression's `unplanned`, is held in Unplanned), and lists sort and group by it; no row column, calendar, Quick Add, Markdown export or check-in message reads it.
 
 It is set in the Planner, or from **Plan for day ›** outside it (`task/plan-menu.planForDayEntries`): in every task menu — a list row's, a calendar entry's (the day popover's too), a search result's — and in the task editor's and the [review card](review.md)'s ⋯. That submenu offers:
 

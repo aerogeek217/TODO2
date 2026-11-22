@@ -50,7 +50,7 @@ function parseId(key: string, prefix: string): number | null {
  *   - Either bucket key is missing — the target group can't be resolved.
  *   - Source and target are the same group — pure reorder, no field
  *     change.
- *   - `groupBy` is a date dimension (`deadline` / `followup`).
+ *   - `groupBy` is a date dimension (`deadline` / `planned` / `followup`).
  *     Date buckets are derived, not assigned; the date itself is never
  *     rewritten.
  *   - `groupBy` is `priority`: its drops read the task and can be refused
@@ -70,7 +70,7 @@ export function resolveCrossGroupMutation(
 ): CrossGroupMutation | null {
   if (sourceKey == null || targetKey == null) return null
   if (sourceKey === targetKey) return null
-  if (groupBy === 'deadline' || groupBy === 'followup') return null
+  if (groupBy === 'deadline' || groupBy === 'planned' || groupBy === 'followup') return null
 
   if (groupBy === 'status') {
     if (targetKey === UNGROUPED_GROUP_KEY) {

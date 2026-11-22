@@ -13,6 +13,7 @@ export type TodoSortBy =
   | 'priority'    // Focus, Urgent + Important, Urgent, Important, none; then due date
   | 'name'        // alphabetical title
   | 'deadline'    // dueDate (UI label "Due")
+  | 'planned'     // doDate (UI label "Planned"; earliest first, no plan last)
   | 'followup'    // nextFollowupAt (UI label "Next follow-up")
   | 'lastFollowup' // lastFollowupAt (oldest first: the longest unchased on top)
   | 'completed'   // completedAt (picked newest first: `SORT_DIRECTION_ON_PICK`)
@@ -24,6 +25,7 @@ export type TodoSortBy =
 export type TodoGroupBy =
   | 'none'        // flat list — no group headers
   | 'deadline'    // relative buckets on dueDate (Overdue / Today / This week / …)
+  | 'planned'     // relative buckets on doDate (Delayed / Today / This week / …), then Unplanned (held)
   | 'followup'    // relative buckets on nextFollowupAt
   | 'people'      // many-to-many
   | 'status'
@@ -31,12 +33,12 @@ export type TodoGroupBy =
   | 'priority'    // many-to-many: Focus, Urgent, Important, No priority
 
 export const TODO_SORT_BY_VALUES: readonly TodoSortBy[] = [
-  'manual', 'priority', 'name', 'deadline', 'followup', 'lastFollowup', 'completed', 'created', 'modified',
+  'manual', 'priority', 'name', 'deadline', 'planned', 'followup', 'lastFollowup', 'completed', 'created', 'modified',
   'people', 'status',
 ] as const
 
 export const TODO_GROUP_BY_VALUES: readonly TodoGroupBy[] = [
-  'none', 'deadline', 'followup',
+  'none', 'deadline', 'planned', 'followup',
   'people', 'status', 'tag', 'priority',
 ] as const
 

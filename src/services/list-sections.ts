@@ -1,6 +1,6 @@
 import type { PersistedTodoItem, Person, Status, Tag, TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models'
 import { effectiveSortDirection, isTodoGroupBy } from '../models'
-import { assignedEntitiesById, partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
+import { PLANNED_HELD_GROUP_KEY, assignedEntitiesById, partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
 import { compareTodosByDate, pickTodoDate, type WeekStart } from '../utils/effective-date'
 import { bySortOrder } from '../utils/sort-order'
 import { startOfDay } from '../utils/date'
@@ -88,7 +88,8 @@ interface ListSortContext {
  * - `manual` — the list's ranks when given (`manualOrderComparator`: ranked
  *   first, then unranked oldest first), else `sortOrder` (then id).
  * - `name` — alphabetical title, ties by `sortOrder`.
- * - `deadline` / `followup` — ascending date, undated last, ties by `sortOrder`.
+ * - `deadline` / `planned` / `followup` — ascending date (a planned day:
+ *   earliest first), undated (no plan, held too) last, ties by `sortOrder`.
  * - `lastFollowup` / `completed` — ascending moment (oldest first; Completed
  *   is picked descending, newest first), never followed up / open last,
  *   ties by `sortOrder`.
@@ -122,6 +123,7 @@ export function listSortComparator(
     case 'name':
       return (a, b) => (sign * a.title.localeCompare(b.title)) || bySortOrder(a, b)
     case 'deadline':
+    case 'planned':
     case 'followup':
     case 'lastFollowup':
     case 'completed':
@@ -203,12 +205,13 @@ function priorityComparator(ctx: ListSortContext, sign: 1 | -1): (a: PersistedTo
   }
 }
 
-/** Group colours of date sections; the trailing "No …" sections are muted too. */
-const DATE_ACCENTS: Partial<Record<DateBucketKey, string>> = {
+/** Group colours of date sections (Planned's Unplanned group muted); the trailing "No …" sections are muted too. */
+const DATE_ACCENTS: Partial<Record<DateBucketKey | typeof PLANNED_HELD_GROUP_KEY, string>> = {
   overdue: 'var(--color-overdue)',
   today: 'var(--color-accent-text)',
   week: 'var(--color-text-secondary)',
   later: 'var(--color-text-muted)',
+  [PLANNED_HELD_GROUP_KEY]: 'var(--color-text-muted)',
 }
 
 const UNGROUPED_ACCENT = 'var(--color-text-muted)'
@@ -216,6 +219,7 @@ const UNGROUPED_ACCENT = 'var(--color-text-muted)'
 /** Trailing section for tasks with no value on the grouped axis. */
 const UNGROUPED_SECTION: Record<Exclude<TodoGroupBy, 'none'>, { key: string; label: string }> = {
   deadline: { key: 'none', label: 'No Due Date' },
+  planned: { key: 'none', label: 'Not planned' },
   followup: { key: 'none', label: 'No Follow-up' },
   people: { key: 'unassigned', label: 'Unassigned' },
   status: { key: 'no-status', label: 'No Status' },
@@ -265,7 +269,9 @@ function preferGroups<G extends { key: string; todos: PersistedTodoItem[] }>(gro
 /**
  * Sort `members` and split them into sections for `spec.groupBy`.
  *
- * Group order: dates Overdue → Today → This Week → Later; status by its
+ * Group order: dates Overdue → Today → This Week → Later (Planned:
+ * Delayed → Today → This Week → Later → Unplanned, the tasks held in the
+ * Planner's Unplanned tray); status by its
  * registry `sortOrder`; people and tags alphabetically (or in the
  * restrict order); Priority Focus → Urgent → Important (Urgent = effective
  * Urgent). A task with
@@ -313,6 +319,7 @@ export function buildListSections(
   const sections: Section[] = groups.map((g) => {
     switch (groupBy) {
       case 'deadline':
+      case 'planned':
       case 'followup':
         return { key: g.key, label: g.label, accentColor: DATE_ACCENTS[g.key as DateBucketKey], todos: g.todos }
       case 'people': {

@@ -62,11 +62,11 @@ describe('<ListEditorBody>', () => {
   it('offers the list choices, People and Status among the sorts', () => {
     render(<ListEditorBody draft={makeDraft({ sort: 'status', grouping: 'tag' })} onChange={vi.fn()} />)
     openChoices('Sort by')
-    expect(choiceLabels()).toEqual(['Manual', 'Priority', 'Due date', 'Next follow-up', 'Last followed up', 'Completed', 'Name', 'People', 'Status', 'Created', 'Modified'])
+    expect(choiceLabels()).toEqual(['Manual', 'Priority', 'Due date', 'Planned date', 'Next follow-up', 'Last followed up', 'Completed', 'Name', 'People', 'Status', 'Created', 'Modified'])
     expect(screen.getByRole('menuitemradio', { name: /^Status/ })).toHaveAttribute('aria-checked', 'true')
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
     openChoices('Group by')
-    expect(choiceLabels()).toEqual(['No grouping', 'Priority', 'Due date', 'Next follow-up date', 'People', 'Status', 'Tag'])
+    expect(choiceLabels()).toEqual(['No grouping', 'Priority', 'Due date', 'Planned date', 'Next follow-up date', 'People', 'Status', 'Tag'])
   })
 
   it.each(['Group by', 'Sort by'])('a second press on %s closes its menu; a third opens it again', (row) => {

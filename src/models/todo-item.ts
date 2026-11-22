@@ -36,9 +36,10 @@ export interface TodoItem {
   nextFollowupAt?: Date
   /**
    * The planned day: the day the user plans to work on the task — a
-   * calendar day stored at local midnight. Planner-only: shown and set there
-   * and nowhere else (no filter, sort, column or export reads it). One of a
-   * task's two **plan states**, with `unplanned` (never both). Planning is
+   * calendar day stored at local midnight. Shown and set in the Planner;
+   * filters (the `planned` date type), list sorts and groups read it, no
+   * row column or Markdown export does. One of a task's two **plan
+   * states**, with `unplanned` (never both). Planning is
    * not an edit of the task: a plan write never stamps `modifiedAt`
    * (`todo-store.setPlan`, `KEEP_STAMPS`) and logs no history event, and it
    * never changes a due date or a follow-up. Completing a repeating task

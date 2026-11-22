@@ -156,7 +156,7 @@ function buildSeed(): Seed {
     }, {
       id: 3, name: 'By priority', sortOrder: 2,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
-      sort: 'manual', grouping: 'priority',
+      sort: 'planned', grouping: 'planned',
       owner: { layoutId: 1 },
     }, {
       id: 1, name: 'By person', sortOrder: 0,
