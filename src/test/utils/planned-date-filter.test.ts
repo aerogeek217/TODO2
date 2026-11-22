@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FilterExpr } from '../../models/filter-expression'
-import { emptyFilterClauses, emptyPredicate, type DateAnchor, type DateMatch, type TodoItem } from '../../models'
+import { emptyFilterClauses, emptyPredicate, type DateAnchor, type DateMatch, type DateRangeMatch, type TodoItem } from '../../models'
 import {
   clausesToExpression,
   expressionToClauses,
@@ -59,7 +59,7 @@ const words = (text: string) => {
 const rel = (token: string): DateAnchor => ({ kind: 'relative', token } as DateAnchor)
 const off = (days: number, unit?: 'w' | 'm' | 'y'): DateAnchor => (unit ? { kind: 'offset', days, unit } : { kind: 'offset', days })
 const fixed = (y: number, m: number, d: number): DateAnchor => ({ kind: 'fixed', iso: new Date(y, m - 1, d).toISOString() })
-const range = (start: DateAnchor | null, end: DateAnchor | null): DateMatch => ({ match: 'range', start, end })
+const range = (start: DateAnchor | null, end: DateAnchor | null): DateRangeMatch => ({ match: 'range', start, end })
 
 describe('the expression’s `planned` word', () => {
   it('takes every form the other date words take', () => {
