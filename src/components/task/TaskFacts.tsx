@@ -10,8 +10,8 @@ import { useTooltip } from '../shared/use-tooltip'
 import { StatusMenuPopover } from './StatusMenuPopover'
 import styles from './TaskDetails.module.css'
 
-/** The fact band's cells (task layout B), left to right: Due is the last (the follow-up dates are the footer's). */
-type FactKind = 'priority' | 'status' | 'people' | 'tags' | 'due'
+/** The fact band's cells (task layout B), left to right: Planned is the last (the follow-up dates are the footer's). */
+type FactKind = 'priority' | 'status' | 'people' | 'tags' | 'due' | 'planned'
 
 const FACT_LABELS: Record<FactKind, string> = {
   priority: 'Priority',
@@ -19,6 +19,7 @@ const FACT_LABELS: Record<FactKind, string> = {
   people: 'People',
   tags: 'Tags',
   due: 'Due',
+  planned: 'Planned',
 }
 
 /**

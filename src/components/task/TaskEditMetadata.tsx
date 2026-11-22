@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import type { Interval, Person, Tag } from '../../models'
 import { ChipSelector } from '../shared/ChipSelector'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
@@ -34,6 +34,9 @@ interface TaskEditMetadataProps {
   onToggleTag: (id: number) => void
   onCreatePerson?: (name: string) => Promise<void>
   onCreateTag?: (name: string) => Promise<void>
+
+  /** The Planned cell, after Due (`PlannedFacts`: the host's, stored or drafted). */
+  planned?: ReactNode
 }
 
 /**
@@ -48,13 +51,14 @@ interface TaskEditMetadataProps {
  * not one on the pills, whose own toggle runs. Due: the date in the rows'
  * words (its tooltip the full date), a click opens the date picker, ×
  * clears it; its repeat under it, typed (`RepeatField`: `Repeat every [2w]`).
+ * Then the host's Planned cell (`planned`), the band's last.
  */
 export function TaskEditMetadata({
   deadline, repeat, dueTone,
   onDeadlineChange, onRepeatChange,
   assignedPeople, assignedTags, allPeople, allTags,
   onTogglePerson, onToggleTag,
-  onCreatePerson, onCreateTag,
+  onCreatePerson, onCreateTag, planned,
 }: TaskEditMetadataProps) {
   const [openDropdown, setOpenDropdown] = useState<MetadataDropdown | null>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
@@ -150,6 +154,8 @@ export function TaskEditMetadata({
           )}
         </div>
       </FactSection>
+
+      {planned}
     </>
   )
 }

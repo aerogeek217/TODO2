@@ -677,6 +677,18 @@
   color: var(--color-followup);
 }
 
+/* The planned day's hollow bar (the Planner's plan mark), in the fact's color. */
+.compactPlanBar {
+  display: inline-block;
+  width: 3px;
+  height: 11px;
+  margin-right: 5px;
+  box-sizing: border-box;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+  vertical-align: -1px;
+}
+
 /* The dock: the task layout's (`TaskDetails.module.css`), at the medium face's size. */
 .compactDock {
   display: flex;

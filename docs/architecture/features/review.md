@@ -102,7 +102,7 @@ The review card and the task editor share one layout (`task/TaskDetailsBody`): t
 Labeled cells in one row on a slightly darker ground, with thin dividers between them, wrapping when narrow.
 
 - Each cell's width is set by the band's width, never by its value. A change to one fact moves no other cell, and the band wraps by its width alone.
-- The 920px editor holds all five cells on one line. People's and Tags' pills wrap inside their cells.
+- The 1060px editor (`min(1060px, 100vw − 32px)`) holds all six cells on one line; a review card under about 1,050px wraps the band. People's and Tags' pills wrap inside their cells.
 - Each fact sits under the standard section label: 11px bold caps, muted, no color and no icon.
 
 The cells, in order:
@@ -111,6 +111,17 @@ The cells, in order:
 - **Status**.
 - **People** and **Tags**: each value a pill with its own ×, then a dashed round **+**, always shown, that opens the picker.
 - **Due**: its date with the repeat under it. The repeat's lines are kept without a date.
+- **Planned** (`task/PlannedFacts`): the [plan state](planner.md#plan-state), Due's minimum width. Its value is a button opening the **Plan for day** menu (`task/plan-menu.planMenuEntries`: the week's days, Pick a date…, Unplanned, Clear plan); × clears the plan.
+
+Planned's states:
+
+- not planned: `Not planned`, muted;
+- held: `Held in Unplanned`, with the Planner's corner flag at the cell's top-left;
+- a planned day: the hollow bar, the day in the rows' words and how far it is, muted (`11/23 tomorrow`);
+- after a real date: `1 day after due ▾` (or `… after follow-up`) in the deadline color beside the day, opening [the Planner's fixes](planner.md#a-conflicts-fix);
+- missed (a day passed): muted, `3 days ago · Delayed`.
+
+Every write there is the plan write (no stamp, one undo step), except a fix's date move. The cell reads the task as stored, so a plan changed elsewhere (a Planner drag, a menu, undo) shows in an open editor at once. A completed task's plan shows with nothing to open. The editor's create mode holds the plan until Create (`DraftPlannedFacts`), which writes it with the task.
 
 The repeat is typed (`task/RepeatField`): `Repeat every [2w]`, read back as `Every 2 weeks · next Mon, Dec 7`.
 
@@ -254,7 +265,7 @@ Only the rail's sort is view state, saved at once: **Priority** where the tab st
 **Medium**: `ReviewCompactCard`.
 
 - The title.
-- A one-line facts summary. Last is there; it is edited through Open card ↗.
+- A one-line facts summary. Last is there; it is edited through Open card ↗. After the priority, `Planned 11/28` with the hollow bar, in the deadline color while the plan falls after a real date.
 - The updates dock: the Status updates heading, the latest two entries, the update line (⏎ follows up) and the Next row (the field and the quick intervals, which give way in a narrow card).
 - The footer with **Open card ↗** (the editor).
 

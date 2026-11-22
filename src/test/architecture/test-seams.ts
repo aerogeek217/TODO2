@@ -23,6 +23,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'components/shared/ChipSelector.tsx': ['ChipItem'],
   'components/shared/filters/ExpressionField.tsx': ['CLOSE_HELD', 'COMPLETED_HINT_DONE'],
   'components/shared/filters/PredicateChips.tsx': ['SWITCH_REFUSED'],
+  'components/shared/pick-date.ts': ['PICK_DATE_ATTR'],
   'components/shared/PopoverRoot.tsx': ['POPOVER_CARET_ATTR'],
   'components/shared/TaskPillBar.tsx': ['TaskPillDates', 'TaskPillFollowup', 'TaskPillPeople'],
   'components/shared/use-tooltip.tsx': ['UseTooltipResult'],
@@ -148,8 +149,8 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/neglect-map.ts': ['isDueNear', 'NEGLECT_JITTER', 'NeglectFields', 'neglectZone'],
   'utils/notes-preview.ts': ['NOTES_PREVIEW_MAX_CHARS', 'NOTES_PREVIEW_MAX_LINES', 'notesPreviewLines'],
   'utils/planner.ts': [
-    'inPlanner', 'PLANNER_DELAYED_KEY', 'PLANNER_TILE_TICKS_MAX', 'PlannerConflict', 'plannerConflictLabel',
-    'plannerConflicts', 'PlannerDateKind', 'PlannerNaturalDay', 'plannerNaturalDay', 'plannerOrder', 'plannerPlannedDay', 'plannerPlannedLater',
+    'inPlanner', 'PLANNER_DELAYED_KEY', 'PLANNER_TILE_TICKS_MAX', 'PlannerConflict',
+    'PlannerDateKind', 'PlannerNaturalDay', 'plannerNaturalDay', 'plannerOrder', 'plannerPlannedLater',
     'plannerReorder', 'plannerSnooze', 'plannerTagDay', 'PlannerTask',
   ],
   'utils/priority-cues.ts': ['rowGlow'],

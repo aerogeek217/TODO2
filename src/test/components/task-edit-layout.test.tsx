@@ -1,6 +1,6 @@
 // The one task layout (task layout B, feedback 2026-11-15) in the task
 // editor: the header (box, title, Created · Modified, ⋯, ×), then the body —
-// the fact band (Priority, Status, People, Tags, Due, each under its header:
+// the fact band (Priority, Status, People, Tags, Due, Planned, each under its header:
 // the standard section label, no icon), then the writing (Subtasks, then
 // Notes) beside Status updates (the log, the add line) —, then the footer
 // (the follow-up fields, Last then Next and its quick intervals; Mark
@@ -33,8 +33,8 @@ afterEach(() => {
 
 const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
 
-const FACTS = ['priority', 'status', 'people', 'tags', 'due']
-const HEADERS = ['Priority', 'Status', 'People', 'Tags', 'Due']
+const FACTS = ['priority', 'status', 'people', 'tags', 'due', 'planned']
+const HEADERS = ['Priority', 'Status', 'People', 'Tags', 'Due', 'Planned']
 
 function expectLayout(root: HTMLElement, facts = FACTS) {
   const band = root.querySelector('[data-task-facts]') as HTMLElement
