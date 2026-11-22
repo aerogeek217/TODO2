@@ -1,6 +1,6 @@
 import { memo, useCallback, useRef, useState } from 'react'
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core'
-import { calendarEntryLevel, calendarEntryState, type CalendarEntry } from '../../../services/calendar-entries'
+import { calendarEntryLevel, calendarEntryState, isEntryMissed, type CalendarEntry } from '../../../services/calendar-entries'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { calendarEntryBar, calendarEntryTitle } from './calendar-entry-title'
@@ -32,11 +32,13 @@ interface CalendarEntryButtonProps {
 }
 
 /**
- * One calendar entry: a task's due date or next follow-up on a day (or an
- * occurrence of a recurring task) — a line, no fill, with a bar at its left
- * edge in its date type's colour (due magenta, follow-up yellow; flair P6,
- * E6) whose strength is how soon (`data-level`, the ladder a row date's bar
- * shares: faint later, full soon, heavier over a faint tint late). Repeat
+ * One calendar entry: a task's due date, next follow-up or planned day on a
+ * day (or an occurrence of a recurring task) — a line, no fill, with a bar
+ * at its left edge in its date type's colour (due magenta, follow-up yellow;
+ * flair P6, E6) whose strength is how soon (`data-level`, the ladder a row
+ * date's bar shares: faint later, full soon, heavier over a faint tint
+ * late). A plan's bar is hollow, outlined in the secondary text color, its
+ * title in that color too; a missed plan (`isEntryMissed`) is faded. Repeat
  * glyph · title · meta (people + status at `md` / `touch`). Its tooltip is
  * the title beside the same bar, the date type's colour. Click opens the
  * task; a right-click (Shift+F10 / the Menu key on it) opens the task menu
@@ -60,12 +62,14 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
     dragRef?.(node)
   }, [dragRef])
   const open = onOpen ?? ((id: number) => useUIStore.getState().openEditPopup(id))
+  const missed = isEntryMissed(entry, today)
   const cls = [
     styles.entry,
     size === 'md' ? styles.entryMd : size === 'touch' ? styles.entryTouch : '',
     wrap ? styles.entryWrap : '',
     entry.isVirtual ? styles.entryVirtual : '',
     todo.isCompleted ? styles.entryCompleted : '',
+    missed ? styles.entryMissed : '',
     dragging ? styles.entryDragging : '',
   ].filter(Boolean).join(' ')
 

@@ -11,6 +11,7 @@ import {
   movePlannerTask,
   planPlannerDrop,
   planPlannerTaskToday,
+  planTaskForDay,
   resetPlannerPlan,
   snoozePlannerTask,
   unplanDelayedTasks,
@@ -1055,5 +1056,62 @@ describe('a conflict’s fixes', () => {
     expect(planFix).toEqual({ kind: 'plan', day: day(3) })
     await applyPlannerFix('plan', task.id, planFix!, WINDOW)
     expect(await plan(task.id)).toMatchObject({ doDate: day(3), dueDate: day(1), nextFollowupAt: day(3), modifiedAt: STAMP })
+  })
+})
+
+describe('a calendar’s plan drop (planTaskForDay): planned outright, the plan write', () => {
+  /** A drop on a calendar day as the page makes it: the dispatcher, then the plan write for a plan. */
+  async function calendarDrop(todo: PersistedTodoItem, date: Date, activeExtra: Record<string, unknown>, dateTypes = { due: true, followup: true, plan: true }) {
+    const event = {
+      active: { id: 'active', data: { current: { ...activeExtra, type: TASK_DRAG_KIND.task, todo } } },
+      activatorEvent: null,
+      over: { id: 'over', data: { current: { type: TASK_DROP_KIND.calendarDay, date, scope: 'ws-cal', dateTypes } } },
+      delta: { x: 0, y: 0 },
+    } as unknown as DragEndEvent
+    const realDate = vi.fn(async () => {})
+    const handled = await dispatchTaskDrop(event, {
+      calendar: { reschedule: async (id, day, type) => (type === 'plan' ? planTaskForDay(id, day) : realDate()) },
+    })
+    expect(handled).toBe(true)
+    expect(realDate).not.toHaveBeenCalled()
+  }
+
+  it('a plan entry moved to another day: the plan only — no stamp, no history event, one undo step', async () => {
+    const task = await seed('Draft', { doDate: day(1), dueDate: day(4, 9) })
+    const events = await eventCount(task.id)
+    const w = watchWrites()
+    await calendarDrop(task, day(3), { calendarDateType: 'plan' })
+    expect(w.setPlan).toHaveBeenCalledWith([task.id], { day: day(3) })
+    expect(w.tasks()).toBe(1)
+    expect(w.realDates()).toBe(0)
+    expect(await plan(task.id)).toEqual({ doDate: day(3), unplanned: undefined, nextFollowupAt: undefined, dueDate: day(4, 9), modifiedAt: STAMP })
+    expect(await eventCount(task.id)).toBe(events)
+    expect(steps()).toEqual(['Planned “Draft”'])
+    await useUndoStore.getState().undo()
+    expect(await plan(task.id)).toMatchObject({ doDate: day(1), modifiedAt: STAMP })
+  })
+
+  it('outright: on the task’s own due day too (a pick, not the drop rule)', async () => {
+    const task = await seed('Deck', { doDate: day(1), dueDate: day(4, 9) })
+    await calendarDrop(task, day(4), { calendarDateType: 'plan' })
+    expect(await plan(task.id)).toMatchObject({ doDate: day(4), dueDate: day(4, 9), modifiedAt: STAMP })
+  })
+
+  it('a list row dropped on a calendar showing only plans is planned; a held one is no longer held', async () => {
+    const task = await seed('Held', { unplanned: true })
+    await calendarDrop(task, day(2), {}, { due: false, followup: false, plan: true })
+    expect(await plan(task.id)).toEqual({ doDate: day(2), unplanned: undefined, nextFollowupAt: undefined, dueDate: undefined, modifiedAt: STAMP })
+  })
+
+  it('a day before today is refused, as the Planner refuses it; a completed task too', async () => {
+    const task = await seed('Late', { doDate: day(1) })
+    const w = watchWrites()
+    await calendarDrop(task, day(-2), { calendarDateType: 'plan' })
+    expect(w.tasks()).toBe(0)
+    expect(await plan(task.id)).toMatchObject({ doDate: day(1), modifiedAt: STAMP })
+    const done = await seed('Done', { doDate: day(1), isCompleted: true })
+    await calendarDrop(done, day(3), { calendarDateType: 'plan' })
+    expect(await plan(done.id)).toMatchObject({ doDate: day(1) })
+    expect(steps()).toEqual([])
   })
 })

@@ -118,6 +118,8 @@ export const TOOLTIP_ATTR = 'data-tooltip'
 export const TOOLTIP_SHORTCUT_ATTR = 'data-tooltip-shortcut'
 /** An optional colour bar before a `data-tooltip`'s label, as a CSS colour (a calendar entry's date type: `var(--date-bar-due)`). */
 export const TOOLTIP_BAR_ATTR = 'data-tooltip-bar'
+/** `TOOLTIP_BAR_ATTR`'s value for the hollow bar (a planned day: the Planner's plan mark) instead of a colour. */
+export const TOOLTIP_BAR_HOLLOW = 'hollow'
 /** What the bar means, for assistive tech (the bar is its only sign on screen): `Due`. */
 export const TOOLTIP_BAR_LABEL_ATTR = 'data-tooltip-bar-label'
 

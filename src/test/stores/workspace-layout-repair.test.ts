@@ -66,6 +66,17 @@ describe('layoutRepository reads', () => {
     expect(all.map((r) => r.fixes)).toEqual([['size reset', 'tab dropped']])
   })
 
+  it('a calendar stored before calendars showed plans reads plan: true, with no fixes; the row is untouched', async () => {
+    const id = await layoutRepository.insert({ name: 'Old', createdAt: T0, modifiedAt: T0, ...single({ id: 'kc', tabs: [
+      { id: 'cal1', kind: 'calendar', config: { dateTypes: { due: true, followup: false } } } as never,
+    ] }) })
+    const before = await storedRow(id)
+    const read = await layoutRepository.get(id)
+    expect(read?.fixes).toEqual([])
+    expect(read?.layout.cells[0]?.tabs[0]).toEqual({ id: 'cal1', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: true } } })
+    expect(await storedRow(id)).toEqual(before)
+  })
+
   it('a layout with nothing usable left keeps existing, with no cells (the empty-layout tiles)', async () => {
     const id = await layoutRepository.insert({ name: 'Broken', createdAt: T0, modifiedAt: T0, grid: { columns: [], rows: [] }, cells: ['nope' as never] })
     const read = await layoutRepository.get(id)

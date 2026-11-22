@@ -1,11 +1,11 @@
 import type { PersistedTodoItem, TodoChanges } from '../models'
 import type { CalendarDateType } from '../models/workspace-layout'
 
-/** The task field a calendar date type sets. */
+/** The task field a calendar date type sets (a plan is not a field write: `services/planner-drop.planTaskForDay`). */
 const CALENDAR_DATE_FIELD = {
   due: 'dueDate',
   followup: 'nextFollowupAt',
-} as const satisfies Record<CalendarDateType, keyof PersistedTodoItem>
+} as const satisfies Record<Exclude<CalendarDateType, 'plan'>, keyof PersistedTodoItem>
 
 /**
  * Build the `update(id, changes)` changes for moving one of a todo's dates to a
@@ -17,7 +17,7 @@ const CALENDAR_DATE_FIELD = {
 export function buildRescheduleUpdate(
   todo: Pick<PersistedTodoItem, 'dueDate' | 'nextFollowupAt'>,
   targetDate: Date,
-  type: CalendarDateType = 'due',
+  type: Exclude<CalendarDateType, 'plan'> = 'due',
 ): TodoChanges {
   const field = CALENDAR_DATE_FIELD[type]
   const current = todo[field]

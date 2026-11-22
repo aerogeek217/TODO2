@@ -1,15 +1,17 @@
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../models'
-import type { CalendarDateType, CalendarDateTypes } from '../../models/workspace-layout'
+import { shownCalendarDateTypes, type CalendarDateType, type CalendarDateTypes } from '../../models/workspace-layout'
 import { dndLog } from '../debug-flags'
 import type { PlannerTarget } from '../planner'
 import { TASK_DROP_KIND } from './kinds'
 
-/** A list drag dropped on a day of a calendar showing both date types. */
+/** A list drag dropped on a day of a calendar showing more than one date type. */
 export interface CalendarDropChoiceRequest {
   todo: PersistedTodoItem
   /** Midnight of the day dropped on. */
   date: Date
+  /** The date types the calendar shows: the ones to choose from. */
+  dateTypes: CalendarDateTypes
   /** The day's calendar (its droppable `scope`). */
   scope: string | undefined
   /** Where the pointer was let go (viewport), when known. */
@@ -21,13 +23,16 @@ export interface CalendarDropChoiceRequest {
  * plumbing (typically `useTodoStore` + `buildRescheduleUpdate`).
  */
 interface CalendarOps {
-  /** Moves the task's `type` date to `targetDate`'s day. */
+  /**
+   * Moves the task's `type` date to `targetDate`'s day — for a plan, plans it
+   * for that day outright (the plan write).
+   */
   reschedule: (todoId: number, targetDate: Date, type: CalendarDateType) => Promise<void>
   /**
-   * Asks which date to set when the target calendar shows both types and the
-   * drag isn't a calendar entry (which always moves its own date). Resolves
-   * `null` when the user cancels: nothing changes. Without it, the due date
-   * is set.
+   * Asks which date to set when the target calendar shows more than one type
+   * and the drag isn't a calendar entry (which always moves its own date).
+   * Resolves `null` when the user cancels: nothing changes. Without it, the
+   * first type shown is set.
    */
   chooseType?: (request: CalendarDropChoiceRequest) => Promise<CalendarDateType | null>
 }
@@ -107,32 +112,34 @@ export function isPlannerDropData(v: unknown): v is PlannerDropData {
 }
 
 function isDateType(v: unknown): v is CalendarDateType {
-  return v === 'due' || v === 'followup'
+  return v === 'due' || v === 'followup' || v === 'plan'
 }
 
 /**
  * Which date a calendar-day drop sets, from the drag payload and the date
  * types the target calendar shows (`dateTypes` on the day's drop data):
- * - a calendar showing neither date type takes no drop (`null`);
- * - a calendar entry (`calendarDateType` on the drag) moves its own date,
- *   whatever the target calendar shows;
- * - otherwise the date type the target shows, or `'choose'` when it shows both.
+ * - a calendar showing no date type takes no drop (`null`);
+ * - a calendar entry (`calendarDateType` on the drag) moves its own date —
+ *   a plan entry its plan —, whatever the target calendar shows;
+ * - otherwise the date type the target shows, or `'choose'` when it shows
+ *   more than one.
  */
 export function resolveCalendarDropType(
   activeData: Record<string, unknown> | null | undefined,
   dateTypes: CalendarDateTypes,
 ): CalendarDateType | 'choose' | null {
-  if (!dateTypes.due && !dateTypes.followup) return null
+  const shown = shownCalendarDateTypes(dateTypes)
+  if (shown.length === 0) return null
   const own = activeData?.calendarDateType
   if (isDateType(own)) return own
-  if (dateTypes.due && dateTypes.followup) return 'choose'
-  return dateTypes.followup ? 'followup' : 'due'
+  if (shown.length > 1) return 'choose'
+  return shown[0] ?? null
 }
 
 function isDateTypes(v: unknown): v is CalendarDateTypes {
   if (v == null || typeof v !== 'object') return false
   const t = v as Record<string, unknown>
-  return typeof t.due === 'boolean' && typeof t.followup === 'boolean'
+  return typeof t.due === 'boolean' && typeof t.followup === 'boolean' && typeof t.plan === 'boolean'
 }
 
 /** The viewport point a drag ended at (activator position + travel), when the activator was a pointer. */
@@ -144,8 +151,8 @@ function dropPoint(event: DragEndEvent): { x: number; y: number } | null {
 
 /**
  * Shared drop dispatcher for task-shaped drags that land on a shared drop
- * target: a task dropped on a calendar day gets that day as its due date or
- * next follow-up (see {@link resolveCalendarDropType}); one dropped on a
+ * target: a task dropped on a calendar day gets that day as its due date,
+ * next follow-up or planned day (see {@link resolveCalendarDropType}); one dropped on a
  * Planner's day tile or group — a row of that Planner, of a list, a
  * calendar entry — is handed to the Planner's one drop (`deps.planner.drop`,
  * once: no chooser, only the task's plan, never a due date or a follow-up).
@@ -184,10 +191,11 @@ export async function dispatchTaskDrop(
           ? await deps.calendar.chooseType({
             todo: activeTodo,
             date,
+            dateTypes,
             scope: typeof overData.scope === 'string' ? overData.scope : undefined,
             at: dropPoint(event),
           })
-          : 'due'
+          : shownCalendarDateTypes(dateTypes)[0] ?? null
         if (chosen == null) {
           dndLog('dispatch.calendar-day-cancelled', { todoId: activeTodo.id, date: date.toISOString() })
           return true

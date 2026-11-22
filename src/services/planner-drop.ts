@@ -4,7 +4,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
-import { startOfDay } from '../utils/date'
+import { startOfDay, startOfToday } from '../utils/date'
 import { shortTitle } from '../utils/text'
 import {
   plannerClearLeaves,
@@ -19,6 +19,7 @@ import {
   plannerShows,
   plannerSnoozeDay,
   plannerUnplanDelayed,
+  plannerWindow,
   type PlannerDropPosition,
   type PlannerFix,
   type PlannerMovePlan,
@@ -134,6 +135,17 @@ export async function applyPlannerMove(tabId: string | null, todoId: number, pla
 export function movePlannerTask(tabId: string | null, move: PlannerMove): Promise<void> {
   const plan = planPlannerMove(tabId, move)
   return plan ? applyPlannerMove(tabId, move.todoId, plan) : Promise.resolve()
+}
+
+/**
+ * A calendar's plan drop — a plan entry moved to a day, or a list row
+ * dropped as a plan: plans the task for `day` outright (a pick, as Plan for
+ * day ›), read against this week's window — one plan write, no stamp, one
+ * undo step; a day before today, and a completed task, refused
+ * (`plannerDrop`).
+ */
+export function planTaskForDay(todoId: number, day: Date): Promise<void> {
+  return movePlannerTask(null, { todoId, target: { kind: 'day', day, pick: true }, window: plannerWindow(startOfToday()) })
 }
 
 /**

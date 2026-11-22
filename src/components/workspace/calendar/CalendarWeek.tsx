@@ -41,7 +41,7 @@ function WeekRow({ day, entries, fit, ctx, onMore, moreOpen }: {
           : entries.slice(0, shown).map((e) => <EntryItem key={e.key} entry={e} size="md" ctx={ctx} />)}
         {more > 0 && <MoreButton day={day} more={more} open={moreOpen} onMore={onMore} md />}
       </div>
-      {highlighted && <DropLabel ctx={ctx} />}
+      {highlighted && <DropLabel ctx={ctx} day={day} />}
     </div>
   )
 }
@@ -103,7 +103,7 @@ export function WeekColumn({ day, entries, ctx, onMore, moreOpen }: {
       <div className={styles.columnEntries}>
         {entries.map((e) => <EntryItem key={e.key} entry={e} size="md" wrap ctx={ctx} />)}
       </div>
-      {highlighted && <DropLabel ctx={ctx} />}
+      {highlighted && <DropLabel ctx={ctx} day={day} />}
     </div>
   )
 }

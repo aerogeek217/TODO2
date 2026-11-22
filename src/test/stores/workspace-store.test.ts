@@ -123,7 +123,7 @@ describe('structural edits are saved at once, each an undo step', () => {
     ws().insertTrack('top')
     ws().insertTrack('left')
     ws().mergeCells('ka', 'kb')
-    ws().patchTabConfig('a2', 'calendar', { dateTypes: { due: false, followup: true } })
+    ws().patchTabConfig('a2', 'calendar', { dateTypes: { due: false, followup: true, plan: false } })
     ws().changeTabKind('a1', 'trend')
     ws().closeCell('ka')
     expect(undoNames()).toEqual([
@@ -175,8 +175,8 @@ describe('structural edits are saved at once, each an undo step', () => {
 
   it('tab config and Change widget are stored at once; undone, the old config and kind are back', async () => {
     const [id] = await seedAndInit(twoColumns())
-    ws().patchTabConfig('a2', 'calendar', { dateTypes: { due: false, followup: true } })
-    expect(cellOf(await stored(id!), 'ka')!.tabs[1]!.config).toEqual({ dateTypes: { due: false, followup: true } })
+    ws().patchTabConfig('a2', 'calendar', { dateTypes: { due: false, followup: true, plan: false } })
+    expect(cellOf(await stored(id!), 'ka')!.tabs[1]!.config).toEqual({ dateTypes: { due: false, followup: true, plan: false } })
     ws().changeTabKind('b1', 'notes')
     expect(cellOf(await stored(id!), 'kb')!.tabs[0]).toEqual({ id: 'b1', kind: 'notes', config: {} })
     ws().patchTabConfig('b1', 'notes', {}, 'Edited notes')

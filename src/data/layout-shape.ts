@@ -3,6 +3,7 @@ import {
   isListZoom,
   isWidgetKind,
   pickDetailsWidth,
+  type CalendarDateTypes,
   type CalendarTabViewState,
   type CellArea,
   type GridTrack,
@@ -137,6 +138,35 @@ function isFiniteNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
 }
 
+/** A calendar's stored date types: due and follow-up booleans; `plan` a boolean, or absent (stored before calendars showed plans). */
+function isCalendarDateTypes(v: unknown): v is { due: boolean; followup: boolean; plan?: boolean } {
+  return isRecord(v) && typeof v.due === 'boolean' && typeof v.followup === 'boolean' && (v.plan === undefined || typeof v.plan === 'boolean')
+}
+
+/** Stored date types as read: a calendar stored without `plan` shows plans. */
+function readCalendarDateTypes(v: { due: boolean; followup: boolean; plan?: boolean }): CalendarDateTypes {
+  return { due: v.due, followup: v.followup, plan: v.plan !== false }
+}
+
+/** A calendar tab stored without `plan` in its date types. */
+function lacksPlan(tab: LayoutTab): boolean {
+  return tab.kind === 'calendar' && typeof (tab.config.dateTypes as Partial<CalendarDateTypes>).plan !== 'boolean'
+}
+
+/**
+ * `body` with every calendar stored without `plan` reading `plan: true` —
+ * what the database read does to a row `checkLayoutBody` passes (the
+ * repair, `pickLayoutBody`, reads it so too). The same object when no
+ * calendar lacks it.
+ */
+export function withCalendarPlans<B extends { cells: LayoutCell[] }>(body: B): B {
+  if (!body.cells.some((cell) => cell.tabs.some(lacksPlan))) return body
+  const read = (tab: LayoutTab): LayoutTab => (tab.kind === 'calendar' && lacksPlan(tab)
+    ? { ...tab, config: { ...tab.config, dateTypes: readCalendarDateTypes(tab.config.dateTypes) } }
+    : tab)
+  return { ...body, cells: body.cells.map((cell) => (cell.tabs.some(lacksPlan) ? { ...cell, tabs: cell.tabs.map(read) } : cell)) }
+}
+
 /** A Neglect map's `colourBy` as stored: a known kind; tags with a list of ids. */
 function isNeglectColourBy(v: unknown): boolean {
   if (!isRecord(v)) return false
@@ -199,10 +229,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (view?.zoom !== undefined && !isListZoom(view.zoom)) return `${path}.viewState.zoom`
       return true
     case 'calendar': {
-      const types = config.dateTypes
-      if (!isRecord(types) || typeof types.due !== 'boolean' || typeof types.followup !== 'boolean') {
-        return `${path}.config.dateTypes`
-      }
+      if (!isCalendarDateTypes(config.dateTypes)) return `${path}.config.dateTypes`
       if (view?.view !== undefined && view.view !== 'week' && view.view !== 'month') return `${path}.viewState.view`
       if (view?.offset !== undefined && !isFiniteNum(view.offset)) return `${path}.viewState.offset`
       if (view?.titles !== undefined && typeof view.titles !== 'boolean') return `${path}.viewState.titles`
@@ -615,11 +642,9 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'calendar': {
         const types = config.dateTypes
-        const typesOk = isRecord(types) && typeof types.due === 'boolean' && typeof types.followup === 'boolean'
+        const typesOk = isCalendarDateTypes(types)
         if (!typesOk) fix('settings')
-        const dateTypes = typesOk
-          ? { due: types.due === true, followup: types.followup === true }
-          : { ...DEFAULT_CALENDAR_DATE_TYPES }
+        const dateTypes = typesOk ? readCalendarDateTypes(types) : { ...DEFAULT_CALENDAR_DATE_TYPES }
         const calendar: CalendarTab = { id, kind: 'calendar', config: { dateTypes } }
         if (view) {
           const viewState: CalendarTabViewState = {}

@@ -1,4 +1,4 @@
-import type { CalendarView } from '../models/workspace-layout'
+import type { CalendarDateTypes, CalendarView } from '../models/workspace-layout'
 import type { WeekStart } from './effective-date'
 import { addDays } from './date'
 
@@ -85,6 +85,17 @@ export function calendarRangeLabel(range: CalendarRange, short: boolean): string
     ? `${shortMonth(first)} ${first.getDate()} – ${last.getDate()}`
     : `${shortMonth(first)} ${first.getDate()} – ${shortMonth(last)} ${last.getDate()}`
   return short ? span : `${span}, ${first.getFullYear()}`
+}
+
+/**
+ * What a calendar's entries are, in words, for its notes and its small
+ * face: `due`, `to follow up`, `planned`, joined — `due or to follow up`,
+ * `due, to follow up or planned`.
+ */
+export function calendarTypesWords(types: CalendarDateTypes): string {
+  const parts = [types.due && 'due', types.followup && 'to follow up', types.plan && 'planned'].filter((p) => p !== false)
+  if (parts.length <= 1) return parts.join('')
+  return `${parts.slice(0, -1).join(', ')} or ${parts.at(-1) ?? ''}`
 }
 
 /** What an empty view is called in its note: `October` / `this week` / `the week of Oct 12`. */

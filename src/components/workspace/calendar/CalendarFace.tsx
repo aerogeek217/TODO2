@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { CalendarTab } from '../../../models/workspace-layout'
 import type { CalendarEntry } from '../../../services/calendar-entries'
-import { calendarRange, dayLabel, weekdayLabels } from '../../../utils/calendar-grid'
+import { calendarRange, calendarTypesWords, dayLabel, weekdayLabels } from '../../../utils/calendar-grid'
 import { dayHeat, heatHue, heatSummary } from '../../../utils/calendar-heat'
 import { dayKey } from '../../../utils/date'
 import type { WidgetFace } from '../../../utils/widget-face'
@@ -13,10 +13,9 @@ import { CalendarDayPopover } from './CalendarDayPopover'
 import calStyles from './CalendarWidget.module.css'
 import styles from './CalendarFace.module.css'
 
-/** What today's entries are, in words: `due`, `to follow up`, `due or to follow up`. */
+/** What today's entries are, in words: `due today`, `due or to follow up today`, …. */
 function todayWords(types: CalendarTab['config']['dateTypes']): string {
-  if (types.due && types.followup) return 'due or to follow up today'
-  return types.followup ? 'to follow up today' : 'due today'
+  return `${calendarTypesWords(types)} today`
 }
 
 /** A medium face's day: its weekday, number and count, heat-tinted; it takes a task drop (sets the date) and opens its entries. */
@@ -48,7 +47,7 @@ function WeekFaceDay({ day, weekday, entries, ctx, onOpen }: {
       <span className={styles.weekName}>{weekday}</span>
       <span className={`${styles.weekNumber} ${heat.late ? styles.weekLate : ''}`} data-late={heat.late ?? undefined}>{day.getDate()}</span>
       <span className={styles.weekCount} data-testid="calendar-face-count">{heat.count > 0 ? heat.count : '–'}</span>
-      {highlighted && <DropLabel ctx={ctx} />}
+      {highlighted && <DropLabel ctx={ctx} day={day} />}
     </button>
   )
 }

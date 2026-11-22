@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
+import { TOOLTIP_BAR_HOLLOW } from '../../utils/dom-contract'
 import styles from './Tooltip.module.css'
 
 const GAP_PX = 6
@@ -22,7 +23,7 @@ export function TooltipBubble({ id, anchorRef, text, shortcut, bar, barLabel, la
   anchorRef: RefObject<HTMLElement | null>
   text: string
   shortcut?: string
-  /** A colour bar before the label (a CSS colour): what a calendar entry's own bar says, its date type. */
+  /** A colour bar before the label (a CSS colour, or `TOOLTIP_BAR_HOLLOW`: the hollow bar of a plan): what a calendar entry's own bar says, its date type. */
   bar?: string
   /** What the bar means, for assistive tech (`Due`): it names the bar, which is otherwise hidden. */
   barLabel?: string
@@ -79,7 +80,8 @@ export function TooltipBubble({ id, anchorRef, text, shortcut, bar, barLabel, la
         {bar && (
           <span
             className={styles.bar}
-            style={{ background: bar }}
+            style={bar === TOOLTIP_BAR_HOLLOW ? undefined : { background: bar }}
+            data-hollow={bar === TOOLTIP_BAR_HOLLOW ? '' : undefined}
             {...(barLabel ? { role: 'img', 'aria-label': barLabel } : { 'aria-hidden': true })}
             data-tooltip-bar-mark=""
           />

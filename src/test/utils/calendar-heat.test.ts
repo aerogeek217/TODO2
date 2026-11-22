@@ -28,21 +28,29 @@ describe('heatStep', () => {
 
 describe('heatHue', () => {
   it('the follow-up colour only when follow-ups alone are shown', () => {
-    expect(heatHue({ due: true, followup: false })).toBe('due')
-    expect(heatHue({ due: false, followup: true })).toBe('followup')
-    expect(heatHue({ due: true, followup: true })).toBe('due')
-    expect(heatHue({ due: false, followup: false })).toBe('due')
+    expect(heatHue({ due: true, followup: false, plan: false })).toBe('due')
+    expect(heatHue({ due: false, followup: true, plan: false })).toBe('followup')
+    expect(heatHue({ due: true, followup: true, plan: false })).toBe('due')
+    expect(heatHue({ due: false, followup: false, plan: false })).toBe('due')
+    expect(heatHue({ due: false, followup: true, plan: true })).toBe('followup')
+    expect(heatHue({ due: false, followup: false, plan: true })).toBe('due')
   })
 })
 
 describe('dayHeat', () => {
   it('counts every entry, by date type and open', () => {
     const heat = dayHeat([...many(4), entry('due', { done: true }), entry('followup')], FUTURE, TODAY)
-    expect(heat).toEqual({ count: 6, step: 3, due: 5, followup: 1, open: 5, late: null })
+    expect(heat).toEqual({ count: 6, step: 3, due: 5, followup: 1, plan: 0, open: 5, late: null })
+  })
+
+  it('counts plans too; a missed plan is not late', () => {
+    expect(dayHeat([entry('due'), entry('plan'), entry('plan')], FUTURE, TODAY)).toEqual({ count: 3, step: 2, due: 1, followup: 0, plan: 2, open: 3, late: null })
+    expect(dayHeat([entry('plan')], PAST, TODAY).late).toBeNull()
+    expect(dayHeat([entry('plan'), entry('followup')], PAST, TODAY).late).toBe('followup')
   })
 
   it('an empty day is step 0', () => {
-    expect(dayHeat([], PAST, TODAY)).toEqual({ count: 0, step: 0, due: 0, followup: 0, open: 0, late: null })
+    expect(dayHeat([], PAST, TODAY)).toEqual({ count: 0, step: 0, due: 0, followup: 0, plan: 0, open: 0, late: null })
   })
 
   it('a past day with an open task’s own date is late: due before follow-up', () => {
@@ -68,14 +76,19 @@ describe('heatSummary', () => {
     expect(heatSummary(dayHeat(many(2, 'followup'), FUTURE, TODAY))).toBe('2 follow-ups')
     expect(heatSummary(dayHeat([...many(4), entry('followup')], FUTURE, TODAY))).toBe('4 due · 1 follow-up')
     expect(heatSummary(dayHeat([], FUTURE, TODAY))).toBe('')
+    expect(heatSummary(dayHeat([entry('due'), entry('plan'), entry('plan')], FUTURE, TODAY))).toBe('1 due · 2 planned')
   })
 })
 
 describe('heatLegendLabel', () => {
   it('says what the tint counts', () => {
-    expect(heatLegendLabel({ due: true, followup: false })).toBe('Tasks due')
-    expect(heatLegendLabel({ due: false, followup: true })).toBe('Follow-ups')
-    expect(heatLegendLabel({ due: true, followup: true })).toBe('Due and follow-ups')
+    expect(heatLegendLabel({ due: true, followup: false, plan: false })).toBe('Tasks due')
+    expect(heatLegendLabel({ due: false, followup: true, plan: false })).toBe('Follow-ups')
+    expect(heatLegendLabel({ due: true, followup: true, plan: false })).toBe('Due and follow-ups')
+    expect(heatLegendLabel({ due: true, followup: true, plan: true })).toBe('Due, follow-ups and plans')
+    expect(heatLegendLabel({ due: true, followup: false, plan: true })).toBe('Due and plans')
+    expect(heatLegendLabel({ due: false, followup: true, plan: true })).toBe('Follow-ups and plans')
+    expect(heatLegendLabel({ due: false, followup: false, plan: true })).toBe('Plans')
   })
 })
 

@@ -82,14 +82,27 @@ export function clampCalendarOffset(n: number): number {
   return Math.max(-CALENDAR_OFFSET_MAX, Math.min(CALENDAR_OFFSET_MAX, Math.trunc(n)))
 }
 
-/** Which task dates a calendar shows (both off = an empty calendar that takes no drops). */
+/**
+ * Which task dates a calendar shows (all off = an empty calendar that takes
+ * no drops). `plan` is the planned day (`TodoItem.doDate`); a calendar
+ * stored without it reads `plan: true` (`data/layout-shape`).
+ */
 export interface CalendarDateTypes {
   due: boolean
   followup: boolean
+  plan: boolean
 }
 
-/** One task date a calendar can show: the due date or the next follow-up. */
+/** One task date a calendar can show: the due date, the next follow-up or the planned day. */
 export type CalendarDateType = keyof CalendarDateTypes
+
+/** The calendar date types in the toolbar's order. */
+export const CALENDAR_DATE_TYPES: readonly CalendarDateType[] = ['due', 'followup', 'plan']
+
+/** The date types `types` shows, in the toolbar's order. */
+export function shownCalendarDateTypes(types: CalendarDateTypes): CalendarDateType[] {
+  return CALENDAR_DATE_TYPES.filter((t) => types[t])
+}
 
 /** `types` with `type` switched on / off (the last one may go off too). */
 export function toggleCalendarDateType(types: CalendarDateTypes, type: CalendarDateType): CalendarDateTypes {
@@ -436,8 +449,8 @@ export const LAYOUT_NAME_MAX = 200
 /** Default weight of a new track (v78 scales each axis's weights to sum to 1000). */
 export const DEFAULT_WEIGHT = 1000
 
-/** Default calendar date types: both. */
-export const DEFAULT_CALENDAR_DATE_TYPES: CalendarDateTypes = { due: true, followup: true }
+/** Default calendar date types: all three. */
+export const DEFAULT_CALENDAR_DATE_TYPES: CalendarDateTypes = { due: true, followup: true, plan: true }
 
 /** Optional per-kind starting values for a new tab. */
 export interface TabSeed {

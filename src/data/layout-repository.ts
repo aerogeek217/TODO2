@@ -1,6 +1,7 @@
 import { db } from './database'
 import { SETTING_KEYS } from './setting-keys'
 import { rowFixes, sanitizeRow } from './import-validation'
+import { withCalendarPlans } from './layout-shape'
 import {
   DEFAULT_LAYOUT_NAME,
   DEFAULT_WEIGHT,
@@ -41,7 +42,8 @@ export interface ReadLayout {
  */
 function readable(row: PersistedWorkspaceLayout): ReadLayout {
   const fixes = rowFixes('layouts', row)
-  if (fixes.length === 0) return { layout: row, fixes }
+  // A calendar stored before calendars showed plans shows them: a read, not a fix.
+  if (fixes.length === 0) return { layout: withCalendarPlans(row), fixes }
   return { layout: { ...sanitizeRow('layouts', row), id: row.id } as PersistedWorkspaceLayout, fixes }
 }
 

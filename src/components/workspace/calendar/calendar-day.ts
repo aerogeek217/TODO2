@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useDndMonitor, useDroppable } from '@dnd-kit/core'
-import { type CalendarDateTypes } from '../../../models/workspace-layout'
+import { shownCalendarDateTypes, type CalendarDateType, type CalendarDateTypes } from '../../../models/workspace-layout'
 import { dayOverdueWash, type CalendarEntry } from '../../../services/calendar-entries'
 import { TASK_DROP_KIND, calendarDayDropId } from '../../../utils/task-dnd'
 import { isCalendarEntryDragData } from './calendar-drag'
@@ -24,6 +24,8 @@ export type CalendarMode = 'month' | 'compact' | 'rows' | 'columns'
 interface TaskDragInfo {
   /** A calendar entry (moves its own date), not a list row. */
   entryMove: boolean
+  /** The date type a calendar entry moves; absent for a list row. */
+  type?: CalendarDateType
 }
 
 /** What a day shared by every layout needs. */
@@ -46,7 +48,7 @@ export function useTaskDrag(): TaskDragInfo | null {
     onDragStart(event) {
       const data = event.active.data.current
       if (!data || data.todo == null) return
-      setDrag({ entryMove: isCalendarEntryDragData(data) })
+      setDrag(isCalendarEntryDragData(data) ? { entryMove: true, type: data.calendarDateType } : { entryMove: false })
     },
     onDragEnd() { setDrag(null) },
     onDragCancel() { setDrag(null) },
@@ -54,11 +56,20 @@ export function useTaskDrag(): TaskDragInfo | null {
   return drag
 }
 
-/** The hovered day's label: what a drop there does. */
-export function dropLabel(drag: TaskDragInfo | null, types: CalendarDateTypes): string {
+const SET_LABEL: Record<CalendarDateType, string> = { due: 'Set due', followup: 'Set follow-up', plan: 'Set plan' }
+
+/**
+ * The hovered day's label: what a drop there does — `Move here` (an entry),
+ * `Set date` (a list row onto a calendar showing more than one type: the
+ * chooser asks), `Set due` / `Set follow-up` / `Set plan`; `Past day` where
+ * a plan would land before today (refused, as the Planner refuses it).
+ */
+export function dropLabel(drag: TaskDragInfo | null, types: CalendarDateTypes, day: Date, today: Date): string {
+  const shown = shownCalendarDateTypes(types)
+  const type = drag?.entryMove ? drag.type : shown.length === 1 ? shown[0] : undefined
+  if (type === 'plan' && day.getTime() < today.getTime()) return 'Past day'
   if (drag?.entryMove) return 'Move here'
-  if (types.due && types.followup) return 'Set date'
-  return types.due ? 'Set due' : 'Set follow-up'
+  return type ? SET_LABEL[type] : 'Set date'
 }
 
 /** A day as a drop target: dropping a task sets (or moves) one of its dates to the day. */
@@ -66,7 +77,7 @@ export function useDayTarget(ctx: DayContext, day: Date) {
   const { setNodeRef, isOver } = useDroppable({
     id: calendarDayDropId(ctx.scope, day.getTime()),
     // A calendar showing no date type takes no drop.
-    disabled: !ctx.dateTypes.due && !ctx.dateTypes.followup,
+    disabled: shownCalendarDateTypes(ctx.dateTypes).length === 0,
     data: { type: TASK_DROP_KIND.calendarDay, date: day, scope: ctx.scope, dateTypes: ctx.dateTypes },
   })
   const highlighted = isOver || ctx.pendingMs === day.getTime()

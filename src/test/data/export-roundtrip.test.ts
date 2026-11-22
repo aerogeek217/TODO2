@@ -197,7 +197,7 @@ function buildSeed(): Seed {
           const b1 = cell('b1-c', [{ id: 't8', kind: 'notes', config: {} }, { id: 't9', kind: 'lens', config: { listDefinitionId: 1 } }], { activeTabId: 't9' })
           const k1 = cell('k1', [
             { id: 't1', kind: 'lens', config: { listDefinitionId: 1 } },
-            { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'month', offset: -2 } },
+            { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: false } }, viewState: { view: 'month', offset: -2 } },
           ], { activeTabId: 't2' })
           const k2 = cell('k2', [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }])
           const k3 = cell('k3', [
@@ -220,7 +220,7 @@ function buildSeed(): Seed {
           ])
           const k4 = cell('k4')
           const k5 = cell('k5', [{ id: 't12', kind: 'notes', config: {} }])
-          const b2c = cell('b2-c', [{ id: 't10', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'week' } }])
+          const b2c = cell('b2-c', [{ id: 't10', kind: 'calendar', config: { dateTypes: { due: false, followup: true, plan: false } }, viewState: { view: 'week' } }])
           const b2d = cell('b2-d', [{ id: 't13', kind: 'notes', config: {} }])
           return grid([
             [b1, b1, b1],

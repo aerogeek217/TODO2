@@ -1079,7 +1079,7 @@ describe('view state, config and sizes', () => {
     const patched = patchTabViewState(withCal, 'k', 'calendar', { view: 'month' })
     expect(getTab(patched, 'k')?.viewState).toEqual({ view: 'month' })
     expect(patchTabViewState(withCal, 'k', 'lens', { zoom: 'lines' })).toBe(withCal)
-    expect(getTab(patchTabConfig(withCal, 'k', 'calendar', { dateTypes: { due: false, followup: true } }), 'k')?.config).toEqual({ dateTypes: { due: false, followup: true } })
+    expect(getTab(patchTabConfig(withCal, 'k', 'calendar', { dateTypes: { due: false, followup: true, plan: false } }), 'k')?.config).toEqual({ dateTypes: { due: false, followup: true, plan: false } })
     const swapped = replaceTab(base, 't1', createTab('calendar', 't1'))
     expect(getTab(swapped, 't1')?.kind).toBe('calendar')
     expect(replaceTab(base, 't1', createTab('calendar', 'b-t'))).toBe(base)
