@@ -475,7 +475,7 @@ test('a Planner row dropped on a list does nothing; on a calendar day it is the 
         { id: 'c1', weight: 5, rows: [wsRow({ id: 'k1', tabs: [{ id: 'plan', kind: 'planner' }] })] },
         { id: 'c2', weight: 3, rows: [
           wsRow({ id: 'k2', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }),
-          wsRow({ id: 'k3', tabs: [{ id: 'cal', kind: 'calendar', dateTypes: { due: true, followup: false } }] }),
+          wsRow({ id: 'k3', tabs: [{ id: 'cal', kind: 'calendar', dateTypes: { due: true, followup: false, plan: false } }] }),
         ] },
       ],
     }],
@@ -1321,7 +1321,7 @@ const ANYWHERE: WorkspaceSeed = {
       { id: 'c1', weight: 4, rows: [wsRow({ id: 'k1', tabs: [{ id: 'plan', kind: 'planner' }] })] },
       { id: 'c2', weight: 4, rows: [
         wsRow({ id: 'k2', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }),
-        wsRow({ id: 'k3', tabs: [{ id: 'cal', kind: 'calendar', view: 'month', offset: 0, titles: true, dateTypes: { due: true, followup: false } }] }),
+        wsRow({ id: 'k3', tabs: [{ id: 'cal', kind: 'calendar', view: 'month', offset: 0, titles: true, dateTypes: { due: true, followup: false, plan: false } }] }),
       ] },
     ],
   }],

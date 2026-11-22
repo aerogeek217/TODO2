@@ -10,8 +10,8 @@ export interface WsTabSeed {
   kind: WidgetKind
   /** List tabs: index into `listDefinitions`. */
   listDefIdx?: number
-  /** Calendar tabs: date types shown (default both). */
-  dateTypes?: { due: boolean; followup: boolean }
+  /** Calendar tabs: date types shown (default all three). */
+  dateTypes?: { due: boolean; followup: boolean; plan: boolean }
   /** Calendar tabs: view state. */
   view?: 'month' | 'week'
   offset?: number

@@ -158,7 +158,7 @@ test.describe('desktop', () => {
           {
             id: 'colB',
             rows: [
-              wsRow({ id: 'b1', tabs: [{ id: 'cal', kind: 'calendar', dateTypes: { due: true, followup: false } }] }, { weight: 1 }),
+              wsRow({ id: 'b1', tabs: [{ id: 'cal', kind: 'calendar', dateTypes: { due: true, followup: false, plan: false } }] }, { weight: 1 }),
               wsRow({ id: 'b2', tabs: [{ id: 'notes', kind: 'notes' }] }, { weight: 5 }),
             ],
           },
@@ -179,6 +179,9 @@ test.describe('desktop', () => {
       during: async () => { await expect(target).toContainText('Set due') },
     })
     await expect(target.getByTestId('calendar-face-count')).toHaveText('1')
+    // The day's mark: the Planner strip's solid tick for a due date.
+    await expect(target.locator('[data-mark]')).toHaveCount(1)
+    await expect(target.locator('[data-mark="due"]')).toHaveCount(1)
     const stored = (await readStore<{ title: string; dueDate?: Date }>(page, 'todos')).find((t) => t.title === 'Call legal')
     const due = stored?.dueDate ? new Date(stored.dueDate) : null
     expect(due && `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`).toBe(today)
