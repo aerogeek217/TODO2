@@ -6,7 +6,11 @@ import { prepareImport } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../data/export-data'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
-import { emptyPredicate, type ListDefinition } from '../../models'
+import { emptyPredicate, type ListDefinition, type TodoPredicate } from '../../models'
+import { checkLayoutBody, pickLayoutBody } from '../../data/layout-shape'
+import { readCheckinFilterSetting } from '../../data/checkin-filter-shape'
+import { createTab, type LayoutTab } from '../../models/workspace-layout'
+import { single } from '../helpers/layout-builders'
 import { resetDb } from '../helpers'
 
 /**
@@ -103,5 +107,25 @@ describe('v87 files', () => {
     const [list] = prepared.data.listDefinitions
     expect(list?.membership).toEqual({ kind: 'custom', predicate: emptyPredicate() })
     expect(prepared.warnings.join(' ')).toContain('due date filter dropped')
+  })
+})
+
+describe('a planned clause wherever a filter is stored', () => {
+  const graphical: TodoPredicate = { ...emptyPredicate(), dates: { planned: { match: 'range', start: null, end: { kind: 'relative', token: 'yesterday' }, not: true } } }
+  const typed: TodoPredicate = { ...emptyPredicate(), expression: { kind: 'not', item: { kind: 'date', field: 'planned', match: { match: 'held' } } } }
+
+  it('a Number’s, a Breakdown’s and Created vs completed’s filter keep it through the layout repair', () => {
+    const tab = (kind: 'number' | 'breakdown' | 'trend', id: string, filter: TodoPredicate): LayoutTab => {
+      const t = createTab(kind, id)
+      return { ...t, config: { ...t.config, filter } } as LayoutTab
+    }
+    const body = single({ id: 'k', tabs: [tab('number', 'n', graphical), tab('breakdown', 'b', typed), tab('trend', 't', typed)] })
+    expect(checkLayoutBody(body)).toBe(true)
+    expect(pickLayoutBody(JSON.parse(JSON.stringify(body)) as typeof body)).toEqual({ ...body, fixes: [] })
+  })
+
+  it('the check-in filter keeps it', () => {
+    expect(readCheckinFilterSetting(JSON.stringify(graphical))).toEqual({ filter: graphical, fixes: [] })
+    expect(readCheckinFilterSetting(JSON.stringify(typed))).toEqual({ filter: typed, fixes: [] })
   })
 })
