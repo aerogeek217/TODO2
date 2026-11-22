@@ -23,7 +23,7 @@ export const CALENDAR_BREAKPOINTS = {
   /** Week view shows rows below this, seven columns from it. */
   weekColumns: 560,
   /** The date-type toggles lose their labels below this. */
-  toggleLabels: 620,
+  toggleLabels: 690,
 } as const
 
 /** A month view always shows six weeks. */
