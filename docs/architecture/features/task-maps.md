@@ -1,7 +1,64 @@
 # Task maps
 
-**Each zone's word carries its count and opens its tasks as a list** (the task dialog, `glance-drills.neglectZoneDrill`; a zone with none is plain words): the four corners' words, and the strip's No due date (every task without one) and Forgotten. The numbered Slipping list sits beside the plot only while the widget is at least 900px wide (`NEGLECT_SIDE_LIST_MIN_PX`; under the plot on a phone); narrower, the plot fills the widget, there is no list and the dots carry no numbers. Its config (layout config, no schema step: Color by the picked tags — a new map's are the `Project: …` tags — / People / None, and the threshold) is set in its ⋯; a dot opens the editor, a drag on empty plot lassoes dots into the widget selection the bulk bar acts on.
+The task maps are whole widgets that draw many tasks at once: the Neglect map (kind `neglect`), Work clusters (kind `clusters`, `components/workspace/clusters/`) and the List wall (kind `listwall`, `components/workspace/listwall/`). The menus list them under **Insights** after the glance kinds, but they are not glance widgets (see [Glance widgets](glance-widgets.md)). Their settings are layout config; Work clusters and the List wall have none.
 
-**A task's name stands beside its dot where it fits** (`utils/neglect-labels.placeNeglectLabels`, over the dots as drawn and each name's measured width; the boxes in a grid, so a name looks only at those near it, and the work capped — `NEGLECT_LABEL_WORK_MAX`): right of the dot, else left, clear of every dot, badge, other name and the plot's own words — the Slipping tasks first, then the flagged ones —, cut with an ellipsis where there is less room than the name (at most 160px), absent under 56px; the names take no press, so a bigger map simply names more of its tasks.
+## Neglect map
 
-**The task maps** (2026-11-18, `features/task-maps-2026-11-18`; layout config, no schema step; faces by `utils/widget-face.taskMapFaceFor`): **Work clusters** (kind `clusters`, `components/workspace/clusters/`, no settings) draws the open tasks' people and tags as bubbles sized by their tasks, a person joined to a tag by the tasks they share; clusters found by label propagation, outlined and named by their biggest tag (its name opens its tasks), bridges between them in amber, a bubble opening the person / tag menu (`utils/work-clusters`, a deterministic force layout). The **List wall** (kind `listwall`, `components/workspace/listwall/`, no settings; `hooks/use-list-wall`) shows every list tab of the layout at once: a block per list, a square per open task it shows (as its tab would: its filter, prompt pick and the screen filter), the trouble first — overdue, due soon, follow-up late, on track, stale: its fill —, its priority a ring and Focus's glow as on the task's checkbox (`PriorityRing`); the blocks sit side by side, as many as fit at 8 squares across, sharing the width (`list-wall.wallShape`: a wide cell shows every list in one row, never wrapping into empty width; 2–6 rows, 12 in one row of blocks); the name's tooltip is the legend (Work clusters' likewise — no ⓘ on a widget); a list's name brings its tab to the front of its cell, a square opens its task; in a narrow or short cell a bar per list (`listWallFaceFor`).
+It plots every open task the screen filter keeps by days untouched (`modifiedAt`, capped at 60) against days until due (14 late … 30 ahead). The pure placement is in `utils/neglect-map`.
+
+### Zones
+
+- A task due soon (Settings' due-soon range) or late, and untouched for the tab's threshold (default 14 days), is **Slipping**: the shaded corner.
+- The other corners are In hand, Planned and Drifting.
+- A strip under the plot holds the tasks without a due date. They are **Forgotten** once untouched.
+- Each zone's word carries its count and opens its tasks as a list in the task dialog (`glance-drills.neglectZoneDrill`). A zone with none is plain words.
+- The words are the four corners', and the strip's No due date (every task without one) and Forgotten.
+
+### Slipping list
+
+- The numbered Slipping list sits beside the plot only while the widget is at least 900px wide (`NEGLECT_SIDE_LIST_MIN_PX`). On a phone it sits under the plot.
+- Narrower, the plot fills the widget, there is no list, and the dots carry no numbers.
+
+### Dots and config
+
+- A dot opens the editor.
+- A drag on empty plot lassoes dots into the widget selection, which the bulk bar acts on.
+- Its config is layout config, set in its ⋯: **Color by** (the picked tags, People or None) and the threshold.
+- A new map's picked tags are the `Project: …` tags.
+
+### Names beside dots
+
+A task's name stands beside its dot where it fits (`utils/neglect-labels.placeNeglectLabels`).
+
+- It works over the dots as drawn and each name's measured width.
+- The boxes are in a grid, so a name looks only at those near it. The work is capped (`NEGLECT_LABEL_WORK_MAX`).
+- A name goes right of the dot, else left, clear of every dot, badge, other name and the plot's own words.
+- The Slipping tasks get their names first, then the flagged ones.
+- A name is cut with an ellipsis where there is less room than the name (at most 160px), and is absent under 56px.
+- The names take no press, so a bigger map simply names more of its tasks.
+
+## Work clusters
+
+Its face is picked by `utils/widget-face.taskMapFaceFor`. The graph and its deterministic force layout are in `utils/work-clusters`.
+
+- It draws the open tasks' people and tags as bubbles sized by their tasks.
+- A person is joined to a tag by the tasks they share.
+- Clusters are found by label propagation. Each is outlined and named by its biggest tag, and its name opens its tasks.
+- Bridges between clusters are drawn in amber.
+- A bubble opens the person / tag menu.
+- The widget name's tooltip is the legend. There is no ⓘ on a widget.
+
+## List wall
+
+Its data is `hooks/use-list-wall`.
+
+- It shows every list tab of the layout at once: a block per list, a square per open task the list shows.
+- A list shows what its tab would: its filter, prompt pick and the screen filter.
+- The trouble comes first: overdue, due soon, follow-up late, on track, stale. That state is the square's fill.
+- A task's priority is a ring, with Focus's glow, as on the task's checkbox (`PriorityRing`).
+- The blocks sit side by side, as many as fit at 8 squares across, sharing the width (`list-wall.wallShape`).
+- A wide cell shows every list in one row, never wrapping into empty width.
+- A block has 2–6 rows of squares, and up to 12 in one row of blocks.
+- The widget name's tooltip is the legend, as Work clusters' is.
+- A list's name brings its tab to the front of its cell. A square opens its task.
+- In a narrow cell, at most 560px wide, it draws a bar per list instead (`listWallFaceFor`). A short cell keeps the blocks, with fewer rows.
