@@ -132,7 +132,13 @@ A widget draws its small, medium or large face by its cell body's measured size 
 
 ## Open larger
 
-The widget popup draws one widget at a time at its large face over the workspace. `components/workspace/WidgetPopup` is hosted once on the workspace page; its state is `ui-store.widgetPopup`; it is opened through `services/widget-popup`.
+The widget popup draws one widget at a time at its large face over the workspace. `components/workspace/WidgetPopup` is hosted once on the workspace page, and it is opened through `services/widget-popup`.
+
+Its state is `ui-store.widgetPopup`: what the popup shows (`WidgetPopupTarget`), or `null`. `setWidgetPopup` sets it and `closeWidgetPopup` clears it.
+
+- `{ kind: 'tab', tabId }`: a tab of the layout.
+- `{ kind: 'list', tabId }`: the list a Number follows ([Numbers](#numbers)).
+- `{ kind: 'review' }`: the popup review ([Review](review.md)).
 
 ### Size, header and layers
 

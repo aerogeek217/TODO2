@@ -13,11 +13,13 @@ A check-in is a message listing one person's open tasks, with a box per task for
 
 ## The check-in dialog
 
-The Review widget's **Check-in** button opens the check-in dialog (`CheckinDialog`, `ui-store.openCheckinDialog(personIds)`) for the people its filter names. The button shows while that filter names only people, on desktop (see [Review](review.md)).
+The Review widget's **Check-in** button opens the check-in dialog (`CheckinDialog`) for the people its filter names. The button shows while that filter names only people, on desktop (see [Review](review.md)).
+
+The dialog's state is in `ui-store`: `checkinDialog: { personIds } | null`. `openCheckinDialog(personIds?)` sets it, keeping each person once, and `closeCheckinDialog` clears it.
 
 On the left:
 
-- The people, as a single-select list (↑ / ↓): every person with open tasks plus the ones the dialog was opened for. Those come first, and the first of them is selected.
+- The people, as a single-select list (↑ / ↓): every person with open tasks plus the ones the dialog was opened for. Those come first, and the first of them is selected. Opened for nobody, the first row is selected.
 - Each person shows their count, and `Copied ✓` once copied.
 - **Which tasks**: the saved check-in filter, written at once.
 - **Include**: task notes, other people (dialog state).
@@ -38,7 +40,11 @@ In a window 760px wide or narrower the dialog is one column.
 
 ## The reply
 
-A reply comes back by paste, in the import dialog (`CheckinImportDialog`), which reads the person from the reply. `checkin-reply` parses it, diffs it against the tasks, and applies the ticked changes as one undo group:
+A reply comes back by paste, in the import dialog (`CheckinImportDialog`). Its state is in `ui-store`: `checkinImportOpen`, set by `openCheckinImport({ personId? })`, which also closes the check-in dialog, and cleared by `closeCheckinImport`.
+
+The dialog reads the person from the reply's footer. When the footer names none of your people, the reply is taken as from the person the import was opened for (`checkinImportPersonId`): the Review widget's Paste reply passes the person its filter names, while it names one.
+
+`checkin-reply` parses the reply, diffs it against the tasks, and applies the ticked changes as one undo group:
 
 - A changed Status, read without its `(MM/DD)`, adds a [status update](status-updates-and-subtasks.md) dated today.
 - A reply never removes a status update.
