@@ -11,7 +11,7 @@ See also [Workspace layout](workspace-layout.md) (the table the cells sit in, di
 Outside the mode the cell has one menu, named **Cell options**. It opens from the ⋯, from a right-click on a tab or a lone widget's top line, and from Shift+F10 / the Menu key there. Its entries, in order:
 
 1. The widget's own entries, under its kind's name: **Edit list…**, **Review these N tasks**, Zoom, Copy, a Number's or a chart's **Edit …**, its settings, **Open larger**, **Name and icon…**, and last **Change widget ›** (the current kind beside it; a submenu of every kind under Tasks and Insights).
-2. **Move to layout ›** / **Copy to layout ›** ([Layout edit mode](layout-edit-mode.md)).
+2. **Move to layout ›** / **Copy to layout ›** ([Move / Copy to layout](cross-layout-moves.md)).
 3. **Add widget as tab ›**: every kind under Tasks and Insights, a Breakdown's presets. The new widget is a tab of this cell, made its active one; a List gets a new blank list (`widget-hooks.addTabToCell`).
 4. **Remove widget**: that tab.
 5. **Collapse row** / **Expand row**.

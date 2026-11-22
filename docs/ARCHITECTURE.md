@@ -84,7 +84,7 @@ One file per feature, at most 4,000 words each. Each says how the feature behave
 | Workspace layout | [workspace-layout](architecture/features/workspace-layout.md) | the table, rendering, dividers, autosave and undo, lists following an edit, hue and icon, the phone |
 | Layout ops | [layout-ops](architecture/features/layout-ops.md) | split and insert, removing and merging tracks, cells, collapsing a row |
 | Layout edit mode | [layout-edit-mode](architecture/features/layout-edit-mode.md) | the draft, rulers, cards and slots, the tray, drops and the ghost |
-| Move / Copy to layout | [cross-layout-moves](architecture/features/cross-layout-moves.md) | the menu entries, placing the widgets, Done and Cancel, what goes with a tab |
+| Move / Copy to layout | [cross-layout-moves](architecture/features/cross-layout-moves.md) | the menu entries, placing the widgets, Done and Cancel, the two-layout write and its undo, what goes with a tab |
 | Widget chrome | [widget-chrome](architecture/features/widget-chrome.md) | cell menus, tabs on demand, the strip of Numbers, fit rows, faces, Open larger |
 | Screen filter | [screen-filter](architecture/features/screen-filter.md) | the top bar's chips and typed filter, the pause, the counter |
 | Filters | [filters](architecture/features/filters.md) | date clauses, Graphical or Expression, the expression grammar, a filter read back in words |

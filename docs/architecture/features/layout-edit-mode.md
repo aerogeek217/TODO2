@@ -2,9 +2,14 @@
 
 The layout edit mode is where a layout's grid changes: cells, rows and columns are split, merged, inserted, closed and moved on a draft that is written only on **Done**. It is desktop only: the phone has no way in, and narrowing the window to a phone's closes it.
 
-Its session is `workspace-store.editing`. Its bar is `LayoutEditBar` (`components/layout/`); its other components are under `components/workspace/`, over the pure rules in `utils/layout-rulers`, `utils/layout-edit-cards`, `utils/structure-preview`, `utils/workspace-drop` and `utils/layout-transfer`.
+Its session is `workspace-store.editing`. Its bar is `LayoutEditBar` (`components/layout/`); its other components are under `components/workspace/`, over the pure rules in `utils/layout-rulers`, `utils/layout-edit-cards`, `utils/structure-preview` and `utils/workspace-drop`.
 
-The table model, the layout ops, the dividers and autosave are in [Workspace layout](workspace-layout.md); tabs, faces, the cell menus outside the mode and Open larger in [Widget chrome](widget-chrome.md).
+See also:
+
+- [Workspace layout](workspace-layout.md): the table model, the dividers and autosave;
+- [Layout ops](layout-ops.md): what each split, insert, merge, remove and close does to the table;
+- [Widget chrome](widget-chrome.md): tabs, faces, the cell menus outside the mode and Open larger;
+- [Move / Copy to layout](cross-layout-moves.md): widgets carried to another layout, which opens in the mode with them in hand.
 
 ## Opening the mode
 
@@ -15,16 +20,29 @@ There is no button for it in the top bar. It opens from:
 - the editable `edit-layout` shortcut (no keys by default);
 - **Edit layout** at the end of a cell's ⋯ / right-click menu, with that cell selected (`selectedCellId`: an accent ring).
 
-Opening asks an open editor holding changes first, then closes every editor, the widget popup, the filtered-tasks panel and the snackbar.
+Each calls `workspace-store.enterEdit({ cellId? })`, which:
+
+1. asks an open editor holding changes first (`editor-leave.leaveOpenEditors`);
+2. lets the layout's writes land. A failed one is retried; when it fails again the mode doesn't open;
+3. closes every editor (`closeOpenEditors`), the widget popup, the filtered-tasks panel and the snackbar;
+4. registers the mode as a layout-wide editor in `editor-leave`.
 
 ## The draft
 
 While the mode is on, `working` is a **draft** and `saved` the layout as stored. Nothing is written.
 
-- Every structural edit changes only the draft and is a step of **the mode's own undo**: a card's menu, keys, corner and drags (cards, tabs, a strip's Numbers, tray chips — with the ghost), a slot's kinds, the rulers, the dividers, a tab's ×.
-- Resizes and view state change only the draft.
-- Ctrl+Z / Ctrl+Y and the palette's Undo / Redo step the mode's stack and, with it empty, do nothing (never a task step behind it).
-- Layout undo steps refuse meanwhile (`Finish editing the layout to undo: …`), as do a rename / hue / icon, Retry and the layouts' order.
+The session is `editing: LayoutEditSession | null`: its `layoutId`, its `selectedCellId`, the mode's own `undo` / `redo` stacks of layout bodies, `createdLists` (the lists made in the session) and `showContent` ([Blueprints](#blueprints)).
+
+- Every structural edit changes only the draft and is a step of **the mode's own undo**: a card's menu, keys, corner and drags (cards, tabs, a strip's Numbers, tray chips — with the ghost), a slot's kinds, the rulers, the dividers, a tab's ×. The store's `edit()` puts the draft's body from before the edit on the mode's undo stack instead of committing. Steps under one merge key merge there too.
+- Resizes and view state change only the draft, through `editView`: every resize (`setTrackSizes`, `copyTrackSizes`, `clearTrackFitPx`, `endResize`), an active tab, a collapse, a tab's view state.
+- Ctrl+Z / Ctrl+Y and the palette's Undo / Redo step the mode's stack (`undoEdit` / `redoEdit`, which keep the view state of the moment: `withViewStateOf`). With it empty they do nothing (never a task step behind it).
+- `layoutEditChanged` says whether the draft differs from the layout as stored, view state included (`layoutBodyEqual`).
+
+Refused meanwhile:
+
+- a layout undo or redo step: `UndoRefused`, `Finish editing the layout to undo: …`;
+- a rename / hue / icon (`rename`) and the layouts' order (`reorderLayouts` / `moveLayout`): `Finish editing the layout first.`;
+- Retry (`retryWrite`), which says nothing.
 
 The workspace is tinted under a faint dot grid with an accent outline (`--edit-*` tokens). Each cell's content stays mounted but dims and takes no presses: each cell is a [card](#cards), its surface under the content, its ⋯ and corner over it. Nothing moves.
 
@@ -32,27 +50,31 @@ The workspace is tinted under a faint dot grid with an accent outline (`--edit-*
 
 The top bar's contents give way to the mode's bar (`LayoutEditBar`): `Editing “X”`, the layouts' tabs disabled, the widget [tray](#the-tray) (`LayoutEditTray`), the **Content** toggle ([Blueprints](#blueprints)), **Undo**, **Redo**, **Cancel**, **Done**.
 
-The focus goes to **Done** as the mode opens, and back where it was on leaving. With widgets in hand from another layout **Done** is off, so **At the bottom** takes it.
+The focus goes to **Done** as the mode opens, and back where it was on leaving. With widgets in hand from another layout ([Move / Copy to layout](cross-layout-moves.md#placing-the-widgets)) **Done** is off, so **At the bottom** takes it.
 
 ## Done, Cancel and leaving the layout
 
-**Done** commits the draft as one write and one undo step, `Edited layout “X”`.
+**Done** (`finishEdit`) first deletes the lists the session made that the draft doesn't show. Then:
 
-- Its Undo brings back the lists the edit dropped, as any layout edit's Undo does (autosave, in [Workspace layout](workspace-layout.md)).
+- A draft whose structure changed is committed as one write and one undo step: `commitEdit(saved, draft, 'Edited layout “X”')`. Its Undo brings back the lists the edit dropped, as any layout edit's Undo does (autosave, in [Workspace layout](workspace-layout.md)).
 - A draft that differs only in view state is written as view state, with no undo step.
 - With no change it just leaves.
 
-**Cancel** asks nothing: the stored layout comes back. With changes, the snackbar offers `Layout changes discarded · Restore`: the draft and its undo steps back, the mode open again.
+**Cancel** (`cancelEdit`) asks nothing: `saved`, the stored layout, comes back. With changes, the snackbar offers `Layout changes discarded · Restore`: the session, the draft and its undo steps back, the mode open again. Restore works while the layout is still open and structurally as it was.
 
-- The lists made in the session (`createListAndTab` records them) are deleted only once that offer is gone without Restore.
-- Till then no list chooser offers them (Copy from…, a Number's Follow a list) — nor, in the mode, a list it made and then undid (`workspace-store.listsHeldByEdit`, `hooks/use-held-lists`).
+- The lists made in the session (`createListAndTab` records them through `noteEditList`) are deleted only once that offer is gone without Restore: timed out, dismissed or replaced (the `undo-store` notice's `onEnd`).
+- Till then `discardedLists` holds them, and no list chooser offers them (Copy from…, a Number's Follow a list) — nor, in the mode, a list it made and then undid, which the draft doesn't show. Both are `workspace-store.listsHeldByEdit(state)`, read through `hooks/use-held-lists`.
 
-**Leaving the layout.** The mode is a layout-wide editor in `editor-leave`, asked only by `leaveLayout` ([Popovers and editors](popovers-and-editors.md)), so a cell's split, merge or close inside the mode never questions it.
+**Leaving the layout.** The mode is a layout-wide editor in `editor-leave`, asked only by `leaveLayout` ([Popovers and editors](popovers-and-editors.md)), so a cell's split, merge or close inside the mode never questions it. `load`, `createLayout`, `duplicateLayout` and `delete` go through `editor-leave.leaveLayout`.
 
-- With changes, leaving asks **Save** / **Discard** / **Keep editing**: a layout switch (tabs, picker, palette, shortcut), Settings, an in-app route change, New / Duplicate / delete layout, Esc.
-- With none it just leaves.
-- A data replace closes it: `Edit layout closed: its changes weren’t saved.`
-- A reload or a closed tab drops the draft silently; the next launch's prune deletes the lists it made.
+- With changes, leaving asks **Save** / **Discard** / **Keep editing**: a layout switch (tabs, picker, palette, shortcut), Settings, an in-app route change, New / Duplicate / delete layout, Esc. The question is `askLeaveEdit`, over `ui-store.askChoice`, one question at a time. Its Discard is `discardEdit`, which deletes the session's lists at once.
+- With none it just leaves (`leaveEdit`), its lists deleted the same way.
+
+**Closed from outside.**
+
+- Where nothing can ask (the workspace page gone, the window narrowed to a phone's), `dropEdit` closes it and, when it held changes, says `Edit layout closed: its changes weren’t saved.`
+- A data replace closes it with the same notice (`endEditForReplace`, called by `services/refresh-all`). It drops a pending Restore without deleting the lists: their ids may name other lists in the new data.
+- A reload or a closed tab drops the draft silently; the next launch's `init()` prune deletes the lists it made. A second browser tab's prune may delete one sooner.
 
 ## The rulers
 
@@ -94,7 +116,8 @@ A "+" sits on every line between rulers and at both ends (`Insert row here`).
 
 While a "+" is hovered the table makes room: it draws the layout the insert would leave.
 
-- The preview is `workspace-store.structurePreview`, transient: never saved, never an undo step, cleared by every edit and by leaving the mode. `utils/structure-preview.structureProbe` runs the op on probe ids (`insert-preview.insertPreview`).
+- The preview is `workspace-store.structurePreview`, transient: never saved, never an undo step. It is a `StructurePreview`: the probe's body, its new cell ids, the filled cells it grows and its `hint`. `utils/structure-preview.structureProbe` runs the op on probe ids (`insert-preview.insertPreview`).
+- `setStructurePreview(preview | null)` sets it only while the mode is on. Every structural edit, the mode's undo / redo, Cancel and the mode's end clear it.
 - The new track's empty cells are solid accent slots (`data-preview-new`); the cards that grow across it are outlined in the follow-up color with `stretches` (`data-preview-grew`); no dividers meanwhile.
 - The mode bar says it in the tray's place: `Row between 1 and 2 · Notes stretches across it · click to insert` (`layout-edit-preview-hint`).
 - The "+" itself is pinned where the pointer found it while the table reflows under it (fixed, `data-pinned`), and the table's other "+"s take no pointer meanwhile, so the preview never flickers.
@@ -143,7 +166,7 @@ A card is a blueprint: its body stays mounted but hidden, and `EditBlueprint` na
 
 - A card of tabs keeps its live tab strip over it: its tabs drag, a drop there joins.
 - A Numbers strip keeps its Numbers, each dragging on its own; it has no blueprint.
-- The mode bar's **Content** toggle (an eye; `editing.showContent`, the session's only) shows the dimmed widgets instead.
+- The mode bar's **Content** toggle (an eye; `setEditContent(on)` sets `editing.showContent`, the session's only) shows the dimmed widgets instead.
 
 ### Label, ⋯ and corner
 
@@ -177,9 +200,9 @@ It opens from the ⋯, a right-click anywhere on the card, or Enter on it (`cell
 - **Insert ▸**: **Row above** / **Row below** / **Column left** / **Column right**, a full track on the card's edge line as the rulers insert (`workspace-store.insertTrackBeside`), its first new cell selected — a card is where one looks for it. Then **Split this cell**'s **New cell above** / **left** / **right** / **below**.
 - **Merge with ▸**: off, saying why, unless the two make a rectangle.
 - **Stretch right** / **Stretch down**: one track, over empty slots only.
-- **Move cell to layout ›** / **Copy cell to layout ›**: see [Move / Copy to layout](cross-layout-moves.md#move--copy-to-layout).
+- **Move cell to layout ›** / **Copy cell to layout ›**: see [Move / Copy to layout](cross-layout-moves.md).
 - **Remove widget**: the card's active tab, its cell left a slot (**Remove tab** on a card of tabs).
-- **Close cell**: the absorb rule ([Workspace layout](workspace-layout.md)); `(N tabs)` on a card of tabs.
+- **Close cell**: the absorb rule ([Layout ops](layout-ops.md)); `(N tabs)` on a card of tabs.
 
 ### Stretch
 
@@ -262,5 +285,3 @@ A fit row of the result is drawn at the height the browser will draw it (`fitRow
 | Onto a slot | `Move here` (a card) or `Add here` |
 
 The ghost fades in at each new spot (reduced motion: at once).
-
-Moving or copying widgets to another layout is in [cross-layout-moves](cross-layout-moves.md).
