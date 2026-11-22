@@ -83,10 +83,10 @@ The row shows them in its [tag](planner-widget.md#four-planner-only-things); wha
 
 **What joins Unplanned on its own** is the tab's filter, `PlannerTab.config.unplanned` (a `TodoPredicate`, layout config):
 
-- Absent, it is Focus (`plannerUnplannedFilter`: `/focus`), so a Planner that never set one holds what it always did.
+- Absent, it is Focus (`plannerUnplannedFilter`: `/focus`), the default of every Planner.
 - Empty, nothing joins on its own: Unplanned holds only the tasks unplanned by hand.
 - It decides **Unplanned only**. A task with a date in the window sits on its day, matching or not.
-- The hook evaluates it with a list's matcher (`matchesFilterWithLookups`) over the tasks the screen filter already narrowed, and hands it to the rules in the window (`PlannerJoins`, `window.joins`). Every rule that read "in Focus" reads it: the placement, `inPlanner`, the Unplanned drop and Unplan, Unplan all Delayed, and Clear vs Remove (`plannerClearLeaves`).
+- The hook evaluates it with a list's matcher (`matchesFilterWithLookups`) over the tasks the screen filter already narrowed, and hands it to the rules in the window (`PlannerJoins`, `window.joins`). Every rule that asks whether a task joins Unplanned reads it: the placement, `inPlanner`, the Unplanned drop and Unplan, Unplan all Delayed, and Clear vs Remove (`plannerClearLeaves`).
 - It is asked of the task as it would be with no plan state.
 - Outside a Planner (Plan for day › in a task menu, the task layout's Planned cell) there is no tab: the rules read Focus.
 - The layout repair reads it as a list's predicate. One that is no predicate is dropped (Focus again), a fix.

@@ -168,8 +168,10 @@ The grammar is in `utils/filter-expression` (parse, print, convert, tree). Terms
 | Priority | `/urgent` · `/important` · `/focus` |
 | None or any | `no` / `any` person · tag · status · priority |
 | Text contains | a quoted phrase (bare words are quoted when the field settles) |
-| Date | a date word (`due`, `followup`, `followed`, `created`, `modified`, `completed`) with what follows it, below |
-| Shortcuts | `overdue`, `followup late`, `never followed` |
+| Date | a date word (`due`, `planned`, `followup`, `followed`, `created`, `modified`, `completed`) with what follows it, below |
+| Shortcuts | `overdue`, `followup late`, `never followed`, `unplanned` |
+
+`planned` is the Planner's planned day, and takes every form the other date words take (`planned fri`, `planned <= today`, `planned -3d..+7d`, `planned any`). Its none prints `planned none` (`no planned` reads too) and keeps the tasks held in Unplanned, which have no planned day. **`unplanned`** is Planned's `held` clause: only the tasks held in the Planner's Unplanned tray. It reads back as `held in Unplanned`, `planned any` as `planned`, `planned none` as `not planned`, and a planned range as its chip words (`planned this week`).
 
 After a date word comes one of:
 

@@ -169,7 +169,7 @@ A Number's click and a chart's bar open their tasks in the task dialog (`overlay
 
 - A filter's history (`services/stats/filter-history`) replays every task to each day's end (`task-history.taskFieldReplay` → `taskAsOf`) and evaluates the filter with that day as today.
 - A field on a day before the log began reads as it was when the log began. A line that reads one there is approximate.
-- So is a line that reads text or the modified date, which are never logged.
+- So is a line that reads text, the modified date or the planned date, which are never logged (a plan write logs no event).
 - The line's tooltip (`NumberLine`) names the fields (`historyExactness`), and its accessible name says "About". There is no ≈ mark beside it.
 - The trend and a Number's line (its filter under its screen filter, 14 days) read the events through `trend-events-store`, a window each: a trend range, a trend range's fields window (`fields-14d`, …), or `history`.
 

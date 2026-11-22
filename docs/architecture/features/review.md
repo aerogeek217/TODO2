@@ -163,7 +163,7 @@ Typed update and Next-date drafts are kept per task in the widget's session. A n
 
 ### The task editor
 
-**The task editor** (`TaskEditPopup`, 920px wide) has the same band and columns.
+**The task editor** (`TaskEditPopup`, 1060px wide, `min(1060px, 100vw − 32px)`) has the same band and columns.
 
 - Its header holds the box, the title, the muted `Created … · Modified …`, ⋯ and ×.
 - Its footer is `Last · Next [quick] · Mark followed up · Done`.
