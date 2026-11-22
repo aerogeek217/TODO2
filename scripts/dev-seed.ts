@@ -903,7 +903,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   const lens = (id: string, listDefinitionId: number, zoom?: ListZoom): TabRow =>
     ({ id, kind: 'lens', config: { listDefinitionId }, ...(zoom ? { viewState: { zoom } } : {}) })
   const calendar = (id: string, view: 'week' | 'month', offset: number, followup = true): TabRow =>
-    ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup } }, viewState: { view, offset } })
+    ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup, plan: true } }, viewState: { view, offset } })
   const notes = (id: string): TabRow => ({ id, kind: 'notes', config: {} })
   const number = (id: string, metric: V77NumberMetric): TabRow => ({ id, kind: 'number', config: numberConfigOfMetric(metric) }) as TabRow
   /** A Breakdown (D26 P8): every open task split by `splitBy`, as bars, unless `over` says otherwise. */
