@@ -1,25 +1,200 @@
 # Lists
 
-**Lists**: a list tab runs its definition through `useBuiltList` with the top-bar (screen) filter — the chips and the typed expression beside them — composed in (narrowing clauses AND, Show completed ORs). A filter keys a date clause by one of six dates (schema v70, D22): Due, Next follow-up, Last follow-up, Completed, Created, Modified — the date panel's two rows of three; the panel's Show row picks how a range is entered — **Calendar** (each end a date, with Set to… presets) or **Relative** (each end typed as an interval from today in the app's one grammar (typed intervals, board R1: `+2w`, `-1m`, `+3d`, `today` or a rolling day's words, written once it reads, its hint when it doesn't — stored as an offset anchor with a `w` / `m` / `y` `unit` beside `days`, calendar months for `m` / `y`) — its chevron keeping the rolling days and No end —, its day today under it (`Thu, Dec 3`); a new range opens here) — and, on the optional dates, **Any** / **None** (cr25 P8, D23 board B; switching converts the ends, nothing stored changes); Last follow-up is optional like the due date and the next follow-up (Any / None, "also tasks never followed up"), a range may be **is not** (schema v71: the date outside it, a task without the date kept — "Last follow-up is not 1 week ago – Today"; not on Completed), Completed is a range only, and **a Completed range among the chips or a top-level `and` term of an expression — in a list's filter or the top bar's chips — lets completed tasks through as Show completed would** (`filter-criteria.admitsCompleted`), the range then keeping only those completed in it. Lists also sort by Last followed up (oldest first) and Completed (picked newest first). A list's filter — like the check-in's — is **Graphical or an expression** (schema v75, `models/filter-expression`): Graphical is its chips, ANDed, one per field (Priority may repeat, below); an expression (`TodoPredicate.expression`, the chips' clauses then empty) is typed text — `@person`, `#tag`, `!status`, `/urgent` · `/important` · `/focus`, `no` / `any` person · tag · status · priority, a date word (due, followup, followed, created, modified, completed) with a day (`fri`, `11/30`, `+3d` / `-30d` days from today, `+2w` / `-3m` / `+1y` weeks, calendar months or years, printed back in the unit stored; `in 2 weeks`, `3 months ago`, `within 2 weeks` too), a period, a comparison with a day — `<=` / `>=` (the day included, as printed: `due <= +7d`, `followup >= +7d`, `created <= -30d`), `<` / `>` (the day before / after; a week or month edge steps onto its neighbour, `< start of week` = `<= end of last week`), `=` (a day, or a period) — the older `before` / `by` / `after` / `from` still read and settle as comparisons, `a..b` (`due -3d..+7d`; two dates, or two days from today, that end before they start are an error), `any` / `none`, the shortcuts `overdue`, `followup late`, `never followed`, a quoted phrase for text contains (bare words are quoted when the field settles), joined by `and` / `or` / `not` and parentheses (`utils/filter-expression`: parse, print, convert, tree). An editor shows a **Graphical / Expression** switch over the filter (`PredicateChips`; its ⓘ explains); Expression turns the chips into the text that filters the same, and Graphical over an expression turns a plain `and` of one-per-field terms back into chips — anything else is locked (Edit expression / Clear and use Graphical). The field (`ExpressionField`, `hooks/use-expression-field`) tints the tokens, autocompletes names after `@` `#` `!` `/` (`services/filter-expression-field`), writes once the text reads (after a pause, on blur or Enter) and never a text that doesn't (an error line says where, its hint in a tooltip), Esc puts the written text back, settling prints it canonically; under it **Reads as** lists what is kept and dropped as chips, and **Syntax…** opens the cheat sheet. The check-in's filter refuses people (each check-in is one person's). The top bar takes the same expressions (item 4: what chips can say becomes chips, the rest is held beside them). On a list's filter line the filter — an expression, and since UX cleanup 2A a Graphical one too, as the expression that filters the same — is **read back in words** (D26 board BF, `utils/filter-expression/words` → `ExpressionWords`): names as chips styled as the Graphical chips, word terms (a date as its chip words it), joining words muted — the top-level `and`'s terms joined by ` · `, a top-level `or` by `, or`, an `or` elsewhere bracketed, an `and`'s `not` terms after `but not` (`(Aisha or Ben) · not #Ops`, `Aisha, or #q4 but not Waiting`); too long, it fades at its end with `+N more` (the top-level terms not shown); its tooltip is the exact expression and a click opens Edit list. A new task's seeds, a Prompt for pick and the People / Tag group restriction read only the top-level `and` terms a chip could say (`predicate-expression.topLevelPredicate`); a list whose filter is an expression still offers Add task. Stored or groups (schema v69 – v74) are converted by v75 into the expression that filters the same — the clauses ANDed, each group an `or` of its terms. Everywhere a chip's picker opens as a popover under the row; + Filter (in an editor with a row already, **+ Another filter (AND)**) adds a chip; the editors (Edit list, the check-in) stack one chip per row, in the order they were added (a new filter goes last), a chip's text wrapping to the block's width. A chip with several values reads them with `or` (`Aisha or Ben`).
+A list is a saved definition (`ListDefinition`: a name, a filter, a group, a sort, an optional prompt) that a list tab draws as task rows. The widget is in `components/workspace/list/`, its rows are in `components/task/`, and its build is `hooks/use-built-list` over `services/build-list`.
 
-**Priority filters read as Status's** (schema v74): is / is not, several values OR, `No priority` (a task with no marker, effective Urgent counted) — `markers` is a list of conditions (`MarkerClause`), a chip each (`FilterChip.markerIndex`, as a date chip's `dateField`). Priority alone may repeat in Graphical: its chips AND (Urgent and Important). The top bar holds one (a second typed Priority term is held in its expression). A one-value `is` seeds and drops that flag and an `is not` clears its flags (`markerConditions`); several values or `No priority` imply nothing, as Status's. Every summary in words (Copy from's list hints, a Number's description, a list's empty state) reads an expression in the same words, as plain text (`LineItem.words`).
+The filter model (dates, chips, expressions, a filter read back in words) is in [Filters](filters.md). The top bar's filter is in [The screen filter](screen-filter.md).
 
-**Grouped by People or Tag, the "is" picks narrow the groups** (`build-list.groupRestrictions`): those of the list's own filter and of the top bar's chips and its typed expression — an expression's top-level terms only, never an "is not" — so `@Alice` in the top bar shows a task of Alice and Bob under Alice alone, as `People is Alice` in the list would; picks on both sides intersect (a task that has none of the people every side picks shows under each one any side picks, so no member drops), the trailing Unassigned / No tags section staying only while every pick has `0`. The filtered-tasks panel grouped so follows the same rule. Its desktop rows are quiet (D17; and a Rows column is there only while some task the list shows uses its field — the rest show on row hover as icons at the title's end, flair P8): a set date is its text alone — in words by default (D25 D1, `utils/date.formatRowDate`: `Today`, the next six days' weekday, else `11/20` — an overdue date too, bold, and another year's, with no year (the date column is 45px a part); the phone row's details line too; the tooltip and name keep the full date), or `MM/DD` under Settings › Appearance › Dates (`rowDates`); everything else that shows a day (the calendar, pickers, status updates, check-ins, exports) keeps `MM/DD` —, colour goes only to what needs action now (an overdue or due-soon due date, a follow-up today or late; avatars, tags and the status glyph are muted until the row is hovered), **a task's priority is drawn on its checkbox, the same at every zoom** (D25 B, `shared/PriorityRing` over `utils/markers.priorityRing`: Urgent and Important are outlines — a 2px ring in the marker's colour with a faint fill; Urgent + Important a split ring, top-right urgent, bottom-left important; urgent only by its due date finely dashed; Focus never an outline but a tight glow in the Focus colour around the box (4px blur at 18px), with a ring or around the box's own plain border; none on a completed row — on the phone row too; the priority menu opens from a slim gutter before the box, empty at rest, a flag on row hover / focus, and from the task menu), titles at regular weight (400; a Lines title 500; flair P5) over 11.5px tabular meta in the muted grey, 30px rows, a flat list's hairline from the title's start, and **a priority adds what Settings › Tasks › Priority cues says beside its ring** (`utils/priority-cues`: a glow from the row's left edge, several blending along the row, and a semibold title; by default Urgent glows, Important glows and is semibold, Focus adds nothing; urgent only by its due date glows less; completed rows have none), a task untouched for Settings' `staleAfterDays` (default 30) is stale (Settings › Tasks › Rules › Stale after): faded while Settings › Appearance › Task rows › Fade stale tasks is on (`staleFade`, `data-faded`; a Lines title muted), and its checkbox gathers a small cobweb in its top-left corner — three spokes and two arcs spread evenly across the corner's 90° — while Cobwebs on stale tasks is on (flair P2, `task/Cobweb`, `staleCobwebs`; desktop and phone rows, not Lines); both on by default.
+## Building the rows
 
-**The phone row follows the same rule** (UX cleanup 2C, `task/MobileTaskRow`): the checkbox (a 44px target, the priority its ring), the title up to two lines, and one muted details line under it — the due date in words · the follow-up only while today or late · the checklist's `2/5` · a notes / status-update mark · people's initials (three, then `+N`) · the first tag and `+N` —, coloured only as the desktop date cells are, completed and stale rows as on desktop; no pills, flag, status ring or ▸. A tap anywhere on it opens the task (its title is its one button, stretched over the row; a tap that closes an open popover or menu goes no further); the checkbox completes it; a long-press opens the task menu, whose Set due date…, Follow-up ›, Mark followed up, Assign people…, Add tag…, Add subtask… and priorities open their pickers at the row — everything else (status, notes, status updates) is in the editor.
+- A list tab runs its definition through `useBuiltList`, with the top-bar (screen) filter composed in: the chips and the typed expression beside them. Narrowing clauses AND; Show completed ORs (`composeScreenFilter`).
+- Lists also sort by Last followed up (oldest first) and Completed (picked newest first).
+- Manual order is per list and saves at once.
 
-**A list tab has a zoom** (D25 C + I1; `ListTabViewState.zoom`, view state saved at once — never an unsaved edit; no schema step): **Stacked** (the title on its own line, up to two, the details on a line under it — due · follow-up · checklist · people · tags, clipped from the right; no notes or status cell), **Rows** (the row above), **Lines** (15px: a small box where the checkbox was — its ring the priority as on a row's checkbox, Focus's glow too; its fill the date state: late, due soon, follow-up late, stale; a plain task's empty with a neutral border —, the title, and at the line's end the one date that matters (the follow-up while today or late, else the due date, else the next follow-up), coloured as the Rows date cells; a click opens the editor, the hover the row's details, a right-click the task menu (Shift+F10 on the focused line too: a line is a tab stop); a Strips level once below it, v79 wrote as Lines). Ctrl + wheel over the list, its ⋯ menu's Zoom − / + (the merged cell menu, item 4) and the palette's Zoom List In / Out step it; a tab that hasn't picked one shows Settings › Appearance › **Default list zoom** — **Auto** by default (UX cleanup 1A: Stacked while the list's measured width is under 480px, Rows from 480px, with 16px of hysteresis so a divider drag across it doesn't flicker; unmeasured, Rows; never stored — the absent row, which an older build reads as Rows), or a level (stored in the old row density's row; v79 wrote its Comfortable as Stacked, Compact as Rows); the ⋯ stepper, Ctrl + wheel and the palette step from the level shown (`list-widget-store.zoom`), and a step saves the tab's own pick, which wins over Auto. Group headers shrink at Lines; glance-widget and dialog rows stay at Rows, and the phone has one density.
+## Groups
 
-**A list tab shows a badge** (`hooks/use-tab-badges` over `utils/tab-badges`): one capsule with how many open tasks it shows on opening — its filter as edited, its prompt pick and the screen filter — are due (magenta) and due for a follow-up (yellow), each inside a range from Settings › Tasks (default overdue and the next 3 days; overdue and today) or the list's own from Edit list (`ListDefinition.tabBadges`: off, or its ranges); a part is solid while any of it is overdue; the tab's title gives way first and its tooltip spells it out (alone in its cell, the capsule sits on the list's top line after its name); tabs folded into `+N` carry theirs into that menu; a list still waiting on its prompt has none.
+### People and Tag groups
 
-**One number per list** (UX cleanup 2A, review finding 3b): the tab's badge capsule says what is due; a count (`32 of 40`, before group · sort) shows only while the screen filter narrows the list (`shown < baseCount`), else none (nor `—` while a prompt waits); a list whose filter line is hidden carries that count on its tab — alone in its cell, on its slim name line (`ListNameLine`).
+Grouped by People or Tag, **the "is" picks narrow the groups** (`build-list.groupRestrictions`).
 
-**The filter line reads in words** (UX cleanup 2A, finding 6; `ListFilterRow`'s `ListFilterWords`): the list's whole filter — its chips or its expression, as one expression (`wholeExpression`) — read back by `ExpressionWords` (below: muted, one line, `+N more` and the exact text in the tooltip), `Every open task` (`Every task` while it shows completed ones) when it narrows by nothing; a click (a tap on the phone) opens Edit list, where the chips, × and + Filter are. No chips, × or + Filter on the line, and the top bar's chips are not repeated there (J13: the count says they narrow it). Everything the list shows follows the switch. The top bar's counter (and the phone's pill) carries the same badge over the tasks the screen filter shows, in the app's ranges. Group headers breathe (D25 A1: 18px of space above every group but the first on desktop, the name bold with its count and a rule to the line's end; a grouped body's rows draw no hairline) and stick to the top of the body while their group scrolls, a hairline under one only while it is stuck; a list's ⋯ menu collapses or expands every group.
+- The picks are those of the list's own filter, and of the top bar's chips and its typed expression.
+- Of an expression only the top-level terms count, and never an "is not".
+- So `@Alice` in the top bar shows a task of Alice and Bob under Alice alone, as `People is Alice` in the list would.
+- Picks on both sides intersect. A task that has none of the people every side picks shows under each one any side picks, so no member drops.
+- The trailing Unassigned / No tags section stays only while every pick has `0`.
+- The filtered-tasks panel, grouped so, follows the same rule.
 
-**A list's definition is saved like a layout** (UX cleanup 3A): **Edit list** (the words and group · sort on its line, its ⋯, the phone's sheet) edits a draft of the list (`list-draft-store`, in memory only — gone on a reload or a data replace) that every widget showing the list draws live (`listAsShown`: the draft while Edit list is open on it, else the saved list — every reader of a list's definition goes through it); its **Save** writes what the draft changed since it opened, over the list as it is then, for good and as one undo step (`list-definition-store.editList`, `Edited list “This week”`; Undo puts back only the keys the step changed, so another part written meanwhile stays), off while nothing changed, the name is blank or a filter expression doesn't read; **Discard** drops it; closing it with changes (Esc, ×, a press elsewhere — which then goes no further —, the line's words or summary, another list's Edit list, the sheet's scrim or handle) asks Save / Discard / Keep editing, as the widget editors do; the list leaving the screen or Settings opening closes it and drops the draft. Edits outside it write through at once, each one undo step: a drag in a sorted list switching it to manual (`Switched “X” to manual order`); zoom stays as it was. No unsaved dots, no Revert · Save on the line, no question when a list's last tab closes (the list goes at once, Undo brings it back) or a layout switches. Manual order is per list and saves at once.
+### Group headers
 
-**Add task** is the list's last row, inside its scroll (UX cleanup 1A), and while a view transition runs (a tab change, a group collapse) the groups' pictures nest in the scroll's and are clipped to it (`view-transition-group: nearest`) — unclipped, they drew past the list's foot and its cell. A dragged list row is **lifted** (D25 E4, `DragOverlayTask`): on grab it scales to 1.02 with the drag shadow (no tilt); a reorder or a cancel settles it, shrinking back, onto its new spot or back where it came from, and a drop the row follows later (another group, a calendar day) settles and fades where it was let go — reduced motion: no scale, gone at once; where it would land is always a blank slot a row high (`DropSlot` — a reorder, another group; in a sorted list dashed, holding the "drop to switch to manual" hint).
+- On desktop there is 18px of space above every group but the first. The name is bold, with its count and a rule to the line's end. A grouped body's rows draw no hairline.
+- A header sticks to the top of the body while its group scrolls. A hairline shows under it only while it is stuck.
+- A list's ⋯ menu collapses or expands every group.
+- Group headers shrink at the Lines zoom.
 
-**Every list belongs to one layout** (`owner: { layoutId }`) and is offered only there: a layout edit that leaves one shown by no tab deletes it at once, in the edit's undo step (Undo brings it back with its tab), Duplicate layout copies the ones it shows, Delete takes them with it.
+## The desktop row
 
-**The Eisenhower is removed** (after v78, widget feedback 1A): schema v79 dropped every stored Eisenhower tab (a cell it empties closing) and deleted its hidden list (`owner: { eisenhower: true }`), that list's manual order and its settings rows (`eisenhowerPanes`, `eisenhowerSource`); a list a stored layout still names keeps its data and only loses that owner (the audit gives it the layout showing it).
+The desktop rows are quiet.
+
+- **Columns.** A Rows column is there only while some task the list shows uses its field. The rest show on row hover as icons at the title's end.
+- **Dates.** A set date is its text alone.
+  - In words by default (`utils/date.formatRowDate`): `Today`, the next six days' weekday, else `11/20`. An overdue date reads so too, in bold. So does another year's, with no year: the date column is 45px a part.
+  - The phone row's details line reads the same. The tooltip and the name keep the full date.
+  - Or `MM/DD`, under Settings › Appearance › Dates (`rowDates`).
+  - Everything else that shows a day (the calendar, pickers, status updates, check-ins, exports) keeps `MM/DD`.
+- **Color** goes only to what needs action now: an overdue or due-soon due date, a follow-up today or late. Avatars, tags and the status glyph are muted until the row is hovered.
+- **Type and size.** Titles are at regular weight (400; a Lines title 500) over 11.5px tabular meta in the muted gray. Rows are 30px. A flat list's hairline starts at the title's start.
+
+### Priority on the checkbox
+
+**A task's priority is drawn on its checkbox, the same at every zoom** (`shared/PriorityRing` over `utils/markers.priorityRing`).
+
+| Priority | Drawn as |
+|----------|----------|
+| Urgent or Important | an outline: a 2px ring in the marker's color with a faint fill |
+| Urgent + Important | a split ring: top-right urgent, bottom-left important |
+| Urgent only by its due date | the ring finely dashed |
+| Focus | never an outline: a tight glow in the Focus color around the box (4px blur at 18px), with a ring or around the box's own plain border |
+| A completed row | none |
+
+- The phone row draws the same.
+- The priority menu opens from a slim gutter before the box (empty at rest, a flag on row hover / focus) and from the task menu.
+
+### Priority cues
+
+**A priority adds what Settings › Tasks › Priority cues says beside its ring** (`utils/priority-cues`): a glow from the row's left edge, several blending along the row, and a semibold title.
+
+- By default Urgent glows, Important glows and is semibold, and Focus adds nothing.
+- Urgent only by its due date glows less.
+- Completed rows have none.
+
+### Stale tasks
+
+A task untouched for Settings' `staleAfterDays` (default 30) is stale (Settings › Tasks › Rules › Stale after).
+
+- It is faded while Settings › Appearance › Task rows › **Fade stale tasks** is on (`staleFade`, `data-faded`; a Lines title is muted).
+- Its checkbox gathers a small cobweb in its top-left corner while **Cobwebs on stale tasks** is on (`task/Cobweb`, `staleCobwebs`): three spokes and two arcs spread evenly across the corner's 90°. Desktop and phone rows have it; Lines rows don't.
+- Both are on by default.
+
+## The phone row
+
+**The phone row follows the same rule** (`task/MobileTaskRow`).
+
+- The checkbox is a 44px target, the priority its ring.
+- The title runs up to two lines.
+- One muted details line sits under it: the due date in words · the follow-up only while today or late · the checklist's `2/5` · a notes / status-update mark · people's initials (three, then `+N`) · the first tag and `+N`.
+- Color is used only as the desktop date cells use it. Completed and stale rows read as on desktop.
+- It has no pills, flag, status ring or ▸.
+
+Presses:
+
+- A tap anywhere on it opens the task. Its title is its one button, stretched over the row. A tap that closes an open popover or menu goes no further.
+- The checkbox completes it.
+- A long-press opens the task menu. Its Set due date…, Follow-up ›, Mark followed up, Assign people…, Add tag…, Add subtask… and priorities open their pickers at the row.
+- Everything else (status, notes, status updates) is in the editor.
+
+## Zoom
+
+**A list tab has a zoom** (`ListTabViewState.zoom`). It is view state, saved at once, and never an unsaved edit.
+
+| Level | A row shows |
+|-------|-------------|
+| **Stacked** | the title on its own line, up to two; the details on a line under it (due · follow-up · checklist · people · tags, clipped from the right); no notes or status cell |
+| **Rows** | the desktop row above |
+| **Lines** | a 15px line: a small box, the title, one date |
+
+A Lines row in detail:
+
+- The small box stands where the checkbox was. Its ring is the priority as on a row's checkbox, Focus's glow too. Its fill is the date state: late, due soon, follow-up late, stale. A plain task's box is empty with a neutral border.
+- At the line's end is the one date that matters: the follow-up while today or late, else the due date, else the next follow-up. It is colored as the Rows date cells.
+- A click opens the editor, the hover shows the row's details, and a right-click opens the task menu. Shift+F10 on the focused line does too: a line is a tab stop.
+
+### Stepping the zoom
+
+- Ctrl + wheel over the list, its ⋯ menu's **Zoom − / +** (the [cell's menu](workspace-layout.md)) and the palette's **Zoom List In / Out** step it.
+- All three step from the level shown (`list-widget-store.zoom`). A step saves the tab's own pick, which wins over Auto.
+
+### The default
+
+A tab that hasn't picked a zoom shows Settings › Appearance › **Default list zoom**:
+
+- **Auto**, the default: Stacked while the list's measured width is under 480px, Rows from 480px, with 16px of hysteresis so a divider drag across it doesn't flicker. Unmeasured, it is Rows. Auto is never stored: it is the absent settings row.
+- Or a level, stored in the `rowDensity` settings row.
+
+Glance-widget and dialog rows stay at Rows, and the phone has one density.
+
+## Tab badges
+
+**A list tab shows a badge** (`hooks/use-tab-badges` over `utils/tab-badges`): one capsule with how many of the open tasks it shows on opening (its filter as edited, its prompt pick and the screen filter) are due (magenta) and due for a follow-up (yellow).
+
+- Each count is inside a range from Settings › Tasks (default: due, overdue and the next 3 days; follow-up, overdue and today) or the list's own from Edit list (`ListDefinition.tabBadges`: off, or its ranges).
+- A part is solid while any of it is overdue.
+- The tab's title gives way first, and its tooltip spells the badge out. Alone in its cell, the capsule sits on the list's top line after its name (see [Widget chrome](widget-chrome.md)).
+- Tabs folded into `+N` carry theirs into that menu.
+- A list still waiting on its prompt has none.
+- The top bar's counter carries the same badge (see [The screen filter](screen-filter.md#the-counter)).
+
+## One number per list
+
+- The tab's badge capsule says what is due.
+- A count (`32 of 40`, before group · sort) shows only while the screen filter narrows the list (`shown < baseCount`). Otherwise there is none, and none while a prompt waits.
+- A list whose filter line is hidden carries that count on its tab. Alone in its cell, it is on its slim name line (`ListNameLine`).
+
+## The filter line
+
+**The filter line reads in words** (`ListFilterRow`'s `ListFilterWords`).
+
+- The list's whole filter, its chips or its expression, is taken as one expression (`wholeExpression`) and read back by `ExpressionWords`: muted, one line, `+N more`, and the exact text in the tooltip. See [Filters](filters.md#a-filter-read-back-in-words).
+- When the filter narrows by nothing the line reads `Every open task` (`Every task` while it shows completed ones).
+- A click (a tap on the phone) opens Edit list, where the chips, × and + Filter are.
+- The line itself has no chips, × or + Filter. The top bar's chips are not repeated there: the count says they narrow the list.
+
+## Edit list
+
+**A list's definition is saved like a layout.** **Edit list** opens from the words and the group · sort summary on the list's line, from its ⋯, and from the phone's list-tab sheet.
+
+### The draft
+
+- Edit list edits a draft of the list (`list-draft-store`). The draft is in memory only: it is gone on a reload or a data replace.
+- Every widget showing the list draws the draft live. `listAsShown` gives the draft while Edit list is open on the list, else the saved list. Every reader of a list's definition goes through it.
+
+### Save and Discard
+
+- **Save** writes what the draft changed since it opened, over the list as it is then. The write is for good and is one undo step (`list-definition-store.editList`, `Edited list “This week”`).
+- Undo puts back only the keys the step changed, so another part written meanwhile stays.
+- Save is off while nothing changed, the name is blank or a filter expression doesn't read.
+- **Discard** drops the draft.
+
+### Closing it
+
+- Closing it with changes asks Save / Discard / Keep editing, as the widget editors do: Esc, ×, a press elsewhere (which then goes no further), the line's words or summary, another list's Edit list, the sheet's scrim or handle.
+- Opening Settings, or anything else that would take the list off the screen, asks the same question first ([Dismissing popovers and leaving editors](popovers-and-editors.md)).
+- Once the list has left the screen, Edit list closes and its draft is dropped.
+
+### Edits outside Edit list
+
+- They write through at once, each one undo step. A drag in a sorted list switches it to manual (`Switched “X” to manual order`).
+- The zoom stays as it is: view state.
+- Nothing about a list is unsaved outside Edit list. So nothing asks when a list's last tab closes (the list goes at once, and Undo brings it back) or when the layout switches.
+
+## Add task
+
+- **Add task** is the list's last row, inside its scroll.
+- It shows when the list's filter (the prompt pick merged in) names people, a status, tags or a priority to seed the new task with, or is an expression. See [Filters](filters.md#what-a-new-task-reads-from-a-filter).
+- While a view transition runs (a tab change, a group collapse), the groups' pictures nest in the scroll's and are clipped to it (`view-transition-group: nearest`). They never draw past the list's foot or its cell.
+
+## Dragging a row
+
+A dragged list row is **lifted** (`DragOverlayTask`).
+
+- On grab it scales to 1.02 with the drag shadow. There is no tilt.
+- A reorder or a cancel settles it, shrinking back, onto its new spot or back where it came from.
+- A drop the row follows later (another group, a calendar day) settles and fades where it was let go.
+- Reduced motion: no scale, and it is gone at once.
+- Where it would land is always a blank slot a row high (`DropSlot`), for a reorder and for another group. In a sorted list the slot is dashed and holds the "drop to switch to manual" hint.
+
+## Lists belong to a layout
+
+**Every list belongs to one layout** (`owner: { layoutId }`) and is offered only there. See [Workspace layout](workspace-layout.md).
+
+- A layout edit that leaves a list shown by no tab deletes it at once, in the edit's undo step. Undo brings it back with its tab.
+- Duplicate layout copies the lists it shows.
+- Delete takes them with it.
