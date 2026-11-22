@@ -131,6 +131,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/date-anchor.ts': ['convertAnchor'],
   'utils/date-filters.ts': ['normalizeDateMatch'],
   'utils/date-words.ts': ['describeAnchor', 'describeRange'],
+  'utils/day-ticks.ts': ['DAY_TICKS_MAX'],
   'utils/debug-flags.ts': ['DEBUG_DND', 'hasFlag', 'makeDndLog'],
   'utils/dom-contract.ts': ['WIDGET_POPUP_ATTR'],
   'utils/filter-chips.ts': ['orValue'],
@@ -149,7 +150,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/neglect-map.ts': ['isDueNear', 'NEGLECT_JITTER', 'NeglectFields', 'neglectZone'],
   'utils/notes-preview.ts': ['NOTES_PREVIEW_MAX_CHARS', 'NOTES_PREVIEW_MAX_LINES', 'notesPreviewLines'],
   'utils/planner.ts': [
-    'inPlanner', 'PLANNER_DELAYED_KEY', 'PLANNER_TILE_TICKS_MAX', 'PlannerConflict',
+    'inPlanner', 'PLANNER_DELAYED_KEY', 'PlannerConflict',
     'PlannerDateKind', 'PlannerNaturalDay', 'plannerNaturalDay', 'plannerOrder', 'plannerPlannedLater',
     'plannerReorder', 'plannerSnooze', 'plannerTagDay', 'PlannerTask',
   ],

@@ -1,5 +1,5 @@
-/* The calendar's small and medium faces (D25 R). The heat steps come from
-   the calendar's own sheet (`.widget[data-heat-hue]`, `.heatDay[data-heat]`). */
+/* The calendar's small and medium faces (D25 R). Their days' ticks are
+   `shared/DayTicks` (the Planner strip's). */
 
 .face {
   box-sizing: border-box;
@@ -50,18 +50,24 @@
   text-overflow: ellipsis;
 }
 
-/* Seven days of heat, today ringed. */
+/* Seven days of ticks, today ringed. */
 .strip {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 2px;
-  width: min(100%, 140px);
+  width: min(100%, 196px);
 }
 
 .stripDay {
-  height: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 14px;
+  padding: 0 2px;
+  box-sizing: border-box;
   border-radius: 2px;
-  background-color: var(--heat-fill, var(--cal-day-fill));
+  background-color: var(--cal-day-fill);
 }
 
 .stripDay[data-today='true'] {
@@ -98,9 +104,13 @@
   min-width: 0;
   min-height: 0;
   padding: 4px 2px;
+  border: none;
   border-radius: var(--radius-md);
-  background-color: var(--heat-fill, var(--cal-day-fill));
+  background-color: var(--cal-day-fill);
+  color: inherit;
+  font-family: inherit;
   text-align: center;
+  cursor: pointer;
 }
 
 .weekToday {
@@ -132,4 +142,10 @@
   line-height: 22px;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
+}
+
+/* The day's ticks under its count; they give way in a narrow day. */
+.weekTicks {
+  max-width: 100%;
+  margin-top: 2px;
 }

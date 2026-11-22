@@ -3,7 +3,6 @@ import {
   buildEntries,
   calendarEntryState,
   calendarEntryLevel,
-  dayDots,
   dayOverdueWash,
   isEntryMissed,
   isEntryOverdue,
@@ -149,7 +148,7 @@ describe('buildEntries — plans', () => {
   })
 })
 
-describe('entry state, overdue washes and dots', () => {
+describe('entry state and overdue washes', () => {
   const yesterday = days[2]!
   const tomorrow = days[4]!
   const entriesOn = (d: Date, todos: Parameters<typeof buildEntries>[0]) =>
@@ -197,18 +196,5 @@ describe('entry state, overdue washes and dots', () => {
     ]), today)).toBe('due')
     expect(dayOverdueWash(entriesOn(yesterday, [makeTodo({ id: 1, nextFollowupAt: yesterday })]), today)).toBe('followup')
     expect(dayOverdueWash(entriesOn(yesterday, [makeTodo({ id: 1, dueDate: yesterday, isCompleted: true })]), today)).toBeNull()
-  })
-
-  it('dots: up to three, a follow-up always among them', () => {
-    const e = entriesOn(today, [
-      makeTodo({ id: 1, dueDate: today, sortOrder: 1 }),
-      makeTodo({ id: 2, dueDate: today, sortOrder: 2 }),
-      makeTodo({ id: 3, dueDate: today, sortOrder: 3, isCompleted: true }),
-      makeTodo({ id: 4, nextFollowupAt: today, sortOrder: 4 }),
-    ])
-    expect(dayDots(e)).toEqual(['due', 'due', 'followup'])
-    expect(dayDots(e.slice(0, 3))).toEqual(['due', 'due', 'due-done'])
-    const occ = entriesOn(tomorrow, [makeTodo({ id: 5, dueDate: days[0], recurrenceRule: { every: { count: 1, unit: 'd' as const } } })])
-    expect(dayDots(occ)).toEqual(['occurrence'])
   })
 })

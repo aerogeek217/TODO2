@@ -4,7 +4,6 @@ import { dayKey } from '../../utils/date'
 import {
   inPlanner,
   PLANNER_DELAYED_KEY,
-  PLANNER_TILE_TICKS_MAX,
   PLANNER_UNPLANNED_KEY,
   plannerConflictLabel,
   plannerConflicts,
@@ -35,7 +34,6 @@ import {
   plannerTagDay,
   plannerTargetKey,
   plannerTileLabel,
-  plannerTileMarks,
   plannerUnplan,
   plannerClearLeaves,
   plannerHasPlan,
@@ -50,6 +48,7 @@ import {
   type PlannerTarget,
   type PlannerTask,
 } from '../../utils/planner'
+import { DAY_TICKS_MAX, dayTicks } from '../../utils/day-ticks'
 
 // Fri 20 Nov 2026.
 const TODAY = new Date(2026, 10, 20)
@@ -479,18 +478,11 @@ describe('plannerView', () => {
       expect(view.tiles[1]).toMatchObject({ count: 0, dates: ['due'], plans: 0 })
     })
 
-    it('draw the real dates as solid ticks, then the plans as hollow ones: at most eight marks, then how many more', () => {
-      expect(plannerTileMarks({ dates: ['due', 'followup'], plans: 2 })).toEqual({ dates: ['due', 'followup'], plans: 2, more: 0 })
-      expect(plannerTileMarks({ dates: [], plans: 0 })).toEqual({ dates: [], plans: 0, more: 0 })
-      const tasks = Array.from({ length: PLANNER_TILE_TICKS_MAX + 3 }, () => task({ doDate: day(1) }))
+    it('draw their marks as the shared day ticks: at most eight, then how many more', () => {
+      const tasks = Array.from({ length: DAY_TICKS_MAX + 3 }, () => task({ doDate: day(1) }))
       const tile = plannerView(tasks, { today: TODAY }).tiles[1]!
       expect(tile.count).toBe(11)
-      expect(plannerTileMarks(tile)).toEqual({ dates: [], plans: 8, more: 3 })
-      // The real dates first: the plans take what room is left.
-      expect(plannerTileMarks({ dates: ['due', 'due', 'due', 'followup', 'followup', 'followup'], plans: 5 }))
-        .toEqual({ dates: ['due', 'due', 'due', 'followup', 'followup', 'followup'], plans: 2, more: 3 })
-      const many = Array.from({ length: 10 }, () => 'due' as const)
-      expect(plannerTileMarks({ dates: many, plans: 1 })).toEqual({ dates: many.slice(0, 8), plans: 0, more: 3 })
+      expect(dayTicks(tile)).toEqual({ dates: [], plans: 8, more: 3 })
     })
 
     it('mark the real dates falling on each day wherever the task is planned, and the plans on it', () => {

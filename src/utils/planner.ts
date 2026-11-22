@@ -14,8 +14,8 @@ import { addDays, dayKey, formatDateWith, MS_PER_DAY, startOfDay } from './date'
  * Here: which tasks the Planner holds and where each sits
  * (`plannerPlacement`: a day, the Delayed tray, the Unplanned tray), the
  * real dates a plan falls after and their fixes (`PlannerConflict`), the
- * groups and tiles of a seven-day window (`plannerView`), a tile's marks
- * (`plannerTileMarks`) and a row's tag (`plannerRowTag`), the hand order
+ * groups and tiles of a seven-day window (`plannerView`; a tile's ticks are
+ * `utils/day-ticks`) and a row's tag (`plannerRowTag`), the hand order
  * (`plannerOrder`, `plannerReorder`), what a drop writes (`plannerDrop` —
  * the only place the drop rule lives; Snooze, Unplan and Plan for day › go
  * through it), and what Unplan all Delayed and Reset plan change.
@@ -23,9 +23,6 @@ import { addDays, dayKey, formatDateWith, MS_PER_DAY, startOfDay } from './date'
 
 /** Days in the Planner's window (its strip's tiles). */
 export const PLANNER_WINDOW_DAYS = 7
-
-/** The most marks a tile draws before `+N`. */
-export const PLANNER_TILE_TICKS_MAX = 8
 
 /** A real date of a task the Planner reads: its due date or its next follow-up. */
 export type PlannerDateKind = 'due' | 'followup'
@@ -317,27 +314,6 @@ export interface PlannerTile {
   dates: PlannerDateKind[]
   /** The plans on the day: the tasks whose planned day (`doDate`) it is. */
   plans: number
-}
-
-/** The marks a tile draws: its real dates, then its plans, then how many it leaves out. */
-interface PlannerTileMarks {
-  /** A solid tick per real date drawn: due dates, then follow-ups. */
-  dates: PlannerDateKind[]
-  /** The hollow ticks drawn: plans. */
-  plans: number
-  /** The marks past `PLANNER_TILE_TICKS_MAX` (`+N`). */
-  more: number
-}
-
-/**
- * A tile's marks: a solid tick for each real date falling on the day
- * (`dates`), then a hollow one for each plan on it (`plans`) — at most
- * `PLANNER_TILE_TICKS_MAX` in all, the real dates first, then `+N`.
- */
-export function plannerTileMarks(tile: Pick<PlannerTile, 'dates' | 'plans'>): PlannerTileMarks {
-  const dates = tile.dates.slice(0, PLANNER_TILE_TICKS_MAX)
-  const plans = Math.min(tile.plans, PLANNER_TILE_TICKS_MAX - dates.length)
-  return { dates, plans, more: tile.dates.length + tile.plans - dates.length - plans }
 }
 
 /** What the Planner draws for a window. */

@@ -175,23 +175,3 @@ export function calendarEntryLevel(entry: CalendarEntry, today: Date, range: Urg
 }
 
 const DAY_MS = 86_400_000
-
-/** A compact-month day dot. */
-type CalendarDot = 'due' | 'followup' | 'occurrence' | 'due-done' | 'followup-done'
-
-/**
- * Up to three dots for a compact-month day, in entry order (its plans left
- * out). A day with any follow-up always shows a follow-up dot (it takes the
- * last place when the first three entries are all due dates).
- */
-export function dayDots(all: readonly CalendarEntry[], max = 3): CalendarDot[] {
-  const entries = all.filter((e) => e.kind !== 'plan')
-  const dot = (e: CalendarEntry): CalendarDot =>
-    e.isVirtual ? 'occurrence' : e.todo.isCompleted ? (e.kind === 'due' ? 'due-done' : 'followup-done') : e.kind === 'due' ? 'due' : 'followup'
-  const shown = entries.slice(0, max)
-  const firstFollowup = entries.find((e) => e.kind === 'followup')
-  if (firstFollowup && !shown.some((e) => e.kind === 'followup') && shown.length === max) {
-    shown[max - 1] = firstFollowup
-  }
-  return shown.map(dot)
-}

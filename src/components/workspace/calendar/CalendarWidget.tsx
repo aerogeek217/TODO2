@@ -33,7 +33,7 @@ interface MoreState {
 }
 
 /**
- * The calendar widget: a month grid (dots + day list when narrow or on
+ * The calendar widget: a month grid (ticks + day list when narrow or on
  * mobile) or a week (rows when narrow, seven columns when wide), with the
  * tasks' due dates and / or next follow-ups as entries. The top-bar (screen)
  * filter applies. Days take task drops (set or move a date); entries drag to
@@ -162,7 +162,6 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
                 month={month}
                 entries={entriesByDay.get(dayKey(day)) ?? []}
                 selected={day.getTime() === selectedDay.getTime()}
-                titles={titles}
                 ctx={ctx}
                 onSelect={(d) => setSelectedMs(d.getTime())}
               />
@@ -259,7 +258,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
             ))}
           </div>
         )}
-        {!isMobile && view === 'month' && (
+        {!isMobile && mode === 'month' && (
           <TitlesToggle on={titles} iconOnly={width < CALENDAR_BREAKPOINTS.toggleLabels} onToggle={toggleTitles} />
         )}
         <div className={styles.segmented} role="group" aria-label="Calendar view">

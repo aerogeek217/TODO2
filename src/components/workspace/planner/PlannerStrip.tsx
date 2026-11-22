@@ -2,8 +2,10 @@ import { Fragment } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { formatDateWith } from '../../../utils/date'
 import type { WeekStart } from '../../../utils/effective-date'
-import { plannerRangeLabel, plannerTileLabel, plannerTileMarks, type PlannerTile, type PlannerWindow } from '../../../utils/planner'
+import { dayTicks } from '../../../utils/day-ticks'
+import { plannerRangeLabel, plannerTileLabel, type PlannerTile, type PlannerWindow } from '../../../utils/planner'
 import { plannerDropId, TASK_DROP_KIND, type PlannerDropData } from '../../../utils/task-dnd'
+import { DayTicks } from '../../shared/DayTicks'
 import { ChevronLeftIcon, ChevronRightIcon } from '../../shared/icons'
 import styles from './PlannerWidget.module.css'
 
@@ -57,10 +59,11 @@ export function WeekArrow({ direction, disabled, onShift, compact = false }: {
 /**
  * The Planner's strip: `‹`, the window's seven day tiles — equal widths,
  * weekends too — and `›`. A tile shows its weekday, date, the count of rows
- * sitting on the day, and its marks (`plannerTileMarks`): a **solid tick**
- * per real date falling on the day — due dates in the deadline color, then
- * follow-ups in the follow-up color, wherever those tasks are planned —,
- * then a **hollow tick** per plan on it, then `+N`. Today's tile is in the
+ * sitting on the day, and its ticks (`shared/DayTicks`, the Calendar's
+ * small cells' too): a **solid tick** per real date falling on the day — due
+ * dates in the deadline color, then follow-ups in the follow-up color,
+ * wherever those tasks are planned —, then a **hollow tick** per plan on
+ * it, then `+N`. Today's tile is in the
  * accent. A thin rule, in a slightly wider gap, stands before the tile
  * that starts a week (`weekStartsOn`; never before the first tile). A
  * click scrolls the day list to the tile's day (`onGo`); the arrows move
@@ -115,7 +118,6 @@ function Tile({ tabId, window, tile, marked, inView, onGo }: {
     window: { today: window.today, last: window.last },
   }
   const { setNodeRef } = useDroppable({ id: plannerDropId(tabId, 'tile', tile.key), data: { ...data } })
-  const marks = plannerTileMarks(tile)
   return (
     <button
       ref={setNodeRef}
@@ -135,13 +137,7 @@ function Tile({ tabId, window, tile, marked, inView, onGo }: {
         <span className={styles.dateNumber}>{tile.day.getDate()}</span>
         <span className={styles.tileCount} data-testid="planner-tile-count">{tile.count > 0 ? tile.count : ''}</span>
       </span>
-      <span className={styles.ticks} aria-hidden="true">
-        <span className={styles.tickMarks}>
-          {marks.dates.map((kind, i) => <span key={i} className={styles.tick} data-mark={kind} />)}
-          {Array.from({ length: marks.plans }, (_, i) => <span key={`plan-${i}`} className={`${styles.tick} ${styles.tickPlan}`} data-mark="plan" />)}
-        </span>
-        {marks.more > 0 && <span className={styles.ticksMore}>+{marks.more}</span>}
-      </span>
+      <DayTicks ticks={dayTicks(tile)} className={styles.ticks} />
     </button>
   )
 }

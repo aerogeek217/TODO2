@@ -362,26 +362,27 @@ describe('CalendarWidget heat map (titles off)', () => {
     expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
   })
 
-  it('on a phone the compact month: the tint under the number and the count in place of the dots', () => {
+  it('on a phone the compact month: the number over the day’s ticks, titles on or off; a late day washed', () => {
     const original = window.matchMedia
     window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
+    useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 5, title: 'Planned', doDate: day(12), sortOrder: 5 })] })
     try {
-      setup(heatTab())
-      expect(document.querySelector('[data-calendar-widget]')).toHaveAttribute('data-mode', 'compact')
-      expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
-      expect(document.querySelectorAll('[data-dot]')).toHaveLength(0)
-      expect(dayCell(day(12))).toHaveAttribute('data-heat', '1')
-      expect(dayCell(day(12))).toHaveAttribute('data-late', 'due')
-      expect(dayCell(day(12))!.className).not.toMatch(/washDue/)
-      expect(dayCell(day(12))!.textContent).toBe('122')
-      expect(dayCell(day(13))!.textContent).toBe('13')
-      // The day list is unchanged.
-      fireEvent.click(dayCell(day(16))!)
-      expect(within(document.querySelector('[data-cal-day-list]')!).getByText('Both dates')).toBeInTheDocument()
-      cleanup()
-      setup(calendarTab())
-      expect(dayCell(day(12))!.querySelectorAll('[data-dot]')).toHaveLength(2)
-      expect(dayCell(day(12))).not.toHaveAttribute('data-heat')
+      for (const tab of [heatTab({ config: { dateTypes: { due: true, followup: true, plan: true } } }), calendarTab({ config: { dateTypes: { due: true, followup: true, plan: true } } })]) {
+        setup(tab)
+        expect(document.querySelector('[data-calendar-widget]')).toHaveAttribute('data-mode', 'compact')
+        expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
+        // 12 Oct: Late due and a Weekly occurrence (two solid ticks), then the plan (a hollow one).
+        const marks = [...dayCell(day(12))!.querySelectorAll('[data-mark]')].map((m) => m.getAttribute('data-mark'))
+        expect(marks).toEqual(['due', 'due', 'plan'])
+        expect(dayCell(day(12))).not.toHaveAttribute('data-heat')
+        expect(dayCell(day(12))!.className).toMatch(/washDue/)
+        expect(dayCell(day(12))!.textContent).toBe('12')
+        expect(dayCell(day(13))!.querySelectorAll('[data-mark]')).toHaveLength(0)
+        // The day list is unchanged.
+        fireEvent.click(dayCell(day(16))!)
+        expect(within(document.querySelector('[data-cal-day-list]')!).getByText('Both dates')).toBeInTheDocument()
+        cleanup()
+      }
     } finally {
       window.matchMedia = original
     }
@@ -480,16 +481,36 @@ describe('CalendarWidget faces (D25 R)', () => {
     })
   })
 
-  it('small: today’s count of the tab’s date types and this week’s heat strip, today marked', () => {
+  it('small: today’s count of the tab’s date types and this week’s ticks, today marked', () => {
     setupAt('small')
     expect(screen.getByTestId('calendar-face-today')).toHaveTextContent('2')
     expect(document.querySelector('[data-calendar-face]')!.textContent).toContain('due or to follow up today')
-    const strip = [...document.querySelectorAll<HTMLElement>('[data-calendar-face] [data-heat]')]
-    // Mon 12 – Sun 18 (the week starts on Monday): 1, 0, 2, 0, 1, 0, 0.
-    expect(strip.map((d) => d.dataset.heat)).toEqual(['1', '0', '1', '0', '1', '0', '0'])
+    const strip = [...document.querySelectorAll<HTMLElement>('[data-calendar-face] [data-day]')]
+    // Mon 12 – Sun 18 (the week starts on Monday): a due date; nothing; a due date and a follow-up; nothing; a due date.
+    const marks = strip.map((d) => [...d.querySelectorAll('[data-mark]')].map((m) => m.getAttribute('data-mark')).join(' '))
+    expect(marks).toEqual(['due', '', 'due followup', '', 'due', '', ''])
     expect(strip.findIndex((d) => d.dataset.today === 'true')).toBe(2)
     expect(strip[0]!.dataset.late).toBe('due')
+    expect(document.querySelectorAll('[data-calendar-face] [data-heat]')).toHaveLength(0)
     expect(document.querySelector('[data-calendar-widget]')).toBeNull()
+  })
+
+  it('small and medium: a plan is a hollow tick; past eight, +N', () => {
+    const many = Array.from({ length: 10 }, (_, i) => makeTodo({ id: 20 + i, title: `Plan ${i}`, doDate: day(15), sortOrder: 20 + i }))
+    useTodoStore.setState({ todos: [...useTodoStore.getState().todos, ...many] })
+    const all = calendarTab({ config: { dateTypes: { due: true, followup: true, plan: true } } })
+    for (const face of ['small', 'medium'] as const) {
+      setupAt(face, all)
+      const thu = dayCell(day(15))!
+      expect([...thu.querySelectorAll('[data-mark]')].map((m) => m.getAttribute('data-mark'))).toEqual(Array.from({ length: 8 }, () => 'plan'))
+      expect(thu.querySelector('[data-day-ticks-more]')).toHaveTextContent('+2')
+      cleanup()
+    }
+  })
+
+  it('small, plans shown: today’s words name them', () => {
+    setupAt('small', calendarTab({ config: { dateTypes: { due: true, followup: true, plan: true } } }))
+    expect(document.querySelector('[data-calendar-face]')!.textContent).toContain('due, to follow up or planned today')
   })
 
   it('small, due only: today’s due tasks', () => {
@@ -503,6 +524,9 @@ describe('CalendarWidget faces (D25 R)', () => {
     const days = [...document.querySelectorAll<HTMLElement>('[data-calendar-face] [data-day]')]
     expect(days.map((d) => d.dataset.day)).toEqual([12, 13, 14, 15, 16, 17, 18].map((n) => dayKey(day(n))))
     expect(days.map((d) => within(d).getByTestId('calendar-face-count').textContent)).toEqual(['1', '–', '2', '–', '1', '–', '–'])
+    // Each day's ticks under its count, no heat tint.
+    expect([...dayCell(day(14))!.querySelectorAll('[data-mark]')].map((m) => m.getAttribute('data-mark'))).toEqual(['due', 'followup'])
+    expect(dayCell(day(14))).not.toHaveAttribute('data-heat')
     expect(dayCell(day(14))!.getAttribute('aria-label')).toBe('Wed 14 Oct, today: 2 tasks')
     fireEvent.click(dayCell(day(14))!)
     const popover = screen.getByTestId('calendar-day-popover')

@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import type { CalendarTab } from '../../../models/workspace-layout'
 import type { CalendarEntry } from '../../../services/calendar-entries'
 import { calendarRange, calendarTypesWords, dayLabel, weekdayLabels } from '../../../utils/calendar-grid'
-import { dayHeat, heatHue, heatSummary } from '../../../utils/calendar-heat'
+import { dayHeat, heatSummary } from '../../../utils/calendar-heat'
+import { dayTicks, entryDayMarks } from '../../../utils/day-ticks'
 import { dayKey } from '../../../utils/date'
 import type { WidgetFace } from '../../../utils/widget-face'
+import { DayTicks } from '../../shared/DayTicks'
 import { TodayIcon } from '../../shared/icons'
 import { dayClasses, type DayContext, useDayTarget } from './calendar-day'
 import { useCalendarEntries, useCalendarSetup } from './calendar-data'
@@ -18,7 +20,7 @@ function todayWords(types: CalendarTab['config']['dateTypes']): string {
   return `${calendarTypesWords(types)} today`
 }
 
-/** A medium face's day: its weekday, number and count, heat-tinted; it takes a task drop (sets the date) and opens its entries. */
+/** A medium face's day: its weekday, number, count and ticks; it takes a task drop (sets the date) and opens its entries. */
 function WeekFaceDay({ day, weekday, entries, ctx, onOpen }: {
   day: Date
   weekday: string
@@ -34,12 +36,11 @@ function WeekFaceDay({ day, weekday, entries, ctx, onOpen }: {
     <button
       ref={setNodeRef}
       type="button"
-      className={dayClasses(`${styles.weekDay} ${calStyles.heatDay}`, ctx, highlighted, [isToday && styles.weekToday])}
+      className={dayClasses(styles.weekDay, ctx, highlighted, [isToday && styles.weekToday])}
       aria-label={`${dayLabel(day)}${isToday ? ', today' : ''}: ${heat.count} ${heat.count === 1 ? 'task' : 'tasks'}`}
       data-tooltip={summary || undefined}
       data-day={dayKey(day)}
       data-today={isToday ? 'true' : undefined}
-      data-heat={heat.step}
       data-late={heat.late ?? undefined}
       data-drop-target={highlighted ? 'true' : undefined}
       onClick={(e) => { if (heat.count > 0) onOpen(day, e.currentTarget) }}
@@ -47,6 +48,7 @@ function WeekFaceDay({ day, weekday, entries, ctx, onOpen }: {
       <span className={styles.weekName}>{weekday}</span>
       <span className={`${styles.weekNumber} ${heat.late ? styles.weekLate : ''}`} data-late={heat.late ?? undefined}>{day.getDate()}</span>
       <span className={styles.weekCount} data-testid="calendar-face-count">{heat.count > 0 ? heat.count : '–'}</span>
+      <DayTicks ticks={dayTicks(entryDayMarks(entries))} className={styles.weekTicks} />
       {highlighted && <DropLabel ctx={ctx} day={day} />}
     </button>
   )
@@ -55,8 +57,10 @@ function WeekFaceDay({ day, weekday, entries, ctx, onOpen }: {
 /**
  * The calendar's small and medium faces (D25 R), over this week under the
  * screen filter. Small: today's count (of the tab's date types) and a
- * seven-day heat strip. Medium: the week as seven day cells with their
- * counts — each takes a task dropped on it as the full calendar's days do
+ * seven-day strip of the days' ticks (`shared/DayTicks`, the Planner
+ * strip's: a solid tick per due date and follow-up, a hollow one per plan).
+ * Medium: the week as seven day cells with their counts and ticks — each
+ * takes a task dropped on it as the full calendar's days do
  * (the same droppable ids and drop handling: it sets or moves the date), and
  * a click opens its entries.
  */
@@ -84,7 +88,6 @@ export function CalendarFace({ tab, face, faceRef }: {
       className={`${calStyles.widget} ${styles.face} ${face === 'small' ? styles.small : styles.medium}`}
       data-calendar-face={face}
       data-calendar-face-tab={tab.id}
-      data-heat-hue={heatHue(dateTypes)}
       data-dragging={drag ? 'true' : undefined}
     >
       {face === 'small' ? (
@@ -96,15 +99,17 @@ export function CalendarFace({ tab, face, faceRef }: {
           </span>
           <span className={styles.strip} role="img" aria-label={`This week: ${range.days.map((d) => `${dayLabel(d)} ${entriesOf(d).length}`).join(', ')}`}>
             {range.days.map((day) => {
-              const heat = dayHeat(entriesOf(day), day, today)
+              const entries = entriesOf(day)
               return (
                 <span
                   key={day.getTime()}
-                  className={`${styles.stripDay} ${calStyles.heatDay}`}
-                  data-heat={heat.step}
+                  className={styles.stripDay}
+                  data-day={dayKey(day)}
                   data-today={day.getTime() === today.getTime() ? 'true' : undefined}
-                  data-late={heat.late ?? undefined}
-                />
+                  data-late={dayHeat(entries, day, today).late ?? undefined}
+                >
+                  <DayTicks ticks={dayTicks(entryDayMarks(entries))} size="sm" />
+                </span>
               )
             })}
           </span>
