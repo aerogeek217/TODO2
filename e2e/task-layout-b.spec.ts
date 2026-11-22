@@ -124,16 +124,16 @@ async function visibleBoxes(scope: Locator, selector: string): Promise<Box[]> {
 }
 
 /**
- * Layout B inside `host` (the editor, a widget): the fact band's five cells in order under the
+ * Layout B inside `host` (the editor, a widget): the fact band's six cells in order under the
  * title; the band above the body; Subtasks above Notes; the writing left of Status updates (or above
  * it, `stacked`); the update line, Last, Next and Mark followed up reachable; the footer holding the
  * follow-up fields — Last, then Next, then Mark followed up, left to right, none over another.
  */
 async function expectLayoutB(page: Page, host: Locator, { last = true, stacked = false, footer }: { last?: boolean; stacked?: boolean; footer: Locator }) {
   const band = host.locator('[data-task-facts]')
-  await expect(band.locator('[data-fact]')).toHaveCount(5)
+  await expect(band.locator('[data-fact]')).toHaveCount(6)
   expect(await band.locator('[data-fact]').evaluateAll((cells) => cells.map((c) => c.getAttribute('data-fact'))))
-    .toEqual(['priority', 'status', 'people', 'tags', 'due'])
+    .toEqual(['priority', 'status', 'people', 'tags', 'due', 'planned'])
   const [bandBox, writing, updates] = [await box(band), await box(host.locator('[data-task-writing]')), await box(host.locator('[data-task-updates]'))]
   expect(writing.y, 'the body under the band').toBeGreaterThanOrEqual(bandBox.y + bandBox.height - 1)
   if (stacked) {
@@ -193,7 +193,7 @@ test.describe('the task editor, wide', () => {
     test(`${title}: the band, the two columns and the footer’s Last · Next · Mark followed up · Done`, async ({ page }) => {
       await seedWorkspace(page, SEED)
       const dialog = await openEditor(page, title)
-      expect(Math.round((await box(dialog)).width)).toBe(920)
+      expect(Math.round((await box(dialog)).width)).toBe(1060)
       await expectLayoutB(page, dialog, { footer: editorFooter(dialog) })
       const footer = editorFooter(dialog)
       // Done at the right end; the quick intervals shown at this width.
@@ -383,7 +383,7 @@ test.describe('the new-task editor', () => {
     const dialog = page.getByRole('dialog', { name: 'New task' })
     await expect(dialog).toBeVisible()
     await settle(dialog)
-    await expect(dialog.locator('[data-task-facts] [data-fact]')).toHaveCount(5)
+    await expect(dialog.locator('[data-task-facts] [data-fact]')).toHaveCount(6)
     const footer = dialog.locator('[data-task-footer]')
     const [l, n, cancel, create] = [
       await box(footer.getByRole('textbox', { name: 'Last follow-up' })),

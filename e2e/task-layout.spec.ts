@@ -1,12 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
 import { reviewField, seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * Task layout B (feedback 2026-11-15) · the one task layout in a real
- * browser: the task editor (920px) with the fact band under the title —
- * Priority, Status, People, Tags, Due, each under a plain heading — then
+ * browser: the task editor (1060px) with the fact band under the title —
+ * Priority, Status, People, Tags, Due, Planned, each under a plain heading
+ * (all six on one row at a 1280px window; Planned's Plan for day menu) — then
  * Subtasks and Notes on the left and Status updates on the right, the log
  * anchored over its update line; the follow-up fields in the footer. A long
  * task's columns scroll inside while the update line and the footer stay in
@@ -25,7 +27,7 @@ import { reviewField, seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceS
 const TAB = 'l1'
 const MANY_SUBTASKS = Array.from({ length: 14 }, (_, i) => ({ title: `Step ${i + 1}`, done: i < 3 }))
 const MANY_UPDATES = Array.from({ length: 9 }, (_, i) => ({ text: `Update ${i + 1}`, inDays: -(9 - i) }))
-const FACT_ORDER = ['priority', 'status', 'people', 'tags', 'due']
+const FACT_ORDER = ['priority', 'status', 'people', 'tags', 'due', 'planned']
 
 const SEED: WorkspaceSeed = {
   people: ['Aisha', 'Ben'],
@@ -107,10 +109,10 @@ test.describe('the task editor', () => {
     expect(Math.abs(await centre(dialog.getByRole('button', { name: 'Close' })) - check)).toBeLessThanOrEqual(0.5)
   })
 
-  test('920px: the fact band in its order, Subtasks and Notes left of Status updates; the footer’s fields in view without scrolling', async ({ page }) => {
+  test('1060px: the fact band in its order, Subtasks and Notes left of Status updates; the footer’s fields in view without scrolling', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page)
-    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(920)
+    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(1060)
 
     const band = dialog.locator('[data-task-facts]')
     const writing = dialog.locator('[data-task-writing]')
@@ -125,7 +127,7 @@ test.describe('the task editor', () => {
     expect(await facts.evaluateAll((els) => els.map((el) => el.getAttribute('data-fact')))).toEqual(FACT_ORDER)
     const colours = await facts.evaluateAll((els) => els.map((el) => getComputedStyle(el.querySelector('[id]')!).color))
     expect(new Set(colours).size).toBe(1)
-    // At 920px all five share one line: Due never wraps onto a second.
+    // At 1060px all six share one line: Due and Planned never wrap onto a second.
     const tops = await facts.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)))
     expect(new Set(tops).size).toBe(1)
     // The writing: Subtasks, then Notes; Status updates beside them.
@@ -144,6 +146,42 @@ test.describe('the task editor', () => {
     await expect(followup.getByRole('textbox', { name: 'Last follow-up' })).toHaveValue(/.+/)
     await expect(followup).toContainText('2 weeks ago')
     await page.screenshot({ path: test.info().outputPath('editor-b.png') })
+  })
+
+  test('at a 1280px window the six facts share one row; Planned opens Plan for day, a pick plans the day with no stamp, × clears it', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await seedWorkspace(page, SEED)
+    const dialog = await openEditor(page)
+    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(1060)
+    const facts = dialog.locator('[data-task-facts] [data-fact]')
+    expect(await facts.evaluateAll((els) => els.map((el) => el.getAttribute('data-fact')))).toEqual(FACT_ORDER)
+    const tops = await facts.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)))
+    expect(new Set(tops).size).toBe(1)
+    // Each cell inside the band: none cut off at its right edge.
+    const band = await box(dialog.locator('[data-task-facts]'))
+    const planned = dialog.locator('[data-fact="planned"]')
+    const p = await box(planned)
+    expect(p.x + p.width).toBeLessThanOrEqual(band.x + band.width + 0.5)
+    expect(p.width).toBeGreaterThanOrEqual(196)
+    await expect(planned).toContainText('Not planned')
+
+    const stamp = async () => (await readStore<{ title: string; modifiedAt: string; doDate?: string }>(page, 'todos')).find((t) => t.title === 'Vendor contract renewal')!
+    const before = new Date((await stamp()).modifiedAt).getTime()
+    await planned.getByRole('button', { name: /^Planned:/ }).click()
+    const menu = page.getByRole('menu', { name: 'Plan for day' })
+    await expect(menu).toBeVisible()
+    await expect(menu).toContainText('Plans it for that day')
+    await expect(menu.getByRole('menuitem', { name: 'Pick a date…' })).toBeVisible()
+    await expect(menu.getByRole('menuitemradio')).toHaveCount(8)
+    await menu.getByRole('menuitemradio', { name: /^Today/ }).click()
+    await expect(menu).toHaveCount(0)
+    await expect(planned).toContainText('Today')
+    await expect.poll(async () => (await stamp()).doDate != null).toBe(true)
+    expect(new Date((await stamp()).modifiedAt).getTime()).toBe(before)
+    await page.screenshot({ path: test.info().outputPath('editor-planned-1280.png') })
+    await planned.getByRole('button', { name: 'Clear plan' }).click()
+    await expect(planned).toContainText('Not planned')
+    await expect.poll(async () => (await stamp()).doDate == null).toBe(true)
   })
 
   test('a long task: the writing scrolls inside, the band and the footer stay put; the checklist and the log scroll inside', async ({ page }) => {

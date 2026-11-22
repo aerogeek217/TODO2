@@ -108,7 +108,7 @@ test.describe('the task editor (board BL)', () => {
   test('fact headings are the standard section label, in the band; Status updates’ line at the bottom, above the footer; one left edge per column', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page, 'Vendor contract renewal')
-    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(920)
+    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(1060)
     const band = dialog.locator('[data-task-facts]')
 
     // The headings: the Notes label's look — 11px bold caps, one muted colour, no icon.
@@ -118,7 +118,7 @@ test.describe('the task editor (board BL)', () => {
     })
     expect(notesLabel).toEqual({ size: '11px', weight: '700', color: notesLabel.color, transform: 'uppercase' })
     const looks = await headingLooks(dialog)
-    expect(looks.map((l) => l.text)).toEqual(['Priority', 'Status', 'People', 'Tags', 'Due'])
+    expect(looks.map((l) => l.text)).toEqual(['Priority', 'Status', 'People', 'Tags', 'Due', 'Planned'])
     for (const look of looks) {
       expect({ size: look.size, weight: look.weight, color: look.color, transform: look.transform }).toEqual(notesLabel)
       expect(look.icons).toBe(0)
