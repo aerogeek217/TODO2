@@ -12,7 +12,7 @@ A task's **plan state** is one of three, kept on the task (`models/todo-item.Tas
 - a **planned day** (`doDate?: Date` on `TodoItem`): the day the user plans to work on the task, a day at local midnight;
 - **held in Unplanned** (`unplanned?: true`; only `true` is stored).
 
-Never both. Neither field is indexed. Besides the Planner, the plan state is shown and set in the task layout's [Planned cell](review.md#the-fact-band) (the task editor and the review card) and named on the review's medium card; Quick Add's `/plan <date>` sets it on a new task ([Creating](tasks.md#creating)). Filters read it as the **Planned** date type (`DateField` `planned`: the planned day; its `held` clause, the expression's `unplanned`, is held in Unplanned), and lists sort and group by it; no row column, calendar, Markdown export or check-in message reads it.
+Never both. Neither field is indexed. Besides the Planner, the plan state is shown and set in the task layout's [Planned cell](review.md#the-fact-band) (the task editor and the review card) and named on the review's medium card; Quick Add's `/plan <date>` sets it on a new task ([Creating](tasks.md#creating)). The [Calendar](workspace-layout.md#the-calendar) shows a planned day as a plan entry (Plans, a date type) and a drag of it plans the task for another day outright. Filters read it as the **Planned** date type (`DateField` `planned`: the planned day; its `held` clause, the expression's `unplanned`, is held in Unplanned), and lists sort and group by it; no row column, Markdown export or check-in message reads it.
 
 It is set in the Planner, or from **Plan for day ›** outside it (`task/plan-menu.planForDayEntries`): in every task menu — a list row's, a calendar entry's (the day popover's too), a search result's — and in the task editor's and the [review card](review.md)'s ⋯. That submenu offers:
 
@@ -109,7 +109,7 @@ Each tile holds:
 - `dates` — the real dates falling on it: one mark per due date and per follow-up of every open task, wherever it is planned or held. A late one counts on today's tile;
 - `plans` — the tasks whose planned day it is.
 
-They are drawn as the tile's marks (`plannerTileMarks`): a **solid tick** per real date — due dates in the deadline color, then follow-ups in the follow-up color — then a **hollow tick** (outlined, in the secondary text color) per plan. Eight in all, then `+N`.
+They are drawn as the tile's ticks (`utils/day-ticks.dayTicks`, drawn by `shared/DayTicks` — the Calendar's small day cells draw the same): a **solid tick** per real date — due dates in the deadline color, then follow-ups in the follow-up color — then a **hollow tick** (outlined, in the secondary text color) per plan. Eight in all, then `+N`.
 
 Where each part is drawn is in [Faces](planner-widget.md#faces).
 

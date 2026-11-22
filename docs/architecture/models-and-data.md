@@ -368,7 +368,7 @@ A list tab (`lens`):
 
 A calendar:
 
-- Its `dateTypes` are two booleans, and both may be false.
+- Its `dateTypes` are booleans, and all may be false. `plan` may be absent, from before calendars showed plans: it reads `true`, in the repair and in the database read alike, and is no fix.
 - Its `viewState.titles` is a boolean when present.
 
 A Neglect map:

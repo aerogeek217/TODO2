@@ -63,8 +63,8 @@ Each tab has a per-kind `config`, the **layout config** saved with the layout, a
 Config:
 
 - A list tab: `listDefinitionId?`, which `createTab`'s seed sets. `tabListId(tab)` gives a list tab's list, which is what counts as a widget showing a list.
-- A calendar: `dateTypes { due, followup }`. Both may be off, an empty calendar.
-  - `CalendarDateType` is one of its keys: the date a calendar drop sets.
+- A calendar: `dateTypes { due, followup, plan }` ([The Calendar](#the-calendar)). All may be off, an empty calendar.
+  - `CalendarDateType` is one of its keys: the date a calendar drop sets. `shownCalendarDateTypes` lists the shown ones in the toolbar's order.
   - `toggleCalendarDateType(types, type)` switches one on or off.
 - The glance kinds (`models/glance-widgets`, `models/chart-widgets`): a Number's `NumberConfig`, Created vs completed's `TrendTabConfig`, a Breakdown's `BreakdownConfig`, a Pivot's `PivotConfig`. See [Glance widgets](glance-widgets.md) and [Charts](charts.md).
 - A Neglect map: `NeglectTabConfig` ([Task maps](task-maps.md#config)).
@@ -89,7 +89,7 @@ View state:
 - its `group`, the add-widget menus' heading;
 - `glance`: a glance widget. A track of them may shrink to 64px, a cell of them to 72px wide;
 - `fitHeight`: a row track fits its content when the cells lying only in it hold only such tabs (`utils/workspace-rows`);
-- `newTab(id, seed)`, with the default config. A new calendar shows both date types.
+- `newTab(id, seed)`, with the default config. A new calendar shows all three date types.
 
 These derive from it: `WIDGET_KINDS`, `isWidgetKind`, `createTab(kind, id, seed?)`, the menus, the add-widget buttons, tab titles and the e2e fixture's defaults.
 
@@ -218,6 +218,7 @@ In the code:
 - `layoutRepository.getAll` and `get` return `ReadLayout`s, `{ layout, fixes }`. Each row goes through the `layouts` picker (`rowFixes` / `sanitizeRow`, that is `pickLayoutBody`).
 - A part this build can't use (an unknown widget kind, a bad id, size or setting) is dropped or reset in memory and named in `fixes`. The stored row is untouched.
 - A layout may come out with no cells. It is never dropped.
+- A calendar stored without `plan` in its date types reads `plan: true` (`withCalendarPlans`). That is not a fix.
 - A repaired layout (`ReadLayout.fixes` not empty) opens without the bad parts, and its id goes into `workspace-store.repairedIds`. The snackbar says `Repaired layout "<name>" — <fixes>. Your next change to it keeps the repair.`, and the repair is logged too.
 
 Nothing writes the repair back on open:
@@ -226,6 +227,39 @@ Nothing writes the repair back on open:
 - `load` writes only `lastUsedAt`, and `rename` only the name, the hue and the icon.
 - Its first structural edit writes the whole layout, repair and view state, and drops it from `repairedIds`.
 - That edit also removes the lists only the dropped parts named, as part of its step. An undo of that first edit doesn't bring them back: the repaired table doesn't show them either.
+
+## The Calendar
+
+The Calendar widget (`components/workspace/calendar/`) shows the screen filter's tasks (`useScreenTasks`) by day: a month, or a week as rows or seven columns ([its parts](../components.md)).
+
+### Date types
+
+Its toolbar's toggles are its `config.dateTypes`: **Due**, **Follow-up** and **Plans** (`CALENDAR_DATE_TYPES`), layout config. Due and Follow-up draw their `DateBar`; Plans draws the hollow bar, a 3×13px bar outlined in the secondary text color — the Planner's plan mark. All may be off: the note `No date types shown`, and the days take no drop. A calendar stored without `plan` reads `plan: true` ([Reading a stored layout](#reading-a-stored-layout)).
+
+### Entries
+
+`services/calendar-entries.buildEntries` places one entry per shown type: on the due date's day, the next follow-up's, and the planned day (`doDate`). A task held in Unplanned has no plan entry. Within a day: due entries, then follow-ups, then plans.
+
+- A plan entry (`data-cal-entry="plan"`) is a line with the hollow bar, its title in the secondary text color. Its tooltip is the title beside the hollow bar, named `Planned`.
+- A **missed plan** — its day passed, the task open (`isEntryMissed`) — is faded on its day (`plan-missed`). It is never overdue, never late and washes no day.
+- A completed task's entries show only when the screen filter lets completed tasks through, plans included.
+- Everything else an entry does is the same for a plan: the task menu with Plan for day ›, a click opening the task, the day popover, `+N more`.
+
+### Dragging
+
+An entry drags to another day, except a recurring occurrence, a completed task's plan and on a phone. It moves its own date: a due date or follow-up keeps its time of day; a plan entry plans the task for that day **outright** (`services/planner-drop.planTaskForDay`: a pick, as Plan for day ›) — the plan write, no stamp, no history event, one undo step. A day before today is refused for a plan, as the Planner refuses it.
+
+A list row dropped on a day sets the one type the calendar shows. With more than one shown, `CalendarDropChooser` asks at the pointer: **Due date · Follow-up · Plan**, the shown ones, with `D` / `F` / `P` and the task's values now (`was Thu 15`, `not set`, `held in Unplanned`). The hovered day's label: `Move here`, `Set date` (the chooser will ask), `Set due`, `Set follow-up`, `Set plan`, or `Past day` where a plan would land before today.
+
+### Day marks
+
+Small day cells draw **ticks** (`shared/DayTicks` over `utils/day-ticks`, the Planner strip's too): a solid tick per due date in the deadline color and per follow-up in the follow-up color, then a hollow tick per plan, up to eight, then `+N`. They are drawn by:
+
+- the small face's seven-day strip, under today's count and its words (`due, to follow up or planned today`): today ringed, a late day underlined in its color;
+- the medium face's seven day cells, under each day's count: today ringed, a late day's number in its color; each takes a drop and opens its entries;
+- the compact month (a narrow cell, the phone), under each day's number, Titles on or off: a past day still open is washed in its late color. Titles has no toggle there.
+
+The full month keeps its **heat map** with Titles off: a day's tint counts every entry, plans included, and its tooltip names them (`4 due · 1 follow-up · 2 planned`). The legend names what counts (`Due, follow-ups and plans`). A missed plan doesn't make a day late.
 
 ## On a phone
 

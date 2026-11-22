@@ -79,7 +79,7 @@ Detail reference for the test setup (`src/test/`, `e2e/`, `vitest.config.ts`, `p
 Specs that rest on these seeds:
 
 - `e2e/list-zoom.spec.ts`, at Auto: Stacked or Rows by the list's width, with hysteresis; the stepper and Ctrl + wheel step from the level shown.
-- `e2e/workspace-calendar.spec.ts` seeds `titles: true` for its bar tests.
+- `e2e/workspace-calendar.spec.ts` seeds `titles: true` for its bar tests; a calendar seeded with `dateTypes` names all three (`plan: false` keeps one type alone).
 - `e2e/calendar-heat.spec.ts`: a day's step, count and `--cal-heat-*` fill; the tooltip and the popover; Titles surviving a reload.
 - `e2e/neglect-map.spec.ts`:
   - Slipping tasks in the shaded corner (dot centers against its box) and in the numbered list;
