@@ -93,10 +93,23 @@ describe('plannerFaceFor', () => {
 })
 
 describe('plannerStripFits', () => {
-  it('has room for seven tiles from 300px; unmeasured it has', () => {
-    expect(plannerStripFits(300)).toBe(true)
-    expect(plannerStripFits(299)).toBe(false)
-    expect(plannerStripFits(0)).toBe(true)
+  const tall = (width: number) => ({ width, height: 800 })
+  it('shows the strip only where each of its seven tiles has room for its ticks (38px): 315px without the arrows, 371px with them', () => {
+    expect(plannerStripFits(tall(315), { arrows: false, topLine: true })).toBe(true)
+    expect(plannerStripFits(tall(314), { arrows: false, topLine: true })).toBe(false)
+    expect(plannerStripFits(tall(371), { arrows: true, topLine: false })).toBe(true)
+    expect(plannerStripFits(tall(370), { arrows: true, topLine: false })).toBe(false)
+  })
+
+  it('and only where the widget is tall enough for the strip over Today’s heading and one row: 165px with a top line, 135px without', () => {
+    expect(plannerStripFits({ width: 900, height: 165 }, { arrows: true, topLine: true })).toBe(true)
+    expect(plannerStripFits({ width: 900, height: 164 }, { arrows: true, topLine: true })).toBe(false)
+    expect(plannerStripFits({ width: 900, height: 135 }, { arrows: true, topLine: false })).toBe(true)
+    expect(plannerStripFits({ width: 900, height: 134 }, { arrows: true, topLine: false })).toBe(false)
+  })
+
+  it('unmeasured, it fits', () => {
+    expect(plannerStripFits({ width: 0, height: 0 }, { arrows: true, topLine: true })).toBe(true)
   })
 })
 

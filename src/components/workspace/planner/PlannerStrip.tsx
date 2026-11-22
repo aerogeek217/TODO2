@@ -22,7 +22,7 @@ interface PlannerStripProps {
   tiles: readonly PlannerTile[]
   /** The window's offset from today, days: at 0 there is no earlier week. */
   offset: number
-  /** `false`: no room for seven tiles — the arrows stay, around the window's range. */
+  /** `false`: no room for the tiles (`plannerStripFits`) — the slim range row: the arrows around the window's range. */
   showTiles: boolean
   /** The first day of the week (Settings › Tasks › Rules, the calendar's): a divider stands before its tile. */
   weekStartsOn: WeekStart
@@ -34,8 +34,6 @@ interface PlannerStripProps {
   mark: PlannerDropMark | null
   /** `false`: the arrows are elsewhere (the portrait layout's top line), the tiles take the whole strip. Default true. */
   arrows?: boolean
-  /** The portrait layout (board R1): a narrow tile keeps its ticks — weekday; date and count; ticks. */
-  portrait?: boolean
   /** The days whose groups show in the day list (`dayKey`s): a line under their tiles. Absent: no line. */
   inView?: ReadonlySet<string>
 }
@@ -70,18 +68,21 @@ export function WeekArrow({ direction, disabled, onShift, compact = false }: {
  * the window a week. Each tile takes a dragged task (a droppable,
  * `TASK_DROP_KIND.plannerDay`): the day a drop would plan it for is dashed,
  * in one neutral color — no real date changes — (`mark`:
- * `data-planner-drop`). Too narrow for tiles (`showTiles` false), the
- * arrows sit around the range in words. In the portrait layout (board R1)
- * the arrows move to the top line when it shows (`arrows` false), a narrow
- * tile keeps its ticks (`portrait`), and a line under each tile marks the
- * days whose groups show in the day list (`inView`, `data-in-view`).
+ * `data-planner-drop`). In a narrow widget a tile stacks its weekday over
+ * its date and count, over its ticks. The strip is drawn only where every
+ * tile has room for its ticks (`plannerStripFits`); else, in a Planner with
+ * no top line, it is the slim range row — the arrows around the range in
+ * words (`showTiles` false). In the portrait layout (board R1) the arrows
+ * move to the top line when it shows (`arrows` false), and a line under
+ * each tile marks the days whose groups show in the day list (`inView`,
+ * `data-in-view`).
  */
-export function PlannerStrip({ tabId, window, tiles, offset, showTiles, weekStartsOn, onGo, onShift, mark, arrows = true, portrait = false, inView }: PlannerStripProps) {
+export function PlannerStrip({ tabId, window, tiles, offset, showTiles, weekStartsOn, onGo, onShift, mark, arrows = true, inView }: PlannerStripProps) {
   // Without tiles the range sits between the arrows, so they stay.
   const withArrows = arrows || !showTiles
   return (
     <div
-      className={[styles.strip, showTiles ? '' : styles.stripSlim, portrait ? styles.stripPortrait : '', inView ? styles.stripInView : ''].join(' ')}
+      className={[styles.strip, showTiles ? '' : styles.stripSlim, inView ? styles.stripInView : ''].join(' ')}
       role="group"
       aria-label="Days"
       data-planner-strip={showTiles ? 'tiles' : 'range'}

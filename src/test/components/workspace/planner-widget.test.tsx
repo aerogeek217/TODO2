@@ -444,6 +444,42 @@ describe('the Planner — its top line, alone in its cell', () => {
     expect(screen.queryByTestId('planner-range')).toBeNull()
     expect(screen.getByRole('button', { name: 'Next week' })).toBeInTheDocument()
   })
+
+  it('too narrow for its tiles’ ticks beside the arrows (under 371px), the strip is hidden: the range and arrows sit in the top line', () => {
+    width = 371
+    height = 500
+    const { unmount } = alone()
+    expect(root().querySelectorAll('[data-planner-tile]')).toHaveLength(7)
+    unmount()
+    width = 370
+    alone()
+    expect(root().querySelector('[data-planner-strip]')).toBeNull()
+    expect(screen.getByTestId('planner-range')).toHaveTextContent('Nov 20 – 26')
+    expect(screen.getByRole('button', { name: 'Previous week' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Next week' }))
+    expect(screen.getByRole('button', { name: 'Nov 27 – Dec 3. Back to this week' })).toBeInTheDocument()
+  })
+
+  it('too short for the strip over Today’s heading and one row (under 165px), the strip is hidden too', () => {
+    height = 165
+    const { unmount } = alone()
+    expect(root().querySelector('[data-planner-strip]')).toHaveAttribute('data-planner-strip', 'tiles')
+    unmount()
+    height = 164
+    alone()
+    expect(root().querySelector('[data-planner-strip]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Next week' })).toBeInTheDocument()
+  })
+
+  it('in a cell of tabs, hidden, the strip is the slim range row: the arrows around the range', () => {
+    width = 370
+    height = 500
+    show()
+    const strip = within(root()).getByRole('group', { name: 'Days' })
+    expect(strip).toHaveAttribute('data-planner-strip', 'range')
+    expect(strip).toHaveTextContent('Nov 20 – 26')
+    expect(within(strip).getByRole('button', { name: 'Next week' })).toBeInTheDocument()
+  })
 })
 
 describe('the Planner — Today’s foot', () => {
@@ -586,7 +622,7 @@ describe('the Planner — medium and small', () => {
     expect(root()).toHaveAttribute('data-planner-face', 'medium')
   })
 
-  it('too narrow for seven tiles, the arrows sit around the range', () => {
+  it('too narrow for its tiles’ ticks, with no top line: the strip is the slim range row, the arrows around the range', () => {
     width = 260
     show()
     expect(root()).toHaveAttribute('data-planner-face', 'medium')
@@ -624,7 +660,8 @@ describe('the Planner — on the phone', () => {
   beforeEach(() => {
     original = window.matchMedia
     window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
-    width = 359
+    // A 390px phone's widget: room for the tiles' ticks beside the arrows.
+    width = 374
   })
 
   afterEach(() => {
@@ -716,6 +753,19 @@ describe('the Planner — portrait', () => {
     expect(within(strip).queryByRole('button', { name: 'Next week' })).toBeNull()
     fireEvent.click(within(root()).getByRole('button', { name: 'Next week' }))
     expect(root()).toHaveTextContent('Nov 27 – Dec 3')
+  })
+
+  it('alone, its tiles keep their ticks down to 315px of widget; narrower, the strip is hidden', () => {
+    width = 315
+    const { unmount } = alone()
+    expect(root().querySelector('[data-planner-layout="stack"]')).not.toBeNull()
+    expect(root().querySelectorAll('[data-planner-tile]')).toHaveLength(7)
+    unmount()
+    width = 314
+    alone()
+    expect(root().querySelector('[data-planner-layout="stack"]')).not.toBeNull()
+    expect(root().querySelector('[data-planner-strip]')).toBeNull()
+    expect(within(root()).getByRole('button', { name: 'Next week' })).toBeInTheDocument()
   })
 
   it('in a cell of tabs (no top line), the arrows stay on the strip', () => {

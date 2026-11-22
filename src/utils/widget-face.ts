@@ -112,8 +112,6 @@ export function taskMapFaceFor(size: { width: number; height: number }): WidgetF
 const PLANNER_PANES_MIN_WIDTH_PX = 720
 /** A Planner's body shorter than this (and not small) shows its medium face: under it the strip leaves the panes no room. */
 const PLANNER_PANES_MIN_HEIGHT_PX = 300
-/** A Planner's body narrower than this has no strip: seven day tiles and the two arrows no longer fit. */
-const PLANNER_STRIP_MIN_WIDTH_PX = 300
 
 /**
  * A Planner's face (2026-11-20): small as every widget's; medium — one
@@ -146,9 +144,40 @@ export function plannerPortrait(size: { width: number; height: number }): boolea
   return width > 0 && width < PLANNER_PANES_MIN_WIDTH_PX && height >= PLANNER_PORTRAIT_MIN_HEIGHT_PX && height >= width * PLANNER_PORTRAIT_MIN_RATIO
 }
 
-/** Whether a Planner of `width` has room for its strip (`PLANNER_STRIP_MIN_WIDTH_PX`); unmeasured (0) it has. */
-export function plannerStripFits(width: number): boolean {
-  return width <= 0 || width >= PLANNER_STRIP_MIN_WIDTH_PX
+/**
+ * The narrowest a strip's tile may be: its weekday (`WED`, about 26px), its
+ * date with a one-digit count beside it, and room for five of its ticks
+ * inside its 6px padding — the portrait layout's narrow tiles at 320px of
+ * widget (measured).
+ */
+const PLANNER_TILE_MIN_PX = 38
+/**
+ * What the narrow strip takes besides its tiles and arrows: its padding
+ * (2 × 8px), six gaps of 4px, and the week rule (1px, 2 × 2px margins) with
+ * its own gap.
+ */
+const PLANNER_STRIP_FRAME_PX = 49
+/** The two week arrows in the strip: 24px each, with a gap each. */
+const PLANNER_STRIP_ARROWS_PX = 56
+/** The strip's height (a narrow one: its tiles, its padding, its rule). */
+const PLANNER_STRIP_HEIGHT_PX = 63
+/** The top line's height, alone in its cell. */
+const PLANNER_TOP_LINE_PX = 30
+/** Today's heading (28px) and one row under it (a Stacked row, 44px: the tallest a narrow widget draws). */
+const PLANNER_TODAY_ROW_PX = 72
+
+/**
+ * Whether a Planner of `size` draws its **strip**: every one of its seven
+ * tiles has room for its ticks (`PLANNER_TILE_MIN_PX`, beside the arrows
+ * when they are in the strip, `arrows`), and the widget is tall enough for
+ * the strip over Today's heading and one row (with its top line,
+ * `topLine`). Else the strip is hidden and the week's range and arrows sit
+ * in the top line, or in a slim row. Unmeasured (0), it fits.
+ */
+export function plannerStripFits(size: { width: number; height: number }, room: { arrows: boolean; topLine: boolean }): boolean {
+  const { width, height } = size
+  if (width > 0 && width - PLANNER_STRIP_FRAME_PX - (room.arrows ? PLANNER_STRIP_ARROWS_PX : 0) < 7 * PLANNER_TILE_MIN_PX) return false
+  return height <= 0 || height >= (room.topLine ? PLANNER_TOP_LINE_PX : 0) + PLANNER_STRIP_HEIGHT_PX + PLANNER_TODAY_ROW_PX
 }
 
 /** A List wall's body this narrow or narrower (and not small) shows its bars, a line per list. */

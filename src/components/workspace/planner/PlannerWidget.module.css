@@ -95,7 +95,7 @@
   background: var(--color-inset-light);
 }
 
-/* No room for tiles: the arrows around the range. */
+/* No room for tiles and no top line (a cell of tabs, the widget popup): the slim range row, the arrows around the range. */
 .stripSlim {
   align-items: center;
   padding: 4px 6px;
@@ -231,94 +231,67 @@
 
 /* A tile's ticks are `shared/DayTicks` (the Calendar's small cells draw them too); `.ticks` is the tile's hook on them. */
 
-/* A narrow strip (a narrow cell, the phone): each tile its weekday over its
- * date over its count, no ticks. */
+/* A narrow strip (a narrow cell, the portrait layout, the phone): each tile keeps its ticks — the weekday; the
+ * date with the count at its right; the ticks. Narrower than its tiles' ticks need, the strip is not drawn
+ * (`widget-face.plannerStripFits`). */
 @container (max-width: 520px) {
   .strip {
-    gap: 3px;
-    padding: 6px 4px;
-  }
-
-  .tile {
-    justify-content: center;
-    height: 50px;
-    padding: 2px;
-  }
-
-  .weekRule {
-    margin: 0 1px;
-  }
-
-  .tileHead {
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-  }
-
-  .tileCount {
-    margin-left: 0;
-    min-height: 13px;
-    line-height: 13px;
-  }
-
-  .tile .ticks {
-    display: none;
-  }
-
-  /* The portrait layout (board R1): the arrows in the top line, so the tiles have the width to keep their ticks —
-   * the weekday; the date with the count at its right; the ticks. */
-  .stripPortrait {
     gap: 4px;
     padding: 6px 8px;
   }
 
-  .stripPortrait .tile {
-    justify-content: space-between;
+  .tile {
+    height: 50px;
     padding: 5px 6px;
     container-type: inline-size;
   }
 
-  .stripPortrait .weekRule {
+  .weekRule {
     margin: 0 2px;
   }
 
-  .stripPortrait .tileHead {
+  .tileHead {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: baseline;
-    column-gap: 3px;
+    gap: 0 3px;
   }
 
-  .stripPortrait .weekday {
+  .weekday {
     grid-column: 1 / -1;
   }
 
-  .stripPortrait .tileCount {
-    min-height: 0;
+  .tileCount {
+    margin-left: 0;
+    line-height: 13px;
   }
 
-  .stripPortrait .ticks {
-    display: flex;
+  .tile .ticks {
     height: 8px;
   }
 
-  .stripPortrait .ticks [data-day-tick-marks] {
+  .tile .ticks [data-day-tick-marks] {
     gap: 2px;
   }
 
-  .stripPortrait .ticks [data-mark] {
+  .tile .ticks [data-mark] {
     height: 8px;
   }
 
-  .stripPortrait .ticks [data-mark]:not([data-mark='plan']) + [data-mark='plan'] {
+  .tile .ticks [data-mark]:not([data-mark='plan']) + [data-mark='plan'] {
     margin-left: 2px;
+  }
+
+  /* The slim range row keeps its own padding. */
+  .stripSlim {
+    padding: 4px 6px;
   }
 }
 
-/* A portrait tile (its own container) too narrow for its date beside a two-digit count: the count gives way —
+/* A narrow tile (its own container) too narrow for its date beside a two-digit count: the count gives way —
  * the day's heading and the tile's name still say it. */
 @container (max-width: 33px) {
-  .stripPortrait .tile[data-count-wide] .tileCount {
+  .tile[data-count-wide] .tileCount {
     display: none;
   }
 }

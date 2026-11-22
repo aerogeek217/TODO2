@@ -99,7 +99,7 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
 }
 
 /**
- * The Planner (widget kind `planner`, no settings): a scratch pad for
+ * The Planner (widget kind `planner`; its one setting the Unplanned filter): a scratch pad for
  * today and the week ahead. Its top line (alone in its cell): the name,
  * the window's range and **Reset plan** (`PlannerResetButton`; in a cell of
  * tabs the same three choices are under Reset plan › in the widget's ⋯).
@@ -110,7 +110,8 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
  * ground, the trays: **Delayed** (planned for a day that has passed; shown
  * while it holds a task), the **↓ Unplan** button on a rule (every Delayed
  * task to Unplanned; with Delayed) and **Unplanned** (held there, and the
- * Focus tasks with no plan and no date; always there). Medium in a tall,
+ * tasks with no plan and no date that match its filter — read back in words
+ * under the heading, `PlannerFilterLine`; always there). Medium in a tall,
  * narrow cell (`plannerPortrait`, board R1): the strip over the day list,
  * and the trays **docked** under it on the darker ground (`PlannerDock`:
  * its top edge shares the height, its chevron folds it to one bar that
@@ -118,8 +119,10 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
  * and a line under the tiles marks the days in view. Medium otherwise (a
  * short or squarish narrow cell, and the phone): the strip over one column
  * in that order, in one scroll — the phone, which has no drag, without the
- * empty days and without an empty Unplanned. Small: its name and today's
- * count. A task sits on its
+ * empty days and without an empty Unplanned. The strip shows only where
+ * its tiles have room for their ticks (`plannerStripFits`); else the week's
+ * range and arrows sit in the top line, or in a slim range row with none.
+ * Small: its name and today's count. A task sits on its
  * planned day, else the day its follow-up or due date puts it
  * (`utils/planner`); rows are the list's (`ListWidgetRow`, `MobileTaskRow`
  * on the phone), a click opening the task. A tile's click scrolls the day
@@ -166,7 +169,7 @@ export function PlannerWidget({ tab: stored }: { tab: PlannerTab }) {
     <div ref={setHost} className={styles.host} data-planner={tab.id} data-planner-face={face}>
       {face === 'small'
         ? <SmallFace tab={tab} />
-        : <PlannerBody tab={tab} layout={layout} tiles={plannerStripFits(size.width)} hostRef={hostRef} />}
+        : <PlannerBody tab={tab} layout={layout} size={size} hostRef={hostRef} />}
     </div>
   )
 }
@@ -206,11 +209,11 @@ interface GroupDrag {
   shown: readonly string[]
 }
 
-function PlannerBody({ tab, layout, tiles, hostRef }: {
+function PlannerBody({ tab, layout, size, hostRef }: {
   tab: PlannerTab
   layout: PlannerLayout
-  /** The strip has room for its tiles. */
-  tiles: boolean
+  /** The widget's size: whether the strip fits (`plannerStripFits`). */
+  size: { width: number; height: number }
   /** The widget's element: its scrollers are measured when a task drag starts, and scrolled by a tile's click. */
   hostRef: RefObject<HTMLElement | null>
 }) {
@@ -221,7 +224,10 @@ function PlannerBody({ tab, layout, tiles, hostRef }: {
   const stack = layout === 'stack'
   // Alone in its cell the top line shows: in the portrait layout the week arrows move there, giving the tiles the strip's width.
   const alone = useContext(CellControlsContext) != null
-  const arrowsInTopLine = stack && alone && tiles
+  // The strip shows only where every tile has room for its ticks and the widget room for it over Today's first row.
+  const tiles = plannerStripFits(size, { arrows: !(stack && alone), topLine: alone })
+  // Without the strip the week's range and arrows sit in the top line — or, with none, in a slim row of their own.
+  const arrowsInTopLine = alone && (stack || !tiles)
   const stackRef = useRef<HTMLDivElement | null>(null)
   // The portrait layout's day list, for the strip's "days in view" line.
   const [daysPane, setDaysPane] = useState<HTMLElement | null>(null)
@@ -322,20 +328,21 @@ function PlannerBody({ tab, layout, tiles, hostRef }: {
           <span className={styles.topLineGap} aria-hidden="true" />
           <PlannerResetButton tab={tab} />
         </WidgetNameLine>
-        <PlannerStrip
-          tabId={tabId}
-          window={view.window}
-          tiles={view.tiles}
-          offset={offset}
-          showTiles={tiles}
-          weekStartsOn={weekStartsOn}
-          onGo={onGo}
-          onShift={onShift}
-          mark={drag.mark}
-          arrows={!arrowsInTopLine}
-          portrait={stack}
-          inView={stack ? inView : undefined}
-        />
+        {(tiles || !alone) && (
+          <PlannerStrip
+            tabId={tabId}
+            window={view.window}
+            tiles={view.tiles}
+            offset={offset}
+            showTiles={tiles}
+            weekStartsOn={weekStartsOn}
+            onGo={onGo}
+            onShift={onShift}
+            mark={drag.mark}
+            arrows={!arrowsInTopLine}
+            inView={stack && tiles ? inView : undefined}
+          />
+        )}
         {stack ? (
           <div ref={stackRef} className={styles.stack} data-planner-layout="stack">
             <div ref={daysPaneRef} className={`${styles.pane} ${styles.stackDays}`} data-planner-pane="days">
