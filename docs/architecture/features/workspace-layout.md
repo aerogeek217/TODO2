@@ -1,22 +1,100 @@
 # Workspace layout
 
-A layout is one table: grid tracks across and down, and cells that each cover a rectangle of tracks and hold a strip of widget tabs. This file covers the table, the ops that change it, how it is drawn and resized, and how a layout is saved. The model is `models/workspace-layout`; the pure code is `utils/workspace-grid`, `utils/workspace-layout-ops` and `utils/workspace-table`; `WorkspaceView` draws the table and `workspace-store` writes it.
+A layout is one table: grid tracks across and down, and cells that each cover a rectangle of tracks and hold a strip of widget tabs. This file covers the table and its tabs, how it is drawn and resized, and what the normal workspace does with it. The model is `models/workspace-layout`; the pure code is `utils/workspace-grid`, `utils/workspace-layout-ops` and `utils/workspace-table`; `WorkspaceView` draws the table and `workspace-store` writes it.
 
-See also [Layout edit mode](layout-edit-mode.md) (rulers, cards, slots, the tray, drops, Move / Copy to layout) and [Widget chrome](widget-chrome.md) (a cell's menu, tabs, faces, Open larger).
+See also:
+
+- [Layout ops](layout-ops.md): the operations that change the table;
+- [Layout autosave](layout-autosave.md): how a layout is written, what is one undo step, and how layouts are opened, created, duplicated and deleted;
+- [Layout edit mode](layout-edit-mode.md): rulers, cards, slots, the tray, drops;
+- [Move / Copy to layout](cross-layout-moves.md);
+- [Widget chrome](widget-chrome.md): a cell's menu, tabs, faces, Open larger.
 
 ## The table
 
-- `grid.columns` and `grid.rows` are lists of `GridTrack`s, `{ id, weight?, px?, collapsed? }`: a weighted track (its share of the axis) or a fixed `px` track.
-- `cells`: each covers a rectangle of tracks, `area { col, row, colSpan, rowSpan }` (track indices), and holds a strip of widget tabs.
+A `WorkspaceLayout` is `{ id, name, sortOrder, grid, cells, createdAt, modifiedAt, lastUsedAt?, hue?, icon? }`; a `PersistedWorkspaceLayout` is one with its `id`.
+
+- `sortOrder` is its place in the picker's order, ties by creation. It is written only when a layout is added (after the others) or the layouts are reordered.
+- `name` is at most `LAYOUT_NAME_MAX` (200) long. The layout made when there is none is `DEFAULT_LAYOUT_NAME`, `Default`.
+- `LayoutBody` is the `grid` and the `cells` alone (`layoutBodyOf` / `withLayoutBody`). An empty layout has no tracks and no cells (`emptyLayoutBody`).
+
+### Tracks
+
+`grid` is a `LayoutGrid`, `{ columns, rows }` (`GridAxis` names one of the two). Each is a list of `GridTrack`s, `{ id, weight?, px?, fitPx?, collapsed? }`, left to right or top to bottom.
+
+- A weighted track has a `weight`: its share of the axis among the weighted ones, any positive number. A new one gets `DEFAULT_WEIGHT`, 1000.
+- A fixed track has `px`, header included.
+- `collapsed` is for row tracks only ([Collapse row](layout-ops.md#collapse-row)).
+- A row track **fits its content** when the cells lying only in it each hold only Numbers (`utils/workspace-rows.isFitTrack`). That is derived, never stored.
+- `fitPx` is for row tracks only: the height a divider gave a fit row.
+  - It applies only while the row is a fit row and has no `px`. Otherwise it is ignored.
+  - It never stands in for the track's weight, and a split's halves don't inherit it.
+  - `data/layout-shape` checks it (a positive number on a row) and keeps it.
+
+### Cells
+
+`cells` is a list of `LayoutCell`s, `{ id, area, tabs, activeTabId? }`.
+
+- Each covers a rectangle of tracks, `area: CellArea { col, row, colSpan, rowSpan }` (track indices), and holds its tabs in strip order.
 - A full-height column is a cell spanning every row track; a strip is a cell spanning every column track. Nothing nests.
 - The cells tile the grid exactly (no gap, no overlap), and every grid line is the edge of some cell.
 - A cell with no tabs is an **empty cell**: a split's new cell, a close with no taker, or a lone widget removed.
+- Ids are unique across the whole layout: tracks, cells and tabs share one id space.
 
 `utils/workspace-grid` holds:
 
 - the queries: neighbors along an edge, whether two cells merge into a rectangle, reading order, edge stretches;
 - `normalizeGrid`, which merges the two tracks beside a line no cell's edge lies on and expands a collapsed row nothing can expand ([Collapse row](layout-ops.md#collapse-row));
 - `validateTiling`.
+
+### Structure and view state
+
+- **Structure**: a cell's area, the tracks' ids and their order, the tabs and each tab's `config`.
+- **View state**: the track sizes (a weight, a fixed track's px), a row track's `collapsed` and `fitPx`, a cell's `activeTabId`, a tab's `viewState`.
+
+A change of structure is an undo step; view state is written straight onto the stored layout with none ([Layout autosave](layout-autosave.md)).
+
+## Tabs and widget kinds
+
+`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `neglect`, `clusters`, `listwall`, and the glance kinds `number`, `breakdown`, `pivot` and `trend`.
+
+Each tab has a per-kind `config`, the **layout config** saved with the layout, and an optional `viewState`.
+
+Config:
+
+- A list tab: `listDefinitionId?`, which `createTab`'s seed sets. `tabListId(tab)` gives a list tab's list, which is what counts as a widget showing a list.
+- A calendar: `dateTypes { due, followup }`. Both may be off, an empty calendar.
+  - `CalendarDateType` is one of its keys: the date a calendar drop sets.
+  - `toggleCalendarDateType(types, type)` switches one on or off.
+- The glance kinds (`models/glance-widgets`, `models/chart-widgets`): a Number's `NumberConfig`, Created vs completed's `TrendTabConfig`, a Breakdown's `BreakdownConfig`, a Pivot's `PivotConfig`. See [Glance widgets](glance-widgets.md) and [Charts](charts.md).
+- A Neglect map: `NeglectTabConfig` ([Task maps](task-maps.md#config)).
+- The others: `{}`.
+
+View state:
+
+- A calendar: `view?: 'week' | 'month'`, an `offset?` clamped to ±104 by `clampCalendarOffset`, and `titles?: boolean`, the month's titled bars (absent or false, the heat map).
+- A list tab (`ListTabViewState`): its rows' `detailsWidth` and its zoom ([Zoom](lists.md#zoom)).
+  - `TaskRowsViewState.detailsWidth` is the task rows' details width in px, set by their divider. Absent, the default split.
+  - `pickDetailsWidth` keeps any finite number ≥ 0, rounded and capped at `DETAILS_WIDTH_MAX` (4000): a very wide list's divider can store more.
+  - `ListZoom` is `stacked`, `rows` or `lines` (`LIST_ZOOMS`, most detail first; `isListZoom`). Absent, Settings' Default list zoom.
+  - Its prompt picks are temporary, in `list-widget-store`.
+- A Breakdown (`BreakdownViewState`): its sort per split.
+
+### The table of kinds
+
+`WIDGET_KIND_SPECS` is the one table of kinds, in menu order. For each kind it holds:
+
+- its `label` (`widgetKindLabel`; `UNKNOWN_WIDGET_LABEL` for a kind this build doesn't know);
+- `showsList`: a new tab shows a list, made before the tab is added;
+- its `group`, the add-widget menus' heading;
+- `glance`: a glance widget. A track of them may shrink to 64px, a cell of them to 72px wide;
+- `fitHeight`: a row track fits its content when the cells lying only in it hold only such tabs (`utils/workspace-rows`);
+- `newTab(id, seed)`, with the default config. A new calendar shows both date types.
+
+These derive from it: `WIDGET_KINDS`, `isWidgetKind`, `createTab(kind, id, seed?)`, the menus, the add-widget buttons, tab titles and the e2e fixture's defaults.
+
+- `isWidgetKind` is the accepted set the layout import check uses: the stored ids, `lens` included. Renaming `lens` would need a migration.
+- `layout-shape` and `WidgetBody` switch over every kind, so a new kind doesn't compile without a case.
 
 ## The rule
 
@@ -26,8 +104,6 @@ See also [Layout edit mode](layout-edit-mode.md) (rulers, cards, slots, the tray
 - These change in place: a cell's tabs, a Numbers strip's Numbers, a widget's kind and settings, the row's collapse, the dividers.
 - One grid change is made outside the mode: a divider's Alt-drag, which breaks part of a line off into a new one. It is an undo step like any other.
 - In the UI, an empty cell's **Edit layout** link has the tooltip `Change the grid: rows, columns and cells`.
-
-The operations that change the table are in [layout-ops](layout-ops.md).
 
 ## Rendering
 
@@ -112,54 +188,18 @@ A list tab is never pointed at another list: **Add widget as tab ›** List make
 
 ## Layout autosave
 
-A layout has no Save.
+A layout has no Save. The detail is in [Layout autosave](layout-autosave.md):
 
-### Edits
-
-Outside the layout edit mode every edit to a layout is written at once (`workspace-store` → `layoutRepository.putAndPrune`) and is **one undo step** with the snackbar, named plainly. An edit is anything that changes:
-
-- a track's id or a cell's area (a divider's Alt-drag);
-- a tab's place;
-- a tab's config (an editor's Save, a ⋯ menu's setting);
-- a tab's kind.
-
-The steps:
-
-- `Removed “This week”`: a widget removed by the ⋯'s **Remove widget**, a tab's × or a strip Number's ×. A lone widget's cell stays, empty.
-- `Edited number “Open”`.
-- `Edited layout “Default”`: the mode's **Done**, one step for the whole session.
-- The arrow keys stepping one divider are one step (`UndoEntry.mergeKey`).
-- A divider's move, `Moved divider`, is a step with no snackbar: the table shows it.
-
-### Lists follow the edit
-
-- The lists the layout owns that it no longer shows are deleted in the same write. `layoutListRefs` says what it shows: list tabs, and Numbers that follow a list. A Review widget's filter is temporary and names none.
-- Undo brings back those lists first, then the table as it was, carrying the view state of the moment (`utils/workspace-layout-view.withViewStateOf`: sizes, collapse, active tabs, tabs' view state). Redo removes them again.
-- Either runs only while that layout is open. Else it says `Open layout “X” to undo: …` and the step stays on the stack.
-- The step is dropped once the layout is gone.
-- Undo doesn't survive a reload.
-
-### View state and order
-
-- View state saves at once too, with no undo step (`layoutRepository.updateView`): track sizes from the dividers (a weighted track's weight, a fixed one's px), collapsed row tracks, each cell's active tab, calendar view, row details width.
-- A divider drag's frames are written once, at its end.
-- Writes run in the order made, so a view change made right after an edit lands on top of it.
-- The layouts' order saves at once too; a reorder is one undo step (`workspace-store.reorderLayouts`).
-
-### A failed write
-
-- A write that fails keeps what is on screen and says so: `Couldn't save · Retry` beside the layout tabs (`writeFailed`).
-- The next write of the layout (any edit, or **Retry**) writes all of it.
-- Leaving the layout tries once more first, and stays put when that fails too.
-
-### Nothing is unsaved
-
-Outside the mode nothing about a layout or a list is ever unsaved, so nothing asks on a layout switch, on leaving the route or on closing the tab. Only an open editor with changes asks when it is left: Edit list, a widget editor, the mode's draft ([Popovers and editors](popovers-and-editors.md)).
+- Outside the layout edit mode every structural edit is written at once and is one undo step. The lists the layout owns that it no longer shows are deleted in the same write, and Undo brings them back.
+- View state saves at once too, with no undo step.
+- A write that fails keeps what is on screen and offers `Couldn't save · Retry`.
+- Nothing about a layout is ever unsaved, so a layout switch asks nothing.
 
 ## Hue and icon
 
-- A layout's optional **hue** colors its tab, its cells' top lines and headers, and the focus ring inside it.
-- It is set with the name in **Name, icon and hue…** (the layout tab's menu and the picker; the dialog of that name) and saved at once.
+- A layout's optional **hue** colors its tab, its cells' top lines and headers, and the focus ring inside it. Absent, they take the app accent.
+- `WorkspaceLayout.hue` is a preset's name (`HUE_NAMES`: teal, violet, blue, green, amber, rose; `isHueName`) or a hex color the user picked (`utils/layout-hue.isLayoutHue`).
+- It is set with the name in **Name, icon and hue…** (the layout tab's menu and the picker; the dialog of that name) and saved at once like the name: `layoutRepository.rename(id, name, hue)`.
 - So is its optional **icon** (`WorkspaceLayout.icon`, an `IconValue`), in the dialog's Icon row between Name and Hue (the shared icon picker):
   - absent, the layout glyph; **No icon**, none;
   - drawn before the name on its tab, in the picker and on the phone;
@@ -173,9 +213,19 @@ Stored layouts are read through the layout repair (`data/layout-shape`; see [Mod
 - A tiling that doesn't hold is rebuilt as the cells in their reading order, stacked in one column.
 - The repair stays in memory, with a notice, until the layout's first edit writes it. View state isn't written before that.
 
-## Duplicate layout
+In the code:
 
-**Duplicate layout…** (the open layout's tab menu and the picker) stores a copy as a new layout, its lists copied with their manual order.
+- `layoutRepository.getAll` and `get` return `ReadLayout`s, `{ layout, fixes }`. Each row goes through the `layouts` picker (`rowFixes` / `sanitizeRow`, that is `pickLayoutBody`).
+- A part this build can't use (an unknown widget kind, a bad id, size or setting) is dropped or reset in memory and named in `fixes`. The stored row is untouched.
+- A layout may come out with no cells. It is never dropped.
+- A repaired layout (`ReadLayout.fixes` not empty) opens without the bad parts, and its id goes into `workspace-store.repairedIds`. The snackbar says `Repaired layout "<name>" — <fixes>. Your next change to it keeps the repair.`, and the repair is logged too.
+
+Nothing writes the repair back on open:
+
+- Its view-state edits stay in memory: `updateView` skips it.
+- `load` writes only `lastUsedAt`, and `rename` only the name, the hue and the icon.
+- Its first structural edit writes the whole layout, repair and view state, and drops it from `repairedIds`.
+- That edit also removes the lists only the dropped parts named, as part of its step. An undo of that first edit doesn't bring them back: the repaired table doesn't show them either.
 
 ## On a phone
 

@@ -1,12 +1,12 @@
 # Layout ops
 
-The operations that change a layout's table: splitting and inserting tracks, removing and merging them, and what happens to cells. The table itself is in [workspace-layout](workspace-layout.md).
+The operations that change a layout's table: splitting and inserting tracks, removing and merging them, and what happens to cells. The ops are in `utils/workspace-layout-ops`. Each returns a normalized table, or the same layout when there is nothing to do, which `dropChangesLayout` relies on.
 
-## Layout ops
+- The table itself is in [Workspace layout](workspace-layout.md).
+- `workspace-store` runs the ops. The undo step each one makes, and how the result is written, are in [Layout autosave](layout-autosave.md#structural-edits).
+- New track, cell and tab ids are random and checked against the layout (`layoutIds`: its tracks, cells and tabs).
 
-The ops are in `utils/workspace-layout-ops`. Each returns a normalized table, or the same layout when there is nothing to do, which `dropChangesLayout` relies on.
-
-### Split and insert
+## Split and insert
 
 - `splitCell`: a new empty cell on a side, taking half.
   - An even span splits on its middle line. An odd one splits its middle track, and the cells crossing it then span both halves.
@@ -23,7 +23,7 @@ The ops are in `utils/workspace-layout-ops`. Each returns a normalized table, or
   - Given a run of lines whose tracks between are slivers (`through`), it first merges the slivers into the major track beside them. The new track then goes on the one line left, sized from that major.
   - A hovered "+" previews the result (`utils/structure-preview`).
 
-### Remove and merge tracks
+## Remove and merge tracks
 
 - `removeTrack` (a ruler's **Remove row** / **Remove column**), refused for an axis's last track:
   - Along the axis, a cell spanning the track (through it, or starting or ending in it) shrinks.
@@ -37,23 +37,25 @@ The ops are in `utils/workspace-layout-ops`. Each returns a normalized table, or
 - `mergeTrackInto` (a sliver's **Merge into B**): `removeTrack` toward the named neighbor, so the line between them goes and its space joins that track.
 - `evenTracks` (**Even all widths** / **Even all heights**): the weighted tracks of an axis take their mean weight. View state.
 
-### Cells
+## Cells
 
 - `mergeCells`: two cells whose union is a rectangle. The first grows over the second, whose tabs join its strip after its own.
 - `closeCell`, **the absorb rule**:
   1. The neighbor sharing its whole edge grows over it: left, above, right, below, the first there is.
   2. Else the neighbors along one side that together cover that whole edge all grow across it.
   3. Else (the center of a pinwheel) it stays as an empty cell.
-- `moveTab` / `movePanel` onto a target `{ kind: 'cell', cellId, index? } | { kind: 'swap', cellId } | { kind: 'split', cellId, side } | { kind: 'insert', edge } | { kind: 'layout' }`:
+- `moveTab` / `movePanel` onto a target, a `LayoutDropTarget`: `{ kind: 'cell', cellId, index? } | { kind: 'swap', cellId } | { kind: 'split', cellId, side } | { kind: 'insert', edge } | { kind: 'layout' }`.
+  - `cell` is a cell's strip, `split` a new cell on a side of one, `insert` a new track at the layout's edge, and `layout` an empty layout's first cell.
   - `swap`: a whole cell trades places with another (`swapCells`). For a tab it is a join.
   - A cell the move empties closes by the absorb rule.
   - A whole cell's move closes its old place first or places first, whichever leaves no empty cell.
 - `swapCells`: two cells trade areas, each keeping its id and tabs (**Swap with ▸**, Alt+arrow onto a card, a card dropped on a slot).
 - `setCellArea`: a card stretched over empty cells. `cellAreaFits` says where it may go.
-- `removeTabKeepCell` (**Remove widget**): a lone widget's cell stays, empty.
+- `closeTab`: a tab removed. A cell it empties closes by the absorb rule.
+- `removeTabKeepCell` (**Remove widget**): the same, but a lone widget's cell stays, empty, and no neighbor takes its space.
 - `moveEdge`: a divider ([Dividers](workspace-layout.md#dividers)).
 
-### Collapse row
+## Collapse row
 
 - `setTrackCollapsed`: **Collapse row** collapses every row track the cell covers, so its side-by-side neighbors fold with it.
   - The cells lying only in a collapsed track show their top lines; a cell spanning through it gets shorter.
