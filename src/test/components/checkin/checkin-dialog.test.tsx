@@ -263,7 +263,9 @@ describe('CheckinDialog — Which tasks', () => {
     open([1])
     fireEvent.click(within(filterLine()).getByRole('button', { name: 'Filter' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Next follow-up', 'Last follow-up', 'Created', 'Modified'])
+    fireEvent.click(screen.getByRole('button', { name: /^Date type: / }))
+    expect(within(screen.getByRole('menu', { name: 'Date type' })).getAllByRole('menuitemradio').map((t) => t.dataset.menuLabel))
+      .toEqual(['Due', 'Planned', 'Next follow-up', 'Last follow-up', 'Created', 'Modified'])
   })
 
   it('a filter added from + Filter is saved at once; the counts follow it', async () => {

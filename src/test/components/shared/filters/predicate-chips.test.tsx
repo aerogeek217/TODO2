@@ -59,8 +59,22 @@ describe('PredicateChips — date chips', () => {
     const created = within(screen.getAllByTestId('list-filter-chip')[1]!).getByRole('button', { name: /Created/ })
     fireEvent.click(created)
     const dialog = screen.getByRole('dialog', { name: 'Date filters' })
-    expect(within(dialog).getByRole('tab', { name: 'Created, filtering' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(dialog).getByRole('button', { name: /^Date type: / })).toHaveAccessibleName('Date type: Created, filtering')
     expect(created).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('a Planned chip opens the panel on Planned (held: None, the box ticked)', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={{ ...twoDates, dates: { ...twoDates.dates, planned: { match: 'held' } } }} log={log} />)
+    const chips = screen.getAllByTestId('list-filter-chip')
+    expect(chips.map((c) => c.getAttribute('data-date-field'))).toEqual(['deadline', 'planned', 'created'])
+    fireEvent.click(within(chips[1]!).getByRole('button', { name: /Planned/ }))
+    const dialog = screen.getByRole('dialog', { name: 'Date filters' })
+    expect(within(dialog).getByRole('button', { name: /^Date type: / })).toHaveAccessibleName('Date type: Planned, filtering')
+    const box = within(dialog).getByRole('checkbox', { name: 'Only tasks held in Unplanned' })
+    expect(box).toBeChecked()
+    fireEvent.click(box)
+    expect(log.at(-1)?.dates.planned).toEqual({ match: 'unset' })
   })
 
   it('+ Filter › Dates opens the panel on the first type that doesn’t filter yet, so it adds a chip (cr25 P4b)', () => {
@@ -69,27 +83,27 @@ describe('PredicateChips — date chips', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
     const dialog = screen.getByRole('dialog', { name: 'Date filters' })
-    expect(within(dialog).getByRole('tab', { name: 'Next follow-up' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(dialog).getByRole('button', { name: /^Date type: / })).toHaveAccessibleName('Date type: Planned')
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Any' }))
-    expect(log.at(-1)?.dates).toEqual({ deadline: { match: 'set' }, followup: { match: 'set' } })
-    expect(screen.getAllByTestId('list-filter-chip').map((c) => c.getAttribute('data-date-field'))).toEqual(['deadline', 'followup'])
+    expect(log.at(-1)?.dates).toEqual({ deadline: { match: 'set' }, planned: { match: 'set' } })
+    expect(screen.getAllByTestId('list-filter-chip').map((c) => c.getAttribute('data-date-field'))).toEqual(['deadline', 'planned'])
     unmount()
     render(<Harness initial={emptyPredicate()} log={[]} />)
     fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
     expect(screen.queryByRole('menuitem', { name: /Due date|follow-up date/i })).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
-    expect(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('tab', { name: 'Due' }))
-      .toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('button', { name: /^Date type: / }))
+      .toHaveAccessibleName('Date type: Due')
   })
 
   it('+ Filter › Dates with every type filtering opens on the first that filters (the panel’s default)', () => {
     const set = { match: 'set' as const }
     const end = { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } }
-    render(<Harness initial={{ ...emptyPredicate(), dates: { deadline: set, followup: set, lastFollowup: set, completed: end, created: end, modified: end } }} log={[]} />)
+    render(<Harness initial={{ ...emptyPredicate(), dates: { deadline: set, planned: set, followup: set, lastFollowup: set, completed: end, created: end, modified: end } }} log={[]} />)
     fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
-    expect(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('tab', { name: 'Due, filtering' }))
-      .toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('button', { name: /^Date type: / }))
+      .toHaveAccessibleName('Date type: Due, filtering')
   })
 })
 

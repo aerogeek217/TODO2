@@ -50,26 +50,20 @@ export function hasDateFilters(dates: DateFilters | null | undefined): boolean {
 }
 
 /**
- * The date types the date panel's tabs show, in reading order: every type
- * but Planned (a filter on it is written as an expression).
- */
-const PANEL_DATE_FIELDS: readonly DateField[] = DATE_FIELD_VALUES.filter((f) => f !== 'planned')
-
-/**
- * The date types a date panel offers, in its tabs' reading order: the
- * panel's types (`PANEL_DATE_FIELDS`) but those its host leaves out (the
+ * The date types a date panel offers, in its type menu's order
+ * (`DATE_FIELD_VALUES`): every type but those its host leaves out (the
  * check-in: Completed).
  */
 export function offeredDateFields(omit?: readonly DateField[]): readonly DateField[] {
-  return omit && omit.length > 0 ? PANEL_DATE_FIELDS.filter((f) => !omit.includes(f)) : PANEL_DATE_FIELDS
+  return omit && omit.length > 0 ? DATE_FIELD_VALUES.filter((f) => !omit.includes(f)) : DATE_FIELD_VALUES
 }
 
 /**
- * The first of `offered` (the panel's tab order) that doesn't filter in
+ * The first of `offered` (the panel's menu order) that doesn't filter in
  * `dates` — where adding Dates to a scope opens, so it makes a new chip —
  * or `undefined` when every offered type filters there already.
  */
-export function freeDateField(dates: DateFilters | null | undefined, offered: readonly DateField[] = PANEL_DATE_FIELDS): DateField | undefined {
+export function freeDateField(dates: DateFilters | null | undefined, offered: readonly DateField[] = DATE_FIELD_VALUES): DateField | undefined {
   return offered.find((f) => !isDateMatchOn(dates?.[f]))
 }
 

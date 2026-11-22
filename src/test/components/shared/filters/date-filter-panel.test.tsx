@@ -6,11 +6,12 @@ import type { DateFilters } from '../../../../models'
 import { DateFilterPanel, type DateFilterHost } from '../../../../components/shared/filters/DateFilterPanel'
 
 /**
- * The date panel: six type tabs in two rows of three (selected = being
- * edited, lit = filtering), a range per type, Show (Calendar · Relative, and
- * Any · None on Due / Next follow-up / Last follow-up — cr25 P8), Completed
- * a range only (no Is not), Clear <Type> and Clear all. Selecting a tab
- * never writes. A Relative end is typed (`+2w`, `-1m`) or a rolling day picked from its chevron. Today is Mon 2 Nov 2026.
+ * The date panel: a type button naming the type being edited and its menu
+ * of the seven types (lit = filtering, with its clause; checked = selected),
+ * a range per type, Show (Calendar · Relative, and Any · None on Due /
+ * Planned / Next follow-up / Last follow-up — cr25 P8), Planned's None box
+ * (held in Unplanned), Completed a range only (no Is not), Clear <Type> and
+ * Clear all. Picking a type never writes. A Relative end is typed (`+2w`, `-1m`) or a rolling day picked from its chevron. Today is Mon 2 Nov 2026.
  */
 
 function Harness({ initial = {}, initialField, variant, host, log }: {
@@ -32,7 +33,27 @@ function Harness({ initial = {}, initialField, variant, host, log }: {
   )
 }
 
-const tab = (name: RegExp | string) => screen.getByRole('tab', { name })
+/** The type button (`Date type: Due`, `, filtering` when the type filters). */
+const typeButton = () => screen.getByRole('button', { name: /^Date type: / })
+/** Opens the type menu (if closed) and returns it. */
+function typeMenu(): HTMLElement {
+  if (typeButton().getAttribute('aria-expanded') !== 'true') fireEvent.click(typeButton())
+  return screen.getByRole('menu', { name: 'Date type' })
+}
+/** A type's menu item, named by its type (and, lit, its clause after a comma). */
+const typeItem = (name: string) => within(typeMenu()).getByRole('menuitemradio', { name: new RegExp(`^${name}(,|$)`) })
+/** Picks a type from the menu: it selects it for editing. */
+const pickType = (name: string) => fireEvent.click(typeItem(name))
+/** The type selected: the button's name. */
+const expectType = (name: string, filtering = false) => expect(typeButton()).toHaveAccessibleName(`Date type: ${name}${filtering ? ', filtering' : ''}`)
+/** The types the menu lights (filtering), in order; closes the menu again. */
+function litTypes(): string[] {
+  const lit = within(typeMenu()).getAllByRole('menuitemradio').filter((el) => /accent/.test(el.className)).map((el) => el.dataset.menuLabel ?? '')
+  fireEvent.click(typeButton())
+  return lit
+}
+/** The body: the selected type's clause, named by its title. */
+const body = () => screen.getByRole('group', { name: /date|follow|Completed|Created|Modified/ })
 const today = { kind: 'relative' as const, token: 'today' as const }
 const fixedIso = (y: number, m: number, d: number) => new Date(y, m - 1, d).toISOString()
 
@@ -66,11 +87,13 @@ describe('DateFilterPanel', () => {
   it('opens on Due with nothing lit; the header says Not filtering and both clears are disabled', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
-    expect(screen.getByRole('tablist', { name: 'Date type' })).toBeInTheDocument()
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified'])
-    expect(tab('Due')).toHaveAttribute('aria-selected', 'true')
-    for (const t of screen.getAllByRole('tab')) expect(t).not.toHaveAttribute('data-filtering')
-    const panel = screen.getByRole('tabpanel')
+    expectType('Due')
+    expect(typeButton()).toHaveAttribute('aria-haspopup', 'menu')
+    expect(typeButton()).toHaveAttribute('aria-expanded', 'false')
+    expect(typeButton()).not.toHaveAttribute('data-filtering')
+    expect(typeButton()).not.toHaveTextContent('filtering')
+    expect(litTypes()).toEqual([])
+    const panel = body()
     expect(within(panel).getByText('Due date')).toBeInTheDocument()
     expect(within(panel).getByText('Not filtering')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Clear Due' })).toBeDisabled()
@@ -80,31 +103,36 @@ describe('DateFilterPanel', () => {
 
   it('opens on the first type that filters, or the type it is given', () => {
     const { unmount } = render(<Harness log={[]} initial={{ created: { match: 'range', start: today, end: null } }} />)
-    expect(tab(/^Created/)).toHaveAttribute('aria-selected', 'true')
+    expectType('Created', true)
     unmount()
     render(<Harness log={[]} initial={{ created: { match: 'range', start: today, end: null } }} initialField="followup" />)
-    expect(tab('Next follow-up')).toHaveAttribute('aria-selected', 'true')
+    expectType('Next follow-up')
   })
 
-  it('selecting a tab writes nothing and lights nothing (no invented dates)', () => {
+  it('picking a type writes nothing and lights nothing (no invented dates)', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
-    for (const name of ['Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified', 'Due']) fireEvent.click(tab(name))
+    for (const name of ['Planned', 'Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified', 'Due']) {
+      pickType(name)
+      expectType(name)
+    }
     expect(log).toEqual([])
-    for (const t of screen.getAllByRole('tab')) expect(t).not.toHaveAttribute('data-filtering')
+    expect(litTypes()).toEqual([])
     expect(relative('From')).toHaveValue('')
     expect(relative('To')).toHaveValue('')
   })
 
-  it('setting a range lights its tab (accent + “filtering”); a second type adds its own clause', () => {
+  it('setting a range lights its type (a dot, “filtering”); a second type adds its own clause', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
     pickRelative('From', 'today')
     expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: today, end: null } })
-    expect(tab('Due, filtering')).toHaveAttribute('data-filtering')
-    expect(within(screen.getByRole('tabpanel')).getByText('today or later')).toBeInTheDocument()
+    expectType('Due', true)
+    expect(typeButton()).toHaveAttribute('data-filtering')
+    expect(typeButton()).toHaveTextContent('1 filtering')
+    expect(within(body()).getByText('today or later')).toBeInTheDocument()
 
-    fireEvent.click(tab('Created'))
+    pickType('Created')
     expect(log).toHaveLength(1)
     expect(relative('From')).toHaveValue('')
     pickRelative('From', 'start of week')
@@ -112,8 +140,10 @@ describe('DateFilterPanel', () => {
       deadline: { match: 'range', start: today, end: null },
       created: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: null },
     })
-    expect(tab('Due, filtering')).toHaveAttribute('aria-selected', 'false')
-    expect(tab('Created, filtering')).toHaveAttribute('aria-selected', 'true')
+    expectType('Created', true)
+    expect(typeButton()).toHaveTextContent('2 filtering')
+    expect(typeButton()).toHaveAccessibleDescription('2 filtering')
+    expect(litTypes()).toEqual(['Due', 'Created'])
   })
 
   it('a new range is Relative: a typed end is written as soon as it reads, in its unit; its day today is under it', () => {
@@ -123,7 +153,7 @@ describe('DateFilterPanel', () => {
     typeEnd('To', '+2w')
     expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 2, unit: 'w' } } })
     expect(relative('To')).toHaveValue('+2w')
-    expect(within(screen.getByRole('tabpanel')).getByText('in 2 weeks or earlier')).toBeInTheDocument()
+    expect(within(body()).getByText('in 2 weeks or earlier')).toBeInTheDocument()
     // The day under the end, read with its field.
     screen.getByText('Mon, Nov 16 and earlier')
     expect(relative('To')).toHaveAccessibleDescription('Mon, Nov 16 and earlier')
@@ -246,12 +276,12 @@ describe('DateFilterPanel', () => {
       expect(relative('From')).toHaveValue('10/1/2026')
     })
 
-    it('another tab and back keeps it; Clear <Type> puts it back to Relative (a new range)', () => {
+    it('another type and back keeps it; Clear <Type> puts it back to Relative (a new range)', () => {
       const log: DateFilters[] = []
       render(<Harness log={log} initial={{ deadline: { match: 'range', start: null, end: oct31 } }} />)
       fireEvent.change(screen.getByLabelText('To'), { target: { value: '' } })
-      fireEvent.click(tab('Created'))
-      fireEvent.click(tab('Due'))
+      pickType('Created')
+      pickType('Due')
       expect(show('Calendar')).toHaveAttribute('aria-checked', 'true')
       fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-11-05' } })
       fireEvent.click(screen.getByRole('button', { name: 'Clear Due' }))
@@ -259,12 +289,12 @@ describe('DateFilterPanel', () => {
     })
   })
 
-  it('a typed unit stays as typed through another tab and back, and Calendar and back', () => {
+  it('a typed unit stays as typed through another type and back, and Calendar and back', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
     typeEnd('To', '+1m')
-    fireEvent.click(tab('Created'))
-    fireEvent.click(tab('Due, filtering'))
+    pickType('Created')
+    pickType('Due')
     expect(relative('To')).toHaveValue('+1m')
     fireEvent.click(show('Calendar'))
     expect(screen.getByLabelText('To')).toHaveValue('2026-12-02')
@@ -285,42 +315,34 @@ describe('DateFilterPanel', () => {
   it('Last follow-up: Show, “Also tasks never followed up”, its own words; Clear Last follow-up', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} initialField="lastFollowup" />)
-    expect(within(screen.getByRole('tabpanel')).getByText('Last followed up')).toBeInTheDocument()
+    expect(within(body()).getByText('Last followed up')).toBeInTheDocument()
     pickRelative('To', 'today')
     fireEvent.click(screen.getByRole('checkbox', { name: 'Also tasks never followed up' }))
     expect(log.at(-1)).toEqual({ lastFollowup: { match: 'range', start: null, end: { kind: 'relative', token: 'today' }, includeNoDate: true } })
-    expect(tab('Last follow-up, filtering')).toHaveAttribute('data-filtering')
+    expectType('Last follow-up', true)
     const group = screen.getByRole('radiogroup', { name: 'Which tasks' })
     expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Calendar', 'Relative', 'Any', 'None'])
     fireEvent.click(within(group).getByRole('radio', { name: 'Any' }))
     expect(screen.getByText('Only tasks that have been followed up.')).toBeInTheDocument()
-    expect(within(screen.getByRole('tabpanel')).getByText('any date')).toBeInTheDocument()
+    expect(within(body()).getByText('any date')).toBeInTheDocument()
     fireEvent.click(within(group).getByRole('radio', { name: 'None' }))
     expect(log.at(-1)).toEqual({ lastFollowup: { match: 'unset' } })
-    expect(within(screen.getByRole('tabpanel')).getByText('never')).toBeInTheDocument()
+    expect(within(body()).getByText('never')).toBeInTheDocument()
     expect(screen.getByText('Only tasks never followed up.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Clear Last follow-up' }))
     expect(log.at(-1)).toEqual({})
   })
 
-  it('a host can leave Completed out (the check-in): five tabs, ↑/↓ to the shorter row’s last tab', () => {
+  it('a host can leave Completed out (the check-in): six types in the menu', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} initialField="completed" host={{ omit: ['completed'] }} />)
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Next follow-up', 'Last follow-up', 'Created', 'Modified'])
     // An omitted initial type opens on the first offered one.
-    expect(tab('Due')).toHaveAttribute('aria-selected', 'true')
-    fireEvent.keyDown(tab('Due'), { key: 'End' })
-    expect(tab('Modified')).toHaveAttribute('aria-selected', 'true')
-    fireEvent.keyDown(tab('Modified'), { key: 'ArrowRight' })
-    expect(tab('Due')).toHaveAttribute('aria-selected', 'true')
-    fireEvent.keyDown(tab('Due'), { key: 'ArrowLeft' })
-    fireEvent.keyDown(tab('Modified'), { key: 'ArrowLeft' })
-    fireEvent.keyDown(tab('Created'), { key: 'ArrowLeft' })
-    expect(tab('Last follow-up')).toHaveAttribute('aria-selected', 'true')
-    fireEvent.keyDown(tab('Last follow-up'), { key: 'ArrowDown' })
-    expect(tab('Modified')).toHaveAttribute('aria-selected', 'true')
-    fireEvent.keyDown(tab('Modified'), { key: 'ArrowUp' })
-    expect(tab('Next follow-up')).toHaveAttribute('aria-selected', 'true')
+    expectType('Due')
+    const menu = typeMenu()
+    expect(within(menu).getAllByRole('menuitemradio').map((el) => el.dataset.menuLabel)).toEqual(['Due', 'Planned', 'Next follow-up', 'Last follow-up', 'Created', 'Modified'])
+    // The separator still sets the record (Created · Modified) apart.
+    const parts = Array.from(menu.children).map((el) => (el.getAttribute('role') === 'separator' ? '-' : (el as HTMLElement).dataset.menuLabel))
+    expect(parts).toEqual(['Due', 'Planned', 'Next follow-up', 'Last follow-up', '-', 'Created', 'Modified'])
     expect(log).toEqual([])
   })
 
@@ -333,7 +355,7 @@ describe('DateFilterPanel', () => {
     expect(screen.getByText('Shows tasks completed in this range, even where completed tasks are hidden.')).toBeInTheDocument()
     pickRelative('From', 'start of week')
     expect(log.at(-1)).toEqual({ completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: null } })
-    expect(tab('Completed, filtering')).toHaveAttribute('aria-selected', 'true')
+    expectType('Completed', true)
     expect(screen.getByRole('button', { name: 'Clear Completed' })).toBeEnabled()
   })
 
@@ -348,7 +370,7 @@ describe('DateFilterPanel', () => {
     expect(box).toBeEnabled()
     fireEvent.click(box)
     expect(log.at(-1)).toEqual({ followup: { match: 'range', start: null, end: { kind: 'relative', token: 'end-of-week' }, includeNoDate: true } })
-    expect(within(screen.getByRole('tabpanel')).getByText('on or before end of week, or none')).toBeInTheDocument()
+    expect(within(body()).getByText('on or before end of week, or none')).toBeInTheDocument()
   })
 
   it('Show: Any / None replace the range, hide From / To, and say what they keep', () => {
@@ -360,12 +382,12 @@ describe('DateFilterPanel', () => {
     expect(log.at(-1)).toEqual({ deadline: { match: 'set' } })
     expect(screen.queryByRole('button', { name: /^From/ })).toBeNull()
     expect(screen.getByText('Only tasks that have a due date.')).toBeInTheDocument()
-    expect(within(screen.getByRole('tabpanel')).getByText('any date')).toBeInTheDocument()
-    expect(tab('Due, filtering')).toBeInTheDocument()
+    expect(within(body()).getByText('any date')).toBeInTheDocument()
+    expectType('Due', true)
     fireEvent.click(within(group).getByRole('radio', { name: 'None' }))
     expect(log.at(-1)).toEqual({ deadline: { match: 'unset' } })
     expect(screen.getByText('Only tasks with no due date.')).toBeInTheDocument()
-    expect(within(screen.getByRole('tabpanel')).getByText('none')).toBeInTheDocument()
+    expect(within(body()).getByText('none')).toBeInTheDocument()
     // Back to a range with none set: the type is off again.
     fireEvent.click(within(group).getByRole('radio', { name: 'Relative' }))
     expect(log.at(-1)).toEqual({})
@@ -404,51 +426,12 @@ describe('DateFilterPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear Due' }))
     expect(log.at(-1)).toEqual({ created: { match: 'range', start: today, end: null } })
     expect(screen.getByRole('button', { name: 'Clear Due' })).toBeDisabled()
-    expect(screen.getByRole('tablist')).toBeInTheDocument()
-    fireEvent.click(tab(/^Created/))
+    expect(typeButton()).toBeInTheDocument()
+    pickType('Created')
     expect(screen.getByRole('button', { name: 'Clear Created' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
     expect(log.at(-1)).toEqual({})
     expect(screen.getByRole('button', { name: 'Clear all' })).toBeDisabled()
-  })
-
-  it('arrow keys, Home and End move between tabs (roving tabindex) without writing', () => {
-    const log: DateFilters[] = []
-    render(<Harness log={log} />)
-    const due = tab('Due')
-    expect(due).toHaveAttribute('tabindex', '0')
-    expect(tab('Created')).toHaveAttribute('tabindex', '-1')
-    fireEvent.keyDown(due, { key: 'ArrowRight' })
-    expect(tab('Next follow-up')).toHaveAttribute('aria-selected', 'true')
-    expect(document.activeElement).toBe(tab('Next follow-up'))
-    fireEvent.keyDown(tab('Next follow-up'), { key: 'End' })
-    expect(document.activeElement).toBe(tab('Modified'))
-    fireEvent.keyDown(tab('Modified'), { key: 'ArrowRight' })
-    expect(document.activeElement).toBe(tab('Due'))
-    fireEvent.keyDown(tab('Due'), { key: 'ArrowLeft' })
-    expect(document.activeElement).toBe(tab('Modified'))
-    fireEvent.keyDown(tab('Modified'), { key: 'Home' })
-    expect(document.activeElement).toBe(tab('Due'))
-    expect(log).toEqual([])
-  })
-
-  it('Up / Down move between the two rows in the same column', () => {
-    const log: DateFilters[] = []
-    render(<Harness log={log} initialField="followup" />)
-    fireEvent.keyDown(tab('Next follow-up'), { key: 'ArrowDown' })
-    expect(document.activeElement).toBe(tab('Created'))
-    expect(tab('Created')).toHaveAttribute('aria-selected', 'true')
-    fireEvent.keyDown(tab('Created'), { key: 'ArrowDown' })
-    expect(document.activeElement).toBe(tab('Next follow-up'))
-    fireEvent.keyDown(tab('Next follow-up'), { key: 'ArrowRight' })
-    fireEvent.keyDown(tab('Last follow-up'), { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(tab('Modified'))
-    fireEvent.keyDown(tab('Modified'), { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(tab('Last follow-up'))
-    // Right from the end of the first row goes on to the second, in reading order.
-    fireEvent.keyDown(tab('Last follow-up'), { key: 'ArrowRight' })
-    expect(document.activeElement).toBe(tab('Completed'))
-    expect(log).toEqual([])
   })
 
   it('arrow keys move the Show choice', () => {
@@ -465,7 +448,7 @@ describe('DateFilterPanel', () => {
     expect(log.at(-1)).toEqual({})
   })
 
-  it('Home / End move the Show choice to the first / last, as the tabs (P7–P8 review)', () => {
+  it('Home / End move the Show choice to the first / last (P7–P8 review)', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
     fireEvent.keyDown(show('Relative'), { key: 'End' })
@@ -475,7 +458,7 @@ describe('DateFilterPanel', () => {
     expect(show('Calendar')).toHaveAttribute('aria-checked', 'true')
     expect(document.activeElement).toBe(show('Calendar'))
     // Created's two choices.
-    fireEvent.click(tab('Created'))
+    pickType('Created')
     fireEvent.keyDown(show('Relative'), { key: 'Home' })
     expect(document.activeElement).toBe(show('Calendar'))
     fireEvent.keyDown(show('Calendar'), { key: 'End' })
@@ -498,7 +481,7 @@ describe('DateFilterPanel', () => {
       pickRelative('From', 'today')
       typeEnd('To', '+14d')
       expect(log.at(-1)).toEqual({ followup: { match: 'range', start: today, end: { kind: 'offset', days: 14 }, not: true } })
-      expect(within(screen.getByRole('tabpanel')).getByText('not within the next 14 days')).toBeInTheDocument()
+      expect(within(body()).getByText('not within the next 14 days')).toBeInTheDocument()
       // Back to Is: the same range, the box back (unticked).
       fireEvent.click(is('Next follow-up'))
       expect(log.at(-1)).toEqual({ followup: { match: 'range', start: today, end: { kind: 'offset', days: 14 } } })
@@ -530,18 +513,18 @@ describe('DateFilterPanel', () => {
       fireEvent.click(isNot('Created'))
       expect(log.at(-1)).toEqual({ created: { match: 'range', start: { kind: 'offset', days: -7 }, end: null, not: true } })
       expect(screen.queryByText(/are kept/)).toBeNull()
-      fireEvent.click(tab('Completed'))
+      pickType('Completed')
       expect(screen.queryByRole('radiogroup', { name: 'Completed: is or is not' })).toBeNull()
     })
 
-    it('a pending Is not is per type: another tab and Clear <Type> leave it; clearing a range keeps its Is not pending', () => {
+    it('a pending Is not is per type: another type and Clear <Type> leave it; clearing a range keeps its Is not pending', () => {
       const log: DateFilters[] = []
       render(<Harness log={log} initialField="deadline" initial={{ created: { match: 'range', start: null, end: today } }} />)
       fireEvent.click(isNot('Due'))
-      fireEvent.click(tab('Created, filtering'))
+      pickType('Created')
       expect(is('Created')).toHaveAttribute('aria-checked', 'true')
       fireEvent.click(screen.getByRole('button', { name: 'Clear Created' }))
-      fireEvent.click(tab('Due'))
+      pickType('Due')
       expect(isNot('Due')).toHaveAttribute('aria-checked', 'true')
       pickRelative('To', 'today')
       expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: today, not: true } })
@@ -571,5 +554,146 @@ describe('DateFilterPanel', () => {
     expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: today, end: null, includeNoDate: true } })
     fireEvent.click(screen.getByRole('button', { name: 'Clear all dates' }))
     expect(log.at(-1)).toEqual({})
+  })
+
+  describe('the type button and its menu', () => {
+    it('lists the seven types, the record after a separator; lit types carry their clause, the selected one is checked', () => {
+      render(<Harness log={[]} initialField="planned" initial={{ deadline: { match: 'set' }, planned: { match: 'range', start: today, end: { kind: 'offset', days: 7 } } }} />)
+      expectType('Planned', true)
+      expect(typeButton()).toHaveTextContent('Planned2 filtering')
+      const menu = typeMenu()
+      const parts = Array.from(menu.children).map((el) => (el.getAttribute('role') === 'separator' ? '-' : (el as HTMLElement).dataset.menuLabel))
+      expect(parts).toEqual(['Due', 'Planned', 'Next follow-up', 'Last follow-up', '-', 'Completed', 'Created', 'Modified'])
+      // The clause in the header's words, read after the name.
+      expect(typeItem('Due')).toHaveAccessibleName('Due, any date')
+      expect(typeItem('Planned')).toHaveAccessibleName('Planned, within the next 7 days')
+      expect(typeItem('Created')).toHaveAccessibleName('Created')
+      expect(typeItem('Planned')).toHaveAttribute('aria-checked', 'true')
+      expect(typeItem('Due')).toHaveAttribute('aria-checked', 'false')
+      expect(litTypes()).toEqual(['Due', 'Planned'])
+    })
+
+    it('a pick selects the type, closes the menu and gives the focus back to the button', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} />)
+      pickType('Modified')
+      expectType('Modified')
+      expect(screen.queryByRole('menu', { name: 'Date type' })).toBeNull()
+      expect(typeButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(document.activeElement).toBe(typeButton())
+      expect(within(body()).getByText('Modified')).toBeInTheDocument()
+      expect(log).toEqual([])
+    })
+
+    it('keyboard: ↓ opens the menu on the selected type, the arrows move, Enter picks, Esc closes back to the button', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initialField="followup" />)
+      typeButton().focus()
+      fireEvent.keyDown(typeButton(), { key: 'ArrowDown' })
+      const menu = screen.getByRole('menu', { name: 'Date type' })
+      expect(typeButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(document.activeElement).toBe(typeItem('Next follow-up'))
+      fireEvent.keyDown(menu, { key: 'ArrowDown' })
+      expect(document.activeElement).toBe(typeItem('Last follow-up'))
+      fireEvent.keyDown(menu, { key: 'End' })
+      expect(document.activeElement).toBe(typeItem('Modified'))
+      fireEvent.keyDown(menu, { key: 'Home' })
+      expect(document.activeElement).toBe(typeItem('Due'))
+      fireEvent.keyDown(window, { key: 'Escape' })
+      expect(screen.queryByRole('menu', { name: 'Date type' })).toBeNull()
+      expect(document.activeElement).toBe(typeButton())
+      expectType('Next follow-up')
+      // Enter on the button (a click) opens it again; Enter on an item (a click) picks it.
+      fireEvent.click(typeButton())
+      fireEvent.keyDown(screen.getByRole('menu', { name: 'Date type' }), { key: 'ArrowUp' })
+      expect(document.activeElement).toBe(typeItem('Planned'))
+      fireEvent.click(typeItem('Planned'), { detail: 0 })
+      expectType('Planned')
+      expect(document.activeElement).toBe(typeButton())
+      expect(log).toEqual([])
+    })
+
+    it('Esc on the closed button is left to the panel’s host (the popover closes)', () => {
+      const onKey = vi.fn()
+      document.addEventListener('keydown', onKey)
+      render(<Harness log={[]} />)
+      fireEvent.keyDown(typeButton(), { key: 'Escape' })
+      expect(onKey).toHaveBeenCalledWith(expect.objectContaining({ key: 'Escape', defaultPrevented: false }))
+      document.removeEventListener('keydown', onKey)
+    })
+
+    it('autoFocus focuses the type button', () => {
+      render(<DateFilterPanel dates={{}} onChange={() => {}} autoFocus />)
+      expect(document.activeElement).toBe(typeButton())
+    })
+
+    it('the phone sheet: the same button and menu, its items touch-size', () => {
+      render(<Harness log={[]} variant="sheet" initial={{ created: { match: 'range', start: today, end: null } }} />)
+      expectType('Created', true)
+      const menu = typeMenu()
+      expect(menu.className).toMatch(/touch/)
+      fireEvent.click(typeItem('Planned'))
+      expectType('Planned')
+    })
+  })
+
+  describe('Planned', () => {
+    it('is a date like Due: Show has Any / None, its range has Is / Is not and “Also tasks with no planned date”', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initialField="planned" />)
+      expect(within(body()).getByText('Planned date')).toBeInTheDocument()
+      expect(within(screen.getByRole('radiogroup', { name: 'Which tasks' })).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Calendar', 'Relative', 'Any', 'None'])
+      expect(screen.getByRole('radiogroup', { name: 'Planned: is or is not' })).toBeInTheDocument()
+      typeEnd('To', '+7d')
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Also tasks with no planned date' }))
+      expect(log.at(-1)).toEqual({ planned: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } })
+      fireEvent.click(show('Any'))
+      expect(log.at(-1)).toEqual({ planned: { match: 'set' } })
+      expect(screen.getByText('Only tasks that have a planned date.')).toBeInTheDocument()
+      expect(screen.queryByRole('checkbox', { name: 'Only tasks held in Unplanned' })).toBeNull()
+    })
+
+    it('None shows “Only tasks held in Unplanned”, switching the clause between unset and held', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initialField="planned" />)
+      fireEvent.click(show('None'))
+      expect(log.at(-1)).toEqual({ planned: { match: 'unset' } })
+      expect(within(body()).getByText('none')).toBeInTheDocument()
+      const box = screen.getByRole('checkbox', { name: 'Only tasks held in Unplanned' })
+      expect(box).not.toBeChecked()
+      fireEvent.click(box)
+      expect(log.at(-1)).toEqual({ planned: { match: 'held' } })
+      expect(box).toBeChecked()
+      expect(show('None')).toHaveAttribute('aria-checked', 'true')
+      expect(within(body()).getByText('held in Unplanned')).toBeInTheDocument()
+      expect(typeItem('Planned')).toHaveAccessibleName('Planned, held in Unplanned')
+      fireEvent.click(typeButton())
+      fireEvent.click(box)
+      expect(log.at(-1)).toEqual({ planned: { match: 'unset' } })
+      // Clear Planned drops it either way.
+      fireEvent.click(box)
+      fireEvent.click(screen.getByRole('button', { name: 'Clear Planned' }))
+      expect(log.at(-1)).toEqual({})
+    })
+
+    it('a held clause opens on None with the box ticked; Any replaces it', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initial={{ planned: { match: 'held' } }} />)
+      expectType('Planned', true)
+      expect(show('None')).toHaveAttribute('aria-checked', 'true')
+      expect(screen.getByRole('checkbox', { name: 'Only tasks held in Unplanned' })).toBeChecked()
+      fireEvent.click(show('Any'))
+      expect(log.at(-1)).toEqual({ planned: { match: 'set' } })
+    })
+
+    it('the phone sheet: the box is a switch', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} variant="sheet" initial={{ planned: { match: 'unset' } }} />)
+      const sw = screen.getByRole('switch', { name: 'Only tasks held in Unplanned' })
+      expect(sw).toHaveAttribute('aria-checked', 'false')
+      fireEvent.click(sw)
+      expect(log.at(-1)).toEqual({ planned: { match: 'held' } })
+      expect(sw).toHaveAttribute('aria-checked', 'true')
+    })
   })
 })

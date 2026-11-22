@@ -80,21 +80,23 @@ describe('date filters', () => {
 })
 
 describe('the date types a scope can still take (cr25 P4b)', () => {
-  it('a panel offers every type in tab order, or all but its host’s left-out ones', () => {
-    expect(offeredDateFields()).toEqual(['deadline', 'followup', 'lastFollowup', 'completed', 'created', 'modified'])
+  it('a panel offers every type in menu order, or all but its host’s left-out ones', () => {
+    expect(offeredDateFields()).toEqual(['deadline', 'planned', 'followup', 'lastFollowup', 'completed', 'created', 'modified'])
     expect(offeredDateFields([])).toEqual(offeredDateFields())
-    expect(offeredDateFields(['completed'])).toEqual(['deadline', 'followup', 'lastFollowup', 'created', 'modified'])
+    expect(offeredDateFields(['completed'])).toEqual(['deadline', 'planned', 'followup', 'lastFollowup', 'created', 'modified'])
   })
 
-  it('the first offered type that does not filter yet, in tab order; none when every one does', () => {
+  it('the first offered type that does not filter yet, in menu order; none when every one does', () => {
     expect(freeDateField({})).toBe('deadline')
     expect(freeDateField(undefined)).toBe('deadline')
     expect(freeDateField({ lastFollowup: { match: 'range', start: { kind: 'offset', days: -7 }, end: TODAY, not: true } })).toBe('deadline')
-    expect(freeDateField({ deadline: { match: 'set' }, followup: { match: 'unset' } })).toBe('lastFollowup')
+    expect(freeDateField({ deadline: { match: 'set' }, followup: { match: 'unset' } })).toBe('planned')
+    expect(freeDateField({ deadline: { match: 'set' }, planned: { match: 'held' }, followup: { match: 'unset' } })).toBe('lastFollowup')
     // A range without an end doesn't filter: its type is still free.
     expect(freeDateField({ deadline: { match: 'range', start: null, end: null } })).toBe('deadline')
     const all: DateFilters = {
       deadline: { match: 'set' },
+      planned: { match: 'set' },
       followup: { match: 'set' },
       lastFollowup: { match: 'set' },
       created: { match: 'range', start: null, end: WEEK },

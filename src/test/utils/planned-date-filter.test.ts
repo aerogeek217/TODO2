@@ -163,10 +163,10 @@ describe('Graphical ↔ expression', () => {
     expect(activeDateFields({ planned: { match: 'held' } })).toEqual(['planned'])
   })
 
-  it('the date panel’s tabs leave Planned out, and adding a date never opens on it', () => {
-    expect(offeredDateFields()).not.toContain('planned')
-    expect(offeredDateFields(['completed'])).not.toContain('planned')
-    expect(freeDateField({ deadline: { match: 'set' } })).toBe('followup')
+  it('the date panel offers Planned second, and adding a date opens on it once Due filters', () => {
+    expect(offeredDateFields().indexOf('planned')).toBe(1)
+    expect(offeredDateFields(['completed'])).toContain('planned')
+    expect(freeDateField({ deadline: { match: 'set' } })).toBe('planned')
   })
 
   it('a planned chip reads Planned and its clause', () => {
