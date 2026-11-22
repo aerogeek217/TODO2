@@ -1,27 +1,245 @@
 # Workspace layout
 
-**Workspace**: a layout is one **table** (D26, schema v78, `models/workspace-layout`): grid lines across and down — `grid.columns` and `grid.rows`, each a list of `GridTrack`s (`{ id, weight?, px?, collapsed? }`: a weighted track, its share of the axis, or a fixed `px` track, a former band) — and `cells`, each covering a rectangle of tracks (`area { col, row, colSpan, rowSpan }`, track indices) and holding a strip of widget tabs. A full-height column is a cell spanning every row track, a strip a cell spanning every column track; nothing nests. The cells tile the grid exactly (no gap, no overlap) and every grid line is the edge of some cell (`utils/workspace-grid`: the queries — neighbours along an edge, whether two cells merge into a rectangle, reading order, edge stretches —, `normalizeGrid`, which merges the two tracks beside a line no cell's edge lies on and expands a collapsed row nothing can expand (below), and `validateTiling`); a cell with no tabs is an **empty cell** (a split's new cell, a close with no taker, or a lone widget removed).
+A layout is one table: grid tracks across and down, and cells that each cover a rectangle of tracks and hold a strip of widget tabs. This file covers the table, the ops that change it, how it is drawn and resized, and how a layout is saved. The model is `models/workspace-layout`; the pure code is `utils/workspace-grid`, `utils/workspace-layout-ops` and `utils/workspace-table`; `WorkspaceView` draws the table and `workspace-store` writes it.
 
-**The rule** (layout edit mode E4, said in the UI too): **edit mode changes the grid; what's inside a cell changes in place** — cells, rows and columns (split, merge, insert, close, a cell or a tab moved to another cell) change only in the layout edit mode (below); a cell's tabs, a Numbers strip's Numbers, a widget's kind and settings, the row's collapse and the dividers change in place (a divider's Alt-drag, which breaks part of a line off into a new one, is the one grid change made outside the mode, an undo step like any other).
+See also [Layout edit mode](layout-edit-mode.md) (rulers, cards, slots, the tray, drops, Move / Copy to layout) and [Widget chrome](widget-chrome.md) (a cell's menu, tabs, faces, Open larger).
 
-**The ops** (`utils/workspace-layout-ops`; each returns a normalized table, or the same layout when there is nothing to do, which `dropChangesLayout` relies on): `splitCell` (a new empty cell on a side, taking half — an even span splits on its middle line, an odd one splits its middle track, the cells crossing it then spanning both halves; the new cell never comes out collapsed — split below / above a collapsed cell, the old half keeps its collapse, while beside it in a collapsed row the row expands), `insertTrack` (a row at the top / bottom or a column at the left / right, full width / height, holding one new empty cell, half the nearest weighted track's size; a new column across collapsed rows expands them), `insertTrackBeside` (a row above / below a cell's row or a column left / right of its column: on that inner line, half of the cell's track, the cells spanning across the line growing into it and the gaps beside them new empty cells; at an outer edge `insertTrack`), `insertTrackAt` (the edit mode's rulers, E2: a full row / column on any line of the table — the cells crossing it growing across, its other places new empty cells; the edges `insertTrack`; given a run of lines whose tracks between are slivers (`through`), it first merges the slivers into the major track beside them, so the new track goes on the one line left, sized from that major; a "+" hovered previews the result, `utils/structure-preview`), `removeTrack` (a ruler's Remove row / column, refused for an axis's last track: along the axis a cell spanning the track — through it, or starting or ending in it — shrinks; a cell lying only in it moves into its *place*, the neighbouring track over its own extent — the track before, else after: a place of only empty cells it moves into, those cells giving it up and what is left of them cut into rectangles; else its tabs join the filled cell of that place sharing the most of its edge, the first along it on a tie, a cell sticking out past the place counting only its part beside it; an empty cell there just goes; the track's size goes to that neighbour when both are weighted or both fixed; `trackRemoval` is the plan, which the menu's message reads; no widget is ever deleted), `mergeTrackInto` (a sliver's Merge into B: `removeTrack` toward the named neighbour, so the line between them goes and its space joins that track), `evenTracks` (Even all widths / heights: the weighted tracks of an axis on their mean weight, view state), `mergeCells` (two cells whose union is a rectangle: the first grows over the second, whose tabs join its strip after its own), `closeCell` (**the absorb rule**: the neighbour sharing its whole edge — left, above, right, below, the first there is — grows over it; else the neighbours along one side that together cover that whole edge all grow across it; else, the centre of a pinwheel, it stays as an empty cell), `moveTab` / `movePanel` onto a target `{ kind: 'cell', cellId, index? } | { kind: 'swap', cellId } | { kind: 'split', cellId, side } | { kind: 'insert', edge } | { kind: 'layout' }` (`swap`: a whole cell trades places with another, `swapCells`; for a tab it is a join) (a cell the move empties closes by the same rule; a whole cell's move closes its old place first or places first, whichever leaves no empty cell), `swapCells` (two cells trade areas, each keeping its id and tabs: Swap with ▸, Alt+arrow onto a card, a card dropped on a slot), `setCellArea` (a card stretched over empty cells, below — `cellAreaFits` says where it may go), `removeTabKeepCell` (Remove widget: a lone widget's cell stays, empty), `moveEdge` (a divider, below) and `setTrackCollapsed` (**Collapse row** collapses every row track the cell covers, so its side-by-side neighbours fold with it: the cells lying only in a collapsed track show their top lines, a cell spanning through it gets shorter; column tracks don't collapse; **a collapsed row expands by itself once no filled cell lies only in collapsed rows over it** — its cell closed, moved away or grown on into an expanded row, `workspace-grid.expandOrphanRows`, the end of every op's `normalizeGrid` — and one a stored layout arrives with expands when the workspace shows it, as view state, `use-expand-orphan-rows`).
+## The table
 
-**Rendering** (`WorkspaceView`, `utils/workspace-table`): one CSS grid, `grid-template-*` from the tracks — a weighted track `minmax(<its cells' minimum>px, <share>fr)` (the table scrolls when the minimums don't fit: `CELL_MIN_PX` high and 120px wide, a glance cell 64px / 72px, a cell of one Number 58px high, a fit row's height — `utils/workspace-rows`), a fixed track its px, a fit row `auto`, a collapsed row a header's 32px —, each cell placed by `grid-area`.
+- `grid.columns` and `grid.rows` are lists of `GridTrack`s, `{ id, weight?, px?, collapsed? }`: a weighted track (its share of the axis) or a fixed `px` track.
+- `cells`: each covers a rectangle of tracks, `area { col, row, colSpan, rowSpan }` (track indices), and holds a strip of widget tabs.
+- A full-height column is a cell spanning every row track; a strip is a cell spanning every column track. Nothing nests.
+- The cells tile the grid exactly (no gap, no overlap), and every grid line is the edge of some cell.
+- A cell with no tabs is an **empty cell**: a split's new cell, a close with no taker, or a lone widget removed.
 
-**Dividers** (`WorkspaceDivider`, one per stretch of grid line between two cells' edges — `edgeStretches`: a line parts at each "+" crossing, where the perpendicular line is an edge on both sides, but runs on at a "T"; none beside a collapsed row), in and out of the layout edit mode (E4, decision B; `utils/divider-moves`): **a plain drag moves the whole grid line** the divider lies on, across its "+" crossings — live, reweighting the line's two tracks (view state, saved once at the drag's end; in the mode, the draft) —; **Alt + drag breaks the divider's own piece off** its line (Alt can be pressed or let go mid-drag) — onto another line (a piece snapped back onto a line re-joins it), or a new line and track where it stops (the cells crossing that track gaining a span) — a structural edit (saved at once, an undo step; in the mode, a step of the draft), previewed while the drag runs: the table draws the result, every cell (the same element) at the size and place the release gives it (`workspace-store.resizePreview`, transient view state — never saved, never an undo step; Esc puts the table back); the drag snaps onto any line of its axis within 8px (`EDGE_SNAP_PX`) — one only other columns' or rows' cells lie on too — a faint accent guide along that whole line while it holds (`SnapGuide`), and keeps every cell its minimum; the arrow keys step the whole line 16px, Alt + them the piece, the focus staying on it (a run of them one undo step); a double-click evens the whole line's two weighted tracks (Alt + double-click moves part of a line midway between its own cells — `evenStretchDelta`, an undo step). Its hover (after 120ms), focus and drag light what it moves — the whole line, across the table (a sibling line element), or with Alt its piece alone (`data-break`); its tooltip says `Drag to resize · Alt-drag to split the line` (no Alt part on a line that is one piece), and the keyboard shortcuts list has an `Alt+drag` row. A Numbers-only (fit) row's line has a divider too: its drag gives the row a fixed height, its track's `fitPx` (view state, saved at once; it wins over `auto`), a double-click clears it and the row fits again.
+`utils/workspace-grid` holds:
 
-**A drag moves only its own line** (J14): beside a fit or fixed (`px`) track the weighted track across the line gives or takes the px, re-weighted from the sizes measured at the drag's start so every other weighted track keeps its size (`workspace-layout-ops.weightedTo`; two weighted tracks keep their summed weight; a weighted track held at its cells' minimum first has every weight set to its drawn share, `drawnByWeight`; a line's place counts the gaps between tracks, `MoveEdgeOptions.gap`, so part of a line moved into or past other tracks stays under the pointer and the other lines stay put) — the divider follows the pointer, the fit row's other edge stays; a double-click's clear likewise hands the height back to the row across the clicked line (`withRowDrawnAt`).
+- the queries: neighbors along an edge, whether two cells merge into a rectangle, reading order, edge stretches;
+- `normalizeGrid`, which merges the two tracks beside a line no cell's edge lies on and expands a collapsed row nothing can expand ([Collapse row](#collapse-row));
+- `validateTiling`.
 
-**The normal workspace** (outside the mode, E4): no grips, no crossing handles, nothing drags a whole cell; a tab only reorders inside its own strip (a cell's tab strip, a Numbers strip's middle: `workspace-drop.ownStripHit`), with the strip's insert line and no ghost.
+## The rule
 
-**The cell's menus** (`cell-menu`, UX cleanup 4A; layout edit mode E4 — the rule above): outside the mode **the ⋯** (named **Cell options**) — and a right-click on a tab or a lone widget's top line, Shift+F10 / the Menu key there: the same menu — opens the widget's own entries, under its kind's name (Edit list…, Review these N tasks, Zoom, Copy, a Number's or a chart's Edit …, its settings, Open larger, Name and icon…, then **Move to layout ›** / **Copy to layout ›** (below), then **Change widget ›** — the current kind beside it, a submenu of every kind under Tasks and Insights), then **Add widget as tab ›** (every kind under Tasks and Insights, a Breakdown's presets; the new widget a tab of this cell, made its active one — a List with a new blank list, `widget-hooks.addTabToCell`), **Remove widget** (that tab — in a cell showing a tab strip the two read **Add tab ›** and **Remove tab**, `cell-menu.showsTabStrip`, a Numbers strip keeping the widget words; **a lone widget's cell stays, empty** — `workspace-store.removeWidget` / `workspace-layout-ops.removeTabKeepCell`, one undo step `Removed “X”`; only the mode's Close cell gives a cell's space away, by the absorb rule), Collapse / Expand row, and last **Edit layout** (the mode, this cell selected).
+**Edit mode changes the grid; what's inside a cell changes in place.**
 
-**Adding a widget opens nothing** (decision 8): every kind draws something by default — a new list is `New list` (`New list 2`, …) showing every open task, a Number counts every open task, a chart splits them —, and its editor is in its ⋯ (Edit list…, Edit number…, Edit breakdown… / pivot…, Edit chart…). The strip's add-tab `+` opens the kinds (`AddWidgetFlow`); **an empty cell** shows a quiet placeholder — `Add a widget`, the kinds by group (`AddWidgetButtons`, each added as its tab) and an **Edit layout** link (the mode, this cell selected); the palette's **Add Widget ›** adds the picked kind as a tab of the cell last used (the focused one, else the zoom and review commands' list tab's, else the first in reading order; an empty layout's first cell), with no Where step, its second step's search as ever. A list tab is never pointed at another list (Change list went, decision 11): Add widget as tab › List makes a new list, and Edit list's Copy from… copies another's setup.
+- Cells, rows and columns change only in the [layout edit mode](layout-edit-mode.md): split, merge, insert, close, a cell or a tab moved to another cell.
+- These change in place: a cell's tabs, a Numbers strip's Numbers, a widget's kind and settings, the row's collapse, the dividers.
+- One grid change is made outside the mode: a divider's Alt-drag, which breaks part of a line off into a new one. It is an undo step like any other.
+- In the UI, an empty cell's **Edit layout** link has the tooltip `Change the grid: rows, columns and cells`.
 
-**Layout autosave** (UX cleanup 1D): a layout has no Save. Outside the layout edit mode every edit to a layout — anything that changes a track's id or a cell's area (a divider's Alt-drag), a tab's place, its config (an editor's Save, a ⋯ menu's setting, the Review widget's pick) or its kind — is written at once (`workspace-store` → `layoutRepository.putAndPrune`) and is **one undo step** with the snackbar, named plainly (`Removed “This week”` — a widget removed by the ⋯'s Remove widget, a tab's × or a strip Number's ×, a lone widget's cell staying, empty —, `Edited number “Open”`, `Edited layout “Default”` — the mode's Done, one step for the whole session —; the arrow keys stepping one divider are one step, `UndoEntry.mergeKey`; a divider's move — `Moved divider` — is a step with no snackbar, the table showing it).
+## Layout ops
 
-**Lists follow the edit**: the lists the layout owns that it no longer shows (`layoutListRefs`: list tabs and Numbers that follow a list — a Review widget's filter is temporary and names none) are deleted in the same write; Undo brings back those lists first, then the table as it was, carrying the view state of the moment (`utils/workspace-layout-view.withViewStateOf`: sizes, collapse, active tabs, tabs' view state), and Redo removes them again; either runs only while that layout is open (else `Open layout “X” to undo: …`, the step staying on the stack) and drops the step once the layout is gone. Undo doesn't survive a reload. The layouts' order and view state — track sizes (a weighted track's weight, a fixed one's px) from the dividers, collapsed row tracks, each cell's active tab, calendar view, row details width — save at once too, as view state (`layoutRepository.updateView`, no undo step); a divider drag's frames are written once, at its end. Writes run in the order made, so a view change made right after an edit lands on top of it. A write that fails keeps what is on screen and says so: `Couldn't save · Retry` beside the layout tabs (`writeFailed`; the next write of the layout — any edit, or Retry — writes all of it), and leaving the layout tries once more first, staying put when that fails too. Outside the mode nothing about a layout or a list is ever unsaved, so nothing asks on a layout switch, on leaving the route or on closing the tab — only an open editor with changes asks when it is left (Edit list, a widget editor, the mode's draft).
+The ops are in `utils/workspace-layout-ops`. Each returns a normalized table, or the same layout when there is nothing to do, which `dropChangesLayout` relies on.
 
-**Duplicate layout…** (the open layout's tab menu and the picker) stores a copy as a new layout, its lists copied with their manual order. On a **phone** (`MobileWorkspaceView`) every cell shows in reading order (by its top track, then its left) in one vertical scroll, a run of Number cells two up while each gets 140px; the same tabs-on-demand rule (one widget: no tab row, its top line holds the ⋯; a face with no top line has none — collapsed, such a cell, a Number's, has its own Expand row button), no layout editing: no pencil, no Edit layout in any menu, an empty cell's placeholder its kinds alone, and the mode closes if the window narrows to a phone's.
+### Split and insert
 
-**v78** (`data/upgrades/v78/layout-table`) made every v77 layout (columns → rows → cells, and the bands) a table: its lines from v77's geometry — the column weights give the x positions, inside a column each row's cells' weights, a band's cells across the whole width; down, each column's row weights between the bands, which become fixed tracks at the top and bottom (a fit row counts as a nominal 76px of an 800px column area, for the ordering only, and then fits again) — every distinct position a line, the weights scaled to whole numbers summing to 1000 per axis, a row track collapsed when every cell over it came from a collapsed row or band; each cell keeps its id, tabs and active tab, while `stripShown` and the phone's `activeColumnId` go.
+- `splitCell`: a new empty cell on a side, taking half.
+  - An even span splits on its middle line. An odd one splits its middle track, and the cells crossing it then span both halves.
+  - The new cell never comes out collapsed. Split below or above a collapsed cell, the old half keeps its collapse; beside it in a collapsed row, the row expands.
+- `insertTrack`: a row at the top / bottom or a column at the left / right, full width / height, holding one new empty cell.
+  - It takes half the nearest weighted track's size.
+  - A new column across rows that are all collapsed expands them.
+- `insertTrackBeside`: a row above / below a cell's row or a column left / right of its column, on that inner line.
+  - It takes half of the cell's track.
+  - The cells spanning across the line grow into it, and the gaps beside them become new empty cells.
+  - At an outer edge it is `insertTrack`.
+- `insertTrackAt` (the edit mode's rulers): a full row / column on any line of the table.
+  - The cells crossing the line grow across; its other places become new empty cells. At the edges it is `insertTrack`.
+  - Given a run of lines whose tracks between are slivers (`through`), it first merges the slivers into the major track beside them. The new track then goes on the one line left, sized from that major.
+  - A hovered "+" previews the result (`utils/structure-preview`).
+
+### Remove and merge tracks
+
+- `removeTrack` (a ruler's **Remove row** / **Remove column**), refused for an axis's last track:
+  - Along the axis, a cell spanning the track (through it, or starting or ending in it) shrinks.
+  - A cell lying only in it moves into its *place*: the neighboring track over its own extent. The neighbor is the track before, else the one after.
+    - A place of only empty cells: the cell moves into it. Those cells give it up, and what is left of them is cut into rectangles.
+    - Else its tabs join the filled cell of that place sharing the most of its edge, the first along it on a tie. A cell sticking out past the place counts only its part beside it.
+    - An empty cell lying only in the track just goes.
+  - The track's size goes to that neighbor when both are weighted or both fixed.
+  - `trackRemoval` is the plan, which the menu's message reads.
+  - No widget is ever deleted.
+- `mergeTrackInto` (a sliver's **Merge into B**): `removeTrack` toward the named neighbor, so the line between them goes and its space joins that track.
+- `evenTracks` (**Even all widths** / **Even all heights**): the weighted tracks of an axis take their mean weight. View state.
+
+### Cells
+
+- `mergeCells`: two cells whose union is a rectangle. The first grows over the second, whose tabs join its strip after its own.
+- `closeCell`, **the absorb rule**:
+  1. The neighbor sharing its whole edge grows over it: left, above, right, below, the first there is.
+  2. Else the neighbors along one side that together cover that whole edge all grow across it.
+  3. Else (the center of a pinwheel) it stays as an empty cell.
+- `moveTab` / `movePanel` onto a target `{ kind: 'cell', cellId, index? } | { kind: 'swap', cellId } | { kind: 'split', cellId, side } | { kind: 'insert', edge } | { kind: 'layout' }`:
+  - `swap`: a whole cell trades places with another (`swapCells`). For a tab it is a join.
+  - A cell the move empties closes by the absorb rule.
+  - A whole cell's move closes its old place first or places first, whichever leaves no empty cell.
+- `swapCells`: two cells trade areas, each keeping its id and tabs (**Swap with ▸**, Alt+arrow onto a card, a card dropped on a slot).
+- `setCellArea`: a card stretched over empty cells. `cellAreaFits` says where it may go.
+- `removeTabKeepCell` (**Remove widget**): a lone widget's cell stays, empty.
+- `moveEdge`: a divider ([Dividers](#dividers)).
+
+### Collapse row
+
+- `setTrackCollapsed`: **Collapse row** collapses every row track the cell covers, so its side-by-side neighbors fold with it.
+  - The cells lying only in a collapsed track show their top lines; a cell spanning through it gets shorter.
+  - Column tracks don't collapse.
+- **A collapsed row expands by itself once no filled cell lies only in collapsed rows over it**: its cell closed, moved away, or grown on into an expanded row (`workspace-grid.expandOrphanRows`, the end of every op's `normalizeGrid`).
+- A stored layout that arrives with such a row has it expanded when the workspace shows it, as view state (`use-expand-orphan-rows`).
+
+## Rendering
+
+`WorkspaceView` draws one CSS grid. `utils/workspace-table` builds `grid-template-*` from the tracks, and each cell is placed by `grid-area`.
+
+| Track | Size |
+|-------|------|
+| weighted | `minmax(<its cells' minimum>px, <share>fr)` |
+| fixed | its px |
+| fit row | `auto` |
+| collapsed row | a header's 32px |
+
+The table scrolls when the minimums don't fit. The minimums (`utils/workspace-rows`):
+
+- a cell: `CELL_MIN_PX` high and 120px wide;
+- a glance cell: 64px high and 72px wide;
+- a cell of Numbers (one, or a strip): 58px high, a fit row's height.
+
+## Dividers
+
+`WorkspaceDivider` draws one divider per stretch of grid line between two cells' edges (`edgeStretches`). A line parts at each "+" crossing, where the perpendicular line is an edge on both sides, but runs on at a "T". A row line beside a collapsed row has no divider. Dividers work the same in and out of the layout edit mode (`utils/divider-moves`).
+
+### Plain drag and Alt + drag
+
+- **A plain drag moves the whole grid line** the divider lies on, across its "+" crossings.
+  - It is live, reweighting the line's two tracks.
+  - View state, saved once at the drag's end; in the mode, the draft.
+- **Alt + drag breaks the divider's own piece off** its line. Alt can be pressed or let go mid-drag.
+  - The piece goes onto another line (a piece snapped back onto a line re-joins it), or onto a new line and track where it stops. The cells crossing that track gain a span.
+  - A structural edit: saved at once, an undo step; in the mode, a step of the draft.
+  - It is previewed while the drag runs: the table draws the result, every cell (the same element) at the size and place the release gives it.
+  - The preview is `workspace-store.resizePreview`, transient view state: never saved, never an undo step. Esc puts the table back.
+- Either drag snaps onto any line of its axis within 8px (`EDGE_SNAP_PX`), also one that only other columns' or rows' cells lie on. A faint accent guide shows along that whole line while it holds (`SnapGuide`).
+- Neither takes a cell under its minimum.
+
+### Keys, double-click, light and tooltip
+
+- The arrow keys step the whole line 16px, Alt + arrow the piece. The focus stays on the divider, and a run of key steps is one undo step.
+- A double-click evens the whole line's two weighted tracks.
+- Alt + double-click moves part of a line midway between its own cells (`evenStretchDelta`), an undo step.
+- Its hover (after 120ms), focus and drag light what it moves: the whole line across the table (a sibling line element), or with Alt its piece alone (`data-break`).
+- Its tooltip says `Drag to resize · Alt-drag to split the line`, with no Alt part on a line that is one piece. Beside a fit row it says `Drag to resize · Double-click to fit`.
+- The keyboard shortcuts list has an `Alt-drag` row.
+
+### A fit row's divider
+
+A Numbers-only (fit) row's line has a divider too ([Fit rows](widget-chrome.md#fit-rows)).
+
+- Its drag gives the row a fixed height, its track's `fitPx`: view state, saved at once. It wins over `auto`.
+- A double-click clears it and the row fits again.
+
+### A drag moves only its own line
+
+- Beside a fit or fixed (`px`) track, the weighted track across the line gives or takes the px. It is re-weighted from the sizes measured at the drag's start, so every other weighted track keeps its size (`workspace-layout-ops.weightedTo`).
+- Two weighted tracks keep their summed weight.
+- A weighted track held at its cells' minimum first has every weight set to its drawn share (`drawnByWeight`).
+- A line's place counts the gaps between tracks (`MoveEdgeOptions.gap`), so part of a line moved into or past other tracks stays under the pointer and the other lines stay put.
+- So the divider follows the pointer, and a fit row's other edge stays.
+- A double-click's clear likewise hands the height back to the row across the clicked line (`withRowDrawnAt`).
+
+## The normal workspace
+
+Outside the mode there are no grips and no crossing handles, and nothing drags a whole cell. A tab only reorders inside its own strip (a cell's tab strip, or a Numbers strip's middle: `workspace-drop.ownStripHit`), with the strip's insert line and no ghost.
+
+## Adding a widget
+
+**Adding a widget opens nothing.** Every kind draws something by default:
+
+- a new list is `New list` (`New list 2`, …) and shows every open task;
+- a Number counts every open task;
+- a chart splits them.
+
+Its editor is in its ⋯: **Edit list…**, **Edit number…**, **Edit breakdown…** / **Edit pivot…**, **Edit chart…**.
+
+Ways to add one, besides the cell menu's **Add widget as tab ›** ([Widget chrome](widget-chrome.md#the-cells-menu)):
+
+- The strip's add-tab `+` opens the kinds (`AddWidgetFlow`).
+- **An empty cell** shows a quiet placeholder: `Add a widget`, the kinds by group (`AddWidgetButtons`, each added as its tab), and an **Edit layout** link (the mode, this cell selected).
+- The palette's **Add Widget ›** adds the picked kind as a tab of the cell last used: the focused one, else the cell of the list tab the zoom and review commands act on, else the first in reading order; in an empty layout, its first cell. It has no Where step, and its second step keeps its search.
+
+A list tab is never pointed at another list: **Add widget as tab ›** List makes a new list, and Edit list's **Copy from…** copies another's setup ([Lists](lists.md)).
+
+## Layout autosave
+
+A layout has no Save.
+
+### Edits
+
+Outside the layout edit mode every edit to a layout is written at once (`workspace-store` → `layoutRepository.putAndPrune`) and is **one undo step** with the snackbar, named plainly. An edit is anything that changes:
+
+- a track's id or a cell's area (a divider's Alt-drag);
+- a tab's place;
+- a tab's config (an editor's Save, a ⋯ menu's setting);
+- a tab's kind.
+
+The steps:
+
+- `Removed “This week”`: a widget removed by the ⋯'s **Remove widget**, a tab's × or a strip Number's ×. A lone widget's cell stays, empty.
+- `Edited number “Open”`.
+- `Edited layout “Default”`: the mode's **Done**, one step for the whole session.
+- The arrow keys stepping one divider are one step (`UndoEntry.mergeKey`).
+- A divider's move, `Moved divider`, is a step with no snackbar: the table shows it.
+
+### Lists follow the edit
+
+- The lists the layout owns that it no longer shows are deleted in the same write. `layoutListRefs` says what it shows: list tabs, and Numbers that follow a list. A Review widget's filter is temporary and names none.
+- Undo brings back those lists first, then the table as it was, carrying the view state of the moment (`utils/workspace-layout-view.withViewStateOf`: sizes, collapse, active tabs, tabs' view state). Redo removes them again.
+- Either runs only while that layout is open. Else it says `Open layout “X” to undo: …` and the step stays on the stack.
+- The step is dropped once the layout is gone.
+- Undo doesn't survive a reload.
+
+### View state and order
+
+- View state saves at once too, with no undo step (`layoutRepository.updateView`): track sizes from the dividers (a weighted track's weight, a fixed one's px), collapsed row tracks, each cell's active tab, calendar view, row details width.
+- A divider drag's frames are written once, at its end.
+- Writes run in the order made, so a view change made right after an edit lands on top of it.
+- The layouts' order saves at once too; a reorder is one undo step (`workspace-store.reorderLayouts`).
+
+### A failed write
+
+- A write that fails keeps what is on screen and says so: `Couldn't save · Retry` beside the layout tabs (`writeFailed`).
+- The next write of the layout (any edit, or **Retry**) writes all of it.
+- Leaving the layout tries once more first, and stays put when that fails too.
+
+### Nothing is unsaved
+
+Outside the mode nothing about a layout or a list is ever unsaved, so nothing asks on a layout switch, on leaving the route or on closing the tab. Only an open editor with changes asks when it is left: Edit list, a widget editor, the mode's draft ([Popovers and editors](popovers-and-editors.md)).
+
+## Hue and icon
+
+- A layout's optional **hue** colors its tab, its cells' top lines and headers, and the focus ring inside it.
+- It is set with the name in **Name, icon and hue…** (the layout tab's menu and the picker; the dialog of that name) and saved at once.
+- So is its optional **icon** (`WorkspaceLayout.icon`, an `IconValue`), in the dialog's Icon row between Name and Hue (the shared icon picker):
+  - absent, the layout glyph; **No icon**, none;
+  - drawn before the name on its tab, in the picker and on the phone;
+  - a line icon and a muted emoji are gray at rest and in the hue on the open tab; a color emoji keeps its own colors.
+
+## Reading a stored layout
+
+Stored layouts are read through the layout repair (`data/layout-shape`; see [Models and data](../models-and-data.md)):
+
+- A part this build can't use is dropped.
+- A tiling that doesn't hold is rebuilt as the cells in their reading order, stacked in one column.
+- The repair stays in memory, with a notice, until the layout's first edit writes it. View state isn't written before that.
+
+## Duplicate layout
+
+**Duplicate layout…** (the open layout's tab menu and the picker) stores a copy as a new layout, its lists copied with their manual order.
+
+## On a phone
+
+`MobileWorkspaceView`:
+
+- Every cell shows in reading order (by its top track, then its left) in one vertical scroll.
+- A run of Number cells is two up while each gets 140px.
+- The same [tabs-on-demand](widget-chrome.md#tabs-on-demand) rule: with one widget there is no tab row and its top line holds the ⋯. A face with no top line has none; collapsed, such a cell (a Number's) has its own **Expand row** button.
+- No layout editing: no pencil and no **Edit layout** in any menu. An empty cell reads `Empty cell` and `To create or edit layouts, use a wider screen.`
+- The mode closes if the window narrows to a phone's.
