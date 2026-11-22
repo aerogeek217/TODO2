@@ -43,7 +43,17 @@ A task must pass every clause, and the expression on top of them. The evaluators
 
 ## Date clauses
 
-A filter keys a date clause by one of six dates: Due, Next follow-up, Last follow-up, Completed, Created, Modified. They are the date panel's two rows of three (`DateFilterPanel`). A task must pass every date clause (`utils/filter-match.matchesDateMatch`).
+A filter keys a date clause by one of seven dates: Due, Planned (the Planner's planned day, `doDate`), Next follow-up, Last follow-up, Completed, Created, Modified. A task must pass every date clause (`utils/filter-match.matchesDateMatch`).
+
+### The date panel
+
+`DateFilterPanel` edits a filter's date clauses: in the top bar's Dates picker, a list's date chip and + Filter › Dates, Edit list, the check-in's Which tasks, the task dialog's filter bar and the phone's Filters sheet (`variant: 'sheet'`, touch sizes).
+
+- **The type button** names the type being edited: a 6px accent dot when that type filters, `N filtering` (muted) when any type does, then a chevron. It is named `Date type: Planned`, with `, filtering` when the type filters, and described by `N filtering`.
+- **Its menu** (a `MenuPopover`, `Date type`, as wide as the button; touch-size items in the sheet) lists Due · Planned · Next follow-up · Last follow-up, a separator, then Completed · Created · Modified. A type that filters is lit (accent text and the dot) with its clause in the header's words at the right (`describeDateMatch`). The selected type is the checked radio item.
+- **Picking a type** selects it for editing and writes nothing. The panel opens on `initialField` (a chip's type, Planned included; + Filter › Dates passes the first type not filtering yet, `freeDateField`), else the first type that filters, else Due. `host.omit` leaves types out (the check-in: Completed); an omitted `initialField` opens on the first type offered.
+- **Keyboard**: Enter, Space or ↓ on the button open the menu on the selected type; ↑ / ↓ / Home / End and a letter move; Enter picks; Esc closes the menu and the focus is back on the button. Esc on the button closes the panel's popover. `autoFocus` focuses the button.
+- **The body** is the selected type's: its title and its clause in words (or `Not filtering`), Show, the range's Is / Is not, From / To, "Also tasks with no …", and a footer with Clear <Type> and Clear all (`Clear all dates` in the sheet). Neither clear closes the panel. A range kept under Any / None, a picked Calendar / Relative and an Is not chosen before an end are held per type while the panel is open (an early Is not outlives it through `date-pending-not`).
 
 ### Entering a range
 
@@ -56,13 +66,13 @@ The panel's **Show** row picks how a range is entered:
   - The field's chevron keeps the rolling days and the open end (**No start** / **No end**).
   - Under the field is its day today (`Thu, Dec 3`).
   - A new range opens in Relative.
-- **Any** / **None**, on the optional dates only.
+- **Any** / **None**, on the optional dates only. Planned's **None** shows a box, **Only tasks held in Unplanned**, that switches the clause between `unset` and `held` (a switch in the sheet); the header then says `held in Unplanned`.
 
 Switching between Calendar and Relative converts the ends. The mode itself is not stored: it is read from the ends.
 
 ### Rules per date
 
-- Due, Next follow-up and Last follow-up are the optional dates (`OPTIONAL_DATE_FIELDS`). They offer **Any** / **None** and "also tasks with no date" (for Last follow-up, "also tasks never followed up").
+- Due, Planned, Next follow-up and Last follow-up are the optional dates (`OPTIONAL_DATE_FIELDS`). They offer **Any** / **None** and "also tasks with no date" (for Last follow-up, "also tasks never followed up").
 - A range may be **is not**: the date, as a day, is outside the range, and a task without the date is kept ("Last follow-up is not 1 week ago – Today"). Every date but Completed has it (`NEGATABLE_DATE_FIELDS`).
 - Completed is a range only. Its range lets completed tasks through (see [Completed tasks](#completed-tasks)).
 
@@ -73,6 +83,7 @@ Switching between Calendar and Relative converts the ends. The mode itself is no
 | Key | Date |
 |-----|------|
 | `deadline` | Due |
+| `planned` | Planned: a task's `doDate` |
 | `followup` | Next follow-up |
 | `lastFollowup` | Last follow-up |
 | `completed` | Completed: a completed task's `completedAt` |
@@ -86,6 +97,7 @@ A clause is one of:
   - `includeNoDate` is "also tasks with no date". It is stored only when true, and only on the optional dates.
   - `not` is "is not". It is stored only when true, never on Completed, and with no `includeNoDate` beside it.
 - `{ match: 'set' }` / `{ match: 'unset' }`: **Any** / **None**, on the optional dates only.
+- `{ match: 'held' }`: on Planned only, a task held in the Planner's Unplanned tray (`unplanned: true`).
 
 A `DateAnchor` is resolved at evaluation time. It is one of:
 

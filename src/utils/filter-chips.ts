@@ -194,7 +194,7 @@ function dateRangeTooltip(f: DateField, m: DateMatch, day: ChipDay | undefined):
 }
 
 /**
- * One chip per date type that filters, in tab order: `Due` `within the next
+ * One chip per date type that filters, in the date panel's menu order: `Due` `within the next
  * 14 days`, `Created` `on or after start of month`, a range's tooltip
  * spelling its days when `day` is given; an "is not" range is marked as an
  * "is not" id chip is — `not …`, `negated`, a tooltip saying what it hides.
