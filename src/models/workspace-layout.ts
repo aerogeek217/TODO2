@@ -22,7 +22,7 @@
  * tasks, the note) lives in its own tables.
  */
 
-import { emptyPredicate } from './filter-predicate'
+import { emptyPredicate, type TodoPredicate } from './filter-predicate'
 import {
   DEFAULT_TREND_NAME,
   DEFAULT_TREND_RANGE,
@@ -198,6 +198,23 @@ export interface ReviewTabViewState {
 }
 
 /**
+ * A Planner's settings (layout config): `unplanned`, the filter an open task
+ * with no day matches to join the Unplanned tray on its own. Absent: Focus
+ * (`plannerUnplannedFilter`), so a Planner that never set one holds what it
+ * always did; an empty predicate: nothing joins on its own, only the tasks
+ * unplanned by hand. It decides Unplanned only, never which days a task sits
+ * on.
+ */
+export interface PlannerTabConfig {
+  unplanned?: TodoPredicate
+}
+
+/** The Unplanned filter a Planner reads: its own, else Focus (`/focus`). */
+export function plannerUnplannedFilter(config: PlannerTabConfig): TodoPredicate {
+  return config.unplanned ?? { ...emptyPredicate(), markers: [{ values: ['focus'] }] }
+}
+
+/**
  * A Planner's view state (saved at once, no undo step): its hand order —
  * task `uid`s, one sequence for the whole widget, each group listing its
  * tasks in that order and the rest after them (`utils/planner.plannerOrder`).
@@ -285,7 +302,7 @@ export type ListTab = TabOf<'lens', ListTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
-export type PlannerTab = TabOf<'planner', NoTabSettings, PlannerTabViewState>
+export type PlannerTab = TabOf<'planner', PlannerTabConfig, PlannerTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
 export type ClustersTab = TabOf<'clusters', NoTabSettings, NoTabSettings>
 export type ListWallTab = TabOf<'listwall', NoTabSettings, NoTabSettings>
@@ -533,7 +550,7 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   },
   // Item 12: a review in a cell, nothing to review yet (its field takes a filter).
   review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: {} }) },
-  // The Planner (2026-11-20): no settings; its hand order is view state.
+  // The Planner (2026-11-20): its Unplanned filter (absent: Focus); its hand order is view state.
   planner: { label: 'Planner', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'planner', config: {} }) },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
   // Insights.

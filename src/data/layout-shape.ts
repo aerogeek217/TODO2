@@ -28,6 +28,7 @@ import {
   PLANNER_DOCK_SHARE_MIN,
   PLANNER_ORDER_MAX,
   type PlannerTab,
+  type PlannerTabConfig,
   type PlannerTabViewState,
   TAB_NAME_MAX,
 } from '../models/workspace-layout'
@@ -288,8 +289,13 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       const bad = view ? reviewViewProblem(view) : null
       return bad ? `${path}.viewState.${bad}` : true
     }
-    // The Planner: no settings, its hand order and its trays dock.
+    // The Planner: its Unplanned filter (a predicate as a Number's filter), its hand order and its trays dock.
     case 'planner': {
+      if (config.unplanned !== undefined) {
+        const shape = checkPredicateShape(config.unplanned)
+        if (shape !== true) return `${path}.config.unplanned.${shape}`
+        if (pickPredicate(config.unplanned).fixes.length > 0) return `${path}.config.unplanned`
+      }
       const problem = view ? pickPlannerView(view).problem : null
       return problem ? `${path}.viewState.${problem}` : true
     }
@@ -313,6 +319,22 @@ function pickReviewView(view: Obj | undefined): { view: ReviewTabViewState; fixe
   if (isReviewSort(view.sort)) out.sort = view.sort
   else if (view.sort !== undefined) fixed = true
   return { view: out, fixed }
+}
+
+/**
+ * A Planner's settings as read: its Unplanned filter read as a list's
+ * predicate (`pickPredicate`, its fixes a fix); one that isn't a predicate
+ * at all (`checkPredicateShape`) is dropped — Focus again, a fix —, as is a
+ * key it doesn't have. Absent stays absent: Focus.
+ */
+function pickPlannerConfig(config: Obj): { config: PlannerTabConfig; fixed: boolean } {
+  let fixed = Object.keys(config).some((k) => k !== 'unplanned')
+  const raw = config.unplanned
+  if (raw === undefined) return { config: {}, fixed }
+  if (checkPredicateShape(raw) !== true) return { config: {}, fixed: true }
+  const read = pickPredicate(raw)
+  if (read.fixes.length > 0) fixed = true
+  return { config: { unplanned: read.predicate }, fixed }
 }
 
 const PLANNER_VIEW_KEYS = new Set(['order', 'dockShare', 'dockFolded'])
@@ -683,11 +705,12 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         if (Object.keys(picked.view).length > 0) review.viewState = picked.view
         return review
       }
-      // The Planner: no settings (a config key is dropped, a fix); its view state as checked.
+      // The Planner: its Unplanned filter as read (`pickPlannerConfig`); its view state as checked.
       case 'planner': {
         const picked = pickPlannerView(view)
-        if (picked.fixed || Object.keys(config).length > 0) fix('settings')
-        const planner: PlannerTab = { id, kind: 'planner', config: {} }
+        const settings = pickPlannerConfig(config)
+        if (picked.fixed || settings.fixed) fix('settings')
+        const planner: PlannerTab = { id, kind: 'planner', config: settings.config }
         if (Object.keys(picked.view).length > 0) planner.viewState = picked.view
         return planner
       }
