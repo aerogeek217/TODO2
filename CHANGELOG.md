@@ -20,6 +20,8 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-21, third deployment
+
 ### Added
 
 - **The Planner in a tall, narrow cell.** When the Planner sits in a narrow column that is much taller than it is
