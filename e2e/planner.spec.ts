@@ -1106,6 +1106,36 @@ test('the Unplanned filter: its words open the Planner settings, and what it hol
   await expect(line).toHaveText('Nothing joins on its own')
 })
 
+test('in the widget popup, the Planner settings redraw Unplanned as the filter is edited, as in a cell', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...WIDE,
+    tags: ['errands'],
+    tasks: [...TASKS, { title: 'Pick up dry cleaning', tags: ['errands'], modifiedAt: STAMP }],
+  })
+  await wsCell(page, 'k1').getByRole('button', { name: 'Open larger' }).click()
+  const popup = page.getByTestId('widget-popup')
+  await expect(popup).toBeVisible()
+  const inPopup = popup.locator('[data-planner="plan"] [data-planner-group="unplanned"]')
+  await expect(titles(inPopup)).toHaveText(['Someday focus'])
+
+  await inPopup.locator('[data-planner-filter-line]').getByRole('button').click()
+  const dialog = page.getByRole('dialog', { name: 'Planner settings' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('radio', { name: 'Expression' }).click()
+  const field = dialog.getByRole('textbox', { name: 'Filter expression' })
+  await field.fill('#errands')
+  await field.press('Tab')
+  // Drawn as edited, before Save, and the popup stays open.
+  await expect(titles(inPopup)).toHaveText(['Pick up dry cleaning'])
+  await expect(inPopup.locator('[data-planner-filter-line]')).toContainText('errands')
+  await expect(popup).toBeVisible()
+
+  // Cancel puts the stored filter back.
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(titles(inPopup)).toHaveText(['Someday focus'])
+})
+
 // ── A plan past a real date: the tag, the late date, the fixes ──────────────
 
 test('a row planned after its due date shows the tag and the date drawn late; Move due date to … edits the date, and the tag and the flag go', async ({ page }) => {
