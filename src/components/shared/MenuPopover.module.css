@@ -193,6 +193,19 @@
   color: var(--color-text-muted);
 }
 
+/* An item that is on (`accent`): accent text and icon. */
+.accent,
+.accent .icon,
+.accent:hover:not(:disabled) .icon,
+.accent:focus-visible .icon {
+  color: var(--color-accent-text);
+}
+
+/* Touch-size items (`touch`): the phone's 44px targets. */
+.touch .item {
+  height: 44px;
+}
+
 /* A setting's choice (`indicator: 'radio'`): a leading 14px radio circle,
  * filled accent on the current value, which also has the active tint. */
 .radio {
