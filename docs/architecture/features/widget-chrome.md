@@ -19,7 +19,7 @@ Outside the mode the cell has one menu, named **Cell options**. It opens from th
 
 - In a cell showing a tab strip, the two read **Add tab ›** and **Remove tab** (`cell-menu.showsTabStrip`). A Numbers strip keeps the widget words.
 - **A lone widget's cell stays, empty**: `workspace-store.removeWidget` / `workspace-layout-ops.removeTabKeepCell`, one undo step `Removed “X”`.
-- Only the mode's **Close cell** gives a cell's space away, by [the absorb rule](workspace-layout.md#cells).
+- Only the mode's **Close cell** gives a cell's space away, by [the absorb rule](layout-ops.md#cells).
 
 ## Name and icon…
 

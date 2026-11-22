@@ -77,19 +77,25 @@ One file per feature, at most 4,000 words each. Each says how the feature behave
 |---------|------|--------|
 | Builds and CSP | [build-and-csp](architecture/features/build-and-csp.md) | the online and offline builds, their policies, the egress check, what ESLint bans |
 | Startup and data replaces | [startup-and-data-replaces](architecture/features/startup-and-data-replaces.md) | launch, the sync file's reconnect, the start screen, the purge notice; `replaceData`, the replace hold, what an import refuses and repairs |
+| Import and export | [import-and-export](architecture/features/import-and-export.md) | what an import refuses, repairs and reports, the audit, the append import |
+| Settings | [settings](architecture/features/settings.md) | the settings table, the settings store, the Settings modal's state |
 | Tasks | [tasks](architecture/features/tasks.md) | task writes, `modifiedAt` across undo and redo, safety snapshots, the new-task flight, people and tags |
 | Status updates and subtasks | [status-updates-and-subtasks](architecture/features/status-updates-and-subtasks.md) | dated status updates and following up by entering one, the checklist, notes → tasks |
-| Workspace layout | [workspace-layout](architecture/features/workspace-layout.md) | the table, the layout ops, rendering, dividers, autosave and undo, lists following an edit, hue and icon, the phone |
-| Layout edit mode | [layout-edit-mode](architecture/features/layout-edit-mode.md) | the draft, rulers, cards and slots, the tray, drops and the ghost, Move / Copy to layout |
+| Workspace layout | [workspace-layout](architecture/features/workspace-layout.md) | the table, rendering, dividers, autosave and undo, lists following an edit, hue and icon, the phone |
+| Layout ops | [layout-ops](architecture/features/layout-ops.md) | split and insert, removing and merging tracks, cells, collapsing a row |
+| Layout edit mode | [layout-edit-mode](architecture/features/layout-edit-mode.md) | the draft, rulers, cards and slots, the tray, drops and the ghost |
+| Move / Copy to layout | [cross-layout-moves](architecture/features/cross-layout-moves.md) | the menu entries, placing the widgets, Done and Cancel, what goes with a tab |
 | Widget chrome | [widget-chrome](architecture/features/widget-chrome.md) | cell menus, tabs on demand, the strip of Numbers, fit rows, faces, Open larger |
 | Screen filter | [screen-filter](architecture/features/screen-filter.md) | the top bar's chips and typed filter, the pause, the counter |
 | Filters | [filters](architecture/features/filters.md) | date clauses, Graphical or Expression, the expression grammar, a filter read back in words |
 | Lists | [lists](architecture/features/lists.md) | built lists, grouping, rows, zoom, badges, Edit list |
-| Glance widgets | [glance-widgets](architecture/features/glance-widgets.md) | the Number and its shapes, Breakdown, Pivot, Created vs completed, the history log |
+| Glance widgets | [glance-widgets](architecture/features/glance-widgets.md) | what glance widgets share, the Number and its shapes, the widget editors, the history log |
+| Charts | [charts](architecture/features/charts.md) | Breakdown, Pivot, Created vs completed |
 | Task maps | [task-maps](architecture/features/task-maps.md) | the Neglect map, Work clusters, the List wall |
 | Review | [review](architecture/features/review.md) | Review jumps, the rail and the card, the task layout the editor shares, the Review widget |
 | Check-ins | [check-ins](architecture/features/check-ins.md) | the message, the check-in dialog, Copy, the reply import |
 | Planner | [planner](architecture/features/planner.md) | a task's plan state, placement, the window, drops, Snooze and Unplan, Reset plan |
+| Planner widget | [planner-widget](architecture/features/planner-widget.md) | the Planner's faces, its rows, drag feedback, menus |
 | Ambience | [ambience](architecture/features/ambience.md) | the sky, the seasons, the settings |
 | Popovers and editors | [popovers-and-editors](architecture/features/popovers-and-editors.md) | what a dismissal keeps, the editor-leave rule and everything that asks it |
 
