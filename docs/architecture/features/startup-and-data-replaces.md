@@ -1,6 +1,6 @@
 # Startup and data replaces
 
-Launch is `services/app-startup.runAppStartup`, behind a database version check in `App.tsx`; the start screen (`layout/StartScreen`) shows until both are done. A data replace swaps the data underneath the stores, and every one goes through `services/replace-data.replaceData`.
+Launch is `services/app-startup.runAppStartup`, behind a database version check in `App.tsx`; the start screen (`layout/StartScreen`) shows until both are done. A data replace swaps the data underneath the stores, and every one goes through `services/replace-data.replaceData`. The global note's save (`stores/note-store`) is here too, because every replace holds it.
 
 ## Launch order
 
@@ -54,7 +54,7 @@ Completed tasks past the retention are **never purged silently**, and launch ope
 
 `services/replace-data.replaceData` runs every data replace: a Settings import, a backup restore, the audit's cleanup, the sync file's load, the append import. Its steps, in order:
 
-1. Note saves are held.
+1. Note saves are held (`holdForDataReplace`, see [The note hold](#the-note-hold)).
 2. The safety snapshot is taken.
 3. Layout writes in flight settle.
 4. The write.
@@ -65,10 +65,29 @@ Completed tasks past the retention are **never purged silently**, and launch ope
 
 From the write until the reload has opened the new data, a replace (not an append import) holds layout and list writes (`stores/replace-hold`). The stores still hold the replaced data and their writes put whole rows. So an edit made then (a tab closed, a rename, an undo) changes nothing and says why, rather than writing the old layout or list over the new data.
 
+### The note's save
+
+`stores/note-store` (`useNoteStore`) holds the single global "outside-tasks" note that every notes widget shows: a `notes` map, `activeId` and `lastSavedAt`.
+
+- `load()` seeds the row if it is missing (`noteRepository.getOrSeedGlobal`, one transaction). Concurrent loads share one (`loadInFlight`), and text still unsaved stays what the store shows.
+- `setContent(id, content)` saves after a debounce (`SAVE_DEBOUNCE_MS`, 500). When the page is hidden or closed, the pending text is saved at once (`utils/page-hide`). `flush` saves it on demand and never rejects.
+- The latest edit is `pending`, sequenced, until a save of it or of newer text succeeds. Saves run one at a time. Each writes the latest text (`saveContent`: content and `modifiedAt` only) and never puts older text back into the store.
+- A failed save keeps the text and sets `saveFailed`. It shows `Couldn't save your notes. They'll be saved with your next change.` once, as an undo snackbar notice, not again until a save succeeds. The next change or `flush` retries it.
+- `discardPending()` drops unsaved text and its scheduled save. `refreshAllStores` calls it.
+- `resetNoteSaves()` clears the save timer and the save chain, for tests sharing one module instance.
+
+### The note hold
+
+`holdForDataReplace()` is called before every data replace takes its backup: every replace goes through `services/replace-data`. A sync file load holds from before its load decision (`withDataReplaceHold`).
+
+- It saves the text typed so far (`flush`, which also waits for a save already started), so the backup taken before the replace holds it. If that save fails, the text is dropped and the replace goes ahead.
+- It then holds every later save (`replaceHolds > 0`) until the returned release is called: after the stores reload, or when the replace was cancelled or failed.
+- Text typed during the hold stays pending. The reload after a replace drops it. When the replace was cancelled or failed, or after an append import, whose reload leaves the note alone, the release saves it.
+- Holds nest: only the outermost saves and drops, and text typed during an outer hold stays pending.
+- It waits only on note saves, which are not tracked writes, and never on a load, so it cannot deadlock with the replace.
+
+So no save can land after a replace, and text typed just before one is recoverable from Settings › Backups.
+
 ### The import pipeline
 
-A file (an import, a backup, the sync file) is read through the import pipeline first.
-
-- A file from below the schema floor (`OLDEST_SUPPORTED_DB_VERSION`, v68), or without a version, is refused: nothing read, nothing written. The message names the older build that still converts it.
-- A file whose layouts hold far more parts than the app keeps is refused too, with a message, before the schema upgrades run (`data/layout-size`).
-- A layout row the check rejects is **repaired**, as the database read repairs it, and stored repaired with a warning. The whole file is never refused for it.
+A file (an import, a backup, the sync file) is read through the import pipeline before a replace writes anything. What it refuses, repairs and reports is in [import-and-export](import-and-export.md).

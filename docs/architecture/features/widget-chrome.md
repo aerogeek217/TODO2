@@ -11,7 +11,7 @@ See also [Workspace layout](workspace-layout.md) (the table the cells sit in, di
 Outside the mode the cell has one menu, named **Cell options**. It opens from the ⋯, from a right-click on a tab or a lone widget's top line, and from Shift+F10 / the Menu key there. Its entries, in order:
 
 1. The widget's own entries, under its kind's name: **Edit list…**, **Review these N tasks**, Zoom, Copy, a Number's or a chart's **Edit …**, its settings, **Open larger**, **Name and icon…**, and last **Change widget ›** (the current kind beside it; a submenu of every kind under Tasks and Insights).
-2. **Move to layout ›** / **Copy to layout ›** ([Layout edit mode](layout-edit-mode.md)).
+2. **Move to layout ›** / **Copy to layout ›** ([Move / Copy to layout](cross-layout-moves.md)).
 3. **Add widget as tab ›**: every kind under Tasks and Insights, a Breakdown's presets. The new widget is a tab of this cell, made its active one; a List gets a new blank list (`widget-hooks.addTabToCell`).
 4. **Remove widget**: that tab.
 5. **Collapse row** / **Expand row**.
@@ -19,7 +19,7 @@ Outside the mode the cell has one menu, named **Cell options**. It opens from th
 
 - In a cell showing a tab strip, the two read **Add tab ›** and **Remove tab** (`cell-menu.showsTabStrip`). A Numbers strip keeps the widget words.
 - **A lone widget's cell stays, empty**: `workspace-store.removeWidget` / `workspace-layout-ops.removeTabKeepCell`, one undo step `Removed “X”`.
-- Only the mode's **Close cell** gives a cell's space away, by [the absorb rule](workspace-layout.md#cells).
+- Only the mode's **Close cell** gives a cell's space away, by [the absorb rule](layout-ops.md#cells).
 
 ## Name and icon…
 
@@ -132,7 +132,13 @@ A widget draws its small, medium or large face by its cell body's measured size 
 
 ## Open larger
 
-The widget popup draws one widget at a time at its large face over the workspace. `components/workspace/WidgetPopup` is hosted once on the workspace page; its state is `ui-store.widgetPopup`; it is opened through `services/widget-popup`.
+The widget popup draws one widget at a time at its large face over the workspace. `components/workspace/WidgetPopup` is hosted once on the workspace page, and it is opened through `services/widget-popup`.
+
+Its state is `ui-store.widgetPopup`: what the popup shows (`WidgetPopupTarget`), or `null`. `setWidgetPopup` sets it and `closeWidgetPopup` clears it.
+
+- `{ kind: 'tab', tabId }`: a tab of the layout.
+- `{ kind: 'list', tabId }`: the list a Number follows ([Numbers](#numbers)).
+- `{ kind: 'review' }`: the popup review ([Review](review.md)).
 
 ### Size, header and layers
 

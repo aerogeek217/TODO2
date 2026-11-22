@@ -2,13 +2,15 @@
 
 The Planner (widget kind `planner`, under Tasks after Review, no settings) shows today and the week ahead in one widget. It is a scratch pad: **a drag only ever changes the plan, never a task's real dates**. Its components are in `components/workspace/planner`, its rules (all pure) in `utils/planner`, its writes in `services/planner-drop`, its data in `hooks/use-planner` and its in-memory state in `stores/planner-store`.
 
+This file is the rules: a task's plan state, where a task sits, the window, what a drop writes, and the moves without a drag. How the widget is drawn (its faces, its rows, drag feedback and menus) is in [planner-widget](planner-widget.md).
+
 ## Plan state
 
 A task's **plan state** is one of three, kept on the task (`models/todo-item.TaskPlan`):
 
 - none;
-- a **planned day** (`TodoItem.doDate`): the day the user plans to work on the task, a day at local midnight;
-- **held in Unplanned** (`TodoItem.unplanned`; only `true` is stored).
+- a **planned day** (`doDate?: Date` on `TodoItem`): the day the user plans to work on the task, a day at local midnight;
+- **held in Unplanned** (`unplanned?: true`; only `true` is stored).
 
 Never both. Neither field is indexed. The plan state is the Planner's: it is shown nowhere else, and no filter, expression, sort, row column, calendar, Quick Add, Markdown export or check-in reads it.
 
@@ -18,24 +20,30 @@ It is set in the Planner, or from **Plan for day ›** outside it (`task/plan-me
 - **Unplanned** — any open task joins the Planner there;
 - with a plan state, **Clear plan** — reading **Remove from Planner** when that takes the task out of it (`utils/planner.plannerClearLeaves` → `services/planner-drop.clearPlannerTask`), the snackbar saying so.
 
-A Planner's own rows have its [menu](#menus) instead.
+A Planner's own rows have its [menu](planner-widget.md#menus) instead.
 
 ### The plan write
 
-Planning is not an edit. `todo-store.setPlan(ids, plan)` / `setPlans([{ id, plan }])` take `plan` as a `TaskPlan`: `{ day }`, `'unplanned'` or `null`.
+Planning is not an edit. `todo-store.setPlan(ids, plan, description?, snackbar?)` writes one plan to every task in `ids`; `setPlans([{ id, plan }], description?, snackbar?)` takes a plan per task (`TaskPlanChange`). `plan` is a `TaskPlan`:
 
-- **Both fields go in the task's one write** (`store-helpers.bulkUpdateTasks`), as one undo step for all the tasks.
-- The snackbar shows only where the caller asks (the Planner's bulk actions: Reset plan, Unplan all Delayed). The step is named `Planned “Title”` / `Unplanned “Title”` / `Cleared the plan of “Title”` / `Changed the plan of 3 tasks`, or in the caller's words.
+| `plan` | Written |
+|---|---|
+| `{ day }` | `doDate` at local midnight, `unplanned` removed |
+| `'unplanned'` | `unplanned: true`, `doDate` removed |
+| `null` | neither field |
+
+- **Both fields go in the task's one write** (`store-helpers.bulkUpdateTasks`): every task in one database write and one undo step. Only the tasks whose plan changes are written.
+- The snackbar and its Undo show only when `snackbar` is passed: Reset plan, Unplan all Delayed, and a plan that takes the task out of view ([a move to a day that shows it nowhere](#nothing-leaves-the-planner-silently), Remove from Planner). The step is named `description`, else `Planned “Title”` / `Unplanned “Title”` / `Cleared the plan of “Title”` / `Changed the plan of 3 tasks`.
 - It leaves every task's `modifiedAt` as it is — on the write, its undo and its redo (which put both fields back), in the store and the database (`utils/task-stamps.KEEP_STAMPS`, a stamp that lists no task). Every other [task write](tasks.md) stamps it.
 - It logs no history event and never writes a due date or a follow-up.
-- It never rejects. A write that fails is taken back: a task's two plan fields together, and only while both still hold that write's values, so overlapping failures can't leave a planned day beside `unplanned` (`bulkUpdateTasks`' `together`). The tasks are read back, the user is told (`Couldn't save the plan of “Title”.`) and it resolves `false`.
+- It never rejects. A write that fails is taken back: a task's two plan fields together, and only while both still hold that write's values, so overlapping failures can't leave a planned day beside `unplanned` (`bulkUpdateTasks`' `together`). The tasks are read back, the user is told (`Couldn't save the plan of “Title”.`) and it resolves `false`; otherwise `true`.
 
 What other operations do with the plan state:
 
 - Completing a repeating task clears it on the next occurrence (the checkbox and the bulk path — a check-in reply's too); the undo puts it back.
 - Duplicate doesn't copy it.
 - Make subtask of… drops it without naming it.
-- Exports, backups, the sync file, task archives and the append import carry it. A file holding both fields keeps the planned day.
+- Exports, backups, the sync file, task archives and the append import carry it. A file holding both fields keeps the planned day (import validation).
 
 ## Which tasks it holds
 
@@ -75,13 +83,20 @@ A row on its planned day — and one planned later — carries its **conflicts**
 - move that date to the planned day (always);
 - plan for that date's day (only when it is today or later).
 
+The row shows them in its [tag](planner-widget.md#four-planner-only-things); what a fix writes is under [A conflict's fix](#a-conflicts-fix).
+
 ## The window
 
 The window is seven days from today plus a whole number of weeks, never before this week.
 
-- It is the tab's in its layout, in memory and gone with a reload (`stores/planner-store`, by layout id and tab id).
-- Keyed that way, the widget popup's remount keeps it ([Open larger](widget-chrome.md)), while a duplicated layout, which keeps its tabs' ids, starts on this week.
-- A tab that stops being a Planner loses it (`use-planner.usePlannerWindowsOf`).
+`stores/planner-store` (`usePlannerStore`) holds each Planner tab's window in memory only. It is never layout config or view state, and it is gone with a reload.
+
+- `windows[key] = { offset }`. `offset` is the days from today to the window's first day: a multiple of 7, 0 or more (`utils/planner.plannerOffset`). No day is picked: a tile's click [scrolls](planner-widget.md#the-strip).
+- `key` is `plannerWindowKey(layoutId, tabId)`: the tab in its layout, or the tab alone with no layout open. Duplicate layout keeps the tabs' ids, so the copy's Planner has a window of its own and starts on this week.
+- `usePlannerWindow(key)` reads that window: this week until it is moved.
+- `shift(key, weeks)` moves it a whole number of weeks, never before this week. `reset(key)` goes back to this week.
+- It is kept in the store, not in the widget, so the widget popup's remount shows the same week ([Open larger](widget-chrome.md)): a tab has one live widget at a time.
+- `keep(layoutId, tabIds)` drops that layout's windows whose tab is not one of its Planner tabs (`use-planner.usePlannerWindowsOf`). A tab closed or changed to another kind starts on this week if it is a Planner again. The other layouts' windows stay.
 
 ## The view
 
@@ -102,49 +117,11 @@ Each tile holds:
 
 They are drawn as the tile's marks (`plannerTileMarks`): a **solid tick** per real date — due dates in the deadline color, then follow-ups in the follow-up color — then a **hollow tick** (outlined, in the secondary text color) per plan. Eight in all, then `+N`.
 
+Where each part is drawn is in [Faces](planner-widget.md#faces).
+
 ## Hand order
 
 Inside a group the tasks follow the tab's **hand order** (`PlannerTabViewState.order`): task `uid`s, one sequence for the widget, view state, written by a drop into a group (see [The row's place](#the-rows-place)). The rest come after them by reason (due, follow-up, plan, held, Focus), then date, then `sortOrder` (`plannerOrder`).
-
-## Faces
-
-`utils/widget-face.plannerFaceFor` picks the [face](widget-chrome.md):
-
-| Face | When |
-|---|---|
-| Large: the strip, then two panes | from 720 × 300px |
-| Medium, the portrait layout | a tall, narrow cell (`utils/widget-face.plannerPortrait`: under 720px wide, at least 560px tall and 1.4 × as tall as wide; not the phone) |
-| Medium: the strip over one column — Today, the days ahead, Delayed, the Unplan button, Unplanned, in that order in one scroll | narrower or shorter, not tall; the phone |
-| Small: its name and `Today N`, a click opening it larger | as every widget's |
-
-### The strip
-
-`PlannerStrip` draws `‹`, seven tiles of one width (weekends too) and `›`.
-
-- A thin rule in a slightly wider gap stands before the tile that starts a week, by Settings' first day of the week (`settings-store.weekStartsOn`, the calendar's), never before the first tile.
-- **A tile's click scrolls the day list to its day** — smoothly, at once under reduced motion — and picks nothing.
-- A tile's name says its marks (`Mon, Nov 23: 2 tasks, 1 due, 1 planned`).
-- The arrows move the window a week. `‹` is off on this week.
-- In a widget 520px wide or less, the strip stacks each tile's weekday, date and count and draws no ticks.
-- A widget under 300px wide has the two arrows around the range in words instead of tiles.
-
-### Large: two panes
-
-- On the left, **one scrolling list of days**: Today, then every later day of the window in order. A day with nothing on it is a quiet heading (its name muted, no count) that still takes a drop.
-- On the right, on a darker ground (`--color-inset-deep`), the trays in a scroll of their own:
-  - **Delayed**, only while it holds a task;
-  - the **↓ Unplan** button, centered on a hairline rule, shown with Delayed, named `Unplan all Delayed tasks`, its tooltip `Move all Delayed tasks to Unplanned`;
-  - **Unplanned**, always there, reading `Nothing unplanned` while empty.
-
-### Medium: the portrait layout
-
-The strip sits over the days in one scroll. Under them **the trays dock** (`planner/PlannerDock`): Delayed, the Unplan button and Unplanned on the darker ground, in a scroll of their own.
-
-- The dock's top edge is a separator sharing the height. A drag moves it, ↑ / ↓ step it 16px and a double-click resets it. The share is saved as the tab's view state `dockShare` (default 0.38).
-- Its chevron folds it (`dockFolded`) to one bar — `Delayed 2 · Unplanned 6` — that unfolds on a click and is a drop target meaning Unplanned.
-- Alone in its cell, the week arrows sit in the top line around the range.
-- The narrow tiles keep their ticks.
-- A 2px line under the tiles marks the days whose groups show in the day list (`planner-dock.useDaysInView`).
 
 ## Top line and Reset plan
 
@@ -159,42 +136,15 @@ Alone in its cell, the Planner's top line reads:
 
 A cell of tabs and the widget popup have no top line, so the same three are under **Reset plan ›** in the widget's ⋯ menu (`planner/planner-reset`: `usePlannerResetEntries`, and `usePlannerMenuEntries` through `cell-menu.useWidgetMenuContent`).
 
-Both read what the drawn Planner reports (`planner-store.resets`, written by `hooks/use-planner` from the view it already holds: the counts, the first choice's name and the action). So the view is built once per change, and a cell with no Planner reads nothing. A Planner that isn't drawn (a tab behind another) offers none.
+Both read what the drawn Planner reports, so no menu builds the view: it is built once per change, and a cell with no Planner reads nothing. The report is `planner-store.resets[key]`, under the [window](#the-window)'s key, set by `setReset(key, report | null)`:
 
-## Rows
-
-Rows are the app's task rows as a [list](lists.md) draws them:
-
-- the list's draggable row (`list/ListWidgetRow`: the tab's id its scope, the group's key its section), or `MobileTaskRow` on the phone;
-- at Settings' Default list zoom (Auto by each pane's width: Stacked under 480px);
-- one `TaskRowGrid` per pane;
-- under headers in the list's group-header look (name, count, a rule; no count on an empty day).
-
-A click opens the task. There is no selection or bulk bar. The Planner is no list widget: `LIST_WIDGET_ATTR` is absent, so the list zoom never finds it.
-
-### Four Planner-only things
-
-`planner/PlannerRowExtras` draws them. The parts inside the row reach it through `task/task-row-extras.TaskRowExtrasContext` — `(todo) => { tag?, actions?, late? }`, read by `TaskRow`, `TaskLine` and the phone row's details. The context is null without a provider, so a list's rows, the task dialog's and the drag overlay's copy draw exactly as they did.
-
-1. **A corner flag** on every placed row: a 9px filled triangle at the row's top-left in the secondary text color, taking no press.
-   - The Planner draws it around the row (`PlannerRowWrap`), so it shows over the hover fill, over the slot a lifted row leaves, at every zoom and on the phone.
-   - It is drawn only. Its words are in the row's accessible description (`plannerRowStateWords` → `TaskRowExtras.description`, on the row's checkbox, a line, the phone row's button): `planned`, `planned for Wed` on a Delayed row, `set aside`.
-2. **A tag** after the title (`utils/planner.plannerRowTag`). A Stacked row's leads its details line; the phone's is on a line under the row.
-   - A Delayed row: its planned day in words (`Wed`; past six days `Nov 12`), muted.
-   - A held row: its natural day, muted.
-   - A row planned past a real date: `1 day after due` / `2 days after follow-up` (the due date's when both are passed), in the deadline color.
-   - A row planned later: `planned Fri, Nov 27`, muted, its date drawn late too.
-   - The last two are buttons whose menu lists that row's fixes (`plannerFixLabel`: `Move due date to Tue, Nov 24`, `Plan for Mon, Nov 23`). Esc hands the focus back to the tag.
-3. **The date the plan falls after, drawn late** (bold over its type's faint band) though it may not be past. This is the look only: its name and tooltip are unchanged.
-4. **Snooze** and **Unplan** text buttons at the title's end, on the row's hover and focus (in the row's hover cluster). None on a screen with no hover, on a Lines row or on the phone. A row in Unplanned has neither, nothing there being planned to put off. It has:
-   - **Today** — the drop on today (`planner-drop.planPlannerTaskToday`);
-   - when held there (flagged), **Remove** — its plan cleared, out of the Planner — or, when a date in the window or Focus keeps it there, **Clear** (`clearPlannerTask`).
-
-Pressed from the keyboard — the buttons, a fix from a menu opened with Enter — **the focus follows the row** (`planner/planner-focus`): to the row at its new place, on the same control when it has it. When the row left the view, it goes to the row that took its place, else to its group's heading.
+- It is `{ counts, week, run }`: how many tasks each scope would clear, the first scope's name (`This week`, or the shown range while the window is shifted) and the action. `run` resets the Planner as it shows when it is called.
+- `hooks/use-planner` writes it from the view it already holds, only when a count or the name changes, and removes it when the widget unmounts.
+- A Planner that isn't drawn (a tab behind another) offers none.
 
 ## Drops
 
-Desktop only: the phone has no drag.
+Desktop only: the phone has no drag. What a drag shows before the drop is in [Drag feedback](planner-widget.md#drag-feedback).
 
 ### Targets
 
@@ -223,7 +173,7 @@ Every day tile and every group — Today (today), each day ahead (an empty day's
 
 ### The row's place
 
-**Dropped into a group, the row also lands where it was dropped.** A row dragged inside its group is reordered, with no task write. The row's new place is **merged into the tab's stored `order`** (`plannerReorder`, through `workspace-store.patchTabViewState`: saved at once, no undo step, as a list's manual order):
+**Dropped into a group, the row also lands where it was dropped**: the place the [drag preview](planner-widget.md#the-drag-preview) holds (`services/planner-drop.planPlannerDrop`). A row dragged inside its group is reordered, with no task write. The row's new place is **merged into the tab's stored `order`** (`plannerReorder`, through `workspace-store.patchTabViewState`: saved at once, no undo step, as a list's manual order):
 
 - The moved row goes beside its visible neighbors.
 - Every task shown takes a place. One the order didn't hold goes right after the row shown before it.
@@ -241,7 +191,7 @@ A Planner row dropped on a Calendar widget's day is the calendar's drop, as any 
 - **Snooze** plans the task for the day after the day it sits on — after its planned day, for a row planned later — never earlier than tomorrow. A Delayed row goes to tomorrow. A row in Unplanned offers no Snooze.
 - **Unplan** is the Unplanned drop for one row.
 
-Both go through the same decision (`plannerSnooze`, `plannerUnplan`), so a snoozed task landing on its natural day loses its plan.
+Both go through the same decision (`plannerSnooze`, `plannerUnplan`), so a snoozed task landing on its natural day loses its plan. They are a row's [buttons](planner-widget.md#four-planner-only-things) and entries in its [menu](planner-widget.md#menus).
 
 ### Nothing leaves the Planner silently
 
@@ -267,29 +217,3 @@ Unplan all Delayed and each reset are one write and one undo step, with the snac
 
 - When the task's own dates then put it on its planned day, the plan is cleared in the same edit (one undo step), so the row is no longer placed (`plannerFixClearsPlan`).
 - With another, earlier date still putting it elsewhere, the plan stays.
-
-## Drag feedback
-
-While a task is dragged over the Planner (`use-planner-drag` → `planner-store.drag`, from dnd-kit's `over` and the pointer over the groups as measured when the drag started):
-
-- The target's tile and group are dashed in one neutral color, since no real date changes (`data-planner-drop`).
-- The list's blank drop slot shows where the row would land. The looks are the list's: the dragged row is its slot in its own group, or faded in place when headed elsewhere, and the others are dimmed while they make room.
-- **The lifted row carries a label** under it — above it at the window's foot — saying what the drop does to the plan (`PlannerDragLabel`, in the page's drag overlay): `Plan · Wed, Nov 25`, `Unplan`, or — the plan cleared on the task's own date's day — `Its date · Wed, Nov 25`.
-- A refused target has no mark, no slot and no label, and shows the not-allowed cursor.
-- A drop that moves the row to another group lands where it was let go. A reorder settles onto the row.
-
-## Menus
-
-A row's task menu in a Planner — right-click, Shift+F10, the phone's long-press — carries the same moves without a pointer (`planner-menu`, through `TaskMenuExtrasContext`):
-
-- **Plan for day ›** — its submenu a muted first line (`Plans it for that day`), then Today and the window's days in words, the day the row sits on checked. A pick is the drop on that day.
-- **Snooze**, naming the day it plans for. None on a row in Unplanned.
-- **Unplan** — off, with its reason in a tooltip, for a row in Unplanned already.
-- On a placed row, **Clear plan** (**Remove from Planner** when that takes it out).
-
-## Completed rows and the phone
-
-- A row completed here lingers, then folds, as a list's (`hooks/use-planner` over `useLeavingRows`).
-- Under Today's rows, **`N done`** lists the tasks completed today (the tally's count, `utils/tally.tasksDoneToday`), struck, on one line.
-- Today has no Add task row.
-- On the phone, a day with no tasks and an empty Unplanned are left out (a tile's tap goes to the next day that has a group), and a completed row leaves at once.

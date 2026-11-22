@@ -1,12 +1,49 @@
 # Filters
 
-One filter model serves lists, Numbers, charts, the check-in, the Review widget's field and the top bar. A filter is a `TodoPredicate` (`models/filter-predicate`): either **Graphical** (chips, ANDed) or a typed **expression** (`TodoPredicate.expression`, `models/filter-expression`). The logic is in `utils/filter-criteria`, `utils/filter-expression` and `utils/predicate-expression`; the pickers and fields are in `components/shared/filters/`.
+One filter model serves lists, Numbers, charts, the check-in, the Review widget's field and the top bar. A filter is a `TodoPredicate` (`models/filter-predicate`): either **Graphical** (chips, ANDed) or a typed **expression** (`TodoPredicate.expression`, `models/filter-expression`). At evaluation time it is a `FilterCriteria`. The logic is in `utils/filter-criteria`, `utils/filter-match`, `utils/filter-expression` and `utils/predicate-expression`; the pickers and fields are in `components/shared/filters/`.
 
 The top bar's filter is in [The screen filter](screen-filter.md); a list's own is in [Lists](lists.md).
 
+## The stored filter and the runtime filter
+
+### Stored: `TodoPredicate`
+
+A `TodoPredicate` is serializable: number arrays and `DateAnchor`s, no Sets and no Dates. A list keeps its filter in its `ListMembership` (`{ kind: 'custom', predicate }`).
+
+- `showCompleted`: completed tasks pass too (see [Completed tasks](#completed-tasks)).
+- `personIds`: plain membership over the task's assigned people. `0` is unassigned.
+- `statusIds`.
+- `tags`: tag ids, ORed. Optional on read.
+- `searchText`.
+- `dates` (`DateFilters`): see [How a clause is stored](#how-a-clause-is-stored).
+- `markers`: the Priority filter (see [Priority filters](#priority-filters)).
+- `negate`, optional: the "is not" switches (see [Is not](#is-not)).
+- `expression`, optional: see [Graphical or an expression](#graphical-or-an-expression).
+
+Around it:
+
+- `emptyPredicate()` sets no clause, so it keeps every open task. A new list starts from it.
+- `FilterClauses` is the narrowing fields: `personIds`, `statusIds`, `tags`, `searchText`, `dates`, `markers`, `negate`. It is what a chip can be. A predicate is one, so the clause helpers work on both. `emptyFilterClauses()` is none.
+- In stored form (`utils/filter-clauses.normalizeClauses`) every field is present, `negate` only while a field reads "is not".
+- How a stored predicate is checked and rebuilt on read (`data/predicate-shape`) is in [models-and-data](../models-and-data.md).
+
+### Runtime: `FilterCriteria`
+
+`FilterCriteria` (`utils/filter-criteria`) has the same fields, with `personIds`, `statusIds` and `tags` each `null` or a `Set` of ids.
+
+- `predicateToCriteria` converts a stored predicate at evaluation time, and `criteriaToPredicate` converts back.
+- `predicateToCriteria`:
+  - reads the date clauses through `utils/date-filters.readDateFilters` (each anchor through `readDateAnchor`; a clause that filters nothing is left out);
+  - builds an id Set only from an array (anything else is no filter);
+  - normalizes the Priority filter (no condition left is `null`).
+- Both converters carry `expression` over as it is.
+- `countActiveFilters(f)` counts one per control: people, status, tags, dates (once, however many dates filter), Priority, Show completed and search. It counts one more for an expression (the screen filter's typed one). It drives the phone's Filters badge.
+
+A task must pass every clause, and the expression on top of them. The evaluators are in `utils/filter-match` (see [state](../state.md)).
+
 ## Date clauses
 
-A filter keys a date clause by one of six dates: Due, Next follow-up, Last follow-up, Completed, Created, Modified. They are the date panel's two rows of three (`DateFilterPanel`).
+A filter keys a date clause by one of six dates: Due, Next follow-up, Last follow-up, Completed, Created, Modified. They are the date panel's two rows of three (`DateFilterPanel`). A task must pass every date clause (`utils/filter-match.matchesDateMatch`).
 
 ### Entering a range
 
@@ -15,7 +52,7 @@ The panel's **Show** row picks how a range is entered:
 - **Calendar**: each end is a date, with **Set to…** presets.
 - **Relative**: each end is typed as an interval from today, in the app's one interval grammar: `+2w`, `-1m`, `+3d`, `today` or a rolling day's words.
   - The end is written once the text reads. When it doesn't, nothing is written and the field shows its hint.
-  - It is stored as an offset anchor with a `w` / `m` / `y` `unit` beside `days` (calendar months for `m` / `y`).
+  - It is stored as an `offset` anchor (see [How a clause is stored](#how-a-clause-is-stored)).
   - The field's chevron keeps the rolling days and the open end (**No start** / **No end**).
   - Under the field is its day today (`Thu, Dec 3`).
   - A new range opens in Relative.
@@ -25,17 +62,75 @@ Switching between Calendar and Relative converts the ends. The mode itself is no
 
 ### Rules per date
 
-- Due, Next follow-up and Last follow-up are the optional dates. They offer **Any** / **None** and "also tasks with no date" (for Last follow-up, "also tasks never followed up").
-- A range may be **is not**: the date is outside the range, and a task without the date is kept ("Last follow-up is not 1 week ago – Today"). Completed has no is not.
-- Completed is a range only.
-- **A Completed range lets completed tasks through as Show completed would** (`filter-criteria.admitsCompleted`). This holds for a range among the chips or as a top-level `and` term of an expression, in a list's filter or in the top bar's chips. The range then keeps only the tasks completed in it.
+- Due, Next follow-up and Last follow-up are the optional dates (`OPTIONAL_DATE_FIELDS`). They offer **Any** / **None** and "also tasks with no date" (for Last follow-up, "also tasks never followed up").
+- A range may be **is not**: the date, as a day, is outside the range, and a task without the date is kept ("Last follow-up is not 1 week ago – Today"). Every date but Completed has it (`NEGATABLE_DATE_FIELDS`).
+- Completed is a range only. Its range lets completed tasks through (see [Completed tasks](#completed-tasks)).
+
+### How a clause is stored
+
+`dates` is a `DateFilters`: one clause (`DateMatch`) per date that filters. An absent key means that date does not filter, and `{}` is no date filter.
+
+| Key | Date |
+|-----|------|
+| `deadline` | Due |
+| `followup` | Next follow-up |
+| `lastFollowup` | Last follow-up |
+| `completed` | Completed: a completed task's `completedAt` |
+| `created` | Created |
+| `modified` | Modified |
+
+A clause is one of:
+
+- `{ match: 'range', start, end, includeNoDate?, not? }`.
+  - Each end is a `DateAnchor`, or open. A range with neither end is not stored.
+  - `includeNoDate` is "also tasks with no date". It is stored only when true, and only on the optional dates.
+  - `not` is "is not". It is stored only when true, never on Completed, and with no `includeNoDate` beside it.
+- `{ match: 'set' }` / `{ match: 'unset' }`: **Any** / **None**, on the optional dates only.
+
+A `DateAnchor` is resolved at evaluation time. It is one of:
+
+- `fixed`: an ISO date. `fixedAnchor(d)` wraps a `Date` as one, and the screen filter's `setDateRange` sets its due-date range so.
+- `relative`: a token of `RELATIVE_DATE_TOKENS`: yesterday, today, tomorrow; the start and end of this, next and last week and month; the end of month + 3.
+- `offset`: a signed count of `days` from today or, with a `unit` of `w` / `m` / `y`, of weeks, calendar months or years.
+
+## Completed tasks
+
+A completed task passes a filter only through **the completion gate** (`filter-criteria.admitsCompleted`). The gate is open when:
+
+- `showCompleted` is on, or
+- a Completed date range is among the clauses, or among the expression's top-level `and` terms.
+
+The range then keeps only the tasks completed in it: an open task has no completion date. So a "Done this week" list needs no Show completed.
+
+- This holds in a list's filter and in the top bar's chips.
+- A Completed range inside an `or` or a `not` is a plain date clause and does not open the gate: the `or` would keep open tasks by its other terms.
+- In an expression, Show completed stays the predicate's flag. The text says it as `and done`.
+- A recurring task's completed occurrence does not count. Completing it advances the task to its next occurrence, which is open and has no `completedAt`, so a Completed range never lists it.
+
+The same gate decides what else counts completed tasks:
+
+- The top bar counter's total, and its `tasks` / `open tasks` words (`ScreenTaskCounts.withCompleted`; see [The screen filter](screen-filter.md#the-counter)).
+- The filtered-tasks panel's description.
+- The calendar's hidden count.
+
+The glance widgets take the screen filter with completed tasks always let in (`statsFilter`), and each widget's own filter decides completion (see [Glance widgets](glance-widgets.md)). Under a screen filter's Completed range, a widget that counts open tasks has none left; the completion trend (Created vs completed) still counts.
+
+## The screen filter and a list's filter together
+
+`composeScreenFilter(screen, list)` gives the two stages a task must both pass:
+
+- **Narrowing clauses AND**, strictly, even on the same field: screen `@Alice` with list `@Bob` keeps the tasks assigned to both.
+- **Each side keeps its own "is not" switches**: screen `Status is not Waiting` with list `Status is Waiting, Done` keeps Done.
+- **Completion ORs into both stages**: `admitsCompleted` of either side. A list's Completed range lets completed tasks past the screen stage too, and the chips' past the list's.
 
 ## Graphical or an expression
 
 A filter is one or the other:
 
 - **Graphical**: its chips, ANDed, one per field. Priority alone may repeat (see [Priority filters](#priority-filters)).
-- **An expression**: typed text, stored as `TodoPredicate.expression`. The chips' clauses are then empty.
+- **An expression**: typed text, stored as `TodoPredicate.expression` (a `FilterExpr`). The chips' clauses are then empty, and a task must pass the expression. A read folds any clause left beside an expression into it (`pickPredicate`; see [models-and-data](../models-and-data.md)).
+
+A predicate without `expression` is Graphical. Any stored filter may hold one. The screen filter holds one beside its chips (see [The screen filter](screen-filter.md)).
 
 ### Chips
 
@@ -114,10 +209,20 @@ Every summary in words reads an expression in the same words, as plain text (`Li
 
 **Priority filters read as Status's**: is / is not, several values OR, and `No priority` (a task with no marker; effective Urgent counts as a marker).
 
-- `markers` is a list of conditions (`MarkerClause`), a chip each (`FilterChip.markerIndex`, as a date chip has its `dateField`).
-- Priority alone may repeat in Graphical. Its chips AND: Urgent and Important.
+- `markers` is a `MarkersFilter` or `null`: a list of conditions (`MarkerClause`, `{ values, not? }`), a chip each (`FilterChip.markerIndex`, as a date chip has its `dateField`).
+- A condition keeps a task that is any of its `values` or, with `not`, none of them (`utils/markers.matchesMarkerClause`). A value (`MarkerValue`) is a marker, or `NO_PRIORITY` for no marker.
+- Urgent is effective urgent, against the `urgentDueWithinDays` setting.
+- Priority alone may repeat in Graphical. Its chips AND: Urgent and Important. A filter holds at most `MARKER_CLAUSES_MAX` (10) conditions.
 - The top bar holds one Priority chip. A second typed Priority term is held in its expression.
-- For a new task, a one-value `is` seeds that flag and an `is not` clears its flags (`markerConditions`). Several values or `No priority` imply nothing, as Status's.
+- For a new task, a one-value `is` seeds that flag and an `is not` clears its flags (`markerConditions`). Several values or `No priority` imply nothing, as Status's. What a filter implies so is a `MarkerConditions` (`{ urgent?, important?, focus? }`, `false` = off), which is never stored.
+
+## Is not
+
+People, Status and Tags filters each have an "is not" switch (`utils/filter-negation`).
+
+- The switches are the filter's `negate` (`FilterNegation`): `true` only, and kept only on a field that filters.
+- Without `negate`, every field reads "is".
+- A date range's "is not" is in [Rules per date](#rules-per-date), and a Priority condition's in [Priority filters](#priority-filters).
 
 ## The "none" choices
 

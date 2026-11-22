@@ -1,15 +1,27 @@
 # Status updates and subtasks
 
-A task has two kinds of rows of its own: **status updates**, dated lines of text, and **subtasks**, a one-level checklist. Each has its own table, repository and store, named below. Both are edited in the task layout the task editor and the review card share ([Review › The task layout](review.md#the-task-layout)).
+A task has two kinds of rows of its own: **status updates**, dated lines of text, and **subtasks**, a one-level checklist. Each has its own table, repository and store, named below. What the stores have in common is in [The two stores](#the-two-stores). Both are edited in the task layout the task editor and the review card share ([Review › The task layout](review.md#the-task-layout)).
 
 ## Status updates
 
 ### Data
 
 - A task's dated lines of text (what happened, as of a day) are in their own table: `statusUpdates`, `status-update-repository` → `status-update-store`. They are not on the task row.
-- They are ordered newest first by day, then by when written.
-- Each write (add, edit, remove) stamps the task's `modifiedAt` in the same transaction, so updates keep a task from going stale. Its undo puts the earlier stamp back, its redo its own ([Task writes](tasks.md)).
+- `useStatusUpdateStore.byTodo` maps a task id to its entries, newest first by day, then by when written (`utils/status-updates.compareStatusUpdates`).
+- `useStatusUpdates(todoId)` reads a task's entries, a stable empty list for none. `newestStatusUpdate(todoId, byTodo?)` gives the newest one, and also serves as a selector.
+- Text is stored as one trimmed line (`statusUpdateText`). Blank is refused, with no write. A day after today is stored as today (`statusUpdateDay`).
 - The Status picker (`statusId`) is a separate field.
+
+### Writes
+
+Each write saves at once as its own undo step:
+
+- `add(todoId, { date, text, followedUp? })`: `Add status update`.
+- `addToMany(todoIds, entry, description)`: the same entry on every task given, as one step. It is how `services/mark-followed-up` records a follow-up with a status update.
+- `update(id, { date?, text? })`: `Edit status update`. Only the fields that change are written.
+- `remove(id)`: `Status update removed`, with the snackbar.
+
+Each is activity on its task, so updates keep a task from going stale, and none rejects ([The two stores](#the-two-stores)).
 
 ### The Status updates section
 
@@ -60,9 +72,25 @@ The follow-up fields are the footer's (`TaskFollowupFields`): `Last [date] · Ne
 ### Data
 
 - A task's checklist is in its own table: `subtasks`, `subtask-repository` → `subtask-store`, ordered by `sortOrder`.
+- `useSubtaskStore.byTodo` maps a task id to its subtasks in that order (`utils/subtasks.compareSubtasks`). `useSubtasks(todoId)` reads a task's, a stable empty list for none.
 - Each line is a title and whether it is done, nothing else. There is one level.
+- A title is stored as one trimmed line (`subtaskTitle`). Blank is refused, with no write.
 - A subtask is never a list row. It is never counted, filtered, grouped or sorted, and never a search result of its own.
 - **The text search finds the task by its subtasks' words.** The top bar lists such matches in a Subtasks group, the line as the snippet. The screen filter, lists and counts keep the task likewise.
+
+### Writes
+
+Each write saves at once as its own undo step:
+
+- `add(todoId, title, { done? })` puts a subtask last on the checklist: `Add subtask “…”`.
+- `rename(id, title)`.
+- `setDone(id, done)`: `Check “…”` / `Uncheck “…”`.
+- `move(id, index)` moves it within the task. Only the rows whose place changed are written.
+- `moveToTask(id, todoId)` puts it last on the other task's checklist.
+- `remove(id)`: `Subtask removed`, with the snackbar.
+- `resetDone(todoId)` unchecks every done one. It is a recurring task's completion, inside the todo store's step.
+
+Each is activity on its task, as a status update's is, and none rejects ([The two stores](#the-two-stores)).
 
 ### On a row
 
@@ -89,13 +117,40 @@ The task menu offers **Add subtask…** and **Make subtask of…**. The checklis
 
 ### With the task
 
-- Every subtask write stamps the task's `modifiedAt`, as status updates do (`stores/task-hooks`).
-- Checking the last open one offers **Complete task** in the undo snackbar. It is never automatic.
+- The check that finishes an open task's checklist offers **Complete task** in the undo snackbar, under the detail `All N subtasks are done` (`All its subtasks are done` for one). It is never automatic, and it completes the task only while it is still open (`task-hooks.completeTask`).
 - Completing a task with open subtasks asks nothing.
-- A recurring completion unchecks the checklist in the same undo step.
+- A recurring completion unchecks the checklist in the same undo step (`resetDone`).
 - A delete takes the checklist, and its undo brings it back.
 - Duplicate copies it unchecked.
 - Purge removes it.
+
+## The two stores
+
+`useStatusUpdateStore` and `useSubtaskStore` keep only their own writes. Their load and their whole-row writes are `stores/task-child-rows`' ([state](../state.md)).
+
+### Loading
+
+- Each is loaded once (`load` / `ensureLoaded`): from `WorkspacePage`, from `useTodoNameLookups` (`useBuiltList` among its callers) and from `ReviewWidget`.
+- Both `refreshAllStores` and `refreshTaskStores` reload them.
+
+### A write never rejects
+
+- A failed write is logged, and the snackbar says `Couldn't add the status update.` (… save / remove) or `Couldn't add the subtask.` (… rename / check / move / remove).
+- It resolves as nothing written (`undefined` / `[]` / `false`). `services/mark-followed-up` reads that to abort its group.
+
+### A write is activity on its task
+
+- An entry's add, edit or removal, and every subtask write, stamps the task's `modifiedAt` in the same transaction (`statusUpdateRepository`'s and `subtaskRepository`'s `TaskTouch`). So it counts for the Modified filter too.
+- A subtask moved to another task stamps both tasks.
+- The store tells the todo store through `task-hooks.notifyTasksStamped`. The todo store's copy follows through `task-hooks.onTasksStamped(listener)`: it subscribes once, for both stores and the people and tag assignments.
+- The write's undo puts back each task's earlier stamp and its redo the one it wrote, by the rule every task write follows ([Task writes](tasks.md), `utils/task-stamps`).
+
+### Rows written whole
+
+- `addRows(rows)` writes rows with no undo step: a duplicate's copies, the new-task editor's pending rows, a task draft's (a note's indented lines among them). The task's create step covers them, and its undo reads them from the database.
+- It is the one choke point for whole rows. Each text goes through `statusUpdateText` or `subtaskTitle` as `add`'s does, and a row left with none is not written: one such row would make every export, backup and the sync file unimportable.
+- `forgetTodos(ids)` and `restoreRows(rows)` are the todo store's delete and its undo.
+- `addRows` and `restoreRows` stamp nothing.
 
 ## Notes → tasks
 

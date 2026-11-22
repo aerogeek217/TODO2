@@ -8,7 +8,7 @@ It plots every open task the screen filter keeps by days untouched (`modifiedAt`
 
 ### Zones
 
-- A task due soon (Settings' due-soon range) or late, and untouched for the tab's threshold (default 14 days), is **Slipping**: the shaded corner.
+- A task due soon (Settings' due-soon range) or late, and untouched for the tab's threshold ([Config](#config)), is **Slipping**: the shaded corner.
 - The other corners are In hand, Planned and Drifting.
 - A strip under the plot holds the tasks without a due date. They are **Forgotten** once untouched.
 - Each zone's word carries its count and opens its tasks as a list in the task dialog (`glance-drills.neglectZoneDrill`). A zone with none is plain words.
@@ -19,12 +19,19 @@ It plots every open task the screen filter keeps by days untouched (`modifiedAt`
 - The numbered Slipping list sits beside the plot only while the widget is at least 900px wide (`NEGLECT_SIDE_LIST_MIN_PX`). On a phone it sits under the plot.
 - Narrower, the plot fills the widget, there is no list, and the dots carry no numbers.
 
-### Dots and config
+### Dots
 
 - A dot opens the editor.
 - A drag on empty plot lassoes dots into the widget selection, which the bulk bar acts on.
-- Its config is layout config, set in its ⋯: **Color by** (the picked tags, People or None) and the threshold.
-- A new map's picked tags are the `Project: …` tags.
+
+### Config
+
+The tab's config is layout config (`NeglectTabConfig` in `models/workspace-layout`): `colourBy` and `untouchedDays`, both set in its ⋯. The tab has no view state.
+
+- **Color by** is `colourBy` (`NeglectColourBy`): the picked tags (`{ kind: 'tags', tagIds }`), People (`{ kind: 'people' }`) or None (`{ kind: 'none' }`).
+- A deleted tag stays in `tagIds` and stops coloring, as in a filter.
+- The threshold is `untouchedDays`: a whole number from 1 to 59 (`isNeglectUntouchedDays`, `NEGLECT_UNTOUCHED_MAX`), so its line stays left of the 60-day cap. The menu offers 7, 14, 21, 30 and 45 (`NEGLECT_UNTOUCHED_CHOICES`).
+- A new map (`defaultNeglectConfig`) colors by the `Project: …` tags at 14 days (`DEFAULT_NEGLECT_UNTOUCHED_DAYS`). The workspace store passes those tags as `TabSeed.neglectTagIds` (`utils/neglect-map.projectTagIds`).
 
 ### Names beside dots
 

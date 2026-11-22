@@ -159,6 +159,7 @@ Typed update and Next-date drafts are kept per task in the widget's session. A n
 - In create mode the footer is `Last · Next [quick] · Cancel · Create task`. A draft has no Last.
 - It is **as tall as its content**: the taller column sets its height, so few updates make a short popup. It grows up to 82% of the window, then the columns scroll inside.
 - On a phone it is one column and the footer wraps, the fields on their own line.
+- Its state is in `ui-store`: `editPopupMode` (`'edit'`, `'create'` or `null`) and `selectedTodoId`, the task it is open on. `openEditPopup(id)` opens it on a task, `openCreatePopup()` in create mode, and `closeEditPopup()` closes it and clears `quickAddDraft`.
 
 ### The Mark followed up button
 
@@ -177,6 +178,7 @@ What it reviews is **a filter typed into its field** (`ReviewFilterField`).
 - It takes what a list's Expression filter takes (`@person`, `#tag`, `!status`, `/urgent`, date words, `and` / `or` / `not`, parentheses) except `done` and Completed dates. A review takes open tasks only: the field refuses them, saying so. See [Filters](filters.md).
 - The text is tinted as typed (`hooks/use-expression-field`).
 - The filter is **temporary**: kept by tab id in memory (`list-widget-store.reviewFilters`) as the last text that read, as an expression. It is never layout config, never view state, and gone with a reload.
+- `setReviewFilter(tabId, filter | null)` writes it as a `ReviewFilter`, `{ expression, showCompleted }`. A write also drops the filters of tabs in no layout any more, and their reviews (`review-session.keepReviewSessions`); the popup review's, under `REVIEW_POPUP_TAB_ID`, is never dropped so.
 - A text that doesn't read shows the expression field's error under the field and is never written. The queue keeps the last filter that read.
 - Esc puts its text back. With nothing to put back, Esc leaves the field.
 - A × clears it. A filter that narrows by nothing (a jump from such a list) reads `Every open task` there, with the ×.
@@ -228,9 +230,10 @@ Its queue is **live** (`hooks/use-review-widget-queue`): the open tasks the filt
 Where it stands (the current task, the – marks) is never saved.
 
 - It lasts as long as the filter (the tab's session, `filterKey`): a different filter starts a new review, the same one again resumes.
+- `filterKey` is `list-widget-store`'s `reviewFilterKey(filter)`: the filter's text with its names by id (null for none), so the same filter sent or printed again is the same review.
 - It is cleared with the filter, and with every review's typed text on a data replace.
 
-Only the rail's sort is view state, saved at once: **Priority** where the tab stores none (`DEFAULT_REVIEW_WIDGET_SORT`). The layout repair checks the stored sort (`data/layout-shape`, see [Models and data](../models-and-data.md)). The popup review has no layout tab, so its sort is kept in memory (`ui-store.popupReviewView`).
+Only the rail's sort is view state, saved at once: **Priority** where the tab stores none (`DEFAULT_REVIEW_WIDGET_SORT`). The layout repair checks the stored sort (`data/layout-shape`, see [Models and data](../models-and-data.md)). The popup review has no layout tab, so its sort is kept in memory (`ui-store.popupReviewView`, written by `patchPopupReviewView`): the Review widget's sort writes there for `REVIEW_POPUP_TAB_ID`.
 
 ### Faces
 
