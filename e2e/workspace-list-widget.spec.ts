@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { installClock, tooltipDelayPassed } from './fixtures/clock'
-import { openFilterPicker, setShowCompleted } from './fixtures/filters'
+import { dateTypeButton, openFilterPicker, pickDateType, setShowCompleted } from './fixtures/filters'
 import { closeListFilterEditor, editListSave, expectOpenLayout, layoutTab, openListFilterEditor, ADD_FILTER, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep } from './fixtures/workspace'
 
 /**
@@ -136,19 +136,19 @@ test('a list’s date filters: a due-date range and Next follow-up Any both narr
   await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
   const picker = page.getByTestId('list-filter-picker')
-  await expect(picker.getByRole('tab', { name: 'Due' })).toHaveAttribute('aria-selected', 'true')
+  await expect(dateTypeButton(picker)).toHaveAccessibleName('Date type: Due')
   await picker.getByRole('radio', { name: 'Calendar' }).click()
   await picker.getByLabel('To', { exact: true }).fill(ymd)
   await expect(rows(page, 't1')).toHaveCount(2)
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
 
-  // + Filter › Dates opens on the first date type not filtering yet (Due filters): Next follow-up,
-  // which writes nothing until Any.
+  // + Filter › Dates opens on the first date type not filtering yet (Due filters): Planned. Next
+  // follow-up, picked from the type menu, writes nothing until Any.
   await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
-  await expect(picker.getByRole('tab', { name: 'Next follow-up' })).toHaveAttribute('aria-selected', 'true')
-  await expect(picker.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('aria-selected', 'false')
+  await expect(dateTypeButton(picker)).toHaveAccessibleName('Date type: Planned')
+  await pickDateType(page, picker, 'Next follow-up')
   await expect(picker.getByRole('textbox', { name: 'To' })).toHaveValue('')
   await expect(rows(page, 't1')).toHaveCount(2)
   await picker.getByRole('radio', { name: 'Any' }).click()

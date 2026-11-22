@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
+import { dateBody, pickDateType } from './fixtures/filters'
 import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 
 /**
@@ -33,10 +34,10 @@ async function typeRelative(page: Page, end: 'From' | 'To', text: string) {
   await datePanel(page).getByRole('textbox', { name: end }).fill(text)
 }
 
-/** In the open date panel: `type`'s tab, Is not, then From / To typed into their Relative fields (a new range is Relative, cr25 P8). */
+/** In the open date panel: `type` from the type menu, Is not, then From / To typed into their Relative fields (a new range is Relative, cr25 P8). */
 async function setNotRange(page: Page, type: string, from: string, to: string) {
   const panel = datePanel(page)
-  await panel.getByRole('tab', { name: new RegExp(`^${type}`) }).click()
+  await pickDateType(page, panel, type)
   await expect(panel.getByRole('radio', { name: 'Relative' })).toHaveAttribute('aria-checked', 'true')
   await panel.getByRole('radiogroup', { name: `${type}: is or is not` }).getByRole('radio', { name: 'Is not' }).click()
   await typeRelative(page, 'From', from)
@@ -57,7 +58,7 @@ test('the user\'s filter: hides only the tasks followed up lately with a next fo
   await setNotRange(page, 'Last follow-up', '-7d', 'today')
   await expect(datePanel(page).getByRole('textbox', { name: 'From' })).toHaveValue('-7d')
   await expect(datePanel(page).getByRole('textbox', { name: 'To' })).toHaveValue('today')
-  await expect(datePanel(page).getByRole('tabpanel')).toContainText('not within the last 7 days')
+  await expect(dateBody(datePanel(page))).toContainText('not within the last 7 days')
   await expect(datePanel(page).getByText('Tasks never followed up are kept.')).toBeVisible()
   await expect(datePanel(page).getByRole('checkbox')).toHaveCount(0)
   await page.keyboard.press('Escape')

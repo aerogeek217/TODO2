@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
-import { filterPills, openFilterPicker } from './fixtures/filters'
+import { filterPills, openFilterPicker, pickDateType } from './fixtures/filters'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
@@ -185,12 +185,12 @@ test('the date filter: an Is not with no range yet is still chosen when the pane
   const panel = page.getByRole('dialog').first()
   const not = panel.getByRole('radio', { name: 'Is not' }).first()
   await openFilterPicker(page, 'Dates')
-  await panel.getByRole('tab', { name: /^Last follow-up/ }).click()
+  await pickDateType(page, panel, 'Last follow-up')
   await not.click()
   await esc(page)
   await expect(filterPills(page)).toHaveCount(0)
   await openFilterPicker(page, 'Dates')
-  await panel.getByRole('tab', { name: /^Last follow-up/ }).click()
+  await pickDateType(page, panel, 'Last follow-up')
   await expect(not).toHaveAttribute('aria-checked', 'true')
 })
 
