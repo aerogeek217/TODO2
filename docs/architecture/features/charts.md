@@ -1,10 +1,12 @@
 # Charts
 
-The chart widgets: Breakdown, Pivot and Created vs completed. What every glance widget shares, the widget editors and the history log are in [glance-widgets](glance-widgets.md).
+The chart widgets are Breakdown, Pivot and Created vs completed: three of the glance kinds. Breakdown's and Pivot's configs are in `models/chart-widgets`, Created vs completed's in `models/glance-widgets`. Their components are in `components/workspace/glance/` and their statistics in `services/stats/`.
 
-## Charts
+What every glance widget shares, the Number, the widget editors' Save / Discard, the task dialog and the history log are in [Glance widgets](glance-widgets.md).
 
-A chart (`models/chart-widgets`) is a name and a filter whose tasks it splits, among those the top bar shows, as a Number counts.
+## The chart kinds
+
+The chart kinds (`ChartWidgetKind`) are `breakdown` and `pivot`; `isChartTab` tells their tabs. A chart (`models/chart-widgets`) is a `name` and a `filter` whose tasks it splits, among those the top bar shows, as a Number counts ([Glance widgets](glance-widgets.md#number)).
 
 - Its editor follows the Number editor's pattern (`ChartEditor`): name, filter, and the kind's own fields.
 - **Edit breakdown…** / **Edit pivot…** in the ⋯ opens it, never on add.
@@ -14,14 +16,20 @@ A chart (`models/chart-widgets`) is a name and a filter whose tasks it splits, a
 
 ### Breakdown
 
-Kind `breakdown`; statistics in `services/stats/breakdown`.
+Kind `breakdown`; statistics in `services/stats/breakdown`. Its config is `BreakdownConfig`, layout config:
 
-- It splits by people, tags, status, priority, due or age (since created).
+`{ name, filter, splitBy, style, show, oldestBy?, showNone, columns? }`
+
+- `splitBy`: `people`, `tags`, `status`, `priority`, `due` or `age` (since created).
   - Priority: the Priority sort's exclusive groups, each with its ring.
   - Due: Overdue · Today · Next 7 days · Later. The first reads Before today once a completed task is among them.
-- It is drawn as bars, a donut or one stacked bar.
-- It shows each row's count or its oldest task's age.
-- Presets (`breakdownPreset`): People, Tags and Status (every open task by theirs) and Custom.
+- `style`: it is drawn as `bars`, a `donut` or one `stacked` bar.
+- `show`: each row's `count`, or its `oldest` task's age. `oldestBy` is stored only with `oldest`; absent is the last follow-up.
+- `showNone`: whether the none row shows.
+- `columns`: its [count columns](#count-columns).
+- Presets (`breakdownPreset`): People, Tags and Status (every open task by theirs) and Custom. A new Breakdown takes the Add widget preset as `TabSeed.breakdown`.
+
+What the read of a stored config or view state repairs, and what a schema upgrade rewrote, is in [models-and-data](../models-and-data.md).
 
 #### The table
 
@@ -30,11 +38,15 @@ Kind `breakdown`; statistics in `services/stats/breakdown`.
 - Each heading is a sort: counts largest first, names A–Z. A second click reverses it, a third goes back to the default.
 - The default is most counted across the count columns first for people and tags, and the natural order for the other splits.
 - The none row (Unassigned, No tags, No status, No priority, No due date) stays last.
-- The sort is per split, view state saved at once.
 - The header has no sort words: the heading's ▼ / ▲ says it.
-- A stored sort naming a column the Breakdown doesn't have reads as the default order (`liveBreakdownSort`).
 - It has no filter field of its own.
 - The medium face is a compact name · count columns table.
+
+The sort is per split. It is view state, saved at once: `{ sorts?: { [split]: { by, reversed? } } }`.
+
+- `by` is a fixed heading (`name` or `open`, `BREAKDOWN_FIXED_SORT_KEYS`), a column's id, or `age:<columnId>`.
+- It is read through `liveBreakdownSort(sort, breakdownSortKeys(columns))`. A heading the Breakdown has reads as stored; an age sort does only while its column has `age`.
+- Any other reads as the split's default order: a column removed in the editor, for example.
 
 #### Rows
 
@@ -49,10 +61,12 @@ Kind `breakdown`; statistics in `services/stats/breakdown`.
 
 #### Count columns
 
-`BreakdownConfig.columns` holds up to four, each `{ id, name, color, filter, litWhen, litAt?, age? }`. Every column after the name and Open is one.
+`BreakdownConfig.columns` holds up to four (`BREAKDOWN_COLUMNS_MAX`), each `{ id, name, color, filter, litWhen, litAt?, age? }`. Every column after the name and Open is one.
 
+- `id` is word characters and `-`, unique among the Breakdown's columns and never `name` or `open`, so a sort names it.
+- `color` is a hex. `filter` is a predicate, read as a Number's.
 - A row's cell counts that row's tasks the column's Graphical / Expression filter keeps, as a Number counts.
-- The count is filled solid in the column's color while it meets the column's Light up when rule, and outlined in it otherwise.
+- The count is filled solid in the column's color while it meets the column's Light up when rule, and outlined in it otherwise. The rule is a Number's (`columnIsLit`).
 - Outlined, the color is as the theme draws it as text (`utils/theme-color`).
 - None is a dim `–`.
 - A click jumps to the Review widget with those tasks as its filter, with the fallbacks under Rows.
@@ -61,7 +75,7 @@ Kind `breakdown`; statistics in `services/stats/breakdown`.
 
 #### Follow-up age
 
-A column may carry the row's follow-up age after its count: `age: { yellowAfterDays }`, optional. It reads `[3] 23d`.
+A column may carry the row's follow-up age after its count: `age: { yellowAfterDays }`, a whole number from 0 to 999. Absent is off. It reads `[3] 23d`.
 
 - It is the oldest of the row's open tasks by last follow-up (never followed up: since created). A completed task never counts.
 - It is muted, and in the follow-up color past its threshold. With no open task it is a dim `–`.
@@ -75,11 +89,11 @@ A column may carry the row's follow-up age after its count: `age: { yellowAfterD
 
 #### Default columns
 
-- A new Breakdown (every preset, and Change widget) writes two as its `columns` (`defaultBreakdownColumns`, in `workspace-store`'s seed).
-- They are **Due** (`due` by today + N, overdue included) and **Follow-up** (`followup` likewise), each lit above 0 in its color.
-- N is Settings › Tasks' ranges of the moment. A range `off` drops its column; `overdue` counts only the late tasks.
+- A new Breakdown (every preset, and Change widget) writes two as its `columns`: `defaultBreakdownColumns(app, { followupAge })`, in `workspace-store`'s seed. `followupAge` gives the Follow-up column its `age`.
+- They are **Due** (id `due`: due by today + N, overdue included) and **Follow-up** (id `followup`: the next follow-up likewise), each lit above 0 in its color (`DUE_COLUMN_COLOR` / `FOLLOWUP_COLUMN_COLOR`).
+- N is Settings › Tasks' ranges of the moment. A range `off` drops its column; `overdue` counts only the late tasks, those dated by yesterday.
 - They are ordinary columns from then on.
-- A config without `columns` (a hand-made file) reads the two defaults in Settings' ranges (`models/chart-widgets.breakdownColumns`).
+- `breakdownColumns(config, app)` gives a Breakdown's columns: its `columns`, else `defaultBreakdownColumns(app)`. So a config without `columns` (a hand-made file) reads the two defaults in Settings' ranges.
 
 ### Pivot
 
@@ -111,14 +125,14 @@ Kind `trend`. It is a name (default `Created vs completed`), a Graphical / Expre
 - While neither its filter nor the screen filter narrows, every task is read as it is (`services/stats/trend.computeTrend`).
 - Otherwise each task is replayed to each day's end and counted while the filter kept it then. This is `computeTrend`'s `TrendFilter`, over the fields window `fields-<range>`, which holds every event type a filter's history reads.
 - So a tag added mid-range brings a task in from that day.
-- Some days the history log can't count exactly (`filter-history.historyExactFrom`): the days before `historyLogSince` for follow-ups, priorities, people and tags, and every day for text and the modified date.
+- Some days the history log can't count exactly (`filter-history.historyExactFrom`): the days before `historyLogSince` for follow-ups, priorities, people and tags, and every day for text and the modified date. See [History log](glance-widgets.md#history-log).
 - Those days are dimmed bars or dashed lines. Their tooltip says which fields read as they are now (`glance-copy.approximateNote`).
 - There is no ≈ note on the chart, as a Number's line has none. Copy names such a bar `Thu 8 (approximate)`.
 
 ### Config and editor
 
-- Its config fields `name`, `filter` and `show` are optional. A new tab writes `name` and `show`.
-- A tab without them (a name renamed blank, a hand-made file) reads its default name, every task, and Bars (`models/glance-widgets.trendName` / `trendShow`, `hooks/use-glance-data.trendFilter`).
+- Its config is `models/glance-widgets.TrendTabConfig`: `{ range, name?, filter?, show? }`. A new tab writes `range`, `name` and `show`.
+- A tab without `name`, `filter` or `show` (a name renamed blank, a hand-made file) reads its default name, every task, and Bars (`models/glance-widgets.trendName` / `trendShow`, `hooks/use-glance-data.trendFilter`).
 - **Edit chart…** in its ⋯ (before Range) opens its editor under its title: `TrendEditor`, hosted on the page as `TrendEditorHost` (`chart-widgets-store.trendEditorTabId`).
 - Its fields: name, filter with Reads as, Show as, Range.
-- Save / Discard work as the Number editor's. The undo step is `Edited chart “X”`.
+- Save / Discard work as the Number editor's ([Glance widgets](glance-widgets.md)). The undo step is `Edited chart “X”`.

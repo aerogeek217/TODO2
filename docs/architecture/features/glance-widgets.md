@@ -2,7 +2,7 @@
 
 The glance widgets are the Insights kinds that count and chart tasks: the Number, the charts (Breakdown and Pivot) and Created vs completed. Each is a widget kind of its own, composed in the layout's table. Their components are in `components/workspace/glance/`, their configs in `models/glance-widgets`, `models/number-shapes` and `models/chart-widgets`, their statistics in `services/stats/*`, and their data hooks in `hooks/use-glance-data`, `hooks/use-number-shapes` and `hooks/use-chart-data`.
 
-The whole-widget maps that share their menu group (the Neglect map, Work clusters, the List wall) are in [Task maps](task-maps.md).
+This file covers what they share, the Number and its shapes, the widget editors, the task dialog and the history log. Breakdown, Pivot and Created vs completed are in [Charts](charts.md). The whole-widget maps that share their menu group (the Neglect map, Work clusters, the List wall) are in [Task maps](task-maps.md).
 
 ## What every glance widget shares
 
@@ -12,25 +12,51 @@ The whole-widget maps that share their menu group (the Neglect map, Work cluster
 - Adding one opens no editor. Its editor is in its ⋯.
 - Faces, fit rows and the strip of Numbers are in [Widget chrome](widget-chrome.md).
 
+### The kinds and their flags
+
+`GlanceWidgetKind` (`models/workspace-layout`) is `number`, the two chart kinds (`breakdown`, `pivot`) and `trend`, which is Created vs completed. `isGlanceKind` and `isGlanceTab` tell them.
+
+Each kind's `WidgetKindSpec` in `WIDGET_KIND_SPECS` carries three flags:
+
+- `group`: `tasks` or `insights`. It is the menus' grouping only (`WIDGET_KIND_GROUPS` / `widgetKindsOf`, in `WIDGET_KIND_SPECS`' order). Nothing behavioral reads it.
+- `glance`: the glance kinds.
+  - A track of only glance cells may shrink to 64px, and a glance cell to 72px wide ([Workspace layout](workspace-layout.md)).
+  - A right-click anywhere on one alone in its cell opens the cell's ⋯.
+- `fitHeight`: a Number only. A row track whose cells hold only Numbers fits its content ([Widget chrome](widget-chrome.md)).
+
+The three maps are whole widgets: they are in `insights` for the menus only, with neither `glance` nor `fitHeight`. The Calendar has neither too.
+
 ### In the menus
 
 - The add-widget and **Change widget** menus list them under **Insights**, after the **Tasks** kinds (List, Calendar, Review, Planner, Notes).
 - The order is Number, Breakdown, Pivot and Created vs completed, then the Neglect map, Work clusters and the List wall.
-- Adding a Breakdown opens its presets: **People** · **Tags** · **Status** · **Custom**.
-- The three maps are whole widgets, in the group for the menus only: `WidgetKindSpec.group` is read by the menus alone.
-- The glance minimums, fit rows and the right-click rule read `glance` / `fitHeight`, which the Calendar and the Neglect map don't have.
+- Adding a Breakdown opens its presets: **People** · **Tags** · **Status** · **Custom** ([Charts](charts.md)).
+
+### Tab titles
+
+`kindTabTitle(tab)` gives a non-list tab's title:
+
+- A Number's or a chart's tab reads its name. Blank, it reads its kind's name (`Number`, `Breakdown`).
+- Created vs completed reads its name, else `Created vs completed` (`trendName`).
+- Any other tab reads its tab name, else its kind's name.
 
 ## Number
 
-A Number is a filter. Its config is `models/glance-widgets.NumberConfig`: `{ name, color?, unlitColor?, filter, show, litWhen, litAt?, compare, breakdown? }`, plus the active shape's field.
+A Number is a filter. Its config is `models/glance-widgets.NumberConfig`:
+
+`{ name, color?, unlitColor?, filter, show, litWhen, litAt?, compare, breakdown?, of?, oldestBy?, goal?, items?, list? }`
 
 ### What it holds
 
-- A name.
-- Two colors: **when lit** (`color`) and **otherwise** (`unlitColor`).
-- A Graphical / Expression filter, with no presets and no metric list. A new Number's filter is empty and counts every open task. A Completed range admits the completed tasks in it.
-- When it lights: `litWhen` is never, or above / below `litAt`.
-- What its change compares with: yesterday, the same day last week, or none.
+- `name`: at most 80 characters (`NUMBER_NAME_MAX`). It may be blank.
+- Two colors, each a hex: **when lit** (`color`) and **otherwise** (`unlitColor`).
+- `filter`: a `TodoPredicate`, Graphical or an expression, with no presets and no metric list. An empty filter counts every open task. A Completed range admits the completed tasks in it.
+- `show`: its shape, with that shape's one field ([Number shapes](#number-shapes)).
+- When it lights (`numberIsLit`): `litWhen` is `never`, or `above` / `below` `litAt`. `litAt` is a whole number, absent with `never`.
+- `compare`, what its change compares with: `yesterday`, `lastWeek` (the same day last week) or `none`.
+- `breakdown`, its large face's: `none`, `people`, `tags`, `status` or `priority`. Absent is none.
+
+A new one (`newNumberConfig`) is `Open` over an empty filter, never lit, against yesterday. What the read of a stored config repairs is in [models-and-data](../models-and-data.md).
 
 ### Colors
 
@@ -48,7 +74,7 @@ A Number is a filter. Its config is `models/glance-widgets.NumberConfig`: `{ nam
 ### Count and click
 
 - It counts its filter's tasks among those the top bar shows, as a list does (`stores/screen-filter`), as `shown of total` (`services/stats/number-count`).
-- A click opens them in the task dialog, titled by its name with its filter in words (`glance-drills.numberDrill`).
+- A click opens them in [the task dialog](#the-task-dialog), titled by its name with its filter in words (`glance-drills.numberDrill`).
 
 ### Editor
 
@@ -75,9 +101,29 @@ A Number is a filter. Its config is `models/glance-widgets.NumberConfig`: `{ nam
   - By status: each status in Settings' order with its glyph, then No status.
   - By priority: the Priority sort's groups (Focus, Urgent + Important, Urgent, Important) with their rings, then No priority.
 
+## Number shapes
+
+The shapes are in `models/number-shapes`; the config's `show` picks one. The config holds only the active shape's one field: `share`'s `of`, `oldest`'s `oldestBy`, `goal`'s `goal`, `group`'s `items`, `list`'s `list`. The data is `use-number-shapes` over `services/stats/number-shapes`.
+
+- **Count** (`count`).
+- **Share of…** (`share`): its tasks as a share of a second filter's (`of`, every open task by default). It draws a ring, the percent and `N of M`, and a line of percents.
+- **Oldest** (`oldest`): the age in days of its stalest task.
+  - The age is by last follow-up (never followed up: since created), created, modified or due.
+  - It shows that task's title and `N · median D days`. N is the tasks that have that date: the ones its click opens.
+  - It is lit by the age.
+- **Against a goal** (`goal`): at most / at least N, optionally a week with its pace as a tick.
+  - It is lit while behind pace or over the limit.
+  - The first day of the week is compared with 0, so a week never opens lit.
+- **Several counts** (`group`): up to six counts in one cell. Each has its own name, filter and color, and each opens its tasks.
+- **Follow a list** (`list`): one of the layout's lists as it shows (its filter as edited, its prompt and the screen filter), with its tab badge.
+  - A click opens the list in the widget popup ([Widget chrome](widget-chrome.md)).
+  - The layout counts that list as shown (`utils/workspace-layout-lists`), so it is kept and Duplicate layout repoints it.
+
+Only Count and Share of… compare.
+
 ## The widget editors: Save / Discard
 
-Every widget editor (the Number's, a chart's, Created vs completed's) is Edit list's Save / Discard. The draft is `glance/editor-draft.useEditorDraft`; the foot is `EditorFooter`.
+Every widget editor (the Number's, and a chart's and Created vs completed's in [Charts](charts.md)) is Edit list's Save / Discard. The draft is `glance/editor-draft.useEditorDraft`; the foot is `EditorFooter`.
 
 - Its controls edit a copy of the config, which the widget draws live (`stores/widget-preview-store`, read by `GlanceWidget`).
 - **Save** writes only the keys that changed, for good, as one layout config update: one undo step. A ⋯ menu's write made meanwhile (Tags, for example) stays.
@@ -89,27 +135,15 @@ Every widget editor (the Number's, a chart's, Created vs completed's) is Edit li
 
 What else asks before an editor is left is in [Popovers and editors](popovers-and-editors.md).
 
-## Number shapes
+## The task dialog
 
-The shapes are in `models/number-shapes`; the config's `show` picks one. The config holds only the active shape's field. The data is `use-number-shapes` over `services/stats/number-shapes`.
+A Number's click and a chart's bar open their tasks in the task dialog (`overlays/TaskDialog`). Its state is in `ui-store`.
 
-- **Count.**
-- **Share of…**: its tasks as a share of a second filter's (`of`, every open task by default). It draws a ring, the percent and `N of M`, and a line of percents.
-- **Oldest**: the age in days of its stalest task.
-  - The age is by last follow-up (never followed up: since created), created, modified or due.
-  - It shows that task's title and `N · median D days`. N is the tasks that have that date: the ones its click opens.
-  - It is lit by the age.
-- **Against a goal**: at most / at least N, optionally a week with its pace as a tick.
-  - It is lit while behind pace or over the limit.
-  - The first day of the week is compared with 0, so a week never opens lit.
-- **Several counts** (a group): up to six counts in one cell. Each has its own name, filter and color, and each opens its tasks.
-- **Follow a list**: one of the layout's lists as it shows (its filter as edited, its prompt and the screen filter), with its tab badge.
-  - A click opens the list in the widget popup ([Widget chrome](widget-chrome.md)).
-  - The layout counts that list as shown (`utils/workspace-layout-lists`), so it is kept and Duplicate layout repoints it.
-
-Only Count and Share of… compare.
-
-The chart widgets (Breakdown, Pivot, Created vs completed) are in [charts](charts.md).
+- `taskDialog` is a `TaskDialogPayload` (`stores/task-dialog-payload`), or `null` while it is closed. `services/task-dialog` resolves the payload to rows.
+- `showTaskDialog(payload)` opens it and clears the selection, so a row's actions in the dialog act on that row only. `hideTaskDialog` closes it.
+- `popupListPick` (`PopupListPick`) is a grouping, or a sort with its direction, picked in a popup task list's group · sort control. `pickPopupListView(pick)` merges it in.
+- The pick is in memory only: it is every popup list's until a reload. `task-dialog.currentTaskDialogEnv` reads it over Settings' new-list defaults.
+- `App.tsx` closes a `screen` task dialog (the screen filter's tasks) when the window turns desktop-sized. There the filtered-tasks panel shows them ([Screen filter](screen-filter.md)).
 
 ## History log
 
@@ -122,9 +156,13 @@ The chart widgets (Breakdown, Pivot, Created vs completed) are in [charts](chart
 ### When the log began
 
 - `historyLogSince` is a sync-neutral settings row: when this database began logging follow-ups, priorities, people and tags.
-- It is stamped once. Launch writes it while the row is absent, and so does a data replace that brings none.
+- In `settings-store` it is a `Date`, or `null` while not stamped. The store only reads it: `stampHistoryLogSince(now?)` is its one write.
+- It is stamped once. `stampHistoryLogSince` stores it only while the row is absent, reading the row afresh (`settingsRepository.putIfAbsent`).
+- Launch runs the stamp after the sync file's load, and every data replace runs it (`refresh-all.refreshAllStores`), so a replace that brings no stamp gets one.
+- It is an internal stamp: no undo step, and a failure is only logged.
 - An append import moves it forward when the file's log doesn't reach back as far as the browser's (`data/append-import.coverAppendedHistory`). A file with no stamp (a task archive, an older file) moves it to now; a later stamp moves it to that stamp.
 - A past day before it then reads as approximate, not exact.
+- `runAppendImport` runs the stamp after an append, so the store reads the row again.
 
 ### A filter's history
 
