@@ -1028,6 +1028,84 @@ test('in a cell of tabs Reset plan is under the widget’s ⋯ menu', async ({ p
   expect((await stored(page, 'Migrate the invoices')).doDate).toEqual([3, 0, 0])
 })
 
+// ── The strip's room and the Unplanned filter ────────────────────────────────
+
+test('a cell too narrow for the tiles’ ticks hides the strip: the range and the arrows sit in the top line, or in a slim row in a cell of tabs', async ({ page }) => {
+  await seedWorkspace(page, {
+    tasks: TASKS,
+    layouts: [{
+      name: 'Week',
+      columns: [{ id: 'c1', rows: [{ id: 'r1', cells: [
+        // About 280px wide: a column, too narrow for seven tiles with their ticks beside the arrows.
+        { id: 'k1', weight: 3, tabs: [{ id: 'plan', kind: 'planner' }] },
+        { id: 'k2', weight: 12, tabs: [{ id: 'notes', kind: 'notes' }] },
+      ] }, wsRow({ id: 'k3', tabs: [{ id: 'notes2', kind: 'notes' }, { id: 'plan2', kind: 'planner' }] })] }],
+    }],
+  })
+  const cell = wsCell(page, 'k1')
+  await expect(planner(page).locator('[data-planner-layout="column"]')).toBeVisible()
+  await expect(planner(page).locator('[data-planner-strip]')).toHaveCount(0)
+  await expect(planner(page).locator('[data-planner-tile]')).toHaveCount(0)
+  await expect(cell.getByTestId('planner-range')).toBeVisible()
+  const prev = await box(cell.getByRole('button', { name: 'Previous week' }))
+  const range = await box(cell.getByTestId('planner-range'))
+  const next = await box(cell.getByRole('button', { name: 'Next week' }))
+  expect(prev.x + prev.width).toBeLessThanOrEqual(range.x + 1)
+  expect(next.x).toBeGreaterThanOrEqual(range.x + range.width - 1)
+  expect(Math.abs(next.y - range.y)).toBeLessThan(12)
+  // Today's heading comes right under the top line.
+  await expect(todayGroup(page)).toBeVisible()
+  await cell.getByRole('button', { name: 'Next week' }).click()
+  await expect(cell.getByRole('button', { name: /Back to this week$/ })).toBeVisible()
+
+  // A cell of tabs has no top line: the slim range row, the arrows around the range.
+  await wsCell(page, 'k3').getByRole('tab', { name: 'Planner' }).click()
+  const other = page.locator('[data-planner="plan2"]')
+  await expect(other.locator('[data-planner-strip]')).toHaveAttribute('data-planner-strip', 'tiles')
+  await page.setViewportSize({ width: 340, height: 900 })
+  await expect(other.locator('[data-planner-strip]')).toHaveAttribute('data-planner-strip', 'range')
+  await expect(other.getByRole('group', { name: 'Days' }).getByRole('button', { name: 'Next week' })).toBeVisible()
+})
+
+test('the Unplanned filter: its words open the Planner settings, and what it holds decides what joins Unplanned — one undo step', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...WIDE,
+    tags: ['errands'],
+    tasks: [...TASKS, { title: 'Pick up dry cleaning', tags: ['errands'], modifiedAt: STAMP }, { title: 'Dated errand', tags: ['errands'], dueInDays: 2, modifiedAt: STAMP }],
+  })
+  const line = unplannedGroup(page).locator('[data-planner-filter-line]')
+  await expect(line).toHaveText('Focus')
+  await expect(titles(unplannedGroup(page))).toHaveText(['Someday focus'])
+
+  await line.getByRole('button').click()
+  const dialog = page.getByRole('dialog', { name: 'Planner settings' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('group', { name: 'Unplanned holds' })).toBeVisible()
+  await dialog.getByRole('radio', { name: 'Expression' }).click()
+  await dialog.getByRole('textbox', { name: 'Filter expression' }).fill('#errands')
+  await dialog.getByRole('textbox', { name: 'Filter expression' }).press('Tab')
+  // Drawn as edited: the errand with no day joins Unplanned, the dated one stays on its day, Focus no longer joins.
+  await expect(titles(unplannedGroup(page))).toHaveText(['Pick up dry cleaning'])
+  await expect(titles(group(page, await dayKeyIn(page, 2)))).toContainText(['Dated errand'])
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(line).toContainText('errands')
+  await expectLayoutStored(page)
+  expect(await newestUndoStep(page)).toBe('Changed what counts as unplanned')
+  const stored = await readStore<{ cells: Array<{ tabs: Array<{ id: string; config: { unplanned?: { expression?: unknown } } }> }> }>(page, 'layouts')
+  expect(stored.flatMap((l) => l.cells).flatMap((c) => c.tabs).find((t) => t.id === 'plan')?.config.unplanned?.expression).toMatchObject({ kind: 'tag' })
+
+  // From the widget's ⋯: emptied, nothing joins on its own.
+  await openCellMenu(page, 'k1')
+  await page.getByRole('menuitem', { name: 'What counts as unplanned…' }).click()
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('textbox', { name: 'Filter expression' }).fill('')
+  await dialog.getByRole('textbox', { name: 'Filter expression' }).press('Tab')
+  await expect(unplannedGroup(page).getByText('Nothing unplanned')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(line).toHaveText('Nothing joins on its own')
+})
+
 // ── A plan past a real date: the tag, the late date, the fixes ──────────────
 
 test('a row planned after its due date shows the tag and the date drawn late; Move due date to … edits the date, and the tag and the flag go', async ({ page }) => {

@@ -313,7 +313,7 @@ test.describe('the Planner', () => {
     await expect(planner(page).getByRole('button', { name: 'Add task' })).toHaveCount(0)
   })
 
-  test('medium: a narrow cell is one column under the strip; narrower still, the arrows sit around the range', async ({ page }) => {
+  test('medium: a narrow cell is one column under the strip; narrower still, the strip is hidden and the arrows sit in the top line', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: PLAN_TASKS,
       // Default list zoom at Auto (the app's default), which the Planner's rows follow.
@@ -346,10 +346,11 @@ test.describe('the Planner', () => {
     const groups = await plannerGroups(page).evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().x)))
     expect(new Set(groups).size).toBe(1)
 
-    // A window too narrow for seven tiles: the arrows stay, around the range.
+    // Too narrow for its tiles' ticks: no strip; the range and the arrows sit in the top line.
     await page.setViewportSize({ width: 900, height: 900 })
-    await expect(planner(page).locator('[data-planner-strip]')).toHaveAttribute('data-planner-strip', 'range')
+    await expect(planner(page).locator('[data-planner-strip]')).toHaveCount(0)
     await expect(planner(page).locator('[data-planner-tile]')).toHaveCount(0)
+    await expect(cell.getByTestId('planner-range')).toBeVisible()
     await expect(planner(page).getByRole('button', { name: 'Next week' })).toBeVisible()
     await expect(cell).toHaveAttribute('data-face', 'medium')
   })
