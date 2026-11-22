@@ -2,7 +2,7 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointer
 import { useDroppable } from '@dnd-kit/core'
 import { PLANNER_DOCK_SHARE, PLANNER_DOCK_SHARE_MAX, PLANNER_DOCK_SHARE_MIN } from '../../../models/workspace-layout'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { PLANNER_UNPLANNED_KEY } from '../../../utils/planner'
+import { PLANNER_UNPLANNED_KEY, type PlannerSpan } from '../../../utils/planner'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { plannerDropId, TASK_DROP_KIND, type PlannerDropData } from '../../../utils/task-dnd'
 import { ChevronDownIcon, ChevronUpIcon } from '../../shared/icons'
@@ -133,45 +133,52 @@ export function PlannerDock({ tabId, share, stackRef, children }: PlannerDockPro
 
 /**
  * The trays dock folded (`dockFolded`): one bar — `Delayed 2 · Unplanned 6`
- * (Delayed left out while empty) and an up chevron —, a click unfolding it.
+ * (Delayed left out while empty) and an up chevron —, a click unfolding it;
+ * where the bar is wide enough, Unplanned's filter line (`filter`) sits over
+ * its end, before the chevron, its own button.
  * It is a drop target that means **Unplanned** (a dnd-kit droppable, its
  * data a tile's with the Unplanned target, so a drop keeps the hand order
  * and the drop rule is the tray's: `utils/planner.plannerDrop`); dashed
  * while a dragged task's drop there changes its plan (`marked`).
  */
-export function PlannerFoldedDock({ tabId, window, delayed, unplanned, marked }: {
+export function PlannerFoldedDock({ tabId, window, delayed, unplanned, marked, filter }: {
   tabId: string
-  window: { today: Date; last: Date }
+  window: PlannerSpan
   delayed: number
   unplanned: number
   marked: boolean
+  /** Unplanned's filter line (`PlannerFilterLine`). */
+  filter?: ReactNode
 }) {
   const data: PlannerDropData = { type: TASK_DROP_KIND.plannerDay, scope: tabId, target: { kind: 'unplanned' }, window }
   const { setNodeRef } = useDroppable({ id: plannerDropId(tabId, 'tile', `${PLANNER_UNPLANNED_KEY}-bar`), data: { ...data } })
   const label = [delayed > 0 ? `Delayed ${delayed}` : null, `Unplanned ${unplanned}`].filter(Boolean).join(', ')
   return (
-    <button
-      ref={setNodeRef}
-      type="button"
-      className={styles.dockBar}
-      aria-label={`Show the trays: ${label}`}
-      aria-expanded="false"
-      data-tooltip="Show the trays"
-      data-planner-dock-bar=""
-      data-planner-drop={marked ? '' : undefined}
-      onClick={() => { void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { dockFolded: undefined }) }}
-    >
-      {delayed > 0 && (
-        <>
-          <span className={styles.dockBarName}>Delayed</span>
-          <span className={styles.dockBarCount}>{delayed}</span>
-          <span className={styles.dockBarDot} aria-hidden="true">·</span>
-        </>
-      )}
-      <span className={styles.dockBarName}>Unplanned</span>
-      <span className={styles.dockBarCount}>{unplanned}</span>
-      <span className={styles.topLineGap} aria-hidden="true" />
-      <ChevronUpIcon size={12} />
-    </button>
+    <div className={styles.dockBarHost} data-planner-dock-bar-anchor={tabId}>
+      <button
+        ref={setNodeRef}
+        type="button"
+        className={styles.dockBar}
+        aria-label={`Show the trays: ${label}`}
+        aria-expanded="false"
+        data-tooltip="Show the trays"
+        data-planner-dock-bar=""
+        data-planner-drop={marked ? '' : undefined}
+        onClick={() => { void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { dockFolded: undefined }) }}
+      >
+        {delayed > 0 && (
+          <>
+            <span className={styles.dockBarName}>Delayed</span>
+            <span className={styles.dockBarCount}>{delayed}</span>
+            <span className={styles.dockBarDot} aria-hidden="true">·</span>
+          </>
+        )}
+        <span className={styles.dockBarName}>Unplanned</span>
+        <span className={styles.dockBarCount}>{unplanned}</span>
+        <span className={styles.topLineGap} aria-hidden="true" />
+        <ChevronUpIcon size={12} />
+      </button>
+      {filter && <div className={styles.dockBarFilter}>{filter}</div>}
+    </div>
   )
 }

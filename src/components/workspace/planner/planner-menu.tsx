@@ -52,7 +52,7 @@ export interface PlannerMenuActions {
  */
 export function plannerMenuEntries(
   todo: PersistedTodoItem,
-  window: Pick<PlannerWindow, 'today' | 'days' | 'last'>,
+  window: Pick<PlannerWindow, 'today' | 'days' | 'last' | 'joins'>,
   actions: PlannerMenuActions,
 ): MenuEntry[] {
   if (todo.isCompleted) return []

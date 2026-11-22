@@ -1,16 +1,29 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { PersistedTodoItem } from '../models'
-import type { LayoutBody } from '../models/workspace-layout'
+import type { PersistedTodoItem, TodoPredicate } from '../models'
+import type { LayoutBody, PlannerTab } from '../models/workspace-layout'
 import { plannerWindowKey, usePlannerStore, usePlannerWindow } from '../stores/planner-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { resetPlannerPlan } from '../services/planner-drop'
-import { plannerResetCounts, plannerResetWeekLabel, plannerView, type PlannerGroup, type PlannerResetScope, type PlannerView } from '../utils/planner'
+import { hasFilterClause } from '../utils/filter-clauses'
+import type { TodoNameLookups } from '../utils/filter'
+import { predicateToCriteria } from '../utils/filter-criteria'
+import { matchesFilterWithLookups, type FilterSettings } from '../utils/filter-match'
+import {
+  plannerResetCounts,
+  plannerResetWeekLabel,
+  plannerView,
+  type PlannerGroup,
+  type PlannerJoins,
+  type PlannerResetScope,
+  type PlannerTask,
+  type PlannerView,
+} from '../utils/planner'
 import { countTabBadges, tabBadgeSummary, type TabBadgeCounts } from '../utils/tab-badges'
 import { tasksDoneToday } from '../utils/tally'
 import { layoutTabs } from '../utils/workspace-layout-queries'
-import { useScreenTasks } from './use-glance-data'
+import { useScreenTasks, useStatsBase } from './use-glance-data'
 import { keptOf, useKeptTodos, useLeavingRows, type LeavingRows } from './use-leaving-rows'
 import { useToday } from './use-today'
 
@@ -38,11 +51,44 @@ const NO_LEAVING: LeavingRows = new Map()
 
 const groupIds = (groups: ReadonlyArray<PlannerGroup<Task>>): number[] => groups.flatMap((g) => g.tasks.map((t) => t.id))
 
+/** A task the rules hand back is one of the todo store's (the matcher reads its id, title and names). */
+const isStoredTask = (task: PlannerTask): task is Task => typeof (task as Partial<Task>).id === 'number' && typeof (task as Partial<Task>).title === 'string'
+
+const JOINS_NOTHING: PlannerJoins = () => false
+
+/**
+ * The Unplanned filter `filter` as the rules read it (`PlannerJoins`): the
+ * app's predicate matcher — the one a list's filter goes through
+ * (`matchesFilterWithLookups`, names from `lookups`) — over the tasks the
+ * Planner holds, which the screen filter already narrowed. An empty filter
+ * joins nothing: only what is unplanned by hand is in Unplanned.
+ */
+export function plannerUnplannedJoins(filter: TodoPredicate, lookups: TodoNameLookups, today: Date, settings: FilterSettings): PlannerJoins {
+  if (!hasFilterClause(filter) && !filter.expression) return JOINS_NOTHING
+  const criteria = predicateToCriteria(filter)
+  return (task) => isStoredTask(task) && matchesFilterWithLookups(criteria, task, lookups, today, settings)
+}
+
+/**
+ * The rules' Unplanned filter for a Planner whose config holds `filter`:
+ * none while it holds none (Focus, the rules' own default), else
+ * `plannerUnplannedJoins` over the shared base's names and settings.
+ */
+function useUnplannedJoins(filter: TodoPredicate | undefined): PlannerJoins | undefined {
+  const { lookups, ctx, markerSettings } = useStatsBase()
+  return useMemo(
+    () => (filter ? plannerUnplannedJoins(filter, lookups, ctx.today, markerSettings) : undefined),
+    [filter, lookups, ctx.today, markerSettings],
+  )
+}
+
 /**
  * A Planner tab's data: the open tasks the screen filter shows
  * (`useScreenTasks`) placed for the tab's window
  * (`stores/planner-store`, by the open layout and the tab) in its hand order (`order`, the tab's view
- * state). With `linger`, a row completed here lingers, then folds, as a
+ * state), an open task with no day joining Unplanned when it matches the
+ * tab's Unplanned filter (`config.unplanned`; absent: Focus) — `tab` as
+ * drawn, its editor's unsaved filter included. With `linger`, a row completed here lingers, then folds, as a
  * list's does (`useLeavingRows`): the view is built with it as it was just
  * before, and `keptTodos` says what it shows meanwhile.
  *
@@ -52,9 +98,12 @@ const groupIds = (groups: ReadonlyArray<PlannerGroup<Task>>): number[] => groups
  * cell's ⋯ menu read them from the store instead of building the view again.
  * Written only when a count changes; removed when the widget unmounts.
  */
-export function usePlanner(tabId: string, order: readonly string[] | undefined, linger: boolean): PlannerData {
+export function usePlanner(tab: PlannerTab, linger: boolean): PlannerData {
+  const tabId = tab.id
+  const order = tab.viewState?.order
   const today = useToday()
   const screenTasks = useScreenTasks()
+  const joins = useUnplannedJoins(tab.config.unplanned)
   const windowKey = plannerWindowKey(useWorkspaceStore((s) => s.working?.id), tabId)
   const { offset } = usePlannerWindow(windowKey)
   const ranges = useSettingsStore((s) => s.tabBadges)
@@ -64,7 +113,7 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
   const leaving = linger ? completed : NO_LEAVING
 
   const { view, kept, current } = useMemo(() => {
-    const options = { today, offset, order }
+    const options = { today, offset, order, joins }
     const built = plannerView(screenTasks, options)
     if (leaving.size === 0) return { view: built, kept: NO_IDS, current: built }
     const rows = (v: PlannerView<Task>) => new Set(groupIds([v.today, ...v.days, v.delayed, v.unplanned]))
@@ -73,7 +122,7 @@ export function usePlanner(tabId: string, order: readonly string[] | undefined, 
     if (dropped.size === 0) return { view: built, kept: NO_IDS, current: built }
     const before = [...dropped].flatMap((id) => leaving.get(id)?.before ?? [])
     return { view: plannerView([...screenTasks.filter((t) => !dropped.has(t.id)), ...before], options), kept: dropped, current: built }
-  }, [screenTasks, today, offset, order, leaving])
+  }, [screenTasks, today, offset, order, joins, leaving])
   usePlannerResetReport(windowKey, current)
 
   useEffect(() => { shownIdsRef.current = new Set(groupIds([view.today, ...view.days, view.delayed, view.unplanned])) })

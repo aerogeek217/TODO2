@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { openOneEditor, registerEditorFields } from './editor-leave'
 import { PLANNER_WINDOW_DAYS, plannerOffset, type PlannerDrop, type PlannerResetScope } from '../utils/planner'
 
 /**
@@ -82,12 +83,18 @@ interface PlannerState {
    * kind, starts on this week if it is a Planner again.
    */
   keep: (layoutId: number, tabIds: readonly string[]) => void
+  /** The Planner tab whose settings (What counts as unplanned…) are open; null with none. */
+  settingsTabId: string | null
+  /** Opens a Planner's settings: an editor with changes is asked first, and any other closes (`editor-leave`). */
+  openSettings: (tabId: string) => void
+  closeSettings: () => void
 }
 
 export const usePlannerStore = create<PlannerState>((set, get) => ({
   windows: {},
   resets: {},
   drag: null,
+  settingsTabId: null,
 
   setReset(key, report) {
     const { resets } = get()
@@ -126,7 +133,19 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
     if (gone.length === 0) return
     set({ windows: Object.fromEntries(Object.entries(windows).filter(([key]) => !gone.includes(key))) })
   },
+
+  openSettings(tabId) {
+    if (get().settingsTabId === tabId) return
+    openOneEditor(() => set({ settingsTabId: tabId }))
+  },
+
+  closeSettings() {
+    if (get().settingsTabId !== null) set({ settingsTabId: null })
+  },
 }))
+
+// The Planner's settings are a widget editor: closed with the others (Settings opening, the widget popup, a data replace).
+registerEditorFields(() => usePlannerStore.getState().closeSettings())
 
 /** The window `key` (`DEFAULT_PLANNER_WINDOW` until it is moved). */
 export function usePlannerWindow(key: string): PlannerTabWindow {

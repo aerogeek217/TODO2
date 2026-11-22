@@ -170,7 +170,7 @@ export function planPlannerTaskToday(tabId: string, todoId: number, window: Plan
   return movePlannerTask(tabId, { todoId, target: { kind: 'day', day: window.today, pick: true }, window })
 }
 
-/** **Unplan**: the Unplanned tray's drop for one row — held there, or (a Focus task with no date in the window) its plan cleared. */
+/** **Unplan**: the Unplanned tray's drop for one row — held there, or (a task matching the Unplanned filter with no date in the window) its plan cleared. */
 export function unplanPlannerTask(tabId: string, todoId: number, window: PlannerSpan): Promise<void> {
   return movePlannerTask(tabId, { todoId, target: { kind: 'unplanned' }, window })
 }
@@ -179,7 +179,7 @@ export function unplanPlannerTask(tabId: string, todoId: number, window: Planner
  * **Clear plan**: the task's plan state cleared (`setPlan(…, null)`: one
  * undo step, no stamp) — it goes back to where its own dates put it. When
  * that takes it out of the Planner (`plannerClearLeaves`: no date in the
- * window, not in Focus) — **Remove from Planner** — the snackbar says so,
+ * window, not matching the Unplanned filter — `window.joins`) — **Remove from Planner** — the snackbar says so,
  * with its Undo (`Removed “Title” from the Planner`).
  */
 export async function clearPlannerTask(todoId: number, window: PlannerSpan): Promise<void> {

@@ -115,7 +115,7 @@ function Tile({ tabId, window, tile, marked, inView, onGo }: {
     type: TASK_DROP_KIND.plannerDay,
     scope: tabId,
     target: { kind: 'day', day: tile.day },
-    window: { today: window.today, last: window.last },
+    window,
   }
   const { setNodeRef } = useDroppable({ id: plannerDropId(tabId, 'tile', tile.key), data: { ...data } })
   return (

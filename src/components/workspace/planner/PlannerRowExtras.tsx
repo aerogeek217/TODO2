@@ -8,13 +8,13 @@ import {
   plannerSnoozeDay,
   type PlannerPlacement,
   type PlannerRowTag as RowTag,
-  type PlannerWindow,
+  type PlannerSpan,
 } from '../../../utils/planner'
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
 import { keepPlannerRowFocus } from './planner-focus'
 import styles from './PlannerWidget.module.css'
 
-type Span = Pick<PlannerWindow, 'today' | 'last'>
+type Span = PlannerSpan
 
 /** A button's click in a row: its own, never the row's (select, edit, open), and once for a double-click. */
 function rowClick(run: (e: MouseEvent<HTMLElement>) => void) {

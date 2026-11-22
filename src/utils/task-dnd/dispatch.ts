@@ -2,7 +2,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../models'
 import { shownCalendarDateTypes, type CalendarDateType, type CalendarDateTypes } from '../../models/workspace-layout'
 import { dndLog } from '../debug-flags'
-import type { PlannerTarget } from '../planner'
+import type { PlannerSpan, PlannerTarget } from '../planner'
 import { TASK_DROP_KIND } from './kinds'
 
 /** A list drag dropped on a day of a calendar showing more than one date type. */
@@ -55,7 +55,7 @@ export interface PlannerDropData {
   /** The day it stands for (Today's group and today's tile: today), or a tray (Unplanned, Delayed). */
   target: PlannerTarget
   /** The Planner's window as it shows: today and its last day — what a task's placement is read against. */
-  window: { today: Date; last: Date }
+  window: PlannerSpan
   /** A group's rows; absent on a tile. */
   group?: PlannerDropGroup
 }
@@ -66,7 +66,7 @@ export interface PlannerDropRequest {
   /** The Planner's tab id. */
   tabId: string
   target: PlannerTarget
-  window: { today: Date; last: Date }
+  window: PlannerSpan
   /** The group dropped into; null for a tile. */
   group: PlannerDropGroup | null
 }

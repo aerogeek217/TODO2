@@ -32,7 +32,7 @@ function Harness() {
 }
 
 function Planner() {
-  const { offset, windowKey } = usePlanner('p', undefined, false)
+  const { offset, windowKey } = usePlanner({ id: 'p', kind: 'planner', config: {} }, false)
   return <output data-testid="window" data-key={windowKey}>{String(offset)}</output>
 }
 

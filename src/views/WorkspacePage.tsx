@@ -39,6 +39,7 @@ import { WidgetPopupHost } from '../components/workspace/WidgetPopup'
 import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
 import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { TrendEditorHost } from '../components/workspace/glance/TrendEditor'
+import { PlannerSettingsHost } from '../components/workspace/planner/PlannerSettings'
 import { layoutLeaveAsks, leaveLayout } from '../stores/editor-leave'
 import { useLatestRef } from '../hooks/use-latest-ref'
 import { useBlocker } from 'react-router'
@@ -623,6 +624,7 @@ export function WorkspacePage() {
       <NumberEditorHost />
       <ChartEditorHost />
       <TrendEditorHost />
+      <PlannerSettingsHost />
     </DndContext>
   )
 }

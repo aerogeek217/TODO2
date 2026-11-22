@@ -8,6 +8,7 @@ import { createTab, PLANNER_ORDER_MAX, type PersistedWorkspaceLayout, type Plann
 import {
   applyPlannerFix,
   applyPlannerMove,
+  clearPlannerTask,
   movePlannerTask,
   planPlannerDrop,
   planPlannerTaskToday,
@@ -33,6 +34,7 @@ import {
   plannerView,
   type PlannerDateKind,
   type PlannerTarget,
+  type PlannerTask,
 } from '../../utils/planner'
 import { TASK_DRAG_KIND, TASK_DROP_KIND, dispatchTaskDrop, type PlannerDropData, type PlannerDropRequest } from '../../utils/task-dnd'
 import { addTask } from '../add-task'
@@ -1113,5 +1115,48 @@ describe('a calendar’s plan drop (planTaskForDay): planned outright, the plan 
     await calendarDrop(done, day(3), { calendarDateType: 'plan' })
     expect(await plan(done.id)).toMatchObject({ doDate: day(1) })
     expect(steps()).toEqual([])
+  })
+})
+
+describe('Unplan, Clear and Remove with the Unplanned filter', () => {
+  // A custom filter (titles starting “Errand”) and an empty one, as the hook hands them to the rules in the window.
+  const CUSTOM = { ...WINDOW, joins: (t: PlannerTask) => (t as PersistedTodoItem).title.startsWith('Errand') }
+  const EMPTY = { ...WINDOW, joins: () => false }
+
+  it('Unplan: a planned task the filter keeps just loses its plan; Focus held once the filter isn’t Focus', async () => {
+    const errand = await seed('Errand: stamps', { doDate: day(2) })
+    const focus = await seed('Focus', { focus: true, doDate: day(2) })
+    const w = watchWrites()
+    await unplanPlannerTask('plan', errand.id, CUSTOM)
+    await unplanPlannerTask('plan', focus.id, CUSTOM)
+    expect(w.setPlan.mock.calls).toEqual([[[errand.id], null], [[focus.id], 'unplanned']])
+    expect(await plan(errand.id)).toMatchObject({ doDate: undefined, unplanned: undefined, modifiedAt: STAMP })
+    expect(await plan(focus.id)).toMatchObject({ doDate: undefined, unplanned: true, modifiedAt: STAMP })
+  })
+
+  it('Unplan with an empty filter: always held — nothing would keep the task there', async () => {
+    const focus = await seed('Focus', { focus: true, doDate: day(2) })
+    const w = watchWrites()
+    await unplanPlannerTask('plan', focus.id, EMPTY)
+    expect(w.setPlan.mock.calls).toEqual([[[focus.id], 'unplanned']])
+  })
+
+  it('Clear plan is Remove from Planner (the snackbar) only when the filter doesn’t keep the task', async () => {
+    const focus = await seed('Focus', { focus: true, unplanned: true })
+    const errand = await seed('Errand: keys', { unplanned: true })
+    const w = watchWrites()
+    // Focus, the default: Focus keeps it — a plain Clear.
+    await clearPlannerTask(focus.id, WINDOW)
+    expect(w.setPlan.mock.calls.at(-1)).toEqual([[focus.id], null])
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === focus.id ? { ...t, unplanned: true } : t)) })
+    // A custom filter that doesn't hold Focus: Remove from Planner.
+    await clearPlannerTask(focus.id, CUSTOM)
+    expect(w.setPlan.mock.calls.at(-1)).toEqual([[focus.id], null, 'Removed “Focus” from the Planner', true])
+    // The custom filter keeps the errand: a plain Clear; the empty one keeps nothing: Remove.
+    await clearPlannerTask(errand.id, CUSTOM)
+    expect(w.setPlan.mock.calls.at(-1)).toEqual([[errand.id], null])
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === errand.id ? { ...t, unplanned: true } : t)) })
+    await clearPlannerTask(errand.id, EMPTY)
+    expect(w.setPlan.mock.calls.at(-1)).toEqual([[errand.id], null, 'Removed “Errand: keys” from the Planner', true])
   })
 })

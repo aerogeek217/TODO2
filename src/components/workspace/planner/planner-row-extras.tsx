@@ -1,9 +1,9 @@
 import type { PersistedTodoItem } from '../../../models'
-import { plannerClearLeaves, plannerLateDates, plannerRowStateWords, plannerRowTag, type PlannerPlacement, type PlannerWindow } from '../../../utils/planner'
+import { plannerClearLeaves, plannerLateDates, plannerRowStateWords, plannerRowTag, type PlannerPlacement, type PlannerSpan } from '../../../utils/planner'
 import type { TaskRowExtras } from '../../task/task-row-extras'
 import { PlannerRowActions, PlannerRowTag } from './PlannerRowExtras'
 
-type Span = Pick<PlannerWindow, 'today' | 'last'>
+type Span = PlannerSpan
 
 /**
  * What a Planner adds to the row of `todo` (`TaskRowExtrasContext`): its

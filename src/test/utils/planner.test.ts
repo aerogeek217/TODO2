@@ -248,9 +248,9 @@ describe('plannerPlacement: where a task sits', () => {
   })
 
   it('no plan and no natural day: a Focus task → Unplanned, anything else is not in the widget', () => {
-    expect(shape(place({ focus: true }))).toEqual(['unplanned', null, 'focus', false])
-    expect(shape(place({ focus: true, dueDate: day(7) }))).toEqual(['unplanned', null, 'focus', false])
-    expect(shape(place({ focus: true, nextFollowupAt: day(8), dueDate: day(9) }))).toEqual(['unplanned', null, 'focus', false])
+    expect(shape(place({ focus: true }))).toEqual(['unplanned', null, 'filter', false])
+    expect(shape(place({ focus: true, dueDate: day(7) }))).toEqual(['unplanned', null, 'filter', false])
+    expect(shape(place({ focus: true, nextFollowupAt: day(8), dueDate: day(9) }))).toEqual(['unplanned', null, 'filter', false])
     expect(place({})).toBeNull()
     expect(place({ dueDate: day(7) })).toBeNull()
   })
@@ -1134,5 +1134,88 @@ describe('Clear plan', () => {
     expect(plannerClearLeaves(task({}), SPAN)).toBe(false)
     // Planned past the window with no date in it: the Planner doesn't show it now, so clearing takes nothing out.
     expect(plannerClearLeaves(task({ doDate: day(12) }), SPAN)).toBe(false)
+  })
+})
+
+describe('the Unplanned filter (`PlannerJoins`)', () => {
+  // A custom filter: errands (the uid stands in for a tag here); an empty one joins nothing.
+  const errands = (t: PlannerTask) => t.uid.startsWith('errand')
+  const CUSTOM = plannerWindow(TODAY, 0, errands)
+  const EMPTY = plannerWindow(TODAY, 0, () => false)
+  const errand = (over: Partial<PlannerTask> = {}) => ({ ...task(over), uid: `errand-${seq}` })
+
+  it('absent, it is Focus: the Planner as it always was', () => {
+    expect(SPAN.joins).toBeUndefined()
+    expect(plannerPlacement(task({ focus: true }), SPAN)?.where).toBe('unplanned')
+    expect(plannerPlacement(errand(), SPAN)).toBeNull()
+  })
+
+  it('a custom filter decides who joins Unplanned on its own, Focus no longer', () => {
+    expect(plannerPlacement(errand(), CUSTOM)).toMatchObject({ where: 'unplanned', reason: 'filter', placed: false })
+    expect(plannerPlacement(task({ focus: true }), CUSTOM)).toBeNull()
+    expect(inPlanner(errand(), CUSTOM)).toBe(true)
+    expect(inPlanner(task({ focus: true }), CUSTOM)).toBe(false)
+  })
+
+  it('decides Unplanned only: a task with a day in the window sits on it, matching or not', () => {
+    expect(plannerPlacement(errand({ dueDate: day(2) }), CUSTOM)).toMatchObject({ where: 'day', reason: 'due' })
+    expect(plannerPlacement(errand({ doDate: day(1) }), CUSTOM)).toMatchObject({ where: 'day', reason: 'plan' })
+    expect(plannerPlacement(task({ dueDate: day(2) }), EMPTY)).toMatchObject({ where: 'day', reason: 'due' })
+  })
+
+  it('empty, nothing joins on its own: only a task unplanned by hand is in Unplanned', () => {
+    expect(plannerPlacement(task({ focus: true }), EMPTY)).toBeNull()
+    expect(plannerPlacement(task({ unplanned: true }), EMPTY)).toMatchObject({ where: 'unplanned', reason: 'held', placed: true })
+    expect(inPlanner(task({ focus: true }), EMPTY)).toBe(false)
+  })
+
+  it('the view takes it: Unplanned holds the matching tasks and the held ones', () => {
+    const focus = task({ focus: true })
+    const match = errand()
+    const held = task({ unplanned: true })
+    const tasks = [focus, match, held]
+    expect(uids(plannerView(tasks, { today: TODAY }).unplanned.tasks)).toEqual(uids([held, focus]))
+    expect(uids(plannerView(tasks, { today: TODAY, joins: errands }).unplanned.tasks)).toEqual(uids([held, match]))
+    expect(uids(plannerView(tasks, { today: TODAY, joins: () => false }).unplanned.tasks)).toEqual(uids([held]))
+    expect(plannerView(tasks, { today: TODAY, joins: errands }).window.joins).toBe(errands)
+  })
+
+  it('Unplan: a planned task the filter keeps just loses its plan; one it doesn’t is held', () => {
+    expect(plannerUnplan(errand({ doDate: day(2) }), CUSTOM)).toEqual({ kind: 'unplan', hold: false })
+    expect(plannerUnplan(task({ focus: true, doDate: day(2) }), CUSTOM)).toEqual({ kind: 'unplan', hold: true })
+    expect(plannerUnplan(task({ focus: true, doDate: day(2) }), EMPTY)).toEqual({ kind: 'unplan', hold: true })
+    expect(plannerUnplan(errand(), CUSTOM)).toEqual({ kind: 'none' })
+    // A task with a natural day is held whatever the filter says.
+    expect(plannerUnplan(errand({ doDate: day(2), dueDate: day(1) }), CUSTOM)).toEqual({ kind: 'unplan', hold: true })
+  })
+
+  it('asks the filter of the task as it would be with no plan state', () => {
+    const seen: Array<Pick<PlannerTask, 'doDate' | 'unplanned'>> = []
+    const joins = (t: PlannerTask) => {
+      seen.push({ doDate: t.doDate, unplanned: t.unplanned })
+      return false
+    }
+    plannerUnplan(task({ doDate: day(2) }), plannerWindow(TODAY, 0, joins))
+    plannerPlacement(task({ doDate: day(-2), focus: true }), plannerWindow(TODAY, 0, joins))
+    inPlanner(task({ unplanned: true }), plannerWindow(TODAY, 0, joins))
+    plannerClearLeaves(task({ unplanned: true }), plannerWindow(TODAY, 0, joins))
+    expect(seen.length).toBeGreaterThan(0)
+    expect(seen.every((t) => t.doDate === undefined && t.unplanned === undefined)).toBe(true)
+  })
+
+  it('Clear plan reads Remove from Planner when the filter doesn’t keep the task', () => {
+    expect(plannerClearLeaves(errand({ unplanned: true }), CUSTOM)).toBe(false)
+    expect(plannerClearLeaves(task({ unplanned: true, focus: true }), CUSTOM)).toBe(true)
+    expect(plannerClearLeaves(task({ doDate: day(3), focus: true }), SPAN)).toBe(false)
+    expect(plannerClearLeaves(task({ doDate: day(3), focus: true }), EMPTY)).toBe(true)
+    // A date in the window keeps it, whatever the filter.
+    expect(plannerClearLeaves(task({ unplanned: true, dueDate: day(2) }), EMPTY)).toBe(false)
+  })
+
+  it('Unplan all Delayed asks the filter for each task', () => {
+    const missedErrand = errand({ doDate: day(-2) })
+    const missedFocus = task({ focus: true, doDate: day(-1) })
+    const view = plannerView([missedErrand, missedFocus], { today: TODAY, joins: errands })
+    expect(plannerUnplanDelayed(view)).toEqual([{ id: missedErrand.id, plan: null }, { id: missedFocus.id, plan: 'unplanned' }])
   })
 })

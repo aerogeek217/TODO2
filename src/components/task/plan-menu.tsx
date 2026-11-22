@@ -10,6 +10,7 @@ import {
   plannerWindow,
   type PlannerPlacement,
   type PlannerTarget,
+  type PlannerSpan,
   type PlannerWindow,
 } from '../../utils/planner'
 import type { MenuEntry } from '../shared/MenuPopover'
@@ -20,7 +21,7 @@ import { pickDate } from '../shared/pick-date'
 export const PLAN_FOR_DAY_LABEL = 'Plans it for that day'
 
 /** Clear plan's words: **Remove from Planner** when it takes the task out of the Planner (`plannerClearLeaves`). */
-export function clearPlanLabel(todo: PersistedTodoItem, window: Pick<PlannerWindow, 'today' | 'last'>): string {
+export function clearPlanLabel(todo: PersistedTodoItem, window: PlannerSpan): string {
   return plannerClearLeaves(todo, window) ? 'Remove from Planner' : 'Clear plan'
 }
 
@@ -41,7 +42,7 @@ const sameDay = (date: Date | undefined, day: Date): boolean => date != null && 
  */
 export function planDayItems(
   todo: Pick<TodoItem, 'doDate' | 'dueDate' | 'nextFollowupAt'>,
-  window: Pick<PlannerWindow, 'today' | 'days' | 'last'>,
+  window: Pick<PlannerWindow, 'today' | 'days' | 'last' | 'joins'>,
   move: (target: PlannerTarget) => void,
 ): MenuEntry[] {
   const { today } = window

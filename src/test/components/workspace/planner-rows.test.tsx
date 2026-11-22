@@ -653,7 +653,7 @@ describe('Reset plan', () => {
     // Fri 27 … Thu Dec 3: the task planned there, not tomorrow's.
     expect(rows(openMenu())).toEqual([['Nov 27 – Dec 3', '1', false], ['Today only', '0', true], ['Delayed', '0', true]])
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
-    const submenu = result.current[0]?.kind === 'item' ? result.current[0].children ?? [] : []
+    const submenu = result.current[1]?.kind === 'item' ? result.current[1].children ?? [] : []
     expect(submenu.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Nov 27 – Dec 3', 'Today only', 'Delayed'])
     fireEvent.click(within(screen.getByRole('menu', { name: 'Reset plan' })).getByRole('menuitem', { name: /^Nov 27 – Dec 3/ }))
     await waitFor(() => expect(setPlan).toHaveBeenCalledWith([2], null, 'Reset plan: Nov 27 – Dec 3', true))
@@ -668,7 +668,7 @@ describe('Reset plan', () => {
     const { setPlan } = watch()
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
     const item = (entries: readonly MenuEntry[], label: string) => entries.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === label)!
-    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Reset plan'])
+    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['What counts as unplanned…', 'Reset plan'])
     const choices = item(result.current, 'Reset plan').children ?? []
     expect(choices.map((e) => (e.kind === 'item' ? [e.label, e.note, e.disabled] : e.kind))).toEqual([
       ['This week', '8', false], ['Today only', '1', false], ['Delayed', '1', false],
@@ -698,11 +698,11 @@ describe('Reset plan', () => {
     // A change that moves no count (a title): the same report, so no menu is built again.
     act(() => { useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 1 ? { ...t, title: 'Renamed' } : t)) }) })
     expect(usePlannerStore.getState().resets[key]).toBe(report)
-    // A Planner that isn't drawn reports nothing, and its menu offers nothing.
+    // A Planner that isn't drawn reports nothing, and its menu offers no Reset plan — only its settings.
     unmount()
     expect(usePlannerStore.getState().resets).toEqual({})
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
-    expect(result.current).toEqual([])
+    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['What counts as unplanned…'])
   })
 
   it('the report’s action clears the scope as the Planner shows when it is called, not as it was when reported', async () => {

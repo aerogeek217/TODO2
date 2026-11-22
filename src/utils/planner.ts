@@ -12,7 +12,9 @@ import { addDays, dayKey, formatDateWith, MS_PER_DAY, startOfDay } from './date'
  * day (`doDate`) or held in Unplanned (`unplanned`) — `TaskPlan`.
  *
  * Here: which tasks the Planner holds and where each sits
- * (`plannerPlacement`: a day, the Delayed tray, the Unplanned tray), the
+ * (`plannerPlacement`: a day, the Delayed tray, the Unplanned tray — an
+ * open task with no day joins Unplanned on its own when it matches the
+ * Planner's Unplanned filter, `PlannerJoins`), the
  * real dates a plan falls after and their fixes (`PlannerConflict`), the
  * groups and tiles of a seven-day window (`plannerView`; a tile's ticks are
  * `utils/day-ticks`) and a row's tag (`plannerRowTag`), the hand order
@@ -30,6 +32,19 @@ export type PlannerDateKind = 'due' | 'followup'
 /** What the placement reads of a task. */
 export type PlannerTask = Pick<TodoItem, 'uid' | 'isCompleted' | 'focus' | 'doDate' | 'unplanned' | 'dueDate' | 'nextFollowupAt' | 'sortOrder'>
 
+/**
+ * Whether an open task with no plan and no day in the window **joins
+ * Unplanned on its own**: it matches the Planner's Unplanned filter
+ * (`PlannerTab.config.unplanned`, the hook's matcher over it). It decides
+ * the Unplanned tray only, never a day. A window without one reads Focus
+ * (`task.focus`): a Planner that never set a filter, and every rule read
+ * outside a Planner (Plan for day › in a task menu).
+ */
+export type PlannerJoins = (task: PlannerTask) => boolean
+
+/** The Unplanned filter when none is given: Focus. */
+const IN_FOCUS: PlannerJoins = (task) => task.focus === true
+
 /** The Planner's seven days. */
 export interface PlannerWindow {
   /** Today (local midnight): the Today group's day whatever the offset. */
@@ -38,10 +53,22 @@ export interface PlannerWindow {
   days: readonly Date[]
   first: Date
   last: Date
+  /** The Planner's Unplanned filter; absent: Focus. */
+  joins?: PlannerJoins
 }
 
-/** What a placement is read against: today and the window's last day. */
-export type PlannerSpan = Pick<PlannerWindow, 'today' | 'last'>
+/** What a placement is read against: today, the window's last day and the Unplanned filter (absent: Focus). */
+export type PlannerSpan = Pick<PlannerWindow, 'today' | 'last' | 'joins'>
+
+/**
+ * Whether `task` matches the window's Unplanned filter as a task with no
+ * plan state: what it would do on its own — read without its plan, so a
+ * held or planned task is asked as it would be once cleared.
+ */
+function joinsOnItsOwn(task: PlannerTask, span: PlannerSpan): boolean {
+  const joins = span.joins ?? IN_FOCUS
+  return joins(plannerHasPlan(task) ? { ...task, doDate: undefined, unplanned: undefined } : task)
+}
 
 /** A whole number of weeks, never before this week: the offset a window keeps. */
 export function plannerOffset(offset: number): number {
@@ -49,12 +76,14 @@ export function plannerOffset(offset: number): number {
   return Math.floor(offset / PLANNER_WINDOW_DAYS) * PLANNER_WINDOW_DAYS
 }
 
-/** The seven days starting at `today` + `offset` days (a multiple of 7, 0 or more). */
-export function plannerWindow(today: Date, offset = 0): PlannerWindow {
+/** The seven days starting at `today` + `offset` days (a multiple of 7, 0 or more), read with the Unplanned filter `joins` (absent: Focus). */
+export function plannerWindow(today: Date, offset = 0, joins?: PlannerJoins): PlannerWindow {
   const start = startOfDay(today)
   const first = addDays(start, plannerOffset(offset))
   const days = Array.from({ length: PLANNER_WINDOW_DAYS }, (_, i) => addDays(first, i))
-  return { today: start, days, first, last: addDays(first, PLANNER_WINDOW_DAYS - 1) }
+  const window: PlannerWindow = { today: start, days, first, last: addDays(first, PLANNER_WINDOW_DAYS - 1) }
+  if (joins) window.joins = joins
+  return window
 }
 
 const dayOf = (d: Date): Date => startOfDay(new Date(d))
@@ -132,10 +161,10 @@ export interface PlannerPlacement {
    * once the day has passed), held in Unplanned (`held`), its due date or
    * follow-up (`due` / `followup`: its natural day — also for a task
    * **planned later**, for a day past the window: it shows on its natural
-   * day meanwhile, `planned` set and `placed`), or in Focus with no plan
-   * and no natural day (`focus`, in Unplanned).
+   * day meanwhile, `planned` set and `placed`), or matching the Unplanned
+   * filter with no plan and no natural day (`filter`, in Unplanned).
    */
-  reason: 'plan' | 'held' | PlannerDateKind | 'focus'
+  reason: 'plan' | 'held' | PlannerDateKind | 'filter'
   /** It has a plan state: a planned day or held in Unplanned (the row's placed mark). */
   placed: boolean
   /** Its planned day (`doDate`, local midnight): a Delayed row's is the day it was planned for. Null without one. */
@@ -163,19 +192,20 @@ export function plannerConflicts(task: Pick<PlannerTask, 'dueDate' | 'nextFollow
 
 /**
  * Whether the Planner holds `task` for a window ending on `last`: open, and
- * in Focus, or planned for a day, or held in Unplanned, or with a natural
- * day (due or due for a follow-up on or before that day).
+ * planned for a day, or held in Unplanned, or with a natural day (due or due
+ * for a follow-up on or before that day), or matching the Unplanned filter
+ * (`span.joins`; Focus without one).
  */
 export function inPlanner(task: PlannerTask, span: PlannerSpan): boolean {
   if (task.isCompleted) return false
-  return task.focus === true || plannerPlannedDay(task) != null || task.unplanned === true || plannerNaturalDay(task, span) != null
+  return plannerPlannedDay(task) != null || task.unplanned === true || plannerNaturalDay(task, span) != null || joinsOnItsOwn(task, span)
 }
 
 /**
  * Where `task` sits for the window ending on `span.last`; null when the
- * Planner doesn't show it there (completed, or neither in Focus nor
- * planned nor dated, or planned for a day past the window with no real
- * date inside it).
+ * Planner doesn't show it there (completed, or neither matching the
+ * Unplanned filter nor planned nor dated, or planned for a day past the
+ * window with no real date inside it).
  *
  * - held (`unplanned`) → the **Unplanned** tray;
  * - a planned day (`plannerPlannedDay`: its `doDate`'s day) before today →
@@ -186,7 +216,10 @@ export function inPlanner(task: PlannerTask, span: PlannerSpan): boolean {
  *   plan's conflicts with that date and their fixes on it — else not shown
  *   in this window;
  * - no plan → its natural day (`plannerNaturalDay`);
- * - no plan and no natural day: a Focus task → **Unplanned**.
+ * - no plan and no natural day: a task matching the Unplanned filter
+ *   (`span.joins`; Focus without one) → **Unplanned**. The filter decides
+ *   only this row: a task with a day in the window sits on it, matching or
+ *   not.
  */
 export function plannerPlacement(task: PlannerTask, span: PlannerSpan): PlannerPlacement | null {
   if (task.isCompleted) return null
@@ -208,7 +241,7 @@ export function plannerPlacement(task: PlannerTask, span: PlannerSpan): PlannerP
     return { where: 'day', day: planned, reason: 'plan', placed: true, planned, natural, conflicts }
   }
   if (natural) return { where: 'day', day: natural.day, reason: natural.reason, placed: false, planned: null, natural, conflicts: [] }
-  if (task.focus === true) return { where: 'unplanned', day: null, reason: 'focus', placed: false, planned: null, natural: null, conflicts: [] }
+  if (joinsOnItsOwn(task, span)) return { where: 'unplanned', day: null, reason: 'filter', placed: false, planned: null, natural: null, conflicts: [] }
   return null
 }
 
@@ -220,7 +253,7 @@ export function plannerHasPlan(task: Pick<PlannerTask, 'doDate' | 'unplanned'>):
 /**
  * Whether clearing `task`'s plan state takes it **out of** a Planner whose
  * window is `span` (it shows it now, and with no plan it would show it
- * nowhere: no date in the window, not in Focus) — Clear plan then reads
+ * nowhere: no date in the window, not matching the Unplanned filter) — Clear plan then reads
  * **Remove from Planner**, and says so in the snackbar.
  */
 export function plannerClearLeaves(task: PlannerTask, span: PlannerSpan): boolean {
@@ -294,7 +327,7 @@ export interface PlannerGroup<T> {
 /** The key of the Delayed tray: the tasks planned for a day that has passed. */
 export const PLANNER_DELAYED_KEY = 'delayed'
 
-/** The key of the Unplanned tray: the tasks held there, and the Focus tasks with no plan and no natural day. */
+/** The key of the Unplanned tray: the tasks held there, and those matching the Unplanned filter with no plan and no natural day. */
 export const PLANNER_UNPLANNED_KEY = 'unplanned'
 
 /** A day's tile on the strip. */
@@ -328,7 +361,7 @@ export interface PlannerView<T> {
   days: PlannerGroup<T>[]
   /** The Delayed tray: the tasks whose planned day has passed. */
   delayed: PlannerGroup<T>
-  /** The Unplanned tray: the tasks held there, and the Focus tasks with no plan and no natural day. */
+  /** The Unplanned tray: the tasks held there, and those matching the Unplanned filter with no plan and no natural day. */
   unplanned: PlannerGroup<T>
   /** The window's seven tiles. */
   tiles: PlannerTile[]
@@ -344,17 +377,19 @@ interface PlannerViewOptions {
   offset?: number
   /** The hand order: task `uid`s. */
   order?: readonly string[]
+  /** The Unplanned filter (`PlannerJoins`); absent: Focus. */
+  joins?: PlannerJoins
 }
 
 /** The reasons in the order they sort and their ticks draw: deadlines, follow-ups, plans, then the rest. */
-const REASON_RANK: Record<PlannerPlacement['reason'], number> = { due: 0, followup: 1, plan: 2, held: 3, focus: 4 }
+const REASON_RANK: Record<PlannerPlacement['reason'], number> = { due: 0, followup: 1, plan: 2, held: 3, filter: 4 }
 
 /** The date a row sorts by among its reason's: its planned day, else its natural date. */
 const sortTime = (p: PlannerPlacement | undefined): number => (p?.planned ?? p?.natural?.date)?.getTime() ?? 0
 
 /**
  * `tasks` in the Planner's order: those `order` names first, as it lists
- * them, then the rest by reason (deadlines, follow-ups, plans, held, Focus),
+ * them, then the rest by reason (deadlines, follow-ups, plans, held, the Unplanned filter's),
  * then by date, then by `sortOrder`.
  */
 export function plannerOrder<T extends PlannerTask>(
@@ -387,7 +422,7 @@ const DATE_RANK: Record<PlannerDateKind, number> = { due: 0, followup: 1 }
  * group — the tiles are the window's.
  */
 export function plannerView<T extends PlannerTask>(tasks: readonly T[], options: PlannerViewOptions): PlannerView<T> {
-  const window = plannerWindow(options.today, options.offset)
+  const window = plannerWindow(options.today, options.offset, options.joins)
   const { today } = window
   const todayKey = dayKey(today)
   const windowKeys = new Set(window.days.map(dayKey))
@@ -580,8 +615,9 @@ export type PlannerDrop =
   /**
    * Dropped on Unplanned: held there (`hold`) — a task with a natural day to
    * be kept off, and any other open task (one the Planner doesn't hold yet
-   * joins it so) —, else (a planned Focus task with no such date) its plan
-   * is just cleared: Focus keeps it in Unplanned.
+   * joins it so) —, else (a planned task with no such date that matches the
+   * Unplanned filter) its plan is just cleared: the filter keeps it in
+   * Unplanned.
    */
   | { kind: 'unplan'; hold: boolean }
   /** Not allowed there: Delayed takes no drop, a completed task goes nowhere, a day before today is past. */
@@ -600,8 +636,9 @@ export type PlannerDrop =
  *   none to clear, nothing); otherwise, where it sits already → nothing,
  *   else it is planned for `T` (`plan`). A day before today is refused;
  * - on **Unplanned**: a task with a natural day is held (`unplan`,
- *   `hold`); a planned one without: in Focus it just loses its plan (Focus
- *   keeps it there), else it is held too — **Unplan never takes a task out
+ *   `hold`); a planned one without: matching the Unplanned filter it just
+ *   loses its plan (the filter keeps it there), else it is held too —
+ *   **Unplan never takes a task out
  *   of the Planner**. Any other open task is held as well: Unplanned is how
  *   a task with no date joins the Planner (Clear plan takes it out again,
  *   `plannerClearLeaves`);
@@ -623,8 +660,8 @@ export function plannerDrop(task: PlannerTask, span: PlannerSpan, target: Planne
   if (target.kind === 'unplanned') {
     if (at?.where === 'unplanned') return { kind: 'none' }
     if (natural) return { kind: 'unplan', hold: true }
-    // A Focus task with no plan is in Unplanned already (above): only a planned one is left, which just loses its plan.
-    return { kind: 'unplan', hold: task.focus !== true }
+    // A matching task with no plan is in Unplanned already (above): only a planned one is left, which just loses its plan.
+    return { kind: 'unplan', hold: !joinsOnItsOwn(task, span) }
   }
   const day = dayOf(target.day)
   if (day.getTime() < dayTime(span.today)) return { kind: 'refuse' }
@@ -678,7 +715,7 @@ type PlannerRow = PlannerTask & { id: number }
 
 /**
  * **Unplan all Delayed**: each Delayed task's Unplan (`plannerUnplan` —
- * held, or a Focus task with no natural day its plan cleared), as the plan
+ * held, or one matching the Unplanned filter with no natural day its plan cleared), as the plan
  * changes of one write.
  */
 export function plannerUnplanDelayed<T extends PlannerRow>(view: Pick<PlannerView<T>, 'window' | 'delayed'>): TaskPlanChange[] {

@@ -4,7 +4,8 @@ import { plannerWindowKey, usePlannerStore } from '../../../stores/planner-store
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { PlannerResetScope } from '../../../utils/planner'
 import type { MenuEntry } from '../../shared/MenuPopover'
-import { ResetIcon } from '../../shared/icons'
+import { FunnelIcon, ResetIcon } from '../../shared/icons'
+import { openPlannerSettings, WHAT_COUNTS_AS_UNPLANNED } from './open-planner-settings'
 
 /** Reset plan's name: its button, its submenu's item, its menu's label. */
 export const RESET_PLAN_LABEL = 'Reset plan'
@@ -52,11 +53,17 @@ export function usePlannerResetEntries(tab: PlannerTab | undefined): MenuEntry[]
   }, [report])
 }
 
-/** The Planner's entry in its widget's ⋯ menu: **Reset plan ›**, its three choices a submenu. */
+/**
+ * The Planner's entries in its widget's ⋯ menu: **What counts as
+ * unplanned…** (its settings, `PlannerSettings`), then **Reset plan ›**, its
+ * three choices a submenu (none while the Planner isn't drawn).
+ */
 export function usePlannerMenuEntries(tab: PlannerTab | undefined): MenuEntry[] {
   const children = usePlannerResetEntries(tab)
-  return useMemo(
-    () => (children.length === 0 ? NO_ENTRIES : [{ kind: 'item', label: RESET_PLAN_LABEL, icon: <ResetIcon />, children, childrenWidth: 200 }]),
-    [children],
-  )
+  const tabId = tab?.id
+  return useMemo(() => {
+    if (tabId == null) return NO_ENTRIES
+    const settings: MenuEntry = { kind: 'item', label: `${WHAT_COUNTS_AS_UNPLANNED}…`, icon: <FunnelIcon />, onSelect: () => openPlannerSettings(tabId) }
+    return children.length === 0 ? [settings] : [settings, { kind: 'item', label: RESET_PLAN_LABEL, icon: <ResetIcon />, children, childrenWidth: 200 }]
+  }, [tabId, children])
 }

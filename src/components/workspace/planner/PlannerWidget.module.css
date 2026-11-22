@@ -456,6 +456,36 @@
   color: var(--color-text-primary);
 }
 
+/* The folded bar and Unplanned's filter line over its end. */
+.dockBarHost {
+  flex: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Over the bar's end, before its chevron; never past the bar's middle, so a click there still unfolds it. */
+.dockBarFilter {
+  position: absolute;
+  top: 50%;
+  right: 30px;
+  display: flex;
+  justify-content: flex-end;
+  max-width: 40%;
+  transform: translateY(-50%);
+}
+
+.dockBarFilter .filterLine {
+  padding: 0;
+}
+
+/* Where the bar is too narrow for its names and the filter both, the filter line gives way (the dock unfolded shows it). */
+@container (max-width: 399px) {
+  .dockBarFilter {
+    display: none;
+  }
+}
+
 /* The dock folded: one bar — the trays' names and counts, an up chevron —, a drop target meaning Unplanned. */
 .dockBar {
   flex: none;
@@ -514,6 +544,52 @@
 }
 
 /* ── Groups ────────────────────────────────────────────────────────────── */
+
+/* Unplanned's filter line under its heading (board E): the funnel, then the filter in words, on a faint plate. */
+.filterLine {
+  display: flex;
+  min-width: 0;
+  padding: 0 8px 6px;
+}
+
+.filterLine.filterLine > button {
+  min-width: 0;
+  gap: 5px;
+  max-width: 100%;
+  padding: 0 6px;
+  background: var(--color-tint-4);
+  color: var(--color-text-muted);
+}
+
+.filterLine.filterLine > button:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+}
+
+.filterLine > button > svg {
+  flex: none;
+}
+
+/* An empty filter: nothing joins on its own. */
+.filterNone {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filterNoneWords {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .group {
   padding-top: 2px;
