@@ -148,7 +148,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'utils/neglect-map.ts': ['isDueNear', 'NEGLECT_JITTER', 'NeglectFields', 'neglectZone'],
   'utils/notes-preview.ts': ['NOTES_PREVIEW_MAX_CHARS', 'NOTES_PREVIEW_MAX_LINES', 'notesPreviewLines'],
   'utils/planner.ts': [
-    'inPlanner', 'PLANNER_DELAYED_KEY', 'PLANNER_TILE_TICKS_MAX', 'PLANNER_UNPLANNED_KEY', 'PlannerConflict', 'plannerConflictLabel',
+    'inPlanner', 'PLANNER_DELAYED_KEY', 'PLANNER_TILE_TICKS_MAX', 'PlannerConflict', 'plannerConflictLabel',
     'plannerConflicts', 'PlannerDateKind', 'PlannerNaturalDay', 'plannerNaturalDay', 'plannerOrder', 'plannerPlannedDay', 'plannerPlannedLater',
     'plannerReorder', 'plannerSnooze', 'plannerTagDay', 'PlannerTask',
   ],

@@ -30,6 +30,28 @@ interface PlannerStripProps {
   onShift: (weeks: -1 | 1) => void
   /** The drop a task drag over this Planner would make, when it writes; null with none. */
   mark: PlannerDropMark | null
+  /** `false`: the arrows are elsewhere (the portrait layout's top line), the tiles take the whole strip. Default true. */
+  arrows?: boolean
+  /** The portrait layout (board R1): a narrow tile keeps its ticks — weekday; date and count; ticks. */
+  portrait?: boolean
+  /** The days whose groups show in the day list (`dayKey`s): a line under their tiles. Absent: no line. */
+  inView?: ReadonlySet<string>
+}
+
+/** A week arrow: `‹` (a week earlier) or `›` (later) — the strip's, or the portrait layout's top line's. */
+export function WeekArrow({ direction, disabled, onShift, compact = false }: {
+  direction: -1 | 1
+  disabled: boolean
+  onShift: (weeks: -1 | 1) => void
+  /** The top line's: narrower, so the name keeps its room. */
+  compact?: boolean
+}) {
+  const label = direction < 0 ? 'Previous week' : 'Next week'
+  return (
+    <button type="button" className={`${styles.arrow} ${compact ? styles.arrowCompact : ''}`} aria-label={label} data-tooltip={label} disabled={disabled} onClick={() => onShift(direction)}>
+      {direction < 0 ? <ChevronLeftIcon size={12} /> : <ChevronRightIcon size={12} />}
+    </button>
+  )
 }
 
 /**
@@ -46,47 +68,43 @@ interface PlannerStripProps {
  * `TASK_DROP_KIND.plannerDay`): the day a drop would plan it for is dashed,
  * in one neutral color — no real date changes — (`mark`:
  * `data-planner-drop`). Too narrow for tiles (`showTiles` false), the
- * arrows sit around the range in words.
+ * arrows sit around the range in words. In the portrait layout (board R1)
+ * the arrows move to the top line when it shows (`arrows` false), a narrow
+ * tile keeps its ticks (`portrait`), and a line under each tile marks the
+ * days whose groups show in the day list (`inView`, `data-in-view`).
  */
-export function PlannerStrip({ tabId, window, tiles, offset, showTiles, weekStartsOn, onGo, onShift, mark }: PlannerStripProps) {
+export function PlannerStrip({ tabId, window, tiles, offset, showTiles, weekStartsOn, onGo, onShift, mark, arrows = true, portrait = false, inView }: PlannerStripProps) {
+  // Without tiles the range sits between the arrows, so they stay.
+  const withArrows = arrows || !showTiles
   return (
-    <div className={`${styles.strip} ${showTiles ? '' : styles.stripSlim}`} role="group" aria-label="Days" data-planner-strip={showTiles ? 'tiles' : 'range'}>
-      <button
-        type="button"
-        className={styles.arrow}
-        aria-label="Previous week"
-        data-tooltip="Previous week"
-        disabled={offset <= 0}
-        onClick={() => onShift(-1)}
-      >
-        <ChevronLeftIcon size={12} />
-      </button>
+    <div
+      className={[styles.strip, showTiles ? '' : styles.stripSlim, portrait ? styles.stripPortrait : '', inView ? styles.stripInView : ''].join(' ')}
+      role="group"
+      aria-label="Days"
+      data-planner-strip={showTiles ? 'tiles' : 'range'}
+      data-planner-strip-arrows={withArrows ? undefined : 'top-line'}
+    >
+      {withArrows && <WeekArrow direction={-1} disabled={offset <= 0} onShift={onShift} />}
       {showTiles
         ? tiles.map((tile, i) => (
           <Fragment key={tile.key}>
             {i > 0 && tile.day.getDay() === weekStartsOn && <span className={styles.weekRule} aria-hidden="true" data-planner-week-rule={tile.key} />}
-            <Tile tabId={tabId} window={window} tile={tile} marked={mark?.key === tile.key} onGo={onGo} />
+            <Tile tabId={tabId} window={window} tile={tile} marked={mark?.key === tile.key} inView={inView?.has(tile.key) === true} onGo={onGo} />
           </Fragment>
         ))
         : <span className={styles.stripRange}>{plannerRangeLabel(window)}</span>}
-      <button
-        type="button"
-        className={styles.arrow}
-        aria-label="Next week"
-        data-tooltip="Next week"
-        onClick={() => onShift(1)}
-      >
-        <ChevronRightIcon size={12} />
-      </button>
+      {withArrows && <WeekArrow direction={1} disabled={false} onShift={onShift} />}
     </div>
   )
 }
 
-function Tile({ tabId, window, tile, marked, onGo }: {
+function Tile({ tabId, window, tile, marked, inView, onGo }: {
   tabId: string
   window: PlannerWindow
   tile: PlannerTile
   marked: boolean
+  /** Its day's group shows in the day list: the line under the tile. */
+  inView: boolean
   onGo: (key: string) => void
 }) {
   const weekday = tile.day.getDay()
@@ -108,6 +126,8 @@ function Tile({ tabId, window, tile, marked, onGo }: {
       data-planner-tile={tile.key}
       data-today={tile.isToday ? 'true' : undefined}
       data-weekend={weekday === 0 || weekday === 6 ? 'true' : undefined}
+      data-in-view={inView ? '' : undefined}
+      data-count-wide={tile.count >= 10 ? '' : undefined}
       onClick={() => onGo(tile.key)}
     >
       <span className={styles.tileHead}>

@@ -597,8 +597,9 @@ test('the medium face: one column takes the same drops', async ({ page }) => {
     layouts: [{
       name: 'Week',
       columns: [{ id: 'c1', rows: [{ id: 'r1', cells: [
-        { id: 'k1', weight: 3, tabs: [{ id: 'plan', kind: 'planner' }] },
-        { id: 'k2', weight: 5, tabs: [{ id: 'notes', kind: 'notes' }] },
+        // About 650px wide: narrower than the panes need, not tall enough for the portrait layout.
+        { id: 'k1', weight: 9, tabs: [{ id: 'plan', kind: 'planner' }] },
+        { id: 'k2', weight: 11, tabs: [{ id: 'notes', kind: 'notes' }] },
       ] }] }],
     }],
   })
@@ -1395,4 +1396,136 @@ test('a calendar entry — in the +N more day popover too — opens the task men
   await expect.poll(async () => (await stored(page, 'Six')).doDate).toEqual([0, 0, 0])
   // The due date stands.
   expect((await stored(page, 'Six')).dueDate).toEqual([1, 0, 0])
+})
+
+/**
+ * The portrait layout (board R1, 2026-11-21): in a tall, narrow cell the
+ * days scroll on top and the trays dock under them; the dock's top edge
+ * shares the height (saved as view state), its chevron folds it to one bar
+ * that still takes a drop to Unplanned; the week arrows sit in the top
+ * line, and a line under the tiles marks the days in view.
+ */
+test.describe('the portrait layout', () => {
+  /** Enough tasks due in three days that the day list scrolls, Today out of sight at its end. */
+  const MANY: NonNullable<WorkspaceSeed['tasks']> = [
+    ...TASKS,
+    ...Array.from({ length: 14 }, (_, i) => ({ title: `Due later ${i + 1}`, dueInDays: 3, modifiedAt: STAMP })),
+  ]
+  const TALL: WorkspaceSeed = {
+    tasks: MANY,
+    listDefinitions: [{ name: 'Everything', sort: 'manual' }],
+    layouts: [{
+      name: 'Week',
+      columns: [
+        { id: 'c1', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'plan', kind: 'planner' }] })] },
+        { id: 'c2', weight: 3, rows: [wsRow({ id: 'k2', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
+      ],
+    }],
+  }
+  const dock = (page: Page) => planner(page).locator('[data-planner-dock]')
+  const dockGrip = (page: Page) => planner(page).getByRole('separator', { name: 'Resize the trays' })
+  const bar = (page: Page) => planner(page).locator('[data-planner-dock-bar]')
+  const storedView = async (page: Page) => {
+    const layouts = await readStore<{ cells: Array<{ tabs: Array<{ id: string; viewState?: { dockShare?: number; dockFolded?: boolean } }> }> }>(page, 'layouts')
+    return layouts.flatMap((l) => l.cells).flatMap((c) => c.tabs).find((t) => t.id === 'plan')?.viewState ?? {}
+  }
+
+  test('the days over the trays dock; the week arrows in the top line; the days-in-view line follows the scroll', async ({ page }) => {
+    await seedWorkspace(page, TALL)
+    await expect(planner(page)).toHaveAttribute('data-planner-face', 'medium')
+    await expect(planner(page).locator('[data-planner-layout="stack"]')).toBeVisible()
+    await expect(daysPane(page).locator('[data-planner-group-kind="today"]')).toBeVisible()
+    await expect(dock(page).locator('[data-planner-group="unplanned"]')).toBeVisible()
+    // The dock sits under the days, the full width.
+    const days = await box(daysPane(page))
+    const trays = await box(dock(page))
+    expect(trays.y).toBeGreaterThanOrEqual(days.y + days.height - 1)
+    expect(Math.abs(trays.width - days.width)).toBeLessThan(2)
+
+    // The arrows are the top line's; the strip is all tiles, and they show their ticks.
+    const strip = planner(page).getByRole('group', { name: 'Days' })
+    await expect(strip).toHaveAttribute('data-planner-strip-arrows', 'top-line')
+    await expect(strip.getByRole('button', { name: 'Next week' })).toHaveCount(0)
+    const today = await dayKeyIn(page, 0)
+    await expect(tile(page, today).locator('[data-mark]').first()).toBeVisible()
+
+    // Today's group shows, the last day's doesn't; scrolled to the end, the other way round.
+    const last = await dayKeyIn(page, 6)
+    await expect(tile(page, today)).toHaveAttribute('data-in-view', '')
+    await expect(tile(page, last)).not.toHaveAttribute('data-in-view', '')
+    await daysPane(page).evaluate((el) => { el.scrollTop = el.scrollHeight })
+    await expect(tile(page, last)).toHaveAttribute('data-in-view', '')
+    await expect(tile(page, today)).not.toHaveAttribute('data-in-view', '')
+
+    // The top line's › moves the week.
+    await planner(page).getByRole('button', { name: 'Next week' }).click()
+    await expect(tile(page, today)).toHaveCount(0)
+  })
+
+  test('the dock’s edge shares the height: dragged, it stays after a reload; a double-click resets it', async ({ page }) => {
+    await seedWorkspace(page, TALL)
+    const before = (await box(dock(page))).height
+    const g = await pointIn(dockGrip(page), 0.3)
+    // Esc mid-drag puts it back and saves nothing.
+    await page.mouse.move(g.x, g.y)
+    await page.mouse.down()
+    await page.mouse.move(g.x, g.y - 100, { steps: 4 })
+    await expect.poll(async () => (await box(dock(page))).height).toBeGreaterThan(before + 80)
+    await page.keyboard.press('Escape')
+    await expect.poll(async () => Math.round((await box(dock(page))).height)).toBe(Math.round(before))
+    await page.mouse.up()
+    expect((await storedView(page)).dockShare).toBeUndefined()
+
+    await page.mouse.move(g.x, g.y)
+    await page.mouse.down()
+    await page.mouse.move(g.x, g.y - 60, { steps: 4 })
+    await page.mouse.move(g.x, g.y - 150, { steps: 4 })
+    // Live while it is dragged.
+    await expect.poll(async () => (await box(dock(page))).height).toBeGreaterThan(before + 120)
+    await page.mouse.up()
+    await expect.poll(async () => (await storedView(page)).dockShare ?? 0).toBeGreaterThan(0.45)
+    await expectLayoutStored(page)
+    const after = (await box(dock(page))).height
+    expect(Math.abs(after - (before + 150))).toBeLessThan(4)
+
+    await page.reload()
+    await expect(dock(page)).toBeVisible()
+    await expect.poll(async () => Math.round((await box(dock(page))).height)).toBe(Math.round(after))
+
+    // The arrow keys step it; a double-click puts the default back.
+    await dockGrip(page).focus()
+    await page.keyboard.press('ArrowDown')
+    await expect.poll(async () => (await box(dock(page))).height).toBeLessThan(after - 10)
+    await dockGrip(page).dblclick({ position: { x: 20, y: 7 } })
+    await expect.poll(async () => Math.round((await box(dock(page))).height)).toBe(Math.round(before))
+  })
+
+  test('folded, the dock is one bar: it stays folded after a reload, takes a row as a drop on Unplanned, and unfolds on a click', async ({ page }) => {
+    await seedWorkspace(page, TALL)
+    await planner(page).getByRole('button', { name: 'Fold the trays' }).click()
+    await expect(bar(page)).toBeVisible()
+    await expect(dock(page)).toHaveCount(0)
+    await expect.poll(async () => (await storedView(page)).dockFolded).toBe(true)
+    await expectLayoutStored(page)
+    await page.reload()
+    await expect(bar(page)).toBeVisible()
+    await expect(bar(page)).toHaveAccessibleName('Show the trays: Unplanned 1')
+
+    // A dated row dropped on the bar is held in Unplanned, its date kept.
+    const inTwo = await dayKeyIn(page, 2)
+    await rowOf(group(page, inTwo), 'Book the venue').scrollIntoViewIfNeeded()
+    await drag(page, await grip(rowOf(group(page, inTwo), 'Book the venue')), await pointIn(bar(page)), {
+      during: async () => {
+        await expectMarked(bar(page))
+        await expect(label(page)).toHaveText('Unplan')
+      },
+    })
+    await expect.poll(async () => (await stored(page, 'Book the venue')).held).toBe(true)
+    expect((await stored(page, 'Book the venue')).dueDate).toEqual([2, 0, 0])
+    await expect(bar(page)).toHaveAccessibleName('Show the trays: Unplanned 2')
+
+    await bar(page).click()
+    await expect(rowOf(dock(page).locator('[data-planner-group="unplanned"]'), 'Book the venue')).toBeVisible()
+    await expect.poll(async () => (await storedView(page)).dockFolded).toBeUndefined()
+  })
 })

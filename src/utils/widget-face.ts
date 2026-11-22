@@ -129,6 +129,23 @@ export function plannerFaceFor(size: { width: number; height: number }): WidgetF
   return width < PLANNER_PANES_MIN_WIDTH_PX || height < PLANNER_PANES_MIN_HEIGHT_PX ? 'medium' : 'large'
 }
 
+/** A Planner's body at least this tall (and narrower than the panes need) can take the portrait layout. */
+const PLANNER_PORTRAIT_MIN_HEIGHT_PX = 560
+/** …when it is at least this many times as tall as it is wide. */
+const PLANNER_PORTRAIT_MIN_RATIO = 1.4
+
+/**
+ * Whether a Planner of `size` draws its medium face in the **portrait
+ * layout** (board R1, 2026-11-21): the days scrolling on top, the trays
+ * docked under them. A tall, narrow cell — under the panes' width
+ * (`PLANNER_PANES_MIN_WIDTH_PX`), at least 560px tall and 1.4 × as tall
+ * as wide. Unmeasured, no.
+ */
+export function plannerPortrait(size: { width: number; height: number }): boolean {
+  const { width, height } = size
+  return width > 0 && width < PLANNER_PANES_MIN_WIDTH_PX && height >= PLANNER_PORTRAIT_MIN_HEIGHT_PX && height >= width * PLANNER_PORTRAIT_MIN_RATIO
+}
+
 /** Whether a Planner of `width` has room for its strip (`PLANNER_STRIP_MIN_WIDTH_PX`); unmeasured (0) it has. */
 export function plannerStripFits(width: number): boolean {
   return width <= 0 || width >= PLANNER_STRIP_MIN_WIDTH_PX

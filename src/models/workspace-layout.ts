@@ -188,11 +188,23 @@ export interface ReviewTabViewState {
  * A Planner's view state (saved at once, no undo step): its hand order —
  * task `uid`s, one sequence for the whole widget, each group listing its
  * tasks in that order and the rest after them (`utils/planner.plannerOrder`).
- * Its window is never saved (`stores/planner-store`).
+ * Its window is never saved (`stores/planner-store`). In a tall, narrow
+ * cell (the portrait layout, board R1) the trays dock under the days:
+ * `dockShare` is the dock's share of the height (absent: the default,
+ * `PLANNER_DOCK_SHARE`), `dockFolded` folds it to one bar.
  */
 export interface PlannerTabViewState {
   order?: string[]
+  dockShare?: number
+  dockFolded?: true
 }
+
+/** The trays dock's share of a portrait Planner's height when the tab stores none. */
+export const PLANNER_DOCK_SHARE = 0.38
+
+/** The least and most a stored `dockShare` may be (the widget keeps each side's minimum height on top of these). */
+export const PLANNER_DOCK_SHARE_MIN = 0.1
+export const PLANNER_DOCK_SHARE_MAX = 0.9
 
 /** The most `uid`s a Planner's hand order keeps (the layout repair cuts a longer one). */
 export const PLANNER_ORDER_MAX = 1000
