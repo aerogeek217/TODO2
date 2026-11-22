@@ -103,7 +103,8 @@ export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDra
  * takes the task **out of view** (`plan.hidden`: a day the Planner shows it
  * on nowhere — a Snooze past the window with no real date inside it) shows
  * the snackbar, named for the day, with its Undo (`Planned for Fri, Nov
- * 27`): nothing leaves the Planner silently. A plan write that fails
+ * 27`): nothing leaves the Planner silently — in a Planner only (`tabId`;
+ * outside one there is no Planner to leave). A plan write that fails
  * (`setPlan` says so and tells the user) takes the hand order back to what
  * the tab stored before, so the row doesn't keep a place among the rows of
  * a group it never reached.
@@ -114,7 +115,7 @@ export async function applyPlannerMove(tabId: string | null, todoId: number, pla
   if (order && tabId != null) void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { order })
   const write = plannerDropWrite(drop)
   if (write === undefined) return
-  const saved = hidden
+  const saved = hidden && tabId != null
     ? await useTodoStore.getState().setPlan([todoId], write, `Planned for ${plannerDayLabel(hidden)}`, true)
     : await useTodoStore.getState().setPlan([todoId], write)
   // Only while the tab still stores this move's order: a later drop's stays.
@@ -125,8 +126,9 @@ export async function applyPlannerMove(tabId: string | null, todoId: number, pla
 
 /**
  * Plans and makes `move` (Plan for day ›, Unplan); resolves once it is
- * written. `tabId` null: a task menu or the task editor outside a Planner,
- * read against the window of this week (no hand order to keep).
+ * written. `tabId` null: a task menu, the task editor or the review card
+ * outside a Planner, read against the window of this week (no hand order
+ * to keep). A menu's day is a `pick` (`PlannerTarget`): planned outright.
  */
 export function movePlannerTask(tabId: string | null, move: PlannerMove): Promise<void> {
   const plan = planPlannerMove(tabId, move)
@@ -230,11 +232,14 @@ export async function resetPlannerPlan(view: PlannerRows, scope: PlannerResetSco
  *   takes the task out of view (the date moved past the window, for a row
  *   planned later) shows the snackbar with its Undo (`Moved the due date to
  *   Fri, Nov 27`);
- * - `plan` — the task planned for that date's day instead, through the
- *   drop rule (on its natural day the plan is cleared).
+ * - `plan` — the task planned for that date's day instead, outright (a
+ *   pick: its own date's day is a plan like any other).
+ *
+ * `tabId` null: the fix offered by the task layout's Planned cell, outside
+ * a Planner (this week's window); its date move is the plain edit.
  */
-export async function applyPlannerFix(tabId: string, todoId: number, fix: PlannerFix, window: PlannerSpan): Promise<void> {
-  if (fix.kind === 'plan') return movePlannerTask(tabId, { todoId, target: { kind: 'day', day: fix.day }, window })
+export async function applyPlannerFix(tabId: string | null, todoId: number, fix: PlannerFix, window: PlannerSpan): Promise<void> {
+  if (fix.kind === 'plan') return movePlannerTask(tabId, { todoId, target: { kind: 'day', day: fix.day, pick: true }, window })
   const store = useTodoStore.getState()
   const todo = store.todos.find((t) => t.id === todoId)
   if (!todo) return
@@ -243,7 +248,7 @@ export async function applyPlannerFix(tabId: string, todoId: number, fix: Planne
   const changes = plannerFixClearsPlan(todo, fix, window) ? { ...date, doDate: undefined, unplanned: undefined } : date
   const undo = useUndoStore.getState()
   // The edit leaves the task in view, or a compound step is already running: the plain edit.
-  if (plannerShows({ ...todo, ...changes }, window) || undo.groupToken != null || undo.isPerformingUndoRedo) {
+  if (tabId == null || plannerShows({ ...todo, ...changes }, window) || undo.groupToken != null || undo.isPerformingUndoRedo) {
     await store.update(todoId, changes)
     return
   }

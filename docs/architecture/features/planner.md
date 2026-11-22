@@ -16,7 +16,8 @@ Never both. Neither field is indexed. The plan state is shown nowhere but the Pl
 
 It is set in the Planner, or from **Plan for day ›** outside it (`task/plan-menu.planForDayEntries`): in every task menu — a list row's, a calendar entry's (the day popover's too), a search result's — and in the task editor's and the [review card](review.md)'s ⋯. That submenu offers:
 
-- this week's days, read against this week's window;
+- this week's days, read against this week's window, the task's due and follow-up days noted (`due`, `follow-up`) and its planned day checked. A pick **plans that day outright**, the task's own date's day too (a `pick` target, `PlannerTarget.pick`); only a [drag](#the-drop-rule) onto that day clears the plan;
+- **Pick a date…** — any day from today on, in the browser's date picker (`shared/pick-date`: one hidden date input of the page's own, since the menu is gone by then), planned the same way;
 - **Unplanned** — any open task joins the Planner there;
 - with a plan state, **Clear plan** — reading **Remove from Planner** when that takes the task out of it (`utils/planner.plannerClearLeaves` → `services/planner-drop.clearPlannerTask`), the snackbar saying so.
 
@@ -74,7 +75,7 @@ The planned day is the `doDate`'s day (`plannerPlannedDay`). A plan on the very 
 A row on its planned day — and one planned later — carries its **conflicts** (`PlannerConflict`): each real date the plan falls after (the due date, the follow-up), by how many days, with the fixes on offer:
 
 - move that date to the planned day (always);
-- plan for that date's day (only when it is today or later).
+- plan for that date's day, outright (only when it is today or later).
 
 The row shows them in its [tag](planner-widget.md#four-planner-only-things); what a fix writes is under [A conflict's fix](#a-conflicts-fix).
 
@@ -163,6 +164,8 @@ Every day tile and every group — Today (today), each day ahead (an empty day's
 | | any other | held too — Unplanned is how a task with no date joins the Planner, flagged |
 | **Delayed** | any | **takes no drop**; a row already in it only reorders |
 
+**A menu's pick is not a drop.** Plan for day ›, Pick a date… and a conflict's Plan for {day} plan the day outright (`target.pick`): `T` its natural day too. Nothing is written only when it is planned for `T` already, and a day before today is refused.
+
 **No due date and no follow-up is ever written.** Each drop is one task write of both plan fields and one undo step (`todo-store.setPlan`: [the plan write](#the-plan-write), no stamp, no history event).
 
 ### The row's place
@@ -190,7 +193,7 @@ Both go through the same decision (`plannerSnooze`, `plannerUnplan`), so a snooz
 ### Nothing leaves the Planner silently
 
 - A Snooze from the window's last day keeps a task with a real date in the window where that date puts it, planned later.
-- One with no such date goes out of view (the strip's `›` shows it). The move that took it there — Snooze, a drop, Plan for day › — shows the snackbar naming the day, with Undo (`Planned for Fri, Nov 27`; `plannerMovePlan`'s `hidden`, from `plannerShows`).
+- One with no such date goes out of view (the strip's `›` shows it). The move that took it there — Snooze, a drop, Plan for day › — shows the snackbar naming the day, with Undo (`Planned for Fri, Nov 27`; `plannerMovePlan`'s `hidden`, from `plannerShows`). Outside a Planner there is none to leave, so a day picked past the week shows no snackbar.
 - A fix that moves a date past the window does the same (`Moved the due date to Fri, Nov 27`).
 
 ### Unplan all Delayed and Reset plan
@@ -211,3 +214,5 @@ Unplan all Delayed and each reset are one write and one undo step, with the snac
 
 - When the task's own dates then put it on its planned day in the window (its natural day), the plan is cleared in the same edit (one undo step), so the row is no longer placed (`plannerFixClearsPlan`).
 - With another, earlier date still putting it elsewhere, or the planned day past the window, the plan stays.
+
+The task layout's Planned cell offers the same fixes outside a Planner (`applyPlannerFix` with no tab, this week's window): a date moved out of view there shows no snackbar.

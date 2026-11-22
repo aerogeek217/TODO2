@@ -277,8 +277,8 @@ describe('the tag after the title', () => {
       const { update, setPlan } = watch()
       show()
       fireEvent.click(within(open('Past its follow-up')).getByRole('menuitem', { name: 'Plan for Tue, Nov 24' }))
-      // Tue 24 is the day its follow-up puts it: the plan is cleared.
-      expect(setPlan).toHaveBeenCalledWith([7], null)
+      // Tue 24 is the day its follow-up puts it: planned there outright.
+      expect(setPlan).toHaveBeenCalledWith([7], { day: day(4) })
       expect(update).not.toHaveBeenCalled()
     })
 
@@ -333,7 +333,7 @@ describe('a row planned later — for a day past the days shown', () => {
     const menu = screen.getByRole('menu', { name: 'Fix the plan' })
     expect(within(menu).getAllByRole('menuitem').map((i) => i.getAttribute('data-menu-label'))).toEqual(['Move due date to Fri, Nov 27', 'Plan for Thu, Nov 26'])
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Plan for Thu, Nov 26' }))
-    expect(setPlan).toHaveBeenCalledWith([1], null)
+    expect(setPlan).toHaveBeenCalledWith([1], { day: day(6) })
     expect(update).not.toHaveBeenCalled()
     // An overdue date has only the move.
     fireEvent.click(tagOf('Overdue, planned next week')!)

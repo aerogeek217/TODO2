@@ -558,7 +558,7 @@ test('Snooze, Unplan and Plan for day › from the keyboard: the plan moves, no 
   await expect(unplan).toHaveAttribute('aria-description', /Unplanned already/)
   await expect(menu.getByRole('menuitem', { name: /^Snooze/ })).toHaveCount(0)
 
-  // Plan for day ›: with →, its submenu — a pick plans the task; no No day.
+  // Plan for day ›: with →, its submenu — a pick plans the task outright; no No day.
   await arrowTo(menu.getByRole('menuitem', { name: /^Plan for day/ }))
   await page.keyboard.press('ArrowRight')
   let sub = page.getByRole('menu').last()
@@ -567,23 +567,24 @@ test('Snooze, Unplan and Plan for day › from the keyboard: the plan moves, no 
   await expect(sub.getByRole('menuitemradio')).toHaveCount(7)
   await expect(sub.getByRole('menuitemradio', { name: 'No day' })).toHaveCount(0)
   await expect(sub.getByRole('menuitemradio', { checked: true })).toHaveCount(0)
-  // Its own due date's day: it goes back there, no longer held and with no plan.
-  await arrowTo(sub.getByRole('menuitemradio', { name: await dayWords(page, 2) }))
+  // Its own due date's day (noted `due`): planned for it outright, no longer held (a drag there would clear the plan).
+  await expect(sub.getByRole('menuitemradio', { name: new RegExp(`^${await dayWords(page, 2)}`) })).toContainText('due')
+  await arrowTo(sub.getByRole('menuitemradio', { name: new RegExp(`^${await dayWords(page, 2)}`) }))
   await page.keyboard.press('Enter')
   await expect(page.getByRole('menu')).toHaveCount(0)
   await expect(titles(group(page, inTwo))).toContainText(['Book the venue'])
   await expect.poll(async () => (await stored(page, 'Book the venue')).held).toBe(false)
-  expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Book the venue')).toEqual({ doDate: [2, 0, 0], held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
 
-  // A row there by its follow-up: the same words, the day it sits on checked; a pick plans it and leaves the follow-up.
+  // A row there by its follow-up: the same words, its follow-up's day noted and nothing checked (no plan); a pick plans it and leaves the follow-up.
   menu = await openMenu(rowOf(todayGroup(page), 'Chase the invoice'))
   await arrowTo(menu.getByRole('menuitem', { name: /^Plan for day/ }))
   await page.keyboard.press('ArrowRight')
   sub = page.getByRole('menu').last()
   await expect(sub).toContainText('Plans it for that day')
-  await expect(sub).not.toContainText(/follow-up/i)
-  await expect(sub.getByRole('menuitemradio', { name: /^Today/ })).toHaveAttribute('aria-checked', 'true')
-  await arrowTo(sub.getByRole('menuitemradio', { name: await dayWords(page, 3) }))
+  await expect(sub.getByRole('menuitemradio', { name: /^Today/ })).toContainText('follow-up')
+  await expect(sub.getByRole('menuitemradio', { checked: true })).toHaveCount(0)
+  await arrowTo(sub.getByRole('menuitemradio', { name: new RegExp(`^${await dayWords(page, 3)}`) }))
   await page.keyboard.press('Enter')
   await expect(page.getByRole('menu')).toHaveCount(0)
   await expect(titles(group(page, inThree))).toHaveText(['Chase the invoice'])
@@ -1083,14 +1084,14 @@ test('Plan for … moves the plan to the date’s day and leaves the date alone'
   const inThree = await dayKeyIn(page, 3)
   await tagOf(rowOf(group(page, inThree), 'Migrate the invoices')).click()
   await page.getByRole('menu', { name: 'Fix the plan' }).getByRole('menuitem', { name: `Plan for ${await dayWords(page, 2)}` }).click()
-  // On the day it is due: its own date puts it there, so the plan is cleared — no flag, no tag.
+  // Planned outright for the day it is due: flagged, no conflict left, so no tag.
   const row = rowOf(group(page, inTwo), 'Migrate the invoices')
   await expect(row).toBeVisible()
   await expect(tagOf(row)).toHaveCount(0)
-  await expect(flagOf(row)).toHaveCount(0)
+  await expect(flagOf(row)).toHaveCount(1)
   await expect(group(page, inThree)).toHaveAttribute('data-planner-empty', '')
-  await expect.poll(async () => (await stored(page, 'Migrate the invoices')).doDate).toBeNull()
-  expect(await stored(page, 'Migrate the invoices')).toEqual({ doDate: null, held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  await expect.poll(async () => (await stored(page, 'Migrate the invoices')).doDate).toEqual([2, 0, 0])
+  expect(await stored(page, 'Migrate the invoices')).toEqual({ doDate: [2, 0, 0], held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
 })
 
 // ── The keyboard: the focus follows the row ─────────────────────────────────

@@ -10,14 +10,14 @@ import {
 } from '../../../utils/planner'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import { WidgetKindIcon } from '../../shared/icons'
-import { clearPlanLabel, PLAN_FOR_DAY_LABEL, planDayItems, plannerWhereWords } from '../../task/plan-menu'
+import { clearPlanLabel, PLAN_FOR_DAY_LABEL, planDayItems, pickPlanDateItem, plannerWhereWords } from '../../task/plan-menu'
 
 /** Why Unplan is off: the row is where Unplan would put it. */
 export const UNPLAN_OFF = 'It is in Unplanned already.'
 
 /** What the menu's entries do: the Planner's writes for the row (`services/planner-drop`). */
 export interface PlannerMenuActions {
-  /** Plan for day ›: the drop rule on the picked day. */
+  /** Plan for day ›: the day picked, planned outright (a `pick` target). */
   move: (target: PlannerTarget) => void
   /** Snooze: the next day. */
   snooze: () => void
@@ -33,10 +33,11 @@ export interface PlannerMenuActions {
  * of the task menu's own Plan for day ›, `task/plan-menu`):
  *
  * - **Plan for day ›** — a muted first line (`PLAN_FOR_DAY_LABEL`), Today,
- *   then the window's days after it, in words — the day the row sits on
- *   checked. A pick is the drop rule (`plannerDrop`): the task is planned
- *   for the day, or — on the day its own date puts it — loses its plan.
- *   The item names where the row is (a day, `Delayed`, `Unplanned`);
+ *   then the window's days after it, in words — the planned day checked —,
+ *   then **Pick a date…**. A pick plans the task for that day outright, its
+ *   own date's day too (`planDayItems`; only a drag onto that day clears
+ *   the plan). The item names where the row is (a day, `Delayed`,
+ *   `Unplanned`);
  * - **Snooze** — the day after the one it sits on, never before tomorrow
  *   (`plannerSnoozeDay`, through the drop rule); the item names that day;
  *   none on a row in Unplanned (nothing there is planned to put off);
@@ -74,7 +75,12 @@ export function plannerMenuEntries(
       icon: <WidgetKindIcon kind="planner" />,
       note: plannerWhereWords(placement, today),
       childrenWidth: 216,
-      children: [{ kind: 'label', text: PLAN_FOR_DAY_LABEL }, ...planDayItems(todo, window, actions.move)],
+      children: [
+        { kind: 'label', text: PLAN_FOR_DAY_LABEL },
+        ...planDayItems(todo, window, actions.move),
+        { kind: 'separator' },
+        pickPlanDateItem(todo, today, actions.move),
+      ],
     },
     ...snooze,
     {

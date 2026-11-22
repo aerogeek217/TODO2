@@ -106,7 +106,7 @@ export function plannerPlannedDay(task: Pick<PlannerTask, 'doDate'>): Date | nul
 export type PlannerFix =
   /** Move that date to the planned day: a real edit of the task (stamped, undoable, in its history). */
   | { kind: 'move-date'; date: PlannerDateKind; to: Date }
-  /** Plan the task for that date's day instead (the drop rule: on its natural day the plan is cleared). */
+  /** Plan the task for that date's day instead: planned outright (a pick, `plannerDrop`), as Plan for day › plans it. */
   | { kind: 'plan'; day: Date }
 
 /** A real date the task's planned day falls after. */
@@ -499,6 +499,17 @@ export type PlannerRowTag =
   /** A row planned later — for a day past the window, shown on its natural day meanwhile: the planned day, and the fixes of the dates that plan passes. */
   | { kind: 'later'; day: Date; fixes: PlannerFix[] }
 
+/** Every fix the conflicts offer, in order, the same one once (two dates' Plan for the same day). */
+export function plannerConflictFixes(conflicts: readonly PlannerConflict[]): PlannerFix[] {
+  const seen = new Set<string>()
+  return conflicts.flatMap((c) => c.fixes).filter((fix) => {
+    const key = fix.kind === 'plan' ? `plan|${dayTime(fix.day)}` : `move|${fix.date}|${dayTime(fix.to)}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 /**
  * The tag of a row placed as `placement` says, or null: a Delayed row's
  * planned day; a held row's natural day; a row planned past a real date,
@@ -512,13 +523,7 @@ export function plannerRowTag(placement: PlannerPlacement | null | undefined): P
   if (placement.where === 'unplanned') {
     return placement.reason === 'held' && placement.natural ? { kind: 'natural', day: placement.natural.day } : null
   }
-  const seen = new Set<string>()
-  const fixes = placement.conflicts.flatMap((c) => c.fixes).filter((fix) => {
-    const key = fix.kind === 'plan' ? `plan|${dayTime(fix.day)}` : `move|${fix.date}|${dayTime(fix.to)}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+  const fixes = plannerConflictFixes(placement.conflicts)
   if (plannerPlannedLater(placement) && placement.planned) return { kind: 'later', day: placement.planned, fixes }
   const conflict = placement.conflicts[0]
   return conflict ? { kind: 'conflict', conflict, fixes } : null
@@ -577,8 +582,12 @@ export function plannerRowTagHint(tag: PlannerRowTag, today: Date): string {
 
 // ── Drops: the one decision ─────────────────────────────────────────────
 
-/** Where a row is dropped: a day (a tile, a day's group, Today), the Unplanned tray, or the Delayed tray. */
-export type PlannerTarget = { kind: 'day'; day: Date } | { kind: 'unplanned' } | { kind: 'delayed' }
+/**
+ * Where a row is dropped: a day (a tile, a day's group, Today), the
+ * Unplanned tray, or the Delayed tray. A day `pick`ed in a menu (Plan for
+ * day ›, a conflict's Plan for {day}) is planned outright, not dropped.
+ */
+export type PlannerTarget = { kind: 'day'; day: Date; pick?: true } | { kind: 'unplanned' } | { kind: 'delayed' }
 
 /** A target's key: its day's `dayKey` — Today's group and today's tile share it —, or its tray's key. */
 export function plannerTargetKey(target: PlannerTarget): string {
@@ -622,6 +631,11 @@ export type PlannerDrop =
  *   `plannerClearLeaves`);
  * - **Delayed** takes no drop.
  *
+ * A day **picked** in a menu (`target.pick`: Plan for day ›, Pick a date…,
+ * a conflict's Plan for {day}) plans the task for that day outright — its
+ * natural day too; nothing only when it is planned for that day already. A
+ * day before today is refused there as well.
+ *
  * Never a due date or a follow-up.
  */
 export function plannerDrop(task: PlannerTask, span: PlannerSpan, target: PlannerTarget): PlannerDrop {
@@ -637,6 +651,7 @@ export function plannerDrop(task: PlannerTask, span: PlannerSpan, target: Planne
   }
   const day = dayOf(target.day)
   if (day.getTime() < dayTime(span.today)) return { kind: 'refuse' }
+  if (target.pick) return plannerPlannedDay(task)?.getTime() === day.getTime() ? { kind: 'none' } : { kind: 'plan', day }
   const sits = at?.where === 'day' && at.day?.getTime() === day.getTime()
   // Planned for its natural day and sitting there: a plan like any other, kept.
   if (sits && at?.reason === 'plan') return { kind: 'none' }

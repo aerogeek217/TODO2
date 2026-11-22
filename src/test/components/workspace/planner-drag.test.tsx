@@ -235,7 +235,7 @@ describe('Plan for day ›, Snooze and Unplan in a row’s task menu', () => {
     return { setPlan, update }
   }
 
-  it('Plan for day › is in the menu of a Planner’s row, with the days — and no No day', () => {
+  it('Plan for day › is in the menu of a Planner’s row, with the days and Pick a date… — and no No day', () => {
     show()
     const sub = openMove('Monday deadline')
     expect(within(sub).getByText('Plans it for that day')).toBeInTheDocument()
@@ -243,7 +243,10 @@ describe('Plan for day ›, Snooze and Unplan in a row’s task menu', () => {
     expect(items.map((i) => i.getAttribute('data-menu-label'))).toEqual([
       'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26',
     ])
-    expect(within(sub).getByRole('menuitemradio', { name: /^Mon, Nov 23/ })).toHaveAttribute('aria-checked', 'true')
+    expect(within(sub).getByRole('menuitem', { name: 'Pick a date…' })).toBeInTheDocument()
+    // On Monday by its due date, not planned: Monday is noted, nothing checked.
+    expect(within(sub).getByRole('menuitemradio', { name: /^Mon, Nov 23/ })).toHaveAttribute('aria-checked', 'false')
+    expect(within(sub).getByRole('menuitemradio', { name: /^Mon, Nov 23/ })).toHaveTextContent('due')
   })
 
   it('a pick plans the task for the day — a row there by its due date and one there by its follow-up alike, no date moved', () => {
@@ -255,23 +258,26 @@ describe('Plan for day ›, Snooze and Unplan in a row’s task menu', () => {
 
     const sub = openMove('Chase legal')
     expect(within(sub).getByText('Plans it for that day')).toBeInTheDocument()
-    expect(within(sub).queryByText(/follow-up/i)).toBeNull()
+    expect(within(sub).queryByText(/move/i)).toBeNull()
     fireEvent.click(within(sub).getByRole('menuitemradio', { name: /^Sat, Nov 21/ }))
     expect(setPlan).toHaveBeenCalledTimes(2)
     expect(setPlan).toHaveBeenLastCalledWith([2], { day: day(1) })
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('a pick of the day its own date puts it clears the plan; the day the row is on writes nothing', () => {
+  it('a pick of the day its own date puts it plans it there outright; the day it is planned for writes nothing', () => {
     const { setPlan, update } = watch()
     show()
-    // Monday plan sits on Monday already.
+    // Monday plan is planned for Monday already.
     fireEvent.click(within(openMove('Monday plan')).getByRole('menuitemradio', { name: /^Mon, Nov 23/ }))
     expect(setPlan).not.toHaveBeenCalled()
-    // Held call: its follow-up is Sunday — picking Sunday lets it go back there.
+    // Held call: its follow-up is Sunday — picking Sunday plans it for Sunday (a drag there would clear the plan).
     fireEvent.click(within(openMove('Held call')).getByRole('menuitemradio', { name: /^Sun, Nov 22/ }))
     expect(setPlan).toHaveBeenCalledTimes(1)
-    expect(setPlan).toHaveBeenLastCalledWith([8], null)
+    expect(setPlan).toHaveBeenLastCalledWith([8], { day: day(2) })
+    // Monday deadline sits on Monday by its due date: picking Monday plans it there.
+    fireEvent.click(within(openMove('Monday deadline')).getByRole('menuitemradio', { name: /^Mon, Nov 23/ }))
+    expect(setPlan).toHaveBeenLastCalledWith([4], { day: day(3) })
     expect(update).not.toHaveBeenCalled()
   })
 
