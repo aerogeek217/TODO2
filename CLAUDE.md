@@ -5,6 +5,9 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 ## Architecture
 @docs/ARCHITECTURE.md
 
+- That file is the map. **Before changing a feature, read its file under `docs/architecture/features/`** (the map's Features table lists them). For a module, read its row in the layer tables under `docs/architecture/`.
+- The docs have word budgets, held by `src/test/architecture/doc-budgets.test.ts`. How a feature behaves goes in its feature file; a new module gets one row in its layer table; the map changes only when a folder, a layer or a feature file does. Describe the app as it is: no plan names, dates or notes about what was removed.
+
 ## Build & Test Commands
 - Node: ≥ 22.13 (`engines` in package.json — the floor jsdom and Vite set on Node 22). The GitHub Pages deploy (`.github/workflows/deploy.yml`) runs on Node 22 / ubuntu-latest (UTC): `npm ci` → `npm test` → `npm run test:shuffle` (a failing vitest run blocks the deploy; Playwright is not run there) → `npm run build`.
 - Install: `npm install`
