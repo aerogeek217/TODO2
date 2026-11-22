@@ -405,13 +405,12 @@ test.describe('phone', () => {
       const b = await box(t)
       expect(b.x).toBeGreaterThanOrEqual(0)
       expect(b.x + b.width).toBeLessThanOrEqual(width)
-      // Wide enough to read its weekday, date and count, and to tap.
-      expect(b.width).toBeGreaterThanOrEqual(36)
+      // Wide enough to read its weekday, date and count, carry its ticks, and to tap.
+      expect(b.width).toBeGreaterThanOrEqual(38)
     }
     await expect(tiles.first().getByTestId('planner-tile-count')).toHaveText('3')
-    // No ticks at this width (its marks are there, undrawn); the count says it.
-    await expect(tiles.first().locator('[data-mark]').first()).toBeAttached()
-    await expect(tiles.first().locator('[data-mark]').first()).toBeHidden()
+    // A 390px phone has room for every tile's ticks, so the strip shows and they are drawn.
+    await expect(tiles.first().locator('[data-mark]').first()).toBeVisible()
     // Today, then only the days with tasks, then Unplanned — the phone's rows, nothing draggable.
     await expect(plannerGroups(page)).toHaveCount(3)
     await expect(todayGroup(page).locator('[data-task-title]')).toHaveText(['Renew the domain', 'Chase the invoice', 'Write the brief'])
