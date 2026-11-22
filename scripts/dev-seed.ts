@@ -58,7 +58,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 86
+export const DEV_SEED_SCHEMA_VERSION = 87
 
 // ── Deterministic randomness ────────────────────────────────────────────
 

@@ -120,7 +120,7 @@ A schema step N declares `this.version(N).stores({ …only what N changes })` af
 
 - `this.version(72).stores({ statusUpdates: '++id, todoId, date' })` adds the `statusUpdates` table.
 - `this.version(73).stores({ subtasks: '++id, todoId' })` adds the `subtasks` table.
-- Every other step from 69 to 86 declares `stores({})`, no store change: `this.version(69).stores({})`, `this.version(70).stores({})`, `this.version(71).stores({})` and so on.
+- Every other step from 69 to 87 declares `stores({})`, no store change: `this.version(69).stores({})`, `this.version(70).stores({})`, `this.version(71).stores({})` and so on.
 
 What each step's transform does is under [What each upgrade does](#what-each-upgrade-does).
 
@@ -130,7 +130,7 @@ What each step's transform does is under [What each upgrade does](#what-each-upg
 
 ### The pipeline
 
-- `SCHEMA_UPGRADES` is a `ReadonlyMap<number, SchemaUpgrade>` from a target version to its transform, `(data: DataSet) => DataSet`. A `DataSet` is table name → plain rows (`DataRow`). It has eighteen entries, v69 to v86.
+- `SCHEMA_UPGRADES` is a `ReadonlyMap<number, SchemaUpgrade>` from a target version to its transform, `(data: DataSet) => DataSet`. A `DataSet` is table name → plain rows (`DataRow`). It has nineteen entries, v69 to v87.
 - A transform is pure and immutable and takes the whole dataset. It tolerates missing tables (a partial dataset such as a task archive) and returns the same array reference for a table it leaves alone.
 - `upgradeDataSet(data, from, to, registry?)` applies the entries `from+1 … to` in order. A version without an entry is the identity. The optional registry is the tests' seam.
 - `applySchemaUpgradeInTx(tx, N)` is the Dexie side. It reads every store in `tx.idbtrans.objectStoreNames` but `backups` into a `DataSet`, applies entry N, and clears and bulk-adds only the tables whose array reference changed.
@@ -148,7 +148,7 @@ The header of `schema-upgrades.ts` lists it:
 
 ### What each upgrade does
 
-Six steps are **version markers**: 69, 70, 71, 73, 85 and 86. A marker's transform returns its input, because every row of the version before is a valid row of the new one. The version number is the point: data at the new version may hold something an older build would drop or misread silently, so the older build refuses it as too new. Every later step is refused by the build before it in the same way.
+Seven steps are **version markers**: 69, 70, 71, 73, 85, 86 and 87. A marker's transform returns its input, because every row of the version before is a valid row of the new one. The version number is the point: data at the new version may hold something an older build would drop or misread silently, so the older build refuses it as too new. Every later step is refused by the build before it in the same way.
 
 The converting transforms hold their own copies of what they read, so a step keeps meaning the same whatever later builds do. Each is idempotent, and a part it can't read passes through for validation or the layout repair.
 
@@ -324,6 +324,10 @@ Nothing else is touched: tasks, `modifiedAt`, events, `historyLogSince`.
 #### v86: the Unplanned tray (marker)
 
 `upgrades/v86/index.ts`. v86 data may hold a task held in the Planner's Unplanned tray (`unplanned`, not indexed), which a v85 build would drop silently.
+
+#### v87: the planned date in filters (marker)
+
+`upgrades/v87/index.ts`. v87 data may hold a `planned` date clause (its `held` too) in a list, a Number, a chart or the check-in filter, and a list sorted or grouped by `planned`. A v86 build would drop the filter or refuse the list.
 
 ### The tab walk
 
