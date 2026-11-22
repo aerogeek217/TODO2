@@ -24,7 +24,7 @@ const MAP = path.join(DOCS, 'ARCHITECTURE.md')
 const FEATURES = path.join(DOCS, 'architecture', 'features')
 
 /** The layer tables held to the row budget. */
-const LAYER_TABLES = ['testing.md']
+const LAYER_TABLES = ['testing.md', 'state.md']
 
 const read = (file: string): string => fs.readFileSync(file, 'utf8')
 const wordCount = (file: string): number => read(file).split(/\s+/).filter(Boolean).length
