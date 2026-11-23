@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getFilterDefaults, predicateToFilterDefaults, withoutMarkers, withoutRemoved } from '../../utils/filter-defaults'
+import { getFilterDefaults, predicateToFilterDefaults, withoutRemoved } from '../../utils/filter-defaults'
 import type { FilterCriteria } from '../../utils/filter-criteria'
 import type { TodoPredicate } from '../../models'
 
@@ -101,12 +101,12 @@ describe('getFilterDefaults — Priority', () => {
   })
 })
 
-describe('withoutMarkers', () => {
+describe('withoutRemoved — markers only', () => {
   it('drops the named marker seeds and keeps the rest', () => {
     const fd = { personIds: [1], tagIds: [2], statusId: 3, markers: { urgent: true as const, focus: true as const } }
-    expect(withoutMarkers(fd, ['urgent'])).toEqual({ personIds: [1], tagIds: [2], statusId: 3, markers: { focus: true } })
-    expect(withoutMarkers(fd, ['urgent', 'focus'])).toEqual({ personIds: [1], tagIds: [2], statusId: 3 })
-    expect(withoutMarkers(fd, [])).toBe(fd)
+    expect(withoutRemoved(fd, { markers: ['urgent'] })).toEqual({ personIds: [1], tagIds: [2], statusId: 3, markers: { focus: true } })
+    expect(withoutRemoved(fd, { markers: ['urgent', 'focus'] })).toEqual({ personIds: [1], tagIds: [2], statusId: 3 })
+    expect(withoutRemoved(fd, { markers: [] })).toBe(fd)
   })
 })
 

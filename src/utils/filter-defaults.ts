@@ -56,7 +56,7 @@ export function markerFlags(fd: Pick<FilterDefaults, 'markers'> | null | undefin
  * `fd` without the given marker seeds (Quick Add: a preset marker chip
  * removed with its ×). The people / tags / status and other markers stay.
  */
-export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): FilterDefaults {
+function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): FilterDefaults {
   if (keys.length === 0 || !fd.markers) return fd
   const markers: MarkerConditions = { ...fd.markers }
   for (const k of keys) delete markers[k]

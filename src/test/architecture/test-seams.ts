@@ -11,7 +11,7 @@
  * By file under `src/`, names sorted.
  */
 export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
-  'App.tsx': ['AppCommandPalette'],
+  'App.tsx': ['AppCommandPalette', 'AppQuickAddBar'],
   'components/layout/sync-status.ts': ['StoragePillInput', 'storagePillState', 'syncWarnings'],
   'components/layout/TopBarFilterField.tsx': ['TOP_BAR_FILTER_PLACEHOLDER'],
   'components/layout/use-top-bar-centre.ts': ['CentreMeasure', 'centreOffset'],
