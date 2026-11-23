@@ -1,12 +1,12 @@
-import type { DataRow, DataSet } from '../../schema-upgrades'
-import { idMinter } from '../id-minter'
+import { idMinter } from './id-minter'
 
 /**
- * v78, part 1 (D26 P1) — a layout becomes a table: grid lines across and
- * down, and cells covering rectangles of tracks, in place of columns → rows
- * → cells and the two bands.
+ * The seed's columns form as a layout table (`workspace.ts` › `wsTableOf`):
+ * columns of rows of cells and the two bands, the shape most specs were
+ * written in, made into grid lines across and down and cells covering
+ * rectangles of tracks — the table the app reads.
  *
- * The lines come from the layout's geometry as v77 drew it:
+ * The lines come from the columns form's geometry:
  *
  * - **Across** (x, the column tracks): the columns' weights give each
  *   column's span of the width; inside a column, each row's cells' weights
@@ -19,34 +19,25 @@ import { idMinter } from '../id-minter'
  *   the ordering only it counts as a nominal 76px of an 800px column area
  *   (at most half of it together); a collapsed row counts by its weight.
  * - Every distinct position is a line (positions within 1e-9 of each other
- *   are one), so lines that met in v77 meet in the table; each cell covers
- *   the tracks between its edges. The weighted tracks' weights scale to
- *   whole numbers summing to 1000 on each axis (each at least 1).
+ *   are one); each cell covers the tracks between its edges. The weighted
+ *   tracks' weights scale to whole numbers summing to 1000 on each axis
+ *   (each at least 1).
  * - A row track is collapsed when every cell covering it came from a
  *   collapsed row (or band).
  * - A layout with bands but no columns keeps its empty column area as one
  *   empty cell (no tabs) across a weighted row between them.
  *
  * Each cell keeps its id, tabs and active tab; its `weight` and `stripShown`
- * go (tabs on demand, D26 P3, replaces the strip choice), as does the
- * layout's `activeColumnId` (the phone shows every cell in one scroll).
- * A band's track takes the band's id; the other tracks get fresh ids,
+ * go. A band's track takes the band's id; the other tracks get fresh ids,
  * `grid-c<i>` / `grid-r<i>` (`i` from 1, in order), with `_2`, `_3`, …
- * after one the layout already holds — every id it holds counts —, so the
- * same layout always upgrades to the same ids, and a draft's base upgrades
- * to what its stored layout does.
- *
- * Over the `layouts` table, and kept layout drafts (through the pipeline:
- * each body read as a layout row). Holds its own copy of everything it
- * reads, so it goes on meaning this whatever later builds do. Defensive: a
- * column, row, band or cell that isn't an object, or a column / row / band
- * without its list of parts, is left out (the parts beside it fill its
- * place); a bad weight counts as 1, a bad band height as 160px. A row that
- * already has a `grid` (or has no `columns`) is returned as it is
- * (idempotent).
+ * after one the layout already holds. A column, row, band or cell that isn't
+ * an object, or one without its list of parts, is left out; a bad weight
+ * counts as 1, a bad band height as 160px. A row that already has a `grid`
+ * (or has no `columns`) is returned as it is.
  */
 
 type Obj = Record<string, unknown>
+type DataRow = Record<string, unknown>
 
 function isRecord(v: unknown): v is Obj {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -68,7 +59,7 @@ const WEIGHT_TOTAL = 1000
 /** Positions this close are one line. */
 const EPSILON = 1e-9
 
-/** The widget kinds whose content set a row's height in v77: a row of them only was a fit row. */
+/** The widget kinds whose content sets a row's height: a row of them only is a fit row. */
 const FIT_KINDS: ReadonlySet<string> = new Set(['number'])
 
 function weightOf(v: unknown): number {
@@ -96,7 +87,7 @@ function records(list: unknown, key?: string): Obj[] {
   return list.filter((v): v is Obj => isRecord(v) && (key === undefined || Array.isArray(v[key])))
 }
 
-/** A v77 cell as the table needs it: its kept keys, and the box it covered. */
+/** A seeded cell as the table needs it: its kept keys, and the box it covers. */
 interface Placed {
   cell: Obj
   x0: number
@@ -106,7 +97,7 @@ interface Placed {
   collapsed: boolean
 }
 
-/** A row whose every cell held one tab, of a kind that set its height (a Number). */
+/** A row whose every cell holds one tab, of a kind that sets its height (a Number). */
 function isFitRow(cells: readonly Obj[]): boolean {
   return cells.length > 0 && cells.every((c) => {
     const tabs = c.tabs as unknown[]
@@ -142,8 +133,7 @@ function linesOf(positions: readonly number[]): number[] {
  * `lines` as `linesOf` makes them: ascending, each more than `EPSILON` past
  * the one before. A binary search for the first line at or past `p`, then
  * the nearer of it and the line before it — the one a scan of every line
- * finds, without the scan (four scans per cell took 12.8 s on a crafted
- * file of 32,000 cells, cr34 S1).
+ * finds, without the scan.
  */
 function lineIndex(lines: readonly number[], p: number): number {
   let lo = 0
@@ -172,7 +162,7 @@ function scaled(shares: readonly number[]): number[] {
   return out.map((w) => Math.max(1, w))
 }
 
-/** A layout row (or a kept draft's body) as a table; the row itself when it is one already or has no columns. */
+/** A layout row in the columns form as a table; the row itself when it is one already or has no columns. */
 export function layoutTableOf(row: DataRow): DataRow {
   if (!isRecord(row) || row.grid !== undefined || !Array.isArray(row.columns)) return row
   const taken = new Set<string>()
@@ -289,12 +279,4 @@ export function layoutTableOf(row: DataRow): DataRow {
     grid: { columns: cells.length > 0 ? colTracks : [], rows: cells.length > 0 ? rowTracks : [] },
     cells,
   }
-}
-
-export function upgradeLayoutTable(data: DataSet): DataSet {
-  const layouts = data.layouts
-  if (!layouts) return data
-  const next = layouts.map(layoutTableOf)
-  if (next.every((row, i) => row === layouts[i])) return data
-  return { ...data, layouts: next }
 }

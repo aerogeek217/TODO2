@@ -32,6 +32,11 @@ History before 2026-11-19 is in the git log.
   only because they were planned — the question lists them before you confirm.
 - **Plan for day** no longer opens with a "Plans it for that day" line.
 
+### Removed
+
+- Backups, exports and sync files saved before the 2026-11-22 version (data version below 87) no longer load, and
+  neither does a browser's data from before it: open them in the 2026-11-22 version first.
+
 ## 2026-11-22
 
 Data version 87. Older copies of the app will refuse the data once it is upgraded: update them, the offline file on

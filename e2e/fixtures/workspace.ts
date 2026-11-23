@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { createTab, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
-import { layoutTableOf } from '../../src/data/upgrades/v78/layout-table'
-import { isV77Metric, numberConfigOfMetric } from '../../src/data/upgrades/v78/number-metrics'
+import { isV77Metric, numberConfigOfMetric } from '../../src/test/helpers/number-metrics'
+import { layoutTableOf } from './column-layout'
 import { DB_NAME, readStore } from './db'
 import { box, pointIn, type Point } from './geometry'
 
@@ -23,7 +23,7 @@ export interface WsTabSeed {
   zoom?: 'stacked' | 'rows' | 'lines'
   /**
    * Glance tabs (Number, the sections): config fields over the kind's defaults. A Number's
-   * `metric` (a v77 one, e.g. `{ metric: 'open' }`) seeds the config v78 converts it to
+   * `metric` (e.g. `{ metric: 'open' }`) seeds that metric's ready-made config
    * (`numberConfigOfMetric`), its other fields over that.
    */
   glance?: Record<string, unknown>
@@ -89,7 +89,7 @@ export interface WsTableSeed {
 /**
  * A layout: a `table` (D26), or — the shape most specs were written in —
  * columns of rows of cells with bands above and below, which the seed turns
- * into the table the v78 upgrade makes of it (`layout-table`).
+ * into a table (`column-layout`).
  */
 export interface WsLayoutSeed {
   name: string
@@ -140,7 +140,7 @@ export function wsTableOf(layout: WsLayoutSeed): WsTable {
     }
   }
   const cellRow = (cell: WsCellSeed) => ({ id: cell.id, weight: cell.weight ?? 1, tabs: cell.tabs, ...(cell.activeTabId ? { activeTabId: cell.activeTabId } : {}) })
-  const v77 = {
+  const columnsForm = {
     columns: (layout.columns ?? []).map((col) => ({
       id: col.id,
       weight: col.weight ?? 1,
@@ -156,10 +156,10 @@ export function wsTableOf(layout: WsLayoutSeed): WsTable {
       return band ? [[edge, { id: band.id, height: band.height ?? 160, ...(band.collapsed ? { collapsed: true } : {}), cells: band.cells.map(cellRow) }]] : []
     })),
   }
-  return layoutTableOf(v77) as unknown as WsTable
+  return layoutTableOf(columnsForm) as unknown as WsTable
 }
 
-/** `table` with each Number seeded by a v77 `metric` given the config v78 converts it to. */
+/** `table` with each Number seeded by a `metric` given that metric's ready-made config. */
 function withNumberConfigs(table: WsTable): WsTable {
   return {
     ...table,

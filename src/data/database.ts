@@ -5,7 +5,6 @@ import type { WorkspaceLayout } from '../models/workspace-layout'
 import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { DATA_TABLE_NAMES, type DataTableName, type DataTableRows } from './tables'
-import { applySchemaUpgradeInTx } from './schema-upgrades'
 import { registerModuleReset } from '../utils/module-reset'
 
 export interface SettingRow {
@@ -42,10 +41,10 @@ export const CURRENT_DB_VERSION = 87
  * Raising it also permits deleting the registry entries at or below the new
  * floor.
  *
- * Raised from 49 to 68 on 2026-10-23 (user-approved): the upgrades from v49
- * to v68 were removed with it.
+ * Raised from 68 to 87 on 2026-11-23 (user-approved): the upgrades from v68
+ * to v87 were removed with it.
  */
-export const OLDEST_SUPPORTED_DB_VERSION = 68
+export const OLDEST_SUPPORTED_DB_VERSION = 87
 
 /**
  * The build that still upgrades data below the floor (the last one before
@@ -53,7 +52,7 @@ export const OLDEST_SUPPORTED_DB_VERSION = 68
  * too old, version) — named in every below-floor refusal. Changes with the
  * floor.
  */
-export const BELOW_FLOOR_BUILD = 'the last TODO2 build from before 2026-10-23'
+export const BELOW_FLOOR_BUILD = 'the last TODO2 build from before 2026-11-23'
 
 /** What a build says when the browser's database was written by a newer one (schema `storedVersion`). */
 export function tooNewDatabaseMessage(storedVersion: number, buildVersion: number = CURRENT_DB_VERSION): string {
@@ -151,7 +150,7 @@ function refuseBelowFloor(): never {
 }
 
 /**
- * The store layout at the floor (v68): every table and index, as the
+ * The store layout at the floor (v87): every table and index, as the
  * versions up to it left them. A later version's declaration lists only
  * what it changes.
  */
@@ -167,6 +166,8 @@ const FLOOR_STORES = {
   tags: '++id, name',
   todoTags: '++id, todoId, tagId',
   todoEvents: '++id, todoId, type, timestamp',
+  statusUpdates: '++id, todoId, date',
+  subtasks: '++id, todoId',
   layouts: '++id',
   listOrders: '++id, listDefinitionId, todoId, &[listDefinitionId+todoId]',
 } as const
@@ -200,106 +201,7 @@ export class Todo2Database extends Dexie {
     // open back with the database untouched.
     this.version(OLDEST_SUPPORTED_DB_VERSION).stores(FLOOR_STORES).upgrade(refuseBelowFloor)
 
-    // v69: a version marker. No index or data change
-    // (`upgrades/v69-or-groups.ts` returns its input); v69 data may hold a
-    // stored filter's or groups, which an older build would drop silently,
-    // so older builds refuse it.
-    this.version(69).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 69))
-
-    // v70: a version marker. No index or data change
-    // (`upgrades/v70-date-types.ts` returns its input); v70 data may hold a
-    // stored filter's Last followed up / Completed clause or a list's sort by
-    // them, which an older build would drop silently, so older builds refuse it.
-    this.version(70).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 70))
-
-    // v71: a version marker. No index or data change
-    // (`upgrades/v71-date-not.ts` returns its input); v71 data may hold a
-    // stored filter's "is not" date range, which an older build would read
-    // as "is" (keeping the opposite tasks), so older builds refuse it.
-    this.version(71).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 71))
-
-    // v72: the `statusUpdates` table (a task's dated status updates, in
-    // place of its one-line Progress field). `upgrades/v72-status-updates.ts`
-    // makes each task's Progress text its first entry and drops `progress`
-    // from the task rows.
-    this.version(72).stores({ statusUpdates: '++id, todoId, date' }).upgrade((tx) => applySchemaUpgradeInTx(tx, 72))
-
-    // v73: the `subtasks` table (a task's checklist, cr28). A version marker
-    // for the data (`upgrades/v73-subtasks.ts` returns its input): older
-    // builds know no such table and would drop every checklist, so they
-    // refuse v73 data.
-    this.version(73).stores({ subtasks: '++id, todoId' }).upgrade((tx) => applySchemaUpgradeInTx(tx, 73))
-
-    // v74: a stored Priority filter is a list of conditions (lists, lenses,
-    // Eisenhower panes, the check-in filter); no store changes.
-    this.version(74).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 74))
-
-    // v75: a filter with or groups becomes an expression (lists, lenses,
-    // Eisenhower panes, the check-in filter); no store changes.
-    this.version(75).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 75))
-
-    // v76: every column is rows — a layout's cells each become a one-cell
-    // row (a cell's `collapsed` its row's) and a band one row of cells; no
-    // store changes.
-    this.version(76).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 76))
-
-    // v77: the Dashboard retires — every Dashboard tab becomes the glance
-    // widgets of its parts, each in a cell of its own; no store changes.
-    this.version(77).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 77))
-
-    // v78: Dashboard building (D26) — a layout becomes a table (grid tracks
-    // and cells covering rectangles of them), and the parts of `upgrades/v78`
-    // after it; no store changes.
-    this.version(78).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 78))
-
-    // v79: the final shapes (widget feedback 2026-11-11) — the removed
-    // kinds' tabs (Eisenhower, Tag map, Status flow) dropped, the
-    // Eisenhower's hidden list and settings rows deleted, the Review,
-    // Breakdown, Number, list zoom and trend tabs written as this build
-    // reads them (`upgrades/v79`); no store changes.
-    this.version(79).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 79))
-
-    // v80: check-ins by copy — every person without an email, the check-in
-    // open method's settings row deleted (`upgrades/v80`); no store changes.
-    this.version(80).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 80))
-
-    // v81: lenses removed — their settings rows and shortcuts deleted, every
-    // list's and layout tab's lens switch removed (`upgrades/v81`); no store
-    // changes.
-    this.version(81).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 81))
-
-    // v82: Numbers as a strip — each row track's runs of side-by-side Number
-    // cells merged into one cell holding those Numbers (`upgrades/v82`); no
-    // store changes.
-    this.version(82).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 82))
-
-    // v83: Project pulse and the Pressure radar removed — their tabs dropped
-    // and the cells they empty closed (`upgrades/v83`); no store changes.
-    this.version(83).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 83))
-
-    // v84: a repeat is any interval — each task's `recurrenceRule` type
-    // written as its interval (`upgrades/v84`); no store changes.
-    this.version(84).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 84))
-
-    // v85: a version marker. No index or data change (`upgrades/v85`
-    // returns its input); v85 data may hold a task's Do day (`doDate`, the
-    // Planner's), which an older build would drop silently, so older builds
-    // refuse it.
-    this.version(85).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 85))
-
-    // v86: a version marker. No index or data change (`upgrades/v86`
-    // returns its input); v86 data may hold a task held in the Planner's
-    // Unplanned tray (`unplanned`), which an older build would drop
-    // silently, so older builds refuse it.
-    this.version(86).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 86))
-
-    // v87: a version marker. No index or data change (`upgrades/v87`
-    // returns its input); v87 data may hold a filter on the planned date
-    // and a list sorted or grouped by it, which an older build would drop
-    // or refuse, so older builds refuse it.
-    this.version(87).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 87))
-
-    // The next schema step N goes here, after the last one:
+    // The next schema step N goes here, after the floor:
     //
     //   this.version(N).stores({ /* only what N adds, changes or drops (null) */ })
     //     .upgrade((tx) => applySchemaUpgradeInTx(tx, N))
