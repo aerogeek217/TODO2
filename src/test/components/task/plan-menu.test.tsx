@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
-import { PLAN_FOR_DAY_LABEL, planForDayEntries } from '../../../components/task/plan-menu'
+import { planForDayEntries } from '../../../components/task/plan-menu'
 import { TaskMenu } from '../../../components/task/TaskMenu'
 import { PICK_DATE_ATTR } from '../../../components/shared/pick-date'
 import { TaskMenuExtrasContext } from '../../../components/task/task-menu-extras'
@@ -56,7 +56,6 @@ describe('Plan for day ›', () => {
     expect(item.label).toBe('Plan for day')
     expect(item.note).toBeUndefined()
     expect(labels(children)).toEqual([
-      `# ${PLAN_FOR_DAY_LABEL}`,
       'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26',
       '(separator)', 'Pick a date…', 'Unplanned',
     ])

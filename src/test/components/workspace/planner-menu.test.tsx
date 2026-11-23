@@ -2,14 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildTaskMenuEntries, type TaskMenuHandlers } from '../../../components/task/task-menu-entries'
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import { plannerMenuEntries, UNPLAN_OFF, type PlannerMenuActions } from '../../../components/workspace/planner/planner-menu'
-import { PLAN_FOR_DAY_LABEL } from '../../../components/task/plan-menu'
 import type { PersistedTodoItem } from '../../../models'
 import { plannerWindow } from '../../../utils/planner'
 import { makeTodo } from '../../helpers'
 
 /**
  * A Planner row's entries in its task menu (`planner-menu.plannerMenuEntries`):
- * **Plan for day ›** — a first line saying a pick plans the task, Today and
+ * **Plan for day ›** — Today and
  * the window's days after it, Pick a date…; a day picked is planned
  * outright —, **Snooze** and
  * **Unplan** (off, with its reason, where there is nothing to unplan) — and
@@ -42,20 +41,18 @@ function build(task: PersistedTodoItem, window = WINDOW) {
 const labels = (entries: readonly MenuEntry[]) => entries.map((e) => (e.kind === 'item' ? e.label : e.kind === 'label' ? `# ${e.text}` : `(${e.kind})`))
 
 describe('Plan for day ›', () => {
-  it('lists Today and the window’s six days after it in words, under the line saying a pick plans the task, then Pick a date… — no No day', () => {
+  it('lists Today and the window’s six days after it in words, then Pick a date… — no No day', () => {
     const { move, children } = build(todo({ dueDate: day(2) }))
     expect(move.label).toBe('Plan for day')
     expect(labels(children)).toEqual([
-      `# ${PLAN_FOR_DAY_LABEL}`,
       'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26',
       '(separator)', 'Pick a date…',
     ])
-    expect(PLAN_FOR_DAY_LABEL).toBe('Plans it for that day')
   })
 
-  it('says the same whatever put the row on its day: nothing moves a follow-up or a due date', () => {
+  it('has no explaining line, whatever put the row on its day', () => {
     for (const over of [{ nextFollowupAt: day(0) }, { nextFollowupAt: day(1), dueDate: day(1) }, { doDate: day(2) }, { focus: true }, { unplanned: true as const, dueDate: day(1) }]) {
-      expect(build(todo(over)).children[0]).toEqual({ kind: 'label', text: 'Plans it for that day' })
+      expect(build(todo(over)).children.some((e) => e.kind === 'label')).toBe(false)
     }
   })
 
@@ -95,7 +92,7 @@ describe('Plan for day ›', () => {
 
   it('in a shifted window: Today, then that week’s seven days', () => {
     const { children, items } = build(todo({ dueDate: day(8), doDate: day(9) }), plannerWindow(TODAY, 7))
-    expect(labels(children).slice(1, 9)).toEqual(['Today', 'Fri, Nov 27', 'Sat, Nov 28', 'Sun, Nov 29', 'Mon, Nov 30', 'Tue, Dec 1', 'Wed, Dec 2', 'Thu, Dec 3'])
+    expect(labels(children).slice(0, 8)).toEqual(['Today', 'Fri, Nov 27', 'Sat, Nov 28', 'Sun, Nov 29', 'Mon, Nov 30', 'Tue, Dec 1', 'Wed, Dec 2', 'Thu, Dec 3'])
     expect(items.filter((i) => i.checked).map((i) => i.label)).toEqual(['Sun, Nov 29'])
   })
 })

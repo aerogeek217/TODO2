@@ -170,7 +170,7 @@ test.describe('the task editor', () => {
     await planned.getByRole('button', { name: /^Planned:/ }).click()
     const menu = page.getByRole('menu', { name: 'Plan for day' })
     await expect(menu).toBeVisible()
-    await expect(menu).toContainText('Plans it for that day')
+    await expect(menu).not.toContainText('Plans it for that day')
     await expect(menu.getByRole('menuitem', { name: 'Pick a date…' })).toBeVisible()
     await expect(menu.getByRole('menuitemradio')).toHaveCount(8)
     await menu.getByRole('menuitemradio', { name: /^Today/ }).click()

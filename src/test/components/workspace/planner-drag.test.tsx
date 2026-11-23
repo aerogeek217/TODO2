@@ -238,7 +238,7 @@ describe('Plan for day ›, Snooze and Unplan in a row’s task menu', () => {
   it('Plan for day › is in the menu of a Planner’s row, with the days and Pick a date… — and no No day', () => {
     show()
     const sub = openMove('Monday deadline')
-    expect(within(sub).getByText('Plans it for that day')).toBeInTheDocument()
+    expect(within(sub).queryByText('Plans it for that day')).toBeNull()
     const items = within(sub).getAllByRole('menuitemradio')
     expect(items.map((i) => i.getAttribute('data-menu-label'))).toEqual([
       'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26',
@@ -257,7 +257,7 @@ describe('Plan for day ›, Snooze and Unplan in a row’s task menu', () => {
     expect(setPlan).toHaveBeenLastCalledWith([4], { day: day(5) })
 
     const sub = openMove('Chase legal')
-    expect(within(sub).getByText('Plans it for that day')).toBeInTheDocument()
+    expect(within(sub).queryByText('Plans it for that day')).toBeNull()
     expect(within(sub).queryByText(/move/i)).toBeNull()
     fireEvent.click(within(sub).getByRole('menuitemradio', { name: /^Sat, Nov 21/ }))
     expect(setPlan).toHaveBeenCalledTimes(2)

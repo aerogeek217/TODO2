@@ -17,9 +17,6 @@ import type { MenuEntry } from '../shared/MenuPopover'
 import { WidgetKindIcon } from '../shared/icons'
 import { pickDate } from '../shared/pick-date'
 
-/** The Plan for day › submenu's first line: a pick changes the plan, nothing else. */
-export const PLAN_FOR_DAY_LABEL = 'Plans it for that day'
-
 /** Clear plan's words: **Remove from Planner** when it takes the task out of the Planner (`plannerClearLeaves`). */
 export function clearPlanLabel(todo: PersistedTodoItem, window: PlannerSpan): string {
   return plannerClearLeaves(todo, window) ? 'Remove from Planner' : 'Clear plan'
@@ -86,7 +83,7 @@ export function pickPlanDateItem(todo: Pick<TodoItem, 'doDate'>, today: Date, mo
  * against this week's window (today and the six days after it, as a
  * Planner on this week shows them):
  *
- * - a muted first line, then the days (`planDayItems`);
+ * - the days (`planDayItems`);
  * - **Pick a date…** (`pickPlanDateItem`);
  * - **Unplanned** — held in the Planner's Unplanned tray with no day (any
  *   open task: it joins the Planner so), checked while it is there;
@@ -106,7 +103,6 @@ export function planMenuEntries(todo: PersistedTodoItem, today: Date): MenuEntry
     ? [{ kind: 'item', label: clearPlanLabel(todo, window), onSelect: () => { void clearPlannerTask(todo.id, window) } }]
     : []
   return [
-    { kind: 'label', text: PLAN_FOR_DAY_LABEL },
     ...planDayItems(todo, window, move),
     { kind: 'separator' },
     pickPlanDateItem(todo, window.today, move),
@@ -133,7 +129,6 @@ export function draftPlanMenuEntries(
   }
   const held = task.doDate == null && task.unplanned === true
   return [
-    { kind: 'label', text: PLAN_FOR_DAY_LABEL },
     ...planDayItems(task, window, move),
     { kind: 'separator' },
     pickPlanDateItem(task, window.today, move),

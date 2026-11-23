@@ -108,7 +108,7 @@ It is state in a zustand store, so the test setup resets it.
 
 A row's task menu in a Planner — right-click, Shift+F10, the phone's long-press — carries the same moves without a pointer (`planner-menu`, through `TaskMenuExtrasContext`):
 
-- **Plan for day ›** — its submenu a muted first line (`Plans it for that day`), then Today and the window's days in words (the planned day checked, the row's due and follow-up days noted), then **Pick a date…**. A pick plans that day outright, the row's own date's day too; only a drag there clears the plan.
+- **Plan for day ›** — its submenu Today and the window's days in words (the planned day checked, the row's due and follow-up days noted), then **Pick a date…**. A pick plans that day outright, the row's own date's day too; only a drag there clears the plan.
 - **Snooze**, naming the day it plans for. None on a row in Unplanned.
 - **Unplan** — off, with its reason in a tooltip, for a row in Unplanned already.
 - On a placed row, **Clear plan** (**Remove from Planner** when that takes it out).
