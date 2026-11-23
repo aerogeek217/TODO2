@@ -136,7 +136,7 @@ describe('Quick Add from a list’s + Add task', () => {
 
 describe('Quick Add with no list seed (the top bar, +, the shortcut)', () => {
   it('opens with no chips; the screen filter still seeds as before (its people only when the text names nobody)', async () => {
-    patchScreenFilter({ personIds: new Set([ids.ann]), tags: [ids.work] })
+    patchScreenFilter({ personIds: new Set([ids.ann]), tags: new Set([ids.work]) })
     renderBar()
     expect(chipTexts()).toEqual([])
     fireEvent.change(input(), { target: { value: 'Ask @Bob' } })
