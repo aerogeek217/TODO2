@@ -240,6 +240,14 @@ Quick Add's state is in `ui-store`:
 - `quickAddDraft: QuickAddDraftSeed { rawTitle, defaults? } | null`, with `setQuickAddDraft`. `defaults` is a list's predicate seed, from its **Add task** row. The draft is also the Details → create-popup handoff.
 - `recentlyCreated: { todoId, key }`, with `showRecentlyCreated` / `clearRecentlyCreated`: the transient `RecentTaskPill`.
 
+**A list's seed shows as chips.** Quick Add opened by a list's **Add task** starts with the seed's people, tags, status and markers in its chips row, before anything is typed: the chips typing `@person #tag !status /urgent` would show, each with its ×. `AppQuickAddBar` hands them to the bar as its `preset`.
+
+- A chip's × drops that default for this opening (`QuickAddDraft.removedPreset`). The submit and the Details hand-off take it out of the seed (`filter-defaults.withoutRemoved`).
+- What the chips show is what the task gets. A typed `!status` replaces the seed's chip and wins. Typed people and tags go beside the seed's (`createQuickAddTask(…, { shown: true })`, `DraftContext.defaultPeople: 'also'`). A value both seeded and typed shows one chip, whose × removes both.
+- With the status chip removed, the task gets Settings' default status, as from the top bar.
+- Details carries the seed left into the editor's create mode, whose status starts on the seed's, over Settings' default.
+- Quick Add from the top bar, `+` or the shortcut has no seed and shows no chips until something is typed. The screen filter's defaults still apply silently, its people only when the text names nobody.
+
 **A new task flies home** (`overlays/task-fly`):
 
 - It flies when a list row on screen shows it: drawn, its center in view and the topmost thing there.

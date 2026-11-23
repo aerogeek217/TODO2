@@ -219,6 +219,7 @@ Glance-widget and dialog rows stay at Rows, and the phone has one density.
 
 - **Add task** is the list's last row, inside its scroll.
 - It shows when the list's filter (the prompt pick merged in) names people, a status, tags or a priority to seed the new task with, or is an expression. See [Filters](filters.md#what-a-new-task-reads-from-a-filter).
+- It opens Quick Add with that seed already shown as chips, each removable. See [Tasks](tasks.md#new-tasks).
 - While a view transition runs (a tab change, a group collapse), the groups' pictures nest in the scroll's and are clipped to it (`view-transition-group: nearest`). They never draw past the list's foot or its cell.
 
 ## Dragging a row

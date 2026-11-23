@@ -62,6 +62,10 @@ another computer included.
 - **The Planner's day strip hides when there's no room** for its tiles' ticks. The week's range and arrows then move up
   to the top line, or to a slim row in a cell of tabs.
 - **The calendar's toggles show only their icons below 690px** of widget width (was 620px), so the Plans toggle fits.
+- **A list's Add task shows what the new task will get.** Quick Add now opens with the list's people, tags and status
+  already shown as chips, as if you had typed them (its priority flags already showed). Remove a chip with its × and
+  the task goes without it; a status you type replaces the list's; people you type are added beside the list's.
+  Details takes the same values into the task editor, the list's status included.
 
 ## 2026-11-21, fifth deployment
 
