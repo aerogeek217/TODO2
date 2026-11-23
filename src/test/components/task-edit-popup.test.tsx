@@ -874,6 +874,17 @@ describe('TaskEditPopup', () => {
       fireEvent.change(screen.getByDisplayValue('Existing'), { target: { value: 'Existing !' } })
       expect(screen.queryByRole('listbox', { name: 'Statuses' })).not.toBeInTheDocument()
     })
+
+    it('a handoff from a list’s Add task starts on the list’s status, over Settings’ default (as Quick Add showed it)', async () => {
+      useStatusStore.setState({ statuses: [{ id: 5, name: 'Waiting', color: '#fa0', sortOrder: 0 }, { id: 6, name: 'Doing', color: '#0af', sortOrder: 1 }] })
+      useSettingsStore.setState({ defaultStatusId: 6 })
+      useUIStore.setState({ quickAddDraft: { rawTitle: 'Call', defaults: { personIds: [], tagIds: [], statusId: 5 } } })
+      const { onCreate } = renderCreateMode()
+      clickCreate()
+      await waitFor(() => expect(onCreate).toHaveBeenCalled())
+      expect(onCreate.mock.calls[0]![0]).toMatchObject({ statusId: 5 })
+      useSettingsStore.setState({ defaultStatusId: null })
+    })
   })
 })
 

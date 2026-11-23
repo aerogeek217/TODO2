@@ -133,6 +133,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // list's predicate-derived seed, which takes precedence over the global
   // filter (the top bar may have no filter even though the list itself
   // narrows). Falls back to the active filter otherwise.
+  // Quick Add showed a list's seed as chips, so its status comes before
+  // Settings' default here as it does there (`listSeeded`).
+  const [listSeeded] = useState(() => mode === 'create' && !seed && useUIStore.getState().quickAddDraft?.defaults != null)
   const filterDefaults = useMemo(() => {
     if (mode !== 'create' || seed) return null
     const draftDefaults = useUIStore.getState().quickAddDraft?.defaults
@@ -190,7 +193,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     seed ? seed.statusId : (
       todo?.statusId
       ?? quickAddSeed?.resolved.statusId
-      ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
+      ?? (mode === 'create'
+        ? ((listSeeded ? filterDefaults?.statusId ?? defaultStatusId : defaultStatusId ?? filterDefaults?.statusId) ?? undefined)
+        : undefined)
     ),
   )
   const [deadline, setDeadline] = useState<Date | null>(
