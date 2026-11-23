@@ -972,7 +972,10 @@ test('Reset plan › This week clears every plan the Planner shows; Undo puts th
   await expect(menu.getByRole('menuitem')).toHaveText([/^This week\s*6$/, /^Today only\s*1$/, /^Delayed\s*2$/])
   await menu.getByRole('menuitem', { name: /^This week/ }).click()
   // It asks first: how many plans, and how many tasks then leave the Planner.
-  await expect(page.getByRole('dialog', { name: 'Reset plan: this week?' })).toContainText('This clears the plan of 6 tasks')
+  const ask = page.getByRole('dialog', { name: 'Reset plan: this week?' })
+  await expect(ask).toContainText('This clears the plan of 6 tasks')
+  // The tasks that then leave the Planner are named, held or planned with no date in it.
+  await expect(ask.getByRole('list', { name: /^Leaving the Planner/ }).getByRole('listitem').first()).toBeVisible()
   await confirmReset(page)
   // No flag left; a planned task with no date and no Focus leaves the widget (Reset may remove it), the dated ones sit by their dates.
   await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(0)

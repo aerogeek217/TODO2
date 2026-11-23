@@ -42,6 +42,7 @@ export function ConfirmPromptHost() {
       open
       title={prompt.title}
       message={prompt.message}
+      {...(prompt.list ? { list: prompt.list } : {})}
       confirmLabel={prompt.confirmLabel}
       {...(prompt.cancelLabel ? { cancelLabel: prompt.cancelLabel } : {})}
       {...(prompt.discardLabel ? { discardLabel: prompt.discardLabel, onDiscard: () => answer('discard') } : {})}

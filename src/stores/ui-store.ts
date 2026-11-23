@@ -195,9 +195,17 @@ export interface PopupListPick {
   sortDirection?: TodoSortDirection
 }
 
+/** Items a prompt names under its message (`ConfirmPrompt.list`): a label, then one line each. */
+export interface ConfirmPromptList {
+  label: string
+  items: { key: string | number; text: string; note?: string }[]
+}
+
 export interface ConfirmPrompt {
   title: string
   message: string
+  /** What the answer acts on, named one per line under the message (Reset plan's tasks that leave the Planner). */
+  list?: ConfirmPromptList
   confirmLabel: string
   /** The cancel button's label (default Cancel). */
   cancelLabel?: string

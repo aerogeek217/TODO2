@@ -14,6 +14,7 @@ import {
   plannerHasPlan,
   plannerMovePlan,
   plannerPlacement,
+  plannerPlannedDay,
   plannerResetTasks,
   plannerResetWeekLabel,
   plannerShows,
@@ -215,18 +216,31 @@ export async function unplanDelayedTasks(view: Pick<PlannerRows, 'window' | 'del
  * `… today`, `… Delayed`. Cancel writes nothing; with nothing to clear it
  * asks nothing.
  */
+/** Why a task leaving on a reset was in the Planner: held in Unplanned, or planned for a day (`Planned Thu, Nov 26`). */
+function resetLeaveNote(task: PersistedTodoItem): string {
+  const planned = plannerPlannedDay(task)
+  return planned ? `Planned ${plannerDayLabel(planned)}` : 'Held in Unplanned'
+}
+
 export async function resetPlannerPlan(view: PlannerRows, scope: PlannerResetScope): Promise<void> {
   const tasks = plannerResetTasks(view, scope)
   if (tasks.length === 0) return
   const week = plannerResetWeekLabel(view.window)
   const words = scope === 'week' ? (week === 'This week' ? 'this week' : week) : scope === 'today' ? 'today' : 'Delayed'
-  const leaving = tasks.filter((t) => plannerClearLeaves(t, view.window)).length
-  const leaveWords = leaving === 0 ? ''
-    : leaving === tasks.length ? ` ${tasks.length === 1 ? 'It has' : 'They have'} no date in the Planner, so ${tasks.length === 1 ? 'it leaves' : 'they leave'} it.`
-      : ` ${leaving} of them ${leaving === 1 ? 'has' : 'have'} no date in the Planner and ${leaving === 1 ? 'leaves' : 'leave'} it.`
+  const leaving = tasks.filter((t) => plannerClearLeaves(t, view.window))
+  const n = leaving.length
+  const leaveWords = n === 0 ? ''
+    : n === tasks.length ? ` ${n === 1 ? 'It leaves' : 'They all leave'} the Planner.`
+      : ` ${n} of them ${n === 1 ? 'leaves' : 'leave'} the Planner.`
   const ok = await useUIStore.getState().askConfirmation({
     title: `Reset plan: ${words}?`,
     message: `This clears the plan of ${tasksWord(tasks.length)}: each goes back to where its own dates put it.${leaveWords} No due date or follow-up changes.`,
+    ...(n > 0 ? {
+      list: {
+        label: `Leaving the Planner — no date in it, not in the Unplanned filter`,
+        items: leaving.map((t) => ({ key: t.id, text: t.title, note: resetLeaveNote(t) })),
+      },
+    } : {}),
     confirmLabel: 'Reset plan',
   })
   if (!ok) return

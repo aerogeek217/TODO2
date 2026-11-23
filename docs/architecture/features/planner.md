@@ -214,7 +214,7 @@ Both go through the same decision (`plannerSnooze`, `plannerUnplan`). Snooze is 
 
 **Unplan all Delayed** moves every Delayed task to Unplanned (`plannerUnplanDelayed` → `services/planner-drop.unplanDelayedTasks`). It asks nothing.
 
-**Reset plan** clears the plan state of one of three scopes (`plannerResetTasks` → `resetPlannerPlan`), each **after asking** (the shared confirm prompt: how many plans it clears, and how many of those tasks then leave the Planner):
+**Reset plan** clears the plan state of one of three scopes (`plannerResetTasks` → `resetPlannerPlan`), each **after asking** (the shared confirm prompt: how many plans it clears and how many of those tasks then leave the Planner, those named one per line under it — held, or `Planned Thu, Nov 26` — as the prompt's `list`):
 
 - the days shown — every task with a plan state that the Planner shows or holds: planned days it shows, Delayed, held in Unplanned. It is named `This week` only while the window starts today, else by its range, `Nov 27 – Dec 3` (`plannerResetWeekLabel`);
 - today only — the tasks planned for today;
