@@ -15,14 +15,15 @@ const THEME_OPTIONS: ReadonlyArray<{ mode: ThemeMode; label: string }> = [
 ]
 
 /**
- * Appearance › Theme: the theme (the only place it is set), its colors, the
- * top bar's tally (desktop: the phone has no top bar), and on the phone the
+ * Appearance › Theme: the theme (the only place it is set), its colors,
+ * whether widgets show their names, the top bar's tally (desktop: the phone has no top bar), and on the phone the
  * quick-add syntax.
  */
 export function ThemeSection() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const tallyMarks = useSettingsStore((s) => s.tallyMarks)
+  const showWidgetNames = useSettingsStore((s) => s.showWidgetNames)
   const isMobile = useIsMobile()
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showNlpSyntax, setShowNlpSyntax] = useState(false)
@@ -50,6 +51,9 @@ export function ThemeSection() {
         <button type="button" className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowThemeColors(true)}>
           Customize colors…
         </button>
+      </SettingRow>
+      <SettingRow label="Show widget names" help="A widget alone in its cell shows its name above it.">
+        <SettingSwitch label="Show widget names" on={showWidgetNames} onFlip={() => void useSettingsStore.getState().setShowWidgetNames(!showWidgetNames)} />
       </SettingRow>
       {!isMobile && (
         <SettingRow label="Tally of today’s tasks" help="A mark in the top bar for each task you finish today, in fives. Wiped at midnight.">

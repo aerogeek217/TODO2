@@ -413,14 +413,20 @@ describe('the Planner — its top line, alone in its cell', () => {
   }
   const alone = () => render(<DndContext><CellControlsContext.Provider value={controls}><PlannerWidget tab={PLANNER} /></CellControlsContext.Provider></DndContext>)
 
-  it('names the widget, its range, and what is due and due for a follow-up in Settings’ ranges', () => {
-    useSettingsStore.setState({ tabBadges: { due: 3, followup: 0 } })
+  it('names the widget (Show widget names on), its range, and what is due and due for a follow-up in Settings’ ranges', () => {
+    useSettingsStore.setState({ tabBadges: { due: 3, followup: 0 }, showWidgetNames: true })
     alone()
     expect(screen.getByTestId('top-line-name')).toHaveTextContent('Planner')
     expect(screen.getByTestId('planner-range')).toHaveTextContent('Nov 20 – 26')
     // Due within three days: the late invoice and Monday's deadline; a follow-up today: Chase legal.
     const badge = screen.getByRole('img', { name: '2 due: 1 overdue, 1 within 3 days; 1 follow-up: today' })
     expect([...badge.querySelectorAll('[data-badge-part]')].map((p) => p.textContent)).toEqual(['2', '1'])
+  })
+
+  it('Show widget names off (the default): its top line keeps its range, without the name', () => {
+    alone()
+    expect(screen.queryByTestId('top-line-name')).toBeNull()
+    expect(screen.getByTestId('planner-range')).toHaveTextContent('Nov 20 – 26')
   })
 
   it('has no badge with nothing to count', () => {

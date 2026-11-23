@@ -452,6 +452,9 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             role={stripShown ? 'tabpanel' : undefined}
             aria-labelledby={stripShown ? `ws-tab-${active.id}` : undefined}
             data-ws-cell-body={cell.id}
+            // The cell's controls float over the body's top-right corner (no top line holds them): a face keeps
+            // what it must reach out of that corner (`--cell-controls-reserve`).
+            data-controls-floating={controls && claims.slots === 0 ? '' : undefined}
             // A small face opens its widget larger (a widget's own click goes first).
             onClick={drag || collapsed ? undefined : smallFaceClick(cellFace)}
           >

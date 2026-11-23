@@ -58,7 +58,7 @@ The widget's own top line (`WidgetTopLine`) names it and stands for its tab (`da
 - the calendar: its month header;
 - a Number: its label;
 - a chart: its title;
-- Notes and the Neglect map: a name line.
+- Notes, the Neglect map, Work clusters and the Planner: a name line (`WidgetNameLine`), its name shown only with Settings › **Show widget names** on (off by default). Off, the line keeps only its other content (the Planner's range, Work clusters' count, which takes the legend's tooltip); with none it isn't drawn.
 - Shortcuts and the List wall: none. The cell's controls float over the face's corner.
 
 It ends with the cell's controls slot (`CellControls`, lent through `CellControlsContext`):
@@ -67,7 +67,7 @@ It ends with the cell's controls slot (`CellControls`, lent through `CellControl
 - They show on the cell's hover and focus-within and always on touch, with no fade.
 - Floating over a face and hidden, they take no press: a tap or a press at a Number's or a small face's corner reaches the face.
 - While collapsed, the slot has an **Expand row** button that always shows.
-- A face with no top line (a small face, a Number whose label is inside its button) gets the slot floating over the cell's top-right corner.
+- A face with no top line (a small face, a Number whose label is inside its button, a hidden name line) gets the slot floating over the cell's top-right corner, above the face (the body frame isolates the widget's own layers). The body is then `data-controls-floating` and sets `--cell-controls-reserve` (60px), what a face keeps clear of in that corner: the Neglect map's Slipping word.
 
 ### Two or more widgets: the tab strip
 

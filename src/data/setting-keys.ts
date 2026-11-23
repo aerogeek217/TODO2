@@ -108,6 +108,11 @@ export const SETTING_KEYS = {
    */
   tallyMarks: 'tallyMarks',
   /**
+   * "Show widget names" (Settings › Appearance › Theme): a widget alone in its cell
+   * names itself on a name line (`WidgetNameLine`). `true` = on; absent (or `false`) = off.
+   */
+  showWidgetNames: 'showWidgetNames',
+  /**
    * Ambience (Settings › Appearance › Ambience): JSON
    * `{ enabled, place: { lat, lon } | null, sky, motion, seasons }` (`utils/ambience-settings`);
    * a field missing or out of range reads as its default. Absent = all defaults (on, place

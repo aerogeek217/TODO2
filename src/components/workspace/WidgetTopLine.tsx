@@ -1,5 +1,6 @@
-import { useContext, useLayoutEffect, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import { Children, useContext, useLayoutEffect, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { tabTopLineIcon } from '../../models/workspace-layout'
+import { useSettingsStore } from '../../stores/settings-store'
 import { AppIcon } from '../shared/AppIcon'
 import { ChevronDownIcon, ExpandIcon, MoreIcon } from '../shared/icons'
 import type { TooltipLegendItem } from '../shared/TooltipBubble'
@@ -145,6 +146,9 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
  * A slim name line (Notes, the Neglect map): the widget's
  * name — its tab's title, a name given in Name and icon… included; `name`
  * outside a cell — and `children` after it. Alone in its cell only.
+ * Settings › Show widget names off (the default): no name — the line holds
+ * only its `children` (the legend their tooltip), and with none it isn't
+ * drawn, so the cell's controls float over its corner.
  */
 export function WidgetNameLine({ name, legend, children }: {
   name: string
@@ -153,8 +157,19 @@ export function WidgetNameLine({ name, legend, children }: {
   children?: ReactNode
 }) {
   const value = useContext(CellControlsContext)
+  const showName = useSettingsStore((s) => s.showWidgetNames)
   const title = value?.title || name
   const { triggerProps, tooltip } = useTooltip(legend ? title : null, { legend })
+  if (!showName) {
+    if (Children.toArray(children).length === 0) return null
+    return (
+      <WidgetTopLine alone className={styles.nameLine}>
+        {legend
+          ? <span className={styles.legendHost} data-legend="true" {...triggerProps}>{children}{tooltip}</span>
+          : children}
+      </WidgetTopLine>
+    )
+  }
   return (
     <WidgetTopLine
       alone

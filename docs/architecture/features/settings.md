@@ -36,7 +36,7 @@ The setters validate (an invalid value is ignored) and write through their entry
 
 Settings takes no Ctrl+Z, so a setting's undo step comes with the undo snackbar.
 
-- **With an undo step:** `setDefaultStatusId(id, options?)`, `setCompletedRetentionDays`, `setWeekStartsOn`, `setFollowupDefaultInterval`, `setFollowupQuickIntervals`, `setAutoFollowup`, `setRemoveConvertedLines`, `setStaleCobwebs`, `setStaleFade`, `setTallyMarks`, `setUrgentDueWithinDays`, `setNewListSort(sort, direction?)`, `setNewListGroup`, `setPurgePromptIntervalDays`, `setStaleAfterDays`, `setTabBadges`, `setPriorityCues`, `setListZoom`, `setRowDates` and `setAmbience`.
+- **With an undo step:** `setDefaultStatusId(id, options?)`, `setCompletedRetentionDays`, `setWeekStartsOn`, `setFollowupDefaultInterval`, `setFollowupQuickIntervals`, `setAutoFollowup`, `setRemoveConvertedLines`, `setStaleCobwebs`, `setStaleFade`, `setTallyMarks`, `setShowWidgetNames`, `setUrgentDueWithinDays`, `setNewListSort(sort, direction?)`, `setNewListGroup`, `setPurgePromptIntervalDays`, `setStaleAfterDays`, `setTabBadges`, `setPriorityCues`, `setListZoom`, `setRowDates` and `setAmbience`.
 - **Without one:** `setColor(theme, key, value)`, `resetColor(theme, key)`, `resetColors(theme?)`, `setThemeMode`, `setCheckinTaskFilter`, `setShortcut(id, chord)`, `resetShortcut`, `resetAllShortcuts`, `setPurgePromptLastAt(at)` and `stampHistoryLogSince`.
 - `setDefaultStatusId` with `{ record: false }` records none: a status delete that clears the default status records its own.
 
@@ -74,6 +74,7 @@ What each does to a row or a list is in [lists](lists.md).
 - `staleCobwebs`: Cobwebs on stale tasks. Stored `false` only while off; absent = on.
 - `staleFade`: Fade stale tasks, a stale row's `data-faded`. Stored `false` only while off; absent = on.
 - `tallyMarks`: Tally of today’s tasks, the top bar's `TallyMarks`. Stored `false` only while off; absent = on.
+- `showWidgetNames`: Show widget names (Appearance › Theme), read by `WidgetNameLine`. Stored `true` only while on; absent = off.
 - `tabBadges`: its rows are `tabBadgeDue` and `tabBadgeFollowup`, both written in one transaction.
 - `priorityCues`.
 - `listZoom`: the default list zoom, `auto` / `stacked` / `rows` / `lines` (`utils/list-zoom`). Its row is `rowDensity`. The default `auto` is the absent row and is never stored; a picked `rows` is stored. Its undo step reads `Default list zoom: Lines`.

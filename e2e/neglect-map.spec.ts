@@ -206,10 +206,11 @@ test('a zone’s word opens its tasks as a list; under 900px the widget has no S
 })
 
 test('the ⋯ menu sets Color by and Untouched after', async ({ page }) => {
-  // Alone in its cell: its top line (its name) stands for the tab (D26 AA1).
-  const tab = wsCell(page, 'k1').locator('[data-ws-tab]').getByTestId('top-line-name')
-  await expect(tab).toHaveText('Neglect map')
-  await tab.click({ button: 'right' })
+  // Alone in its cell, widget names off (the default): no name line; the cell's own ⋯ opens its menu.
+  await expect(wsCell(page, 'k1').getByTestId('top-line-name')).toHaveCount(0)
+  // Floating, its controls take a press once the pointer is over the cell.
+  await wsCell(page, 'k1').hover({ position: { x: 40, y: 40 } })
+  await wsCell(page, 'k1').getByRole('button', { name: 'Cell options' }).click()
   const menu = page.getByRole('menu', { name: 'Cell options' })
   await menu.getByRole('menuitem', { name: /^Color by/ }).click()
   await page.getByRole('menuitemradio', { name: 'None' }).click()
@@ -221,7 +222,8 @@ test('the ⋯ menu sets Color by and Untouched after', async ({ page }) => {
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
-  await tab.click({ button: 'right' })
+  await wsCell(page, 'k1').hover({ position: { x: 40, y: 40 } })
+  await wsCell(page, 'k1').getByRole('button', { name: 'Cell options' }).click()
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: /^Untouched after/ }).click()
   await page.getByRole('menuitemradio', { name: '30 days' }).click()
   await expect(dots(page, 'slipping')).toHaveCount(2)

@@ -7,6 +7,7 @@ import { emptyPredicate } from '../../../models'
 import { createTab, type LayoutBody, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { openWidgetLarger } from '../../../services/widget-popup'
 import { registerOpenEditor } from '../../../stores/editor-leave'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -76,6 +77,7 @@ describe('a collapsed cell on the phone always has Expand row', () => {
   })
 
   it('a collapsed Notes cell keeps the one Expand of its top line', () => {
+    useSettingsStore.setState({ showWidgetNames: true })
     show(grid([[cell('k', [createTab('notes', 'notes')])]], { rows: [{ weight: 1000, collapsed: true }] }))
     expect(expandButtons('k')).toHaveLength(1)
     expect(expandButtons('k')[0]!.closest('[data-cell-controls]')).not.toBeNull()

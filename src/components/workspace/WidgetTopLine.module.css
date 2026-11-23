@@ -27,6 +27,14 @@
   max-width: 45%;
 }
 
+/* Show widget names off: the line's own content, which carries the legend's tooltip. */
+.legendHost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 /* A slim name line (Notes, the Neglect map). */
 .nameLine {
   display: flex;

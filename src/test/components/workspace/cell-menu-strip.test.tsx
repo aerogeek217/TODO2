@@ -4,6 +4,7 @@ import { DndContext } from '@dnd-kit/core'
 import { WorkspaceCell } from '../../../components/workspace/WorkspaceCell'
 import { WidgetPopupHost } from '../../../components/workspace/WidgetPopup'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { registerOpenEditor } from '../../../stores/editor-leave'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
@@ -511,6 +512,7 @@ describe('tabs on demand (D26 AA1)', () => {
   const topLine = (cellId: string) => document.querySelector<HTMLElement>(`[data-ws-cell="${cellId}"] [data-widget-top-line]`)!
 
   it('one widget: no strip; its top line stands for the tab and holds the ⋯ — in the mode the card’s surface and ⋯ instead', () => {
+    useSettingsStore.setState({ showWidgetNames: true })
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     renderCell(k)
@@ -527,6 +529,17 @@ describe('tabs on demand (D26 AA1)', () => {
     expect(screen.getByRole('button', { name: 'Cell layout' })).toBeInTheDocument()
     // The slot is its top line's: the cell draws none of its own.
     expect(document.querySelectorAll('[data-cell-controls]')).toHaveLength(1)
+  })
+
+  it('Show widget names off (the default): a Notes cell has no name line; the cell’s own controls float, standing for the tab', () => {
+    const k = cell('k', [createTab('notes', 'n')])
+    open(single(k))
+    renderCell(k)
+    expect(document.querySelector('[data-widget-top-line][data-ws-tab]:not([data-cell-controls])')).toBeNull()
+    expect(screen.queryByTestId('top-line-name')).toBeNull()
+    const slot = document.querySelector<HTMLElement>('[data-cell-controls]')!
+    expect(slot).toHaveAttribute('data-ws-tab', 'n')
+    expect(within(slot).getByRole('button', { name: 'Cell options' })).toBeInTheDocument()
   })
 
   it('two widgets: the strip, with the ⋯ in its header; no top line stands for a tab', () => {
@@ -593,6 +606,7 @@ describe('tabs on demand (D26 AA1)', () => {
   })
 
   it('collapsed with one widget: its top line shows, with Expand row', () => {
+    useSettingsStore.setState({ showWidgetNames: true })
     const k = cell('k', [createTab('notes', 'n')])
     open(grid([[k]], { rows: [{ weight: 1000, collapsed: true }] }))
     renderCell(k, { collapsed: true })

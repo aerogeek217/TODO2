@@ -133,6 +133,7 @@ function buildSeed(): Seed {
       { key: 'staleCobwebs', value: 'false' },
       { key: 'staleFade', value: 'false' },
       { key: 'tallyMarks', value: 'false' },
+      { key: 'showWidgetNames', value: 'true' },
       { key: 'ambience', value: JSON.stringify({ enabled: false, place: { lat: 41.88, lon: -87.63 }, sky: 'subtle', motion: 60, seasons: false }) },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },

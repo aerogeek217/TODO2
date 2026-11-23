@@ -110,6 +110,13 @@
   display: flex;
   flex-direction: column;
   position: relative;
+  /* A widget's own layers stay inside it: the cell's floating controls are always over the face. */
+  isolation: isolate;
+}
+
+/* The width of the cell's floating controls (Open larger and the ⋯, at the corner's 4px): what a face keeps clear of. */
+.body[data-controls-floating] {
+  --cell-controls-reserve: 60px;
 }
 
 .body {

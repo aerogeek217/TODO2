@@ -20,6 +20,11 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Added
+
+- **Show widget names** (Settings › Appearance › Theme). Off by default: a widget alone in its cell (Notes, the
+  Neglect map, Work clusters, the Planner) no longer spends a line on its name. Turn it on to bring the names back.
+
 ### Changed
 
 - **Shortcuts fits more tiles on a row**: tiles can be narrower, and a list's badge and count move under its name
