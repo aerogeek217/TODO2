@@ -163,7 +163,7 @@ describe('list-wall', () => {
     expect((document.querySelector('[data-wall-list="t-all"]') as HTMLElement).style.getPropertyValue('--wall-columns')).toBe('40')
   })
 
-  it('the name’s tooltip is the legend', () => {
+  it('has no name line; a list’s tooltip ends with the legend', () => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
     vi.setSystemTime(TODAY)
     const controls: CellControlsValue = {
@@ -171,9 +171,9 @@ describe('list-wall', () => {
       onMore: () => {}, collapsed: false, onExpand: () => {}, claim: () => () => {},
     }
     render(<CellControlsContext.Provider value={controls}><ListWallWidget tab={WALL} /></CellControlsContext.Provider>)
-    fireEvent.pointerEnter(screen.getByTestId('top-line-name'), { pointerType: 'mouse' })
+    expect(screen.queryByTestId('top-line-name')).toBeNull()
+    fireEvent.pointerEnter(document.querySelector('[data-wall-list="t-all"] button')!, { pointerType: 'mouse' })
     act(() => { vi.advanceTimersByTime(500) })
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/List wall.*Overdue.*Due soon.*Follow-up late.*On track.*Stale/)
-    expect(screen.queryByRole('button', { name: 'About List wall' })).toBeNull()
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/Click to show it in its cell.*Overdue.*Due soon.*Follow-up late.*On track.*Stale/)
   })
 })

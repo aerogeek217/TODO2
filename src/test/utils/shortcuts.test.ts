@@ -51,20 +51,20 @@ describe('Shortcuts’ lists', () => {
     expect(shortcutChoices(defs, [work, home], home, [1, 3, 5]).map((g) => g.layoutName)).toEqual(['Work'])
   })
 
-  it('a list’s icon: its own layout’s tab’s picked one, else another layout’s; its layout’s name (the open one as edited)', () => {
+  it('a list’s icon: its own layout’s tab’s strip icon, else another layout’s; its layout’s name (the open one as edited)', () => {
     expect(shortcutListIcon(def(1, 'Errands', 1), [work, home], home)).toEqual({ kind: 'line', key: 'flag' })
     // Its own layout shows it on no tab: the tab elsewhere.
     expect(shortcutListIcon(def(1, 'Errands', 3), [work, home], home)).toEqual({ kind: 'emoji', emoji: '🌿' })
-    // A tab with no icon picked, and no tab at all: none.
-    expect(shortcutListIcon(def(2, 'Clients', 2), [work, home], home)).toBeUndefined()
-    expect(shortcutListIcon(def(9, 'Gone', 2), [work, home], home)).toBeUndefined()
+    // A tab with no icon picked, and no tab at all: the list glyph, as the strip shows it.
+    expect(shortcutListIcon(def(2, 'Clients', 2), [work, home], home)).toEqual({ kind: 'line', key: 'list' })
+    expect(shortcutListIcon(def(9, 'Gone', 2), [work, home], home)).toEqual({ kind: 'line', key: 'list' })
     expect(shortcutLayoutName(def(1, 'Errands', 1), [work, home], { ...home, name: 'Home (renamed)' })).toBe('Home (renamed)')
     expect(shortcutLayoutName(def(2, 'Clients', 2), [work, home], home)).toBe('Work')
   })
 
-  it('the compact line: as many 150px tiles as fit, the rest in +N', () => {
-    expect(compactShortcutTiles(2, 900)).toEqual({ columns: 5, shown: 2, more: 0 })
-    expect(compactShortcutTiles(6, 470)).toEqual({ columns: 3, shown: 2, more: 4 })
+  it('the compact line: as many 120px tiles as fit, the rest in +N', () => {
+    expect(compactShortcutTiles(2, 900)).toEqual({ columns: 7, shown: 2, more: 0 })
+    expect(compactShortcutTiles(6, 380)).toEqual({ columns: 3, shown: 2, more: 4 })
     expect(compactShortcutTiles(3, 0)).toEqual({ columns: 3, shown: 3, more: 0 })
   })
 

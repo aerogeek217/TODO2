@@ -13,10 +13,10 @@ Shortcuts (kind `shortcuts`, `components/workspace/shortcuts/`) is a whole widge
 
 Its data is `hooks/use-shortcuts.useShortcutTile`: the list as it shows on opening, built with `useBuiltList` — the list as edited, the prompt pick made in its popup and the screen filter.
 
-- The list tab's picked icon (`utils/shortcuts.shortcutListIcon`): the tab of the list's own layout first, then any layout's, the open one as edited. None when no tab shows the list or its tab has none picked.
-- The name, 13px semibold; the tab badge's capsule (`BadgeCapsule`, the list's own ranges, `useTabBadges` over a list tab of the popup's id); the count of tasks it shows.
-- The first task titles as built, 0–3: as many whole 16px lines as the tile's height leaves (`shortcutPeekLines`), secondary to muted, each a little dimmer.
-- The list's layout name with the layout glyph at its foot.
+- The list tab's icon as its strip shows it (`utils/shortcuts.shortcutListIcon`): the tab of the list's own layout first, then any layout's, the open one as edited. A picked icon, else the list glyph; none for a tab given No icon. No tab shows the list: the list glyph.
+- The name, 13px semibold; the tab badge's capsule (`BadgeCapsule`, the list's own ranges, `useTabBadges` over a list tab of the popup's id); the count of tasks it shows. The icon and the name stay together; the capsule and count wrap under them, right-aligned, when the tile is too narrow for both.
+- The first task titles as built, 0–3: as many whole 16px lines as the tile's height leaves (`shortcutPeekLines`), secondary to muted, each a little dimmer. They take no part in the row's least height (`contain: size`).
+- The list's layout name is its tooltip (`Errands · Home`), not a line on it.
 - A list waiting on its prompt has no capsule and no titles, and its count is `—`. A pick made in its popup counts while the popup shows it.
 
 The tile is `--color-surface-high` with a 1px `--color-border-muted` edge, radius 8 and 10 / 12px padding.
@@ -29,10 +29,11 @@ The tile is `--color-surface-high` with a 1px `--color-border-muted` edge, radiu
 |-------|-----------|
 | small | the small face of every widget: its icon, its name and the number of lists. A click opens it larger |
 | rows | narrower than 360px: a 32px row per list — icon, name, capsule, count |
-| compact | at most 160px tall: one line of tiles at least 150px wide, without titles. The ones that don't fit end in a `+N` tile that opens it larger (`compactShortcutTiles`) |
-| large | a grid of tiles (`auto-fill`, 200px at least), then a dashed **Add a list** tile |
+| compact | at most 160px tall: one line of tiles at least 120px wide, without titles. The ones that don't fit end in a `+N` tile that opens it larger (`compactShortcutTiles`) |
+| large | a grid of tiles (`auto-fill`, 136px at least), then a dashed **Add a list** tile |
 
-- The large grid's rows run from 64px (the first line and the layout line) to 124px (three titles too), sharing the room. As the cell shrinks the titles go first, then the tiles go to one line, then to rows.
+- The face has no name line: the cell's controls float over its corner.
+- The large grid's rows run from a tile's first line (two when its capsule wraps) to 96px (three titles too), sharing the room. As the cell shrinks the titles go first, then the tiles go to one line, then to rows.
 - With one row of tiles a large tile always has room for three titles. The titles drop only where there are two rows or more.
 - Empty: `No lists added.` and an **Add a list** button.
 
@@ -41,7 +42,7 @@ The tile is `--color-surface-high` with a 1px `--color-border-muted` edge, radiu
 `components/workspace/shortcuts/shortcuts-menu` holds the menu and the writes. Each write is `patchTabConfig(tab.id, 'shortcuts', { lists }, step)`, one undo step.
 
 - **Add a list ›** is in the widget's ⋯ (its settings entries, as the Neglect map's and the Planner's) and opens from the dashed tile and the empty state. It lists every list not added yet under its layout's name, the open layout first, each layout's lists in their order (`shortcutChoices`). A list the layout edit mode waits to delete is left out. A pick adds the list at the end: `Added “Errands” to Shortcuts`.
-- A tile's right-click, Shift+F10 or its ⋯ (bottom right, while the pointer is over the tile) offers **Open** and **Remove from Shortcuts**: `Removed “Errands” from Shortcuts`. The list itself stays.
+- A tile's right-click, Shift+F10 or its ⋯ (bottom right, over its last title, while the pointer is over the tile) offers **Open** and **Remove from Shortcuts**: `Removed “Errands” from Shortcuts`. The list itself stays.
 
 ## Drag to reorder
 

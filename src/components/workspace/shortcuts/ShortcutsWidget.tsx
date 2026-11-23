@@ -13,11 +13,10 @@ import { compactShortcutTiles, shortcutLists, shortcutPeekLines } from '../../..
 import { shortcutsFaceFor, shortcutsShape, type ShortcutsShape } from '../../../utils/widget-face'
 import { AppIcon } from '../../shared/AppIcon'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
-import { LayoutIcon, MoreIcon, PlusIcon } from '../../shared/icons'
+import { MoreIcon, PlusIcon } from '../../shared/icons'
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
 import { TabIcon } from '../TabIcon'
 import { useTabTitle } from '../widget-hooks'
-import { WidgetNameLine } from '../WidgetTopLine'
 import { ADD_SHORTCUT_LABEL, moveShortcut, REMOVE_SHORTCUT_LABEL, removeShortcut, useAddShortcutEntries } from './shortcuts-menu'
 import styles from './ShortcutsWidget.module.css'
 
@@ -43,6 +42,7 @@ function tileLabel(data: ShortcutTileData): string {
  * `shortcutsShape`): small — the name and the number of lists; rows — a row
  * per list; compact — one line of tiles ending in `+N`; large — a grid of
  * tiles whose titles go first as it shrinks, then a dashed Add a list tile.
+ * No name line: the cell's controls float over its corner.
  * Tiles drag to reorder (their own `DndContext`; not on touch), one undo
  * step; a right-click (or a tile's ⋯) offers Open and Remove from Shortcuts.
  */
@@ -70,14 +70,7 @@ function ShortcutsFace({ tab, shape, width }: { tab: ShortcutsTab; shape: Shortc
       </div>
     )
   }
-  return (
-    <>
-      <WidgetNameLine name="Shortcuts">
-        <span className={styles.lineCount}>{plural(ids.length, 'list')}</span>
-      </WidgetNameLine>
-      {ids.length === 0 ? <Empty tab={tab} /> : <Tiles tab={tab} ids={ids} shape={shape} width={width} />}
-    </>
-  )
+  return ids.length === 0 ? <Empty tab={tab} /> : <Tiles tab={tab} ids={ids} shape={shape} width={width} />
 }
 
 /** The Add a list menu under `anchor` (the dashed tile, the empty state's button). */
@@ -223,15 +216,17 @@ function SortableTile({ listId, shape, disabled, onOpen, onMenu }: TileProps) {
   }
   const head = (
     <span className={styles.head}>
-      {data.icon && <AppIcon icon={data.icon} size={13} className={styles.icon} />}
-      <span className={styles.name} data-shortcut-name="">{data.name}</span>
-      {data.badge && <BadgeCapsule counts={data.badge.counts} data-shortcut-badge="" />}
-      <span className={styles.count} data-shortcut-count="">{data.count ?? '—'}</span>
+      <span className={styles.title}>
+        {data.icon && <AppIcon icon={data.icon} size={13} className={styles.icon} />}
+        <span className={styles.name} data-shortcut-name="">{data.name}</span>
+      </span>
+      <span className={styles.meta}>
+        {data.badge && <BadgeCapsule counts={data.badge.counts} data-shortcut-badge="" />}
+        <span className={styles.count} data-shortcut-count="">{data.count ?? '—'}</span>
+      </span>
     </span>
   )
-  let body: ReactNode = head
-  if (shape === 'large') body = <>{head}<Peek titles={data.titles} /><LayoutLine name={data.layoutName} /></>
-  else if (shape === 'compact') body = <>{head}<LayoutLine name={data.layoutName} /></>
+  const body: ReactNode = shape === 'large' ? <>{head}<Peek titles={data.titles} /></> : head
   return (
     <div
       ref={setNodeRef}
@@ -247,6 +242,7 @@ function SortableTile({ listId, shape, disabled, onOpen, onMenu }: TileProps) {
         className={styles.open}
         {...(disabled ? undefined : { 'aria-roledescription': attributes['aria-roledescription'], 'aria-describedby': attributes['aria-describedby'] })}
         aria-label={`${tileLabel(data)}. Open`}
+        data-tooltip={data.layoutName ? `${data.name} · ${data.layoutName}` : undefined}
         onClick={onOpen}
         onContextMenu={onContextMenu}
         onKeyDown={onKeyDown}
@@ -279,16 +275,6 @@ function Peek({ titles }: { titles: string[] }) {
   return (
     <span ref={ref} className={styles.peek} aria-hidden="true">
       {lines.map((t, i) => <span key={i} className={styles.peekLine} data-peek-line={i}>{t}</span>)}
-    </span>
-  )
-}
-
-function LayoutLine({ name }: { name: string }) {
-  if (!name) return null
-  return (
-    <span className={styles.layoutLine} data-shortcut-layout="">
-      <LayoutIcon size={11} />
-      <span className={styles.layoutName}>{name}</span>
     </span>
   )
 }

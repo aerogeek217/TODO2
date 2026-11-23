@@ -59,6 +59,7 @@ The widget's own top line (`WidgetTopLine`) names it and stands for its tab (`da
 - a Number: its label;
 - a chart: its title;
 - Notes and the Neglect map: a name line.
+- Shortcuts and the List wall: none. The cell's controls float over the face's corner.
 
 It ends with the cell's controls slot (`CellControls`, lent through `CellControlsContext`):
 

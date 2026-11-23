@@ -23,7 +23,6 @@ import { listWallFaceFor, type WidgetFace } from '../../../utils/widget-face'
 import { PriorityRing } from '../../shared/PriorityRing'
 import type { TooltipLegendItem } from '../../shared/TooltipBubble'
 import { useTooltip } from '../../shared/use-tooltip'
-import { WidgetNameLine } from '../WidgetTopLine'
 import styles from './ListWallWidget.module.css'
 
 type List = WallList<PersistedTodoItem>
@@ -32,7 +31,7 @@ type List = WallList<PersistedTodoItem>
 const SQUARE_PX = 10
 const SQUARE_CORNER_PX = 2
 
-/** What the squares mean: the name's tooltip. */
+/** What the squares mean: under each list's tooltip. */
 const WALL_LEGEND: readonly TooltipLegendItem[] = WALL_TONES.map((t) => ({
   label: WALL_TONE_NAMES[t],
   swatch: <span className={styles.legendSquare} data-tone={t} />,
@@ -52,8 +51,9 @@ function countsText(list: List): string {
  * task it shows, the trouble first — overdue, due soon, follow-up late, on
  * track, stale (`utils/list-wall`); the blocks sit side by side, as many
  * as fit, sharing the width (`wallShape`: a wide cell shows every list in
- * one row), a big list stopping at the rows the height has with `+N`; the
- * name's tooltip is the legend. Medium (a narrow cell): a bar per list in the same colors, its
+ * one row), a big list stopping at the rows the height has with `+N`; a
+ * list's tooltip ends with the legend. No name line: the cell's controls
+ * float over its corner. Medium (a narrow cell): a bar per list in the same colors, its
  * overdue and late follow-ups in the tab badge's capsule. A list's name (a
  * bar) brings its tab to the front of its cell (`showTab`); a square opens
  * its task.
@@ -82,16 +82,8 @@ function ListWallFace({ face }: { face: WidgetFace }) {
       </div>
     )
   }
-  return (
-    <>
-      <WidgetNameLine name="List wall" legend={WALL_LEGEND}>
-        <span className={styles.lineCount}>{plural(lists.length, 'list')}</span>
-      </WidgetNameLine>
-      {lists.length === 0
-        ? <p className={styles.empty} role="status">No list tabs in this layout.</p>
-        : face === 'medium' ? <Bars lists={lists} /> : <Blocks lists={lists} />}
-    </>
-  )
+  if (lists.length === 0) return <p className={styles.empty} role="status">No list tabs in this layout.</p>
+  return face === 'medium' ? <Bars lists={lists} /> : <Blocks lists={lists} />
 }
 
 // ── Large: blocks of squares ──────────────────────────────────────────────
@@ -120,7 +112,7 @@ function Block({ list, shape }: { list: List; shape: WallShape }) {
   const { late, followup, calm } = wallListWords(list.counts)
   const { squares, more } = wallSquaresShown(list, shape)
   const { columns } = shape
-  const { triggerProps, tooltip } = useTooltip(`${list.name}\n${list.waiting ? 'Waits on its prompt' : countsText(list)}\nClick to show it in its cell`)
+  const { triggerProps, tooltip } = useTooltip(`${list.name}\n${list.waiting ? 'Waits on its prompt' : countsText(list)}\nClick to show it in its cell`, { legend: WALL_LEGEND })
   return (
     <section className={styles.block} style={{ '--wall-columns': columns } as CSSProperties} aria-label={list.name} data-wall-list={list.tabId}>
       <button
@@ -219,7 +211,7 @@ function Bars({ lists }: { lists: List[] }) {
 }
 
 function Bar({ list, max }: { list: List; max: number }) {
-  const { triggerProps, tooltip } = useTooltip(`${list.name}\n${list.waiting ? 'Waits on its prompt' : countsText(list)}\nClick to show it in its cell`)
+  const { triggerProps, tooltip } = useTooltip(`${list.name}\n${list.waiting ? 'Waits on its prompt' : countsText(list)}\nClick to show it in its cell`, { legend: WALL_LEGEND })
   const total = list.squares.length
   // Its length against the biggest list's (square root, so a small list still reads).
   const width = `${Math.max(12, Math.round(Math.sqrt(total / max) * 100))}%`

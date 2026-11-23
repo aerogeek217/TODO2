@@ -107,16 +107,17 @@ describe('Shortcuts’ tiles', () => {
     render(<Live />)
     expect(tileIds()).toEqual([2, 1])
     expect(current().config.lists).toEqual([2, 1, 99])
-    // Its layout's name at its foot (the open one's too).
-    expect(within(tile(2)!).getByText('Work')).toBeInTheDocument()
-    expect(within(tile(1)!).getByText('Home')).toBeInTheDocument()
+    // Its layout's name is no line on it: its tooltip (the open one's too).
+    expect(within(tile(2)!).queryByText('Work')).toBeNull()
+    expect(within(tile(2)!).getByRole('button', { name: /Open$/ })).toHaveAttribute('data-tooltip', 'Clients · Work')
+    expect(within(tile(1)!).getByRole('button', { name: /Open$/ })).toHaveAttribute('data-tooltip', 'Errands · Home')
   })
 
-  it('shows its list tab’s picked icon (none when none was picked), its badge capsule, its count and first titles', () => {
+  it('shows its list tab’s icon as the strip does (the list glyph when none was picked), its badge capsule, its count and first titles', () => {
     setup([1, 2])
     render(<Live />)
     expect(tile(1)!.querySelector('[data-app-icon="line"]')).not.toBeNull()
-    expect(tile(2)!.querySelector('[data-app-icon]')).toBeNull()
+    expect(tile(2)!.querySelector('[data-app-icon="line"]')).not.toBeNull()
     // Clients: one task overdue, the capsule's due part solid.
     expect(tile(2)!.querySelector('[data-shortcut-badge] [data-badge-part="due"]')).toHaveTextContent('1')
     expect(tile(2)!.querySelector('[data-shortcut-count]')).toHaveTextContent('4')
@@ -187,24 +188,24 @@ describe('Shortcuts’ faces', () => {
     expect(document.querySelector('[data-shortcuts-add]')).not.toBeNull()
   })
 
-  it('rows when narrow: a row per list, no titles, no layout line', () => {
+  it('rows when narrow: a row per list, no titles', () => {
     width = 300
     setup([1, 2])
     render(<Live />)
     expect(document.querySelector('[data-shortcuts-face]')!.getAttribute('data-shortcuts-face')).toBe('rows')
     expect(tileIds()).toEqual([1, 2])
-    expect(document.querySelectorAll('[data-peek-line], [data-shortcut-layout]')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-peek-line]')).toHaveLength(0)
   })
 
   it('compact when short: one line of tiles, the ones that don’t fit in +N', () => {
-    width = 400
+    width = 380
     height = 140
     setup([1, 2, 3, 4])
     render(<Live />)
     expect(document.querySelector('[data-shortcuts-face]')!.getAttribute('data-shortcuts-face')).toBe('compact')
-    // 400px holds two tiles of 150: one list and +3.
-    expect(tileIds()).toEqual([1])
-    expect(document.querySelector('[data-shortcuts-more]')).toHaveTextContent('+3')
+    // 380px holds three tiles of 120: two lists and +2.
+    expect(tileIds()).toEqual([1, 2])
+    expect(document.querySelector('[data-shortcuts-more]')).toHaveTextContent('+2')
     expect(document.querySelectorAll('[data-peek-line]')).toHaveLength(0)
   })
 

@@ -20,6 +20,13 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Changed
+
+- **Shortcuts fits more tiles on a row**: tiles can be narrower, and a list's badge and count move under its name
+  when space is tight. Every tile shows its list's icon. The layout name moved to the tile's tooltip.
+- **Shortcuts and the List wall have no name header**, which gives their content the room. The List wall's color
+  legend is now at the end of each list's tooltip.
+
 ## 2026-11-23
 
 Data version 87, unchanged — and now the oldest this version reads (see Removed).

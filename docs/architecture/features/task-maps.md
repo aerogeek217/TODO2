@@ -66,6 +66,6 @@ Its data is `hooks/use-list-wall`.
 - The blocks sit side by side, as many as fit at 8 squares across, sharing the width (`list-wall.wallShape`).
 - A wide cell shows every list in one row, never wrapping into empty width.
 - A block has 2–6 rows of squares, and up to 12 in one row of blocks.
-- The widget name's tooltip is the legend, as Work clusters' is.
+- It has no name line: the cell's controls float over its corner. Each list's tooltip ends with the legend.
 - A list's name brings its tab to the front of its cell. A square opens its task.
 - In a narrow cell, at most 560px wide, it draws a bar per list instead (`listWallFaceFor`). A short cell keeps the blocks, with fewer rows.

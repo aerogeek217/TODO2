@@ -25,12 +25,6 @@
   color: var(--color-text-muted);
 }
 
-.lineCount {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
 /* ── Large ─────────────────────────────────────────────────────────────── */
 
 .wall {
@@ -69,7 +63,7 @@
   width: auto;
 }
 
-/* The legend's square (the name's tooltip). */
+/* The legend's square (a list's tooltip). */
 .legendSquare {
   display: block;
   width: 10px;

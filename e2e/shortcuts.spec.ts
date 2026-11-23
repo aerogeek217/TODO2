@@ -63,14 +63,14 @@ test('two lists of two layouts: icon, capsule and titles; a click opens the list
   await addList(page, 'Clients')
   await expect.poll(() => tileNames(page)).toEqual(['Errands', 'Clients'])
 
-  // The tile: its tab's icon, its capsule (one overdue), its count, its first titles, its layout.
+  // The tile: its tab's icon, its capsule (one overdue), its count, its first titles; its layout in its tooltip.
   const clients = tile(page, 'Clients')
   await expect(clients.locator('[data-app-icon]')).toHaveCount(1)
   await expect(tile(page, 'Errands').locator('[data-app-icon="line"]')).toHaveCount(1)
   await expect(clients.locator('[data-shortcut-badge] [data-badge-part="due"]')).toHaveText('1')
   await expect(clients.locator('[data-shortcut-count]')).toHaveText('4')
   await expect(clients.locator('[data-peek-line]')).toHaveText(['Call Acme', 'Send the invoice', 'Renew the lease'])
-  await expect(clients.locator('[data-shortcut-layout]')).toHaveText('Work')
+  await expect(clients.getByRole('button', { name: /^Clients: .*Open$/ })).toHaveAttribute('data-tooltip', 'Clients · Work')
 
   // A click opens the list of the other layout in the popup, over this one.
   await clients.getByRole('button', { name: /^Clients: .*Open$/ }).click()
@@ -99,13 +99,18 @@ test('as the cell shrinks the titles go first, then one line of tiles, then rows
   const peekLines = () => widget(page).locator('[data-peek-line]').count()
   await expect.poll(face).toBe('large')
   await expect.poll(peekLines).toBe(6)
+  // A body about 400px wide: two tiles across, so the Add a list tile starts a second row.
+  const wide = (await widget(page).boundingBox())?.width ?? 1
+  const width = Math.round(1440 * 400 / wide)
+  await page.setViewportSize({ width, height: 900 })
+  await expect.poll(async () => Math.abs(((await widget(page).boundingBox())?.width ?? 0) - 400)).toBeLessThan(40)
   // Shorter and shorter, from a body about 320px tall (two rows of tiles): a large face with fewer titles comes before the compact one.
   const chrome = Math.round(900 - ((await widget(page).boundingBox())?.height ?? 0))
   let fewer = false
   let height = chrome + 320
   while ((await face()) === 'large' && height > chrome + 100) {
     height -= 4
-    await page.setViewportSize({ width: 1440, height })
+    await page.setViewportSize({ width, height })
     await expect.poll(async () => Math.abs(((await widget(page).boundingBox())?.height ?? 0) - (height - chrome))).toBeLessThan(2)
     const lines = await peekLines()
     if ((await face()) === 'large' && lines < 6) fewer = true
