@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { TallyMarks } from '../../../components/layout/TallyMarks'
 import { ThemeSection } from '../../../components/settings/sections/ThemeSection'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useUIStore } from '../../../stores/ui-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { db } from '../../../data/database'
 import { makeTodo, resetDb } from '../../helpers'
@@ -71,9 +72,19 @@ describe('TallyMarks', () => {
     await frame()
     const tally = document.querySelector<HTMLElement>('[data-tally]')
     expect(tally?.style.left).toBe('610px')
-    expect(screen.getByRole('img', { name: '7 done today' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '7 done today. Show them' })).toBeInTheDocument()
     expect(marks()).toHaveLength(7)
     expect(marks().some((p) => /fresh/.test(p.getAttribute('class') ?? ''))).toBe(false)
+  })
+
+  it('a click lists today’s tasks in the task dialog', async () => {
+    useTodoStore.setState({ todos: done(3) })
+    render(<Bar trayRight={600} />)
+    await frame()
+    fireEvent.click(screen.getByRole('button', { name: '3 done today. Show them' }))
+    const dialog = useUIStore.getState().taskDialog
+    expect(dialog?.title).toBe('Done today')
+    expect(dialog?.source).toEqual({ kind: 'todos', todoIds: expect.arrayContaining(done(3).map((t) => t.id)) })
   })
 
   it('a task completed while shown scratches in its mark; a reopen takes one away at once', async () => {

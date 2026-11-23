@@ -1,8 +1,10 @@
 import { useLayoutEffect, useState, type RefObject } from 'react'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useTodoStore } from '../../stores/todo-store'
+import { useUIStore } from '../../stores/ui-store'
 import { useDoneToday } from '../../hooks/use-done-today'
-import { TALLY_HEIGHT_PX, tallyLabel, tallyLayout, tallyMarks } from '../../utils/tally'
-import { Tooltip } from '../shared/Tooltip'
+import { TALLY_HEIGHT_PX, tallyLabel, tallyLayout, tallyMarks, tasksDoneToday } from '../../utils/tally'
+import { useTooltip } from '../shared/use-tooltip'
 import styles from './TallyMarks.module.css'
 
 /** The tally's least distance from the tray and from the right zone, px. */
@@ -72,7 +74,8 @@ function useTallyGap(
  * in the top bar's free stretch right of the filter tray, four strokes then
  * a slash. An absolute layer, so the bar's fold and centring never see it.
  * The newest whole groups that fit show; with no room for one, nothing. Off
- * in Settings › Appearance › Theme (`tallyMarks`).
+ * in Settings › Appearance › Theme (`tallyMarks`). A click lists today's
+ * tasks in the task dialog (`showDoneToday`).
  */
 export function TallyMarks({ barRef, spacerRef, trayRef, rightRef }: {
   barRef: RefObject<HTMLElement | null>
@@ -85,6 +88,17 @@ export function TallyMarks({ barRef, spacerRef, trayRef, rightRef }: {
   const gap = useTallyGap(on && count > 0, barRef, spacerRef, trayRef, rightRef)
   if (!gap || count <= 0) return null
   return <TallyWall count={count} left={gap.left} room={gap.room} />
+}
+
+/** The task dialog of the tasks completed today, the last first (the tally's click). */
+function showDoneToday(): void {
+  const ids = tasksDoneToday(useTodoStore.getState().todos, new Date()).map((t) => t.id)
+  useUIStore.getState().showTaskDialog({
+    title: 'Done today',
+    glyph: 'done',
+    description: 'The tasks you completed today.',
+    source: { kind: 'todos', todoIds: ids },
+  })
 }
 
 /**
@@ -105,15 +119,33 @@ function TallyWall({ count, left, room }: { count: number; left: number; room: n
   if (layout.width === 0) return null
   const label = tallyLabel(count)
   const width = Math.ceil(layout.width) + 1
+  return <TallyButton label={label} left={left} width={width} layout={layout} fresh={current.fresh} />
+}
+
+function TallyButton({ label, left, width, layout, fresh }: {
+  label: string
+  left: number
+  width: number
+  layout: ReturnType<typeof tallyLayout>
+  fresh: number | null
+}) {
+  const { triggerProps, tooltip } = useTooltip(`${label} · click to see them`)
   return (
-    <Tooltip text={label} className={styles.tally} style={{ left }} data-tally="">
+    <button
+      type="button"
+      className={styles.tally}
+      style={{ left }}
+      data-tally=""
+      aria-label={`${label}. Show them`}
+      onClick={showDoneToday}
+      {...triggerProps}
+    >
       <svg
         className={styles.marks}
         width={width}
         height={TALLY_HEIGHT_PX}
         viewBox={`0 0 ${width} ${TALLY_HEIGHT_PX}`}
-        role="img"
-        aria-label={label}
+        aria-hidden="true"
       >
         {tallyMarks(layout).map((mark) => (
           <path
@@ -121,10 +153,11 @@ function TallyWall({ count, left, room }: { count: number; left: number; room: n
             d={mark.path}
             transform={mark.x ? `translate(${mark.x} 0)` : undefined}
             pathLength={1}
-            className={mark.index === current.fresh ? styles.fresh : undefined}
+            className={mark.index === fresh ? styles.fresh : undefined}
           />
         ))}
       </svg>
-    </Tooltip>
+      {tooltip}
+    </button>
   )
 }

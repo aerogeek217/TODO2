@@ -45,7 +45,7 @@ function expectClear(g: Awaited<ReturnType<typeof geometry>>, at: string) {
 test('the marks sit between the tray and the right zone at every width, with chips too', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 800 })
   await seedTaskList(page, { people: ['Aisha Rahman'], tasks: TASKS })
-  await expect(page.getByRole('img', { name: '7 done today' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '7 done today. Show them' })).toBeVisible()
   expect(await page.locator('[data-tally] path').count()).toBe(7)
   for (const width of [1600, 1280, 1100, 900]) {
     await page.setViewportSize({ width, height: 800 })
@@ -65,10 +65,15 @@ test('completing a task adds a mark; the tooltip says the count', async ({ page 
   await seedTaskList(page, { tasks: TASKS })
   await expect(page.locator('[data-tally] path')).toHaveCount(7)
   await taskRowByTitle(page, 'Open two').getByRole('checkbox', { name: 'Mark complete' }).click()
-  await expect(page.getByRole('img', { name: '8 done today' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '8 done today. Show them' })).toBeVisible()
   await expect(page.locator('[data-tally] path')).toHaveCount(8)
   await page.locator('[data-tally]').hover()
-  await expect(page.getByRole('tooltip')).toHaveText('8 done today')
+  await expect(page.getByRole('tooltip')).toHaveText('8 done today · click to see them')
+  // A click lists them: the task dialog of today's tasks, the last done first.
+  await page.locator('[data-tally]').click()
+  const dialog = page.getByRole('dialog', { name: 'Done today' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.locator('[data-todo-id]')).toHaveCount(8)
 })
 
 test('the bar folds the same with the tally on and off', async ({ page }) => {

@@ -9,8 +9,25 @@
   top: 50%;
   z-index: var(--z-above);
   display: inline-flex;
+  margin: 0;
+  /* Taller to press, never wider than the marks (the gap it was measured for). */
+  padding: 4px 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
   transform: translateY(-50%);
   line-height: 0;
+  cursor: pointer;
+}
+
+/* A click lists today's tasks: a faint ground on hover, the focus ring by keys. */
+.tally:hover {
+  background: var(--color-tint-5);
+}
+
+.tally:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .marks {
