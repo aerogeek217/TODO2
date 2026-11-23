@@ -3,12 +3,14 @@ import { type CalendarEntry } from '../../../services/calendar-entries'
 import { dayLabel } from '../../../utils/calendar-grid'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
 import { PlusIcon } from '../../shared/icons'
+import { DayTicks } from '../../shared/DayTicks'
+import { dayTicks, entryDayMarks } from '../../../utils/day-ticks'
 import { CalendarEntryButton, type CalendarEntrySize } from './CalendarEntryButton'
 import { type CalendarEntryDragData } from './calendar-drag'
 import styles from './CalendarWidget.module.css'
 import { type DayContext, dropLabel } from './calendar-day'
 
-/** The parts every calendar day draws: the drop label, its date, an entry, the `+N more` button. */
+/** The parts every calendar day draws: the drop label, its date, an entry, the ticks of the entries a day leaves out. */
 
 export function DropLabel({ ctx, day }: { ctx: DayContext; day: Date }) {
   return (
@@ -65,7 +67,7 @@ export function EntryItem({ entry, size, wrap = false, slot, ctx }: {
 /**
  * A day's date (a month cell's number, a week row's or column's weekday and
  * date): while the day has entries a button that opens the day popover over
- * the day, as `+N more` does; else plain text.
+ * the day, as its ticks of the entries left out do; else plain text.
  */
 export function DayDate({ day, count, open, onMore, className, label, children }: {
   day: Date
@@ -100,27 +102,37 @@ export function DayDate({ day, count, open, onMore, className, label, children }
   )
 }
 
-/** `+N more` in a day's last slot: opens the day popover over the day. */
-export function MoreButton({ day, more, open, onMore, md }: {
+/**
+ * A day's last slot when its entries don't all fit: the ticks of the ones
+ * left out (`shared/DayTicks`, the Planner strip's) — a solid tick per due
+ * date or follow-up, a hollow one per plan, `+N` past eight. A button that
+ * opens the day popover over the day.
+ */
+export function MoreButton({ day, hidden, open, onMore, md }: {
   day: Date
-  more: number
+  /** The entries the day leaves out. */
+  hidden: readonly CalendarEntry[]
   open: boolean
   onMore: (day: Date, cell: HTMLElement) => void
   /** Week rows: a 24px slot. */
   md?: boolean
 }) {
+  const words = `${hidden.length} more ${hidden.length === 1 ? 'task' : 'tasks'}`
   return (
     <button
       type="button"
       className={`${styles.more} ${md ? styles.moreMd : ''} ${open ? styles.moreOpen : ''}`}
+      aria-label={words}
       aria-haspopup="dialog"
       aria-expanded={open}
+      data-day-more={hidden.length}
+      data-tooltip={`Show ${words}`}
       onClick={(e) => {
         const cell = e.currentTarget.closest<HTMLElement>('[data-day]')
         if (cell) onMore(day, cell)
       }}
     >
-      +{more} more
+      <DayTicks ticks={dayTicks(entryDayMarks(hidden))} size={md ? undefined : 'sm'} />
     </button>
   )
 }

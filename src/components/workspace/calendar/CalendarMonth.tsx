@@ -38,7 +38,7 @@ function MonthDay({ day, month, entries, fit, ctx, onMore, moreOpen }: {
         <span className={isToday ? styles.todayPill : undefined}>{day.getDate()}</span>
       </DayDate>
       {entries.slice(0, shown).map((e) => <EntryItem key={e.key} entry={e} size="sm" ctx={ctx} />)}
-      {more > 0 && <MoreButton day={day} more={more} open={moreOpen} onMore={onMore} />}
+      {more > 0 && <MoreButton day={day} hidden={entries.slice(shown)} open={moreOpen} onMore={onMore} />}
       {highlighted && <DropLabel ctx={ctx} day={day} />}
     </div>
   )
@@ -48,7 +48,7 @@ function MonthDay({ day, month, entries, fit, ctx, onMore, moreOpen }: {
  * A month day with titles off: tinted by its entry count (`dayHeat`), the
  * count in the corner, the number in the late colour on a past day still
  * open. Hover names the count; a day with entries is a button that opens the
- * day popover (as `+N more` does). Drops land on it as on a bar day.
+ * day popover (as a day's ticks of its hidden entries do). Drops land on it as on a bar day.
  */
 function MonthHeatDay({ day, month, entries, ctx, onMore, moreOpen }: {
   day: Date

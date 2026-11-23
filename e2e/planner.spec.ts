@@ -1492,10 +1492,10 @@ test('the task editor’s ⋯ plans the task for a day: the plan only', async ({
   await expect(titles(group(page, await dayKeyIn(page, 3)))).toHaveText(['Loose idea'])
 })
 
-test('a calendar entry — in the +N more day popover too — opens the task menu on a right-click, not the browser’s', async ({ page }) => {
+test('a calendar entry — in a full day’s popover too — opens the task menu on a right-click, not the browser’s', async ({ page }) => {
   await seedWorkspace(page, ANYWHERE)
   const tomorrow = wsCell(page, 'k3').locator(`[data-day="${await dayKeyIn(page, 1)}"]`)
-  await tomorrow.getByRole('button', { name: /^\+\d+ more$/ }).click()
+  await tomorrow.getByRole('button', { name: /^\d+ more tasks?$/ }).click()
   const popover = page.getByTestId('calendar-day-popover')
   await expect(popover).toBeVisible()
   await popover.locator('[data-cal-entry]').filter({ hasText: 'Six' }).click({ button: 'right' })

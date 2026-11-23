@@ -8,7 +8,7 @@ import { readStore } from './fixtures/db'
  * Due / Follow-up / Plan chooser when more than one date type is shown,
  * directly when one is), calendar entries moving their own date — a plan
  * entry its plan —, recurring occurrences not
- * dragging, month / week navigation saved as view state, the "+N more" day
+ * dragging, month / week navigation saved as view state, a full day's ticks and its day
  * popover and the compact month's day selection.
  */
 
@@ -324,7 +324,7 @@ test('a list row dropped on a calendar showing every type: the chooser offers Pl
   expect(stored.dueDate?.getTime()).toBe(await dayAt(page, 1, 0))
 })
 
-test('+N more opens the day with every entry', async ({ page }) => {
+test('a full day’s ticks of the entries it leaves out open the day with every entry', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 600 })
   await seedWorkspace(page, {
     listDefinitions: [TASK_LIST],
@@ -332,10 +332,12 @@ test('+N more opens the day with every entry', async ({ page }) => {
     layouts: layoutWith({ view: 'month', offset: 0 }),
   })
   const tomorrow = await day(page, 1)
-  const more = tomorrow.getByRole('button', { name: /^\+\d+ more$/ })
+  const more = tomorrow.getByRole('button', { name: /^\d+ more tasks?$/ })
   await expect(more).toBeVisible()
   const shown = await tomorrow.locator('[data-cal-entry]').count()
-  await expect(more).toHaveText(`+${6 - shown} more`)
+  await expect(more).toHaveAccessibleName(`${6 - shown} more tasks`)
+  // A tick per entry left out: all six are due dates.
+  await expect(more.locator('[data-mark="due"]')).toHaveCount(6 - shown)
   await more.click()
   const popover = page.getByTestId('calendar-day-popover')
   await expect(popover).toBeVisible()
@@ -394,7 +396,7 @@ function weekRowsLayout(calWeight: number): WorkspaceSeed['layouts'] {
   }]
 }
 
-/** Every week row: its entries and `+N more` stay inside it (none drawn over the next day). */
+/** Every week row: its entries and its ticks of the ones left out stay inside it (none drawn over the next day). */
 async function expectRowsContainTheirEntries(page: Page): Promise<void> {
   const overflow = await calendar(page).locator('[data-cal-grid="rows"]').evaluate((grid) =>
     Array.from(grid.children).flatMap((row) => {
@@ -408,7 +410,7 @@ async function expectRowsContainTheirEntries(page: Page): Promise<void> {
 }
 
 test.describe('week rows', () => {
-  test('a short cell caps each day to its row with +N more instead of drawing over the next days', async ({ page }) => {
+  test('a short cell caps each day to its row, ticks for the rest, instead of drawing over the next days', async ({ page }) => {
     await seedWorkspace(page, {
       listDefinitions: [TASK_LIST],
       tasks: ['One', 'Two', 'Three', 'Four', 'Five'].map((title) => ({ title, dueInDays: 0 })),
@@ -417,10 +419,11 @@ test.describe('week rows', () => {
     })
     await expect(calendar(page)).toHaveAttribute('data-mode', 'rows')
     const today = await day(page, 0)
-    const more = today.getByRole('button', { name: /^\+\d+ more$/ })
+    const more = today.getByRole('button', { name: /^\d+ more tasks?$/ })
     await expect(more).toBeVisible()
     const shown = await today.locator('[data-cal-entry]').count()
-    await expect(more).toHaveText(`+${5 - shown} more`)
+    await expect(more).toHaveAccessibleName(`${5 - shown} more tasks`)
+    await expect(more.locator('[data-mark="due"]')).toHaveCount(5 - shown)
     await expectRowsContainTheirEntries(page)
 
     await more.click()
@@ -439,11 +442,11 @@ test.describe('week rows', () => {
     })
     await expect(calendar(page)).toHaveAttribute('data-mode', 'rows')
     const today = await day(page, 0)
-    const more = today.getByRole('button', { name: /^\+\d+ more$/ })
+    const more = today.getByRole('button', { name: /^\d+ more tasks?$/ })
     await expect(more).toBeVisible()
     const shown = await today.locator('[data-cal-entry]').count()
     expect(shown).toBeGreaterThan(4)
-    await expect(more).toHaveText(`+${30 - shown} more`)
+    await expect(more).toHaveAccessibleName(`${30 - shown} more tasks`)
     await expectRowsContainTheirEntries(page)
     const rows = calendar(page).locator('[data-cal-grid="rows"]')
     expect(await rows.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true)

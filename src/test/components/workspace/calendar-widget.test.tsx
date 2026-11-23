@@ -137,7 +137,7 @@ describe('CalendarWidget', () => {
     expect(entry(12, 'Late due')).toHaveAttribute('data-tooltip', 'Late due · overdue')
   })
 
-  it('a day’s date opens the day popover, as +N more does — month and week; a day with nothing has no button', () => {
+  it('a day’s date opens the day popover, as a full day’s ticks do — month and week; a day with nothing has no button', () => {
     setup()
     const date = within(dayCell(day(12))!).getByRole('button', { name: 'Mon 12 Oct: 2 tasks' })
     expect(date).toHaveAttribute('aria-expanded', 'false')
