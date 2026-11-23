@@ -481,6 +481,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       {editing && active && (
         <EditCardControls
           cell={cell}
+          name={cardName}
+          selected={editSelected && drag == null}
           label={stripShown ? null : numberStrip ? `${cell.tabs.length} Numbers` : activeTitle}
           stripLabel={stripShown ? activeTitle : undefined}
           labelTab={numberStrip ? undefined : active}

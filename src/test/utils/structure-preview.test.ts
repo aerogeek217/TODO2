@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createTab } from '../../models/workspace-layout'
-import { structureProbe, withStructurePreview } from '../../utils/structure-preview'
-import { insertTrackAt, splitCell } from '../../utils/workspace-layout-ops'
+import { absorbedCellIds, structureProbe, withStructurePreview } from '../../utils/structure-preview'
+import { insertTrackAt, mergeCells, splitCell } from '../../utils/workspace-layout-ops'
 import { cell, grid } from '../helpers/layout-builders'
 
 const tab = (id: string) => createTab('notes', id)
@@ -47,5 +47,35 @@ describe('structureProbe (the layout edit mode’s previews, round two)', () => 
     expect(drawn.cells[0]?.area.rowSpan).toBe(3)
     // A probe that dropped a cell: the layout as it is.
     expect(withStructurePreview(body, { grid: body.grid, cells: [] }, [])).toBe(body)
+  })
+})
+
+describe('a merge’s preview (the merge buttons)', () => {
+  // a | b
+  // a | c   — b and c share a whole edge.
+  const a = cell('a', [tab('ta')])
+  const b = cell('b', [tab('tb')])
+  const c = cell('c', [tab('tc')])
+  const body = grid([[a, b], [a, c]])
+
+  it('draws the merged cell with both cells’ tabs, the selection’s first; the absorbed one at its area, to be hidden', () => {
+    const probe = structureProbe(body, (l) => mergeCells(l, 'b', 'c'))!
+    const drawn = withStructurePreview(body, probe.body, probe.newCellIds)
+    const merged = drawn.cells.find((x) => x.id === 'b')!
+    expect(merged.tabs.map((t) => t.id)).toEqual(['tb', 'tc'])
+    // c stays drawn (its widgets mounted) where b now lies; the view hides it.
+    expect(drawn.cells.find((x) => x.id === 'c')?.area).toEqual(merged.area)
+    expect(absorbedCellIds(body, probe.body)).toEqual(['c'])
+    // The line between b and c went: one row, a in it.
+    expect(drawn.grid.rows).toHaveLength(1)
+    expect(drawn.cells.find((x) => x.id === 'a')?.area.rowSpan).toBe(1)
+  })
+
+  it('drops an absorbed empty cell (a stretch over a slot)', () => {
+    const withSlot = grid([[a, b], [a, cell('e', [])]])
+    const probe = structureProbe(withSlot, (l) => mergeCells(l, 'b', 'e'))!
+    const drawn = withStructurePreview(withSlot, probe.body, probe.newCellIds)
+    expect(drawn.cells.map((x) => x.id)).toEqual(['a', 'b'])
+    expect(absorbedCellIds(withSlot, probe.body)).toEqual([])
   })
 })

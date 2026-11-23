@@ -2,8 +2,8 @@ import type { LayoutBody, LayoutCell } from '../models/workspace-layout'
 import type { IdGen } from './workspace-layout-ops'
 
 /**
- * The layout edit mode's previews of an edit before it is made (layout
- * editor round two, concept A): a "+" hovered, a toolbar's Split hovered.
+ * The layout edit mode's previews of an edit before it is made: an edge
+ * tab, a toolbar's Split, a merge button hovered.
  * The edit runs on the layout with probe ids; the table then draws what it
  * would leave, its new empty cells as the new slots and the cells it grows
  * outlined.
@@ -45,16 +45,30 @@ export function structureProbe(layout: LayoutBody, edit: (layout: LayoutBody, ge
 
 /**
  * The layout drawn as a probe's `body`: its grid, each of the layout's
- * cells at its area there (the same object where it didn't move, so no
- * cell renders again for nothing), then the probe's new cells. The layout
- * itself when the probe dropped one of its cells.
+ * cells at its area there (the same object where neither it nor its tabs
+ * changed, so no cell renders again for nothing; a merge's cell with its
+ * tabs there), then the probe's new cells. A cell the probe dropped:
+ * an empty one goes; one whose tabs another took (a merge) stays, at that
+ * cell's area — the view hides it (`absorbedCellIds`), so its widgets stay
+ * mounted. The layout itself when a dropped cell's tabs are nowhere.
  */
 export function withStructurePreview<L extends LayoutBody>(layout: L, body: LayoutBody, newCellIds: readonly string[]): L {
   const byId = new Map(body.cells.map((c) => [c.id, c]))
+  const holderOf = new Map(body.cells.flatMap((c) => c.tabs.map((t) => [t.id, c] as const)))
   const cells: LayoutCell[] = []
   for (const c of layout.cells) {
     const next = byId.get(c.id)
-    if (!next) return layout
+    if (!next) {
+      if (c.tabs.length === 0) continue
+      const holder = holderOf.get(c.tabs[0]?.id ?? '')
+      if (!holder) return layout
+      cells.push({ ...c, area: holder.area })
+      continue
+    }
+    if (!sameTabs(c, next)) {
+      cells.push({ ...c, area: next.area, tabs: next.tabs, ...(next.activeTabId != null ? { activeTabId: next.activeTabId } : {}) })
+      continue
+    }
     const a = next.area
     const b = c.area
     cells.push(a.col === b.col && a.row === b.row && a.colSpan === b.colSpan && a.rowSpan === b.rowSpan ? c : { ...c, area: a })
@@ -64,4 +78,14 @@ export function withStructurePreview<L extends LayoutBody>(layout: L, body: Layo
     if (c) cells.push(c)
   }
   return { ...layout, grid: body.grid, cells }
+}
+
+/** The layout's filled cells a probe's `body` dropped (their tabs joined another cell: a merge), which the preview draws hidden. */
+export function absorbedCellIds(layout: LayoutBody, body: LayoutBody): string[] {
+  const kept = new Set(body.cells.map((c) => c.id))
+  return layout.cells.filter((c) => c.tabs.length > 0 && !kept.has(c.id)).map((c) => c.id)
+}
+
+function sameTabs(a: LayoutCell, b: LayoutCell): boolean {
+  return a.tabs.length === b.tabs.length && a.tabs.every((t, i) => t.id === b.tabs[i]?.id)
 }

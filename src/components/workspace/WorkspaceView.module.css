@@ -162,7 +162,13 @@
 
 /* ── The layout edit mode (E1, E3) ──
    The workspace tinted towards the accent under a faint dot grid, an accent
-   outline inside its edge; nothing moves (the gaps stay). Each cell is a
+   outline inside its edge. The table steps in for room: a frame round it
+   (its padding — the headers' band top and left, a margin right and
+   bottom; the workspace's own top and bottom padding move into it) and
+   wider gaps (`--workspace-gutter` is `--edit-gutter` inside it, which the
+   dividers follow; `workspace-table.EDIT_GUTTER_PX` sizes its tracks). It
+   is positioned: the selection's edge tabs and merge buttons
+   (`EditSelection`) sit in it by its own coordinates. Each cell is a
    card (E3, `EditCard`): its content dims and takes no presses — a press
    anywhere lands on the card's surface under it (`data-edit-surface`),
    which drags, selects and takes the keys —, except its tabs (each drags
@@ -174,6 +180,17 @@
   background-image: radial-gradient(var(--edit-dot) 1px, transparent 1.2px);
   background-size: 16px 16px;
   box-shadow: inset 0 0 0 2px var(--edit-outline);
+}
+
+.area[data-layout-editing]:has(> .table) {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.area[data-layout-editing] > .table {
+  --workspace-gutter: var(--edit-gutter);
+  position: relative;
+  padding: var(--edit-frame-start) var(--edit-frame-end) var(--edit-frame-end) var(--edit-frame-start);
 }
 
 .area[data-layout-editing] [data-ws-cell-body] {

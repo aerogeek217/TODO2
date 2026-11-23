@@ -1,4 +1,4 @@
-import { tabBand, type CellGeometry, type Rect, type TableMetrics, type WorkspaceGeometry } from '../../utils/workspace-drop'
+import { tabBand, type CellGeometry, type FrameInsets, type Rect, type TableMetrics, type WorkspaceGeometry } from '../../utils/workspace-drop'
 
 function rectOf(el: Element): Rect {
   const r = el.getBoundingClientRect()
@@ -96,13 +96,35 @@ function measureTableElement(table: HTMLElement): TableMetrics {
 }
 
 /**
+ * How far the cells start in from each edge of the area: the area's padding
+ * and the table's (the layout edit mode's frame), its scroll not counted —
+ * where the drop model's insert zones reach from.
+ */
+function measureFrame(area: Rect, table: HTMLElement): FrameInsets | null {
+  // Not laid out (a test's DOM): none, the drop model's default.
+  if (table.clientWidth <= 0 || table.clientHeight <= 0) return null
+  const r = table.getBoundingClientRect()
+  const style = getComputedStyle(table)
+  const left = r.left + table.clientLeft
+  const top = r.top + table.clientTop
+  return {
+    left: left + px(style.paddingLeft) - area.left,
+    top: top + px(style.paddingTop) - area.top,
+    right: area.right - (left + table.clientWidth - px(style.paddingRight)),
+    bottom: area.bottom - (top + table.clientHeight - px(style.paddingBottom)),
+  }
+}
+
+/**
  * Measures the rendered workspace (`[data-ws-area]`) into the geometry the
- * drag hit test and the drop ghost work on: the area, every cell of its
- * table (`[data-ws-cell]`; tabs clipped by a full strip left out) and the
- * table's grid.
+ * drag hit test and the drop ghost work on: the area, where its cells start
+ * in from its edges, every cell of its table (`[data-ws-cell]`; tabs
+ * clipped by a full strip left out) and the table's grid.
  */
 export function measureWorkspace(area: HTMLElement): WorkspaceGeometry {
   const cells = Array.from(area.querySelectorAll<HTMLElement>('[data-ws-cell]')).map(measureCell)
   const table = area.querySelector<HTMLElement>('[data-ws-table]')
-  return { area: rectOf(area), cells, ...(table ? { table: measureTableElement(table) } : {}) }
+  const box = rectOf(area)
+  const frame = table ? measureFrame(box, table) : null
+  return { area: box, cells, ...(table ? { table: measureTableElement(table) } : {}), ...(frame ? { frame } : {}) }
 }

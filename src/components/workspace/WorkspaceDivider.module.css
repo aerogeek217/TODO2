@@ -1,6 +1,7 @@
 /* A divider (D26 P2): a grid item of the table, in the gutter before the
- * track after its line, along its stretch. The visible gutter is 6px; the
- * hit area reaches 2px into each neighbour (10px). */
+ * track after its line, along its stretch. The gutter is `--workspace-gutter`
+ * (6px; 16px in the layout edit mode); the hit area reaches 2px into each
+ * neighbour. Its line is drawn in the gutter's middle. */
 .divider {
   position: relative;
   z-index: var(--z-above-2);
@@ -57,14 +58,14 @@
 .betweenColumns::after {
   top: 0;
   bottom: 0;
-  left: 2px;
+  left: calc(50% - 1px);
   width: 2px;
 }
 
 .betweenCells::after {
   left: 0;
   right: 0;
-  top: 2px;
+  top: calc(50% - 1px);
   height: 2px;
 }
 
@@ -118,7 +119,7 @@
 .guideColumns::after {
   top: 0;
   bottom: 0;
-  left: 2px;
+  left: calc(50% - 1px);
   width: 2px;
 }
 
@@ -131,7 +132,7 @@
 .guideRows::after {
   left: 0;
   right: 0;
-  top: 2px;
+  top: calc(50% - 1px);
   height: 2px;
 }
 

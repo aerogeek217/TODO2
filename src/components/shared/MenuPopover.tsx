@@ -67,6 +67,12 @@ export interface MenuItemEntry {
   /** Tooltip — e.g. why a disabled item can't be picked. */
   title?: string
   /**
+   * The pointer on the item (`true`: it moved there with no button held —
+   * not an item appearing under a resting pointer) and off it (`false`):
+   * e.g. the layout edit mode's Merge ▾ draws a merge while one is hovered.
+   */
+  onHover?: (hovered: boolean) => void
+  /**
    * The item can be dragged up or down among the menu's other `dragId`
    * items (e.g. the layout list); a drop calls the menu's `onReorder`.
    */
@@ -556,7 +562,8 @@ function MenuItemButton({ entry, index: i, expanded, gutter, onSelect, onHoverIt
         ref={sortable?.ref}
         {...sortable?.listeners}
         onPointerDown={onTipPointerDown ? (e) => { sortablePointerDown?.(e); onTipPointerDown() } : sortablePointerDown}
-        onPointerLeave={tip.triggerProps.onPointerLeave}
+        onPointerLeave={entry.onHover ? () => { tip.triggerProps.onPointerLeave?.(); entry.onHover?.(false) } : tip.triggerProps.onPointerLeave}
+        onPointerMove={entry.onHover ? (e) => { if (e.buttons === 0) entry.onHover?.(true) } : undefined}
         onFocus={tip.triggerProps.onFocus}
         onBlur={tip.triggerProps.onBlur}
         style={sortable?.style}

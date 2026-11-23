@@ -1,44 +1,20 @@
-/* The layout edit mode's rulers (E2, `LayoutRulers`): grid items of the
- * workspace table itself, so each sits on its track (and scrolls with it).
- * They overlay the gutters and the cells' outer edges — no cell moves:
- * columns' rulers along the top (over the table's top padding and the
- * first row's top 10px), rows' down the left (over the table's left padding
- * and the first column's left 10px), a "+" on every line, centred in its
- * gutter. Geometry: the gutter is `--workspace-gutter` (6px); a ruler's
- * strip is 16px (`--ruler-strip`); a "+" is a 20px disc in a 24px target
- * (`--ruler-plus`), centred in the strip, so it reaches 14px into the
- * cells beside the strip and 9px past the gutter into the tracks beside
- * its line — a ruler keeps 11px clear of a line with a "+"
- * (`--ruler-clear`). A larger target would cover the first tab of a strip
- * in the cards along the strips. The card's ⋯ sits 16px down, clear of the
- * column "+"s (`EditCard.module.css`). A row ruler takes no part in sizing
- * its row (`contain: size`), so a Numbers row that fits its content keeps
- * its height in the mode. */
-
-/* The workspace's top and bottom padding move into the table while the mode
- * is on, so the rulers and the end "+"s can sit in it (inside the table's
- * scroller): the content stays where it was — the cells don't move. */
-:global([data-ws-area][data-layout-editing]:has(> [data-ws-table])) {
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-:global([data-ws-area][data-layout-editing] > [data-ws-table]) {
-  padding-top: var(--workspace-gutter);
-  padding-bottom: var(--workspace-gutter);
-}
+/* The layout edit mode's headers (`LayoutRulers`): grid items of the
+ * workspace table drawn into its frame — the table's padding while the mode
+ * is on (`--edit-frame-start` top and left, `WorkspaceView.module.css`) —,
+ * so each sits on its track and scrolls with it, and no track makes room for
+ * it. A column's header lies in the band over the first row, a row's in the
+ * band left of the first column, 3px clear of the band's outer edge and 4px
+ * of the cards. A row header takes no part in sizing its row
+ * (`contain: size`), so a Numbers row that fits its content keeps its
+ * height in the mode. */
 
 .rulers {
   display: contents;
-  --ruler-strip: 16px;
-  --ruler-plus: 24px;
-  --ruler-disc: 20px;
-  --ruler-clear: 11px;
+  --header-band: calc(var(--edit-frame-start) - 7px);
 }
 
 .ruler,
-.tick,
-.plus {
+.tick {
   position: relative;
   z-index: calc(var(--z-above-3) + 1);
   box-sizing: border-box;
@@ -50,38 +26,60 @@
   cursor: pointer;
 }
 
-/* ── A major track's ruler: its letter / number, its share or mark ── */
+/* ── A major track's header: its letter / number, its share or mark ── */
 
 .ruler {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   overflow: hidden;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
-  box-shadow: inset 0 0 0 1px var(--edit-outline);
-  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
   font-size: var(--font-size-badge);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   line-height: 1;
   white-space: nowrap;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .ruler:hover,
 .ruler[data-open] {
-  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
-  box-shadow: inset 0 0 0 1px var(--color-accent);
-  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  color: var(--color-text-secondary);
+}
+
+/* The selected card's columns and rows. */
+.ruler[data-lit] {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent-text);
 }
 
 .ruler:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--color-accent), var(--focus-ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .name {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
+}
+
+/* A column's share: on its header's hover or focus. */
+.share {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--font-size-badge);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.ruler:is(:hover, :focus-visible, [data-open]) .share {
+  opacity: 1;
 }
 
 .note {
@@ -96,47 +94,20 @@
 
 .ruler[data-axis='columns'] {
   align-self: start;
-  height: var(--ruler-strip);
-  margin: calc(-1 * var(--workspace-gutter)) var(--ruler-clear) 0;
-}
-
-/* The first column's ruler clears the first column line's "+" (right of the corner); the last one the end "+". */
-.ruler[data-axis='columns']:is([data-end='first'], [data-end='only']) {
-  margin-left: 42px;
-}
-
-.ruler[data-axis='columns']:is([data-end='last'], [data-end='only']) {
-  margin-right: 20px;
+  height: var(--header-band);
+  margin-top: calc(3px - var(--edit-frame-start));
 }
 
 .ruler[data-axis='rows'] {
   flex-direction: column;
   justify-self: start;
-  width: var(--ruler-strip);
-  margin: var(--ruler-clear) 0 var(--ruler-clear) calc(-1 * var(--workspace-gutter));
+  width: var(--header-band);
+  margin-left: calc(3px - var(--edit-frame-start));
   padding: 2px 0;
   contain: size;
 }
 
-/* The first row's ruler clears the corner's "+"; the last one the end "+". */
-.ruler[data-axis='rows']:is([data-end='first'], [data-end='only']) {
-  margin-top: 16px;
-}
-
-.ruler[data-axis='rows']:is([data-end='last'], [data-end='only']) {
-  margin-bottom: 20px;
-}
-
-/* Before a sliver, the ruler clears the sliver's "+", which sits just before it. */
-.ruler[data-axis='columns'][data-before-sliver] {
-  margin-right: calc(var(--ruler-plus) + 2px);
-}
-
-.ruler[data-axis='rows'][data-before-sliver] {
-  margin-bottom: calc(var(--ruler-plus) + 2px);
-}
-
-/* A row's mark runs down the ruler, giving way first in a short row. */
+/* A row's mark runs down its header, giving way first in a short row. */
 .ruler[data-axis='rows'] .note {
   writing-mode: vertical-rl;
   text-transform: uppercase;
@@ -144,8 +115,8 @@
 }
 
 /* ── A sliver's tick: unlabelled, its menu merges it into a neighbour ──
- * A pill on the sliver's start in the ruler's strip, wider than the sliver
- * (it reaches over the gutter after it); its "+" sits just before it. */
+ * A pill on the sliver's start in the header band, wider than the sliver
+ * (it reaches over the gutter after it). */
 
 .tick {
   display: flex;
@@ -182,8 +153,8 @@
   align-self: start;
   justify-self: start;
   width: 18px;
-  height: var(--ruler-strip);
-  margin-top: calc(-1 * var(--workspace-gutter));
+  height: var(--header-band);
+  margin-top: calc(3px - var(--edit-frame-start));
 }
 
 .tick[data-axis='columns']::before {
@@ -194,126 +165,12 @@
 .tick[data-axis='rows'] {
   justify-self: start;
   align-self: start;
-  width: var(--ruler-strip);
+  width: var(--header-band);
   height: 18px;
-  margin-left: calc(-1 * var(--workspace-gutter));
+  margin-left: calc(3px - var(--edit-frame-start));
 }
 
 .tick[data-axis='rows']::before {
   width: 10px;
   height: 4px;
-}
-
-/* ── A line's "+": a 20px disc in a 24px target ── */
-
-.plus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--ruler-plus);
-  height: var(--ruler-plus);
-  border-radius: 50%;
-  background: transparent;
-}
-
-/* At rest a quiet "+" on a faint disc, so two strips of them don't crowd the
- * table; hovered or focused, the accent disc. */
-.plus {
-  color: var(--color-text-muted);
-}
-
-.plus::before {
-  content: '';
-  position: absolute;
-  inset: calc((var(--ruler-plus) - var(--ruler-disc)) / 2);
-  z-index: -1;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--edit-outline) 60%, transparent);
-  transform: scale(0.8);
-  transition: transform var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.plus:hover,
-.plus:focus-visible {
-  color: var(--color-text-on-accent);
-}
-
-.plus:hover::before,
-.plus:focus-visible::before {
-  background: var(--color-accent);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
-  transform: scale(1.12);
-}
-
-.plus:focus-visible {
-  outline: none;
-}
-
-.plus:focus-visible::before {
-  box-shadow: var(--focus-ring);
-}
-
-/* An inner line's "+" sits on the gutter before the track after the line, centred in the ruler's strip. */
-.plus[data-axis='columns'] {
-  align-self: start;
-  justify-self: start;
-  margin-top: calc((var(--ruler-strip) - var(--ruler-plus)) / 2 - var(--workspace-gutter));
-  margin-left: calc(-0.5 * var(--workspace-gutter) - var(--ruler-plus) / 2);
-}
-
-/* The first column line's "+" steps right of the corner, where the first row line's sits. */
-.plus[data-axis='columns'][data-end='first'] {
-  margin-left: 16px;
-}
-
-.plus[data-axis='columns'][data-end='last'] {
-  justify-self: end;
-  margin-left: 0;
-  margin-right: calc(-1 * var(--workspace-gutter));
-}
-
-.plus[data-axis='rows'] {
-  justify-self: start;
-  align-self: start;
-  margin-left: calc((var(--ruler-strip) - var(--ruler-plus)) / 2 - var(--workspace-gutter));
-  margin-top: calc(-0.5 * var(--workspace-gutter) - var(--ruler-plus) / 2);
-}
-
-/* The first row line's "+" sits in the corner, centred on both strips. */
-.plus[data-axis='rows'][data-end='first'] {
-  margin-top: calc((var(--ruler-strip) - var(--ruler-plus)) / 2 - var(--workspace-gutter));
-}
-
-.plus[data-axis='rows'][data-end='last'] {
-  align-self: end;
-  margin-top: 0;
-  margin-bottom: calc(-1 * var(--workspace-gutter));
-}
-
-/* A sliver's "+" (it and its two lines are one line) sits just before the sliver, clear of its tick. */
-.plus[data-axis='columns'][data-sliver-run]:not([data-end]) {
-  margin-left: calc(-1 * var(--ruler-plus));
-}
-
-.plus[data-axis='rows'][data-sliver-run]:not([data-end]) {
-  margin-top: calc(-1 * var(--ruler-plus));
-}
-
-/* ── Round two (concept A): a "+" pinned while its preview reflows the table ──
- * (`LayoutRulers`: fixed where the pointer found it, inline), the accent
- * disc; the table's other "+"s take no pointer meanwhile. */
-.plus[data-pinned] {
-  z-index: var(--z-dropdown);
-  color: var(--color-text-on-accent);
-}
-
-.plus[data-pinned]::before {
-  background: var(--color-accent);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
-  transform: scale(1.12);
-}
-
-:global([data-structure-preview]) .plus:not([data-pinned]) {
-  pointer-events: none;
 }

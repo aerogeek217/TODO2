@@ -152,9 +152,12 @@ describe('the cell menu', () => {
     expect(more).toHaveAttribute('aria-haspopup', 'menu')
     const menu = cardMenu()
     expect(itemLabels(menu)).toEqual(['Move to', 'Swap with', 'Join as tabs', 'Insert', 'Merge with', 'Stretch right', 'Stretch down', 'Move cell to layout', 'Copy cell to layout', 'Remove widget', 'Close cell'])
-    expect(more).toHaveAttribute('aria-expanded', 'true')
+    // The click selected the card: its toolbar's ⋯ stands in for the corner one, pressed.
+    const pressed = screen.getByRole('button', { name: 'Cell layout' })
+    expect(pressed.closest('[data-edit-toolbar]')).not.toBeNull()
+    expect(pressed).toHaveAttribute('aria-expanded', 'true')
     // Its second click closes it.
-    fireEvent.click(more)
+    fireEvent.click(pressed)
     expect(screen.queryByRole('menu', { name: 'Cell layout' })).toBeNull()
   })
 

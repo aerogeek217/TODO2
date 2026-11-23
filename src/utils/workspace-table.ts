@@ -20,6 +20,8 @@ import { cellMinHeightPx, cellMinWidthPx, FIT_ROW_PX, isFitTrack } from './works
 
 /** The gap (px) between the table's tracks: `--workspace-gutter` (tokens.css), which the CSS grid draws. */
 export const WORKSPACE_GUTTER_PX = 6
+/** The gap (px) in the layout edit mode, which gives its seams room: `--edit-gutter` (tokens.css). */
+export const EDIT_GUTTER_PX = 16
 /** The height (px) of a cell's header: a collapsed row track's size. */
 export const TABLE_HEADER_PX = 32
 /** A fit row's height (px) when it can't be measured: `workspace-rows.FIT_ROW_PX`, a Number's small face as drawn. */

@@ -12,12 +12,13 @@ import { FIT_TRACK_NOMINAL_PX, spanPx, tableTrackSizes, trackSizing, trackStart 
  * to a `LayoutDropTarget` for `moveTab` / `movePanel`.
  *
  * Priority (first match wins):
- * 1. The layout's left / right edge → insert a column: within
- *    {@link EDGE_ZONE_OUTER_PX} inside the workspace's outer edge — over a
+ * 1. The layout's left / right edge → insert a column: the frame (where
+ *    the cells start in from the workspace's edge) and
+ *    {@link EDGE_ZONE_INNER_PX} past it — over a
  *    narrow edge cell's body, no further than half of its own side zone,
  *    so its Split left / right keeps the other half.
- * 2. The layout's top / bottom edge → insert a row: within
- *    {@link INSERT_EDGE_ZONE_PX} inside the workspace's top (bottom) edge —
+ * 2. The layout's top / bottom edge → insert a row: the frame and
+ *    {@link EDGE_ZONE_INNER_PX} past it, from the workspace's top (bottom) edge —
  *    reaching {@link INSERT_EDGE_OUTSIDE_PX} past it too —, full width; but
  *    never over a cell (its strip and its body's zones win).
  * 3. A cell's header (its tab strip) → insert at that position. A cell
@@ -86,19 +87,33 @@ export interface TableMetrics {
   rowPx: Readonly<Record<string, number>>
 }
 
+/** How far (px) the cells start in from each edge of the workspace area: its padding and the table's (the layout edit mode's frame). */
+export interface FrameInsets {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
 export interface WorkspaceGeometry {
   /** The workspace area (the table and its padding). */
   area: Rect
+  /** Where the cells start inside the area; absent: {@link WORKSPACE_FRAME_PX} each side. */
+  frame?: FrameInsets
   /** Every cell of the table, as drawn. */
   cells: readonly CellGeometry[]
   /** The table's grid; absent for an empty layout. */
   table?: TableMetrics
 }
 
-/** Width of the insert-column zone just inside the workspace's left / right edge. */
-const EDGE_ZONE_OUTER_PX = 24
-/** Height of the insert-row zone just inside the workspace's top / bottom edge. */
-const INSERT_EDGE_ZONE_PX = 24
+/** The cells' inset from the area's edges outside the layout edit mode: the gutter (`--workspace-gutter`). */
+const WORKSPACE_FRAME_PX = 6
+/**
+ * How far the insert-column / insert-row zones reach past where the cells
+ * start: from the workspace's edge, over its frame (6px; the layout edit
+ * mode's frame), into the edge cells — 24px from the edge outside the mode.
+ */
+const EDGE_ZONE_INNER_PX = 18
 /** How far the insert-row zones reach past the workspace's top edge (over the top bar) and its bottom edge. */
 const INSERT_EDGE_OUTSIDE_PX = 16
 /** A cell body's split zones: this share of its width (height) on each side … */
@@ -221,19 +236,25 @@ function sideZoneWidth(body: Rect): number {
   return Math.min((body.right - body.left) * SIDE_ZONE_SHARE, SIDE_ZONE_MAX_PX)
 }
 
+/** How far (px) an insert zone reaches in from the workspace's `edge`: its frame there and `EDGE_ZONE_INNER_PX`. */
+function edgeReach(geo: WorkspaceGeometry, edge: Side): number {
+  return (geo.frame?.[edge] ?? WORKSPACE_FRAME_PX) + EDGE_ZONE_INNER_PX
+}
+
 /**
  * How far (px) the insert-column zone reaches in from the workspace's
- * `edge` at `p`: `EDGE_ZONE_OUTER_PX` — but over a cell's body no further
+ * `edge` at `p`: `edgeReach` — but over a cell's body no further
  * than half of that body's own split zone on that side, so a narrow edge
  * cell (a 72px Number: a 14px zone the insert zone would cover whole) keeps
  * the inner half of it for Split left / right (cr34 W10). A body 180px wide
  * or more is as before.
  */
 function insertColumnReach(geo: WorkspaceGeometry, p: Point, edge: 'left' | 'right'): number {
+  const reach = edgeReach(geo, edge)
   const body = geo.cells.find((c) => inside(c.rect, p))?.body
-  if (!body || !inside(body, p)) return EDGE_ZONE_OUTER_PX
+  if (!body || !inside(body, p)) return reach
   const inset = edge === 'left' ? body.left - geo.area.left : geo.area.right - body.right
-  return Math.min(EDGE_ZONE_OUTER_PX, Math.max(0, inset) + sideZoneWidth(body) / 2)
+  return Math.min(reach, Math.max(0, inset) + sideZoneWidth(body) / 2)
 }
 
 /**
@@ -249,8 +270,8 @@ function insertEdgeAt(geo: WorkspaceGeometry, p: Point): Side | null {
     if (p.x <= area.right && p.x >= area.right - insertColumnReach(geo, p, 'right')) return 'right'
   }
   if (p.x < area.left || p.x > area.right || overCell(geo, p)) return null
-  if (p.y >= area.top - INSERT_EDGE_OUTSIDE_PX && p.y <= area.top + INSERT_EDGE_ZONE_PX) return 'top'
-  if (p.y <= area.bottom + INSERT_EDGE_OUTSIDE_PX && p.y >= area.bottom - INSERT_EDGE_ZONE_PX) return 'bottom'
+  if (p.y >= area.top - INSERT_EDGE_OUTSIDE_PX && p.y <= area.top + edgeReach(geo, 'top')) return 'top'
+  if (p.y <= area.bottom + INSERT_EDGE_OUTSIDE_PX && p.y >= area.bottom - edgeReach(geo, 'bottom')) return 'bottom'
   return null
 }
 

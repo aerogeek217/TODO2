@@ -1,55 +1,69 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { createPortal } from 'react-dom'
-import { getActiveTab, type LayoutCell, type WorkspaceLayout } from '../../models/workspace-layout'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { getActiveTab, type LayoutCell } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { otherCards } from '../../utils/layout-edit-cards'
-import { mergeNeighbour, type Side } from '../../utils/workspace-grid'
+import { mergeChoices, mergeMenuWords, type MergeChoice } from '../../utils/layout-edit-cards'
+import type { Side } from '../../utils/workspace-grid'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
-import { ChevronDownIcon, SplitBelowIcon, SplitRightIcon, TrashIcon } from '../shared/icons'
+import { ChevronDownIcon, MoreIcon, SplitBelowIcon, SplitRightIcon, TrashIcon } from '../shared/icons'
+import { EDIT_CARD_MENU_LABEL } from './cell-menu'
 import { focusEditItem } from './edit-focus'
-import { showStructurePreview, splitPreview } from './insert-preview'
+import { mergePreview, showStructurePreview, splitPreview } from './insert-preview'
 import { useTabTitles } from './widget-hooks'
-import { useWorkspaceDrag } from './workspace-drag'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './EditCardToolbar.module.css'
 
 /**
- * The selected card's toolbar in the layout edit mode (layout editor round
- * two, concept A): Split → and Split ↓ (each hovered, the table draws the
- * split — `insert-preview.splitPreview`), Swap ▾ (every other card), Merge
- * ▾ (the neighbours it makes a rectangle with) and Remove (its active
- * widget; Remove tab on a card of tabs). Fixed over the table, above the
- * card — inside it under its header when there is no room above (the top
- * row), so its tab strip stays free to drag —, it
- * stays where it is while a preview reflows the table under it. Not while
- * something is dragged. The card's menu (⋯) keeps every action.
+ * The selected card's toolbar in the layout edit mode, inside the card at
+ * its top-left — under its tab strip when it has one, so the strip stays
+ * free to drag: **Split →** and **Split ↓** (each hovered, the table draws
+ * the split — `insert-preview.splitPreview`), **Merge ▾** (the neighbours
+ * it makes a rectangle with, each drawn while hovered), **Remove** (its
+ * active widget; Remove tab on a card of tabs) and **⋯** (the card's menu,
+ * which stands in for the card's corner ⋯ meanwhile). Icons only in a card
+ * under {@link COMPACT_BELOW_PX} wide — decided while no preview reflows
+ * the card, so a button never changes under the pointer. Mounted by the
+ * card (`EditCardControls`) while it is selected and nothing is dragged.
  */
 
-/** The toolbar's height and its gap above the card, px. */
-const BAR_PX = 32
-const GAP_PX = 6
-/** With no room above (the top row): under the card's header (its tab strip, which drags), px from its top. */
-const BELOW_HEADER_PX = 32 + GAP_PX
+/** A card narrower than this (px) shows the toolbar's buttons as icons. */
+const COMPACT_BELOW_PX = 330
 
-const SIDE_WORDS: Record<Side, string> = { left: 'on the left', top: 'above', right: 'on the right', bottom: 'below' }
-
-export function EditCardToolbar({ layout, tableRef }: { layout: WorkspaceLayout; tableRef: RefObject<HTMLDivElement | null> }) {
-  const selectedId = useWorkspaceStore((s) => s.editing?.selectedCellId ?? null)
+export function EditCardToolbar({ cell, name, menuOpen, setMoreButton, onMore }: {
+  cell: LayoutCell
+  /** The card's name (`useCardName`): the toolbar is `<name> card`. */
+  name: string
+  /** The card's menu is open (its ⋯ pressed). */
+  menuOpen: boolean
+  setMoreButton: (el: HTMLButtonElement | null) => (() => void) | undefined
+  onMore: () => void
+}) {
+  const layout = useWorkspaceStore((s) => s.working)
   const previewing = useWorkspaceStore((s) => s.structurePreview != null)
-  const drag = useWorkspaceDrag()
-  const cell = layout.cells.find((c) => c.id === selectedId && c.tabs.length > 0)
-  if (!cell || drag) return null
-  return <Toolbar key={cell.id} cell={cell} layout={layout} tableRef={tableRef} frozen={previewing} />
-}
-
-function Toolbar({ cell, layout, tableRef, frozen }: { cell: LayoutCell; layout: WorkspaceLayout; tableRef: RefObject<HTMLDivElement | null>; frozen: boolean }) {
-  const [at, setAt] = useState<{ left: number; top: number } | null>(null)
-  const [menu, setMenu] = useState<'swap' | 'merge' | null>(null)
-  /** A Split hovered: its preview shows (and goes if the toolbar does). */
-  const [splitting, setSplitting] = useState(false)
-  useEffect(() => (splitting ? () => showStructurePreview(null) : undefined), [splitting])
-  const swapRef = useRef<HTMLButtonElement | null>(null)
+  const previewingRef = useLatestRef(previewing)
+  const barRef = useRef<HTMLDivElement | null>(null)
+  const [compact, setCompact] = useState(false)
+  const [mergeOpen, setMergeOpen] = useState(false)
   const mergeRef = useRef<HTMLButtonElement | null>(null)
-  const tabs = useMemo(() => layout.cells.flatMap((c) => c.tabs), [layout.cells])
+  /** What it draws now: a Split or a Merge ▾ entry hovered (the preview goes if the toolbar does). */
+  const [drawing, setDrawing] = useState<string | null>(null)
+  const drawingRef = useLatestRef(drawing)
+  useEffect(() => () => { if (drawingRef.current != null) showStructurePreview(null) }, [drawingRef])
+
+  // Compact or not, by the card's width — not while a preview reflows it.
+  useLayoutEffect(() => {
+    const card = barRef.current?.closest<HTMLElement>('[data-ws-cell]')
+    if (!card) return
+    const measure = () => {
+      if (!previewingRef.current) setCompact(card.getBoundingClientRect().width < COMPACT_BELOW_PX)
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(card)
+    return () => observer.disconnect()
+  }, [previewingRef])
+
+  const tabs = useMemo(() => (layout?.cells ?? []).flatMap((c) => c.tabs), [layout])
   const titles = useTabTitles(tabs)
   const cellName = useCallback((c: LayoutCell) => {
     const tab = getActiveTab(c)
@@ -57,102 +71,76 @@ function Toolbar({ cell, layout, tableRef, frozen }: { cell: LayoutCell; layout:
     return i >= 0 ? (titles[i] ?? 'A widget') : 'An empty slot'
   }, [tabs, titles])
 
-  // Its place, from the card as drawn — not while a preview reflows the table under it.
-  useLayoutEffect(() => {
-    if (frozen) return
-    const table = tableRef.current
-    const place = () => {
-      const el = table?.querySelector<HTMLElement>(`[data-ws-cell="${CSS.escape(cell.id)}"]`)
-      if (!el || !table) return
-      const r = el.getBoundingClientRect()
-      const t = table.getBoundingClientRect()
-      const above = r.top - BAR_PX - GAP_PX
-      setAt({ left: r.left + r.width / 2, top: above >= t.top ? above : r.top + BELOW_HEADER_PX })
-    }
-    place()
-    window.addEventListener('resize', place)
-    table?.addEventListener('scroll', place)
-    return () => {
-      window.removeEventListener('resize', place)
-      table?.removeEventListener('scroll', place)
-    }
-  }, [cell, layout, tableRef, frozen])
-
-  if (!at) return null
+  if (!layout) return null
   const store = useWorkspaceStore.getState
   const active = getActiveTab(cell)
+  const choices = mergeChoices(layout, cell.id)
+
+  /** Starts drawing `key`'s edit (a move onto it, not an enter: the toolbar appearing under a resting pointer draws nothing). */
+  const draw = (key: string, make: () => ReturnType<typeof splitPreview>) => {
+    if (drawing === key) return
+    const next = make()
+    setDrawing(next != null ? key : null)
+    showStructurePreview(next)
+  }
+  const undraw = (key: string) => {
+    if (drawing !== key) return
+    setDrawing(null)
+    showStructurePreview(null)
+  }
   const split = (side: Side) => {
-    setSplitting(false)
+    setDrawing(null)
     showStructurePreview(null)
     store().splitCell(cell.id, side)
     focusEditItem(cell.id)
   }
-  // A move onto the button (not an enter: the toolbar appearing under a resting pointer, after a drop, previews nothing).
-  const preview = (side: Side) => (e: React.MouseEvent) => {
-    if (e.buttons !== 0 || splitting) return
-    const next = splitPreview(layout, cell, side, cellName)
-    setSplitting(next != null)
-    showStructurePreview(next)
+  const splitHover = (side: Side) => (e: React.MouseEvent) => {
+    if (e.buttons === 0) draw(`split:${side}`, () => splitPreview(layout, cell, side, cellName))
   }
-  const unpreview = () => {
-    setSplitting(false)
+  const merge = (choice: MergeChoice) => {
+    setDrawing(null)
     showStructurePreview(null)
+    store().mergeCells(cell.id, choice.cell.id)
+    store().selectEditCell(cell.id)
+    focusEditItem(cell.id)
   }
-
-  const swapEntries: MenuEntry[] = otherCards(layout, cell.id).map((c) => ({
-    kind: 'item',
-    label: cellName(c),
-    onSelect: () => {
-      store().swapCells(cell.id, c.id)
-      focusEditItem(cell.id)
-    },
-  }))
-  const mergeEntries: MenuEntry[] = (['left', 'top', 'right', 'bottom'] as const).flatMap((side) => {
-    const other = mergeNeighbour(layout, cell.id, side)
-    return other ? [{
-      kind: 'item' as const,
-      label: `${other.tabs.length > 0 ? `“${cellName(other)}”` : 'The empty slot'} ${SIDE_WORDS[side]}`,
-      onSelect: () => {
-        store().mergeCells(cell.id, other.id)
-        focusEditItem(cell.id)
-      },
-    }] : []
+  const mergeEntries: MenuEntry[] = choices.map((choice) => {
+    const key = `merge:${choice.cell.id}`
+    return {
+      kind: 'item',
+      label: mergeMenuWords(choice, cellName(choice.cell)),
+      onHover: (on) => (on ? draw(key, () => mergePreview(layout, cell, choice.cell, choice.kind, cellName)) : undraw(key)),
+      onSelect: () => merge(choice),
+    }
   })
   const removeLabel = cell.tabs.length > 1 ? 'Remove tab' : 'Remove widget'
 
-  // Portaled to the page: fixed over the table, not one of its grid items (the drop model measures those).
-  return createPortal(
-    <div className={styles.toolbar} style={{ left: at.left, top: at.top }} role="toolbar" aria-label={`${cellName(cell)} card`} data-edit-toolbar={cell.id}>
-      <button type="button" className={styles.button} aria-label="Split side by side" data-tooltip="Split side by side" onMouseMove={preview('right')} onMouseLeave={unpreview} onClick={() => split('right')}>
+  return (
+    <div
+      ref={barRef}
+      className={styles.toolbar}
+      role="toolbar"
+      aria-label={`${name} card`}
+      data-edit-toolbar={cell.id}
+      data-compact={compact ? '' : undefined}
+    >
+      <button type="button" className={styles.button} aria-label="Split side by side" data-tooltip="Split side by side" onMouseMove={splitHover('right')} onMouseLeave={() => undraw('split:right')} onClick={() => split('right')}>
         <SplitRightIcon />
-        <span>Split</span>
+        {!compact && <span>Split →</span>}
       </button>
-      <button type="button" className={styles.button} aria-label="Split one above the other" data-tooltip="Split one above the other" onMouseMove={preview('bottom')} onMouseLeave={unpreview} onClick={() => split('bottom')}>
+      <button type="button" className={styles.button} aria-label="Split one above the other" data-tooltip="Split one above the other" onMouseMove={splitHover('bottom')} onMouseLeave={() => undraw('split:bottom')} onClick={() => split('bottom')}>
         <SplitBelowIcon />
-        <span>Split</span>
-      </button>
-      <span className={styles.separator} aria-hidden="true" />
-      <button
-        ref={swapRef}
-        type="button"
-        className={styles.button}
-        aria-haspopup="menu"
-        aria-expanded={menu === 'swap'}
-        disabled={swapEntries.length === 0}
-        onClick={() => setMenu((m) => (m === 'swap' ? null : 'swap'))}
-      >
-        <span>Swap</span>
-        <ChevronDownIcon size={12} />
+        {!compact && <span>Split ↓</span>}
       </button>
       <button
         ref={mergeRef}
         type="button"
         className={styles.button}
         aria-haspopup="menu"
-        aria-expanded={menu === 'merge'}
-        disabled={mergeEntries.length === 0}
-        data-tooltip={mergeEntries.length === 0 ? 'No neighbour makes a rectangle with it' : undefined}
-        onClick={() => setMenu((m) => (m === 'merge' ? null : 'merge'))}
+        aria-expanded={mergeOpen}
+        disabled={choices.length === 0}
+        data-tooltip={choices.length === 0 ? 'No neighbour makes a rectangle with it' : undefined}
+        onClick={() => setMergeOpen((o) => !o)}
       >
         <span>Merge</span>
         <ChevronDownIcon size={12} />
@@ -161,6 +149,8 @@ function Toolbar({ cell, layout, tableRef, frozen }: { cell: LayoutCell; layout:
       <button
         type="button"
         className={`${styles.button} ${styles.danger}`}
+        aria-label={removeLabel}
+        data-tooltip={compact ? removeLabel : undefined}
         disabled={!active}
         onClick={() => {
           if (!active) return
@@ -169,15 +159,41 @@ function Toolbar({ cell, layout, tableRef, frozen }: { cell: LayoutCell; layout:
         }}
       >
         <TrashIcon />
-        <span>{removeLabel}</span>
+        {!compact && <span>Remove</span>}
       </button>
-      {menu === 'swap' && (
-        <MenuPopover anchorRef={swapRef} placement="bottom-start" width={240} label="Swap with" entries={[{ kind: 'label', text: 'Swap with' }, ...swapEntries]} onClose={() => setMenu(null)} />
+      <button
+        ref={setMoreButton}
+        type="button"
+        className={`${styles.button} ${menuOpen ? styles.pressed : ''}`}
+        aria-label={EDIT_CARD_MENU_LABEL}
+        data-edit-card-more=""
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        data-tooltip="Move, swap, insert, stretch…"
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onMore()
+        }}
+      >
+        <MoreIcon size={14} />
+      </button>
+      {mergeOpen && (
+        <MenuPopover
+          anchorRef={mergeRef}
+          placement="bottom-start"
+          width={280}
+          label="Merge with"
+          entries={[{ kind: 'label', text: 'Merge with' }, ...mergeEntries]}
+          onClose={() => {
+            setMergeOpen(false)
+            if (drawing?.startsWith('merge:')) {
+              setDrawing(null)
+              showStructurePreview(null)
+            }
+          }}
+        />
       )}
-      {menu === 'merge' && (
-        <MenuPopover anchorRef={mergeRef} placement="bottom-start" width={260} label="Merge with" entries={[{ kind: 'label', text: 'Merge with' }, ...mergeEntries]} onClose={() => setMenu(null)} />
-      )}
-    </div>,
-    document.body,
+    </div>
   )
 }
