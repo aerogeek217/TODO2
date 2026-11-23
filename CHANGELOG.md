@@ -20,6 +20,10 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-23
+
+Data version 87, unchanged — and now the oldest this version reads (see Removed).
+
 ### Added
 
 - **Shortcuts.** A new widget (Add widget › Tasks › Shortcuts) keeps lists from any layout in reach: a tile per list
