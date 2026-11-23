@@ -20,6 +20,18 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Changed
+
+- **A wider task editor.** The task editor is 1040px wide and the facts row gives Status room for its full name; Due
+  and Planned are a little wider too. A review card keeps the six facts on one line from about 770px.
+- **A full calendar day shows ticks, not `+6 more`.** When a month day or week row can't show every task, its last
+  line draws a tick for each task left out, as the Planner's strip does: solid for a due date or follow-up, hollow for
+  a plan. A click still opens the whole day.
+- **Unplanned filter.** The Planner's ⋯ entry and the words under Unplanned are named **Unplanned filter**.
+- **Reset plan names what leaves.** When a reset would take tasks out of the Planner — held in Unplanned, or on a day
+  only because they were planned — the question lists them before you confirm.
+- **Plan for day** no longer opens with a "Plans it for that day" line.
+
 ## 2026-11-22
 
 Data version 87. Older copies of the app will refuse the data once it is upgraded: update them, the offline file on
