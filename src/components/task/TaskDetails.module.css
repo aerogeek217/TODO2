@@ -337,10 +337,15 @@
   box-shadow: inset 0 0 0 1px var(--color-tint-8);
   color: var(--color-text-muted);
   font-family: inherit;
-  font-size: 14px;
   line-height: 1;
   cursor: pointer;
   transition: background var(--transition-medium), color var(--transition-medium);
+}
+
+/* The mark at 14px (its own size is `1em`). */
+.markerToggle > svg {
+  width: 14px;
+  height: 14px;
 }
 
 .markerToggle:hover {
@@ -690,8 +695,12 @@ button.planValue[aria-expanded='true'] {
   display: inline-flex;
   flex: none;
   margin: 0 2px;
-  font-size: 13px;
   color: var(--color-text-muted);
+}
+
+.dateRepeat > svg {
+  width: 13px;
+  height: 13px;
 }
 
 /* The words under the day (`in 2 days`, `3 days late`, `tomorrow`): muted, one line, cut with an
