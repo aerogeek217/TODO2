@@ -262,6 +262,17 @@ describe('create a task — markers, people, tags', () => {
     expect((await db.people.where('name').equals('Zed').count())).toBe(1)
   })
 
+  it('Quick Add with its defaults shown (a list’s chips): their people go beside the typed ones', async () => {
+    const fd = { ...NO_DEFAULTS, personIds: [ids.ann] }
+    const quick = async (text: string) => {
+      const { resolved } = parseTaskInput(text, usePersonStore.getState().people, useStatusStore.getState().statuses)
+      return created(await createQuickAddTask({ title: resolved.title, resolved }, fd, { shown: true }))
+    }
+    expect((await quick('A')).people).toEqual(['Ann'])
+    expect((await quick('B @Bob')).people).toEqual(['Ann', 'Bob'])
+    expect((await quick('C @Ann')).people).toEqual(['Ann'])
+  })
+
   it('the editor: picked people and tags plus typed ones (new ones created)', async () => {
     const { people, tags } = await viaEditor({ title: 'A @Bob @Yan #home' }, { personIds: [ids.ann], tagIds: [ids.work] })
     expect(people).toEqual(['Ann', 'Bob', 'Yan'])

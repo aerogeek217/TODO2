@@ -888,6 +888,105 @@ describe('QuickAddBar — preset (e.g. a list’s "+ Add task")', () => {
   })
 })
 
+describe('QuickAddBar — a preset’s people, tags and status (a list’s "+ Add task")', () => {
+  const work = { id: 7, name: 'work', color: '#0a0' }
+  const home = { id: 8, name: 'home', color: '#00a' }
+  const waiting: PersistedStatus = { id: 101, name: 'Waiting', color: '#fa0', sortOrder: 1 }
+  const preset = { urgent: true, personIds: [anna.id], tagIds: [work.id], statusId: waiting.id }
+
+  beforeEach(() => {
+    seedStores()
+    useTagStore.setState({ tags: [work, home] })
+    useStatusStore.setState({ statuses: [doingStatus, waiting] })
+  })
+  afterEach(() => { cleanup() })
+
+  /** The chips row's texts without the default follow-up's. */
+  function shownChips() {
+    return chipTexts().filter((t) => !t.includes('default'))
+  }
+  function pressRemove(name: string) {
+    const button = screen.getByRole('button', { name })
+    fireEvent.mouseDown(button)
+    fireEvent.click(button)
+  }
+
+  it('each seeded value shows as the chip typing it would show, before anything is typed', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={preset} />)
+    expect(getInput()).toHaveValue('')
+    expect(shownChips()).toEqual(['Urgent', '#work', 'AN@Anna', 'Waiting'])
+    const group = screen.getByRole('group', { name: 'What the task gets' })
+    expect(Array.from(group.querySelectorAll('button'), (b) => b.getAttribute('aria-label'))).toEqual(
+      expect.arrayContaining(['Remove Urgent', 'Remove #work', 'Remove @Anna', 'Remove status']),
+    )
+  })
+
+  it('looks as typed: the same chips as `/urgent #work @Anna !Waiting`', () => {
+    const { unmount } = render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    changeInput('/urgent #work @Anna !Waiting')
+    const typed = shownChips()
+    unmount()
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={preset} />)
+    expect(shownChips()).toEqual(typed)
+  })
+
+  it('a ×: the chip goes, the text is untouched, and the submit names what was removed', () => {
+    const onSubmit = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} preset={preset} />)
+    changeInput('Call vendor')
+    pressRemove('Remove @Anna')
+    pressRemove('Remove #work')
+    pressRemove('Remove status')
+    expect(getInput()).toHaveValue('Call vendor')
+    expect(shownChips()).toEqual(['Urgent'])
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    expect((onSubmit.mock.calls[0]?.[0] as QuickAddDraft).removedPreset).toEqual({ personIds: [anna.id], tagIds: [work.id], status: true })
+  })
+
+  it('a typed !status replaces the preset’s chip; cutting it brings the preset’s back', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={preset} />)
+    changeInput('Call !Doing')
+    expect(shownChips()).toContain('Doing')
+    expect(shownChips()).not.toContain('Waiting')
+    pressRemove('Remove status')
+    expect(getInput()).toHaveValue('Call')
+    expect(shownChips()).toContain('Waiting')
+  })
+
+  it('a typed person or tag beside the preset’s adds a chip; one typed too shows once, and its × removes both', () => {
+    const onSubmit = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} preset={preset} />)
+    changeInput('Call @Bob #home')
+    expect(shownChips()).toEqual(['Urgent', '#work', '#home', 'AN@Anna', 'BO@Bob', 'Waiting'])
+    changeInput('Call @Anna #work')
+    expect(shownChips()).toEqual(['Urgent', '#work', 'AN@Anna', 'Waiting'])
+    pressRemove('Remove @Anna')
+    pressRemove('Remove #work')
+    expect(getInput()).toHaveValue('Call')
+    expect(shownChips()).toEqual(['Urgent', 'Waiting'])
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    expect((onSubmit.mock.calls[0]?.[0] as QuickAddDraft).removedPreset).toEqual({ personIds: [anna.id], tagIds: [work.id] })
+  })
+
+  it('Details hands on what was removed', () => {
+    const onOpenFullEditor = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} onOpenFullEditor={onOpenFullEditor} preset={preset} />)
+    pressRemove('Remove #work')
+    fireEvent.keyDown(getInput(), { key: 'Tab' })
+    expect((onOpenFullEditor.mock.calls[0]?.[0] as QuickAddDraft).removedPreset).toEqual({ tagIds: [work.id] })
+  })
+
+  it('a removed chip comes back the next time the bar opens; a person, tag or status that no longer exists shows none', () => {
+    const { rerender } = render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={preset} />)
+    pressRemove('Remove @Anna')
+    rerender(<QuickAddBar open={false} onClose={noop} onSubmit={noop} preset={preset} />)
+    rerender(<QuickAddBar open onClose={noop} onSubmit={noop} preset={preset} />)
+    expect(shownChips()).toContain('AN@Anna')
+    rerender(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ personIds: [999], tagIds: [999], statusId: 999 }} />)
+    expect(chipTexts()).toEqual([])
+  })
+})
+
 describe('QuickAddBar — submit', () => {
   beforeEach(seedStores)
   afterEach(() => { cleanup() })
@@ -1118,7 +1217,7 @@ describe('QuickAddBar — chip ×', () => {
     expect(draft.title).toBe('Fix the build')
     expect(draft.resolved.tags).toEqual([])
     expect(draft.resolved.personIds).toEqual([anna.id])
-    expect(draft.removedPresetMarkers).toBeUndefined()
+    expect(draft.removedPreset).toBeUndefined()
   })
 
   it('a preset marker: × drops it from the preset, and the submit says so', () => {
@@ -1129,7 +1228,7 @@ describe('QuickAddBar — chip ×', () => {
     expect(chipTexts()).not.toContain('Urgent')
     const input = typeAt('Book caterer')
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect((onSubmit.mock.calls[0]?.[0] as QuickAddDraft).removedPresetMarkers).toEqual(['urgent'])
+    expect((onSubmit.mock.calls[0]?.[0] as QuickAddDraft).removedPreset).toEqual({ markers: ['urgent'] })
   })
 
   it('a marker both typed and preset: × removes both', () => {
@@ -1140,7 +1239,7 @@ describe('QuickAddBar — chip ×', () => {
     expect(input).toHaveValue('Book caterer')
     expect(chipTexts()).not.toContain('Important')
     fireEvent.keyDown(input, { key: 'Tab' })
-    expect((onOpenFullEditor.mock.calls[0]?.[0] as QuickAddDraft).removedPresetMarkers).toEqual(['important'])
+    expect((onOpenFullEditor.mock.calls[0]?.[0] as QuickAddDraft).removedPreset).toEqual({ markers: ['important'] })
   })
 
   it('a removed preset marker comes back the next time the bar opens', () => {

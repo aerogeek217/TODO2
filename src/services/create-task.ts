@@ -18,12 +18,15 @@ import { createTasksFromDrafts } from './note-tasks'
  * Quick Add's submit: the bar's parsed text, with the defaults of where it
  * was added (`fd` — a list's predicate seed, else the screen filter) filling
  * what the text didn't say. A filter on one status wins over Settings'
- * default status here (`statusDefaultFirst: 'filter'`). Returns the id, or
- * null when it couldn't be stored.
+ * default status here (`statusDefaultFirst: 'filter'`). With `shown` (a
+ * list's seed, shown as chips) the defaults' people go beside the typed ones;
+ * otherwise only when the text names nobody. Returns the id, or null when it
+ * couldn't be stored.
  */
 export async function createQuickAddTask(
   submitted: { title: string; resolved: ResolvedInput },
   fd: FilterDefaults,
+  options: { shown?: boolean } = {},
 ): Promise<number | null> {
   const draft = draftFromResolved(submitted.resolved, submitted.title, {
     people: usePersonStore.getState().people,
@@ -32,6 +35,7 @@ export async function createQuickAddTask(
     defaults: fd,
     defaultStatusId: useSettingsStore.getState().defaultStatusId,
     statusDefaultFirst: 'filter',
+    defaultPeople: options.shown ? 'also' : 'unlessNamed',
   })
   return createTaskFromDraft(draft)
 }

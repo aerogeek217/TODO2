@@ -36,7 +36,7 @@ import { CURRENT_DB_VERSION, findDatabaseTooNew, findDatabaseTooOld } from './da
 import { runAppStartup, type LaunchStep } from './services/app-startup'
 import { onDataReplaced } from './services/replace-data'
 import { createQuickAddTask } from './services/create-task'
-import { getFilterDefaults, markerFlags, withoutMarkers } from './utils/filter-defaults'
+import { getFilterDefaults, markerFlags, withoutRemoved } from './utils/filter-defaults'
 import { checkTooNewDB, checkTooOldDB } from './services/migration-check'
 import type { TooNewDBInfo, TooOldDBInfo } from './services/migration-check'
 import { DatabaseChangedElsewhereGuard, DatabaseTooNewDialog, DatabaseTooOldDialog } from './components/overlays/DatabaseVersionDialog'
@@ -165,22 +165,20 @@ function AppBulkConfirmDialog() {
  * popup reads the draft on mount and clears it via `closeEditPopup` on
  * close.
  */
-function AppQuickAddBar() {
+export function AppQuickAddBar() {
   const open = useUIStore((s) => s.quickAddOpen)
   const close = useUIStore((s) => s.closeQuickAdd)
   const draft = useUIStore((s) => s.quickAddDraft)
   // Resolves false when the task couldn't be stored: the bar then stays open.
   const handleSubmit = useCallback(async (submitted: QuickAddDraft): Promise<boolean> => {
     // Defaults: an explicit list-predicate seed stashed on
-    // `quickAddDraft.defaults` (a list widget's "+ Add task"), else the
-    // active top-bar filter.
-    // A preset marker whose chip was removed is not seeded.
-    const draft = useUIStore.getState().quickAddDraft
-    const fd = withoutMarkers(
-      draft?.defaults ?? getFilterDefaults(appliedScreenFilter(useFilterStore.getState())),
-      submitted.removedPresetMarkers ?? [],
-    )
-    const id = await createQuickAddTask(submitted, fd)
+    // `quickAddDraft.defaults` (a list widget's "+ Add task", shown as chips:
+    // one whose chip was removed is not seeded), else the active top-bar
+    // filter.
+    const seed = useUIStore.getState().quickAddDraft?.defaults
+    const id = seed
+      ? await createQuickAddTask(submitted, withoutRemoved(seed, submitted.removedPreset), { shown: true })
+      : await createQuickAddTask(submitted, getFilterDefaults(appliedScreenFilter(useFilterStore.getState())))
     if (id == null) return false
     useUIStore.getState().showRecentlyCreated(id)
     return true
@@ -199,18 +197,24 @@ function AppQuickAddBar() {
       quickAddDraft: {
         rawTitle: submitted.rawTitle,
         ...(existing?.defaults
-          ? { defaults: withoutMarkers(existing.defaults, submitted.removedPresetMarkers ?? []) }
+          ? { defaults: withoutRemoved(existing.defaults, submitted.removedPreset) }
           : {}),
       },
     })
     useUIStore.getState().openCreatePopup()
   }, [])
 
-  // An explicit seed (a list's "+ Add task") shows its markers (each with a ×)
-  // as chips.
+  // An explicit seed (a list's "+ Add task") shows its people, tags, status
+  // and markers (each with a ×) as chips.
   const preset = useMemo<QuickAddPreset | undefined>(() => {
-    if (!draft?.defaults) return undefined
-    return markerFlags(draft.defaults)
+    const fd = draft?.defaults
+    if (!fd) return undefined
+    return {
+      ...markerFlags(fd),
+      ...(fd.personIds.length > 0 ? { personIds: fd.personIds } : {}),
+      ...(fd.tagIds.length > 0 ? { tagIds: fd.tagIds } : {}),
+      ...(fd.statusId !== undefined ? { statusId: fd.statusId } : {}),
+    }
   }, [draft])
 
   return (

@@ -10,9 +10,10 @@
  *
  * Each chip has a × (a mouse target, not a Tab stop) that edits the text:
  * it cuts the tokens the chip came from (`services/nlp-chip-edit`), or — on
- * the default follow-up — adds `/followup none`. A preset marker (a
- * list's "+ Add task") is dropped from the preset instead. The focus
- * and the caret stay in the field.
+ * the default follow-up — adds `/followup none`. A preset (a list's
+ * "+ Add task": its people, tags, status and markers, shown as their chips
+ * from the start) is dropped from the preset instead. The focus and the
+ * caret stay in the field.
  *
  * ⏎ always adds the task, even while the `@ # ! /` popup is open: a
  * half-typed token is completed to its best match first; an unreadable one
@@ -40,7 +41,8 @@ import type {
   Person,
   Status,
 } from '../../models'
-import { MARKER_KEYS, type MarkerKey } from '../../models'
+import { MARKER_KEYS } from '../../models'
+import type { RemovedDefaults } from '../../utils/filter-defaults'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import {
@@ -122,9 +124,9 @@ export type QuickAddDraft = ParsedTokens & {
   /** Unparsed input as the user typed it — used by the Details / Tab handoff
    * so `TaskEditPopup` can re-run its own NLP on mount. */
   rawTitle: string
-  /** Preset markers whose chip was removed: the task doesn't get them from
+  /** The preset's chips that were removed: the task doesn't get them from
    * the defaults of where it is added. */
-  removedPresetMarkers?: MarkerKey[]
+  removedPreset?: RemovedDefaults
   /** Resolver output (people / tags / status / dates / markers /
    * recurrence) — what `services/create-task.createQuickAddTask` creates the
    * task from on submit. */
@@ -135,6 +137,12 @@ export interface QuickAddPreset {
   urgent?: boolean
   important?: boolean
   focus?: boolean
+  /** People the task gets (a list's filter): their chips show from the start. */
+  personIds?: readonly number[]
+  /** Tags the task gets, as `personIds`. */
+  tagIds?: readonly number[]
+  /** The status the task gets unless a `!status` is typed. */
+  statusId?: number
   /** What else the task will get, in words (a converted note line's subtasks). */
   caption?: string
 }
@@ -158,8 +166,9 @@ interface QuickAddBarProps {
   initialDraft?: { rawTitle: string }
   /**
    * What the task gets whatever is typed (e.g. a list's "+ Add task": the
-   * flags its filter implies), shown as chips — a marker chip's × drops it
-   * (`QuickAddDraft.removedPresetMarkers`).
+   * people, tags, status and flags its filter implies), shown as the chips
+   * typing them would show — a chip's × drops it
+   * (`QuickAddDraft.removedPreset`). A typed `!status` wins over the preset's.
    */
   preset?: QuickAddPreset
   /**
@@ -181,8 +190,34 @@ function repeatLabel(recurrence: Interval, due: Date): string {
   return describeRecurrence({ every: recurrence }, due)
 }
 
-/** What a chip's × does: remove what the chip came from, or (the default follow-up) say "none". */
-type ChipRemoval = QuickAddChip | { kind: 'defaultFollowup' }
+/**
+ * What a chip's × does: remove what the chip came from, or (the default
+ * follow-up) say "none", or drop a preset person / tag / status.
+ */
+type ChipRemoval =
+  | QuickAddChip
+  | { kind: 'defaultFollowup' }
+  | { kind: 'presetPerson'; personId: number }
+  | { kind: 'presetTag'; tagId: number }
+  | { kind: 'presetStatus' }
+
+/** The preset's people, tags and status still shown (removed ones and those typed too left out). */
+interface PresetChips {
+  people: PersistedPerson[]
+  tags: { id: number; name: string }[]
+  status?: PersistedStatus
+}
+
+const NO_PRESET_CHIPS: PresetChips = { people: [], tags: [] }
+
+/** Nothing removed from the preset (the state the bar opens with). */
+const NO_REMOVALS: RemovedDefaults = {}
+
+/** `removed` with one more `id` under `key` (itself when it has it). */
+function withRemovedId(removed: RemovedDefaults, key: 'personIds' | 'tagIds', id: number): RemovedDefaults {
+  const ids = removed[key] ?? []
+  return ids.includes(id) ? removed : { ...removed, [key]: [...ids, id] }
+}
 
 /**
  * A chip's ×: a mouse target only (Tab is the Details hand-off); the press
@@ -238,9 +273,11 @@ function uniqueNames(names: readonly string[]): string[] {
   })
 }
 
-function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
+function ParsedChips({ draft, preset, presetChips, defaultFollowup, today, onRemove }: {
   draft: QuickAddDraft
   preset?: QuickAddPreset
+  /** The preset's people, tags and status: each beside the typed ones of its kind, before them. */
+  presetChips: PresetChips
   /** The default next follow-up; `null` = new tasks get none. */
   defaultFollowup: Date | null
   today: Date
@@ -256,11 +293,20 @@ function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
           <ChipRemove label={`Remove ${MARKER_LABELS[key]}`} onRemove={() => onRemove({ kind: 'marker', marker: key })} />
         </span>
       ))}
+      {presetChips.tags.map((t) => (
+        <span key={`preset-tag-${t.id}`} className={styles.chip}>
+          #{t.name}
+          <ChipRemove label={`Remove #${t.name}`} onRemove={() => onRemove({ kind: 'presetTag', tagId: t.id })} />
+        </span>
+      ))}
       {draft.tags.map((t) => (
         <span key={`tag-${t}`} className={styles.chip}>
           #{t}
           <ChipRemove label={`Remove #${t}`} onRemove={() => onRemove({ kind: 'tag', name: t })} />
         </span>
+      ))}
+      {presetChips.people.map((p) => (
+        <PersonChip key={`preset-person-${p.id}`} person={p} onRemove={() => onRemove({ kind: 'presetPerson', personId: p.id })} />
       ))}
       {draft.people.map((p) => (
         <PersonChip key={`person-${p.id}`} person={p} onRemove={() => onRemove({ kind: 'person', personId: p.id })} />
@@ -303,20 +349,29 @@ function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
           <ChipRemove label="Remove repeat" onRemove={() => onRemove({ kind: 'command', command: 'repeat' })} />
         </span>
       )}
-      {draft.status && (
-        <span className={`${styles.chip} ${styles.statusChip}`}>
-          <span style={{ color: draft.status.color }}><StatusMark status={draft.status} filled /></span>
-          {draft.status.name}
-          <ChipRemove label="Remove status" onRemove={() => onRemove({ kind: 'status' })} />
-        </span>
+      {draft.status ? (
+        <StatusChip status={draft.status} onRemove={() => onRemove({ kind: 'status' })} />
+      ) : presetChips.status && (
+        <StatusChip status={presetChips.status} onRemove={() => onRemove({ kind: 'presetStatus' })} />
       )}
       {preset?.caption && <span className={styles.chipsSource}>{preset.caption}</span>}
     </div>
   )
 }
 
-function hasPreset(preset: QuickAddPreset | undefined): boolean {
-  return preset != null && (preset.urgent === true || preset.important === true || preset.focus === true || !!preset.caption)
+function StatusChip({ status, onRemove }: { status: PersistedStatus; onRemove: () => void }) {
+  return (
+    <span className={`${styles.chip} ${styles.statusChip}`}>
+      <span style={{ color: status.color }}><StatusMark status={status} filled /></span>
+      {status.name}
+      <ChipRemove label="Remove status" onRemove={onRemove} />
+    </span>
+  )
+}
+
+function hasPreset(preset: QuickAddPreset | undefined, chips: PresetChips): boolean {
+  return (preset != null && (preset.urgent === true || preset.important === true || preset.focus === true || !!preset.caption))
+    || chips.people.length > 0 || chips.tags.length > 0 || chips.status != null
 }
 
 /** One line per command (or `!status`) that sets nothing. */
@@ -414,8 +469,8 @@ export function QuickAddBar({
   const [raw, setRaw] = useState('')
   /** ⏎ was pressed on text that is only tokens: the "No title" line shows until the text changes. */
   const [titleMissing, setTitleMissing] = useState(false)
-  /** Preset markers whose chip × was pressed, until the bar closes. */
-  const [removedPresetMarkers, setRemovedPresetMarkers] = useState<MarkerKey[]>([])
+  /** The preset's chips whose × was pressed, until the bar closes. */
+  const [removedPreset, setRemovedPreset] = useState<RemovedDefaults>(NO_REMOVALS)
   /** Where the caret goes once a chip × has changed the text. */
   const pendingCaretRef = useRef<number | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -475,26 +530,51 @@ export function QuickAddBar({
     },
   })
 
-  const removedPreset = removedPresetMarkers.length > 0 ? { removedPresetMarkers } : {}
+  const removed = removedPreset === NO_REMOVALS ? {} : { removedPreset }
   const draft: QuickAddDraft = {
     ...parsed,
     rawTitle: raw,
     resolved,
-    ...removedPreset,
+    ...removed,
   }
   /** The draft for `text` (the current one when it's what is typed and nothing more is picked). */
   const draftFor = (text: string, picks: PickedIds = picked): QuickAddDraft => {
     if (text === raw && picks === picked) return draft
     const run = runParse(text, people, statuses, picks)
-    return { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved, ...removedPreset }
+    return { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved, ...removed }
   }
-  /** The preset without the markers whose chip was removed. */
+  /** The preset without what was removed. */
   const shownPreset = useMemo<QuickAddPreset | undefined>(() => {
-    if (!preset || removedPresetMarkers.length === 0) return preset
+    if (!preset || removedPreset === NO_REMOVALS) return preset
     const next: QuickAddPreset = { ...preset }
-    for (const key of removedPresetMarkers) delete next[key]
+    for (const key of removedPreset.markers ?? []) delete next[key]
+    const gonePeople = removedPreset.personIds ?? []
+    const goneTags = removedPreset.tagIds ?? []
+    if (next.personIds) next.personIds = next.personIds.filter((id) => !gonePeople.includes(id))
+    if (next.tagIds) next.tagIds = next.tagIds.filter((id) => !goneTags.includes(id))
+    if (removedPreset.status) delete next.statusId
     return next
-  }, [preset, removedPresetMarkers])
+  }, [preset, removedPreset])
+  // The shown preset's people, tags and status as chips: those that exist, one
+  // chip each — a person or tag typed too shows as the typed chip, and a typed
+  // `!status` replaces the preset's.
+  const presetChips = useMemo<PresetChips>(() => {
+    if (!shownPreset) return NO_PRESET_CHIPS
+    const typedPeople = new Set(parsed.people.map((p) => p.id))
+    const typedTags = new Set(parsed.tags.map((t) => t.toLowerCase()))
+    const presetPeople = (shownPreset.personIds ?? [])
+      .filter((id) => !typedPeople.has(id))
+      .map((id) => people.find((p) => p.id === id))
+      .filter((p): p is PersistedPerson => p?.id !== undefined)
+    const presetTags = (shownPreset.tagIds ?? [])
+      .map((id) => tags.find((t) => t.id === id))
+      .filter((t): t is { id: number; name: string; color: string } => t?.id !== undefined && !typedTags.has(t.name.toLowerCase()))
+      .map((t) => ({ id: t.id, name: t.name }))
+    const presetStatus = shownPreset.statusId !== undefined && !parsed.status
+      ? statuses.find((s): s is PersistedStatus => s.id === shownPreset.statusId)
+      : undefined
+    return { people: presetPeople, tags: presetTags, ...(presetStatus ? { status: presetStatus } : {}) }
+  }, [shownPreset, parsed.people, parsed.tags, parsed.status, people, tags, statuses])
 
   // The token the popup is open on: tinted as "being typed"; its problem
   // (e.g. `/due` with no argument yet) isn't listed while the popup shows it.
@@ -530,7 +610,7 @@ export function QuickAddBar({
     } else {
       setRaw('')
       setTitleMissing(false)
-      setRemovedPresetMarkers([])
+      setRemovedPreset(NO_REMOVALS)
       setPicked(NO_PICKS)
       dismissAutocomplete()
     }
@@ -602,15 +682,30 @@ export function QuickAddBar({
     return () => document.removeEventListener('mousedown', handler, true)
   }, [open, requestClose, popupRef])
 
-  /** A chip's ×: edit the text (and drop a preset marker), keeping the caret in the field. */
+  /**
+   * A chip's ×: edit the text and drop what the preset gave too (a chip shows
+   * a marker, person, tag or status once, typed or preset), keeping the caret
+   * in the field.
+   */
   const onRemoveChip = (chip: ChipRemoval) => {
     const input = inputRef.current
     input?.focus()
     const caret = input?.selectionStart ?? raw.length
     if (chip.kind === 'marker' && preset?.[chip.marker] === true) {
       const marker = chip.marker
-      setRemovedPresetMarkers((keys) => (keys.includes(marker) ? keys : [...keys, marker]))
+      setRemovedPreset((r) => (r.markers?.includes(marker) ? r : { ...r, markers: [...(r.markers ?? []), marker] }))
     }
+    const presetTag = (name: string) => shownPreset?.tagIds?.find((id) => tags.find((t) => t.id === id)?.name.toLowerCase() === name.toLowerCase())
+    if (chip.kind === 'presetPerson' || (chip.kind === 'person' && shownPreset?.personIds?.includes(chip.personId))) {
+      const id = chip.personId
+      setRemovedPreset((r) => withRemovedId(r, 'personIds', id))
+    }
+    const tagId = chip.kind === 'presetTag' ? chip.tagId : chip.kind === 'tag' ? presetTag(chip.name) : undefined
+    if (tagId !== undefined) setRemovedPreset((r) => withRemovedId(r, 'tagIds', tagId))
+    if (chip.kind === 'presetStatus' || (chip.kind === 'status' && parsed.status && parsed.status.id === shownPreset?.statusId)) {
+      setRemovedPreset((r) => (r.status ? r : { ...r, status: true }))
+    }
+    if (chip.kind === 'presetPerson' || chip.kind === 'presetTag' || chip.kind === 'presetStatus') return
     let edit: TextEdit | null = null
     if (chip.kind === 'defaultFollowup') edit = appendTextToken(raw, FOLLOWUP_NONE_TOKEN, caret)
     else if (internalRun.input) edit = removeChip(raw, internalRun.input, chip, people, caret)
@@ -680,7 +775,7 @@ export function QuickAddBar({
         submittingRef.current = false
         if (openingRef.current !== opening) return
         const run = runParse(text, usePersonStore.getState().people, useStatusStore.getState().statuses, picks)
-        submit(text, { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved, ...removedPreset })
+        submit(text, { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved, ...removed })
       })
       return
     }
@@ -799,10 +894,11 @@ export function QuickAddBar({
         </div>
 
         {/* Chips row — what the task will get */}
-        {(raw.trim().length > 0 || hasPreset(shownPreset)) && (
+        {(raw.trim().length > 0 || hasPreset(shownPreset, presetChips)) && (
           <ParsedChips
             draft={draft}
             preset={shownPreset}
+            presetChips={presetChips}
             defaultFollowup={defaultFollowup}
             today={today}
             onRemove={onRemoveChip}

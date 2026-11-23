@@ -65,6 +65,32 @@ export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): 
 }
 
 /**
+ * The defaults whose chip was removed in Quick Add (a list's "+ Add task"
+ * shows its defaults as chips, each with a ×): the task doesn't get them.
+ */
+export interface RemovedDefaults {
+  markers?: MarkerKey[]
+  personIds?: number[]
+  tagIds?: number[]
+  /** The default status's chip was removed. */
+  status?: true
+}
+
+/** `fd` without what `removed` names (`fd` itself when it names nothing). */
+export function withoutRemoved(fd: FilterDefaults, removed: RemovedDefaults | null | undefined): FilterDefaults {
+  const people = removed?.personIds ?? []
+  const tags = removed?.tagIds ?? []
+  const rest = withoutMarkers(fd, removed?.markers ?? [])
+  if (!removed || (people.length === 0 && tags.length === 0 && !removed.status)) return rest
+  return {
+    ...rest,
+    personIds: rest.personIds.filter((id) => !people.includes(id)),
+    tagIds: rest.tagIds.filter((id) => !tags.includes(id)),
+    statusId: removed.status ? undefined : rest.statusId,
+  }
+}
+
+/**
  * Same shape as `getFilterDefaults` but reads from a serializable
  * `TodoPredicate` — the form a `ListDefinition` stores on disk. Used to seed
  * a "+ Add task" affordance from the predicate of a list widget,

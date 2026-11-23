@@ -65,6 +65,12 @@ export interface DraftContext {
    * filter on one status has always set it, over Settings' default).
    */
   statusDefaultFirst?: 'settings' | 'filter'
+  /**
+   * The defaults' people: `unlessNamed` (the default) only when the text
+   * names nobody; `also` beside the people it names (Quick Add from a list's
+   * "+ Add task", which shows them as chips to remove one by one).
+   */
+  defaultPeople?: 'unlessNamed' | 'also'
   today?: Date
 }
 
@@ -130,7 +136,8 @@ export function draftFromText(text: string, ctx: DraftContext): TaskDraft {
 
 /**
  * Parsed task text into a draft, plus the defaults of where the task is
- * added: the filter's people when the text names nobody, its tags and
+ * added: the filter's people when the text names nobody (or beside them,
+ * `ctx.defaultPeople`), its tags and
  * markers, and a status (typed `!status`, else Settings' default and the
  * filter's, in `ctx.statusDefaultFirst` order). `fallbackTitle` is the
  * title when the text is all tokens. Defaults naming a status / person / tag
@@ -154,7 +161,9 @@ export function draftFromResolved(resolved: ResolvedInput, fallbackTitle: string
     important: resolved.important === true || fd?.markers?.important === true,
     focus: resolved.focus === true || fd?.markers?.focus === true,
     ...(resolved.followupNone ? { nextFollowupAt: null } : resolved.nextFollowupAt ? { nextFollowupAt: resolved.nextFollowupAt } : {}),
-    personIds: namesSomeone ? resolved.personIds : existing(fd?.personIds ?? [], ctx.people),
+    personIds: ctx.defaultPeople === 'also'
+      ? union(resolved.personIds, existing(fd?.personIds ?? [], ctx.people))
+      : namesSomeone ? resolved.personIds : existing(fd?.personIds ?? [], ctx.people),
     newPeople: resolved.unmatchedPersons,
     tagIds: union(tags.ids, existing(fd?.tagIds ?? [], ctx.tags)),
     newTags: tags.missing,
