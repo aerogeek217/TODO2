@@ -5,8 +5,9 @@ import { readStore } from './fixtures/db'
 
 /**
  * Calendar widget in a real browser: list rows dropped on a day (with the
- * Due / Follow-up chooser when both date types are shown, directly when one
- * is), calendar entries moving their own date, recurring occurrences not
+ * Due / Follow-up / Plan chooser when more than one date type is shown,
+ * directly when one is), calendar entries moving their own date — a plan
+ * entry its plan —, recurring occurrences not
  * dragging, month / week navigation saved as view state, the "+N more" day
  * popover and the compact month's day selection.
  */
@@ -139,7 +140,7 @@ test.describe('dropping a list task on a day', () => {
     await seedWorkspace(page, {
       listDefinitions: [TASK_LIST],
       tasks: [{ title: 'Call legal' }],
-      layouts: layoutWith({ dateTypes: { due: false, followup: true } }),
+      layouts: layoutWith({ dateTypes: { due: false, followup: true, plan: false } }),
     })
     const target = await day(page, 2)
     await dragOnto(page, listRow(page, 'Call legal'), target, async () => {
@@ -156,7 +157,7 @@ test.describe('dropping a list task on a day', () => {
     await seedWorkspace(page, {
       listDefinitions: [TASK_LIST],
       tasks: [{ title: 'Call legal' }],
-      layouts: layoutWith({ dateTypes: { due: false, followup: false } }),
+      layouts: layoutWith({ dateTypes: { due: false, followup: false, plan: false } }),
     })
     await expect(calendar(page).getByTestId('calendar-empty')).toHaveAttribute('data-empty', 'no-types')
     const target = await day(page, 2)
@@ -244,21 +245,25 @@ test('month navigation is view state: saved across reload, never unsaved', async
   await expectLayoutStored(page)
 })
 
-test('date-type toggles are layout config: saved at once as an undo step; both can be off', async ({ page }) => {
+test('date-type toggles are layout config: saved at once as an undo step; all can be off', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [TASK_LIST],
-    tasks: [{ title: 'Both dates', dueInDays: 1, followupInDays: 1 }],
+    tasks: [{ title: 'Every date', dueInDays: 1, followupInDays: 1, doInDays: 1 }],
     layouts: layoutWith({}),
   })
   const tomorrow = await day(page, 1)
-  await expect(tomorrow.locator('[data-cal-entry]')).toHaveCount(2)
-  const due = calendar(page).getByRole('group', { name: 'Date types shown' }).locator('[data-type="due"]')
-  const followup = calendar(page).getByRole('group', { name: 'Date types shown' }).locator('[data-type="followup"]')
+  await expect(tomorrow.locator('[data-cal-entry]')).toHaveCount(3)
+  const toggle = (type: string) => calendar(page).getByRole('group', { name: 'Date types shown' }).locator(`[data-type="${type}"]`)
+  const [due, followup, plans] = [toggle('due'), toggle('followup'), toggle('plan')]
+  await expect(plans).toHaveText('Plans')
   await due.click()
   await expect(due).toHaveAttribute('aria-pressed', 'false')
-  await expect(tomorrow.locator('[data-cal-entry]')).toHaveCount(1)
+  await expect(tomorrow.locator('[data-cal-entry]')).toHaveCount(2)
   await expect(tomorrow.locator('[data-cal-entry="followup"]')).toHaveCount(1)
   await expectLayoutStep(page)
+  await plans.click()
+  await expect(plans).toHaveAttribute('aria-pressed', 'false')
+  await expect(tomorrow.locator('[data-cal-entry="plan"]')).toHaveCount(0)
   // The last type on turns off too: nothing shows, and the calendar says why.
   await followup.click()
   await expect(followup).toHaveAttribute('aria-pressed', 'false')
@@ -266,6 +271,57 @@ test('date-type toggles are layout config: saved at once as an undo step; both c
   await expect(calendar(page).getByTestId('calendar-empty')).toContainText('No date types shown')
   await followup.click()
   await expect(tomorrow.locator('[data-cal-entry="followup"]')).toHaveCount(1)
+})
+
+test('a plan entry drags to another day: the plan only, no stamp; a past day refuses it', async ({ page }) => {
+  await seedWorkspace(page, {
+    listDefinitions: [TASK_LIST],
+    tasks: [{ title: 'Write the brief', dueInDays: 4, doInDays: 1, modifiedInDays: -3 }],
+    layouts: layoutWith({}),
+  })
+  const before = (await readStore<{ title: string; modifiedAt: Date }>(page, 'todos')).find((t) => t.title === 'Write the brief')!
+  const from = await day(page, 1)
+  const entry = from.locator('[data-cal-entry="plan"]')
+  await expect(entry).toContainText('Write the brief')
+  await expect(entry).toHaveAttribute('data-tooltip-bar', 'hollow')
+  // The hollow bar: outlined, not filled.
+  expect(await entry.evaluate((el) => { const s = getComputedStyle(el, '::before'); return [s.backgroundColor, s.borderTopStyle] })).toEqual(['rgba(0, 0, 0, 0)', 'solid'])
+  const target = await day(page, 3)
+  await dragOnto(page, entry, target, async () => { await expect(target).toContainText('Move here') })
+  await expect(target.locator('[data-cal-entry="plan"]')).toContainText('Write the brief')
+  await expect(from.locator('[data-cal-entry="plan"]')).toHaveCount(0)
+  const after = (await readStore<{ title: string; doDate?: Date; dueDate?: Date; modifiedAt: Date }>(page, 'todos')).find((t) => t.title === 'Write the brief')!
+  expect(after.doDate?.getTime()).toBe(await dayAt(page, 3, 0))
+  expect(after.dueDate?.getTime()).toBe(await dayAt(page, 4, 0))
+  expect(after.modifiedAt.getTime()).toBe(before.modifiedAt.getTime())
+  await expectLayoutStored(page)
+
+  // Yesterday (when the month shows it): refused, the plan stays.
+  const past = await day(page, -1)
+  if (await past.count()) {
+    await dragOnto(page, target.locator('[data-cal-entry="plan"]'), past, async () => { await expect(past).toContainText('Past day') })
+    await expect(target.locator('[data-cal-entry="plan"]')).toContainText('Write the brief')
+    const kept = (await readStore<{ title: string; doDate?: Date }>(page, 'todos')).find((t) => t.title === 'Write the brief')!
+    expect(kept.doDate?.getTime()).toBe(await dayAt(page, 3, 0))
+  }
+})
+
+test('a list row dropped on a calendar showing every type: the chooser offers Plan (P)', async ({ page }) => {
+  await seedWorkspace(page, {
+    listDefinitions: [TASK_LIST],
+    tasks: [{ title: 'Draft OKRs', dueInDays: 1 }],
+    layouts: layoutWith({}),
+  })
+  const target = await day(page, 3)
+  await dragOnto(page, listRow(page, 'Draft OKRs'), target)
+  const menu = chooser(page)
+  await expect(menu.getByRole('menuitem')).toHaveText([/^Due date/, /^Follow-up/, /^Plan/])
+  await expect(menu.getByRole('menuitem', { name: /Plan/ })).toContainText('not set')
+  await page.keyboard.press('p')
+  await expect(menu).toHaveCount(0)
+  await expect(target.locator('[data-cal-entry="plan"]')).toContainText('Draft OKRs')
+  const stored = await readTodo(page, 'Draft OKRs')
+  expect(stored.dueDate?.getTime()).toBe(await dayAt(page, 1, 0))
 })
 
 test('+N more opens the day with every entry', async ({ page }) => {
@@ -299,19 +355,23 @@ test('+N more opens the day with every entry', async ({ page }) => {
   expect((await readTodo(page, 'Six')).dueDate?.getTime()).toBe(await dayAt(page, 5, 0))
 })
 
-test('a narrow calendar shows dots; selecting a day lists its entries', async ({ page }) => {
+test('a narrow calendar shows ticks; selecting a day lists its entries', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [TASK_LIST],
-    tasks: [{ title: 'Pick up prescriptions', dueInDays: 2 }, { title: 'Vendor contract', followupInDays: 2 }],
+    tasks: [{ title: 'Pick up prescriptions', dueInDays: 2 }, { title: 'Vendor contract', followupInDays: 2 }, { title: 'Write it up', doInDays: 2 }],
     layouts: layoutWith({ view: 'month', offset: 0 }, { listWeight: 6 }),
   })
   await expect(calendar(page)).toHaveAttribute('data-mode', 'compact')
   const target = await day(page, 2)
-  await expect(target.locator('[data-dot]')).toHaveCount(2)
+  // The Planner strip's ticks: solid for the due date and the follow-up, hollow for the plan.
+  expect(await target.locator('[data-mark]').evaluateAll((els) => els.map((el) => el.getAttribute('data-mark')))).toEqual(['due', 'followup', 'plan'])
+  const hollow = target.locator('[data-mark="plan"]')
+  expect(await hollow.evaluate((el) => { const s = getComputedStyle(el); return [s.backgroundColor, s.borderTopStyle] })).toEqual(['rgba(0, 0, 0, 0)', 'solid'])
+  await expect(calendar(page).getByRole('button', { name: 'Titles' })).toHaveCount(0)
   await target.click()
   await expect(target).toHaveAttribute('aria-pressed', 'true')
   const list = calendar(page).locator(`[data-cal-day-list="${await dayKey(page, 2)}"]`)
-  await expect(list).toContainText('2 tasks')
+  await expect(list).toContainText('3 tasks')
   await expect(list.locator('[data-cal-entry="due"]')).toContainText('Pick up prescriptions')
   await expect(list.locator('[data-cal-entry="followup"]')).toContainText('Vendor contract')
 })

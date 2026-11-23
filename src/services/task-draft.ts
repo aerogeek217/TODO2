@@ -19,6 +19,10 @@ export interface TaskDraft {
   dueDate?: Date
   /** Applied only with a due date to anchor on. */
   recurrence?: Interval
+  /** The planned day (`/plan`, the editor's Planned cell): written with the task, no stamp of its own. */
+  doDate?: Date
+  /** Held in the Planner's Unplanned tray (the editor's Planned cell); never beside `doDate`. */
+  unplanned?: true
   statusId?: number
   urgent: boolean
   important: boolean
@@ -61,6 +65,12 @@ export interface DraftContext {
    * filter on one status has always set it, over Settings' default).
    */
   statusDefaultFirst?: 'settings' | 'filter'
+  /**
+   * The defaults' people: `unlessNamed` (the default) only when the text
+   * names nobody; `also` beside the people it names (Quick Add from a list's
+   * "+ Add task", which shows them as chips to remove one by one).
+   */
+  defaultPeople?: 'unlessNamed' | 'also'
   today?: Date
 }
 
@@ -126,10 +136,10 @@ export function draftFromText(text: string, ctx: DraftContext): TaskDraft {
 
 /**
  * Parsed task text into a draft, plus the defaults of where the task is
- * added: the filter's people when the text names nobody, its tags and
+ * added: the filter's people when the text names nobody (or beside them,
+ * `ctx.defaultPeople`), its tags and
  * markers, and a status (typed `!status`, else Settings' default and the
- * filter's, in `ctx.statusDefaultFirst` order), and the planned day they seed
- * (the Planner's Add task). `fallbackTitle` is the
+ * filter's, in `ctx.statusDefaultFirst` order). `fallbackTitle` is the
  * title when the text is all tokens. Defaults naming a status / person / tag
  * that no longer exists are left out.
  */
@@ -141,6 +151,7 @@ export function draftFromResolved(resolved: ResolvedInput, fallbackTitle: string
     title: resolved.title || fallbackTitle,
     ...(resolved.dueDate ? { dueDate: resolved.dueDate } : {}),
     ...(resolved.recurrence ? { recurrence: resolved.recurrence } : {}),
+    ...(resolved.doDate ? { doDate: resolved.doDate } : {}),
     ...withStatus(newTaskStatus(
       resolved.statusId,
       { settings: existingId(ctx.defaultStatusId, ctx.statuses), filter: existingId(fd?.statusId, ctx.statuses) },
@@ -150,7 +161,9 @@ export function draftFromResolved(resolved: ResolvedInput, fallbackTitle: string
     important: resolved.important === true || fd?.markers?.important === true,
     focus: resolved.focus === true || fd?.markers?.focus === true,
     ...(resolved.followupNone ? { nextFollowupAt: null } : resolved.nextFollowupAt ? { nextFollowupAt: resolved.nextFollowupAt } : {}),
-    personIds: namesSomeone ? resolved.personIds : existing(fd?.personIds ?? [], ctx.people),
+    personIds: ctx.defaultPeople === 'also'
+      ? union(resolved.personIds, existing(fd?.personIds ?? [], ctx.people))
+      : namesSomeone ? resolved.personIds : existing(fd?.personIds ?? [], ctx.people),
     newPeople: resolved.unmatchedPersons,
     tagIds: union(tags.ids, existing(fd?.tagIds ?? [], ctx.tags)),
     newTags: tags.missing,
@@ -167,8 +180,7 @@ function withStatus(statusId: number | undefined): { statusId?: number } {
  * `@` / `#` / `!`), which is parsed again as on create. The editor passes
  * `nextFollowupAt` only once it differs from the default. A status / person
  * / tag that no longer exists (seeded from a filter naming it) is left out.
- * A planned day it was seeded with (the Planner's Add task, handed on from
- * Quick Add) comes through as it is.
+ * The plan its Planned cell holds wins over a `/plan` in the title.
  */
 export function draftFromEditor(
   partial: EditorTaskFields,
@@ -183,10 +195,12 @@ export function draftFromEditor(
     : resolved.followupNone ? null : resolved.nextFollowupAt
   const dueDate = partial.dueDate ?? resolved.dueDate
   const recurrence = partial.recurrenceRule?.every ?? resolved.recurrence
+  const doDate = partial.doDate ?? (partial.unplanned === true ? undefined : resolved.doDate)
   return {
     title: resolved.title || rawTitle,
     ...(dueDate ? { dueDate } : {}),
     ...(recurrence ? { recurrence } : {}),
+    ...(doDate ? { doDate } : partial.unplanned === true ? { unplanned: true as const } : {}),
     ...withStatus(resolved.statusId ?? existingId(partial.statusId, ctx.statuses)),
     urgent: partial.urgent === true || resolved.urgent === true,
     important: partial.important === true || resolved.important === true,
@@ -239,6 +253,7 @@ function draftFields(draft: TaskDraft): Omit<TodoChanges, 'nextFollowupAt' | 'ti
   return {
     ...(draft.dueDate ? { dueDate: draft.dueDate } : {}),
     ...(draft.dueDate && draft.recurrence ? { recurrenceRule: makeRecurrenceRule(draft.recurrence, draft.dueDate) } : {}),
+    ...(draft.doDate ? { doDate: draft.doDate } : draft.unplanned ? { unplanned: true as const } : {}),
     ...withStatus(draft.statusId),
     ...(draft.urgent ? { urgent: true as const } : {}),
     ...(draft.important ? { important: true as const } : {}),

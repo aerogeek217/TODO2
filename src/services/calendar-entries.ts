@@ -25,9 +25,9 @@ interface BuildEntriesOptions {
   dateTypes: CalendarDateTypes
 }
 
-const KIND_ORDER: Record<CalendarDateType, number> = { due: 0, followup: 1 }
+const KIND_ORDER: Record<CalendarDateType, number> = { due: 0, followup: 1, plan: 2 }
 
-/** Order within a day: due entries before follow-up entries, then the task's `sortOrder`. */
+/** Order within a day: due entries, then follow-ups, then plans, then the task's `sortOrder`. */
 function compareCalendarEntries(a: CalendarEntry, b: CalendarEntry): number {
   return KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
     || a.todo.sortOrder - b.todo.sortOrder
@@ -40,8 +40,10 @@ function compareCalendarEntries(a: CalendarEntry, b: CalendarEntry): number {
  * recurring instances inherit the parent todo's people/status.
  *
  * One entry per shown date type: a task is placed on its due date's day
- * (`dateTypes.due`) and on its next follow-up's day (`dateTypes.followup`) —
- * twice on one day when both fall on it. Recurring tasks also get a virtual
+ * (`dateTypes.due`), on its next follow-up's day (`dateTypes.followup`) and
+ * on its planned day (`dateTypes.plan`: `doDate`; a task held in Unplanned
+ * has none) — more than once on one day when they fall on it. A completed
+ * task's entries are placed as an open one's. Recurring tasks also get a virtual
  * due entry on every other occurrence in range (only while due dates are
  * shown; occurrences repeat the due date). Entries within a day are ordered
  * by {@link compareCalendarEntries}.
@@ -100,22 +102,37 @@ export function buildEntries(
       const day = startOfDay(new Date(t.nextFollowupAt))
       if (inRange(day)) push(t, 'followup', day, false, `followup-${t.id}`)
     }
+    if (types.plan && t.doDate && t.unplanned !== true) {
+      const day = startOfDay(new Date(t.doDate))
+      if (inRange(day)) push(t, 'plan', day, false, `plan-${t.id}`)
+    }
   }
 
   for (const [, arr] of map) arr.sort(compareCalendarEntries)
   return map
 }
 
-/** Overdue: the task's own date (not an occurrence) is before today and the task is open. */
-export function isEntryOverdue(entry: Pick<CalendarEntry, 'isVirtual' | 'day' | 'todo'>, today: Date): boolean {
+/** Its day is before today and its task open: the task's own date (not an occurrence). */
+function isPastOpen(entry: Pick<CalendarEntry, 'isVirtual' | 'day' | 'todo'>, today: Date): boolean {
   return !entry.isVirtual && !entry.todo.isCompleted && entry.day.getTime() < startOfDay(today).getTime()
+}
+
+/** Overdue: a due date or follow-up of the task's own (not an occurrence) before today, the task open. A plan is never overdue. */
+export function isEntryOverdue(entry: Pick<CalendarEntry, 'kind' | 'isVirtual' | 'day' | 'todo'>, today: Date): boolean {
+  return entry.kind !== 'plan' && isPastOpen(entry, today)
+}
+
+/** A missed plan: a planned day before today, the task still open (the Planner's Delayed). Drawn faded on its day. */
+export function isEntryMissed(entry: Pick<CalendarEntry, 'kind' | 'isVirtual' | 'day' | 'todo'>, today: Date): boolean {
+  return entry.kind === 'plan' && isPastOpen(entry, today)
 }
 
 /**
  * A past day's wash: `'due'` when any entry on it is an overdue due date,
- * else `'followup'` when only overdue follow-ups are, else `null`.
+ * else `'followup'` when only overdue follow-ups are, else `null` (a missed
+ * plan washes nothing).
  */
-export function dayOverdueWash(entries: readonly CalendarEntry[], today: Date): CalendarDateType | null {
+export function dayOverdueWash(entries: readonly CalendarEntry[], today: Date): 'due' | 'followup' | null {
   let followup = false
   for (const e of entries) {
     if (!isEntryOverdue(e, today)) continue
@@ -125,12 +142,16 @@ export function dayOverdueWash(entries: readonly CalendarEntry[], today: Date): 
   return followup ? 'followup' : null
 }
 
-/** How an entry looks: by date type, and whether its date is today or overdue. */
-type CalendarEntryState = 'due' | 'due-today' | 'due-overdue' | 'followup' | 'followup-today' | 'followup-overdue'
+/** How an entry looks: by date type, and whether its date is today or overdue — a plan's, missed. */
+type CalendarEntryState =
+  | 'due' | 'due-today' | 'due-overdue'
+  | 'followup' | 'followup-today' | 'followup-overdue'
+  | 'plan' | 'plan-today' | 'plan-missed'
 
 export function calendarEntryState(entry: CalendarEntry, today: Date): CalendarEntryState {
-  const kind = entry.kind === 'followup' ? 'followup' : 'due'
-  if (isEntryOverdue(entry, today)) return `${kind}-overdue`
+  const kind = entry.kind
+  if (kind === 'plan' && isEntryMissed(entry, today)) return 'plan-missed'
+  if (kind !== 'plan' && isEntryOverdue(entry, today)) return `${kind}-overdue`
   return entry.day.getTime() === startOfDay(today).getTime() ? `${kind}-today` : kind
 }
 
@@ -140,9 +161,12 @@ export function calendarEntryState(entry: CalendarEntry, today: Date): CalendarE
  * over a faint tint), `soon` a follow-up today or an open task's due date
  * inside the Settings due-soon range (`range` days from today, as
  * `isUrgentByDate` reads a row's), else `later` (a faint bar). A completed
- * task's entries and an occurrence of a recurring one are never late.
+ * task's entries and an occurrence of a recurring one are never late; a
+ * plan is always `later` (its hollow bar has no strength; a missed one is
+ * faded instead).
  */
 export function calendarEntryLevel(entry: CalendarEntry, today: Date, range: UrgentDueWithinDays): DateLevel {
+  if (entry.kind === 'plan') return 'later'
   if (isEntryOverdue(entry, today)) return 'late'
   const days = Math.round((entry.day.getTime() - startOfDay(today).getTime()) / DAY_MS)
   if (entry.todo.isCompleted || days < 0) return 'later'
@@ -151,22 +175,3 @@ export function calendarEntryLevel(entry: CalendarEntry, today: Date, range: Urg
 }
 
 const DAY_MS = 86_400_000
-
-/** A compact-month day dot. */
-type CalendarDot = 'due' | 'followup' | 'occurrence' | 'due-done' | 'followup-done'
-
-/**
- * Up to three dots for a compact-month day, in entry order. A day with any
- * follow-up always shows a follow-up dot (it takes the last place when the
- * first three entries are all due dates).
- */
-export function dayDots(entries: readonly CalendarEntry[], max = 3): CalendarDot[] {
-  const dot = (e: CalendarEntry): CalendarDot =>
-    e.isVirtual ? 'occurrence' : e.todo.isCompleted ? (e.kind === 'due' ? 'due-done' : 'followup-done') : e.kind
-  const shown = entries.slice(0, max)
-  const firstFollowup = entries.find((e) => e.kind === 'followup')
-  if (firstFollowup && !shown.some((e) => e.kind === 'followup') && shown.length === max) {
-    shown[max - 1] = firstFollowup
-  }
-  return shown.map(dot)
-}

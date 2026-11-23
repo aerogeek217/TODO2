@@ -4,14 +4,15 @@ import type { DateAnchor, DateFilters } from '../../../../models'
 import { RELATIVE_DATE_TOKENS } from '../../../../models/filter-predicate'
 import type { DateField } from '../../../../models/app-view'
 import { DateFilterPanel } from '../../../../components/shared/filters/DateFilterPanel'
+import { DATE_FIELD_LABELS_SHORT } from '../../../../utils/filter-labels'
 
 /**
  * Looking writes nothing (P7–P8 review): the date panel opened on every
  * saved shape a clause can have — dates, day counts either way and 0, every
  * rolling day (the legacy ones too, and a From holding end of week), a mix,
  * "is not", "also tasks with no …", Any / None, Completed — with every menu
- * opened and closed with Esc, every box focused and left, and every tab
- * visited, calls `onChange` not once. Today is Mon 2 Nov 2026.
+ * opened and closed with Esc, every box focused and left, and every type
+ * picked from the type menu, calls `onChange` not once. Today is Mon 2 Nov 2026.
  */
 
 const fixed = (y: number, m: number, d: number): DateAnchor => ({ kind: 'fixed', iso: new Date(y, m - 1, d).toISOString() })
@@ -39,10 +40,13 @@ const SHAPES: [string, DateField, DateFilters][] = [
   ['also tasks with no date', 'lastFollowup', { lastFollowup: range(null, offset(-14), { includeNoDate: true }) }],
   ['Any', 'deadline', { deadline: { match: 'set' } }],
   ['None', 'followup', { followup: { match: 'unset' } }],
+  ['Planned, a range', 'planned', { planned: range(token('today'), offset(7)) }],
+  ['Planned, held in Unplanned', 'planned', { planned: { match: 'held' } }],
   ['Completed', 'completed', { completed: range(token('start-of-week'), token('end-of-week')) }],
   ['Completed, dates', 'completed', { completed: range(fixed(2026, 10, 1), null) }],
   ['every type at once', 'deadline', {
     deadline: { match: 'set' },
+    planned: { match: 'unset' },
     followup: range(offset(-3), fixed(2026, 11, 20)),
     lastFollowup: range(null, offset(-14), { includeNoDate: true }),
     completed: range(fixed(2026, 10, 1), fixed(2026, 10, 31)),
@@ -51,9 +55,24 @@ const SHAPES: [string, DateField, DateFilters][] = [
   }],
 ]
 
-/** Every menu in the open tab opened and closed with Esc; every box focused and left. */
+/** The type button (`Date type: …`). */
+const typeButton = () => screen.getByRole('button', { name: /^Date type: / })
+
+/** Picks the `index`th type from the type menu (opened with the button). */
+function pickType(index: number) {
+  fireEvent.click(typeButton())
+  const item = screen.getByRole('menu', { name: 'Date type' }).querySelectorAll<HTMLElement>('[role="menuitemradio"]')[index]
+  if (!item) throw new Error(`no type ${index}`)
+  fireEvent.click(item)
+}
+
+/** Every menu in the selected type's body (and the type menu) opened and closed with Esc; every box focused and left. */
 function lookAround() {
-  const panel = screen.getByRole('tabpanel')
+  fireEvent.click(typeButton())
+  expect(screen.getByRole('menu', { name: 'Date type' })).toBeInTheDocument()
+  fireEvent.keyDown(document.activeElement ?? document, { key: 'Escape' })
+  expect(screen.queryByRole('menu')).toBeNull()
+  const panel = screen.getByRole('group', { name: /date|follow|Completed|Created|Modified/ })
   for (const button of Array.from(panel.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="menu"]'))) {
     fireEvent.click(button)
     expect(screen.getByRole('menu')).toBeInTheDocument()
@@ -82,12 +101,15 @@ describe('the date panel writes nothing while only looked at (P7–P8 review)', 
         const onChange = vi.fn()
         render(<DateFilterPanel dates={dates} initialField={field} variant={variant} onChange={onChange} />)
         lookAround()
-        const tabs = screen.getAllByRole('tab')
-        for (const t of tabs) {
-          fireEvent.click(t)
+        fireEvent.click(typeButton())
+        const types = Array.from(screen.getByRole('menu', { name: 'Date type' }).querySelectorAll<HTMLElement>('[role="menuitemradio"]')).map((el) => el.dataset.menuLabel)
+        fireEvent.click(typeButton())
+        expect(types).toHaveLength(7)
+        for (let i = 0; i < types.length; i++) {
+          pickType(i)
           lookAround()
         }
-        fireEvent.click(tabs.find((t) => t.id.endsWith(`-tab-${field}`)) ?? tabs[0]!)
+        pickType(Math.max(0, types.indexOf(DATE_FIELD_LABELS_SHORT[field])))
         lookAround()
         expect(onChange).not.toHaveBeenCalled()
       })

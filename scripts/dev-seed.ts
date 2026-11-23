@@ -16,8 +16,11 @@
  * statuses plus Waiting and Parked; due dates incl. overdue + today, some
  * pushed out (deadline history); next follow-ups incl. overdue and today,
  * some followed up before; a handful of open tasks planned for a day (the
- * Planner's: yesterday, today and the next few days) and two held in its
- * Unplanned tray; recurring tasks (one
+ * Planner's: days past — Delayed —, today and the next few days; some on
+ * their own due day, some after their due date or follow-up) and three held
+ * in its Unplanned tray; a Planner with an Unplanned filter of its own
+ * (`/focus or #quick-win`), a list sorted and grouped by Planned and a Number
+ * filtered by it; recurring tasks (one
  * monthly on the month's last day); Focus / Urgent / Important flags; completed tasks old and recent
  * with `completed` events, one with no event, one reopened (with the 30-day
  * retention setting the old ones trigger the purge prompt); notes and
@@ -58,7 +61,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 86
+export const DEV_SEED_SCHEMA_VERSION = 87
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -301,7 +304,7 @@ const PROJECTS: ProjectDef[] = [
       }],
       ["Review Marcus's PR for the auth token refresh", { due: 0, people: ['marcus'], tags: ['security', 'urgent'], urgent: true }],
       'Schedule load test with Bluefield',
-      ['Follow up with Kenji on data export format', { followup: -2, followedUp: -9, people: ['kenji'], orgs: ['bluefield'], status: 'waiting' }],
+      ['Follow up with Kenji on data export format', { followup: -2, followedUp: -9, doDay: 2, people: ['kenji'], orgs: ['bluefield'], status: 'waiting' }],
       'Decommission legacy reporting cron jobs',
       'Update architecture diagram after the queue change',
       'Email Nina the staging access checklist',
@@ -382,7 +385,7 @@ const PROJECTS: ProjectDef[] = [
       "Review Northwind's SSO requirements",
       'Prepare the rollout training deck',
       ['Follow up with David on the pilot feedback', { followup: 8, followedUp: -2, people: ['david'], status: 'followup', tags: ['customer'] }],
-      ['Fix the CSV import edge case they reported', { reopened: [-8, -6], due: 3, people: ['aisha'], orgs: ['northwind'], tags: ['customer'], urgent: true }],
+      ['Fix the CSV import edge case they reported', { reopened: [-8, -6], due: 3, doDay: 3, people: ['aisha'], orgs: ['northwind'], tags: ['customer'], urgent: true }],
       'Schedule the go-live readiness review',
       'Draft the customer success plan',
       'Confirm data residency requirements',
@@ -422,7 +425,7 @@ const PROJECTS: ProjectDef[] = [
       ['Plan the team offsite agenda', { followup: 9, doDay: 4, tags: ['travel'] }],
       "Give feedback on Tom's design doc",
       'Onboarding checklist for the new hire',
-      ['Phone screen: platform engineer candidate', { followup: 0, tags: ['hiring'] }],
+      ['Phone screen: platform engineer candidate', { followup: 0, doDay: -2, tags: ['hiring'] }],
       'Debrief with interviewers on the backend candidates',
       'Update the team on-call rotation',
       'Recognize the migration crew at all-hands',
@@ -452,7 +455,7 @@ const PROJECTS: ProjectDef[] = [
       ['Weekly metrics email', { recur: 'weekly', due: 1, tags: ['docs'] }],
       ['Renew the domain registration', { recur: 'yearly', due: 60 }],
       ['Submit timesheet', { recur: 'weekly', due: -2, tags: ['quick-win'] }],
-      ['Clean up the shared drive', { followup: -12, status: 'parked' }],
+      ['Clean up the shared drive', { followup: -12, held: true, status: 'parked' }],
       'Update the vendor contact list',
       ['Review access for departing contractors', { due: 5, held: true, tags: ['security'], people: ['sam'] }],
       'Audit shared service accounts',
@@ -547,7 +550,7 @@ export const DEV_SEED_IDS = {
     thisWeek: 1, nextWeek: 2, restOfMonth: 3, later: 4, someday: 5,
     dueSoon: 6, followupsThisWeek: 7, northwind: 8, tasksFor: 9, byPerson: 10,
     focus: 11, hot: 12, recentlyAdded: 13,
-    doneThisWeek: 15, notFollowedUp: 16, followupsToChase: 17,
+    doneThisWeek: 15, notFollowedUp: 16, followupsToChase: 17, planned: 18,
   },
   layouts: { default: 1, planning: 2 },
 }
@@ -897,13 +900,24 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         ],
       },
     }), 'followup', 'people', plan),
+    // The planned date: every task with a plan state — `planned any or unplanned` —, sorted and grouped by
+    // Planned (Delayed · Today · This Week · Later · Unplanned).
+    list(L.planned, 'Planned', filter({
+      expression: {
+        kind: 'or',
+        items: [
+          { kind: 'date', field: 'planned', match: { match: 'set' } },
+          { kind: 'date', field: 'planned', match: { match: 'held' } },
+        ],
+      },
+    }), 'planned', 'planned', plan),
   ]
 
   // ── Layouts ──
   const lens = (id: string, listDefinitionId: number, zoom?: ListZoom): TabRow =>
     ({ id, kind: 'lens', config: { listDefinitionId }, ...(zoom ? { viewState: { zoom } } : {}) })
   const calendar = (id: string, view: 'week' | 'month', offset: number, followup = true): TabRow =>
-    ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup } }, viewState: { view, offset } })
+    ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup, plan: true } }, viewState: { view, offset } })
   const notes = (id: string): TabRow => ({ id, kind: 'notes', config: {} })
   const number = (id: string, metric: V77NumberMetric): TabRow => ({ id, kind: 'number', config: numberConfigOfMetric(metric) }) as TabRow
   /** A Breakdown (D26 P8): every open task split by `splitBy`, as bars, unless `over` says otherwise. */
@@ -964,8 +978,17 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         'O O O',
         'X T E',
       ], {
-        // The Planner (2026-11-20) as a tab: today and the week ahead, over the tasks' Do days, follow-ups and due dates.
-        F: cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), { id: 'tab-planner', kind: 'planner', config: {} }, notes('tab-notes')]),
+        // The Planner as a tab: today and the week ahead, over the tasks' planned days, follow-ups and due dates.
+        // Its Unplanned filter is `/focus or #quick-win`: Focus tasks and quick wins with no date join Unplanned.
+        F: cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), {
+          id: 'tab-planner',
+          kind: 'planner',
+          config: {
+            unplanned: filter({
+              expression: { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'tag', id: IDS.tags['quick-win'] }] },
+            }),
+          },
+        }, notes('tab-notes')]),
         P: cell('cell-person', [lens('tab-person', L.byPerson)]),
         B: cell('cell-board', [lens('tab-board', L.focus)]),
         C: cell('cell-cal', [calendar('tab-cal', 'week', 0)]),
@@ -1007,9 +1030,24 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           number('tab-n-today', 'dueToday'),
           number('tab-n-open', 'open'),
           number('tab-n-closed', 'closedThisWeek'),
+          // A Number filtered by the planned date: the plans whose day has passed (the Planner's Delayed).
+          {
+            id: 'tab-n-delayed',
+            kind: 'number',
+            config: {
+              name: 'Delayed plans',
+              filter: filter({ dates: { planned: range(null, { kind: 'relative', token: 'yesterday' }) } }),
+              show: 'count',
+              litWhen: 'above',
+              litAt: 0,
+              compare: 'yesterday',
+            },
+          } as TabRow,
         ]),
-        // A list tab at each zoom (D25 C + I1): Stacked, Rows and Lines.
-        H: cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], 'tab-rest'),
+        // A list tab at each zoom (D25 C + I1): Stacked, Rows and Lines; then the plans, grouped by Planned.
+        H: cell('cell-horizon', [
+          lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines'), lens('tab-planned', L.planned),
+        ], 'tab-rest'),
         F: cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]),
         M: cell('cell-plan-week', [calendar('tab-plan-week', 'week', 1)]),
         // Glance widgets (D25 N + L, D26 P8): Tags and Status Breakdowns, Created vs completed.

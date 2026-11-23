@@ -5,15 +5,19 @@ import styles from './EditorFooter.module.css'
  * A widget editor's foot (the Number's, a chart's, Created vs completed's):
  * Discard · Save, as Edit list's Revert · Save list — the quiet button
  * first, the accent one last. Save is off while nothing changed or while a
- * filter expression doesn't read; Discard closes without writing.
+ * filter expression doesn't read; Discard closes without writing
+ * (`discardLabel`: its word — the Planner settings' Cancel).
  */
-export function EditorFooter({ draft }: { draft: Pick<EditorDraft<object>, 'changed' | 'canSave' | 'save' | 'discard'> }) {
+export function EditorFooter({ draft, discardLabel = 'Discard' }: {
+  draft: Pick<EditorDraft<object>, 'changed' | 'canSave' | 'save' | 'discard'>
+  discardLabel?: string
+}) {
   const unreadable = draft.changed && !draft.canSave
   return (
     <footer className={styles.footer}>
       <span className={styles.note} aria-live="polite">{draft.changed ? 'Unsaved changes' : ''}</span>
       <button type="button" className={styles.button} onClick={draft.discard}>
-        Discard
+        {discardLabel}
       </button>
       <button
         type="button"

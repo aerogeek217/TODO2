@@ -126,21 +126,20 @@ describe('the corner flag', () => {
     expect(flag.closest('[data-row-key]')).toBeNull()
   })
 
-  it('is not on a row whose plan is redundant — planned for the very day its own date puts it', () => {
+  it('is on a row planned for the very day its own date puts it — a plan like any other', () => {
     useTodoStore.setState({
       todos: [
         // Added in the Planner with a due date of today; and a planned task whose due date was edited onto its planned day.
         makeTodo({ id: 1, title: 'Added due today', doDate: day(0), dueDate: day(0) }),
         makeTodo({ id: 2, title: 'Edited onto its day', doDate: day(3), dueDate: day(3) }),
-        // Yesterday's: overdue in Today, not in Delayed.
+        // Yesterday's: its plan has passed, so it is Delayed.
         makeTodo({ id: 3, title: 'Yesterday’s', doDate: day(-1), dueDate: day(-1) }),
       ],
     })
     show()
-    expect(flagged()).toEqual([])
-    expect(rowOf('Yesterday’s').closest('[data-planner-group]')).toHaveAttribute('data-planner-group-kind', 'today')
-    expect(root().querySelector('[data-planner-group="delayed"]')).toBeNull()
-    expect(root().querySelector('[data-mark="plan"]')).toBeNull()
+    expect(flagged()).toEqual(['Added due today', 'Edited onto its day', 'Yesterday’s'])
+    expect(rowOf('Yesterday’s').closest('[data-planner-group]')).toHaveAttribute('data-planner-group-kind', 'delayed')
+    expect(root().querySelector('[data-mark="plan"]')).not.toBeNull()
   })
 
   it('is drawn only: the row’s accessible description says it in words — planned, planned for a day, set aside', () => {
@@ -278,8 +277,8 @@ describe('the tag after the title', () => {
       const { update, setPlan } = watch()
       show()
       fireEvent.click(within(open('Past its follow-up')).getByRole('menuitem', { name: 'Plan for Tue, Nov 24' }))
-      // Tue 24 is the day its follow-up puts it: the plan is cleared.
-      expect(setPlan).toHaveBeenCalledWith([7], null)
+      // Tue 24 is the day its follow-up puts it: planned there outright.
+      expect(setPlan).toHaveBeenCalledWith([7], { day: day(4) })
       expect(update).not.toHaveBeenCalled()
     })
 
@@ -334,7 +333,7 @@ describe('a row planned later — for a day past the days shown', () => {
     const menu = screen.getByRole('menu', { name: 'Fix the plan' })
     expect(within(menu).getAllByRole('menuitem').map((i) => i.getAttribute('data-menu-label'))).toEqual(['Move due date to Fri, Nov 27', 'Plan for Thu, Nov 26'])
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Plan for Thu, Nov 26' }))
-    expect(setPlan).toHaveBeenCalledWith([1], null)
+    expect(setPlan).toHaveBeenCalledWith([1], { day: day(6) })
     expect(update).not.toHaveBeenCalled()
     // An overdue date has only the move.
     fireEvent.click(tagOf('Overdue, planned next week')!)
@@ -654,7 +653,7 @@ describe('Reset plan', () => {
     // Fri 27 … Thu Dec 3: the task planned there, not tomorrow's.
     expect(rows(openMenu())).toEqual([['Nov 27 – Dec 3', '1', false], ['Today only', '0', true], ['Delayed', '0', true]])
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
-    const submenu = result.current[0]?.kind === 'item' ? result.current[0].children ?? [] : []
+    const submenu = result.current[1]?.kind === 'item' ? result.current[1].children ?? [] : []
     expect(submenu.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Nov 27 – Dec 3', 'Today only', 'Delayed'])
     fireEvent.click(within(screen.getByRole('menu', { name: 'Reset plan' })).getByRole('menuitem', { name: /^Nov 27 – Dec 3/ }))
     await waitFor(() => expect(setPlan).toHaveBeenCalledWith([2], null, 'Reset plan: Nov 27 – Dec 3', true))
@@ -669,7 +668,7 @@ describe('Reset plan', () => {
     const { setPlan } = watch()
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
     const item = (entries: readonly MenuEntry[], label: string) => entries.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === label)!
-    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Reset plan'])
+    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['What counts as unplanned…', 'Reset plan'])
     const choices = item(result.current, 'Reset plan').children ?? []
     expect(choices.map((e) => (e.kind === 'item' ? [e.label, e.note, e.disabled] : e.kind))).toEqual([
       ['This week', '8', false], ['Today only', '1', false], ['Delayed', '1', false],
@@ -699,11 +698,11 @@ describe('Reset plan', () => {
     // A change that moves no count (a title): the same report, so no menu is built again.
     act(() => { useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 1 ? { ...t, title: 'Renamed' } : t)) }) })
     expect(usePlannerStore.getState().resets[key]).toBe(report)
-    // A Planner that isn't drawn reports nothing, and its menu offers nothing.
+    // A Planner that isn't drawn reports nothing, and its menu offers no Reset plan — only its settings.
     unmount()
     expect(usePlannerStore.getState().resets).toEqual({})
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
-    expect(result.current).toEqual([])
+    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['What counts as unplanned…'])
   })
 
   it('the report’s action clears the scope as the Planner shows when it is called, not as it was when reported', async () => {

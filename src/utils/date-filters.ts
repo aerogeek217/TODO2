@@ -1,5 +1,6 @@
 import { DATE_FIELD_VALUES, type DateField } from '../models/app-view'
 import {
+  HELD_DATE_FIELD,
   NEGATABLE_DATE_FIELDS,
   OPTIONAL_DATE_FIELDS,
   type DateAnchor,
@@ -12,8 +13,9 @@ import { dateAnchorsEqual, readDateAnchor } from './date-anchor'
  * The date filters (`DateFilters`): one clause per date type, a task must
  * pass every clause. These helpers keep the map in its stored form — only
  * clauses that filter, `includeNoDate` only when true and only on the
- * optional types (`OPTIONAL_DATE_FIELDS`: the due date, the next and the
- * last follow-up), `set` / `unset` only on those, a range's "is not" (`not`)
+ * optional types (`OPTIONAL_DATE_FIELDS`: the due date, the planned day,
+ * the next and the last follow-up), `set` / `unset` only on those, `held`
+ * only on Planned, a range's "is not" (`not`)
  * only when true and never on Completed (`NEGATABLE_DATE_FIELDS`), with no
  * `includeNoDate` beside it (a negated range keeps undated tasks anyway) —
  * so two maps that filter the same compare equal.
@@ -26,7 +28,7 @@ export function isDateMatchOn(m: DateMatch | null | undefined): m is DateMatch {
   return m.start != null || m.end != null
 }
 
-/** Whether `field` offers Any / None (`set` / `unset`) and "also tasks with no date" (due date, next / last follow-up). */
+/** Whether `field` offers Any / None (`set` / `unset`) and "also tasks with no date" (due date, planned, next / last follow-up). */
 export function isOptionalDateField(field: DateField): boolean {
   return OPTIONAL_DATE_FIELDS.includes(field)
 }
@@ -36,7 +38,7 @@ export function isNegatableDateField(field: DateField): boolean {
   return NEGATABLE_DATE_FIELDS.includes(field)
 }
 
-/** The date types that filter, in `DATE_FIELD_VALUES` order (Due · Next follow-up · Last follow-up · Completed · Created · Modified). */
+/** The date types that filter, in `DATE_FIELD_VALUES` order (Due · Planned · Next follow-up · Last follow-up · Completed · Created · Modified). */
 export function activeDateFields(dates: DateFilters | null | undefined): DateField[] {
   if (!dates) return []
   return DATE_FIELD_VALUES.filter((f) => isDateMatchOn(dates[f]))
@@ -48,15 +50,16 @@ export function hasDateFilters(dates: DateFilters | null | undefined): boolean {
 }
 
 /**
- * The date types a date panel offers, in its tabs' reading order: every
- * type but those its host leaves out (the check-in: Completed).
+ * The date types a date panel offers, in its type menu's order
+ * (`DATE_FIELD_VALUES`): every type but those its host leaves out (the
+ * check-in: Completed).
  */
 export function offeredDateFields(omit?: readonly DateField[]): readonly DateField[] {
   return omit && omit.length > 0 ? DATE_FIELD_VALUES.filter((f) => !omit.includes(f)) : DATE_FIELD_VALUES
 }
 
 /**
- * The first of `offered` (the panel's tab order) that doesn't filter in
+ * The first of `offered` (the panel's menu order) that doesn't filter in
  * `dates` — where adding Dates to a scope opens, so it makes a new chip —
  * or `undefined` when every offered type filters there already.
  */
@@ -66,11 +69,13 @@ export function freeDateField(dates: DateFilters | null | undefined, offered: re
 
 /**
  * A clause as stored for `field`, or `null` when it doesn't filter or
- * doesn't apply there (Any / None — `set` / `unset` — on Completed / Created / Modified).
+ * doesn't apply there (Any / None — `set` / `unset` — on Completed / Created
+ * / Modified; `held` on any type but Planned).
  */
 export function normalizeDateMatch(field: DateField, m: DateMatch | null | undefined): DateMatch | null {
   if (!isDateMatchOn(m)) return null
   const optional = isOptionalDateField(field)
+  if (m.match === 'held') return field === HELD_DATE_FIELD ? { match: 'held' } : null
   if (m.match !== 'range') return optional ? { match: m.match } : null
   const not = m.not === true && isNegatableDateField(field)
   return {

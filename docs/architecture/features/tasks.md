@@ -28,6 +28,8 @@ In normal use a task write goes UI → Zustand stores → repositories → Dexie
 
 `addMany(items, { description, snackbar? })` is every create. Quick Add and the editor come through `services/create-task`, notes through `services/note-tasks`, and a subtask's Make a task through `services/subtask-convert`. They stamp Settings' default status and next follow-up.
 
+A `/plan <date>` in the text (Quick Add, the editor's title, a note's line; `/due`'s date forms, never a bare `plan fri`) plans the new task for that day: `doDate` in the create's one write, no stamp of its own. The editor's create mode also takes the plan from its [Planned cell](review.md#the-fact-band), which wins over a typed `/plan`; a Quick Add handed on to the editor (Details) seeds that cell. Quick Add shows it as a chip with the hollow bar, after the due date's; its × cuts the command. The search box offers no `/plan`.
+
 - The tasks go in with their people and tag ids in one transaction, last in order. The repository picks `sortOrder` in its insert transaction, so creates that start together never share one.
 - The rows come back from the insert itself. The assignment caches are then reloaded.
 - It is one undo step: undo takes the tasks out, and redo puts them back as they were when undone.
@@ -39,6 +41,7 @@ In normal use a task write goes UI → Zustand stores → repositories → Dexie
 - Fields already holding the value are skipped. No change means no write and no undo step.
 - The edit is written as a patch via `todoRepository.update(id, changes)`. Undo, redo and a failed write's rollback touch only those fields.
 - It **never rejects**. A failed write is rolled back, the snackbar says `Couldn't save your change to "<title>".` and it resolves `false` (else `true`). So fire-and-forget callers leave no unhandled rejection, and `checkin-reply/apply` stops on `false`.
+- In the task layout (the editor and the review card) the due date and its repeat are written from the Due cell's date popover ([The fact band](review.md#the-fact-band)). A date and a repeat are an `update` each, written on ⏎, a blur or the popover closing. A new date keeps the repeat, anchored to it (`utils/recurrence.dueDateChanges`). Clear due date removes both in one write.
 
 ### Completing
 
@@ -237,6 +240,14 @@ Quick Add's state is in `ui-store`:
 - `quickAddOpen`, with `openQuickAdd(seed?)` and `closeQuickAdd()`.
 - `quickAddDraft: QuickAddDraftSeed { rawTitle, defaults? } | null`, with `setQuickAddDraft`. `defaults` is a list's predicate seed, from its **Add task** row. The draft is also the Details → create-popup handoff.
 - `recentlyCreated: { todoId, key }`, with `showRecentlyCreated` / `clearRecentlyCreated`: the transient `RecentTaskPill`.
+
+**A list's seed shows as chips.** Quick Add opened by a list's **Add task** starts with the seed's people, tags, status and markers in its chips row, before anything is typed: the chips typing `@person #tag !status /urgent` would show, each with its ×. `AppQuickAddBar` hands them to the bar as its `preset`.
+
+- A chip's × drops that default for this opening (`QuickAddDraft.removedPreset`). The submit and the Details hand-off take it out of the seed (`filter-defaults.withoutRemoved`).
+- What the chips show is what the task gets. A typed `!status` replaces the seed's chip and wins. Typed people and tags go beside the seed's (`createQuickAddTask(…, { shown: true })`, `DraftContext.defaultPeople: 'also'`). A value both seeded and typed shows one chip, whose × removes both.
+- With the status chip removed, the task gets Settings' default status, as from the top bar.
+- Details carries the seed left into the editor's create mode, whose status starts on the seed's, over Settings' default.
+- Quick Add from the top bar, `+` or the shortcut has no seed and shows no chips until something is typed. The screen filter's defaults still apply silently, its people only when the text names nobody.
 
 **A new task flies home** (`overlays/task-fly`):
 

@@ -6,7 +6,8 @@ import { startOfDay } from './date'
  * how many entries it holds on four fixed steps — fixed, not per-month
  * quantiles, so a quiet month looks quiet — and a past day whose tasks are
  * still open shows its number in their colour. The entries are the bars the
- * day would show (screen-filtered; completed ones only under Show completed).
+ * day would show (screen-filtered; completed ones only under Show completed),
+ * its plans among them.
  */
 
 /** 0 = no entries · 1 = 1–2 · 2 = 3–5 · 3 = 6 or more. */
@@ -22,8 +23,8 @@ export function heatStep(count: number): HeatStep {
   return 0
 }
 
-/** The tint's hue: the follow-up colour when only follow-ups are shown, else the overdue colour. */
-export function heatHue(types: CalendarDateTypes): CalendarDateType {
+/** The tint's hue: the follow-up colour when follow-ups are shown and due dates aren't, else the overdue colour. */
+export function heatHue(types: CalendarDateTypes): 'due' | 'followup' {
   return types.followup && !types.due ? 'followup' : 'due'
 }
 
@@ -40,35 +41,40 @@ interface DayHeat {
   step: HeatStep
   due: number
   followup: number
+  plan: number
   /** Entries whose task isn't completed. */
   open: number
   /**
    * A past day holding an open task's own date: `'due'` when any is a due
-   * date, else `'followup'`; `null` otherwise (as the wash it replaces).
+   * date, else `'followup'`; `null` otherwise (as the wash it replaces) — a
+   * missed plan is not late.
    */
-  late: CalendarDateType | null
+  late: 'due' | 'followup' | null
 }
 
 export function dayHeat(entries: readonly HeatEntry[], day: Date, today: Date): DayHeat {
   let due = 0
+  let plan = 0
   let open = 0
   let lateDue = false
   let lateFollowup = false
   const past = startOfDay(day).getTime() < startOfDay(today).getTime()
   for (const e of entries) {
     if (e.kind === 'due') due++
+    else if (e.kind === 'plan') plan++
     if (e.todo.isCompleted) continue
     open++
     if (past && !e.isVirtual) {
       if (e.kind === 'due') lateDue = true
-      else lateFollowup = true
+      else if (e.kind === 'followup') lateFollowup = true
     }
   }
   return {
     count: entries.length,
     step: heatStep(entries.length),
     due,
-    followup: entries.length - due,
+    followup: entries.length - due - plan,
+    plan,
     open,
     late: lateDue ? 'due' : lateFollowup ? 'followup' : null,
   }
@@ -76,7 +82,7 @@ export function dayHeat(entries: readonly HeatEntry[], day: Date, today: Date): 
 
 export interface LateDay {
   day: Date
-  late: CalendarDateType
+  late: 'due' | 'followup'
 }
 
 /** The latest day of `month` (0–11) among `days` that is late (`DayHeat.late`), or null — the legend's example. */
@@ -97,21 +103,27 @@ export function latestLateDay(
 
 /**
  * A heat day's tooltip and label: `6 due`, `2 follow-ups`, `4 due · 1
- * follow-up`; `· 5 open` when some are completed (under Show completed).
- * Empty for a day with none.
+ * follow-up · 2 planned`; `· 5 open` when some are completed (under Show
+ * completed). Empty for a day with none.
  */
 export function heatSummary(heat: DayHeat): string {
   const parts: string[] = []
   if (heat.due > 0) parts.push(`${heat.due} due`)
   if (heat.followup > 0) parts.push(`${heat.followup} ${heat.followup === 1 ? 'follow-up' : 'follow-ups'}`)
+  if (heat.plan > 0) parts.push(`${heat.plan} planned`)
   if (parts.length > 0 && heat.open !== heat.count) parts.push(`${heat.open} open`)
   return parts.join(' · ')
 }
 
-/** The legend's lead: what the tint counts. */
+/**
+ * The legend's lead: what the tint counts — `Tasks due`, `Follow-ups`,
+ * `Plans` alone; `Due and follow-ups`, `Due, follow-ups and plans`, ….
+ */
 export function heatLegendLabel(types: CalendarDateTypes): string {
-  if (types.due && types.followup) return 'Due and follow-ups'
-  return types.followup ? 'Follow-ups' : 'Tasks due'
+  const parts = [types.due && 'due', types.followup && 'follow-ups', types.plan && 'plans'].filter((p) => p !== false)
+  if (parts.length === 0 || (parts.length === 1 && types.due)) return 'Tasks due'
+  const words = parts.length === 1 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1) ?? ''}`
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 /** The legend's swatches: each step's counts. */

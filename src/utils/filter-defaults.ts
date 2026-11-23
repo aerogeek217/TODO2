@@ -56,12 +56,38 @@ export function markerFlags(fd: Pick<FilterDefaults, 'markers'> | null | undefin
  * `fd` without the given marker seeds (Quick Add: a preset marker chip
  * removed with its ×). The people / tags / status and other markers stay.
  */
-export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): FilterDefaults {
+function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): FilterDefaults {
   if (keys.length === 0 || !fd.markers) return fd
   const markers: MarkerConditions = { ...fd.markers }
   for (const k of keys) delete markers[k]
   const base: FilterDefaults = { personIds: fd.personIds, tagIds: fd.tagIds, statusId: fd.statusId }
   return activeMarkers(markers).length > 0 ? { ...base, markers } : base
+}
+
+/**
+ * The defaults whose chip was removed in Quick Add (a list's "+ Add task"
+ * shows its defaults as chips, each with a ×): the task doesn't get them.
+ */
+export interface RemovedDefaults {
+  markers?: MarkerKey[]
+  personIds?: number[]
+  tagIds?: number[]
+  /** The default status's chip was removed. */
+  status?: true
+}
+
+/** `fd` without what `removed` names (`fd` itself when it names nothing). */
+export function withoutRemoved(fd: FilterDefaults, removed: RemovedDefaults | null | undefined): FilterDefaults {
+  const people = removed?.personIds ?? []
+  const tags = removed?.tagIds ?? []
+  const rest = withoutMarkers(fd, removed?.markers ?? [])
+  if (!removed || (people.length === 0 && tags.length === 0 && !removed.status)) return rest
+  return {
+    ...rest,
+    personIds: rest.personIds.filter((id) => !people.includes(id)),
+    tagIds: rest.tagIds.filter((id) => !tags.includes(id)),
+    statusId: removed.status ? undefined : rest.statusId,
+  }
 }
 
 /**

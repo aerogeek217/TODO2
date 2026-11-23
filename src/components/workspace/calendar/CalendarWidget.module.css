@@ -123,6 +123,26 @@
   box-shadow: none;
 }
 
+/* Plans: the hollow bar (the Planner's plan mark), outlined in the secondary text color. */
+.typeToggle[data-type='plan'][aria-pressed='true'] {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+  box-shadow: none;
+}
+
+.planBar {
+  flex-shrink: 0;
+  width: 3px;
+  height: 13px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-text-secondary);
+  border-radius: 1px;
+}
+
+.typeToggle[aria-pressed='false'] .planBar {
+  opacity: 0.5;
+}
+
 .titlesToggle {
   margin-right: 6px;
   flex-shrink: 0;
@@ -304,19 +324,16 @@
 
 /* A day's fill (`--heat-fill`) by its step; step 0 keeps the day's own fill. */
 .heatDay[data-heat='1'],
-.compactHeat[data-heat='1'],
 .heatSwatch[data-heat='1'] {
   --heat-fill: var(--heat-1);
 }
 
 .heatDay[data-heat='2'],
-.compactHeat[data-heat='2'],
 .heatSwatch[data-heat='2'] {
   --heat-fill: var(--heat-2);
 }
 
 .heatDay[data-heat='3'],
-.compactHeat[data-heat='3'],
 .heatSwatch[data-heat='3'] {
   --heat-fill: var(--heat-3);
 }
@@ -345,21 +362,17 @@ button.heatDay {
 }
 
 .heatDay[data-heat='2'] .heatCount,
-.heatDay[data-heat='3'] .heatCount,
-.compactHeat[data-heat='2'] .compactCount,
-.compactHeat[data-heat='3'] .compactCount {
+.heatDay[data-heat='3'] .heatCount {
   color: var(--color-text-primary);
 }
 
 /* A past day still open: its number in the late colour (in place of the wash). */
 .heatDay[data-late='due'] .dayNumber,
-.compactHeat[data-late='due'] .compactNumber,
 .heatLegendLate[data-late='due'] {
   color: var(--cal-late-due);
 }
 
 .heatDay[data-late='followup'] .dayNumber,
-.compactHeat[data-late='followup'] .compactNumber,
 .heatLegendLate[data-late='followup'] {
   color: var(--cal-late-followup);
 }
@@ -540,7 +553,7 @@ button.heatDay {
   padding: 4px 0 0;
   border: none;
   border-radius: var(--radius-md);
-  background-color: var(--heat-fill, var(--cal-day-fill));
+  background-color: var(--cal-day-fill);
   color: var(--color-text-secondary);
   font-family: inherit;
   font-size: var(--font-size-meta);
@@ -549,54 +562,20 @@ button.heatDay {
 }
 
 .compactDay.dayOutside {
-  background-color: var(--heat-fill, transparent);
+  background-color: transparent;
 }
 
 .compactNumber {
   line-height: 18px;
 }
 
-.compactCount {
-  height: 12px;
-  font-size: var(--font-size-xs);
-  line-height: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-secondary);
-}
-
 .compactSelected {
   box-shadow: inset 0 0 0 1.5px var(--color-accent);
 }
 
-.dots {
-  display: flex;
-  gap: 3px;
-  height: 6px;
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.dot[data-dot='due'],
-.dot[data-dot='due-done'] {
-  background: var(--color-overdue);
-}
-
-.dot[data-dot='followup'],
-.dot[data-dot='followup-done'] {
-  background: var(--color-followup);
-}
-
-.dot[data-dot='occurrence'] {
-  box-shadow: inset 0 0 0 1.5px var(--color-overdue);
-}
-
-.dot[data-dot='due-done'],
-.dot[data-dot='followup-done'] {
-  opacity: 0.4;
+/* The day's ticks under its number; they give way in a narrow day. */
+.compactTicks {
+  max-width: calc(100% - 6px);
 }
 
 .dayList {
@@ -839,6 +818,24 @@ button.heatDay {
   --entry-tint: var(--date-tint-followup);
 }
 
+/* A plan: a hollow bar (the Planner's plan mark), outlined in the secondary text color, and its title in that color. */
+.entry[data-cal-entry='plan']::before {
+  width: 3px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-text-secondary);
+  border-radius: 1px;
+  background: transparent;
+}
+
+.entry[data-cal-entry='plan'] .entryTitle {
+  color: var(--color-text-secondary);
+}
+
+/* A missed plan (its day passed, the task open): faded on its day. */
+.entryMissed {
+  opacity: 0.6;
+}
+
 /* Late: a heavier bar over a faint tint. */
 .entry[data-level='late'] {
   background: var(--entry-tint);
@@ -944,6 +941,15 @@ button.heatDay {
 .chooserFollowup {
   display: inline-flex;
   color: var(--color-followup);
+}
+
+/* The plan's hollow bar, centred in the 14px icon box. */
+.chooserPlan {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 14px;
+  height: 14px;
 }
 
 /* ── Empty note ──────────────────────────────────────────────────────────── */

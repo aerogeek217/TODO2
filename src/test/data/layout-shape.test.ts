@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { rowFixes, sanitizeRow, validateImportData, validateRow } from '../../data/import-validation'
 import { addTab } from '../../utils/workspace-layout-ops'
-import { LAYOUT_SIZE_MAX } from '../../data/layout-shape'
+import { LAYOUT_SIZE_MAX, withCalendarPlans } from '../../data/layout-shape'
 import { validateTiling, isNormalized } from '../../utils/workspace-grid'
-import type { LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
+import type { LayoutCell, LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
 import { emptyBody, numberTab } from '../helpers/layout-builders'
 
 const DATE = '2026-09-01T09:00:00.000Z'
@@ -82,6 +82,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['retired Dashboard widget', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { tiles: ['open'], listTiles: [], sections: [] } })), 'cells[0].tabs[0].kind'],
   ['missing config', layoutRow(oneTab({ id: 't', kind: 'notes' })), 'cells[0].tabs[0].config'],
   ['calendar date types not booleans', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: 1, followup: false } } })), 'cells[0].tabs[0].config.dateTypes'],
+  ['calendar plans not a boolean', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: 'yes' } } })), 'cells[0].tabs[0].config.dateTypes'],
   ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'cells[0].tabs[0].viewState.view'],
   ['calendar titles not a boolean', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { titles: 'on' } })), 'cells[0].tabs[0].viewState.titles'],
   ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'cells[0].tabs[0].config.listDefinitionId'],
@@ -184,7 +185,7 @@ describe('layouts row validation', () => {
         { id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [
           { id: 't1', kind: 'notes', config: {} },
           { id: 't3', kind: 'lens', config: { listDefinitionId: 4 } },
-          { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { offset: 104 } },
+          { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: true } }, viewState: { offset: 104 } },
         ] },
         { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
       ],
@@ -528,7 +529,33 @@ describe('the import repairs a layout row instead of refusing the file (cr34 H2,
     if (!res.ok) throw new Error(res.error)
     expect(res.warnings).toEqual(['Fixed 1 layout: "Bad" (tab or cell settings reset)'])
     expect(res.data.layouts[1]).toEqual(sanitizeRow('layouts', good))
-    expect(res.data.layouts[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: true } } })
+    expect(res.data.layouts[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: true, plan: true } } })
+  })
+
+  it('a calendar stored without plans (before calendars showed them) is valid and reads plan: true; a stored plan: false stays', () => {
+    const tab = (dateTypes: Record<string, boolean>) => layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes } }))
+    const old = tab({ due: true, followup: false })
+    expect(validateRow('layouts', old)).toBe(true)
+    expect(rowFixes('layouts', old)).toEqual([])
+    const read = (row: Record<string, unknown>) => {
+      const res = validateImportData({ todos: [], settings: [], layouts: [row] })
+      if (!res.ok) throw new Error(res.error)
+      expect(res.warnings).toEqual([])
+      return res.data.layouts[0]!.cells[0]!.tabs[0]
+    }
+    expect(read(old)).toEqual({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: true } } })
+    expect(read(tab({ due: true, followup: false, plan: false }))).toEqual({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: false } } })
+  })
+
+  it('withCalendarPlans: the database read’s default, the same body when every calendar has its plans', () => {
+    const body = { cells: [{ id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [
+      { id: 'n', kind: 'notes', config: {} },
+      { id: 'c', kind: 'calendar', config: { dateTypes: { due: false, followup: true } } },
+    ] }] } as unknown as { cells: LayoutCell[] }
+    const read = withCalendarPlans(body)
+    expect(read.cells[0]!.tabs[1]).toEqual({ id: 'c', kind: 'calendar', config: { dateTypes: { due: false, followup: true, plan: true } } })
+    expect(read.cells[0]!.tabs[0]).toBe(body.cells[0]!.tabs[0])
+    expect(withCalendarPlans(read)).toBe(read)
   })
 
   it('still refuses a layout row that is no object, one whose id doesn’t read, and a repeated id', () => {

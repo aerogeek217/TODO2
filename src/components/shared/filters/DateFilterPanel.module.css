@@ -1,4 +1,4 @@
-/* The date panel (`DateFilterPanel`): type tabs, the selected type's clause,
+/* The date panel (`DateFilterPanel`): the type button and its menu, the selected type's clause,
  * Clear <Type> / Clear all. `.popover` is the holder a caller portals it in
  * (position written inline by `usePopoverAnchor`); `.sheet` is the phone
  * Filters sheet's touch-size variant. */
@@ -39,21 +39,111 @@
   min-width: 0;
 }
 
-/* ── Segmented tracks: the type tabs and Show ── */
+/* ── The type button: the selected type, `N filtering`, a chevron; its menu (`MenuPopover`) lists the types ── */
 
-.tabs,
+.typeRow {
+  display: flex;
+  margin: 8px 8px 0;
+  min-width: 0;
+}
+
+.typeButton {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: var(--color-seg-track);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.typeButton:hover {
+  background: var(--color-tint-4);
+}
+
+.typeButton:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--focus-ring);
+}
+
+/* Its menu open: the open trigger's ring (D21). */
+.typeOpen,
+.typeOpen:hover {
+  box-shadow: var(--trigger-open-ring);
+}
+
+.typeOpen:focus-visible {
+  box-shadow: var(--trigger-open-ring), var(--focus-ring);
+}
+
+.typeButton > svg {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.typeName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.typeCount {
+  flex-shrink: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+/* A date type that filters: on the button and in its menu, a 6px accent dot. */
+.dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+/* A filtering type's clause at the right of its menu item. */
+.menuWords {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── Segmented tracks: Show ── */
+
 .track {
   display: grid;
   gap: 2px;
   padding: 2px;
   border-radius: 8px;
   background: var(--color-seg-track);
-}
-
-/* Six types in two rows of three (D22 board B): every label fits at 336px. */
-.tabs {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 8px 8px 0;
 }
 
 .segment {
@@ -77,21 +167,6 @@
   color: var(--color-text-primary);
 }
 
-/* Tight side padding and dot gap: "Next follow-up" with its dot fits a third of 336px. */
-.tab {
-  height: 28px;
-  gap: 4px;
-  padding: 0 2px;
-  border-radius: 6px;
-}
-
-/* A label never clips at the panel's widths; should one not fit, it ends in an ellipsis rather than spill. */
-.tabLabel {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .selected,
 .selected:hover {
   background: var(--color-seg-selected);
@@ -101,21 +176,6 @@
 
 .selected:focus-visible {
   box-shadow: var(--shadow-seg-selected), var(--focus-ring);
-}
-
-/* A date type that filters, selected or not: accent text and a dot. */
-.lit,
-.lit:hover {
-  color: var(--color-accent-text);
-}
-
-.lit::before {
-  content: '';
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-accent);
 }
 
 /* ── Body ── */
@@ -279,16 +339,18 @@
   gap: 12px;
 }
 
-.sheet .tabs {
+.sheet .typeRow {
   margin: 0;
-  padding: 3px;
-  border-radius: 10px;
 }
 
-/* 13px, not the sheet's 14: "Next follow-up" with its dot fits a third of a 375px phone. */
-.sheet .tab {
-  height: 38px;
-  border-radius: 8px;
+.sheet .typeButton {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: var(--font-size-body);
+}
+
+.sheet .typeCount {
   font-size: var(--font-size-md);
 }
 

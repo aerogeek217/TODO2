@@ -294,7 +294,7 @@ describe('every layout write path of the workspace store stores rows import acce
   it('the Calendar’s date types and the Neglect map’s settings', async () => {
     const layoutId = await open()
     const calendar = await add('calendar', layoutId)
-    for (const dateTypes of [{ due: false, followup: true }, { due: false, followup: false }, { due: true, followup: true }]) {
+    for (const dateTypes of [{ due: false, followup: true, plan: false }, { due: false, followup: false, plan: false }, { due: true, followup: true, plan: false }]) {
       ws().patchTabConfig(calendar, 'calendar', { dateTypes })
       await expectStoredValid('Calendar date types')
     }

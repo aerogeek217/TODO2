@@ -30,7 +30,7 @@ A task holds its priority, status, people, tags and due date beside its notes, a
 
 ### Plan the day and the week
 
-The Planner is a scratch pad for the week. Today and the days ahead sit in one list, and each task lands on the day it is due or due for a follow-up. Drag a task onto another day to plan it there: planning a task for a day never changes its dates. When a plan runs past a due date, the Planner says so on the row and offers to fix it, by moving the due date or by planning the task for the day it is due. Plans you didn't get to wait in Delayed, and Unplanned holds whatever you have set aside.
+The Planner is a scratch pad for the week. Today and the days ahead sit in one list, and each task lands on the day it is due or due for a follow-up. Drag a task onto another day to plan it there: planning a task for a day never changes its dates. When a plan runs past a due date, the Planner says so on the row and offers to fix it, by moving the due date or by planning the task for the day it is due. Plans you didn't get to wait in Delayed, and Unplanned holds whatever you have set aside, plus whatever its filter brings in (Focus tasks, to begin with). The planned day is a date like the others: it shows on the calendar and in task details, and lists can filter, sort and group by it.
 
 ![The Planner: a strip of the next seven days over a list of today and the days ahead on the left, with Delayed and Unplanned tasks on the right](docs/screenshots/planner.png)
 
@@ -42,16 +42,16 @@ Count anything you can filter. Break your open work down by person, tag, status 
 
 ### Type it the way you'd say it
 
-Press `Ctrl` + `Space` anywhere and type. `@` adds a person, `#` a tag, `!` a status, and `/due fri` a due date, each turning into a chip as you type.
+Press `Ctrl` + `Space` anywhere and type. `@` adds a person, `#` a tag, `!` a status, `/due fri` a due date and `/plan fri` a planned day, each turning into a chip as you type.
 
 ![Quick Add with a tag, a due date and a person recognized as you type](docs/screenshots/quick-add.png)
 
 ### And also
 
-- A week and month **calendar** you can drag tasks onto
+- A week and month **calendar** of due dates, follow-ups and plans, that you can drag tasks onto
 - A **Neglect map** of what is slipping, **Work clusters** of who works on what, and a **List wall** showing every list at once
 - Free-form **notes** that turn into tasks
-- **One filter for the whole screen**: type `@priya #launch due fri` in the top bar, and pause it with a click
+- **One filter for the whole screen**: type `@priya #launch due fri` (or `planned this week`) in the top bar, and pause it with a click
 - **Check-ins**: copy a status request for each person from their open tasks into your own message, then paste the reply back in
 - A **command palette** (`Ctrl` + `K`) and editable keyboard shortcuts
 - **Repeating tasks** on any interval (`2w`, `3m`), **undo** for nearly everything, dark and light themes, and a phone layout

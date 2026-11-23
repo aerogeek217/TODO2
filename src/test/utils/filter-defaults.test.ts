@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getFilterDefaults, predicateToFilterDefaults, withoutMarkers } from '../../utils/filter-defaults'
+import { getFilterDefaults, predicateToFilterDefaults, withoutRemoved } from '../../utils/filter-defaults'
 import type { FilterCriteria } from '../../utils/filter-criteria'
 import type { TodoPredicate } from '../../models'
 
@@ -101,12 +101,12 @@ describe('getFilterDefaults — Priority', () => {
   })
 })
 
-describe('withoutMarkers', () => {
+describe('withoutRemoved — markers only', () => {
   it('drops the named marker seeds and keeps the rest', () => {
     const fd = { personIds: [1], tagIds: [2], statusId: 3, markers: { urgent: true as const, focus: true as const } }
-    expect(withoutMarkers(fd, ['urgent'])).toEqual({ personIds: [1], tagIds: [2], statusId: 3, markers: { focus: true } })
-    expect(withoutMarkers(fd, ['urgent', 'focus'])).toEqual({ personIds: [1], tagIds: [2], statusId: 3 })
-    expect(withoutMarkers(fd, [])).toBe(fd)
+    expect(withoutRemoved(fd, { markers: ['urgent'] })).toEqual({ personIds: [1], tagIds: [2], statusId: 3, markers: { focus: true } })
+    expect(withoutRemoved(fd, { markers: ['urgent', 'focus'] })).toEqual({ personIds: [1], tagIds: [2], statusId: 3 })
+    expect(withoutRemoved(fd, { markers: [] })).toBe(fd)
   })
 })
 
@@ -127,5 +127,20 @@ describe('predicateToFilterDefaults', () => {
     expect(result.personIds).toEqual([])
     expect(result.tagIds).toEqual([])
     expect(result.statusId).toBeUndefined()
+  })
+})
+
+describe('withoutRemoved', () => {
+  const fd = { personIds: [1, 2], tagIds: [7, 8], statusId: 5, markers: { urgent: true, focus: true } }
+
+  it('drops the people, tags, status and markers whose chip was removed; keeps the rest', () => {
+    expect(withoutRemoved(fd, { personIds: [1], tagIds: [8], status: true, markers: ['urgent'] })).toEqual({
+      personIds: [2], tagIds: [7], statusId: undefined, markers: { focus: true },
+    })
+  })
+
+  it('nothing removed: the defaults themselves', () => {
+    expect(withoutRemoved(fd, undefined)).toBe(fd)
+    expect(withoutRemoved(fd, {})).toBe(fd)
   })
 })

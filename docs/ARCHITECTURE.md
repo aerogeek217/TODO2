@@ -61,7 +61,7 @@ utils/                  → pure helpers: dates, filters and expressions, groupi
 ## Data Flow
 
 1. **Startup.** `App.tsx` first checks the database's version: too old or too new shows a dialog and nothing is read or written. Then `services/app-startup.runAppStartup` loads settings, reconnects the sync file and loads the stores. When the file's handle needs permission, launch waits for the launch question; a browser that does not answer within 5 s is not waited on. The load decision changes nothing on either side until the user resolves a disagreement between the file and the browser. Completed tasks past the retention are never purged silently: the storage pill shows a notice. Detail: [startup-and-data-replaces](architecture/features/startup-and-data-replaces.md)
-2. **Normal use.** UI → Zustand stores → repositories → Dexie. While a sync file is syncing, Dexie hooks debounce-save to it. Every task write stamps the task's `modifiedAt`; an undo puts back the stamp from before the step and a redo the step's own. One write stamps nothing: a task's plan state in the Planner. Destructive operations back up first (`takeSafetySnapshot`). Detail: [tasks](architecture/features/tasks.md), [planner](architecture/features/planner.md)
+2. **Normal use.** UI → Zustand stores → repositories → Dexie. While a sync file is syncing, Dexie hooks debounce-save to it. Every task write stamps the task's `modifiedAt`; an undo puts back the stamp from before the step and a redo the step's own. One write stamps nothing: a task's plan state (its planned day), wherever it is set. Destructive operations back up first (`takeSafetySnapshot`). Detail: [tasks](architecture/features/tasks.md), [planner](architecture/features/planner.md)
 3. **Data replaces.** A Settings import, a backup restore, the audit's cleanup, the sync file's load and the append import all go through `services/replace-data.replaceData`: note saves held → safety snapshot → layout writes in flight settled → the write → the stores reload → `onDataReplaced` listeners. A file is read through the import pipeline first, and one below the schema floor (`OLDEST_SUPPORTED_DB_VERSION`) is refused. Detail: [startup-and-data-replaces](architecture/features/startup-and-data-replaces.md), [import-and-export](architecture/features/import-and-export.md)
 4. **Workspace.** A layout is one table: grid tracks across and down, and cells that each cover a rectangle of tracks and hold a strip of widget tabs. Edit mode changes the grid; what is inside a cell changes in place. Outside the mode every layout edit is written at once as one undo step, so a layout has no Save. The layout edit mode holds a draft that only Done writes. Detail: [workspace-layout](architecture/features/workspace-layout.md), [layout-autosave](architecture/features/layout-autosave.md), [layout-edit-mode](architecture/features/layout-edit-mode.md), [widget-chrome](architecture/features/widget-chrome.md)
 5. **The screen filter.** The top bar's chips and the expression typed beside them. It is one filter for every layout, it is never saved, and every widget reads it through `stores/screen-filter`. Detail: [screen-filter](architecture/features/screen-filter.md), [filters](architecture/features/filters.md)
@@ -81,7 +81,7 @@ One file per feature, at most 4,000 words each. Each says how the feature behave
 | Settings | [settings](architecture/features/settings.md) | the settings table, the settings store, the Settings modal's state |
 | Tasks | [tasks](architecture/features/tasks.md) | the task row, the task store's writes, `modifiedAt`, undo and redo, safety snapshots, the new-task flight, people and tags |
 | Status updates and subtasks | [status-updates-and-subtasks](architecture/features/status-updates-and-subtasks.md) | dated status updates and following up by entering one, the checklist, notes → tasks |
-| Workspace layout | [workspace-layout](architecture/features/workspace-layout.md) | the table and its tabs, rendering, dividers, adding a widget, hue and icon, the phone |
+| Workspace layout | [workspace-layout](architecture/features/workspace-layout.md) | the table and its tabs, rendering, dividers, adding a widget, hue and icon, the Calendar, the phone |
 | Layout autosave | [layout-autosave](architecture/features/layout-autosave.md) | how a layout is written, what is one undo step, lists following an edit, view state, failed writes; opening, creating, duplicating and deleting layouts |
 | Layout ops | [layout-ops](architecture/features/layout-ops.md) | split and insert, removing and merging tracks, cells, collapsing a row |
 | Layout edit mode | [layout-edit-mode](architecture/features/layout-edit-mode.md) | the draft, rulers, cards and slots, the tray, drops and the ghost |
@@ -111,7 +111,7 @@ Two layers, picked by what's being verified (setup, fixtures and helpers: [archi
 
 **Diagnosis vs. regression.** The Chrome DevTools MCP server (`mcp__chrome-devtools__*`) is a *spike* tool — drive an interaction live in real Chromium, then codify the regression in Playwright. See CLAUDE.md "Tools — Chrome DevTools MCP".
 
-**Manual-testing seed.** `npm run seed:dev` writes a realistic export in the current schema to `dev-data/seed-v86.json` (gitignored) for Settings → Import / Export → Import JSON.
+**Manual-testing seed.** `npm run seed:dev` writes a realistic export in the current schema to `dev-data/seed-v87.json` (gitignored) for Settings → Import / Export → Import JSON.
 
 ## Detail References
 
@@ -127,7 +127,7 @@ The layer tables. Each is a table of `Abstraction | Location | Purpose` rows: wh
 
 ## Keeping the docs short
 
-`src/test/architecture/doc-budgets.test.ts` fails `npm test`, and so the deploy, when this file is over 3,000 words, when a feature file is over 4,000 or is not listed under [Features](#features), or when a row of a layer table the test holds is over 300.
+`src/test/architecture/doc-budgets.test.ts` fails `npm test`, and so the deploy, when this file is over 3,000 words, when a feature file is over 4,000 or is not listed under [Features](#features), or when a layer-table row is over 300. `services-and-utils.md` and `components.md` still have rows over 300: a baseline beside the test lists them, and they may not grow or multiply.
 
 - **A new module** gets one row in its layer table: what it is, where it is and what it is for.
 - **How it behaves** goes in its feature file. A feature file that outgrows its budget is split in two, and both are listed above.

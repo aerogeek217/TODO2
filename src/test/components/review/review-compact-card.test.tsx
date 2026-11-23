@@ -1,13 +1,14 @@
 // The Review widget's medium face (`ReviewCompactCard`, board BM): the box
-// and title, the facts line, then the updates dock — the Status updates
+// and title, the facts line (the planned day after the priority), then the updates dock — the Status updates
 // heading (always there; the count once there is an entry), the latest two
 // entries oldest first, the update line. What gives way in a short cell is
 // the real browser's (`e2e/reviewer-layout.spec.ts`).
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { ReviewCompactCard } from '../../../components/review/ReviewCard'
 import { ReviewSessionContext } from '../../../components/review/review-session-context'
-import type { PersistedStatusUpdate } from '../../../models'
+import type { PersistedStatusUpdate, PersistedTodoItem } from '../../../models'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { createReviewSession } from '../../../stores/review-session'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
 import { makeTodo } from '../../helpers'
@@ -51,6 +52,35 @@ describe('the review card’s essentials (the widget’s medium face)', () => {
     const dock = renderCard([entry(1, 1, 'Notice received')])
     expect(dock.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['11/01Notice received'])
     expect(dock.getByRole('heading')).toHaveTextContent('Status updates1')
+  })
+
+  it('the facts line names the planned day after the priority, with the hollow bar — in the deadline color past a real date', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 10, 22, 9))
+    useSettingsStore.setState({ rowDates: 'numeric' })
+    try {
+      const facts = (task: PersistedTodoItem) => {
+        cleanup()
+        useStatusUpdateStore.setState({ byTodo: new Map(), loaded: true })
+        render(
+          <ReviewSessionContext.Provider value={createReviewSession({ ids: [1], order: [1] })}>
+            <ReviewCompactCard todo={task} />
+          </ReviewSessionContext.Provider>,
+        )
+        return screen.getByTestId('review-facts')
+      }
+      const late = facts(makeTodo({ id: 1, title: 'Vendor', dueDate: new Date(2026, 10, 27), urgent: true, doDate: new Date(2026, 10, 28) }))
+      expect(Array.from(late.children).map((c) => c.getAttribute('data-fact'))).toEqual(['due', 'priority', 'planned', 'last'])
+      const planned = late.querySelector('[data-fact="planned"]')!
+      expect(planned).toHaveTextContent('Planned 11/28')
+      expect(planned).toHaveAttribute('data-tone', 'due')
+      expect(planned.querySelector('[aria-hidden="true"]')).not.toBeNull()
+      const onTime = facts(makeTodo({ id: 1, title: 'Vendor', dueDate: new Date(2026, 10, 27), doDate: new Date(2026, 10, 25) }))
+      expect(onTime.querySelector('[data-fact="planned"]')).not.toHaveAttribute('data-tone')
+      expect(facts(makeTodo({ id: 1, title: 'Vendor', unplanned: true })).querySelector('[data-fact="planned"]')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('no entries: the heading still shows, without a count or a list; the update line is there', () => {

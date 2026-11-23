@@ -9,8 +9,9 @@ import { makeTodo } from '../../helpers'
 
 /**
  * A Planner row's entries in its task menu (`planner-menu.plannerMenuEntries`):
- * **Plan for day ›** — the drag's moves, a first line saying a pick plans
- * the task, Today and the window's days after it —, **Snooze** and
+ * **Plan for day ›** — a first line saying a pick plans the task, Today and
+ * the window's days after it, Pick a date…; a day picked is planned
+ * outright —, **Snooze** and
  * **Unplan** (off, with its reason, where there is nothing to unplan) — and
  * where the task menu puts them.
  */
@@ -41,12 +42,13 @@ function build(task: PersistedTodoItem, window = WINDOW) {
 const labels = (entries: readonly MenuEntry[]) => entries.map((e) => (e.kind === 'item' ? e.label : e.kind === 'label' ? `# ${e.text}` : `(${e.kind})`))
 
 describe('Plan for day ›', () => {
-  it('lists Today and the window’s six days after it in words, under the line saying a pick plans the task — no No day', () => {
+  it('lists Today and the window’s six days after it in words, under the line saying a pick plans the task, then Pick a date… — no No day', () => {
     const { move, children } = build(todo({ dueDate: day(2) }))
     expect(move.label).toBe('Plan for day')
     expect(labels(children)).toEqual([
       `# ${PLAN_FOR_DAY_LABEL}`,
       'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26',
+      '(separator)', 'Pick a date…',
     ])
     expect(PLAN_FOR_DAY_LABEL).toBe('Plans it for that day')
   })
@@ -57,12 +59,13 @@ describe('Plan for day ›', () => {
     }
   })
 
-  it('checks the day the row sits on — Today for a late one — and names where it is on the item', () => {
+  it('checks the planned day — not a day the row sits on by its own date — and names where it is on the item', () => {
     const due = build(todo({ dueDate: day(2) }))
-    expect(due.items.filter((i) => i.checked).map((i) => i.label)).toEqual(['Sun, Nov 22'])
+    expect(due.items.filter((i) => i.checked)).toEqual([])
     expect(due.move.note).toBe('Sun, Nov 22')
+    expect(due.byLabel('Sun, Nov 22').note).toBe('due')
     const late = build(todo({ dueDate: day(-5) }))
-    expect(late.items.filter((i) => i.checked).map((i) => i.label)).toEqual(['Today'])
+    expect(late.items.filter((i) => i.checked)).toEqual([])
     expect(late.move.note).toBe('Today')
     expect(late.byLabel('Today').note).toBe('Nov 20')
     const planned = build(todo({ dueDate: day(2), doDate: day(4) }))
@@ -78,20 +81,22 @@ describe('Plan for day ›', () => {
     expect(missed.move.note).toBe('Delayed')
   })
 
-  it('a pick is the day’s target, as a drop on it', () => {
+  it('a pick is the day as a pick — planned outright, its own date’s day too', () => {
     const { byLabel, actions } = build(todo({ dueDate: day(2) }))
     byLabel('Mon, Nov 23').onSelect?.()
-    expect(actions.move).toHaveBeenLastCalledWith({ kind: 'day', day: day(3) })
+    expect(actions.move).toHaveBeenLastCalledWith({ kind: 'day', day: day(3), pick: true })
     byLabel('Today').onSelect?.()
-    expect(actions.move).toHaveBeenLastCalledWith({ kind: 'day', day: TODAY })
+    expect(actions.move).toHaveBeenLastCalledWith({ kind: 'day', day: TODAY, pick: true })
+    byLabel('Sun, Nov 22').onSelect?.()
+    expect(actions.move).toHaveBeenLastCalledWith({ kind: 'day', day: day(2), pick: true })
     expect(actions.snooze).not.toHaveBeenCalled()
     expect(actions.unplan).not.toHaveBeenCalled()
   })
 
   it('in a shifted window: Today, then that week’s seven days', () => {
-    const { children, items } = build(todo({ dueDate: day(8) }), plannerWindow(TODAY, 7))
+    const { children, items } = build(todo({ dueDate: day(8), doDate: day(9) }), plannerWindow(TODAY, 7))
     expect(labels(children).slice(1, 9)).toEqual(['Today', 'Fri, Nov 27', 'Sat, Nov 28', 'Sun, Nov 29', 'Mon, Nov 30', 'Tue, Dec 1', 'Wed, Dec 2', 'Thu, Dec 3'])
-    expect(items.filter((i) => i.checked).map((i) => i.label)).toEqual(['Sat, Nov 28'])
+    expect(items.filter((i) => i.checked).map((i) => i.label)).toEqual(['Sun, Nov 29'])
   })
 })
 

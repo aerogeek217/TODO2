@@ -158,7 +158,7 @@ test.describe('desktop', () => {
           {
             id: 'colB',
             rows: [
-              wsRow({ id: 'b1', tabs: [{ id: 'cal', kind: 'calendar', dateTypes: { due: true, followup: false } }] }, { weight: 1 }),
+              wsRow({ id: 'b1', tabs: [{ id: 'cal', kind: 'calendar', dateTypes: { due: true, followup: false, plan: false } }] }, { weight: 1 }),
               wsRow({ id: 'b2', tabs: [{ id: 'notes', kind: 'notes' }] }, { weight: 5 }),
             ],
           },
@@ -179,6 +179,9 @@ test.describe('desktop', () => {
       during: async () => { await expect(target).toContainText('Set due') },
     })
     await expect(target.getByTestId('calendar-face-count')).toHaveText('1')
+    // The day's mark: the Planner strip's solid tick for a due date.
+    await expect(target.locator('[data-mark]')).toHaveCount(1)
+    await expect(target.locator('[data-mark="due"]')).toHaveCount(1)
     const stored = (await readStore<{ title: string; dueDate?: Date }>(page, 'todos')).find((t) => t.title === 'Call legal')
     const due = stored?.dueDate ? new Date(stored.dueDate) : null
     expect(due && `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`).toBe(today)
@@ -310,7 +313,7 @@ test.describe('the Planner', () => {
     await expect(planner(page).getByRole('button', { name: 'Add task' })).toHaveCount(0)
   })
 
-  test('medium: a narrow cell is one column under the strip; narrower still, the arrows sit around the range', async ({ page }) => {
+  test('medium: a narrow cell is one column under the strip; narrower still, the strip is hidden and the arrows sit in the top line', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: PLAN_TASKS,
       // Default list zoom at Auto (the app's default), which the Planner's rows follow.
@@ -343,10 +346,11 @@ test.describe('the Planner', () => {
     const groups = await plannerGroups(page).evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().x)))
     expect(new Set(groups).size).toBe(1)
 
-    // A window too narrow for seven tiles: the arrows stay, around the range.
+    // Too narrow for its tiles' ticks: no strip; the range and the arrows sit in the top line.
     await page.setViewportSize({ width: 900, height: 900 })
-    await expect(planner(page).locator('[data-planner-strip]')).toHaveAttribute('data-planner-strip', 'range')
+    await expect(planner(page).locator('[data-planner-strip]')).toHaveCount(0)
     await expect(planner(page).locator('[data-planner-tile]')).toHaveCount(0)
+    await expect(cell.getByTestId('planner-range')).toBeVisible()
     await expect(planner(page).getByRole('button', { name: 'Next week' })).toBeVisible()
     await expect(cell).toHaveAttribute('data-face', 'medium')
   })
@@ -401,13 +405,12 @@ test.describe('phone', () => {
       const b = await box(t)
       expect(b.x).toBeGreaterThanOrEqual(0)
       expect(b.x + b.width).toBeLessThanOrEqual(width)
-      // Wide enough to read its weekday, date and count, and to tap.
-      expect(b.width).toBeGreaterThanOrEqual(36)
+      // Wide enough to read its weekday, date and count, carry its ticks, and to tap.
+      expect(b.width).toBeGreaterThanOrEqual(38)
     }
     await expect(tiles.first().getByTestId('planner-tile-count')).toHaveText('3')
-    // No ticks at this width (its marks are there, undrawn); the count says it.
-    await expect(tiles.first().locator('[data-mark]').first()).toBeAttached()
-    await expect(tiles.first().locator('[data-mark]').first()).toBeHidden()
+    // A 390px phone has room for every tile's ticks, so the strip shows and they are drawn.
+    await expect(tiles.first().locator('[data-mark]').first()).toBeVisible()
     // Today, then only the days with tasks, then Unplanned — the phone's rows, nothing draggable.
     await expect(plannerGroups(page)).toHaveCount(3)
     await expect(todayGroup(page).locator('[data-task-title]')).toHaveText(['Renew the domain', 'Chase the invoice', 'Write the brief'])

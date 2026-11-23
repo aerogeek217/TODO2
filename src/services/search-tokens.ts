@@ -151,7 +151,7 @@ export function parseSearch(text: string, sources: SearchSources, kept: readonly
         break
       }
       default:
-        break // `/repeat`: nothing to filter by; stays words
+        break // `/repeat`, `/plan`: nothing to filter by
     }
   }
   for (const p of parsed.problems) {
@@ -275,12 +275,12 @@ export function takeTokens(parse: SearchParse, caret: number, all = false): { ta
 
 // ─── The popup ──────────────────────────────────────────────────────
 
-/** What a search can't do with a `/` command: repeat (the commands' own list is Quick Add's). */
-const NOT_IN_SEARCH = new Set(['repeat'])
+/** What a search can't do with a `/` command: repeat, plan (the commands' own list is Quick Add's). */
+const NOT_IN_SEARCH = new Set(['repeat', 'plan'])
 
 /**
  * Quick Add's `@ # ! /` popup for the search box: no Create rows (a search
- * never creates), no `/repeat`. Null when nothing is listed.
+ * never creates), no `/repeat` or `/plan`. Null when nothing is listed.
  */
 export function searchAutocomplete(value: string, cursor: number, sources: AutocompleteSources): AutocompleteView | null {
   const view = computeAutocomplete(value, cursor, { ...sources, commands: true })

@@ -22,6 +22,7 @@ import {
   lookupSlashCommand,
   parseCommandDate,
   takesArgument,
+  type DateCommandName,
   type SlashCommandName,
   type SlashCommandSpec,
 } from './slash-commands'
@@ -216,10 +217,11 @@ export function isVisible(view: AutocompleteView | null): view is AutocompleteVi
 const MAX_ENTITY_ROWS = 8
 const MAX_ARGUMENT_WORDS = 4
 
-const ARGUMENT_HEADER: Record<'due' | 'followup' | 'repeat', string> = {
+const ARGUMENT_HEADER: Record<DateCommandName | 'repeat', string> = {
   due: 'Due date',
   followup: 'Next follow-up',
   repeat: 'Repeat',
+  plan: 'Planned day',
 }
 
 // ─── Context ────────────────────────────────────────────────────────
@@ -254,7 +256,7 @@ const isPrefixOf = (part: string, words: readonly string[]) =>
  * `in 3`, `24`, `24 oc`, `5/4/`, `wed` half-typed …) — the popup then waits
  * with the grammar hint instead of an error.
  */
-export function isPartialDateArgument(text: string, command: 'due' | 'followup'): boolean {
+export function isPartialDateArgument(text: string, command: DateCommandName): boolean {
   const t = collapseWhitespace(text.toLowerCase())
   if (!t) return true
   if (isPrefixOf(t, command === 'followup' ? [...KEYWORDS, 'none'] : KEYWORDS)) return true
@@ -302,7 +304,7 @@ function findArgumentContext(before: string, today: Date): ArgumentContext | nul
       if (words.length > MAX_REPEAT_WORDS || parseRepeatArgument(doneText)) return null
       return isPartialRepeatArgument(doneText) ? { spec, slash, argStart, arg } : null
     }
-    const dateCommand = spec.name as 'due' | 'followup'
+    const dateCommand = spec.name as DateCommandName
     if (words.length > MAX_ARGUMENT_WORDS) return null
     if (parseCommandDate(doneText, today) !== null || doneText.toLowerCase() === 'none') return null
     if (!isPartialDateArgument(doneText, dateCommand)) return null
@@ -411,7 +413,7 @@ function commandView(index: number, cursor: number, query: string): Autocomplete
 }
 
 function dateRows(
-  command: 'due' | 'followup',
+  command: DateCommandName,
   arg: string,
   sources: AutocompleteSources,
 ): { rows: AutocompleteRow[]; hint?: string } {
@@ -419,7 +421,8 @@ function dateRows(
   const typed = arg.trim()
   const lower = typed.toLowerCase().replace(/\s+/g, ' ')
   type ValueRow = Extract<AutocompleteRow, { kind: 'value' }>
-  const suggestions: ValueRow[] = command === 'due'
+  // `/plan` offers `/due`'s days.
+  const suggestions: ValueRow[] = command !== 'followup'
     ? ['today', 'tomorrow', 'mon', 'fri', '1w'].map((insert) => {
       const date = parseCommandDate(insert, today)
       return { kind: 'value' as const, insert, label: insert, matchLength: 0, detail: date ? formatFollowupDay(date, today) : undefined }
@@ -486,7 +489,7 @@ function argumentView(
   cursor: number,
   sources: AutocompleteSources,
 ): AutocompleteView | null {
-  const name = ctx.spec.name as 'due' | 'followup' | 'repeat'
+  const name = ctx.spec.name as DateCommandName | 'repeat'
   const base = {
     trigger: '/' as const,
     mode: 'argument' as const,
@@ -498,7 +501,7 @@ function argumentView(
     to: cursor,
     query: ctx.arg,
   }
-  if (name === 'due' || name === 'followup') {
+  if (name !== 'repeat') {
     const { rows, hint } = dateRows(name, ctx.arg, sources)
     return { ...base, rows, ...(hint !== undefined ? { hint } : {}) }
   }

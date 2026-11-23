@@ -7,7 +7,7 @@ The filter model (dates, chips, expressions, a filter read back in words) is in 
 ## Building the rows
 
 - A list tab runs its definition through `useBuiltList`, with the top-bar (screen) filter composed in: the chips and the typed expression beside them. Narrowing clauses AND; Show completed ORs (`composeScreenFilter`).
-- Lists also sort by Last followed up (oldest first) and Completed (picked newest first).
+- Lists also sort by Planned (the Planner's planned day, `doDate`: earliest first, no plan last either way), Last followed up (oldest first) and Completed (picked newest first).
 - Manual order is per list and saves at once.
 
 ## The prompt
@@ -20,6 +20,13 @@ A list may declare a prompt (`ListDefinition.runtimeFilter?: RuntimeFilterSpec`)
 - `setPicks` with an empty list removes the tab's picks: nothing is picked, and the list waits on its prompt.
 
 ## Groups
+
+### Date groups
+
+Grouped by Due, Planned or Next follow-up, a task goes by its date's day into one of the buckets (`utils/bucket-by-date`): Overdue · Today · This Week (to the week's end, by Settings' first day of the week) · Later, then the tasks without the date (`No Due Date`, `No Follow-up`).
+
+- **Planned** names its first bucket **Delayed**, as the Planner's tray does, and puts the tasks held in the Planner's Unplanned tray in an **Unplanned** group before **Not planned** (`utils/task-grouping`). The Group menu notes its groups.
+- A row dragged to another date group changes no date: date groups are read from the task, never written (`utils/cross-group-drag`).
 
 ### People and Tag groups
 
@@ -212,6 +219,7 @@ Glance-widget and dialog rows stay at Rows, and the phone has one density.
 
 - **Add task** is the list's last row, inside its scroll.
 - It shows when the list's filter (the prompt pick merged in) names people, a status, tags or a priority to seed the new task with, or is an expression. See [Filters](filters.md#what-a-new-task-reads-from-a-filter).
+- It opens Quick Add with that seed already shown as chips, each removable. See [Tasks](tasks.md#new-tasks).
 - While a view transition runs (a tab change, a group collapse), the groups' pictures nest in the scroll's and are clipped to it (`view-transition-group: nearest`). They never draw past the list's foot or its cell.
 
 ## Dragging a row

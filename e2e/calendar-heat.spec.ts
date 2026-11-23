@@ -60,7 +60,7 @@ test('titles off: the month is a heat map; Titles brings the bars back and survi
   const quiet = await day(page, 1)
   await expect(quiet).toHaveAttribute('data-heat', '1')
   expect(await bg(quiet)).toBe(await resolved(page, 'backgroundColor', 'var(--cal-heat-due-1)'))
-  await expect(calendar(page).locator('[data-cal-legend]')).toContainText('Due and follow-ups')
+  await expect(calendar(page).locator('[data-cal-legend]')).toContainText('Due, follow-ups and plans')
 
   // Yesterday is still open: its number in the late colour (`--cal-late-due`, 4.5:1 on every step) (when it's on the grid).
   const late = await day(page, -1)
@@ -127,7 +127,7 @@ test('a short cell: the month rows keep their least height, the grid scrolls and
   expect(titled.todayBottom).toBeLessThanOrEqual(titled.height)
 })
 
-test('a shorter cell shows the calendar’s medium face: this week’s days with their counts, in the heat’s tints', async ({ page }) => {
+test('a shorter cell shows the calendar’s medium face: this week’s days with their counts and ticks, no heat tint', async ({ page }) => {
   await seedWorkspace(page, {
     ...SEED,
     layouts: [{
@@ -139,5 +139,11 @@ test('a shorter cell shows the calendar’s medium face: this week’s days with
   const face = page.locator('[data-calendar-face="medium"]')
   await expect(face.locator('[data-day]')).toHaveCount(7)
   await expect(face.locator('[data-day][data-today="true"]')).toHaveCount(1)
+  await expect(face.locator('[data-day][data-heat]')).toHaveCount(0)
+  // Today's day holds the seed's tasks for today, if any, as ticks: one per entry, up to eight.
+  const today = face.locator('[data-day][data-today="true"]')
+  const count = await today.getByTestId('calendar-face-count').textContent()
+  const marks = await today.locator('[data-mark]').count()
+  expect(marks).toBe(count === '–' ? 0 : Math.min(Number(count), 8))
   await expect(calendar(page)).toHaveCount(0)
 })

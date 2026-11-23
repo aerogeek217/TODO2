@@ -82,6 +82,33 @@ export async function openFilterPickerByKeyboard(page: Page, field: FilterField)
   await page.keyboard.press('Enter')
 }
 
+/** The date panel's type button in `scope` (`Date type: Due`, `, filtering` while that type filters). */
+export function dateTypeButton(scope: Locator): Locator {
+  return scope.getByRole('button', { name: /^Date type: / })
+}
+
+/** The date panel's type menu (open it with the type button). */
+export function dateTypeMenu(page: Page): Locator {
+  return page.getByRole('menu', { name: 'Date type' })
+}
+
+/** A type's item in the open type menu (named by its type, then — lit — its clause after a comma). */
+export function dateTypeItem(page: Page, type: string): Locator {
+  return dateTypeMenu(page).getByRole('menuitemradio', { name: new RegExp(`^${type}(\\s*,|$)`) })
+}
+
+/** Picks `type` from the date panel's type menu in `scope`: it selects that type for editing (and writes nothing). */
+export async function pickDateType(page: Page, scope: Locator, type: string): Promise<void> {
+  await dateTypeButton(scope).click()
+  await dateTypeItem(page, type).click()
+  await expect(dateTypeButton(scope)).toHaveAccessibleName(new RegExp(`^Date type: ${type}(, filtering)?$`))
+}
+
+/** The date panel's body in `scope`: the selected type's clause, named by its title (`Due date`, `Created`). */
+export function dateBody(scope: Locator): Locator {
+  return scope.getByRole('group', { name: /date|follow|Completed|Created|Modified/ })
+}
+
 /** Opens `field`'s picker from the Filter menu (the bar has no chips: the field's pills are). */
 export async function openFieldPicker(page: Page, field: FilterField): Promise<void> {
   await openFilterPicker(page, field)

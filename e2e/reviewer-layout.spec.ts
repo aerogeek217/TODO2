@@ -118,7 +118,7 @@ test.describe('the task editor (board BL)', () => {
     })
     expect(notesLabel).toEqual({ size: '11px', weight: '700', color: notesLabel.color, transform: 'uppercase' })
     const looks = await headingLooks(dialog)
-    expect(looks.map((l) => l.text)).toEqual(['Priority', 'Status', 'People', 'Tags', 'Due'])
+    expect(looks.map((l) => l.text)).toEqual(['Priority', 'Status', 'People', 'Tags', 'Due', 'Planned'])
     for (const look of looks) {
       expect({ size: look.size, weight: look.weight, color: look.color, transform: look.transform }).toEqual(notesLabel)
       expect(look.icons).toBe(0)

@@ -95,7 +95,7 @@
   background: var(--color-inset-light);
 }
 
-/* No room for tiles: the arrows around the range. */
+/* No room for tiles and no top line (a cell of tabs, the widget popup): the slim range row, the arrows around the range. */
 .stripSlim {
   align-items: center;
   padding: 4px 6px;
@@ -229,147 +229,69 @@
   color: var(--color-text-muted);
 }
 
-.ticks {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  height: 10px;
-  min-width: 0;
-}
+/* A tile's ticks are `shared/DayTicks` (the Calendar's small cells draw them too); `.ticks` is the tile's hook on them. */
 
-/* The marks give way in a narrow tile; `+N` after them stays whole. */
-.tickMarks {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* A solid tick per real date on the day: a due date in the deadline color, a follow-up in the follow-up color. */
-.tick {
-  flex: none;
-  width: 3px;
-  height: 10px;
-  border-radius: 1.5px;
-  background: var(--color-deadline);
-}
-
-.tick[data-mark='followup'] {
-  background: var(--color-followup);
-}
-
-/* A hollow tick per plan on the day: outlined (not dashed) in the secondary text color. */
-.tickPlan {
-  box-sizing: border-box;
-  width: 5px;
-  border: 1.5px solid var(--color-text-secondary);
-  border-radius: 2px;
-  background: transparent;
-}
-
-/* The plans stand a little apart from the real dates before them. */
-.tick:not(.tickPlan) + .tickPlan {
-  margin-left: 3px;
-}
-
-.ticksMore {
-  flex: none;
-  font-size: var(--font-size-badge);
-  font-variant-numeric: tabular-nums;
-  line-height: 10px;
-  color: var(--color-text-muted);
-}
-
-/* A narrow strip (a narrow cell, the phone): each tile its weekday over its
- * date over its count, no ticks. */
+/* A narrow strip (a narrow cell, the portrait layout, the phone): each tile keeps its ticks — the weekday; the
+ * date with the count at its right; the ticks. Narrower than its tiles' ticks need, the strip is not drawn
+ * (`widget-face.plannerStripFits`). */
 @container (max-width: 520px) {
   .strip {
-    gap: 3px;
-    padding: 6px 4px;
-  }
-
-  .tile {
-    justify-content: center;
-    height: 50px;
-    padding: 2px;
-  }
-
-  .weekRule {
-    margin: 0 1px;
-  }
-
-  .tileHead {
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-  }
-
-  .tileCount {
-    margin-left: 0;
-    min-height: 13px;
-    line-height: 13px;
-  }
-
-  .ticks {
-    display: none;
-  }
-
-  /* The portrait layout (board R1): the arrows in the top line, so the tiles have the width to keep their ticks —
-   * the weekday; the date with the count at its right; the ticks. */
-  .stripPortrait {
     gap: 4px;
     padding: 6px 8px;
   }
 
-  .stripPortrait .tile {
-    justify-content: space-between;
+  .tile {
+    height: 50px;
     padding: 5px 6px;
     container-type: inline-size;
   }
 
-  .stripPortrait .weekRule {
+  .weekRule {
     margin: 0 2px;
   }
 
-  .stripPortrait .tileHead {
+  .tileHead {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: baseline;
-    column-gap: 3px;
+    gap: 0 3px;
   }
 
-  .stripPortrait .weekday {
+  .weekday {
     grid-column: 1 / -1;
   }
 
-  .stripPortrait .tileCount {
-    min-height: 0;
+  .tileCount {
+    margin-left: 0;
+    line-height: 13px;
   }
 
-  .stripPortrait .ticks {
-    display: flex;
+  .tile .ticks {
     height: 8px;
   }
 
-  .stripPortrait .tickMarks {
+  .tile .ticks [data-day-tick-marks] {
     gap: 2px;
   }
 
-  .stripPortrait .tick {
+  .tile .ticks [data-mark] {
     height: 8px;
   }
 
-  .stripPortrait .tick:not(.tickPlan) + .tickPlan {
+  .tile .ticks [data-mark]:not([data-mark='plan']) + [data-mark='plan'] {
     margin-left: 2px;
+  }
+
+  /* The slim range row keeps its own padding. */
+  .stripSlim {
+    padding: 4px 6px;
   }
 }
 
-/* A portrait tile (its own container) too narrow for its date beside a two-digit count: the count gives way —
+/* A narrow tile (its own container) too narrow for its date beside a two-digit count: the count gives way —
  * the day's heading and the tile's name still say it. */
 @container (max-width: 33px) {
-  .stripPortrait .tile[data-count-wide] .tileCount {
+  .tile[data-count-wide] .tileCount {
     display: none;
   }
 }
@@ -507,6 +429,36 @@
   color: var(--color-text-primary);
 }
 
+/* The folded bar and Unplanned's filter line over its end. */
+.dockBarHost {
+  flex: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Over the bar's end, before its chevron; never past the bar's middle, so a click there still unfolds it. */
+.dockBarFilter {
+  position: absolute;
+  top: 50%;
+  right: 30px;
+  display: flex;
+  justify-content: flex-end;
+  max-width: 40%;
+  transform: translateY(-50%);
+}
+
+.dockBarFilter .filterLine {
+  padding: 0;
+}
+
+/* Where the bar is too narrow for its names and the filter both, the filter line gives way (the dock unfolded shows it). */
+@container (max-width: 399px) {
+  .dockBarFilter {
+    display: none;
+  }
+}
+
 /* The dock folded: one bar — the trays' names and counts, an up chevron —, a drop target meaning Unplanned. */
 .dockBar {
   flex: none;
@@ -565,6 +517,52 @@
 }
 
 /* ── Groups ────────────────────────────────────────────────────────────── */
+
+/* Unplanned's filter line under its heading (board E): the funnel, then the filter in words, on a faint plate. */
+.filterLine {
+  display: flex;
+  min-width: 0;
+  padding: 0 8px 6px;
+}
+
+.filterLine.filterLine > button {
+  min-width: 0;
+  gap: 5px;
+  max-width: 100%;
+  padding: 0 6px;
+  background: var(--color-tint-4);
+  color: var(--color-text-muted);
+}
+
+.filterLine.filterLine > button:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+}
+
+.filterLine > button > svg {
+  flex: none;
+}
+
+/* An empty filter: nothing joins on its own. */
+.filterNone {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filterNoneWords {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .group {
   padding-top: 2px;

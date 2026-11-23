@@ -1,13 +1,16 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { ADD_FILTER, closeListFilterEditor, editListSave, openListFilterEditor, seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 import { box, expectInsideViewport } from './fixtures/geometry'
-import { completedChip, filterMenu, filterMenuButton, filterMenuRow, filterPills, openFilterMenu, openFilterPicker } from './fixtures/filters'
+import {
+  completedChip, dateBody, dateTypeButton, dateTypeItem, dateTypeMenu, filterMenu, filterMenuButton, filterMenuRow, filterPills, openFilterMenu, openFilterPicker,
+  pickDateType,
+} from './fixtures/filters'
 
 /**
- * The date panel in a real browser: one clause per date type (Due · Next
- * follow-up · Last follow-up / Completed · Created · Modified, two rows of
- * three), several at once (all must match), a type's tab lit while it
- * filters, and selecting a tab never fills in a date. Opened from the top
+ * The date panel in a real browser: one clause per date type (Due · Planned ·
+ * Next follow-up · Last follow-up, then Completed · Created · Modified, in the
+ * type button's menu), several at once (all must match), a type lit in the
+ * menu while it filters, and picking a type never fills in a date. Opened from the top
  * bar's Filter menu (Dates) or its Dates chip, a list's date chip / + Filter, and the phone Filters
  * sheet. A Completed range brings in the tasks completed in it without Show
  * completed; Last follow-up is an optional date (cr24 P4, D22). Show picks
@@ -62,7 +65,7 @@ async function pickRelative(page: Page, end: 'From' | 'To', item: string) {
 /** An end's typed Relative field in the open date panel. */
 const relativeEnd = (page: Page, end: 'From' | 'To') => dialog(page).getByRole('textbox', { name: end })
 
-/** Every date type on in the top bar (through the filter store), so every tab shows its dot. */
+/** Every date type on in the top bar (through the filter store), so every type is lit in the menu. */
 async function lightEveryDateType(page: Page) {
   await page.evaluate(async () => {
     const mod = (await import(/* @vite-ignore */ '/src/stores/filter-store.ts' as string)) as {
@@ -74,6 +77,7 @@ async function lightEveryDateType(page: Page) {
       ...st.filters,
       dates: {
         deadline: { match: 'set' },
+        planned: { match: 'held' },
         followup: { match: 'set' },
         lastFollowup: { ...range(null, { kind: 'offset', days: -14 }), includeNoDate: true },
         completed: range({ kind: 'relative', token: 'start-of-week' }, null),
@@ -94,24 +98,40 @@ async function expectShowUnclipped(scope: Locator, labels: string[]) {
   expect(clipped).toEqual([])
 }
 
-/** The six tabs sit in two rows of three, in reading order, and no label (with its dot) is cut. */
-async function expectTwoRowsUnclipped(scope: Locator) {
-  const tabs = scope.getByRole('tab')
-  await expect(tabs).toHaveText(['Due', 'Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified'])
-  const boxes = await Promise.all([0, 1, 2, 3, 4, 5].map((i) => box(tabs.nth(i))))
-  const tops = boxes.map((x) => Math.round(x.y))
-  expect(tops.slice(0, 3)).toEqual([tops[0], tops[0], tops[0]])
-  expect(tops.slice(3)).toEqual([tops[3], tops[3], tops[3]])
-  expect(tops[3]!).toBeGreaterThan(tops[0]!)
-  expect(Math.round(boxes[3]!.x)).toBe(Math.round(boxes[0]!.x))
-  const clipped = await tabs.evaluateAll((els) => els.flatMap((el) => {
-    const label = el.querySelector('span') ?? el
-    return label.scrollWidth > label.clientWidth || el.scrollWidth > el.clientWidth ? [el.textContent] : []
+const TYPES = ['Due', 'Planned', 'Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified']
+
+/**
+ * The type menu (opened from the button in `scope`, closed again with Esc):
+ * the seven types in order, one separator before the record, each lit with
+ * its clause; under the button and as wide, no name cut, items at least
+ * `minItemHeight` tall.
+ */
+async function expectTypeMenuUnclipped(page: Page, scope: Locator, minItemHeight: number) {
+  const button = dateTypeButton(scope)
+  await button.click()
+  const menu = dateTypeMenu(page)
+  const items = menu.getByRole('menuitemradio')
+  await expect(items).toHaveCount(TYPES.length)
+  expect(await items.evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.menuLabel))).toEqual(TYPES)
+  const order = await menu.evaluate((el) => Array.from(el.children).map((c) => (c.getAttribute('role') === 'separator' ? '-' : (c as HTMLElement).dataset.menuLabel)))
+  expect(order).toEqual([...TYPES.slice(0, 4), '-', ...TYPES.slice(4)])
+  for (const name of TYPES) await expect(dateTypeItem(page, name)).toHaveAccessibleName(new RegExp(`^${name}\\s*,\\s*\\S`))
+  const clipped = await items.evaluateAll((els) => els.flatMap((el) => {
+    const label = Array.from(el.querySelectorAll('span')).find((sp) => sp.textContent === (el as HTMLElement).dataset.menuLabel)
+    return !label || label.scrollWidth > label.clientWidth ? [el.textContent] : []
   }))
   expect(clipped).toEqual([])
+  const buttonBox = await box(button)
+  const menuBox = await box(menu)
+  expect(menuBox.y).toBeGreaterThanOrEqual(buttonBox.y + buttonBox.height)
+  expect(Math.round(menuBox.width)).toBe(Math.round(buttonBox.width))
+  expect((await box(items.first())).height).toBeGreaterThanOrEqual(minItemHeight)
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeHidden()
+  await expect(button).toBeFocused()
 }
 
-test('top bar: Due then Modified filter the screen together; switching tabs fills in nothing', async ({ page }) => {
+test('top bar: Due then Modified filter the screen together; switching types fills in nothing', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'All' }],
@@ -127,7 +147,8 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
 
   await openFilterPicker(page, 'Dates')
   const panel = dialog(page)
-  await expect(panel.getByRole('tab', { name: 'Due' })).toBeFocused()
+  await expect(dateTypeButton(panel)).toBeFocused()
+  await expect(dateTypeButton(panel)).toHaveAccessibleName('Date type: Due')
   await expect(panel.getByText('Not filtering')).toBeVisible()
   await expect(panel.getByRole('radio', { name: 'Relative' })).toHaveAttribute('aria-checked', 'true')
   await relativeEnd(page, 'To').fill('+2w')
@@ -135,12 +156,12 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   // Its day today under it (cr25 P8; typed intervals: `Thu, Dec 3`).
   await expect(panel.getByText(`${endDayWords(fromToday(14))} and earlier`)).toBeVisible()
   await expect(rows(page, 't1')).toHaveCount(2)
-  await expect(panel.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('data-filtering', '')
+  await expect(dateTypeButton(panel)).toHaveAccessibleName('Date type: Due, filtering')
+  await expect(dateTypeButton(panel)).toContainText('1 filtering')
 
   // Modified: nothing filled in, nothing lit, nothing narrowed — until its own To is set.
-  await panel.getByRole('tab', { name: 'Modified' }).click()
-  await expect(panel.getByRole('tab', { name: 'Modified' })).toHaveAttribute('aria-selected', 'true')
-  await expect(panel.getByRole('tab', { name: 'Modified' })).not.toHaveAttribute('data-filtering', '')
+  await pickDateType(page, panel, 'Modified')
+  await expect(dateTypeButton(panel)).toHaveAccessibleName('Date type: Modified')
   await expect(relativeEnd(page, 'From')).toHaveValue('')
   await expect(relativeEnd(page, 'To')).toHaveValue('')
   await expect(rows(page, 't1')).toHaveCount(2)
@@ -168,7 +189,7 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await expect(filterPills(page)).toHaveCount(0)
 })
 
-test('keyboard: Enter opens the panel on Due; arrows move between tabs without writing; Tab enters the body', async ({ page }) => {
+test('keyboard: Enter opens the panel on Due; the type menu by keyboard writes nothing; Tab enters the body', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'All' }],
     tasks: [{ title: 'One' }],
@@ -182,19 +203,36 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await expect(filterMenuRow(page, 'Dates')).toBeFocused()
   await page.keyboard.press('Enter')
   const panel = dialog(page)
-  await expect(panel.getByRole('tab', { name: 'Due' })).toBeFocused()
-  await page.keyboard.press('ArrowRight')
-  await expect(panel.getByRole('tab', { name: 'Next follow-up' })).toBeFocused()
-  await expect(panel.getByRole('tab', { name: 'Next follow-up' })).toHaveAttribute('aria-selected', 'true')
-  await expect(panel.getByRole('tabpanel').getByText('Next follow-up', { exact: true })).toBeVisible()
-  // Down: the row below, same column; Up: back.
+  const typeButton = dateTypeButton(panel)
+  await expect(typeButton).toBeFocused()
+  await expect(typeButton).toHaveAccessibleName('Date type: Due')
+  // Down opens the type menu on the selected type; the arrows move; Enter picks and the focus is back on the button.
   await page.keyboard.press('ArrowDown')
-  await expect(panel.getByRole('tab', { name: 'Created' })).toBeFocused()
-  await expect(panel.getByRole('tabpanel').getByText('Created', { exact: true })).toBeVisible()
-  await page.keyboard.press('ArrowUp')
-  await expect(panel.getByRole('tab', { name: 'Next follow-up' })).toBeFocused()
+  await expect(dateTypeItem(page, 'Due')).toBeFocused()
+  await expect(dateTypeItem(page, 'Due')).toHaveAttribute('aria-checked', 'true')
+  await page.keyboard.press('ArrowDown')
+  await expect(dateTypeItem(page, 'Planned')).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(dateTypeItem(page, 'Next follow-up')).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(dateTypeMenu(page)).toBeHidden()
+  await expect(typeButton).toBeFocused()
+  await expect(typeButton).toHaveAccessibleName('Date type: Next follow-up')
+  await expect(dateBody(panel).getByText('Next follow-up', { exact: true })).toBeVisible()
+  // Space opens it again; Esc closes only the menu, back on the button.
+  await page.keyboard.press('Space')
+  await expect(dateTypeItem(page, 'Next follow-up')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(dateTypeMenu(page)).toBeHidden()
+  await expect(panel).toBeVisible()
+  await expect(typeButton).toBeFocused()
+  // Enter opens it; End, Enter: Modified.
+  await page.keyboard.press('Enter')
   await page.keyboard.press('End')
-  await expect(panel.getByRole('tab', { name: 'Modified' })).toBeFocused()
+  await expect(dateTypeItem(page, 'Modified')).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(typeButton).toHaveAccessibleName('Date type: Modified')
+  await expect(dateBody(panel).getByText('Modified', { exact: true })).toBeVisible()
   // Tab: Show (its checked Relative), the range's Is / Is not (its checked Is), then From's field.
   await page.keyboard.press('Tab')
   await expect(panel.getByRole('radiogroup', { name: 'Which tasks' }).getByRole('radio', { name: 'Relative' })).toBeFocused()
@@ -209,7 +247,7 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await page.keyboard.type('-1')
   await expect(filterPills(page)).toHaveCount(0)
   await page.keyboard.type('m')
-  await expect(panel.getByRole('tabpanel')).toContainText('1 month ago or later')
+  await expect(dateBody(panel)).toContainText('1 month ago or later')
   await expect(panel.getByText(`${endDayWords(fromToday(0, -1))} and later`)).toBeVisible()
   await expect(filterMenuRow(page, 'Dates')).toHaveAccessibleName('Dates filter: Modified 1 month ago or later')
   // The chevron next: its menu by keyboard keeps the rolling days; Esc closes only the menu.
@@ -270,7 +308,7 @@ test('a saved Calendar date emptied from the keyboard keeps Calendar and the foc
   // Typing the month back completes the date again.
   await page.keyboard.type(String(month).padStart(2, '0'))
   await expect(to).toHaveValue(saved)
-  await expect(panel.getByRole('tabpanel')).toContainText('on or before')
+  await expect(dateBody(panel)).toContainText('on or before')
   await expect(to).toBeFocused()
 })
 
@@ -307,7 +345,7 @@ test('Edit list’s chips: one per date type; a chip opens the panel under it on
   const followupChip = chips.nth(1)
   await followupChip.click()
   const panel = dialog(page)
-  await expect(panel.getByRole('tab', { name: 'Next follow-up, filtering' })).toHaveAttribute('aria-selected', 'true')
+  await expect(dateTypeButton(panel)).toHaveAccessibleName('Date type: Next follow-up, filtering')
   await expect(panel.getByRole('radio', { name: 'None' })).toHaveAttribute('aria-checked', 'true')
   // The chip's own button says it is open (its × is a sibling button, cr31 F9).
   await expect(followupChip.getByRole('button', { name: /Next follow-up/ })).toHaveAttribute('aria-expanded', 'true')
@@ -328,14 +366,14 @@ test('Edit list’s chips: one per date type; a chip opens the panel under it on
   // yet (cr25 P4b) — Due, before Next follow-up —, focused there, so it adds a chip.
   await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
-  await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toBeFocused()
-  await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(dateTypeButton(panel)).toBeFocused()
+  await expect(dateTypeButton(panel)).toHaveAccessibleName('Date type: Due')
   await panel.getByRole('radio', { name: 'None' }).click()
   // A new chip goes last (the rows keep the order they were added in).
   await expect(chips).toHaveText([/Next follow-up\s*none/, /Due\s*none/])
 })
 
-test('the six types sit in two rows of three at 336px; no label clips, every type lit', async ({ page }) => {
+test('the type menu at 336px: the seven types, every one lit with its clause; no name clips', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'All' }],
@@ -346,15 +384,18 @@ test('the six types sit in two rows of three at 336px; no label clips, every typ
   await openFilterPicker(page, 'Dates')
   const panel = dialog(page)
   expect(Math.round((await box(panel)).width)).toBe(336)
-  for (const name of ['Due', 'Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified']) {
-    await expect(panel.getByRole('tab', { name: `${name}, filtering` })).toHaveAttribute('data-filtering', '')
-  }
-  await expectTwoRowsUnclipped(panel)
+  await expect(dateTypeButton(panel)).toHaveAccessibleName('Date type: Due, filtering')
+  await expect(dateTypeButton(panel)).toContainText('7 filtering')
+  await expectTypeMenuUnclipped(page, panel, 28)
   // Show's four choices fit its row (cr25 P8).
-  await panel.getByRole('tab', { name: 'Due, filtering' }).click()
   await expectShowUnclipped(panel, ['Calendar', 'Relative', 'Any', 'None'])
+  // Planned held: None, its box ticked.
+  await pickDateType(page, panel, 'Planned')
+  await expect(panel.getByRole('radio', { name: 'None' })).toHaveAttribute('aria-checked', 'true')
+  await expect(panel.getByRole('checkbox', { name: 'Only tasks held in Unplanned' })).toBeChecked()
+  await expect(dateBody(panel)).toContainText('held in Unplanned')
   // Completed is a range only (Calendar · Relative, no Is not), with its line.
-  await panel.getByRole('tab', { name: 'Completed, filtering' }).click()
+  await pickDateType(page, panel, 'Completed')
   await expect(panel.getByRole('radiogroup')).toHaveCount(1)
   await expectShowUnclipped(panel, ['Calendar', 'Relative'])
   await expect(panel.getByText('Shows tasks completed in this range, even where completed tasks are hidden.')).toBeVisible()
@@ -394,7 +435,7 @@ test('a list with Completed this week shows the tasks completed this week, witho
   // The same range in the top bar brings it into every list (the open task fails it).
   await openFilterPicker(page, 'Dates')
   const panel = dialog(page)
-  await panel.getByRole('tab', { name: 'Completed' }).click()
+  await pickDateType(page, panel, 'Completed')
   await pickRelative(page, 'From', 'start of week')
   await expect(rows(page, 't1')).toHaveText([/Done today/])
   // The counter's total: the open task and the completed one the range admits, not the month-old one.
@@ -457,9 +498,10 @@ test.describe('phone', () => {
     await expect(datesRow.locator('..')).toHaveText(/^Dates\s*▸$/)
     await datesRow.click()
 
-    await page.getByRole('tab', { name: 'Next follow-up' }).click()
+    const sheet = page.getByRole('dialog', { name: 'Filters' })
+    expect((await box(dateTypeButton(sheet))).height).toBeGreaterThanOrEqual(44)
+    await pickDateType(page, sheet, 'Next follow-up')
     await expect(allRows).toHaveCount(3)
-    expect((await box(page.getByRole('tab', { name: 'Next follow-up' }))).height).toBeGreaterThanOrEqual(36)
     const noDate = page.getByRole('radio', { name: 'None' })
     expect((await box(noDate)).height).toBeGreaterThanOrEqual(36)
     await noDate.click()
@@ -467,7 +509,7 @@ test.describe('phone', () => {
     await expect(allRows).toHaveCount(2)
     await expect(datesRow.locator('..')).toContainText('Next follow-up none')
 
-    await page.getByRole('tab', { name: 'Due', exact: true }).click()
+    await pickDateType(page, sheet, 'Due')
     await expect(allRows).toHaveCount(2)
     await page.getByRole('radio', { name: 'Any' }).click()
     await expect(allRows).toHaveCount(1)
@@ -482,7 +524,7 @@ test.describe('phone', () => {
 test.describe('phone, narrowest', () => {
   test.use({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true })
 
-  test('the sheet’s six tabs sit in two rows of three at touch size, every label whole with its dot', async ({ page }) => {
+  test('the sheet’s type button and menu at touch size, every name whole with its clause', async ({ page }) => {
     await seedWorkspace(page, {
       listDefinitions: [{ name: 'All' }],
       tasks: [{ title: 'One' }],
@@ -491,16 +533,16 @@ test.describe('phone, narrowest', () => {
     await lightEveryDateType(page)
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: /^Filters/ }).click()
     await page.getByText('Dates', { exact: true }).click()
-    const tablist = page.getByRole('tablist', { name: 'Date type' })
-    await expectTwoRowsUnclipped(tablist)
-    expect((await box(tablist.getByRole('tab').first())).height).toBeGreaterThanOrEqual(36)
+    const filters = page.getByRole('dialog', { name: 'Filters' })
+    await expect(dateTypeButton(filters)).toHaveAccessibleName('Date type: Due, filtering')
+    expect((await box(dateTypeButton(filters))).height).toBeGreaterThanOrEqual(44)
+    await expectTypeMenuUnclipped(page, filters, 44)
     // Show's four choices fit the sheet's 343px at touch size (cr25 P8).
-    await tablist.getByRole('tab', { name: 'Due, filtering' }).click()
     const sheet = page.getByRole('radiogroup', { name: 'Which tasks' }).locator('..')
     await expectShowUnclipped(sheet, ['Calendar', 'Relative', 'Any', 'None'])
     expect((await box(page.getByRole('radio', { name: 'Calendar' }))).height).toBeGreaterThanOrEqual(36)
     // The Relative ends at touch size, on Last follow-up (14+ days ago).
-    await tablist.getByRole('tab', { name: 'Last follow-up, filtering' }).click()
+    await pickDateType(page, filters, 'Last follow-up')
     const to = page.getByRole('textbox', { name: 'To' })
     await to.scrollIntoViewIfNeeded()
     expect((await box(to)).height).toBeGreaterThanOrEqual(44)

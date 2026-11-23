@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { assignedNames, readStores } from './fixtures/db'
 import { box } from './fixtures/geometry'
 import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 
@@ -7,6 +8,7 @@ import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/work
  * short cell it never covers a row (it was a footer under the scroll, read
  * as drawn over the last row), and while a view transition runs the list's
  * groups are clipped to the scroll (their pictures nest in the scroll's).
+ * Its click opens Quick Add with the list's defaults already shown as chips.
  */
 
 const TAB = 'L'
@@ -80,4 +82,55 @@ test('a grouped list’s groups nest their view-transition pictures in the scrol
   const first = widget.locator('[data-list-group]').first()
   await first.getByRole('button', { expanded: true }).first().click()
   await expect(first.locator('[data-row-key]')).toHaveCount(0)
+})
+
+test('Add task opens Quick Add with the list’s person, tag and status as chips; the task gets what they say', async ({ page }) => {
+  await seedWorkspace(page, {
+    people: ['Ann', 'Bob'],
+    tags: ['work', 'home'],
+    statuses: ['Waiting'],
+    listDefinitions: [{ name: 'Ann’s work', people: ['Ann'], tags: ['work'], statuses: ['Waiting'] }],
+    tasks: [{ title: 'Existing', people: ['Ann'], tags: ['work'], status: 'Waiting' }],
+    layouts: [{ name: 'Main', table: { areas: ['a'], cells: [{ id: 'a', tabs: [{ id: TAB, kind: 'lens', listDefIdx: 0 }] }] } }],
+  })
+  const add = wsListWidget(page, TAB).getByRole('button', { name: 'Add task' })
+  const dialog = page.getByRole('dialog', { name: 'Quick add task' })
+  const chips = dialog.getByRole('group', { name: 'What the task gets' })
+  const field = dialog.getByPlaceholder('New task…')
+
+  // On open, before anything is typed: the chips typing `#work @Ann !Waiting` would show.
+  await add.click()
+  await expect(field).toHaveValue('')
+  await expect(field).toBeFocused()
+  await expect(chips).toBeVisible()
+  for (const label of ['Remove #work', 'Remove @Ann', 'Remove status']) {
+    await expect(chips.getByRole('button', { name: label })).toHaveCount(1)
+  }
+  await expect(chips).toContainText('#work')
+  await expect(chips).toContainText('@Ann')
+  await expect(chips).toContainText('Waiting')
+
+  // A typed person goes beside the list's; Enter adds the task with all three.
+  await field.fill('Call vendor @Bob ')
+  await page.keyboard.press('Enter')
+  await expect(dialog).toBeHidden()
+  await expect.poll(() => assignedNames(page, 'Call vendor')).toEqual(['Ann', 'Bob'])
+  expect(await assignedNames(page, 'Call vendor', 'tags')).toEqual(['work'])
+  const statusOf = async (title: string) => {
+    const data = await readStores(page, ['todos', 'statuses'])
+    const todo = data.todos?.find((t) => t.title === title)
+    return data.statuses?.find((s) => s.id === todo?.statusId)?.name
+  }
+  expect(await statusOf('Call vendor')).toBe('Waiting')
+
+  // A chip's × drops that default: the task goes without it.
+  await add.click()
+  await chips.getByRole('button', { name: 'Remove #work' }).click()
+  await expect(chips).not.toContainText('#work')
+  await field.fill('Book room')
+  await page.keyboard.press('Enter')
+  await expect(dialog).toBeHidden()
+  await expect.poll(() => assignedNames(page, 'Book room')).toEqual(['Ann'])
+  expect(await assignedNames(page, 'Book room', 'tags')).toEqual([])
+  expect(await statusOf('Book room')).toBe('Waiting')
 })

@@ -3,14 +3,14 @@ import {
   buildEntries,
   calendarEntryState,
   calendarEntryLevel,
-  dayDots,
   dayOverdueWash,
+  isEntryMissed,
   isEntryOverdue,
 } from '../../services/calendar-entries'
 import { dayKey, startOfDay, MS_PER_DAY } from '../../utils/date'
 import { makeTodo } from '../helpers'
 
-const DUE = { due: true, followup: false }
+const DUE = { due: true, followup: false, plan: false }
 const today = startOfDay(new Date('2026-04-15T00:00:00')) // Wed
 const days = Array.from({ length: 7 }, (_, i) =>
   startOfDay(new Date(today.getTime() + (i - 3) * MS_PER_DAY)),
@@ -73,7 +73,7 @@ describe('buildEntries (shared)', () => {
   })
 })
 
-const both = { due: true, followup: true }
+const both = { due: true, followup: true, plan: false }
 
 describe('buildEntries — date types', () => {
   it('places a task once per shown date type, due before follow-up on a shared day', () => {
@@ -86,7 +86,7 @@ describe('buildEntries — date types', () => {
 
   it('follow-ups only: due dates and occurrences are left out', () => {
     const t = makeTodo({ id: 1, dueDate: days[0], recurrenceRule: { every: { count: 1, unit: 'd' as const } }, nextFollowupAt: days[2] })
-    const all = [...buildEntries([t], days, { dateTypes: { due: false, followup: true } }).values()].flat()
+    const all = [...buildEntries([t], days, { dateTypes: { due: false, followup: true, plan: false } }).values()].flat()
     expect(all.map((e) => [e.kind, e.day.toISOString()])).toEqual([['followup', days[2]!.toISOString()]])
   })
 
@@ -97,7 +97,58 @@ describe('buildEntries — date types', () => {
   })
 })
 
-describe('entry state, overdue washes and dots', () => {
+const plans = { due: false, followup: false, plan: true }
+const all = { due: true, followup: true, plan: true }
+
+describe('buildEntries — plans', () => {
+  it('places a task on its planned day (doDate), after its due and follow-up entries', () => {
+    const t = makeTodo({ id: 1, dueDate: today, nextFollowupAt: today, doDate: today, sortOrder: 1 })
+    const u = makeTodo({ id: 2, doDate: today, sortOrder: 0 })
+    const entries = buildEntries([u, t], days, { dateTypes: all }).get(dayKey(today)) ?? []
+    expect(entries.map((e) => [e.todo.id, e.kind])).toEqual([[1, 'due'], [1, 'followup'], [2, 'plan'], [1, 'plan']])
+    expect(entries.find((e) => e.kind === 'plan')?.key).toBe('plan-2')
+  })
+
+  it('a task held in Unplanned has no plan entry; nor one with no planned day', () => {
+    const held = makeTodo({ id: 1, unplanned: true, dueDate: today })
+    const none = makeTodo({ id: 2, dueDate: today })
+    const entries = [...buildEntries([held, none], days, { dateTypes: plans }).values()].flat()
+    expect(entries).toHaveLength(0)
+  })
+
+  it('plans off: no plan entries', () => {
+    const t = makeTodo({ id: 1, doDate: today })
+    expect([...buildEntries([t], days, { dateTypes: { due: true, followup: true, plan: false } }).values()].flat()).toHaveLength(0)
+  })
+
+  it('a completed task’s plan is placed as an open one’s', () => {
+    const t = makeTodo({ id: 1, doDate: today, isCompleted: true })
+    expect((buildEntries([t], days, { dateTypes: plans }).get(dayKey(today)) ?? []).map((e) => e.kind)).toEqual(['plan'])
+  })
+
+  it('a plan never recurs: a recurring task’s plan is one entry, and not an occurrence', () => {
+    const t = makeTodo({ id: 1, doDate: days[4], dueDate: days[0], recurrenceRule: { every: { count: 1, unit: 'd' as const } } })
+    const entries = [...buildEntries([t], days, { dateTypes: plans }).values()].flat()
+    expect(entries.map((e) => [e.kind, e.isVirtual, e.day.getTime()])).toEqual([['plan', false, days[4]!.getTime()]])
+  })
+
+  it('a missed plan (its day passed, the task open) is drawn faded, never overdue: no wash, never late', () => {
+    const yesterday = days[2]!
+    const [missed] = buildEntries([makeTodo({ id: 1, doDate: yesterday })], days, { dateTypes: plans }).get(dayKey(yesterday)) ?? []
+    expect(isEntryMissed(missed!, today)).toBe(true)
+    expect(isEntryOverdue(missed!, today)).toBe(false)
+    expect(calendarEntryState(missed!, today)).toBe('plan-missed')
+    expect(calendarEntryLevel(missed!, today, 1)).toBe('later')
+    expect(dayOverdueWash([missed!], today)).toBeNull()
+    const [done] = buildEntries([makeTodo({ id: 2, doDate: yesterday, isCompleted: true })], days, { dateTypes: plans }).get(dayKey(yesterday)) ?? []
+    expect(isEntryMissed(done!, today)).toBe(false)
+    const [todayPlan] = buildEntries([makeTodo({ id: 3, doDate: today })], days, { dateTypes: plans }).get(dayKey(today)) ?? []
+    expect(isEntryMissed(todayPlan!, today)).toBe(false)
+    expect(calendarEntryState(todayPlan!, today)).toBe('plan-today')
+  })
+})
+
+describe('entry state and overdue washes', () => {
   const yesterday = days[2]!
   const tomorrow = days[4]!
   const entriesOn = (d: Date, todos: Parameters<typeof buildEntries>[0]) =>
@@ -145,18 +196,5 @@ describe('entry state, overdue washes and dots', () => {
     ]), today)).toBe('due')
     expect(dayOverdueWash(entriesOn(yesterday, [makeTodo({ id: 1, nextFollowupAt: yesterday })]), today)).toBe('followup')
     expect(dayOverdueWash(entriesOn(yesterday, [makeTodo({ id: 1, dueDate: yesterday, isCompleted: true })]), today)).toBeNull()
-  })
-
-  it('dots: up to three, a follow-up always among them', () => {
-    const e = entriesOn(today, [
-      makeTodo({ id: 1, dueDate: today, sortOrder: 1 }),
-      makeTodo({ id: 2, dueDate: today, sortOrder: 2 }),
-      makeTodo({ id: 3, dueDate: today, sortOrder: 3, isCompleted: true }),
-      makeTodo({ id: 4, nextFollowupAt: today, sortOrder: 4 }),
-    ])
-    expect(dayDots(e)).toEqual(['due', 'due', 'followup'])
-    expect(dayDots(e.slice(0, 3))).toEqual(['due', 'due', 'due-done'])
-    const occ = entriesOn(tomorrow, [makeTodo({ id: 5, dueDate: days[0], recurrenceRule: { every: { count: 1, unit: 'd' as const } } })])
-    expect(dayDots(occ)).toEqual(['occurrence'])
   })
 })

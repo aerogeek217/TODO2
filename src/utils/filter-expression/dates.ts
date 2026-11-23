@@ -15,6 +15,7 @@ import { unitWord } from '../interval'
 /** The word that names each date type, as typed and as printed. */
 export const DATE_WORD: Record<DateField, string> = {
   deadline: 'due',
+  planned: 'planned',
   followup: 'followup',
   lastFollowup: 'followed',
   created: 'created',
@@ -25,6 +26,7 @@ export const DATE_WORD: Record<DateField, string> = {
 /** Typed words for the date types (`follow-up` as well as `followup`). */
 export const DATE_WORDS: ReadonlyMap<string, DateField> = new Map([
   ['due', 'deadline'],
+  ['planned', 'planned'],
   ['followup', 'followup'],
   ['follow-up', 'followup'],
   ['followed', 'lastFollowup'],
@@ -33,10 +35,13 @@ export const DATE_WORDS: ReadonlyMap<string, DateField> = new Map([
   ['completed', 'completed'],
 ])
 
-/** The date types a task may lack: they take `any` / `none` (`due any`, `no due`, `never followed`). */
+/** The date types a task may lack: they take `any` / `none` (`due any`, `no due`, `planned none`, `never followed`). */
 export function dateTypeIsOptional(field: DateField): boolean {
-  return field === 'deadline' || field === 'followup' || field === 'lastFollowup'
+  return field === 'deadline' || field === 'planned' || field === 'followup' || field === 'lastFollowup'
 }
+
+/** The shortcut for Planned's `held`: held in the Planner's Unplanned tray. */
+export const UNPLANNED_WORD = 'unplanned'
 
 /** The date types that look back (a period on them runs to today, not from it; a bare weekday is the last one). */
 export function looksBack(field: DateField): boolean {
@@ -260,14 +265,16 @@ export function anchorWords(a: DateAnchor): string {
   return a.kind === 'relative' ? TOKEN_WORDS[a.token] ?? a.token : ''
 }
 
-/** How `field` says it has no date: `no due`, `no followup`, `never followed`. */
+/** How `field` says it has no date: `no due`, `no followup`, `never followed`, `planned none` (`no planned` reads too). */
 function noDateWords(field: DateField): string {
-  return field === 'lastFollowup' ? 'never followed' : `no ${DATE_WORD[field]}`
+  if (field === 'lastFollowup') return 'never followed'
+  return field === 'planned' ? 'planned none' : `no ${DATE_WORD[field]}`
 }
 
 /**
  * One date clause as the expression writes it (the date type's word
- * first): `due any`, `no due`, `overdue`, `followup late`, `due this week`,
+ * first): `due any`, `no due`, `planned none`, `unplanned` (Planned's
+ * `held`), `overdue`, `followup late`, `due this week`,
  * `due today`, `due within 3 days`, `created within last 7 days`, `due
  * within 2 weeks`, `created within last 3 months`, `due +3d`, `due <= +2w`,
  * `due -3d..+7d`, `due 11/1/2026..11/30/2026`, and a range open at one end
@@ -280,6 +287,7 @@ export function dateClauseWords(field: DateField, m: DateMatch): string {
   const word = DATE_WORD[field]
   if (m.match === 'set') return `${word} any`
   if (m.match === 'unset') return noDateWords(field)
+  if (m.match === 'held') return UNPLANNED_WORD
   const { start, end } = m
   if (isBeforeToday(m)) {
     if (field === 'deadline') return 'overdue'

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import type { Interval, TodoChanges, PersistedTodoItem, Person, Tag } from '../../models'
+import type { Interval, TodoChanges, PersistedTodoItem, Person, Tag, TaskPlan } from '../../models'
 import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -21,6 +21,7 @@ import { TaskEditFooter } from './TaskEditFooter'
 import { taskLayoutClasses } from './task-layout-classes'
 import { TaskDetailsBody, TaskNotesSection } from './TaskDetailsBody'
 import { PriorityFacts, StatusFacts } from './TaskFacts'
+import { DraftPlannedFacts, TaskPlannedFacts } from './PlannedFacts'
 import { FollowupEditorGroup } from './FollowupEditorGroup'
 import { CopyIcon, IndentIcon, TrashIcon } from '../shared/icons'
 import type { MenuEntry } from '../shared/MenuPopover'
@@ -132,6 +133,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // list's predicate-derived seed, which takes precedence over the global
   // filter (the top bar may have no filter even though the list itself
   // narrows). Falls back to the active filter otherwise.
+  // Quick Add showed a list's seed as chips, so its status comes before
+  // Settings' default here as it does there (`listSeeded`).
+  const [listSeeded] = useState(() => mode === 'create' && !seed && useUIStore.getState().quickAddDraft?.defaults != null)
   const filterDefaults = useMemo(() => {
     if (mode !== 'create' || seed) return null
     const draftDefaults = useUIStore.getState().quickAddDraft?.defaults
@@ -189,7 +193,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     seed ? seed.statusId : (
       todo?.statusId
       ?? quickAddSeed?.resolved.statusId
-      ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
+      ?? (mode === 'create'
+        ? ((listSeeded ? filterDefaults?.statusId ?? defaultStatusId : defaultStatusId ?? filterDefaults?.statusId) ?? undefined)
+        : undefined)
     ),
   )
   const [deadline, setDeadline] = useState<Date | null>(
@@ -215,6 +221,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const [draftImportant, setDraftImportant] = useState(seed?.important === true || filterDefaults?.markers?.important === true || quickAddSeed?.resolved.important === true)
   const [draftFocus, setDraftFocus] = useState(seed?.focus === true || filterDefaults?.markers?.focus === true || quickAddSeed?.resolved.focus === true)
   const [nextFollowupIsDefault, setNextFollowupIsDefault] = useState(mode === 'create' && !seededFollowup)
+  // Create mode: the plan, held until Create (edit mode reads and writes the task's own), seeded from a draft's or a Quick Add `/plan`.
+  const [draftPlan, setDraftPlan] = useState<TaskPlan>(() => {
+    if (mode !== 'create') return null
+    if (seed?.doDate) return { day: seed.doDate }
+    if (seed?.unplanned) return 'unplanned'
+    return quickAddSeed?.resolved.doDate ? { day: quickAddSeed.resolved.doDate } : null
+  })
   // The repeat's interval as stored (`2w`), `''` for none (`editor-fields`).
   const [repeat, setRepeat] = useState<string>(() => {
     const every = todo?.recurrenceRule?.every ?? seed?.recurrence ?? quickAddSeed?.resolved.recurrence
@@ -480,6 +493,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       ...(draftUrgent ? { urgent: true } : {}),
       ...(draftImportant ? { important: true } : {}),
       ...(draftFocus ? { focus: true } : {}),
+      ...(draftPlan === 'unplanned' ? { unplanned: true as const } : draftPlan ? { doDate: draftPlan.day } : {}),
     }
     const assignments = { personIds: [...pendingPersonIds], tagIds: [...pendingTagIds] }
     if (props.onSaveDraft) {
@@ -508,6 +522,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     urgent: draftUrgent,
     important: draftImportant,
     focus: draftFocus,
+    plan: draftPlan === 'unplanned' ? 'unplanned' : draftPlan?.day.getTime(),
     repeat,
     people: [...pendingPersonIds].sort((a, b) => a - b),
     tags: [...pendingTagIds].sort((a, b) => a - b),
@@ -720,6 +735,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                 onToggleTag={toggleTag}
                 onCreatePerson={handleCreatePerson}
                 onCreateTag={handleCreateTag}
+                planned={isEdit && todo ? <TaskPlannedFacts todo={todo} /> : (
+                  <DraftPlannedFacts
+                    plan={draftPlan}
+                    dates={{ dueDate: deadline ?? undefined, nextFollowupAt: draftNextFollowup }}
+                    onPlan={setDraftPlan}
+                    onMoveDate={(date, to) => (date === 'due' ? handleDeadlineChange(to) : handleNextFollowupChange(to))}
+                  />
+                )}
               />
             </>
           )}

@@ -2,6 +2,7 @@ import type { DateField } from '../models/app-view'
 
 export const DATE_FIELD_LABELS: Record<DateField, string> = {
   deadline: 'Due date',
+  planned: 'Planned date',
   followup: 'Next follow-up',
   lastFollowup: 'Last followed up',
   completed: 'Completed',
@@ -16,6 +17,7 @@ export const NO_TAGS_LABEL = 'No tags'
 
 export const DATE_FIELD_LABELS_SHORT: Record<DateField, string> = {
   deadline: 'Due',
+  planned: 'Planned',
   followup: 'Next follow-up',
   lastFollowup: 'Last follow-up',
   completed: 'Completed',

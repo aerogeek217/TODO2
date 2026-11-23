@@ -4,7 +4,7 @@ A change a popover shows either sticks or the user is warned. A popover saves wh
 
 ## Popovers
 
-- Esc or a click off saves what was typed: `FollowupPopover`, `SubtaskChecklist` in every host, `TaskNotePopover`.
+- Esc or a click off saves what was typed: `FollowupPopover`, `SubtaskChecklist` in every host, `TaskNotePopover`, the Due cell's date popover (`task/DueFacts`: its date and its repeat; Esc in a repeat being typed puts it back first).
 - A row's follow-up popover is `ui-store.followupPopover` (`openFollowupPopover` / `closeFollowupPopover`), shown by `FollowupPopoverHost`.
 - So do, in the task editor, the Status updates add line and the **+ Add subtask** line: Esc leaves them, and the editor's close adds what they hold.
 - Each writes it in an unmount cleanup, so every way of closing is covered. Only a Cancel button drops it.
@@ -14,7 +14,7 @@ A change a popover shows either sticks or the user is warned. A popover saves wh
 
 ## Editors that hold a copy
 
-- Edit list ([Lists](lists.md)) and the widget editors, a Number's, a chart's and Created vs completed's ([Glance widgets](glance-widgets.md)), hold a copy until their Save. Save writes it for good as one undo step.
+- Edit list ([Lists](lists.md)) and the widget editors, a Number's, a chart's, Created vs completed's ([Glance widgets](glance-widgets.md)) and the Planner settings ([Planner widget](planner-widget.md#the-unplanned-filters-editor)), hold a copy until their Save. Save writes it for good as one undo step.
 - Layouts and lists themselves have no Save: every other edit is stored at once.
 - Closing an editor with changes asks **Save** / **Discard** / **Keep editing**, and the press that asked goes no further. Closing one with none just closes.
 - The [layout edit mode](layout-edit-mode.md) holds its draft the same way, as a layout-wide editor. Only leaving the layout asks it (Save / Discard / Keep editing), never what is done inside it. Its Cancel asks nothing and offers Restore instead.
@@ -39,7 +39,7 @@ A change a popover shows either sticks or the user is warned. A popover saves wh
 
 `editor-leave` also keeps the one roster of open editors.
 
-- Each store that holds a "which editor is open" field registers how its fields close (`registerEditorFields`): `ui-store` for Edit list and the Number editor, `chart-widgets-store` for a chart's and Created vs completed's.
+- Each store that holds a "which editor is open" field registers how its fields close (`registerEditorFields`): `ui-store` for Edit list and the Number editor, `chart-widgets-store` for a chart's and Created vs completed's, `planner-store` for the Planner settings.
 - `openOneEditor(open)` is how each opens: asked first, then every other one closed. So there is one editor at a time, whatever its kind.
 - `closeOpenEditors()` closes them all. Settings opening, the widget popup, the layout edit mode opening and a data replace (`refresh-all`) call it.
 

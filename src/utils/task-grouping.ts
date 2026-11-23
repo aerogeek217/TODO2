@@ -57,6 +57,15 @@ function parseId(prefix: string, key: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/** Planned's group of the tasks held in the Planner's Unplanned tray (after the date buckets, before Not planned). */
+export const PLANNED_HELD_GROUP_KEY = 'unplanned'
+
+/** Planned's labels: the date buckets' (the one before today is Delayed, as the Planner's tray), then Unplanned. */
+const PLANNED_GROUP_LABELS: Record<string, string> = { ...DATE_BUCKET_LABELS, overdue: 'Delayed', [PLANNED_HELD_GROUP_KEY]: 'Unplanned' }
+
+/** Planned's group order: the date buckets, then Unplanned. */
+const PLANNED_GROUP_ORDER: readonly string[] = [...DATE_BUCKET_ORDER, PLANNED_HELD_GROUP_KEY]
+
 /**
  * Resolve the group key(s) for `todo` under `groupBy`.
  *
@@ -66,8 +75,10 @@ function parseId(prefix: string, key: string): number | null {
  * - `string[]` — todo belongs to multiple groups (people / tag / priority,
  *   many-to-many); it appears once in each group.
  *
- * Bucket keys for `deadline` / `followup` are the shared relative-date keys
- * (`overdue` / `today` / `week` / `later`, see `utils/bucket-by-date`).
+ * Bucket keys for `deadline` / `planned` / `followup` are the shared
+ * relative-date keys (`overdue` / `today` / `week` / `later`, see
+ * `utils/bucket-by-date`); a task held in the Planner's Unplanned tray is
+ * Planned's `PLANNED_HELD_GROUP_KEY`.
  *
  * Priority keys are `priority-focus` / `-urgent` / `-important`
  * (`utils/priority-groups`); a task with none of them is ungrouped (No
@@ -103,6 +114,9 @@ export function getGroupKey(
       return dateBucketKey(todo.dueDate ? new Date(todo.dueDate) : null, ctx.today, ctx.weekStartsOn)
     case 'followup':
       return dateBucketKey(todo.nextFollowupAt ? new Date(todo.nextFollowupAt) : null, ctx.today, ctx.weekStartsOn)
+    case 'planned':
+      if (todo.doDate) return dateBucketKey(new Date(todo.doDate), ctx.today, ctx.weekStartsOn)
+      return todo.unplanned === true ? PLANNED_HELD_GROUP_KEY : null
     case 'priority': {
       const groups = priorityGroupsOf(todo, { today: ctx.today, urgentRange: ctx.urgentRange ?? null })
       return groups.length === 0 ? null : groups.map(priorityGroupKey)
@@ -116,7 +130,8 @@ export function getGroupKey(
  * Human-readable label for a key produced by `getGroupKey`. Person / tag
  * names are looked up in `ctx.peopleById` / `ctx.tagsById`; status names
  * via `ctx.statuses`; deadline/followup keys map to the shared date labels
- * ("Overdue" / "Today" / "This Week" / "Later").
+ * ("Overdue" / "Today" / "This Week" / "Later"), planned keys to Planned's
+ * ("Delayed" / "Today" / "This Week" / "Later" / "Unplanned").
  */
 export function getGroupLabel(
   key: string,
@@ -141,6 +156,8 @@ export function getGroupLabel(
     case 'deadline':
     case 'followup':
       return isDateBucketKey(key) ? DATE_BUCKET_LABELS[key] : ''
+    case 'planned':
+      return PLANNED_GROUP_LABELS[key] ?? ''
     case 'priority': {
       const group = priorityGroupOfKey(key)
       return group ? PRIORITY_GROUP_LABEL[group] : ''
@@ -156,7 +173,7 @@ export function getGroupLabel(
  * defined color). People without a color fall back to
  * `NEUTRAL_PERSON_COLOR`, mirroring `AvatarStack`'s fill-variant behavior.
  *
- * Date-bucket dimensions (`deadline` / `followup`) are derived
+ * Date-bucket dimensions (`deadline` / `planned` / `followup`) are derived
  * buckets, not entities — they intentionally have no color.
  */
 export function getGroupColor(
@@ -186,6 +203,7 @@ export function getGroupColor(
       return group ? PRIORITY_GROUP_COLOR[group] : undefined
     }
     case 'deadline':
+    case 'planned':
     case 'followup':
     case 'none':
       return undefined
@@ -229,6 +247,13 @@ function orderGroupKeys(
         const idx = (k: string) => (isDateBucketKey(k) ? DATE_BUCKET_ORDER.indexOf(k) : DATE_BUCKET_ORDER.length)
         return keys.slice().sort((a, b) => idx(a) - idx(b))
       }
+      case 'planned': {
+        const idx = (k: string) => {
+          const i = PLANNED_GROUP_ORDER.indexOf(k)
+          return i < 0 ? PLANNED_GROUP_ORDER.length : i
+        }
+        return keys.slice().sort((a, b) => idx(a) - idx(b))
+      }
       case 'people':
       case 'tag': {
         const label = new Map(keys.map((k) => [k, getGroupLabel(k, groupBy, ctx)] as const))
@@ -268,7 +293,8 @@ function orderGroupKeys(
  *
  * - Within each bucket, todo order is preserved from the input.
  * - Group order: status by `sortOrder`, deadline/followup by
- *   bucket order (overdue → today → week → later), people/tag
+ *   bucket order (overdue → today → week → later; planned then its
+ *   Unplanned group), people/tag
  *   alphabetically by label, priority Focus → Urgent → Important.
  * - A todo with N keys (people/tag/priority) appears once per group — the same
  *   row reference, no clone.

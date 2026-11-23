@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { FilterExpr } from '../../../models/filter-expression'
 import { expressionNamesOf } from '../../../utils/filter-chips'
 import { expressionWords, pieceSpaces, type WordPiece } from '../../../utils/filter-expression'
@@ -20,13 +20,17 @@ function pieceClass(p: WordPiece): string {
  * the Graphical chips, word terms, joining words muted. Too long for its
  * space, it fades at its end and says `+N more` — the top-level terms that
  * start past what shows. The tooltip holds the exact expression; a click
- * opens where it is edited (Edit list) when `onOpen` is given.
+ * opens where it is edited (Edit list) when `onOpen` is given. `lead`
+ * stands before the words (the Planner's funnel); `name` names the button
+ * (`name: the words`).
  */
-export function ExpressionWords({ expression, text, onOpen }: {
+export function ExpressionWords({ expression, text, onOpen, lead, name }: {
   expression: FilterExpr
   /** The exact expression (`printExpression`): the tooltip. */
   text: string
   onOpen?: () => void
+  lead?: ReactNode
+  name?: string
 }) {
   const names = useChipNames()
   const words = useMemo(() => expressionWords(expression, expressionNamesOf(names)), [expression, names])
@@ -63,6 +67,7 @@ export function ExpressionWords({ expression, text, onOpen }: {
   const tip = useTooltip(onOpen ? `${text}\nClick to edit` : text, { labelLines: 1 })
   const content = (
     <>
+      {lead}
       <span ref={clipRef} className={`${styles.clip} ${fit.clipped ? styles.clipFaded : ''}`}>
         {words.pieces.map((p, i) => {
           const separator = p.kind === 'joiner' && p.text === '·'
@@ -80,7 +85,7 @@ export function ExpressionWords({ expression, text, onOpen }: {
     </>
   )
   return onOpen ? (
-    <button type="button" className={styles.line} data-testid="list-filter-expression" onClick={onOpen} {...tip.triggerProps}>
+    <button type="button" className={styles.line} data-testid="list-filter-expression" aria-label={name ? `${name}: ${words.text}` : undefined} onClick={onOpen} {...tip.triggerProps}>
       {content}
     </button>
   ) : (

@@ -10,15 +10,18 @@ import { type DayContext, dropLabel } from './calendar-day'
 
 /** The parts every calendar day draws: the drop label, its date, an entry, the `+N more` button. */
 
-export function DropLabel({ ctx }: { ctx: DayContext }) {
+export function DropLabel({ ctx, day }: { ctx: DayContext; day: Date }) {
   return (
     <span className={styles.dropLabel} aria-hidden="true">
-      <PlusIcon size={12} strokeWidth={2} /> {dropLabel(ctx.drag, ctx.dateTypes)}
+      <PlusIcon size={12} strokeWidth={2} /> {dropLabel(ctx.drag, ctx.dateTypes, day, ctx.today)}
     </span>
   )
 }
 
-/** One entry, draggable unless it's a recurring occurrence (or on mobile). */
+/**
+ * One entry, draggable unless it's a recurring occurrence, a completed
+ * task's plan (the Planner plans open tasks only) or on mobile.
+ */
 export function EntryItem({ entry, size, wrap = false, slot, ctx }: {
   entry: CalendarEntry
   size: CalendarEntrySize
@@ -27,7 +30,7 @@ export function EntryItem({ entry, size, wrap = false, slot, ctx }: {
   slot?: string
   ctx: DayContext
 }) {
-  if (entry.isVirtual || ctx.noDrag) {
+  if (entry.isVirtual || ctx.noDrag || (entry.kind === 'plan' && entry.todo.isCompleted)) {
     return <CalendarEntryButton entry={entry} today={ctx.today} size={size} wrap={wrap} onOpen={ctx.onOpen} />
   }
   const data: CalendarEntryDragData = {

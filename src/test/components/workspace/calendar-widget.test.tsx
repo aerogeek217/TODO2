@@ -3,6 +3,7 @@ import { render, cleanup, screen, fireEvent, act, within } from '@testing-librar
 import { DndContext } from '@dnd-kit/core'
 import { CalendarWidget } from '../../../components/workspace/calendar/CalendarWidget'
 import { CalendarDropChooser } from '../../../components/workspace/calendar/CalendarDropChooser'
+import { dropLabel } from '../../../components/workspace/calendar/calendar-day'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -32,7 +33,7 @@ function layoutWith(tab: CalendarTab): PersistedWorkspaceLayout {
 
 /** A calendar tab; the month shows bars (titles on) unless `over` says otherwise. */
 function calendarTab(over: Partial<CalendarTab> = {}): CalendarTab {
-  return { id: 'cal', kind: 'calendar', config: { dateTypes: { due: true, followup: true } }, viewState: { titles: true }, ...over }
+  return { id: 'cal', kind: 'calendar', config: { dateTypes: { due: true, followup: true, plan: false } }, viewState: { titles: true }, ...over }
 }
 
 /** Renders the calendar tab as the workspace store holds it (so config / view-state edits show). */
@@ -172,13 +173,13 @@ describe('CalendarWidget', () => {
     setup()
     const group = screen.getByRole('group', { name: 'Date types shown' })
     fireEvent.click(within(group).getByRole('button', { name: /Due/ }))
-    expect(workingTab().config.dateTypes).toEqual({ due: false, followup: true })
+    expect(workingTab().config.dateTypes).toEqual({ due: false, followup: true, plan: false })
     expect(layoutSteps()).not.toEqual([])
     expect(within(dayCell(day(16))!).queryByText('Both dates')).toBeNull()
     expect(within(dayCell(day(20))!).getByText('Both dates')).toBeInTheDocument()
 
     fireEvent.click(within(group).getByRole('button', { name: /Follow-up/ }))
-    expect(workingTab().config.dateTypes).toEqual({ due: false, followup: false })
+    expect(workingTab().config.dateTypes).toEqual({ due: false, followup: false, plan: false })
     expect(document.querySelectorAll('[data-cal-entry]')).toHaveLength(0)
     expect(screen.getByTestId('calendar-empty')).toHaveAttribute('data-empty', 'no-types')
     expect(screen.getByText('No date types shown')).toBeInTheDocument()
@@ -200,7 +201,7 @@ describe('CalendarWidget', () => {
 
   it('an empty view says what it shows nothing of', () => {
     useTodoStore.setState({ todos: [] })
-    setup(calendarTab({ config: { dateTypes: { due: false, followup: true } } }))
+    setup(calendarTab({ config: { dateTypes: { due: false, followup: true, plan: false } } }))
     expect(screen.getByTestId('calendar-empty').textContent).toContain('Nothing to follow up in October')
   })
 
@@ -214,6 +215,94 @@ describe('CalendarWidget', () => {
     fireEvent.click(within(note).getByRole('button', { name: 'Clear screen filter' }))
     expect(useFilterStore.getState().isActive).toBe(false)
     expect(screen.queryByTestId('calendar-empty')).toBeNull()
+  })
+})
+
+describe('CalendarWidget plans', () => {
+  const plansTab = (over: Partial<CalendarTab> = {}) => calendarTab({ config: { dateTypes: { due: true, followup: true, plan: true } }, ...over })
+
+  beforeEach(() => {
+    useTodoStore.setState({
+      todos: [
+        ...useTodoStore.getState().todos,
+        makeTodo({ id: 5, title: 'Planned Fri', doDate: day(16), dueDate: day(20), sortOrder: 5 }),
+        makeTodo({ id: 6, title: 'Missed plan', doDate: day(13), sortOrder: 6 }),
+        makeTodo({ id: 7, title: 'Held', unplanned: true, dueDate: day(22), sortOrder: 7 }),
+      ],
+    })
+  })
+
+  it('a plan entry: a hollow bar after the day’s due and follow-up entries, its tooltip naming it Planned', () => {
+    setup(plansTab())
+    const entry = within(dayCell(day(16))!).getByText('Planned Fri').closest('[data-cal-entry]')!
+    expect(entry).toHaveAttribute('data-cal-entry', 'plan')
+    expect(entry).toHaveAttribute('data-state', 'plan')
+    expect(entry).toHaveAttribute('data-tooltip', 'Planned Fri')
+    expect(entry).toHaveAttribute('data-tooltip-bar', 'hollow')
+    expect(entry).toHaveAttribute('data-tooltip-bar-label', 'Planned')
+    expect(entry).toHaveAttribute('aria-roledescription', 'draggable')
+    const kinds = [...dayCell(day(16))!.querySelectorAll('[data-cal-entry]')].map((e) => e.getAttribute('data-cal-entry'))
+    expect(kinds).toEqual(['due', 'plan'])
+    // Its due date is its own entry, on its own day.
+    expect(within(dayCell(day(20))!).getByText('Planned Fri').closest('[data-cal-entry]')).toHaveAttribute('data-cal-entry', 'due')
+    // A held task has no plan entry.
+    expect(document.querySelectorAll('[data-cal-entry="plan"]')).toHaveLength(2)
+  })
+
+  it('a missed plan is faded on its past day: not overdue, no wash', () => {
+    setup(plansTab())
+    const entry = within(dayCell(day(13))!).getByText('Missed plan').closest('[data-cal-entry]')!
+    expect(entry).toHaveAttribute('data-state', 'plan-missed')
+    expect(entry).toHaveAttribute('data-level', 'later')
+    expect(entry.className).toMatch(/entryMissed/)
+    expect(entry).toHaveAttribute('data-tooltip', 'Missed plan · delayed')
+  })
+
+  it('a completed task’s plan shows under Show completed and doesn’t drag', () => {
+    useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 8, title: 'Done plan', doDate: day(17), isCompleted: true, sortOrder: 8 })] })
+    setup(plansTab())
+    expect(within(dayCell(day(17))!).queryByText('Done plan')).toBeNull()
+    act(() => useFilterStore.getState().setShowCompleted(true))
+    const entry = within(dayCell(day(17))!).getByText('Done plan').closest('[data-cal-entry]')!
+    expect(entry.getAttribute('aria-roledescription')).toBeNull()
+  })
+
+  it('Plans is a third toggle (the hollow bar): layout config; off, no plan entries', () => {
+    setup(plansTab())
+    const group = screen.getByRole('group', { name: 'Date types shown' })
+    const toggle = within(group).getByRole('button', { name: /Plans/ })
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(within(group).getAllByRole('button').map((b) => b.getAttribute('data-type'))).toEqual(['due', 'followup', 'plan'])
+    fireEvent.click(toggle)
+    expect(workingTab().config.dateTypes).toEqual({ due: true, followup: true, plan: false })
+    expect(document.querySelectorAll('[data-cal-entry="plan"]')).toHaveLength(0)
+    expect(layoutSteps()).not.toEqual([])
+  })
+
+  it('plans alone: the empty note and the no-types note name them', () => {
+    useTodoStore.setState({ todos: [] })
+    setup(plansTab({ config: { dateTypes: { due: false, followup: false, plan: true } } }))
+    expect(screen.getByTestId('calendar-empty').textContent).toContain('Nothing planned in October')
+    fireEvent.click(within(screen.getByRole('group', { name: 'Date types shown' })).getByRole('button', { name: /Plans/ }))
+    expect(screen.getByTestId('calendar-empty').textContent).toContain('Turn on Due, Follow-up or Plans')
+  })
+})
+
+describe('dropLabel', () => {
+  const all = { due: true, followup: true, plan: true }
+  const today = day(14)
+  it('names what a drop on the day does', () => {
+    expect(dropLabel({ entryMove: true, type: 'due' }, all, day(10), today)).toBe('Move here')
+    expect(dropLabel({ entryMove: true, type: 'plan' }, all, day(16), today)).toBe('Move here')
+    expect(dropLabel({ entryMove: false }, all, day(16), today)).toBe('Set date')
+    expect(dropLabel({ entryMove: false }, { due: false, followup: false, plan: true }, day(16), today)).toBe('Set plan')
+    expect(dropLabel({ entryMove: false }, { due: true, followup: false, plan: false }, day(10), today)).toBe('Set due')
+  })
+
+  it('a plan onto a day before today: Past day (refused)', () => {
+    expect(dropLabel({ entryMove: true, type: 'plan' }, all, day(13), today)).toBe('Past day')
+    expect(dropLabel({ entryMove: false }, { due: false, followup: false, plan: true }, day(13), today)).toBe('Past day')
+    expect(dropLabel({ entryMove: true, type: 'plan' }, all, today, today)).toBe('Move here')
   })
 })
 
@@ -261,7 +350,7 @@ describe('CalendarWidget heat map (titles off)', () => {
   })
 
   it('follow-ups alone tint in the follow-up hue', () => {
-    setup(heatTab({ config: { dateTypes: { due: false, followup: true } } }))
+    setup(heatTab({ config: { dateTypes: { due: false, followup: true, plan: false } } }))
     expect(document.querySelector('[data-calendar-widget]')).toHaveAttribute('data-heat-hue', 'followup')
     expect(dayCell(day(20))).toHaveAttribute('data-heat', '1')
     expect(document.querySelector('[data-cal-legend]')!.textContent).toMatch(/^Follow-ups:/)
@@ -273,29 +362,38 @@ describe('CalendarWidget heat map (titles off)', () => {
     expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
   })
 
-  it('on a phone the compact month: the tint under the number and the count in place of the dots', () => {
+  it('on a phone the compact month: the number over the day’s ticks, titles on or off; a late day washed', () => {
     const original = window.matchMedia
     window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
+    useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 5, title: 'Planned', doDate: day(12), sortOrder: 5 })] })
     try {
-      setup(heatTab())
-      expect(document.querySelector('[data-calendar-widget]')).toHaveAttribute('data-mode', 'compact')
-      expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
-      expect(document.querySelectorAll('[data-dot]')).toHaveLength(0)
-      expect(dayCell(day(12))).toHaveAttribute('data-heat', '1')
-      expect(dayCell(day(12))).toHaveAttribute('data-late', 'due')
-      expect(dayCell(day(12))!.className).not.toMatch(/washDue/)
-      expect(dayCell(day(12))!.textContent).toBe('122')
-      expect(dayCell(day(13))!.textContent).toBe('13')
-      // The day list is unchanged.
-      fireEvent.click(dayCell(day(16))!)
-      expect(within(document.querySelector('[data-cal-day-list]')!).getByText('Both dates')).toBeInTheDocument()
-      cleanup()
-      setup(calendarTab())
-      expect(dayCell(day(12))!.querySelectorAll('[data-dot]')).toHaveLength(2)
-      expect(dayCell(day(12))).not.toHaveAttribute('data-heat')
+      for (const tab of [heatTab({ config: { dateTypes: { due: true, followup: true, plan: true } } }), calendarTab({ config: { dateTypes: { due: true, followup: true, plan: true } } })]) {
+        setup(tab)
+        expect(document.querySelector('[data-calendar-widget]')).toHaveAttribute('data-mode', 'compact')
+        expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
+        // 12 Oct: Late due and a Weekly occurrence (two solid ticks), then the plan (a hollow one).
+        const marks = [...dayCell(day(12))!.querySelectorAll('[data-mark]')].map((m) => m.getAttribute('data-mark'))
+        expect(marks).toEqual(['due', 'due', 'plan'])
+        expect(dayCell(day(12))).not.toHaveAttribute('data-heat')
+        expect(dayCell(day(12))!.className).toMatch(/washDue/)
+        expect(dayCell(day(12))!.textContent).toBe('12')
+        expect(dayCell(day(13))!.querySelectorAll('[data-mark]')).toHaveLength(0)
+        // The day list is unchanged.
+        fireEvent.click(dayCell(day(16))!)
+        expect(within(document.querySelector('[data-cal-day-list]')!).getByText('Both dates')).toBeInTheDocument()
+        cleanup()
+      }
     } finally {
       window.matchMedia = original
     }
+  })
+
+  it('the heat counts plans, and the legend says so', () => {
+    useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 5, title: 'Planned', doDate: day(16), sortOrder: 5 })] })
+    setup(heatTab({ config: { dateTypes: { due: true, followup: true, plan: true } } }))
+    expect(dayCell(day(16))).toHaveAttribute('aria-label', 'Fri 16 Oct, 1 due · 1 planned')
+    expect(dayCell(day(16))!.textContent).toBe('162')
+    expect(document.querySelector('[data-cal-legend]')!.textContent).toMatch(/^Due, follow-ups and plans:/)
   })
 
   it('Titles (off by default) switches the month to bars and back: view state, never unsaved', async () => {
@@ -315,9 +413,9 @@ describe('CalendarWidget heat map (titles off)', () => {
 })
 
 describe('CalendarDropChooser', () => {
-  function renderChooser(onDone: (t: unknown) => void) {
-    const todo = makeTodo({ id: 9, title: 'Draft OKRs', dueDate: day(15) })
-    render(<CalendarDropChooser todo={todo} date={day(13)} at={{ x: 100, y: 100 }} onDone={onDone} />)
+  function renderChooser(onDone: (t: unknown) => void, dateTypes = { due: true, followup: true, plan: false }, over: Parameters<typeof makeTodo>[0] = {}) {
+    const todo = makeTodo({ id: 9, title: 'Draft OKRs', dueDate: day(15), ...over })
+    render(<CalendarDropChooser todo={todo} date={day(13)} dateTypes={dateTypes} at={{ x: 100, y: 100 }} onDone={onDone} />)
     return screen.getByRole('menu', { name: 'Set which date' })
   }
 
@@ -346,6 +444,22 @@ describe('CalendarDropChooser', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(picks3).toEqual([null])
   })
+
+  it('offers the types the calendar shows: Due · Follow-up · Plan, P picks the plan', () => {
+    const picks: unknown[] = []
+    const menu = renderChooser((t) => picks.push(t), { due: true, followup: true, plan: true }, { doDate: day(20) })
+    const items = within(menu).getAllByRole('menuitem')
+    expect(items.map((i) => [i.textContent?.match(/^(Due date|Follow-up|Plan)/)?.[0], i.getAttribute('aria-keyshortcuts')])).toEqual([['Due date', 'D'], ['Follow-up', 'F'], ['Plan', 'P']])
+    expect(items[2]?.textContent).toContain('was Tue 20')
+    fireEvent.keyDown(menu, { key: 'p' })
+    expect(picks[0]).toBe('plan')
+    cleanup()
+    const menu2 = renderChooser(() => {}, { due: false, followup: true, plan: true }, { unplanned: true })
+    const items2 = within(menu2).getAllByRole('menuitem')
+    expect(items2).toHaveLength(2)
+    expect(items2[0]?.textContent).toContain('Follow-up')
+    expect(items2[1]?.textContent).toContain('held in Unplanned')
+  })
 })
 
 describe('CalendarWidget faces (D25 R)', () => {
@@ -367,20 +481,40 @@ describe('CalendarWidget faces (D25 R)', () => {
     })
   })
 
-  it('small: today’s count of the tab’s date types and this week’s heat strip, today marked', () => {
+  it('small: today’s count of the tab’s date types and this week’s ticks, today marked', () => {
     setupAt('small')
     expect(screen.getByTestId('calendar-face-today')).toHaveTextContent('2')
     expect(document.querySelector('[data-calendar-face]')!.textContent).toContain('due or to follow up today')
-    const strip = [...document.querySelectorAll<HTMLElement>('[data-calendar-face] [data-heat]')]
-    // Mon 12 – Sun 18 (the week starts on Monday): 1, 0, 2, 0, 1, 0, 0.
-    expect(strip.map((d) => d.dataset.heat)).toEqual(['1', '0', '1', '0', '1', '0', '0'])
+    const strip = [...document.querySelectorAll<HTMLElement>('[data-calendar-face] [data-day]')]
+    // Mon 12 – Sun 18 (the week starts on Monday): a due date; nothing; a due date and a follow-up; nothing; a due date.
+    const marks = strip.map((d) => [...d.querySelectorAll('[data-mark]')].map((m) => m.getAttribute('data-mark')).join(' '))
+    expect(marks).toEqual(['due', '', 'due followup', '', 'due', '', ''])
     expect(strip.findIndex((d) => d.dataset.today === 'true')).toBe(2)
     expect(strip[0]!.dataset.late).toBe('due')
+    expect(document.querySelectorAll('[data-calendar-face] [data-heat]')).toHaveLength(0)
     expect(document.querySelector('[data-calendar-widget]')).toBeNull()
   })
 
+  it('small and medium: a plan is a hollow tick; past eight, +N', () => {
+    const many = Array.from({ length: 10 }, (_, i) => makeTodo({ id: 20 + i, title: `Plan ${i}`, doDate: day(15), sortOrder: 20 + i }))
+    useTodoStore.setState({ todos: [...useTodoStore.getState().todos, ...many] })
+    const all = calendarTab({ config: { dateTypes: { due: true, followup: true, plan: true } } })
+    for (const face of ['small', 'medium'] as const) {
+      setupAt(face, all)
+      const thu = dayCell(day(15))!
+      expect([...thu.querySelectorAll('[data-mark]')].map((m) => m.getAttribute('data-mark'))).toEqual(Array.from({ length: 8 }, () => 'plan'))
+      expect(thu.querySelector('[data-day-ticks-more]')).toHaveTextContent('+2')
+      cleanup()
+    }
+  })
+
+  it('small, plans shown: today’s words name them', () => {
+    setupAt('small', calendarTab({ config: { dateTypes: { due: true, followup: true, plan: true } } }))
+    expect(document.querySelector('[data-calendar-face]')!.textContent).toContain('due, to follow up or planned today')
+  })
+
   it('small, due only: today’s due tasks', () => {
-    setupAt('small', calendarTab({ config: { dateTypes: { due: true, followup: false } } }))
+    setupAt('small', calendarTab({ config: { dateTypes: { due: true, followup: false, plan: false } } }))
     expect(screen.getByTestId('calendar-face-today')).toHaveTextContent('1')
     expect(document.querySelector('[data-calendar-face]')!.textContent).toContain('due today')
   })
@@ -390,6 +524,9 @@ describe('CalendarWidget faces (D25 R)', () => {
     const days = [...document.querySelectorAll<HTMLElement>('[data-calendar-face] [data-day]')]
     expect(days.map((d) => d.dataset.day)).toEqual([12, 13, 14, 15, 16, 17, 18].map((n) => dayKey(day(n))))
     expect(days.map((d) => within(d).getByTestId('calendar-face-count').textContent)).toEqual(['1', '–', '2', '–', '1', '–', '–'])
+    // Each day's ticks under its count, no heat tint.
+    expect([...dayCell(day(14))!.querySelectorAll('[data-mark]')].map((m) => m.getAttribute('data-mark'))).toEqual(['due', 'followup'])
+    expect(dayCell(day(14))).not.toHaveAttribute('data-heat')
     expect(dayCell(day(14))!.getAttribute('aria-label')).toBe('Wed 14 Oct, today: 2 tasks')
     fireEvent.click(dayCell(day(14))!)
     const popover = screen.getByTestId('calendar-day-popover')

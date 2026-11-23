@@ -142,7 +142,7 @@ const DRAG_SEED: WorkspaceSeed = {
     columns: [
       { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
       // Due dates only: a row dropped on a day sets its due date, with no Due / Follow-up question.
-      { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'cal', kind: 'calendar', titles: true, dateTypes: { due: true, followup: false } }] })] },
+      { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'cal', kind: 'calendar', titles: true, dateTypes: { due: true, followup: false, plan: false } }] })] },
     ],
   }],
 }
@@ -323,7 +323,7 @@ test('the popup’s own calendar days still take drops: an entry moved to anothe
       name: 'Main',
       columns: [
         { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
-        { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'cal', kind: 'calendar', titles: true, dateTypes: { due: true, followup: false } }] })] },
+        { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'cal', kind: 'calendar', titles: true, dateTypes: { due: true, followup: false, plan: false } }] })] },
       ],
     }],
   })

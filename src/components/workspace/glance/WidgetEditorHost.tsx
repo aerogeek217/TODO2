@@ -28,8 +28,8 @@ interface WidgetEditorProps<T extends LayoutTab> {
 export function WidgetEditorHost<T extends LayoutTab>({ tabId, isKind, anchor, close, Editor }: {
   tabId: string | null
   isKind: (tab: LayoutTab) => tab is T
-  /** The data attribute the widget marks its anchor with. */
-  anchor: `data-${string}`
+  /** The data attribute the widget marks its anchor with — or several, the first found on screen taken. */
+  anchor: `data-${string}` | ReadonlyArray<`data-${string}`>
   close: () => void
   Editor: ComponentType<WidgetEditorProps<T>>
 }) {
@@ -46,7 +46,12 @@ export function WidgetEditorHost<T extends LayoutTab>({ tabId, isKind, anchor, c
     let frames = 0
     let raf = 0
     const look = () => {
-      const el = widgetElement(tab.id, `[${anchor}="${CSS.escape(tab.id)}"]`)
+      const attrs = typeof anchor === 'string' ? [anchor] : anchor
+      let el: HTMLElement | null = null
+      for (const attr of attrs) {
+        el = widgetElement(tab.id, `[${attr}="${CSS.escape(tab.id)}"]`)
+        if (el) break
+      }
       anchorRef.current = el
       setFound(el ? tab.id : null)
       if (!el && ++frames < 30) raf = requestAnimationFrame(look)

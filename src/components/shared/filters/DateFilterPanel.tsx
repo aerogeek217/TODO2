@@ -1,6 +1,7 @@
 import { useContext, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { DatePendingNotContext, type PendingNot } from './date-pending-not'
 import type { DateAnchor, DateFilters, DateRangeMatch } from '../../../models'
+import { HELD_DATE_FIELD } from '../../../models/filter-predicate'
 import type { DateField } from '../../../models/app-view'
 import {
   activeDateFields,
@@ -24,6 +25,8 @@ import {
 import { describeDateMatch } from '../../../utils/filter-chips'
 import { DATE_FIELD_LABELS, DATE_FIELD_LABELS_SHORT } from '../../../utils/filter-labels'
 import { DateAnchorInput } from '../DateAnchorInput'
+import { ChevronDownIcon } from '../icons'
+import { MenuPopover, type MenuEntry } from '../MenuPopover'
 import { FilterModeToggle } from './FilterPanels'
 import { useChipDay } from './filter-menu'
 import styles from './DateFilterPanel.module.css'
@@ -32,8 +35,9 @@ import { shortcutScope } from '../../../utils/dom-contract'
 
 /**
  * What the Show row picks (D23 board B): a range entered as calendar dates
- * or relative to today, or — the optional types (Due, Next / Last
- * follow-up) — any task with the date (`set`) or none without it (`unset`).
+ * or relative to today, or — the optional types (Due, Planned, Next / Last
+ * follow-up) — any task with the date (`set`) or none without it (`unset`;
+ * Planned's `held` reads as None, its box ticked).
  */
 type ShowMode = DateEntryMode | 'set' | 'unset'
 
@@ -57,6 +61,7 @@ type SwitchMemos = Partial<Record<DateAnchorSide, ModeSwitchMemo>>
  */
 const NO_DATE_WORDS: Partial<Record<DateField, { also: string; kept: string; has: string; none: string }>> = {
   deadline: { also: 'Also tasks with no due date', kept: 'Tasks with no due date are kept.', has: 'Only tasks that have a due date.', none: 'Only tasks with no due date.' },
+  planned: { also: 'Also tasks with no planned date', kept: 'Tasks with no planned date are kept.', has: 'Only tasks that have a planned date.', none: 'Only tasks with no planned date.' },
   followup: { also: 'Also tasks with no next follow-up', kept: 'Tasks with no next follow-up are kept.', has: 'Only tasks that have a next follow-up.', none: 'Only tasks with no next follow-up.' },
   lastFollowup: { also: 'Also tasks never followed up', kept: 'Tasks never followed up are kept.', has: 'Only tasks that have been followed up.', none: 'Only tasks never followed up.' },
 }
@@ -64,23 +69,31 @@ const NO_DATE_WORDS: Partial<Record<DateField, { also: string; kept: string; has
 /** The line under a Completed range: it brings the completed tasks it keeps in. */
 const COMPLETED_NOTE = 'Shows tasks completed in this range, even where completed tasks are hidden.'
 
+/** The box under Planned's None: it narrows None to the tasks held in the Planner's Unplanned tray (`held`). */
+const HELD_BOX_LABEL = 'Only tasks held in Unplanned'
+
 /**
  * What a host's date panel offers, where it differs from the default (every
  * type; a Completed range that brings completed tasks in — a list, Edit
  * list, the top bar, the phone sheet).
  */
 export interface DateFilterHost {
-  /** Date types left out of the tabs (the check-in: Completed — it only ever takes open tasks). */
+  /** Date types left out of the type menu (the check-in: Completed — it only ever takes open tasks). */
   omit?: readonly DateField[]
 }
 
-/** The date types `host` offers, in reading order (the tabs' order). */
+/** The date types `host` offers, in the type menu's order. */
 function dateFieldsOffered(host: DateFilterHost | undefined): readonly DateField[] {
   return offeredDateFields(host?.omit)
 }
 
-/** The tabs' columns (D22 board B: Due · Next follow-up · Last follow-up / Completed · Created · Modified). */
-const TAB_COLUMNS = 3
+/** The types the menu lists after its separator: the record (Completed · Created · Modified), below the dates planned by. */
+const RECORD_DATE_FIELDS: readonly DateField[] = ['completed', 'created', 'modified']
+
+/** The type button's name: `Date type: Planned`, `, filtering` when that type filters. */
+function typeButtonLabel(field: DateField, lit: boolean): string {
+  return `Date type: ${DATE_FIELD_LABELS_SHORT[field]}${lit ? ', filtering' : ''}`
+}
 
 interface PanelRange {
   start: DateAnchor | null
@@ -102,23 +115,24 @@ function rangeMatch({ start, end, includeNoDate, not }: PanelRange): DateRangeMa
 interface DateFilterPanelProps {
   /** The date filters edited: one clause per date type (AND). */
   dates: DateFilters
-  /** The tab selected when the panel opens; default the first type that filters, else Due. */
+  /** The type selected when the panel opens; default the first type that filters, else Due. */
   initialField?: DateField
   onChange: (dates: DateFilters) => void
   /** `sheet`: the phone Filters sheet's touch sizes, a switch, `Clear all dates`. Default `popover`. */
   variant?: 'popover' | 'sheet'
-  /** Focus the selected tab when the panel mounts (a popover opened from a button). */
+  /** Focus the type button when the panel mounts (a popover opened from a button). */
   autoFocus?: boolean
   /** Types left out (see `DateFilterHost`); default every type. */
   host?: DateFilterHost
 }
 
 /**
- * The date filters: six type tabs in two rows of three (D22 board B: Due ·
- * Next follow-up · Last follow-up / Completed · Created · Modified) — the
- * selected tab is the one being edited, every type that filters is lit;
- * selecting a tab writes nothing; ←/→ walk all six in reading order, ↑/↓
- * move between the rows — then the selected type's clause: Show (D23
+ * The date filters: one type button naming the type being edited (a dot
+ * when it filters; `N filtering` when any type does) whose menu lists the
+ * types — Due · Planned · Next follow-up · Last follow-up, then Completed ·
+ * Created · Modified — each that filters lit with its clause in words, the
+ * selected one checked; picking one selects it and writes nothing. Then the
+ * selected type's clause: Show (D23
  * board B: Calendar · Relative, and on the optional types Any · None — has
  * the date / hasn't; a range opens in the mode its ends read as, a new one
  * in Relative; switching converts the ends and, while the panel is open,
@@ -126,9 +140,10 @@ interface DateFilterPanelProps {
  * toggle; every type but Completed), From / To (`DateAnchorInput` in the
  * range's mode; under a Relative end, its day today) and "Also tasks with no
  * …" — under Is not, a line saying those are kept — (Completed: a line
- * saying it shows completed tasks), and a footer with Clear <Type> and
+ * saying it shows completed tasks; Planned's None: Only tasks held in
+ * Unplanned), and a footer with Clear <Type> and
  * Clear all. The same component in the top bar, a list's + Filter / date
- * chip, Edit list, the check-in filter (`host` omits Completed) and the phone Filters sheet. With a type left out, the tabs fill the rows in reading order.
+ * chip, Edit list, the check-in filter (`host` omits Completed) and the phone Filters sheet.
  */
 export function DateFilterPanel({ dates, initialField, onChange, variant = 'popover', autoFocus = false, host }: DateFilterPanelProps) {
   const types = dateFieldsOffered(host)
@@ -145,14 +160,17 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const [modes, setModes] = useState<Partial<Record<DateField, DateEntryMode>>>({})
   const [memos, setMemos] = useState<Partial<Record<DateField, SwitchMemos>>>({})
   const day = useChipDay()
-  const tabRefs = useRef(new Map<DateField, HTMLButtonElement>())
+  const typeRef = useRef<HTMLButtonElement | null>(null)
+  // The type menu while open: the button's width when it opened (the menu spans it).
+  const [menuWidth, setMenuWidth] = useState<number | null>(null)
+  const menuOpen = menuWidth !== null
+  const toggleMenu = () => setMenuWidth(menuOpen ? null : typeRef.current?.offsetWidth ?? 0)
   const showRefs = useRef(new Map<ShowMode, HTMLButtonElement>())
   const id = useId()
   const sheet = variant === 'sheet'
 
-  const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (autoFocus) rootRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus()
+    if (autoFocus) typeRef.current?.focus()
   }, [autoFocus])
 
   const clause = dates[field]
@@ -163,7 +181,8 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const hasEnd = start !== null || end !== null
   // The mode picked or pinned for the type, else the one its ends read as (a new range: Relative); ends only Relative can show, Relative.
   const entryMode: DateEntryMode = fitsCalendar(start, end) ? modes[field] ?? entryModeOf(start, end) : 'relative'
-  const show: ShowMode = optional && clause && clause.match !== 'range' ? clause.match : entryMode
+  // Planned's `held` reads as its None (the box under it ticked).
+  const show: ShowMode = optional && clause && clause.match !== 'range' ? (clause.match === 'held' ? 'unset' : clause.match) : entryMode
   const inRange = show === 'calendar' || show === 'relative'
   const showChoices = optional ? OPTIONAL_CHOICES : RANGE_CHOICES
   const negatable = isNegatableDateField(field)
@@ -254,30 +273,35 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
     onChange({})
   }
 
-  const selectTab = (f: DateField, focus: boolean) => {
-    setField(f)
-    if (focus) tabRefs.current.get(f)?.focus()
-  }
-  const onTabKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    const i = types.indexOf(field)
-    const n = types.length
-    // Up / Down: the other row, same column (two rows: either key moves to
-    // it); a shorter last row (a type left out) takes its last tab.
-    const rows = Math.ceil(n / TAB_COLUMNS)
-    const row = Math.floor(i / TAB_COLUMNS)
-    const otherRow = (r: number) => Math.min(((r + rows) % rows) * TAB_COLUMNS + (i % TAB_COLUMNS), n - 1)
-    const to = e.key === 'ArrowRight' ? (i + 1) % n
-      : e.key === 'ArrowLeft' ? (i - 1 + n) % n
-        : e.key === 'ArrowDown' ? otherRow(row + 1)
-          : e.key === 'ArrowUp' ? otherRow(row - 1)
-            : e.key === 'Home' ? 0
-              : e.key === 'End' ? n - 1
-                : null
-    if (to === null) return
+  // Planned's None: the box switches it between no planned date (`unset`) and held in Unplanned (`held`).
+  const held = clause?.match === 'held'
+  const setHeld = (on: boolean) => onChange(withDateMatch(dates, field, { match: on ? 'held' : 'unset' }))
+
+  // The type button: Enter / Space (a click) or ↓ open the menu; the menu's Esc brings the focus back here.
+  const onTypeKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key !== 'ArrowDown' || menuOpen) return
     e.preventDefault()
-    const f = types[to]
-    if (f) selectTab(f, true)
+    toggleMenu()
   }
+  const filteringCount = types.filter((f) => isDateMatchOn(dates[f])).length
+  const typeEntries: MenuEntry[] = types.flatMap((f, i): MenuEntry[] => {
+    const m = dates[f]
+    const lit = isDateMatchOn(m)
+    const prev = types[i - 1]
+    const startsRecord = prev !== undefined && RECORD_DATE_FIELDS.includes(f) && !RECORD_DATE_FIELDS.includes(prev)
+    const item: MenuEntry = {
+      kind: 'item',
+      label: DATE_FIELD_LABELS_SHORT[f],
+      radio: true,
+      checked: f === field,
+      accent: lit,
+      icon: lit ? <span className={styles.dot} aria-hidden="true" /> : undefined,
+      // The clause in the header's words; read after the name (`Due, within the next 7 days`).
+      trailing: lit ? <span className={styles.menuWords}><span className={styles.srOnly}>,</span> {describeDateMatch(m, f)}</span> : undefined,
+      onSelect: () => setField(f),
+    }
+    return startsRecord ? [{ kind: 'separator' }, item] : [item]
+  })
   const onShowKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
     const i = showChoices.findIndex((c) => c.mode === show)
     const n = showChoices.length
@@ -294,40 +318,47 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
     showRefs.current.get(choice.mode)?.focus()
   }
 
-  const tabId = (f: DateField) => `${id}-tab-${f}`
+  const titleId = `${id}-title`
   const panelId = `${id}-panel`
   const noDateLabel = noDateWords?.also
 
   return (
-    <div ref={rootRef} className={`${styles.panel} ${sheet ? styles.sheet : ''}`} {...shortcutScope('none')}>
-      <div className={styles.tabs} role="tablist" aria-label="Date type">
-        {types.map((f) => {
-          const lit = isDateMatchOn(dates[f])
-          const selected = f === field
-          return (
-            <button
-              key={f}
-              ref={(el) => { if (el) tabRefs.current.set(f, el); else tabRefs.current.delete(f) }}
-              type="button"
-              role="tab"
-              id={tabId(f)}
-              aria-selected={selected}
-              aria-controls={panelId}
-              aria-label={lit ? `${DATE_FIELD_LABELS_SHORT[f]}, filtering` : DATE_FIELD_LABELS_SHORT[f]}
-              tabIndex={selected ? 0 : -1}
-              data-filtering={lit ? '' : undefined}
-              className={`${styles.segment} ${styles.tab} ${selected ? styles.selected : ''} ${lit ? styles.lit : ''}`}
-              onClick={() => selectTab(f, false)}
-              onKeyDown={onTabKeyDown}
-            >
-              <span className={styles.tabLabel}>{DATE_FIELD_LABELS_SHORT[f]}</span>
-            </button>
-          )
-        })}
+    <div className={`${styles.panel} ${sheet ? styles.sheet : ''}`} {...shortcutScope('none')}>
+      <div className={styles.typeRow}>
+        <button
+          ref={typeRef}
+          type="button"
+          className={`${styles.typeButton} ${menuOpen ? styles.typeOpen : ''}`}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label={typeButtonLabel(field, on)}
+          aria-description={filteringCount > 0 ? `${filteringCount} filtering` : undefined}
+          data-date-type={field}
+          data-filtering={on ? '' : undefined}
+          // The menu leaves a press on its own button to the button: it toggles.
+          onClick={toggleMenu}
+          onKeyDown={onTypeKeyDown}
+        >
+          {on && <span className={styles.dot} aria-hidden="true" />}
+          <span className={styles.typeName}>{DATE_FIELD_LABELS_SHORT[field]}</span>
+          {filteringCount > 0 && <span className={styles.typeCount}>{filteringCount} filtering</span>}
+          <ChevronDownIcon />
+        </button>
+        {menuOpen && (
+          <MenuPopover
+            anchorRef={typeRef}
+            width={menuWidth || undefined}
+            label="Date type"
+            entries={typeEntries}
+            focusChecked
+            touch={sheet}
+            onClose={() => setMenuWidth(null)}
+          />
+        )}
       </div>
-      <div className={styles.body} role="tabpanel" id={panelId} aria-labelledby={tabId(field)}>
+      <div className={styles.body} role="group" id={panelId} aria-labelledby={titleId}>
         <div className={styles.header}>
-          <span className={styles.title}>{DATE_FIELD_LABELS[field]}</span>
+          <span className={styles.title} id={titleId}>{DATE_FIELD_LABELS[field]}</span>
           {on && clause
             ? <span className={styles.words} data-tooltip={describeDateMatch(clause, field)}>{describeDateMatch(clause, field)}</span>
             : <span className={styles.off}>Not filtering</span>}
@@ -426,7 +457,24 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
             ))}
             {rangeNote && <p className={styles.explain}>{rangeNote}</p>}
           </>
+        ) : show === 'unset' && field === HELD_DATE_FIELD ? (sheet ? (
+          <div className={styles.noDate}>
+            <span>{HELD_BOX_LABEL}</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={held}
+              aria-label={HELD_BOX_LABEL}
+              className={`${sheetStyles.toggle} ${held ? sheetStyles.toggleActive : ''}`}
+              onClick={() => setHeld(!held)}
+            />
+          </div>
         ) : (
+          <label className={styles.noDate}>
+            <input type="checkbox" className={styles.check} checked={held} onChange={() => setHeld(!held)} />
+            {HELD_BOX_LABEL}
+          </label>
+        )) : (
           <p className={styles.explain}>
             {show === 'set' ? noDateWords?.has : noDateWords?.none}
           </p>

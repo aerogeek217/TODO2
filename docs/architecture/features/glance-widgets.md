@@ -124,7 +124,7 @@ Only Count and Share of… compare.
 
 ## The widget editors: Save / Discard
 
-Every widget editor (the Number's, and a chart's and Created vs completed's in [Charts](charts.md)) is Edit list's Save / Discard. The draft is `glance/editor-draft.useEditorDraft`; the foot is `EditorFooter`.
+Every widget editor (the Number's, a chart's and Created vs completed's in [Charts](charts.md), and the [Planner settings](planner-widget.md#the-unplanned-filters-editor)) is Edit list's Save / Discard. The draft is `glance/editor-draft.useEditorDraft`; the foot is `EditorFooter`.
 
 - Its controls edit a copy of the config, which the widget draws live (`stores/widget-preview-store`, read by `GlanceWidget`).
 - **Save** writes only the keys that changed, for good, as one layout config update: one undo step. A ⋯ menu's write made meanwhile (Tags, for example) stays.
@@ -169,7 +169,7 @@ A Number's click and a chart's bar open their tasks in the task dialog (`overlay
 
 - A filter's history (`services/stats/filter-history`) replays every task to each day's end (`task-history.taskFieldReplay` → `taskAsOf`) and evaluates the filter with that day as today.
 - A field on a day before the log began reads as it was when the log began. A line that reads one there is approximate.
-- So is a line that reads text or the modified date, which are never logged.
+- So is a line that reads text, the modified date or the planned date, which are never logged (a plan write logs no event).
 - The line's tooltip (`NumberLine`) names the fields (`historyExactness`), and its accessible name says "About". There is no ≈ mark beside it.
 - The trend and a Number's line (its filter under its screen filter, 14 days) read the events through `trend-events-store`, a window each: a trend range, a trend range's fields window (`fields-14d`, …), or `history`.
 

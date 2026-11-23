@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
-import { clampCalendarOffset, kindTabTitle, toggleCalendarDateType, type CalendarDateType, type CalendarTab, type CalendarView } from '../../../models/workspace-layout'
+import { CALENDAR_DATE_TYPES, clampCalendarOffset, kindTabTitle, shownCalendarDateTypes, toggleCalendarDateType, type CalendarDateType, type CalendarTab, type CalendarView } from '../../../models/workspace-layout'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useFilterStore } from '../../../stores/filter-store'
@@ -7,7 +7,7 @@ import { useScreenFilter } from '../../../stores/screen-filter'
 import { screenFilterCount, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { admitsCompleted } from '../../../utils/filter-criteria'
 import { buildEntries } from '../../../services/calendar-entries'
-import { CALENDAR_BREAKPOINTS, calendarRange, calendarRangeLabel, calendarRangeName, convertCalendarOffset, weekdayLabels } from '../../../utils/calendar-grid'
+import { CALENDAR_BREAKPOINTS, calendarRange, calendarRangeLabel, calendarRangeName, calendarTypesWords, convertCalendarOffset, weekdayLabels } from '../../../utils/calendar-grid'
 import { heatHue } from '../../../utils/calendar-heat'
 import { dayKey } from '../../../utils/date'
 import { ChevronLeftIcon, ChevronRightIcon, TodayIcon } from '../../shared/icons'
@@ -33,7 +33,7 @@ interface MoreState {
 }
 
 /**
- * The calendar widget: a month grid (dots + day list when narrow or on
+ * The calendar widget: a month grid (ticks + day list when narrow or on
  * mobile) or a week (rows when narrow, seven columns when wide), with the
  * tasks' due dates and / or next follow-ups as entries. The top-bar (screen)
  * filter applies. Days take task drops (set or move a date); entries drag to
@@ -162,7 +162,6 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
                 month={month}
                 entries={entriesByDay.get(dayKey(day)) ?? []}
                 selected={day.getTime() === selectedDay.getTime()}
-                titles={titles}
                 ctx={ctx}
                 onSelect={(d) => setSelectedMs(d.getTime())}
               />
@@ -202,7 +201,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
   }
 
   const rangeName = calendarRangeName(range, today, weekStartsOn)
-  const noTypes = !dateTypes.due && !dateTypes.followup
+  const noTypes = shownCalendarDateTypes(dateTypes).length === 0
   // With no date type shown the note stays up during a drag: it says why the days take no drop.
   const showEmpty = noTypes || (entryCount === 0 && !drag)
   const unhide = screenUnhideAction(chipCount)
@@ -248,7 +247,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
         <span className={styles.spacer} />
         {!isMobile && (
           <div className={styles.typeToggles} role="group" aria-label="Date types shown">
-            {(['due', 'followup'] as const).map((type) => (
+            {CALENDAR_DATE_TYPES.map((type) => (
               <TypeToggle
                 key={type}
                 type={type}
@@ -259,7 +258,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
             ))}
           </div>
         )}
-        {!isMobile && view === 'month' && (
+        {!isMobile && mode === 'month' && (
           <TitlesToggle on={titles} iconOnly={width < CALENDAR_BREAKPOINTS.toggleLabels} onToggle={toggleTitles} />
         )}
         <div className={styles.segmented} role="group" aria-label="Calendar view">
@@ -284,7 +283,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
             {noTypes ? (
               <div className={styles.emptyNote} data-testid="calendar-empty" data-empty="no-types">
                 <div className={styles.emptyLine1}>No date types shown</div>
-                <div className={styles.emptyLine2}>Turn on Due or Follow-up to see tasks here.</div>
+                <div className={styles.emptyLine2}>Turn on Due, Follow-up or Plans to see tasks here.</div>
               </div>
             ) : hiddenCount > 0 ? (
               <div className={styles.emptyNote} data-testid="calendar-empty" data-empty="filtered">
@@ -299,9 +298,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
             ) : (
               <div className={styles.emptyNote} data-testid="calendar-empty" data-empty="nothing">
                 <div className={styles.emptyLine1}>
-                  {dateTypes.due && dateTypes.followup
-                    ? 'Nothing due or to follow up'
-                    : dateTypes.due ? 'Nothing due' : 'Nothing to follow up'}
+                  Nothing {calendarTypesWords(dateTypes)}
                   {' '}{view === 'week' && rangeName === 'this week' ? rangeName : `in ${rangeName}`}
                 </div>
                 <div className={styles.emptyLine2}>Drag a task from a list onto a day to set its date.</div>

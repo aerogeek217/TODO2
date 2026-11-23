@@ -3,10 +3,10 @@ import { effectiveSortDirection, sortDirectionOnPick, sortHasDirection } from '.
 import type { ListDefinition, RuntimeFilterField } from '../models/list-definition'
 
 /** Groupings a list definition offers, in menu order. */
-export const LIST_GROUP_CHOICES: readonly TodoGroupBy[] = ['none', 'priority', 'deadline', 'followup', 'people', 'status', 'tag']
+export const LIST_GROUP_CHOICES: readonly TodoGroupBy[] = ['none', 'priority', 'deadline', 'planned', 'followup', 'people', 'status', 'tag']
 
 /** Sorts a list definition offers, in menu order. */
-export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'followup', 'lastFollowup', 'completed', 'name', 'people', 'status', 'created', 'modified']
+export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'planned', 'followup', 'lastFollowup', 'completed', 'name', 'people', 'status', 'created', 'modified']
 
 /** Prompt fields a list definition offers, in menu order (`none` = no prompt). */
 export const LIST_PROMPT_CHOICES: readonly (RuntimeFilterField | 'none')[] = ['none', 'person', 'status', 'tag']
@@ -15,6 +15,7 @@ export const LIST_PROMPT_CHOICES: readonly (RuntimeFilterField | 'none')[] = ['n
 export const GROUP_LABEL: Record<TodoGroupBy, string> = {
   none: 'No grouping',
   deadline: 'Due date',
+  planned: 'Planned date',
   followup: 'Next follow-up date',
   people: 'People',
   status: 'Status',
@@ -26,6 +27,7 @@ export const SORT_LABEL: Record<TodoSortBy, string> = {
   manual: 'Manual',
   priority: 'Priority',
   deadline: 'Due date',
+  planned: 'Planned date',
   followup: 'Next follow-up',
   lastFollowup: 'Last followed up',
   completed: 'Completed',
@@ -55,6 +57,7 @@ export function choicesWith<T extends string>(choices: readonly T[], current: T)
 /** A group choice's muted note in the Group menu. */
 export const GROUP_NOTE: Partial<Record<TodoGroupBy, string>> = {
   priority: 'Focus, Urgent, Important, No priority · a task shows in each of its groups',
+  planned: 'Delayed, Today, This Week, Later, Unplanned (held in the Planner), Not planned',
 }
 
 /** A sort choice's muted note in the Sort menu. */
@@ -72,6 +75,7 @@ export const SORT_NOTE: Partial<Record<TodoSortBy, string>> = {
 const SORT_ORDER_WORDS: Partial<Record<TodoSortBy, Record<TodoSortDirection, string>>> = {
   priority: { asc: 'Highest priority first', desc: 'Lowest priority first' },
   deadline: { asc: 'Soonest first', desc: 'Latest first' },
+  planned: { asc: 'Earliest first', desc: 'Latest first' },
   followup: { asc: 'Soonest first', desc: 'Latest first' },
   lastFollowup: { asc: 'Oldest first', desc: 'Most recent first' },
   completed: { asc: 'Oldest first', desc: 'Newest first' },

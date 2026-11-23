@@ -46,7 +46,7 @@ describe('widget kinds', () => {
   it('makes each kind’s new tab with its defaults', () => {
     expect(createTab('lens', 'a')).toEqual({ id: 'a', kind: 'lens', config: {} })
     expect(createTab('lens', 'a', { listDefinitionId: 4 })).toEqual({ id: 'a', kind: 'lens', config: { listDefinitionId: 4 } })
-    expect(createTab('calendar', 'b')).toEqual({ id: 'b', kind: 'calendar', config: { dateTypes: { due: true, followup: true } } })
+    expect(createTab('calendar', 'b')).toEqual({ id: 'b', kind: 'calendar', config: { dateTypes: { due: true, followup: true, plan: true } } })
     expect(createTab('notes', 'c')).toEqual({ id: 'c', kind: 'notes', config: {} })
     // A Number: an empty filter (every open task), named Open, never lit, against yesterday.
     expect(createTab('number', 'e')).toEqual({ id: 'e', kind: 'number', config: { name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' } })
@@ -90,11 +90,11 @@ describe('widget kinds', () => {
 
 describe('toggleCalendarDateType', () => {
   it('switches a date type on or off — the last one too', () => {
-    const both = { due: true, followup: true }
-    expect(toggleCalendarDateType(both, 'due')).toEqual({ due: false, followup: true })
-    const dueOnly = { due: true, followup: false }
-    expect(toggleCalendarDateType(dueOnly, 'followup')).toEqual({ due: true, followup: true })
-    expect(toggleCalendarDateType(dueOnly, 'due')).toEqual({ due: false, followup: false })
-    expect(toggleCalendarDateType({ due: false, followup: false }, 'followup')).toEqual({ due: false, followup: true })
+    const both = { due: true, followup: true, plan: false }
+    expect(toggleCalendarDateType(both, 'due')).toEqual({ due: false, followup: true, plan: false })
+    const dueOnly = { due: true, followup: false, plan: false }
+    expect(toggleCalendarDateType(dueOnly, 'followup')).toEqual({ due: true, followup: true, plan: false })
+    expect(toggleCalendarDateType(dueOnly, 'due')).toEqual({ due: false, followup: false, plan: false })
+    expect(toggleCalendarDateType({ due: false, followup: false, plan: false }, 'followup')).toEqual({ due: false, followup: true, plan: false })
   })
 })

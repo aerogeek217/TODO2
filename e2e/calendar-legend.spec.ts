@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * The month heat map's legend (`Due and follow-ups: 0 1–2 3–5 6+`) in a real
+ * The month heat map's legend (`Due, follow-ups and plans: 0 1–2 3–5 6+`) in a real
  * browser (UX review defect 4). In a 220px strip at 1440 × 900 — the dev
  * seed's Planning layout — six rows at their least plus the legend didn't
  * fit: the grid scrolled by a few px, its last week cut at the grid's edge
@@ -68,6 +68,8 @@ test('a 220px strip: every week row whole and no legend over or under a cut week
 test('a taller strip: the legend shows under the last week, apart from it', async ({ page }) => {
   await seedWorkspace(page, seed(300))
   await expect(page.locator('[data-calendar-widget="calTab"] [data-cal-legend]')).toBeVisible()
+  // It names what the tint counts: every shown type, plans among them.
+  await expect(page.locator('[data-calendar-widget="calTab"] [data-cal-legend]')).toContainText('Due, follow-ups and plans:')
   const g = await geometry(page)
   expect(g.scrolls).toBe(false)
   expect(g.scrollable).toBe(false)

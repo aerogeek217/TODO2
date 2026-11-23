@@ -43,7 +43,7 @@ export function FocusIcon() {
   )
 }
 
-/** A clock: a due date (the task row's dates cell), and urgent by due date. */
+/** A clock: a due date (the task row's dates cell). */
 export function ClockIcon() {
   return (
     <svg width="1em" height="1em" viewBox="0 0 16 16" style={SVG_STYLE} aria-hidden>
@@ -52,9 +52,6 @@ export function ClockIcon() {
     </svg>
   )
 }
-
-/** Urgent by due date: the clock, shown in the Urgent slot instead of the mark. */
-export const UrgentClockIcon = ClockIcon
 
 /** The glyph of a marker. */
 export function MarkerIcon({ marker }: { marker: MarkerKey }) {

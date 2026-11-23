@@ -91,7 +91,7 @@ describe('FilterSheet', () => {
       expect(dates).toHaveAttribute('aria-expanded', 'false')
       fireEvent.keyDown(dates, { key: ' ' })
       expect(dates).toHaveAttribute('aria-expanded', 'true')
-      expect(screen.getByRole('tab', { name: 'Created' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Date type: Due' })).toBeInTheDocument()
     })
 
     it('the search’s × is named', () => {
@@ -160,7 +160,9 @@ describe('FilterSheet', () => {
     it('picking a date type writes nothing; the range then edits that type', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Dates'))
-      fireEvent.click(screen.getByRole('tab', { name: 'Created' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Date type: Due' }))
+      fireEvent.click(screen.getByRole('menuitemradio', { name: 'Created' }))
+      expect(screen.getByRole('button', { name: 'Date type: Created' })).toBeInTheDocument()
       expect(useFilterStore.getState().filters.dates).toEqual({})
       fireEvent.click(screen.getByRole('radio', { name: 'Calendar' }))
       expect(useFilterStore.getState().filters.dates).toEqual({})
@@ -208,7 +210,8 @@ describe('FilterSheet', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Dates'))
       fireEvent.click(screen.getByRole('radio', { name: 'Any' }))
-      fireEvent.click(screen.getByRole('tab', { name: 'Next follow-up' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Date type: Due, filtering' }))
+      fireEvent.click(screen.getByRole('menuitemradio', { name: 'Next follow-up' }))
       fireEvent.click(screen.getByRole('radio', { name: 'None' }))
       expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'set' }, followup: { match: 'unset' } })
       expect(screen.getByText('Due + Next follow-up')).toBeInTheDocument()
@@ -219,7 +222,8 @@ describe('FilterSheet', () => {
     it('offers no scheduled-date filter', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Dates'))
-      expect(screen.queryByRole('tab', { name: /Sched/ })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: /^Date type: / }))
+      expect(screen.queryByRole('menuitemradio', { name: /Sched/ })).toBeNull()
       expect(screen.queryByText('Sched.')).toBeNull()
     })
   })

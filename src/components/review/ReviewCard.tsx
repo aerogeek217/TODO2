@@ -16,6 +16,7 @@ import { addFollowupInterval, formatFollowupDate, relativeDayPhrase } from '../.
 import { markerSummary, MARKER_LABELS } from '../../utils/markers'
 import { dueDateChanges, makeRecurrenceRule } from '../../utils/recurrence'
 import { dueState, followupState } from '../../utils/row-date-state'
+import { plannerConflicts, plannerPlannedDay } from '../../utils/planner'
 
 import { urgentMark, urgentToggleHint } from '../../utils/urgency'
 import { FollowupDateButton } from '../shared/followup/FollowupDateButton'
@@ -36,6 +37,7 @@ import { taskLayoutClasses } from '../task/task-layout-classes'
 import { FactDateField, PriorityFacts, StatusFacts, type FactDateTone } from '../task/TaskFacts'
 import { TaskFollowupFields, type FollowupFieldParts } from '../task/TaskFollowupFields'
 import { TaskEditMetadata } from '../task/TaskEditMetadata'
+import { TaskPlannedFacts } from '../task/PlannedFacts'
 import { useEditorStatusUpdates, useEditorSubtasks } from '../task/use-editor-entries'
 import { useReviewSessionApi } from './review-session-context'
 import { useReviewFollowUp, type ReviewFollowUp } from './use-review-follow-up'
@@ -173,6 +175,7 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
                 onToggleTag={toggleTag}
                 onCreatePerson={createPerson}
                 onCreateTag={createTag}
+                planned={<TaskPlannedFacts todo={todo} />}
               />
             </>
           )}
@@ -518,11 +521,18 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
   const summary = markerSummary(todo, today, urgentRange)
   const dues = dueState(todo, today, urgentRange)
 
-  const facts: { key: string; text: string; tone?: string }[] = []
+  // `bar`: the planned day's hollow bar before the text.
+  const facts: { key: string; text: string; tone?: string; bar?: boolean }[] = []
   if (todo.dueDate) facts.push({ key: 'due', text: `Due ${formatRowDate(todo.dueDate, today, rowDates)}`, tone: dues.past || dues.soon ? 'due' : undefined })
   if (status) facts.push({ key: 'status', text: status.name })
   const markers = (['focus', 'urgent', 'important'] as const).filter((k) => summary[k])
   if (markers.length > 0) facts.push({ key: 'priority', text: markers.map((k) => MARKER_LABELS[k]).join(' + ') })
+  // The planned day, after the priority: in the deadline color while it falls after a real date (the Planned cell's conflict).
+  const planned = plannerPlannedDay(todo)
+  if (planned) {
+    const late = planned.getTime() >= today.getTime() && plannerConflicts(todo, planned, today).length > 0
+    facts.push({ key: 'planned', text: `Planned ${formatRowDate(planned, today, rowDates)}`, tone: late ? 'due' : undefined, bar: true })
+  }
   if (todo.nextFollowupAt) facts.push({ key: 'next', text: `Next ${formatRowDate(todo.nextFollowupAt, today, rowDates)}`, tone: followupState(todo, today) === 'late' || followupState(todo, today) === 'today' ? 'followup' : undefined })
   facts.push({ key: 'last', text: todo.lastFollowupAt ? `Last ${formatRowDate(todo.lastFollowupAt, today, rowDates)}` : 'Never followed up' })
 
@@ -552,7 +562,11 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
           </div>
           <p className={styles.compactFacts} data-testid="review-facts">
             {facts.map((fact, i) => (
-              <span key={fact.key} data-tone={fact.tone}>{i > 0 ? ' · ' : ''}{fact.text}</span>
+              <span key={fact.key} data-tone={fact.tone} data-fact={fact.key}>
+                {i > 0 ? ' · ' : ''}
+                {fact.bar && <span className={styles.compactPlanBar} aria-hidden="true" />}
+                {fact.text}
+              </span>
             ))}
           </p>
         </div>

@@ -11,10 +11,10 @@ import {
   type SensorInstance,
 } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../models'
-import type { CalendarDateType } from '../models/workspace-layout'
+import type { CalendarDateType, CalendarDateTypes } from '../models/workspace-layout'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { usePlannerStore } from '../stores/planner-store'
-import { applyPlannerMove, planPlannerDrop } from '../services/planner-drop'
+import { applyPlannerMove, planPlannerDrop, planTaskForDay } from '../services/planner-drop'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
@@ -39,6 +39,7 @@ import { WidgetPopupHost } from '../components/workspace/WidgetPopup'
 import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
 import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { TrendEditorHost } from '../components/workspace/glance/TrendEditor'
+import { PlannerSettingsHost } from '../components/workspace/planner/PlannerSettings'
 import { layoutLeaveAsks, leaveLayout } from '../stores/editor-leave'
 import { useLatestRef } from '../hooks/use-latest-ref'
 import { useBlocker } from 'react-router'
@@ -414,14 +415,15 @@ interface ActiveTaskDrag {
 interface CalendarChoice {
   todo: PersistedTodoItem
   date: Date
+  dateTypes: CalendarDateTypes
   at: { x: number; y: number }
   scope: string | undefined
   settle: (type: CalendarDateType | null) => void
 }
 
 /**
- * The Due / Follow-up chooser for a list drag dropped on a calendar showing
- * both date types: `choose` opens it and resolves with the pick (`null` =
+ * The Due / Follow-up / Plan chooser for a list drag dropped on a calendar
+ * showing more than one date type: `choose` opens it and resolves with the pick (`null` =
  * cancelled); `pending` keeps the day highlighted while it's open.
  */
 function useCalendarDropChoice() {
@@ -433,6 +435,7 @@ function useCalendarDropChoice() {
     const choice: CalendarChoice = {
       todo: req.todo,
       date: req.date,
+      dateTypes: req.dateTypes,
       at: req.at ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 },
       scope: req.scope,
       settle: (type) => {
@@ -535,6 +538,7 @@ export function WorkspacePage() {
     await dispatchTaskDrop(event, {
       calendar: {
         reschedule: async (todoId, date, type) => {
+          if (type === 'plan') return planTaskForDay(todoId, date)
           const t = useTodoStore.getState().todos.find((x) => x.id === todoId)
           if (!t) return
           await useTodoStore.getState().update(todoId, buildRescheduleUpdate(t, date, type))
@@ -603,6 +607,7 @@ export function WorkspacePage() {
         <CalendarDropChooser
           todo={calendarChoice.request.todo}
           date={calendarChoice.request.date}
+          dateTypes={calendarChoice.request.dateTypes}
           at={calendarChoice.request.at}
           onDone={calendarChoice.done}
         />
@@ -619,6 +624,7 @@ export function WorkspacePage() {
       <NumberEditorHost />
       <ChartEditorHost />
       <TrendEditorHost />
+      <PlannerSettingsHost />
     </DndContext>
   )
 }

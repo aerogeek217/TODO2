@@ -146,6 +146,7 @@ export interface ChipDay {
  */
 const RANGE_WORDS: Record<DateField, { subject: string; tasks: string; orNone?: string; noneStay?: string }> = {
   deadline: { subject: 'Due', tasks: 'tasks due', orNone: 'or no due date', noneStay: 'tasks with no due date stay' },
+  planned: { subject: 'Planned', tasks: 'tasks planned', orNone: 'or not planned', noneStay: 'tasks not planned stay' },
   followup: { subject: 'Next follow-up', tasks: 'tasks with a next follow-up', orNone: 'or no next follow-up', noneStay: 'tasks with none stay' },
   lastFollowup: { subject: 'Last followed up', tasks: 'tasks last followed up', orNone: 'or never', noneStay: 'tasks never followed up stay' },
   completed: { subject: 'Completed', tasks: 'tasks completed' },
@@ -193,7 +194,7 @@ function dateRangeTooltip(f: DateField, m: DateMatch, day: ChipDay | undefined):
 }
 
 /**
- * One chip per date type that filters, in tab order: `Due` `within the next
+ * One chip per date type that filters, in the date panel's menu order: `Due` `within the next
  * 14 days`, `Created` `on or after start of month`, a range's tooltip
  * spelling its days when `day` is given; an "is not" range is marked as an
  * "is not" id chip is — `not …`, `negated`, a tooltip saying what it hides.

@@ -296,7 +296,7 @@ export function readmeData(today: Date = new Date()): Obj {
         { id: 'cell-n-week', tabs: [number('tab-n-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-n-week', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
         { id: 'cell-n-late', tabs: [number('tab-n-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-n-late', area: { col: 3, row: 0, colSpan: 1, rowSpan: 1 } },
         { id: 'cell-t-breakdown', tabs: [byPerson('tab-t-breakdown')], activeTabId: 'tab-t-breakdown', area: { col: 1, row: 1, colSpan: 3, rowSpan: 1 } },
-        { id: C.calendar, tabs: [{ id: 'tab-cal', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: 0 } }], activeTabId: 'tab-cal', area: { col: 0, row: 2, colSpan: 4, rowSpan: 1 } },
+        { id: C.calendar, tabs: [{ id: 'tab-cal', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: false } }, viewState: { view: 'week', offset: 0 } }], activeTabId: 'tab-cal', area: { col: 0, row: 2, colSpan: 4, rowSpan: 1 } },
       ],
       createdAt: longAgo, modifiedAt: iso(at(-2, 17)), lastUsedAt: iso(at(0, 8)),
     },

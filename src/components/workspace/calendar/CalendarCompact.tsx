@@ -1,20 +1,25 @@
-import { dayDots, type CalendarEntry } from '../../../services/calendar-entries'
+import { type CalendarEntry } from '../../../services/calendar-entries'
 import { dayLabel } from '../../../utils/calendar-grid'
-import { dayHeat } from '../../../utils/calendar-heat'
 import { dayKey } from '../../../utils/date'
+import { dayTicks, entryDayMarks } from '../../../utils/day-ticks'
+import { DayTicks } from '../../shared/DayTicks'
 import styles from './CalendarWidget.module.css'
 import { type DayContext, useDayTarget, dayClasses, washClass } from './calendar-day'
 import { EntryItem } from './CalendarDayParts'
 
-/** The calendar's compact month (narrow or phone): a day of dots, and the picked day's list. */
+/** The calendar's compact month (narrow or phone): a day of ticks, and the picked day's list. */
 
-/** A compact-month day: up to three dots (titles on), or the heat tint with the count under the number. */
-export function CompactDay({ day, month, entries, selected, titles, ctx, onSelect }: {
+/**
+ * A compact-month day: its number over its ticks (`shared/DayTicks`, the
+ * Planner strip's: a solid tick per due date and follow-up, a hollow one
+ * per plan, `+N` past eight); a past day still open washed in its late
+ * colour.
+ */
+export function CompactDay({ day, month, entries, selected, ctx, onSelect }: {
   day: Date
   month: number
   entries: CalendarEntry[]
   selected: boolean
-  titles: boolean
   ctx: DayContext
   onSelect: (day: Date) => void
 }) {
@@ -22,7 +27,6 @@ export function CompactDay({ day, month, entries, selected, titles, ctx, onSelec
   const isToday = day.getTime() === ctx.today.getTime()
   const outside = day.getMonth() !== month
   const count = entries.length
-  const heat = titles ? null : dayHeat(entries, day, ctx.today)
   return (
     <button
       ref={setNodeRef}
@@ -30,7 +34,7 @@ export function CompactDay({ day, month, entries, selected, titles, ctx, onSelec
       className={dayClasses(styles.compactDay, ctx, highlighted, [
         outside && styles.dayOutside,
         selected && styles.compactSelected,
-        heat ? styles.compactHeat : washClass(entries, day, ctx.today),
+        washClass(entries, day, ctx.today),
       ])}
       aria-pressed={selected}
       aria-label={`${dayLabel(day)}, ${count} ${count === 1 ? 'task' : 'tasks'}`}
@@ -38,18 +42,10 @@ export function CompactDay({ day, month, entries, selected, titles, ctx, onSelec
       data-today={isToday ? 'true' : undefined}
       data-outside={outside ? 'true' : undefined}
       data-drop-target={highlighted ? 'true' : undefined}
-      data-heat={heat?.step}
-      data-late={heat?.late ?? undefined}
       onClick={() => onSelect(day)}
     >
       <span className={isToday ? styles.todayPill : styles.compactNumber}>{day.getDate()}</span>
-      {heat ? (
-        <span className={styles.compactCount} aria-hidden="true">{count > 0 ? count : ''}</span>
-      ) : (
-        <span className={styles.dots} aria-hidden="true">
-          {dayDots(entries).map((d, i) => <span key={i} className={styles.dot} data-dot={d} />)}
-        </span>
-      )}
+      <DayTicks ticks={dayTicks(entryDayMarks(entries))} size="sm" className={styles.compactTicks} />
     </button>
   )
 }

@@ -39,7 +39,7 @@ function MonthDay({ day, month, entries, fit, ctx, onMore, moreOpen }: {
       </DayDate>
       {entries.slice(0, shown).map((e) => <EntryItem key={e.key} entry={e} size="sm" ctx={ctx} />)}
       {more > 0 && <MoreButton day={day} more={more} open={moreOpen} onMore={onMore} />}
-      {highlighted && <DropLabel ctx={ctx} />}
+      {highlighted && <DropLabel ctx={ctx} day={day} />}
     </div>
   )
 }
@@ -84,7 +84,7 @@ function MonthHeatDay({ day, month, entries, ctx, onMore, moreOpen }: {
         <span className={isToday ? styles.todayPill : undefined}>{day.getDate()}</span>
       </div>
       {heat.count > 0 && <span className={styles.heatCount} aria-hidden="true">{heat.count}</span>}
-      {highlighted && <DropLabel ctx={ctx} />}
+      {highlighted && <DropLabel ctx={ctx} day={day} />}
     </>
   )
   if (heat.count === 0) return <div ref={setNodeRef} className={className} {...attrs}>{content}</div>

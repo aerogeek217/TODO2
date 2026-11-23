@@ -133,15 +133,17 @@ export function filterHistory(
  *   for as long as the log has run;
  * - `followup`, `lastFollowup`, `markers`, `people`, `tags` — the history log
  *   H3's: exact from the `historyLogSince` day on;
- * - `text`, `modified` — never logged: always read as they are now.
+ * - `text`, `modified`, `planned` — never logged (a plan write logs no
+ *   event): always read as they are now.
  */
 export type HistoryField =
   | 'state' | 'due' | 'status' | 'completed' | 'created'
   | 'followup' | 'lastFollowup' | 'markers' | 'people' | 'tags'
-  | 'text' | 'modified'
+  | 'text' | 'modified' | 'planned'
 
 const DATE_FIELD_READS: Record<DateField, HistoryField> = {
   deadline: 'due',
+  planned: 'planned',
   followup: 'followup',
   lastFollowup: 'lastFollowup',
   completed: 'completed',
@@ -152,7 +154,7 @@ const DATE_FIELD_READS: Record<DateField, HistoryField> = {
 /** The fields exact only from the history log H3's start. */
 const H3_FIELDS: ReadonlySet<HistoryField> = new Set(['followup', 'lastFollowup', 'markers', 'people', 'tags'])
 /** The fields no event logs. */
-const UNLOGGED_FIELDS: ReadonlySet<HistoryField> = new Set(['text', 'modified'])
+const UNLOGGED_FIELDS: ReadonlySet<HistoryField> = new Set(['text', 'modified', 'planned'])
 
 /** Every field `filter` (its clauses, its expression) reads; completion (`state`) always. */
 export function filterHistoryFields(filter: FilterCriteria | readonly FilterCriteria[]): Set<HistoryField> {

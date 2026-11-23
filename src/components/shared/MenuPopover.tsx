@@ -23,6 +23,8 @@ export interface MenuItemEntry {
   danger?: boolean
   /** Muted text: the item still works but would change little (e.g. "Mark followed up" twice in a day). */
   dim?: boolean
+  /** Accent text and icon: the item is on (e.g. a date type that filters). */
+  accent?: boolean
   /** Radio rows (e.g. the layout list): `checked` shows the trailing accent check. */
   radio?: boolean
   /**
@@ -126,6 +128,8 @@ interface MenuPopoverProps {
    * (in their order). The menu stays open; the caller reorders its entries.
    */
   onReorder?: (dragId: string, toIndex: number) => void
+  /** Touch-size items (the phone's sheets). Default false. */
+  touch?: boolean
   onClose: () => void
 }
 
@@ -157,7 +161,7 @@ function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
  * reach the app's shortcuts (`data-shortcut-scope="none"`).
  */
 export function MenuPopover({
-  anchorRef, point, placement = 'bottom-start', caret: caretProp, entries, label, width, closeOnScroll = false, restoreFocus = false, focusChecked = false, onReorder, onClose,
+  anchorRef, point, placement = 'bottom-start', caret: caretProp, entries, label, width, closeOnScroll = false, restoreFocus = false, focusChecked = false, onReorder, touch = false, onClose,
 }: MenuPopoverProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
@@ -277,7 +281,7 @@ export function MenuPopover({
           panelRef={setRef}
           entries={entries}
           label={label}
-          className={styles.menu}
+          className={touch ? `${styles.menu} ${styles.touch}` : styles.menu}
           style={{ ...style, ...(width ? { width } : {}) }}
           caret={caret}
           openIndex={sub}
@@ -574,6 +578,7 @@ function MenuItemButton({ entry, index: i, expanded, gutter, onSelect, onHoverIt
           styles.item,
           entry.danger ? styles.danger : '',
           entry.dim ? styles.dim : '',
+          entry.accent ? styles.accent : '',
           expanded ? styles.itemOpen : '',
           radioDot && entry.checked === true ? styles.radioChecked : '',
           inlineDescription ? styles.itemTall : '',

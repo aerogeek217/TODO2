@@ -1,0 +1,76 @@
+/* A small day cell's ticks (`DayTicks`): the Planner's strip and the Calendar's small cells. */
+
+.ticks {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 10px;
+  min-width: 0;
+}
+
+/* The marks give way in a narrow cell; `+N` after them stays whole. */
+.marks {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* A solid tick per real date on the day: a due date in the deadline color, a follow-up in the follow-up color. */
+.tick {
+  flex: none;
+  width: 3px;
+  height: 10px;
+  border-radius: 1.5px;
+  background: var(--color-deadline);
+}
+
+.tick[data-mark='followup'] {
+  background: var(--color-followup);
+}
+
+/* A hollow tick per plan on the day: outlined (not dashed) in the secondary text color. */
+.plan {
+  box-sizing: border-box;
+  width: 5px;
+  border: 1.5px solid var(--color-text-secondary);
+  border-radius: 2px;
+  background: transparent;
+}
+
+/* The plans stand a little apart from the real dates before them. */
+.tick:not(.plan) + .plan {
+  margin-left: 3px;
+}
+
+.more {
+  flex: none;
+  font-size: var(--font-size-badge);
+  font-variant-numeric: tabular-nums;
+  line-height: 10px;
+  color: var(--color-text-muted);
+}
+
+/* The smallest cells: 8px ticks, closer together. */
+.ticks[data-day-ticks='sm'] {
+  gap: 2px;
+  height: 8px;
+}
+
+.ticks[data-day-ticks='sm'] .marks {
+  gap: 2px;
+}
+
+.ticks[data-day-ticks='sm'] .tick {
+  height: 8px;
+}
+
+.ticks[data-day-ticks='sm'] .tick:not(.plan) + .plan {
+  margin-left: 2px;
+}
+
+.ticks[data-day-ticks='sm'] .more {
+  line-height: 8px;
+}

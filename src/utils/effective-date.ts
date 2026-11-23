@@ -136,13 +136,13 @@ export function dueTooltip(t: Pick<TodoItem, 'dueDate' | 'recurrenceRule'>, toda
 /** The per-task date fields lists can sort and group by. */
 export type TodoDateField = 'deadline' | 'followup'
 
-/** The date fields lists sort by: the ones they also group by, the last follow-up and the completion. */
-export type TodoSortDateField = TodoDateField | 'lastFollowup' | 'completed'
+/** The date fields lists sort by: the ones they also group by, the planned day, the last follow-up and the completion. */
+export type TodoSortDateField = TodoDateField | 'planned' | 'lastFollowup' | 'completed'
 
 /**
  * Which date a todo contributes to a given comparator field: `'deadline'`
  * snaps the `dueDate` to its midnight; `'followup'` snaps `nextFollowupAt`
- * likewise (both are calendar days); `'lastFollowup'` and `'completed'` are
+ * and `'planned'` the `doDate` likewise (all calendar days); `'lastFollowup'` and `'completed'` are
  * moments (Mark followed up and completing stamp the time) and keep it — a
  * completion date only on a completed task. Returns `null` for missing
  * values — caller sorts those last.
@@ -154,6 +154,7 @@ export function pickTodoDate(
   switch (field) {
     case 'deadline': return t.dueDate ? startOfDay(new Date(t.dueDate)) : null
     case 'followup': return t.nextFollowupAt ? startOfDay(new Date(t.nextFollowupAt)) : null
+    case 'planned': return t.doDate ? startOfDay(new Date(t.doDate)) : null
     case 'lastFollowup': return t.lastFollowupAt ? new Date(t.lastFollowupAt) : null
     case 'completed': return t.isCompleted && t.completedAt ? new Date(t.completedAt) : null
   }

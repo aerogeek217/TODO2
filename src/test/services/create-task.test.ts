@@ -113,13 +113,36 @@ describe('create a task — plain text', () => {
   })
 })
 
-describe('create a task — the Do day', () => {
-  it('no pipeline gives a task a Do day of its own', async () => {
+describe('create a task — the planned day', () => {
+  it('no pipeline gives a task a planned day of its own', async () => {
     for (const make of [() => viaQuickAdd('Plain /due mon'), () => viaDrafts('Plain /due mon'), () => viaEditor({ title: 'Plain', dueDate: addDays(startOfToday(), 2) })]) {
       const { todo } = await make()
       expect(todo.doDate).toBeUndefined()
       expect('doDate' in todo).toBe(false)
     }
+  })
+
+  it('/plan <date> plans it, in the create’s one write: no stamp beyond creation, one undo step', async () => {
+    const inTwo = addDays(startOfToday(), 2)
+    const text = `Deck /plan ${inTwo.getMonth() + 1}/${inTwo.getDate()}`
+    for (const make of [() => viaQuickAdd(text), () => viaDrafts(text), () => viaEditor({ title: text })]) {
+      const steps = useUndoStore.getState().undoStack.length
+      const { todo } = await make()
+      expect(todo).toMatchObject({ title: 'Deck', doDate: inTwo })
+      expect(todo.unplanned).toBeUndefined()
+      expect(todo.modifiedAt).toEqual(todo.createdAt)
+      expect((await db.todos.get(todo.id))?.doDate).toEqual(inTwo)
+      expect(useUndoStore.getState().undoStack).toHaveLength(steps + 1)
+    }
+  })
+
+  it('the editor’s Planned cell wins over a typed /plan; held in Unplanned is kept', async () => {
+    const inThree = addDays(startOfToday(), 3)
+    const picked = await viaEditor({ title: 'Deck /plan tomorrow', doDate: inThree })
+    expect(picked.todo.doDate).toEqual(inThree)
+    const held = await viaEditor({ title: 'Notes /plan tomorrow', unplanned: true })
+    expect(held.todo.unplanned).toBe(true)
+    expect(held.todo.doDate).toBeUndefined()
   })
 })
 
@@ -237,6 +260,17 @@ describe('create a task — markers, people, tags', () => {
     expect((await viaQuickAdd('C @Zed', fd)).people).toEqual(['Zed'])
     expect((await viaDrafts('D @Zed', fd)).people).toEqual(['Zed'])
     expect((await db.people.where('name').equals('Zed').count())).toBe(1)
+  })
+
+  it('Quick Add with its defaults shown (a list’s chips): their people go beside the typed ones', async () => {
+    const fd = { ...NO_DEFAULTS, personIds: [ids.ann] }
+    const quick = async (text: string) => {
+      const { resolved } = parseTaskInput(text, usePersonStore.getState().people, useStatusStore.getState().statuses)
+      return created(await createQuickAddTask({ title: resolved.title, resolved }, fd, { shown: true }))
+    }
+    expect((await quick('A')).people).toEqual(['Ann'])
+    expect((await quick('B @Bob')).people).toEqual(['Ann', 'Bob'])
+    expect((await quick('C @Ann')).people).toEqual(['Ann'])
   })
 
   it('the editor: picked people and tags plus typed ones (new ones created)', async () => {

@@ -44,6 +44,7 @@ const FULL_PREDICATE: TodoPredicate = {
   searchText: 'invoice',
   dates: {
     deadline: { match: 'range', start: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' }, end: { kind: 'offset', days: 30 }, includeNoDate: true },
+    planned: { match: 'held' },
     followup: { match: 'unset' },
     lastFollowup: { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true },
     completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'today' } },
@@ -149,13 +150,13 @@ function buildSeed(): Seed {
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
-      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: [{ values: ['focus'], not: true }], negate: { personIds: true, statusIds: true, tags: true } } },
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, planned: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null, not: true }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: [{ values: ['focus'], not: true }], negate: { personIds: true, statusIds: true, tags: true } } },
       sort: 'followup', grouping: 'followup',
       owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' },
     }, {
       id: 3, name: 'By priority', sortOrder: 2,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
-      sort: 'manual', grouping: 'priority',
+      sort: 'planned', grouping: 'planned',
       owner: { layoutId: 1 },
     }, {
       id: 1, name: 'By person', sortOrder: 0,
@@ -196,7 +197,7 @@ function buildSeed(): Seed {
           const b1 = cell('b1-c', [{ id: 't8', kind: 'notes', config: {} }, { id: 't9', kind: 'lens', config: { listDefinitionId: 1 } }], { activeTabId: 't9' })
           const k1 = cell('k1', [
             { id: 't1', kind: 'lens', config: { listDefinitionId: 1 } },
-            { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'month', offset: -2 } },
+            { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: false } }, viewState: { view: 'month', offset: -2 } },
           ], { activeTabId: 't2' })
           const k2 = cell('k2', [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }])
           const k3 = cell('k3', [
@@ -219,7 +220,7 @@ function buildSeed(): Seed {
           ])
           const k4 = cell('k4')
           const k5 = cell('k5', [{ id: 't12', kind: 'notes', config: {} }])
-          const b2c = cell('b2-c', [{ id: 't10', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'week' } }])
+          const b2c = cell('b2-c', [{ id: 't10', kind: 'calendar', config: { dateTypes: { due: false, followup: true, plan: false } }, viewState: { view: 'week' } }])
           const b2d = cell('b2-d', [{ id: 't13', kind: 'notes', config: {} }])
           return grid([
             [b1, b1, b1],
@@ -322,7 +323,7 @@ describe('export → JSON → import round-trip', () => {
     // Every date type and every kind of date clause.
     const clauses = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.entries(d.membership.predicate.dates) : [])
     expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(DATE_FIELD_VALUES))
-    expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset']))
+    expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset', 'held']))
     expect(clauses.some(([, m]) => m.match === 'range' && m.includeNoDate === true)).toBe(true)
     expect(clauses.some(([, m]) => m.match === 'range' && m.not === true)).toBe(true)
     const rows = seed.layouts.flatMap((l) => l.grid.rows)

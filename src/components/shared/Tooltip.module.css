@@ -52,6 +52,13 @@
   border-radius: 1.5px;
 }
 
+/* A plan's hollow bar: outlined, not filled. */
+.bar[data-hollow] {
+  box-sizing: border-box;
+  border: 1px solid var(--color-tooltip-muted);
+  border-radius: 1px;
+}
+
 .shortcut,
 .line {
   color: var(--color-tooltip-muted);

@@ -279,6 +279,47 @@ describe('parseInput — /due', () => {
   })
 })
 
+describe('parseInput — /plan', () => {
+  it.each([
+    ['fri', day(2026, 10, 16)],
+    ['tomorrow', day(2026, 10, 11)],
+    ['next fri', day(2026, 10, 16)],
+    ['2w', day(2026, 10, 24)],
+    ['10/30', day(2026, 10, 30)],
+    ['24 Oct', day(2026, 10, 24)],
+    ['2026-10-24', day(2026, 10, 24)],
+  ] as const)('/plan %s takes the date forms /due takes', (arg, date) => {
+    const r = parse(`Draft the deck /plan ${arg}`)
+    expect(r.doDate).toEqual(date)
+    expect(r.dueDate).toBeUndefined()
+    expect(r.title).toBe('Draft the deck')
+    expect(r.problems).toHaveLength(0)
+    expect(r.tokens.at(-1)).toMatchObject({ command: 'plan', value: arg })
+  })
+
+  it('sits beside /due: each sets its own date', () => {
+    const r = parse('Deck /due fri /plan tomorrow')
+    expect(r.dueDate).toEqual(day(2026, 10, 16))
+    expect(r.doDate).toEqual(day(2026, 10, 11))
+    expect(r.title).toBe('Deck')
+  })
+
+  it('an unreadable or missing date stays in the title; the first /plan wins', () => {
+    expect(parse('Deck /plan soon').doDate).toBeUndefined()
+    expect(parse('Deck /plan soon')).toMatchObject({ title: 'Deck /plan soon', problems: [expect.objectContaining({ kind: 'unreadable', command: 'plan', raw: '/plan soon' })] })
+    expect(parse('Deck /plan')).toMatchObject({ title: 'Deck /plan', problems: [expect.objectContaining({ kind: 'unreadable', raw: '/plan' })] })
+    const twice = parse('/plan mon deck /plan fri')
+    expect(twice.doDate).toEqual(day(2026, 10, 12))
+    expect(twice.problems).toEqual([expect.objectContaining({ kind: 'duplicate', command: 'plan', raw: '/plan fri' })])
+  })
+
+  it('plain words are never a plan: no bare-word `plan fri`', () => {
+    const r = parse('plan fri with Ana')
+    expect(r.doDate).toBeUndefined()
+    expect(r.title).toBe('plan fri with Ana')
+  })
+})
+
 describe('parseInput — /followup', () => {
   it.each([
     ['2w', day(2026, 10, 24)],

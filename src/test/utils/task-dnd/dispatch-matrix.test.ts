@@ -49,7 +49,7 @@ function makeEvent(opts: {
 }
 
 describe('dispatchTaskDrop — calendar day drops', () => {
-  const dueOnly = { due: true, followup: false }
+  const dueOnly = { due: true, followup: false, plan: false }
 
   it('a calendar entry dropped on another calendar\'s day moves its own date', async () => {
     const reschedule = vi.fn(async () => {})
@@ -60,7 +60,7 @@ describe('dispatchTaskDrop — calendar day drops', () => {
         activeId: taskDragId('calendar-widget', 7, { scope: 't1', sectionKey: 'due' }),
         activeTodoId: 7,
         activeExtra: { calendarDateType: 'due' },
-        over: { id: 'calday-t2-1715731200000', type: TASK_DROP_KIND.calendarDay, extra: { date, scope: 't2', dateTypes: { due: true, followup: true } } },
+        over: { id: 'calday-t2-1715731200000', type: TASK_DROP_KIND.calendarDay, extra: { date, scope: 't2', dateTypes: { due: true, followup: true, plan: false } } },
       }),
       { calendar: { reschedule, chooseType } },
     )
@@ -118,14 +118,14 @@ describe('dispatchTaskDrop — calendar day drops', () => {
 
 describe('dispatchTaskDrop — which date a day drop sets', () => {
   const date = new Date(2026, 9, 13)
-  const day = (dateTypes: { due: boolean; followup: boolean }) => ({
+  const day = (dateTypes: { due: boolean; followup: boolean; plan: boolean }) => ({
     id: 'calday-ws-t-1', type: TASK_DROP_KIND.calendarDay, extra: { date, scope: 'ws-t', dateTypes },
   })
 
   it('a calendar showing only follow-ups sets the follow-up', async () => {
     const reschedule = vi.fn(async () => {})
     const chooseType = vi.fn(async () => 'due' as const)
-    await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day({ due: false, followup: true }) }), { calendar: { reschedule, chooseType } })
+    await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day({ due: false, followup: true, plan: false }) }), { calendar: { reschedule, chooseType } })
     expect(reschedule).toHaveBeenCalledWith(3, date, 'followup')
     expect(chooseType).not.toHaveBeenCalled()
   })
@@ -134,7 +134,7 @@ describe('dispatchTaskDrop — which date a day drop sets', () => {
     const reschedule = vi.fn(async () => {})
     const chooseType = vi.fn(async () => 'followup' as const)
     await dispatchTaskDrop(
-      makeEvent({ activeTodoId: 3, over: day({ due: true, followup: true }), start: { x: 100, y: 50 }, delta: { x: 300, y: 120 } }),
+      makeEvent({ activeTodoId: 3, over: day({ due: true, followup: true, plan: false }), start: { x: 100, y: 50 }, delta: { x: 300, y: 120 } }),
       { calendar: { reschedule, chooseType } },
     )
     expect(chooseType).toHaveBeenCalledWith(expect.objectContaining({ date, scope: 'ws-t', at: { x: 400, y: 170 } }))
@@ -144,7 +144,7 @@ describe('dispatchTaskDrop — which date a day drop sets', () => {
   it('both shown and the choice cancelled: handled, nothing set', async () => {
     const reschedule = vi.fn(async () => {})
     const handled = await dispatchTaskDrop(
-      makeEvent({ activeTodoId: 3, over: day({ due: true, followup: true }) }),
+      makeEvent({ activeTodoId: 3, over: day({ due: true, followup: true, plan: false }) }),
       { calendar: { reschedule, chooseType: async () => null } },
     )
     expect(handled).toBe(true)
@@ -153,23 +153,51 @@ describe('dispatchTaskDrop — which date a day drop sets', () => {
 
   it('both shown but no chooser: the due date', async () => {
     const reschedule = vi.fn(async () => {})
-    await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day({ due: true, followup: true }) }), { calendar: { reschedule } })
+    await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day({ due: true, followup: true, plan: false }) }), { calendar: { reschedule } })
     expect(reschedule).toHaveBeenCalledWith(3, date, 'due')
   })
 
   it('a calendar showing no date type refuses the drop: handled, nothing set', async () => {
     const reschedule = vi.fn(async () => {})
     const chooseType = vi.fn(async () => 'due' as const)
-    const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day({ due: false, followup: false }) }), { calendar: { reschedule, chooseType } })
+    const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day({ due: false, followup: false, plan: false }) }), { calendar: { reschedule, chooseType } })
     expect(handled).toBe(true)
     expect(reschedule).not.toHaveBeenCalled()
     expect(chooseType).not.toHaveBeenCalled()
     // A calendar entry's own date isn't moved there either.
     await dispatchTaskDrop(
-      makeEvent({ activeTodoId: 3, activeExtra: { calendarDateType: 'due' }, over: day({ due: false, followup: false }) }),
+      makeEvent({ activeTodoId: 3, activeExtra: { calendarDateType: 'due' }, over: day({ due: false, followup: false, plan: false }) }),
       { calendar: { reschedule, chooseType } },
     )
     expect(reschedule).not.toHaveBeenCalled()
+  })
+
+  it('a calendar showing only plans plans the task', async () => {
+    const reschedule = vi.fn(async () => {})
+    const chooseType = vi.fn(async () => 'due' as const)
+    await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day({ due: false, followup: false, plan: true }) }), { calendar: { reschedule, chooseType } })
+    expect(reschedule).toHaveBeenCalledWith(3, date, 'plan')
+    expect(chooseType).not.toHaveBeenCalled()
+  })
+
+  it('more than one type shown: the chooser is told which', async () => {
+    const reschedule = vi.fn(async () => {})
+    const chooseType = vi.fn(async () => 'plan' as const)
+    const dateTypes = { due: true, followup: false, plan: true }
+    await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day(dateTypes) }), { calendar: { reschedule, chooseType } })
+    expect(chooseType).toHaveBeenCalledWith(expect.objectContaining({ date, dateTypes }))
+    expect(reschedule).toHaveBeenCalledWith(3, date, 'plan')
+  })
+
+  it('a plan entry moves its plan, without asking', async () => {
+    const reschedule = vi.fn(async () => {})
+    const chooseType = vi.fn(async () => 'due' as const)
+    await dispatchTaskDrop(
+      makeEvent({ activeTodoId: 3, activeExtra: { calendarDateType: 'plan' }, over: day({ due: true, followup: true, plan: true }) }),
+      { calendar: { reschedule, chooseType } },
+    )
+    expect(reschedule).toHaveBeenCalledWith(3, date, 'plan')
+    expect(chooseType).not.toHaveBeenCalled()
   })
 
   it('a calendar entry moves its own date, whatever the target shows, without asking', async () => {
@@ -180,7 +208,7 @@ describe('dispatchTaskDrop — which date a day drop sets', () => {
         activeId: taskDragId('calendar-widget', 3, { scope: 't', sectionKey: 'followup' }),
         activeTodoId: 3,
         activeExtra: { calendarDateType: 'followup' },
-        over: day({ due: true, followup: false }),
+        over: day({ due: true, followup: false, plan: false }),
       }),
       { calendar: { reschedule, chooseType } },
     )
@@ -191,14 +219,17 @@ describe('dispatchTaskDrop — which date a day drop sets', () => {
 
 describe('resolveCalendarDropType', () => {
   it.each([
-    [{}, { due: true, followup: true }, 'choose'],
-    [{}, { due: true, followup: false }, 'due'],
-    [{}, { due: false, followup: true }, 'followup'],
-    [{ calendarDateType: 'due' }, { due: false, followup: true }, 'due'],
-    [{ calendarDateType: 'followup' }, { due: true, followup: true }, 'followup'],
-    [{ calendarDateType: 'bogus' }, { due: true, followup: false }, 'due'],
-    [{}, { due: false, followup: false }, null],
-    [{ calendarDateType: 'due' }, { due: false, followup: false }, null],
+    [{}, { due: true, followup: true, plan: false }, 'choose'],
+    [{}, { due: true, followup: false, plan: false }, 'due'],
+    [{}, { due: false, followup: true, plan: false }, 'followup'],
+    [{ calendarDateType: 'due' }, { due: false, followup: true, plan: false }, 'due'],
+    [{ calendarDateType: 'followup' }, { due: true, followup: true, plan: false }, 'followup'],
+    [{ calendarDateType: 'bogus' }, { due: true, followup: false, plan: false }, 'due'],
+    [{}, { due: false, followup: false, plan: false }, null],
+    [{ calendarDateType: 'due' }, { due: false, followup: false, plan: false }, null],
+    [{}, { due: false, followup: false, plan: true }, 'plan'],
+    [{}, { due: false, followup: true, plan: true }, 'choose'],
+    [{ calendarDateType: 'plan' }, { due: true, followup: false, plan: false }, 'plan'],
   ] as const)('drag %o on a day showing %o → %s', (active, dateTypes, expected) => {
     expect(resolveCalendarDropType(active, dateTypes)).toBe(expected)
   })
@@ -209,7 +240,7 @@ describe('dispatchTaskDrop — every drop kind, and nothing else', () => {
   // doesn't compile, and one the dispatcher ignores fails.
   const PLANNER_WINDOW = { today: new Date(2026, 9, 12), last: new Date(2026, 9, 18) }
   const OVER_DATA: Record<TaskDropKind, Record<string, unknown>> = {
-    'calendar-day': { date: new Date(2026, 9, 13), scope: 't1', dateTypes: { due: true, followup: false } },
+    'calendar-day': { date: new Date(2026, 9, 13), scope: 't1', dateTypes: { due: true, followup: false, plan: false } },
     'planner-day': { scope: 'p1', target: { kind: 'day', day: new Date(2026, 9, 13) }, window: PLANNER_WINDOW },
     'planner-group': { scope: 'p1', target: { kind: 'unplanned' }, window: PLANNER_WINDOW, group: { key: 'unplanned', rows: [], shown: [] } },
   }
@@ -254,7 +285,7 @@ describe('dispatchTaskDrop — degenerate inputs', () => {
         data: { current: { type: TASK_DRAG_KIND.task } }, // no todo
         rect: { current: { initial: null, translated: null } },
       },
-      over: { id: 'calday-x-0', data: { current: { type: TASK_DROP_KIND.calendarDay, date: new Date(), dateTypes: { due: true, followup: false } } } },
+      over: { id: 'calday-x-0', data: { current: { type: TASK_DROP_KIND.calendarDay, date: new Date(), dateTypes: { due: true, followup: false, plan: false } } } },
       delta: { x: 0, y: 0 },
     } as unknown as DragEndEvent
     const handled = await dispatchTaskDrop(event, { calendar: { reschedule } })

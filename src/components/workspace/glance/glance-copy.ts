@@ -124,6 +124,7 @@ const APPROXIMATE_WORDS: Record<HistoryField, string> = {
   tags: 'tags',
   text: 'text',
   modified: 'modified dates',
+  planned: 'planned dates',
 }
 
 /** The tooltip of an approximate line, bar or point: which fields some days read as they are now. */

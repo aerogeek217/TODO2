@@ -8,7 +8,8 @@ import type { MarkerKey } from '../models/filter-predicate'
  *  - `chip` — `#tag`, a known `@person`, a `!status`, a token still being typed;
  *  - `new` — an `@name` that matches nobody (created with the task);
  *  - `due` / `followup` (`/followup …`) / `accent` (`/repeat …`) — the
- *    command's pill colour; `urgent` / `important` / `focus` — the priority's
+ *    command's pill colour; `/plan …` is a `chip` (its chip's hollow bar is
+ *    in the secondary text colour); `urgent` / `important` / `focus` — the priority's
  *    colour (Settings › Theme colors), as its ring;
  *  - `error` — an argument that can't be read, or a `!name` naming no status;
  *  - `ignored` — recognised but ignored (`/repeat` without `/due`, a repeat);
@@ -36,6 +37,7 @@ const COMMAND_TINT: Record<SlashCommandName, TokenTint> = {
   due: 'due',
   followup: 'followup',
   repeat: 'accent',
+  plan: 'chip',
 }
 
 /**

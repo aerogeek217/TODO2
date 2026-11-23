@@ -32,6 +32,25 @@ describe('ExpressionSyntaxModal — the When rows', () => {
     expect(within(when).getByText(/The older words still read/)).toBeTruthy()
   })
 
+  it('lists Planned beside the other dates, and the unplanned shortcut', () => {
+    render(<ExpressionSyntaxModal onClose={() => {}} />)
+    const which = screen.getByRole('region', { name: 'Which date' })
+    const rows = within(which).getAllByText((_, el) => el?.tagName === 'CODE').map((el) => el.textContent)
+    expect(rows.slice(0, 5)).toEqual([
+      'due  ·  due any  ·  no due',
+      'planned  ·  planned any  ·  planned none',
+      'planned fri  ·  planned < today',
+      'unplanned',
+      'followup  ·  followup any  ·  no followup',
+    ])
+    const examples = ['planned any', 'planned none', 'planned fri', 'planned < today', 'unplanned']
+    for (const example of examples) {
+      const r = parseExpression(example, opts)
+      expect(r.ok, `${example}: ${r.ok ? '' : r.error.message}`).toBe(true)
+      if (r.ok) expect(r.expression).toMatchObject({ kind: 'date', field: 'planned' })
+    }
+  })
+
   it('shows only examples that read', () => {
     render(<ExpressionSyntaxModal onClose={() => {}} />)
     const when = screen.getByRole('region', { name: 'When — after any date word' })

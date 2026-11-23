@@ -5,7 +5,7 @@ import type { CalendarEntrySize } from './CalendarEntryButton'
 
 /**
  * Drag data of a calendar entry, merged into the task drag payload.
- * `calendarDateType` makes a drop move that date (see
+ * `calendarDateType` makes a drop move that date — a plan entry's, the plan (see
  * `resolveCalendarDropType`); `calendarEntry` draws the lifted entry.
  */
 export interface CalendarEntryDragData {
@@ -21,10 +21,10 @@ export interface CalendarEntryDragData {
 export function isCalendarEntryDragData(v: unknown): v is CalendarEntryDragData {
   if (v == null || typeof v !== 'object') return false
   const d = v as Partial<CalendarEntryDragData>
-  return (d.calendarDateType === 'due' || d.calendarDateType === 'followup') && d.calendarEntry != null
+  return (d.calendarDateType === 'due' || d.calendarDateType === 'followup' || d.calendarDateType === 'plan') && d.calendarEntry != null
 }
 
-/** The day a list drag was dropped on while the Due / Follow-up chooser is open. */
+/** The day a list drag was dropped on while the date chooser is open. */
 export interface PendingCalendarDrop {
   /** The calendar's drop scope. */
   scope: string
