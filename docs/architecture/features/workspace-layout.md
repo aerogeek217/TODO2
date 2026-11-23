@@ -56,7 +56,7 @@ A change of structure is an undo step; view state is written straight onto the s
 
 ## Tabs and widget kinds
 
-`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `neglect`, `clusters`, `listwall`, and the glance kinds `number`, `breakdown`, `pivot` and `trend`.
+`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `shortcuts`, `neglect`, `clusters`, `listwall`, and the glance kinds `number`, `breakdown`, `pivot` and `trend`.
 
 Each tab has a per-kind `config`, the **layout config** saved with the layout, and an optional `viewState`.
 
@@ -68,6 +68,7 @@ Config:
   - `toggleCalendarDateType(types, type)` switches one on or off.
 - The glance kinds (`models/glance-widgets`, `models/chart-widgets`): a Number's `NumberConfig`, Created vs completed's `TrendTabConfig`, a Breakdown's `BreakdownConfig`, a Pivot's `PivotConfig`. See [Glance widgets](glance-widgets.md) and [Charts](charts.md).
 - A Neglect map: `NeglectTabConfig` ([Task maps](task-maps.md#config)).
+- Shortcuts: `lists?`, list ids of any layout, never under the key `listDefinitionId` ([Shortcuts](shortcuts.md#config)).
 - The others: `{}`.
 
 View state:

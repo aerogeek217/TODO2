@@ -34,7 +34,7 @@ components/
 ├── layout/             → the top bar and its screen-filter tray, the layout edit bar, the storage pill,
 │                         the phone's sync button and bottom tab bar
 ├── workspace/          → the layout's table of cells, cell chrome, the layout edit mode, the widget popup, and the
-│                         widgets: list/, calendar/, glance/, neglect/, clusters/, listwall/, planner/, review/, NotesWidget
+│                         widgets: list/, calendar/, glance/, neglect/, clusters/, listwall/, planner/, review/, shortcuts/, NotesWidget
 ├── task/               → task rows (desktop and phone), Quick Add, the task menu, the task editor,
 │                         status-updates/, subtasks/, notes/, dnd/
 ├── overlays/           → the command palette, the task dialog, the filtered-tasks panel, dialogs,
@@ -97,6 +97,7 @@ One file per feature, at most 4,000 words each. Each says how the feature behave
 | Check-ins | [check-ins](architecture/features/check-ins.md) | the message, the check-in dialog, Copy, the reply import |
 | Planner | [planner](architecture/features/planner.md) | a task's plan state, placement, the window, drops, Snooze and Unplan, Reset plan |
 | Planner widget | [planner-widget](architecture/features/planner-widget.md) | the Planner's faces, its rows, drag feedback, menus |
+| Shortcuts | [shortcuts](architecture/features/shortcuts.md) | a tile per picked list of any layout, its faces, adding, removing and reordering, the list in the popup |
 | Ambience | [ambience](architecture/features/ambience.md) | the sky, the seasons, the settings |
 | Popovers and editors | [popovers-and-editors](architecture/features/popovers-and-editors.md) | what a dismissal keeps, the editor-leave rule and everything that asks it |
 

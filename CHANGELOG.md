@@ -20,6 +20,14 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Added
+
+- **Shortcuts.** A new widget (Add widget › Tasks › Shortcuts) keeps lists from any layout in reach: a tile per list
+  shows its icon, its due and follow-up badge, how many tasks it has, its first few tasks and its layout. Click a tile
+  to open the list over the layout you are on. Add lists with Add a list, remove one from its right-click menu and
+  drag the tiles into the order you like. In a smaller cell the tiles drop their task titles first, then sit in one
+  line, then become rows.
+
 ### Changed
 
 - **A wider task editor.** The task editor is 1040px wide and the facts row gives Status room for its full name; Due
