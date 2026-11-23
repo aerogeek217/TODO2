@@ -29,6 +29,8 @@ export interface WsTabSeed {
    * (`numberConfigOfMetric`), its other fields over that.
    */
   glance?: Record<string, unknown>
+  /** List board tabs (kind `shortcuts`): config fields over the kind's defaults, e.g. `{ source: 'layout' }`. */
+  board?: Record<string, unknown>
   /** Neglect map tabs: the config (defaults: colour by no tags, 14 days). */
   neglect?: {
     /** Colour by these tags (names from `tags`), by people, or not at all. */
@@ -444,6 +446,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         if (n.untouchedDays != null) config.untouchedDays = n.untouchedDays
       }
       if (tab.glance) Object.assign(config, tab.glance)
+      if (tab.kind === 'shortcuts' && tab.board) Object.assign(config, tab.board)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
       if (tab.zoom != null) out.viewState = { ...(out.viewState as object | undefined), zoom: tab.zoom }
       if (tab.icon) out.icon = tab.icon

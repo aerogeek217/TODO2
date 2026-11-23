@@ -16,7 +16,7 @@
 
 type Obj = Record<string, unknown>
 
-export const README_SCHEMA_VERSION = 87
+export const README_SCHEMA_VERSION = 88
 
 const PEOPLE = [
   { key: 'priya', name: 'Priya Nair', initials: 'PN', color: '#4f8cff' },
