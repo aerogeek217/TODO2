@@ -24,6 +24,8 @@ import { readStore } from './fixtures/db'
  */
 
 const SEED: WorkspaceSeed = {
+  // The widget menus open from each widget's top line, so Notes alone in its cell needs its name line.
+  settings: { showWidgetNames: 'true' },
   listDefinitions: [{ name: 'Errands', layoutIdx: 0 }, { name: 'Planning list', layoutIdx: 1 }],
   tasks: [{ title: 'Call the plumber' }],
   layouts: [

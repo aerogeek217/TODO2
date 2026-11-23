@@ -105,7 +105,8 @@ test('a one-widget cell has no tablist; its top line’s ⋯ shows on hover and 
 })
 
 test('a right-click on the top line opens the ⋯ menu at the pointer', async ({ page }) => {
-  await seedWorkspace(page, { layouts: [notesCalendar] })
+  // Notes' top line is its name line: shown with Show widget names on.
+  await seedWorkspace(page, { layouts: [notesCalendar], settings: { showWidgetNames: 'true' } })
   await topLine(wsCell(page, 'a')).click({ button: 'right', position: { x: 12, y: 10 } })
   const menu = page.getByRole('menu', { name: 'Cell options' })
   await expect(menu).toBeVisible()
@@ -189,6 +190,7 @@ test('a list whose filter line is hidden: alone, a slim top line still names it 
 
 test('a collapsed row shows each cell’s top line', async ({ page }) => {
   await seedWorkspace(page, {
+    settings: { showWidgetNames: 'true' },
     layouts: [{
       name: 'Main',
       table: {

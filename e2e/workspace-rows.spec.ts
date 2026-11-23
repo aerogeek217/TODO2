@@ -253,7 +253,7 @@ test.describe('on a phone', () => {
   })
 
   test('a cell of a row offers Collapse row, which folds the cells beside it too (cr33 W4)', async ({ page }) => {
-    await seedWorkspace(page, { layouts: [sideBySide] })
+    await seedWorkspace(page, { layouts: [sideBySide], settings: { showWidgetNames: 'true' } })
     await wsCell(page, 'c1').getByRole('button', { name: 'Cell options' }).tap()
     const menu = page.getByRole('menu', { name: 'Cell options' })
     await expect(menu.getByRole('menuitem')).toHaveText(['Collapse row'])
