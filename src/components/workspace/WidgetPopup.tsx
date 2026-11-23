@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { REVIEW_POPUP_TAB_ID } from '../../models/review'
-import type { LayoutTab, ListTab, ListTabViewState, ReviewTab } from '../../models/workspace-layout'
+import { shortcutListTabId, type LayoutTab, type ListTab, type ListTabViewState, type ReviewTab } from '../../models/workspace-layout'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { WidgetFaceContext, type WidgetFaceHost } from '../../hooks/use-widget-face'
 import { onDataReplaced } from '../../services/replace-data'
 import { closeWidgetPopup } from '../../services/widget-popup'
 import { afterLeavingEditors } from '../../stores/editor-leave'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { shortcutListIcon } from '../../utils/shortcuts'
 import { layoutTabs } from '../../utils/workspace-layout-queries'
 import { DialogFrame } from '../shared/Dialog'
 import { DialogCloseButton } from '../shared/DialogCloseButton'
@@ -81,7 +83,9 @@ function focusTabCell(tabId: string, openerName: string | null): void {
  * The widget popup's host (on the workspace page; `ui-store.widgetPopup`,
  * opened through `services/widget-popup`): one widget at a time, the tab of
  * the open layout it names — closed when that tab goes (a layout switch, the
- * tab closed) —, the list a Number that follows a list shows, or the popup review (`REVIEW_POPUP_TAB_ID`, its view state
+ * tab closed) —, the list a Number that follows a list shows, a Shortcuts
+ * tile's list of any layout (under `shortcutListTabId`; closed when the list
+ * goes), or the popup review (`REVIEW_POPUP_TAB_ID`, its view state
  * `ui-store.popupReviewView`). A data replace closes it, as does the
  * workspace leaving.
  *
@@ -89,39 +93,55 @@ function focusTabCell(tabId: string, openerName: string | null): void {
  * layout tab, its cell draws `OpenLargerPlaceholder` (`cell-face.useCellFace`'s
  * `open`). The followed list is a second widget on the same list as that
  * list's own tab, if it has one — under the Number's tab id, so their drag
- * ids differ; its zoom and details width are held here (`ListTabViewContext`).
+ * ids differ; its zoom and details width are held here (`ListTabViewContext`),
+ * as a Shortcuts tile's list's are.
  */
 export function WidgetPopupHost() {
   const target = useUIStore((s) => s.widgetPopup)
   const reviewView = useUIStore((s) => s.popupReviewView)
   const layoutTab = useWorkspaceStore((s) => (
-    target != null && target.kind !== 'review' && s.working ? layoutTabs(s.working).find((t) => t.id === target.tabId) : undefined
+    target != null && (target.kind === 'tab' || target.kind === 'list') && s.working ? layoutTabs(s.working).find((t) => t.id === target.tabId) : undefined
   ))
   // A Number that follows a list: the list as a list tab of the Number's id (its prompt picks are the Number's).
   const followedListId = layoutTab?.kind === 'number' && layoutTab.config.show === 'list' ? layoutTab.config.list?.listDefinitionId : undefined
-  // That list's zoom and details width: no layout tab holds them (the tab of that id is a Number), so
-  // the host does — for the Number last opened, while the workspace page is open; never saved.
-  const [followedView, setFollowedView] = useState<{ tabId: string; view: ListTabViewState } | null>(null)
-  const numberTabId = followedListId != null ? layoutTab?.id : undefined
-  const listView = numberTabId != null && followedView?.tabId === numberTabId ? followedView.view : undefined
+  // A Shortcuts tile's list, of any layout: a list tab of its own id (`shortcutListTabId`), with its list tab's icon.
+  const shortcutDef = useListDefinitionStore((s) => (
+    target?.kind === 'shortcut' ? s.listDefinitions.find((d) => d.id === target.listDefinitionId) : undefined
+  ))
+  const layouts = useWorkspaceStore((s) => s.layouts)
+  const working = useWorkspaceStore((s) => s.working)
+  const shortcutIcon = useMemo(() => (shortcutDef ? shortcutListIcon(shortcutDef, layouts, working) : undefined), [shortcutDef, layouts, working])
+  // That list's zoom and details width: no layout tab holds them (the tab of that id is a Number, or
+  // none), so the host does — for the list last opened, while the workspace page is open; never saved.
+  const [heldView, setHeldView] = useState<{ tabId: string; view: ListTabViewState } | null>(null)
+  const listTabId = followedListId != null ? layoutTab?.id : shortcutDef ? shortcutListTabId(shortcutDef.id) : undefined
+  const listId = followedListId ?? shortcutDef?.id
+  const listView = listTabId != null && heldView?.tabId === listTabId ? heldView.view : undefined
   const listTab = useMemo<ListTab | undefined>(
-    () => (numberTabId != null && followedListId != null
-      ? { id: numberTabId, kind: 'lens', config: { listDefinitionId: followedListId }, ...(listView ? { viewState: listView } : {}) }
+    () => (listTabId != null && listId != null
+      ? {
+          id: listTabId,
+          kind: 'lens',
+          config: { listDefinitionId: listId },
+          ...(listView ? { viewState: listView } : {}),
+          ...(shortcutIcon ? { icon: shortcutIcon } : {}),
+        }
       : undefined),
-    [numberTabId, followedListId, listView],
+    [listTabId, listId, listView, shortcutIcon],
   )
-  const listViewHost = useMemo<ListTabViewHost | null>(() => (target?.kind === 'list' && numberTabId != null ? {
-    patch: (patch) => setFollowedView((held) => {
-      const view = { ...(held?.tabId === numberTabId ? held.view : {}), ...patch }
+  const holdsView = target?.kind === 'list' || target?.kind === 'shortcut'
+  const listViewHost = useMemo<ListTabViewHost | null>(() => (holdsView && listTabId != null ? {
+    patch: (patch) => setHeldView((held) => {
+      const view = { ...(held?.tabId === listTabId ? held.view : {}), ...patch }
       // A key patched to `undefined` is back at its default.
-      return { tabId: numberTabId, view: Object.fromEntries(Object.entries(view).filter(([, v]) => v !== undefined)) as ListTabViewState }
+      return { tabId: listTabId, view: Object.fromEntries(Object.entries(view).filter(([, v]) => v !== undefined)) as ListTabViewState }
     }),
-  } : null), [target?.kind, numberTabId])
+  } : null), [holdsView, listTabId])
   const reviewTab = useMemo<ReviewTab>(
     () => ({ id: REVIEW_POPUP_TAB_ID, kind: 'review', config: {}, viewState: reviewView }),
     [reviewView],
   )
-  const tab: LayoutTab | undefined = target?.kind === 'review' ? reviewTab : target?.kind === 'list' ? listTab : layoutTab
+  const tab: LayoutTab | undefined = target?.kind === 'review' ? reviewTab : holdsView ? listTab : layoutTab
   const gone = target != null && target.kind !== 'review' && tab == null
   useEffect(() => {
     if (gone) closeWidgetPopup()
@@ -129,13 +149,13 @@ export function WidgetPopupHost() {
   useEffect(() => onDataReplaced(() => {
     closeWidgetPopup()
     // The held view was another data set's tab's.
-    setFollowedView(null)
+    setHeldView(null)
   }), [])
   useEffect(() => () => { closeWidgetPopup() }, [])
   if (!tab) return null
-  // The followed list's view state is held here: the widget and its menu (its Zoom stepper, `list/zoom-menu`) write it.
+  // The list's view state is held here: the widget and its menu (its Zoom stepper, `list/zoom-menu`) write it.
   return (
-    <ListTabViewContext.Provider value={target?.kind === 'list' ? listViewHost : null}>
+    <ListTabViewContext.Provider value={holdsView ? listViewHost : null}>
       <WidgetPopup key={tab.id} tab={tab} />
     </ListTabViewContext.Provider>
   )

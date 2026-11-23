@@ -118,10 +118,15 @@ export type LayoutRequest =
 /**
  * The widget open larger (`WidgetPopupHost`, `services/widget-popup`): a tab
  * of the open layout by id; the list a Number that follows a list shows
- * (`list`: the Number's tab id); or the popup review — a Review widget tied
- * to no layout tab (`REVIEW_POPUP_TAB_ID`).
+ * (`list`: the Number's tab id); a list a Shortcuts tile opens, of any
+ * layout (`shortcut`, shown under `shortcutListTabId`); or the popup
+ * review — a Review widget tied to no layout tab (`REVIEW_POPUP_TAB_ID`).
  */
-export type WidgetPopupTarget = { kind: 'tab'; tabId: string } | { kind: 'list'; tabId: string } | { kind: 'review' }
+export type WidgetPopupTarget =
+  | { kind: 'tab'; tabId: string }
+  | { kind: 'list'; tabId: string }
+  | { kind: 'shortcut'; listDefinitionId: number }
+  | { kind: 'review' }
 
 export interface QuickAddDraftSeed {
   rawTitle: string

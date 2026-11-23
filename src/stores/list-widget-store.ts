@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import type { FilterExpr } from '../models'
-import type { ListZoom, WorkspaceLayout } from '../models/workspace-layout'
+import { shortcutListTabId, type ListZoom, type WorkspaceLayout } from '../models/workspace-layout'
 import { REVIEW_POPUP_TAB_ID } from '../models/review'
 import { keepReviewSessions } from './review-session'
+import { useUIStore } from './ui-store'
 import { useWorkspaceStore } from './workspace-store'
 import { normalizeExpression, printExpression } from '../utils/filter-expression'
 import { layoutTabs } from '../utils/workspace-layout-queries'
@@ -162,13 +163,16 @@ function addTabIds(layout: WorkspaceLayout | null, into: Set<string>): void {
 
 /**
  * The tabs that are in a layout (the working copy, or a saved one), with
- * the popup review (`REVIEW_POPUP_TAB_ID`, in no layout); null before the
- * workspace is open.
+ * the popup review (`REVIEW_POPUP_TAB_ID`, in no layout) and, while the
+ * widget popup shows a Shortcuts tile's list, that list's tab
+ * (`shortcutListTabId`); null before the workspace is open.
  */
 function liveTabIds(): Set<string> | null {
   const { working, layouts } = useWorkspaceStore.getState()
   if (!working) return null
   const live = new Set<string>([REVIEW_POPUP_TAB_ID])
+  const popup = useUIStore.getState().widgetPopup
+  if (popup?.kind === 'shortcut') live.add(shortcutListTabId(popup.listDefinitionId))
   addTabIds(working, live)
   for (const layout of layouts) addTabIds(layout, live)
   return live

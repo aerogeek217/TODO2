@@ -10,6 +10,7 @@ import { NeglectMapWidget } from './neglect/NeglectMapWidget'
 import { WorkClustersWidget } from './clusters/WorkClustersWidget'
 import { ListWallWidget } from './listwall/ListWallWidget'
 import { PlannerWidget } from './planner/PlannerWidget'
+import { ShortcutsWidget } from './shortcuts/ShortcutsWidget'
 import { GlanceWidget } from './glance/GlanceWidget'
 import styles from './WidgetBody.module.css'
 
@@ -44,6 +45,8 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
       return <ReviewWidget tab={tab} />
     case 'planner':
       return <PlannerWidget tab={tab} />
+    case 'shortcuts':
+      return <ShortcutsWidget tab={tab} />
     case 'notes':
       return <NotesWidget />
     case 'neglect':

@@ -38,12 +38,12 @@ describe('WidgetKindMenu', () => {
     openChangeWidget()
     // The kinds are radio items by group under its caption (Tasks: List, Calendar, Review, Planner, Notes; Insights the rest); the current one is checked.
     expect(panelWords(kindsMenu())).toEqual([
-      '[Tasks]', 'List', 'Calendar', 'Review', 'Planner', 'Notes',
+      '[Tasks]', 'List', 'Calendar', 'Review', 'Planner', 'Notes', 'Shortcuts',
       '—', '[Insights]',
       'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
     ])
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
-      'List', 'Calendar', 'Review', 'Planner', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
+      'List', 'Calendar', 'Review', 'Planner', 'Notes', 'Shortcuts', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
     ])
     expect(screen.getByRole('menuitemradio', { name: /^List(?! wall)/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /^Notes/ })).toHaveAttribute('aria-checked', 'true')
@@ -111,9 +111,12 @@ describe('WidgetKindMenu', () => {
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowRight' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
     const kinds = kindsMenu()
-    // Notes ends Tasks: Down skips the separator and the caption.
+    // Shortcuts ends Tasks: Down from it skips the separator and the caption.
+    fireEvent.keyDown(kinds, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Shortcuts/ }))
     fireEvent.keyDown(kinds, { key: 'ArrowDown' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Number$/ }))
+    fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })

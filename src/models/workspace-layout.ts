@@ -61,9 +61,10 @@ import type { IconValue, LineIconKey } from './icon'
  * (`pulse`) and the Pressure radar (`radar`) were removed; v83 dropped
  * every saved one. `planner` is the Planner (2026-11-20): today and the
  * week ahead, a task on its planned day, else the day its follow-up or due date puts it.
+ * `shortcuts` is Shortcuts (2026-11-23): a tile per picked list, from any layout.
  */
 export type WidgetKind =
-  | 'lens' | 'calendar' | 'notes' | 'review' | 'planner' | 'neglect' | 'clusters' | 'listwall'
+  | 'lens' | 'calendar' | 'notes' | 'review' | 'planner' | 'shortcuts' | 'neglect' | 'clusters' | 'listwall'
   | GlanceWidgetKind
 
 /** The glance widget kinds (D25 N): a Number and the charts, each a widget. */
@@ -240,6 +241,31 @@ export const PLANNER_DOCK_SHARE_MAX = 0.9
 export const PLANNER_ORDER_MAX = 1000
 
 /**
+ * Shortcuts' settings (layout config): `lists`, the ids of the lists it
+ * shows a tile for, in order — lists of any layout. Never under the key
+ * `listDefinitionId`, which names a layout's own list
+ * (`layout-repository.storedListRefs`). A list deleted since is skipped
+ * when drawn, not repaired away.
+ */
+export interface ShortcutsTabConfig {
+  lists?: number[]
+}
+
+/** The most lists Shortcuts keeps (the layout repair cuts a longer one). */
+export const SHORTCUTS_LISTS_MAX = 200
+
+const SHORTCUT_LIST_TAB_PREFIX = 'shortcut-list-'
+
+/**
+ * The tab id the widget popup shows a shortcut's list under: in no layout
+ * (tab ids repeat across duplicated layouts), so its prompt picks are its
+ * own; a tile's capsule and peek read the same picks.
+ */
+export function shortcutListTabId(listDefinitionId: number): string {
+  return `${SHORTCUT_LIST_TAB_PREFIX}${listDefinitionId}`
+}
+
+/**
  * What colours a Neglect map's dots: the picked tags (a task with several
  * takes the first of the picks it has, in pick order), the task's first
  * person, or nothing (every dot neutral).
@@ -283,7 +309,7 @@ interface TabOf<K extends WidgetKind, C, V> {
   viewState?: V
   /**
    * Layout config (items 11, 14): the tab's own name, for a kind without a
-   * name of its own (`tabOwnsName` false — Calendar, Notes, Review, the Planner, the
+   * name of its own (`tabOwnsName` false — Calendar, Notes, Review, the Planner, Shortcuts, the
    * Neglect map, Work clusters, the List wall); it replaces the kind's label wherever the
    * tab is named. Absent or blank = the kind's label. A kind with a name of
    * its own (a list's, a Number's or a chart's) never reads it.
@@ -303,6 +329,7 @@ export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewSt
 type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
 export type PlannerTab = TabOf<'planner', PlannerTabConfig, PlannerTabViewState>
+export type ShortcutsTab = TabOf<'shortcuts', ShortcutsTabConfig, NoTabSettings>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
 export type ClustersTab = TabOf<'clusters', NoTabSettings, NoTabSettings>
 export type ListWallTab = TabOf<'listwall', NoTabSettings, NoTabSettings>
@@ -318,7 +345,7 @@ export type ChartTab = BreakdownTab | PivotTab
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | ChartTab
 
-export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | PlannerTab | NeglectTab | ClustersTab | ListWallTab | GlanceTab
+export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | PlannerTab | ShortcutsTab | NeglectTab | ClustersTab | ListWallTab | GlanceTab
 
 type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -481,7 +508,7 @@ export interface TabSeed {
 
 /**
  * The add-widget menus' groups: **Tasks** (the widgets that show tasks to
- * work on — List, Calendar, Review, Planner, Notes) and **Insights** (the
+ * work on — List, Calendar, Review, Planner, Notes, Shortcuts) and **Insights** (the
  * numbers and charts, and the Neglect map). The grouping is the menus' only:
  * nothing behavioural reads it — the glance minimums, fit rows and the
  * right-click rule read `glance` / `fitHeight`, which the Calendar and the
@@ -553,6 +580,8 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   // The Planner (2026-11-20): its Unplanned filter (absent: Focus); its hand order is view state.
   planner: { label: 'Planner', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'planner', config: {} }) },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
+  // Shortcuts (2026-11-23): no lists picked yet.
+  shortcuts: { label: 'Shortcuts', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'shortcuts', config: {} }) },
   // Insights.
   number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
   // D26 P8: the chart widgets.
@@ -667,6 +696,7 @@ export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
   notes: 'notes',
   review: 'review',
   planner: 'planner',
+  shortcuts: 'shortcuts',
   number: 'number',
   trend: 'chart',
   breakdown: 'bars',

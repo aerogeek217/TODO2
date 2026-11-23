@@ -207,6 +207,8 @@ function buildSeed(): Seed {
             // The task maps: Work clusters and the List wall (no settings).
             { id: 't22', kind: 'clusters', config: {} },
             { id: 't23', kind: 'listwall', config: {} },
+            // Shortcuts: lists of any layout, in order (a deleted one's id kept).
+            { id: 't25', kind: 'shortcuts', config: { lists: [2, 1, 99] } },
             // Item 12: a Review widget (no settings, 2A) and its sort.
             { id: 't14', kind: 'review', config: {}, viewState: { sort: 'next' } },
             // The Planner (no settings) and its hand order.

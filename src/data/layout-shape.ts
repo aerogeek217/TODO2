@@ -30,6 +30,8 @@ import {
   type PlannerTab,
   type PlannerTabConfig,
   type PlannerTabViewState,
+  SHORTCUTS_LISTS_MAX,
+  type ShortcutsTabConfig,
   TAB_NAME_MAX,
 } from '../models/workspace-layout'
 import { isIconValue, pickIconValue } from '../models/icon'
@@ -299,7 +301,31 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       const problem = view ? pickPlannerView(view).problem : null
       return problem ? `${path}.viewState.${problem}` : true
     }
+    // Shortcuts: its lists, positive whole numbers, each once, up to `SHORTCUTS_LISTS_MAX`.
+    case 'shortcuts':
+      return config.lists !== undefined && pickShortcutLists(config.lists).fixed ? `${path}.config.lists` : true
   }
+}
+
+const isListRef = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0
+
+/**
+ * Shortcuts' list ids as read: positive whole numbers, each once, in order,
+ * the first `SHORTCUTS_LISTS_MAX`; anything else dropped (a fix). A list
+ * deleted since stays (the widget skips it).
+ */
+function pickShortcutLists(raw: unknown): { lists: number[]; fixed: boolean } {
+  if (!Array.isArray(raw)) return { lists: [], fixed: true }
+  const kept = [...new Set((raw as unknown[]).filter(isListRef))].slice(0, SHORTCUTS_LISTS_MAX)
+  return { lists: kept, fixed: kept.length !== raw.length }
+}
+
+/** Shortcuts' settings as read: its lists (`pickShortcutLists`); a key it doesn't have is dropped (a fix). Absent stays absent. */
+function pickShortcutsConfig(config: Obj): { config: ShortcutsTabConfig; fixed: boolean } {
+  const extra = Object.keys(config).some((k) => k !== 'lists')
+  if (config.lists === undefined) return { config: {}, fixed: extra }
+  const picked = pickShortcutLists(config.lists)
+  return { config: { lists: picked.lists }, fixed: extra || picked.fixed }
 }
 
 /** The first field of a Review widget's view state (item 12) its read would reset, else null. */
@@ -713,6 +739,12 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const planner: PlannerTab = { id, kind: 'planner', config: settings.config }
         if (Object.keys(picked.view).length > 0) planner.viewState = picked.view
         return planner
+      }
+      // Shortcuts: its lists as read (`pickShortcutsConfig`). No view state: any is dropped.
+      case 'shortcuts': {
+        const settings = pickShortcutsConfig(config)
+        if (settings.fixed) fix('settings')
+        return { id, kind: 'shortcuts', config: settings.config }
       }
       // The glance kinds: a bad or missing setting is reset to its default;
       // no view state.

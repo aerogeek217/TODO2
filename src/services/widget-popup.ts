@@ -48,6 +48,13 @@ export function openNumberList(tabId: string): Promise<boolean> {
   return openPopup({ kind: 'list', tabId })
 }
 
+/** Opens list `listDefinitionId`, of any layout, larger (a Shortcuts tile); resolves whether it opened. */
+export function openShortcutList(listDefinitionId: number): Promise<boolean> {
+  const open = useUIStore.getState().widgetPopup
+  if (open?.kind === 'shortcut' && open.listDefinitionId === listDefinitionId) return Promise.resolve(true)
+  return openPopup({ kind: 'shortcut', listDefinitionId })
+}
+
 /**
  * Opens the popup review with `filter` (`null`: nothing picked), replacing
  * whatever it reviewed; resolves whether it opened. Its review lasts until
