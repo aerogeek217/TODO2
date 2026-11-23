@@ -51,7 +51,9 @@ another computer included.
 
 - **The date filter picks its date from a menu.** One button names the date being edited, with how many dates are
   filtering; its menu lists every date, the filtering ones lit with what they filter.
-- **The task editor is wider** (up to 1060px), so its facts, Planned included, stay on one row.
+- **A more compact facts row** in the task editor and review cards. Priority shows as three icons (Urgent tinted when its due
+  date makes the task urgent), Due and Planned put their words under the date, and a task's repeat is set by clicking its due
+  date. All six facts stay on one row, with the editor back at its usual width.
 - **Picking a day plans that day**, even the task's own due or follow-up day: in Plan for day ›, Snooze and an
   Unplanned row's Today button. Only dragging a task in the Planner onto its own date's day clears its plan.
 - **A plan on a task's due day stays a plan.** It is placed and flagged in the Planner like any other plan, and goes to
