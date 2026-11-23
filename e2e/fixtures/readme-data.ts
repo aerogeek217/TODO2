@@ -9,16 +9,14 @@
  * The Planner shot's week is in the tasks too: two planned for today, one
  * planned a day after its due date, two whose planned day has passed
  * (Delayed), two held in Unplanned (`held`, one of them dated), a few in
- * Focus with no day, three completed today. A planned day (`doDay`) is a
- * v85 field and `held` a v86 one in a file stamped `README_SCHEMA_VERSION`:
- * no upgrade between rebuilds a task, and import validation keeps `doDate`
- * and `unplanned`, so they arrive as written. Nothing but the Planner shows
- * them: the other shots are as they were.
+ * Focus with no day, three completed today. Nothing but the Planner shows
+ * the planned days (`doDate`) and `unplanned`: the other shots are as they
+ * were.
  */
 
 type Obj = Record<string, unknown>
 
-export const README_SCHEMA_VERSION = 78
+export const README_SCHEMA_VERSION = 87
 
 const PEOPLE = [
   { key: 'priya', name: 'Priya Nair', initials: 'PN', color: '#4f8cff' },
@@ -186,9 +184,7 @@ const byPerson = (id: string) => ({
 
 /**
  * Ids of the layouts and the cells the spec crops to. Each layout's three
- * Numbers are written as three cells side by side, which the v82 upgrade
- * merges into one strip under the first cell's id (`numbers`,
- * `planningNumbers`).
+ * Numbers are one strip cell (`numbers`, `planningNumbers`).
  */
 export const README_IDS = {
   layouts: { today: 1, planning: 2 },
@@ -287,16 +283,22 @@ export function readmeData(today: Date = new Date()): Obj {
       sortOrder: 0,
       // A list beside three Numbers over a Breakdown by person, this week's calendar across the bottom.
       grid: {
-        columns: [{ id: 't-c1', weight: 620 }, { id: 't-c2', weight: 127 }, { id: 't-c3', weight: 127 }, { id: 't-c4', weight: 126 }],
+        columns: [{ id: 't-c1', weight: 620 }, { id: 't-c2', weight: 380 }],
         rows: [{ id: 't-r1', weight: 95 }, { id: 't-r2', weight: 640 }, { id: 't-r3', weight: 360 }],
       },
       cells: [
         { id: C.list, tabs: [{ id: 'tab-list', kind: 'lens', config: { listDefinitionId: 1 } }], activeTabId: 'tab-list', area: { col: 0, row: 0, colSpan: 1, rowSpan: 2 } },
-        { id: C.numbers, tabs: [number('tab-n-open', 'Open', filter())], activeTabId: 'tab-n-open', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: 'cell-n-week', tabs: [number('tab-n-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-n-week', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: 'cell-n-late', tabs: [number('tab-n-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-n-late', area: { col: 3, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: 'cell-t-breakdown', tabs: [byPerson('tab-t-breakdown')], activeTabId: 'tab-t-breakdown', area: { col: 1, row: 1, colSpan: 3, rowSpan: 1 } },
-        { id: C.calendar, tabs: [{ id: 'tab-cal', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: false } }, viewState: { view: 'week', offset: 0 } }], activeTabId: 'tab-cal', area: { col: 0, row: 2, colSpan: 4, rowSpan: 1 } },
+        {
+          id: C.numbers,
+          tabs: [
+            number('tab-n-open', 'Open', filter()),
+            number('tab-n-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } })),
+            number('tab-n-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 }),
+          ],
+          activeTabId: 'tab-n-open', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 },
+        },
+        { id: 'cell-t-breakdown', tabs: [byPerson('tab-t-breakdown')], activeTabId: 'tab-t-breakdown', area: { col: 1, row: 1, colSpan: 1, rowSpan: 1 } },
+        { id: C.calendar, tabs: [{ id: 'tab-cal', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: false } }, viewState: { view: 'week', offset: 0 } }], activeTabId: 'tab-cal', area: { col: 0, row: 2, colSpan: 2, rowSpan: 1 } },
       ],
       createdAt: longAgo, modifiedAt: iso(at(-2, 17)), lastUsedAt: iso(at(0, 8)),
     },
@@ -306,15 +308,21 @@ export function readmeData(today: Date = new Date()): Obj {
       sortOrder: 1,
       // Three Numbers over a Breakdown by person, Created vs completed under it.
       grid: {
-        columns: [{ id: 'p-c1', weight: 330 }, { id: 'p-c2', weight: 330 }, { id: 'p-c3', weight: 340 }],
+        columns: [{ id: 'p-c1', weight: 1000 }],
         rows: [{ id: 'p-r1', weight: 95 }, { id: 'p-r2', weight: 515 }, { id: 'p-r3', weight: 485 }],
       },
       cells: [
-        { id: C.planningNumbers, tabs: [number('tab-p-open', 'Open', filter())], activeTabId: 'tab-p-open', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: 'cell-p-week', tabs: [number('tab-p-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } }))], activeTabId: 'tab-p-week', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: 'cell-p-late', tabs: [number('tab-p-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 })], activeTabId: 'tab-p-late', area: { col: 2, row: 0, colSpan: 1, rowSpan: 1 } },
-        { id: C.breakdown, tabs: [byPerson('tab-breakdown')], activeTabId: 'tab-breakdown', area: { col: 0, row: 1, colSpan: 3, rowSpan: 1 } },
-        { id: C.trend, tabs: [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }], activeTabId: 'tab-trend', area: { col: 0, row: 2, colSpan: 3, rowSpan: 1 } },
+        {
+          id: C.planningNumbers,
+          tabs: [
+            number('tab-p-open', 'Open', filter()),
+            number('tab-p-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } })),
+            number('tab-p-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 }),
+          ],
+          activeTabId: 'tab-p-open', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 },
+        },
+        { id: C.breakdown, tabs: [byPerson('tab-breakdown')], activeTabId: 'tab-breakdown', area: { col: 0, row: 1, colSpan: 1, rowSpan: 1 } },
+        { id: C.trend, tabs: [{ id: 'tab-trend', kind: 'trend', config: { range: '4w', name: 'Created vs completed', show: 'bars' } }], activeTabId: 'tab-trend', area: { col: 0, row: 2, colSpan: 1, rowSpan: 1 } },
       ],
       createdAt: longAgo, modifiedAt: iso(at(-3, 11)), lastUsedAt: iso(at(-1, 16)),
     },

@@ -9,8 +9,7 @@ import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed, wsRow,
  * Ctrl + wheel stepping the level without zooming the page, the tab menu's
  * − / +, the palette's Zoom List In / Out, a drag reorder, keyboard
  * navigation and the task menu at Lines, the level surviving a reload, the
- * Settings default for a tab that hasn't picked one. (A tab stored at the
- * removed Strips, v79 wrote as Lines: `v79-upgrade.test`.)
+ * Settings default for a tab that hasn't picked one.
  */
 
 type Zoom = 'stacked' | 'rows' | 'lines'
@@ -375,7 +374,7 @@ test('a tab that hasn’t picked a zoom shows the Settings default; a tab’s ow
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
   await open(page, { settings: { rowDensity: 'stacked' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'stacked')
-  // A tab's own pick wins. (The old Comfortable density v79 wrote as Stacked: `v79-upgrade.test`.)
+  // A tab's own pick wins.
   await open(page, { zoom: 'lines', settings: { rowDensity: 'stacked' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
 })

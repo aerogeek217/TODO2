@@ -40,12 +40,12 @@ test('a startup backup is taken, and manual and sync-file backups outlive full p
   // Twelve automatic and twelve pre-op backups, all older than the manual
   // backup and the sync file's backup: under one shared pool of ten, those
   // two would be the first to go. The sync file's backup is from below the
-  // schema floor (v49): it is listed and kept like any other backup.
+  // schema floor (v86): it is listed and kept like any other backup.
   const at = (daysAgo: number, minutes = 0) => new Date(Date.now() - daysAgo * DAY + minutes * 60_000).toISOString()
   const row = (trigger: string, createdAt: string, data = snapshot): BackupRow => ({ trigger, createdAt, sizeBytes: data.length, data })
   await replaceBackups(page, [
     row('manual', at(30)),
-    row('sync-file', at(29), '{"__schemaVersion":49,"todos":[],"savedAt":"2026-09-14T10:00:00.000Z"}'),
+    row('sync-file', at(29), '{"__schemaVersion":86,"todos":[],"savedAt":"2026-09-14T10:00:00.000Z"}'),
     ...Array.from({ length: 12 }, (_, i) => row('auto', at(3, i))),
     ...Array.from({ length: 12 }, (_, i) => row('pre-destructive', at(3, i))),
   ])
@@ -70,7 +70,7 @@ test('a startup backup is taken, and manual and sync-file backups outlive full p
   // no pre-op snapshot, the backups unchanged.
   await syncBackup.getByRole('button', { name: 'Restore' }).click()
   await syncBackup.getByRole('button', { name: 'Confirm' }).click()
-  await expect(settings.getByRole('alert')).toContainText('Restore failed: This file was saved by an older version of TODO2 (schema v49)')
+  await expect(settings.getByRole('alert')).toContainText('Restore failed: This file was saved by an older version of TODO2 (schema v86)')
   expect(countByTrigger(await dbBackups(page))).toEqual({ manual: 1, 'sync-file': 1, auto: 10, 'pre-destructive': 12 })
 
   const manual = settings.locator('[data-trigger="manual"]')
