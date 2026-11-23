@@ -1097,7 +1097,7 @@ test('the Unplanned filter: its words open the Planner settings, and what it hol
 
   // From the widget's ⋯: emptied, nothing joins on its own.
   await openCellMenu(page, 'k1')
-  await page.getByRole('menuitem', { name: 'What counts as unplanned…' }).click()
+  await page.getByRole('menuitem', { name: 'Unplanned filter…' }).click()
   await expect(dialog).toBeVisible()
   await dialog.getByRole('textbox', { name: 'Filter expression' }).fill('')
   await dialog.getByRole('textbox', { name: 'Filter expression' }).press('Tab')

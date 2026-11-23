@@ -115,16 +115,16 @@ A row's task menu in a Planner — right-click, Shift+F10, the phone's long-pres
 
 The task menus outside a Planner have their own **Plan for day ›**: see [Plan state](planner.md#plan-state).
 
-The widget's ⋯ menu (the cell's and the widget popup's, `planner-reset.usePlannerMenuEntries`) has **What counts as unplanned…**, then **Reset plan ›** while the Planner is drawn.
+The widget's ⋯ menu (the cell's and the widget popup's, `planner-reset.usePlannerMenuEntries`) has **Unplanned filter…**, then **Reset plan ›** while the Planner is drawn.
 
 ## The Unplanned filter's editor
 
 **The filter line** (`planner/PlannerFilterLine`, `[data-planner-filter-line]`) sits under the Unplanned heading wherever the tray shows: the large face, the medium column, the portrait dock and its folded bar where it fits.
 
-- It is a button on a faint plate: the funnel, then the [filter](planner.md#the-unplanned-filter) read back in words as a list's filter line reads it (`wholeExpression` → `ExpressionWords`: `Focus`, `Focus, or errands`), fading with `+N more`, the exact text in its tooltip. Its name is `What counts as unplanned: …`.
+- It is a button on a faint plate: the funnel, then the [filter](planner.md#the-unplanned-filter) read back in words as a list's filter line reads it (`wholeExpression` → `ExpressionWords`: `Focus`, `Focus, or errands`), fading with `+N more`, the exact text in its tooltip. Its name is `Unplanned filter: …`.
 - An empty filter reads `Nothing joins on its own`.
 
-A click on it, or **What counts as unplanned…** in the widget's ⋯, opens the **Planner settings** (`planner/PlannerSettings`, `role=dialog` `Planner settings`, hosted on the workspace page like the other widget editors, `planner-store.settingsTabId`). It opens beside the filter line, else the folded bar, else the widget.
+A click on it, or **Unplanned filter…** in the widget's ⋯, opens the **Planner settings** (`planner/PlannerSettings`, `role=dialog` `Planner settings`, hosted on the workspace page like the other widget editors, `planner-store.settingsTabId`). It opens beside the filter line, else the folded bar, else the widget.
 
 - Its title is `Planner`. **Unplanned holds** is the Number editor's filter field (`PredicateChips` stacked: Graphical / Expression, Reads as, Syntax…); an empty one reads `No filter — nothing joins on its own`.
 - A muted line under it: `An open task with no day that matches joins Unplanned on its own. Empty, nothing joins on its own: only what you unplan.`

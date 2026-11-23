@@ -83,7 +83,7 @@ interface PlannerState {
    * kind, starts on this week if it is a Planner again.
    */
   keep: (layoutId: number, tabIds: readonly string[]) => void
-  /** The Planner tab whose settings (What counts as unplanned…) are open; null with none. */
+  /** The Planner tab whose settings (Unplanned filter…) are open; null with none. */
   settingsTabId: string | null
   /** Opens a Planner's settings: an editor with changes is asked first, and any other closes (`editor-leave`). */
   openSettings: (tabId: string) => void
