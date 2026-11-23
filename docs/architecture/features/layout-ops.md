@@ -18,14 +18,14 @@ The operations that change a layout's table: splitting and inserting tracks, rem
   - It takes half of the cell's track.
   - The cells spanning across the line grow into it, and the gaps beside them become new empty cells.
   - At an outer edge it is `insertTrack`.
-- `insertTrackAt` (the edit mode's rulers): a full row / column on any line of the table.
+- `insertTrackAt` (the edit mode's edge tabs and header menus): a full row / column on any line of the table.
   - The cells crossing the line grow across; its other places become new empty cells. At the edges it is `insertTrack`.
   - Given a run of lines whose tracks between are slivers (`through`), it first merges the slivers into the major track beside them. The new track then goes on the one line left, sized from that major.
-  - A hovered "+" previews the result (`utils/structure-preview`).
+  - A hovered edge tab previews the result (`utils/structure-preview`).
 
 ## Remove and merge tracks
 
-- `removeTrack` (a ruler's **Remove row** / **Remove column**), refused for an axis's last track:
+- `removeTrack` (a header's **Remove row** / **Remove column**), refused for an axis's last track:
   - Along the axis, a cell spanning the track (through it, or starting or ending in it) shrinks.
   - A cell lying only in it moves into its *place*: the neighboring track over its own extent. The neighbor is the track before, else the one after.
     - A place of only empty cells: the cell moves into it. Those cells give it up, and what is left of them is cut into rectangles.

@@ -38,6 +38,12 @@ them afterwards.
   list; a list of this layout also offers Show in its cell. Tiles are narrower, so more fit on a row, and the color
   legend ends each tile's tooltip. Your Shortcuts widgets become List boards of the lists you picked, and each List
   wall becomes a List board showing this layout's lists.
+- **Calmer layout editing.** Edit layout gives the cards room: a margin round the layout and wider gaps between
+  cells (the cards shrink a little while you edit). Column letters and row numbers sit in that margin, outside the
+  cards, and light up for the card you select. The plus signs are gone: select a card and labeled tabs beside it add
+  a Row above, Row below, Column left or Column right, showing the new row or column while you point at them. The
+  selected card carries its own toolbar (Split, Merge, Remove and its menu), and each neighbor it can merge with shows
+  a button such as "Merge as tabs with Tasks" that shows the result before you click.
 
 ## 2026-11-23
 

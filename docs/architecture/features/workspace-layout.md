@@ -6,7 +6,7 @@ See also:
 
 - [Layout ops](layout-ops.md): the operations that change the table;
 - [Layout autosave](layout-autosave.md): how a layout is written, what is one undo step, and how layouts are opened, created, duplicated and deleted;
-- [Layout edit mode](layout-edit-mode.md): rulers, cards, slots, the tray, drops;
+- [Layout edit mode](layout-edit-mode.md): headers, edge tabs and merge buttons, cards, slots, the tray, drops;
 - [Move / Copy to layout](cross-layout-moves.md);
 - [Widget chrome](widget-chrome.md): a cell's menu, tabs, faces, Open larger.
 

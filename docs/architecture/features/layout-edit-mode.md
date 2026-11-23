@@ -33,7 +33,7 @@ While the mode is on, `working` is a **draft** and `saved` the layout as stored.
 
 The session is `editing: LayoutEditSession | null`: its `layoutId`, its `selectedCellId`, the mode's own `undo` / `redo` stacks of layout bodies, `createdLists` (the lists made in the session) and `showContent` ([Blueprints](#blueprints)).
 
-- Every structural edit changes only the draft and is a step of **the mode's own undo**: a card's menu, keys, corner and drags (cards, tabs, a strip's Numbers, tray chips — with the ghost), a slot's kinds, the rulers, the dividers, a tab's ×. The store's `edit()` puts the draft's body from before the edit on the mode's undo stack instead of committing. Steps under one merge key merge there too.
+- Every structural edit changes only the draft and is a step of **the mode's own undo**: a card's menu, toolbar, keys, corner and drags (cards, tabs, a strip's Numbers, tray chips — with the ghost), a slot's kinds, the edge tabs, the merge buttons, the headers' menus, the dividers, a tab's ×. The store's `edit()` puts the draft's body from before the edit on the mode's undo stack instead of committing. Steps under one merge key merge there too.
 - Resizes and view state change only the draft, through `editView`: every resize (`setTrackSizes`, `copyTrackSizes`, `clearTrackFitPx`, `endResize`), an active tab, a collapse, a tab's view state.
 - Ctrl+Z / Ctrl+Y and the palette's Undo / Redo step the mode's stack (`undoEdit` / `redoEdit`, which keep the view state of the moment: `withViewStateOf`). With it empty they do nothing (never a task step behind it).
 - `layoutEditChanged` says whether the draft differs from the layout as stored, view state included (`layoutBodyEqual`).
@@ -44,7 +44,7 @@ Refused meanwhile:
 - a rename / hue / icon (`rename`) and the layouts' order (`reorderLayouts` / `moveLayout`): `Finish editing the layout first.`;
 - Retry (`retryWrite`), which says nothing.
 
-The workspace is tinted under a faint dot grid with an accent outline (`--edit-*` tokens). Each cell's content stays mounted but dims and takes no presses: each cell is a [card](#cards), its surface under the content, its ⋯ and corner over it. Nothing moves.
+The workspace is tinted under a faint dot grid with an accent outline (`--edit-*` tokens). Each cell's content stays mounted but dims and takes no presses: each cell is a [card](#cards), its surface under the content, its ⋯ and corner over it. The table steps in for [room](#the-room-and-the-headers).
 
 ## The mode's bar
 
@@ -76,21 +76,23 @@ The focus goes to **Done** as the mode opens, and back where it was on leaving. 
 - A data replace closes it with the same notice (`endEditForReplace`, called by `services/refresh-all`). It drops a pending Restore without deleting the lists: their ids may name other lists in the new data.
 - A reload or a closed tab drops the draft silently; the next launch's `init()` prune deletes the lists it made. A second browser tab's prune may delete one sooner.
 
-## The rulers
+## The room and the headers
 
-`LayoutRulers` is mounted first in the table while the mode is on; its rules are in `utils/layout-rulers`. The rulers are grid items of the table itself, overlaid on the gutters and the cells' outer edges, so no cell moves.
+While the mode is on the table makes room for its controls, so the cards get a little smaller:
 
-- The strips are 16px; the card's ⋯ sits 16px down to clear the "+"s.
-- A row ruler takes no part in sizing its row (`contain: size`), so a fit row keeps its height.
-- The workspace's top and bottom padding move into the table's scroller while the mode is on.
+- a **frame** round it — its padding: 26px top and left for the headers (`--edit-frame-start`), 14px right and bottom (`--edit-frame-end`); the workspace's own top and bottom padding move into it;
+- **16px gaps** (`--edit-gutter`, which the table's `--workspace-gutter` takes inside it; `workspace-table.EDIT_GUTTER_PX` sizes its tracks' minimums). The dividers stay in the gaps and resize as outside the mode, their line drawn in the gap's middle.
 
-A ruler runs along the top of each column (A, B, C…) and down the left of each row (1, 2, 3…).
+Everything that reads the table's geometry measures it — the dividers, `measureWorkspace` (the drop zones and the ghost), a corner's stretch, the ruler names — so nothing holds a second copy of the frame or the gap.
 
-- A column's tooltip gives its share: a percent of the weighted columns, a fixed one's px.
-- A row is marked `fit` / `folded`.
+`LayoutRulers` draws the **headers** in the frame, over its rules in `utils/layout-rulers`: A, B, C… over the columns, 1, 2, 3… beside the rows. They are grid items of the table drawn into its padding, so they scroll with it and no track makes room for them.
+
+- A column's share shows on its header's hover (a percent of the weighted columns, a fixed one's px). A row is marked `fit` / `folded`.
+- The selected card's columns and rows are lit (`data-lit`).
 - Each is a button (`Column B options`) opening its menu.
+- A row header takes no part in sizing its row (`contain: size`), so a fit row keeps its height.
 
-### Ruler menus
+### Header menus
 
 - A column: **Insert column left** / **right** · **Even all widths**, then **Remove column**.
 - A row: **Insert row above** / **below** · **Collapse row** / **Expand row** (off while no filled cell lies only in it) · **Even all heights**, then **Remove row**.
@@ -100,42 +102,47 @@ A ruler runs along the top of each column (A, B, C…) and down the left of each
 
 Only **major** tracks are lettered and numbered. A **sliver** is a track drawn under 24px (`SLIVER_PX`, the table's computed tracks) with no cell lying only in it, as a part line moved a few px leaves.
 
-- It gets an unlabeled tick — a pill in the ruler's strip on the sliver's start — whose menu offers **Merge into A** / **B** (`mergeTrackInto`).
-- A sliver and its two lines act as one line (`layout-rulers.sliverRun`): one "+", just before the sliver, named by the majors around it (`Insert row between 1 and 2`).
-- That "+" — and a ruler's Insert above / below beside a sliver — merges the sliver away and inserts on the line left (`insertTrackAt`'s `through`). So a part line moved a few px doesn't turn a full row into half a one.
+- It gets an unlabeled tick in the header band, on the sliver's start, whose menu offers **Merge into A** / **B** (`mergeTrackInto`).
+- A sliver and its two lines act as one line for an insert (`layout-rulers.sliverRun`): an edge tab, or a header's Insert above / below beside a sliver, merges the sliver away and inserts on the line left (`insertTrackAt`'s `through`). So a part line moved a few px doesn't turn a full row into half a one.
 
-### The "+" insert points
+### Keys
 
-A "+" sits on every line between rulers and at both ends (`Insert row here`).
+- Headers are Tab stops, first in the table: columns, then rows.
+- Enter / Space opens a menu; Esc closes it with the focus back on its header.
+- Every track action goes through `edit()`: a mode undo step on the draft. Even all is a size change: view state, as a divider's.
 
-- It is a 20px disc in a 24px target: a larger one would cover the first tab of a strip along the strips.
-- The first row line's is in the corner, the first column line's just right of it.
-- A click inserts a full row / column there and selects its first new cell.
+## The selection
 
-### Make-room previews
+Nothing is drawn on the cards until one is selected. Then `EditSelection` draws its controls in the table, placed by the table's own coordinates (it is positioned in the mode), from the table as the draft draws it. They are frozen while a preview reflows it, so the one under the pointer stays put while the others fade. The table puts them right after the selected card, so they follow it in the Tab order. They are gone while something is dragged.
 
-While a "+" is hovered the table makes room: it draws the layout the insert would leave.
+### Edge tabs
 
-- The preview is `workspace-store.structurePreview`, transient: never saved, never an undo step. It is a `StructurePreview`: the probe's body, its new cell ids, the filled cells it grows and its `hint`. `utils/structure-preview.structureProbe` runs the op on probe ids (`insert-preview.insertPreview`).
+Four worded tabs sit in the seams at the middle of the selection's edges: `+ Row above`, `+ Row below`, `+ Column left`, `+ Column right` (a column's runs down; named `Insert row above` …). A slot selected has them too.
+
+- Each is a full row / column on that edge's line, as a header's Insert makes (`insertTrackAt`, a sliver run counted), sized from the selection's own track.
+- Hovered, it previews (below). Clicked, it inserts and selects and focuses the first new cell.
+- With widgets in hand from another layout, the new track holds them ([Move / Copy to layout](cross-layout-moves.md#placing-the-widgets)).
+
+### Previews of an edit
+
+While an edge tab, a toolbar's Split, a merge button or a Merge ▾ entry is hovered, the table draws the layout the edit would leave.
+
+- The preview is `workspace-store.structurePreview`, transient: never saved, never an undo step. It is a `StructurePreview`: the probe's body, its new cell ids, the filled cells it grows, the words on their outline and its `hint`. `utils/structure-preview.structureProbe` runs the op on probe ids (`insert-preview`: `insertPreview`, `splitPreview`, `mergePreview`).
 - `setStructurePreview(preview | null)` sets it only while the mode is on. Every structural edit, the mode's undo / redo, Cancel and the mode's end clear it.
 - The new track's empty cells are solid accent slots (`data-preview-new`); the cards that grow across it are outlined in the follow-up color with `stretches` (`data-preview-grew`); no dividers meanwhile.
+- A merge draws the merged cell outlined, its tabs the selection's then the neighbor's; the neighbor stays mounted, hidden under it (`absorbedCellIds`).
 - The mode bar says it in the tray's place: `Row between 1 and 2 · Notes stretches across it · click to insert` (`layout-edit-preview-hint`).
-- The "+" itself is pinned where the pointer found it while the table reflows under it (fixed, `data-pinned`), and the table's other "+"s take no pointer meanwhile, so the preview never flickers.
-- Leaving the "+" puts the table back.
+- A preview starts on a pointer move with no button held, never on an enter: a control appearing under a resting pointer previews nothing. Leaving it puts the table back.
 
-### The gutter "+"
+### Merge buttons
 
-The dividers are the mode's gutters. Hovering one shows a "+" pill just beside its line (right of a column line, below a row line), so the divider stays free to drag.
+Each neighbor that makes a rectangle with the selected card (`layout-edit-cards.mergeChoices`: it shares a whole edge, `mergeNeighbour`) carries a button, centered under its name. It is worded from the selection's side, with an arrow from the selection towards it (`mergeButtonWords`); the name is the neighbor's active widget's title:
 
-- The pill follows the pointer along the line (`GutterPlus`, over `gutter-plus`'s context, which the table lends its dividers).
-- It outlives the divider's leave by 250ms: time to move onto it.
-- Hovered it previews; clicked it inserts on that line (a sliver's run as the rulers' "+").
+- `↑ Merge as tabs with Tasks for…`;
+- `Merge with Overdue` when both cells hold only Numbers: they stay one strip;
+- `Stretch over this slot` on an empty slot.
 
-### Keys and undo
-
-- Rulers and "+"s are Tab stops in order: columns, then rows.
-- Enter / Space opens a menu or inserts; Esc closes the menu with the focus back on its ruler.
-- Every track action goes through `edit()`: a mode undo step on the draft. Even all is a size change: view state, as a divider's.
+A neighbor under 230px shows `Merge as tabs` / `Merge` / `Stretch here`, the whole words its tooltip and description. Hovered it previews; its hint is `Merge Calendar with Tasks for… · one cell, 5 tabs · click to merge`. Clicked it runs `mergeCells(selected, neighbor)`, one mode undo step; the merged cell keeps the selection and the focus. No button where no rectangle can be made.
 
 ## Cards
 
@@ -170,34 +177,36 @@ A card is a blueprint: its body stays mounted but hidden, and `EditBlueprint` na
 
 ### Label, ⋯ and corner
 
-The card's chrome sits over the content, all clear of the rulers' strips.
+The card's chrome sits over the content, in the card's own corners.
 
 - Its **label**:
   - a one-widget card: the widget's icon and name, shown on the card's hover, focus or selection — only with **Content** on (a blueprint names the card itself);
   - a Numbers strip: `N Numbers`, on the same hover, focus or selection;
   - a card of tabs: none over its strip — unless the strip is squeezed to its active tab with the title cut away, in a narrow card: then that tab's name, under the strip (`data-strip-squeezed`).
-- Its **⋯**, named **Cell layout**.
+- Its **⋯**, named **Cell layout** — the toolbar's while the card is selected.
 - Its **corner** (`data-edit-corner`).
 
-The ⋯ and the corner show on the card's hover, focus or selection (always on touch).
+The ⋯ and the corner show on the card's hover, focus or selection (always on touch). The label gives way to the toolbar.
 
 ### The selected card's toolbar
 
-`EditCardToolbar` is fixed above the selected card (in the top row: inside it, under its header). It is frozen while a preview reflows the table, and absent while something is dragged. Each action is a step of the mode's undo.
+`EditCardToolbar` sits inside the selected card, at its top-left — under its tab strip when it has one, so the strip stays free to drag. It never leaves the card: it wraps in a narrow one and rises in a short one. It is absent while something is dragged, and fades while a preview shows unless it is under the pointer. Each action is a step of the mode's undo.
 
-- **Split** → and **Split** ↓: each hovered, the table draws the split (`insert-preview.splitPreview`).
-- **Swap** ▾: every other card.
-- **Merge** ▾: the neighbors it makes a rectangle with; off with none.
-- **Remove widget** / **Remove tab**.
+- **Split →** and **Split ↓**: each hovered, the table draws the split (`splitPreview`).
+- **Merge ▾**: the same neighbors as the merge buttons — `As tabs with Tasks for… (above)`, `With Overdue (below)`, `Over the empty slot (right)` (`mergeMenuWords`) —, each previewing while hovered; off with none.
+- **Remove**: the active widget (**Remove widget** / **Remove tab**).
+- **⋯**: the card menu, standing in for the card's corner ⋯.
+
+In a card under 330px its buttons are icons with their names as tooltips, decided while no preview reflows the card. A slot selected has no toolbar: its click opens the widget kinds.
 
 ### The card menu
 
 It opens from the ⋯, a right-click anywhere on the card, or Enter on it (`cell-menu.editCardMenuEntries`, `EditCardMenu`).
 
-- **Move to ▸**: every slot by its ruler name (`B4`) — `layout-edit-cards.cellRulerName` over the rulers' `trackNames`, lent by the table through `layout-edit-view`.
+- **Move to ▸**: every slot by its header name (`B4`) — `layout-edit-cards.cellRulerName` over the headers' `trackNames`, lent by the table through `layout-edit-view`.
 - **Swap with ▸**: every other card by name, its place beside it (`swapCells`).
 - **Join as tabs ▸**: the same cards. This card's tabs join the picked one — the keys' way to a drop on its tab area.
-- **Insert ▸**: **Row above** / **Row below** / **Column left** / **Column right**, a full track on the card's edge line as the rulers insert (`workspace-store.insertTrackBeside`), its first new cell selected — a card is where one looks for it. Then **Split this cell**'s **New cell above** / **left** / **right** / **below**.
+- **Insert ▸**: **Row above** / **Row below** / **Column left** / **Column right**, a full track on the card's edge line (`workspace-store.insertTrackBeside`), its first new cell selected — the keys' way to the edge tabs. Then **Split this cell**'s **New cell above** / **left** / **right** / **below**.
 - **Merge with ▸**: off, saying why, unless the two make a rectangle.
 - **Stretch right** / **Stretch down**: one track, over empty slots only.
 - **Move cell to layout ›** / **Copy cell to layout ›**: see [Move / Copy to layout](cross-layout-moves.md).
@@ -228,7 +237,7 @@ The focus stays on what moved (`edit-focus.focusEditItem`, by `data-edit-focus`)
 
 ## Slots
 
-An empty cell is a slot (`EditSlot`): dashed, named by the rulers (`Empty slot B4`), its close × kept.
+An empty cell is a slot (`EditSlot`): dashed, named by the headers (`Empty slot B4`), its close × kept.
 
 - It is a Tab stop: the arrows as a card's, Delete closes it.
 - A click opens the widget kinds (`AddWidgetFlow`, Tasks / Insights), the new widget filling it — a List with its list through `createListAndTab`, whose ids the session records.
@@ -253,14 +262,15 @@ Drops act on the draft. `utils/workspace-drop` works on the geometry `measureWor
 
 | Where the pointer is | What the drop does |
 |---|---|
-| The layout's left / right edge, 24px inside (over a narrow edge cell's body: no further than half of its own side split zone) | Inserts a column |
-| The layout's top / bottom edge, 24px inside, reaching 16px past | Inserts a row |
+| The layout's left / right edge: its frame and 18px past it (over a narrow edge cell's body: no further than half of its own side split zone) | Inserts a column |
+| The layout's top / bottom edge: its frame and 18px past it, reaching 16px outside | Inserts a row |
 | A cell's strip | Takes a tab at an index |
 | A one-widget card's **tab area** | Joins as a tab after its widget |
 | A cell body's outer 20 % (at most 120px) on each of its four sides | Splits on that side |
 | A cell body's middle | A tab or a tray chip's widget joins as a tab; **a whole card swaps** with it |
 | An empty cell (a slot) | A tab or a tray chip's new widget fills it; a whole card moves into it |
 
+- The frame is where the cells start in from the workspace's edge (`measure.measureFrame`): 6px outside the mode, the headers' band and margin in it.
 - A cell with one widget has no strip: its whole card is its body. But in the mode its top band is its tab area (`workspace-drop.tabBand`): a header's height, at most 35 % of the card, where its label sits; measured only in the mode (`measure.cardTabArea`). The split-above zone lies below it.
 - A swap is `{ kind: 'swap' }`: the two cells trade places whole, every tab with them.
 - A whole card moved into a slot swaps places with it (`movePanel` onto an empty cell is `swapCells`), so its old place is a slot and a move never grows a card over where it was.

@@ -36,7 +36,7 @@ Where they go (`placeIncoming(target)` → `workspace-layout-ops.placeIncomingTa
 
 - a slot takes them;
 - a card, anywhere on it, joins them as its last tabs;
-- a "+" inserts a track holding them;
+- an edge tab inserts a track holding them;
 - **At the bottom** makes a full-width row.
 
 Placing is an `edit()` step of the mode's undo, and the cell that holds them is selected. While they wait, `tapEdit` places them in the tapped slot or card and answers `{ kind: 'place' }`.
