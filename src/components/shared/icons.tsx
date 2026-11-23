@@ -333,10 +333,6 @@ export function FunnelIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /></Svg>
 }
 
-/** The funnel struck through: the screen filter paused (the top bar's funnel). */
-export function FunnelOffIcon({ size = 12 }: { size?: number }) {
-  return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /><path d="M2 1.5 14 14.5" /></Svg>
-}
 
 /** A ring with a wedge: one of the pickable line icons (`LineIcon`; once Project pulse's glyph). */
 function RingIcon({ size = 14 }: { size?: number }) {
@@ -527,9 +523,14 @@ export function LockIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-/** Two bars: sync paused. */
+/** Two bars: sync paused; the screen filter's pause. */
 export function PauseIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M6 4v8M10 4v8" /></Svg>
+}
+
+/** A triangle pointing right: resume (the screen filter paused). */
+export function PlayIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M5.5 3.5v9l7-4.5z" /></Svg>
 }
 
 /** A circle with an exclamation mark: something failed. */

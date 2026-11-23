@@ -3,6 +3,7 @@ import { render, screen, fireEvent, cleanup, act, within } from '@testing-librar
 import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../../components/layout/TopBar'
 import { useFilterStore } from '../../../stores/filter-store'
+import { useUndoStore } from '../../../stores/undo-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -71,62 +72,69 @@ describe('TopBar — app shell', () => {
     expect(search).not.toHaveAttribute('aria-controls')
   })
 
-  it('the funnel leads the tray and pauses the filter: dim and inert with none, a click pauses, another resumes; the Filter button follows the field', () => {
+  it('the field’s pause toggle: only while a filter is on; a click pauses, another resumes', () => {
     useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Alpha' }), makeTodo({ id: 2, title: 'Beta' })] })
     renderBar()
     const tray = screen.getByRole('group', { name: 'Screen filters — apply to every widget' })
-    const funnel = within(tray).getByRole('button', { name: 'Pause the filter' })
-    const search = within(tray).getByRole('textbox', { name: 'Filter tasks' })
-    const filter = within(tray).getByRole('button', { name: 'Filter' })
-    expect(tray.firstElementChild).toBe(funnel)
-    expect(search.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(funnel).toBeDisabled()
-    expect(funnel).not.toHaveAttribute('aria-pressed')
+    expect(within(tray).queryByRole('button', { name: 'Pause the filter' })).toBeNull()
     act(() => useFilterStore.getState().setSearchText('alpha'))
-    expect(funnel).toBeEnabled()
-    expect(funnel).toHaveAttribute('aria-pressed', 'false')
+    const pause = within(tray).getByRole('button', { name: 'Pause the filter' })
+    expect(pause).toHaveAttribute('aria-pressed', 'false')
     expect(tray).toHaveAttribute('data-filtered', 'true')
     expect(within(tray).getByRole('button', { name: /^1 of 2 open tasks shown/ })).toBeInTheDocument()
 
     // Paused: the filter stays, nothing applies it — the tray isn't red, the counter says so.
-    fireEvent.click(funnel)
+    fireEvent.click(pause)
     expect(useFilterStore.getState().paused).toBe(true)
     expect(useFilterStore.getState().filters.searchText).toBe('alpha')
-    expect(funnel).toHaveAttribute('aria-pressed', 'true')
-    expect(funnel).toHaveAttribute('data-paused', 'true')
+    expect(pause).toHaveAttribute('aria-pressed', 'true')
+    expect(pause).toHaveAttribute('data-paused', 'true')
     expect(tray).not.toHaveAttribute('data-filtered')
     expect(tray).toHaveAttribute('data-filter-paused', 'true')
     const counter = within(tray).getByRole('button', { name: /^2 open tasks shown, the filter paused\. Show them$/ })
     expect(counter).toHaveTextContent('2open · paused')
 
     // Again: resumed.
-    fireEvent.click(funnel)
+    fireEvent.click(pause)
     expect(useFilterStore.getState().paused).toBe(false)
     expect(tray).toHaveAttribute('data-filtered', 'true')
     expect(within(tray).getByRole('button', { name: /^1 of 2 open tasks shown/ })).toBeInTheDocument()
   })
 
-  it('the field’s × clears every filter at once — a paused one too —, shown only while a filter is on; the Filter menu keeps its Clear all filters', () => {
+  it('the funnel leads the tray and clears every filter at once — a paused one too —, with Undo; dim and inert with none; the Filter menu keeps its Clear all filters', () => {
     renderBar()
     const tray = screen.getByRole('group', { name: 'Screen filters — apply to every widget' })
-    expect(within(tray).queryByRole('button', { name: 'Clear all filters' })).toBeNull()
+    const funnel = within(tray).getByRole('button', { name: 'Clear the filter' })
+    const search = within(tray).getByRole('textbox', { name: 'Filter tasks' })
+    const filter = within(tray).getByRole('button', { name: 'Filter' })
+    expect(tray.firstElementChild).toBe(funnel)
+    expect(search.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(funnel).toBeDisabled()
+    const expression = { kind: 'or' as const, items: [{ kind: 'tag' as const, id: 1 }, { kind: 'tag' as const, id: 2 }] }
     act(() => {
       useFilterStore.getState().setPersonIds(new Set([1]))
-      useFilterStore.getState().setShowCompleted(true)
-      useFilterStore.getState().applyExpression({ kind: 'or', items: [{ kind: 'tag', id: 1 }, { kind: 'tag', id: 2 }] }, true)
+      useFilterStore.getState().applyExpression(expression, true)
       useFilterStore.getState().setPaused(true)
     })
-    fireEvent.click(within(tray).getByRole('button', { name: 'Clear all filters' }))
+    expect(funnel).toBeEnabled()
+    const before = useFilterStore.getState().filters
+    fireEvent.click(funnel)
     expect(useFilterStore.getState().isActive).toBe(false)
     expect(useFilterStore.getState().paused).toBe(false)
     expect(useFilterStore.getState().filters.expression).toBeUndefined()
-    expect(within(tray).queryByRole('button', { name: 'Clear all filters' })).toBeNull()
-    expect(within(tray).getByRole('button', { name: 'Pause the filter' })).toBeDisabled()
+    expect(funnel).toBeDisabled()
+    expect(within(tray).queryByRole('button', { name: 'Pause the filter' })).toBeNull()
+    // The snackbar offers it back, as it was (not paused).
+    expect(useUndoStore.getState().snackbar?.description).toBe('Filter cleared')
+    act(() => { useUndoStore.getState().snackbar?.action?.run() })
+    expect(useFilterStore.getState().filters).toBe(before)
+    expect(useFilterStore.getState().filters.showCompleted).toBe(true)
+    expect(useFilterStore.getState().isActive).toBe(true)
+    expect(useFilterStore.getState().paused).toBe(false)
     // The Filter menu keeps its own Clear all filters.
-    act(() => useFilterStore.getState().setPersonIds(new Set([1])))
     fireEvent.click(within(tray).getByRole('button', { name: /^Filter/ }))
     fireEvent.click(within(screen.getByRole('group', { name: 'Screen filters' })).getByRole('button', { name: 'Clear all filters' }))
-    expect(useFilterStore.getState().filters.personIds).toBeNull()
+    expect(useFilterStore.getState().isActive).toBe(false)
     expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
   })
 

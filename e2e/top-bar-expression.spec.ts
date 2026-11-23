@@ -33,8 +33,8 @@ const SEED: WorkspaceSeed = {
 const tray = (page: Page) => page.locator('header').getByRole('group', { name: 'Screen filters — apply to every widget' })
 const field = (page: Page) => tray(page).getByRole('textbox', { name: 'Filter tasks' })
 const pills = (page: Page) => tray(page).getByTestId('top-bar-pills')
-const funnel = (page: Page) => tray(page).getByRole('button', { name: 'Pause the filter' })
-const clear = (page: Page) => tray(page).getByRole('button', { name: 'Clear all filters' })
+const pause = (page: Page) => tray(page).getByRole('button', { name: 'Pause the filter' })
+const funnel = (page: Page) => tray(page).getByRole('button', { name: 'Clear the filter' })
 const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
 const error = (page: Page) => page.getByTestId('top-bar-filter-error')
 const listTitles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
@@ -51,7 +51,7 @@ const screenFilter = (page: Page) => page.evaluate(async () => {
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('an or expression narrows every list and the counter; at rest its terms are pills, each × takes one out; the field’s × clears', async ({ page }) => {
+test('an or expression narrows every list and the counter; at rest its terms are pills, each × takes one out; the funnel clears', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect.poll(() => listTitles(page)).toEqual(ALL)
   await expect(funnel(page)).toBeDisabled()
@@ -76,16 +76,16 @@ test('an or expression narrows every list and the counter; at rest its terms are
   await pills(page).getByRole('button', { name: 'Remove !Waiting' }).click()
   await expect.poll(() => listTitles(page)).toEqual(['Priya vendor call'])
 
-  await clear(page).click()
+  await funnel(page).click()
   await expect.poll(() => listTitles(page)).toEqual(ALL)
   await expect(pills(page)).toHaveCount(0)
   await expect(field(page)).toHaveValue('')
   await expect(funnel(page)).toBeDisabled()
-  await expect(clear(page)).toHaveCount(0)
+  await expect(pause(page)).toHaveCount(0)
   await expect(counter(page)).toHaveCount(0)
 })
 
-test('the funnel pauses the filter: every list shows every task and the counter says paused; a click again narrows them; an edit resumes; the × clears', async ({ page }) => {
+test('the field’s toggle pauses the filter: every list shows every task and the counter says paused; a click again narrows them; an edit resumes; the funnel clears', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect.poll(() => listTitles(page)).toEqual(ALL)
   await field(page).click()
@@ -94,13 +94,13 @@ test('the funnel pauses the filter: every list shows every task and the counter 
   await field(page).blur()
   const narrowed = ['Sam waiting on legal', 'Priya q4 plan']
   await expect.poll(() => listTitles(page)).toEqual(narrowed)
-  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect(pause(page)).toHaveAttribute('aria-pressed', 'false')
 
   // Paused: the filter stays (its pills dimmed and struck through), nothing applies it.
-  await funnel(page).hover()
-  await expect(page.getByRole('tooltip')).toHaveText('Pause the filter: show every task · click again to resume')
-  await funnel(page).click()
-  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'true')
+  await pause(page).hover()
+  await expect(page.getByRole('tooltip')).toHaveText('Pause the filter: show every task')
+  await pause(page).click()
+  await expect(pause(page)).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(() => listTitles(page)).toEqual(ALL)
   await expect(counter(page)).toHaveAccessibleName('5 open tasks shown, the filter paused. Show them')
   await expect(counter(page)).toHaveText('5open · paused')
@@ -110,29 +110,28 @@ test('the funnel pauses the filter: every list shows every task and the counter 
   expect(await pill.evaluate((el) => getComputedStyle(el).textDecorationLine)).toBe('line-through')
   expect(Number(await pills(page).evaluate((el) => getComputedStyle(el).opacity))).toBeCloseTo(0.55, 2)
   await page.mouse.move(0, 400)
-  await funnel(page).hover()
+  await pause(page).hover()
   await expect(page.getByRole('tooltip')).toHaveText('Resume the filter')
 
   // Again: narrowed.
-  await funnel(page).click()
-  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'false')
+  await pause(page).click()
+  await expect(pause(page)).toHaveAttribute('aria-pressed', 'false')
   await expect.poll(() => listTitles(page)).toEqual(narrowed)
 
   // Paused, an edit resumes it with the change: a pill's ×.
-  await funnel(page).click()
+  await pause(page).click()
   await expect.poll(() => listTitles(page)).toEqual(ALL)
   await pills(page).getByRole('button', { name: 'Remove !Waiting' }).click()
-  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect(pause(page)).toHaveAttribute('aria-pressed', 'false')
   await expect.poll(() => listTitles(page)).toEqual(['Priya q4 plan'])
 
-  // Paused, the × clears it all and ends the pause.
-  await funnel(page).click()
+  // Paused, the funnel clears it all and ends the pause.
+  await pause(page).click()
   await expect.poll(() => listTitles(page)).toEqual(ALL)
-  await clear(page).click()
+  await funnel(page).click()
   await expect(pills(page)).toHaveCount(0)
   await expect(funnel(page)).toBeDisabled()
-  await expect(funnel(page)).not.toHaveAttribute('aria-pressed')
-  await expect(clear(page)).toHaveCount(0)
+  await expect(pause(page)).toHaveCount(0)
   await expect.poll(() => listTitles(page)).toEqual(ALL)
 })
 
@@ -226,10 +225,10 @@ test('the palette’s Pause / Resume Filter pauses and resumes it; with no filte
   await field(page).blur()
   await expect.poll(() => listTitles(page)).toEqual(['Priya q4 plan'])
   await runPause()
-  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect(pause(page)).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(() => listTitles(page)).toEqual(ALL)
   await runPause()
-  await expect(funnel(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect(pause(page)).toHaveAttribute('aria-pressed', 'false')
   await expect.poll(() => listTitles(page)).toEqual(['Priya q4 plan'])
 })
 

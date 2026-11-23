@@ -9,18 +9,18 @@ The filter model and the expression grammar it shares with lists are in [Filters
 Wherever it applies, a task must pass it: lists, the glance widgets, the Neglect map, the calendar, the filtered-tasks panel and its counts.
 
 - The tray turns red while a filter applies.
-- Clear all clears the chips and the expression. It is the field's × at its right end, or the Filter menu's last item.
+- **The funnel clears it**: one click clears the chips, the expression, the text, Show completed and a pause (`services/screen-filter-clear.clearFilterWithUndo`). The snackbar says `Filter cleared` and its **Undo** puts the filter back as it was, not paused (`filter-store.snapshot` / `restore`). The Filter menu's last item, Clear all filters, clears it too, with no Undo.
 - The screen-filter hooks hand the widgets the filter deferred (`useDeferredValue`). So a clear, pause or resume paints the top bar in the click's frame, and the widgets follow.
 
 ## Pausing it
 
-**The funnel pauses it** (`filter-store.paused`, in memory only).
+**The toggle at the field's right end pauses it** (`filter-store.paused`, in memory only). It shows only while a filter is on, ⏸ while it applies and ▶, pressed, while paused. It is no tab stop.
 
 - The chips, the expression, the text and Show completed stay, but nothing applies them. `stores/screen-filter` (its hooks and `currentScreenFilter`) gives no filter. So every list, glance widget, the calendar, the Neglect map, the counts and the filtered-tasks panel show every task.
 - The tray loses its red. The pills dim and are struck through. The counter reads `109 open · paused`; the phone's pill does too, and a tap on it resumes the filter.
-- A click on the funnel again resumes it.
+- A click on the toggle again resumes it.
 - So does any edit of the filter: typing it, a pill's ×, a Filter menu pick. Every write goes through `commit`.
-- Clear all and a reload end the pause.
+- Clearing (the funnel, Clear all filters) and a reload end the pause.
 - The palette's **Pause / Resume Filter** and the editable `pause-filter` shortcut (no keys by default) toggle it.
 
 ## The Filter button

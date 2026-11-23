@@ -16,7 +16,7 @@ import { FOLD_PART, FOLD_SEARCH_ATTR, tabsFolded, useTopBarFold } from './use-to
 import { useTopBarCentre } from './use-top-bar-centre'
 import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
 import { TopBarFilterField } from './TopBarFilterField'
-import { FilterPauseButton } from './FilterPauseButton'
+import { FilterFunnelButton } from './FilterFunnelButton'
 import { FILTER_ROW_ATTR } from '../../utils/dom-contract'
 import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
 import { tabAcross } from '../../utils/focusables'
@@ -132,7 +132,7 @@ function RestingTopBar() {
           data-filter-paused={paused || undefined}
           onKeyDown={panelOpen ? (e) => tabAcross(e, trayRef.current, panelRef.current) : undefined}
         >
-          <FilterPauseButton active={isActive} />
+          <FilterFunnelButton active={isActive} />
           <TopBarFilterField width={search} panelOpen={panelOpen} foldAttr={FOLD_SEARCH_ATTR} />
           <FilterChipBar
             predicate={filterPredicate}

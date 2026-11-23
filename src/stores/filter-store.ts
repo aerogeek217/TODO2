@@ -45,6 +45,13 @@ interface TypedFilter extends ScreenFieldFilter {
   filters: FilterCriteria
 }
 
+/** The screen filter as it stands (`snapshot`), to put back (`restore`): the funnel's Undo. */
+interface ScreenFilterSnapshot {
+  filters: FilterCriteria
+  boxChips: readonly BoxChip[]
+  typed: TypedFilter | null
+}
+
 interface FilterState {
   filters: FilterCriteria
   /** Derived: true when any filter is active. Use useFilterStore(s => s.isActive) or getState().isActive. */
@@ -65,6 +72,10 @@ interface FilterState {
   setNegated: (field: NegatableField, negated: boolean) => void
   setAllFilters: (filters: FilterCriteria) => void
   clearAll: () => void
+  /** The filter as it stands, for `restore`. */
+  snapshot: () => ScreenFilterSnapshot
+  /** Puts a `snapshot` back (the funnel's Undo), not paused. */
+  restore: (snapshot: ScreenFilterSnapshot) => void
   /**
    * The chips the search box made, oldest first. A field set any other way
    * (its picker, ×, Clear all) drops its own: Backspace leaves chips set
@@ -200,6 +211,16 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       typed: null,
       paused: false,
     })
+  },
+
+  snapshot() {
+    const { filters, boxChips, typed } = get()
+    return { filters, boxChips, typed }
+  },
+
+  restore({ filters, boxChips, typed }) {
+    // The very objects it held (already normalized): the field shows the filter as it was typed.
+    set({ filters, isActive: isFilterActive(filters), boxChips, typed, paused: false })
   },
 
   setPaused(paused) {

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { openSettings, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import {
-  clearAllFilters, completedChip, filterClear, filterField, filterFunnel, filterMenu, filterMenuButton, filterMenuRow, filterPills, openFilterMenu,
+  clearAllFilters, completedChip, filterClear, filterField, filterFunnel, filterPause, filterMenu, filterMenuButton, filterMenuRow, filterPills, openFilterMenu,
   openFilterPicker, setShowCompleted,
 } from './fixtures/filters'
 
@@ -105,7 +105,7 @@ test('the filter tray turns red while a screen filter is on; the filter shows as
   await expect(rows(page)).toHaveCount(2)
 })
 
-test('the Filter menu’s Clear all filters and the field’s × each clear every screen filter at once', async ({ page }) => {
+test('the Filter menu’s Clear all filters and the funnel each clear every screen filter at once', async ({ page }) => {
   await seedWorkspace(page, team)
   const search = filterField(page)
   const button = filterMenuButton(page)
@@ -116,7 +116,7 @@ test('the Filter menu’s Clear all filters and the field’s × each clear ever
   expect(buttonBox && searchBox && searchBox.x + searchBox.width <= buttonBox.x).toBe(true)
   expect(funnelBox && searchBox && funnelBox.x + funnelBox.width <= searchBox.x).toBe(true)
   await expect(filterFunnel(page)).toBeDisabled()
-  await expect(filterClear(page)).toHaveCount(0)
+  await expect(filterPause(page)).toHaveCount(0)
   // No Clear all in the menu while nothing is on.
   await openFilterMenu(page)
   await expect(filterMenu(page).getByRole('button', { name: 'Clear all filters' })).toHaveCount(0)
@@ -153,7 +153,7 @@ test('the Filter menu’s Clear all filters and the field’s × each clear ever
   await filterClear(page).click()
   await expect(rows(page)).toHaveCount(2)
   await expect(filterPills(page)).toHaveCount(0)
-  await expect(filterClear(page)).toHaveCount(0)
+  await expect(filterPause(page)).toHaveCount(0)
   await expect(filterFunnel(page)).toBeDisabled()
 })
 
