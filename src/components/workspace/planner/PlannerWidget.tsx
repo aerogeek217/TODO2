@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Fragment, createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../../models'
 import { kindTabTitle, plannerUnplannedFilter, type ListZoom, type PlannerTab, type PlannerTabConfig } from '../../../models/workspace-layout'
@@ -666,7 +666,7 @@ function PlannerRowWrap({ todoId, flagged, children }: { todoId: number; flagged
   )
 }
 
-/** Today: its rows, then `N done` — the tasks completed today, struck, on one line. */
+/** Today: its rows, then `N done` — the tasks completed today, struck, on one line; a title opens its task. */
 function TodayGroup({ tabId, group, data, mobile, drag }: Omit<GroupProps, 'children' | 'empty'>) {
   const done = useTasksDoneToday()
   return (
@@ -682,7 +682,22 @@ function TodayGroup({ tabId, group, data, mobile, drag }: Omit<GroupProps, 'chil
         <div className={styles.done} data-testid="planner-done">
           <span className={styles.doneCheck} aria-hidden="true"><CheckIcon size={14} /></span>
           <span className={styles.doneCount}>{done.length} done</span>
-          <span className={styles.doneTitles}>{done.map((t) => t.title).join(' · ')}</span>
+          <span className={styles.doneTitles}>
+            {done.map((t, i) => (
+              <Fragment key={t.id}>
+                {i > 0 && ' · '}
+                <button
+                  type="button"
+                  className={styles.doneTitle}
+                  data-planner-done-task={t.id}
+                  aria-label={`${t.title}, done today. Open`}
+                  onClick={() => useUIStore.getState().openEditPopup(t.id)}
+                >
+                  {t.title}
+                </button>
+              </Fragment>
+            ))}
+          </span>
         </div>
       )}
     </DayGroup>

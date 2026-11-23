@@ -497,6 +497,14 @@ describe('the Planner — Today’s foot', () => {
     expect(done).not.toHaveTextContent('Done yesterday')
   })
 
+  it('a done task’s title opens it', () => {
+    const open = vi.spyOn(useUIStore.getState(), 'openEditPopup')
+    show()
+    const title = within(group('Today')).getByRole('button', { name: 'Shipped the report, done today. Open' })
+    fireEvent.click(title)
+    expect(open).toHaveBeenCalledWith(Number(title.getAttribute('data-planner-done-task')))
+  })
+
   it('counts every task completed today, the last first', () => {
     useTodoStore.setState({
       todos: [
