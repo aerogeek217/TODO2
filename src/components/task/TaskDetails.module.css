@@ -62,29 +62,29 @@
 /* Each cell's width is set by the band's width, never by its value (E6): a change to one fact — a
  * date's words, a status, a pill added or removed, the Urgent tint — moves no other cell and never
  * changes where the band wraps. Priority is as wide as its three toggles (each the same width);
- * Status at most 120px, its name cut with an ellipsis; People and Tags share what is left of their
- * line, their pills wrapping inside (a pill that needs another line makes its line taller: nothing
- * moves sideways or up); Due and Planned 136px at least — the day and × on one line, its words cut
+ * Status at most 180px, its name cut with an ellipsis; People and Tags share what is left of their
+ * line from 80px, their pills wrapping inside (a pill that needs another line makes its line taller: nothing
+ * moves sideways or up); Due and Planned 144px at least — the day and × on one line, its words cut
  * with an ellipsis on the next — and a little of what is left of the line, so a wrapped line's
- * divider spans the band. At the editor's 920px all six share one line, and a review card keeps
- * them on one from about 750px. */
+ * divider spans the band. At the editor's 1040px all six share one line, and a review card keeps
+ * them on one from about 770px. */
 .fact[data-fact='priority'] {
   flex: none;
 }
 
 .fact[data-fact='status'] {
-  flex: 0 1 120px;
+  flex: 0 1 180px;
 }
 
 /* Sharing a line with Due and Planned, they take most of what is left (the dates need only their room). */
 .fact[data-fact='people'],
 .fact[data-fact='tags'] {
-  flex: 4 1 100px;
+  flex: 4 1 80px;
 }
 
 .fact[data-fact='due'],
 .fact[data-fact='planned'] {
-  flex: 1 0 136px;
+  flex: 1 0 144px;
 }
 
 /* Planned holds the held state's corner flag. */

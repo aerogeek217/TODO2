@@ -13,7 +13,7 @@ import { pickInReview, seedWorkspace, wsRow, type WorkspaceSeed } from './fixtur
  * more than a pixel. Each cell's width is the band's to give
  * (`TaskDetails.module.css`), every priority toggle is the same width, a
  * date's two lines are always there, and the header's `Modified …` sits in a
- * box as wide as its longest words. The compact row: in the 920px editor and
+ * box as wide as its longest words. The compact row: in the 1040px editor and
  * in a review card about 780px wide the six facts share one line.
  */
 
@@ -247,13 +247,13 @@ async function factTops(host: Locator): Promise<number[]> {
 }
 
 test.describe('the compact facts row', () => {
-  test('the 920px editor: the six facts on one line, the band shorter than three lines of a cell', async ({ page }) => {
+  test('the 1040px editor: the six facts on one line, the band shorter than three lines of a cell', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await seedWorkspace(page, SEED)
     await taskRowByTitle(page, TITLE).locator(`span[data-task-title="${TITLE}"]`).dblclick()
     const dialog = page.getByRole('dialog', { name: 'Edit task' })
     await expect(dialog).toBeVisible()
-    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(920)
+    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(1040)
     await settle(dialog)
     const tops = await factTops(dialog)
     expect(tops).toHaveLength(6)
