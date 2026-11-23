@@ -172,3 +172,26 @@ test('while a card drags its selection’s controls step aside; dropped in the f
   await expect.poll(async () => Math.round((await box(calendar)).x - area.x)).toBe(26)
   await expect.poll(async () => Math.round((await box(calendar)).height)).toBe(Math.round(area.height - 26 - 14))
 })
+
+test('a collapsed card is named once: by its blueprint, its inert top line hidden', async ({ page }) => {
+  await seedWorkspace(page, {
+    layouts: [{
+      name: 'Main',
+      table: {
+        areas: ['a b', 'c c'],
+        rows: [{ weight: 1000, collapsed: true }, 1000],
+        cells: [
+          { id: 'a', tabs: [{ id: 'notesTab', kind: 'notes' }] },
+          { id: 'b', tabs: [{ id: 'calTab', kind: 'calendar' }] },
+          { id: 'c', tabs: [{ id: 'notes2', kind: 'notes' }] },
+        ],
+      },
+    }],
+    settings: { showWidgetNames: 'true' },
+  })
+  // Outside the mode the collapsed Notes cell shows its top line.
+  await expect(wsCell(page, 'a').locator('[data-widget-top-line]').first()).toBeVisible()
+  await enterLayoutEdit(page)
+  await expect(wsCell(page, 'a').locator('[data-edit-blueprint]')).toBeVisible()
+  await expect(wsCell(page, 'a').locator('[data-ws-cell-body] [data-widget-top-line]')).toBeHidden()
+})

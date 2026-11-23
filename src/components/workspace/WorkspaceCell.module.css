@@ -271,6 +271,11 @@
   visibility: visible;
 }
 
+/* In the layout edit mode the blueprint names a collapsed card: its top line (inert there) would say it twice. */
+.collapsed[data-blueprint] .body [data-widget-top-line] {
+  visibility: hidden;
+}
+
 .collapsed .body [data-glance] {
   height: auto;
 }
