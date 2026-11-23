@@ -10,6 +10,8 @@ export interface WsTabSeed {
   kind: WidgetKind
   /** List tabs: index into `listDefinitions`. */
   listDefIdx?: number
+  /** The tab's picked icon as stored (items 11, 14), e.g. `{ kind: 'line', key: 'flag' }`. */
+  icon?: Record<string, unknown>
   /** Calendar tabs: date types shown (default all three). */
   dateTypes?: { due: boolean; followup: boolean; plan: boolean }
   /** Calendar tabs: view state. */
@@ -444,6 +446,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
       if (tab.zoom != null) out.viewState = { ...(out.viewState as object | undefined), zoom: tab.zoom }
+      if (tab.icon) out.icon = tab.icon
       out.config = config
       return out
     }
