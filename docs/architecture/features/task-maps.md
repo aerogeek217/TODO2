@@ -1,6 +1,6 @@
 # Task maps
 
-The task maps are whole widgets that draw many tasks at once: the Neglect map (kind `neglect`), Work clusters (kind `clusters`, `components/workspace/clusters/`) and the List wall (kind `listwall`, `components/workspace/listwall/`). The menus list them under **Insights** after the glance kinds, but they are not glance widgets (see [Glance widgets](glance-widgets.md)). Their settings are layout config; Work clusters and the List wall have none.
+The task maps are whole widgets that draw many tasks at once: the Neglect map (kind `neglect`) and Work clusters (kind `clusters`, `components/workspace/clusters/`). The menus list them under **Insights** after the glance kinds, but they are not glance widgets (see [Glance widgets](glance-widgets.md)). Their settings are layout config; Work clusters has none. The squares of every list of a layout at once are the [List board](list-board.md)'s.
 
 ## Neglect map
 
@@ -54,18 +54,3 @@ Its face is picked by `utils/widget-face.taskMapFaceFor`. The graph and its dete
 - Bridges between clusters are drawn in amber.
 - A bubble opens the person / tag menu.
 - The widget name's tooltip is the legend. There is no ⓘ on a widget.
-
-## List wall
-
-Its data is `hooks/use-list-wall`.
-
-- It shows every list tab of the layout at once: a block per list, a square per open task the list shows.
-- A list shows what its tab would: its filter, prompt pick and the screen filter.
-- The trouble comes first: overdue, due soon, follow-up late, on track, stale. That state is the square's fill.
-- A task's priority is a ring, with Focus's glow, as on the task's checkbox (`PriorityRing`).
-- The blocks sit side by side, as many as fit at 8 squares across, sharing the width (`list-wall.wallShape`).
-- A wide cell shows every list in one row, never wrapping into empty width.
-- A block has 2–6 rows of squares, and up to 12 in one row of blocks.
-- It has no name line: the cell's controls float over its corner. Each list's tooltip ends with the legend.
-- A list's name brings its tab to the front of its cell. A square opens its task.
-- In a narrow cell, at most 560px wide, it draws a bar per list instead (`listWallFaceFor`). A short cell keeps the blocks, with fewer rows.

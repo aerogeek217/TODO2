@@ -49,9 +49,9 @@ Press `Ctrl` + `Space` anywhere and type. `@` adds a person, `#` a tag, `!` a st
 ### And also
 
 - A week and month **calendar** of due dates, follow-ups and plans, that you can drag tasks onto
-- A **Neglect map** of what is slipping, **Work clusters** of who works on what, and a **List wall** showing every list at once
+- A **Neglect map** of what is slipping and **Work clusters** of who works on what
 - Free-form **notes** that turn into tasks
-- **Shortcuts** to lists on any layout: a tile per list with its counts and first tasks, opening the list in place
+- A **List board** of lists from any layout, or every list in this one: a tile per list with a colored square per task and its first tasks, opening the list in place
 - **One filter for the whole screen**: type `@priya #launch due fri` (or `planned this week`) in the top bar, and pause it with a click
 - **Check-ins**: copy a status request for each person from their open tasks into your own message, then paste the reply back in
 - A **command palette** (`Ctrl` + `K`) and editable keyboard shortcuts

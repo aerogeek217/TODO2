@@ -58,8 +58,7 @@ The widget's own top line (`WidgetTopLine`) names it and stands for its tab (`da
 - the calendar: its month header;
 - a Number: its label;
 - a chart: its title;
-- Notes, the Neglect map, Work clusters and the Planner: a name line (`WidgetNameLine`), its name shown only with Settings › **Show widget names** on (off by default). Off, the line keeps only its other content (the Planner's range, Work clusters' count, which takes the legend's tooltip); with none it isn't drawn.
-- Shortcuts and the List wall: none. The cell's controls float over the face's corner.
+- Notes, the Neglect map, Work clusters, the Planner and the List board: a name line (`WidgetNameLine`), its name shown only with Settings › **Show widget names** on (off by default). Off, the line keeps only its other content (the Planner's range, Work clusters' count, which takes the legend's tooltip); with none it isn't drawn.
 
 It ends with the cell's controls slot (`CellControls`, lent through `CellControlsContext`):
 
@@ -126,7 +125,7 @@ A widget draws its small, medium or large face by its cell body's measured size 
 | medium | at most 160px tall |
 | large | anything else |
 
-- These have faces: the List, the Calendar, the Neglect map and every glance widget; and by thresholds of their own, Review ([Review](review.md)), the Planner ([Planner](planner.md)), Shortcuts ([Shortcuts](shortcuts.md)), Work clusters and the List wall ([Task maps](task-maps.md)).
+- These have faces: the List, the Calendar, the Neglect map and every glance widget; and by thresholds of their own, Review ([Review](review.md)), the Planner ([Planner](planner.md)), the List board ([List board](list-board.md)) and Work clusters ([Task maps](task-maps.md)).
 - Notes is always whole.
 - A fit row's cell is at its small face.
 - A click on a small face, or its focus-only `Open …` button, opens the widget larger.
@@ -139,7 +138,7 @@ Its state is `ui-store.widgetPopup`: what the popup shows (`WidgetPopupTarget`),
 
 - `{ kind: 'tab', tabId }`: a tab of the layout.
 - `{ kind: 'list', tabId }`: the list a Number follows ([Numbers](#numbers)).
-- `{ kind: 'shortcut', listDefinitionId }`: a list of any layout, from a Shortcuts tile ([Shortcuts](shortcuts.md#opening-a-list)).
+- `{ kind: 'shortcut', listDefinitionId }`: a list of any layout, from a List board's tile ([List board](list-board.md#opening-a-picked-list)).
 - `{ kind: 'review' }`: the popup review ([Review](review.md)).
 
 ### Size, header and layers

@@ -20,17 +20,24 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+Data version 88. A browser's data and a sync file are upgraded on first use; an older copy of the app can't open
+them afterwards.
+
 ### Added
 
 - **Show widget names** (Settings › Appearance › Theme). Off by default: a widget alone in its cell (Notes, the
-  Neglect map, Work clusters, the Planner) no longer spends a line on its name. Turn it on to bring the names back.
+  Neglect map, Work clusters, the Planner, the List board) no longer spends a line on its name. Turn it on to bring
+  the names back.
 
 ### Changed
 
-- **Shortcuts fits more tiles on a row**: tiles can be narrower, and a list's badge and count move under its name
-  when space is tight. Every tile shows its list's icon. The layout name moved to the tile's tooltip.
-- **Shortcuts and the List wall have no name header**, which gives their content the room. The List wall's color
-  legend is now at the end of each list's tooltip.
+- **The List board replaces Shortcuts and the List wall.** One widget (Add widget › Tasks › List board) shows a tile
+  per list: the lists you pick from any layout, or every list in this layout — choose with Which lists in its ⋯ menu.
+  A tile shows the list's icon, badge and count, a colored square per open task (overdue, due soon, follow-up late,
+  on track, stale; click one to open the task), then its first task titles as room allows. Click a tile to open the
+  list; a list of this layout also offers Show in its cell. Tiles are narrower, so more fit on a row, and the color
+  legend ends each tile's tooltip. Your Shortcuts widgets become List boards of the lists you picked, and each List
+  wall becomes a List board showing this layout's lists.
 
 ## 2026-11-23
 
