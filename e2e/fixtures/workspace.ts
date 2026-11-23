@@ -198,6 +198,10 @@ export interface WorkspaceSeed {
     predicate?: Record<string, unknown>
     /** Names of people for the predicate's `personIds`. */
     people?: string[]
+    /** Names of tags (from `tags`) for the predicate's `tags`. */
+    tags?: string[]
+    /** Names of statuses (from `statuses`) for the predicate's `statusIds`. */
+    statuses?: string[]
     runtimeFilter?: { field: 'person' | 'status' | 'tag' }
     /** `false` hides the list's filter line. */
     showFilterLine?: false
@@ -353,6 +357,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     for (const def of seed.listDefinitions ?? []) {
       const predicate: Record<string, unknown> = { ...seed.predicate, ...(def.predicate ?? {}) }
       if (def.people) predicate.personIds = def.people.map((n) => personIds.get(n))
+      if (def.tags) predicate.tags = def.tags.map((n) => tagIds.get(n))
+      if (def.statuses) predicate.statusIds = def.statuses.map((n) => statusIds.get(n))
       defIds.push(await add(tx.objectStore('listDefinitions'), {
         name: def.name,
         sortOrder: ++defOrder,
