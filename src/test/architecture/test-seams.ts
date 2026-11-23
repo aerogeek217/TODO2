@@ -50,7 +50,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'data/layout-shape.ts': ['LAYOUT_CLOSE_WORK_MAX', 'LAYOUT_SIZE_MAX', 'RawLayoutBody'],
   'data/layout-size.ts': ['LAYOUT_FILE_PART_LIMIT', 'LAYOUT_FILE_WORK_LIMIT', 'layoutPartCount'],
   'data/predicate-shape.ts': ['PREDICATE_ID_LIST_MAX', 'PREDICATE_SEARCH_TEXT_MAX'],
-  'data/schema-upgrades.ts': ['applySchemaUpgradeInTx', 'SCHEMA_UPGRADES', 'SchemaUpgrade'],
+  'data/schema-upgrades.ts': ['SCHEMA_UPGRADES', 'SchemaUpgrade'],
   'hooks/use-clear-selection-on-outside-click.ts': ['clickKeepsSelection'],
   'hooks/use-followup-input.ts': ['interpretFollowupText'],
   'hooks/use-list-widget-count.ts': ['countListWidgets'],
