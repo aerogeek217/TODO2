@@ -1,6 +1,6 @@
 # Import and export
 
-Every file the app reads (a Settings import, a backup, the sync file, an append import) goes through the import pipeline before anything is written: `data/import-pipeline.prepareImport` upgrades it, then `data/import-validation.validateImportData` checks it. This file covers what an import refuses, what it repairs and reports, and the audit (`data/audit.auditData`), which holds the rows already stored to the same rules.
+Every file the app reads (a Settings import, a backup, the sync file, an append import) goes through the import pipeline before anything is written: `data/import-pipeline.prepareImport` reads its version (and runs any schema upgrade above it), then `data/import-validation.validateImportData` checks it. This file covers what an import refuses, what it repairs and reports, and the audit (`data/audit.auditData`), which holds the rows already stored to the same rules.
 
 Launch and `replaceData` are in [startup-and-data-replaces](startup-and-data-replaces.md). The shape rules themselves (the layout check, the predicate check, each table's row check and fixer, the schema upgrades) are in [models-and-data](../models-and-data.md).
 
@@ -8,8 +8,8 @@ Launch and `replaceData` are in [startup-and-data-replaces](startup-and-data-rep
 
 Before a file's data is used:
 
-- A file from below the schema floor (`OLDEST_SUPPORTED_DB_VERSION`, v68), or without a version, is refused: nothing read, nothing written. The message names the older build that still converts it.
-- A file whose layouts hold far more parts than the app keeps is refused too, with a message, before the schema upgrades run (`data/layout-size`).
+- A file from below the schema floor (`OLDEST_SUPPORTED_DB_VERSION`, v87, the current version), or without a version, is refused: nothing read, nothing written. The message names the older build that still converts it.
+- A file whose layouts hold far more parts than the app keeps is refused too, with a message, before anything else reads them (`data/layout-size`).
 - `validateImportData` runs after the upgrade pipeline. Import paths call `prepareImport`, not `validateImportData`.
 
 `validateImportData(data, options)` returns `{ ok, data, warnings }`. It is strict: a bad row fails the file. Two things pass with a line in `warnings` instead: a settings row with an unrecognized key, and a part that can be repaired (see [What an import repairs](#what-an-import-repairs)).

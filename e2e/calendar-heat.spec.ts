@@ -120,7 +120,7 @@ test('a short cell: the month rows keep their least height, the grid scrolls and
   })
   const titled = await geometry()
   expect(titled.scrollable).toBe(true)
-  // The number and one `+N more` slot.
+  // The number and one slot of ticks for the entries left out.
   expect(titled.least).toBeGreaterThanOrEqual(41)
   // Today's week is in view.
   expect(titled.todayTop).toBeGreaterThanOrEqual(0)

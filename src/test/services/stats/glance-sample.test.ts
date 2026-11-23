@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FilterCriteria } from '../../../utils/filter-criteria'
 import { applyFilter } from '../../../utils/filter-match'
-import { numberConfigOfMetric, type V77NumberMetric } from '../../../data/upgrades/v78/number-metrics'
+import { numberConfigOfMetric, type V77NumberMetric } from '../../helpers/number-metrics'
 import type { TodoPredicate } from '../../../models'
 import { numberIds } from '../../../services/stats/number-count'
 import { predicateToCriteria } from '../../../utils/filter-criteria'

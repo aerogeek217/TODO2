@@ -634,53 +634,6 @@ describe('FileStorageService — older sync files', () => {
     expect(svc.status.isConnected).toBe(true)
   })
 
-  it('a v78 sync file holding what v79 rewrites: accepted, the browser gets it in the v79 shape (schema v79 runs on the load)', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
-    const pred = { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
-    const area = (col: number) => ({ col, row: 0, colSpan: 1, rowSpan: 1 })
-    const { svc } = await startWith(fileBody({
-      __schemaVersion: 78,
-      settings: [{ key: 'eisenhowerPanes', value: '{}' }, { key: 'eisenhowerSource', value: 'all' }],
-      listDefinitions: [{ id: 2, name: 'Eisenhower', sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: pred }, owner: { eisenhower: true } }],
-      listOrders: [{ id: 1, listDefinitionId: 2, todoId: 1, rank: 1 }],
-      layouts: [{
-        id: 1, name: 'Main', sortOrder: 0, createdAt: FILE_SAVED_AT, modifiedAt: FILE_SAVED_AT,
-        grid: { columns: [{ id: 'c1', weight: 500 }, { id: 'c2', weight: 500 }], rows: [{ id: 'r1', weight: 1000 }] },
-        cells: [
-          { id: 'a', area: area(0), tabs: [{ id: 'e', kind: 'eisenhower', config: {} }] },
-          { id: 'b', area: area(1), tabs: [{ id: 'r', kind: 'review', config: { by: 'person' }, viewState: { currentId: 1 } }] },
-        ],
-      }],
-    }))
-    svc.onConfirmFileUpgrade(async () => true)
-    await svc.initialize()
-
-    expect(mockRestoreFromImportData).toHaveBeenCalledTimes(1)
-    const data = mockRestoreFromImportData.mock.calls[0]![0] as { settings: unknown[]; listDefinitions: unknown[]; listOrders: unknown[]; layouts: Array<{ cells: Array<{ id: string; tabs: unknown[] }> }> }
-    expect(data.settings).toEqual([])
-    expect(data.listDefinitions).toEqual([])
-    expect(data.listOrders).toEqual([])
-    expect(data.layouts[0]!.cells).toEqual([expect.objectContaining({ id: 'b', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 'r', kind: 'review', config: {} }] })])
-  })
-
-  it('a v79 sync file with people’s addresses and the open method: accepted, the browser gets it in the v80 shape (schema v80 runs on the load)', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
-    const { svc } = await startWith(fileBody({
-      __schemaVersion: 79,
-      people: [{ id: 1, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' }],
-      settings: [{ key: 'checkinOpenMethod', value: 'eml' }, { key: 'weekStartsOn', value: '1' }],
-    }))
-    const ask = vi.fn(async () => true)
-    svc.onConfirmFileUpgrade(ask)
-    await svc.initialize()
-
-    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ fromVersion: 79, toVersion: CURRENT }))
-    expect(mockRestoreFromImportData).toHaveBeenCalledTimes(1)
-    const data = mockRestoreFromImportData.mock.calls[0]![0] as { people: unknown[]; settings: unknown[] }
-    expect(data.people).toEqual([{ id: 1, name: 'Ada Lovelace', initials: 'AL' }])
-    expect(data.settings).toEqual([{ key: 'weekStartsOn', value: '1' }])
-  })
-
   it('upgrade prompt with no listener stays paused', async () => {
     const { svc, writable } = await startWith(fileBody({ __schemaVersion: OLDER }))
     await svc.initialize()
@@ -710,7 +663,7 @@ describe('FileStorageService — older sync files', () => {
     expect(svc.status.paused?.message).toMatch(/^File sync paused — This file /)
     expect(svc.status.paused?.message).toContain(why)
     expect(svc.status.paused?.message).toContain(`this version reads v${FLOOR} and newer`)
-    expect(svc.status.paused?.message).toContain('the last TODO2 build from before 2026-10-23')
+    expect(svc.status.paused?.message).toContain('the last TODO2 build from before 2026-11-23')
     expect(asked).not.toHaveBeenCalled()
     expect(mockClearFileHandle).not.toHaveBeenCalled()
     expectUntouched(writable)

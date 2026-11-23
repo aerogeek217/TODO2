@@ -118,10 +118,15 @@ export type LayoutRequest =
 /**
  * The widget open larger (`WidgetPopupHost`, `services/widget-popup`): a tab
  * of the open layout by id; the list a Number that follows a list shows
- * (`list`: the Number's tab id); or the popup review — a Review widget tied
- * to no layout tab (`REVIEW_POPUP_TAB_ID`).
+ * (`list`: the Number's tab id); a list a Shortcuts tile opens, of any
+ * layout (`shortcut`, shown under `shortcutListTabId`); or the popup
+ * review — a Review widget tied to no layout tab (`REVIEW_POPUP_TAB_ID`).
  */
-export type WidgetPopupTarget = { kind: 'tab'; tabId: string } | { kind: 'list'; tabId: string } | { kind: 'review' }
+export type WidgetPopupTarget =
+  | { kind: 'tab'; tabId: string }
+  | { kind: 'list'; tabId: string }
+  | { kind: 'shortcut'; listDefinitionId: number }
+  | { kind: 'review' }
 
 export interface QuickAddDraftSeed {
   rawTitle: string
@@ -195,9 +200,17 @@ export interface PopupListPick {
   sortDirection?: TodoSortDirection
 }
 
+/** Items a prompt names under its message (`ConfirmPrompt.list`): a label, then one line each. */
+export interface ConfirmPromptList {
+  label: string
+  items: { key: string | number; text: string; note?: string }[]
+}
+
 export interface ConfirmPrompt {
   title: string
   message: string
+  /** What the answer acts on, named one per line under the message (Reset plan's tasks that leave the Planner). */
+  list?: ConfirmPromptList
   confirmLabel: string
   /** The cancel button's label (default Cancel). */
   cancelLabel?: string

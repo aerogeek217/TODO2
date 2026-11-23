@@ -56,7 +56,7 @@ import type { ListDefinition } from '../src/models/list-definition'
 import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-predicate'
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { BreakdownConfig } from '../src/models/chart-widgets'
-import { numberConfigOfMetric, type V77NumberMetric } from '../src/data/upgrades/v78/number-metrics.ts'
+import { numberConfigOfMetric, type V77NumberMetric } from '../src/test/helpers/number-metrics.ts'
 import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 
@@ -1053,7 +1053,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         // Glance widgets (D25 N + L, D26 P8): Tags and Status Breakdowns, Created vs completed.
         G: cell('cell-g-tags', [breakdown('tab-g-tags', 'Tags', 'tags'), breakdown('tab-g-priority', 'Priority', 'priority', { style: 'donut' })]),
         // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is; the task maps
-        // (2026-11-18) beside it: Work clusters and the List wall.
+        // (2026-11-18) beside it: Work clusters and the List wall; then Shortcuts.
         N: cell('cell-neglect', [{
           id: 'tab-neglect',
           kind: 'neglect',
@@ -1066,6 +1066,11 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           id: 'tab-list-wall',
           kind: 'listwall',
           config: {},
+        }, {
+          // Shortcuts (2026-11-23): lists of both layouts, in reach from this one.
+          id: 'tab-shortcuts',
+          kind: 'shortcuts',
+          config: { lists: [L.focus, L.dueSoon, L.someday, L.followupsThisWeek] },
         }]),
         R: cell('cell-g-trend', [{ id: 'tab-g-trend', kind: 'trend', config: { range: '14d' } }]),
         S: cell('cell-someday', [lens('tab-someday', L.someday)]),

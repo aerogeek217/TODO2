@@ -5,7 +5,7 @@ import { printExpression, wholeExpression } from '../../../utils/filter-expressi
 import { ExpressionWords } from '../../shared/filters/ExpressionWords'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { FunnelIcon } from '../../shared/icons'
-import { openPlannerSettings, WHAT_COUNTS_AS_UNPLANNED } from './open-planner-settings'
+import { openPlannerSettings, UNPLANNED_FILTER_LABEL } from './open-planner-settings'
 import styles from './PlannerWidget.module.css'
 
 /**
@@ -25,12 +25,12 @@ export function PlannerFilterLine({ tabId, filter }: { tabId: string; filter: To
   return (
     <div className={styles.filterLine} data-planner-filter-line={tabId}>
       {expression ? (
-        <ExpressionWords expression={expression} text={text} onOpen={open} lead={<FunnelIcon size={12} />} name={WHAT_COUNTS_AS_UNPLANNED} />
+        <ExpressionWords expression={expression} text={text} onOpen={open} lead={<FunnelIcon size={12} />} name={UNPLANNED_FILTER_LABEL} />
       ) : (
         <button
           type="button"
           className={styles.filterNone}
-          aria-label={`${WHAT_COUNTS_AS_UNPLANNED}: nothing joins on its own`}
+          aria-label={`${UNPLANNED_FILTER_LABEL}: nothing joins on its own`}
           data-tooltip="Only what you unplan · click to edit"
           data-testid="planner-filter-none"
           onClick={open}

@@ -39,7 +39,7 @@ function WeekRow({ day, entries, fit, ctx, onMore, moreOpen }: {
         {entries.length === 0
           ? <span className={styles.emptyDash} aria-hidden="true">—</span>
           : entries.slice(0, shown).map((e) => <EntryItem key={e.key} entry={e} size="md" ctx={ctx} />)}
-        {more > 0 && <MoreButton day={day} more={more} open={moreOpen} onMore={onMore} md />}
+        {more > 0 && <MoreButton day={day} hidden={entries.slice(shown)} open={moreOpen} onMore={onMore} md />}
       </div>
       {highlighted && <DropLabel ctx={ctx} day={day} />}
     </div>
@@ -50,7 +50,7 @@ function WeekRow({ day, entries, fit, ctx, onMore, moreOpen }: {
  * The week as seven rows sharing the cell's height. When the days' entries
  * don't all fit, every row is capped at the same number of slots
  * (`weekRowsFit` over the measured height) and a row over it ends in
- * `+N more`.
+ * the ticks of the entries it leaves out.
  */
 export function WeekRows({ days, entriesByDay, ctx, onMore, moreDayMs }: {
   days: Date[]

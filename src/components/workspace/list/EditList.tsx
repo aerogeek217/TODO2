@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { PersistedListDefinition } from '../../../models/list-definition'
-import { tabListId } from '../../../models/workspace-layout'
+import { shortcutListTabId, tabListId } from '../../../models/workspace-layout'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
@@ -348,9 +348,11 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   const panelElRef = useRef<HTMLDivElement | null>(null)
   const nameRef = useRef<HTMLInputElement | null>(null)
   const working = useWorkspaceStore((s) => s.working)
-  // The tab shows another list now (an undo, its kind changed): this list left the screen.
+  // The tab shows another list now (an undo, its kind changed): this list left the screen. A Shortcuts
+  // tile's list in the widget popup is in no layout: it shows while the popup does.
   const tab = working ? layoutTabs(working).find((t) => t.id === tabId) : undefined
-  const tabShowsList = !working || (tab != null && tabListId(tab) === listDefinitionId)
+  const inShortcutPopup = useUIStore((s) => s.widgetPopup?.kind === 'shortcut' && shortcutListTabId(s.widgetPopup.listDefinitionId) === tabId)
+  const tabShowsList = !working || inShortcutPopup || (tab != null && tabListId(tab) === listDefinitionId)
   const listExists = model.def != null && model.saved != null
   const placementStore = useMemo(
     () => createPlacementStore(tabId, working ? findTab(working, tabId)?.cellId : undefined, tabShowsList && listExists),

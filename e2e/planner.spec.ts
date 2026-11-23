@@ -564,7 +564,7 @@ test('Snooze, Unplan and Plan for day › from the keyboard: the plan moves, no 
   await page.keyboard.press('ArrowRight')
   let sub = page.getByRole('menu').last()
   await expect(sub.getByRole('menuitemradio', { name: /^Today/ })).toBeVisible()
-  await expect(sub).toContainText('Plans it for that day')
+  await expect(sub).not.toContainText('Plans it for that day')
   await expect(sub.getByRole('menuitemradio')).toHaveCount(7)
   await expect(sub.getByRole('menuitemradio', { name: 'No day' })).toHaveCount(0)
   await expect(sub.getByRole('menuitemradio', { checked: true })).toHaveCount(0)
@@ -582,7 +582,7 @@ test('Snooze, Unplan and Plan for day › from the keyboard: the plan moves, no 
   await arrowTo(menu.getByRole('menuitem', { name: /^Plan for day/ }))
   await page.keyboard.press('ArrowRight')
   sub = page.getByRole('menu').last()
-  await expect(sub).toContainText('Plans it for that day')
+  await expect(sub).not.toContainText('Plans it for that day')
   await expect(sub.getByRole('menuitemradio', { name: /^Today/ })).toContainText('follow-up')
   await expect(sub.getByRole('menuitemradio', { checked: true })).toHaveCount(0)
   await arrowTo(sub.getByRole('menuitemradio', { name: new RegExp(`^${await dayWords(page, 3)}`) }))
@@ -972,7 +972,10 @@ test('Reset plan › This week clears every plan the Planner shows; Undo puts th
   await expect(menu.getByRole('menuitem')).toHaveText([/^This week\s*6$/, /^Today only\s*1$/, /^Delayed\s*2$/])
   await menu.getByRole('menuitem', { name: /^This week/ }).click()
   // It asks first: how many plans, and how many tasks then leave the Planner.
-  await expect(page.getByRole('dialog', { name: 'Reset plan: this week?' })).toContainText('This clears the plan of 6 tasks')
+  const ask = page.getByRole('dialog', { name: 'Reset plan: this week?' })
+  await expect(ask).toContainText('This clears the plan of 6 tasks')
+  // The tasks that then leave the Planner are named, held or planned with no date in it.
+  await expect(ask.getByRole('list', { name: /^Leaving the Planner/ }).getByRole('listitem').first()).toBeVisible()
   await confirmReset(page)
   // No flag left; a planned task with no date and no Focus leaves the widget (Reset may remove it), the dated ones sit by their dates.
   await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(0)
@@ -1097,7 +1100,7 @@ test('the Unplanned filter: its words open the Planner settings, and what it hol
 
   // From the widget's ⋯: emptied, nothing joins on its own.
   await openCellMenu(page, 'k1')
-  await page.getByRole('menuitem', { name: 'What counts as unplanned…' }).click()
+  await page.getByRole('menuitem', { name: 'Unplanned filter…' }).click()
   await expect(dialog).toBeVisible()
   await dialog.getByRole('textbox', { name: 'Filter expression' }).fill('')
   await dialog.getByRole('textbox', { name: 'Filter expression' }).press('Tab')
@@ -1492,10 +1495,10 @@ test('the task editor’s ⋯ plans the task for a day: the plan only', async ({
   await expect(titles(group(page, await dayKeyIn(page, 3)))).toHaveText(['Loose idea'])
 })
 
-test('a calendar entry — in the +N more day popover too — opens the task menu on a right-click, not the browser’s', async ({ page }) => {
+test('a calendar entry — in a full day’s popover too — opens the task menu on a right-click, not the browser’s', async ({ page }) => {
   await seedWorkspace(page, ANYWHERE)
   const tomorrow = wsCell(page, 'k3').locator(`[data-day="${await dayKeyIn(page, 1)}"]`)
-  await tomorrow.getByRole('button', { name: /^\+\d+ more$/ }).click()
+  await tomorrow.getByRole('button', { name: /^\d+ more tasks?$/ }).click()
   const popover = page.getByTestId('calendar-day-popover')
   await expect(popover).toBeVisible()
   await popover.locator('[data-cal-entry]').filter({ hasText: 'Six' }).click({ button: 'right' })

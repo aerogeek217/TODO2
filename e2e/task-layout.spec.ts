@@ -6,7 +6,7 @@ import { reviewField, seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceS
 
 /**
  * Task layout B (feedback 2026-11-15) · the one task layout in a real
- * browser: the task editor (920px) with the fact band under the title —
+ * browser: the task editor (1040px) with the fact band under the title —
  * Priority, Status, People, Tags, Due, Planned, each under a plain heading
  * (all six on one row at a 1280px window; Planned's Plan for day menu) — then
  * Subtasks and Notes on the left and Status updates on the right, the log
@@ -109,10 +109,10 @@ test.describe('the task editor', () => {
     expect(Math.abs(await centre(dialog.getByRole('button', { name: 'Close' })) - check)).toBeLessThanOrEqual(0.5)
   })
 
-  test('920px: the fact band in its order, Subtasks and Notes left of Status updates; the footer’s fields in view without scrolling', async ({ page }) => {
+  test('1040px: the fact band in its order, Subtasks and Notes left of Status updates; the footer’s fields in view without scrolling', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page)
-    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(920)
+    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(1040)
 
     const band = dialog.locator('[data-task-facts]')
     const writing = dialog.locator('[data-task-writing]')
@@ -127,7 +127,7 @@ test.describe('the task editor', () => {
     expect(await facts.evaluateAll((els) => els.map((el) => el.getAttribute('data-fact')))).toEqual(FACT_ORDER)
     const colours = await facts.evaluateAll((els) => els.map((el) => getComputedStyle(el.querySelector('[id]')!).color))
     expect(new Set(colours).size).toBe(1)
-    // At 920px all six share one line: Due and Planned never wrap onto a second.
+    // At 1040px all six share one line: Due and Planned never wrap onto a second.
     const tops = await facts.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)))
     expect(new Set(tops).size).toBe(1)
     // The writing: Subtasks, then Notes; Status updates beside them.
@@ -152,7 +152,7 @@ test.describe('the task editor', () => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page)
-    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(920)
+    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(1040)
     const facts = dialog.locator('[data-task-facts] [data-fact]')
     expect(await facts.evaluateAll((els) => els.map((el) => el.getAttribute('data-fact')))).toEqual(FACT_ORDER)
     const tops = await facts.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)))
@@ -162,7 +162,7 @@ test.describe('the task editor', () => {
     const planned = dialog.locator('[data-fact="planned"]')
     const p = await box(planned)
     expect(p.x + p.width).toBeLessThanOrEqual(band.x + band.width + 0.5)
-    expect(p.width).toBeGreaterThanOrEqual(136)
+    expect(p.width).toBeGreaterThanOrEqual(144)
     await expect(planned).toContainText('Not planned')
 
     const stamp = async () => (await readStore<{ title: string; modifiedAt: string; doDate?: string }>(page, 'todos')).find((t) => t.title === 'Vendor contract renewal')!
@@ -170,7 +170,7 @@ test.describe('the task editor', () => {
     await planned.getByRole('button', { name: /^Planned:/ }).click()
     const menu = page.getByRole('menu', { name: 'Plan for day' })
     await expect(menu).toBeVisible()
-    await expect(menu).toContainText('Plans it for that day')
+    await expect(menu).not.toContainText('Plans it for that day')
     await expect(menu.getByRole('menuitem', { name: 'Pick a date…' })).toBeVisible()
     await expect(menu.getByRole('menuitemradio')).toHaveCount(8)
     await menu.getByRole('menuitemradio', { name: /^Today/ }).click()

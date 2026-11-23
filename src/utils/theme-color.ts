@@ -10,8 +10,8 @@ import { presetHueOf } from './layout-hue'
  * - a preset hue's hex → that hue's text token (`--hue-<name>-text`: the hue
  *   itself in dark, a darker twin in light);
  * - one of the four colours the v78 upgrade wrote for the old metrics (the
- *   dark theme's danger, overdue, follow-up and muted text at v77,
- *   `upgrades/v78/number-metrics`) → that meaning's token, which has a light twin;
+ *   dark theme's danger, overdue, follow-up and muted text at v77) → that
+ *   meaning's token, which has a light twin;
  * - any other colour → itself mixed with `--custom-color-shade` of black in
  *   oklab: 0% in dark (the colour as picked), a fixed share in light — no
  *   contrast clamp, so a very light pick may still read faintly there.

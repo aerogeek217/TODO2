@@ -314,7 +314,7 @@ test('a row dragged inside the popup takes no drop on a calendar day hidden behi
   expect(dated).toEqual([])
 })
 
-test('the popup’s own calendar days still take drops: an entry moved to another day, and one dragged out of a day’s +N more', async ({ page }) => {
+test('the popup’s own calendar days still take drops: an entry moved to another day, and one dragged out of a full day’s popover', async ({ page }) => {
   const titles = Array.from({ length: 16 }, (_, n) => `Task ${String.fromCharCode(65 + n)}`)
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Order' }],
@@ -350,7 +350,7 @@ test('the popup’s own calendar days still take drops: an entry moved to anothe
   await expect.poll(() => dueInDays(page, moved)).toBe(3)
 
   // A day popover opened inside the popup: its entries drop on the popup's days too.
-  const more = day1.getByRole('button', { name: /^\+\d+ more$/ })
+  const more = day1.getByRole('button', { name: /^\d+ more tasks?$/ })
   await expect(more).toBeVisible()
   await more.click()
   const popover = page.getByTestId('calendar-day-popover')

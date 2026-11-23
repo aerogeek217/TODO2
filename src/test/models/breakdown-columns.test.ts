@@ -24,7 +24,7 @@ import type { TabBadgeRanges } from '../../models/list-definition'
  * A Breakdown's count columns (board BC, G3; every column a count column):
  * a new Breakdown writes Due and Follow-up as its `columns`. (A config from
  * before them — its old `badges`, its sorts by the older derived columns —
- * v79 rewrote: `v79-upgrade.test`.)
+ * v79 rewrote.)
  */
 
 const APP: TabBadgeRanges = { due: 3, followup: 0 }

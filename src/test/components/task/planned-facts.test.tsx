@@ -144,7 +144,7 @@ describe('the Plan for day menu', () => {
   it('lists the week’s days as today, then Pick a date…, Unplanned and Clear plan', async () => {
     const { cell } = await openStored({ doDate: day(1), dueDate: day(4) })
     const menu = openMenu(cell())
-    expect(within(menu).getByText('Plans it for that day')).toBeInTheDocument()
+    expect(within(menu).queryByText('Plans it for that day')).toBeNull()
     expect(within(menu).getAllByRole('menuitemradio').map((m) => m.getAttribute('data-menu-label'))).toEqual([
       'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned',
     ])

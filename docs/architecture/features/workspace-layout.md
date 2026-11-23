@@ -56,7 +56,7 @@ A change of structure is an undo step; view state is written straight onto the s
 
 ## Tabs and widget kinds
 
-`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `neglect`, `clusters`, `listwall`, and the glance kinds `number`, `breakdown`, `pivot` and `trend`.
+`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `shortcuts`, `neglect`, `clusters`, `listwall`, and the glance kinds `number`, `breakdown`, `pivot` and `trend`.
 
 Each tab has a per-kind `config`, the **layout config** saved with the layout, and an optional `viewState`.
 
@@ -68,6 +68,7 @@ Config:
   - `toggleCalendarDateType(types, type)` switches one on or off.
 - The glance kinds (`models/glance-widgets`, `models/chart-widgets`): a Number's `NumberConfig`, Created vs completed's `TrendTabConfig`, a Breakdown's `BreakdownConfig`, a Pivot's `PivotConfig`. See [Glance widgets](glance-widgets.md) and [Charts](charts.md).
 - A Neglect map: `NeglectTabConfig` ([Task maps](task-maps.md#config)).
+- Shortcuts: `lists?`, list ids of any layout, never under the key `listDefinitionId` ([Shortcuts](shortcuts.md#config)).
 - The others: `{}`.
 
 View state:
@@ -243,7 +244,7 @@ Its toolbar's toggles are its `config.dateTypes`: **Due**, **Follow-up** and **P
 - A plan entry (`data-cal-entry="plan"`) is a line with the hollow bar, its title in the secondary text color. Its tooltip is the title beside the hollow bar, named `Planned`.
 - A **missed plan** — its day passed, the task open (`isEntryMissed`) — is faded on its day (`plan-missed`). It is never overdue, never late and washes no day.
 - A completed task's entries show only when the screen filter lets completed tasks through, plans included.
-- Everything else an entry does is the same for a plan: the task menu with Plan for day ›, a click opening the task, the day popover, `+N more`.
+- Everything else an entry does is the same for a plan: the task menu with Plan for day ›, a click opening the task, the day popover, a full day's ticks.
 
 ### Dragging
 
@@ -258,6 +259,7 @@ Small day cells draw **ticks** (`shared/DayTicks` over `utils/day-ticks`, the Pl
 - the small face's seven-day strip, under today's count and its words (`due, to follow up or planned today`): today ringed, a late day underlined in its color;
 - the medium face's seven day cells, under each day's count: today ringed, a late day's number in its color; each takes a drop and opens its entries;
 - the compact month (a narrow cell, the phone), under each day's number, Titles on or off: a past day still open is washed in its late color. Titles has no toggle there.
+- a month cell or week row with more entries than fit, in its last slot: the ticks of the entries it leaves out (`CalendarDayParts.MoreButton`, named `3 more tasks`), a button opening the day popover.
 
 The full month keeps its **heat map** with Titles off: a day's tint counts every entry, plans included, and its tooltip names them (`4 due · 1 follow-up · 2 planned`). The legend names what counts (`Due, follow-ups and plans`). A missed plan doesn't make a day late.
 

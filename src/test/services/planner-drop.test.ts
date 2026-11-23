@@ -29,6 +29,7 @@ import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-st
 import {
   PLANNER_DELAYED_KEY,
   PLANNER_UNPLANNED_KEY,
+  plannerDayLabel,
   plannerPlacement,
   plannerResetCounts,
   plannerView,
@@ -843,7 +844,7 @@ describe('Reset plan', () => {
   }
   beforeEach(() => answer(true))
 
-  it('asks first — how many plans it clears, and how many of those tasks then leave the Planner; Cancel writes nothing', async () => {
+  it('asks first — how many plans it clears, naming the tasks that then leave the Planner; Cancel writes nothing', async () => {
     await week()
     await seed('Parked', { unplanned: true })
     answer(false)
@@ -851,7 +852,13 @@ describe('Reset plan', () => {
     await resetPlannerPlan(viewNow(), 'week')
     expect(asked).toHaveLength(1)
     expect(asked[0]).toMatchObject({ title: 'Reset plan: this week?', confirmLabel: 'Reset plan' })
-    expect(asked[0]?.message).toBe('This clears the plan of 5 tasks: each goes back to where its own dates put it. 2 of them have no date in the Planner and leave it. No due date or follow-up changes.')
+    expect(asked[0]?.message).toBe('This clears the plan of 5 tasks: each goes back to where its own dates put it. 2 of them leave the Planner. No due date or follow-up changes.')
+    // The ones leaving are named: no date in the Planner, not in the Unplanned filter — held, or on a day only by their plan.
+    expect(asked[0]?.list?.label).toBe('Leaving the Planner — no date in it, not in the Unplanned filter')
+    expect(asked[0]?.list?.items.map((i) => [i.text, i.note])).toEqual([
+      ['Planned Mon', `Planned ${plannerDayLabel(day(3))}`],
+      ['Parked', 'Held in Unplanned'],
+    ])
     expect(w.tasks()).toBe(0)
     expect(steps()).toEqual([])
   })

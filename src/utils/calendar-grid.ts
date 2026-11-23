@@ -135,7 +135,7 @@ const MONTH_CELL = { padding: 4, number: 18, entry: 18, gap: 1 } as const
 
 /**
  * The least height a month row gets: the heat map's day its number line; with
- * titles on, the number and one slot (`+N more`). In a cell too short for six
+ * titles on, the number and one slot (the ticks of the entries left out). In a cell too short for six
  * such rows the month grid scrolls rather than clipping them.
  */
 export const MONTH_ROW_MIN = {
@@ -154,7 +154,7 @@ export function monthCellFit(cellHeight: number): number {
 
 /**
  * How many of a day's `count` entries a month cell or week row shows and how
- * many go behind `+N more`: all when they fit, else `fit − 1` entries and the
+ * many go behind the ticks of the ones left out: all when they fit, else `fit − 1` entries and the
  * more button in the last slot.
  */
 export function dayOverflow(count: number, fit: number): { shown: number; more: number } {
@@ -184,7 +184,7 @@ function weekRowHeight(slots: number): number {
  * every row — the largest that fits, so a busy day keeps as many entries as
  * the quieter days leave room for — and at least 1 (rows at their minimum
  * height then scroll). A row over the cap shows `cap − 1` entries and
- * `+N more` (`dayOverflow`).
+ * the ticks of the ones left out (`dayOverflow`).
  */
 export function weekRowsFit(height: number, counts: readonly number[]): number {
   if (!(height > 0)) return Number.POSITIVE_INFINITY

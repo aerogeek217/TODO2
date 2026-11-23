@@ -1,6 +1,6 @@
 import type { CellArea, GridTrack, LayoutBody, LayoutCell, LayoutTab, NumberTab } from '../../models/workspace-layout'
 import type { NumberConfig } from '../../models/glance-widgets'
-import { numberConfigOfMetric, type V77NumberMetric } from '../../data/upgrades/v78/number-metrics'
+import { numberConfigOfMetric, type V77NumberMetric } from './number-metrics'
 
 /**
  * Builders for workspace layouts in the table shape (D26: grid tracks and

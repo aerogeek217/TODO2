@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react'
+import type { ConfirmPromptList } from '../../stores/ui-store'
 import { createPortal } from 'react-dom'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './Dialog.module.css'
@@ -324,6 +325,8 @@ interface ConfirmDialogProps {
   open: boolean
   title: ReactNode
   message: ReactNode
+  /** Named under the message, one per line, in a scroll of its own when long: what the answer acts on. */
+  list?: ConfirmPromptList
   confirmLabel?: string
   cancelLabel?: string
   /** Renders the confirm button with danger styling. */
@@ -347,6 +350,7 @@ export function ConfirmDialog({
   open,
   title,
   message,
+  list,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   danger = false,
@@ -369,6 +373,19 @@ export function ConfirmDialog({
       nested={nested}
     >
       <DialogBody>{message}</DialogBody>
+      {list && list.items.length > 0 && (
+        <div className={styles.confirmList} data-confirm-list="">
+          <div className={styles.confirmListLabel}>{list.label}</div>
+          <ul aria-label={list.label}>
+            {list.items.map((item) => (
+              <li key={item.key}>
+                <span className={styles.confirmListText}>{item.text}</span>
+                {item.note && <span className={styles.confirmListNote}>{item.note}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <DialogActions>
         {threeWay && (
           <button type="button" className={styles.discardButton} onClick={onDiscard}>

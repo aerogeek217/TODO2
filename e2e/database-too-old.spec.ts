@@ -13,8 +13,8 @@ import { DB_NAME } from './fixtures/db'
  * file…, which replaces the database after asking.
  */
 
-/** Native IndexedDB version of a schema-v67 database (Dexie stores schema × 10). */
-const V67_NATIVE = 670
+/** Native IndexedDB version of a schema-v86 database (Dexie stores schema × 10). */
+const V86_NATIVE = 860
 
 /** The dialog's buttons, in order. */
 const WAYS_ON = ['Download this data', 'Import a file…', 'Reload']
@@ -72,22 +72,22 @@ async function rawDatabase(page: Page): Promise<{ version: number; stores: Recor
 test('a database below the schema floor is refused at startup and left untouched', async ({ page }) => {
   // A page of the app's origin that doesn't start the app, to set the database up.
   await page.goto('/favicon.svg')
-  await createRawDatabase(page, V67_NATIVE)
+  await createRawDatabase(page, V86_NATIVE)
 
   await page.goto('/')
   const dialog = page.getByRole('dialog', { name: 'Data from an older version of TODO2' })
-  await expect(dialog).toContainText('schema v67')
+  await expect(dialog).toContainText('schema v86')
   await expect(dialog).toContainText('Nothing was read or changed')
   await expect(dialog.getByRole('button')).toHaveText(WAYS_ON)
   await expect(page.locator('[data-ws-area]')).toHaveCount(0)
-  expect(await rawDatabase(page)).toEqual({ version: V67_NATIVE, stores: { orgs: 1, todos: 1 } })
+  expect(await rawDatabase(page)).toEqual({ version: V86_NATIVE, stores: { orgs: 1, todos: 1 } })
 
   // Reload asks again; still nothing opened or changed.
   const reloaded = page.waitForEvent('load')
   await dialog.getByRole('button', { name: 'Reload' }).click()
   await reloaded
-  await expect(page.getByRole('dialog', { name: 'Data from an older version of TODO2' })).toContainText('schema v67')
-  expect(await rawDatabase(page)).toEqual({ version: V67_NATIVE, stores: { orgs: 1, todos: 1 } })
+  await expect(page.getByRole('dialog', { name: 'Data from an older version of TODO2' })).toContainText('schema v86')
+  expect(await rawDatabase(page)).toEqual({ version: V86_NATIVE, stores: { orgs: 1, todos: 1 } })
 })
 
 test('where the browser can’t list its databases, it is still refused, naming the version, and left untouched', async ({ page }) => {
@@ -95,19 +95,19 @@ test('where the browser can’t list its databases, it is still refused, naming 
     Object.defineProperty(IDBFactory.prototype, 'databases', { value: undefined, configurable: true })
   })
   await page.goto('/favicon.svg')
-  await createRawDatabase(page, V67_NATIVE)
+  await createRawDatabase(page, V86_NATIVE)
 
   await page.goto('/')
   const dialog = page.getByRole('dialog', { name: 'Data from an older version of TODO2' })
-  await expect(dialog).toContainText('schema v67')
+  await expect(dialog).toContainText('schema v86')
   await expect(dialog.getByRole('button')).toHaveText(WAYS_ON)
   await expect(page.locator('[data-ws-area]')).toHaveCount(0)
-  expect(await rawDatabase(page)).toEqual({ version: V67_NATIVE, stores: { orgs: 1, todos: 1 } })
+  expect(await rawDatabase(page)).toEqual({ version: V86_NATIVE, stores: { orgs: 1, todos: 1 } })
 })
 
 test('the database’s own open refuses a database below the floor and the engine rolls it back', async ({ page }) => {
   await page.goto('/favicon.svg')
-  await createRawDatabase(page, V67_NATIVE)
+  await createRawDatabase(page, V86_NATIVE)
 
   // The app's database module, opened straight — no version check first.
   const refused = await page.evaluate(async () => {
@@ -118,31 +118,31 @@ test('the database’s own open refuses a database below the floor and the engin
     return mod.findDatabaseTooOld(error) !== null
   })
   expect(refused).toBe(true)
-  expect(await rawDatabase(page)).toEqual({ version: V67_NATIVE, stores: { orgs: 1, todos: 1 } })
+  expect(await rawDatabase(page)).toEqual({ version: V86_NATIVE, stores: { orgs: 1, todos: 1 } })
 })
 
 test('Download this data saves the old data; Import a file… asks, then replaces the database and the app starts', async ({ page }) => {
   await page.goto('/favicon.svg')
-  await createRawDatabase(page, V67_NATIVE)
+  await createRawDatabase(page, V86_NATIVE)
   await page.goto('/')
   const dialog = page.getByRole('dialog', { name: 'Data from an older version of TODO2' })
-  await expect(dialog).toContainText('schema v67')
+  await expect(dialog).toContainText('schema v86')
 
   // The old data as a file, stamped with its own version; nothing changed.
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     dialog.getByRole('button', { name: 'Download this data' }).click(),
   ])
-  expect(download.suggestedFilename()).toMatch(/^todo2-old-data-v67-.*\.json$/)
+  expect(download.suggestedFilename()).toMatch(/^todo2-old-data-v86-.*\.json$/)
   const path = await download.path()
   const saved = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
   expect(saved).toMatchObject({
-    __schemaVersion: 67,
+    __schemaVersion: 86,
     todos: [{ id: 1, title: 'Kept as it was' }],
     orgs: [{ id: 1, name: 'Northwind' }],
   })
   await expect(dialog).toContainText('Downloaded the data in this browser')
-  expect(await rawDatabase(page)).toEqual({ version: V67_NATIVE, stores: { orgs: 1, todos: 1 } })
+  expect(await rawDatabase(page)).toEqual({ version: V86_NATIVE, stores: { orgs: 1, todos: 1 } })
 
   // A file from below the floor is refused, saying why; nothing asked.
   const input = page.locator('input[type="file"]')
@@ -150,11 +150,12 @@ test('Download this data saves the old data; Import a file… asks, then replace
   await expect(dialog.getByRole('alert')).toContainText('That file can’t be imported')
   await expect(dialog.getByRole('button', { name: 'Replace' })).toHaveCount(0)
 
-  // A good file (at the floor: its Progress upgrades on the way in) asks first; Cancel goes back.
+  // A good file (at the floor) asks first; Cancel goes back.
   const now = new Date().toISOString()
   const file = {
-    __schemaVersion: 68,
-    todos: [{ id: 1, uid: 'from-a-file', title: 'From a file', progress: 'half done', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
+    __schemaVersion: 87,
+    todos: [{ id: 1, uid: 'from-a-file', title: 'From a file', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
+    statusUpdates: [{ id: 1, todoId: 1, date: now, text: 'half done', createdAt: now }],
     settings: [],
   }
   const good = { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) }
@@ -163,7 +164,7 @@ test('Download this data saves the old data; Import a file… asks, then replace
   await expect(dialog).toContainText('You downloaded a copy of it')
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(dialog.getByRole('button')).toHaveText(WAYS_ON)
-  expect(await rawDatabase(page)).toEqual({ version: V67_NATIVE, stores: { orgs: 1, todos: 1 } })
+  expect(await rawDatabase(page)).toEqual({ version: V86_NATIVE, stores: { orgs: 1, todos: 1 } })
 
   // Replace: the page reloads into the app, on the file's data.
   await input.setInputFiles(good)
@@ -173,7 +174,7 @@ test('Download this data saves the old data; Import a file… asks, then replace
   await expect(page.locator('[data-ws-area]').first()).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Data from an older version of TODO2' })).toHaveCount(0)
   const after = await rawDatabase(page)
-  expect(after.version).toBeGreaterThan(V67_NATIVE)
+  expect(after.version).toBeGreaterThan(V86_NATIVE)
   expect(after.stores).toMatchObject({ todos: 1, statusUpdates: 1 })
   expect(after.stores).not.toHaveProperty('orgs')
 })

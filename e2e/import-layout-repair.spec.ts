@@ -22,7 +22,7 @@ const FILTER = { showCompleted: false, personIds: null, statusIds: null, searchT
 const area = (col: number, row: number) => ({ col, row, colSpan: 1, rowSpan: 1 })
 
 const base = {
-  __schemaVersion: 80,
+  __schemaVersion: 87,
   todos: [{ id: 1, uid: 'u-1', title: 'Imported task', isCompleted: false, sortOrder: 0, createdAt: AT, modifiedAt: AT }],
   settings: [{ key: 'activeLayoutId', value: '1' }],
 }

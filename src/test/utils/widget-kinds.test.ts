@@ -18,14 +18,14 @@ describe('widget kinds', () => {
   it('lists the kinds in menu order, with their names', () => {
     // Tasks (List, Calendar, Review, Planner, Notes), then Insights — the Neglect map and the task maps last.
     expect(WIDGET_KINDS).toEqual([
-      'lens', 'calendar', 'review', 'planner', 'notes',
+      'lens', 'calendar', 'review', 'planner', 'notes', 'shortcuts',
       'number', 'breakdown', 'pivot', 'trend', 'neglect', 'clusters', 'listwall',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
-      'List', 'Calendar', 'Review', 'Planner', 'Notes',
+      'List', 'Calendar', 'Review', 'Planner', 'Notes', 'Shortcuts',
       'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
     ])
-    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'planner', 'notes'])
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'planner', 'notes', 'shortcuts'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])
   })
 
@@ -56,6 +56,8 @@ describe('widget kinds', () => {
     // Work clusters and the List wall have no settings.
     expect(createTab('clusters', 'h')).toEqual({ id: 'h', kind: 'clusters', config: {} })
     expect(createTab('listwall', 'i')).toEqual({ id: 'i', kind: 'listwall', config: {} })
+    // Shortcuts: no lists picked yet.
+    expect(createTab('shortcuts', 'j')).toEqual({ id: 'j', kind: 'shortcuts', config: {} })
     // A fresh config each time.
     const one = createTab('calendar', 'x')
     one.config.dateTypes.due = false

@@ -92,7 +92,7 @@ afterEach(() => {
 describe('the Unplanned filter line', () => {
   it('reads Focus for a Planner that never set one; Unplanned holds the Focus task and the held one', () => {
     setup()
-    expect(within(line()).getByRole('button', { name: 'What counts as unplanned: Focus' })).toBeInTheDocument()
+    expect(within(line()).getByRole('button', { name: 'Unplanned filter: Focus' })).toBeInTheDocument()
     expect(unplanned()).toEqual(['Clean up shared drive', 'Someday focus'])
   })
 
@@ -105,7 +105,7 @@ describe('the Unplanned filter line', () => {
 
   it('an empty filter: nothing joins on its own, only what was unplanned by hand', () => {
     setup({ id: 'plan', kind: 'planner', config: { unplanned: emptyPredicate() } })
-    expect(within(line()).getByRole('button', { name: 'What counts as unplanned: nothing joins on its own' })).toHaveTextContent('Nothing joins on its own')
+    expect(within(line()).getByRole('button', { name: 'Unplanned filter: nothing joins on its own' })).toHaveTextContent('Nothing joins on its own')
     expect(unplanned()).toEqual(['Clean up shared drive'])
   })
 })
@@ -127,10 +127,10 @@ describe('the Planner settings', () => {
     expect(layoutSteps()).toEqual([])
   })
 
-  it('open from What counts as unplanned… in the widget’s ⋯ menu', () => {
+  it('open from Unplanned filter… in the widget’s ⋯ menu', () => {
     setup()
     const { result } = renderHook(() => usePlannerMenuEntries(stored()))
-    const entry = result.current.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === 'What counts as unplanned…')
+    const entry = result.current.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === 'Unplanned filter…')
     act(() => { entry!.onSelect!() })
     expect(settings()).not.toBeNull()
   })

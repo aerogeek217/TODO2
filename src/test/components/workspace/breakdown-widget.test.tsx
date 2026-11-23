@@ -116,7 +116,7 @@ describe('the headings sort (view state, per split)', () => {
     expect(keys()).toEqual(before)
   })
 
-  // The older derived columns' sorts (Overdue … Follow-up due) v79 rewrote as the Due / Follow-up column (`v79-upgrade.test`).
+  // The older derived columns' sorts (Overdue … Follow-up due) v79 rewrote as the Due / Follow-up column.
   it('a sort by a key no column has (the old Priority column’s among them) reads as the default order', () => {
     setup(breakdown({}, 'b'))
     const before = keys()

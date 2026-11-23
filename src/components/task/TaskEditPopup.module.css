@@ -40,7 +40,7 @@
   /* Task layout B (board B-Editor): the fact band's six facts on one line, the two columns, and the
    * footer's follow-up fields beside Mark followed up and Done. Its height is its content's (the
    * taller column sets it), up to 82% of the window; then the columns scroll inside. */
-  width: min(920px, calc(100vw - 32px));
+  width: min(1040px, calc(100vw - 32px));
   max-height: 82vh;
   background: linear-gradient(
     168deg,

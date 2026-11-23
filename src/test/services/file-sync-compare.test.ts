@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { buildExportData } from '../../data/export-data'
 import { prepareImport } from '../../data/import-pipeline'
-import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { browserMatchesFile, browserTaskCount, importDataEqual } from '../../services/file-sync-compare'
 import { readFileSyncState, writeFileSyncState, clearFileSyncState, fileContentId, FILE_SYNC_STATE_KEY } from '../../services/file-sync-state'
 import { resetDb, makeTodo } from '../helpers'
@@ -49,14 +48,13 @@ describe('browserMatchesFile', () => {
     expect(await browserMatchesFile(file)).toBe(false)
   })
 
-  it('a v71 file with a Progress matches the browser it was in sync with after both upgrade to v72 (status update ids aside)', async () => {
+  it('a file holding the browser’s status updates without their ids matches it (status update ids aside)', async () => {
     const modifiedAt = new Date(2026, 9, 5, 14, 30)
     await db.todos.add(makeTodo({ id: 1, modifiedAt }))
-    // The browser's v72 upgrade wrote the entry through IndexedDB, which gave it an id.
     await db.statusUpdates.add({ todoId: 1, date: new Date(2026, 9, 5), text: 'half way', createdAt: modifiedAt })
-    const exported = JSON.parse(JSON.stringify(await buildExportData())) as Record<string, unknown> & { todos: Record<string, unknown>[] }
-    const v71 = { ...exported, [SCHEMA_VERSION_KEY]: 71, statusUpdates: undefined, todos: exported.todos.map((t) => ({ ...t, progress: 'half way' })) }
-    const prepared = prepareImport(JSON.parse(JSON.stringify(v71)) as unknown)
+    const exported = JSON.parse(JSON.stringify(await buildExportData())) as Record<string, unknown> & { statusUpdates: Record<string, unknown>[] }
+    const idless = { ...exported, statusUpdates: exported.statusUpdates.map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'id'))) }
+    const prepared = prepareImport(JSON.parse(JSON.stringify(idless)) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.data.statusUpdates[0]).not.toHaveProperty('id')
     expect(await browserMatchesFile(prepared.data)).toBe(true)

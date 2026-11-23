@@ -7,9 +7,9 @@ import { SRC } from './css-source'
 /**
  * The compact facts row (the task layout's fact band, the editor's and the
  * review card's): each cell's width is the band's, never its value's (E6) —
- * Priority its three 26 × 24px toggles, Status at most 120px, People and Tags
- * from 100px sharing what is left, Due and Planned from 136px — so the six
- * facts share one line in the 920px editor. The real widths are measured in
+ * Priority its three 26 × 24px toggles, Status at most 180px, People and Tags
+ * from 80px sharing what is left, Due and Planned from 144px — so the six
+ * facts share one line in the 1040px editor. The real widths are measured in
  * `e2e/task-facts-stable.spec.ts`.
  */
 
@@ -28,11 +28,11 @@ function rule(source: string, selector: string): Map<string, string> {
 }
 
 describe('the facts row’s widths', () => {
-  it('each cell’s flex: Priority its own, Status 120px at most, People and Tags from 100px, Due and Planned from 136px', () => {
+  it('each cell’s flex: Priority its own, Status 180px at most, People and Tags from 80px, Due and Planned from 144px', () => {
     expect(rule(DETAILS, ".fact[data-fact='priority']").get('flex')).toBe('none')
-    expect(rule(DETAILS, ".fact[data-fact='status']").get('flex')).toBe('0 1 120px')
-    expect(rule(DETAILS, ".fact[data-fact='people'],\n.fact[data-fact='tags']").get('flex')).toBe('4 1 100px')
-    expect(rule(DETAILS, ".fact[data-fact='due'],\n.fact[data-fact='planned']").get('flex')).toBe('1 0 136px')
+    expect(rule(DETAILS, ".fact[data-fact='status']").get('flex')).toBe('0 1 180px')
+    expect(rule(DETAILS, ".fact[data-fact='people'],\n.fact[data-fact='tags']").get('flex')).toBe('4 1 80px')
+    expect(rule(DETAILS, ".fact[data-fact='due'],\n.fact[data-fact='planned']").get('flex')).toBe('1 0 144px')
   })
 
   it('a priority toggle is its mark alone, 26 × 24px, every one the same width', () => {
@@ -57,7 +57,7 @@ describe('the facts row’s widths', () => {
     expect(under.get('white-space')).toBe('nowrap')
   })
 
-  it('the editor is back to 920px', () => {
-    expect(rule(EDITOR, '.card').get('width')).toBe('min(920px, calc(100vw - 32px))')
+  it('the editor is 1040px', () => {
+    expect(rule(EDITOR, '.card').get('width')).toBe('min(1040px, calc(100vw - 32px))')
   })
 })

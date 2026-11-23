@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import fixture from '../fixtures/v68-export.json'
+import fixture from '../fixtures/v87-export.json'
 import { prepareImport, prepareImportText } from '../../data/import-pipeline'
 import { MAX_IMPORT_SIZE_BYTES, MAX_RECORDS_PER_TABLE } from '../../data/import-validation'
 
@@ -12,14 +12,14 @@ import { MAX_IMPORT_SIZE_BYTES, MAX_RECORDS_PER_TABLE } from '../../data/import-
 
 const BUDGET_MS = 30_000
 
-/** A deep copy of the frozen v68 fixture, as a plain JSON object. */
-function v68(): Record<string, unknown[]> {
+/** A deep copy of the v87 fixture, as a plain JSON object. */
+function v87(): Record<string, unknown[]> {
   return JSON.parse(JSON.stringify(fixture)) as Record<string, unknown[]>
 }
 
 describe('import size caps apply before the upgrade', () => {
   it('a table over the record cap is refused before any transform runs (even one validation never sees)', () => {
-    const raw = v68()
+    const raw = v87()
     // No table of this build: validation alone would never have seen it.
     raw.retiredTable = Array.from({ length: MAX_RECORDS_PER_TABLE + 1 }, (_, i) => ({ id: i + 1 }))
     const result = prepareImport(raw)
@@ -27,7 +27,7 @@ describe('import size caps apply before the upgrade', () => {
   }, BUDGET_MS)
 
   it('a table at the record cap is accepted', () => {
-    const raw = v68()
+    const raw = v87()
     raw.todoEvents = Array.from({ length: MAX_RECORDS_PER_TABLE }, (_, i) => ({
       id: i + 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-01-01T00:00:00.000Z',
     }))

@@ -263,8 +263,12 @@
   color: var(--color-text-secondary);
 }
 
+/* A day's last slot when its entries don't all fit: the ticks of the ones left out (`MoreButton`). */
 .more {
+  display: flex;
   flex-shrink: 0;
+  align-items: center;
+  min-width: 0;
   height: 18px;
   padding: 0 4px;
   border: none;
@@ -283,7 +287,7 @@
   padding: 0 6px;
 }
 
-/* A day's date while it has entries (`DayDate`): a button opening the day popover, as `+N more`. */
+/* A day's date while it has entries (`DayDate`): a button opening the day popover, as its ticks of the entries left out. */
 .dayDate {
   align-self: flex-start;
   justify-self: start;
@@ -884,7 +888,7 @@ button.heatDay {
   cursor: grabbing;
 }
 
-/* ── +N more popover ─────────────────────────────────────────────────────── */
+/* ── The day popover ─────────────────────────────────────────────────────── */
 
 .dayPopover {
   z-index: var(--z-dialog-nested);

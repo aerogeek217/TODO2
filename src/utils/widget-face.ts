@@ -196,3 +196,33 @@ export function listWallFaceFor(size: { width: number; height: number }): Widget
   if (widgetFaceFor(size) === 'small') return 'small'
   return width <= LIST_WALL_BARS_MAX_WIDTH_PX ? 'medium' : 'large'
 }
+
+/** A Shortcuts body narrower than this (and not small) shows its rows face: a row per list. */
+const SHORTCUTS_ROWS_MAX_WIDTH_PX = 360
+
+/**
+ * A Shortcuts face (2026-11-23): small as every widget's; medium while the
+ * body is narrower than `SHORTCUTS_ROWS_MAX_WIDTH_PX` (its rows) or no
+ * taller than `MEDIUM_FACE_MAX_HEIGHT_PX` (its compact line of tiles);
+ * else large, a grid of tiles. Unmeasured is `large`.
+ */
+export function shortcutsFaceFor(size: { width: number; height: number }): WidgetFace {
+  const face = widgetFaceFor(size)
+  if (face !== 'large') return face
+  const { width, height } = size
+  if (width <= 0 && height <= 0) return 'large'
+  return width < SHORTCUTS_ROWS_MAX_WIDTH_PX ? 'medium' : 'large'
+}
+
+/** What a Shortcuts face draws: its name line (small), a row per list, one line of tiles, or the grid of tiles. */
+export type ShortcutsShape = 'small' | 'rows' | 'compact' | 'large'
+
+/**
+ * What Shortcuts draws at `face` in a body `width` wide: the medium face is
+ * rows while narrower than `SHORTCUTS_ROWS_MAX_WIDTH_PX`, else the compact
+ * line of tiles (a short body).
+ */
+export function shortcutsShape(face: WidgetFace, width: number): ShortcutsShape {
+  if (face !== 'medium') return face
+  return width > 0 && width < SHORTCUTS_ROWS_MAX_WIDTH_PX ? 'rows' : 'compact'
+}

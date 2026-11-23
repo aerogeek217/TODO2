@@ -36,7 +36,7 @@ describe('glance widget kinds', () => {
     expect(glance).toEqual(['number', 'breakdown', 'pivot', 'trend'])
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
-    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'planner', 'notes'])
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'planner', 'notes', 'shortcuts'])
     // Insights: the glance widgets, then the Neglect map and the task maps — whole widgets, not glance ones. The group
     // is the menus' only: the Calendar (Tasks) and the Neglect map (Insights) alike are not glance kinds.
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'insights')).toEqual([...glance, 'neglect', 'clusters', 'listwall'])

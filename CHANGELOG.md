@@ -20,6 +20,35 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-23
+
+Data version 87, unchanged — and now the oldest this version reads (see Removed).
+
+### Added
+
+- **Shortcuts.** A new widget (Add widget › Tasks › Shortcuts) keeps lists from any layout in reach: a tile per list
+  shows its icon, its due and follow-up badge, how many tasks it has, its first few tasks and its layout. Click a tile
+  to open the list over the layout you are on. Add lists with Add a list, remove one from its right-click menu and
+  drag the tiles into the order you like. In a smaller cell the tiles drop their task titles first, then sit in one
+  line, then become rows.
+
+### Changed
+
+- **A wider task editor.** The task editor is 1040px wide and the facts row gives Status room for its full name; Due
+  and Planned are a little wider too. A review card keeps the six facts on one line from about 770px.
+- **A full calendar day shows ticks, not `+6 more`.** When a month day or week row can't show every task, its last
+  line draws a tick for each task left out, as the Planner's strip does: solid for a due date or follow-up, hollow for
+  a plan. A click still opens the whole day.
+- **Unplanned filter.** The Planner's ⋯ entry and the words under Unplanned are named **Unplanned filter**.
+- **Reset plan names what leaves.** When a reset would take tasks out of the Planner — held in Unplanned, or on a day
+  only because they were planned — the question lists them before you confirm.
+- **Plan for day** no longer opens with a "Plans it for that day" line.
+
+### Removed
+
+- Backups, exports and sync files saved before the 2026-11-22 version (data version below 87) no longer load, and
+  neither does a browser's data from before it: open them in the 2026-11-22 version first.
+
 ## 2026-11-22
 
 Data version 87. Older copies of the app will refuse the data once it is upgraded: update them, the offline file on

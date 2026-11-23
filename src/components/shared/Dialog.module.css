@@ -104,6 +104,52 @@
   line-height: 1.6;
 }
 
+/* A confirm's list (`ConfirmDialog`'s `list`): what the answer acts on, one per line, scrolling when long. */
+.confirmList {
+  margin-top: 12px;
+}
+
+.confirmListLabel {
+  margin-bottom: 6px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.confirmList ul {
+  max-height: 220px;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-md);
+  background: var(--color-inset-light);
+}
+
+.confirmList li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 10px;
+  font-size: var(--font-size-task);
+}
+
+.confirmListText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.confirmListNote {
+  flex: none;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;

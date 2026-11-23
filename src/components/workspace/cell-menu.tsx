@@ -40,6 +40,7 @@ import { tabsCount } from './workspace-drag'
 import type { WidgetResult } from './WidgetBody'
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
 import { usePlannerMenuEntries } from './planner/planner-reset'
+import { useShortcutsMenuEntries } from './shortcuts/shortcuts-menu'
 import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
 import { useListReviewMenuEntries } from './list/review-menu'
@@ -447,6 +448,8 @@ export function useWidgetMenuContent(
   const neglectEntries = useNeglectMenuEntries(tab?.kind === 'neglect' ? tab : undefined)
   // A Planner's Reset plan › (its top line's control, for a cell of tabs and the widget popup too).
   const plannerEntries = usePlannerMenuEntries(tab?.kind === 'planner' ? tab : undefined)
+  // Shortcuts' Add a list ›.
+  const shortcutsEntries = useShortcutsMenuEntries(tab?.kind === 'shortcuts' ? tab : undefined)
   const listZoomEntries = useListZoomMenuEntries(tab?.kind === 'lens' ? tab : undefined)
   // A list tab's Review these N tasks (D26), above its zoom.
   const reviewEntries = useListReviewMenuEntries(tab?.kind === 'lens' ? tab : undefined)
@@ -510,7 +513,8 @@ export function useWidgetMenuContent(
       : undefined,
     settingEntries: tab.kind === 'neglect' ? neglectEntries
       : tab.kind === 'planner' ? plannerEntries
-        : tab.kind === 'lens' ? zoomEntries : glance?.settingEntries,
+        : tab.kind === 'shortcuts' ? shortcutsEntries
+          : tab.kind === 'lens' ? zoomEntries : glance?.settingEntries,
     widgetActions: glance ? glance.actions : tab.kind === 'lens' ? listActions() : undefined,
   }
 }

@@ -62,6 +62,15 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M6.5 2.5h3v3.5h-3zM10.5 2.5h3v3.5h-3zM2.5 9.5h11M2.5 13h7" />
     </>
   ),
+  // Shortcuts: three rounded tiles, and an arrow out where the fourth would be.
+  shortcuts: (
+    <>
+      <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.25" />
+      <rect x="9" y="2.5" width="4.5" height="4.5" rx="1.25" />
+      <rect x="2.5" y="9" width="4.5" height="4.5" rx="1.25" />
+      <path d="M9.5 13.5l4-4M10.5 9.5h3v3" />
+    </>
+  ),
   // A scatter plot: two axes and three dots, the largest top right (Slipping).
   neglect: (
     <>

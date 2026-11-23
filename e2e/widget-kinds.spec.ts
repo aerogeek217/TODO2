@@ -23,6 +23,7 @@ function body(cell: Locator, kind: WidgetKind): Locator {
     case 'neglect': return cell.locator('[data-neglect-map]')
     case 'clusters': return cell.locator('[data-clusters]')
     case 'listwall': return cell.locator('[data-list-wall]')
+    case 'shortcuts': return cell.locator('[data-shortcuts]')
     default: return cell.locator(`[data-glance="${kind}"]`)
   }
 }

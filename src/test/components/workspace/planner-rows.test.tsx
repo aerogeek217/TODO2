@@ -668,7 +668,7 @@ describe('Reset plan', () => {
     const { setPlan } = watch()
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
     const item = (entries: readonly MenuEntry[], label: string) => entries.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === label)!
-    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['What counts as unplanned…', 'Reset plan'])
+    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Unplanned filter…', 'Reset plan'])
     const choices = item(result.current, 'Reset plan').children ?? []
     expect(choices.map((e) => (e.kind === 'item' ? [e.label, e.note, e.disabled] : e.kind))).toEqual([
       ['This week', '8', false], ['Today only', '1', false], ['Delayed', '1', false],
@@ -702,7 +702,7 @@ describe('Reset plan', () => {
     unmount()
     expect(usePlannerStore.getState().resets).toEqual({})
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
-    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['What counts as unplanned…'])
+    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Unplanned filter…'])
   })
 
   it('the report’s action clears the scope as the Planner shows when it is called, not as it was when reported', async () => {

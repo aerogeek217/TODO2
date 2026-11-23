@@ -28,8 +28,9 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | WorkspaceLayout, PersistedWorkspaceLayout, GridTrack, LayoutGrid, GridAxis, CellArea, LayoutCell, LayoutBody, emptyLayoutBody, layoutBodyOf, withLayoutBody, DEFAULT_WEIGHT, LayoutTab, WidgetKind, GlanceWidgetKind, ChartWidgetKind, GlanceTab, ChartTab, isGlanceKind, isGlanceTab, isChartTab, kindTabTitle, WIDGET_KIND_SPECS, WidgetKindSpec, WidgetKindGroup, WIDGET_KIND_GROUPS, widgetKindsOf, WIDGET_KINDS, widgetKindLabel, UNKNOWN_WIDGET_LABEL, isWidgetKind, NeglectTab, NeglectTabConfig, NeglectColourBy, defaultNeglectConfig, DEFAULT_NEGLECT_UNTOUCHED_DAYS, NEGLECT_UNTOUCHED_CHOICES, NEGLECT_UNTOUCHED_MAX, isNeglectUntouchedDays, TabSeed, TabConfigOf, TabViewStateOf, createTab, tabListId, getActiveTab, toggleCalendarDateType | models/workspace-layout.ts | The layout model. A `WorkspaceLayout` is one table: a `grid` of column and row tracks and `cells` that each cover a rectangle of tracks and hold a strip of tabs. A `LayoutTab` is a union over the widget kinds, each with a `config` saved with the layout and an optional `viewState`. `WIDGET_KIND_SPECS` is the one table of kinds, from which `createTab`, the menus and the tab titles derive. Detail: [workspace-layout](features/workspace-layout.md), [glance-widgets](features/glance-widgets.md), [The layout check and repair](#the-layout-check-and-repair), [task-maps](features/task-maps.md), [charts](features/charts.md), [layout-autosave](features/layout-autosave.md). |
 | ReviewTab, ReviewTabConfig, ReviewTabViewState · ReviewSort, REVIEW_SORTS, isReviewSort, reviewSortLabel, DEFAULT_REVIEW_WIDGET_SORT, REVIEW_POPUP_TAB_ID | models/workspace-layout.ts · models/review.ts | The Review widget (item 12; widget feedback 2A): kind `review` (Tasks group, after Notes), **no config** (`ReviewTabConfig = NoTabSettings`; a new tab's `config: {}`) — what it reviews is a temporary filter (`list-widget-store.reviewFilters`), never saved — and its view state `{ sort? }` (saved at once; no sort reads as Priority, `DEFAULT_REVIEW_WIDGET_SORT`). Board BM's kind (`by`), board BK's `pick` and a saved place (`currentId`, `skipped`) an earlier build stored, schema v79 removed; one left in a v79 row is dropped by the layout repair, a fix. A Review widget names none of the layout's lists (`utils/workspace-layout-lists`). `ReviewSort` — the rail's sorts (item 7), the widget's `REVIEW_POPUP_TAB_ID` (`review-popup`): the popup review's tab id — a Review widget tied to no layout tab, its filter and session kept under it as a tab's are. |
 | ClustersTab, ListWallTab | models/workspace-layout.ts | The task maps (2026-11-18; Insights, after the Neglect map; whole widgets, not glance ones; layout config only, no schema step — an older build's layout repair drops the kinds): `clusters`, Work clusters, and `listwall`, the List wall — no settings (a stray key dropped, a fix). Line icons `clusters` and `wall` (`LINE_ICON_KEYS`, after `scatter`); `radar` and `ring` stay pickable line icons (once the Pressure radar's and Project pulse's glyphs, drawn on their own in `LineIcon`). |
+| ShortcutsTab, ShortcutsTabConfig, SHORTCUTS_LISTS_MAX, shortcutListTabId | models/workspace-layout.ts | Shortcuts (2026-11-23; kind `shortcuts`, in Tasks after Notes; layout config only, no schema step — an older build's layout repair drops the kind): `lists?`, the ids of lists of any layout in order — never under the key `listDefinitionId`, which `storedListRefs` would count as the layout's own; the repair keeps positive whole numbers, each once, up to `SHORTCUTS_LISTS_MAX`, a deleted list's id kept. `shortcutListTabId(id)` (`shortcut-list-<id>`) is the tab id the widget popup shows such a list under. Line icon `shortcuts` (after `planner`). |
 | PlannerTab, PlannerTabConfig, plannerUnplannedFilter, PlannerTabViewState, PLANNER_ORDER_MAX, PLANNER_DOCK_SHARE, PLANNER_DOCK_SHARE_MIN, PLANNER_DOCK_SHARE_MAX | models/workspace-layout.ts | The Planner (2026-11-20; kind `planner`, in Tasks after Review; layout config only, no schema step — an older build's layout repair drops the kind): `config.unplanned?`, the Unplanned filter (a `TodoPredicate`; absent: `/focus`, `plannerUnplannedFilter`; empty: nothing joins), read as a list's predicate (one that is none dropped, a fix; a stray key dropped, a fix). View state `{ order? }`: its hand order — task `uid`s, one sequence for the whole widget, each group listing its tasks in that order and the rest after them (`utils/planner.plannerOrder`). The layout check (`data/layout-shape`) takes an order of distinct strings, at most `PLANNER_ORDER_MAX` (1000); the repair keeps the order's strings, each once, the first 1000, and drops an order that is no list and any other key (a fix). The portrait layout's trays dock (board R1, 2026-11-21) is view state too: `dockShare` (its share of the height, 0.1–0.9; absent = `PLANNER_DOCK_SHARE`, 0.38) and `dockFolded` (only `true` stored); the layout repair keeps a share in bounds and a fold that is `true`, drops anything else (a fix; a key stored as `undefined` reads as absent). Its window is never stored (`stores/planner-store`). Its tab takes the tab's own name (`tabOwnsName` false). Line icon `planner` (`LINE_ICON_KEYS`, after `wall`): a strip of day tiles, today's filled, over two task lines. |
-| IconValue, LineIconKey, LINE_ICON_KEYS, LINE_ICON_LABELS, EmojiShow, asEmoji, isEmoji, emojiFromField, graphemes, isIconValue, pickIconValue, emojiIcon, emojiShow, sameIcon, iconDescription, iconSummary, recentEmoji, StatusGlyphIcon, DrawnIcon, statusGlyphLabel, statusIconValue, statusLookAfterPick, LAYOUT_DEFAULT_ICON, layoutIcon · tabOwnsName, TAB_NAME_MAX, tabNameMax, KIND_LINE_ICON, tabStripIcon, tabTopLineIcon | models/icon.ts · models/workspace-layout.ts | A picked icon (items 11, 14): `{ kind: 'none' }` (No icon, picked), `{ kind: 'line', key }` (one of the 25 built-in line icons: the kinds' glyphs, then the icons board's generic set) or `{ kind: 'emoji', emoji, show?: 'color' }` (absent `show` = muted, decision 15). An emoji is checked without a list (J7): one grapheme (`Intl.Segmenter`) matching `\p{RGI_Emoji}` (`v` flag; fallback `\p{Extended_Pictographic}`, a flag pair or a keycap), a bare text-style pictograph taking U+FE0F; `emojiFromField` keeps the one emoji in a field's text (the OS panel's search letters dropped). `recentEmoji` lists the emoji used in given icons (J6). Phase 3B: a layout's own optional `icon` (`WorkspaceLayout.icon`, an `IconValue`; absent = the layout glyph, `layoutIcon` / `LAYOUT_DEFAULT_ICON`, J1); `StatusGlyphIcon` (`{ kind: 'status', key }`) is drawn and offered (the status editor's Icons tab) but never stored as an icon value — `DrawnIcon` = `IconValue | StatusGlyphIcon` is what `AppIcon` draws and `IconPicker` picks; `statusIconValue(look)` is a status's emoji or glyph, `statusLookAfterPick` its look after a pick (a glyph drops the emoji; an emoji keeps the glyph's key). Every layout tab (`TabOf`) may hold `name` (kinds without one of their own — `tabOwnsName` false — Calendar, Notes, Review, the Neglect map, Work clusters, the List wall) and `icon` (absent: the strip shows the kind's glyph, `tabStripIcon`, J1; the top line none, `tabTopLineIcon`, J2). `kindTabTitle` reads the tab name, Created vs completed's `trendName` |
+| IconValue, LineIconKey, LINE_ICON_KEYS, LINE_ICON_LABELS, EmojiShow, asEmoji, isEmoji, emojiFromField, graphemes, isIconValue, pickIconValue, emojiIcon, emojiShow, sameIcon, iconDescription, iconSummary, recentEmoji, StatusGlyphIcon, DrawnIcon, statusGlyphLabel, statusIconValue, statusLookAfterPick, LAYOUT_DEFAULT_ICON, layoutIcon · tabOwnsName, TAB_NAME_MAX, tabNameMax, KIND_LINE_ICON, tabStripIcon, tabTopLineIcon | models/icon.ts · models/workspace-layout.ts | A picked icon (items 11, 14): `{ kind: 'none' }` (No icon, picked), `{ kind: 'line', key }` (one of the 30 built-in line icons: the kinds' glyphs, then the icons board's generic set) or `{ kind: 'emoji', emoji, show?: 'color' }` (absent `show` = muted, decision 15). An emoji is checked without a list (J7): one grapheme (`Intl.Segmenter`) matching `\p{RGI_Emoji}` (`v` flag; fallback `\p{Extended_Pictographic}`, a flag pair or a keycap), a bare text-style pictograph taking U+FE0F; `emojiFromField` keeps the one emoji in a field's text (the OS panel's search letters dropped). `recentEmoji` lists the emoji used in given icons (J6). Phase 3B: a layout's own optional `icon` (`WorkspaceLayout.icon`, an `IconValue`; absent = the layout glyph, `layoutIcon` / `LAYOUT_DEFAULT_ICON`, J1); `StatusGlyphIcon` (`{ kind: 'status', key }`) is drawn and offered (the status editor's Icons tab) but never stored as an icon value — `DrawnIcon` = `IconValue | StatusGlyphIcon` is what `AppIcon` draws and `IconPicker` picks; `statusIconValue(look)` is a status's emoji or glyph, `statusLookAfterPick` its look after a pick (a glyph drops the emoji; an emoji keeps the glyph's key). Every layout tab (`TabOf`) may hold `name` (kinds without one of their own — `tabOwnsName` false — Calendar, Notes, Review, the Planner, Shortcuts, the Neglect map, Work clusters, the List wall) and `icon` (absent: the strip shows the kind's glyph, `tabStripIcon`, J1; the top line none, `tabTopLineIcon`, J2). `kindTabTitle` reads the tab name, Created vs completed's `trendName` |
 | NumberConfig, NUMBER_LIT_WHEN, NumberLitWhen, NUMBER_COMPARES, NumberCompare, DEFAULT_NUMBER_NAME, NUMBER_NAME_MAX, NUMBER_LIT_AT_MAX, newNumberConfig, isNumberColor, isNumberLitAt, numberIsLit, numberConfigProblem, pickNumberConfig, NumberBreakdown, NUMBER_BREAKDOWNS, NUMBER_BREAKDOWN_LABELS, DEFAULT_NUMBER_BREAKDOWN, isNumberBreakdown, TREND_RANGES, DEFAULT_TREND_RANGE, TrendTabConfig, pick*Config, PickedConfig | models/glance-widgets.ts | The Number's and Created vs completed's settings. A Number is a `NumberConfig`: its name, colors, filter, shape (`show`), when it lights, what its change compares with and its large face's breakdown. Created vs completed is a `TrendTabConfig`. For each: its options' choices and defaults, and a picker that reads it from untrusted input (`pickNumberConfig`, `pickTrendConfig` → `{ config, fixed, shortened? }`). Detail: [Tabs, by kind](#tabs-by-kind), [glance-widgets](features/glance-widgets.md), [charts](features/charts.md). |
 | TrendTabConfig, TREND_RANGES, TrendRange, DEFAULT_TREND_RANGE, TREND_SHOWS, TrendShow, DEFAULT_TREND_SHOW, DEFAULT_TREND_NAME, trendName, trendShow, isTrendShow, trendConfigProblem, pickTrendConfig | models/glance-widgets.ts | Created vs completed's config (layout config): `range` and, since widget feedback 2C with no schema step, optional `name` (≤ 80 chars; blank or absent = `Created vs completed`), `filter` (a `TodoPredicate`; absent = every task) and `show` (`bars` · `burndown` · `cumulative`; absent = `bars`). `trendConfigProblem` (the check: the range, a name or show that doesn't read, a filter that isn't an object — the predicate itself checked by the caller) and `pickTrendConfig(raw, readPredicate)` (the repair: a bad optional field dropped, a fix). |
 | BreakdownConfig, BreakdownSplit, BreakdownStyle, BreakdownShow, BreakdownOldestBy, BreakdownSort, BreakdownSortKey, BreakdownViewState, BREAKDOWN_SPLITS, BREAKDOWN_STYLES, BREAKDOWN_SHOWS, BREAKDOWN_OLDEST_BY, BREAKDOWN_FIXED_SORT_KEYS, BREAKDOWN_PRESETS, BREAKDOWN_PRESET_LABELS, breakdownPreset, newBreakdownConfig, BreakdownColumn, BreakdownColumnAge, DEFAULT_YELLOW_AFTER_DAYS, YELLOW_AFTER_DAYS_MAX, ageIsYellow, ageSortKey, ageSortColumnId, breakdownSortKeys, BREAKDOWN_COLUMNS_MAX, breakdownColumns, defaultBreakdownColumns, columnIsLit, newBreakdownColumnId, isBreakdownColumnId, liveBreakdownSort, breakdownColumnFilters, DUE_COLUMN_COLOR / FOLLOWUP_COLUMN_COLOR, breakdownConfigProblem, pickBreakdownConfig, breakdownViewProblem, pickBreakdownView, CHART_NAME_MAX | models/chart-widgets.ts | The chart widgets' settings. A Breakdown's config: its name, filter, split, style, what it shows and up to four count columns, each a named, colored filter that can light and carry an age threshold; its view state is a sort per split. Also the default Due and Follow-up columns, the Add widget presets, and the checks and pickers that read a stored config. Detail: [charts](features/charts.md), [Tabs, by kind](#tabs-by-kind). |
@@ -48,7 +49,7 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | Abstraction | Location | Purpose |
 |-------------|----------|---------|
 | Todo2Database | data/database.ts | The Dexie database class: the tables and their indexes, declared once at the schema floor (`OLDEST_SUPPORTED_DB_VERSION`), where a database below the floor is refused with `DatabaseTooOldError` and keeps its version, stores and rows. Each schema step after it declares only the stores it changes and runs its registry transform through `applySchemaUpgradeInTx`. Detail: [The database and its versions](#the-database-and-its-versions). |
-| CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, BELOW_FLOOR_BUILD, DatabaseTooNewError, DatabaseTooOldError, findDatabaseTooNew, findDatabaseTooOld, tooNewDatabaseMessage, tooOldDatabaseMessage, onDatabaseChangedElsewhere, DatabaseChangeElsewhere | data/database.ts | Two source-of-truth schema constants. `CURRENT_DB_VERSION` (86) is the latest declared `.version(N)`; the `migration-check.test.ts` `db.verno` assertion guards bumps. A database whose stored version is above it (a newer build saved it) is never read or written: `services/migration-check.checkTooNewDB` says so before anything opens it, and the database's own open fails with `DatabaseTooNewError` (a sticky `ready` subscriber comparing with `verno` — Dexie would otherwise open it at its own version; `findDatabaseTooNew` finds it inside the errors of later calls). `OLDEST_SUPPORTED_DB_VERSION` is **pinned at 68** (a literal; raised from 49 on 2026-10-23, user-approved, when the v50–v68 upgrades were removed). A browser database below it is refused — `checkTooOldDB` before anything opens it, and the floor declaration's upgrade (`DatabaseTooOldError`, `findDatabaseTooOld`) as the backstop — and so is any file below it or without a version marker (`prepareImport`'s `too-old`): nothing read, nothing written, no way to go on. `tooOldDatabaseMessage` / `file-version.tooOldFileMessage` name the version found and `BELOW_FLOOR_BUILD` ("the last TODO2 build from before 2026-10-23" — the build that upgrades such data; tag `last-v49-upgrade-2026-10-23`). Never raised automatically — raising it is a deliberate user decision (and frees the registry entries at or below the new floor; `BELOW_FLOOR_BUILD` changes with it). Mid-session, another tab opening the database at a newer version (or deleting it) fires `versionchange`: Dexie closes this connection so that one can go on, and `onDatabaseChangedElsewhere(listener)` tells the app (`'upgraded'` / `'deleted'`), which blocks the page with Reload (`DatabaseChangedElsewhereGuard`) — every later write here would fail with `DatabaseTooNewError` |
+| CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, BELOW_FLOOR_BUILD, DatabaseTooNewError, DatabaseTooOldError, findDatabaseTooNew, findDatabaseTooOld, tooNewDatabaseMessage, tooOldDatabaseMessage, onDatabaseChangedElsewhere, DatabaseChangeElsewhere | data/database.ts | Two source-of-truth schema constants. `CURRENT_DB_VERSION` (87) is the latest declared `.version(N)`; the `migration-check.test.ts` `db.verno` assertion guards bumps. A database whose stored version is above it (a newer build saved it) is never read or written: `services/migration-check.checkTooNewDB` says so before anything opens it, and the database's own open fails with `DatabaseTooNewError` (a sticky `ready` subscriber comparing with `verno` — Dexie would otherwise open it at its own version; `findDatabaseTooNew` finds it inside the errors of later calls). `OLDEST_SUPPORTED_DB_VERSION` is **pinned at 87** (a literal, user-approved; the current version, so no upgrade is registered). A browser database below it is refused — `checkTooOldDB` before anything opens it, and the floor declaration's upgrade (`DatabaseTooOldError`, `findDatabaseTooOld`) as the backstop — and so is any file below it or without a version marker (`prepareImport`'s `too-old`): nothing read, nothing written, no way to go on. `tooOldDatabaseMessage` / `file-version.tooOldFileMessage` name the version found and `BELOW_FLOOR_BUILD` ("the last TODO2 build from before 2026-11-23" — the build that upgrades such data). Never raised automatically — raising it is a deliberate user decision (and frees the registry entries at or below the new floor; `BELOW_FLOOR_BUILD` changes with it). Mid-session, another tab opening the database at a newer version (or deleting it) fires `versionchange`: Dexie closes this connection so that one can go on, and `onDatabaseChangedElsewhere(listener)` tells the app (`'upgraded'` / `'deleted'`), which blocks the page with Reload (`DatabaseChangedElsewhereGuard`) — every later write here would fail with `DatabaseTooNewError` |
 | DataTableRows, DataTableName, DataTableArrays, DATA_TABLE_NAMES | data/tables.ts | **The table registry**: every data table (all but `backups`) and its row type — todos, people, settings, todoPeople, statuses, listDefinitions, notes, tags, todoTags, todoEvents, statusUpdates, subtasks, layouts, listOrders, in that (export and restore) order. Export, restore, import validation, the audit and file sync all walk it, and the compiler makes each cover every table: `DATA_TABLES` checks the Dexie class against it, `IMPORT_TABLES` is keyed by `DataTableName`, `ImportData` / `ExportData` are mapped from it. Adding a table: add it to `DataTableRows` + `DATA_TABLE_ORDER`, declare it on the Dexie class, follow the compile errors |
 | TASK_CHILD_TABLE_NAMES, TaskChildTableName | data/tables.ts | The tables of a task's own rows (keyed by `todoId`): people, tags, events, status updates, subtasks, list ranks — a `Record` over every registry table whose row type has a `todoId`, so a new one doesn't compile until it is listed. `todoRepository.bulkDelete` deletes from each |
 | DATA_TABLES, ALL_DATA_TABLES | data/database.ts | `DATA_TABLES` — the data tables by name, typed by row; assigning `db` to it is the compile-time check that the Dexie class declares every registry table with the registry's row type. `ALL_DATA_TABLES` — the same tables in `DATA_TABLE_NAMES` order (excludes backups); used by export, restore and the file-storage hooks |
@@ -67,7 +68,7 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | layoutRepository | data/layout-repository.ts | The `layouts` table and the `activeLayoutId` setting. Reads return each layout through the layout repair with the fixes it made. Writes cover a layout's edits with the lists it owns (`putAndPrune`), the order, the name with hue and icon, delete, Duplicate layout, Move / Copy to layout (`transfer` / `untransfer`), the audit's `adoptUnownedLists` and `ensureDefault`. Detail: [layout-autosave](features/layout-autosave.md), [workspace-layout](features/workspace-layout.md), [cross-layout-moves](features/cross-layout-moves.md), [import-and-export](features/import-and-export.md). |
 | readCheckinFilterSetting, formatCheckinFilterSetting, ReadCheckinFilter, CHECKIN_FILTER_SETTING_MAX_LEN | data/checkin-filter-shape.ts | The stored `checkinTaskFilter` setting (JSON of a list predicate), read and written one way by import validation (and so the audit), the settings store's load and its write. `readCheckinFilterSetting(value)` → `{ filter, fixes }`: rebuilt through `predicate-shape.pickPredicate` (malformed clauses dropped), its people filter, a Completed date range (`completed date filter dropped`; a check-in takes open tasks only) and Show completed dropped — of an expression, each top-level term is read over a person's open tasks (cr33 F11): `no person` and a Completed date fold away where the term allows (`(#q4 or no person)` is `#q4`; a term then always true goes), a term naming a person goes whole, and one always false (`#q4 and no person`) is kept as it is, so the filter never widens silently (`utils/checkin-settings.checkinFilterOf`) —, each named in `fixes` (`checkinFilterDrops`: `people filter dropped` for an expression's person terms too, cr33 D3); text over `CHECKIN_FILTER_SETTING_MAX_LEN` (1,000,000), not JSON or without the predicate's core shape reads as no filter (`check-in filter reset` / `… too long — reset`). `formatCheckinFilterSetting(filter)` = the stored text (known parts only, no people, no Completed range, completed off) |
 | checkLayoutBody, pickLayoutBody, pickNeglectConfig, PickedLayoutBody, RawLayoutBody, LAYOUT_PART_LIMIT, LAYOUT_SIZE_MAX, isId | data/layout-shape.ts | The layout table's import check and repair. `checkLayoutBody` returns `true` or the path of the first bad field. `pickLayoutBody` rebuilds a body with only model keys and turns one the check rejects into a valid one, naming each repair in `fixes`, so import, the read of a stored layout and the audit can repair a layout instead of refusing or deleting it. Detail: [The layout check and repair](#the-layout-check-and-repair). |
-| layoutPartCount, layoutSizeProblem, LAYOUT_FILE_PART_LIMIT, LAYOUT_FILE_WORK_LIMIT | data/layout-size.ts | The size of a file's layouts, checked by `prepareImport` **before the schema upgrades run** (cr34 S1, answer 21): reading a layout takes time with the square of its parts (v78's table conversion, the tab walk's close, the tiling check), and the part limit a layout keeps is applied last. `layoutPartCount(row)` counts a raw row's parts in any supported version's shape, in one pass with no recursion — every entry of a list under `columns` / `rows` / `cells` / `tabs`, found through those and `grid` / `top` / `bottom` (a tab's settings are not walked), plus the cells v77 makes of a retired Dashboard tab (its `tiles` ≤ 8, `listTiles`, `sections` ≤ 9; absent: 5, 0, 5). `layoutSizeProblem(layouts)` is the import's error, or `null`: one layout over `LAYOUT_FILE_PART_LIMIT` (10,000 = ten times `LAYOUT_PART_LIMIT`; named: `Layout "Big" holds too many parts to read: 40,005 columns, rows, cells and tabs. TODO2 reads at most 10,000 in one layout (and keeps 1,000 of each).`), or all of them together over `LAYOUT_FILE_WORK_LIMIT` — the sum of each layout's parts squared held to one layout at the limit (10⁸: a hundred layouts of a thousand parts, ten thousand of a hundred). A layout between what the app keeps and the limit still imports, trimmed with a warning |
+| layoutPartCount, layoutSizeProblem, LAYOUT_FILE_PART_LIMIT, LAYOUT_FILE_WORK_LIMIT | data/layout-size.ts | The size of a file's layouts, checked by `prepareImport` **before anything else reads them** (cr34 S1, answer 21): reading a layout can take time with the square of its parts (the tiling check, the repair's close), and the part limit a layout keeps is applied last. `layoutPartCount(row)` counts a raw row's parts in any shape a layout has had, in one pass with no recursion — every entry of a list under `columns` / `rows` / `cells` / `tabs`, found through those and `grid` / `top` / `bottom` (a tab's settings are not walked), plus the cells a retired Dashboard tab's parts made (its `tiles` ≤ 8, `listTiles`, `sections` ≤ 9; absent: 5, 0, 5). `layoutSizeProblem(layouts)` is the import's error, or `null`: one layout over `LAYOUT_FILE_PART_LIMIT` (10,000 = ten times `LAYOUT_PART_LIMIT`; named: `Layout "Big" holds too many parts to read: 40,005 columns, rows, cells and tabs. TODO2 reads at most 10,000 in one layout (and keeps 1,000 of each).`), or all of them together over `LAYOUT_FILE_WORK_LIMIT` — the sum of each layout's parts squared held to one layout at the limit (10⁸: a hundred layouts of a thousand parts, ten thousand of a hundred). A layout between what the app keeps and the limit still imports, trimmed with a warning |
 | Tab name and icon in the check · `withTabLabel` | data/layout-shape.ts (`checkTabs`, `pickTabs`) | Items 11, 14: a tab's optional `name` (text ≤ `TAB_NAME_MAX`, 200; `tabNameMax(kind)`: the longest Name and icon… keeps for a kind — a Number's and a chart's name 80) and `icon` (`isIconValue`) — the check names `cells[i].tabs[j].name` / `.icon` when one doesn't read; the read keeps a valid name trimmed (blank = none, no fix) and the icon with only the model's keys (`pickIconValue`; `show: 'muted'` dropped), cuts a name past 200 to it (`tab name shortened`) and drops one that doesn't read as a `settings` fix. Optional and absent on old data: no schema step |
 | checkPredicateShape, pickPredicate, PREDICATE_ID_LIST_MAX | data/predicate-shape.ts | The check and repair of a stored list predicate. `checkPredicateShape` is the core shape import requires: `true` or the bad field. `pickPredicate(raw)` rebuilds a predicate from known keys only and returns `{ predicate, fixes }`: what does not read is dropped or reset, and or groups fold into an expression. Import, the audit and the list read all go through it. Detail: [The predicate check and repair](#the-predicate-check-and-repair). |
 | listDefinitionRepository | data/list-definition-repository.ts | CRUD for ListDefinition (getAll ordered by sortOrder — each predicate rebuilt by `predicate-shape.pickPredicate` in memory, so a malformed stored filter reads as no filter instead of crashing the lists showing it, and a prompt read as its field alone (an older build's `label` dropped); `insertLast` — after the others, sort order from 0). Lists are deleted with their layout (`layoutRepository`) |
@@ -86,7 +87,6 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | restoreFromImportData | data/restore.ts | Clear every registry table, bulk-add validated rows verbatim (in `DATA_TABLE_NAMES` order), then run `ensureSeededStatuses` to fill in the seeded statuses if the imported data lacks them — all in one rw transaction. List definitions are not seeded — an import with none restores with none. The validator already rejects unsupported shapes, so restore trusts its input and runs no per-shape branches. Into the app's `db`, or a `database` passed (a fresh `Todo2Database` — `replaceUnreadableDatabase`) |
 | readRawDatabaseExport, replaceUnreadableDatabase | data/old-database.ts | The too-old screen's ways past a database below the floor (`DatabaseTooOldDialog`). `readRawDatabaseExport()`: the browser's database read raw — an open with no version, never through the schema, none created — as an export file's text: every store but `backups`, `__schemaVersion` = its own version (for `BELOW_FLOOR_BUILD`), `exportedAt`; `null` with no database. `replaceUnreadableDatabase(data)`: deletes the database (backups too), creates a fresh one at this build's version through its own `Todo2Database` (an open the floor refused leaves the app's `db` with the floor's tables only), `restoreFromImportData` into it; the caller reloads |
 | DataSet, DataRow, SchemaUpgrade, SCHEMA_UPGRADES, upgradeDataSet, applySchemaUpgradeInTx | data/schema-upgrades.ts | The permanent import upgrade pipeline. `SCHEMA_UPGRADES` maps a target version to a pure, immutable whole-dataset transform that tolerates missing tables. `upgradeDataSet(data, from, to)` applies the steps `from+1 … to` in order; `applySchemaUpgradeInTx(tx, N)` is the Dexie side, running entry N over the stores in the version-change transaction and rewriting only the tables whose rows changed. Detail: [The schema upgrades](#the-schema-upgrades). |
-| idMinter | data/upgrades/id-minter.ts | The layout upgrades' id minter (v76, v77, v78): `<base><suffix>`, else `<base><suffix><separator>2`, `…3`, … cut to a maximum length — the first id not taken, each one minted joining the taken set; it resumes each sequence where it left off, so the ids are the plain probe's in linear time (cr33 S1) |
 | isRecord | utils/is-record.ts | A plain JSON object (not `null`, not an array). Shared by the import checks (`import-pipeline`, `import-validation`, `layout-shape`, `predicate-shape`) and any upgrade transform; what it accepts never changes |
 | toDate, toOptDate | data/date-revive.ts | Strict revival for validated values in `pick*` (a `Date` or an ISO string → `Date`; throw on non-date input = picker/validator drift) |
 | SCHEMA_VERSION_KEY, tooOldFileMessage | data/file-version.ts | The `"__schemaVersion"` marker every export / backup / sync file carries (written by `buildExportData` / `buildTaskArchive`, read by `prepareImport`), and the refusal of a file below the floor or without a valid (whole-number) marker: `tooOldFileMessage(sourceVersion \| null)` — the version found (or "no valid schema version", and "if it is a TODO2 file"), the floor, and to open it in `BELOW_FLOOR_BUILD`, export it again there and load that file |
@@ -104,8 +104,8 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 
 - `todos`: `++id, isCompleted, dueDate, sortOrder, statusId, &uid`
 - `notes`: `++id, modifiedAt`
-- `statusUpdates`: `++id, todoId, date` (the table comes with v72)
-- `subtasks`: `++id, todoId` (the table comes with v73)
+- `statusUpdates`: `++id, todoId, date`
+- `subtasks`: `++id, todoId`
 - `listOrders`: `++id, listDefinitionId, todoId, &[listDefinitionId+todoId]`
 
 ### The floor's declaration
@@ -116,13 +116,7 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 
 ### A schema step's declaration
 
-A schema step N declares `this.version(N).stores({ …only what N changes })` after the floor's declaration. Its `.upgrade()` is `(tx) => applySchemaUpgradeInTx(tx, N)`, the same registry transform an import of an older file runs, and the step raises `CURRENT_DB_VERSION`.
-
-- `this.version(72).stores({ statusUpdates: '++id, todoId, date' })` adds the `statusUpdates` table.
-- `this.version(73).stores({ subtasks: '++id, todoId' })` adds the `subtasks` table.
-- Every other step from 69 to 87 declares `stores({})`, no store change: `this.version(69).stores({})`, `this.version(70).stores({})`, `this.version(71).stores({})` and so on.
-
-What each step's transform does is under [What each upgrade does](#what-each-upgrade-does).
+A schema step N declares `this.version(N).stores({ …only what N changes })` after the floor's declaration. Its `.upgrade()` is `(tx) => applySchemaUpgradeInTx(tx, N)`, the same registry transform an import of an older file runs, and the step raises `CURRENT_DB_VERSION`. There is none yet: the floor is the current version.
 
 ## The schema upgrades
 
@@ -130,7 +124,7 @@ What each step's transform does is under [What each upgrade does](#what-each-upg
 
 ### The pipeline
 
-- `SCHEMA_UPGRADES` is a `ReadonlyMap<number, SchemaUpgrade>` from a target version to its transform, `(data: DataSet) => DataSet`. A `DataSet` is table name → plain rows (`DataRow`). It has nineteen entries, v69 to v87.
+- `SCHEMA_UPGRADES` is a `ReadonlyMap<number, SchemaUpgrade>` from a target version to its transform, `(data: DataSet) => DataSet`. A `DataSet` is table name → plain rows (`DataRow`). It has no entries: the floor is the current version.
 - A transform is pure and immutable and takes the whole dataset. It tolerates missing tables (a partial dataset such as a task archive) and returns the same array reference for a table it leaves alone.
 - `upgradeDataSet(data, from, to, registry?)` applies the entries `from+1 … to` in order. A version without an entry is the identity. The optional registry is the tests' seam.
 - `applySchemaUpgradeInTx(tx, N)` is the Dexie side. It reads every store in `tx.idbtrans.objectStoreNames` but `backups` into a `DataSet`, applies entry N, and clears and bulk-adds only the tables whose array reference changed.
@@ -145,197 +139,6 @@ The header of `schema-upgrades.ts` lists it:
 - the `this.version(N)` declaration
 - the `import-validation` `check*` / `pick*` changes
 - its tests: the transform's own, the export → restore round trip, and "v(N-1) reader refuses vN"
-
-### What each upgrade does
-
-Seven steps are **version markers**: 69, 70, 71, 73, 85, 86 and 87. A marker's transform returns its input, because every row of the version before is a valid row of the new one. The version number is the point: data at the new version may hold something an older build would drop or misread silently, so the older build refuses it as too new. Every later step is refused by the build before it in the same way.
-
-The converting transforms hold their own copies of what they read, so a step keeps meaning the same whatever later builds do. Each is idempotent, and a part it can't read passes through for validation or the layout repair.
-
-#### v69: or groups (marker)
-
-`upgrades/v69-or-groups.ts`. v69 data may hold a stored filter's or groups (`orGroups`), which a v68 build would drop silently. v75 converts them.
-
-#### v70: two date types (marker)
-
-`upgrades/v70-date-types.ts`. v70 data may hold `dates.lastFollowup` / `dates.completed` clauses and `lastFollowup` / `completed` sorts, which a v69 build would drop.
-
-#### v71: "is not" date ranges (marker)
-
-`upgrades/v71-date-not.ts`. v71 data may hold an "is not" date range (`DateRangeMatch.not`), which a v70 build would read as "is", keeping the opposite tasks.
-
-#### v72: status updates
-
-`upgrades/v72-status-updates.ts`. The step adds the `statusUpdates` table, and a task's Progress text becomes its first status update. A task has no Progress field after it.
-
-- Each task whose `progress` is non-blank, and whose id is a whole number from 1, gets one `statusUpdates` row: the trimmed text capped at 500, dated the local day of its `modifiedAt` (else `createdAt`; with neither, no entry), its `createdAt` that moment.
-- Every `progress` key goes.
-- Dates keep their form: ISO strings in a file, `Date`s in Dexie.
-- It is idempotent on todoId + text.
-- The `statusUpdates` key is added only with rows, because an archive is partial.
-- Its rows carry no ids, so the sync compare ignores that table's ids (`file-sync-compare`).
-
-#### v73: subtasks (marker)
-
-`upgrades/v73-subtasks.ts`. v73 adds the `subtasks` table, which a v72 build knows nothing of: it would drop every checklist.
-
-#### v74: Priority filters as conditions
-
-`upgrades/v74-priority-filter.ts`. Every stored Priority filter becomes a list of conditions (`MarkerClause`: `{ values, not? }`) that match exactly what it matched. The filters are those of the lists and of the `lenses`, `eisenhowerPanes` and `checkinTaskFilter` settings rows.
-
-- Each Yes becomes a chip, and the No markers become one `is not` chip.
-- Hot becomes the stored `hotRule` in conjunctive form. The rule is read with its picks kept once each, at most 8, so a crafted long rule can't blow up an import.
-- An AND in an or group is distributed into several groups. The most a v73 filter can need is 30, which is why `predicate-shape` still reads up to `OR_GROUPS_READ_MAX` (30) or groups.
-- The `hotRule` settings row is then deleted, and `hot` is removed from stored dashboard tabs' tiles and sections.
-- Every subtask title becomes what the store writes: one line, at most 500 characters. A row with none goes. A v73 build stored a note line's subtasks as they were, which import refuses, so this repairs both the browser's database and every file a v73 build wrote.
-- A row that isn't an object passes through, for validation to name.
-
-#### v75: or groups as an expression
-
-`upgrades/v75-filter-expressions.ts`. A stored filter with or groups becomes the expression (`TodoPredicate.expression`) that filters the same. It runs over the list definitions and the `lenses` / `eisenhowerPanes` / `checkinTaskFilter` settings rows.
-
-- Each clause outside the groups is one `and` term, in the chips' order: an id filter `@a or @b`, its "is not" a `not`; each Priority condition likewise; each date clause a `date` atom, an "is not" range a `not` and "or none" an `or … none`; text a `text` atom.
-- Each or group is an `or` of its clauses' terms.
-- An expression already there is the last term.
-- The clauses are emptied, and `orGroups` and `negate` go.
-- A clause it can't read leaves the predicate as it was, for validation to judge. A filter without or groups stays as it is.
-
-#### v76: every column is rows
-
-`upgrades/v76-layout-rows.ts`, over `layouts`.
-
-- Each cell of a column becomes a one-cell row: `{ id: <cell>-r, weight: the cell's, collapsed: the cell's, cells: [the cell, weight 1] }`.
-- Each band becomes `{ id, height, collapsed, cells: [{ id: <band>-c, weight 1, tabs, activeTabId }] }`.
-- A fresh id is cut to stay within 100 characters and takes `2`, `3`, … when the layout already holds it at any level, so the same layout always upgrades to the same ids.
-- A column with `rows` and a band with `cells` stay as they are.
-
-#### v77: the Dashboard's parts as widgets
-
-`upgrades/v77-dashboard-widgets.ts`, over `layouts`. Each `dashboard` tab becomes its parts, one tab per cell. Its config is read as the Dashboard read it: known ids once each, and a missing `tiles` / `listTiles` / `sections` as its default.
-
-The parts:
-
-- Each tile becomes a `number` tab `{ metric }`.
-- Each list tile becomes a `lens` tab `{ listDefinitionId }`, so `layoutListRefs` still names the list.
-- Each section becomes its glance kind, with its options as the config. `eisenhower` becomes `eisenhowerSummary`. The tab's `detailsWidth` goes to `followup`, `stale` and `recent`.
-
-In a column:
-
-- The Number cells go six to a fit row, then comes a row of the list tiles' cells, then the sections packed into rows by their old spans: 12 columns, a row's last stretched. A span is the cell's width weight.
-- The new weighted rows share the old row's weight: a section row one share, the list row a quarter.
-- They replace the row when the Dashboard was the only tab in its row's only cell. Otherwise the cell keeps its other tabs (its active tab moving off the Dashboard to the next, else the one before), the row keeps its other cells, the new rows go below it and the kept row counts one share.
-- A collapsed row's new rows are collapsed.
-
-In a band:
-
-- Each part becomes a cell of the band's row: a Number weighs 1, a list tile 2, a section its own span. They are scaled to the cell's weight when the band has other cells.
-
-Everywhere:
-
-- A Dashboard with no parts just goes, and so does a cell, row, column or band left empty.
-- Fresh ids are `<tab>-n<i>` (tab), `<tab>-c<i>` (cell) and `<tab>-r<i>` (row), with `_2`, `_3`, … when taken at any level.
-- It holds its own copies of the defaults, choices, spans and packing.
-
-#### v78: the layout as a table
-
-`upgrades/v78/index.ts` composes four transforms in order over `layouts`. Each is pure and idempotent and holds its own copies of what it reads. v78 data may also hold the history log's event types (`followup`, `followedUp`, `marker`, `person`, `tag`), so a v77 build refuses such a file as too new.
-
-`layout-table`: a layout's columns → rows → cells and bands become a table.
-
-- Its lines come from v77's geometry. Across: the column weights, inside a column each row's cells' weights, and a band's cells across the whole width. Down: each column's row weights between the bands, which become `px` tracks at the top and bottom and keep their ids.
-- A fit row counts as a nominal 76px of an 800px column area, and a column's fit rows as at most half of it together.
-- Positions within 1e-9 are one line.
-- The weighted tracks are scaled to whole numbers summing to 1000 per axis, each at least 1.
-- A row track is collapsed when every cell over it came from a collapsed row or band.
-- A bands-only layout's column area is one empty cell.
-- Each cell keeps its id, tabs and active tab. `stripShown` and `activeColumnId` go.
-- Fresh track ids are `grid-c<i>` / `grid-r<i>`, with `_2`, `_3`, … when taken.
-- A row with a `grid` already passes.
-
-`widget-set`:
-
-- An `eisenhowerSummary` tab becomes `{ kind: 'eisenhower', config: {} }` with its id.
-- A tab of a removed kind goes: `followup`, `next7`, `stale`, `recent`, `changes`, `today`.
-- A cell left without tabs closes and the unused lines merge, by [the tab walk](#the-tab-walk).
-
-`numbers`: a Number's `{ metric, breakdown? }` becomes `{ name, color?, filter, show: 'count', litWhen, litAt?, compare, breakdown? }`.
-
-- The name is the metric's label.
-- The filter comes from `number-metrics`, which imports nothing so the dev seed and the tests share it: open none, `overdue`, `due today`, `due within 6 days`, `followup <= today`, `no followup`, `/focus`, `/urgent`, `completed this week`.
-- The color is the dark theme's hex. The accent's metrics are Auto.
-- A metric that lit is lit `above` 0.
-- Closed this week compares with `lastWeek`.
-
-`breakdown`: `people` / `tags` / `status` tabs become `breakdown` tabs with the same id. Each covers every open task, as bars, counting, with `showNone` from `showUnassigned` / `showUntagged`, else shown.
-
-#### v79: the final shapes
-
-`upgrades/v79/index.ts` runs two parts over the whole dataset, `layouts` then `leftovers`. It touches no task, event or `historyLogSince`.
-
-`layouts` (`layoutV79Of(row, ranges)` through `layoutTabsOf`):
-
-- `eisenhower`, `tagMap` and `statusFlow` tabs go, and a cell they empty closes.
-- A Review tab's config becomes `{}`, and its `currentId` / `skipped` go.
-- A Breakdown without `columns` gets Due and Follow-up (ids `due` / `followup`) from its `badges` over the data's own `tabBadgeDue` / `tabBadgeFollowup` rows (`appRangesOf`: each its row, else 3 / 0). `badges` and `checkins` go.
-- A Breakdown split's sort by an older derived key moves to the column that holds its tasks, while the Breakdown has that column: `overdue` / `due-soon` to `due`, `followup-late` / `followup-due` to `followup`. Otherwise it is removed, and so is a sort by a key no column has, such as the old Priority column's `priority`.
-- A Number's config `ignoreLens: true` becomes `viewState.ignoreLens`, unless the view state has a boolean already: that one wins.
-- A list tab's `strips` zoom becomes `lines`.
-- Created vs completed gets `name: 'Created vs completed'` / `show: 'bars'` where absent. Its `filter` stays absent: it reads as the empty filter.
-- An emoji icon's `show: 'muted'` goes, on tabs and on the layout.
-- A layout's `lensId` goes.
-
-`leftovers`:
-
-- A `listDefinitions` row owned `{ eisenhower: true }` goes with its `listOrders` rows. When a layout row names its id (`listDefinitionId` anywhere), it is kept without its owner.
-- The `eisenhowerPanes` / `eisenhowerSource` settings rows go.
-- A `rowDensity` of `strips` / `comfortable` / `compact` becomes `lines` / `stacked` / `rows`.
-
-#### v80: check-ins by copy
-
-`upgrades/v80/index.ts`. Every `people` row loses its `email`, and the `checkinOpenMethod` settings row is deleted. Nothing else is touched: tasks, `modifiedAt`, events, `historyLogSince`, `checkinTaskFilter`.
-
-#### v81: what lenses stored
-
-`upgrades/v81/index.ts` removes:
-
-- the `lenses`, `activeLensId` and `lensPresetsSeeded` settings rows
-- the `cycle-lens` / `lift-lens` bindings in the `keyboardShortcuts` row (a row that doesn't read is left for validation)
-- every `listDefinitions` row's `ignoreLens`
-- every layout tab view state's `ignoreLens` (a view state it empties goes)
-
-Nothing else is touched: tasks, `modifiedAt`, events, `historyLogSince`.
-
-#### v82: Numbers as a strip
-
-`upgrades/v82/index.ts`. In each row track, each run of side-by-side cells that hold one Number each merges into one strip cell: the first cell's id and active tab, the tabs left to right. The row's other widgets stay and part the runs. Then the column lines nothing else uses merge, by the step's own frozen copy of the line merge.
-
-#### v83: two widget kinds dropped
-
-`upgrades/v83/index.ts`. Every Project pulse (`pulse`) and Pressure radar (`radar`) tab is dropped through `layoutTabsOf`, and the cells they empty close.
-
-#### v84: a repeat as an interval
-
-`upgrades/v84/index.ts`. Every `todos` row's `recurrenceRule` `{ type }` is written as `{ every: { count, unit } }`: daily 1d, weekly 1w, biweekly 2w, monthly 1m, quarterly 3m, yearly 1y. Its `originalDayOfMonth` is kept and the task's `modifiedAt` is untouched. A type the app never wrote is left for validation to refuse. Nothing else is touched.
-
-#### v85: a planned day (marker)
-
-`upgrades/v85/index.ts`. v85 data may hold a task's planned day (`doDate`, not indexed), which a v84 build would drop silently.
-
-#### v86: the Unplanned tray (marker)
-
-`upgrades/v86/index.ts`. v86 data may hold a task held in the Planner's Unplanned tray (`unplanned`, not indexed), which a v85 build would drop silently.
-
-#### v87: the planned date in filters (marker)
-
-`upgrades/v87/index.ts`. v87 data may hold a `planned` date clause (its `held` too) in a list, a Number, a chart or the check-in filter, and a list sorted or grouped by `planned`. A v86 build would drop the filter or refuse the list.
-
-### The tab walk
-
-`upgrades/layout-tabs` is the walk over a stored layout's tabs that v78's `widget-set`, v79, v81 and v83 share. `layoutTabsOf(row, step)` puts each tab through a step that keeps it, rewrites it or drops it.
-
-- A cell whose active tab went shows the one before it, else the one after.
-- A cell left without tabs closes by a frozen copy of the absorb rule: the whole-edge neighbor takes its space, else the side's neighbors together, else it stays an empty cell. The cells close in reading order.
-- Then the lines no cell's edge lies on merge, their sizes added.
 
 ## The layout check and repair
 
@@ -358,7 +161,7 @@ Nothing else is touched: tasks, `modifiedAt`, events, `historyLogSince`.
 
 ### Tabs, by kind
 
-A tab has an id, a kind, a `config` object and, when present, a `viewState` object. The check refuses a tab whose kind `isWidgetKind` doesn't know, and the repair drops it. A tab's own name and icon are in the `withTabLabel` row above; the Planner's, Work clusters' and the List wall's settings are in their model rows.
+A tab has an id, a kind, a `config` object and, when present, a `viewState` object. The check refuses a tab whose kind `isWidgetKind` doesn't know, and the repair drops it. A tab's own name and icon are in the `withTabLabel` row above; the Planner's, Shortcuts', Work clusters' and the List wall's settings are in their model rows.
 
 A list tab (`lens`):
 

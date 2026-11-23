@@ -5,7 +5,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { PlannerResetScope } from '../../../utils/planner'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import { FunnelIcon, ResetIcon } from '../../shared/icons'
-import { openPlannerSettings, WHAT_COUNTS_AS_UNPLANNED } from './open-planner-settings'
+import { openPlannerSettings, UNPLANNED_FILTER_LABEL } from './open-planner-settings'
 
 /** Reset plan's name: its button, its submenu's item, its menu's label. */
 export const RESET_PLAN_LABEL = 'Reset plan'
@@ -63,7 +63,7 @@ export function usePlannerMenuEntries(tab: PlannerTab | undefined): MenuEntry[] 
   const tabId = tab?.id
   return useMemo(() => {
     if (tabId == null) return NO_ENTRIES
-    const settings: MenuEntry = { kind: 'item', label: `${WHAT_COUNTS_AS_UNPLANNED}…`, icon: <FunnelIcon />, onSelect: () => openPlannerSettings(tabId) }
+    const settings: MenuEntry = { kind: 'item', label: `${UNPLANNED_FILTER_LABEL}…`, icon: <FunnelIcon />, onSelect: () => openPlannerSettings(tabId) }
     return children.length === 0 ? [settings] : [settings, { kind: 'item', label: RESET_PLAN_LABEL, icon: <ResetIcon />, children, childrenWidth: 200 }]
   }, [tabId, children])
 }
