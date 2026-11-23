@@ -108,7 +108,7 @@ test.describe('the task editor (board BL)', () => {
   test('fact headings are the standard section label, in the band; Status updates’ line at the bottom, above the footer; one left edge per column', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page, 'Vendor contract renewal')
-    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(1060)
+    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(920)
     const band = dialog.locator('[data-task-facts]')
 
     // The headings: the Notes label's look — 11px bold caps, one muted colour, no icon.

@@ -57,16 +57,29 @@ test('the marker gutter names the priority the checkbox ring draws; urgent by du
   await expect(gutter('Flagged')).toHaveAccessibleName('Priority: Focus, Urgent, Important')
 })
 
+/** Whether the toggle's mark is drawn in the urgent colour (the page's own value of the token). */
+async function inUrgentColour(toggle: Locator): Promise<boolean> {
+  return toggle.evaluate((el) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--color-marker-urgent)'
+    el.appendChild(probe)
+    const urgent = getComputedStyle(probe).color
+    probe.remove()
+    return getComputedStyle(el).color === urgent
+  })
+}
+
 test('the editor’s Urgent toggle is the flag: on a task urgent by its due date it flags and unflags without a prompt', async ({ page }) => {
   const widget = await seedTaskList(page, { tasks: [{ title: 'Pick up prescriptions', dueInDays: 2 }] })
   const gutter = row(widget, 'Pick up prescriptions').locator('[data-row-cell="markers"]')
   await expect(gutter).toHaveAccessibleName('Priority: Urgent (due soon)')
   await openEditor(page, widget, 'Pick up prescriptions')
   const urgent = page.getByRole('button', { name: 'Urgent', exact: true })
-  // Unflagged: not pressed, the faint clock says the due date makes it urgent.
+  // Unflagged: not pressed, its mark tinted in the urgent colour — the due date makes it urgent.
   await expect(urgent).toHaveAttribute('aria-pressed', 'false')
   await expect(urgent).toHaveAttribute('data-urgent', 'date')
-  await expect(urgent.locator('[data-urgent-hint]')).toBeVisible()
+  await page.mouse.move(0, 0)
+  await expect.poll(() => inUrgentColour(urgent)).toBe(true)
   await urgent.hover()
   await expect(page.getByRole('tooltip')).toContainText('Urgent by due date — due')
   await expect(page.getByRole('tooltip')).toContainText('Click to flag it urgent too.')
@@ -75,7 +88,6 @@ test('the editor’s Urgent toggle is the flag: on a task urgent by its due date
   await urgent.click()
   await expect(urgent).toHaveAttribute('aria-pressed', 'true')
   await expect(urgent).toHaveAttribute('data-urgent', 'flag')
-  await expect(urgent.locator('[data-urgent-hint]')).toHaveCount(0)
   await expect(page.getByRole('dialog', { name: /due date/i })).toHaveCount(0)
   await expect(gutter).toHaveAccessibleName('Priority: Urgent')
 

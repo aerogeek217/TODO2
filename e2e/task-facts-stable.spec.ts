@@ -6,13 +6,15 @@ import { pickInReview, seedWorkspace, wsRow, type WorkspaceSeed } from './fixtur
 /**
  * The task layout holds still while a field changes (E6): in the task editor
  * and the review card, a change to one fact — the due date (none, today, a
- * weekday, a numeric date in words, late), its repeat, the priority toggles
- * (the Urgent clock that a due date brings), the status, a person or a tag
- * added and removed, the footer's follow-up — moves neither the header nor
- * any fact cell, nor the band's own box, by more than a pixel. Each cell's
- * width is the band's to give (`TaskDetails.module.css`), the Urgent toggle
- * keeps its clock's room, and the header's `Modified …` sits in a box as wide
- * as its longest words.
+ * weekday, a numeric date in words, late), its repeat (the glyph after the
+ * date), the priority toggles (the Urgent tint that a due date brings), the
+ * status, a person or a tag added and removed, the footer's follow-up —
+ * moves neither the header nor any fact cell, nor the band's own box, by
+ * more than a pixel. Each cell's width is the band's to give
+ * (`TaskDetails.module.css`), every priority toggle is the same width, a
+ * date's two lines are always there, and the header's `Modified …` sits in a
+ * box as wide as its longest words. The compact row: in the 920px editor and
+ * in a review card about 780px wide the six facts share one line.
  */
 
 const TITLE = 'Steady task'
@@ -84,16 +86,39 @@ async function dayValue(page: Page, days: number): Promise<string> {
   }, days)
 }
 
-/** Sets the due date as the browser's picker does (the hidden date input's change), and waits for it to land. */
+/**
+ * Sets the due date through the date's popover (its date input, ⏎ writing it and closing the
+ * popover) — or, with `null`, clears it with the cell's × — and waits for it to land.
+ */
 async function setDue(page: Page, host: Locator, days: number | null) {
-  const input = host.locator('[data-fact="due"] input[type="date"]')
-  const value = days == null ? '' : await dayValue(page, days)
-  await input.evaluate((el, v) => {
-    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
-    set.call(el, v)
-    el.dispatchEvent(new Event('input', { bubbles: true }))
-  }, value)
-  await expect(input).toHaveValue(value)
+  const due = host.locator('[data-fact="due"]')
+  if (days == null) {
+    await due.getByRole('button', { name: 'Clear due date' }).click()
+    await expect(due.getByRole('button', { name: 'Set due date' })).toBeVisible()
+    return
+  }
+  const value = await dayValue(page, days)
+  await due.getByRole('button', { name: /^(Due date:|Set due date)/ }).click()
+  const popover = page.getByRole('dialog', { name: 'Due date' })
+  const input = popover.locator('input[type="date"]')
+  await input.fill(value)
+  await input.press('Enter')
+  await expect(popover).toBeHidden()
+  const [y, m, d] = value.split('-').map(Number) as [number, number, number]
+  const full = new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  await expect(due.getByRole('button', { name: `Due date: ${full}` })).toBeVisible()
+}
+
+/** The Urgent toggle's mark colour against the urgent colour, both as the page computes them. */
+async function urgentTinted(toggle: Locator): Promise<boolean> {
+  return toggle.evaluate((el) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--color-marker-urgent)'
+    el.appendChild(probe)
+    const urgent = getComputedStyle(probe).color
+    probe.remove()
+    return getComputedStyle(el).color === urgent
+  })
 }
 
 /** Runs each change on `host` and checks nothing moved after any of them. */
@@ -107,24 +132,29 @@ async function expectStillThroughChanges(page: Page, host: Locator, header: Reco
   const facts = host.locator('[data-task-facts]')
   const priority = (name: string) => facts.locator('[data-fact="priority"]').getByRole('button', { name, exact: true })
 
-  // The due date: a weekday's words, Today (the Urgent clock comes with it), late, a numeric date, none.
+  // The due date: a weekday's words, Today (the Urgent tint comes with it), late, a numeric date, none.
   for (const [days, step] of [[3, 'due in 3 days'], [0, 'due today'], [-40, 'due 40 days late'], [20, 'due in 20 days'], [null, 'no due date'], [10, 'due in 10 days']] as const) {
     await setDue(page, host, days)
     await check(step)
   }
-  await expect(priority('Urgent').locator('[data-urgent-hint]')).toHaveCount(0)
+  expect(await urgentTinted(priority('Urgent'))).toBe(false)
   await setDue(page, host, 0)
-  await expect(priority('Urgent').locator('[data-urgent-hint]')).toBeVisible()
-  await check('the Urgent clock shows')
+  await expect(priority('Urgent')).toHaveAttribute('data-urgent', 'date')
+  await expect(priority('Urgent')).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(() => urgentTinted(priority('Urgent'))).toBe(true)
+  await check('the Urgent tint shows')
 
-  // Its repeat.
-  const repeat = facts.getByRole('textbox', { name: 'Repeat every' })
-  const readBack = facts.locator('[data-repeat-readback]')
-  for (const [value, words] of [['1w', /^Every \w{3} · next /], ['3m', /^Every 3 months · next /], ['', /^No repeat$/]] as const) {
+  // Its repeat, typed in the date's popover: the glyph comes and goes after the date.
+  const due = facts.locator('[data-fact="due"]')
+  const popover = page.getByRole('dialog', { name: 'Due date' })
+  const repeat = popover.getByRole('textbox', { name: 'Repeat every' })
+  for (const [value, name] of [['1w', /^Every \w{3}$/], ['3m', /^Every 3 months$/], ['', null]] as const) {
+    await due.getByRole('button', { name: /^Due date:/ }).click()
     await repeat.fill(value)
     await repeat.press('Enter')
-    await expect(repeat).toHaveValue(value)
-    await expect(readBack).toHaveText(words)
+    await expect(popover).toBeHidden()
+    if (name) await expect(due.getByRole('img')).toHaveAccessibleName(name)
+    else await expect(due.getByRole('img')).toHaveCount(0)
     await check(`repeat ${value || 'none'}`)
   }
 
@@ -208,5 +238,48 @@ test.describe('the task layout holds still while a field changes', () => {
       checkbox: card.getByRole('checkbox').first(),
     }
     await expectStillThroughChanges(page, card, header, widget.locator('[data-review-footer]'))
+  })
+})
+
+/** The tops of the band's cells: one value when the six share one line. */
+async function factTops(host: Locator): Promise<number[]> {
+  return host.locator('[data-task-facts] [data-fact]').evaluateAll((cells) => cells.map((c) => Math.round(c.getBoundingClientRect().top)))
+}
+
+test.describe('the compact facts row', () => {
+  test('the 920px editor: the six facts on one line, the band shorter than three lines of a cell', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await seedWorkspace(page, SEED)
+    await taskRowByTitle(page, TITLE).locator(`span[data-task-title="${TITLE}"]`).dblclick()
+    const dialog = page.getByRole('dialog', { name: 'Edit task' })
+    await expect(dialog).toBeVisible()
+    expect(await dialog.evaluate((el) => (el as HTMLElement).offsetWidth)).toBe(920)
+    await settle(dialog)
+    const tops = await factTops(dialog)
+    expect(tops).toHaveLength(6)
+    expect(new Set(tops).size, `tops ${tops.join(', ')}`).toBe(1)
+    // The label, the day and its words: about 92px.
+    expect((await box(dialog.locator('[data-task-facts]'))).height).toBeLessThanOrEqual(96)
+  })
+
+  test('a review card about 780px wide: the six facts on one line', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await seedWorkspace(page, REVIEW_SEED)
+    await pickInReview(page, 'rv1', 'Aisha')
+    const card = page.locator('[data-review-widget="rv1"] [data-review-card]')
+    await expect(card.getByTestId('review-card-title')).toHaveValue(TITLE)
+    // Size the window so the card is about 780px wide (the queue and the gutters take the rest).
+    for (let i = 0; i < 3; i++) {
+      const width = (await box(card)).width
+      if (Math.abs(width - 780) <= 4) break
+      const viewport = page.viewportSize()!
+      await page.setViewportSize({ width: Math.round(viewport.width + 780 - width), height: viewport.height })
+      await settle(card)
+    }
+    expect(Math.abs((await box(card)).width - 780)).toBeLessThanOrEqual(4)
+    await settle(card)
+    const tops = await factTops(card)
+    expect(tops).toHaveLength(6)
+    expect(new Set(tops).size, `tops ${tops.join(', ')}`).toBe(1)
   })
 })

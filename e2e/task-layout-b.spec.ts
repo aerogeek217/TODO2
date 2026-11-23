@@ -193,7 +193,7 @@ test.describe('the task editor, wide', () => {
     test(`${title}: the band, the two columns and the footer’s Last · Next · Mark followed up · Done`, async ({ page }) => {
       await seedWorkspace(page, SEED)
       const dialog = await openEditor(page, title)
-      expect(Math.round((await box(dialog)).width)).toBe(1060)
+      expect(Math.round((await box(dialog)).width)).toBe(920)
       await expectLayoutB(page, dialog, { footer: editorFooter(dialog) })
       const footer = editorFooter(dialog)
       // Done at the right end; the quick intervals shown at this width.
