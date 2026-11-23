@@ -20,6 +20,8 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-22
+
 Data version 87. Older copies of the app will refuse the data once it is upgraded: update them, the offline file on
 another computer included.
 
