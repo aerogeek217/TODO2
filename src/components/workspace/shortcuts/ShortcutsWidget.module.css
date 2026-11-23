@@ -1,8 +1,10 @@
 /*
- * Shortcuts (2026-11-23, board B). Large: a grid of tiles (auto-fill, 136px
- * at least) whose rows shrink from a tile with three task titles down to
- * its first line (`--shortcut-tile-*`), then scroll. Compact: one
- * line of tiles (`--shortcut-columns`). Rows: a 32px row per list.
+ * The List board. Large: a grid of tiles (auto-fill, 136px at least) whose
+ * rows shrink from a tile with its squares and three task titles under its
+ * head down to its head (`--board-content-max`, the tallest head and room any
+ * tile asks for), then scroll. Compact: one line of tiles (`--shortcut-columns`).
+ * Rows: a row per list with its bar. Each state's color is a theme token,
+ * set once per `data-tone`.
  */
 
 .faceHost {
@@ -10,8 +12,24 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  /* A tile at its most (three task titles under its first line). */
-  --shortcut-tile-max: 96px;
+  /* A tile around its head and room: its padding (11 + 11, its edge inside). */
+  --board-tile-chrome: 22px;
+}
+
+/* Every state a fill, as a Lines box's (due soon its overdue color, faint): a square's outline is its priority's ring. */
+[data-tone='late'] { --tone-fill: var(--color-overdue); }
+[data-tone='soon'] { --tone-fill: color-mix(in srgb, var(--color-overdue) 45%, transparent); }
+[data-tone='followup'] { --tone-fill: var(--color-followup); }
+[data-tone='ontrack'] { --tone-fill: color-mix(in srgb, var(--color-accent) 38%, var(--color-surface)); }
+[data-tone='stale'] { --tone-fill: var(--color-row-tone-stale); }
+
+/* The legend's square (a tile's tooltip). */
+.legendSquare {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--tone-fill);
 }
 
 /* ── Small ─────────────────────────────────────────────────────────────── */
@@ -98,7 +116,8 @@
 .addTile:focus-visible,
 .open:focus-visible,
 .more:focus-visible,
-.moreTile:focus-visible {
+.moreTile:focus-visible,
+.square:focus-visible {
   box-shadow: var(--focus-ring);
   outline: none;
 }
@@ -113,6 +132,8 @@
   box-sizing: border-box;
   padding: 8px 10px 10px;
   overflow-y: auto;
+  /* Unmeasured: a head of one line and the gap under it. */
+  --board-tile-max: calc(var(--board-tile-chrome) + var(--board-content-max, 22px));
 }
 
 /* As tall as the room left (rows between the tile's least and most), overflowing into the scroll when the rows need more. */
@@ -121,15 +142,20 @@
   flex: 1 0 0;
   min-height: 0;
   grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
-  /* Never shorter than a tile's first line (two when its capsule wraps). */
-  grid-auto-rows: minmax(min-content, var(--shortcut-tile-max));
+  /* Never shorter than a tile's head (two lines when its capsule wraps). */
+  grid-auto-rows: minmax(min-content, var(--board-tile-max));
   align-content: start;
   gap: 8px;
 }
 
+/* One row of tiles, as tall as the room left up to a tile's most (its squares where a row fits). */
 .line {
   display: grid;
+  flex: 1 0 0;
+  min-height: 0;
   grid-template-columns: repeat(var(--shortcut-columns, 1), minmax(0, 1fr));
+  grid-template-rows: minmax(min-content, var(--board-tile-max));
+  align-content: start;
   gap: 8px;
 }
 
@@ -141,6 +167,7 @@
 .tile,
 .rowItem {
   position: relative;
+  display: flex;
   min-width: 0;
   touch-action: manipulation;
 }
@@ -151,26 +178,20 @@
   opacity: 0.85;
 }
 
-/* The tile's press: the whole tile. */
+/* The tile's press: a button over the whole tile, under its marks (the squares are buttons of their own). */
 .open {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  min-width: 0;
+  position: absolute;
+  inset: 0;
   margin: 0;
+  padding: 0;
   border: none;
   background: none;
   font-family: inherit;
   color: inherit;
-  text-align: left;
   cursor: pointer;
 }
 
 .tile > .open {
-  height: 100%;
-  box-sizing: border-box;
-  padding: 10px 12px;
   border: 1px solid var(--color-border-muted);
   border-radius: var(--radius-chip);
   background: var(--color-surface-high);
@@ -181,14 +202,32 @@
 }
 
 .rowItem > .open {
-  height: 32px;
-  justify-content: center;
-  padding: 0 6px;
   border-radius: var(--radius-md);
 }
 
 .rowItem > .open:hover {
   background: var(--color-tint-5);
+}
+
+/* What the tile shows, over its press: the pointer passes through to it but for the squares. */
+.body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.tile > .body {
+  padding: 11px 13px;
+}
+
+.rowItem > .body {
+  gap: 5px;
+  padding: 6px;
 }
 
 /* Icon · name · capsule · count; the capsule and count wrap under the name when the tile is too narrow for both. */
@@ -246,15 +285,63 @@
   color: var(--color-text-muted);
 }
 
-/* The first task titles: whole lines only (`shortcutPeekLines`), secondary to muted. */
-.peek {
+/* Under the head: the squares, then the titles (`boardTileRoom`). No part in the row's least height: it fills the room the row has, never asks for more. */
+.room {
   display: flex;
   flex-direction: column;
+  gap: 6px;
   flex: 1 1 0;
   min-height: 1px;
   overflow: hidden;
-  /* No part in the row's least height: the titles fill the room the row has, never ask for more. */
   contain: size;
+}
+
+.squares {
+  display: grid;
+  grid-template-columns: repeat(var(--board-columns, 9), 10px);
+  gap: 2px;
+  flex: none;
+  pointer-events: auto;
+}
+
+/* Its fill the task's state; its priority a ring over it and Focus's glow (`PriorityRing`, which fills the square: it is `position: relative`). */
+.square {
+  position: relative;
+  display: block;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 2px;
+  background: var(--tone-fill);
+  cursor: pointer;
+}
+
+.square:hover {
+  box-shadow: 0 0 0 2px var(--color-text-primary);
+}
+
+.squaresMore {
+  grid-column: span 3;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--color-tint-8);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 10px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  transform: scale(0.8);
+}
+
+/* The first task titles: whole lines only, secondary to muted. */
+.peek {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  overflow: hidden;
 }
 
 .peekLine {
@@ -273,6 +360,28 @@
 
 .peekLine[data-peek-line='2'] {
   color: var(--color-text-muted);
+}
+
+/* A row's bar: the list's open tasks by state, each segment its share. */
+.barTrack {
+  display: flex;
+  gap: 1px;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.segment {
+  flex-basis: 0;
+  height: 100%;
+  background: var(--tone-fill);
+}
+
+.barWaiting {
+  height: 6px;
+  border: 1px dashed var(--color-border);
+  border-radius: 3px;
+  box-sizing: border-box;
 }
 
 /* A tile's ⋯: bottom right, over its last title on the tile's surface, while the pointer is over the tile or the focus in it. */

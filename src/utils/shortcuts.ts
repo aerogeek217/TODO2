@@ -1,19 +1,46 @@
 import type { IconValue } from '../models/icon'
 import { ownerLayoutId, type PersistedListDefinition } from '../models/list-definition'
-import { KIND_LINE_ICON, tabStripIcon, type LayoutBody, type PersistedWorkspaceLayout, type ShortcutsTabConfig } from '../models/workspace-layout'
+import { getActiveTab, KIND_LINE_ICON, tabStripIcon, type LayoutBody, type ListTab, type PersistedWorkspaceLayout, type ShortcutsSource, type ShortcutsTabConfig } from '../models/workspace-layout'
 import { bySortOrder } from './sort-order'
+import { readingOrder } from './workspace-grid'
 import { layoutTabs } from './workspace-layout-queries'
 
 /**
- * Shortcuts (2026-11-23): a tile per picked list, from any layout — the
- * list ids in its config, in order (`ShortcutsTabConfig.lists`), and what
- * the widget reads about each list: its layout, its tab's icon, the lists
- * it could add.
+ * The List board (widget kind `shortcuts`): a tile per list — the lists
+ * picked, of any layout (`ShortcutsTabConfig.lists`, in order), or every list
+ * tab of the open layout — and what the widget reads about each list: its
+ * layout, its tab's icon, the lists it could add, the room a tile has.
  */
 
-/** Shortcuts' list ids, in order (none picked: empty). */
+/** Which lists a List board shows (absent: the lists picked). */
+export function shortcutsSource(config: ShortcutsTabConfig): ShortcutsSource {
+  return config.source ?? 'picked'
+}
+
+/** A List board's picked list ids, in order (none picked: empty). */
 export function shortcutLists(config: ShortcutsTabConfig): readonly number[] {
   return config.lists ?? []
+}
+
+/**
+ * The list tabs a List board of the layout's lists shows: every list tab of
+ * `layout` whose list `exists`, in reading order (by cell, then strip
+ * order) — a tab per list tab, so a list two tabs show is there twice.
+ */
+export function layoutListTabs(layout: LayoutBody, exists: (listId: number) => boolean): ListTab[] {
+  const out: ListTab[] = []
+  for (const cell of readingOrder(layout)) {
+    for (const tab of cell.tabs) {
+      const id = tab.kind === 'lens' ? tab.config.listDefinitionId : undefined
+      if (tab.kind === 'lens' && id != null && exists(id)) out.push(tab)
+    }
+  }
+  return out
+}
+
+/** Whether `layout`'s cell holding tab `tabId` shows it (its active tab). */
+export function tabIsShowing(layout: LayoutBody, tabId: string): boolean {
+  return layout.cells.some((c) => getActiveTab(c)?.id === tabId)
 }
 
 /** `lists` with `id` added at the end (unchanged when it is there already). */
@@ -119,6 +146,49 @@ export function shortcutChoices(
   return groups
 }
 
+/** A tile's title line height, px (`ShortcutsWidget.module.css` `.peekLine`), and the most titles it shows. */
+const SHORTCUT_PEEK_LINE_PX = 16
+export const SHORTCUT_PEEK_MAX_LINES = 3
+
+/** A tile's square side and the gap between squares, px; the gap between its squares and its titles (`ShortcutsWidget.module.css`). */
+const BOARD_SQUARE_PX = 10
+const BOARD_SQUARE_GAP_PX = 2
+const BOARD_ROOM_GAP_PX = 6
+/** The most rows of squares a tile draws: past them its last three give way to `+N`. */
+const BOARD_SQUARE_ROWS_MAX = 4
+/** A tile's squares across before it is measured (a 136px tile's room). */
+const BOARD_COLUMNS_UNMEASURED = 9
+
+/** What a tile's room under its head holds: its squares `columns` across and `rows` down, then `lines` task titles. */
+interface BoardTileRoom {
+  columns: number
+  rows: number
+  lines: number
+}
+
+/**
+ * How a tile's room (`width` × `height` px, under its head) holds `squares`
+ * squares and `titles` task titles (up to `SHORTCUT_PEEK_MAX_LINES`; none
+ * when `withTitles` is false): the squares first, as many whole rows as
+ * the room gives (`BOARD_SQUARE_ROWS_MAX` at most), then the titles in the
+ * room left — so as the tile shrinks the titles go first, then the rows of
+ * squares. `want` is the height the room asks for to show it all.
+ * Unmeasured (0): 9 across, every row and every title.
+ */
+export function boardTileRoom(squares: number, titles: number, size: { width: number; height: number }, withTitles = true): BoardTileRoom & { want: number } {
+  const step = BOARD_SQUARE_PX + BOARD_SQUARE_GAP_PX
+  const columns = size.width > 0 ? Math.max(1, Math.floor((size.width + BOARD_SQUARE_GAP_PX) / step)) : BOARD_COLUMNS_UNMEASURED
+  const needed = squares > 0 ? Math.min(BOARD_SQUARE_ROWS_MAX, Math.ceil(squares / columns)) : 0
+  const titleLines = withTitles ? Math.min(SHORTCUT_PEEK_MAX_LINES, titles) : 0
+  const blockOf = (rows: number) => (rows > 0 ? rows * step - BOARD_SQUARE_GAP_PX : 0)
+  const want = blockOf(needed) + (needed > 0 && titleLines > 0 ? BOARD_ROOM_GAP_PX : 0) + titleLines * SHORTCUT_PEEK_LINE_PX
+  if (size.height <= 0) return { columns, rows: needed, lines: titleLines, want }
+  const rows = Math.min(needed, Math.max(0, Math.floor((size.height + BOARD_SQUARE_GAP_PX) / step)))
+  const left = size.height - blockOf(rows) - (rows > 0 ? BOARD_ROOM_GAP_PX : 0)
+  const lines = Math.max(0, Math.min(titleLines, Math.floor(left / SHORTCUT_PEEK_LINE_PX)))
+  return { columns, rows, lines, want }
+}
+
 /** A compact tile's least width, px, and the gap between tiles (`ShortcutsWidget.module.css`). */
 const SHORTCUT_COMPACT_TILE_MIN_PX = 120
 const SHORTCUT_TILE_GAP_PX = 8
@@ -134,14 +204,4 @@ export function compactShortcutTiles(count: number, width: number): { columns: n
   if (count <= columns) return { columns, shown: count, more: 0 }
   const shown = Math.max(0, columns - 1)
   return { columns, shown, more: count - shown }
-}
-
-/** A tile's peek line height, px (`ShortcutsWidget.module.css` `.peekLine`), and the most lines it shows. */
-const SHORTCUT_PEEK_LINE_PX = 16
-export const SHORTCUT_PEEK_MAX_LINES = 3
-
-/** How many whole peek lines an area `height` px tall holds (0 – `SHORTCUT_PEEK_MAX_LINES`). Unmeasured: all. */
-export function shortcutPeekLines(height: number): number {
-  if (height <= 0) return SHORTCUT_PEEK_MAX_LINES
-  return Math.max(0, Math.min(SHORTCUT_PEEK_MAX_LINES, Math.floor(height / SHORTCUT_PEEK_LINE_PX)))
 }

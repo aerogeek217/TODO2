@@ -1,76 +1,109 @@
-import { useCallback, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react'
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../../constants'
-import type { ShortcutsTab } from '../../../models/workspace-layout'
+import type { ShortcutsSource, ShortcutsTab } from '../../../models/workspace-layout'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
-import { useShortcutListIds, useShortcutTile, type ShortcutTileData } from '../../../hooks/use-shortcuts'
+import { useLayoutListTabs, useShortcutListIds, useShortcutTile, type BoardEntry, type ShortcutTileData } from '../../../hooks/use-shortcuts'
 import { useSortableRow } from '../../../hooks/use-sortable-row'
 import { useOpenFullWidget, useWidgetFace } from '../../../hooks/use-widget-face'
-import { openShortcutList } from '../../../services/widget-popup'
-import { compactShortcutTiles, shortcutLists, shortcutPeekLines } from '../../../utils/shortcuts'
+import { openShortcutList, openWidgetLarger } from '../../../services/widget-popup'
+import { showTab } from '../../../services/workspace-tabs'
+import { WALL_TONE_NAMES, WALL_TONES, wallCountsText } from '../../../utils/list-wall'
+import { boardTileRoom, compactShortcutTiles, shortcutLists, shortcutsSource } from '../../../utils/shortcuts'
 import { shortcutsFaceFor, shortcutsShape, type ShortcutsShape } from '../../../utils/widget-face'
 import { AppIcon } from '../../shared/AppIcon'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
 import { MoreIcon, PlusIcon } from '../../shared/icons'
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
+import type { TooltipLegendItem } from '../../shared/TooltipBubble'
+import { useTooltip } from '../../shared/use-tooltip'
 import { TabIcon } from '../TabIcon'
 import { useTabTitle } from '../widget-hooks'
+import { WidgetNameLine } from '../WidgetTopLine'
+import { BoardBar, BoardSquares } from './board-parts'
 import { ADD_SHORTCUT_LABEL, moveShortcut, REMOVE_SHORTCUT_LABEL, removeShortcut, useAddShortcutEntries } from './shortcuts-menu'
 import styles from './ShortcutsWidget.module.css'
 
-const dragIdOf = (id: number) => `shortcut-${id}`
-const listIdOf = (dragId: string | number) => Number(String(dragId).slice('shortcut-'.length))
+/** The widget's name: its name line's, its tiles' list. */
+const BOARD_NAME = 'List board'
+
+const dragIdOf = (key: string) => `shortcut-${key}`
+const keyOf = (dragId: string | number) => String(dragId).slice('shortcut-'.length)
 
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`
 
-/** A tile's words for assistive tech: its name, its count, its layout. */
-function tileLabel(data: ShortcutTileData): string {
+/** What the squares mean: under each tile's tooltip. */
+const BOARD_LEGEND: readonly TooltipLegendItem[] = WALL_TONES.map((t) => ({
+  label: WALL_TONE_NAMES[t],
+  swatch: <span className={styles.legendSquare} data-tone={t} />,
+}))
+
+const NO_IDS: readonly number[] = []
+
+/** A tile's words for assistive tech: its name, its count, its badge, its layout (a list picked). */
+function tileLabel(data: ShortcutTileData, withLayout: boolean): string {
   const count = data.count == null ? 'waits on its prompt' : plural(data.count, 'task')
   const badge = data.badge ? `, ${data.badge.summary.join(', ')}` : ''
-  return `${data.name}: ${count}${badge}${data.layoutName ? `, in ${data.layoutName}` : ''}`
+  return `${data.name}: ${count}${badge}${withLayout && data.layoutName ? `, in ${data.layoutName}` : ''}`
 }
 
 /**
- * Shortcuts (2026-11-23; widget kind `shortcuts`): a tile per list the user
- * picked, from any layout, to keep those lists in reach. A tile shows its
- * list tab's picked icon, its name, its tab badge (`BadgeCapsule`) and its
- * count (`—` while its prompt waits), the first task titles as built and its
- * layout's name; a click opens the list in the widget popup over this layout
- * (`openShortcutList`). Faces by size (`shortcutsFaceFor` /
+ * The List board (widget kind `shortcuts`): a tile per list — the lists
+ * picked, of any layout (**Lists I pick**, `config.lists`), or every list tab
+ * of the open layout in reading order (**This layout's lists**, `config.source`
+ * `layout`) — each built as it shows on opening (`useShortcutTile`). A tile
+ * shows its list tab's icon, its name, its badge capsule and its count, then
+ * a square per open task, the trouble first (`board-parts`), as many whole
+ * rows as it has room for, then its first task titles in the room left
+ * (`boardTileRoom`); its tooltip ends with the squares' legend. A click opens
+ * the list in the widget popup (`openShortcutList`; a tab of the layout opens
+ * larger, `openWidgetLarger`). Faces by size (`shortcutsFaceFor` /
  * `shortcutsShape`): small — the name and the number of lists; rows — a row
- * per list; compact — one line of tiles ending in `+N`; large — a grid of
- * tiles whose titles go first as it shrinks, then a dashed Add a list tile.
- * No name line: the cell's controls float over its corner.
- * Tiles drag to reorder (their own `DndContext`; not on touch), one undo
- * step; a right-click (or a tile's ⋯) offers Open and Remove from Shortcuts.
+ * per list with its bar; compact — one line of tiles ending in `+N`, squares
+ * where a row fits; large — the grid of tiles, then (lists picked) a dashed
+ * Add a list tile. Its name line shows with Settings › Show widget names.
+ * Lists picked drag to reorder (their own `DndContext`; not on touch), one
+ * undo step; a tile's right-click (or its ⋯) offers Open and Remove from
+ * List board — for a tab of the layout, Open and Show in its cell.
  */
 export function ShortcutsWidget({ tab }: { tab: ShortcutsTab }) {
   const [faceRef, face] = useWidgetFace(shortcutsFaceFor)
   const [sizeRef, size] = useElementSize()
   const setRef = useCallback((el: HTMLElement | null) => { faceRef(el); sizeRef(el) }, [faceRef, sizeRef])
   const shape = shortcutsShape(face, size.width)
+  const source = shortcutsSource(tab.config)
   return (
-    <div ref={setRef} className={styles.faceHost} data-shortcuts={tab.id} data-shortcuts-face={shape}>
-      <ShortcutsFace tab={tab} shape={shape} width={size.width} />
+    <div ref={setRef} className={styles.faceHost} data-shortcuts={tab.id} data-shortcuts-face={shape} data-shortcuts-source={source}>
+      {shape !== 'small' && <WidgetNameLine name={BOARD_NAME} />}
+      <ShortcutsFace tab={tab} source={source} shape={shape} width={size.width} />
     </div>
   )
 }
 
-function ShortcutsFace({ tab, shape, width }: { tab: ShortcutsTab; shape: ShortcutsShape; width: number }) {
-  const ids = useShortcutListIds(shortcutLists(tab.config))
+function ShortcutsFace({ tab, source, shape, width }: { tab: ShortcutsTab; source: ShortcutsSource; shape: ShortcutsShape; width: number }) {
+  const ids = useShortcutListIds(source === 'picked' ? shortcutLists(tab.config) : NO_IDS)
+  const layoutTabs = useLayoutListTabs()
+  const entries = useMemo<BoardEntry[]>(() => (source === 'layout'
+    ? layoutTabs.map((t) => ({ key: t.id, listId: t.config.listDefinitionId ?? 0, tab: t }))
+    : ids.map((id) => ({ key: String(id), listId: id }))), [source, layoutTabs, ids])
   const title = useTabTitle(tab)
   if (shape === 'small') {
     return (
-      <div className={styles.smallFace} role="group" aria-label={`${title}: ${plural(ids.length, 'list')}`}>
+      <div className={styles.smallFace} role="group" aria-label={`${title}: ${plural(entries.length, 'list')}`}>
         <TabIcon tab={tab} className={styles.smallIcon} />
         <span className={styles.smallTitle}>{title}</span>
-        <span className={styles.smallCount}>{ids.length}</span>
+        <span className={styles.smallCount}>{entries.length}</span>
       </div>
     )
   }
-  return ids.length === 0 ? <Empty tab={tab} /> : <Tiles tab={tab} ids={ids} shape={shape} width={width} />
+  if (entries.length === 0) {
+    return source === 'layout'
+      ? <div className={styles.empty}><p className={styles.emptyLine} role="status">No list tabs in this layout.</p></div>
+      : <Empty tab={tab} />
+  }
+  return <Tiles tab={tab} source={source} entries={entries} shape={shape} width={width} />
 }
 
 /** The Add a list menu under `anchor` (the dashed tile, the empty state's button). */
@@ -95,47 +128,68 @@ function Empty({ tab }: { tab: ShortcutsTab }) {
 }
 
 /** A tile's menu: at the pointer (a right-click) or under its ⋯. */
-type TileMenu = { listId: number; at: { x: number; y: number } }
+type TileMenu = { entry: BoardEntry; at: { x: number; y: number } }
 
-function Tiles({ tab, ids, shape, width }: { tab: ShortcutsTab; ids: number[]; shape: 'rows' | 'compact' | 'large'; width: number }) {
+type TileShape = 'rows' | 'compact' | 'large'
+
+interface TilesProps {
+  tab: ShortcutsTab
+  source: ShortcutsSource
+  entries: BoardEntry[]
+  shape: TileShape
+  width: number
+}
+
+function Tiles({ tab, source, entries, shape, width }: TilesProps) {
   const touch = useIsMobile()
   const openFull = useOpenFullWidget()
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }))
   const [menu, setMenu] = useState<TileMenu | null>(null)
+  // The height each tile's head, squares and titles ask for: the tallest sets the tiles' most height.
+  const [wants, setWants] = useState<ReadonlyMap<string, number>>(new Map())
   // A press that ended a drag is no click: the tile it ends on doesn't open.
   const dragged = useRef(false)
-  const compact = shape === 'compact' ? compactShortcutTiles(ids.length, width) : null
-  const shown = compact ? ids.slice(0, compact.shown) : ids
-  const dragIds = shown.map(dragIdOf)
+  const picked = source === 'picked'
+  const compact = shape === 'compact' ? compactShortcutTiles(entries.length, width) : null
+  const shown = compact ? entries.slice(0, compact.shown) : entries
+  const dragIds = shown.map((e) => dragIdOf(e.key))
+  const tallest = Math.max(0, ...shown.map((e) => wants.get(e.key) ?? 0))
 
-  const open = (listId: number) => {
+  const onWant = useCallback((key: string, want: number) => {
+    setWants((prev) => (prev.get(key) === want ? prev : new Map(prev).set(key, want)))
+  }, [])
+  const open = (entry: BoardEntry) => {
     if (dragged.current) return
-    void openShortcutList(listId)
+    void (entry.tab ? openWidgetLarger(entry.tab.id) : openShortcutList(entry.listId))
   }
   const onDragEnd = (e: DragEndEvent) => {
     window.setTimeout(() => { dragged.current = false }, 0)
     if (!e.over || e.active.id === e.over.id) return
-    moveShortcut(tab, listIdOf(e.active.id), listIdOf(e.over.id))
+    moveShortcut(tab, Number(keyOf(e.active.id)), Number(keyOf(e.over.id)))
   }
-  const menuEntries: MenuEntry[] = menu ? [
-    { kind: 'item', label: 'Open', onSelect: () => open(menu.listId) },
-    { kind: 'item', label: REMOVE_SHORTCUT_LABEL, onSelect: () => removeShortcut(tab, menu.listId) },
-  ] : []
+  const menuEntries: MenuEntry[] = !menu ? [] : [
+    { kind: 'item', label: 'Open', onSelect: () => open(menu.entry) },
+    menu.entry.tab
+      ? { kind: 'item', label: 'Show in its cell', onSelect: () => { if (menu.entry.tab) showTab(menu.entry.tab.id) } }
+      : { kind: 'item', label: REMOVE_SHORTCUT_LABEL, onSelect: () => removeShortcut(tab, menu.entry.listId) },
+  ]
 
-  const items = shown.map((id) => (
+  const items = shown.map((entry) => (
     <SortableTile
-      key={id}
-      listId={id}
+      key={entry.key}
+      entry={entry}
       shape={shape}
-      disabled={touch}
-      onOpen={() => open(id)}
-      onMenu={(at) => setMenu({ listId: id, at })}
+      disabled={touch || !picked}
+      onOpen={() => open(entry)}
+      onMenu={(at) => setMenu({ entry, at })}
+      onWant={onWant}
     />
   ))
   return (
     <div
       className={styles.scroll}
       data-shortcuts-shape={shape}
+      style={tallest > 0 ? { '--board-content-max': `${tallest}px` } as CSSProperties : undefined}
     >
       <DndContext
         sensors={sensors}
@@ -149,7 +203,7 @@ function Tiles({ tab, ids, shape, width }: { tab: ShortcutsTab; ids: number[]; s
           <div
             className={shape === 'rows' ? styles.rows : shape === 'compact' ? styles.line : styles.grid}
             role="list"
-            aria-label="Shortcuts"
+            aria-label={BOARD_NAME}
             style={compact ? { '--shortcut-columns': compact.columns } as CSSProperties : undefined}
           >
             {items}
@@ -165,12 +219,12 @@ function Tiles({ tab, ids, shape, width }: { tab: ShortcutsTab; ids: number[]; s
                 +{compact.more}
               </button>
             )}
-            {shape === 'large' && <AddTile tab={tab} />}
+            {shape === 'large' && picked && <AddTile tab={tab} />}
           </div>
         </SortableContext>
       </DndContext>
       {menu && (
-        <MenuPopover point={menu.at} restoreFocus closeOnScroll width={200} label="Shortcut options" entries={menuEntries} onClose={() => setMenu(null)} />
+        <MenuPopover point={menu.at} restoreFocus closeOnScroll width={200} label={`${BOARD_NAME} options`} entries={menuEntries} onClose={() => setMenu(null)} />
       )}
     </div>
   )
@@ -191,16 +245,26 @@ function AddTile({ tab }: { tab: ShortcutsTab }) {
 }
 
 interface TileProps {
-  listId: number
-  shape: 'rows' | 'compact' | 'large'
+  entry: BoardEntry
+  shape: TileShape
   disabled: boolean
   onOpen: () => void
   onMenu: (at: { x: number; y: number }) => void
+  onWant: (key: string, want: number) => void
 }
 
-function SortableTile({ listId, shape, disabled, onOpen, onMenu }: TileProps) {
-  const data = useShortcutTile(listId)
-  const { setNodeRef, attributes, listeners, style, isDragging } = useSortableRow(dragIdOf(listId))
+/**
+ * A tile (or a row): its press a button over the whole of it, under its
+ * marks — the squares are buttons of their own, so they sit beside it, not
+ * in it.
+ */
+function SortableTile({ entry, shape, disabled, onOpen, onMenu, onWant }: TileProps) {
+  const data = useShortcutTile(entry)
+  const { setNodeRef, attributes, listeners, style, isDragging } = useSortableRow(dragIdOf(entry.key))
+  const [headRef, head] = useElementSize()
+  const picked = !entry.tab
+  const tip = data ? `${picked && data.layoutName ? `${data.name} · ${data.layoutName}` : data.name}\n${wallCountsText(data.wall)}` : null
+  const { triggerProps, tooltip } = useTooltip(tip, { legend: BOARD_LEGEND })
   if (!data) return null
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault()
@@ -214,25 +278,14 @@ function SortableTile({ listId, shape, disabled, onOpen, onMenu }: TileProps) {
       onMenu({ x: r.left, y: r.bottom + 4 })
     }
   }
-  const head = (
-    <span className={styles.head}>
-      <span className={styles.title}>
-        {data.icon && <AppIcon icon={data.icon} size={13} className={styles.icon} />}
-        <span className={styles.name} data-shortcut-name="">{data.name}</span>
-      </span>
-      <span className={styles.meta}>
-        {data.badge && <BadgeCapsule counts={data.badge.counts} data-shortcut-badge="" />}
-        <span className={styles.count} data-shortcut-count="">{data.count ?? '—'}</span>
-      </span>
-    </span>
-  )
-  const body: ReactNode = shape === 'large' ? <>{head}<Peek titles={data.titles} /></> : head
+  const describedBy = [triggerProps['aria-describedby'], disabled ? undefined : attributes['aria-describedby']].filter(Boolean).join(' ') || undefined
   return (
     <div
       ref={setNodeRef}
       role="listitem"
       className={shape === 'rows' ? styles.rowItem : styles.tile}
-      data-shortcut-tile={listId}
+      data-shortcut-tile={entry.listId}
+      data-board-tab={entry.tab?.id}
       data-dragging={isDragging ? 'true' : undefined}
       style={style}
       {...(disabled ? undefined : listeners)}
@@ -240,15 +293,31 @@ function SortableTile({ listId, shape, disabled, onOpen, onMenu }: TileProps) {
       <button
         type="button"
         className={styles.open}
-        {...(disabled ? undefined : { 'aria-roledescription': attributes['aria-roledescription'], 'aria-describedby': attributes['aria-describedby'] })}
-        aria-label={`${tileLabel(data)}. Open`}
-        data-tooltip={data.layoutName ? `${data.name} · ${data.layoutName}` : undefined}
+        {...triggerProps}
+        aria-roledescription={disabled ? undefined : attributes['aria-roledescription']}
+        aria-describedby={describedBy}
+        aria-label={`${tileLabel(data, picked)}. Open`}
         onClick={onOpen}
         onContextMenu={onContextMenu}
         onKeyDown={onKeyDown}
       >
-        {body}
+        {tooltip}
       </button>
+      <span className={styles.body}>
+        <span ref={headRef} className={styles.head} aria-hidden="true">
+          <span className={styles.title}>
+            {data.icon && <AppIcon icon={data.icon} size={13} className={styles.icon} />}
+            <span className={styles.name} data-shortcut-name="">{data.name}</span>
+          </span>
+          <span className={styles.meta}>
+            {data.badge && <BadgeCapsule counts={data.badge.counts} data-shortcut-badge="" />}
+            <span className={styles.count} data-shortcut-count="">{data.count ?? '—'}</span>
+          </span>
+        </span>
+        {shape === 'rows'
+          ? <BoardBar wall={data.wall} />
+          : <Room data={data} entryKey={entry.key} headHeight={head.height} withTitles={shape === 'large'} onWant={onWant} />}
+      </span>
       {shape !== 'rows' && (
         <button
           type="button"
@@ -268,13 +337,36 @@ function SortableTile({ listId, shape, disabled, onOpen, onMenu }: TileProps) {
   )
 }
 
-/** The first task titles, as many whole lines as the tile's height leaves (0 – 3), each a little dimmer. */
-function Peek({ titles }: { titles: string[] }) {
+/** A tile's head before it is measured (one line), and the gap under it, px (the stylesheet's `.head`, `.body`). */
+const HEAD_LINE_PX = 18
+const HEAD_GAP_PX = 4
+
+/**
+ * The tile's room under its head: its squares, as many whole rows as the
+ * room gives, then its first task titles in what is left, each a little
+ * dimmer (`boardTileRoom`). It takes no part in the tile's least height
+ * (`contain: size`); it tells the board the height its head and room ask
+ * for (a head that wraps asks for its second line too).
+ */
+function Room({ data, entryKey, headHeight, withTitles, onWant }: {
+  data: ShortcutTileData
+  entryKey: string
+  headHeight: number
+  withTitles: boolean
+  onWant: (key: string, want: number) => void
+}) {
   const [ref, size] = useElementSize()
-  const lines = titles.slice(0, shortcutPeekLines(size.height))
+  const room = boardTileRoom(data.wall.squares.length, data.titles.length, size, withTitles)
+  const want = (headHeight > 0 ? headHeight : HEAD_LINE_PX) + HEAD_GAP_PX + room.want
+  useEffect(() => { onWant(entryKey, want) }, [onWant, entryKey, want])
   return (
-    <span ref={ref} className={styles.peek} aria-hidden="true">
-      {lines.map((t, i) => <span key={i} className={styles.peekLine} data-peek-line={i}>{t}</span>)}
+    <span ref={ref} className={styles.room}>
+      <BoardSquares wall={data.wall} columns={room.columns} rows={room.rows} />
+      {room.lines > 0 && (
+        <span className={styles.peek} aria-hidden="true">
+          {data.titles.slice(0, room.lines).map((t, i) => <span key={i} className={styles.peekLine} data-peek-line={i}>{t}</span>)}
+        </span>
+      )}
     </span>
   )
 }
