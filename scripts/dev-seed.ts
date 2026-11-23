@@ -61,7 +61,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 87
+export const DEV_SEED_SCHEMA_VERSION = 88
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -1052,8 +1052,8 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         M: cell('cell-plan-week', [calendar('tab-plan-week', 'week', 1)]),
         // Glance widgets (D25 N + L, D26 P8): Tags and Status Breakdowns, Created vs completed.
         G: cell('cell-g-tags', [breakdown('tab-g-tags', 'Tags', 'tags'), breakdown('tab-g-priority', 'Priority', 'priority', { style: 'donut' })]),
-        // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is; the task maps
-        // (2026-11-18) beside it: Work clusters and the List wall; then Shortcuts.
+        // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is; Work clusters
+        // beside it; then two List boards: this layout's lists, and lists picked from both layouts.
         N: cell('cell-neglect', [{
           id: 'tab-neglect',
           kind: 'neglect',
@@ -1063,11 +1063,11 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           kind: 'clusters',
           config: {},
         }, {
-          id: 'tab-list-wall',
-          kind: 'listwall',
-          config: {},
+          id: 'tab-board-layout',
+          kind: 'shortcuts',
+          config: { source: 'layout' },
         }, {
-          // Shortcuts (2026-11-23): lists of both layouts, in reach from this one.
+          // Lists of both layouts, in reach from this one.
           id: 'tab-shortcuts',
           kind: 'shortcuts',
           config: { lists: [L.focus, L.dueSoon, L.someday, L.followupsThisWeek] },

@@ -62,7 +62,7 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M6.5 2.5h3v3.5h-3zM10.5 2.5h3v3.5h-3zM2.5 9.5h11M2.5 13h7" />
     </>
   ),
-  // Shortcuts: three rounded tiles, and an arrow out where the fourth would be.
+  // The List board: three rounded tiles, and an arrow out where the fourth would be.
   shortcuts: (
     <>
       <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.25" />
@@ -87,13 +87,6 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <circle cx="11.5" cy="5" r="1.75" />
       <circle cx="9.5" cy="11.5" r="2" />
       <path d="M7.4 5.3l2.4-.2M6.4 7.6l1.9 2.3" />
-    </>
-  ),
-  // The List wall: blocks of squares.
-  listwall: (
-    <>
-      <path d="M2.5 2.5h4v4h-4zM9.5 2.5h4v4h-4zM2.5 9.5h4v4h-4z" />
-      <path d="M9.5 9.5h4v4h-4z" fill="currentColor" stroke="none" />
     </>
   ),
   // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`GLANCE_GLYPH`).
@@ -140,6 +133,7 @@ export function LineIcon({ name, size = 14 }: { name: LineIconKey; size?: number
     case 'link': return <LinkIcon size={size} />
     case 'ring': return <RingIcon size={size} />
     case 'radar': return <RadarIcon size={size} />
+    case 'wall': return <WallIcon size={size} />
     default: return <WidgetKindIcon kind="lens" size={size} />
   }
 }
@@ -357,6 +351,16 @@ function RadarIcon({ size = 14 }: { size?: number }) {
       <circle cx="8" cy="8" r="2.5" />
       <path d="M8 2.5v11M2.5 8h11" strokeWidth="1" />
       <circle cx="10.4" cy="6" r="1.1" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}
+
+/** Blocks of squares, the last filled: one of the pickable line icons (`LineIcon`; once the List wall's glyph). */
+function WallIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M2.5 2.5h4v4h-4zM9.5 2.5h4v4h-4zM2.5 9.5h4v4h-4z" />
+      <path d="M9.5 9.5h4v4h-4z" fill="currentColor" stroke="none" />
     </Svg>
   )
 }

@@ -19,11 +19,11 @@ describe('widget kinds', () => {
     // Tasks (List, Calendar, Review, Planner, Notes), then Insights — the Neglect map and the task maps last.
     expect(WIDGET_KINDS).toEqual([
       'lens', 'calendar', 'review', 'planner', 'notes', 'shortcuts',
-      'number', 'breakdown', 'pivot', 'trend', 'neglect', 'clusters', 'listwall',
+      'number', 'breakdown', 'pivot', 'trend', 'neglect', 'clusters',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
-      'List', 'Calendar', 'Review', 'Planner', 'Notes', 'Shortcuts',
-      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
+      'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board',
+      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters',
     ])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'planner', 'notes', 'shortcuts'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])
@@ -53,10 +53,9 @@ describe('widget kinds', () => {
     // A Neglect map colours by the tags it is given (the store passes the `Project: …` ones), 14 days.
     expect(createTab('neglect', 'f')).toEqual({ id: 'f', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [] }, untouchedDays: 14 } })
     expect(createTab('neglect', 'f', { neglectTagIds: [3, 8] }).config).toEqual({ colourBy: { kind: 'tags', tagIds: [3, 8] }, untouchedDays: 14 })
-    // Work clusters and the List wall have no settings.
+    // Work clusters has no settings.
     expect(createTab('clusters', 'h')).toEqual({ id: 'h', kind: 'clusters', config: {} })
-    expect(createTab('listwall', 'i')).toEqual({ id: 'i', kind: 'listwall', config: {} })
-    // Shortcuts: no lists picked yet.
+    // A List board: the lists picked, none yet.
     expect(createTab('shortcuts', 'j')).toEqual({ id: 'j', kind: 'shortcuts', config: {} })
     // A fresh config each time.
     const one = createTab('calendar', 'x')

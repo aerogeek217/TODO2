@@ -205,10 +205,10 @@ function buildSeed(): Seed {
             numberTab('t5', 'noFollowup', { breakdown: 'tags', litWhen: 'below', litAt: 4 }),
             { id: 't6', kind: 'lens', config: {} },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
-            // The task maps: Work clusters and the List wall (no settings).
+            // Work clusters (no settings).
             { id: 't22', kind: 'clusters', config: {} },
-            { id: 't23', kind: 'listwall', config: {} },
-            // Shortcuts: lists of any layout, in order (a deleted one's id kept).
+            // List boards: this layout's lists (its picks kept), and lists of any layout, in order (a deleted one's id kept).
+            { id: 't23', kind: 'shortcuts', config: { source: 'layout', lists: [1] } },
             { id: 't25', kind: 'shortcuts', config: { lists: [2, 1, 99] } },
             // Item 12: a Review widget (no settings, 2A) and its sort.
             { id: 't14', kind: 'review', config: {}, viewState: { sort: 'next' } },

@@ -48,7 +48,7 @@ async function addList(page: Page, name: string): Promise<void> {
   const add = widget(page).getByRole('button', { name: 'Add a list' })
   await add.click()
   await page.getByRole('menu', { name: 'Add a list' }).getByRole('menuitem', { name, exact: true }).click()
-  await expectLayoutStep(page, `Added “${name}” to Shortcuts`)
+  await expectLayoutStep(page, `Added “${name}” to List board`)
 }
 
 test('two lists of two layouts: icon, capsule and titles; a click opens the list; a drag reorders, kept on reload', async ({ page }) => {

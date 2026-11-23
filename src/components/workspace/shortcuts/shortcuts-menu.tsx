@@ -11,7 +11,7 @@ import type { MenuEntry } from '../../shared/MenuPopover'
 export const ADD_SHORTCUT_LABEL = 'Add a list'
 
 /** A tile's Remove item. */
-export const REMOVE_SHORTCUT_LABEL = 'Remove from Shortcuts'
+export const REMOVE_SHORTCUT_LABEL = 'Remove from List board'
 
 const ADD_MENU_WIDTH_PX = 240
 const ADD_MENU_MAX_HEIGHT_PX = 360

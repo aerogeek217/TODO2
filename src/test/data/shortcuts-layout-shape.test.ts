@@ -17,10 +17,15 @@ function layoutRow(tab: Record<string, unknown>): Record<string, unknown> {
 
 const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0]
 
-/** Shortcuts (2026-11-23): layout config only, no schema step. */
-describe('Shortcuts’ stored tab', () => {
-  it('a new one and one with lists pass the check unchanged', () => {
-    for (const tab of [createTab('shortcuts', 's'), { id: 's', kind: 'shortcuts', config: { lists: [4, 2, 9] } }]) {
+/** The List board (kind `shortcuts`): layout config only. */
+describe('a List board’s stored tab', () => {
+  it('a new one, one with lists and one of each source pass the check unchanged', () => {
+    for (const tab of [
+      createTab('shortcuts', 's'),
+      { id: 's', kind: 'shortcuts', config: { lists: [4, 2, 9] } },
+      { id: 's', kind: 'shortcuts', config: { source: 'picked' } },
+      { id: 's', kind: 'shortcuts', config: { source: 'layout', lists: [4] } },
+    ]) {
       const row = layoutRow(tab as unknown as Record<string, unknown>)
       expect(checkLayoutBody(row)).toBe(true)
       expect(rowFixes('layouts', row)).toEqual([])
@@ -42,6 +47,15 @@ describe('Shortcuts’ stored tab', () => {
     expect(tabOf(stray)).toEqual({ id: 's', kind: 'shortcuts', config: { lists: [1] } })
     const long = Array.from({ length: SHORTCUTS_LISTS_MAX + 5 }, (_, i) => i + 1)
     expect((tabOf(layoutRow({ id: 's', kind: 'shortcuts', config: { lists: long } })) as { config: { lists: number[] } }).config.lists).toHaveLength(SHORTCUTS_LISTS_MAX)
+  })
+
+  it('an unknown source is dropped, a fix: the board shows the lists picked, kept', () => {
+    for (const source of ['all', 3, null, { kind: 'layout' }]) {
+      const row = layoutRow({ id: 's', kind: 'shortcuts', config: { source, lists: [2] } })
+      expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].config.source')
+      expect(rowFixes('layouts', row).length).toBeGreaterThan(0)
+      expect(tabOf(row)).toEqual({ id: 's', kind: 'shortcuts', config: { lists: [2] } })
+    }
   })
 
   it('names none of the layout’s own lists: another layout’s list is never handed to it', () => {

@@ -56,15 +56,16 @@ import type { IconValue, LineIconKey } from './icon'
  * Eisenhower's small face; P8 made People, Tags and Status Breakdowns. The
  * Status flow chart (P8), the Tag map and the Eisenhower were removed after v78 shipped;
  * v79 dropped every saved one. `review` (item 12) is the Review widget.
- * `clusters` (Work clusters) and `listwall` (the List wall) are the task
- * maps of 2026-11-18, whole widgets like the Neglect map. Project pulse
- * (`pulse`) and the Pressure radar (`radar`) were removed; v83 dropped
- * every saved one. `planner` is the Planner (2026-11-20): today and the
- * week ahead, a task on its planned day, else the day its follow-up or due date puts it.
- * `shortcuts` is Shortcuts (2026-11-23): a tile per picked list, from any layout.
+ * `clusters` (Work clusters) is a task map, a whole widget like the
+ * Neglect map. `planner` is the Planner: today and the week ahead, a task
+ * on its planned day, else the day its follow-up or due date puts it.
+ * `shortcuts` is the List board (its stored kind keeps the widget's first
+ * name, as `lens` does): a tile per list — the lists picked, of any layout,
+ * or every list tab of the open layout. v88 made every List wall
+ * (`listwall`) a List board showing its layout's lists.
  */
 export type WidgetKind =
-  | 'lens' | 'calendar' | 'notes' | 'review' | 'planner' | 'shortcuts' | 'neglect' | 'clusters' | 'listwall'
+  | 'lens' | 'calendar' | 'notes' | 'review' | 'planner' | 'shortcuts' | 'neglect' | 'clusters'
   | GlanceWidgetKind
 
 /** The glance widget kinds (D25 N): a Number and the charts, each a widget. */
@@ -240,18 +241,31 @@ export const PLANNER_DOCK_SHARE_MAX = 0.9
 /** The most `uid`s a Planner's hand order keeps (the layout repair cuts a longer one). */
 export const PLANNER_ORDER_MAX = 1000
 
+/** Which lists a List board shows: the ones picked (`lists`), or every list tab of the open layout. */
+export type ShortcutsSource = 'picked' | 'layout'
+
+/** A List board's sources, in its menu's order. */
+export const SHORTCUTS_SOURCES: readonly ShortcutsSource[] = ['picked', 'layout']
+
+/** A stored List board source this build knows. */
+export function isShortcutsSource(v: unknown): v is ShortcutsSource {
+  return v === 'picked' || v === 'layout'
+}
+
 /**
- * Shortcuts' settings (layout config): `lists`, the ids of the lists it
- * shows a tile for, in order — lists of any layout. Never under the key
+ * A List board's settings (layout config): `source`, which lists it shows
+ * (absent = `picked`), and `lists`, the ids of the lists picked, in order —
+ * lists of any layout, kept while it shows the layout's. Never under the key
  * `listDefinitionId`, which names a layout's own list
  * (`layout-repository.storedListRefs`). A list deleted since is skipped
  * when drawn, not repaired away.
  */
 export interface ShortcutsTabConfig {
+  source?: ShortcutsSource
   lists?: number[]
 }
 
-/** The most lists Shortcuts keeps (the layout repair cuts a longer one). */
+/** The most lists a List board keeps picked (the layout repair cuts a longer one). */
 export const SHORTCUTS_LISTS_MAX = 200
 
 const SHORTCUT_LIST_TAB_PREFIX = 'shortcut-list-'
@@ -309,8 +323,8 @@ interface TabOf<K extends WidgetKind, C, V> {
   viewState?: V
   /**
    * Layout config (items 11, 14): the tab's own name, for a kind without a
-   * name of its own (`tabOwnsName` false — Calendar, Notes, Review, the Planner, Shortcuts, the
-   * Neglect map, Work clusters, the List wall); it replaces the kind's label wherever the
+   * name of its own (`tabOwnsName` false — Calendar, Notes, Review, the Planner, the List board,
+   * the Neglect map, Work clusters); it replaces the kind's label wherever the
    * tab is named. Absent or blank = the kind's label. A kind with a name of
    * its own (a list's, a Number's or a chart's) never reads it.
    */
@@ -332,7 +346,6 @@ export type PlannerTab = TabOf<'planner', PlannerTabConfig, PlannerTabViewState>
 export type ShortcutsTab = TabOf<'shortcuts', ShortcutsTabConfig, NoTabSettings>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
 export type ClustersTab = TabOf<'clusters', NoTabSettings, NoTabSettings>
-export type ListWallTab = TabOf<'listwall', NoTabSettings, NoTabSettings>
 export type NumberTab = TabOf<'number', NumberConfig, NoTabSettings>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
 // ── D26 P8: the chart widgets ──
@@ -345,7 +358,7 @@ export type ChartTab = BreakdownTab | PivotTab
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | ChartTab
 
-export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | PlannerTab | ShortcutsTab | NeglectTab | ClustersTab | ListWallTab | GlanceTab
+export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | PlannerTab | ShortcutsTab | NeglectTab | ClustersTab | GlanceTab
 
 type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -508,7 +521,7 @@ export interface TabSeed {
 
 /**
  * The add-widget menus' groups: **Tasks** (the widgets that show tasks to
- * work on — List, Calendar, Review, Planner, Notes, Shortcuts) and **Insights** (the
+ * work on — List, Calendar, Review, Planner, Notes, List board) and **Insights** (the
  * numbers and charts, and the Neglect map). The grouping is the menus' only:
  * nothing behavioural reads it — the glance minimums, fit rows and the
  * right-click rule read `glance` / `fitHeight`, which the Calendar and the
@@ -580,8 +593,8 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   // The Planner (2026-11-20): its Unplanned filter (absent: Focus); its hand order is view state.
   planner: { label: 'Planner', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'planner', config: {} }) },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
-  // Shortcuts (2026-11-23): no lists picked yet.
-  shortcuts: { label: 'Shortcuts', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'shortcuts', config: {} }) },
+  // The List board: the lists picked, none yet.
+  shortcuts: { label: 'List board', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'shortcuts', config: {} }) },
   // Insights.
   number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
   // D26 P8: the chart widgets.
@@ -597,7 +610,7 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'neglect', config: defaultNeglectConfig(seed.neglectTagIds) }),
   },
-  // The task maps (2026-11-18): whole widgets, as the Neglect map.
+  // A task map: a whole widget, as the Neglect map.
   clusters: {
     label: 'Work clusters',
     showsList: false,
@@ -605,14 +618,6 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     glance: false,
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'clusters', config: {} }),
-  },
-  listwall: {
-    label: 'List wall',
-    showsList: false,
-    group: 'insights',
-    glance: false,
-    fitHeight: false,
-    newTab: (id) => ({ id, kind: 'listwall', config: {} }),
   },
 }
 
@@ -703,7 +708,6 @@ export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
   pivot: 'table',
   neglect: 'scatter',
   clusters: 'clusters',
-  listwall: 'wall',
 }
 
 /**

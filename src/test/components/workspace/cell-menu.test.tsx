@@ -167,8 +167,8 @@ describe('cellMenuFor (outside the mode: what is inside a cell changes in place)
     const onAddTab = vi.fn()
     const add = childrenOf(cellMenuFor(notes(), actions({ onAddTab })), 'Add widget as tab')
     expect(words(add)).toEqual([
-      '[Tasks]', 'List', 'Calendar', 'Review', 'Planner', 'Notes', 'Shortcuts',
-      '—', '[Insights]', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
+      '[Tasks]', 'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board',
+      '—', '[Insights]', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters',
     ])
     select(item(add, 'Calendar'))
     select(item(childrenOf(add, 'Breakdown'), 'People'))

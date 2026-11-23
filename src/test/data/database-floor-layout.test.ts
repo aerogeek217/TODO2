@@ -3,10 +3,11 @@ import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, db } from '../../data/
 
 /**
  * The database declares only the floor's store layout (no versions before
- * it). A v87 database as the builds that declared every version left it —
- * the layout below, read from one — must open as it is: no upgrade, no
- * Dexie schema patch (which would raise its native version past 870 and add
- * a `$meta` store), every store and index kept, its rows untouched.
+ * it), then the steps above it, which change no store. A v87 database as
+ * the builds that declared every version left it — the layout below, read
+ * from one — must open through those steps alone: no Dexie schema patch
+ * (which would raise its native version past the current one's and add a
+ * `$meta` store), every store and index kept, its rows untouched.
  */
 
 type IndexSpec = [name: string, keyPath: string | string[], unique?: 'unique']
@@ -83,12 +84,12 @@ afterEach(async () => {
 })
 
 describe('the floor’s store layout', () => {
-  it('the floor is the current version', () => {
+  it('the floor is v87, the current version v88', () => {
     expect(OLDEST_SUPPORTED_DB_VERSION).toBe(87)
-    expect(CURRENT_DB_VERSION).toBe(87)
+    expect(CURRENT_DB_VERSION).toBe(88)
   })
 
-  it('a v87 database as the full version chain left it opens unchanged: no upgrade, no patch', async () => {
+  it('a v87 database as the full version chain left it opens at v88 with its stores and rows unchanged: no patch', async () => {
     db.close()
     await db.delete()
     await createRawDb(870, V87_LAYOUT)
@@ -97,16 +98,16 @@ describe('the floor’s store layout', () => {
     expect(await db.todos.toArray()).toEqual([task])
     db.close()
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('SchemaDiff'))
-    expect(await readRawDb()).toEqual({ version: 870, layout: V87_LAYOUT, todos: [task] })
+    expect(await readRawDb()).toEqual({ version: 880, layout: V87_LAYOUT, todos: [task] })
   })
 
-  it('a new database gets exactly the v87 layout', async () => {
+  it('a new database gets exactly the v87 layout, at v88', async () => {
     db.close()
     await db.delete()
     await db.open()
     db.close()
     const raw = await readRawDb()
-    expect(raw.version).toBe(870)
+    expect(raw.version).toBe(880)
     expect(raw.layout).toEqual(V87_LAYOUT)
   })
 })

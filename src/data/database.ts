@@ -6,6 +6,7 @@ import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { DATA_TABLE_NAMES, type DataTableName, type DataTableRows } from './tables'
 import { registerModuleReset } from '../utils/module-reset'
+import { applySchemaUpgradeInTx } from './schema-upgrades'
 
 export interface SettingRow {
   key: string
@@ -21,7 +22,7 @@ export interface SettingRow {
  * `db.verno === CURRENT_DB_VERSION` after open, so a `this.version(N+1)`
  * without raising this constant fails the suite.
  */
-export const CURRENT_DB_VERSION = 87
+export const CURRENT_DB_VERSION = 88
 
 /**
  * Lowest database version this build reads. A browser database whose
@@ -201,7 +202,10 @@ export class Todo2Database extends Dexie {
     // open back with the database untouched.
     this.version(OLDEST_SUPPORTED_DB_VERSION).stores(FLOOR_STORES).upgrade(refuseBelowFloor)
 
-    // The next schema step N goes here, after the floor:
+    // v88: every List wall tab becomes a List board of its layout's lists (no store changes).
+    this.version(88).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 88))
+
+    // The next schema step N goes here, after the last:
     //
     //   this.version(N).stores({ /* only what N adds, changes or drops (null) */ })
     //     .upgrade((tx) => applySchemaUpgradeInTx(tx, N))
