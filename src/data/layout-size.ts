@@ -2,25 +2,21 @@ import { isRecord } from '../utils/is-record'
 import { LAYOUT_PART_LIMIT } from './layout-shape'
 
 /**
- * The size of the layouts in a file, checked **before the schema upgrades
- * run** (`import-pipeline.prepareImport`): a layout holding far more parts
- * than the app keeps is refused with a message that says so (cr34 S1,
- * answer 21).
+ * The size of the layouts in a file, checked **before anything else reads
+ * them** (`import-pipeline.prepareImport`, ahead of any schema upgrade and
+ * the layout check): a layout holding far more parts than the app keeps is
+ * refused with a message that says so (cr34 S1, answer 21).
  *
- * What reads a layout takes time with the square of its parts — the v78
- * table conversion, the tab walk's close (`upgrades/layout-tabs`), the
- * tiling check — and the only limit before them was 100,000 rows a table:
- * an 80 KB file whose one layout held 40,000 tracks took 28 s, at every
- * launch when it was the sync file. The part limit a layout keeps
- * (`LAYOUT_PART_LIMIT`) is applied last, by the layout repair, to the
- * current shape only.
+ * What reads a layout can take time with the square of its parts — the
+ * tiling check, the repair's close — and the only limit before them is
+ * 100,000 rows a table. The part limit a layout keeps (`LAYOUT_PART_LIMIT`)
+ * is applied last, by the layout repair, to the current shape only.
  *
- * Counted on the raw row of any supported schema version, by the keys that
- * hold a layout's parts in all of them (no upgrade has run yet): the table
- * of v78 on (`grid.columns`, `grid.rows`, `cells`, each cell's `tabs`), the
- * columns → rows → cells and the `top` / `bottom` bands before it, and a
- * retired Dashboard tab's part lists (`tiles`, `listTiles`, `sections`),
- * each of which v77 made a cell.
+ * Counted on the raw row, by the keys that hold a layout's parts in every
+ * shape a layout has had: the table (`grid.columns`, `grid.rows`, `cells`,
+ * each cell's `tabs`), the columns → rows → cells and the `top` / `bottom`
+ * bands before it, and a retired Dashboard tab's part lists (`tiles`,
+ * `listTiles`, `sections`), each of which became a cell.
  */
 
 /**

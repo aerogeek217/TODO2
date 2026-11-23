@@ -56,7 +56,7 @@ import type { ListDefinition } from '../src/models/list-definition'
 import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-predicate'
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { BreakdownConfig } from '../src/models/chart-widgets'
-import { numberConfigOfMetric, type V77NumberMetric } from '../src/data/upgrades/v78/number-metrics.ts'
+import { numberConfigOfMetric, type V77NumberMetric } from '../src/test/helpers/number-metrics.ts'
 import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 

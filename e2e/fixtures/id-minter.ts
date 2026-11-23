@@ -1,15 +1,9 @@
 /**
- * The id minter of the layout upgrades (v76, v77): `<base><suffix>`, and when
- * that is taken `<base><suffix><separator>2`, `…3`, …, each cut to `maxLen`
- * by shortening the base — the first one not in `taken` (which every id it
- * mints joins).
- *
- * It remembers, per candidate sequence, the first number not yet known to be
- * taken, and resumes there: `taken` only grows, so the first free number of a
- * sequence never goes down, and the ids minted are the ones the plain probe
- * from 1 gives — in linear time, where the plain probe was quadratic in the
- * parts sharing a base (cr33 S1: a few thousand same-id parts in a file hung
- * its import, and every launch from a planted sync file).
+ * The ids `column-layout` gives new tracks: `<base><suffix>`, and when that
+ * is taken `<base><suffix><separator>2`, `…3`, …, each cut to `maxLen` by
+ * shortening the base — the first one not in `taken` (which every id it
+ * mints joins). It remembers, per candidate sequence, the first number not
+ * yet known to be taken, and resumes there.
  */
 export function idMinter(
   taken: Set<string>,

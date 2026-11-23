@@ -17,10 +17,9 @@ function canonical(value: unknown): string {
 }
 
 /**
- * Tables whose row ids nothing refers to, compared without them: the v72
- * upgrade makes status updates without ids, so an upgraded older file holds
- * none while the browser's upgraded rows got theirs from IndexedDB — the same
- * entries, different ids.
+ * Tables whose row ids nothing refers to, compared without them: a file
+ * holding a task's status updates without ids, or under other ids, holds the
+ * same entries as the browser.
  */
 const ID_FREE_TABLES: ReadonlySet<string> = new Set(['statusUpdates'])
 

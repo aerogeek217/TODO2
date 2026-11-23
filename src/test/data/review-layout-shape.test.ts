@@ -9,7 +9,7 @@ import { single } from '../helpers/layout-builders'
  * what it reviews is a temporary filter, never saved — and its view state
  * (its sort). What earlier builds saved — board BM's kind (`by`),
  * board BK's `pick`, where it stood (`currentId`, `skipped`) — v79 removed
- * from every stored row (`v79-upgrade.test`); one left in a v79 row (a hand
+ * from every stored row; one left in a later row (a hand
  * edit) passes the import check and is dropped by the repair, a fix.
  */
 

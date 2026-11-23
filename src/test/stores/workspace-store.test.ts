@@ -349,7 +349,7 @@ describe('view state', () => {
   })
 
   // A layout's old lens pick (`lensId`) and a Review widget's saved kind, pick and place: v79 removed
-  // them from every stored row (`v79-upgrade.test`), so the layout read has no shim for them.
+  // them from every stored row, so the layout read has no shim for them.
 })
 
 describe('sizes are view state', () => {

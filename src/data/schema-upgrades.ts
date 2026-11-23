@@ -1,23 +1,4 @@
 import type { Transaction } from 'dexie'
-import { upgradeV69 } from './upgrades/v69-or-groups'
-import { upgradeV70 } from './upgrades/v70-date-types'
-import { upgradeV71 } from './upgrades/v71-date-not'
-import { upgradeV72 } from './upgrades/v72-status-updates'
-import { upgradeV73 } from './upgrades/v73-subtasks'
-import { upgradeV74 } from './upgrades/v74-priority-filter'
-import { upgradeV75 } from './upgrades/v75-filter-expressions'
-import { upgradeV76 } from './upgrades/v76-layout-rows'
-import { upgradeV77 } from './upgrades/v77-dashboard-widgets'
-import { upgradeV78 } from './upgrades/v78'
-import { upgradeV79 } from './upgrades/v79'
-import { upgradeV80 } from './upgrades/v80'
-import { upgradeV81 } from './upgrades/v81'
-import { upgradeV82 } from './upgrades/v82'
-import { upgradeV83 } from './upgrades/v83'
-import { upgradeV84 } from './upgrades/v84'
-import { upgradeV85 } from './upgrades/v85'
-import { upgradeV86 } from './upgrades/v86'
-import { upgradeV87 } from './upgrades/v87'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -90,59 +71,11 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * Registry of data transforms keyed by the target schema version. A version
  * with no entry is an identity step (index-only bumps, empty-table additions).
  *
- * Only versions above the floor (`OLDEST_SUPPORTED_DB_VERSION`) have entries:
- * v69, v70 and v71, version markers (`upgrades/v69-or-groups.ts`,
- * `upgrades/v70-date-types.ts`, `upgrades/v71-date-not.ts`), and v72, a
- * task's Progress text as its first status update
- * (`upgrades/v72-status-updates.ts`), v73, a version marker for the
- * `subtasks` table (`upgrades/v73-subtasks.ts`), and v74, stored Priority
- * filters as lists of conditions and subtask titles as the store writes them
- * (`upgrades/v74-priority-filter.ts`), and v75, a filter's or groups as an expression
- * (`upgrades/v75-filter-expressions.ts`), and v76, a layout's cells in rows
- * and its bands as rows of cells (`upgrades/v76-layout-rows.ts`), and v77, every
- * Dashboard tab as the glance widgets of its parts
- * (`upgrades/v77-dashboard-widgets.ts`), and v78, Dashboard building (D26),
- * its parts composed in `upgrades/v78/index.ts` — the first a layout's
- * columns, rows and bands as a table (`upgrades/v78/layout-table.ts`), and
- * v79, the final shapes of what later builds read at load time — the
- * removed kinds' tabs, the Eisenhower's leftovers, the Review, Breakdown,
- * Number, list zoom and trend shapes (`upgrades/v79/index.ts`), and v80,
- * people without their email and the check-in open method's settings row
- * deleted (`upgrades/v80/index.ts`), and v81, the lenses' settings rows and
- * shortcuts deleted and every list's and tab's lens switch removed
- * (`upgrades/v81/index.ts`), and v82, each row track's runs of side-by-side
- * Number cells merged into one strip cell (`upgrades/v82/index.ts`), and
- * v83, the Project pulse and Pressure radar tabs dropped and the cells they
- * empty closed (`upgrades/v83/index.ts`), and v84, each task's repeat
- * type written as its interval (`upgrades/v84/index.ts`), and v85, a version
- * marker for a task's Do day (`upgrades/v85/index.ts`), and v86, a version
- * marker for a task held in the Planner's Unplanned tray
- * (`upgrades/v86/index.ts`), and v87, a version marker for the planned
- * date in filters, sorts and groups (`upgrades/v87/index.ts`). Each transform lives in
- * `data/upgrades/v<N>-*.ts` (or `v<N>/`, by parts); the tab walk v78, v79,
- * v81 and v83 share is `upgrades/layout-tabs.ts`.
+ * Only versions above the floor (`OLDEST_SUPPORTED_DB_VERSION`) have entries;
+ * none yet — the floor is the current version. Each transform lives in
+ * `data/upgrades/v<N>-*.ts` (or `v<N>/`, by parts).
  */
-export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([
-  [69, upgradeV69],
-  [70, upgradeV70],
-  [71, upgradeV71],
-  [72, upgradeV72],
-  [73, upgradeV73],
-  [74, upgradeV74],
-  [75, upgradeV75],
-  [76, upgradeV76],
-  [77, upgradeV77],
-  [78, upgradeV78],
-  [79, upgradeV79],
-  [80, upgradeV80],
-  [81, upgradeV81],
-  [82, upgradeV82],
-  [83, upgradeV83],
-  [84, upgradeV84],
-  [85, upgradeV85],
-  [86, upgradeV86],
-  [87, upgradeV87],
-])
+export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>()
 
 /**
  * Applies the registry transforms for `fromVersion + 1 … toVersion` in order.

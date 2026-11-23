@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { HUE_NAMES } from '../../models/workspace-layout'
 import { DUE_COLUMN_COLOR, FOLLOWUP_COLUMN_COLOR } from '../../models/chart-widgets'
-import { numberConfigOfMetric } from '../../data/upgrades/v78/number-metrics'
+import { numberConfigOfMetric } from '../helpers/number-metrics'
 import { HUE_PRESET_HEX } from '../../utils/layout-hue'
 import { themeColor, UPGRADE_COLOR_TOKENS } from '../../utils/theme-color'
 import { themeTokens } from '../styles/css-source'

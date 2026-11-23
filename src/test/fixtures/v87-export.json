@@ -1,5 +1,5 @@
 {
-  "__schemaVersion": 68,
+  "__schemaVersion": 87,
   "todos": [
     {
       "id": 1,
@@ -10,11 +10,13 @@
       "modifiedAt": "2026-09-11T09:30:00.000Z",
       "sortOrder": 0,
       "notes": "Include **charts**",
-      "progress": "draft done",
       "dueDate": "2026-10-16T00:00:00.000Z",
       "nextFollowupAt": "2026-10-11T05:00:00.000Z",
       "recurrenceRule": {
-        "type": "weekly"
+        "every": {
+          "count": 1,
+          "unit": "w"
+        }
       },
       "focus": true,
       "statusId": 2
@@ -30,8 +32,11 @@
       "dueDate": "2026-10-31T00:00:00.000Z",
       "nextFollowupAt": "2026-09-20T05:00:00.000Z",
       "recurrenceRule": {
-        "type": "monthly",
-        "originalDayOfMonth": 31
+        "originalDayOfMonth": 31,
+        "every": {
+          "count": 1,
+          "unit": "m"
+        }
       }
     },
     {
@@ -139,10 +144,6 @@
     {
       "key": "activeLayoutId",
       "value": "1"
-    },
-    {
-      "key": "eisenhowerSource",
-      "value": "list:6"
     }
   ],
   "todoPeople": [
@@ -336,9 +337,13 @@
           "statusIds": null,
           "searchText": "",
           "dates": {},
-          "markers": {
-            "focus": true
-          },
+          "markers": [
+            {
+              "values": [
+                "focus"
+              ]
+            }
+          ],
           "tags": null
         }
       },
@@ -346,28 +351,6 @@
       "grouping": "none",
       "owner": {
         "layoutId": 1
-      }
-    },
-    {
-      "id": 6,
-      "name": "Eisenhower",
-      "sortOrder": 5,
-      "membership": {
-        "kind": "custom",
-        "predicate": {
-          "showCompleted": false,
-          "personIds": null,
-          "statusIds": null,
-          "searchText": "",
-          "dates": {},
-          "markers": null,
-          "tags": null
-        }
-      },
-      "sort": "manual",
-      "grouping": "none",
-      "owner": {
-        "eisenhower": true
       }
     }
   ],
@@ -541,216 +524,296 @@
       "id": 1,
       "name": "Default",
       "sortOrder": 0,
-      "columns": [
-        {
-          "id": "col-1",
-          "weight": 1,
-          "cells": [
-            {
-              "id": "s-lens",
-              "weight": 2,
-              "tabs": [
-                {
-                  "id": "t-lens",
-                  "kind": "lens",
-                  "config": {
-                    "listDefinitionId": 3
-                  }
-                },
-                {
-                  "id": "t-notes",
-                  "kind": "notes",
-                  "config": {}
-                }
-              ],
-              "activeTabId": "t-lens"
-            },
-            {
-              "id": "s-cal",
-              "weight": 1,
-              "tabs": [
-                {
-                  "id": "t-cal",
-                  "kind": "calendar",
-                  "config": {
-                    "dateTypes": {
-                      "due": true,
-                      "followup": false
-                    }
-                  },
-                  "viewState": {
-                    "view": "week",
-                    "offset": 1
-                  }
-                }
-              ],
-              "activeTabId": "t-cal"
-            }
-          ]
-        },
-        {
-          "id": "col-3",
-          "weight": 1,
-          "cells": [
-            {
-              "id": "s-tb",
-              "weight": 1,
-              "tabs": [
-                {
-                  "id": "t-tb",
-                  "kind": "lens",
-                  "config": {
-                    "listDefinitionId": 5
-                  }
-                }
-              ],
-              "activeTabId": "t-tb"
-            }
-          ]
-        },
-        {
-          "id": "col-4",
-          "weight": 1,
-          "cells": [
-            {
-              "id": "cell-floatingCalendars-1",
-              "weight": 1,
-              "tabs": [
-                {
-                  "id": "tab-floatingCalendars-1",
-                  "kind": "calendar",
-                  "config": {
-                    "dateTypes": {
-                      "due": true,
-                      "followup": false
-                    }
-                  },
-                  "viewState": {
-                    "view": "week",
-                    "offset": -1
-                  }
-                }
-              ],
-              "activeTabId": "tab-floatingCalendars-1"
-            },
-            {
-              "id": "cell-floatingNotes-1",
-              "weight": 1,
-              "tabs": [
-                {
-                  "id": "tab-floatingNotes-1",
-                  "kind": "notes",
-                  "config": {}
-                }
-              ],
-              "activeTabId": "tab-floatingNotes-1"
-            },
-            {
-              "id": "cell-floatingCalendars-2",
-              "weight": 1,
-              "tabs": [
-                {
-                  "id": "tab-floatingCalendars-2",
-                  "kind": "calendar",
-                  "config": {
-                    "dateTypes": {
-                      "due": true,
-                      "followup": false
-                    }
-                  },
-                  "viewState": {
-                    "view": "week",
-                    "offset": 0
-                  }
-                }
-              ],
-              "activeTabId": "tab-floatingCalendars-2"
-            },
-            {
-              "id": "cell-floatingTaskboards-1",
-              "weight": 1,
-              "tabs": [
-                {
-                  "id": "tab-floatingTaskboards-1",
-                  "kind": "lens",
-                  "config": {
-                    "listDefinitionId": 5
-                  }
-                }
-              ],
-              "activeTabId": "tab-floatingTaskboards-1",
-              "collapsed": true
-            },
-            {
-              "id": "cell-listInsets-1",
-              "weight": 1,
-              "tabs": [
-                {
-                  "id": "tab-listInsets-1",
-                  "kind": "lens",
-                  "config": {
-                    "listDefinitionId": 3
-                  }
-                }
-              ],
-              "activeTabId": "tab-listInsets-1"
-            },
-            {
-              "id": "cell-listInsets-2",
-              "weight": 1,
-              "tabs": [
-                {
-                  "id": "tab-listInsets-2",
-                  "kind": "lens",
-                  "config": {
-                    "listDefinitionId": 2
-                  }
-                }
-              ],
-              "activeTabId": "tab-listInsets-2",
-              "collapsed": true
-            }
-          ]
-        }
-      ],
       "createdAt": "2026-09-01T09:00:00.000Z",
-      "modifiedAt": "2026-09-01T09:00:00.000Z"
+      "modifiedAt": "2026-09-01T09:00:00.000Z",
+      "grid": {
+        "columns": [
+          {
+            "id": "grid-c1",
+            "weight": 333
+          },
+          {
+            "id": "grid-c2",
+            "weight": 333
+          },
+          {
+            "id": "grid-c3",
+            "weight": 334
+          }
+        ],
+        "rows": [
+          {
+            "id": "grid-r1",
+            "weight": 167
+          },
+          {
+            "id": "grid-r2",
+            "weight": 167
+          },
+          {
+            "id": "grid-r3",
+            "weight": 167
+          },
+          {
+            "id": "grid-r4",
+            "weight": 167
+          },
+          {
+            "id": "grid-r5",
+            "weight": 166
+          },
+          {
+            "id": "grid-r6",
+            "weight": 166
+          }
+        ]
+      },
+      "cells": [
+        {
+          "id": "s-lens",
+          "tabs": [
+            {
+              "id": "t-lens",
+              "kind": "lens",
+              "config": {
+                "listDefinitionId": 3
+              }
+            },
+            {
+              "id": "t-notes",
+              "kind": "notes",
+              "config": {}
+            }
+          ],
+          "activeTabId": "t-lens",
+          "area": {
+            "col": 0,
+            "row": 0,
+            "colSpan": 1,
+            "rowSpan": 4
+          }
+        },
+        {
+          "id": "s-tb",
+          "tabs": [
+            {
+              "id": "t-tb",
+              "kind": "lens",
+              "config": {
+                "listDefinitionId": 5
+              }
+            }
+          ],
+          "activeTabId": "t-tb",
+          "area": {
+            "col": 1,
+            "row": 0,
+            "colSpan": 1,
+            "rowSpan": 6
+          }
+        },
+        {
+          "id": "cell-floatingCalendars-1",
+          "tabs": [
+            {
+              "id": "tab-floatingCalendars-1",
+              "kind": "calendar",
+              "config": {
+                "dateTypes": {
+                  "due": true,
+                  "followup": false
+                }
+              },
+              "viewState": {
+                "view": "week",
+                "offset": -1
+              }
+            }
+          ],
+          "activeTabId": "tab-floatingCalendars-1",
+          "area": {
+            "col": 2,
+            "row": 0,
+            "colSpan": 1,
+            "rowSpan": 1
+          }
+        },
+        {
+          "id": "cell-floatingNotes-1",
+          "tabs": [
+            {
+              "id": "tab-floatingNotes-1",
+              "kind": "notes",
+              "config": {}
+            }
+          ],
+          "activeTabId": "tab-floatingNotes-1",
+          "area": {
+            "col": 2,
+            "row": 1,
+            "colSpan": 1,
+            "rowSpan": 1
+          }
+        },
+        {
+          "id": "cell-floatingCalendars-2",
+          "tabs": [
+            {
+              "id": "tab-floatingCalendars-2",
+              "kind": "calendar",
+              "config": {
+                "dateTypes": {
+                  "due": true,
+                  "followup": false
+                }
+              },
+              "viewState": {
+                "view": "week",
+                "offset": 0
+              }
+            }
+          ],
+          "activeTabId": "tab-floatingCalendars-2",
+          "area": {
+            "col": 2,
+            "row": 2,
+            "colSpan": 1,
+            "rowSpan": 1
+          }
+        },
+        {
+          "id": "cell-floatingTaskboards-1",
+          "tabs": [
+            {
+              "id": "tab-floatingTaskboards-1",
+              "kind": "lens",
+              "config": {
+                "listDefinitionId": 5
+              }
+            }
+          ],
+          "activeTabId": "tab-floatingTaskboards-1",
+          "area": {
+            "col": 2,
+            "row": 3,
+            "colSpan": 1,
+            "rowSpan": 1
+          }
+        },
+        {
+          "id": "s-cal",
+          "tabs": [
+            {
+              "id": "t-cal",
+              "kind": "calendar",
+              "config": {
+                "dateTypes": {
+                  "due": true,
+                  "followup": false
+                }
+              },
+              "viewState": {
+                "view": "week",
+                "offset": 1
+              }
+            }
+          ],
+          "activeTabId": "t-cal",
+          "area": {
+            "col": 0,
+            "row": 4,
+            "colSpan": 1,
+            "rowSpan": 2
+          }
+        },
+        {
+          "id": "cell-listInsets-1",
+          "tabs": [
+            {
+              "id": "tab-listInsets-1",
+              "kind": "lens",
+              "config": {
+                "listDefinitionId": 3
+              }
+            }
+          ],
+          "activeTabId": "tab-listInsets-1",
+          "area": {
+            "col": 2,
+            "row": 4,
+            "colSpan": 1,
+            "rowSpan": 1
+          }
+        },
+        {
+          "id": "cell-listInsets-2",
+          "tabs": [
+            {
+              "id": "tab-listInsets-2",
+              "kind": "lens",
+              "config": {
+                "listDefinitionId": 2
+              }
+            }
+          ],
+          "activeTabId": "tab-listInsets-2",
+          "area": {
+            "col": 2,
+            "row": 5,
+            "colSpan": 1,
+            "rowSpan": 1
+          }
+        }
+      ]
     },
     {
       "id": 2,
       "name": "Lists from upgrade",
       "sortOrder": 1,
-      "columns": [
-        {
-          "id": "col-1",
-          "weight": 1,
-          "cells": [
-            {
-              "id": "cell-1",
-              "weight": 1,
-              "tabs": [
-                {
-                  "id": "tab-1",
-                  "kind": "lens",
-                  "config": {
-                    "listDefinitionId": 1
-                  }
-                },
-                {
-                  "id": "tab-2",
-                  "kind": "lens",
-                  "config": {
-                    "listDefinitionId": 4
-                  }
-                }
-              ],
-              "activeTabId": "tab-1"
-            }
-          ]
-        }
-      ],
       "createdAt": "2026-09-01T09:00:00.000Z",
-      "modifiedAt": "2026-09-01T09:00:00.000Z"
+      "modifiedAt": "2026-09-01T09:00:00.000Z",
+      "grid": {
+        "columns": [
+          {
+            "id": "grid-c1",
+            "weight": 1000
+          }
+        ],
+        "rows": [
+          {
+            "id": "grid-r1",
+            "weight": 1000
+          }
+        ]
+      },
+      "cells": [
+        {
+          "id": "cell-1",
+          "tabs": [
+            {
+              "id": "tab-1",
+              "kind": "lens",
+              "config": {
+                "listDefinitionId": 1
+              }
+            },
+            {
+              "id": "tab-2",
+              "kind": "lens",
+              "config": {
+                "listDefinitionId": 4
+              }
+            }
+          ],
+          "activeTabId": "tab-1",
+          "area": {
+            "col": 0,
+            "row": 0,
+            "colSpan": 1,
+            "rowSpan": 1
+          }
+        }
+      ]
     }
   ],
   "listOrders": [
@@ -767,5 +830,13 @@
       "rank": 2
     }
   ],
-  "exportedAt": "2026-10-23T09:00:00.000Z"
+  "statusUpdates": [
+    {
+      "todoId": 1,
+      "date": "2026-09-11T05:00:00.000Z",
+      "text": "draft done",
+      "createdAt": "2026-09-11T09:30:00.000Z"
+    }
+  ],
+  "exportedAt": "2026-11-23T09:00:00.000Z"
 }

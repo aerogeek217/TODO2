@@ -1,10 +1,9 @@
 /**
- * v78's Number conversion (D26 P5, `numbers`): what each v77 metric
- * becomes — its name, colour (the dark theme's token value at v77, a hex),
- * filter, lighting and comparison. Its own module with no imports, so the
- * dev seed (`scripts/dev-seed`) and the tests build converted Numbers
- * without the upgrade pipeline. Frozen: it goes on meaning this whatever
- * later builds do.
+ * Ready-made Number configs by the metric names Numbers once had — its
+ * name, color (a hex, the dark theme's token value then), filter, lighting
+ * and comparison. The dev seed (`scripts/dev-seed`), the e2e seeds
+ * (`e2e/fixtures/workspace`) and the tests build Numbers with it. No imports,
+ * so the dev seed loads it under Node.
  */
 
 type Obj = Record<string, unknown>
