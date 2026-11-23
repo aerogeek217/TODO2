@@ -52,7 +52,7 @@ services/               → orchestration over stores: startup, data replaces, f
 stores/                 → Zustand stores, one per kind of data or UI state, plus `editor-leave`, `replace-hold`,
                           `safety-snapshot` and `store-helpers`
 data/                   → the Dexie database, repositories, the table registry, the import pipeline,
-                          schema upgrades (`upgrades/`), restore, export, audit, the backup scheduler
+                          the schema-upgrade registry, restore, export, audit, the backup scheduler
 models/                 → TypeScript interfaces
 utils/                  → pure helpers: dates, filters and expressions, grouping and sort, the layout's table and
                           its ops, the Planner's rules, the sky

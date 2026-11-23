@@ -29,7 +29,7 @@ Kind `breakdown`; statistics in `services/stats/breakdown`. Its config is `Break
 - `columns`: its [count columns](#count-columns).
 - Presets (`breakdownPreset`): People, Tags and Status (every open task by theirs) and Custom. A new Breakdown takes the Add widget preset as `TabSeed.breakdown`.
 
-What the read of a stored config or view state repairs, and what a schema upgrade rewrote, is in [models-and-data](../models-and-data.md).
+What the read of a stored config or view state repairs is in [models-and-data](../models-and-data.md).
 
 #### The table
 
