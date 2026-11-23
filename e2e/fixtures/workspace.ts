@@ -772,13 +772,35 @@ export async function openCellMenu(page: Page, cellId: string): Promise<void> {
 /**
  * Opens card `cellId`'s menu in the layout edit mode, `Cell layout` (E3: the
  * card's ⋯, at its top-right): Move to ▸, Swap with ▸, Split ▸, Merge with
- * ▸, Stretch right / down, Remove widget, Close cell. Open the mode first
- * (`enterLayoutEdit`); rows and columns are the rulers' ("+", their menus).
+ * ▸, Stretch right / down, Remove widget, Close cell (a selected card's
+ * toolbar holds the ⋯ then). Open the mode first (`enterLayoutEdit`); rows
+ * and columns are the selection's edge tabs (`insertBeside`) and the
+ * headers' menus.
  */
 export async function openCellLayoutMenu(page: Page, cellId: string): Promise<Locator> {
   await wsCell(page, cellId).hover()
   await wsCell(page, cellId).getByRole('button', { name: 'Cell layout' }).click()
   return page.getByRole('menu', { name: 'Cell layout' })
+}
+
+/** A selected card's or slot's edge tab in the layout edit mode: where its track goes. */
+export type EdgeTab = 'Row above' | 'Row below' | 'Column left' | 'Column right'
+
+/**
+ * In the layout edit mode, selects card or slot `cellId` (its focus: no
+ * move armed) and returns its edge tab `edge` (`+ Row above` …), a full
+ * row / column on that edge's line.
+ */
+export async function edgeTab(page: Page, cellId: string, edge: EdgeTab): Promise<Locator> {
+  await page.locator(`[data-edit-focus="${cellId}"]`).focus()
+  const tab = page.getByRole('button', { name: `Insert ${edge.toLowerCase()}`, exact: true })
+  await expect(tab).toBeVisible()
+  return tab
+}
+
+/** Clicks card or slot `cellId`'s edge tab `edge` (`edgeTab`): the track inserted, its first new cell selected. */
+export async function insertBeside(page: Page, cellId: string, edge: EdgeTab): Promise<void> {
+  await (await edgeTab(page, cellId, edge)).click()
 }
 
 /** The ⋯'s Add widget as tab › (a lone widget) or Add tab › (a cell showing a tab strip). */
@@ -799,7 +821,7 @@ export async function addWidgetAsTab(page: Page, cellId: string, label: string, 
 
 /**
  * A layout-wide edit made in the layout edit mode (the cards, their menus,
- * the rulers live only there): opens the mode, runs `edit` on the draft,
+ * the headers live only there): opens the mode, runs `edit` on the draft,
  * then Done — stored as one undo step, `Edited layout “X”`.
  */
 export async function editLayout(page: Page, edit: () => Promise<void>): Promise<void> {
@@ -817,7 +839,7 @@ export function layoutEditBar(page: Page): Locator {
  * Opens the layout edit mode (E1) from the open layout's tab menu (Edit
  * layout…) — or the picker's, while the layouts are folded into it — and
  * waits for its bar. Everything layout-wide — the cards and their menus,
- * whole-cell and cross-cell drags, the drop ghost, the rulers, the tray —
+ * whole-cell and cross-cell drags, the drop ghost, the headers, the tray —
  * is drawn only there, and acts on the draft until `finishLayoutEdit`.
  */
 export async function enterLayoutEdit(page: Page): Promise<void> {

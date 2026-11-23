@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import {
   drag,
+  insertBeside,
   dragPanel,
   dragTab,
   edges,
@@ -70,6 +71,15 @@ async function areaBox(page: Page) {
   return box(page.locator('[data-ws-area]'))
 }
 
+/** The room the table's tracks share (px): inside its padding — in the layout edit mode, inside its frame. */
+function tableRoom(page: Page): Promise<{ width: number; height: number }> {
+  return page.locator('[data-ws-table]').evaluate((t) => {
+    const s = getComputedStyle(t)
+    const px = (v: string) => Number.parseFloat(v) || 0
+    return { width: t.clientWidth - px(s.paddingLeft) - px(s.paddingRight), height: t.clientHeight - px(s.paddingTop) - px(s.paddingBottom) }
+  })
+}
+
 /**
  * Drags tab `tabId` to `to`, checking the ghost's label while over it, and
  * returns the ghost's edges as drawn there.
@@ -109,12 +119,13 @@ test.describe('drops and the ghost', () => {
     await seedWorkspace(page, { layouts: [aBc] })
     await enterLayoutEdit(page)
     const a = await areaBox(page)
+    const room = await tableRoom(page)
     const row = await dragWithGhost(page, 'mapTab', { x: a.x + 300, y: a.y + 3 }, 'Insert row · full width')
-    await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round(a.width - 12))
+    await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round(room.width))
     expectSameEdges(row, await edges(cellOf(page, 'mapTab')))
 
     const col = await dragWithGhost(page, 'notes2', { x: a.x + a.width - 8, y: a.y + a.height / 2 }, 'Insert column · full height')
-    await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).height)).toBe(Math.round(a.height - 12))
+    await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).height)).toBe(Math.round(room.height))
     expectSameEdges(col, await edges(cellOf(page, 'notes2')))
   })
 
@@ -232,12 +243,12 @@ test.describe('whole-cell drags', () => {
         await expectInsideViewport(page, page.getByTestId('ws-panel-ghost'), 0)
       },
     })
-    await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round(a.width - 12))
+    await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round((await tableRoom(page)).width))
   })
 })
 
 test.describe('the cell menu', () => {
-  test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); the rulers’ first “+” a row at the top', async ({ page }) => {
+  test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); a top card’s Row above a row at the top', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     await enterLayoutEdit(page)
     await openCellLayoutMenu(page, 'a')
@@ -246,21 +257,23 @@ test.describe('the cell menu', () => {
     await page.getByRole('menuitem', { name: 'Below', exact: true }).click()
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab', 'notes2']], [['calTab']]])
 
-    // The rulers' first row "+" (E2).
-    await page.locator('[data-ruler-plus="rows:0"]').click()
+    // A top card's edge tab: a full row at the top, as wide as the table's room (inside its frame).
+    await insertBeside(page, 'a', 'Row above')
     const empty = page.getByRole('region', { name: 'Empty cell' })
     await expect(empty).toBeVisible()
-    const a = await areaBox(page)
-    expect(Math.round((await box(empty)).width)).toBe(Math.round(a.width - 12))
+    const room = await page.locator('[data-ws-table]').evaluate((t) => {
+      const s = getComputedStyle(t)
+      return t.clientWidth - Number.parseFloat(s.paddingLeft) - Number.parseFloat(s.paddingRight)
+    })
+    expect(Math.round((await box(empty)).width)).toBe(Math.round(room))
   })
 
   test('Close cell gives its place to a neighbour sharing its whole edge; with none it stays an empty cell', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     await enterLayoutEdit(page)
-    const area = await areaBox(page)
     await openCellLayoutMenu(page, 'c')
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
-    await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).height)).toBe(Math.round(area.height - 12))
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).height)).toBe(Math.round((await tableRoom(page)).height))
 
     // A pinwheel: the middle cell shares no whole edge with any other.
     await seedWorkspace(page, {
@@ -704,8 +717,9 @@ test.describe('reload and lists', () => {
     // A whole cell moves in the layout edit mode (E4); Done stores it as one step.
     await enterLayoutEdit(page)
     const a = await areaBox(page)
+    const room = await tableRoom(page)
     await dragPanel(page, 'c', { x: a.x + 300, y: a.y + 3 })
-    await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).width)).toBe(Math.round(a.width - 12))
+    await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).width)).toBe(Math.round(room.width))
     await finishLayoutEdit(page)
     await expectLayoutStep(page, 'Edited layout “Main”')
     await page.reload()

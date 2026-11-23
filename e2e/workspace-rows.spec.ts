@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   drag,
+  insertBeside,
   dragTab,
   edges,
   openCellLayoutMenu,
@@ -148,7 +149,7 @@ test.describe('sizes and collapse of cells side by side', () => {
 })
 
 test.describe('the cell menu', () => {
-  test('Split ▸ Right adds a cell beside, Below one under it; the rulers’ last “+” a column', async ({ page }) => {
+  test('Split ▸ Right adds a cell beside, Below one under it; the last card’s Column right a column', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     // The card's menu is the layout edit mode's (E3); Done stores the draft as one step.
     await enterLayoutEdit(page)
@@ -168,7 +169,7 @@ test.describe('the cell menu', () => {
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Close empty cell' }).click()
     await expect.poll(() => rowCount(page)).toBe(1)
 
-    await page.locator('[data-ruler-plus="columns:2"]').click()
+    await insertBeside(page, 'b1', 'Column right')
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     await finishLayoutEdit(page)
     await expectLayoutStep(page, 'Edited layout “Main”')
