@@ -1,14 +1,13 @@
-import { useRef } from 'react'
-import { useFollowupInput, NEXT_FOLLOWUP_PLACEHOLDER, type FollowupInputState } from '../../hooks/use-followup-input'
+import { NEXT_FOLLOWUP_PLACEHOLDER } from '../../hooks/use-followup-input'
 import { useSelectAllOnFocus } from '../../hooks/use-select-all-on-focus'
 import { useToday } from '../../hooks/use-today'
-import { addFollowupInterval, formatFollowupDate, relativeDayPhrase } from '../../utils/followup'
-import { FactDateField, type FactDateTone } from './TaskFacts'
+import { addFollowupInterval } from '../../utils/followup'
+import type { FactDateTone } from './TaskFacts'
 import { TaskFollowupFields } from './TaskFollowupFields'
-import { FollowupDateButton } from '../shared/followup/FollowupDateButton'
+import { TypedDateField } from './TypedDateField'
+import { useTypedDate } from './use-typed-date'
 import { FollowupQuickButtons } from '../shared/followup/FollowupQuickButtons'
 import styles from '../shared/followup/Followup.module.css'
-import { RemoveButton } from '../shared/RemoveButton'
 
 interface FollowupEditorGroupProps {
   next: Date | undefined
@@ -25,20 +24,6 @@ interface FollowupEditorGroupProps {
   hideLast?: boolean
 }
 
-/** What a field's typed text means, after it: `→ Mon 16 Nov · in 7 days`, or why it isn't a date. */
-function HelpText({ state, today }: { state: FollowupInputState; today: Date }) {
-  if (state.kind === 'invalid') return <span className={`${styles.editorHint} ${styles.helpError}`}>{state.message}</span>
-  if (state.kind === 'valid') {
-    return (
-      <span className={styles.editorHint}>
-        → <strong className={styles.helpDate}>{formatFollowupDate(state.date, today)}</strong>
-        {' · '}{relativeDayPhrase(state.date, today)}
-      </span>
-    )
-  }
-  return null
-}
-
 /**
  * The task editor's follow-up fields, in its footer before Mark followed up
  * (task layout B; `TaskFollowupFields` draws them): **Last** (a date, never
@@ -53,127 +38,56 @@ export function FollowupEditorGroup({
   hideLast = false,
 }: FollowupEditorGroupProps) {
   const today = useToday()
-  const nextInput = useFollowupInput(next, 'next', today)
-  const lastInput = useFollowupInput(last, 'last', today)
-  const skipCommitRef = useRef(false)
+  const nextEntry = useTypedDate({ value: next, mode: 'next', onChange: onNextChange })
+  const lastEntry = useTypedDate({ value: last, mode: 'last', onChange: onLastChange })
   const selectNext = useSelectAllOnFocus(selectNextOnFocus)
-
-  const commit = (input: typeof nextInput, onChange: (d: Date | null) => void) => {
-    if (skipCommitRef.current) {
-      skipCommitRef.current = false
-      return
-    }
-    const s = input.state
-    if (s.kind === 'empty') {
-      onChange(null)
-      input.settle(null)
-    } else if (s.kind === 'valid') {
-      onChange(s.date)
-      input.settle(s.date)
-    }
-  }
-
-  const keyHandler = (input: typeof nextInput) => (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      e.currentTarget.blur()
-    } else if (e.key === 'Escape') {
-      // Revert without committing; keep the editor open.
-      e.preventDefault()
-      e.stopPropagation()
-      skipCommitRef.current = true
-      input.reset()
-      e.currentTarget.blur()
-    }
-  }
 
   return (
     <TaskFollowupFields
       next={{
         field: (
-          <FactDateField date={next} kind="next" tone={nextTone} empty="None" showWords={!nextInput.dirty}>
-            <div className={`${styles.editorInputWrap} ${nextInput.state.kind === 'invalid' ? styles.inputWrapError : ''}`}>
-              <input
-                className={styles.input}
-                value={nextInput.text}
-                placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
-                onChange={(e) => { skipCommitRef.current = false; nextInput.change(e.target.value) }}
-                onMouseDown={selectNext.onMouseDown}
-                onMouseUp={selectNext.onMouseUp}
-                onFocus={(e) => { skipCommitRef.current = false; selectNext.onFocus(e) }}
-                onBlur={() => commit(nextInput, onNextChange)}
-                onKeyDown={keyHandler(nextInput)}
-                aria-label="Next follow-up"
-                aria-invalid={nextInput.state.kind === 'invalid'}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              {nextInput.text !== '' && (
-                <RemoveButton
-                  size={24}
-                  className={styles.inputClear}
-                  label="Clear next follow-up"
-                  tooltip
-                  // Keep the input's blur from committing the text we're about to clear.
-                  keepFocus
-                  onClick={() => { onNextChange(null); nextInput.settle(null) }}
-                />
-              )}
-              <FollowupDateButton
-                label="Pick next follow-up date"
-                value={next}
-                onPick={(d) => { onNextChange(d); nextInput.settle(d) }}
-              />
-            </div>
-          </FactDateField>
+          <TypedDateField
+            entry={nextEntry}
+            label="Next follow-up"
+            placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
+            date={next}
+            kind="next"
+            tone={nextTone}
+            empty="None"
+            clear={{ label: 'Clear next follow-up' }}
+            pick={{ label: 'Pick next follow-up date' }}
+            selectOnFocus={selectNext}
+          />
         ),
         quick: (
           <FollowupQuickButtons
             labelStyle="short"
-            onPick={(i) => {
-              const d = addFollowupInterval(today, i)
-              onNextChange(d)
-              nextInput.settle(d)
-            }}
+            onPick={(i) => nextEntry.set(addFollowupInterval(today, i))}
           />
         ),
         help: (
           <span className={styles.rowHelp} aria-live="polite">
-            {nextInput.dirty
-              ? <HelpText state={nextInput.state} today={today} />
+            {nextEntry.input.dirty
+              ? nextEntry.help
               : nextHint && <span className={styles.editorHint} data-tooltip={nextHint}>{nextHint}</span>}
           </span>
         ),
       }}
       last={hideLast ? undefined : {
         field: (
-          <FactDateField date={last} kind="last" empty="Never" showWords={!lastInput.dirty}>
-            <div className={`${styles.editorInputWrap} ${lastInput.state.kind === 'invalid' ? styles.inputWrapError : ''}`}>
-              <input
-                className={styles.input}
-                value={lastInput.text}
-                placeholder="Never"
-                onChange={(e) => { skipCommitRef.current = false; lastInput.change(e.target.value) }}
-                onFocus={() => { skipCommitRef.current = false }}
-                onBlur={() => commit(lastInput, onLastChange)}
-                onKeyDown={keyHandler(lastInput)}
-                aria-label="Last follow-up"
-                aria-invalid={lastInput.state.kind === 'invalid'}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <FollowupDateButton
-                label="Pick last follow-up date"
-                value={last}
-                max={today}
-                onPick={(d) => { onLastChange(d); lastInput.settle(d) }}
-              />
-            </div>
-          </FactDateField>
+          <TypedDateField
+            entry={lastEntry}
+            label="Last follow-up"
+            placeholder="Never"
+            date={last}
+            kind="last"
+            empty="Never"
+            pick={{ label: 'Pick last follow-up date', max: today }}
+          />
         ),
         help: (
           <span className={styles.rowHelp} aria-live="polite">
-            {lastInput.dirty && <HelpText state={lastInput.state} today={today} />}
+            {lastEntry.help}
           </span>
         ),
       }}

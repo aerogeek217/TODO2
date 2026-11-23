@@ -255,15 +255,20 @@
   color: var(--color-text-muted);
 }
 
-/* A typed date field (the footer's follow-up fields): at rest its words drawn over it, its own text
- * hidden, in a quiet box with its calendar button, so it reads as a field; focused, the field as
- * typed. 160px (`10/26 2 weeks ago` and its calendar), at the field's 30px height. */
+/* A typed date field (the footer's follow-up fields, the band's Due and Planned): at rest its words
+ * drawn over it, its own text hidden, in a quiet box with its end buttons, so it reads as a field;
+ * focused, the field as typed. 160px in the footer (`10/26 2 weeks ago` and its calendar), its cell's
+ * width in the band (`data-fill`), at the field's 30px height. */
 .dateField {
   position: relative;
   display: flex;
   flex: none;
   width: 160px;
   min-width: 0;
+}
+
+.dateField[data-fill] {
+  width: 100%;
 }
 
 .dateField > div {
@@ -274,9 +279,10 @@
   border-radius: 8px;
 }
 
+/* Clear of the end buttons at rest (`--date-field-ends`: the calendar; Due's ↻ too), 28px each. */
 .dateFieldWords {
   position: absolute;
-  inset: 0 30px 0 10px;
+  inset: 0 calc(var(--date-field-ends, 1) * 28px + 2px) 0 10px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -286,13 +292,14 @@
   pointer-events: none;
 }
 
-/* The × (while the field holds a date) shows on hover and focus only; the words keep clear of it then. */
-.dateField[data-words]:not(:hover):not(:focus-within) > div > button:has(+ button) {
+/* The × (`data-field-clear`, while the field holds a date) shows on hover and focus only; the words
+ * keep clear of it then. */
+.dateField[data-words]:not(:hover):not(:focus-within) [data-field-clear] {
   visibility: hidden;
 }
 
-.dateField[data-words]:hover:has(> div > button + button) .dateFieldWords {
-  right: 56px;
+.dateField[data-words]:hover:has([data-field-clear]) .dateFieldWords {
+  right: calc(var(--date-field-ends, 1) * 28px + 28px);
 }
 
 .dateField[data-words] input {
@@ -553,32 +560,17 @@
 
 /* ── Planned ── */
 
-/* The value (a button opening Plan for day) and × on the first line (`.dateLine`); under it its words
- * or a plan's conflict (`.dateUnder`). */
+/* The field (a typed date field, `.dateField`) on the first line; under it its words, a plan's
+ * conflict or what the typed text means (`.dateUnder`). A completed task's plan: its words alone. */
 .planValue {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  height: 26px;
-  margin-left: -6px;
-  padding: 0 6px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
+  height: 30px;
   color: var(--color-text-primary);
-  font-family: inherit;
   font-size: var(--font-size-task);
   white-space: nowrap;
-}
-
-button.planValue {
-  cursor: pointer;
-}
-
-button.planValue:hover,
-button.planValue[aria-expanded='true'] {
-  background: var(--color-tint-6);
 }
 
 /* The Planner's plan mark: a hollow bar, outlined in the secondary text color. */
@@ -595,11 +587,11 @@ button.planValue[aria-expanded='true'] {
   font-variant-numeric: tabular-nums;
 }
 
+/* Held in Unplanned: `Unplanned`, muted. */
 .planHeld {
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
 }
 
-/* Missed (a day passed): muted, as the Planner's Delayed. */
 .dateValue[data-planned-state='missed'] .planBar {
   opacity: 0.6;
 }
@@ -650,57 +642,23 @@ button.planValue[aria-expanded='true'] {
 
 /* ── Due and Planned: two short lines ── */
 
-/* The day and × on the first line, its words under it, 3px apart. Both lines are always there, so
- * setting or clearing a date never changes the band's height. */
+/* The field on the first line, its words under it, 1px apart (the words' own line height gives them
+ * room). Both lines are always there, so setting or clearing a date never changes the band's height. */
 .dateValue {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 1px;
   min-width: 0;
 }
 
-.dateLine {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-  height: 26px;
+/* Due's ↻, in its field between the × and the calendar: muted; lit in the accent while it repeats. */
+.repeatButton > svg {
+  width: 14px;
+  height: 14px;
 }
 
-/* Due's date: a button (its words, or `Set a date`) opening the date popover. */
-.dateButton {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  height: 26px;
-  margin-left: -6px;
-  padding: 0 6px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-primary);
-  font-family: inherit;
-  font-size: var(--font-size-task);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.dateButton:hover,
-.dateButton[aria-expanded='true'] {
-  background: var(--color-tint-6);
-}
-
-/* A repeating due date: the rows' repeat glyph after the day, its rule in its name and tooltip. */
-.dateRepeat {
-  display: inline-flex;
-  flex: none;
-  margin: 0 2px;
-  color: var(--color-text-muted);
-}
-
-.dateRepeat > svg {
-  width: 13px;
-  height: 13px;
+.repeatButton[data-on] {
+  color: var(--color-accent);
 }
 
 /* The words under the day (`in 2 days`, `3 days late`, `tomorrow`): muted, one line, cut with an
@@ -721,8 +679,9 @@ span.dateUnder {
   display: block;
 }
 
-/* The date popover (`DueFacts`): Date, Repeat every, Clear due date — on the dropdowns' glass. */
-.duePopover {
+/* The repeat popover (`DueFacts`, under the ↻): Repeat every, Stop repeating — on the dropdowns'
+ * glass. */
+.repeatPopover {
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -735,7 +694,7 @@ span.dateUnder {
   box-shadow: var(--shadow-dropdown);
 }
 
-.duePopRow {
+.repeatRow {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -744,40 +703,18 @@ span.dateUnder {
   color: var(--color-text-secondary);
 }
 
-.duePopLabel {
+.repeatLabel {
   flex: none;
   width: 48px;
   color: var(--color-text-muted);
 }
 
-/* The date input: its calendar button opens the browser's picker. */
-.duePopDate {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 30px;
-  box-sizing: border-box;
-  padding: 0 8px;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-inset);
-  box-shadow: inset 0 0 0 1px var(--color-border);
-  color: var(--color-text-primary);
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  font-variant-numeric: tabular-nums;
-}
-
-.duePopDate:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
-}
-
-.duePopFoot {
+.repeatPopFoot {
   padding-top: 4px;
   border-top: 1px solid var(--color-border-muted);
 }
 
-.duePopClear {
+.repeatStop {
   height: 24px;
   padding: 0 6px;
   border: none;
@@ -790,7 +727,7 @@ span.dateUnder {
   cursor: pointer;
 }
 
-.duePopClear:hover {
+.repeatStop:hover {
   background: var(--color-tint-6);
   color: var(--color-text-primary);
 }

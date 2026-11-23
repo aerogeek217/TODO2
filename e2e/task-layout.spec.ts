@@ -8,7 +8,7 @@ import { reviewField, seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceS
  * Task layout B (feedback 2026-11-15) · the one task layout in a real
  * browser: the task editor (1040px) with the fact band under the title —
  * Priority, Status, People, Tags, Due, Planned, each under a plain heading
- * (all six on one row at a 1280px window; Planned's Plan for day menu) — then
+ * (all six on one row at a 1280px window; Planned's date field) — then
  * Subtasks and Notes on the left and Status updates on the right, the log
  * anchored over its update line; the follow-up fields in the footer. A long
  * task's columns scroll inside while the update line and the footer stay in
@@ -148,7 +148,7 @@ test.describe('the task editor', () => {
     await page.screenshot({ path: test.info().outputPath('editor-b.png') })
   })
 
-  test('at a 1280px window the six facts share one row; Planned opens Plan for day, a pick plans the day with no stamp, × clears it', async ({ page }) => {
+  test('at a 1280px window the six facts share one row; a day typed in Planned plans it with no stamp, × clears it', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await seedWorkspace(page, SEED)
     const dialog = await openEditor(page)
@@ -167,18 +167,16 @@ test.describe('the task editor', () => {
 
     const stamp = async () => (await readStore<{ title: string; modifiedAt: string; doDate?: string }>(page, 'todos')).find((t) => t.title === 'Vendor contract renewal')!
     const before = new Date((await stamp()).modifiedAt).getTime()
-    await planned.getByRole('button', { name: /^Planned:/ }).click()
-    const menu = page.getByRole('menu', { name: 'Plan for day' })
-    await expect(menu).toBeVisible()
-    await expect(menu).not.toContainText('Plans it for that day')
-    await expect(menu.getByRole('menuitem', { name: 'Pick a date…' })).toBeVisible()
-    await expect(menu.getByRole('menuitemradio')).toHaveCount(8)
-    await menu.getByRole('menuitemradio', { name: /^Today/ }).click()
-    await expect(menu).toHaveCount(0)
-    await expect(planned).toContainText('Today')
+    const field = planned.getByRole('textbox', { name: 'Planned' })
+    await field.click()
+    await field.fill('today')
+    await expect(planned.locator('[data-date-under]')).toContainText('today')
+    await field.press('Enter')
+    await expect(planned.locator('[data-fact-date-field]')).toContainText('Today')
     await expect.poll(async () => (await stamp()).doDate != null).toBe(true)
     expect(new Date((await stamp()).modifiedAt).getTime()).toBe(before)
     await page.screenshot({ path: test.info().outputPath('editor-planned-1280.png') })
+    await planned.locator('[data-fact-date-field]').hover()
     await planned.getByRole('button', { name: 'Clear plan' }).click()
     await expect(planned).toContainText('Not planned')
     await expect.poll(async () => (await stamp()).doDate == null).toBe(true)

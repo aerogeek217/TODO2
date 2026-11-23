@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import type { PersistedTodoItem, TaskPlan, TodoItem } from '../../models'
+import { NEXT_FOLLOWUP_PLACEHOLDER } from '../../hooks/use-followup-input'
 import { useToday } from '../../hooks/use-today'
-import { applyPlannerFix, clearPlannerTask } from '../../services/planner-drop'
+import { applyPlannerFix, clearPlannerTask, planTaskForDay } from '../../services/planner-drop'
 import { useSettingsStore } from '../../stores/settings-store'
 import { startOfDay } from '../../utils/date'
 import { factDateWords } from '../../utils/fact-dates'
@@ -10,23 +11,29 @@ import {
   plannerConflictLabel,
   plannerConflicts,
   plannerFixLabel,
+  plannerHasPlan,
   plannerPlannedDay,
   plannerWindow,
   type PlannerFix,
 } from '../../utils/planner'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
-import { RemoveButton } from '../shared/RemoveButton'
-import { draftPlanMenuEntries, planMenuEntries } from './plan-menu'
 import { FactSection } from './TaskFacts'
+import { TypedDateField } from './TypedDateField'
+import { useTypedDate } from './use-typed-date'
 import styles from './TaskDetails.module.css'
+
+/** What a typed day before today says (the picker's own `min` stops one there). */
+const PLAN_PAST_MESSAGE = 'Plan a day from today on'
 
 /** What the Planned cell reads: the plan state and the real dates it may fall after. */
 type PlannedSubject = Pick<TodoItem, 'doDate' | 'unplanned' | 'dueDate' | 'nextFollowupAt'>
 
 interface PlannedFactsProps {
   task: PlannedSubject
-  /** The Plan for day menu the value opens; null: nothing to open (a completed task). */
-  menu: MenuEntry[] | null
+  /** False: the plan shows, nothing sets it (a completed task). */
+  editable: boolean
+  /** A day typed or picked, today or later: the task planned for it. */
+  onPlan: (day: Date) => void
   /** A fix picked (a plan after a real date). */
   onFix: (fix: PlannerFix) => void
   /** × — the plan state cleared. */
@@ -36,81 +43,100 @@ interface PlannedFactsProps {
 /**
  * **Planned**, the fact band's last cell (after Due; task layout B — the
  * task editor and the review card alike): the task's plan state
- * (`doDate` / `unplanned`). Its value is a button opening the **Plan for
- * day** menu (`menu`); × clears the plan. On two short lines, as Due: the
- * value and × on the first, its words under it. Its states:
+ * (`doDate` / `unplanned`), on two short lines as Due. The first is a typed
+ * date field as Due's (`TypedDateField`): a day typed (`fri`, `11/30`,
+ * `2w`) or picked from the calendar plans the task for it (`onPlan`) —
+ * today or later; an earlier day typed is refused with a message, the
+ * picker starts at today —, and × (**Clear plan**) clears the plan state
+ * while there is one; an emptied field clears it too. Its states at rest:
  *
  * - not planned — `Not planned`, muted;
- * - held — `Held` over `in Unplanned`, with the Planner's corner flag at
- *   the cell's top-left;
+ * - held — `Unplanned`, muted, with the Planner's corner flag at the
+ *   cell's top-left;
  * - a planned day — the hollow bar (the Planner's plan mark) and the day
- *   in the rows' words, how far it is under them, muted (`tomorrow`);
- *   planned after a real date, `1 day after due ▾` under them in the
- *   deadline color, a button opening the Planner's fixes
+ *   in the rows' words, how far it is under the field, muted
+ *   (`tomorrow`); planned after a real date, `1 day after due ▾` under it
+ *   in the deadline color, a button opening the Planner's fixes
  *   (`plannerFixLabel`); a day passed (**missed**) — muted, `3 days ago ·
- *   Delayed` under the day.
+ *   Delayed` under it.
+ *
+ * While typing, the second line says what the text means. A task that is
+ * not `editable` shows its plan's words alone.
  */
-function PlannedFacts({ task, menu, onFix, onClear }: PlannedFactsProps) {
+function PlannedFacts({ task, editable, onPlan, onFix, onClear }: PlannedFactsProps) {
   const today = useToday()
   const rowDates = useSettingsStore((s) => s.rowDates)
-  const valueRef = useRef<HTMLButtonElement>(null)
   const fixRef = useRef<HTMLButtonElement>(null)
-  const [open, setOpen] = useState<'menu' | 'fixes' | null>(null)
-  const close = () => setOpen(null)
+  const [fixesOpen, setFixesOpen] = useState(false)
 
   const planned = plannerPlannedDay(task)
   const held = planned == null && task.unplanned === true
+  const hasPlan = plannerHasPlan(task)
   const missed = planned != null && planned.getTime() < startOfDay(today).getTime()
   const conflicts = planned && !missed ? plannerConflicts(task, planned, today) : []
   const fixes = plannerConflictFixes(conflicts)
   const words = planned ? factDateWords(planned, today, rowDates, 'next') : null
   const state = planned ? (missed ? 'missed' : conflicts.length > 0 ? 'late' : 'planned') : held ? 'held' : 'none'
 
+  const entry = useTypedDate({
+    value: planned ?? undefined,
+    mode: 'next',
+    options: { pastMessage: PLAN_PAST_MESSAGE },
+    onChange: (day) => {
+      if (day == null) {
+        if (hasPlan) onClear()
+      } else if (day.getTime() !== planned?.getTime()) {
+        onPlan(day)
+      }
+    },
+  })
+
   const face = planned && words ? (
     <>
       <span className={styles.planBar} aria-hidden="true" />
       <span className={styles.planDay}>{words.words}</span>
     </>
-  ) : held ? <span className={styles.planHeld}>Held</span> : <span className={styles.dateEmpty}>Not planned</span>
-  // Under the day: how far it is (a missed day's with Delayed); none with the fixes there instead. Held: where.
-  const under = held ? 'in Unplanned' : !words ? undefined
+  ) : held ? <span className={styles.planHeld}>Unplanned</span> : undefined
+  // Under the field: how far the day is (a missed day's with Delayed); none with the fixes there instead.
+  const under = !words ? undefined
     : missed ? [words.relative, 'Delayed'].filter(Boolean).join(' · ')
       : conflicts.length === 0 ? words.relative : undefined
-  const name = planned && words ? `Planned: ${words.full}` : held ? 'Planned: held in Unplanned' : 'Planned: not planned'
+  const name = planned && words ? `Planned: ${words.full}` : held ? 'Planned: Unplanned' : 'Planned: not planned'
 
   return (
     <FactSection fact="planned">
       {held && <span className={styles.planFlag} data-planned-flag="" aria-hidden="true" />}
       <div className={styles.dateValue} data-planned-state={state}>
-        <div className={styles.dateLine}>
-          {menu ? (
-            <button
-              ref={valueRef}
-              type="button"
-              className={styles.planValue}
-              aria-label={name}
-              aria-haspopup="menu"
-              aria-expanded={open === 'menu'}
-              data-tooltip={planned && words ? `Planned for ${words.full}` : 'Plan for day'}
-              onClick={() => setOpen((v) => (v === 'menu' ? null : 'menu'))}
-            >
-              {face}
-            </button>
-          ) : (
-            <span className={styles.planValue} aria-label={name}>{face}</span>
-          )}
-          {menu && (planned || held) && <RemoveButton size={20} label="Clear plan" tooltip onClick={onClear} />}
-        </div>
-        {conflicts.length > 0 && conflicts[0] ? (
+        {editable ? (
+          <TypedDateField
+            entry={entry}
+            label="Planned"
+            placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
+            date={planned ?? undefined}
+            kind="next"
+            empty="Not planned"
+            words={face}
+            fill
+            clear={{ label: 'Clear plan', shown: hasPlan }}
+            pick={{ label: 'Pick planned day', min: today }}
+          />
+        ) : (
+          <span className={styles.planValue} role="img" aria-label={name}>
+            {face ?? <span className={styles.dateEmpty}>Not planned</span>}
+          </span>
+        )}
+        {entry.input.dirty ? (
+          <span className={styles.dateUnder} data-date-under="" data-tooltip={entry.helpTitle} aria-live="polite">{entry.help}</span>
+        ) : conflicts.length > 0 && conflicts[0] ? (
           <div className={styles.dateUnder}>
             <button
               ref={fixRef}
               type="button"
               className={styles.planConflict}
               aria-haspopup="menu"
-              aria-expanded={open === 'fixes'}
+              aria-expanded={fixesOpen}
               data-tooltip="Fix the plan"
-              onClick={() => setOpen((v) => (v === 'fixes' ? null : 'fixes'))}
+              onClick={() => setFixesOpen((v) => !v)}
             >
               {plannerConflictLabel(conflicts[0])}
               <span className={styles.statusCaret} aria-hidden="true">&#x25BE;</span>
@@ -120,16 +146,13 @@ function PlannedFacts({ task, menu, onFix, onClear }: PlannedFactsProps) {
           <span className={styles.dateUnder} data-date-under="" data-tooltip={under}>{under}</span>
         )}
       </div>
-      {open === 'menu' && menu && (
-        <MenuPopover anchorRef={valueRef} entries={menu} label="Plan for day" width={236} focusChecked onClose={close} />
-      )}
-      {open === 'fixes' && (
+      {fixesOpen && (
         <MenuPopover
           anchorRef={fixRef}
           entries={fixes.map((fix): MenuEntry => ({ kind: 'item', label: plannerFixLabel(fix, today), onSelect: () => onFix(fix) }))}
           label="Fix the plan"
           width={232}
-          onClose={close}
+          onClose={() => setFixesOpen(false)}
         />
       )}
     </FactSection>
@@ -138,12 +161,13 @@ function PlannedFacts({ task, menu, onFix, onClear }: PlannedFactsProps) {
 
 /**
  * The Planned cell of a stored task (the task editor's edit mode, the
- * review card): its menu `planMenuEntries` — the plan write, no stamp, one
- * undo step —, the fixes `applyPlannerFix` outside a Planner and × Clear
- * plan (`clearPlannerTask`), each against this week's window. It reads the
- * task as stored, so a plan changed elsewhere (a Planner drag, a menu,
- * undo) shows at once. A completed task's plan shows, with nothing to
- * open: the Planner holds open tasks.
+ * review card): a day typed or picked is the plan write
+ * (`planTaskForDay`: a pick, no stamp, one undo step), the fixes
+ * `applyPlannerFix` outside a Planner and × Clear plan
+ * (`clearPlannerTask`), each against this week's window. It reads the task
+ * as stored, so a plan changed elsewhere (a Planner drag, a menu, undo)
+ * shows at once. A completed task's plan shows, with nothing to set: the
+ * Planner holds open tasks.
  */
 export function TaskPlannedFacts({ todo }: { todo: PersistedTodoItem }) {
   const today = useToday()
@@ -151,7 +175,8 @@ export function TaskPlannedFacts({ todo }: { todo: PersistedTodoItem }) {
   return (
     <PlannedFacts
       task={todo}
-      menu={todo.isCompleted ? null : planMenuEntries(todo, today)}
+      editable={!todo.isCompleted}
+      onPlan={(day) => { void planTaskForDay(todo.id, day) }}
       onFix={(fix) => { void applyPlannerFix(null, todo.id, fix, window) }}
       onClear={() => { void clearPlannerTask(todo.id, window) }}
     />
@@ -160,9 +185,9 @@ export function TaskPlannedFacts({ todo }: { todo: PersistedTodoItem }) {
 
 /**
  * The Planned cell of a task not yet created (the task editor's create and
- * draft modes): the plan is held in `plan` until Create — the menu's days,
- * Pick a date…, Unplanned and Clear plan set it (`draftPlanMenuEntries`), a
- * fix's date move sets the due date or follow-up `onMoveDate` hands it.
+ * draft modes): the plan is held in `plan` until Create — a day typed or
+ * picked and × set it, a fix's date move sets the due date or follow-up
+ * `onMoveDate` hands it.
  */
 export function DraftPlannedFacts({ plan, dates, onPlan, onMoveDate }: {
   plan: TaskPlan
@@ -170,7 +195,6 @@ export function DraftPlannedFacts({ plan, dates, onPlan, onMoveDate }: {
   onPlan: (plan: TaskPlan) => void
   onMoveDate: (date: 'due' | 'followup', to: Date) => void
 }) {
-  const today = useToday()
   const task: PlannedSubject = {
     ...dates,
     ...(plan === 'unplanned' ? { unplanned: true as const } : plan ? { doDate: plan.day } : {}),
@@ -178,7 +202,8 @@ export function DraftPlannedFacts({ plan, dates, onPlan, onMoveDate }: {
   return (
     <PlannedFacts
       task={task}
-      menu={draftPlanMenuEntries(task, today, onPlan)}
+      editable
+      onPlan={(day) => onPlan({ day: startOfDay(day) })}
       onFix={(fix) => (fix.kind === 'plan' ? onPlan({ day: fix.day }) : onMoveDate(fix.date, startOfDay(new Date(fix.to))))}
       onClear={() => onPlan(null)}
     />

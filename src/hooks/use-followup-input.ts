@@ -5,6 +5,7 @@ import {
   parseFollowupInput,
   relativeDayPhrase,
 } from '../utils/followup'
+import { startOfDay } from '../utils/date'
 
 type FollowupInputMode = 'next' | 'last'
 
@@ -20,9 +21,11 @@ const NEXT_FOLLOWUP_INVALID = 'Try 2w, 10d, 1m, fri, 24 Oct or 10/24'
 const LAST_FOLLOWUP_INVALID = 'Try a date like 24 Sep, 9/24 or yesterday'
 const LAST_FOLLOWUP_FUTURE = "Last follow-up can't be in the future"
 
-/** What a `last`-mode field says to a day after today (default: the Last follow-up's words). */
-interface FollowupInputOptions {
+export interface FollowupInputOptions {
+  /** What a `last`-mode field says to a day after today (default: the Last follow-up's words). */
   futureMessage?: string
+  /** A `next`-mode field that refuses a day before today (the Planned field) says this to one. */
+  pastMessage?: string
 }
 
 /** Interpret `text` for a next- or last-follow-up input (pure; exported for tests). */
@@ -41,6 +44,8 @@ export function interpretFollowupText(
     // Last follow-up takes dates only — an interval counts forward from today.
     if (parsed.interval) return { kind: 'invalid', message: LAST_FOLLOWUP_INVALID }
     if (isFutureDay(parsed.date, today)) return { kind: 'invalid', message: options.futureMessage ?? LAST_FOLLOWUP_FUTURE }
+  } else if (options.pastMessage && parsed.date.getTime() < startOfDay(today).getTime()) {
+    return { kind: 'invalid', message: options.pastMessage }
   }
   return { kind: 'valid', date: parsed.date }
 }

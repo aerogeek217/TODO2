@@ -41,7 +41,7 @@ A `/plan <date>` in the text (Quick Add, the editor's title, a note's line; `/du
 - Fields already holding the value are skipped. No change means no write and no undo step.
 - The edit is written as a patch via `todoRepository.update(id, changes)`. Undo, redo and a failed write's rollback touch only those fields.
 - It **never rejects**. A failed write is rolled back, the snackbar says `Couldn't save your change to "<title>".` and it resolves `false` (else `true`). So fire-and-forget callers leave no unhandled rejection, and `checkin-reply/apply` stops on `false`.
-- In the task layout (the editor and the review card) the due date and its repeat are written from the Due cell's date popover ([The fact band](review.md#the-fact-band)). A date and a repeat are an `update` each, written on ⏎, a blur or the popover closing. A new date keeps the repeat, anchored to it (`utils/recurrence.dueDateChanges`). Clear due date removes both in one write.
+- In the task layout (the editor and the review card) the due date is written from the Due field and its repeat from the field's ↻ popover ([The fact band](review.md#the-fact-band)). A date and a repeat are an `update` each: a date typed when the field is left, or picked; a repeat on ⏎, a blur or the popover closing. A new date keeps the repeat, anchored to it (`utils/recurrence.dueDateChanges`). Clear due date removes both in one write.
 
 ### Completing
 

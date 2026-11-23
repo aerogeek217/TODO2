@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { act, render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react'
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
 import { FollowupPopover } from '../../components/shared/followup/FollowupPopover'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -118,7 +118,7 @@ describe('TaskEditPopup — follow-up group', () => {
     const { onCreate } = renderCreate()
     fireEvent.click(screen.getByLabelText('Clear next follow-up'))
     expect(nextInput().value).toBe('')
-    expect(screen.getByText('None')).toBeInTheDocument()
+    expect(within(document.querySelector('[data-task-footer]') as HTMLElement).getByText('None')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Create task'))
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
     const partial = onCreate.mock.calls[0]![0]

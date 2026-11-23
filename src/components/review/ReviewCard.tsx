@@ -351,6 +351,7 @@ function reviewNextParts(f: ReviewFollowUp, id: string, selectOnFocus: ReturnTyp
               className={followupStyles.inputClear}
               label="Clear next follow-up"
               tooltip
+              data-field-clear=""
               keepFocus
               onClick={f.clearNext}
             />

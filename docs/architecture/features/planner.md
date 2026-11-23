@@ -178,7 +178,7 @@ Every day tile and every group — Today (today), each day ahead (an empty day's
 | | any other | held too — Unplanned is how a task with no date joins the Planner, flagged |
 | **Delayed** | any | **takes no drop**; a row already in it only reorders |
 
-**Only a drag is a drop.** Every other move to a day is a pick (`target.pick`) and plans the day outright, `T` its natural day too: Plan for day ›, Pick a date…, a conflict's Plan for {day}, Snooze and an Unplanned row's Today. Nothing is written only when it is planned for `T` already, and a day before today is refused.
+**Only a drag is a drop.** Every other move to a day is a pick (`target.pick`) and plans the day outright, `T` its natural day too: Plan for day ›, Pick a date…, the Planned field's day, a conflict's Plan for {day}, Snooze and an Unplanned row's Today. Nothing is written only when it is planned for `T` already, and a day before today is refused.
 
 **No due date and no follow-up is ever written.** Each drop is one task write of both plan fields and one undo step (`todo-store.setPlan`: [the plan write](#the-plan-write), no stamp, no history event).
 

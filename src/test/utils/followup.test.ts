@@ -202,4 +202,11 @@ describe('interpretFollowupText', () => {
     })
     expect(interpretFollowupText('2w', 'last', TODAY).kind).toBe('invalid')
   })
+
+  it('next with a past message (the Planned field): a day before today refused with it, today kept', () => {
+    const options = { pastMessage: 'Plan a day from today on' }
+    expect(interpretFollowupText('yesterday', 'next', TODAY, options)).toEqual({ kind: 'invalid', message: 'Plan a day from today on' })
+    expect(interpretFollowupText('today', 'next', TODAY, options)).toEqual({ kind: 'valid', date: TODAY })
+    expect(interpretFollowupText('1w', 'next', TODAY, options)).toEqual({ kind: 'valid', date: day(2026, 10, 17) })
+  })
 })

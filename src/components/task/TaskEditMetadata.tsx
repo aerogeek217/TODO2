@@ -19,7 +19,7 @@ interface TaskEditMetadataProps {
   /** The repeat (schema v84); null for none. */
   repeat: Interval | null
   onDeadlineChange: (next: Date | null) => void
-  /** A new repeat typed (the date popover's `RepeatField`: only when it changed; null removes it). */
+  /** A new repeat typed (the ↻ popover's `RepeatField`: only when it changed; null removes it). */
   onRepeatChange: (every: Interval | null) => void
   /** The due date's state, as its row colours it (`row-date-state.dueState`). */
   dueTone?: 'past' | 'soon'
@@ -47,10 +47,9 @@ interface TaskEditMetadataProps {
  * `AnchoredPicker` under the cell's pills (flipped above near the bottom,
  * clamped inside the viewport); a press outside closes it — not one in a
  * layer stacked above (a person's / tag's menu or the dialog it opened), and
- * not one on the pills, whose own toggle runs. Due: `DueFacts` — the date
- * and how far it is on two lines, the repeat glyph, ×; the date opens its
- * popover (the date, `Repeat every [2w]`, Clear due date). Then the host's
- * Planned cell (`planned`), the band's last.
+ * not one on the pills, whose own toggle runs. Due: `DueFacts` — a typed
+ * date field (×, the ↻ repeat button, the calendar) over how far the date
+ * is. Then the host's Planned cell (`planned`), the band's last.
  */
 export function TaskEditMetadata({
   deadline, repeat, dueTone,

@@ -49,8 +49,8 @@ describe('the facts row’s widths', () => {
       .toBe(`var(${THEME_COLOR_VARS.urgent})`)
   })
 
-  it('the dates’ two lines: the day at 26px, its words 16px under it, cut with an ellipsis', () => {
-    expect(rule(DETAILS, '.dateLine').get('height')).toBe('26px')
+  it('the dates’ two lines: the field at 30px, its words 16px under it, cut with an ellipsis', () => {
+    expect(rule(DETAILS, '.dateField > div').get('height')).toBe('30px')
     const under = rule(DETAILS, '.dateUnder')
     expect(under.get('height')).toBe('16px')
     expect(under.get('text-overflow')).toBe('ellipsis')

@@ -4,7 +4,6 @@ import { TaskEditPopup } from '../../../components/task/TaskEditPopup'
 import { TaskEditPopupHost } from '../../../components/task/TaskEditPopupHost'
 import { ReviewCard } from '../../../components/review/ReviewCard'
 import { ReviewSessionContext } from '../../../components/review/review-session-context'
-import { PICK_DATE_ATTR } from '../../../components/shared/pick-date'
 import { createReviewSession } from '../../../stores/review-session'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
 import { db } from '../../../data/database'
@@ -17,11 +16,12 @@ import { makeTodo, resetDb } from '../../helpers'
 
 /**
  * **Planned**, the task layout's last fact (`task/PlannedFacts`): its
- * states (not planned, held, a planned day, after a real date, missed),
- * its Plan for day menu — a pick plans the day outright, the due day too,
- * as the plan write (no stamp, one undo step) —, Pick a date…, the fixes,
- * × Clear plan, an open editor following a plan changed elsewhere, and the
- * create mode's plan held until Create.
+ * states (not planned, held, a planned day, after a real date, missed) in
+ * a typed date field like the follow-ups' — a day typed or picked plans it
+ * outright, the due day too, as the plan write (no stamp, one undo step);
+ * a day before today refused —, the fixes, × Clear plan, an open editor
+ * following a plan changed elsewhere, the create mode's plan held until
+ * Create, and the review card sharing the cell and the Due field.
  */
 
 // Fri 20 Nov 2026.
@@ -54,14 +54,18 @@ async function openStored(over: Partial<PersistedTodoItem> = {}) {
 }
 
 const stored = async () => (await db.todos.get(7))!
-/** The cell's two lines: the first (the value, ×) and the words under it. */
+/** The cell's two lines: the field (or a completed task's words) and the words under it. */
 const lines = (cell: HTMLElement) => {
   const value = cell.querySelector('[data-planned-state]') as HTMLElement
   return { first: value.firstElementChild as HTMLElement, under: value.lastElementChild as HTMLElement }
 }
-const openMenu = (cell: HTMLElement) => {
-  fireEvent.click(within(cell).getByRole('button', { name: /^Planned:/ }))
-  return screen.getByRole('menu', { name: 'Plan for day' })
+const field = (cell: HTMLElement) => within(cell).getByRole('textbox', { name: 'Planned' })
+/** The field's words at rest (drawn over it). */
+const words = (cell: HTMLElement) => cell.querySelector('[data-fact-date-field] > span[aria-hidden="true"]') as HTMLElement
+const picker = (cell: HTMLElement) => cell.querySelector<HTMLInputElement>('input[type="date"]')!
+const type = (cell: HTMLElement, text: string) => {
+  fireEvent.focus(field(cell))
+  fireEvent.change(field(cell), { target: { value: text } })
 }
 
 describe('the Planned cell’s states', () => {
@@ -72,35 +76,37 @@ describe('the Planned cell’s states', () => {
     expect(cell()).toHaveAccessibleName('Planned')
   })
 
-  it('not planned: `Not planned`, a button opening the menu; no ×', async () => {
+  it('not planned: a date field reading `Not planned`, its calendar; no ×', async () => {
     const { cell } = await openStored()
     expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'none')
-    expect(within(cell()).getByRole('button', { name: 'Planned: not planned' })).toHaveTextContent('Not planned')
+    expect(words(cell())).toHaveTextContent(/^Not planned$/)
+    expect(field(cell())).toHaveValue('')
+    expect(within(cell()).getByRole('button', { name: 'Pick planned day' })).toBeInTheDocument()
     expect(within(cell()).queryByRole('button', { name: 'Clear plan' })).toBeNull()
     expect(cell().querySelector('[data-planned-flag]')).toBeNull()
     expect(lines(cell()).under).toBeEmptyDOMElement()
   })
 
-  it('held: `Held` over `in Unplanned`, with the corner flag', async () => {
+  it('held: `Unplanned`, muted, with the corner flag and ×', async () => {
     const { cell } = await openStored({ unplanned: true })
     expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'held')
-    expect(within(cell()).getByRole('button', { name: 'Planned: held in Unplanned' })).toHaveTextContent(/^Held$/)
+    expect(words(cell())).toHaveTextContent(/^Unplanned$/)
+    expect(words(cell()).querySelector('[class*="planHeld"]')).not.toBeNull()
+    expect(field(cell())).toHaveValue('')
     expect(cell().querySelector('[data-planned-flag]')).not.toBeNull()
-    expect(within(cell()).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
-    // The state on two lines, as a day's: `Held` and × on the first, where under it.
     expect(within(lines(cell()).first).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
-    expect(lines(cell()).under).toHaveTextContent(/^in Unplanned$/)
+    expect(lines(cell()).under).toBeEmptyDOMElement()
   })
 
-  it('a planned day: the hollow bar and the day in the rows’ words with ×; how far it is under them', async () => {
+  it('a planned day: the hollow bar and the day in the rows’ words with ×; how far it is under the field', async () => {
     const { cell } = await openStored({ doDate: day(3), dueDate: day(4) })
     expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'planned')
-    const value = within(cell()).getByRole('button', { name: 'Planned: Monday, November 23, 2026' })
-    expect(value).toHaveTextContent(/^11\/23$/)
-    expect(value.querySelector('[class*="planBar"]')).not.toBeNull()
+    expect(words(cell())).toHaveTextContent(/^11\/23$/)
+    expect(words(cell()).querySelector('[class*="planBar"]')).not.toBeNull()
+    expect(cell().querySelector('[data-fact-date-field]')).toHaveAttribute('data-tooltip', 'Monday, November 23, 2026')
+    expect(field(cell())).toHaveValue('Mon 23 Nov')
     const { first, under } = lines(cell())
     expect(within(first).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
-    expect(first).toContainElement(value)
     expect(under).toHaveTextContent(/^in 3 days$/)
     expect(under).toHaveAttribute('data-tooltip', 'in 3 days')
   })
@@ -114,11 +120,11 @@ describe('the Planned cell’s states', () => {
     const { cell } = await openStored({ doDate: day(5), dueDate: day(3) })
     expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'late')
     const conflict = within(cell()).getByRole('button', { name: /^2 days after due/ })
-    // Under the day, in place of its words; the day and × on the first line.
+    // Under the field, in place of its words; the day and × in the field.
     const { first, under } = lines(cell())
     expect(under).toContainElement(conflict)
     expect(under).toHaveTextContent(/^2 days after due▾$/)
-    expect(first).toHaveTextContent(/^11\/25/)
+    expect(words(cell())).toHaveTextContent(/^11\/25$/)
     expect(within(first).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
     fireEvent.click(conflict)
     const menu = screen.getByRole('menu', { name: 'Fix the plan' })
@@ -128,63 +134,75 @@ describe('the Planned cell’s states', () => {
   it('missed: a day passed, muted, `N days ago · Delayed`', async () => {
     const { cell } = await openStored({ doDate: day(-3) })
     expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'missed')
-    expect(within(cell()).getByRole('button', { name: /^Planned:/ })).toHaveTextContent(/^11\/17$/)
+    expect(words(cell())).toHaveTextContent(/^11\/17$/)
     expect(lines(cell()).under).toHaveTextContent(/^3 days ago · Delayed$/)
     expect(within(cell()).queryByRole('button', { name: /after due/ })).toBeNull()
   })
 
-  it('a completed task’s plan shows, with nothing to open', async () => {
+  it('a completed task’s plan shows, with nothing to set', async () => {
     const { cell } = await openStored({ doDate: day(2), isCompleted: true })
-    expect(within(cell()).queryByRole('button', { name: /^Planned:/ })).toBeNull()
-    expect(cell()).toHaveTextContent('11/22')
+    expect(within(cell()).queryByRole('textbox')).toBeNull()
+    expect(within(cell()).queryByRole('button')).toBeNull()
+    expect(within(cell()).getByRole('img', { name: 'Planned: Sunday, November 22, 2026' })).toHaveTextContent('11/22')
   })
 })
 
-describe('the Plan for day menu', () => {
-  it('lists the week’s days as today, then Pick a date…, Unplanned and Clear plan', async () => {
-    const { cell } = await openStored({ doDate: day(1), dueDate: day(4) })
-    const menu = openMenu(cell())
-    expect(within(menu).queryByText('Plans it for that day')).toBeNull()
-    expect(within(menu).getAllByRole('menuitemradio').map((m) => m.getAttribute('data-menu-label'))).toEqual([
-      'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26', 'Unplanned',
-    ])
-    expect(within(menu).getByRole('menuitemradio', { name: /^Sat, Nov 21/ })).toHaveAttribute('aria-checked', 'true')
-    expect(within(menu).getByRole('menuitemradio', { name: /^Tue, Nov 24/ })).toHaveTextContent('due')
-    expect(within(menu).getAllByRole('menuitem').map((m) => m.getAttribute('data-menu-label'))).toEqual(['Pick a date…', 'Clear plan'])
-  })
-
-  it('a pick plans the day outright — the due day too — with no stamp and one undo step', async () => {
+describe('setting the plan', () => {
+  it('a typed day plans it outright — the due day too — with no stamp and one undo step', async () => {
     const { cell } = await openStored({ dueDate: day(4) })
     const steps = useUndoStore.getState().undoStack.length
-    fireEvent.click(within(openMenu(cell())).getByRole('menuitemradio', { name: /^Tue, Nov 24/ }))
+    type(cell(), 'tue')
+    expect(lines(cell()).under).toHaveTextContent('→ Tue 24 Nov · in 4 days')
+    fireEvent.keyDown(field(cell()), { key: 'Enter' })
+    fireEvent.blur(field(cell()))
     await waitFor(async () => expect((await stored()).doDate).toEqual(day(4)))
     expect(await stored()).toMatchObject({ dueDate: day(4), modifiedAt: STAMP })
     expect(useUndoStore.getState().undoStack).toHaveLength(steps + 1)
     // The cell shows it at once (the task as stored).
-    await waitFor(() => expect(within(cell()).getByRole('button', { name: /^Planned:/ })).toHaveTextContent('11/24'))
+    await waitFor(() => expect(words(cell())).toHaveTextContent('11/24'))
     await act(async () => { await useUndoStore.getState().undo() })
     expect((await stored()).doDate).toBeUndefined()
-    await waitFor(() => expect(within(cell()).getByRole('button', { name: /^Planned:/ })).toHaveTextContent('Not planned'))
+    await waitFor(() => expect(words(cell())).toHaveTextContent('Not planned'))
   })
 
-  it('Pick a date… plans any day from today on', async () => {
+  it('a day before today is refused with a message and never written', async () => {
+    const { cell } = await openStored({ doDate: day(2) })
+    type(cell(), 'yesterday')
+    expect(field(cell())).toHaveAttribute('aria-invalid', 'true')
+    expect(lines(cell()).under).toHaveTextContent('Plan a day from today on')
+    fireEvent.blur(field(cell()))
+    await act(async () => { await Promise.resolve() })
+    expect((await stored()).doDate).toEqual(day(2))
+    expect(field(cell())).toHaveValue('yesterday')
+  })
+
+  it('the calendar opens the browser’s picker from today on; a pick plans that day', async () => {
     const { cell } = await openStored()
-    fireEvent.click(within(openMenu(cell())).getByRole('menuitem', { name: 'Pick a date…' }))
-    const input = document.querySelector<HTMLInputElement>(`[${PICK_DATE_ATTR}]`)!
-    expect(input.min).toBe('2026-11-20')
-    fireEvent.change(input, { target: { value: '2027-01-15' } })
+    fireEvent.click(within(cell()).getByRole('button', { name: 'Pick planned day' }))
+    expect(HTMLInputElement.prototype.showPicker).toHaveBeenCalledTimes(1)
+    expect(picker(cell()).min).toBe('2026-11-20')
+    fireEvent.change(picker(cell()), { target: { value: '2027-01-15' } })
     await waitFor(async () => expect((await stored()).doDate).toEqual(new Date(2027, 0, 15)))
     expect((await stored()).modifiedAt).toEqual(STAMP)
   })
 
-  it('Unplanned holds it; × clears the plan', async () => {
-    const { cell } = await openStored({ dueDate: day(2) })
-    fireEvent.click(within(openMenu(cell())).getByRole('menuitemradio', { name: 'Unplanned' }))
-    await waitFor(async () => expect((await stored()).unplanned).toBe(true))
+  it('× clears a planned day, and a held task’s Unplanned too, with no stamp', async () => {
+    const { cell } = await openStored({ doDate: day(2) })
+    fireEvent.click(within(cell()).getByRole('button', { name: 'Clear plan' }))
+    await waitFor(async () => expect((await stored()).doDate).toBeUndefined())
+    await waitFor(() => expect(words(cell())).toHaveTextContent('Not planned'))
+    await act(async () => { await useTodoStore.getState().setPlan([7], 'unplanned') })
     await waitFor(() => expect(cell().querySelector('[data-planned-flag]')).not.toBeNull())
     fireEvent.click(within(cell()).getByRole('button', { name: 'Clear plan' }))
     await waitFor(async () => expect((await stored()).unplanned).toBeUndefined())
     expect((await stored()).modifiedAt).toEqual(STAMP)
+  })
+
+  it('an emptied field clears the plan', async () => {
+    const { cell } = await openStored({ doDate: day(2) })
+    type(cell(), '')
+    fireEvent.blur(field(cell()))
+    await waitFor(async () => expect((await stored()).doDate).toBeUndefined())
   })
 
   it('a fix: Plan for the due day plans it there; Move due date is a real edit', async () => {
@@ -199,43 +217,55 @@ describe('the Plan for day menu', () => {
   it('an open editor shows a plan changed elsewhere', async () => {
     const { cell } = await openStored()
     await act(async () => { await useTodoStore.getState().setPlan([7], { day: day(2) }) })
-    await waitFor(() => expect(within(cell()).getByRole('button', { name: /^Planned:/ })).toHaveTextContent('11/22'))
+    await waitFor(() => expect(words(cell())).toHaveTextContent('11/22'))
+    await waitFor(() => expect(field(cell())).toHaveValue('Sun 22 Nov'))
     await act(async () => { await useTodoStore.getState().setPlan([7], 'unplanned') })
-    await waitFor(() => expect(within(cell()).getByRole('button', { name: /^Planned:/ })).toHaveAccessibleName('Planned: held in Unplanned'))
+    await waitFor(() => expect(words(cell())).toHaveTextContent('Unplanned'))
   })
 })
 
 describe('create mode', () => {
-  it('holds the plan until Create, which writes it with the task', async () => {
-    const onCreate = vi.fn().mockResolvedValue(1)
+  const renderCreate = (onCreate = vi.fn()) => {
     render(
       <TaskEditPopup mode="create" assignedPeople={[]} allPeople={[]} onClose={vi.fn()} onCreate={onCreate} onAssignPerson={vi.fn()} onUnassignPerson={vi.fn()} />,
     )
     const dialog = screen.getByRole('dialog', { name: 'New task' })
-    const cell = dialog.querySelector('[data-fact="planned"]') as HTMLElement
-    fireEvent.click(within(openMenu(cell)).getByRole('menuitemradio', { name: /^Mon, Nov 23/ }))
-    expect(within(cell).getByRole('button', { name: /^Planned:/ })).toHaveTextContent('11/23')
+    return { dialog, cell: dialog.querySelector('[data-fact="planned"]') as HTMLElement }
+  }
+
+  it('holds a typed day until Create, which writes it with the task', async () => {
+    const onCreate = vi.fn().mockResolvedValue(1)
+    const { dialog, cell } = renderCreate(onCreate)
+    type(cell, 'mon')
+    fireEvent.blur(field(cell))
+    expect(words(cell)).toHaveTextContent('11/23')
+    expect(await db.todos.count()).toBe(0)
     fireEvent.change(within(dialog).getByPlaceholderText(/^New task/), { target: { value: 'Book the venue' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create task' }))
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
     expect(onCreate.mock.calls[0]?.[0]).toMatchObject({ title: 'Book the venue', doDate: day(3) })
   })
 
+  it('a pick sets the held plan; × clears it', () => {
+    const { cell } = renderCreate()
+    fireEvent.change(picker(cell), { target: { value: '2026-11-25' } })
+    expect(words(cell)).toHaveTextContent('11/25')
+    fireEvent.click(within(cell).getByRole('button', { name: 'Clear plan' }))
+    expect(words(cell)).toHaveTextContent('Not planned')
+    expect(within(cell).queryByRole('button', { name: 'Clear plan' })).toBeNull()
+  })
+
   it('a Quick Add `/plan` handed to the editor seeds its Planned cell; the title drops the command', () => {
     useUIStore.setState({ quickAddDraft: { rawTitle: 'Book the venue /plan 11/24' } })
-    render(
-      <TaskEditPopup mode="create" assignedPeople={[]} allPeople={[]} onClose={vi.fn()} onCreate={vi.fn()} onAssignPerson={vi.fn()} onUnassignPerson={vi.fn()} />,
-    )
-    const dialog = screen.getByRole('dialog', { name: 'New task' })
+    const { dialog, cell } = renderCreate()
     expect(within(dialog).getByPlaceholderText(/^New task/)).toHaveValue('Book the venue')
-    const cell = dialog.querySelector('[data-fact="planned"]') as HTMLElement
-    expect(within(cell).getByRole('button', { name: /^Planned:/ })).toHaveTextContent('11/24')
+    expect(words(cell)).toHaveTextContent('11/24')
   })
 })
 
 describe('the review card', () => {
-  it('shares the band: Planned after Due, its menu planning the task', async () => {
-    const todo = makeTodo({ id: 7, uid: 'u7', title: 'Vendor contract renewal', modifiedAt: STAMP, dueDate: day(4) })
+  const renderCard = async (over: Partial<PersistedTodoItem> = {}) => {
+    const todo = makeTodo({ id: 7, uid: 'u7', title: 'Vendor contract renewal', modifiedAt: STAMP, dueDate: day(4), ...over })
     await db.todos.add(todo)
     useTodoStore.setState({ todos: [todo] })
     useStatusUpdateStore.setState({ byTodo: new Map(), loaded: true })
@@ -244,36 +274,42 @@ describe('the review card', () => {
         <ReviewCard todo={todo} />
       </ReviewSessionContext.Provider>,
     )
-    const card = document.querySelector('[data-review-card]') as HTMLElement
+    return document.querySelector('[data-review-card]') as HTMLElement
+  }
+
+  it('shares the band: Planned after Due, a typed day planning the task', async () => {
+    const card = await renderCard()
     const facts = Array.from(card.querySelectorAll('[data-task-facts] [data-fact]')).map((f) => f.getAttribute('data-fact'))
     expect(facts.slice(-2)).toEqual(['due', 'planned'])
     const cell = card.querySelector('[data-fact="planned"]') as HTMLElement
-    fireEvent.click(within(openMenu(cell)).getByRole('menuitemradio', { name: /^Tue, Nov 24/ }))
+    type(cell, 'tue')
+    fireEvent.blur(field(cell))
     await waitFor(async () => expect((await stored()).doDate).toEqual(day(4)))
     expect((await stored()).modifiedAt).toEqual(STAMP)
   })
 
-  it('shares the Due cell: its date opens the popover, whose repeat writes the task, one undo step', async () => {
-    const todo = makeTodo({ id: 7, uid: 'u7', title: 'Vendor contract renewal', modifiedAt: STAMP, dueDate: day(4) })
-    await db.todos.add(todo)
-    useTodoStore.setState({ todos: [todo] })
-    useStatusUpdateStore.setState({ byTodo: new Map(), loaded: true })
-    render(
-      <ReviewSessionContext.Provider value={createReviewSession({ ids: [7], order: [7] })}>
-        <ReviewCard todo={todo} />
-      </ReviewSessionContext.Provider>,
-    )
-    const card = document.querySelector('[data-review-card]') as HTMLElement
+  it('shares the Due field: its ↻ opens the repeat popover, whose repeat writes the task, one undo step', async () => {
+    const card = await renderCard()
     const due = card.querySelector('[data-fact="due"]') as HTMLElement
     expect(due.querySelector('[data-date-under]')).toHaveTextContent('in 4 days')
     expect(due.querySelector('[data-repeat-field]')).toBeNull()
     const steps = useUndoStore.getState().undoStack.length
-    fireEvent.click(within(due).getByRole('button', { name: /^Due date:/ }))
-    const repeat = within(screen.getByRole('dialog', { name: 'Due date' })).getByRole('textbox', { name: 'Repeat every' })
+    fireEvent.click(within(due).getByRole('button', { name: 'Repeat' }))
+    const repeat = within(screen.getByRole('dialog', { name: 'Repeat' })).getByRole('textbox', { name: 'Repeat every' })
     fireEvent.change(repeat, { target: { value: '1w' } })
     fireEvent.keyDown(repeat, { key: 'Enter' })
     await waitFor(async () => expect((await stored()).recurrenceRule?.every).toEqual({ count: 1, unit: 'w' }))
     expect(useUndoStore.getState().undoStack.length).toBe(steps + 1)
-    expect(document.querySelector('[data-due-popover]')).toBeNull()
+    expect(document.querySelector('[data-repeat-popover]')).toBeNull()
+  })
+
+  it('shares the Due field: a typed date is written to the task', async () => {
+    const card = await renderCard()
+    const due = card.querySelector('[data-fact="due"]') as HTMLElement
+    const input = within(due).getByRole('textbox', { name: 'Due date' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '11/30' } })
+    fireEvent.blur(input)
+    await waitFor(async () => expect((await stored()).dueDate).toEqual(new Date(2026, 10, 30)))
   })
 })
