@@ -41,8 +41,8 @@ interface PlannedFactsProps {
  * value and × on the first, its words under it. Its states:
  *
  * - not planned — `Not planned`, muted;
- * - held — `Held in Unplanned`, with the Planner's corner flag at the
- *   cell's top-left;
+ * - held — `Held` over `in Unplanned`, with the Planner's corner flag at
+ *   the cell's top-left;
  * - a planned day — the hollow bar (the Planner's plan mark) and the day
  *   in the rows' words, how far it is under them, muted (`tomorrow`);
  *   planned after a real date, `1 day after due ▾` under them in the
@@ -71,9 +71,9 @@ function PlannedFacts({ task, menu, onFix, onClear }: PlannedFactsProps) {
       <span className={styles.planBar} aria-hidden="true" />
       <span className={styles.planDay}>{words.words}</span>
     </>
-  ) : held ? <span className={styles.planHeld}>Held in Unplanned</span> : <span className={styles.dateEmpty}>Not planned</span>
-  // Under the day: how far it is (a missed day's with Delayed); none with the fixes there instead.
-  const under = !words ? undefined
+  ) : held ? <span className={styles.planHeld}>Held</span> : <span className={styles.dateEmpty}>Not planned</span>
+  // Under the day: how far it is (a missed day's with Delayed); none with the fixes there instead. Held: where.
+  const under = held ? 'in Unplanned' : !words ? undefined
     : missed ? [words.relative, 'Delayed'].filter(Boolean).join(' · ')
       : conflicts.length === 0 ? words.relative : undefined
   const name = planned && words ? `Planned: ${words.full}` : held ? 'Planned: held in Unplanned' : 'Planned: not planned'

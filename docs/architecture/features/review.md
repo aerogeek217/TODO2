@@ -117,7 +117,7 @@ The cells, in order:
 Planned's states:
 
 - not planned: `Not planned`, muted, on the first line;
-- held: `Held in Unplanned` on the first line, with the Planner's corner flag at the cell's top-left;
+- held: `Held` over `in Unplanned`, with the Planner's corner flag at the cell's top-left;
 - a planned day: the hollow bar and the day in the rows' words, how far it is under them, muted (`tomorrow`);
 - after a real date: `1 day after due ▾` (or `… after follow-up`) under the day in the deadline color, opening [the Planner's fixes](planner.md#a-conflicts-fix);
 - missed (a day passed): muted, `3 days ago · Delayed` under the day.

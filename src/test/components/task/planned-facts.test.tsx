@@ -81,15 +81,15 @@ describe('the Planned cell’s states', () => {
     expect(lines(cell()).under).toBeEmptyDOMElement()
   })
 
-  it('held: `Held in Unplanned` with the corner flag', async () => {
+  it('held: `Held` over `in Unplanned`, with the corner flag', async () => {
     const { cell } = await openStored({ unplanned: true })
     expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'held')
-    expect(within(cell()).getByRole('button', { name: 'Planned: held in Unplanned' })).toHaveTextContent('Held in Unplanned')
+    expect(within(cell()).getByRole('button', { name: 'Planned: held in Unplanned' })).toHaveTextContent(/^Held$/)
     expect(cell().querySelector('[data-planned-flag]')).not.toBeNull()
     expect(within(cell()).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
-    // The state on the first line, with ×; nothing under it.
-    expect(lines(cell()).first).toHaveTextContent('Held in Unplanned')
-    expect(lines(cell()).under).toBeEmptyDOMElement()
+    // The state on two lines, as a day's: `Held` and × on the first, where under it.
+    expect(within(lines(cell()).first).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
+    expect(lines(cell()).under).toHaveTextContent(/^in Unplanned$/)
   })
 
   it('a planned day: the hollow bar and the day in the rows’ words with ×; how far it is under them', async () => {
@@ -201,7 +201,7 @@ describe('the Plan for day menu', () => {
     await act(async () => { await useTodoStore.getState().setPlan([7], { day: day(2) }) })
     await waitFor(() => expect(within(cell()).getByRole('button', { name: /^Planned:/ })).toHaveTextContent('11/22'))
     await act(async () => { await useTodoStore.getState().setPlan([7], 'unplanned') })
-    await waitFor(() => expect(within(cell()).getByRole('button', { name: /^Planned:/ })).toHaveTextContent('Held in Unplanned'))
+    await waitFor(() => expect(within(cell()).getByRole('button', { name: /^Planned:/ })).toHaveAccessibleName('Planned: held in Unplanned'))
   })
 })
 
