@@ -60,31 +60,31 @@
 }
 
 /* Each cell's width is set by the band's width, never by its value (E6): a change to one fact — a
- * date's words, a status, a pill added or removed, the Urgent clock — moves no other cell and never
- * changes where the band wraps. Priority is as wide as its toggles (the Urgent toggle keeping its
- * clock's room); Status a fixed width, its name cut with an ellipsis; People and Tags share what
- * is left of their line, their pills wrapping inside (a pill that needs another line makes its line
- * taller: nothing moves sideways or up); Due room for its widest date (`11/25 · 23 months late` ·
- * ×), the repeat on a line under it; Planned Due's room and, the last cell, a little of what is left
- * of its line — a wrapped line's divider then spans the band. At the editor's 1060px all six share
- * one line. */
+ * date's words, a status, a pill added or removed, the Urgent tint — moves no other cell and never
+ * changes where the band wraps. Priority is as wide as its three toggles (each the same width);
+ * Status at most 120px, its name cut with an ellipsis; People and Tags share what is left of their
+ * line, their pills wrapping inside (a pill that needs another line makes its line taller: nothing
+ * moves sideways or up); Due and Planned 136px at least — the day and × on one line, its words cut
+ * with an ellipsis on the next — and a little of what is left of the line, so a wrapped line's
+ * divider spans the band. At the editor's 920px all six share one line, and a review card keeps
+ * them on one from about 750px. */
 .fact[data-fact='priority'] {
   flex: none;
 }
 
 .fact[data-fact='status'] {
-  flex: 0 1 150px;
+  flex: 0 1 120px;
 }
 
-/* Sharing a line with Due, they take most of what is left (Due needs only its room). */
+/* Sharing a line with Due and Planned, they take most of what is left (the dates need only their room). */
 .fact[data-fact='people'],
 .fact[data-fact='tags'] {
-  flex: 4 1 120px;
+  flex: 4 1 100px;
 }
 
 .fact[data-fact='due'],
 .fact[data-fact='planned'] {
-  flex: 1 0 196px;
+  flex: 1 0 136px;
 }
 
 /* Planned holds the held state's corner flag. */
@@ -317,26 +317,28 @@
 
 /* ── Priority ── */
 
+/* The three toggles on one line, 4px apart. */
 .markerRow {
   display: flex;
-  flex-wrap: wrap;
   gap: 4px;
 }
 
+/* A toggle: the marker's mark alone (14px), 26 × 24px — every toggle the same width. */
 .markerToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
   height: 24px;
-  padding: 0 8px;
+  padding: 0;
   border: none;
   border-radius: 6px;
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--color-tint-8);
   color: var(--color-text-muted);
   font-family: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+  font-size: 14px;
+  line-height: 1;
   cursor: pointer;
   transition: background var(--transition-medium), color var(--transition-medium);
 }
@@ -348,6 +350,11 @@
 
 .markerToggle:focus-visible {
   box-shadow: inset 0 0 0 1px var(--color-tint-8), var(--focus-ring);
+}
+
+/* Urgent by its due date while unflagged: the mark in the urgent colour, the toggle not pressed. */
+.markerToggle[data-urgent='date'][aria-pressed='false'] {
+  color: var(--color-marker-urgent);
 }
 
 /* On: the priority's own color on its own tint (the marker tokens: a priority
@@ -372,37 +379,6 @@
 
 .markerToggle[aria-pressed='true']:focus-visible {
   box-shadow: var(--focus-ring);
-}
-
-/* The Urgent toggle: its face (the label, the clock while urgent by its due date) centred over a
- * hidden sizer as wide as the label and the clock, so the toggle's width never changes. */
-.markerToggle[data-marker='urgent'] {
-  display: inline-grid;
-  justify-items: center;
-}
-
-.markerFace,
-.markerSizer {
-  grid-area: 1 / 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.markerSizer {
-  visibility: hidden;
-}
-
-/* The label as generated text: not the toggle's text or name. */
-.markerSizer::before {
-  content: attr(data-label);
-}
-
-/* Urgent by due date while unflagged: a faint clock after the label. */
-.markerHint {
-  display: inline-flex;
-  color: var(--color-marker-urgent);
-  opacity: 0.6;
 }
 
 /* ── Status ── */
@@ -572,15 +548,8 @@
 
 /* ── Planned ── */
 
-/* The value (a button opening Plan for day), a plan's conflict, then × — at the date's height. */
-.planLine {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-  height: 26px;
-}
-
+/* The value (a button opening Plan for day) and × on the first line (`.dateLine`); under it its words
+ * or a plan's conflict (`.dateUnder`). */
 .planValue {
   display: inline-flex;
   align-items: center;
@@ -626,21 +595,22 @@ button.planValue[aria-expanded='true'] {
 }
 
 /* Missed (a day passed): muted, as the Planner's Delayed. */
-.planLine[data-planned-state='missed'] .planBar {
+.dateValue[data-planned-state='missed'] .planBar {
   opacity: 0.6;
 }
 
-.planLine[data-planned-state='missed'] .planDay {
+.dateValue[data-planned-state='missed'] .planDay {
   color: var(--color-text-secondary);
 }
 
-/* A plan after a real date: the conflict in the deadline color, opening the fixes. */
+/* A plan after a real date: the conflict in the deadline color, under the day, opening the fixes. */
 .planConflict {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 22px;
-  margin-right: 2px;
+  max-width: 100%;
+  height: 18px;
+  margin: -1px 0 -1px -6px;
   padding: 0 6px;
   border: none;
   border-radius: 5px;
@@ -673,71 +643,198 @@ button.planValue[aria-expanded='true'] {
   pointer-events: none;
 }
 
-/* ── Due ── */
+/* ── Due and Planned: two short lines ── */
 
-/* The date, then the repeat under it — its field's line and its read-back's. The repeat's lines are
- * kept while there is no date (and so no repeat), so setting or clearing the date never changes the
- * band's height. */
-.dueLine {
+/* The day and × on the first line, its words under it, 3px apart. Both lines are always there, so
+ * setting or clearing a date never changes the band's height. */
+.dateValue {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dateLine {
+  display: flex;
+  align-items: center;
   gap: 2px;
   min-width: 0;
-  min-height: calc(26px + 2px + 24px + 2px + 16px);
+  height: 26px;
+}
+
+/* Due's date: a button (its words, or `Set a date`) opening the date popover. */
+.dateButton {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  height: 26px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-task);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dateButton:hover,
+.dateButton[aria-expanded='true'] {
+  background: var(--color-tint-6);
+}
+
+/* A repeating due date: the rows' repeat glyph after the day, its rule in its name and tooltip. */
+.dateRepeat {
+  display: inline-flex;
+  flex: none;
+  margin: 0 2px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* The words under the day (`in 2 days`, `3 days late`, `tomorrow`): muted, one line, cut with an
+ * ellipsis (whole in its tooltip). */
+.dateUnder {
+  display: flex;
+  min-width: 0;
+  height: 16px;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-muted);
+}
+
+span.dateUnder {
+  display: block;
+}
+
+/* The date popover (`DueFacts`): Date, Repeat every, Clear due date — on the dropdowns' glass. */
+.duePopover {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 272px;
+  padding: 12px;
+  box-sizing: border-box;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-dropdown);
+}
+
+.duePopRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.duePopLabel {
+  flex: none;
+  width: 48px;
+  color: var(--color-text-muted);
+}
+
+/* The date input: its calendar button opens the browser's picker. */
+.duePopDate {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.duePopDate:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
+}
+
+.duePopFoot {
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.duePopClear {
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.duePopClear:hover {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
 }
 
 /* The repeat (schema v84, board R1): `Repeat every [2w]`, then its read-back `Every 2 weeks · next
- * Mon, Dec 7` on a line of its own — one line, cut with an ellipsis in a narrow cell (its tooltip
- * the whole), so the band's height never changes with it. A text that doesn't read: its hint there
- * instead, wrapping (the one time the cell may grow, until the text is fixed or Esc puts it back). */
+ * Mon, Dec 7` under the field, cut with an ellipsis (its tooltip the whole). A text that doesn't
+ * read: its hint there instead, wrapping. */
 .repeat {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  align-self: stretch;
+  gap: 4px;
   min-width: 0;
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
-.repeatLine {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-}
-
-.repeatLine > svg {
+.repeatEvery {
   flex: none;
-}
-
-.repeatLabel {
-  white-space: nowrap;
+  color: var(--color-text-secondary);
 }
 
 .repeatInput {
-  width: 40px;
-  height: 22px;
+  width: 56px;
+  height: 30px;
   box-sizing: border-box;
-  padding: 0 6px;
+  padding: 0 8px;
   border: none;
-  border-radius: 5px;
-  background: var(--color-tint-6);
+  border-radius: 6px;
+  background: var(--color-inset);
   box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text-primary);
   font-family: inherit;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   font-variant-numeric: tabular-nums;
+}
+
+.repeatInput:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
 }
 
 .repeatInput[aria-invalid='true'] {
   box-shadow: inset 0 0 0 1px var(--color-danger);
 }
 
+.repeatReadBack,
+.repeatError {
+  padding-left: 56px;
+  line-height: 16px;
+}
+
 .repeatReadBack {
   overflow: hidden;
-  line-height: 16px;
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--color-text-secondary);
@@ -749,7 +846,6 @@ button.planValue[aria-expanded='true'] {
 }
 
 .repeatError {
-  line-height: 16px;
   color: var(--color-danger);
 }
 

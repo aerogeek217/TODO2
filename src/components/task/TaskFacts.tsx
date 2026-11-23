@@ -4,7 +4,7 @@ import { useToday } from '../../hooks/use-today'
 import { useSettingsStore } from '../../stores/settings-store'
 import { factDateWords, type FactDateKind } from '../../utils/fact-dates'
 import type { UrgentMark } from '../../utils/urgency'
-import { UrgentClockIcon } from '../shared/MarkerIcons'
+import { FocusIcon, ImportantIcon, UrgentIcon } from '../shared/MarkerIcons'
 import { StatusMark } from '../shared/StatusMark'
 import { useTooltip } from '../shared/use-tooltip'
 import { StatusMenuPopover } from './StatusMenuPopover'
@@ -112,7 +112,7 @@ interface PriorityFactsProps {
   focusOn: boolean
   urgentOn: boolean
   importantOn: boolean
-  /** `urgentMark`: `date` while urgent by its due date only (the faint clock after the label). */
+  /** `urgentMark`: `date` while urgent by its due date only (the Urgent mark tinted, not pressed). */
   urgentState: UrgentMark
   /** The due date's hint for the Urgent tooltip (`urgentToggleHint`). */
   urgentHint: string
@@ -123,11 +123,13 @@ interface PriorityFactsProps {
 
 /**
  * Priority, first in the band: the marker toggles in display order (Focus ›
- * Urgent › Important) — off muted in a hairline, on the marker's colour on
- * its tint. The Urgent toggle shows and flips the flag only; a due date that
- * makes the task urgent anyway is a hint (the clock after the label, the
- * tooltip) — the toggle keeps the clock's room either way, so the cell's
- * width never changes. What the callbacks write is the host's.
+ * Urgent › Important), each the app's own mark alone (26 × 24px; the name in
+ * its accessible name and its tooltip) — off muted in a hairline, on the
+ * marker's colour on its tint; Important's star filled when on. The Urgent
+ * toggle shows and flips the flag only; a due date that makes the task urgent
+ * anyway tints its mark in the urgent colour, unpressed, the hint in the
+ * tooltip. Every toggle is the same width, so the cell's width never changes.
+ * What the callbacks write is the host's.
  */
 export function PriorityFacts({
   focusOn, urgentOn, importantOn, urgentState, urgentHint,
@@ -139,45 +141,42 @@ export function PriorityFacts({
         <MarkerToggle
           pressed={focusOn}
           marker="focus"
+          name="Focus"
           onClick={onToggleFocus}
           tooltip={focusOn ? 'Remove from Focus' : 'Add to Focus'}
         >
-          Focus
+          <FocusIcon />
         </MarkerToggle>
         <MarkerToggle
           pressed={urgentOn}
           marker="urgent"
+          name="Urgent"
           onClick={onToggleUrgent}
           tooltip={`${urgentOn ? 'Remove urgent' : 'Mark urgent'}${urgentHint ? `\n${urgentHint}` : ''}`}
           data-urgent={urgentState ?? undefined}
         >
-          {/* The toggle is always as wide as with its clock (the sizer under the face, hidden), so the
-              clock coming and going with the due date moves nothing after it (E6). */}
-          <span className={styles.markerFace}>
-            Urgent
-            {urgentState === 'date' && (
-              <span className={styles.markerHint} data-urgent-hint=""><UrgentClockIcon /></span>
-            )}
-          </span>
-          <span className={styles.markerSizer} data-label="Urgent" aria-hidden="true"><UrgentClockIcon /></span>
+          <UrgentIcon />
         </MarkerToggle>
         <MarkerToggle
           pressed={importantOn}
           marker="important"
+          name="Important"
           onClick={onToggleImportant}
           tooltip={importantOn ? 'Remove important' : 'Mark important'}
         >
-          Important
+          <ImportantIcon outline={!importantOn} />
         </MarkerToggle>
       </div>
     </FactSection>
   )
 }
 
-/** A marker toggle (Focus / Urgent / Important) with its tooltip. */
-function MarkerToggle({ pressed, marker, onClick, tooltip, children, ...rest }: {
+/** A marker toggle (Focus / Urgent / Important): its mark, named `name`, with its tooltip. */
+function MarkerToggle({ pressed, marker, name, onClick, tooltip, children, ...rest }: {
   pressed: boolean
   marker: 'focus' | 'urgent' | 'important'
+  /** The accessible name (the mark is decorative). */
+  name: string
   onClick: () => void
   tooltip: string
   children: ReactNode
@@ -189,6 +188,7 @@ function MarkerToggle({ pressed, marker, onClick, tooltip, children, ...rest }: 
       type="button"
       className={styles.markerToggle}
       data-marker={marker}
+      aria-label={name}
       aria-pressed={pressed}
       onClick={onClick}
       {...rest}

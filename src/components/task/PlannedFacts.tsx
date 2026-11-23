@@ -37,16 +37,18 @@ interface PlannedFactsProps {
  * **Planned**, the fact band's last cell (after Due; task layout B — the
  * task editor and the review card alike): the task's plan state
  * (`doDate` / `unplanned`). Its value is a button opening the **Plan for
- * day** menu (`menu`); × clears the plan. Its states:
+ * day** menu (`menu`); × clears the plan. On two short lines, as Due: the
+ * value and × on the first, its words under it. Its states:
  *
  * - not planned — `Not planned`, muted;
  * - held — `Held in Unplanned`, with the Planner's corner flag at the
  *   cell's top-left;
- * - a planned day — the hollow bar (the Planner's plan mark), the day in
- *   the rows' words and how far it is, muted (`11/23 tomorrow`); planned
- *   after a real date, `1 day after due` beside it in the deadline color,
- *   a button opening the Planner's fixes (`plannerFixLabel`); a day
- *   passed (**missed**) — muted, `3 days ago · Delayed`.
+ * - a planned day — the hollow bar (the Planner's plan mark) and the day
+ *   in the rows' words, how far it is under them, muted (`tomorrow`);
+ *   planned after a real date, `1 day after due ▾` under them in the
+ *   deadline color, a button opening the Planner's fixes
+ *   (`plannerFixLabel`); a day passed (**missed**) — muted, `3 days ago ·
+ *   Delayed` under the day.
  */
 function PlannedFacts({ task, menu, onFix, onClear }: PlannedFactsProps) {
   const today = useToday()
@@ -68,48 +70,55 @@ function PlannedFacts({ task, menu, onFix, onClear }: PlannedFactsProps) {
     <>
       <span className={styles.planBar} aria-hidden="true" />
       <span className={styles.planDay}>{words.words}</span>
-      {missed
-        ? <span className={styles.dateRelative}>{[words.relative, 'Delayed'].filter(Boolean).join(' · ')}</span>
-        : conflicts.length === 0 && words.relative && <span className={styles.dateRelative}>{words.relative}</span>}
     </>
   ) : held ? <span className={styles.planHeld}>Held in Unplanned</span> : <span className={styles.dateEmpty}>Not planned</span>
+  // Under the day: how far it is (a missed day's with Delayed); none with the fixes there instead.
+  const under = !words ? undefined
+    : missed ? [words.relative, 'Delayed'].filter(Boolean).join(' · ')
+      : conflicts.length === 0 ? words.relative : undefined
   const name = planned && words ? `Planned: ${words.full}` : held ? 'Planned: held in Unplanned' : 'Planned: not planned'
 
   return (
     <FactSection fact="planned">
       {held && <span className={styles.planFlag} data-planned-flag="" aria-hidden="true" />}
-      <div className={styles.planLine} data-planned-state={state}>
-        {menu ? (
-          <button
-            ref={valueRef}
-            type="button"
-            className={styles.planValue}
-            aria-label={name}
-            aria-haspopup="menu"
-            aria-expanded={open === 'menu'}
-            data-tooltip={planned && words ? `Planned for ${words.full}` : 'Plan for day'}
-            onClick={() => setOpen((v) => (v === 'menu' ? null : 'menu'))}
-          >
-            {face}
-          </button>
+      <div className={styles.dateValue} data-planned-state={state}>
+        <div className={styles.dateLine}>
+          {menu ? (
+            <button
+              ref={valueRef}
+              type="button"
+              className={styles.planValue}
+              aria-label={name}
+              aria-haspopup="menu"
+              aria-expanded={open === 'menu'}
+              data-tooltip={planned && words ? `Planned for ${words.full}` : 'Plan for day'}
+              onClick={() => setOpen((v) => (v === 'menu' ? null : 'menu'))}
+            >
+              {face}
+            </button>
+          ) : (
+            <span className={styles.planValue} aria-label={name}>{face}</span>
+          )}
+          {menu && (planned || held) && <RemoveButton size={20} label="Clear plan" tooltip onClick={onClear} />}
+        </div>
+        {conflicts.length > 0 && conflicts[0] ? (
+          <div className={styles.dateUnder}>
+            <button
+              ref={fixRef}
+              type="button"
+              className={styles.planConflict}
+              aria-haspopup="menu"
+              aria-expanded={open === 'fixes'}
+              data-tooltip="Fix the plan"
+              onClick={() => setOpen((v) => (v === 'fixes' ? null : 'fixes'))}
+            >
+              {plannerConflictLabel(conflicts[0])}
+              <span className={styles.statusCaret} aria-hidden="true">&#x25BE;</span>
+            </button>
+          </div>
         ) : (
-          <span className={styles.planValue} aria-label={name}>{face}</span>
+          <span className={styles.dateUnder} data-date-under="" data-tooltip={under}>{under}</span>
         )}
-        {conflicts.length > 0 && conflicts[0] && (
-          <button
-            ref={fixRef}
-            type="button"
-            className={styles.planConflict}
-            aria-haspopup="menu"
-            aria-expanded={open === 'fixes'}
-            data-tooltip="Fix the plan"
-            onClick={() => setOpen((v) => (v === 'fixes' ? null : 'fixes'))}
-          >
-            {plannerConflictLabel(conflicts[0])}
-            <span className={styles.statusCaret} aria-hidden="true">&#x25BE;</span>
-          </button>
-        )}
-        {menu && (planned || held) && <RemoveButton size={20} label="Clear plan" tooltip onClick={onClear} />}
       </div>
       {open === 'menu' && menu && (
         <MenuPopover anchorRef={valueRef} entries={menu} label="Plan for day" width={236} focusChecked onClose={close} />

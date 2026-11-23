@@ -4,9 +4,8 @@ import { ChipSelector } from '../shared/ChipSelector'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
-import { DeadlinePicker } from '../shared/DeadlinePicker'
 import { PlusIcon } from '../shared/icons'
-import { RepeatField } from './RepeatField'
+import { DueFacts } from './DueFacts'
 import { RemoveButton } from '../shared/RemoveButton'
 import { byName } from '../../utils/sort-order'
 import { FactSection } from './TaskFacts'
@@ -20,7 +19,7 @@ interface TaskEditMetadataProps {
   /** The repeat (schema v84); null for none. */
   repeat: Interval | null
   onDeadlineChange: (next: Date | null) => void
-  /** A new repeat typed (`RepeatField`: only when it changed; null removes it). */
+  /** A new repeat typed (the date popover's `RepeatField`: only when it changed; null removes it). */
   onRepeatChange: (every: Interval | null) => void
   /** The due date's state, as its row colours it (`row-date-state.dueState`). */
   dueTone?: 'past' | 'soon'
@@ -48,10 +47,10 @@ interface TaskEditMetadataProps {
  * `AnchoredPicker` under the cell's pills (flipped above near the bottom,
  * clamped inside the viewport); a press outside closes it — not one in a
  * layer stacked above (a person's / tag's menu or the dialog it opened), and
- * not one on the pills, whose own toggle runs. Due: the date in the rows'
- * words (its tooltip the full date), a click opens the date picker, ×
- * clears it; its repeat under it, typed (`RepeatField`: `Repeat every [2w]`).
- * Then the host's Planned cell (`planned`), the band's last.
+ * not one on the pills, whose own toggle runs. Due: `DueFacts` — the date
+ * and how far it is on two lines, the repeat glyph, ×; the date opens its
+ * popover (the date, `Repeat every [2w]`, Clear due date). Then the host's
+ * Planned cell (`planned`), the band's last.
  */
 export function TaskEditMetadata({
   deadline, repeat, dueTone,
@@ -146,14 +145,13 @@ export function TaskEditMetadata({
         </div>
       </FactSection>
 
-      <FactSection fact="due">
-        <div className={styles.dueLine}>
-          <DeadlinePicker value={deadline} onChange={onDeadlineChange} tone={dueTone} />
-          {deadline && (
-            <RepeatField value={repeat} due={deadline} onChange={onRepeatChange} />
-          )}
-        </div>
-      </FactSection>
+      <DueFacts
+        deadline={deadline}
+        repeat={repeat}
+        tone={dueTone}
+        onDeadlineChange={onDeadlineChange}
+        onRepeatChange={onRepeatChange}
+      />
 
       {planned}
     </>

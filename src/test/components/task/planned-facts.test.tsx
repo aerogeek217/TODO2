@@ -54,6 +54,11 @@ async function openStored(over: Partial<PersistedTodoItem> = {}) {
 }
 
 const stored = async () => (await db.todos.get(7))!
+/** The cell's two lines: the first (the value, ×) and the words under it. */
+const lines = (cell: HTMLElement) => {
+  const value = cell.querySelector('[data-planned-state]') as HTMLElement
+  return { first: value.firstElementChild as HTMLElement, under: value.lastElementChild as HTMLElement }
+}
 const openMenu = (cell: HTMLElement) => {
   fireEvent.click(within(cell).getByRole('button', { name: /^Planned:/ }))
   return screen.getByRole('menu', { name: 'Plan for day' })
@@ -73,6 +78,7 @@ describe('the Planned cell’s states', () => {
     expect(within(cell()).getByRole('button', { name: 'Planned: not planned' })).toHaveTextContent('Not planned')
     expect(within(cell()).queryByRole('button', { name: 'Clear plan' })).toBeNull()
     expect(cell().querySelector('[data-planned-flag]')).toBeNull()
+    expect(lines(cell()).under).toBeEmptyDOMElement()
   })
 
   it('held: `Held in Unplanned` with the corner flag', async () => {
@@ -81,21 +87,39 @@ describe('the Planned cell’s states', () => {
     expect(within(cell()).getByRole('button', { name: 'Planned: held in Unplanned' })).toHaveTextContent('Held in Unplanned')
     expect(cell().querySelector('[data-planned-flag]')).not.toBeNull()
     expect(within(cell()).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
+    // The state on the first line, with ×; nothing under it.
+    expect(lines(cell()).first).toHaveTextContent('Held in Unplanned')
+    expect(lines(cell()).under).toBeEmptyDOMElement()
   })
 
-  it('a planned day: the hollow bar, the day in the rows’ words and how far it is', async () => {
+  it('a planned day: the hollow bar and the day in the rows’ words with ×; how far it is under them', async () => {
     const { cell } = await openStored({ doDate: day(3), dueDate: day(4) })
     expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'planned')
     const value = within(cell()).getByRole('button', { name: 'Planned: Monday, November 23, 2026' })
-    expect(value).toHaveTextContent('11/23in 3 days')
+    expect(value).toHaveTextContent(/^11\/23$/)
     expect(value.querySelector('[class*="planBar"]')).not.toBeNull()
-    expect(within(cell()).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
+    const { first, under } = lines(cell())
+    expect(within(first).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
+    expect(first).toContainElement(value)
+    expect(under).toHaveTextContent(/^in 3 days$/)
+    expect(under).toHaveAttribute('data-tooltip', 'in 3 days')
+  })
+
+  it('tomorrow: its words under the day', async () => {
+    const { cell } = await openStored({ doDate: day(1) })
+    expect(lines(cell()).under).toHaveTextContent(/^tomorrow$/)
   })
 
   it('after a real date: `N days after due` in the deadline color, opening the fixes', async () => {
     const { cell } = await openStored({ doDate: day(5), dueDate: day(3) })
     expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'late')
     const conflict = within(cell()).getByRole('button', { name: /^2 days after due/ })
+    // Under the day, in place of its words; the day and × on the first line.
+    const { first, under } = lines(cell())
+    expect(under).toContainElement(conflict)
+    expect(under).toHaveTextContent(/^2 days after due▾$/)
+    expect(first).toHaveTextContent(/^11\/25/)
+    expect(within(first).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
     fireEvent.click(conflict)
     const menu = screen.getByRole('menu', { name: 'Fix the plan' })
     expect(within(menu).getAllByRole('menuitem').map((m) => m.getAttribute('data-menu-label'))).toEqual(['Move due date to Wed, Nov 25', 'Plan for Mon, Nov 23'])
@@ -104,7 +128,8 @@ describe('the Planned cell’s states', () => {
   it('missed: a day passed, muted, `N days ago · Delayed`', async () => {
     const { cell } = await openStored({ doDate: day(-3) })
     expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'missed')
-    expect(within(cell()).getByRole('button', { name: /^Planned:/ })).toHaveTextContent('11/173 days ago · Delayed')
+    expect(within(cell()).getByRole('button', { name: /^Planned:/ })).toHaveTextContent(/^11\/17$/)
+    expect(lines(cell()).under).toHaveTextContent(/^3 days ago · Delayed$/)
     expect(within(cell()).queryByRole('button', { name: /after due/ })).toBeNull()
   })
 
@@ -226,5 +251,29 @@ describe('the review card', () => {
     fireEvent.click(within(openMenu(cell)).getByRole('menuitemradio', { name: /^Tue, Nov 24/ }))
     await waitFor(async () => expect((await stored()).doDate).toEqual(day(4)))
     expect((await stored()).modifiedAt).toEqual(STAMP)
+  })
+
+  it('shares the Due cell: its date opens the popover, whose repeat writes the task, one undo step', async () => {
+    const todo = makeTodo({ id: 7, uid: 'u7', title: 'Vendor contract renewal', modifiedAt: STAMP, dueDate: day(4) })
+    await db.todos.add(todo)
+    useTodoStore.setState({ todos: [todo] })
+    useStatusUpdateStore.setState({ byTodo: new Map(), loaded: true })
+    render(
+      <ReviewSessionContext.Provider value={createReviewSession({ ids: [7], order: [7] })}>
+        <ReviewCard todo={todo} />
+      </ReviewSessionContext.Provider>,
+    )
+    const card = document.querySelector('[data-review-card]') as HTMLElement
+    const due = card.querySelector('[data-fact="due"]') as HTMLElement
+    expect(due.querySelector('[data-date-under]')).toHaveTextContent('in 4 days')
+    expect(due.querySelector('[data-repeat-field]')).toBeNull()
+    const steps = useUndoStore.getState().undoStack.length
+    fireEvent.click(within(due).getByRole('button', { name: /^Due date:/ }))
+    const repeat = within(screen.getByRole('dialog', { name: 'Due date' })).getByRole('textbox', { name: 'Repeat every' })
+    fireEvent.change(repeat, { target: { value: '1w' } })
+    fireEvent.keyDown(repeat, { key: 'Enter' })
+    await waitFor(async () => expect((await stored()).recurrenceRule?.every).toEqual({ count: 1, unit: 'w' }))
+    expect(useUndoStore.getState().undoStack.length).toBe(steps + 1)
+    expect(document.querySelector('[data-due-popover]')).toBeNull()
   })
 })

@@ -1,35 +1,43 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Interval } from '../../models'
+import { ESCAPE_OWN_ATTR } from '../../hooks/use-popover-anchor'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import { formatInterval, INTERVAL_HINT, intervalsEqual, parseInterval } from '../../utils/interval'
 import { makeRecurrenceRule, repeatReadBack } from '../../utils/recurrence'
-import { RepeatIcon } from '../shared/icons'
 import styles from './TaskDetails.module.css'
 
 /** Where the read-back's next date starts (`repeatReadBack`). */
 const NEXT = ' · next '
 
 /**
- * The Due cell's repeat (the task editor's and the review card's; schema
- * v84): `Repeat every [2w]`, typed in the app's one interval grammar
- * (`utils/interval`: a number and d, w, m or y), read back after it —
- * `Every 2 weeks · next Mon, Dec 7` (the next due date completing the task
- * gives), `No repeat` while empty. ⏎ or a blur writes it (`onChange`, one
- * undo step — only when it changed; an empty field removes the repeat); Esc
- * puts the stored text back. A text that doesn't read says how to write one
- * and is never written: it stays in the field, the stored repeat unchanged.
- * While it isn't being typed in it follows the stored repeat (an undo, an
- * edit elsewhere).
+ * The due date's repeat, in the Due cell's date popover (`DueFacts`; the
+ * task editor's and the review card's; schema v84): `Repeat every [2w]`,
+ * typed in the app's one interval grammar (`utils/interval`: a number and d,
+ * w, m or y), read back under it — `Every 2 weeks · next Mon, Dec 7` (the
+ * next due date completing the task gives), `No repeat` while empty. ⏎ or a
+ * blur writes it (`onChange`, one undo step — only when it changed; an empty
+ * field removes the repeat), and so does the popover closing any other way
+ * (the popover rule); ⏎ then closes the popover (`onDone`). Esc puts the
+ * stored text back and keeps the popover open (the field takes it while it
+ * holds typed text); a second Esc closes the popover. A text that doesn't
+ * read says how to write one and is never written: it stays in the field,
+ * the stored repeat unchanged. While it isn't being typed in it follows the
+ * stored repeat (an undo, an edit elsewhere).
  */
-export function RepeatField({ value, due, onChange }: {
+export function RepeatField({ value, due, onChange, onDone }: {
   /** The stored repeat; null for none. */
   value: Interval | null
   /** The due date it repeats from (its read-back's next date). */
   due: Date | null
   onChange: (every: Interval | null) => void
+  /** ⏎ wrote it (or there was nothing to write): the popover closes. */
+  onDone?: () => void
 }) {
   // What is typed; null while not typing — the stored repeat shows.
   const [draft, setDraft] = useState<string | null>(null)
-  const cancelRef = useRef(false)
+  // Typed and not yet written or put back — read synchronously, so a close in the same event as a write
+  // (⏎ writes, then closes the popover) never writes twice.
+  const dirtyRef = useRef(false)
   const hintId = useId()
   const stored = value ? formatInterval(value) : ''
   const text = draft ?? stored
@@ -37,31 +45,32 @@ export function RepeatField({ value, due, onChange }: {
   const unreadable = text.trim() !== '' && typed == null
 
   const commit = () => {
-    if (cancelRef.current) {
-      cancelRef.current = false
-      setDraft(null)
-      return
-    }
     if (draft == null || unreadable) return
+    dirtyRef.current = false
     setDraft(null)
     if (!intervalsEqual(typed, value)) onChange(typed)
   }
-  /** Leaves the field, which commits (its blur); not focused, there is no blur to wait for. */
-  const leave = (el: HTMLInputElement) => {
-    if (el.ownerDocument.activeElement === el) el.blur()
-    else commit()
-  }
+  // The popover closing (a press outside, Esc after a write, the editor closing) writes what was typed.
+  const commitOnCloseRef = useLatestRef(() => {
+    if (!dirtyRef.current || unreadable) return
+    dirtyRef.current = false
+    if (!intervalsEqual(typed, value)) onChange(typed)
+  })
+  useEffect(() => () => commitOnCloseRef.current(), [commitOnCloseRef])
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing) return
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (!unreadable) leave(e.currentTarget)
-    } else if (e.key === 'Escape') {
-      // Puts the stored text back; the editor's own Esc handling (leaving
-      // the field) still runs, and no dialog around it closes.
+      if (unreadable) return
+      commit()
+      onDone?.()
+    } else if (e.key === 'Escape' && draft != null) {
+      // Puts the stored text back; the popover stays open (the field holds the Esc: `ESCAPE_OWN_ATTR`).
       e.preventDefault()
-      cancelRef.current = true
-      leave(e.currentTarget)
+      e.stopPropagation()
+      dirtyRef.current = false
+      setDraft(null)
     }
   }
 
@@ -71,13 +80,13 @@ export function RepeatField({ value, due, onChange }: {
   const readBack = next == null ? words : <>{words}{NEXT}<b>{next}</b></>
   return (
     <div className={styles.repeat} data-repeat-field="">
-      <label className={styles.repeatLine}>
-        <RepeatIcon size={11} />
-        <span className={styles.repeatLabel}>Repeat every</span>
+      <label className={styles.duePopRow}>
+        <span className={styles.duePopLabel}>Repeat</span>
+        <span className={styles.repeatEvery}>every</span>
         <input
           className={styles.repeatInput}
           value={text}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => { dirtyRef.current = true; setDraft(e.target.value) }}
           onBlur={commit}
           onKeyDown={onKeyDown}
           aria-label="Repeat every"
@@ -87,6 +96,7 @@ export function RepeatField({ value, due, onChange }: {
           spellCheck={false}
           autoComplete="off"
           data-testid="repeat-input"
+          {...(draft != null ? { [ESCAPE_OWN_ATTR]: '' } : {})}
         />
       </label>
       {unreadable
