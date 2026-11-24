@@ -23,7 +23,8 @@ History before 2026-11-19 is in the git log.
 ### Changed
 
 - **Expand row and Expand column look alike.** Both are now a bordered button with the same unfold icon — up and down
-  for a collapsed row, left and right for a collapsed column.
+  for a collapsed row, left and right for a collapsed column. The cell menu's Expand row and Expand column show the
+  same icon.
 
 ## 2026-11-23, second deployment
 

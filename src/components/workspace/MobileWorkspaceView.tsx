@@ -22,7 +22,7 @@ import type { ListWidgetResult } from './list/ListWidget'
 import { copyTasks } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
 import { useSettingsStore } from '../../stores/settings-store'
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon, MoreIcon } from '../shared/icons'
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon, MoreIcon, UnfoldIcon } from '../shared/icons'
 import { LayoutGlyph } from '../shared/LayoutGlyph'
 import type { IconValue } from '../../models/icon'
 import { useFilterStore } from '../../stores/filter-store'
@@ -369,7 +369,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
     ...widgetEntries,
     ...(widgetEntries.length > 0 ? [{ kind: 'separator' } as const] : []),
     collapsed
-      ? { kind: 'item', label: `Expand ${rowNoun}`, icon: <ChevronDownIcon size={14} />, onSelect: () => setRowCollapsed(false) }
+      ? { kind: 'item', label: `Expand ${rowNoun}`, icon: <UnfoldIcon axis="rows" />, onSelect: () => setRowCollapsed(false) }
       : { kind: 'item', label: `Collapse ${rowNoun}`, icon: <ChevronUpIcon />, onSelect: () => setRowCollapsed(true) },
   ]
 
