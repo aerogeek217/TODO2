@@ -88,7 +88,7 @@ describe('taskFieldReplay', () => {
 
   it('the last day reads the task as it is now', () => {
     expect(at(13)).toEqual({
-      state: 'open', completed: null, dueDate: hd(20, 0), nextFollowupAt: hd(16, 0), lastFollowupAt: hd(9, 15),
+      state: 'open', completed: null, dueDate: hd(20, 0), nextFollowupAt: hd(16, 0), lastFollowupAt: hd(9, 15), doDate: null,
       statusId: 3, markers: { urgent: true, important: false, focus: true }, personIds: [ANN], tagIds: [OPS],
     })
   })

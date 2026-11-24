@@ -36,12 +36,21 @@ export const NUMBER_HISTORY_DAYS = 14
 /**
  * The event types a filter's history reads (`services/stats/filter-history`,
  * a Number's line): every one that moves a field a filter can test — the
- * trend's (each day's open / done state), the due date, the status and the
- * history log H3's follow-ups, markers, people and tags.
+ * trend's (each day's open / done state), the due date, the status, the
+ * history log H3's follow-ups, markers, people and tags, and the planned day
+ * (read by the week load; a filter's history doesn't replay it yet).
  */
 export const FILTER_HISTORY_EVENT_TYPES: readonly TodoEventType[] = [
-  ...TREND_EVENT_TYPES, 'deadline', 'status', 'followup', 'followedUp', 'marker', 'person', 'tag',
+  ...TREND_EVENT_TYPES, 'deadline', 'status', 'followup', 'followedUp', 'marker', 'person', 'tag', 'planned',
 ]
+
+/** Full weeks before this one the week load reads (its usual week and its first week). */
+export const WEEK_LOAD_PAST_WEEKS = 8
+
+/** The first day the week load needs events from: this week's start, `WEEK_LOAD_PAST_WEEKS` weeks back. */
+function weekLoadEventsStart(today: Date, weekStartsOn: WeekStart): Date {
+  return addDays(weekStartOf(today, weekStartsOn), -7 * WEEK_LOAD_PAST_WEEKS)
+}
 
 /**
  * The first day a Number's history needs events from: its first day's week
@@ -67,14 +76,15 @@ export function trendFieldsWindow(range: TrendRange): TrendFieldsWindow {
 
 /**
  * What the history cache reads (`trend-events-store`): a trend range's
- * window, the same with a filter's fields (`fields-14d`, …), or `history` —
- * a Number's 14 days.
+ * window, the same with a filter's fields (`fields-14d`, …), `history` —
+ * a Number's 14 days — or `week-load` (`services/stats/week-load`).
  */
-export type EventsWindow = TrendRange | TrendFieldsWindow | 'history'
+export type EventsWindow = TrendRange | TrendFieldsWindow | 'history' | 'week-load'
 
 /** The first day and the event types `window` reads. */
 export function eventsWindowRead(window: EventsWindow, today: Date, weekStartsOn: WeekStart): { start: Date; types: readonly TodoEventType[] } {
   if (window === 'history') return { start: historyEventsStart(today, weekStartsOn), types: FILTER_HISTORY_EVENT_TYPES }
+  if (window === 'week-load') return { start: weekLoadEventsStart(today, weekStartsOn), types: FILTER_HISTORY_EVENT_TYPES }
   if (window.startsWith('fields-')) {
     // From its first day's week start, as a Number's: a range from the week's start (`completed this week`) reaches back to it.
     const range = window.slice('fields-'.length) as TrendRange
