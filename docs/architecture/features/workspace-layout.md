@@ -267,7 +267,7 @@ Its toolbar's toggles are its `config.dateTypes`: **Due**, **Follow-up** and **P
 
 ### Dragging
 
-An entry drags to another day, except a recurring occurrence, a completed task's plan and on a phone. It moves its own date: a due date or follow-up keeps its time of day; a plan entry plans the task for that day **outright** (`services/planner-drop.planTaskForDay`: a pick, as Plan for day ›) — the plan write, no stamp, no history event, one undo step. A day before today is refused for a plan, as the Planner refuses it.
+An entry drags to another day, except a recurring occurrence, a completed task's plan and on a phone. It moves its own date: a due date or follow-up keeps its time of day; a plan entry plans the task for that day **outright** (`services/planner-drop.planTaskForDay`: a pick, as Plan for day ›) — the plan write, no stamp, a `planned` event, one undo step. A day before today is refused for a plan, as the Planner refuses it.
 
 A list row dropped on a day sets the one type the calendar shows. With more than one shown, `CalendarDropChooser` asks at the pointer: **Due date · Follow-up · Plan**, the shown ones, with `D` / `F` / `P` and the task's values now (`was Thu 15`, `not set`). The hovered day's label: `Move here`, `Set date` (the chooser will ask), `Set due`, `Set follow-up`, `Set plan`, or `Past day` where a plan would land before today.
 

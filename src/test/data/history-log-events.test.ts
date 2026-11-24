@@ -62,7 +62,7 @@ describe('todoRepository — the H3 fields', () => {
     ])
   })
 
-  it('a task’s plan state is not history: planning, moving and clearing it log nothing (and with KEEP_STAMPS stamp nothing)', async () => {
+  it('a task’s plan state logs a `planned` event: planning, moving and clearing it (and with KEEP_STAMPS stamp nothing)', async () => {
     const modifiedAt = new Date('2026-05-01T09:00:00Z')
     const id = await todoRepository.insert(makeTodo({ modifiedAt }))
     const before = await eventsOf(id)
@@ -73,7 +73,11 @@ describe('todoRepository — the H3 fields', () => {
     const row = await db.todos.get(id)
     expect('doDate' in row!).toBe(false)
     expect(row?.modifiedAt).toEqual(modifiedAt)
-    expect(await eventsOf(id)).toEqual(before)
+    expect(await eventsOf(id)).toEqual([...before,
+      { type: 'planned', fromValue: null, toValue: new Date(2026, 5, 1).toISOString() },
+      { type: 'planned', fromValue: new Date(2026, 5, 1).toISOString(), toValue: new Date(2026, 5, 2).toISOString() },
+      { type: 'planned', fromValue: new Date(2026, 5, 2).toISOString(), toValue: null },
+    ])
   })
 
   it('bulkUpdate logs each task’s own change', async () => {

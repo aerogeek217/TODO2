@@ -5,7 +5,7 @@ The app's settings are the rows of the `settings` table. `data/setting-keys` nam
 ## The `settings` table
 
 - A row is a key and a text value. `SETTING_KEYS` names the keys; a color override's row is `color.<theme>.<key>`.
-- `SYNC_NEUTRAL_SETTING_KEYS` are the settings the app writes for itself (`purgePromptLastAt`, `historyLogSince`). Writing one is no unsynced change for file sync, and the browser and the file are not compared on them.
+- `SYNC_NEUTRAL_SETTING_KEYS` are the settings the app writes for itself (`purgePromptLastAt`, `historyLogSince`, `planLogSince`). Writing one is no unsynced change for file sync, and the browser and the file are not compared on them.
 - One key is not the settings store's: `activeLayoutId`, the open layout ([workspace layout](workspace-layout.md)).
 
 ## Reading a setting
@@ -112,6 +112,8 @@ These drive [the purge notice](startup-and-data-replaces.md).
 
 `historyLogSince` is a date-time text: when this database began logging follow-ups, markers, people and tags. `settings-store.stampHistoryLogSince` stamps it once while it is absent, at launch and after a data replace. Only an append import moves it forward (`append-import.coverAppendedHistory`): see [glance widgets](glance-widgets.md).
 
+`planLogSince` is the same for the Planner's planned days (the `planned` event): stamped once by `settings-store.stampPlanLogSince` in the same places, moved forward by an append import the same way.
+
 ## The automatic next follow-up
 
 `autoNextFollowup(now, s?)` is the one rule: today + `followupDefaultInterval` while `autoFollowup` is on, `null` while off.
@@ -139,7 +141,7 @@ These drive [the purge notice](startup-and-data-replaces.md).
 
 `ALL_SETTING_KEYS` is the allowlist ([import and export](import-and-export.md)).
 
-- A row's value is validated by its key, among them `urgentDueWithinDays`, `newListSort`, `newListSortDirection`, `newListGroup`, `purgePromptIntervalDays`, `purgePromptLastAt` and `historyLogSince`.
+- A row's value is validated by its key, among them `urgentDueWithinDays`, `newListSort`, `newListSortDirection`, `newListGroup`, `purgePromptIntervalDays`, `purgePromptLastAt`, `historyLogSince` and `planLogSince`.
 - `checkinTaskFilter`: any text passes the check. Import keeps the parts that read (no people, completed off) and names the rest in a warning, `check-in filter (…)`.
 - `keyboardShortcuts`: any text passes the check. Import keeps only the bindings that read, pass the rules and don't clash, and names the rest in a warning.
 

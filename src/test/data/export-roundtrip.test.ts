@@ -126,6 +126,7 @@ function buildSeed(): Seed {
       { key: 'purgePromptIntervalDays', value: '14' },
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
       { key: 'historyLogSince', value: '2026-09-01T07:00:00.000Z' },
+      { key: 'planLogSince', value: '2026-09-01T07:05:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
       { key: 'rowDensity', value: 'stacked' },
       { key: 'rowDates', value: 'numeric' },
@@ -178,6 +179,8 @@ function buildSeed(): Seed {
       { id: 8, todoId: 1, type: 'tag', fromValue: 1, toValue: null, timestamp: '2026-09-11T09:36:00.000Z' },
       { id: 9, todoId: 1, type: 'completed', fromValue: null, toValue: null, timestamp: '2026-09-12T09:00:00.000Z' },
       { id: 10, todoId: 1, type: 'reopened', fromValue: null, toValue: null, timestamp: '2026-09-12T10:00:00.000Z' },
+      // The planned day (week load P1).
+      { id: 11, todoId: 1, type: 'planned', fromValue: null, toValue: '2026-09-14T00:00:00.000Z', timestamp: '2026-09-12T10:05:00.000Z' },
     ],
     statusUpdates: [
       { id: 1, todoId: 1, date: at('2026-09-10T00:00:00.000Z'), text: 'Asked Finance for the numbers', createdAt: at('2026-09-10T15:00:00.000Z') },

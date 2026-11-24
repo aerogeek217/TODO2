@@ -12,10 +12,14 @@
  * database began): the next and last follow-up dates (`followup` /
  * `followedUp`), the priority markers (`marker`) and the task's people and
  * tags (`person` / `tag`). Only a v78 file may carry the H3 types.
+ * Tracked since the `planLogSince` settings row (week load P1): the
+ * Planner's planned day (`planned`, from `doDate`), whatever writes it —
+ * a plan write logs it although it leaves `modifiedAt` alone.
  *
  * `fromValue` / `toValue` encoding:
- *   - `deadline` / `followup` / `followedUp` — the due date / next follow-up /
- *     last follow-up as an ISO date-time string, or `null` when unset.
+ *   - `deadline` / `followup` / `followedUp` / `planned` — the due date /
+ *     next follow-up / last follow-up / planned day as an ISO date-time
+ *     string, or `null` when unset.
  *   - `scheduled` — history only (the scheduled date was removed; no new
  *     events are written): ISO date string, `fuzzy:<token>`, or `null`.
  *   - `status` — numeric `statusId`, or `null` when unset.
@@ -42,11 +46,12 @@ export type TodoEventType =
   | 'marker'
   | 'person'
   | 'tag'
+  | 'planned'
 
 /** Every event type, in the order the log gained them. */
 export const TODO_EVENT_TYPES: readonly TodoEventType[] = [
   'created', 'scheduled', 'deadline', 'status', 'completed', 'reopened',
-  'followup', 'followedUp', 'marker', 'person', 'tag',
+  'followup', 'followedUp', 'marker', 'person', 'tag', 'planned',
 ]
 
 export interface TodoEvent {

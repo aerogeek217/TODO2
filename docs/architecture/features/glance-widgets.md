@@ -152,6 +152,7 @@ A Number's click and a chart's bar open their tasks in the task dialog (`overlay
 
 - `todoEvents` log `created` / `completed` / `reopened`, due-date changes and status changes.
 - They also log the next follow-up (`followup`), the last follow-up (`followedUp`), the priority flags (`marker`) and each person and tag added or removed (`person` / `tag`).
+- They log the Planner's planned day (`planned`, from `doDate`): every plan write, its undo and redo, and a repeating task's advance. A plan write still stamps no `modifiedAt`.
 - These are logged at the repository's diff, at the assignment joins and at each undo / redo. The joins are the bulk bar, the editor, the pickers, check-in replies, Make a task, Duplicate, the append import, a create's people and tags, and deleting a person or tag (Find unused…'s removal too).
 
 ### When the log began
@@ -164,12 +165,13 @@ A Number's click and a chart's bar open their tasks in the task dialog (`overlay
 - An append import moves it forward when the file's log doesn't reach back as far as the browser's (`data/append-import.coverAppendedHistory`). A file with no stamp (a task archive, an older file) moves it to now; a later stamp moves it to that stamp.
 - A past day before it then reads as approximate, not exact.
 - `runAppendImport` runs the stamp after an append, so the store reads the row again.
+- `planLogSince` is the same for planned days: a sync-neutral row stamped once by `stampPlanLogSince`, in the same places, and moved forward by an append import the same way. Before it a task's planned day can't be known.
 
 ### A filter's history
 
 - A filter's history (`services/stats/filter-history`) replays every task to each day's end (`task-history.taskFieldReplay` → `taskAsOf`) and evaluates the filter with that day as today.
 - A field on a day before the log began reads as it was when the log began. A line that reads one there is approximate.
-- So is a line that reads text, the modified date or the planned date, which are never logged (a plan write logs no event).
+- So is a line that reads text or the modified date, which are never logged, or the planned date, which a filter's history doesn't replay.
 - The line's tooltip (`NumberLine`) names the fields (`historyExactness`), and its accessible name says "About". There is no ≈ mark beside it.
 - The trend and a Number's line (its filter under its screen filter, 14 days) read the events through `trend-events-store`, a window each: a trend range, a trend range's fields window (`fields-14d`, …), or `history`.
 

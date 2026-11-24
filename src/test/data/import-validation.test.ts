@@ -1136,7 +1136,7 @@ describe('validateImportData — Date revival', () => {
     const ev = (type: string, fromValue: unknown, toValue: unknown) => ({ id: 1, todoId: 1, type, fromValue, toValue, timestamp: iso })
     for (const e of [
       ev('followup', null, iso), ev('followedUp', iso, null), ev('marker', 'urgent', 'urgent,focus'),
-      ev('person', null, 3), ev('tag', 4, null),
+      ev('person', null, 3), ev('tag', 4, null), ev('planned', null, iso), ev('planned', iso, null),
     ]) {
       const result = validateImportData({ settings: [], todos: [makeTodo()], todoEvents: [e] })
       expect(result.ok, `${e.type} is accepted`).toBe(true)

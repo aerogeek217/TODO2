@@ -13,7 +13,7 @@ import { addTask } from '../add-task'
  * or none (schema v89): `setPlan` / `setPlans` write only `doDate`, in the
  * task's one write, as one undo step, and planning is not an edit — the
  * write, its undo and its redo leave `modifiedAt` as it is, stored and in
- * the store, log no history event and touch no due date or follow-up.
+ * the store, log a `planned` history event and touch no due date or follow-up.
  * Completing a repeating task clears the planned day of the next
  * occurrence; Duplicate and Make subtask of… leave it behind.
  */
@@ -196,7 +196,7 @@ describe('setPlan', () => {
     expect(await planned(id)).toEqual({ ...onDay(FRI), modifiedAt: touched })
   })
 
-  it('logs no history event: not on a plan, a move, a clear, an undo or a redo', async () => {
+  it('logs a `planned` event on a plan, a move, a clear, an undo and a redo — and still stamps nothing', async () => {
     const [id] = await tasks('Quote') as [number]
     const before = await eventCount(id)
     await store().setPlan([id], { day: FRI })
@@ -205,6 +205,21 @@ describe('setPlan', () => {
     await useUndoStore.getState().undo()
     await useUndoStore.getState().undo()
     await useUndoStore.getState().redo()
+    expect(await eventCount(id)).toBe(before + 6)
+    const logged = (await db.todoEvents.where('todoId').equals(id).sortBy('id')).filter((e) => e.type === 'planned')
+    const iso = (d: Date) => d.toISOString()
+    expect(logged.map((e) => [e.fromValue, e.toValue])).toEqual([
+      [null, iso(FRI)], [iso(FRI), iso(MON)], [iso(MON), null],
+      [null, iso(MON)], [iso(MON), iso(FRI)], [iso(FRI), iso(MON)],
+    ])
+    expect(await planned(id)).toEqual(onDay(MON))
+  })
+
+  it('logs nothing when the plan doesn’t change', async () => {
+    const [id] = await tasks('Quote') as [number]
+    await patch(id, { doDate: FRI })
+    const before = await eventCount(id)
+    await store().setPlan([id], { day: new Date(2026, 10, 13, 18, 0) })
     expect(await eventCount(id)).toBe(before)
   })
 
@@ -353,6 +368,19 @@ describe('completing a repeating task clears the planned day of the next occurre
     await useUndoStore.getState().redo()
     expect(await occurrence(id)).toEqual(next)
     expect(undoNames()).toEqual(['Advance recurring "Weekly report"'])
+  })
+
+  it('its checkbox logs the cleared planned day with the advanced due date, at one time', async () => {
+    const [id] = await tasks('Weekly report') as [number]
+    await patch(id, { ...weekly, doDate: FRI })
+    later(1)
+    await store().toggleComplete(id)
+    const logged = (await db.todoEvents.where('todoId').equals(id).sortBy('id')).filter((e) => e.type === 'planned' || e.type === 'deadline')
+    expect(logged.map((e) => [e.type, e.fromValue, e.toValue])).toEqual([
+      ['deadline', DUE.toISOString(), NEXT_DUE.toISOString()],
+      ['planned', FRI.toISOString(), null],
+    ])
+    expect(logged[0]?.timestamp).toBe(logged[1]?.timestamp)
   })
 
   it('its checkbox, the write failing: the plan stays', async () => {

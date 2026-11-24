@@ -333,7 +333,7 @@ The faces follow `ResizeObserver`, so specs test them.
 - a planned day, and a clear with null, each named, only the planned day in the task's one write;
 - one undo step putting the day back;
 - no stamp on the write, its undo or its redo;
-- no history event, and no real date written;
+- a `planned` event on the write, its undo and its redo, and no real date written;
 - nothing written when nothing changes;
 - a failed write rolled back, reported and resolved `false`, never a rejection;
 - a failed write taking back only a day the task still holds from it (a plan made meanwhile stays); two overlapping failed writes leaving the plan as stored, read back from the database;
@@ -364,7 +364,7 @@ The faces follow `ResizeObserver`, so specs test them.
 `planner-drop.test` runs the real stores and database as the page drives them (dispatcher → plan → write). It counts the task writes that reach the database, those touching a real date, and the view-state writes.
 
 - **A drop on a day**:
-  - a row there by its follow-up or its due date is planned for the day, its date untouched: no stamp, no history event, one undo step and its undo;
+  - a row there by its follow-up or its due date is planned for the day, its date untouched: no stamp, a `planned` event, one undo step and its undo;
   - a planned row and a Delayed one moved, the planned day only in the one write;
   - the plan cleared on the task's own date's day;
   - nothing on the row's own day.

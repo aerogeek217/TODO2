@@ -261,6 +261,49 @@ describe('append import — how far back the history log is exact', () => {
   })
 })
 
+describe('append import — how far back the plan log reaches', () => {
+  const SINCE = 'planLogSince'
+  const stamp = async () => (await db.settings.get(SINCE))?.value
+
+  it('a task archive (no stamp) moves the start to the append, store too', async () => {
+    const id = await todoRepository.insert({ title: 'Ship', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(5), sortOrder: 1 })
+    const json = JSON.stringify(await buildTaskArchive([id]))
+    await resetDb()
+    await db.settings.put({ key: SINCE, value: daysAgo(40).toISOString() })
+    await useSettingsStore.getState().stampPlanLogSince()
+    const before = Date.now()
+    const result = await runAppendImport(prepareAppend(json), new Map())
+    if (result.status !== 'done') throw new Error('append import cancelled')
+    expect(new Date((await stamp())!).getTime()).toBeGreaterThanOrEqual(before)
+    expect(useSettingsStore.getState().planLogSince!.getTime()).toBeGreaterThanOrEqual(before)
+  })
+
+  it('a full export whose plan log began earlier keeps ours; one whose began later moves it there', async () => {
+    await todoRepository.insert({ title: 'Ship', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(5), sortOrder: 1 })
+    await db.settings.put({ key: SINCE, value: daysAgo(60).toISOString() })
+    const older = JSON.stringify(await buildExportData())
+    const theirs = daysAgo(10).toISOString()
+    await db.settings.put({ key: SINCE, value: theirs })
+    const later = JSON.stringify(await buildExportData())
+
+    await resetDb()
+    const ours = daysAgo(40).toISOString()
+    await db.settings.put({ key: SINCE, value: ours })
+    await appendImportTasks(prepareAppend(older), new Map())
+    expect(await stamp()).toBe(ours)
+    await appendImportTasks(prepareAppend(later), new Map([[(prepareAppend(later).todos[0]!).uid, 'import']]))
+    expect(await stamp()).toBe(theirs)
+  })
+
+  it('a database not stamped yet stays unstamped', async () => {
+    const id = await todoRepository.insert({ title: 'Ship', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(5), sortOrder: 1 })
+    const json = JSON.stringify(await buildTaskArchive([id]))
+    await resetDb()
+    await appendImportTasks(prepareAppend(json), new Map())
+    expect(await stamp()).toBeUndefined()
+  })
+})
+
 describe('appendImportTasks — subtasks', () => {
   it('copies the tasks’ subtasks, re-pointed at the new ids, in order; a skipped task’s stay behind', async () => {
     const now = new Date()

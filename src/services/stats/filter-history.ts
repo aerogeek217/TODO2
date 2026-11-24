@@ -133,8 +133,8 @@ export function filterHistory(
  *   for as long as the log has run;
  * - `followup`, `lastFollowup`, `markers`, `people`, `tags` — the history log
  *   H3's: exact from the `historyLogSince` day on;
- * - `text`, `modified`, `planned` — never logged (a plan write logs no
- *   event): always read as they are now.
+ * - `text`, `modified` — never logged — and `planned` — logged since
+ *   `planLogSince`, but not replayed here: always read as they are now.
  */
 export type HistoryField =
   | 'state' | 'due' | 'status' | 'completed' | 'created'
@@ -153,7 +153,7 @@ const DATE_FIELD_READS: Record<DateField, HistoryField> = {
 
 /** The fields exact only from the history log H3's start. */
 const H3_FIELDS: ReadonlySet<HistoryField> = new Set(['followup', 'lastFollowup', 'markers', 'people', 'tags'])
-/** The fields no event logs. */
+/** The fields a filter's history reads as they are now (`planned` is logged, but not replayed here). */
 const UNLOGGED_FIELDS: ReadonlySet<HistoryField> = new Set(['text', 'modified', 'planned'])
 
 /** Every field `filter` (its clauses, its expression) reads; completion (`state`) always. */

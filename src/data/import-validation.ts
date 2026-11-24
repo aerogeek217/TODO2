@@ -462,6 +462,9 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === SETTING_KEYS.historyLogSince) {
     return isDateLike(v.value) ? true : 'value (historyLogSince must be a date)'
   }
+  if (v.key === SETTING_KEYS.planLogSince) {
+    return isDateLike(v.value) ? true : 'value (planLogSince must be a date)'
+  }
   if (v.key === SETTING_KEYS.rowDensity) {
     return isListZoom(v.value) ? true : 'value (rowDensity must be stacked, rows or lines)'
   }

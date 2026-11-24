@@ -57,6 +57,8 @@ export async function refreshAllStores() {
   await useSettingsStore.getState().load()
   // Data from before the history log H3 (an older file) starts its log now.
   await useSettingsStore.getState().stampHistoryLogSince()
+  // So does the plan log (the `planned` events).
+  await useSettingsStore.getState().stampPlanLogSince()
   await Promise.all([
     useTodoStore.getState().loadAll(),
     usePersonStore.getState().load(),

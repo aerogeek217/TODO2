@@ -51,21 +51,24 @@ function stampOf(value: string | undefined): Date | null {
 
 /**
  * The history log H3 (the follow-ups, priority flags, people and tags) is
- * exact from `historyLogSince` on — for every task here. Appended tasks
- * were logged only as far back as their file's log reaches (its own
- * `historyLogSince`; a task archive or an older file says none, and their
- * people and tags arrive as rows, not logged adds): when that is later
- * than ours, ours moves to it (none: to now), so a past day before it
- * reads ≈ rather than exact. Inside the append's transaction.
+ * exact from `historyLogSince` on — for every task here — and the planned
+ * days from `planLogSince` on. Appended tasks were logged only as far back
+ * as their file's log reaches (its own stamp; a task archive or an older
+ * file says none, and their people and tags arrive as rows, not logged
+ * adds): when that is later than ours, ours moves to it (none: to now), so
+ * a past day before it reads ≈ rather than exact. Each stamp on its own.
+ * Inside the append's transaction.
  */
 async function coverAppendedHistory(data: ImportData): Promise<void> {
-  const ours = stampOf((await db.settings.get(SETTING_KEYS.historyLogSince))?.value)
-  if (ours == null) return
-  const theirs = stampOf((data.settings ?? []).find((r) => r.key === SETTING_KEYS.historyLogSince)?.value)
-  if (theirs != null && theirs.getTime() <= ours.getTime()) return
-  const now = new Date()
-  const since = theirs != null && theirs.getTime() < now.getTime() ? theirs : now
-  await db.settings.put({ key: SETTING_KEYS.historyLogSince, value: since.toISOString() })
+  for (const key of [SETTING_KEYS.historyLogSince, SETTING_KEYS.planLogSince]) {
+    const ours = stampOf((await db.settings.get(key))?.value)
+    if (ours == null) continue
+    const theirs = stampOf((data.settings ?? []).find((r) => r.key === key)?.value)
+    if (theirs != null && theirs.getTime() <= ours.getTime()) continue
+    const now = new Date()
+    const since = theirs != null && theirs.getTime() < now.getTime() ? theirs : now
+    await db.settings.put({ key, value: since.toISOString() })
+  }
 }
 
 /**
@@ -86,8 +89,9 @@ async function coverAppendedHistory(data: ImportData): Promise<void> {
  *   `statusUpdates` and their `subtasks` are re-pointed at the new ids.
  * - Tasks whose `choices` entry is `skip` are left out with their rows.
  *
- * - The history log's start (`historyLogSince`) moves to where the file's
- *   log began when that is later (`coverAppendedHistory`).
+ * - The history log's start (`historyLogSince`) and the plan log's
+ *   (`planLogSince`) move to where the file's logs began when that is later
+ *   (`coverAppendedHistory`).
  *
  * No backup snapshot and no store refresh — the caller does both.
  */

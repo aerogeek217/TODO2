@@ -41,7 +41,8 @@ export interface TodoItem {
    * row column or Markdown export does. It is the task's **plan state**:
    * a planned day, or none. Planning is
    * not an edit of the task: a plan write never stamps `modifiedAt`
-   * (`todo-store.setPlan`, `KEEP_STAMPS`) and logs no history event, and it
+   * (`todo-store.setPlan`, `KEEP_STAMPS`) — it logs a `planned` history
+   * event all the same (`models/todo-event`) — and it
    * never changes a due date or a follow-up. Completing a repeating task
    * clears it on the next occurrence; Duplicate doesn't copy it. Not
    * indexed. Absent = no planned day (schema v85).
