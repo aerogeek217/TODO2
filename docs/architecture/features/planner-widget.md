@@ -130,6 +130,6 @@ A click on it, or **Unplanned filter…** in the widget's ⋯, opens the **Plann
 ## Completed rows and the phone
 
 - A row completed here lingers, then folds, as a list's (`hooks/use-planner` over `useLeavingRows`).
-- Under Today's rows, **`N done`** lists the tasks completed today (the tally's count, `utils/tally.tasksDoneToday`), struck, on one line. Each title is a button that opens its task.
+- Under Today's rows, **`N done`** lists the tasks completed today (the tally's count, `utils/tally.tasksDoneToday`), struck, on one line. The count is a button that opens them in the task dialog, as the top bar's tally does (`services/task-dialog.doneTodayTaskDialog`). Each title is a button that opens its task.
 - Today has no Add task row.
 - On the phone, a day with no tasks and an empty Unplanned are left out (a tile's tap goes to the next day that has a group), and a completed row leaves at once.

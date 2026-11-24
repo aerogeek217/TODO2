@@ -32,6 +32,8 @@ History before 2026-11-19 is in the git log.
   tooltip), drops the list icon every list shares (an icon or emoji you picked still shows), and has tighter padding.
 - **A task's title looks like a field while you edit it.** In task details and on the review card, the title shows a
   box when you point at it and an outlined box while you type in it.
+- **The Planner's "N done" opens the tasks done today.** Clicking the count under Today lists them in a dialog, as
+  clicking the top bar's tally marks does.
 
 ### Removed
 

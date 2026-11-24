@@ -1,9 +1,9 @@
 import { useLayoutEffect, useState, type RefObject } from 'react'
 import { useSettingsStore } from '../../stores/settings-store'
-import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
+import { doneTodayTaskDialog } from '../../services/task-dialog'
 import { useDoneToday } from '../../hooks/use-done-today'
-import { TALLY_HEIGHT_PX, tallyLabel, tallyLayout, tallyMarks, tasksDoneToday } from '../../utils/tally'
+import { TALLY_HEIGHT_PX, tallyLabel, tallyLayout, tallyMarks } from '../../utils/tally'
 import { useTooltip } from '../shared/use-tooltip'
 import styles from './TallyMarks.module.css'
 
@@ -92,13 +92,7 @@ export function TallyMarks({ barRef, spacerRef, trayRef, rightRef }: {
 
 /** The task dialog of the tasks completed today, the last first (the tally's click). */
 function showDoneToday(): void {
-  const ids = tasksDoneToday(useTodoStore.getState().todos, new Date()).map((t) => t.id)
-  useUIStore.getState().showTaskDialog({
-    title: 'Done today',
-    glyph: 'done',
-    description: 'The tasks you completed today.',
-    source: { kind: 'todos', todoIds: ids },
-  })
+  useUIStore.getState().showTaskDialog(doneTodayTaskDialog())
 }
 
 /**

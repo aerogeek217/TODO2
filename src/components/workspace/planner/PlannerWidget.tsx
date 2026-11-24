@@ -9,6 +9,7 @@ import { usePlanner, useTasksDoneToday, type PlannerData } from '../../../hooks/
 import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { clearDelayedPlans, movePlannerTask, snoozePlannerTask, unplanPlannerTask } from '../../../services/planner-drop'
+import { doneTodayTaskDialog } from '../../../services/task-dialog'
 import { usePersonStore } from '../../../stores/person-store'
 import { usePlannerStore, type PlannerDragPreview } from '../../../stores/planner-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -33,6 +34,7 @@ import { CellControlsContext } from '../cell-controls'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
 import { CheckIcon, ResetIcon } from '../../shared/icons'
 import { MenuPopover } from '../../shared/MenuPopover'
+import { useTooltip } from '../../shared/use-tooltip'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskMenuExtrasContext } from '../../task/task-menu-extras'
 import { TaskRowExtrasContext } from '../../task/task-row-extras'
@@ -664,7 +666,30 @@ function PlannerRowWrap({ todoId, flagged, children }: { todoId: number; flagged
   )
 }
 
-/** Today: its rows, then `N done` — the tasks completed today, struck, on one line; a title opens its task. */
+/** `N done` under Today: opens the tasks completed today in the task dialog, as the top bar's tally does. */
+function DoneCount({ count }: { count: number }) {
+  const { triggerProps, tooltip } = useTooltip('Show the tasks done today')
+  return (
+    <button
+      type="button"
+      className={styles.doneCount}
+      data-planner-done-count=""
+      aria-label={`${count} done today. Show them`}
+      onClick={() => useUIStore.getState().showTaskDialog(doneTodayTaskDialog())}
+      {...triggerProps}
+    >
+      <span className={styles.doneCheck} aria-hidden="true"><CheckIcon size={14} /></span>
+      {count} done
+      {tooltip}
+    </button>
+  )
+}
+
+/**
+ * Today: its rows, then `N done` — the tasks completed today, struck, on one
+ * line. The count opens them in the task dialog, as the top bar's tally does;
+ * a title opens its task.
+ */
 function TodayGroup({ tabId, group, data, mobile, drag }: Omit<GroupProps, 'children' | 'empty'>) {
   const done = useTasksDoneToday()
   return (
@@ -678,8 +703,7 @@ function TodayGroup({ tabId, group, data, mobile, drag }: Omit<GroupProps, 'chil
     >
       {done.length > 0 && (
         <div className={styles.done} data-testid="planner-done">
-          <span className={styles.doneCheck} aria-hidden="true"><CheckIcon size={14} /></span>
-          <span className={styles.doneCount}>{done.length} done</span>
+          <DoneCount count={done.length} />
           <span className={styles.doneTitles}>
             {done.map((t, i) => (
               <Fragment key={t.id}>

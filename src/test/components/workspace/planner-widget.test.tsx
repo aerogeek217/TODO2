@@ -512,6 +512,15 @@ describe('the Planner — Today’s foot', () => {
     expect(open).toHaveBeenCalledWith(Number(title.getAttribute('data-planner-done-task')))
   })
 
+  it('the count lists today’s tasks in the task dialog, as the top bar’s tally does', () => {
+    show()
+    fireEvent.click(within(group('Today')).getByRole('button', { name: '1 done today. Show them' }))
+    const dialog = useUIStore.getState().taskDialog
+    expect(dialog?.title).toBe('Done today')
+    const shipped = useTodoStore.getState().todos.find((t) => t.title === 'Shipped the report')
+    expect(dialog?.source).toEqual({ kind: 'todos', todoIds: [shipped?.id] })
+  })
+
   it('counts every task completed today, the last first', () => {
     useTodoStore.setState({
       todos: [
