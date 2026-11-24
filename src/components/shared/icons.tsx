@@ -286,6 +286,11 @@ export function ResetIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M3 8a5 5 0 1 0 1.6-3.7M3 2.8v2.7h2.7" /></Svg>
 }
 
+/** A week's load: three bars of a chart on a baseline (the Planner's Week load…). */
+export function WeekLoadIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M2.5 13.5h11M4.5 11V8M8 11V4M11.5 11V6.5" /></Svg>
+}
+
 /** Redo: the undo arrow, mirrored. */
 export function RedoIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M10.5 3l3 3-3 3" /><path d="M13.5 6h-7a4 4 0 0 0 0 8H9" /></Svg>

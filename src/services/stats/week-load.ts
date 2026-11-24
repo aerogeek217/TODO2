@@ -44,7 +44,7 @@ import { eventsByTask, taskFieldReplayAt, type DatedEvent, type TaskFields } fro
 
 /** The kinds of date, in the order a day's boxes stack. */
 export type WeekLoadKind = 'due' | 'followup' | 'planned'
-const WEEK_LOAD_KINDS: readonly WeekLoadKind[] = ['due', 'followup', 'planned']
+export const WEEK_LOAD_KINDS: readonly WeekLoadKind[] = ['due', 'followup', 'planned']
 
 /** Weeks after this one the week load shows. */
 const WEEK_LOAD_FUTURE_WEEKS = 6
@@ -58,7 +58,7 @@ export interface WeekLoadCounts {
   ahead: number
 }
 
-interface WeekLoadDay {
+export interface WeekLoadDay {
   /** The day (local midnight). */
   date: Date
   /** Gone by, today (done so far, the rest ahead) or to come (all ahead). */
@@ -85,7 +85,7 @@ interface WeekLoadNote {
   since: Date
 }
 
-interface WeekLoadWeek {
+export interface WeekLoadWeek {
   /** The week's first day (`weekStartsOn`). */
   start: Date
   /** Weeks from this one: -8 … 6, 0 = this week. */

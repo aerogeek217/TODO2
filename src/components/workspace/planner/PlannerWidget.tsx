@@ -45,6 +45,7 @@ import { WidgetNameLine } from '../WidgetTopLine'
 import { PLANNER_HEADING_ATTR } from './planner-focus'
 import { plannerMenuEntries } from './planner-menu'
 import { RESET_PLAN_LABEL, usePlannerResetEntries } from './planner-reset'
+import { WeekLoadMeter } from './WeekLoadMeter'
 import { plannerRowExtras } from './planner-row-extras'
 import { PlannerRowTag } from './PlannerRowExtras'
 import { PlannerDock, PlannerFoldedDock } from './PlannerDock'
@@ -103,8 +104,9 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
 /**
  * The Planner (widget kind `planner`; its one setting the Unplanned filter): a scratch pad for
  * today and the week ahead. Its top line (alone in its cell): the name,
- * the window's range and **Reset plan** (`PlannerResetButton`; in a cell of
- * tabs the same three choices are under Reset plan › in the widget's ⋯).
+ * the window's range, the week load meter (`WeekLoadMeter`; Week load… in
+ * the widget's ⋯ elsewhere) and **Reset plan** (`PlannerResetButton`; in a
+ * cell of tabs the same three choices are under Reset plan › in the widget's ⋯).
  * Large — the strip of seven day tiles (`PlannerStrip`), then two panes:
  * on the left **one scrolling list of days** — Today (its rows, an `N
  * done` line, Add task), then every later day of the window in order, a
@@ -327,6 +329,7 @@ function PlannerBody({ tab, layout, size, hostRef }: {
             <BadgeCapsule counts={badge.counts} label={badge.summary.join('; ')} data-testid="planner-badge" />
           )}
           <span className={styles.topLineGap} aria-hidden="true" />
+          <WeekLoadMeter />
           <PlannerResetButton tab={tab} />
         </WidgetNameLine>
         {(tiles || !alone) && (

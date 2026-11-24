@@ -259,6 +259,14 @@
  * label in the text accent. A host that is also focused layers the focus
  * ring outside (`box-shadow: var(--trigger-open-ring), var(--focus-ring)`).
  */
+/*
+ * The week load's kinds (the Planner's meter and popover): due and follow-up
+ * are the dates' own colors; a planned day is the plan tick's.
+ */
+:root {
+  --color-week-load-planned: var(--color-text-secondary);
+}
+
 :root {
   --trigger-open-ring: 0 0 0 1px var(--color-accent);
   --color-trigger-open-fill: color-mix(in srgb, var(--color-accent) 12%, transparent);
