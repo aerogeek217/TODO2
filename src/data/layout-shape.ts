@@ -503,7 +503,7 @@ function withTabLabel(tab: LayoutTab, raw: Obj, fix: () => void, cut: () => void
 }
 
 
-/** A track as stored: an object with a fresh id, a size (a weight or px) and, on a row, a boolean `collapsed` and a `fitPx` (a positive number). */
+/** A track as stored: an object with a fresh id, a size (a weight or px), a boolean `collapsed` and, on a row, a `fitPx` (a positive number). */
 function checkTrack(track: unknown, path: string, rows: boolean, fresh: (id: string) => boolean): true | string {
   if (!isRecord(track)) return path
   if (!isId(track.id) || !fresh(track.id)) return `${path}.id`
@@ -512,7 +512,7 @@ function checkTrack(track: unknown, path: string, rows: boolean, fresh: (id: str
   } else if (!isWeight(track.weight)) {
     return `${path}.weight`
   }
-  if (track.collapsed !== undefined && (!rows || typeof track.collapsed !== 'boolean')) return `${path}.collapsed`
+  if (track.collapsed !== undefined && typeof track.collapsed !== 'boolean') return `${path}.collapsed`
   if (track.fitPx !== undefined && (!rows || !isWeight(track.fitPx))) return `${path}.fitPx`
   return true
 }
@@ -528,7 +528,7 @@ function isAreaShape(v: unknown): v is CellArea {
 /**
  * `true` when a layout row's table is valid, else the path of the first bad
  * field (`grid.columns[0].weight`, `cells[2].area`, …): every track an id
- * and a size (a weight, or `px`; only a row track may be `collapsed`),
+ * and a size (a weight, or `px`; a row or column track may be `collapsed`),
  * every cell an id, an area and a strip of valid tabs (an empty strip is an
  * empty cell), ids unique across tracks, cells and tabs, the cells tiling
  * the grid exactly (`validateTiling`), and every inner line some cell's
@@ -806,8 +806,8 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       // Reset below, to the axis's average weight.
       fix('size')
     }
-    if (raw.collapsed === true && rows) track.collapsed = true
-    else if (raw.collapsed !== undefined && (!rows || typeof raw.collapsed !== 'boolean')) fix('settings')
+    if (raw.collapsed === true) track.collapsed = true
+    else if (raw.collapsed !== undefined && typeof raw.collapsed !== 'boolean') fix('settings')
     // A Numbers-only row's height (view state): kept beside its size, never in place of it.
     if (raw.fitPx !== undefined) {
       if (rows && isWeight(raw.fitPx)) track.fitPx = raw.fitPx

@@ -9,7 +9,8 @@ import { cellMinHeightPx, cellMinWidthPx, FIT_ROW_PX, isFitTrack } from './works
  *
  * A track is one of four sizes:
  * - **fixed** — a `px` track (a former band), its px;
- * - **collapsed** — a collapsed row track, a cell header's height;
+ * - **collapsed** — a collapsed row track, a cell header's height; a
+ *   collapsed column track, its strip's width;
  * - **fit** — a row track whose cells hold one Number each
  *   (`workspace-rows.isFitTrack`): `auto`, its content's height — or,
  *   given a height by a divider (`GridTrack.fitPx`), fixed at it;
@@ -24,6 +25,8 @@ export const WORKSPACE_GUTTER_PX = 6
 export const EDIT_GUTTER_PX = 16
 /** The height (px) of a cell's header: a collapsed row track's size. */
 export const TABLE_HEADER_PX = 32
+/** The width (px) of a collapsed column track: its strip (`COLUMN_STRIP_PX` wide, the widgets' names running down it). */
+const COLUMN_STRIP_PX = 34
 /** A fit row's height (px) when it can't be measured: `workspace-rows.FIT_ROW_PX`, a Number's small face as drawn. */
 export const FIT_TRACK_NOMINAL_PX = FIT_ROW_PX
 
@@ -38,7 +41,7 @@ type TrackSizing =
 export function trackSizing(body: LayoutBody, axis: GridAxis, i: number): TrackSizing {
   const track = body.grid[axis][i]
   if (!track) return { kind: 'weighted', weight: 0 }
-  if (axis === 'rows' && track.collapsed === true) return { kind: 'collapsed' }
+  if (track.collapsed === true) return { kind: 'collapsed' }
   if (track.px != null) return { kind: 'fixed', px: track.px }
   if (axis === 'rows' && isFitTrack(body, i)) return track.fitPx != null ? { kind: 'fixed', px: track.fitPx } : { kind: 'fit' }
   return { kind: 'weighted', weight: Math.max(0, track.weight ?? 0) }
@@ -55,27 +58,39 @@ export function rowDrawsFitFaces(body: LayoutBody, row: number): boolean {
   return sizing.kind === 'fit' || (sizing.kind === 'collapsed' && isFitTrack(body, row))
 }
 
+/** A collapsed track's size (px) along `axis`: a row a cell header's height, a column its strip's width. */
+function collapsedPx(axis: GridAxis): number {
+  return axis === 'columns' ? COLUMN_STRIP_PX : TABLE_HEADER_PX
+}
+
 /** Every track of `axis`: how it is sized. */
 function trackSizings(body: LayoutBody, axis: GridAxis): TrackSizing[] {
   return body.grid[axis].map((_, i) => trackSizing(body, axis, i))
 }
 
-/** Whether every row track a cell covers is collapsed (it shows only its header). */
-export function isCellCollapsedIn(body: LayoutBody, cell: LayoutCell): boolean {
-  const [start, end] = spanOf(cell.area, 'rows')
-  const tracks = body.grid.rows.slice(start, end)
+/** Whether every track of `axis` a cell covers is collapsed: rows (the default), it shows only its header; columns, it lies in a column's strip. */
+export function isCellCollapsedIn(body: LayoutBody, cell: LayoutCell, axis: GridAxis = 'rows'): boolean {
+  const [start, end] = spanOf(cell.area, axis)
+  const tracks = body.grid[axis].slice(start, end)
   return tracks.length > 0 && tracks.every((t) => t.collapsed === true)
+}
+
+/** Whether some column track a cell covers is collapsed (its ⋯ offers Expand column). */
+export function cellTouchesCollapsedColumn(body: LayoutBody, cell: LayoutCell): boolean {
+  const [start, end] = spanOf(cell.area, 'columns')
+  return body.grid.columns.slice(start, end).some((t) => t.collapsed === true)
 }
 
 /**
  * The smallest size (px) a cell may take along `axis`: 120px wide (a glance
  * cell 72px, `workspace-rows.cellMinWidthPx`); high,
  * `CELL_MIN_PX` (64px for a glance cell, 58px for a cell of one Number —
- * `workspace-rows.cellMinHeightPx`), or its header's height while collapsed.
+ * `workspace-rows.cellMinHeightPx`); collapsed along `axis`, its header's
+ * height or its strip's width.
  */
 export function cellMinPx(body: LayoutBody, cell: LayoutCell, axis: GridAxis): number {
-  if (axis === 'columns') return cellMinWidthPx(cell)
-  return isCellCollapsedIn(body, cell) ? TABLE_HEADER_PX : cellMinHeightPx(cell)
+  if (isCellCollapsedIn(body, cell, axis)) return collapsedPx(axis)
+  return axis === 'columns' ? cellMinWidthPx(cell) : cellMinHeightPx(cell)
 }
 
 /**
@@ -86,10 +101,10 @@ export function cellMinPx(body: LayoutBody, cell: LayoutCell, axis: GridAxis): n
  * weighted row under the same cell was held taller than the divider beside
  * it could make it, and other lines moved instead (cr34 W7).
  */
-function settledPx(sizing: TrackSizing): number | null {
+function settledPx(sizing: TrackSizing, axis: GridAxis): number | null {
   switch (sizing.kind) {
     case 'fixed': return sizing.px
-    case 'collapsed': return TABLE_HEADER_PX
+    case 'collapsed': return collapsedPx(axis)
     case 'fit': return FIT_TRACK_NOMINAL_PX
     case 'weighted': return null
   }
@@ -124,7 +139,7 @@ export function trackMinimums(body: LayoutBody, axis: GridAxis, gap: number): nu
     let have = 0
     for (let t = start; t < end; t++) {
       const sizing = sizings[t]
-      const settled = sizing ? settledPx(sizing) : 0
+      const settled = sizing ? settledPx(sizing, axis) : 0
       if (settled == null) {
         weighted.push(t)
         have += mins[t] ?? 0
@@ -157,7 +172,7 @@ export function trackMinimums(body: LayoutBody, axis: GridAxis, gap: number): nu
 
 /**
  * The CSS `grid-template-*` of `axis`: a fixed track its px, a collapsed one
- * the header's height, a fit one `auto`, a weighted one its share of the
+ * the header's height (a column its strip's width), a fit one `auto`, a weighted one its share of the
  * free space as `fr` — scaled so the shares sum to 100 (`fr` under 1 in
  * total would leave space empty) — never under its minimum
  * (`minmax(<min>px, <n>fr)`).
@@ -169,7 +184,7 @@ export function trackTemplate(body: LayoutBody, axis: GridAxis, gap: number): st
   return sizings.map((s, i) => {
     switch (s.kind) {
       case 'fixed': return `${s.px}px`
-      case 'collapsed': return `${TABLE_HEADER_PX}px`
+      case 'collapsed': return `${collapsedPx(axis)}px`
       case 'fit': return 'auto'
       case 'weighted': return `minmax(${Math.round((mins[i] ?? 0) * 100) / 100}px, ${(s.weight / total) * 100}fr)`
     }
@@ -236,7 +251,7 @@ export function tableTrackSizes(body: LayoutBody, axis: GridAxis, available: num
   const tracks: SolveTrack[] = trackSizings(body, axis).map((s, i) => {
     switch (s.kind) {
       case 'fixed': return { px: s.px }
-      case 'collapsed': return { px: TABLE_HEADER_PX }
+      case 'collapsed': return { px: collapsedPx(axis) }
       case 'fit': return { px: measured.get(body.grid[axis][i]?.id ?? '') ?? FIT_TRACK_NOMINAL_PX }
       case 'weighted': return { weight: s.weight, min: mins[i] ?? 0 }
     }
@@ -257,4 +272,45 @@ export function spanPx(sizes: readonly number[], start: number, end: number, gap
   let px = 0
   for (let t = start; t < end; t++) px += sizes[t] ?? 0
   return px + Math.max(0, end - start - 1) * gap
+}
+
+/**
+ * One strip of a collapsed column as drawn: the rectangle it covers (track
+ * indices, ends exclusive), the column tracks it lies in (what its Expand
+ * column expands) and its cells in reading order.
+ */
+export interface ColumnStrip {
+  c0: number
+  c1: number
+  r0: number
+  r1: number
+  trackIds: string[]
+  cells: LayoutCell[]
+}
+
+/**
+ * The strips the collapsed columns draw: the cells lying only in collapsed
+ * columns (`isCellCollapsedIn` on columns), those over the same columns and
+ * one under another joined into one strip — so a column of stacked cells
+ * is one strip, and a cell spanning through the column parts it. In
+ * reading order.
+ */
+export function columnStrips(body: LayoutBody): ColumnStrip[] {
+  if (!body.grid.columns.some((t) => t.collapsed === true)) return []
+  const folded = body.cells
+    .filter((c) => isCellCollapsedIn(body, c, 'columns'))
+    .sort((a, b) => a.area.col - b.area.col || a.area.colSpan - b.area.colSpan || a.area.row - b.area.row)
+  const strips: ColumnStrip[] = []
+  for (const cell of folded) {
+    const [c0, c1] = spanOf(cell.area, 'columns')
+    const [r0, r1] = spanOf(cell.area, 'rows')
+    const last = strips.at(-1)
+    if (last && last.c0 === c0 && last.c1 === c1 && last.r1 === r0) {
+      last.r1 = r1
+      last.cells.push(cell)
+    } else {
+      strips.push({ c0, c1, r0, r1, trackIds: body.grid.columns.slice(c0, c1).map((t) => t.id), cells: [cell] })
+    }
+  }
+  return strips.sort((a, b) => a.r0 - b.r0 || a.c0 - b.c0)
 }

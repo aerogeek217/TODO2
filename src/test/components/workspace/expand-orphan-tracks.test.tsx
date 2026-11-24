@@ -2,10 +2,10 @@ import { describe, it, expect, afterEach, beforeEach } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { db } from '../../../data/database'
 import { layoutRepository } from '../../../data/layout-repository'
-import { useExpandOrphanRows } from '../../../components/workspace/use-expand-orphan-rows'
+import { useExpandOrphanTracks } from '../../../components/workspace/use-expand-orphan-tracks'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { createTab, type LayoutBody, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../../models/workspace-layout'
-import { orphanCollapsedRows } from '../../../utils/workspace-grid'
+import { orphanCollapsedTracks } from '../../../utils/workspace-grid'
 import { resetDb } from '../../helpers'
 import { cell, grid } from '../../helpers/layout-builders'
 import { layoutSteps } from '../../helpers/layout-steps'
@@ -50,7 +50,7 @@ async function open(body: LayoutBody): Promise<number> {
 
 async function shown(): Promise<void> {
   await act(async () => {
-    renderHook(() => useExpandOrphanRows(ws().working as PersistedWorkspaceLayout))
+    renderHook(() => useExpandOrphanTracks(ws().working as PersistedWorkspaceLayout))
     await Promise.resolve()
   })
 }
@@ -66,7 +66,7 @@ describe('a stored layout with a collapsed row nothing can expand', () => {
     const id = await open(orphaned())
     expect((await layoutRepository.get(id))?.fixes).toEqual([])
     expect(collapsed(ws().working)).toEqual([false, true, false])
-    expect(orphanCollapsedRows(ws().working as LayoutBody)).toEqual([1])
+    expect(orphanCollapsedTracks(ws().working as LayoutBody, 'rows')).toEqual([1])
   })
 
   it('expands when the workspace shows it — the working copy, the saved one and the stored row — with no undo step', async () => {
@@ -85,5 +85,24 @@ describe('a stored layout with a collapsed row nothing can expand', () => {
     await shown()
     expect(collapsed(ws().working)).toEqual([false, true, false])
     expect(collapsed((await db.layouts.get(id)) as LayoutBody | undefined)).toEqual([false, true, false])
+  })
+})
+
+describe('a stored layout with a collapsed column nothing can expand', () => {
+  /** A wide cell over both columns, the second folded; under it p and, in the folded column, a (or an empty cell). */
+  const w = filled('w')
+  const columns = (body: LayoutBody | null | undefined) => body?.grid.columns.map((t) => t.collapsed === true)
+
+  it('expands when the workspace shows it; one a filled cell lies only in stays collapsed', async () => {
+    // a lies only in the folded column: it can expand it.
+    await open(grid([[w, w], [p, a]], { cols: [1000, { weight: 1000, collapsed: true }] }))
+    expect(orphanCollapsedTracks(ws().working as LayoutBody, 'columns')).toEqual([])
+    await resetDb()
+    const id = await open(grid([[w, w], [p, cell('e', [])]], { cols: [1000, { weight: 1000, collapsed: true }] }))
+    expect(orphanCollapsedTracks(ws().working as LayoutBody, 'columns')).toEqual([1])
+    await shown()
+    expect(columns(ws().working)).toEqual([false, false])
+    await expect.poll(async () => columns((await db.layouts.get(id)) as LayoutBody | undefined)).toEqual([false, false])
+    expect(layoutSteps()).toEqual([])
   })
 })

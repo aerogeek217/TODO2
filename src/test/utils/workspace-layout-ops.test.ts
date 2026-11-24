@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createTab, type GridAxis, type LayoutBody, type LayoutCell, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { edgeBetween, edgeStretches, isNormalized, lineCrossings, orphanCollapsedRows, validateTiling, wholeLine, type EdgeStretch, type Side } from '../../utils/workspace-grid'
+import { edgeBetween, edgeStretches, isNormalized, lineCrossings, orphanCollapsedTracks, validateTiling, wholeLine, type EdgeStretch, type Side } from '../../utils/workspace-grid'
 import { findTab, getTab, layoutIds, layoutStructureEqual, layoutStructureKey, panelOfTab } from '../../utils/workspace-layout-queries'
 import { countListTabs } from '../../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
@@ -27,6 +27,7 @@ import {
   moveTab,
   patchTabConfig,
   patchTabViewState,
+  removeTabKeepCell,
   removeTrack,
   replaceTab,
   setActiveTab,
@@ -426,7 +427,7 @@ describe('a collapsed row expands once no filled cell lies only in it (cr34 M8, 
     // b x
     const base = collapseRow(layout(grid([[a, s], [b, s], [b, x]])), 's')
     expect(collapsedRows(base)).toEqual([true, true, false])
-    expect(orphanCollapsedRows(base)).toEqual([])
+    expect(orphanCollapsedTracks(base, 'rows')).toEqual([])
     // Expand row on `a`: `s` now reaches into an expanded row, and no cell lies only in the second.
     const out = expandRow(base, 'a')
     expect(collapsedRows(out)).toEqual([false, false, false])
@@ -441,7 +442,7 @@ describe('a collapsed row expands once no filled cell lies only in it (cr34 M8, 
     const both = collapseRow(layout(grid([[a, b], [a, x]])), 'a')
     expect(collapsedRows(closeCell(both, 'x'))).toEqual([true])
     expect(collapsedRows(both)).toEqual([true, true])
-    expect(orphanCollapsedRows(both)).toEqual([])
+    expect(orphanCollapsedTracks(both, 'rows')).toEqual([])
     // A structural op elsewhere leaves a held collapse alone.
     const inserted = insertTrack(both, 'bottom', ids()).layout
     expect(collapsedRows(inserted)).toEqual([true, true, false])
@@ -1044,14 +1045,63 @@ describe('view state, config and sizes', () => {
   const b = cell('b')
   const base = layout(grid([[a], [b]]))
 
-  it('collapses row tracks only; a cell is collapsed when every row track it covers is', () => {
+  it('collapses a row track; a cell is collapsed when every row track it covers is', () => {
     const out = setTrackCollapsed(base, 'r1', true)
     expect(out.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, collapsed: true })
     expect(isCellCollapsed(out, 'a')).toBe(true)
     expect(isCellCollapsed(out, 'b')).toBe(false)
     expect(setTrackCollapsed(out, 'r1', true)).toBe(out)
-    expect(setTrackCollapsed(base, 'c1', true)).toBe(base)
+    expect(setTrackCollapsed(base, 'zz', true)).toBe(base)
     expect(setTrackCollapsed(out, 'r1', false).grid.rows[0]).toEqual({ id: 'r1', weight: 1000 })
+  })
+
+  it('collapses a column track as a row’s, by id; its expand expands a column it leaves with nothing to expand it', () => {
+    const p = cell('p')
+    const q = cell('q')
+    const s = cell('s')
+    const side = layout(grid([[p, q], [p, s]]))
+    const out = setTrackCollapsed(side, 'c2', true)
+    expect(out.grid.columns[1]).toEqual({ id: 'c2', weight: 1000, collapsed: true })
+    expect(out.grid.rows).toEqual(side.grid.rows)
+    expect(setTrackCollapsed(out, 'c2', true)).toBe(out)
+    expect(setTrackCollapsed(out, 'c2', false).grid.columns[1]).toEqual({ id: 'c2', weight: 1000 })
+    // Both columns folded under a cell spanning them; expanding one leaves the other no cell lying only in folded columns.
+    const wide = cell('w')
+    const spanned = layout(grid([[wide, wide], [p, q]]))
+    const both = setTrackCollapsed(setTrackCollapsed(spanned, 'c1', true), 'c2', true)
+    expect(both.grid.columns.every((t) => t.collapsed === true)).toBe(true)
+    const back = setTrackCollapsed(both, 'c1', false)
+    expect(back.grid.columns.map((t) => t.collapsed === true)).toEqual([false, true])
+    const lone = setTrackCollapsed(setTrackCollapsed(layout(grid([[wide, wide], [p, cell('e', [])]])), 'c1', true), 'c2', true)
+    expect(setTrackCollapsed(lone, 'c1', false).grid.columns.some((t) => t.collapsed === true)).toBe(false)
+  })
+
+  it('a collapsed column is a strip’s width and a cell lying only in it that wide; a split beside it in the column expands it', () => {
+    const p = cell('p')
+    const q = cell('q')
+    const folded = layout(grid([[p, q]], { cols: [1000, { weight: 1000, collapsed: true }] }))
+    expect(trackSizing(folded, 'columns', 1)).toEqual({ kind: 'collapsed' })
+    expect(cellMinPx(folded, folded.cells[1]!, 'columns')).toBe(34)
+    expect(tableTrackSizes(folded, 'columns', 1006, 6)).toEqual([966, 34])
+    // A new cell under q would lie in the folded column: it expands.
+    const split = splitCell(folded, 'q', 'bottom', ids())
+    expect(split.layout.grid.columns.some((t) => t.collapsed === true)).toBe(false)
+    // A split beside p leaves q's column folded.
+    const beside = splitCell(folded, 'p', 'right', ids())
+    expect(beside.layout.grid.columns.at(-1)?.collapsed).toBe(true)
+    expectValid(beside.layout)
+  })
+
+  it('normalizeGrid expands a collapsed column nothing can expand: its widget closed or moved away', () => {
+    const p = cell('p')
+    const q = cell('q')
+    const folded = layout(grid([[p, q]], { cols: [1000, { weight: 1000, collapsed: true }] }))
+    expect(orphanCollapsedTracks(folded, 'columns')).toEqual([])
+    const closed = closeCell(folded, 'q')
+    expect(closed.grid.columns.some((t) => t.collapsed === true)).toBe(false)
+    const emptied = removeTabKeepCell(folded, 'q-t')
+    expect(emptied.grid.columns.some((t) => t.collapsed === true)).toBe(false)
+    expectValid(emptied)
   })
 
   it('sets the active tab; batched track sizes in their own unit; ignores bad sizes', () => {
@@ -1186,7 +1236,7 @@ describe('random op sequences keep the table valid', () => {
   /** What holds of every table, beyond the tiling: its view state is sound. */
   function expectSoundViewState(body: LayoutBody): void {
     // No collapsed row without a filled cell that can expand it (cr34 M8, W4).
-    expect(orphanCollapsedRows(body)).toEqual([])
+    expect(orphanCollapsedTracks(body, 'rows')).toEqual([])
     for (const t of body.grid.columns) expect(t.collapsed === undefined && t.fitPx === undefined).toBe(true)
     for (const t of [...body.grid.columns, ...body.grid.rows]) {
       if (t.px != null) expect(Number.isInteger(t.px) && t.px >= 1).toBe(true)

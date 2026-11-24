@@ -3,7 +3,7 @@ import type { GridAxis, LayoutTab, WorkspaceLayout } from '../../models/workspac
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { evenTracks, trackRemoval } from '../../utils/workspace-layout-ops'
 import { spanOf } from '../../utils/workspace-grid'
-import { columnShare, isSliverTrack, removeTrackMessage, rowCanCollapse, rowMark, sliverRun, trackNames } from '../../utils/layout-rulers'
+import { columnShare, isSliverTrack, removeTrackMessage, rowMark, sliverRun, trackCanCollapse, trackNames } from '../../utils/layout-rulers'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { PlusIcon } from '../shared/icons'
 import { useDrawnTracks, type DrawnTracks } from './use-drawn-tracks'
@@ -137,7 +137,7 @@ function rulerMenuLabel(menu: OpenMenu, names: Record<GridAxis, Array<string | n
   return name == null ? `Narrow ${noun.toLowerCase()}` : `${noun} ${name}`
 }
 
-/** A ruler's menu: a major track's Insert / Collapse / Even all / Remove, a sliver's Merge into. */
+/** A ruler's menu: a major track's Insert / Collapse (rows and columns) / Even all / Remove, a sliver's Merge into. */
 function rulerEntries(
   layout: WorkspaceLayout,
   menu: OpenMenu,
@@ -179,12 +179,13 @@ function rulerEntries(
     ? [
         { kind: 'item', label: 'Insert column left', icon: <PlusIcon />, onSelect: insert(index) },
         { kind: 'item', label: 'Insert column right', icon: <PlusIcon />, onSelect: insert(index + 1) },
+        collapseEntry(layout, 'columns', index, run),
         { kind: 'item', label: 'Even all widths', disabled: !evenable, title: evenable ? undefined : 'The columns are even already', onSelect: run(() => { void store().evenTracks('columns') }) },
       ]
     : [
         { kind: 'item', label: 'Insert row above', icon: <PlusIcon />, onSelect: insert(index) },
         { kind: 'item', label: 'Insert row below', icon: <PlusIcon />, onSelect: insert(index + 1) },
-        collapseEntry(layout, index, run),
+        collapseEntry(layout, 'rows', index, run),
         { kind: 'item', label: 'Even all heights', disabled: !evenable, title: evenable ? undefined : 'The rows are even already', onSelect: run(() => { void store().evenTracks('rows') }) },
       ]
   const plan = trackRemoval(layout, axis, index)
@@ -202,18 +203,20 @@ function rulerEntries(
   return entries
 }
 
-function collapseEntry(layout: WorkspaceLayout, index: number, run: (fn: () => void) => () => void): MenuEntry {
-  const track = layout.grid.rows[index]
+/** A major track's Collapse row / column (Expand while collapsed): view state, in the mode the draft. */
+function collapseEntry(layout: WorkspaceLayout, axis: GridAxis, index: number, run: (fn: () => void) => () => void): MenuEntry {
+  const track = layout.grid[axis][index]
+  const noun = axis === 'columns' ? 'column' : 'row'
   const store = useWorkspaceStore.getState
   if (track?.collapsed === true) {
-    return { kind: 'item', label: 'Expand row', onSelect: run(() => { void store().setTrackCollapsed(track.id, false) }) }
+    return { kind: 'item', label: `Expand ${noun}`, onSelect: run(() => { void store().setTrackCollapsed(track.id, false) }) }
   }
-  const can = track != null && rowCanCollapse(layout, index)
+  const can = track != null && trackCanCollapse(layout, axis, index)
   return {
     kind: 'item',
-    label: 'Collapse row',
+    label: `Collapse ${noun}`,
     disabled: !can,
-    ...(can ? {} : { title: 'No widget lies only in this row' }),
+    ...(can ? {} : { title: `No widget lies only in this ${noun}` }),
     onSelect: run(() => { if (track) void store().setTrackCollapsed(track.id, true) }),
   }
 }

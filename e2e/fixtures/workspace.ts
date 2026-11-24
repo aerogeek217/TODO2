@@ -75,7 +75,7 @@ export function wsRow(cell: WsCellSeed, extra: Omit<WsRowSeed, 'cells'> = {}): W
   return { ...extra, cells: [cell] }
 }
 
-/** A grid track's size: a weight (a number), or `{ px }` (fixed); `collapsed` on a row. */
+/** A grid track's size: a weight (a number), or `{ px }` (fixed); `collapsed` on a row or a column. */
 export type WsTrackSeed = number | { weight?: number; px?: number; collapsed?: boolean }
 
 /**

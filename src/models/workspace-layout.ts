@@ -15,7 +15,7 @@
  *   saved layout, i.e. "unsaved changes".
  * - `viewState` — **view state**: written straight onto the stored layout
  *   (last write wins) and never counts as an unsaved change. Same for a cell's
- *   `activeTabId`, a row track's `collapsed`, and for the sizes (a track's
+ *   `activeTabId`, a track's `collapsed`, and for the sizes (a track's
  *   `weight` or `px`).
  *
  * A layout stores structure only; what a widget shows (list definitions,
@@ -387,8 +387,10 @@ export interface GridTrack {
    */
   fitPx?: number
   /**
-   * View state, row tracks only: collapsed — the cells lying only in it
-   * show their headers, and a cell spanning through it gets shorter.
+   * View state: collapsed. A row — the cells lying only in it show their
+   * headers, and a cell spanning through it gets shorter. A column — it
+   * draws as a strip naming the cells lying only in it, and a cell spanning
+   * through it gets narrower.
    */
   collapsed?: boolean
 }

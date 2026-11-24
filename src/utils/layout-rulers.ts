@@ -109,9 +109,12 @@ export function rowMark(body: LayoutBody, i: number): 'fit' | 'folded' | null {
   return null
 }
 
-/** Whether row `i` can collapse: some filled cell lies only in it (a folded row nothing can expand opens again at once). */
-export function rowCanCollapse(body: LayoutBody, i: number): boolean {
-  return body.cells.some((c) => c.tabs.length > 0 && c.area.row === i && c.area.rowSpan === 1)
+/** Whether track `i` of `axis` can collapse: some filled cell lies only in it (a folded track nothing can expand opens again at once). */
+export function trackCanCollapse(body: LayoutBody, axis: GridAxis, i: number): boolean {
+  return body.cells.some((c) => {
+    const [s, e] = spanOf(c.area, axis)
+    return c.tabs.length > 0 && s === i && e === i + 1
+  })
 }
 
 /** `A`, `A and B`, `A, B and C`, `A, B and 2 more`. */

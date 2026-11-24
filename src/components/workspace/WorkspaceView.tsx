@@ -13,7 +13,7 @@ import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { useWorkspaceDrag } from './workspace-drag'
-import { useExpandOrphanRows } from './use-expand-orphan-rows'
+import { useExpandOrphanTracks } from './use-expand-orphan-tracks'
 import { useTabTitles } from './widget-hooks'
 import { AmbienceBackdrop, AmbienceLamp } from '../ambience/AmbienceWorkspace'
 // The layout edit mode: the headers in the table's frame, the selection's edge tabs and merge buttons.
@@ -353,13 +353,13 @@ function Grain() {
 /**
  * The open layout, filling the page: its table of cells, or the empty-layout
  * tiles. A collapsed row it arrives with that nothing can expand, expands
- * (`useExpandOrphanRows`). In the layout edit mode (`data-layout-editing`)
+ * (`useExpandOrphanTracks`). In the layout edit mode (`data-layout-editing`)
  * the workspace is tinted under a faint dot grid with an accent outline, and
  * each cell is a card (E3, `EditCard`): its content dims and takes no
  * presses — the card's surface under it does, and its tabs; nothing moves.
  */
 export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
-  useExpandOrphanRows(layout)
+  useExpandOrphanTracks(layout)
   const editing = useWorkspaceStore((s) => s.editing != null)
   return (
     <div
