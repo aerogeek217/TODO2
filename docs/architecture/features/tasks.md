@@ -13,7 +13,7 @@ In normal use a task write goes UI → Zustand stores → repositories → Dexie
 - `nextFollowupAt?: Date` is a day at local midnight. New tasks get today + `settings.followupDefaultInterval`, or none while Settings' automatic next follow-up is off ([Settings](settings.md#the-automatic-next-follow-up)). It has no index: it is filtered in memory.
 - `focus?: boolean` means in focus. Only `true` is stored, and taking a task out deletes the key. It has no index. The Focus marker and the Priority (markers) filter read it ([Filters](filters.md#priority-filters)).
 - `urgent?: boolean` / `important?: boolean` are flags: only `true` is stored, with no index. A task is also urgent when its due date is within `settings.urgentDueWithinDays` (`utils/urgency.isEffectivelyUrgent`). That never sets the flag.
-- The plan state (`doDate`, `unplanned`) is the Planner's: [Planner › Plan state](planner.md#plan-state).
+- The plan state (`doDate`, the planned day) is the Planner's: [Planner › Plan state](planner.md#plan-state).
 
 ## The sync file
 
@@ -46,8 +46,8 @@ A `/plan <date>` in the text (Quick Add, the editor's title, a note's line; `/du
 ### Completing
 
 - `toggleComplete` completes or reopens one task, as one undo step. Every completion shows the undo snackbar, because a completed row may fold out of its list. Reopening a task stays quiet.
-- A recurring task advances instead (`advanceRecurring`). The advance clears the task's plan state (`doDate`, `unplanned`), since the next occurrence isn't planned, and its undo puts it back. The advance keeps its own snackbar.
-- `bulkSetCompleted` writes the completions and the recurring advances in one `bulkUpdate` transaction, each advance clearing its plan state likewise. Its undo is one transaction too. A failed write rolls back and re-reads the tasks (`loadAll`).
+- A recurring task advances instead (`advanceRecurring`). The advance clears the task's planned day (`doDate`), since the next occurrence isn't planned, and its undo puts it back. The advance keeps its own snackbar.
+- `bulkSetCompleted` writes the completions and the recurring advances in one `bulkUpdate` transaction, each advance clearing its planned day likewise. Its undo is one transaction too. A failed write rolls back and re-reads the tasks (`loadAll`).
 - The optimistic completion state mirrors the repository's `completedAt` rule (`resolveCompletedAt`).
 
 ### Bulk fields and flags

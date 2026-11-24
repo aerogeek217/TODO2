@@ -66,7 +66,7 @@ The panel's **Show** row picks how a range is entered:
   - The field's chevron keeps the rolling days and the open end (**No start** / **No end**).
   - Under the field is its day today (`Thu, Dec 3`).
   - A new range opens in Relative.
-- **Any** / **None**, on the optional dates only. Planned's **None** shows a box, **Only tasks held in Unplanned**, that switches the clause between `unset` and `held` (a switch in the sheet); the header then says `held in Unplanned`.
+- **Any** / **None**, on the optional dates only.
 
 Switching between Calendar and Relative converts the ends. The mode itself is not stored: it is read from the ends.
 
@@ -97,7 +97,6 @@ A clause is one of:
   - `includeNoDate` is "also tasks with no date". It is stored only when true, and only on the optional dates.
   - `not` is "is not". It is stored only when true, never on Completed, and with no `includeNoDate` beside it.
 - `{ match: 'set' }` / `{ match: 'unset' }`: **Any** / **None**, on the optional dates only.
-- `{ match: 'held' }`: on Planned only, a task held in the Planner's Unplanned tray (`unplanned: true`).
 
 A `DateAnchor` is resolved at evaluation time. It is one of:
 
@@ -169,9 +168,9 @@ The grammar is in `utils/filter-expression` (parse, print, convert, tree). Terms
 | None or any | `no` / `any` person · tag · status · priority |
 | Text contains | a quoted phrase (bare words are quoted when the field settles) |
 | Date | a date word (`due`, `planned`, `followup`, `followed`, `created`, `modified`, `completed`) with what follows it, below |
-| Shortcuts | `overdue`, `followup late`, `never followed`, `unplanned` |
+| Shortcuts | `overdue`, `followup late`, `never followed` |
 
-`planned` is the Planner's planned day, and takes every form the other date words take (`planned fri`, `planned <= today`, `planned -3d..+7d`, `planned any`). Its none prints `planned none` (`no planned` reads too) and keeps the tasks held in Unplanned, which have no planned day. **`unplanned`** is Planned's `held` clause: only the tasks held in the Planner's Unplanned tray. It reads back as `held in Unplanned`, `planned any` as `planned`, `planned none` as `not planned`, and a planned range as its chip words (`planned this week`).
+`planned` is the Planner's planned day, and takes every form the other date words take (`planned fri`, `planned <= today`, `planned -3d..+7d`, `planned any`). Its none prints `planned none` (`no planned` reads too): the tasks with no planned day. `planned any` reads back as `planned`, `planned none` as `not planned`, and a planned range as its chip words (`planned this week`).
 
 After a date word comes one of:
 

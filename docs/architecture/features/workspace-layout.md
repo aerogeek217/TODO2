@@ -239,7 +239,7 @@ Its toolbar's toggles are its `config.dateTypes`: **Due**, **Follow-up** and **P
 
 ### Entries
 
-`services/calendar-entries.buildEntries` places one entry per shown type: on the due date's day, the next follow-up's, and the planned day (`doDate`). A task held in Unplanned has no plan entry. Within a day: due entries, then follow-ups, then plans.
+`services/calendar-entries.buildEntries` places one entry per shown type: on the due date's day, the next follow-up's, and the planned day (`doDate`), whenever there is one. Within a day: due entries, then follow-ups, then plans.
 
 - A plan entry (`data-cal-entry="plan"`) is a line with the hollow bar, its title in the secondary text color. Its tooltip is the title beside the hollow bar, named `Planned`.
 - A **missed plan** — its day passed, the task open (`isEntryMissed`) — is faded on its day (`plan-missed`). It is never overdue, never late and washes no day.
@@ -250,7 +250,7 @@ Its toolbar's toggles are its `config.dateTypes`: **Due**, **Follow-up** and **P
 
 An entry drags to another day, except a recurring occurrence, a completed task's plan and on a phone. It moves its own date: a due date or follow-up keeps its time of day; a plan entry plans the task for that day **outright** (`services/planner-drop.planTaskForDay`: a pick, as Plan for day ›) — the plan write, no stamp, no history event, one undo step. A day before today is refused for a plan, as the Planner refuses it.
 
-A list row dropped on a day sets the one type the calendar shows. With more than one shown, `CalendarDropChooser` asks at the pointer: **Due date · Follow-up · Plan**, the shown ones, with `D` / `F` / `P` and the task's values now (`was Thu 15`, `not set`, `held in Unplanned`). The hovered day's label: `Move here`, `Set date` (the chooser will ask), `Set due`, `Set follow-up`, `Set plan`, or `Past day` where a plan would land before today.
+A list row dropped on a day sets the one type the calendar shows. With more than one shown, `CalendarDropChooser` asks at the pointer: **Due date · Follow-up · Plan**, the shown ones, with `D` / `F` / `P` and the task's values now (`was Thu 15`, `not set`). The hovered day's label: `Move here`, `Set date` (the chooser will ask), `Set due`, `Set follow-up`, `Set plan`, or `Past day` where a plan would land before today.
 
 ### Day marks
 

@@ -112,12 +112,11 @@ The cells, in order:
 - **Status**.
 - **People** and **Tags**: each value a pill with its own ×, then a dashed round **+**, always shown, that opens the picker.
 - **Due** (`task/DueFacts`), on two short lines. The first is a typed date field like the footer's follow-up fields (`task/TypedDateField`): at rest the date in the rows' words, in the late or soon color as the row's (its tooltip the full date), or `None`. A click shows the text: typed `fri`, `11/30` or `2w`, written when the field is left (⏎, Tab, a blur); Esc puts the stored date back; a text that doesn't read is kept unwritten. In the field: × (**Clear due date**, on hover and focus), the **↻** repeat button while there is a date, and the calendar, which opens the browser's picker in one click. Under the field is how far the date is (`in 2 days`, `3 days late`), muted and cut with an ellipsis; while typing, what the text means (`→ Fri 27 Nov · in 4 days`, or how to write one). Both lines are kept without a date, so setting or clearing it never changes the band's height.
-- **Planned** (`task/PlannedFacts`): the [plan state](planner.md#plan-state), in the same kind of field over its words. A day typed or picked plans the task for it (`planTaskForDay`: a pick, as Plan for day ›'s). It takes today or later: an earlier day typed is refused with `Plan a day from today on`, and the picker starts at today. × (**Clear plan**, while there is a plan state) clears it (`clearPlannerTask`), and so does an emptied field. Unplanned is not offered here: it is in the task menus' **Plan for day ›**.
+- **Planned** (`task/PlannedFacts`): the [plan state](planner.md#plan-state), in the same kind of field over its words. A day typed or picked plans the task for it (`planTaskForDay`: a pick, as Plan for day ›'s). It takes today or later: an earlier day typed is refused with `Plan a day from today on`, and the picker starts at today. × (**Clear plan**, while a day is planned) clears it (`clearPlannerTask`), and so does an emptied field.
 
 Planned's states:
 
 - not planned: `Not planned`, muted, on the first line;
-- held: `Unplanned`, muted, with the Planner's corner flag at the cell's top-left;
 - a planned day: the hollow bar and the day in the rows' words, how far it is under the field, muted (`tomorrow`);
 - after a real date: `1 day after due ▾` (or `… after follow-up`) under the day in the deadline color, opening [the Planner's fixes](planner.md#a-conflicts-fix);
 - missed (a day passed): muted, `3 days ago · Delayed` under the day.
