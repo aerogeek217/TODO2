@@ -142,8 +142,11 @@ describe('tapOutcome', () => {
   const idle = { selectedCellId: null, moveArmed: false }
   const armedA = { selectedCellId: 'a', moveArmed: true }
 
-  it('with nothing armed: a card selects (and arms), a slot opens its kinds', () => {
+  it('with nothing armed: a card selects, wherever it is tapped; a slot opens its kinds', () => {
     expect(tapOutcome(idle, { kind: 'card', cellId: 'a', zone: 'middle' })).toEqual({ kind: 'select', cellId: 'a' })
+    // A card selected but not armed: a tap on another's tab area or middle selects it, never joins or swaps.
+    expect(tapOutcome({ selectedCellId: 'a', moveArmed: false }, { kind: 'card', cellId: 'b', zone: 'tabs' })).toEqual({ kind: 'select', cellId: 'b' })
+    expect(tapOutcome({ selectedCellId: 'a', moveArmed: false }, { kind: 'card', cellId: 'b', zone: 'middle' })).toEqual({ kind: 'select', cellId: 'b' })
     expect(tapOutcome(idle, { kind: 'slot', cellId: 'e' })).toEqual({ kind: 'menu', cellId: 'e' })
     // Selected by the keys (not armed): a slot still opens its kinds.
     expect(tapOutcome({ selectedCellId: 'a', moveArmed: false }, { kind: 'slot', cellId: 'e' })).toEqual({ kind: 'menu', cellId: 'e' })

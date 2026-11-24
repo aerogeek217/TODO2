@@ -162,9 +162,10 @@ interface LayoutEditSession {
   /** The lists made while it was on (`createListAndTab`): those its end doesn't keep are deleted. */
   createdLists: readonly number[]
   /**
-   * A tap on the selected card armed a move (E3, tap then tap): the next
-   * tap on a slot moves it there, on another card's middle joins them
-   * (`layout-edit-cards.tapOutcome`). Esc, an edit, an undo disarm it.
+   * The selected card's Move (or Space on it) armed a move: the next tap
+   * on a slot moves it there, on another card's middle swaps them, on its
+   * tab area joins them (`layout-edit-cards.tapOutcome`). Esc, an edit, an
+   * undo disarm it. A tap alone never arms one.
    */
   moveArmed?: boolean
   /**
@@ -326,9 +327,9 @@ export interface WorkspaceState {
    * Resolves whether the mode is on.
    */
   enterEdit: (opts?: { cellId?: string | null }) => Promise<boolean>
-  /** Selects a cell of the draft (`null`: none; `arm`: a tap armed a move, E3). Only while editing. */
+  /** Selects a cell of the draft (`null`: none; `arm`: its Move, or Space, armed a move). Only while editing. */
   selectEditCell: (cellId: string | null, opts?: { arm?: boolean }) => void
-  /** Disarms a tap's pending move (Esc), the card staying selected. */
+  /** Disarms the pending move (Esc, Move again), the card staying selected. */
   disarmEditMove: () => void
   /**
    * A tap on a card or a slot in the mode (E3, `layout-edit-cards.tapOutcome`):
@@ -1453,7 +1454,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const outcome = tapOutcome({ selectedCellId: editing?.selectedCellId ?? null, moveArmed: editing?.moveArmed ?? false }, target)
       if (!editing) return outcome
       switch (outcome.kind) {
-        case 'select': get().selectEditCell(outcome.cellId, { arm: true }); break
+        // A tap only selects: a move is armed by the toolbar's Move (or Space), never by a tap.
+        case 'select': get().selectEditCell(outcome.cellId); break
         case 'disarm': get().disarmEditMove(); break
         case 'menu': get().selectEditCell(outcome.cellId); break
         case 'move':

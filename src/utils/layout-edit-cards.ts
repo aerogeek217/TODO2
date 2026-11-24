@@ -186,7 +186,7 @@ export function altMove(body: LayoutBody, cellId: string, side: Side): { kind: '
 
 // ── Tap, then tap ───────────────────────────────────────────────────────────
 
-/** The mode's selection as a tap reads it: the selected cell, and whether a tap on it armed a move. */
+/** The mode's selection as a tap reads it: the selected cell, and whether a move is armed (the toolbar's Move, or Space). */
 interface TapState {
   selectedCellId: string | null
   moveArmed: boolean
@@ -198,9 +198,10 @@ export type TapTarget =
   | { kind: 'slot'; cellId: string }
 
 /**
- * What a tap does (WCAG 2.5.7's single-pointer way to move a card):
- * - a card, with no move armed (or on its own edge): selects it and arms a
- *   move (`select`);
+ * What a tap does (WCAG 2.5.7's single-pointer way to move a card, once the
+ * selected card's Move armed it):
+ * - a card, with no move armed: selects it (`select`) — and nothing more, so
+ *   a click on one card, then another, never moves either;
  * - the armed card again: disarms (`disarm`), the card still selected;
  * - a slot, with a card armed: the card moves there (`move`);
  * - another card's middle, with a card armed: the two swap places

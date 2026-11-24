@@ -24,13 +24,30 @@ const store = useWorkspaceStore.getState
 
 /**
  * A card's or slot's focus selects it (the keyboard's way to the
- * selection) — not while a tap armed a move: the tap on the next card or
- * slot focuses it first, and that tap is the move.
+ * selection) — not while a move is armed: the tap on the next card or slot
+ * focuses it first, and that tap is the move.
  */
 export function selectOnFocus(cellId: string): void {
   const editing = store().editing
   if (!editing || editing.moveArmed || editing.selectedCellId === cellId) return
   store().selectEditCell(cellId)
+}
+
+/**
+ * The selected card's Move (and Space on a card): arms a move from it — the
+ * next tap on a slot moves it there, on another card swaps or joins — or,
+ * armed already, disarms it. A slot or a card with no widget has none.
+ */
+export function toggleEditMove(cellId: string): void {
+  const editing = store().editing
+  if (!editing) return
+  if (editing.moveArmed && editing.selectedCellId === cellId) {
+    store().disarmEditMove()
+    return
+  }
+  const cell = store().working?.cells.find((c) => c.id === cellId)
+  if (!cell || cell.tabs.length === 0) return
+  store().selectEditCell(cellId, { arm: true })
 }
 
 /** After a tap that moved or joined the armed card, or placed the widgets in hand: the focus on where it is now. */
@@ -106,7 +123,9 @@ export function onCardKey(e: KeyboardEvent<HTMLElement>, cell: LayoutCell, onMen
   }
   if (e.key === ' ') {
     e.preventDefault()
-    focusAfterTap(store().tapEdit({ kind: 'card', cellId: cell.id, zone: 'middle' }).kind)
+    // Space arms a move from the card (as its toolbar's Move), and on another card, one armed, is the tap that swaps.
+    if (!store().editing?.moveArmed) toggleEditMove(cell.id)
+    else focusAfterTap(store().tapEdit({ kind: 'card', cellId: cell.id, zone: 'middle' }).kind)
     return
   }
   if (e.key === 'Delete' || e.key === 'Backspace') {

@@ -106,34 +106,47 @@ describe('in the mode, the card actions change the draft only', () => {
 })
 
 describe('tap, then tap', () => {
-  it('a tap on a card selects it and arms a move; a tap on a slot moves it there', async () => {
+  it('a tap on a card only selects it: a tap on another card, anywhere on it, selects that one and moves nothing', async () => {
     await seed(base())
     await ws().enterEdit()
-    expect(ws().tapEdit({ kind: 'card', cellId: 'c', zone: 'middle' })).toEqual({ kind: 'select', cellId: 'c' })
-    expect(ws().editing).toMatchObject({ selectedCellId: 'c', moveArmed: true })
+    const before = ws().working
+    expect(ws().tapEdit({ kind: 'card', cellId: 'a', zone: 'middle' })).toEqual({ kind: 'select', cellId: 'a' })
+    expect(ws().editing).toMatchObject({ selectedCellId: 'a', moveArmed: false })
+    // Its tab area (what joined them when a tap armed a move) and its middle (what swapped them).
+    expect(ws().tapEdit({ kind: 'card', cellId: 'c', zone: 'tabs' })).toEqual({ kind: 'select', cellId: 'c' })
+    expect(ws().tapEdit({ kind: 'card', cellId: 'b', zone: 'middle' })).toEqual({ kind: 'select', cellId: 'b' })
+    expect(ws().editing).toMatchObject({ selectedCellId: 'b', moveArmed: false })
+    expect(ws().working).toBe(before)
+  })
+
+  it('a card armed (its Move), a tap on a slot moves it there', async () => {
+    await seed(base())
+    await ws().enterEdit()
+    ws().selectEditCell('c', { arm: true })
     expect(ws().tapEdit({ kind: 'slot', cellId: 'e' })).toEqual({ kind: 'move', from: 'c', to: 'e' })
     const holder = ws().working?.cells.find((x) => x.tabs.some((t) => t.id === 'c-t'))
     expect(holder?.area).toMatchObject({ col: 1, row: 0 })
     expect(ws().editing).toMatchObject({ selectedCellId: holder?.id, moveArmed: false })
   })
 
-  it('a tap on another card’s tab area joins them as tabs; on its edge it selects that card instead', async () => {
+  it('a card armed, a tap on another card’s tab area joins them as tabs; on its edge it selects that card, disarmed', async () => {
     await seed(base())
     await ws().enterEdit()
-    ws().tapEdit({ kind: 'card', cellId: 'a', zone: 'middle' })
+    ws().selectEditCell('a', { arm: true })
     expect(ws().tapEdit({ kind: 'card', cellId: 'b', zone: 'edge' })).toEqual({ kind: 'select', cellId: 'b' })
-    expect(ws().editing).toMatchObject({ selectedCellId: 'b', moveArmed: true })
+    expect(ws().editing).toMatchObject({ selectedCellId: 'b', moveArmed: false })
+    ws().selectEditCell('b', { arm: true })
     expect(ws().tapEdit({ kind: 'card', cellId: 'c', zone: 'tabs' })).toEqual({ kind: 'join', from: 'b', into: 'c' })
     expect(ws().working?.cells.find((x) => x.id === 'c')?.tabs.map((t) => t.id)).toEqual(['c-t', 'b-t'])
     expect(ws().editing).toMatchObject({ selectedCellId: 'c', moveArmed: false })
   })
 
-  it('a tap on another card’s middle swaps the two whole cards; the moved card stays selected', async () => {
+  it('a card armed, a tap on another card’s middle swaps the two whole cards; the moved card stays selected', async () => {
     await seed(base())
     await ws().enterEdit()
     const areaOf = (id: string) => ws().working?.cells.find((x) => x.id === id)?.area
     const [a, c] = [areaOf('a'), areaOf('c')]
-    ws().tapEdit({ kind: 'card', cellId: 'a', zone: 'middle' })
+    ws().selectEditCell('a', { arm: true })
     expect(ws().tapEdit({ kind: 'card', cellId: 'c', zone: 'middle' })).toEqual({ kind: 'swap', from: 'a', with: 'c' })
     expect(areaOf('a')).toEqual(c)
     expect(areaOf('c')).toEqual(a)
@@ -143,7 +156,7 @@ describe('tap, then tap', () => {
   it('the armed card again disarms; Esc’s disarm keeps the selection; a slot with nothing armed asks for its kinds', async () => {
     await seed(base())
     await ws().enterEdit()
-    ws().tapEdit({ kind: 'card', cellId: 'a', zone: 'middle' })
+    ws().selectEditCell('a', { arm: true })
     expect(ws().tapEdit({ kind: 'card', cellId: 'a', zone: 'middle' })).toEqual({ kind: 'disarm' })
     expect(ws().editing).toMatchObject({ selectedCellId: 'a', moveArmed: false })
     ws().selectEditCell('a', { arm: true })
@@ -156,7 +169,7 @@ describe('tap, then tap', () => {
   it('an edit or the mode’s undo disarms a pending move', async () => {
     await seed(base())
     await ws().enterEdit()
-    ws().tapEdit({ kind: 'card', cellId: 'a', zone: 'middle' })
+    ws().selectEditCell('a', { arm: true })
     ws().swapCells('b', 'c')
     expect(ws().editing?.moveArmed).toBe(false)
     ws().selectEditCell('a', { arm: true })

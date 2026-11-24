@@ -154,14 +154,14 @@ In the mode every cell is a card (`components/workspace/EditCard` + `edit-card-a
 The card's **surface** (`data-edit-surface`, a Tab stop) lies under the card's dimmed content, which takes no presses (`data-edit-layer`), so a press anywhere on the card lands on it.
 
 - A drag (past dnd-kit's 5px) moves the whole card through the [drop model](#drops-in-the-mode).
-- A short click selects it (`selectEditCell`, the accent ring, `data-edit-selected`) and **arms a move**.
+- A short click selects it (`selectEditCell`, the accent ring, `data-edit-selected`), and only that: a click on one card, then on another, selects the other and moves neither.
 
-With a move armed, the mode bar's tray gives way to `Click a slot to move “X” there, a card to swap, or its tab bar to join it · Esc cancels`. The next click:
+The selected card's toolbar **Move** (or Space on the card) **arms a move** (`edit-card-actions.toggleEditMove`); pressed again it disarms. With a move armed, the button shows pressed and the mode bar's tray gives way to `Click a slot to move “X” there, a card to swap, or its tab bar to join it · Esc cancels`. The next click:
 
 - on a slot moves the card there;
 - on another card's middle swaps the two;
 - on its tab area (its strip, a one-widget card's top band) joins them as tabs;
-- near its edge selects that card instead;
+- near its edge selects that card instead, disarmed;
 - on the armed card again disarms.
 
 These are the zones a drop reads: `workspace-store.tapEdit` over `utils/layout-edit-cards.tapOutcome`, WCAG 2.5.7's single-pointer way.
@@ -195,6 +195,7 @@ The ⋯ and the corner show on the card's hover, focus or selection (always on t
 
 - **Split →** and **Split ↓**: each hovered, the table draws the split (`splitPreview`).
 - **Merge ▾**: the same neighbors as the merge buttons — `As tabs with Tasks for… (above)`, `With Overdue (below)`, `Over the empty slot (right)` (`mergeMenuWords`) —, each previewing while hovered; off with none.
+- **Move**: arms a move by clicks ([the surface](#the-surface)), a toggle (`aria-pressed`).
 - **Remove**: the active widget (**Remove widget** / **Remove tab**).
 - **⋯**: the card menu, standing in for the card's corner ⋯.
 

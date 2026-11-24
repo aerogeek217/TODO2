@@ -28,6 +28,12 @@ History before 2026-11-19 is in the git log.
 - **List board tiles share the row.** Tiles widen to fill the space instead of leaving empty room at the end, and
   are all the same width. A tile's task count stays beside its name: a long name shortens with "…" first.
 
+### Fixed
+
+- **Clicking one cell, then another, in Edit layout no longer combines them.** A click now only selects a cell. To
+  move, swap or join cells by clicking, press **Move** on the selected cell's toolbar first (or Space); dragging works
+  as before.
+
 ## 2026-11-23, second deployment
 
 Data version 89. A browser's data and a sync file are upgraded on first use; an older copy of the app can't open

@@ -4,8 +4,9 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { mergeChoices, mergeMenuWords, type MergeChoice } from '../../utils/layout-edit-cards'
 import type { Side } from '../../utils/workspace-grid'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
-import { ChevronDownIcon, MoreIcon, SplitBelowIcon, SplitRightIcon, TrashIcon } from '../shared/icons'
+import { ChevronDownIcon, MoreIcon, MoveIcon, SplitBelowIcon, SplitRightIcon, TrashIcon } from '../shared/icons'
 import { EDIT_CARD_MENU_LABEL } from './cell-menu'
+import { toggleEditMove } from './edit-card-actions'
 import { focusEditItem } from './edit-focus'
 import { mergePreview, showStructurePreview, splitPreview } from './insert-preview'
 import { useTabTitles } from './widget-hooks'
@@ -17,7 +18,9 @@ import styles from './EditCardToolbar.module.css'
  * its top-left — under its tab strip when it has one, so the strip stays
  * free to drag: **Split →** and **Split ↓** (each hovered, the table draws
  * the split — `insert-preview.splitPreview`), **Merge ▾** (the neighbours
- * it makes a rectangle with, each drawn while hovered), **Remove** (its
+ * it makes a rectangle with, each drawn while hovered), **Move** (a toggle,
+ * `aria-pressed`: arms the click-to-move — the next click on a slot moves the
+ * card, on a card swaps or joins it; `edit-card-actions.toggleEditMove`), **Remove** (its
  * active widget; Remove tab on a card of tabs) and **⋯** (the card's menu,
  * which stands in for the card's corner ⋯ meanwhile). Icons only in a card
  * under {@link COMPACT_BELOW_PX} wide — decided while no preview reflows
@@ -39,6 +42,7 @@ export function EditCardToolbar({ cell, name, menuOpen, setMoreButton, onMore }:
 }) {
   const layout = useWorkspaceStore((s) => s.working)
   const previewing = useWorkspaceStore((s) => s.structurePreview != null)
+  const armed = useWorkspaceStore((s) => s.editing?.moveArmed === true && s.editing.selectedCellId === cell.id)
   const previewingRef = useLatestRef(previewing)
   const barRef = useRef<HTMLDivElement | null>(null)
   const [compact, setCompact] = useState(false)
@@ -144,6 +148,19 @@ export function EditCardToolbar({ cell, name, menuOpen, setMoreButton, onMore }:
       >
         <span>Merge</span>
         <ChevronDownIcon size={12} />
+      </button>
+      <button
+        type="button"
+        className={`${styles.button} ${armed ? styles.pressed : ''}`}
+        aria-label="Move"
+        aria-pressed={armed}
+        data-edit-move=""
+        data-tooltip={armed ? 'Click a slot, a card to swap, or its tab bar to join · Esc cancels' : 'Move, swap or join by clicking'}
+        disabled={!active}
+        onClick={() => toggleEditMove(cell.id)}
+      >
+        <MoveIcon />
+        {!compact && <span>Move</span>}
       </button>
       <span className={styles.separator} aria-hidden="true" />
       <button

@@ -302,6 +302,15 @@ export function EyeIcon({ size = 14 }: { size?: number }) {
   )
 }
 
+/** Four arrows out from the middle: move a card (the layout edit mode's toolbar). */
+export function MoveIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M8 1.75v12.5M1.75 8h12.5M6 3.75l2-2 2 2M6 12.25l2 2 2-2M3.75 6l-2 2 2 2M12.25 6l2 2-2 2" />
+    </Svg>
+  )
+}
+
 export function TrashIcon({ size = 14 }: { size?: number }) {
   return (
     <Svg size={size}>
