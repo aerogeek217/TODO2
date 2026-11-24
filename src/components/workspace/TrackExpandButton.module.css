@@ -27,7 +27,8 @@
   box-shadow: var(--focus-ring);
 }
 
+/* The phone's: a 36px tap. */
 .touch {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
 }
