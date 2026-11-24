@@ -14,7 +14,7 @@ Outside the mode the cell has one menu, named **Cell options**. It opens from th
 2. **Move to layout ›** / **Copy to layout ›** ([Move / Copy to layout](cross-layout-moves.md)).
 3. **Add widget as tab ›**: every kind under Tasks and Insights, a Breakdown's presets. The new widget is a tab of this cell, made its active one; a List gets a new blank list (`widget-hooks.addTabToCell`).
 4. **Remove widget**: that tab.
-5. **Collapse row** / **Expand row**.
+5. **Collapse row** / **Expand row**, then **Collapse column** / **Expand column**: every row (column) track the cell covers. Expand column shows while any column it covers is collapsed.
 6. **Edit layout**, last: the mode, this cell selected.
 
 - In a cell showing a tab strip, the two read **Add tab ›** and **Remove tab** (`cell-menu.showsTabStrip`). A Numbers strip keeps the widget words.

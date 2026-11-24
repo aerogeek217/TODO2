@@ -24,7 +24,7 @@ A `WorkspaceLayout` is `{ id, name, sortOrder, grid, cells, createdAt, modifiedA
 
 - A weighted track has a `weight`: its share of the axis among the weighted ones, any positive number. A new one gets `DEFAULT_WEIGHT`, 1000.
 - A fixed track has `px`, header included.
-- `collapsed` is for row tracks only ([Collapse row](layout-ops.md#collapse-row)).
+- `collapsed`, on a row or a column ([Collapse row and column](layout-ops.md#collapse-row-and-column)). `data/layout-shape` checks it (a boolean) and keeps it.
 - A row track **fits its content** when the cells lying only in it each hold only Numbers (`utils/workspace-rows.isFitTrack`). That is derived, never stored.
 - `fitPx` is for row tracks only: the height a divider gave a fit row.
   - It applies only while the row is a fit row and has no `px`. Otherwise it is ignored.
@@ -44,13 +44,13 @@ A `WorkspaceLayout` is `{ id, name, sortOrder, grid, cells, createdAt, modifiedA
 `utils/workspace-grid` holds:
 
 - the queries: neighbors along an edge, whether two cells merge into a rectangle, reading order, edge stretches;
-- `normalizeGrid`, which merges the two tracks beside a line no cell's edge lies on and expands a collapsed row nothing can expand ([Collapse row](layout-ops.md#collapse-row));
+- `normalizeGrid`, which merges the two tracks beside a line no cell's edge lies on and expands a collapsed track nothing can expand ([Collapse row and column](layout-ops.md#collapse-row-and-column));
 - `validateTiling`.
 
 ### Structure and view state
 
 - **Structure**: a cell's area, the tracks' ids and their order, the tabs and each tab's `config`.
-- **View state**: the track sizes (a weight, a fixed track's px), a row track's `collapsed` and `fitPx`, a cell's `activeTabId`, a tab's `viewState`.
+- **View state**: the track sizes (a weight, a fixed track's px), a track's `collapsed`, a row's `fitPx`, a cell's `activeTabId`, a tab's `viewState`. A collapse syncs with the layout, as a size does.
 
 A change of structure is an undo step; view state is written straight onto the stored layout with none ([Layout autosave](layout-autosave.md)).
 
@@ -102,7 +102,7 @@ These derive from it: `WIDGET_KINDS`, `isWidgetKind`, `createTab(kind, id, seed?
 **Edit mode changes the grid; what's inside a cell changes in place.**
 
 - Cells, rows and columns change only in the [layout edit mode](layout-edit-mode.md): split, merge, insert, close, a cell or a tab moved to another cell.
-- These change in place: a cell's tabs, a Numbers strip's Numbers, a widget's kind and settings, the row's collapse, the dividers.
+- These change in place: a cell's tabs, a Numbers strip's Numbers, a widget's kind and settings, a row's or column's collapse, the dividers.
 - One grid change is made outside the mode: a divider's Alt-drag, which breaks part of a line off into a new one. It is an undo step like any other.
 - In the UI, an empty cell's **Edit layout** link has the tooltip `Change the grid: rows, columns and cells`.
 
@@ -116,6 +116,7 @@ These derive from it: `WIDGET_KINDS`, `isWidgetKind`, `createTab(kind, id, seed?
 | fixed | its px |
 | fit row | `auto` |
 | collapsed row | a header's 32px |
+| collapsed column | its strip's 34px (`COLUMN_STRIP_PX`) |
 
 The table scrolls when the minimums don't fit. The minimums (`utils/workspace-rows`):
 
@@ -123,9 +124,26 @@ The table scrolls when the minimums don't fit. The minimums (`utils/workspace-ro
 - a glance cell: 64px high and 72px wide;
 - a cell of Numbers (one, or a strip): 58px high, a fit row's height.
 
+### A collapsed column's strip
+
+Outside the layout edit mode the cells lying only in collapsed columns draw no body: `ColumnStrip` draws over them (`workspace-table.columnStrips`).
+
+- Cells over the same columns, one under another, make one strip; a cell spanning through the column parts it, and keeps its width in the other columns.
+- At its top **Expand column** (›‹) expands the strip's columns.
+- Under it, each cell's active widget, its icon and name running down. A press opens that widget larger (`openWidgetLarger`; a Number following a list, that list) and leaves the column collapsed. An empty cell names nothing.
+- The other columns take its room. The phone ignores a column's collapse.
+
 ## Dividers
 
-`WorkspaceDivider` draws one divider per stretch of grid line between two cells' edges (`edgeStretches`). A line parts at each "+" crossing, where the perpendicular line is an edge on both sides, but runs on at a "T". A row line beside a collapsed row has no divider. Dividers work the same in and out of the layout edit mode (`utils/divider-moves`).
+`WorkspaceDivider` draws one divider per stretch of grid line between two cells' edges (`edgeStretches`). A line parts at each "+" crossing, where the perpendicular line is an edge on both sides, but runs on at a "T". A line beside a collapsed row or column has no divider, nor has a row line's stretch inside a column's strip. Dividers work the same in and out of the layout edit mode (`utils/divider-moves`).
+
+### The collapse pill
+
+Outside the layout edit mode each divider has a pill at its stretch's middle (`CollapsePill`), shown on the divider's hover (after 120ms) or focus, and while it is hovered or holds the focus; hidden during a drag.
+
+- Between columns ◂ ▸ (`Collapse the column on the left` / `on the right`); between rows ▴ ▾ (`Collapse the row above` / `below`). Plural when it collapses more than one track.
+- Each collapses every track of its axis the cells beside the stretch on that side cover, as Collapse row does a cell's rows. A side of only empty cells has no button.
+- It is a sibling of the divider, not inside it: pressing it never starts a resize, and a drag elsewhere on the divider still does.
 
 ### Plain drag and Alt + drag
 

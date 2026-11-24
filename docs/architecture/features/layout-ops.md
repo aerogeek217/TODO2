@@ -55,10 +55,13 @@ The operations that change a layout's table: splitting and inserting tracks, rem
 - `removeTabKeepCell` (**Remove widget**): the same, but a lone widget's cell stays, empty, and no neighbor takes its space.
 - `moveEdge`: a divider ([Dividers](workspace-layout.md#dividers)).
 
-## Collapse row
+## Collapse row and column
 
-- `setTrackCollapsed`: **Collapse row** collapses every row track the cell covers, so its side-by-side neighbors fold with it.
-  - The cells lying only in a collapsed track show their top lines; a cell spanning through it gets shorter.
-  - Column tracks don't collapse.
-- **A collapsed row expands by itself once no filled cell lies only in collapsed rows over it**: its cell closed, moved away, or grown on into an expanded row (`workspace-grid.expandOrphanRows`, the end of every op's `normalizeGrid`).
-- A stored layout that arrives with such a row has it expanded when the workspace shows it, as view state (`use-expand-orphan-rows`).
+- `setTrackCollapsed` (a track by id, a row or a column): **Collapse row** collapses every row track the cell covers, so its side-by-side neighbors fold with it; **Collapse column** every column track, so the cells stacked with it fold too.
+  - The cells lying only in collapsed rows show their top lines; a cell spanning through one gets shorter.
+  - The cells lying only in collapsed columns draw as the column's strip ([The strip](workspace-layout.md#a-collapsed-columns-strip)); a cell spanning through one gets narrower.
+- View state, as a size: written at once, no undo step. An undo of a structural edit keeps each track's collapse of the moment it runs, where it is the same track (`withViewStateOf`).
+- **A collapsed track expands by itself once no filled cell lies only in collapsed tracks of its axis over it**: its cell closed, moved away, or grown on into an expanded track (`workspace-grid.expandOrphanTracks`, the end of every op's `normalizeGrid`).
+- A new empty cell never comes out collapsed: when every track of an axis under it is collapsed, they expand (a split under a cell in a folded column expands the column).
+- A stored layout that arrives with such a track has it expanded when the workspace shows it, as view state (`use-expand-orphan-tracks`).
+- `services/workspace-tabs.showTab` (an editor opening beside a widget) expands the rows and columns of its cell.

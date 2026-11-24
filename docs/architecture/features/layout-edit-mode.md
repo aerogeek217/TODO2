@@ -94,8 +94,9 @@ Everything that reads the table's geometry measures it — the dividers, `measur
 
 ### Header menus
 
-- A column: **Insert column left** / **right** · **Even all widths**, then **Remove column**.
-- A row: **Insert row above** / **below** · **Collapse row** / **Expand row** (off while no filled cell lies only in it) · **Even all heights**, then **Remove row**.
+- A column: **Insert column left** / **right** · **Collapse column** / **Expand column** (off while no filled cell lies only in it) · **Even all widths**, then **Remove column**.
+- A row: **Insert row above** / **below** · **Collapse row** / **Expand row** (off likewise) · **Even all heights**, then **Remove row**.
+- In the mode a collapsed column's cells are cards like any other, a strip's width; a card that narrow names itself down its length.
 - Under **Remove column** / **Remove row**, a line names what goes where: `Status joins Tasks for… as a tab.`, `Notes moves into the row above.`, `The Numbers strip (Open and Overdue) joins Tasks: its Numbers become tabs.`
 
 ### Slivers
