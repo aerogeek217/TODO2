@@ -10,17 +10,17 @@ import { seedWorkspace, wsRow, type WorkspaceSeed } from './fixtures/workspace'
  * date input, and a day set there is written — Due's as the due date,
  * Planned's as the plan (from today on: the input's `min`). Due's ↻ opens
  * its repeat popover, which sets and stops a repeat. Planned's × clears the
- * plan, a held task's Unplanned too.
+ * plan, and shows only while a day is planned.
  */
 
 const DUE_TASK = 'Quarterly report'
-const HELD_TASK = 'Vendor follow-up'
+const UNPLANNED_TASK = 'Vendor follow-up'
 
 const SEED: WorkspaceSeed = {
   people: [{ name: 'Aisha', color: '#c8743a' }],
   tasks: [
     { title: DUE_TASK, people: ['Aisha'], dueInDays: 4, doInDays: 2 },
-    { title: HELD_TASK, people: ['Aisha'], unplanned: true },
+    { title: UNPLANNED_TASK, people: ['Aisha'] },
   ],
   listDefinitions: [{ name: 'Everything', grouping: 'none', sort: 'manual' }],
   layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'l1', kind: 'lens', listDefIdx: 0 }] })] }] }],
@@ -30,7 +30,6 @@ interface StoredTask {
   title: string
   dueDate?: string
   doDate?: string
-  unplanned?: boolean
   recurrenceRule?: { every?: { count: number; unit: string } }
 }
 
@@ -155,7 +154,7 @@ test.describe('Due and Planned as date fields', () => {
     await expect(button).toHaveAccessibleName('Repeat')
   })
 
-  test('× on Planned clears the plan: a planned day, and a held task’s Unplanned', async ({ page }) => {
+  test('× on Planned clears the plan; a task with no plan reads Not planned, with no ×', async ({ page }) => {
     let dialog = await openEditor(page, DUE_TASK)
     let planned = dialog.locator('[data-fact="planned"]')
     await planned.locator('[data-fact-date-field]').hover()
@@ -165,12 +164,10 @@ test.describe('Due and Planned as date fields', () => {
     await dialog.getByRole('button', { name: 'Done' }).click()
     await expect(dialog).toBeHidden()
 
-    dialog = await openEditor(page, HELD_TASK)
+    dialog = await openEditor(page, UNPLANNED_TASK)
     planned = dialog.locator('[data-fact="planned"]')
-    await expect(planned.locator('[data-fact-date-field]')).toContainText('Unplanned')
-    await planned.locator('[data-fact-date-field]').hover()
-    await planned.getByRole('button', { name: 'Clear plan' }).click()
-    await expect.poll(async () => (await stored(page, HELD_TASK)).unplanned).toBeUndefined()
     await expect(planned.locator('[data-fact-date-field]')).toContainText('Not planned')
+    await planned.locator('[data-fact-date-field]').hover()
+    await expect(planned.getByRole('button', { name: 'Clear plan' })).toHaveCount(0)
   })
 })
