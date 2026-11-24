@@ -37,7 +37,9 @@ Each change is one layout write and one undo step: `Renamed tab to “Inbox”`,
 
 - A tab's optional `icon` is layout config (`models/icon`: none, a line icon, an emoji muted or in color).
 - It shows on the strip, the `+N` menu, the drag ghost, the widget popup's header and the phone.
-- A tab never given one shows its kind's glyph there. Alone in its cell, a picked icon leads its top line.
+- There is no default drawn in its place: a tab with no icon stored shows none, here and on the List board. A new tab is given its kind's glyph (`createTab`, `kindIcon`), which can be changed or set to No icon.
+- **Change widget ›** keeps an icon of the tab's own; the old kind's glyph becomes the new kind's; a tab without one stays without one (`withLabelOf`).
+- Alone in its cell, the tab's icon leads its top line.
 - A muted emoji is one color like a line icon: gray at rest, the accent on a cell's active tab. A color emoji keeps its colors.
 
 ### The picker elsewhere

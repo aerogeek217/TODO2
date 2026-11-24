@@ -141,8 +141,8 @@ export function TabNameIconPopover({ tabId, anchor, onClose }: {
         <span className={styles.caption}>Icon</span>
         <IconPickerButton
           shown={shownIcon}
-          ariaLabel={`Icon: ${tab.icon ? iconDescription(tab.icon) : `${widgetKindLabel(tab.kind)} icon (the default)`}. Change`}
-          summary={tab.icon ? iconSummary(tab.icon) : 'The widget’s own icon'}
+          ariaLabel={`Icon: ${iconDescription(shownIcon)}. Change`}
+          summary={iconSummary(shownIcon)}
           value={tab.icon}
           fallback={shownIcon}
           recent={recent}

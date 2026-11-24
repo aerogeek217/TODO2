@@ -49,21 +49,21 @@ describe('widget kinds', () => {
     expect(pickLayoutBody(layout('eisenhower')).fixes).toEqual(['tab dropped'])
   })
 
-  it('makes each kind’s new tab with its defaults', () => {
-    expect(createTab('lens', 'a')).toEqual({ id: 'a', kind: 'lens', config: {} })
-    expect(createTab('lens', 'a', { listDefinitionId: 4 })).toEqual({ id: 'a', kind: 'lens', config: { listDefinitionId: 4 } })
-    expect(createTab('calendar', 'b')).toEqual({ id: 'b', kind: 'calendar', config: { dateTypes: { due: true, followup: true, plan: true } } })
-    expect(createTab('notes', 'c')).toEqual({ id: 'c', kind: 'notes', config: {} })
+  it('makes each kind’s new tab with its defaults, its kind’s glyph as its icon', () => {
+    expect(createTab('lens', 'a')).toEqual({ id: 'a', kind: 'lens', config: {}, icon: { kind: 'line', key: 'list' } })
+    expect(createTab('lens', 'a', { listDefinitionId: 4 })).toEqual({ id: 'a', kind: 'lens', config: { listDefinitionId: 4 }, icon: { kind: 'line', key: 'list' } })
+    expect(createTab('calendar', 'b')).toEqual({ id: 'b', kind: 'calendar', config: { dateTypes: { due: true, followup: true, plan: true } }, icon: { kind: 'line', key: 'calendar' } })
+    expect(createTab('notes', 'c')).toEqual({ id: 'c', kind: 'notes', config: {}, icon: { kind: 'line', key: 'notes' } })
     // A Numbers widget of one Number: an empty filter (every open task), named Open, never lit, against yesterday.
-    expect(createTab('numbers', 'e', { numberItemId: 'n' })).toEqual({ id: 'e', kind: 'numbers', config: { items: [{ id: 'n', name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' }] } })
+    expect(createTab('numbers', 'e', { numberItemId: 'n' })).toEqual({ id: 'e', kind: 'numbers', config: { items: [{ id: 'n', name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' }] }, icon: { kind: 'line', key: 'number' } })
 
     // A Neglect map colours by the tags it is given (the store passes the `Project: …` ones), 14 days.
-    expect(createTab('neglect', 'f')).toEqual({ id: 'f', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [] }, untouchedDays: 14 } })
+    expect(createTab('neglect', 'f')).toEqual({ id: 'f', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [] }, untouchedDays: 14 }, icon: { kind: 'line', key: 'scatter' } })
     expect(createTab('neglect', 'f', { neglectTagIds: [3, 8] }).config).toEqual({ colourBy: { kind: 'tags', tagIds: [3, 8] }, untouchedDays: 14 })
     // Work clusters has no settings.
-    expect(createTab('clusters', 'h')).toEqual({ id: 'h', kind: 'clusters', config: {} })
+    expect(createTab('clusters', 'h')).toEqual({ id: 'h', kind: 'clusters', config: {}, icon: { kind: 'line', key: 'clusters' } })
     // A List board: the lists picked, none yet.
-    expect(createTab('shortcuts', 'j')).toEqual({ id: 'j', kind: 'shortcuts', config: {} })
+    expect(createTab('shortcuts', 'j')).toEqual({ id: 'j', kind: 'shortcuts', config: {}, icon: { kind: 'line', key: 'shortcuts' } })
     // A fresh config each time.
     const one = createTab('calendar', 'x')
     one.config.dateTypes.due = false

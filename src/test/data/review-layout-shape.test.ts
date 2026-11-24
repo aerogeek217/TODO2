@@ -26,7 +26,7 @@ const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as 
 
 describe('a Review widget’s tab', () => {
   it('new: no settings', () => {
-    expect(createTab('review', 'r')).toEqual({ id: 'r', kind: 'review', config: {} })
+    expect(createTab('review', 'r')).toEqual({ id: 'r', kind: 'review', config: {}, icon: { kind: 'line', key: 'review' } })
   })
 
   it('its view state passes as it is', () => {

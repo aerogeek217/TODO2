@@ -137,12 +137,12 @@ describe('Lists I pick', () => {
     expect(tooltipOf(within(tile(1)!).getByRole('button', { name: /Open$/ }))).toMatch(/^Errands · Home1 task · 1 on track/)
   })
 
-  it('shows its list tab’s own icon (none for the list glyph every list shares), its badge capsule — its count only with no capsule —, its squares and first titles', () => {
+  it('shows the icon stored on its list tab, as the strip does, its badge capsule — its count only with no capsule —, its squares and first titles', () => {
     setup(picked([1, 2]))
     render(<Live />)
-    // Errands' tab has an icon of its own; Clients' shows the list glyph, which a tile leaves out.
+    // Errands' tab has the flag; Clients' the list glyph a new list tab is given, shown as any icon is.
     expect(tile(1)!.querySelector('[data-app-icon="line"]')).not.toBeNull()
-    expect(tile(2)!.querySelector('[data-app-icon]')).toBeNull()
+    expect(tile(2)!.querySelector('[data-app-icon="line"]')).not.toBeNull()
     // Clients: one task overdue and one due soon, the capsule's due part; its count of 4 is in its tooltip, not beside it.
     expect(tile(2)!.querySelector('[data-shortcut-badge] [data-badge-part="due"]')).toHaveTextContent('2')
     expect(tile(2)!.querySelector('[data-shortcut-count]')).toBeNull()
@@ -240,6 +240,15 @@ describe('adding, removing and moving (one undo step each)', () => {
 })
 
 describe('This layout’s lists', () => {
+  it('a list tab with no icon stored shows none on its tile, as on its strip', () => {
+    const { icon: _icon, ...bare } = lens('t-errands', 1)
+    void _icon
+    setup(ofLayout(), [bare, lens('t-who-home', 3)])
+    render(<Live />)
+    expect(tabTile('t-errands')!.querySelector('[data-app-icon]')).toBeNull()
+    expect(tabTile('t-who-home')!.querySelector('[data-app-icon="line"]')).not.toBeNull()
+  })
+
   it('a tile per list tab of the open layout, in reading order, each with its tab’s own icon and prompt pick', () => {
     setup(ofLayout())
     render(<Live />)

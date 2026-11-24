@@ -56,7 +56,7 @@ describe('glance widget kinds', () => {
   })
 
   it('a new tab has its defaults; a new Numbers widget holds one Number counting every open task', () => {
-    expect(createTab('numbers', 'w', { numberItemId: 'n' })).toEqual({ id: 'w', kind: 'numbers', config: { items: [{ id: 'n', name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' }] } })
+    expect(createTab('numbers', 'w', { numberItemId: 'n' })).toEqual({ id: 'w', kind: 'numbers', config: { items: [{ id: 'n', name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' }] }, icon: { kind: 'line', key: 'number' } })
     expect(createTab('numbers', 'w').config.items[0]?.id).toBe('w-1')
     expect(createTab('trend', 't').config).toEqual({ range: '14d', name: 'Created vs completed', show: 'bars' })
     expect(createTab('breakdown', 'b').config).toEqual({ name: 'Breakdown', filter: emptyPredicate(), splitBy: 'people', style: 'bars', show: 'count', showNone: true })

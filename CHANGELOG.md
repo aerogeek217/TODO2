@@ -25,6 +25,12 @@ History before 2026-11-19 is in the git log.
 - **Right-click a task in a review** for the task menu: a row of the queue, or the card's title row. It acts on
   that one task.
 
+### Changed
+
+- **A widget's icon is the one it has, everywhere.** A tab with no icon now shows none in its tab strip and popup, as
+  the List board already did, instead of a stand-in. New widgets are given their kind's icon, which you can change or
+  set to No icon in Name and icon…; the List board now shows a list's icon even when it is the plain list icon.
+
 ## 2026-11-24
 
 Data version 90. A browser's data and a sync file are upgraded on first use; an older copy of the app can't open

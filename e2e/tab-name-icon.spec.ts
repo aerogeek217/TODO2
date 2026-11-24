@@ -36,12 +36,13 @@ test.describe('desktop', () => {
       listDefinitions: [{ name: 'Inbox' }],
       layouts: [{
         name: 'Main',
-        columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }, { id: 'cal', kind: 'calendar' }], activeTabId: 'cal' })] }],
+        columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }, { id: 'cal', kind: 'calendar', icon: null }], activeTabId: 'cal' })] }],
       }],
     })
     const calTab = wsTab(page, 'cal')
-    // J1: never given an icon, the tab shows its kind's.
-    await expect(calTab.locator('[data-app-icon="line"]')).toBeVisible()
+    // Stored with no icon, the tab shows none (only a new tab is given its kind's).
+    await expect(calTab).toBeVisible()
+    await expect(calTab.locator('[data-tab-icon]')).toHaveCount(0)
 
     // The name: written when the popover closes, one undo step.
     let popover = await openNameAndIcon(page, 'k1')
@@ -128,11 +129,11 @@ test.describe('desktop', () => {
     expect((await storedTab(page, 'list'))?.name).toBeUndefined()
   })
 
-  test('alone in its cell, a picked icon leads the top line (J2); one never picked shows none', async ({ page }) => {
+  test('alone in its cell, the tab’s icon leads the top line (J2); one with none stored shows none', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{ name: 'Main', columns: [
-        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'n', kind: 'notes' }] })] },
-        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] })] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'n', kind: 'notes', icon: null }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'n2', kind: 'notes', icon: null }] })] },
       ] }],
       // Notes' top line is its name line: shown with Show widget names on.
       settings: { showWidgetNames: 'true' },

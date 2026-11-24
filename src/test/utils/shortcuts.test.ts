@@ -7,7 +7,6 @@ import {
   boardLines,
   boardMinHeight,
   boardTileMinWidth,
-  isListGlyph,
   layoutListTabs,
   shortcutChoices,
   shortcutLayoutName,
@@ -25,7 +24,12 @@ const AT = new Date(0)
 const def = (id: number, name: string, layoutId: number, sortOrder = id): PersistedListDefinition => ({
   id, name, sortOrder, owner: { layoutId }, membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'manual', grouping: 'none',
 })
-const lens = (id: string, listDefinitionId: number) => ({ ...createTab('lens', id), config: { listDefinitionId } })
+// A list tab with no icon stored (an icon is spread in where a test gives one).
+const lens = (id: string, listDefinitionId: number) => {
+  const { icon: _icon, ...tab } = createTab('lens', id, { listDefinitionId })
+  void _icon
+  return tab
+}
 
 const home: PersistedWorkspaceLayout = {
   id: 1, name: 'Home', sortOrder: 1, createdAt: AT, modifiedAt: AT,
@@ -57,13 +61,16 @@ describe('a List board’s picked lists', () => {
     expect(shortcutChoices(defs, [work, home], home, [1, 3, 5]).map((g) => g.layoutName)).toEqual(['Work'])
   })
 
-  it('a list’s icon: its own layout’s tab’s strip icon, else another layout’s; its layout’s name (the open one as edited)', () => {
+  it('a list’s icon: the one stored on its own layout’s tab, else another layout’s; its layout’s name (the open one as edited)', () => {
     expect(shortcutListIcon(def(1, 'Errands', 1), [work, home], home)).toEqual({ kind: 'line', key: 'flag' })
     // Its own layout shows it on no tab: the tab elsewhere.
     expect(shortcutListIcon(def(1, 'Errands', 3), [work, home], home)).toEqual({ kind: 'emoji', emoji: '🌿' })
-    // A tab with no icon picked, and no tab at all: the list glyph, as the strip shows it.
-    expect(shortcutListIcon(def(2, 'Clients', 2), [work, home], home)).toEqual({ kind: 'line', key: 'list' })
-    expect(shortcutListIcon(def(9, 'Gone', 2), [work, home], home)).toEqual({ kind: 'line', key: 'list' })
+    // A tab with no icon stored, and no tab at all: no icon, as the strip shows none.
+    expect(shortcutListIcon(def(2, 'Clients', 2), [work, home], home)).toBeUndefined()
+    expect(shortcutListIcon(def(9, 'Gone', 2), [work, home], home)).toBeUndefined()
+    // The list glyph stored on a tab shows as any icon does.
+    const glyphed = { ...work, ...single(cell('w', [{ ...lens('t2', 2), icon: { kind: 'line', key: 'list' } }])) } as PersistedWorkspaceLayout
+    expect(shortcutListIcon(def(2, 'Clients', 2), [glyphed, home], home)).toEqual({ kind: 'line', key: 'list' })
     expect(shortcutLayoutName(def(1, 'Errands', 1), [work, home], { ...home, name: 'Home (renamed)' })).toBe('Home (renamed)')
     expect(shortcutLayoutName(def(2, 'Clients', 2), [work, home], home)).toBe('Work')
   })
@@ -80,8 +87,6 @@ describe('a List board’s picked lists', () => {
     // One line of heads is the lone board's least (63px); each more line adds a head and a gap.
     expect(boardMinHeight(1)).toBe(63)
     expect(boardMinHeight(3)).toBe(63 + 2 * 53)
-    expect(isListGlyph({ kind: 'line', key: 'list' })).toBe(true)
-    expect(isListGlyph({ kind: 'line', key: 'flag' })).toBe(false)
   })
 
   it('a tile’s room: squares first (whole 12px rows, four at most), then titles in what is left', () => {

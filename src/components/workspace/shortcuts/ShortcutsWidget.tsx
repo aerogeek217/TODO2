@@ -13,7 +13,7 @@ import { showTab } from '../../../services/workspace-tabs'
 import { useCellRoomStore } from '../../../stores/cell-room-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { WALL_TONE_NAMES, WALL_TONES, wallCountsText } from '../../../utils/list-wall'
-import { boardLines, boardMinHeight, boardTileMinWidth, boardTileRoom, isListGlyph, shortcutLists, shortcutsSource } from '../../../utils/shortcuts'
+import { boardLines, boardMinHeight, boardTileMinWidth, boardTileRoom, shortcutLists, shortcutsSource } from '../../../utils/shortcuts'
 import { shortcutsFaceFor, shortcutsShape, type ShortcutsShape } from '../../../utils/widget-face'
 import { AppIcon } from '../../shared/AppIcon'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
@@ -324,9 +324,9 @@ function SortableTile({ entry, shape, disabled, onOpen, onMenu, onWant, onHeadWi
   const { setNodeRef, attributes, listeners, style, isDragging } = useSortableRow(dragIdOf(entry.key))
   const [headRef, head] = useElementSize()
   const tile = shape !== 'rows'
-  // A tile shows its icon only when it is the list's own (not the glyph every list shares), and its count only
-  // with no capsule beside it: the count is in its tooltip and its squares.
-  const icon = data?.icon && !(tile && isListGlyph(data.icon)) ? data.icon : undefined
+  // A tile shows the list tab's icon, as its strip does; its count only with no capsule beside it: the count is in
+  // its tooltip and its squares.
+  const icon = data?.icon
   const showCount = !tile || !data?.badge
   const { titleRef, nameRef, metaRef } = useHeadWidth(
     entry.key,
