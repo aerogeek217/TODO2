@@ -10,7 +10,7 @@ import {
   removeTrack,
   trackRemoval,
 } from '../../utils/workspace-layout-ops'
-import { cell as spec, emptyBody, grid, picture, type CellSpec } from '../helpers/layout-builders'
+import { cell as spec, emptyBody, grid, picture, type CellSpec, freshNumberTab } from '../helpers/layout-builders'
 
 /**
  * The layout edit mode's track ops (E2): `insertTrackAt` (a ruler's "+"),
@@ -31,7 +31,7 @@ function empty(id: string): CellSpec {
 
 /** A cell of Number tabs: one is a fit row's cell, two or more a Numbers strip. */
 function numbers(id: string, tabIds: string[]): CellSpec {
-  const tabs = tabIds.map((t) => createTab('number', t))
+  const tabs = tabIds.map((t) => freshNumberTab(t))
   return spec(id, tabs, tabs[0] ? { activeTabId: tabs[0].id } : {})
 }
 
@@ -268,7 +268,7 @@ describe('removeTrack', () => {
     const s = numbers('s', ['n1', 'n2'])
     const base = layout(grid([[s, s], [cell('a'), cell('b')]]))
     const out = removeTrack(base, 'rows', 0, ids())
-    expect(tabsOf(out, 'a')).toEqual(['a-t', 'n1', 'n2'])
+    expect(tabsOf(out, 'a')).toEqual(['a-t', 'n1-w', 'n2-w'])
     expectValid(out)
   })
 
@@ -277,7 +277,7 @@ describe('removeTrack', () => {
     const e = empty('e')
     const base = layout(grid([[e, e], [s, s]]))
     const out = removeTrack(base, 'rows', 1, ids())
-    expect(tabsOf(out, 's')).toEqual(['n1', 'n2'])
+    expect(tabsOf(out, 's')).toEqual(['n1-w', 'n2-w'])
     expect(isFitTrack(out, 0)).toBe(true)
   })
 

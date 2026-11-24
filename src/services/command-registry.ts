@@ -14,7 +14,7 @@ import { jumpToReview } from './review-jump'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useUIStore, type LayoutRequest } from '../stores/ui-store'
 import type { ThemeMode } from '../stores/settings-store'
-import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../models/workspace-layout'
+import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, widgetKindAddLabel, widgetKindsOf, type WidgetKind } from '../models/workspace-layout'
 
 /**
  * `task` = task actions (New Task, Undo …); `layout` = the layouts and what
@@ -163,7 +163,7 @@ function layoutCommands(ctx: CommandContext): Command[] {
       .filter((kind) => stored || !WIDGET_KIND_SPECS[kind].showsList)
       .map((kind): Command => ({
         id: `add-widget-${kind}`,
-        name: widgetKindLabel(kind),
+        name: widgetKindAddLabel(kind),
         category: 'layout',
         group: label,
         action: () => addWidget(kind),

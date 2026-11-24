@@ -68,12 +68,12 @@ describe('Add Widget ›', () => {
     const step = find(commands, 'add-widget')?.step ?? []
     expect(step.map((c) => [c.group, c.name])).toEqual([
       ['Tasks', 'List'], ['Tasks', 'Calendar'], ['Tasks', 'Review'], ['Tasks', 'Planner'], ['Tasks', 'Notes'], ['Tasks', 'List board'],
-      ['Insights', 'Number'], ['Insights', 'Breakdown'], ['Insights', 'Pivot'],
+      ['Insights', 'Number'], ['Insights', 'Breakdown'],
       ['Insights', 'Created vs completed'], ['Insights', 'Neglect map'],
       ['Insights', 'Work clusters'],
     ])
     step.find((c) => c.name === 'Number')?.action()
-    expect(addWidget).toHaveBeenCalledWith('number')
+    expect(addWidget).toHaveBeenCalledWith('numbers')
     expect(commands.filter((c) => c.category === 'layout').map((c) => c.name)).toEqual(['Go to Layout', 'Add Widget', 'New Layout…', 'Duplicate Layout…', 'Edit Layout'])
   })
 

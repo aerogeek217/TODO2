@@ -128,18 +128,28 @@ export const SETTING_KEYS = {
    * fields as they were when the log began. Absent = not stamped yet.
    */
   historyLogSince: 'historyLogSince',
+  /**
+   * When this database began logging the Planner's planned days (the
+   * `planned` event, `models/todo-event`): an ISO date-time, stamped once
+   * as `historyLogSince` is (`settings-store.stampPlanLogSince`). Before
+   * it, a task's planned day can't be known (the week load places tasks by
+   * their due date and follow-up only). Absent = not stamped yet.
+   */
+  planLogSince: 'planLogSince',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
 
 /**
  * Settings the app writes for itself while nobody changed anything — the
- * purge prompt's last showing, the history log's start. With file sync, writing one is no unsynced
+ * purge prompt's last showing, the history log's start, the plan log's start. With file sync, writing one is no unsynced
  * browser change (it reaches the file with the next save, if sync is on),
  * and the browser and the file aren't compared on them: a prompt shown
  * while sync waits never makes the two sides conflict.
  */
-export const SYNC_NEUTRAL_SETTING_KEYS: ReadonlySet<string> = new Set<string>([SETTING_KEYS.purgePromptLastAt, SETTING_KEYS.historyLogSince])
+export const SYNC_NEUTRAL_SETTING_KEYS: ReadonlySet<string> = new Set<string>([
+  SETTING_KEYS.purgePromptLastAt, SETTING_KEYS.historyLogSince, SETTING_KEYS.planLogSince,
+])
 
 /** Allowlist used by import validation; mirrors `Object.values(SETTING_KEYS)`. */
 export const ALL_SETTING_KEYS: readonly SettingKey[] = Object.values(SETTING_KEYS)

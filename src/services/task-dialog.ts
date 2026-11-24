@@ -7,6 +7,7 @@ import type { WeekStart } from '../utils/effective-date'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import type { MarkerSettings } from '../utils/markers'
 import { startOfToday } from '../utils/date'
+import { tasksDoneToday } from '../utils/tally'
 import { countTabBadges, inTabBadgeRange, type TabBadgeCounts } from '../utils/tab-badges'
 import type { TabBadgeRanges } from '../models/list-definition'
 import { buildList, type ListBuildContext, type ListContents } from './build-list'
@@ -358,6 +359,16 @@ export function screenTaskDialogDescription(chips: FilterCriteria): string {
   if (countActiveFilters(chips) === 0) return 'Every open task: no screen filter is on. A filter set here applies to every widget.'
   const what = admitsCompleted(chips) ? 'Tasks matching the screen filter, completed ones included.' : 'Open tasks matching the screen filter.'
   return `${what} A change here applies to every widget.`
+}
+
+/** The tasks completed today, the last first (the top bar's tally, the Planner's `N done`). */
+export function doneTodayTaskDialog(): TaskDialogPayload {
+  return {
+    title: 'Done today',
+    glyph: 'done',
+    description: 'The tasks you completed today.',
+    source: { kind: 'todos', todoIds: tasksDoneToday(useTodoStore.getState().todos, new Date()).map((t) => t.id) },
+  }
 }
 
 /** A tag's open tasks (a task row's tag menu › Show tasks). */

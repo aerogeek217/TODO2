@@ -150,7 +150,6 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   ],
   'utils/priority-cues.ts': ['rowGlow'],
   'utils/priority-groups.ts': ['PriorityGroupContext'],
-  'utils/recurrence.ts': ['computeNextDueDate'],
   'utils/scoped-selection.ts': ['ScopedSelectionState'],
   'utils/scroll-edges.ts': ['CAN_SCROLL_DOWN_ATTR', 'CAN_SCROLL_UP_ATTR', 'scrollEdges'],
   'utils/shared-memo.ts': ['FRESH_MISSES_WARN', 'SHARED_MEMO_WARNING'],

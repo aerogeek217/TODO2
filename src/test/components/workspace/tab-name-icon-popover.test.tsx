@@ -9,8 +9,9 @@ import { TAB_NAME_MAX, createTab, kindTabTitle, type LayoutTab, type WidgetKind 
 import { CHART_NAME_MAX } from '../../../models/chart-widgets'
 import { NUMBER_NAME_MAX } from '../../../models/glance-widgets'
 import { getTab } from '../../../utils/workspace-layout-queries'
+import { numberViews } from '../../../utils/number-views'
 import { resetDb } from '../../helpers'
-import { single } from '../../helpers/layout-builders'
+import { single, freshNumberTab } from '../../helpers/layout-builders'
 
 /**
  * Name and icon…'s Name field takes the limit of the tab's kind (cr34 H2 /
@@ -42,21 +43,21 @@ afterEach(() => cleanup())
 
 describe('Name and icon…: the Name field’s limit', () => {
   const LIMITS: Array<[WidgetKind, number]> = [
-    ['number', NUMBER_NAME_MAX],
+    // A Number's name is its own (its item's).
+    ['numbers', NUMBER_NAME_MAX],
     ['breakdown', CHART_NAME_MAX],
-    ['pivot', CHART_NAME_MAX],
     ['trend', CHART_NAME_MAX],
     ['notes', TAB_NAME_MAX],
     ['calendar', TAB_NAME_MAX],
   ]
 
   it.each(LIMITS)('a %s tab’s field takes %i characters', async (kind, max) => {
-    await open([createTab(kind, 't1')])
+    await open([kind === 'numbers' ? freshNumberTab('t1') : createTab(kind, 't1')])
     expect(nameField('t1').maxLength).toBe(max)
   })
 
   it('the longest name the field takes on a Number is stored whole, and the layout imports', async () => {
-    const id = await open([createTab('number', 'u1')])
+    const id = await open([freshNumberTab('u1')])
     const field = nameField('u1')
     const longest = 'N'.repeat(field.maxLength)
     fireEvent.change(field, { target: { value: longest } })
@@ -64,7 +65,8 @@ describe('Name and icon…: the Name field’s limit', () => {
     cleanup()
     await settleLayoutWrites()
     const row = await db.layouts.get(id)
-    expect(kindTabTitle(getTab(useWorkspaceStore.getState().working!, 'u1')!)).toBe(longest)
+    expect(kindTabTitle(getTab(numberViews(useWorkspaceStore.getState().working!), 'u1')!)).toBe(longest)
+
     expect(validateRow('layouts', row)).toBe(true)
     expect(rowFixes('layouts', row)).toEqual([])
   })

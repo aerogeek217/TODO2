@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type RefObject } from 'react'
+import { useEffect, useId, useMemo, useState, type RefObject } from 'react'
 import { WidgetEditorHost } from './WidgetEditorHost'
 import { createPortal } from 'react-dom'
 import {
@@ -6,7 +6,8 @@ import {
   type NumberCompare,
   type NumberConfig,
 } from '../../../models/glance-widgets'
-import type { NumberTab, LayoutTab } from '../../../models/workspace-layout'
+import type { NumbersTab } from '../../../models/workspace-layout'
+import { isNumberViewTab, numberTabOf, type NumberTab } from '../../../utils/number-views'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useUIStore } from '../../../stores/ui-store'
@@ -91,10 +92,14 @@ interface NumberEditorProps {
 export function NumberEditorHost() {
   const tabId = useUIStore((s) => s.numberEditorTabId)
   const close = useUIStore((s) => s.closeNumberEditor)
-  return <WidgetEditorHost tabId={tabId} isKind={isNumberTab} anchor="data-number-body" close={close} Editor={NumberEditor} />
+  return <WidgetEditorHost tabId={tabId} isKind={isNumberViewTab} anchor="data-number-body" close={close} Editor={NumberViewEditor} />
 }
 
-const isNumberTab = (tab: LayoutTab): tab is NumberTab => tab.kind === 'number'
+/** TEMPORARY (`utils/number-views`): the editor of the Number a view stands for. */
+function NumberViewEditor({ tab, ...props }: Omit<NumberEditorProps, 'tab'> & { tab: NumbersTab }) {
+  const number = useMemo(() => numberTabOf(tab), [tab])
+  return number ? <NumberEditor tab={number} {...props} /> : null
+}
 
 /**
  * Edit number (D26 P5, board X): a Number's name, its colour (Auto, then the
@@ -117,7 +122,7 @@ function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
   const edit = useEditorDraft<NumberConfig>({
     tabId: tab.id,
     stored: tab.config,
-    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, 'number', p, `Edited number “${(p.name ?? tab.config.name).trim() || 'Number'}”`),
+    write: (p) => useWorkspaceStore.getState().patchNumberItem(tab.id, p, `Edited number “${(p.name ?? tab.config.name).trim() || 'Number'}”`),
     onClose,
     promptTitle: `Save changes to number “${tab.config.name.trim() || 'Number'}”?`,
   })

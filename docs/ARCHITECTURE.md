@@ -91,12 +91,13 @@ One file per feature, at most 4,000 words each. Each says how the feature behave
 | Filters | [filters](architecture/features/filters.md) | date clauses, Graphical or Expression, the expression grammar, a filter read back in words |
 | Lists | [lists](architecture/features/lists.md) | built lists, grouping, rows, zoom, badges, Edit list |
 | Glance widgets | [glance-widgets](architecture/features/glance-widgets.md) | what glance widgets share, the Number and its shapes, the widget editors, the history log |
-| Charts | [charts](architecture/features/charts.md) | Breakdown, Pivot, Created vs completed |
+| Charts | [charts](architecture/features/charts.md) | Breakdown, Created vs completed |
 | Task maps | [task-maps](architecture/features/task-maps.md) | the Neglect map, Work clusters |
 | Review | [review](architecture/features/review.md) | Review jumps, the rail and the card, the task layout the editor shares, the Review widget |
 | Check-ins | [check-ins](architecture/features/check-ins.md) | the message, the check-in dialog, Copy, the reply import |
 | Planner | [planner](architecture/features/planner.md) | a task's plan state, placement, the window, drops, Snooze and Unplan, Reset plan |
 | Planner widget | [planner-widget](architecture/features/planner-widget.md) | the Planner's faces, its rows, drag feedback, menus |
+| Week load | [week-load](architecture/features/week-load.md) | where a date lands and what became of it, the usual week, the Planner's meter and its popover |
 | List board | [list-board](architecture/features/list-board.md) | a tile per list — picked from any layout, or this layout's —, squares and titles, its faces, Which lists, adding, removing and reordering, the list in the popup |
 | Ambience | [ambience](architecture/features/ambience.md) | the sky, the seasons, the settings |
 | Popovers and editors | [popovers-and-editors](architecture/features/popovers-and-editors.md) | what a dismissal keeps, the editor-leave rule and everything that asks it |
@@ -112,7 +113,7 @@ Two layers, picked by what's being verified (setup, fixtures and helpers: [archi
 
 **Diagnosis vs. regression.** The Chrome DevTools MCP server (`mcp__chrome-devtools__*`) is a *spike* tool — drive an interaction live in real Chromium, then codify the regression in Playwright. See CLAUDE.md "Tools — Chrome DevTools MCP".
 
-**Manual-testing seed.** `npm run seed:dev` writes a realistic export in the current schema to `dev-data/seed-v89.json` (gitignored) for Settings → Import / Export → Import JSON.
+**Manual-testing seed.** `npm run seed:dev` writes a realistic export in the current schema to `dev-data/seed-v90.json` (gitignored) for Settings → Import / Export → Import JSON.
 
 ## Detail References
 

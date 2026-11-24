@@ -4,7 +4,7 @@ import {
   tabListId,
   WIDGET_KIND_GROUPS,
   WIDGET_KIND_SPECS,
-  widgetKindLabel,
+  widgetKindAddLabel,
   widgetKindsOf,
   type LayoutCell,
   type LayoutTab,
@@ -22,7 +22,6 @@ import type { WidgetKindMenuContent, WidgetMenuAction } from '../shared/widget-k
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
-  ChevronRightIcon,
   ChevronUpIcon,
   CloseCellIcon,
   CloseIcon,
@@ -32,6 +31,7 @@ import {
   PlusIcon,
   SplitBelowIcon,
   SplitRightIcon,
+  UnfoldIcon,
   WidgetKindIcon,
 } from '../shared/icons'
 import type { Side } from '../../utils/workspace-grid'
@@ -354,15 +354,15 @@ function addTabEntry(a: CellMenuActions): MenuEntry {
   const kindItem = (kind: WidgetKind): MenuItemEntry => (kind === 'breakdown'
     ? {
         kind: 'item',
-        label: widgetKindLabel(kind),
+        label: widgetKindAddLabel(kind),
         icon: <WidgetKindIcon kind={kind} />,
         childrenWidth: ADD_TAB_SUBMENU_WIDTH_PX,
         children: [
-          { kind: 'label', text: widgetKindLabel(kind) },
+          { kind: 'label', text: widgetKindAddLabel(kind) },
           ...BREAKDOWN_PRESETS.map((preset): MenuEntry => ({ kind: 'item', label: BREAKDOWN_PRESET_LABELS[preset], onSelect: () => a.onAddTab(kind, preset) })),
         ],
       }
-    : { kind: 'item', label: widgetKindLabel(kind), icon: <WidgetKindIcon kind={kind} />, onSelect: () => a.onAddTab(kind) })
+    : { kind: 'item', label: widgetKindAddLabel(kind), icon: <WidgetKindIcon kind={kind} />, onSelect: () => a.onAddTab(kind) })
   return {
     kind: 'item',
     label: addTabLabel(a.cell),
@@ -381,7 +381,7 @@ function collapseEntries(a: CellMenuActions): MenuEntry[] {
   const row: MenuEntry = {
     kind: 'item',
     label: a.collapsed ? 'Expand row' : 'Collapse row',
-    icon: a.collapsed ? <ChevronDownIcon size={14} /> : <ChevronUpIcon />,
+    icon: a.collapsed ? <UnfoldIcon axis="rows" /> : <ChevronUpIcon />,
     onSelect: () => a.onCollapse(!a.collapsed),
   }
   const onColumn = a.onCollapseColumn
@@ -390,7 +390,7 @@ function collapseEntries(a: CellMenuActions): MenuEntry[] {
   return [row, {
     kind: 'item',
     label: folded ? 'Expand column' : 'Collapse column',
-    icon: folded ? <ChevronRightIcon size={14} /> : <ChevronLeftIcon size={14} />,
+    icon: folded ? <UnfoldIcon axis="columns" /> : <ChevronLeftIcon size={14} />,
     onSelect: () => onColumn(!folded),
   }]
 }

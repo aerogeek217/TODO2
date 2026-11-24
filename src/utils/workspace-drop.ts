@@ -289,22 +289,40 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
   const band = cell.band
   if (band && inside(band, p)) return { kind: 'tab-strip', cellId: cell.id, index: 1, lineX: band.left + 4 }
   if (cell.body && inside(cell.body, p)) {
-    const zone = bodyZone(band ? { ...cell.body, top: Math.max(cell.body.top, band.bottom) } : cell.body, p)
-    // A strip of Numbers (flair P10): its middle takes the drop between its slots.
-    if (zone === 'middle' && cell.strip && cell.tabs.length > 0) return stripHit(cell, cell.body, p)
+    // A strip of Numbers (flair P10): its middle takes the drop between its slots — all but the outer quarter of
+    // each end slot, which splits, so a drop before the first Number or after the last has room.
+    const numbers = cell.strip === true && cell.tabs.length > 0
+    const zone = bodyZone(band ? { ...cell.body, top: Math.max(cell.body.top, band.bottom) } : cell.body, p, numbers ? stripSideZoneMax(cell) : undefined)
+    if (zone === 'middle' && numbers) return stripHit(cell, cell.body, p)
     return { kind: 'cell-body', cellId: cell.id, zone }
   }
   return null
 }
 
+/** A Numbers strip's left / right split zones at most (px): the outer quarter of its narrowest end slot. */
+function stripSideZoneMax(cell: CellGeometry): number {
+  const width = (r: Rect | undefined) => (r ? r.right - r.left : Infinity)
+  return Math.min(width(cell.tabs[0]?.rect), width(cell.tabs.at(-1)?.rect)) / 4
+}
+
+/**
+ * Outside the layout edit mode nothing splits, so a point anywhere over a
+ * strip of Numbers' body is a drop between its slots — its ends included
+ * (`hitTestWorkspace` keeps its sides for splits); null elsewhere.
+ */
+export function numberStripHitAt(geo: WorkspaceGeometry, p: Point): WorkspaceDropHit | null {
+  const cell = geo.cells.find((c) => c.strip === true && c.tabs.length > 0 && c.body != null && inside(c.body, p))
+  return cell?.body ? stripHit(cell, cell.body, p) : null
+}
+
 /**
  * A cell body's zone at `p`: a split on the side whose zone it is in — its
- * outer `SIDE_ZONE_SHARE` that way, at most `SIDE_ZONE_MAX_PX` —, in a
- * corner the side it is deeper into (by the share of that zone); else the
- * middle.
+ * outer `SIDE_ZONE_SHARE` that way, at most `SIDE_ZONE_MAX_PX` (and at most
+ * `sideMax` left and right) —, in a corner the side it is deeper into (by
+ * the share of that zone); else the middle.
  */
-export function bodyZone(body: Rect, p: Point): CellZone {
-  const zw = sideZoneWidth(body)
+export function bodyZone(body: Rect, p: Point, sideMax = Infinity): CellZone {
+  const zw = Math.min(sideZoneWidth(body), sideMax)
   const zh = Math.min((body.bottom - body.top) * SIDE_ZONE_SHARE, SIDE_ZONE_MAX_PX)
   // How deep into each side's zone the point is: 1 at the edge, 0 at the zone's inner end, below 0 past it.
   const depth = (gap: number, zone: number) => (zone > 0 ? 1 - gap / zone : -1)

@@ -1,8 +1,8 @@
 # Glance widgets
 
-The glance widgets are the Insights kinds that count and chart tasks: the Number, the charts (Breakdown and Pivot) and Created vs completed. Each is a widget kind of its own, composed in the layout's table. Their components are in `components/workspace/glance/`, their configs in `models/glance-widgets`, `models/number-shapes` and `models/chart-widgets`, their statistics in `services/stats/*`, and their data hooks in `hooks/use-glance-data`, `hooks/use-number-shapes` and `hooks/use-chart-data`.
+The glance widgets are the Insights kinds that count and chart tasks: the Number, the Breakdown and Created vs completed. Each is a widget kind of its own, composed in the layout's table. Their components are in `components/workspace/glance/`, their configs in `models/glance-widgets`, `models/number-shapes` and `models/chart-widgets`, their statistics in `services/stats/*`, and their data hooks in `hooks/use-glance-data`, `hooks/use-number-shapes` and `hooks/use-chart-data`.
 
-This file covers what they share, the Number and its shapes, the widget editors, the task dialog and the history log. Breakdown, Pivot and Created vs completed are in [Charts](charts.md). The whole-widget maps that share their menu group (the Neglect map, Work clusters) are in [Task maps](task-maps.md).
+This file covers what they share, the Number and its shapes, the widget editors, the task dialog and the history log. Breakdown and Created vs completed are in [Charts](charts.md). The whole-widget maps that share their menu group (the Neglect map, Work clusters) are in [Task maps](task-maps.md).
 
 ## What every glance widget shares
 
@@ -14,7 +14,7 @@ This file covers what they share, the Number and its shapes, the widget editors,
 
 ### The kinds and their flags
 
-`GlanceWidgetKind` (`models/workspace-layout`) is `number`, the two chart kinds (`breakdown`, `pivot`) and `trend`, which is Created vs completed. `isGlanceKind` and `isGlanceTab` tell them.
+`GlanceWidgetKind` (`models/workspace-layout`) is `numbers`, `breakdown` and `trend`, which is Created vs completed. `isGlanceKind` and `isGlanceTab` tell them. A Numbers widget (`numbers`, its name **Numbers**, added as **Number**) holds one Number or more in `config.items`, each a Number's config with its own id and icon (`NumberItem`); the workspace draws each of its Numbers as a tab of its own (`utils/number-views`).
 
 Each kind's `WidgetKindSpec` in `WIDGET_KIND_SPECS` carries three flags:
 
@@ -22,21 +22,21 @@ Each kind's `WidgetKindSpec` in `WIDGET_KIND_SPECS` carries three flags:
 - `glance`: the glance kinds.
   - A track of only glance cells may shrink to 64px, and a glance cell to 72px wide ([Workspace layout](workspace-layout.md)).
   - A right-click anywhere on one alone in its cell opens the cell's ⋯.
-- `fitHeight`: a Number only. A row track whose cells hold only Numbers fits its content ([Widget chrome](widget-chrome.md)).
+- `fitHeight`: the Numbers only. A row track whose cells hold only Numbers fits its content ([Widget chrome](widget-chrome.md)).
 
 The three maps are whole widgets: they are in `insights` for the menus only, with neither `glance` nor `fitHeight`. The Calendar has neither too.
 
 ### In the menus
 
 - The add-widget and **Change widget** menus list them under **Insights**, after the **Tasks** kinds (List, Calendar, Review, Planner, Notes).
-- The order is Number, Breakdown, Pivot and Created vs completed, then the Neglect map and Work clusters.
+- The order is Number, Breakdown and Created vs completed, then the Neglect map and Work clusters.
 - Adding a Breakdown opens its presets: **People** · **Tags** · **Status** · **Custom** ([Charts](charts.md)).
 
 ### Tab titles
 
 `kindTabTitle(tab)` gives a non-list tab's title:
 
-- A Number's or a chart's tab reads its name. Blank, it reads its kind's name (`Number`, `Breakdown`).
+- A chart's tab reads its name. Blank, it reads its kind's name (`Breakdown`). A Numbers widget of one Number reads that Number's name (blank: `Number`); of several, its tab name, else `Numbers`.
 - Created vs completed reads its name, else `Created vs completed` (`trendName`).
 - Any other tab reads its tab name, else its kind's name.
 
@@ -152,6 +152,7 @@ A Number's click and a chart's bar open their tasks in the task dialog (`overlay
 
 - `todoEvents` log `created` / `completed` / `reopened`, due-date changes and status changes.
 - They also log the next follow-up (`followup`), the last follow-up (`followedUp`), the priority flags (`marker`) and each person and tag added or removed (`person` / `tag`).
+- They log the Planner's planned day (`planned`, from `doDate`): every plan write, its undo and redo, and a repeating task's advance. A plan write still stamps no `modifiedAt`.
 - These are logged at the repository's diff, at the assignment joins and at each undo / redo. The joins are the bulk bar, the editor, the pickers, check-in replies, Make a task, Duplicate, the append import, a create's people and tags, and deleting a person or tag (Find unused…'s removal too).
 
 ### When the log began
@@ -164,12 +165,13 @@ A Number's click and a chart's bar open their tasks in the task dialog (`overlay
 - An append import moves it forward when the file's log doesn't reach back as far as the browser's (`data/append-import.coverAppendedHistory`). A file with no stamp (a task archive, an older file) moves it to now; a later stamp moves it to that stamp.
 - A past day before it then reads as approximate, not exact.
 - `runAppendImport` runs the stamp after an append, so the store reads the row again.
+- `planLogSince` is the same for planned days: a sync-neutral row stamped once by `stampPlanLogSince`, in the same places, and moved forward by an append import the same way. Before it a task's planned day can't be known.
 
 ### A filter's history
 
 - A filter's history (`services/stats/filter-history`) replays every task to each day's end (`task-history.taskFieldReplay` → `taskAsOf`) and evaluates the filter with that day as today.
 - A field on a day before the log began reads as it was when the log began. A line that reads one there is approximate.
-- So is a line that reads text, the modified date or the planned date, which are never logged (a plan write logs no event).
+- So is a line that reads text or the modified date, which are never logged, or the planned date, which a filter's history doesn't replay.
 - The line's tooltip (`NumberLine`) names the fields (`historyExactness`), and its accessible name says "About". There is no ≈ mark beside it.
 - The trend and a Number's line (its filter under its screen filter, 14 days) read the events through `trend-events-store`, a window each: a trend range, a trend range's fields window (`fields-14d`, …), or `history`.
 

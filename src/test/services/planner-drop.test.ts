@@ -47,7 +47,7 @@ import { resetStores } from '../store-tracking'
  * The Planner's one writer (`services/planner-drop`), on the real stores
  * and database: each decision of the drop rule is exactly one task write —
  * the task's plan state (a planned day, or cleared: one undo step, no
- * stamp, no history event) — or none; a due date or a follow-up is never
+ * stamp, a `planned` event) — or none; a due date or a follow-up is never
  * written by a drop, Plan for day ›, Snooze, Unplan, Clear Delayed plans
  * or Reset plan — only by a conflict's
  * Move date fix, which is a real edit. A drop into a group stores the hand
@@ -182,7 +182,7 @@ async function drop(todo: PersistedTodoItem, target: PlannerDropData, preview: P
 }
 
 describe('a drop on a day: the task is planned, its real dates untouched', () => {
-  it('a row there by its follow-up keeps the follow-up and gets a planned day: no stamp, no history event, one undo step', async () => {
+  it('a row there by its follow-up keeps the follow-up and gets a planned day: no stamp, a `planned` event, one undo step', async () => {
     const task = await seed('Chase', { nextFollowupAt: day(0, 12) })
     const events = await eventCount(task.id)
     const w = watchWrites()
@@ -192,7 +192,7 @@ describe('a drop on a day: the task is planned, its real dates untouched', () =>
     expect(w.tasks()).toBe(1)
     expect(w.realDates()).toBe(0)
     expect(await plan(task.id)).toEqual({ doDate: day(3), nextFollowupAt: day(0, 12), dueDate: undefined, modifiedAt: STAMP })
-    expect(await eventCount(task.id)).toBe(events)
+    expect(await eventCount(task.id)).toBe(events + 1)
     expect(steps()).toEqual(['Planned “Chase”'])
 
     await useUndoStore.getState().undo()
@@ -200,7 +200,7 @@ describe('a drop on a day: the task is planned, its real dates untouched', () =>
     expect(useTodoStore.getState().todos.find((t) => t.id === task.id)?.modifiedAt).toEqual(STAMP)
     await useUndoStore.getState().redo()
     expect(await plan(task.id)).toMatchObject({ doDate: day(3), modifiedAt: STAMP })
-    expect(await eventCount(task.id)).toBe(events)
+    expect(await eventCount(task.id)).toBe(events + 3)
   })
 
   it('a row there by its due date likewise: the due date kept', async () => {
@@ -1043,7 +1043,7 @@ describe('a conflict’s fixes', () => {
     // Its own date puts it on that day now: the plan went with the edit.
     expect(after.doDate).toBeUndefined()
     expect(after.modifiedAt).toEqual(NOW)
-    expect(await eventCount(task.id)).toBe(events + 1)
+    expect(await eventCount(task.id)).toBe(events + 2)
     expect(steps()).toEqual(['Edit "Venue"'])
     // No conflict left, the row where it was and no longer placed.
     expect(plannerPlacement(useTodoStore.getState().todos.find((t) => t.id === task.id)!, WINDOW)).toMatchObject({
@@ -1089,7 +1089,7 @@ describe('a conflict’s fixes', () => {
     expect(after.lastFollowupAt).toBeUndefined()
     expect(after.doDate).toBeUndefined()
     expect(after.modifiedAt).toEqual(NOW)
-    expect(await eventCount(task.id)).toBe(events + 1)
+    expect(await eventCount(task.id)).toBe(events + 2)
     expect(steps()).toEqual(['Edit "Chase"'])
   })
 
@@ -1171,7 +1171,7 @@ describe('a calendar’s plan drop (planTaskForDay): planned outright, the plan 
     expect(realDate).not.toHaveBeenCalled()
   }
 
-  it('a plan entry moved to another day: the plan only — no stamp, no history event, one undo step', async () => {
+  it('a plan entry moved to another day: the plan only — no stamp, a `planned` event, one undo step', async () => {
     const task = await seed('Draft', { doDate: day(1), dueDate: day(4, 9) })
     const events = await eventCount(task.id)
     const w = watchWrites()
@@ -1180,7 +1180,7 @@ describe('a calendar’s plan drop (planTaskForDay): planned outright, the plan 
     expect(w.tasks()).toBe(1)
     expect(w.realDates()).toBe(0)
     expect(await plan(task.id)).toEqual({ doDate: day(3), nextFollowupAt: undefined, dueDate: day(4, 9), modifiedAt: STAMP })
-    expect(await eventCount(task.id)).toBe(events)
+    expect(await eventCount(task.id)).toBe(events + 1)
     expect(steps()).toEqual(['Planned “Draft”'])
     await useUndoStore.getState().undo()
     expect(await plan(task.id)).toMatchObject({ doDate: day(1), modifiedAt: STAMP })

@@ -1,6 +1,7 @@
-import type { CellArea, GridTrack, LayoutBody, LayoutCell, LayoutTab, NumberTab } from '../../models/workspace-layout'
-import type { NumberConfig } from '../../models/glance-widgets'
-import { numberConfigOfMetric, type V77NumberMetric } from './number-metrics'
+import type { CellArea, GridTrack, LayoutBody, LayoutCell, LayoutTab, NumbersTab } from '../../models/workspace-layout'
+import { newNumberItem, type NumberConfig, type NumberItem } from '../../models/glance-widgets'
+import { emptyPredicate } from '../../models/filter-predicate'
+import { numberConfigOfMetric, type V77NumberMetric } from '../../../scripts/number-metrics'
 
 /**
  * Builders for workspace layouts in the table shape (D26: grid tracks and
@@ -112,9 +113,32 @@ export function picture(body: LayoutBody): string[] {
 }
 
 /**
- * A Number tab counting what a v77 metric counted (`numberConfigOfMetric`:
- * its name, colour and filter), with `patch` over its config.
+ * A Number (a Numbers widget's item) counting what a v77 metric counted
+ * (`numberConfigOfMetric`: its name, colour and filter), with `patch` over
+ * its config.
  */
-export function numberTab(id: string, metric: V77NumberMetric = 'open', patch: Partial<NumberConfig> = {}): NumberTab {
-  return { id, kind: 'number', config: { ...(numberConfigOfMetric(metric) as unknown as NumberConfig), ...patch } }
+export function numberItem(id: string, metric: V77NumberMetric = 'open', patch: Partial<NumberItem> = {}): NumberItem {
+  return { id, ...(numberConfigOfMetric(metric) as unknown as NumberConfig), ...patch }
+}
+
+/** A Numbers widget `id` holding `items`, in order (`extra`: its own name or icon). */
+export function numbersTab(id: string, items: NumberItem[], extra: Partial<Pick<NumbersTab, 'name' | 'icon'>> = {}): NumbersTab {
+  return { id, kind: 'numbers', config: { items }, ...extra }
+}
+
+/** A Numbers widget of one new Number (as Add widget makes one: Open, every open task), the Number's id `id`, its widget's `numberWidgetId(id)`. */
+export function freshNumberTab(id: string): NumbersTab {
+  return numbersTab(numberWidgetId(id), [newNumberItem(id, emptyPredicate())])
+}
+
+/** The id `numberTab(id)` gives its widget: `id` + `-w` (the Number keeps `id`). */
+export const numberWidgetId = (numberId: string): string => `${numberId}-w`
+
+/**
+ * A Numbers widget of one Number, `numberItem(id, metric, patch)` — the
+ * Number's id is `id`, its widget's `numberWidgetId(id)`. Several in one
+ * cell draw as one strip, as one widget of them all would.
+ */
+export function numberTab(id: string, metric: V77NumberMetric = 'open', patch: Partial<NumberItem> = {}): NumbersTab {
+  return numbersTab(numberWidgetId(id), [numberItem(id, metric, patch)])
 }

@@ -88,6 +88,10 @@ interface PlannerState {
   /** Opens a Planner's settings: an editor with changes is asked first, and any other closes (`editor-leave`). */
   openSettings: (tabId: string) => void
   closeSettings: () => void
+  /** The Planner tab whose week load popover is open beside it (Week load… in its ⋯ menu); null with none. */
+  weekLoadTabId: string | null
+  openWeekLoad: (tabId: string) => void
+  closeWeekLoad: () => void
 }
 
 export const usePlannerStore = create<PlannerState>((set, get) => ({
@@ -95,6 +99,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
   resets: {},
   drag: null,
   settingsTabId: null,
+  weekLoadTabId: null,
 
   setReset(key, report) {
     const { resets } = get()
@@ -142,10 +147,22 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
   closeSettings() {
     if (get().settingsTabId !== null) set({ settingsTabId: null })
   },
+
+  openWeekLoad(tabId) {
+    if (get().weekLoadTabId !== tabId) set({ weekLoadTabId: tabId })
+  },
+
+  closeWeekLoad() {
+    if (get().weekLoadTabId !== null) set({ weekLoadTabId: null })
+  },
 }))
 
-// The Planner's settings are a widget editor: closed with the others (Settings opening, the widget popup, a data replace).
-registerEditorFields(() => usePlannerStore.getState().closeSettings())
+// The Planner's settings are a widget editor: closed with the others (Settings opening, the widget popup, a data
+// replace, another editor opening) — and its week load popover with them.
+registerEditorFields(() => {
+  usePlannerStore.getState().closeSettings()
+  usePlannerStore.getState().closeWeekLoad()
+})
 
 /** The window `key` (`DEFAULT_PLANNER_WINDOW` until it is moved). */
 export function usePlannerWindow(key: string): PlannerTabWindow {

@@ -1,5 +1,5 @@
 /* A collapsed column's strip: a card as narrow as its track
- * (`COLUMN_STRIP_PX`, 34px), Expand column at its top, then the widgets'
+ * (`COLUMN_STRIP_PX`, 34px), Expand column (`TrackExpandButton`) at its top, then the widgets'
  * icons and names running down it. Its content is drawn out of flow, so it
  * never sizes a track (a fit row's `auto` stays its other cells'). */
 .strip {
@@ -23,7 +23,6 @@
   overflow: hidden;
 }
 
-.expand,
 .widget {
   appearance: none;
   border: 0;
@@ -31,16 +30,6 @@
   font: inherit;
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast);
-}
-
-.expand {
-  flex: none;
-  width: 26px;
-  height: 24px;
-  border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: 1;
 }
 
 .widget {
@@ -59,13 +48,11 @@
   overflow: hidden;
 }
 
-.expand:hover,
 .widget:hover {
   background: var(--color-surface-hover);
   color: var(--color-text-primary);
 }
 
-.expand:focus-visible,
 .widget:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);

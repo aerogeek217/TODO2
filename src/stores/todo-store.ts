@@ -172,7 +172,7 @@ interface TodoState {
    * named `description` (default: `Planned “Title”`, `Cleared the plan of
    * “Title”`, `Changed the plan of 3 tasks`). Planning is not an edit: the
    * write, its undo and its redo leave every task's `modifiedAt` as it is
-   * (`KEEP_STAMPS`), no history event is logged, and no due date or
+   * (`KEEP_STAMPS`) — each still logs a `planned` history event — and no due date or
    * follow-up is ever written. Only the tasks whose plan changes are
    * written. **It never rejects**: a write that fails is taken back (only
    * where the task still holds this write's day), the tasks are read back

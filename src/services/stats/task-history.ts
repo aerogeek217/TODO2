@@ -20,10 +20,13 @@ import { daysUntil } from '../../utils/effective-date'
  * now: a field at a day's end is the `from` of its next event after that
  * day, else what it is now — the due date, the status, and (the history log
  * H3, D26) the next and last follow-up dates, the priority flags and the
- * task's people and tags (each later add / remove undone, newest first). A
- * field the log didn't cover yet (before `historyLogSince`, for the H3
- * fields) thus reads as it was when the log began — its first logged
- * change's `from`, or what it is now. `filter-history.historyExactness` says
+ * task's people and tags (each later add / remove undone, newest first),
+ * and the planned day (`planned`, since `planLogSince`). A
+ * field the log didn't cover yet (before `historyLogSince` for the H3
+ * fields, before `planLogSince` for the planned day) thus reads as it was
+ * when the log began — its first logged change's `from`, or what it is now.
+ * `taskFieldReplayAt` reads the same replay at a moment instead of a day's
+ * end. `filter-history.historyExactness` says
  * when a filter's past counts are exact.
  */
 
@@ -116,42 +119,79 @@ interface TaskAtDayEnd {
 
 const ABSENT: TaskAtDayEnd = { state: 'absent', completed: null, due: null }
 
+
+/**
+ * A moment a replay reads the task at: which events come after it, and
+ * whether the task's own dates put it before its creation or before its
+ * completion (for a task completed now).
+ */
+interface ReplayMoment {
+  later: (e: DatedEvent) => boolean
+  beforeCreated: boolean
+  beforeCompletion: boolean
+}
+
+/** The task at `at` (see the module comment for the rule). */
+function stateAt(task: PersistedTodoItem, events: TaskEvents, completion: Date | null, at: ReplayMoment): TaskAtDayEnd {
+  const { states, deadlines } = events
+  if (at.beforeCreated) return ABSENT
+  const next = states.find(at.later)
+  let state: TaskState
+  let completed: Date | null = null
+  if (next) {
+    state = stateBefore(next.type)
+    if (state === 'done') {
+      const last = states.filter((e) => !at.later(e) && e.type === 'completed').at(-1)
+      completed = last ? new Date(last.time) : null
+    }
+  } else if (completion) {
+    // Done now, with no later event: done since its completion.
+    state = at.beforeCompletion ? 'open' : 'done'
+    completed = completion
+  } else {
+    state = 'open'
+  }
+  if (state === 'absent') return ABSENT
+  if (state === 'done') return { state, completed, due: null }
+  const nextDeadline = deadlines.find(at.later)
+  return { state, completed: null, due: nextDeadline ? nextDeadline.from : (task.dueDate ?? null) }
+}
+
+/** The moment at a day's end, in days from `origin` (`taskReplay`, `taskFieldReplay`). */
+function dayEndMoments(task: PersistedTodoItem, origin: Date): (day: number) => ReplayMoment {
+  const createdDay = daysUntil(task.createdAt, origin)
+  const completion = task.isCompleted ? completionOf(task) : null
+  const completedDay = completion ? daysUntil(completion, origin) : null
+  return (day) => ({
+    later: (e) => e.day > day,
+    beforeCreated: createdDay != null && createdDay > day,
+    beforeCompletion: completedDay != null && completedDay > day,
+  })
+}
+
+/** The moment just after `time` (epoch ms): every event at or before it has happened (`taskFieldReplayAt`). */
+function timeMoments(task: PersistedTodoItem): (time: number) => ReplayMoment {
+  const created = new Date(task.createdAt).getTime()
+  const completion = task.isCompleted ? completionOf(task).getTime() : null
+  return (time) => ({
+    later: (e) => e.time > time,
+    beforeCreated: !Number.isNaN(created) && created > time,
+    beforeCompletion: completion != null && !Number.isNaN(completion) && completion > time,
+  })
+}
+
 /**
  * `task`'s replay over its `events` (from `eventsByTask`, the same `origin`):
  * the task at the end of a day, given in days from `origin` (`-1` = the day
  * before it). See the module comment for the rule.
  */
 export function taskReplay(task: PersistedTodoItem, events: TaskEvents | undefined, origin: Date): (day: number) => TaskAtDayEnd {
-  const { states, deadlines } = events ?? NO_EVENTS
-  const createdDay = daysUntil(task.createdAt, origin)
   const completion = task.isCompleted ? completionOf(task) : null
-  const completedDay = completion ? daysUntil(completion, origin) : null
-  return (day) => {
-    if (createdDay != null && createdDay > day) return ABSENT
-    const next = states.find((e) => e.day > day)
-    let state: TaskState
-    let completed: Date | null = null
-    if (next) {
-      state = stateBefore(next.type)
-      if (state === 'done') {
-        const last = states.filter((e) => e.day <= day && e.type === 'completed').at(-1)
-        completed = last ? new Date(last.time) : null
-      }
-    } else if (completion) {
-      // Done now, with no later event: done since its completion day.
-      state = completedDay != null && completedDay > day ? 'open' : 'done'
-      completed = completion
-    } else {
-      state = 'open'
-    }
-    if (state === 'absent') return ABSENT
-    if (state === 'done') return { state, completed, due: null }
-    const nextDeadline = deadlines.find((e) => e.day > day)
-    return { state, completed: null, due: nextDeadline ? nextDeadline.from : (task.dueDate ?? null) }
-  }
+  const moment = dayEndMoments(task, origin)
+  return (day) => stateAt(task, events ?? NO_EVENTS, completion, moment(day))
 }
 
-/** A task's logged fields at a day's end (`taskFieldReplay`). */
+/** A task's logged fields at a day's end (`taskFieldReplay`), or at a moment (`taskFieldReplayAt`). */
 export interface TaskFields {
   /** Open or done (an absent task has no fields). */
   state: Exclude<TaskState, 'absent'>
@@ -160,6 +200,13 @@ export interface TaskFields {
   dueDate: Date | null
   nextFollowupAt: Date | null
   lastFollowupAt: Date | null
+  /**
+   * The planned day (`doDate`), from the `planned` events when they were
+   * read. Before `planLogSince` it reads as it was when that log began.
+   * `taskAsOf` leaves it out: a filter's history reads the planned day as
+   * it is now.
+   */
+  doDate: Date | null
   statusId: number | null
   markers: MarkerFlags
   personIds: readonly number[]
@@ -173,12 +220,68 @@ interface TaskAssignmentsNow {
 }
 
 /** The scalar fields a replay reads back from their events' `from`. */
-type ScalarType = 'deadline' | 'followup' | 'followedUp' | 'status' | 'marker'
+type ScalarType = 'deadline' | 'followup' | 'followedUp' | 'planned' | 'status' | 'marker'
 
-const SCALAR_TYPES: readonly ScalarType[] = ['deadline', 'followup', 'followedUp', 'status', 'marker']
+const SCALAR_TYPES: readonly ScalarType[] = ['deadline', 'followup', 'followedUp', 'planned', 'status', 'marker']
 
 function isoOf(d: Date | undefined): string | null {
   return d ? new Date(d).toISOString() : null
+}
+
+/** `task`'s every logged field at a moment, replayed backwards from now (see the module comment). */
+function fieldReplay(
+  task: PersistedTodoItem,
+  events: TaskEvents | undefined,
+  assignments: TaskAssignmentsNow,
+): (at: ReplayMoment) => TaskFields | null {
+  const evs = events ?? NO_EVENTS
+  const completion = task.isCompleted ? completionOf(task) : null
+  const all = evs.all
+  const byType = (type: TodoEventType) => all.filter((e) => e.type === type)
+  const scalars = new Map(SCALAR_TYPES.map((type) => [type, byType(type)] as const))
+  const people = byType('person')
+  const tags = byType('tag')
+  const now: Record<ScalarType, string | number | null> = {
+    deadline: isoOf(task.dueDate),
+    followup: isoOf(task.nextFollowupAt),
+    followedUp: isoOf(task.lastFollowupAt),
+    planned: isoOf(task.doDate),
+    status: task.statusId ?? null,
+    marker: encodeMarkerFlags(task),
+  }
+  /** The field's stored value at the moment: its next event's `from`, else its value now. */
+  const scalar = (type: ScalarType, at: ReplayMoment) => {
+    const next = scalars.get(type)?.find(at.later)
+    return next ? next.fromValue : now[type]
+  }
+  /** The set at the moment: `current` with each later add / remove undone, newest first. */
+  const replaySet = (list: readonly DatedEvent[], at: ReplayMoment, current: readonly number[]): readonly number[] => {
+    const later = list.filter(at.later)
+    if (later.length === 0) return current
+    const ids = new Set(current)
+    for (const e of later.reverse()) {
+      if (typeof e.toValue === 'number') ids.delete(e.toValue)
+      else if (typeof e.fromValue === 'number') ids.add(e.fromValue)
+    }
+    return [...ids]
+  }
+  return (at) => {
+    const state = stateAt(task, evs, completion, at)
+    if (state.state === 'absent') return null
+    const status = scalar('status', at)
+    return {
+      state: state.state,
+      completed: state.completed,
+      dueDate: dateOf(scalar('deadline', at)),
+      nextFollowupAt: dateOf(scalar('followup', at)),
+      lastFollowupAt: dateOf(scalar('followedUp', at)),
+      doDate: dateOf(scalar('planned', at)),
+      statusId: typeof status === 'number' ? status : null,
+      markers: decodeMarkerFlags(scalar('marker', at)),
+      personIds: replaySet(people, at, assignments.personIds),
+      tagIds: replaySet(tags, at, assignments.tagIds),
+    }
+  }
 }
 
 /**
@@ -194,57 +297,33 @@ export function taskFieldReplay(
   assignments: TaskAssignmentsNow,
   origin: Date,
 ): (day: number) => TaskFields | null {
-  const state = taskReplay(task, events, origin)
-  const all = events?.all ?? []
-  const byType = (type: TodoEventType) => all.filter((e) => e.type === type)
-  const scalars = new Map(SCALAR_TYPES.map((type) => [type, byType(type)] as const))
-  const people = byType('person')
-  const tags = byType('tag')
-  const now: Record<ScalarType, string | number | null> = {
-    deadline: isoOf(task.dueDate),
-    followup: isoOf(task.nextFollowupAt),
-    followedUp: isoOf(task.lastFollowupAt),
-    status: task.statusId ?? null,
-    marker: encodeMarkerFlags(task),
-  }
-  /** The field's stored value at the day's end: its next event's `from`, else its value now. */
-  const scalar = (type: ScalarType, day: number) => {
-    const next = scalars.get(type)?.find((e) => e.day > day)
-    return next ? next.fromValue : now[type]
-  }
-  /** The set at the day's end: `current` with each later add / remove undone, newest first. */
-  const replaySet = (list: readonly DatedEvent[], day: number, current: readonly number[]): readonly number[] => {
-    const later = list.filter((e) => e.day > day)
-    if (later.length === 0) return current
-    const ids = new Set(current)
-    for (const e of later.reverse()) {
-      if (typeof e.toValue === 'number') ids.delete(e.toValue)
-      else if (typeof e.fromValue === 'number') ids.add(e.fromValue)
-    }
-    return [...ids]
-  }
-  return (day) => {
-    const at = state(day)
-    if (at.state === 'absent') return null
-    const status = scalar('status', day)
-    return {
-      state: at.state,
-      completed: at.completed,
-      dueDate: dateOf(scalar('deadline', day)),
-      nextFollowupAt: dateOf(scalar('followup', day)),
-      lastFollowupAt: dateOf(scalar('followedUp', day)),
-      statusId: typeof status === 'number' ? status : null,
-      markers: decodeMarkerFlags(scalar('marker', day)),
-      personIds: replaySet(people, day, assignments.personIds),
-      tagIds: replaySet(tags, day, assignments.tagIds),
-    }
-  }
+  const fields = fieldReplay(task, events, assignments)
+  const moment = dayEndMoments(task, origin)
+  return (day) => fields(moment(day))
+}
+
+/**
+ * The same replay at a moment rather than a day's end: the task's fields
+ * just after `time` (epoch ms) — every event at or before it applied, none
+ * after; absent before its `createdAt`, open before the completion of a task
+ * completed now with no later event. The week load reads a day's start and
+ * each change during it this way.
+ */
+export function taskFieldReplayAt(
+  task: PersistedTodoItem,
+  events: TaskEvents | undefined,
+  assignments: TaskAssignmentsNow,
+): (time: number) => TaskFields | null {
+  const fields = fieldReplay(task, events, assignments)
+  const moment = timeMoments(task)
+  return (time) => fields(moment(time))
 }
 
 /**
  * `task` as it was with `fields` (from `taskFieldReplay`): the row a filter
  * reads for that day. What the log doesn't hold (the title, the notes, the
- * recurrence, `createdAt`, `modifiedAt`) stays as it is now.
+ * recurrence, `createdAt`, `modifiedAt`) stays as it is now, and so does the
+ * planned day (a filter's history doesn't replay it).
  */
 export function taskAsOf(task: PersistedTodoItem, fields: TaskFields): PersistedTodoItem {
   const done = fields.state === 'done'

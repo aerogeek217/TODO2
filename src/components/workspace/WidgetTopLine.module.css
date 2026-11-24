@@ -99,8 +99,14 @@
   pointer-events: none;
 }
 
-.floating > .button {
+.floating > .button,
+.floating > .expand {
   pointer-events: auto;
+}
+
+/* Expand row (`TrackExpandButton`): on the surface over a floating slot's face. */
+.floating > .expand:not(:hover) {
+  background-color: var(--color-surface);
 }
 
 .floating .controls {

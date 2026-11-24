@@ -28,7 +28,7 @@ export const SPLIT_CHOICE_LABELS: Record<BreakdownSplit, string> = {
 }
 
 /** The name column's heading, per split. */
-export const SPLIT_ROW_LABELS: Record<BreakdownSplit, string> = {
+const SPLIT_ROW_LABELS: Record<BreakdownSplit, string> = {
   people: 'Person',
   tags: 'Tag',
   status: 'Status',
@@ -74,10 +74,10 @@ export function columnHeading(column: Pick<BreakdownColumn, 'name'>): string {
  * What a chart's counts are of (cr34 G6): `open` — or `tasks` when its
  * filter lets completed tasks through (Show completed, a Completed range:
  * "completed this week by person"), since it then counts those too. One
- * rule for a Breakdown's and a Pivot's header, small face and Copy, the
- * Breakdown's figure heading and its ⋯ menu's Sort words.
+ * rule for a Breakdown's header, small face and Copy, its figure heading
+ * and its ⋯ menu's Sort words.
  */
-export type CountWord = 'open' | 'tasks'
+type CountWord = 'open' | 'tasks'
 
 /** A chart's count word by its filter (`CountWord`). */
 export function countWordOf(filter: TodoPredicate): CountWord {

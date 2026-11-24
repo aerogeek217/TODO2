@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import type { ChartWidgetKind } from '../../../models/workspace-layout'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import { WidgetTopLine } from '../WidgetTopLine'
@@ -7,13 +6,12 @@ import { GLANCE_PANEL_CLASS } from './glance-hooks'
 import sections from './GlanceSections.module.css'
 
 /**
- * A chart widget's panel (D26 P8): its top line — the split's glyph, its
+ * A Breakdown's panel (D26 P8): its top line — the split's glyph, its
  * title (where its editor opens, `data-chart-head`), its count (a click
  * opens every task it counts) and a subtitle — over its chart.
  */
-export function ChartPanel({ tabId, kind, title, glyph, count, onCount, sub, extras, children }: {
+export function ChartPanel({ tabId, title, glyph, count, onCount, sub, extras, children }: {
   tabId: string
-  kind: ChartWidgetKind
   title: string
   glyph: GlanceGlyphName
   count?: string
@@ -23,7 +21,7 @@ export function ChartPanel({ tabId, kind, title, glyph, count, onCount, sub, ext
   children: ReactNode
 }) {
   return (
-    <section className={`${sections.panel} ${GLANCE_PANEL_CLASS}`} aria-label={title} data-glance-section={kind} data-chart={tabId}>
+    <section className={`${sections.panel} ${GLANCE_PANEL_CLASS}`} aria-label={title} data-glance-section="breakdown" data-chart={tabId}>
       <WidgetTopLine className={sections.panelHeader}>
         <GlanceGlyph name={glyph} color="var(--color-accent)" />
         <span className={sections.panelTitle} data-chart-head={tabId}>{title}</span>
@@ -49,10 +47,10 @@ export function ChartPanel({ tabId, kind, title, glyph, count, onCount, sub, ext
 }
 
 /**
- * A chart table's sortable heading (a Breakdown's, a Pivot's; item 8): a
+ * A Breakdown table's sortable heading (item 8): a
  * button — a click sorts the rows by it, counts largest first and names A–Z,
  * a second reverses (`reversed`) — with ▼ / ▲ while it is the sort
- * (`active`). Each widget styles it (`classes`).
+ * (`active`). The widget styles it (`classes`).
  */
 export function SortHeading({ by, label, title, active, reversed, onSort, className, classes, data }: {
   by: string

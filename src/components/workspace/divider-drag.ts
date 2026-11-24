@@ -4,6 +4,7 @@ import type { MoveEdgeOptions } from '../../utils/workspace-layout-ops'
 import { cellById, spanOf } from '../../utils/workspace-grid'
 import { cellMinPx } from '../../utils/workspace-table'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
+import { useCellRoomStore } from '../../stores/cell-room-store'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 
 /**
@@ -34,9 +35,15 @@ export function drawnGap(table: HTMLElement, axis: GridAxis): number {
   return Number.isFinite(gap) && gap > 0 ? gap : 0
 }
 
-/** Each cell's minimum along an axis (`workspace-table.cellMinPx`: a collapsed cell's is its header). */
+/**
+ * Each cell's minimum along an axis (`workspace-table.cellMinPx`: a collapsed
+ * cell's is its header; a height its widget measured counts —
+ * `stores/cell-room-store`).
+ */
 export function minPxIn(layout: LayoutBody): MoveEdgeOptions['minPx'] {
-  return (cell, axis) => cellMinPx(layout, cell, axis)
+  // In the layout edit mode the cards are blueprints: nothing a widget measured holds them.
+  const measured = useWorkspaceStore.getState().editing ? undefined : useCellRoomStore.getState().minHeights
+  return (cell, axis) => cellMinPx(layout, cell, axis, measured)
 }
 
 /** Throwaway ids for a preview's probe (never stored). */

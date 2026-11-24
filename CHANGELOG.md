@@ -20,6 +20,51 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-24
+
+Data version 90. A browser's data and a sync file are upgraded on first use; an older copy of the app can't open
+them afterwards.
+
+### Added
+
+- **Week load in the Planner.** A small meter in the Planner's top line shows this week's dates against your usual
+  week. Click it for the week day by day: a box per kind of date (due, follow-up, planned), filled as far as those
+  dates were done, with your usual load marked for each day. Step back up to 8 weeks to see what slipped, or ahead
+  6 weeks to see what is already set. Where the Planner has no top line, open it from the widget's ⋯ menu
+  (**Week load…**).
+
+### Changed
+
+- **Planned days are recorded in a task's history**, so past weeks can show how plans went. Weeks before this
+  update show due dates and follow-ups only.
+- **Expand row and Expand column look alike.** Both are now a bordered button with the same unfold icon — up and down
+  for a collapsed row, left and right for a collapsed column. The cell menu's Expand row and Expand column show the
+  same icon.
+- **List board tiles fit their names and wrap.** Every tile is the same width — as wide as the longest name needs —
+  and tiles fill each line, wrapping onto more lines instead of hiding the extras behind a "+N" card. A List board's
+  row always stays tall enough to show every card.
+- **Slimmer List board tiles.** A tile shows its task count only when it has no colored capsule (the count is in its
+  tooltip), drops the list icon every list shares (an icon or emoji you picked still shows), and has tighter padding.
+- **A task's title looks like a field while you edit it.** In task details and on the review card, the title shows a
+  box when you point at it and an outlined box while you type in it.
+- **The Planner's "N done" opens the tasks done today.** Clicking the count under Today lists them in a dialog, as
+  clicking the top bar's tally marks does.
+
+### Removed
+
+- **Pivot widget.** Pivot widgets are removed from every layout; a cell that held only a Pivot closes, and its
+  neighbor takes its space. Breakdown and Created vs completed stay.
+
+### Fixed
+
+- **Clicking one cell, then another, in Edit layout no longer combines them.** A click now only selects a cell. To
+  move, swap or join cells by clicking, press **Move** on the selected cell's toolbar first (or Space); dragging works
+  as before.
+- **A Number drags to either end of its strip.** Dragging a Number to the first or last place in a wide row of Numbers
+  works again.
+- **A List board's row shrinks to its cards.** A row holding a List board can be made as short as one line of its
+  cards, without empty space under them.
+
 ## 2026-11-23, second deployment
 
 Data version 89. A browser's data and a sync file are upgraded on first use; an older copy of the app can't open

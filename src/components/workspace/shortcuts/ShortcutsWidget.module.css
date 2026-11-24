@@ -1,8 +1,9 @@
 /*
- * The List board. Large: a grid of tiles (auto-fill, 136px at least) whose
- * rows shrink from a tile with its squares and three task titles under its
- * head down to its head (`--board-content-max`, the tallest head and room any
- * tile asks for), then scroll. Compact: one line of tiles (`--shortcut-columns`).
+ * The List board. Compact and large: a grid of tiles as wide as each other,
+ * as wide as the widest head asks (`--board-tile-min`), wrapping and sharing
+ * each line (auto-fit), whose rows shrink from a tile with its squares (and,
+ * large, three task titles) under its head down to its head
+ * (`--board-content-max`, the tallest head and room any tile asks for).
  * Rows: a row per list with its bar. Each state's color is a theme token,
  * set once per `data-tone`.
  */
@@ -116,7 +117,6 @@
 .addTile:focus-visible,
 .open:focus-visible,
 .more:focus-visible,
-.moreTile:focus-visible,
 .square:focus-visible {
   box-shadow: var(--focus-ring);
   outline: none;
@@ -136,25 +136,22 @@
   --board-tile-max: calc(var(--board-tile-chrome) + var(--board-content-max, 22px));
 }
 
+/* Compact: its row is held at its lines of heads (`boardMinHeight`), so it never scrolls — a scrollbar would narrow the
+   grid by a column, wrap a tile and keep itself there. */
+.scroll[data-shortcuts-shape='compact'] {
+  overflow-y: hidden;
+}
+
 /* As tall as the room left (rows between the tile's least and most), overflowing into the scroll when the rows need more. */
 .grid {
   display: grid;
   flex: 1 0 0;
   min-height: 0;
-  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  /* auto-fit: the columns no tile fills fold away, so the tiles share the line, all as wide — each at least as wide as
+     the widest head on one line (`--board-tile-min`, `boardTileMinWidth`); they wrap onto more lines when that doesn't fit. */
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--board-tile-min, 120px), 100%), 1fr));
   /* Never shorter than a tile's head (two lines when its capsule wraps). */
   grid-auto-rows: minmax(min-content, var(--board-tile-max));
-  align-content: start;
-  gap: 8px;
-}
-
-/* One row of tiles, as tall as the room left up to a tile's most (its squares where a row fits). */
-.line {
-  display: grid;
-  flex: 1 0 0;
-  min-height: 0;
-  grid-template-columns: repeat(var(--shortcut-columns, 1), minmax(0, 1fr));
-  grid-template-rows: minmax(min-content, var(--board-tile-max));
   align-content: start;
   gap: 8px;
 }
@@ -222,7 +219,7 @@
 }
 
 .tile > .body {
-  padding: 11px 13px;
+  padding: 11px 9px;
 }
 
 .rowItem > .body {
@@ -230,12 +227,12 @@
   padding: 6px;
 }
 
-/* Icon · name · capsule · count; the capsule and count wrap under the name when the tile is too narrow for both. */
+/* Icon · name · capsule · count; the name shortens first, and the capsule and count wrap under it only when the name would have under 72px. */
 .head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px 6px;
+  gap: 2px 4px;
   min-width: 0;
   flex: none;
 }
@@ -244,19 +241,19 @@
   flex-wrap: nowrap;
 }
 
-/* The icon and the name never part. */
+/* The icon and the name never part. Its basis (72px) is what the line keeps for it before the capsule and count wrap; then it fills the line. */
 .title {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 0 1 auto;
+  gap: 4px;
+  flex: 1 1 72px;
   min-width: 0;
 }
 
 .meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   height: 18px;
   margin-left: auto;
 }
@@ -410,23 +407,6 @@
 
 .more:hover {
   background: linear-gradient(var(--color-tint-5), var(--color-tint-5)), var(--color-surface-high);
-  color: var(--color-text-primary);
-}
-
-/* The compact line's last tile: the lists that didn't fit (opens the widget larger). */
-.moreTile {
-  min-width: 0;
-  border: 1px solid var(--color-border-muted);
-  border-radius: var(--radius-chip);
-  background: var(--color-surface-high);
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.moreTile:hover {
   color: var(--color-text-primary);
 }
 

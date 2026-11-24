@@ -28,7 +28,7 @@ Planning is not an edit. `todo-store.setPlan(ids, plan, description?, snackbar?)
 - **Every task in one database write and one undo step** (`store-helpers.bulkUpdateTasks`). Only the tasks whose plan changes are written.
 - The snackbar and its Undo show only when `snackbar` is passed: Reset plan, Clear Delayed plans, and a plan that takes the task out of view or out of the Planner ([nothing leaves silently](#nothing-leaves-the-planner-silently), Remove from Planner). The step is named `description`, else `Planned “Title”` / `Cleared the plan of “Title”` / `Changed the plan of 3 tasks`.
 - It leaves every task's `modifiedAt` as it is — on the write, its undo and its redo, in the store and the database (`utils/task-stamps.KEEP_STAMPS`, a stamp that lists no task). Every other [task write](tasks.md) stamps it.
-- It logs no history event and never writes a due date or a follow-up.
+- It logs a `planned` event (the planned day before and after, as the repository's diff logs every `doDate` write, its undo and its redo too) and never writes a due date or a follow-up.
 - It never rejects. A write that fails is taken back, only where the task still holds that write's day. The tasks are read back, the user is told (`Couldn't save the plan of “Title”.`) and it resolves `false`; otherwise `true`.
 
 What other operations do with the plan state:
@@ -129,6 +129,7 @@ Alone in its cell, the Planner's top line reads:
 - `Planner`;
 - the window's range (`Nov 20 – 26`; shifted, a button back to this week);
 - a badge capsule: what it holds that is due and due for a follow-up, in Settings' tab-badge ranges (as a [list tab's badge](lists.md));
+- the [week load](week-load.md) meter (`19 / 13`), not drawn in a widget 540px wide or less;
 - at its end, **Reset plan**: an icon and the words, the icon alone in a widget 420px wide or less.
 
 **Reset plan** opens a menu of **This week** (the shown range while the window is shifted) · **Today only** · **Delayed**. Each shows the count of tasks it would clear (`plannerResetCounts`) and is inert at 0 ([what each clears](#unplan-all-delayed-and-reset-plan)).
@@ -170,7 +171,7 @@ Every day tile and every group — Today (today), each day ahead (an empty day's
 
 **Only a drag is a drop.** Every other move to a day is a pick (`target.pick`) and plans the day outright, `T` its natural day too: Plan for day ›, Pick a date…, the Planned field's day, a conflict's Plan for {day}, Snooze and an Unplanned row's Today. Nothing is written only when it is planned for `T` already, and a day before today is refused.
 
-**No due date and no follow-up is ever written.** Each drop is one task write of the plan and one undo step (`todo-store.setPlan`: [the plan write](#the-plan-write), no stamp, no history event).
+**No due date and no follow-up is ever written.** Each drop is one task write of the plan and one undo step (`todo-store.setPlan`: [the plan write](#the-plan-write), no stamp, a `planned` event).
 
 ### The row's place
 

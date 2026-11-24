@@ -77,7 +77,8 @@ export async function runAppendImport(
     write: () => appendImportTasks(data, choices),
   })
   if (outcome.status === 'cancelled') return outcome
-  // The history log's start may have moved to the append (`coverAppendedHistory`): read it again.
+  // The history log's and the plan log's starts may have moved to the append (`coverAppendedHistory`): read them again.
   await useSettingsStore.getState().stampHistoryLogSince()
+  await useSettingsStore.getState().stampPlanLogSince()
   return { ...outcome.result, status: 'done', noBackup: outcome.noBackup }
 }

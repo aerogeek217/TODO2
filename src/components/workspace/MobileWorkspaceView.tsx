@@ -10,6 +10,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { isFitCell, isNumberStripCell } from '../../utils/workspace-rows'
+import { numberViews } from '../../utils/number-views'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { smallFaceClick, useCellFace, useHeldBodyHeight } from './cell-face'
@@ -22,7 +23,7 @@ import type { ListWidgetResult } from './list/ListWidget'
 import { copyTasks } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
 import { useSettingsStore } from '../../stores/settings-store'
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon, MoreIcon } from '../shared/icons'
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon, MoreIcon, UnfoldIcon } from '../shared/icons'
 import { LayoutGlyph } from '../shared/LayoutGlyph'
 import type { IconValue } from '../../models/icon'
 import { useFilterStore } from '../../stores/filter-store'
@@ -31,6 +32,7 @@ import { screenTaskDialog } from '../../services/task-dialog'
 import { shownOfTotalText } from '../shared/filters/counter-text'
 import { BadgeCapsule } from '../shared/BadgeCapsule'
 import { tabBadgeSummary } from '../../utils/tab-badges'
+import { TrackExpandButton } from './TrackExpandButton'
 import styles from './MobileWorkspaceView.module.css'
 import { withViewTransition } from '../shared/view-transition'
 import { CellControlsContext, type CellControlsValue } from './cell-controls'
@@ -368,7 +370,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
     ...widgetEntries,
     ...(widgetEntries.length > 0 ? [{ kind: 'separator' } as const] : []),
     collapsed
-      ? { kind: 'item', label: `Expand ${rowNoun}`, icon: <ChevronDownIcon size={14} />, onSelect: () => setRowCollapsed(false) }
+      ? { kind: 'item', label: `Expand ${rowNoun}`, icon: <UnfoldIcon axis="rows" />, onSelect: () => setRowCollapsed(false) }
       : { kind: 'item', label: `Collapse ${rowNoun}`, icon: <ChevronUpIcon />, onSelect: () => setRowCollapsed(true) },
   ]
 
@@ -402,15 +404,14 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
             }}
           />
           {collapsed ? (
-            <button
-              type="button"
-              className={styles.cellAction}
-              aria-label={`Expand ${rowNoun}`}
-              aria-expanded={false}
+            <TrackExpandButton
+              axis="rows"
+              label={`Expand ${rowNoun}`}
+              touch
+              tooltip={false}
+              className={styles.headerExpand}
               onClick={() => setRowCollapsed(false)}
-            >
-              <ChevronDownIcon size={16} />
-            </button>
+            />
           ) : (
             <button
               ref={setMoreButton}
@@ -455,16 +456,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
       )}
       {/* Collapsed, and no top line holds the controls slot (a Number): the cell's own Expand. */}
       {collapsed && !stripShown && active && slots === 0 && (
-        <button
-          type="button"
-          className={`${styles.cellAction} ${styles.cellExpand}`}
-          aria-label={`Expand ${rowNoun}`}
-          aria-expanded={false}
-          data-tooltip={`Expand ${rowNoun}`}
-          onClick={() => setRowCollapsed(false)}
-        >
-          <ChevronDownIcon size={16} />
-        </button>
+        <TrackExpandButton axis="rows" label={`Expand ${rowNoun}`} touch className={styles.cellExpand} onClick={() => setRowCollapsed(false)} />
       )}
       {tabSheet && (
         <ListTabSheet
@@ -552,7 +544,9 @@ function MobileTable({ layout }: { layout: WorkspaceLayout }) {
  * unsaved changes. `status` sits in the top bar beside search (the storage
  * status button).
  */
-export function MobileWorkspaceView({ layout, status }: { layout: WorkspaceLayout; status?: ReactNode }) {
+export function MobileWorkspaceView({ layout: stored, status }: { layout: WorkspaceLayout; status?: ReactNode }) {
+  // TEMPORARY (`utils/number-views`): each Number drawn as a tab of its own.
+  const layout = numberViews(stored)
   return (
     <div className={styles.root} data-ws-mobile>
       <MobileTopBar name={layout.name} hue={layout.hue} icon={layout.icon} status={status} />

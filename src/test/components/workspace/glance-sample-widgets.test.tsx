@@ -5,7 +5,7 @@ import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import type { GlanceResult } from '../../../components/workspace/glance/glance-hooks'
 import type { GlanceDrill } from '../../../components/workspace/glance/glance-types'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
-import type { V77NumberMetric } from '../../helpers/number-metrics'
+import type { V77NumberMetric } from '../../../../scripts/number-metrics'
 import { createTab, type GlanceTab, type GlanceWidgetKind } from '../../../models/workspace-layout'
 import type { BreakdownConfig, BreakdownSplit } from '../../../models/chart-widgets'
 import { useFilterStore } from '../../../stores/filter-store'
@@ -19,7 +19,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { trendEventsKey, useTrendEventsStore } from '../../../stores/trend-events-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
-import { numberTab } from '../../helpers/layout-builders'
+import { numberItem, numbersTab } from '../../helpers/layout-builders'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, Q4, SAMPLE_EVENTS, SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
 } from '../../fixtures/glance-sample'
@@ -34,7 +34,8 @@ import {
 const results = new Map<string, GlanceResult>()
 const lines = (tabId: string) => results.get(tabId)?.summary.plain.split('\n')
 
-const num = (metric: V77NumberMetric): GlanceTab => numberTab(metric, metric)
+/** A Number as the workspace draws it: its own tab, under its own id (the metric). */
+const num = (metric: V77NumberMetric): GlanceTab => numbersTab(metric, [numberItem(metric, metric)])
 const of = (kind: GlanceWidgetKind, config?: object): GlanceTab => {
   const tab = createTab(kind, kind) as GlanceTab
   return (config ? { ...tab, config: { ...tab.config, ...config } } : tab) as GlanceTab

@@ -61,8 +61,7 @@
   opacity: 1;
 }
 
-.action,
-.expand {
+.action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -76,8 +75,7 @@
   cursor: pointer;
 }
 
-.action:hover,
-.expand:hover {
+.action:hover {
   background: var(--color-tint-8);
   color: var(--color-text-primary);
 }

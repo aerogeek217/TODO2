@@ -4,7 +4,7 @@ import { isNormalized, validateTiling } from '../../utils/workspace-grid'
 import { isFitTrack } from '../../utils/workspace-rows'
 import { trackSizing } from '../../utils/workspace-table'
 import { cellAreaFits, setCellArea, swapCells } from '../../utils/workspace-layout-ops'
-import { cell as spec, grid, picture, type CellSpec } from '../helpers/layout-builders'
+import { cell as spec, freshNumberTab, grid, picture, type CellSpec } from '../helpers/layout-builders'
 
 /**
  * The layout edit mode's card ops (E3): `setCellArea` (a card's corner,
@@ -13,7 +13,7 @@ import { cell as spec, grid, picture, type CellSpec } from '../helpers/layout-bu
  */
 
 function cell(id: string, kind: 'notes' | 'number' = 'notes'): CellSpec {
-  const tab = createTab(kind, `${id}-t`)
+  const tab = kind === 'number' ? freshNumberTab(`${id}-t`) : createTab(kind, `${id}-t`)
   return spec(id, [tab], { activeTabId: tab.id })
 }
 

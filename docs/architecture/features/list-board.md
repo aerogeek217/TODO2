@@ -24,12 +24,12 @@ This layout's lists are `utils/shortcuts.layoutListTabs`: every list tab of the 
 
 Its data is `hooks/use-shortcuts.useShortcutTile`: the list as it shows on opening, built with `useBuiltList` — the list as edited, its prompt pick and the screen filter. A picked list takes the pick made in its popup (a tab id of its own, `shortcutListTabId`); a tab of the layout takes that tab's own pick.
 
-- **The head.** The icon, then the name, 13px semibold; then the tab badge's capsule (`BadgeCapsule`, the list's own ranges, `useTabBadges`) and the count of tasks it shows. The icon and the name stay together; the capsule and count wrap under them, right-aligned, when the tile is too narrow for both.
-  - A tab of the layout shows that tab's icon as its strip does. A picked list shows the icon the strip shows for its list tab (`shortcutListIcon`): the tab of the list's own layout first, then any layout's, the open one as edited. A picked icon, else the list glyph; none for a tab given No icon. No tab shows the list: the list glyph.
+- **The head.** The icon, then the name, 13px semibold; then the tab badge's capsule (`BadgeCapsule`, the list's own ranges, `useTabBadges`) — or, with no capsule, the count of tasks it shows (the count is always in its tooltip). The icon and the name stay together, 4px apart, the tile's sides 9px. A long name shortens with an ellipsis first; the capsule or count wraps under it, right-aligned, only when the name would have under 72px.
+  - A tab of the layout shows that tab's icon as its strip does. A picked list shows the icon the strip shows for its list tab (`shortcutListIcon`): the tab of the list's own layout first, then any layout's, the open one as edited; none for a tab given No icon. A tile leaves out the list glyph every list shares (`isListGlyph`): only an icon or emoji of the list's own shows. A row (the rows face) keeps it, and its count.
 - **The squares.** A 10px square per open task it shows, 2px apart, the trouble first: overdue, due soon, follow-up late, on track, stale (`utils/list-wall`, a Lines box's `rowTone`). The state is the fill. The task's priority is a ring, with Focus's glow, as on the task's checkbox (`PriorityRing`, the square's 2px corner). A square's tooltip names its task, its state and its priority (`On track · Priority: Focus`), and a click opens the task.
 - **The titles.** The first task titles as built, 0–3, 16px lines, secondary to muted, each a little dimmer.
 - **The room.** Under the head the squares come first: as many whole rows as the tile has room for, four at most. When they are cut, the last three give way to `+N`. The titles take what is left (`boardTileRoom`). As a tile shrinks, the titles go first, then the rows of squares. The room takes no part in the row's least height (`contain: size`).
-- **The tooltip.** Its name, for a picked list followed by its layout (`Errands · Home`); then its open tasks by state (`2 overdue · 5 on track`); then the legend of the squares' colors.
+- **The tooltip.** Its name, for a picked list followed by its layout (`Errands · Home`); then its count and its open tasks by state (`7 tasks · 2 overdue · 5 on track`); then the legend of the squares' colors.
 - A list waiting on its prompt has no capsule, no squares and no titles, and its count is `—`. A pick made where it is built counts.
 
 The tile is `--color-surface-high` with a 1px `--color-border-muted` edge and radius 8. Its press is a button laid over the whole tile, under the head, squares and titles; the pointer passes through them to it, except on a square, which is a button of its own.
@@ -42,9 +42,11 @@ The tile is `--color-surface-high` with a 1px `--color-border-muted` edge and ra
 |-------|-----------|
 | small | the small face of every widget: its icon, its name and the number of lists. A click opens it larger |
 | rows | narrower than 360px: a row per list — icon, name, capsule, count — over a 6px bar of its open tasks, a segment per state as long as its share (dashed while it waits on its prompt) |
-| compact | at most 160px tall: one line of tiles at least 120px wide, squares where a row fits, no titles. The ones that don't fit end in a `+N` tile that opens it larger (`compactShortcutTiles`) |
-| large | a grid of tiles (`auto-fill`, 136px at least); with lists picked, then a dashed **Add a list** tile |
+| compact | at most 160px tall — and, 360px wide or more, down to 63px, where other widgets show their small face: the tiles' heads, squares where a row fits, no titles. It never scrolls |
+| large | the tiles with their titles; with lists picked, then a dashed **Add a list** tile |
 
+- Compact and large are one grid (`auto-fit`): every tile as wide as the widest head asks on one line (`boardTileMinWidth`, measured from each tile's icon, name, capsule or count — 120px to 280px), as many across as fit, stretched to share each line, the rest wrapping onto more lines. No tile is folded away.
+- **The row fits the cards.** Alone in its cell, the board tells `stores/cell-room-store` the height of its lines of heads (`boardLines`, `boardMinHeight`: 63px for one line, 53px for each more, the name line's 28px when it shows), and outside the layout edit mode the table holds its row at least that tall (`workspace-table.trackTemplate`'s `measured`) and a divider's drag stops there (`divider-drag.minPxIn`). Taller, the squares and titles show.
 - The name line (`WidgetNameLine`) shows List board with Settings › Show widget names. Off, there is none and the cell's controls float over its corner.
 - The large grid's rows run from a tile's head to what the tallest tile asks for (its head, its squares and three titles, `--board-content-max`), sharing the cell's height. Past that they scroll.
 - Empty: `No lists added.` and an **Add a list** button; showing this layout's lists, `No list tabs in this layout.`

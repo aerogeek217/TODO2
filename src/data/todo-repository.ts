@@ -47,8 +47,8 @@ function pickMarkers(changes: Partial<TodoItem>): Pick<TodoItem, 'urgent' | 'imp
  * Diff a todo write against its prior state and produce one event per
  * tracked-field change (`dueDate`, `statusId`, `isCompleted`, and — the
  * history log H3 — `nextFollowupAt`, `lastFollowupAt` and the priority
- * flags; `models/todo-event` has the encodings). Idempotent — an unchanged
- * value emits nothing.
+ * flags; since `planLogSince`, the planned day `doDate`; `models/todo-event`
+ * has the encodings). Idempotent — an unchanged value emits nothing.
  *
  * `prior == null` means the row didn't exist (insert path) — only the
  * `isCompleted` axis matters there because the dedicated `created` event
@@ -61,7 +61,7 @@ function buildFieldChangeEvents(
   timestamp: string,
 ): Omit<TodoEvent, 'id'>[] {
   const out: Omit<TodoEvent, 'id'>[] = []
-  const dateField = (key: 'dueDate' | 'nextFollowupAt' | 'lastFollowupAt', type: TodoEventType) => {
+  const dateField = (key: 'dueDate' | 'nextFollowupAt' | 'lastFollowupAt' | 'doDate', type: TodoEventType) => {
     if (!(key in next)) return
     const from = encodeDateValue(prior?.[key])
     const to = encodeDateValue(next[key] ?? null)
@@ -70,6 +70,7 @@ function buildFieldChangeEvents(
   dateField('dueDate', 'deadline')
   dateField('nextFollowupAt', 'followup')
   dateField('lastFollowupAt', 'followedUp')
+  dateField('doDate', 'planned')
   if ('urgent' in next || 'important' in next || 'focus' in next) {
     const from = encodeMarkerFlags(prior ?? {})
     const to = encodeMarkerFlags({ ...prior, ...pickMarkers(next) })

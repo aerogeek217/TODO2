@@ -41,14 +41,17 @@ export function layoutTabs(layout: LayoutBody): LayoutTab[] {
   return layout.cells.flatMap((p) => p.tabs)
 }
 
-/** Every track / cell / tab id in the layout (new ids must not repeat one). */
+/** Every track / cell / tab id in the layout, and its Numbers widgets' items' (new ids must not repeat one). */
 export function layoutIds(layout: LayoutBody): Set<string> {
   const ids = new Set<string>()
   for (const track of layout.grid.columns) ids.add(track.id)
   for (const track of layout.grid.rows) ids.add(track.id)
   for (const cell of layout.cells) {
     ids.add(cell.id)
-    for (const tab of cell.tabs) ids.add(tab.id)
+    for (const tab of cell.tabs) {
+      ids.add(tab.id)
+      if (tab.kind === 'numbers') for (const item of tab.config.items) ids.add(item.id)
+    }
   }
   return ids
 }

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KIND_GROUPS, widgetKindAddLabel, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
 import { ExpandIcon, WidgetKindIcon } from './icons'
 import type { MenuEntry, MenuItemEntry } from './MenuPopover'
 
@@ -99,15 +99,15 @@ export function widgetKindMenuEntries({
     if (presets && presets.length > 0) {
       return {
         kind: 'item',
-        label: widgetKindLabel(k),
+        label: widgetKindAddLabel(k),
         icon: <WidgetKindIcon kind={k} />,
         childrenWidth: KIND_SUBMENU_WIDTH_PX,
-        children: [{ kind: 'label', text: widgetKindLabel(k) }, ...presets],
+        children: [{ kind: 'label', text: widgetKindAddLabel(k) }, ...presets],
       }
     }
     return {
       kind: 'item',
-      label: widgetKindLabel(k),
+      label: widgetKindAddLabel(k),
       icon: <WidgetKindIcon kind={k} />,
       // Changing a widget: one of them is the current kind. Adding: plain actions.
       radio: currentKind != null,

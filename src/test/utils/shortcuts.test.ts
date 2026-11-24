@@ -4,7 +4,10 @@ import type { PersistedListDefinition } from '../../models/list-definition'
 import { createTab, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
 import {
   boardTileRoom,
-  compactShortcutTiles,
+  boardLines,
+  boardMinHeight,
+  boardTileMinWidth,
+  isListGlyph,
   layoutListTabs,
   shortcutChoices,
   shortcutLayoutName,
@@ -65,10 +68,20 @@ describe('a List board’s picked lists', () => {
     expect(shortcutLayoutName(def(2, 'Clients', 2), [work, home], home)).toBe('Work')
   })
 
-  it('the compact line: as many 120px tiles as fit, the rest in +N', () => {
-    expect(compactShortcutTiles(2, 900)).toEqual({ columns: 7, shown: 2, more: 0 })
-    expect(compactShortcutTiles(6, 380)).toEqual({ columns: 3, shown: 2, more: 4 })
-    expect(compactShortcutTiles(3, 0)).toEqual({ columns: 3, shown: 3, more: 0 })
+  it('the tiles: one width, the widest head’s (120px to 280px); the lines they wrap onto; the row’s least height', () => {
+    expect(boardTileMinWidth([])).toBe(120)
+    expect(boardTileMinWidth([90, 171.2, 140])).toBe(172)
+    expect(boardTileMinWidth([400])).toBe(280)
+    // 172px tiles with 8px gaps: five across 992px; six wrap onto two lines; nothing measured, one line.
+    expect(boardLines(5, 992, 172)).toBe(1)
+    expect(boardLines(6, 992, 172)).toBe(2)
+    expect(boardLines(6, 360, 172)).toBe(3)
+    expect(boardLines(0, 992, 172)).toBe(1)
+    // One line of heads is the lone board's least (63px); each more line adds a head and a gap.
+    expect(boardMinHeight(1)).toBe(63)
+    expect(boardMinHeight(3)).toBe(63 + 2 * 53)
+    expect(isListGlyph({ kind: 'line', key: 'list' })).toBe(true)
+    expect(isListGlyph({ kind: 'line', key: 'flag' })).toBe(false)
   })
 
   it('a tile’s room: squares first (whole 12px rows, four at most), then titles in what is left', () => {
@@ -112,7 +125,11 @@ describe('the List board’s faces', () => {
   it('small, rows (narrow), compact (short), large', () => {
     const shape = (width: number, height: number) => shortcutsShape(shortcutsFaceFor({ width, height }), width)
     expect(shape(170, 400)).toBe('small')
-    expect(shape(600, 80)).toBe('small')
+    // Wide, its line of tiles holds down to a tile's head (63px), under the small face's 90.
+    expect(shape(600, 80)).toBe('compact')
+    expect(shape(600, 63)).toBe('compact')
+    expect(shape(600, 62)).toBe('small')
+    expect(shape(300, 80)).toBe('small')
     expect(shape(300, 400)).toBe('rows')
     expect(shape(300, 140)).toBe('rows')
     expect(shape(600, 140)).toBe('compact')

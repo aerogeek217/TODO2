@@ -75,13 +75,15 @@ test('a file with a layout the check rejects imports with the layout repaired an
   const settings = await importFile(page, REPAIRABLE)
   await expect(settings.getByText('Imported successfully. Fixed 1 layout: "Numbers" (tab name shortened, tab dropped)')).toBeVisible()
 
-  // What is stored is the repaired shape: the name cut to 80 characters (not reset), the oddly named tab gone.
+  // What is stored is the repaired shape, upgraded (v90): the Number in a Numbers widget of its own (a new id,
+  // the Number keeps its), its name cut to 80 characters (not reset); the oddly named tab gone.
   const { layouts, todos } = await readStores(page, ['layouts', 'todos'])
   expect(todos.map((t) => t.title)).toEqual(['Imported task'])
   expect(layouts).toHaveLength(1)
-  const cells = layouts[0]!.cells as Array<{ id: string; tabs: Array<{ id: string; config: { name?: string } }> }>
-  expect(cells.map((c) => c.tabs.map((t) => t.id))).toEqual([['n1'], ['t2']])
-  expect(cells[0]!.tabs[0]!.config.name).toBe(LONG_NAME.slice(0, 80))
+  const cells = layouts[0]!.cells as Array<{ id: string; tabs: Array<{ id: string; kind: string; config: { items?: Array<{ id: string; name: string }> } }> }>
+  expect(cells.map((c) => c.tabs.map((t) => t.id))).toEqual([['n-n1'], ['t2']])
+  expect(cells[0]!.tabs[0]!.kind).toBe('numbers')
+  expect(cells[0]!.tabs[0]!.config.items?.map((n) => [n.id, n.name])).toEqual([['n1', LONG_NAME.slice(0, 80)]])
 
   // The workspace opens on it: the Number under its cut name, the Notes tab, no error screen and no repair notice.
   await page.keyboard.press('Escape')

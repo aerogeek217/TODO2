@@ -1,7 +1,7 @@
 import type { CellArea, GridAxis, LayoutBody, LayoutCell } from '../models/workspace-layout'
 import { cellById, crossAxis, mergeNeighbour, neighbours, readingOrder, sideAxis, spanOf, type Side } from './workspace-grid'
 import { cellAreaFits } from './workspace-layout-ops'
-import { isNumberStripCell } from './workspace-rows'
+import { cellNumberCount, isNumberStripCell } from './workspace-rows'
 
 /**
  * The layout edit mode's cards and slots (E3), pure: what a card's ruler
@@ -75,7 +75,7 @@ export function areaRulerName(area: CellArea, names: RulerNames): string {
 export function cardName(cell: Pick<LayoutCell, 'tabs'>, titles: readonly string[]): string {
   const n = cell.tabs.length
   if (n === 0) return ''
-  if (isNumberStripCell(cell)) return `${n} Numbers`
+  if (isNumberStripCell(cell)) return `${cellNumberCount(cell)} Numbers`
   const [a = 'A widget', b = 'a widget'] = titles
   if (n === 1) return a
   return n === 2 ? `${a}, ${b}` : `${a}, ${b} + ${n - 2}`
@@ -186,7 +186,7 @@ export function altMove(body: LayoutBody, cellId: string, side: Side): { kind: '
 
 // ── Tap, then tap ───────────────────────────────────────────────────────────
 
-/** The mode's selection as a tap reads it: the selected cell, and whether a tap on it armed a move. */
+/** The mode's selection as a tap reads it: the selected cell, and whether a move is armed (the toolbar's Move, or Space). */
 interface TapState {
   selectedCellId: string | null
   moveArmed: boolean
@@ -198,9 +198,10 @@ export type TapTarget =
   | { kind: 'slot'; cellId: string }
 
 /**
- * What a tap does (WCAG 2.5.7's single-pointer way to move a card):
- * - a card, with no move armed (or on its own edge): selects it and arms a
- *   move (`select`);
+ * What a tap does (WCAG 2.5.7's single-pointer way to move a card, once the
+ * selected card's Move armed it):
+ * - a card, with no move armed: selects it (`select`) — and nothing more, so
+ *   a click on one card, then another, never moves either;
  * - the armed card again: disarms (`disarm`), the card still selected;
  * - a slot, with a card armed: the card moves there (`move`);
  * - another card's middle, with a card armed: the two swap places

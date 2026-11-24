@@ -1,5 +1,6 @@
-import { DEFAULT_NUMBER_BREAKDOWN } from '../models/glance-widgets'
+import { DEFAULT_NUMBER_BREAKDOWN, type NumberConfig } from '../models/glance-widgets'
 import type { LayoutTab } from '../models/workspace-layout'
+import { LIST_BOARD_MIN_HEIGHT_PX } from './workspace-rows'
 
 /**
  * A widget's face (D25 R): how much of it a cell has room for, picked from
@@ -77,12 +78,19 @@ export function reviewFaceFor(size: { width: number; height: number }): WidgetFa
  * out: a count's breakdown (only the large face draws it); Share of…'s ring
  * and `N of M`, Oldest's caption, title and foot, Against a goal's state
  * and bar, and a group's item names (all missing from the small face only).
- * A Number that follows a list never does — its click opens that list.
+ * A Number that follows a list never does — its click opens that list. A
+ * Numbers widget of one Number reads that Number (`numberOpensLarger`); one
+ * of several Numbers offers it on each Number, not as a whole.
  */
 export function tabOpensLarger(tab: LayoutTab, face: WidgetFace): boolean {
-  if (tab.kind !== 'number') return true
+  if (tab.kind !== 'numbers') return true
+  const only = tab.config.items.length === 1 ? tab.config.items[0] : undefined
+  return only != null && numberOpensLarger(only, face)
+}
+
+/** Whether a Number offers Open larger at `face` (`tabOpensLarger`'s rule for a Number). */
+function numberOpensLarger(config: Pick<NumberConfig, 'show' | 'breakdown'>, face: WidgetFace): boolean {
   if (face === 'large') return false
-  const config = tab.config
   switch (config.show) {
     case 'count': return (config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN) !== 'none'
     case 'list': return false
@@ -184,15 +192,19 @@ export function plannerStripFits(size: { width: number; height: number }, room: 
 const SHORTCUTS_ROWS_MAX_WIDTH_PX = 360
 
 /**
- * A Shortcuts face (2026-11-23): small as every widget's; medium while the
- * body is narrower than `SHORTCUTS_ROWS_MAX_WIDTH_PX` (its rows) or no
- * taller than `MEDIUM_FACE_MAX_HEIGHT_PX` (its compact line of tiles);
- * else large, a grid of tiles. Unmeasured is `large`.
+ * A Shortcuts face: small as every widget's — except that a body at least
+ * `SHORTCUTS_ROWS_MAX_WIDTH_PX` wide keeps its compact line of tiles down to
+ * `LIST_BOARD_MIN_HEIGHT_PX` (a tile's head); medium while the body is
+ * narrower than `SHORTCUTS_ROWS_MAX_WIDTH_PX` (its rows) or no taller than
+ * `MEDIUM_FACE_MAX_HEIGHT_PX` (its compact line of tiles); else large, a
+ * grid of tiles. Unmeasured is `large`.
  */
 export function shortcutsFaceFor(size: { width: number; height: number }): WidgetFace {
   const face = widgetFaceFor(size)
-  if (face !== 'large') return face
   const { width, height } = size
+  // Wide enough for the line of tiles: it shows down to a tile's head, not only above the small face's height.
+  if (face === 'small') return width >= SHORTCUTS_ROWS_MAX_WIDTH_PX && height >= LIST_BOARD_MIN_HEIGHT_PX ? 'medium' : 'small'
+  if (face !== 'large') return face
   if (width <= 0 && height <= 0) return 'large'
   return width < SHORTCUTS_ROWS_MAX_WIDTH_PX ? 'medium' : 'large'
 }

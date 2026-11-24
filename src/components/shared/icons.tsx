@@ -90,12 +90,10 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
     </>
   ),
   // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`GLANCE_GLYPH`).
-  number: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
+  numbers: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
   trend: <path d={GLANCE_GLYPH.chart} />,
   // D26 P8 — Breakdown: a bar per row, longest first.
   breakdown: <path d="M2.5 3.5h11M2.5 8h7M2.5 12.5h4" />,
-  // Pivot: a table with a heading row and column.
-  pivot: <path d="M2.5 2.5h11v11h-11zM2.5 6h11M6 2.5v11M2.5 9.75h11M9.75 6v7.5" />,
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {
@@ -133,6 +131,7 @@ export function LineIcon({ name, size = 14 }: { name: LineIconKey; size?: number
     case 'link': return <LinkIcon size={size} />
     case 'ring': return <RingIcon size={size} />
     case 'radar': return <RadarIcon size={size} />
+    case 'table': return <TableIcon size={size} />
     case 'wall': return <WallIcon size={size} />
     default: return <WidgetKindIcon kind="lens" size={size} />
   }
@@ -162,6 +161,20 @@ export function ChevronRightIcon({ size = 12 }: { size?: number }) {
 
 export function ChevronLeftIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M10 4l-4 4 4 4" /></Svg>
+}
+
+/**
+ * Two chevrons pointing apart from a line: expand a collapsed row (`rows`,
+ * up and down) or column (`columns`, the same turned a quarter: left and right).
+ */
+export function UnfoldIcon({ axis, size = 14 }: { axis: 'rows' | 'columns'; size?: number }) {
+  return (
+    <Svg size={size}>
+      <g transform={axis === 'columns' ? 'rotate(90 8 8)' : undefined}>
+        <path d="M3 8h10M5.5 5L8 2.5 10.5 5M5.5 11L8 13.5 10.5 11" />
+      </g>
+    </Svg>
+  )
 }
 
 /** Two arrows chasing round: a recurring task. */
@@ -273,6 +286,11 @@ export function ResetIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M3 8a5 5 0 1 0 1.6-3.7M3 2.8v2.7h2.7" /></Svg>
 }
 
+/** A week's load: three bars of a chart on a baseline (the Planner's Week load…). */
+export function WeekLoadIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M2.5 13.5h11M4.5 11V8M8 11V4M11.5 11V6.5" /></Svg>
+}
+
 /** Redo: the undo arrow, mirrored. */
 export function RedoIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M10.5 3l3 3-3 3" /><path d="M13.5 6h-7a4 4 0 0 0 0 8H9" /></Svg>
@@ -284,6 +302,15 @@ export function EyeIcon({ size = 14 }: { size?: number }) {
     <Svg size={size}>
       <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" />
       <circle cx="8" cy="8" r="2" />
+    </Svg>
+  )
+}
+
+/** Four arrows out from the middle: move a card (the layout edit mode's toolbar). */
+export function MoveIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M8 1.75v12.5M1.75 8h12.5M6 3.75l2-2 2 2M6 12.25l2 2 2-2M3.75 6l-2 2 2 2M12.25 6l2 2-2 2" />
     </Svg>
   )
 }
@@ -344,6 +371,11 @@ function RadarIcon({ size = 14 }: { size?: number }) {
       <circle cx="10.4" cy="6" r="1.1" fill="currentColor" stroke="none" />
     </Svg>
   )
+}
+
+/** A table with a heading row and column: one of the pickable line icons (`LineIcon`). */
+function TableIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M2.5 2.5h11v11h-11zM2.5 6h11M6 2.5v11M2.5 9.75h11M9.75 6v7.5" /></Svg>
 }
 
 /** Blocks of squares, the last filled: one of the pickable line icons (`LineIcon`; once the List wall's glyph). */

@@ -4,6 +4,7 @@ import {
   type LayoutCell,
   type LayoutTab,
 } from '../models/workspace-layout'
+import type { NumberItem } from '../models/glance-widgets'
 import { layoutTabs } from './workspace-layout-queries'
 
 /**
@@ -31,14 +32,19 @@ export function countListTabs(
   return n
 }
 
+/** The list a Number follows (D26 P6, `show: 'list'`), else `undefined`. */
+function followedListId(item: NumberItem): number | undefined {
+  return item.show === 'list' ? item.list?.listDefinitionId : undefined
+}
+
 /**
- * The list a tab names as the layout's own: a list tab's list, or the list
- * a Number follows (D26 P6, `show: 'list'`).
+ * The lists a tab names as the layout's own: a list tab's list, or the
+ * lists a Numbers widget's Numbers follow.
  */
-function namedListId(tab: LayoutTab): number | undefined {
-  if (tab.kind === 'lens') return tab.config.listDefinitionId
-  if (tab.kind === 'number' && tab.config.show === 'list') return tab.config.list?.listDefinitionId
-  return undefined
+function namedListIds(tab: LayoutTab): number[] {
+  if (tab.kind === 'lens') return tab.config.listDefinitionId != null ? [tab.config.listDefinitionId] : []
+  if (tab.kind === 'numbers') return tab.config.items.flatMap((item) => followedListId(item) ?? [])
+  return []
 }
 
 /**
@@ -48,8 +54,7 @@ function namedListId(tab: LayoutTab): number | undefined {
 export function layoutListRefs(layout: LayoutBody): Set<number> {
   const ids = new Set<number>()
   for (const tab of layoutTabs(layout)) {
-    const id = namedListId(tab)
-    if (id != null) ids.add(id)
+    for (const id of namedListIds(tab)) ids.add(id)
   }
   return ids
 }
@@ -70,12 +75,20 @@ function mapLayoutCells<B extends LayoutBody>(layout: B, fn: (cell: LayoutCell) 
  */
 export function repointLayoutLists<B extends LayoutBody>(layout: B, ids: ReadonlyMap<number, number>): B {
   if (ids.size === 0) return layout
+  const renamed = (from: number | undefined) => (from != null ? ids.get(from) : undefined)
+  const itemOf = (item: NumberItem): NumberItem => {
+    const to = renamed(followedListId(item))
+    return to == null ? item : { ...item, list: { listDefinitionId: to } }
+  }
   const tabOf = (tab: LayoutTab): LayoutTab => {
-    const from = namedListId(tab)
-    const to = from != null ? ids.get(from) : undefined
-    if (to == null) return tab
-    if (tab.kind === 'lens') return { ...tab, config: { ...tab.config, listDefinitionId: to } }
-    if (tab.kind === 'number') return { ...tab, config: { ...tab.config, list: { listDefinitionId: to } } }
+    if (tab.kind === 'lens') {
+      const to = renamed(tab.config.listDefinitionId)
+      return to == null ? tab : { ...tab, config: { ...tab.config, listDefinitionId: to } }
+    }
+    if (tab.kind === 'numbers') {
+      const items = tab.config.items.map(itemOf)
+      return items.every((item, i) => item === tab.config.items[i]) ? tab : { ...tab, config: { ...tab.config, items } }
+    }
     return tab
   }
   return mapLayoutCells(layout, (cell) => {

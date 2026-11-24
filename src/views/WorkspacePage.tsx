@@ -26,7 +26,7 @@ import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignme
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, isPlannerDropData, type CalendarDropChoiceRequest, type PlannerDropRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
-import { dropChangesLayout, dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, ownStripHit, sameDropHit } from '../utils/workspace-drop'
+import { dropChangesLayout, dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, numberStripHitAt, ownStripHit, sameDropHit } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
@@ -40,6 +40,7 @@ import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
 import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { TrendEditorHost } from '../components/workspace/glance/TrendEditor'
 import { PlannerSettingsHost } from '../components/workspace/planner/PlannerSettings'
+import { WeekLoadHost } from '../components/workspace/planner/WeekLoadPopover'
 import { layoutLeaveAsks, leaveLayout } from '../stores/editor-leave'
 import { useLatestRef } from '../hooks/use-latest-ref'
 import { useBlocker } from 'react-router'
@@ -48,6 +49,7 @@ import { addWidgetKindAt } from '../components/workspace/widget-hooks'
 import { focusEditItem } from '../components/workspace/edit-focus'
 import type { WidgetKind } from '../models/workspace-layout'
 import { findTab } from '../utils/workspace-layout-queries'
+import { numberViews } from '../utils/number-views'
 import { NEW_WIDGET_PROBE_ID } from '../utils/workspace-drop'
 import {
   isWorkspaceDragType,
@@ -172,12 +174,14 @@ function useWorkspaceDragState() {
 
   const update = useCallback((x: number, y: number) => {
     const current = dragRef.current
-    const layout = useWorkspaceStore.getState().working
+    // TEMPORARY (`utils/number-views`): drags see each Number as a tab of its own.
+    const layout = numberViews(useWorkspaceStore.getState().working)
     if (!current || !layout) return
     const geo = current.geometry
     const editing = useWorkspaceStore.getState().editing != null
     const found = hitTestWorkspace(geo, { x, y })
-    const hit = editing ? found : ownStripHit(layout, found, current.source)
+    // Outside the mode only a drop in its own strip counts: over a strip of Numbers, its ends too (no side splits).
+    const hit = editing ? found : ownStripHit(layout, found?.kind === 'tab-strip' ? found : numberStripHitAt(geo, { x, y }), current.source)
     const target = hit ? dropTargetForHit(layout, geo, hit, current.source) : null
     // The drop ghost only in the mode: outside it the strip's insert line says where the tab goes.
     const ghost = editing && target ? dropGhost(layout, geo, current.source, target, current.tabs.map((t) => t.id)) : null
@@ -272,7 +276,7 @@ function useWorkspaceDragState() {
     if (source.type === 'tab') ws.moveTab(source.tabId, current.target)
     else ws.movePanel(source.panelId, current.target)
     // In the mode: what moved is selected where it landed, and holds the focus.
-    const working = useWorkspaceStore.getState().working
+    const working = numberViews(useWorkspaceStore.getState().working)
     const holder = editing && tabId != null && working ? findTab(working, tabId)?.cellId : undefined
     if (holder != null) {
       useWorkspaceStore.getState().selectEditCell(holder)
@@ -625,6 +629,7 @@ export function WorkspacePage() {
       <ChartEditorHost />
       <TrendEditorHost />
       <PlannerSettingsHost />
+      <WeekLoadHost />
     </DndContext>
   )
 }

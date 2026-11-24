@@ -4,6 +4,7 @@ import { createTab } from '../../../models/workspace-layout'
 import { useCellFace } from '../../../components/workspace/cell-face'
 import { useUIStore } from '../../../stores/ui-store'
 import type { WidgetFace } from '../../../utils/widget-face'
+import { freshNumberTab } from '../../helpers/layout-builders'
 
 /** A cell's face and its Open larger: the widget popup, held in `ui-store`. */
 describe('useCellFace', () => {
@@ -26,7 +27,7 @@ describe('useCellFace', () => {
   it('the host offers it to the widget (a face’s +N more), not for a Number with nothing more to show', () => {
     const { result } = setup('medium')
     expect(result.current.host.openFull).toBeDefined()
-    const number = createTab('number', 'n')
+    const number = freshNumberTab('n')
     const n = renderHook(() => useCellFace(number, { forced: 'small' }))
     expect(n.result.current.opensLarger).toBe(false)
     expect(n.result.current.host.openFull).toBeUndefined()

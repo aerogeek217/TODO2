@@ -111,7 +111,11 @@ A row's task menu in a Planner — right-click, Shift+F10, the phone's long-pres
 
 The task menus outside a Planner have their own **Plan for day ›**: see [Plan state](planner.md#plan-state).
 
-The widget's ⋯ menu (the cell's and the widget popup's, `planner-reset.usePlannerMenuEntries`) has **Unplanned filter…**, then **Reset plan ›** while the Planner is drawn.
+The widget's ⋯ menu (the cell's and the widget popup's, `planner-reset.usePlannerMenuEntries`) has **Unplanned filter…**, then, while the Planner is drawn, **Week load…** and **Reset plan ›**.
+
+## The week load meter
+
+Alone in its cell, the top line holds the **week load meter** (`planner/WeekLoadMeter`) before Reset plan: this week's dates against the usual week, opening a popover of one week's chart by day. Where there is no meter, **Week load…** in the ⋯ menu opens the same popover beside the widget. What it counts and draws is in [Week load](week-load.md).
 
 ## The Unplanned filter's editor
 
@@ -130,6 +134,6 @@ A click on it, or **Unplanned filter…** in the widget's ⋯, opens the **Plann
 ## Completed rows and the phone
 
 - A row completed here lingers, then folds, as a list's (`hooks/use-planner` over `useLeavingRows`).
-- Under Today's rows, **`N done`** lists the tasks completed today (the tally's count, `utils/tally.tasksDoneToday`), struck, on one line. Each title is a button that opens its task.
+- Under Today's rows, **`N done`** lists the tasks completed today (the tally's count, `utils/tally.tasksDoneToday`), struck, on one line. The count is a button that opens them in the task dialog, as the top bar's tally does (`services/task-dialog.doneTodayTaskDialog`). Each title is a button that opens its task.
 - Today has no Add task row.
 - On the phone, a day with no tasks and an empty Unplanned are left out (a tile's tap goes to the next day that has a group), and a completed row leaves at once.

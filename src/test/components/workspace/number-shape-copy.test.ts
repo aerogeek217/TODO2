@@ -10,7 +10,8 @@ import {
 } from '../../../components/workspace/glance/number-shape-copy'
 import { switchShape } from '../../../components/workspace/glance/number-shape-switch'
 import { emptyPredicate } from '../../../models/filter-predicate'
-import { numberTab } from '../../helpers/layout-builders'
+import { numberItem } from '../../helpers/layout-builders'
+import { numberConfigOfItem } from '../../../models/glance-widgets'
 
 /** Thu 15 Oct 2026. */
 const THU = new Date(2026, 9, 15)
@@ -65,7 +66,7 @@ describe('a Number’s shapes’ words (D26 P6)', () => {
 })
 
 describe('the editor’s shape switch (D26 P6)', () => {
-  const count = numberTab('n', 'overdue', { name: 'Late' }).config
+  const count = numberConfigOfItem(numberItem('n', 'overdue', { name: 'Late' }))
 
   it('takes the old shape’s field out, puts the new one’s default in', () => {
     const toGoal = switchShape(count, 'goal', {}, undefined)

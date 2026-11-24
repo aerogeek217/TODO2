@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { GlanceTab } from '../../../models/workspace-layout'
+import type { NumberTab } from '../../../utils/number-views'
 import type { WidgetFace } from '../../../utils/widget-face'
 import styles from './GlanceWidget.module.css'
 
@@ -8,7 +9,7 @@ import styles from './GlanceWidget.module.css'
  * inside it. `faceRef` measures the face (`useWidgetFace`).
  */
 export function GlanceFrame({ tab, faceRef, face, children }: {
-  tab: GlanceTab
+  tab: Pick<GlanceTab | NumberTab, 'id' | 'kind'>
   faceRef?: (el: HTMLElement | null) => void
   face?: WidgetFace
   children: ReactNode

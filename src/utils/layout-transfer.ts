@@ -1,6 +1,7 @@
 import type { LayoutBody, LayoutTab } from '../models/workspace-layout'
 import { layoutListRefs } from './workspace-layout-lists'
 import { findTab, layoutIds } from './workspace-layout-queries'
+import { numberViews } from './number-views'
 import type { IdGen } from './workspace-layout-ops'
 
 /**
@@ -35,7 +36,9 @@ export interface IncomingTransfer {
 /**
  * The tabs `what` names in `source` (a tab; a cell's, in order, with its
  * active tab), with ids `target` doesn't use (`genId`, the target's
- * generator, for each one taken) — `null` when it isn't there or has no tabs.
+ * generator, for each one taken) — a Numbers widget's items' ids too; one
+ * id is renamed the same wherever it stands — `null` when it isn't there or
+ * has no tabs.
  */
 export function carriedTabs(
   source: LayoutBody,
@@ -57,24 +60,36 @@ export function carriedTabs(
     active = cell.tabs.some((t) => t.id === cell.activeTabId) ? cell.activeTabId : undefined
   }
   const taken = layoutIds(target)
-  const renamed = new Map<string, string>()
-  const tabs = picked.map((tab) => {
-    if (!taken.has(tab.id)) {
-      taken.add(tab.id)
-      return tab
-    }
-    const id = genId()
-    renamed.set(tab.id, id)
-    return { ...tab, id }
+  const given = new Map<string, string>()
+  /** The id `old` lands as: its own while the target doesn't use it, else a new one — the same for every use of `old`. */
+  const idFor = (old: string): string => {
+    const known = given.get(old)
+    if (known != null) return known
+    const id = taken.has(old) ? genId() : old
+    taken.add(id)
+    given.set(old, id)
+    return id
+  }
+  const tabs = picked.map((tab): LayoutTab => {
+    const id = idFor(tab.id)
+    if (tab.kind !== 'numbers') return id === tab.id ? tab : { ...tab, id }
+    const items = tab.config.items.map((item) => {
+      const itemId = idFor(item.id)
+      return itemId === item.id ? item : { ...item, id: itemId }
+    })
+    const same = id === tab.id && items.every((item, i) => item === tab.config.items[i])
+    return same ? tab : { ...tab, id, config: { ...tab.config, items } }
   })
-  const activeTabId = active != null ? renamed.get(active) ?? active : undefined
+  const activeTabId = active != null ? given.get(active) ?? active : undefined
   return { sourceTabIds: picked.map((t) => t.id), tabs, ...(activeTabId != null ? { activeTabId } : {}) }
 }
 
 /** Whether every widget in hand is in `draft` (placed: Done may write the move). */
 export function incomingPlaced(draft: LayoutBody | null, incoming: IncomingTransfer | null | undefined): boolean {
   if (!draft || !incoming) return false
-  return incoming.tabs.every((t) => findTab(draft, t.id) != null)
+  // TEMPORARY (`number-views`): a Number in hand is its view, found in the draft's view.
+  const view = numberViews(draft)
+  return incoming.tabs.every((t) => findTab(view, t.id) != null)
 }
 
 /** The lists the widgets in hand name (their list tabs', their Numbers' that follow one): the target's edits may show them. */

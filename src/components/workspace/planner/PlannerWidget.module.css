@@ -840,9 +840,30 @@
   color: var(--color-accent-text);
 }
 
+/* The count opens the tasks done today: the check and `N done` as one quiet button. */
 .doneCount {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 -4px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
   color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.doneCount:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.doneCount:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .doneTitles {

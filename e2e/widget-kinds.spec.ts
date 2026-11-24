@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { createTab, kindTabTitle, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../src/models/workspace-layout'
+import { createTab, kindTabTitle, WIDGET_KINDS, widgetKindAddLabel, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../src/models/workspace-layout'
 import { addWidgetAsTab, openChangeWidget, pickWidgetKind, seedWorkspace, wsCell, type WsLayoutSeed, wsRow } from './fixtures/workspace'
 
 /**
@@ -23,6 +23,8 @@ function body(cell: Locator, kind: WidgetKind): Locator {
     case 'neglect': return cell.locator('[data-neglect-map]')
     case 'clusters': return cell.locator('[data-clusters]')
     case 'shortcuts': return cell.locator('[data-shortcuts]')
+    // The Numbers: each Number's frame (one, for a new Numbers widget).
+    case 'numbers': return cell.locator('[data-glance="number"]')
     default: return cell.locator(`[data-glance="${kind}"]`)
   }
 }
@@ -41,7 +43,8 @@ const noEditor = async (page: Page) => {
   await expect(page.getByRole('dialog', { name: /^Edit list / })).toHaveCount(0)
   await expect(page.locator('[data-number-editor], [data-chart-editor], [data-trend-editor]')).toHaveCount(0)
 }
-const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindLabel), 'Insights']
+/** The menus that add or change a widget name each kind by its add label (the Numbers: Number). */
+const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindAddLabel), 'Insights']
 
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
@@ -56,7 +59,7 @@ test.describe('desktop', () => {
     })
     // The empty layout offers every kind, in the table's order.
     await expect(page.getByText('This layout is empty')).toBeVisible()
-    for (const kind of WIDGET_KINDS) await expect(page.getByRole('button', { name: widgetKindLabel(kind), exact: true })).toBeVisible()
+    for (const kind of WIDGET_KINDS) await expect(page.getByRole('button', { name: widgetKindAddLabel(kind), exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Notes', exact: true }).click()
     const cell = page.locator('[data-ws-cell]').first()
     await expect(body(cell, 'notes')).toBeVisible()
@@ -69,9 +72,9 @@ test.describe('desktop', () => {
         await plus.click()
         const menu = page.getByRole('menu', { name: 'Add widget' })
         await expect(menu.getByRole('menuitem')).toHaveText(MENU_ITEMS)
-        await pickWidgetKind(page, 'Add widget', widgetKindLabel(kind))
+        await pickWidgetKind(page, 'Add widget', widgetKindAddLabel(kind))
       } else {
-        await addWidgetAsTab(page, (await cell.getAttribute('data-ws-cell')) ?? '', widgetKindLabel(kind))
+        await addWidgetAsTab(page, (await cell.getAttribute('data-ws-cell')) ?? '', widgetKindAddLabel(kind))
       }
       await expect(tab(page, kind)).toHaveAttribute('aria-selected', 'true')
       await noEditor(page)
@@ -88,8 +91,8 @@ test.describe('desktop', () => {
       await expect(menu.locator(':scope > [role="presentation"]').first()).toHaveText(widgetKindLabel(current))
       await expect(menu.getByRole('menuitem', { name: /^Change widget/ })).toContainText(widgetKindLabel(current))
       const kinds = await openChangeWidget(page)
-      await expect(kinds.getByRole('menuitemradio', { name: widgetKindLabel(current), exact: true })).toHaveAttribute('aria-checked', 'true')
-      await kinds.getByRole('menuitemradio', { name: widgetKindLabel(kind), exact: true }).click()
+      await expect(kinds.getByRole('menuitemradio', { name: widgetKindAddLabel(current), exact: true })).toHaveAttribute('aria-checked', 'true')
+      await kinds.getByRole('menuitemradio', { name: widgetKindAddLabel(kind), exact: true }).click()
       // Switched to List: a new list of the layout; no editor opens.
       current = kind
       await expect(body(cell, kind)).toBeVisible()

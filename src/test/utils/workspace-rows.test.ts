@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createTab, WIDGET_KINDS, type WidgetKind } from '../../models/workspace-layout'
 import {
   cellMinHeightPx,
+  cellNumberCount,
   cellsOnlyInRow,
   FIT_ROW_PX,
   GLANCE_ROW_MIN_PX,
@@ -10,18 +11,19 @@ import {
   isFitTrack,
   isNumberStripCell,
   isGlanceKind,
+  LIST_BOARD_MIN_HEIGHT_PX,
 } from '../../utils/workspace-rows'
 import { CELL_MIN_PX } from '../../utils/workspace-resize'
-import { cell, grid } from '../helpers/layout-builders'
+import { cell, grid, freshNumberTab, numberItem, numbersTab } from '../helpers/layout-builders'
 
 
 const notes = (id: string) => createTab('notes', id)
-const number = (id: string) => createTab('number', id)
+const number = (id: string) => freshNumberTab(id)
 
 describe('the kind flags', () => {
-  it('the glance kinds are the Number and the charts; only the Number fits its height', () => {
-    expect(WIDGET_KINDS.filter(isGlanceKind)).toEqual(['number', 'breakdown', 'pivot', 'trend'])
-    expect(WIDGET_KINDS.filter(isFitHeightKind)).toEqual(['number'])
+  it('the glance kinds are the Numbers and the charts; only the Numbers fit their height', () => {
+    expect(WIDGET_KINDS.filter(isGlanceKind)).toEqual(['numbers', 'breakdown', 'trend'])
+    expect(WIDGET_KINDS.filter(isFitHeightKind)).toEqual(['numbers'])
   })
 
   it('an unknown kind is neither', () => {
@@ -52,6 +54,12 @@ describe('fit tracks', () => {
     expect(isNumberStripCell({ tabs: [number('a')] })).toBe(false)
     expect(isNumberStripCell({ tabs: [number('a'), notes('b')] })).toBe(false)
     expect(isFitTrack(grid([[cell('s', [number('s1'), number('s2')]), n1]]), 0)).toBe(true)
+    // One Numbers widget of several Numbers (v90) is a strip; of one, not.
+    const widget = numbersTab('w', [numberItem('a'), numberItem('b'), numberItem('c')])
+    expect(isNumberStripCell({ tabs: [widget] })).toBe(true)
+    expect(cellNumberCount({ tabs: [widget, number('d')] })).toBe(4)
+    expect(isNumberStripCell({ tabs: [numbersTab('w', [numberItem('a')])] })).toBe(false)
+    expect(cellMinHeightPx({ tabs: [widget] })).toBe(FIT_ROW_PX)
   })
 
   it('a track with no cell of its own doesn’t fit', () => {
@@ -69,5 +77,11 @@ describe('fit tracks', () => {
     // Two Numbers in one cell are a strip (flair P10): a fit cell.
     expect(cellMinHeightPx(cell('nn', [number('x3'), number('x4')]))).toBe(FIT_ROW_PX)
     expect(cellMinHeightPx(L)).toBe(CELL_MIN_PX)
+  })
+
+  it('a cell of one List board may shrink to its line of tiles’ heads (63px); with a tab strip over it, not', () => {
+    expect(cellMinHeightPx(cell('b', [createTab('shortcuts', 'b1')]))).toBe(LIST_BOARD_MIN_HEIGHT_PX)
+    expect(LIST_BOARD_MIN_HEIGHT_PX).toBe(63)
+    expect(cellMinHeightPx(cell('bb', [createTab('shortcuts', 'b2'), notes('b3')]))).toBe(CELL_MIN_PX)
   })
 })

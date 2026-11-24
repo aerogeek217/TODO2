@@ -3,7 +3,9 @@ import { getActiveTab, type LayoutCell, type LayoutTab, type WorkspaceLayout } f
 import { edgeBetween, edgeStretches, isWholeLine, spanOf, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
 import { previewedLayout } from '../../utils/workspace-preview'
 import { absorbedCellIds, withStructurePreview } from '../../utils/structure-preview'
+import { numberViews } from '../../utils/number-views'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
+import { useCellRoomStore } from '../../stores/cell-room-store'
 import { cellTouchesCollapsedColumn, columnStrips, EDIT_GUTTER_PX, isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
 import { isFitTrack } from '../../utils/workspace-rows'
 import { pairPercent } from '../../utils/workspace-resize'
@@ -258,12 +260,14 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
   const structure = useWorkspaceStore((s) => (s.editing != null && s.structurePreview?.layoutId === working.id ? s.structurePreview : null))
   const live = preview != null && preview.layoutId === working.id ? preview : null
   const layout = useMemo(() => (
-    structure ? withStructurePreview(working, structure.body, structure.newCellIds)
+    // TEMPORARY (`utils/number-views`): the preview drawn as the layout is, each Number a tab of its own.
+    structure ? withStructurePreview(working, numberViews(structure.body), structure.newCellIds)
       : live ? previewedLayout(working, live.body) : working
   ), [working, live, structure])
   const newIds = useMemo(() => new Set(structure?.newCellIds ?? []), [structure])
   const goneIds = useMemo(() => new Set(structure ? absorbedCellIds(working, structure.body) : []), [working, structure])
   const selectedId = useWorkspaceStore((s) => s.editing?.selectedCellId ?? null)
+  const measuredMins = useCellRoomStore((s) => s.minHeights)
   const { rows, columns } = layout.grid
   // Outside the mode a collapsed column is its strips; in the mode its cells are cards like any other.
   const strips = useMemo(() => (editing ? [] : columnStrips(layout)), [editing, layout])
@@ -284,7 +288,8 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
       className={styles.table}
       style={{
         gridTemplateColumns: trackTemplate(layout, 'columns', editing ? EDIT_GUTTER_PX : WORKSPACE_GUTTER_PX),
-        gridTemplateRows: trackTemplate(layout, 'rows', editing ? EDIT_GUTTER_PX : WORKSPACE_GUTTER_PX),
+        // Outside the mode a row is held at what its widgets measured (a List board's lines of tiles).
+        gridTemplateRows: trackTemplate(layout, 'rows', editing ? EDIT_GUTTER_PX : WORKSPACE_GUTTER_PX, editing ? undefined : measuredMins),
       }}
       data-ws-table
       data-ws-row-tracks={rows.map((t) => t.id).join(' ')}
@@ -415,7 +420,9 @@ function Grain() {
  * each cell is a card (E3, `EditCard`): its content dims and takes no
  * presses — the card's surface under it does, and its tabs; nothing moves.
  */
-export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
+export function WorkspaceView({ layout: stored }: { layout: WorkspaceLayout }) {
+  // TEMPORARY (`utils/number-views`): each Number drawn as a tab of its own.
+  const layout = numberViews(stored)
   useExpandOrphanTracks(layout)
   const editing = useWorkspaceStore((s) => s.editing != null)
   return (

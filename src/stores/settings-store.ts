@@ -148,6 +148,12 @@ interface SettingsData {
    * as they were when the log began (`services/stats/task-history`).
    */
   historyLogSince: Date | null
+  /**
+   * When this database began logging the Planner's planned days (the
+   * `planned` event); `null` = not stamped yet (`stampPlanLogSince`). The
+   * week load's days before it place tasks by due date and follow-up only.
+   */
+  planLogSince: Date | null
   /** "Stale after" (Tasks › Rules): days without a change after which an open task is stale; 0 = never. */
   staleAfterDays: number
   /** What a list tab's badges count, unless the list has its own (`utils/tab-badges`). */
@@ -220,6 +226,8 @@ interface SettingsState extends SettingsData {
    * launch tries again).
    */
   stampHistoryLogSince: (now?: Date) => Promise<void>
+  /** Stamps `planLogSince` as `stampHistoryLogSince` stamps its row: once, while absent; launch and every data replace run it. */
+  stampPlanLogSince: (now?: Date) => Promise<void>
   /** Tasks go stale after `days` (0–365 whole days, 0 = never; anything else is ignored); stored only when not 30. */
   setStaleAfterDays: (days: number) => Promise<void>
   setTabBadges: (ranges: TabBadgeRanges) => Promise<void>
@@ -614,6 +622,8 @@ export const SETTINGS = {
   }),
   // Written once, by `stampHistoryLogSince` (never through a writer: nothing changes it after).
   historyLogSince: stored(['historyLogSince'], (rows) => ({ historyLogSince: rowOr(rows, K.historyLogSince, null, parseStamp) })),
+  // Written once, by `stampPlanLogSince`, as `historyLogSince`.
+  planLogSince: stored(['planLogSince'], (rows) => ({ planLogSince: rowOr(rows, K.planLogSince, null, parseStamp) })),
   staleAfterDays: setting(['staleAfterDays'], {
     read: (rows) => ({ staleAfterDays: rowOr(rows, K.staleAfterDays, DEFAULT_STALE_AFTER_DAYS, (v) => parseStaleAfterDays(v) ?? DEFAULT_STALE_AFTER_DAYS) }),
     rows: ({ staleAfterDays: days }) => rowUnlessDefault(K.staleAfterDays, String(days), days === DEFAULT_STALE_AFTER_DAYS),
@@ -811,6 +821,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ historyLogSince: parseStamp(value) })
     } catch (e) {
       console.error('Failed to stamp when the history log began:', e)
+    }
+  },
+
+  async stampPlanLogSince(now = new Date()) {
+    try {
+      const value = await trackWrite(() => settingsRepository.putIfAbsent(K.planLogSince, now.toISOString()))
+      set({ planLogSince: parseStamp(value) })
+    } catch (e) {
+      console.error('Failed to stamp when the plan log began:', e)
     }
   },
 

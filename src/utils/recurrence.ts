@@ -128,10 +128,11 @@ function skipToward(date: Date, rule: RecurrenceRule, target: Date): Date {
 
 /**
  * Compute the next due date for a recurring task.
- * Keeps advancing until the result is >= today (start of day).
+ * Keeps advancing until the result is >= today (start of day); `today`
+ * defaults to the real one (the week load passes a past day, to recognise
+ * the advance a completion made then).
  */
-export function computeNextDueDate(currentDueDate: Date, rule: RecurrenceRule): Date {
-  const today = startOfToday()
+export function computeNextDueDate(currentDueDate: Date, rule: RecurrenceRule, today: Date = startOfToday()): Date {
 
   let next = skipToward(advanceOnce(currentDueDate, rule), rule, today)
   let iterations = 0

@@ -9,7 +9,7 @@ import { glanceMenu } from '../../../components/workspace/glance/glance-menu'
 import type { MenuEntry } from '../../../components/shared/MenuPopover'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import type { NumberConfig } from '../../../models/glance-widgets'
-import type { NumberTab, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import type { NumbersTab, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
@@ -23,7 +23,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { WidgetFace } from '../../../utils/widget-face'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
-import { numberTab, single } from '../../helpers/layout-builders'
+import { numberItem, numberTab, single } from '../../helpers/layout-builders'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_EVENTS, SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
 } from '../../fixtures/glance-sample'
@@ -37,7 +37,7 @@ import { layoutSteps } from '../../helpers/layout-steps'
 
 let lastResult: GlanceResult | null = null
 
-function setup(tab: NumberTab, onDrill?: (d: GlanceDrill) => void, face: WidgetFace = 'medium') {
+function setup(tab: NumbersTab, onDrill?: (d: GlanceDrill) => void, face: WidgetFace = 'medium') {
   return render(
     <DndContext>
       <WidgetFaceContext.Provider value={{ forced: face }}>
@@ -258,7 +258,7 @@ describe('Against a goal', () => {
 describe('A group', () => {
   const items = [
     { name: 'Open', filter: emptyPredicate() },
-    { name: 'Late', filter: numberTab('x', 'overdue').config.filter, color: '#e86bf0' },
+    { name: 'Late', filter: numberItem('x', 'overdue').filter, color: '#e86bf0' },
   ]
 
   it('its counts side by side, each lit in its own colour, each opening its tasks', () => {
@@ -316,14 +316,14 @@ describe('the Number’s menu', () => {
 })
 
 describe('Edit number’s shape fields', () => {
-  function openEditor(tab: NumberTab) {
+  function openEditor(tab: NumbersTab) {
     const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [tab] }) }
     useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
     render(<DndContext><GlanceWidget tab={tab} /><NumberEditorHost /></DndContext>)
-    act(() => { useUIStore.getState().openNumberEditor(tab.id) })
-    return document.querySelector<HTMLElement>(`[data-number-editor="${tab.id}"]`)!
+    act(() => { useUIStore.getState().openNumberEditor(tab.config.items[0]!.id) })
+    return document.querySelector<HTMLElement>(`[data-number-editor="${tab.config.items[0]!.id}"]`)!
   }
-  const config = () => (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as NumberTab).config
+  const config = () => (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as NumbersTab).config.items[0]!
   const show = (editor: HTMLElement, value: string) => fireEvent.change(within(editor).getByTestId('number-editor-show'), { target: { value } })
   const has = (editor: HTMLElement, name: string) => within(editor).queryByRole('combobox', { name }) != null
   /** The editor's Save (it writes its copy and closes), then the editor opened again. */
@@ -371,7 +371,7 @@ describe('Edit number’s shape fields', () => {
     expect(within(editor).queryByRole('group', { name: /^Color/ })).toBeNull()
     expect(within(editor).getByRole('textbox', { name: 'Count 1 name' })).toHaveValue('Overdue')
     editor = saveAndReopen(editor)
-    expect(config().items).toEqual([{ name: 'Overdue', filter: numberTab('n', 'overdue').config.filter, color: numberTab('n', 'overdue').config.color }])
+    expect(config().items).toEqual([{ name: 'Overdue', filter: numberItem('n', 'overdue').filter, color: numberItem('n', 'overdue').color }])
     expect(config()).not.toHaveProperty('goal')
     fireEvent.click(within(editor).getByRole('button', { name: 'Add a count' }))
     editor = saveAndReopen(editor)

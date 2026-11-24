@@ -4,11 +4,14 @@ import { plannerWindowKey, usePlannerStore } from '../../../stores/planner-store
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { PlannerResetScope } from '../../../utils/planner'
 import type { MenuEntry } from '../../shared/MenuPopover'
-import { FunnelIcon, ResetIcon } from '../../shared/icons'
+import { FunnelIcon, ResetIcon, WeekLoadIcon } from '../../shared/icons'
 import { openPlannerSettings, UNPLANNED_FILTER_LABEL } from './open-planner-settings'
 
 /** Reset plan's name: its button, its submenu's item, its menu's label. */
 export const RESET_PLAN_LABEL = 'Reset plan'
+
+/** The ⋯ menu's entry opening the week load popover beside the widget. */
+const WEEK_LOAD_ENTRY_LABEL = 'Week load…'
 
 /** Reset plan's choices, in the menu's order; the first is named by the report: `This week`, or the days shown while the window is shifted. */
 const RESET_SCOPES: ReadonlyArray<{ scope: PlannerResetScope; label: string; clears: string }> = [
@@ -54,9 +57,11 @@ export function usePlannerResetEntries(tab: PlannerTab | undefined): MenuEntry[]
 }
 
 /**
- * The Planner's entries in its widget's ⋯ menu: **What counts as
- * unplanned…** (its settings, `PlannerSettings`), then **Reset plan ›**, its
- * three choices a submenu (none while the Planner isn't drawn).
+ * The Planner's entries in its widget's ⋯ menu: **Unplanned filter…** (its
+ * settings, `PlannerSettings`), then — while the Planner is drawn — **Week
+ * load…** (the week load popover beside the widget, `WeekLoadHost`: the
+ * meter's, for where the top line has none) and **Reset plan ›**, its three
+ * choices a submenu.
  */
 export function usePlannerMenuEntries(tab: PlannerTab | undefined): MenuEntry[] {
   const children = usePlannerResetEntries(tab)
@@ -64,6 +69,8 @@ export function usePlannerMenuEntries(tab: PlannerTab | undefined): MenuEntry[] 
   return useMemo(() => {
     if (tabId == null) return NO_ENTRIES
     const settings: MenuEntry = { kind: 'item', label: `${UNPLANNED_FILTER_LABEL}…`, icon: <FunnelIcon />, onSelect: () => openPlannerSettings(tabId) }
-    return children.length === 0 ? [settings] : [settings, { kind: 'item', label: RESET_PLAN_LABEL, icon: <ResetIcon />, children, childrenWidth: 200 }]
+    if (children.length === 0) return [settings]
+    const weekLoad: MenuEntry = { kind: 'item', label: WEEK_LOAD_ENTRY_LABEL, icon: <WeekLoadIcon />, onSelect: () => usePlannerStore.getState().openWeekLoad(tabId) }
+    return [settings, weekLoad, { kind: 'item', label: RESET_PLAN_LABEL, icon: <ResetIcon />, children, childrenWidth: 200 }]
   }, [tabId, children])
 }

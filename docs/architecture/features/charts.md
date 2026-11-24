@@ -1,22 +1,20 @@
 # Charts
 
-The chart widgets are Breakdown, Pivot and Created vs completed: three of the glance kinds. Breakdown's and Pivot's configs are in `models/chart-widgets`, Created vs completed's in `models/glance-widgets`. Their components are in `components/workspace/glance/` and their statistics in `services/stats/`.
+The chart widgets are Breakdown and Created vs completed: two of the glance kinds. Breakdown's config is in `models/chart-widgets`, Created vs completed's in `models/glance-widgets`. Their components are in `components/workspace/glance/` and their statistics in `services/stats/`.
 
 What every glance widget shares, the Number, the widget editors' Save / Discard, the task dialog and the history log are in [Glance widgets](glance-widgets.md).
 
-## The chart kinds
+## Breakdown
 
-The chart kinds (`ChartWidgetKind`) are `breakdown` and `pivot`; `isChartTab` tells their tabs. A chart (`models/chart-widgets`) is a `name` and a `filter` whose tasks it splits, among those the top bar shows, as a Number counts ([Glance widgets](glance-widgets.md#number)).
+Kind `breakdown` (`isBreakdownTab`); statistics in `services/stats/breakdown`. A Breakdown (`models/chart-widgets`) is a `name` and a `filter` whose tasks it splits, among those the top bar shows, as a Number counts ([Glance widgets](glance-widgets.md#number)).
 
-- Its editor follows the Number editor's pattern (`ChartEditor`): name, filter, and the kind's own fields.
-- **Edit breakdown…** / **Edit pivot…** in the ⋯ opens it, never on add.
+- Its editor follows the Number editor's pattern (`ChartEditor`): name, filter, and its own fields.
+- **Edit breakdown…** in the ⋯ opens it, never on add.
 - It is hosted on the page as `ChartEditorHost` (`chart-widgets-store.editorTabId`).
-- Every bar, cell and segment opens its tasks in the task dialog (`chart-drills`, titled `<chart> · <row>`).
+- Every bar and segment opens its tasks in the task dialog (`chart-drills`, titled `<chart> · <row>`).
 - Small face: its title and top entry. Medium and large: the chart.
 
-### Breakdown
-
-Kind `breakdown`; statistics in `services/stats/breakdown`. Its config is `BreakdownConfig`, layout config:
+Its config is `BreakdownConfig`, layout config:
 
 `{ name, filter, splitBy, style, show, oldestBy?, showNone, columns? }`
 
@@ -31,10 +29,10 @@ Kind `breakdown`; statistics in `services/stats/breakdown`. Its config is `Break
 
 What the read of a stored config or view state repairs is in [models-and-data](../models-and-data.md).
 
-#### The table
+### The table
 
 - Columns: name · Open (or Oldest), built in, then its count columns.
-- Open reads Tasks while its filter lets completed tasks through, as its header and a Pivot say.
+- Open reads Tasks while its filter lets completed tasks through, as its header says.
 - Each heading is a sort: counts largest first, names A–Z. A second click reverses it, a third goes back to the default.
 - The default is most counted across the count columns first for people and tags, and the natural order for the other splits.
 - The none row (Unassigned, No tags, No status, No priority, No due date) stays last.
@@ -48,7 +46,7 @@ The sort is per split. It is view state, saved at once: `{ sorts?: { [split]: { 
 - It is read through `liveBreakdownSort(sort, breakdownSortKeys(columns))`. A heading the Breakdown has reads as stored; an age sort does only while its column has `age`.
 - Any other reads as the split's default order: a column removed in the editor, for example.
 
-#### Rows
+### Rows
 
 - Its people and tags rows narrow by the `@` / `#` picks, its own filter's and the top bar's, as a list grouped by them does (`build-list.groupRestrictions`, `services/stats/row-restrictions`).
 - A person's or tag's right-click opens the one person / tag menu (`EntityMenu`).
@@ -59,7 +57,7 @@ The sort is per split. It is view state, saved at once: `{ sorts?: { [split]: { 
 - They open the tasks in the task dialog instead for a row no filter can say, and for every row of a Breakdown whose filter lets completed tasks through (`breakdownReviews`): a review takes open tasks only.
 - Where no Review is offered, a count's click opens its tasks in the task dialog too.
 
-#### Count columns
+### Count columns
 
 `BreakdownConfig.columns` holds up to four (`BREAKDOWN_COLUMNS_MAX`), each `{ id, name, color, filter, litWhen, litAt?, age? }`. Every column after the name and Open is one.
 
@@ -73,7 +71,7 @@ The sort is per split. It is view state, saved at once: `{ sorts?: { [split]: { 
 - Each column is 40px, its number's room. Its heading is cut with an ellipsis, its name in the tooltip. The name column takes the rest.
 - They are set in the editor's **Count columns**: name, color, Light up when, filter, ×, **+ Add column**.
 
-#### Follow-up age
+### Follow-up age
 
 A column may carry the row's follow-up age after its count: `age: { yellowAfterDays }`, a whole number from 0 to 999. Absent is off. It reads `[3] 23d`.
 
@@ -87,24 +85,13 @@ A column may carry the row's follow-up age after its count: `age: { yellowAfterD
 - The editor has **Days since follow-up after the count** and **Yellow past** [14] **days**.
 - A new People Breakdown's Follow-up column has it, and so does Change widget's.
 
-#### Default columns
+### Default columns
 
 - A new Breakdown (every preset, and Change widget) writes two as its `columns`: `defaultBreakdownColumns(app, { followupAge })`, in `workspace-store`'s seed. `followupAge` gives the Follow-up column its `age`.
 - They are **Due** (id `due`: due by today + N, overdue included) and **Follow-up** (id `followup`: the next follow-up likewise), each lit above 0 in its color (`DUE_COLUMN_COLOR` / `FOLLOWUP_COLUMN_COLOR`).
 - N is Settings › Tasks' ranges of the moment. A range `off` drops its column; `overdue` counts only the late tasks, those dated by yesterday.
 - They are ordinary columns from then on.
 - `breakdownColumns(config, app)` gives a Breakdown's columns: its `columns`, else `defaultBreakdownColumns(app)`. So a config without `columns` (a hand-made file) reads the two defaults in Settings' ranges.
-
-### Pivot
-
-Kind `pivot`; statistics in `services/stats/pivot`.
-
-- Rows × columns, each a Breakdown split, as a heat table with totals. A cell's color is its share of the largest.
-- Its headings sort the rows, as a Breakdown's do. The name heading (what the rows split by, `Person`), each column and Total are buttons.
-- A click sorts largest first (names A–Z), a second reverses, a third goes back to the natural order. ▼ / ▲ marks the sorted one.
-- The none row stays last. The columns never move.
-- The sort is `PivotViewState.sort`: view state saved at once, with no undo step.
-- A sort by a column the table doesn't show reads as the natural order (`sortPivotRows`).
 
 ## Created vs completed
 

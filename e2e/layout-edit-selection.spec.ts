@@ -132,8 +132,8 @@ test('the edge tabs and merge buttons follow the selected card in the Tab order;
   await seedWorkspace(page, { layouts: [seed] })
   await enterLayoutEdit(page)
   await wsCard(page, 'd').focus()
-  // The card, its toolbar's five buttons, then its edge tabs and merge buttons.
-  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab')
+  // The card, its toolbar's six buttons, then its edge tabs and merge buttons.
+  for (let i = 0; i < 6; i++) await page.keyboard.press('Tab')
   await expect(toolbar(page, 'd').getByRole('button', { name: 'Cell layout' })).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(page.getByRole('button', { name: 'Insert row above', exact: true })).toBeFocused()

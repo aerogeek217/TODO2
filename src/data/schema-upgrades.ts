@@ -1,6 +1,7 @@
 import type { Transaction } from 'dexie'
 import { upgradeV88 } from './upgrades/v88'
 import { upgradeV89 } from './upgrades/v89'
+import { upgradeV90 } from './upgrades/v90'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -81,6 +82,8 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [88, upgradeV88],
   // The Planner holds nothing by hand: `unplanned` and Planned's `held` clause go.
   [89, upgradeV89],
+  // The Pivot goes (a cell left without tabs closes); every Number lives in a Numbers widget: a cell of Numbers becomes one, a Number among other kinds one of its own.
+  [90, upgradeV90],
 ])
 
 /**

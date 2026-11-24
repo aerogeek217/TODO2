@@ -56,7 +56,7 @@ A change of structure is an undo step; view state is written straight onto the s
 
 ## Tabs and widget kinds
 
-`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `shortcuts` (the List board), `neglect`, `clusters`, and the glance kinds `number`, `breakdown`, `pivot` and `trend`.
+`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `shortcuts` (the List board), `neglect`, `clusters`, and the glance kinds `numbers` (one Number or more), `breakdown` and `trend`.
 
 Each tab has a per-kind `config`, the **layout config** saved with the layout, and an optional `viewState`.
 
@@ -66,7 +66,7 @@ Config:
 - A calendar: `dateTypes { due, followup, plan }` ([The Calendar](#the-calendar)). All may be off, an empty calendar.
   - `CalendarDateType` is one of its keys: the date a calendar drop sets. `shownCalendarDateTypes` lists the shown ones in the toolbar's order.
   - `toggleCalendarDateType(types, type)` switches one on or off.
-- The glance kinds (`models/glance-widgets`, `models/chart-widgets`): a Number's `NumberConfig`, Created vs completed's `TrendTabConfig`, a Breakdown's `BreakdownConfig`, a Pivot's `PivotConfig`. See [Glance widgets](glance-widgets.md) and [Charts](charts.md).
+- The glance kinds (`models/glance-widgets`, `models/chart-widgets`): a Number's `NumberConfig`, Created vs completed's `TrendTabConfig`, a Breakdown's `BreakdownConfig`. See [Glance widgets](glance-widgets.md) and [Charts](charts.md).
 - A Neglect map: `NeglectTabConfig` ([Task maps](task-maps.md#config)).
 - The List board: `source?` (`picked`, the default, or `layout`) and `lists?`, list ids of any layout, never under the key `listDefinitionId` ([List board](list-board.md#config)).
 - The others: `{}`.
@@ -122,14 +122,15 @@ The table scrolls when the minimums don't fit. The minimums (`utils/workspace-ro
 
 - a cell: `CELL_MIN_PX` high and 120px wide;
 - a glance cell: 64px high and 72px wide;
-- a cell of Numbers (one, or a strip): 58px high, a fit row's height.
+- a cell of Numbers (one, or a strip): 58px high, a fit row's height;
+- a cell of one List board: 63px high, its line of tiles' heads (`LIST_BOARD_MIN_HEIGHT_PX`) — outside the layout edit mode, as tall as all its lines of heads (`stores/cell-room-store`, [List board](list-board.md#faces)).
 
 ### A collapsed column's strip
 
 Outside the layout edit mode the cells lying only in collapsed columns draw no body: `ColumnStrip` draws over them (`workspace-table.columnStrips`).
 
 - Cells over the same columns, one under another, make one strip; a cell spanning through the column parts it, and keeps its width in the other columns.
-- At its top **Expand column** (›‹) expands the strip's columns.
+- At its top **Expand column** expands the strip's columns: the same bordered button as a collapsed row's **Expand row** (`TrackExpandButton`), its unfold icon turned from up-and-down to left-and-right.
 - Under it, each cell's active widget, its icon and name running down. A press opens that widget larger (`openWidgetLarger`; a Number following a list, that list) and leaves the column collapsed. An empty cell names nothing.
 - The other columns take its room. The phone ignores a column's collapse.
 
@@ -195,7 +196,7 @@ Outside the mode there are no grips and no crossing handles, and nothing drags a
 - a Number counts every open task;
 - a chart splits them.
 
-Its editor is in its ⋯: **Edit list…**, **Edit number…**, **Edit breakdown…** / **Edit pivot…**, **Edit chart…**.
+Its editor is in its ⋯: **Edit list…**, **Edit number…**, **Edit breakdown…**, **Edit chart…**.
 
 Ways to add one, besides the cell menu's **Add widget as tab ›** ([Widget chrome](widget-chrome.md#the-cells-menu)):
 
@@ -266,7 +267,7 @@ Its toolbar's toggles are its `config.dateTypes`: **Due**, **Follow-up** and **P
 
 ### Dragging
 
-An entry drags to another day, except a recurring occurrence, a completed task's plan and on a phone. It moves its own date: a due date or follow-up keeps its time of day; a plan entry plans the task for that day **outright** (`services/planner-drop.planTaskForDay`: a pick, as Plan for day ›) — the plan write, no stamp, no history event, one undo step. A day before today is refused for a plan, as the Planner refuses it.
+An entry drags to another day, except a recurring occurrence, a completed task's plan and on a phone. It moves its own date: a due date or follow-up keeps its time of day; a plan entry plans the task for that day **outright** (`services/planner-drop.planTaskForDay`: a pick, as Plan for day ›) — the plan write, no stamp, a `planned` event, one undo step. A day before today is refused for a plan, as the Planner refuses it.
 
 A list row dropped on a day sets the one type the calendar shows. With more than one shown, `CalendarDropChooser` asks at the pointer: **Due date · Follow-up · Plan**, the shown ones, with `D` / `F` / `P` and the task's values now (`was Thu 15`, `not set`). The hovered day's label: `Move here`, `Set date` (the chooser will ask), `Set due`, `Set follow-up`, `Set plan`, or `Past day` where a plan would land before today.
 

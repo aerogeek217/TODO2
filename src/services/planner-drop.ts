@@ -38,7 +38,7 @@ import type { PlannerDropRequest } from '../utils/task-dnd'
  * from (a drag is the drop rule; every other move to a day is a pick,
  * planned outright). Everything but a fix's date move changes **the plan only**
  * (`todo-store.setPlans`: the planned day in one task write, one undo step,
- * no stamp, no history event) — never a due date or a follow-up; what to
+ * no stamp, a `planned` history event) — never a due date or a follow-up; what to
  * write is `utils/planner`'s decision (`plannerDrop`).
  */
 

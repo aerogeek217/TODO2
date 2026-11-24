@@ -39,7 +39,8 @@ interface AppStartupOptions {
  *    permission the launch question: this waits for the user's answer, so
  *    nothing below reads, purges or backs up this browser's data before the
  *    user chose between the file and this browser; then, on the data that
- *    won, the history log's start is stamped once (`historyLogSince`);
+ *    won, the history log's start is stamped once (`historyLogSince`),
+ *    and the plan log's (`planLogSince`);
  * 3. persistent storage, then people / statuses / tags;
  * 4. the completed tasks past retention (asked about, never purged
  *    silently — the caller shows the prompt; none while it showed within
@@ -63,6 +64,7 @@ export async function runAppStartup({ onPurgeCheck, onStep }: AppStartupOptions 
   await useFileStorageStore.getState().initialize()
   onStep?.('tasks')
   await useSettingsStore.getState().stampHistoryLogSince()
+  await useSettingsStore.getState().stampPlanLogSince()
   await navigator.storage?.persist?.().catch(() => false)
   await Promise.all([
     usePersonStore.getState().ensureLoaded(),

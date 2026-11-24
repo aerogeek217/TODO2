@@ -16,7 +16,7 @@ import {
   tapOutcome,
   trackReached,
 } from '../../utils/layout-edit-cards'
-import { cell as spec, grid, type CellSpec } from '../helpers/layout-builders'
+import { cell as spec, grid, type CellSpec, freshNumberTab } from '../helpers/layout-builders'
 
 /** The layout edit mode's card helpers (E3), pure. */
 
@@ -49,7 +49,7 @@ describe('ruler names', () => {
 })
 
 describe('cardName (a card named in the mode)', () => {
-  const tabs = (kind: 'notes' | 'number', n: number) => Array.from({ length: n }, (_, i) => createTab(kind, `t${i}`))
+  const tabs = (kind: 'notes' | 'number', n: number) => Array.from({ length: n }, (_, i) => (kind === 'number' ? freshNumberTab(`t${i}`) : createTab(kind, `t${i}`)))
 
   it('a lone widget its title; a card of tabs its first two and how many more; a Numbers strip its count; a slot nothing', () => {
     expect(cardName({ tabs: tabs('notes', 1) }, ['Tasks'])).toBe('Tasks')
@@ -142,8 +142,11 @@ describe('tapOutcome', () => {
   const idle = { selectedCellId: null, moveArmed: false }
   const armedA = { selectedCellId: 'a', moveArmed: true }
 
-  it('with nothing armed: a card selects (and arms), a slot opens its kinds', () => {
+  it('with nothing armed: a card selects, wherever it is tapped; a slot opens its kinds', () => {
     expect(tapOutcome(idle, { kind: 'card', cellId: 'a', zone: 'middle' })).toEqual({ kind: 'select', cellId: 'a' })
+    // A card selected but not armed: a tap on another's tab area or middle selects it, never joins or swaps.
+    expect(tapOutcome({ selectedCellId: 'a', moveArmed: false }, { kind: 'card', cellId: 'b', zone: 'tabs' })).toEqual({ kind: 'select', cellId: 'b' })
+    expect(tapOutcome({ selectedCellId: 'a', moveArmed: false }, { kind: 'card', cellId: 'b', zone: 'middle' })).toEqual({ kind: 'select', cellId: 'b' })
     expect(tapOutcome(idle, { kind: 'slot', cellId: 'e' })).toEqual({ kind: 'menu', cellId: 'e' })
     // Selected by the keys (not armed): a slot still opens its kinds.
     expect(tapOutcome({ selectedCellId: 'a', moveArmed: false }, { kind: 'slot', cellId: 'e' })).toEqual({ kind: 'menu', cellId: 'e' })
@@ -159,7 +162,7 @@ describe('tapOutcome', () => {
 })
 
 describe('mergeChoices and their words (the merge buttons, Merge ▾)', () => {
-  const number = (id: string) => spec(id, [createTab('number', `${id}-t`)])
+  const number = (id: string) => spec(id, [freshNumberTab(`${id}-t`)])
   // a  | b
   // c  | b
   // n1 | n2 | e   — under three columns

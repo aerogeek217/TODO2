@@ -68,8 +68,9 @@ describe('a collapsed column’s strip', () => {
     open(stacked(true))
     show()
     const strip = screen.getByRole('region', { name: 'Collapsed column' })
-    expect(within(strip).getByRole('button', { name: 'Expand column' })).toBeTruthy()
-    expect(within(strip).getAllByRole('button').map((b) => b.textContent)).toEqual(['›‹', 'Queue', 'Shelf'])
+    // The same button as a collapsed row's Expand, its icon turned to the column.
+    expect(within(strip).getByRole('button', { name: 'Expand column' }).dataset.trackExpand).toBe('columns')
+    expect(within(strip).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(['Expand column', 'Queue', 'Shelf'])
     expect(document.querySelector('[data-ws-cell="q"]')).toBeNull()
     expect(document.querySelector('[data-ws-cell="s"]')).toBeNull()
     expect(document.querySelector('[data-ws-cell="w"]')).not.toBeNull()

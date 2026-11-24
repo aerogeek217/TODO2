@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import type { GlanceTab } from '../../../models/workspace-layout'
+import type { NumberTab } from '../../../utils/number-views'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { withScreenNote } from './glance-copy'
 import { summaryOf, type GlanceSummary, type SummaryPart } from './glance-summary'
@@ -11,7 +12,7 @@ export interface GlanceResult {
   summary: GlanceSummary
 }
 
-export interface GlanceWidgetProps<T extends GlanceTab> {
+export interface GlanceWidgetProps<T extends GlanceTab | NumberTab> {
   tab: T
   onResult?: (result: GlanceResult) => void
   /** Opens the tasks behind a clicked number; absent = numbers aren't clickable. */

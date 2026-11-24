@@ -648,7 +648,7 @@ describe('Reset plan', () => {
     // Fri 27 … Thu Dec 3: the task planned there, not tomorrow's.
     expect(rows(openMenu())).toEqual([['Nov 27 – Dec 3', '1', false], ['Today only', '0', true], ['Delayed', '0', true]])
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
-    const submenu = result.current[1]?.kind === 'item' ? result.current[1].children ?? [] : []
+    const submenu = result.current[2]?.kind === 'item' ? result.current[2].children ?? [] : []
     expect(submenu.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Nov 27 – Dec 3', 'Today only', 'Delayed'])
     fireEvent.click(within(screen.getByRole('menu', { name: 'Reset plan' })).getByRole('menuitem', { name: /^Nov 27 – Dec 3/ }))
     await waitFor(() => expect(setPlan).toHaveBeenCalledWith([2], null, 'Reset plan: Nov 27 – Dec 3', true))
@@ -663,7 +663,7 @@ describe('Reset plan', () => {
     const { setPlan } = watch()
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
     const item = (entries: readonly MenuEntry[], label: string) => entries.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === label)!
-    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Unplanned filter…', 'Reset plan'])
+    expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Unplanned filter…', 'Week load…', 'Reset plan'])
     const choices = item(result.current, 'Reset plan').children ?? []
     expect(choices.map((e) => (e.kind === 'item' ? [e.label, e.note, e.disabled] : e.kind))).toEqual([
       ['This week', '6', false], ['Today only', '1', false], ['Delayed', '1', false],

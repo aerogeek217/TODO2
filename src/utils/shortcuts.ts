@@ -4,6 +4,7 @@ import { getActiveTab, KIND_LINE_ICON, tabStripIcon, type LayoutBody, type ListT
 import { bySortOrder } from './sort-order'
 import { readingOrder } from './workspace-grid'
 import { layoutTabs } from './workspace-layout-queries'
+import { LIST_BOARD_MIN_HEIGHT_PX } from './workspace-rows'
 
 /**
  * The List board (widget kind `shortcuts`): a tile per list — the lists
@@ -189,19 +190,42 @@ export function boardTileRoom(squares: number, titles: number, size: { width: nu
   return { columns, rows, lines, want }
 }
 
-/** A compact tile's least width, px, and the gap between tiles (`ShortcutsWidget.module.css`). */
-const SHORTCUT_COMPACT_TILE_MIN_PX = 120
-const SHORTCUT_TILE_GAP_PX = 8
+/** The gap between tiles (px) and a tile's least height — its padding, its head, the gap and its room's least 1px (`ShortcutsWidget.module.css`). */
+const BOARD_TILE_GAP_PX = 8
+const BOARD_TILE_HEAD_PX = 45
+/** A tile's least width (px), and the most a head on one line may raise every tile's width to. */
+const BOARD_TILE_MIN_PX = 120
+const BOARD_TILE_MIN_CAP_PX = 280
 
 /**
- * How a compact face's one line of tiles fits `count` lists in `width`:
- * `columns` tiles across; `shown` of them lists, and `more` lists folded
- * into a last `+N` tile when they don't all fit. Unmeasured: every list.
+ * Every tile's width at least (px): wide enough for the widest tile's head
+ * on one line (`heads`: each tile's icon, name, capsule or count and
+ * padding), never under `BOARD_TILE_MIN_PX` nor over `BOARD_TILE_MIN_CAP_PX`
+ * (past that a long name shortens). The grid gives every tile one width.
  */
-export function compactShortcutTiles(count: number, width: number): { columns: number; shown: number; more: number } {
-  if (width <= 0) return { columns: Math.max(1, count), shown: count, more: 0 }
-  const columns = Math.max(1, Math.floor((width + SHORTCUT_TILE_GAP_PX) / (SHORTCUT_COMPACT_TILE_MIN_PX + SHORTCUT_TILE_GAP_PX)))
-  if (count <= columns) return { columns, shown: count, more: 0 }
-  const shown = Math.max(0, columns - 1)
-  return { columns, shown, more: count - shown }
+export function boardTileMinWidth(heads: Iterable<number>): number {
+  let widest = BOARD_TILE_MIN_PX
+  for (const w of heads) if (w > widest) widest = w
+  return Math.min(BOARD_TILE_MIN_CAP_PX, Math.ceil(widest))
+}
+
+/** How many lines `count` tiles at least `tileMin` wide wrap onto in `width` (the grid's `auto-fit`). */
+export function boardLines(count: number, width: number, tileMin: number): number {
+  if (count <= 0) return 1
+  const columns = Math.max(1, Math.floor((width + BOARD_TILE_GAP_PX) / (tileMin + BOARD_TILE_GAP_PX)))
+  return Math.ceil(count / columns)
+}
+
+/**
+ * The least height (px) of a lone List board's cell: its lines of tiles,
+ * each line only the tiles' heads (`LIST_BOARD_MIN_HEIGHT_PX` holds one) —
+ * the row's minimum, so no card is ever cut off.
+ */
+export function boardMinHeight(lines: number): number {
+  return LIST_BOARD_MIN_HEIGHT_PX + Math.max(0, lines - 1) * (BOARD_TILE_HEAD_PX + BOARD_TILE_GAP_PX)
+}
+
+/** Whether `icon` is the list glyph every list tab shows unless given its own: a tile shows no icon then. */
+export function isListGlyph(icon: IconValue): boolean {
+  return icon.kind === 'line' && icon.key === KIND_LINE_ICON.lens
 }

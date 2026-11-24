@@ -11,6 +11,7 @@ import {
   type EditCardMenuActions,
 } from '../../../components/workspace/cell-menu'
 import { widgetKindMenuEntries } from '../../../components/shared/widget-kind-menu-entries'
+import { freshNumberTab } from '../../helpers/layout-builders'
 
 /**
  * The cell's menus as composed (D26 AA1, UX cleanup 4A; layout edit mode
@@ -168,7 +169,7 @@ describe('cellMenuFor (outside the mode: what is inside a cell changes in place)
     const add = childrenOf(cellMenuFor(notes(), actions({ onAddTab })), 'Add widget as tab')
     expect(words(add)).toEqual([
       '[Tasks]', 'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board',
-      '—', '[Insights]', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters',
+      '—', '[Insights]', 'Number', 'Breakdown', 'Created vs completed', 'Neglect map', 'Work clusters',
     ])
     select(item(add, 'Calendar'))
     select(item(childrenOf(add, 'Breakdown'), 'People'))
@@ -184,7 +185,7 @@ describe('cellMenuFor (outside the mode: what is inside a cell changes in place)
   it('a cell showing a tab strip reads Add tab › and Remove tab; a Numbers strip keeps the widget words', () => {
     const strip = actions({ cell: { id: 'k', tabs: [createTab('notes', 'n'), createTab('calendar', 'c')] } })
     expect(words(cellMenuFor(notes(), strip))).toEqual(['[Notes]', 'Change widget', '—', 'Add tab', 'Remove tab', 'Collapse row'])
-    const numbers = actions({ cell: { id: 'k', tabs: [createTab('number', 'n'), createTab('number', 'm')] } })
+    const numbers = actions({ cell: { id: 'k', tabs: [freshNumberTab('n'), freshNumberTab('m')] } })
     expect(words(cellMenuFor(notes(), numbers))).toEqual(['[Notes]', 'Change widget', '—', 'Add widget as tab', 'Remove widget', 'Collapse row'])
   })
 

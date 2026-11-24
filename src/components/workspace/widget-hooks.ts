@@ -15,6 +15,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { uniqueListName } from '../../utils/list-copy'
 import { registerModuleReset } from '../../utils/module-reset'
 import { panelOfTab } from '../../utils/workspace-layout-queries'
+import { numberTabOf, numberViews } from '../../utils/number-views'
 import { type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { afterLeavingEditors } from '../../stores/editor-leave'
 
@@ -257,14 +258,16 @@ export function addWidgetAt(kind: WidgetKind, target: LayoutDropTarget, listDefi
  * layout, or for a Number with nothing more to show.
  */
 export function openWidgetLargerFromPalette(): void {
-  const { working } = useWorkspaceStore.getState()
+  // TEMPORARY (`utils/number-views`): a Number is its view.
+  const working = numberViews(useWorkspaceStore.getState().working)
   if (!working) return
   const cellId = paletteTargetCell(working, document.activeElement)
   const cell = cellId != null ? working.cells.find((c) => c.id === cellId) : undefined
   const tab = cell ? getActiveTab(cell) : undefined
   if (!tab || cellId == null) return
-  if (tab.kind === 'number' && tab.config.show === 'list') {
-    if (tab.config.list != null) void openNumberList(tab.id)
+  const number = tab.kind === 'numbers' ? numberTabOf(tab) : undefined
+  if (number?.config.show === 'list') {
+    if (number.config.list != null) void openNumberList(tab.id)
     return
   }
   const shown = document.querySelector(`[data-ws-cell="${CSS.escape(cellId)}"]`)?.getAttribute('data-face')

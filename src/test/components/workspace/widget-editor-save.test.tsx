@@ -17,6 +17,7 @@ import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import { numberTab, single } from '../../helpers/layout-builders'
+import { numberTabOf, numberViews } from '../../../utils/number-views'
 import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
@@ -61,8 +62,13 @@ function setup(...tabs: LayoutTab[]) {
   )
 }
 
-const tabs = () => useWorkspaceStore.getState().working!.cells[0]!.tabs
-const stored = (id: string) => tabs().find((t) => t.id === id)!
+/** The cell's tabs as the workspace draws them: each Number a tab of its own, under its own id (`number-views`). */
+const tabs = () => numberViews(useWorkspaceStore.getState().working!).cells[0]!.tabs
+/** Tab `id` as stored — a Number as the Number components read it (`numberTabOf`). */
+const stored = (id: string) => {
+  const tab = tabs().find((t) => t.id === id)!
+  return tab.kind === 'numbers' ? numberTabOf(tab)! : tab
+}
 const numberEditor = () => document.querySelector<HTMLElement>('[data-number-editor]')
 const openNumber = (id = 'n') => {
   act(() => { useUIStore.getState().openNumberEditor(id) })
@@ -110,18 +116,18 @@ describe('a widget editor’s Save', () => {
   it('writes the changed keys once, as one config update, and closes; the widget draws the edits live until then', () => {
     setup(numberTab('n', 'overdue'))
     const before = stored('n')
-    const patchSpy = vi.spyOn(useWorkspaceStore.getState(), 'patchTabConfig')
+    const patchSpy = vi.spyOn(useWorkspaceStore.getState(), 'patchNumberItem')
     const editor = openNumber()
     rename(editor, 'Late')
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Compare with' }), { target: { value: 'none' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Compare with' }), { target: { value: 'lastWeek' } })
-    expect(stored('n')).toBe(before)
+    expect(stored('n')).toEqual(before)
     expect(document.querySelector('[data-number="n"]')).toHaveTextContent('Late')
     expect(useWidgetPreviewStore.getState().configs.n).toMatchObject({ name: 'Late', compare: 'lastWeek' })
     fireEvent.click(saveButton(editor))
     expect(numberEditor()).toBeNull()
     expect(patchSpy).toHaveBeenCalledTimes(1)
-    expect(patchSpy).toHaveBeenCalledWith('n', 'number', { name: 'Late', compare: 'lastWeek' }, 'Edited number “Late”')
+    expect(patchSpy).toHaveBeenCalledWith('n', { name: 'Late', compare: 'lastWeek' }, 'Edited number “Late”')
     expect(stored('n')).toMatchObject({ config: { name: 'Late', compare: 'lastWeek' } })
     // Saved for good, as one undo step.
     expect(layoutSteps()).toEqual(['Edited number “Late”'])
@@ -146,7 +152,7 @@ describe('a widget editor’s Discard', () => {
   it('closes and writes nothing; the widget is as stored again', () => {
     setup(numberTab('n', 'overdue'))
     const before = stored('n')
-    const patchSpy = vi.spyOn(useWorkspaceStore.getState(), 'patchTabConfig')
+    const patchSpy = vi.spyOn(useWorkspaceStore.getState(), 'patchNumberItem')
     const editor = openNumber()
     rename(editor, 'Late')
     expect(document.querySelector('[data-number="n"]')).toHaveTextContent('Late')
@@ -155,7 +161,7 @@ describe('a widget editor’s Discard', () => {
     expect(document.querySelector('[data-number="n"]')).toHaveTextContent('Overdue')
     expect(useWidgetPreviewStore.getState().configs).toEqual({})
     expect(patchSpy).not.toHaveBeenCalled()
-    expect(stored('n')).toBe(before)
+    expect(stored('n')).toEqual(before)
     expect(layoutSteps()).toEqual([])
     // Nothing kept: it opens on the stored config again.
     expect(nameField(openNumber())).toHaveValue('Overdue')
@@ -284,12 +290,12 @@ describe('closing a widget editor', () => {
 })
 
 describe('Add widget opens no editor (decision 8)', () => {
-  it.each(['number', 'breakdown', 'pivot', 'trend'] as const)('a new %s is added with its first config and no editor', (kind) => {
+  it.each(['numbers', 'breakdown', 'trend'] as const)('a new %s is added with its first config and no editor', (kind) => {
     setup(numberTab('n', 'overdue'))
     let id: string | null = null
     act(() => { id = add(kind, { kind: 'cell', cellId: 'c' }) })
     expect(id).not.toBeNull()
-    expect(stored(id!).kind).toBe(kind)
+    expect(tabs().find((t) => t.id === id)!.kind).toBe(kind)
     expect(numberEditor()).toBeNull()
     expect(document.querySelector('[data-chart-editor]')).toBeNull()
     expect(useUIStore.getState().numberEditorTabId).toBeNull()

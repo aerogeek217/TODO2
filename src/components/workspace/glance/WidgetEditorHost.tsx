@@ -4,6 +4,7 @@ import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { widgetElement } from '../../../utils/dom-contract'
 import { getTab } from '../../../utils/workspace-layout-queries'
+import { numberViews } from '../../../utils/number-views'
 
 /** What a widget editor takes from its host. */
 interface WidgetEditorProps<T extends LayoutTab> {
@@ -34,7 +35,8 @@ export function WidgetEditorHost<T extends LayoutTab>({ tabId, isKind, anchor, c
   Editor: ComponentType<WidgetEditorProps<T>>
 }) {
   const tab = useWorkspaceStore((s) => {
-    const found = tabId != null && s.working ? getTab(s.working, tabId) : undefined
+    // TEMPORARY (`utils/number-views`): a Number's editor finds its view, under the Number's id.
+    const found = tabId != null && s.working ? getTab(numberViews(s.working), tabId) : undefined
     return found && isKind(found) ? found : undefined
   })
   const working = useWorkspaceStore((s) => s.working)

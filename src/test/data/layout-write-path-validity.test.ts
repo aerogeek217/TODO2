@@ -3,9 +3,9 @@ import { db } from '../../data/database'
 import { prepareImportText } from '../../data/import-pipeline'
 import { rowFixes, validateRow } from '../../data/import-validation'
 import { layoutRepository } from '../../data/layout-repository'
-import { BREAKDOWN_PRESETS, BREAKDOWN_SPLITS, breakdownPreset, type BreakdownColumn, type BreakdownConfig, type PivotConfig } from '../../models/chart-widgets'
+import { BREAKDOWN_PRESETS, BREAKDOWN_SPLITS, breakdownPreset, type BreakdownColumn, type BreakdownConfig } from '../../models/chart-widgets'
 import { emptyPredicate, type TodoPredicate } from '../../models/filter-predicate'
-import { NUMBER_NAME_MAX, type NumberConfig, type TrendTabConfig } from '../../models/glance-widgets'
+import { NUMBER_NAME_MAX, numberConfigOfItem, type NumberConfig, type TrendTabConfig } from '../../models/glance-widgets'
 import type { IconValue } from '../../models/icon'
 import { REVIEW_SORTS } from '../../models/review'
 import {
@@ -100,6 +100,14 @@ function save<K extends WidgetKind>(tabId: string, kind: K, edit: (config: TabCo
   ws().patchTabConfig(tabId, kind, configPatch<TabConfigOf<K>>(stored, edit(stored)))
 }
 
+/** A Number editor's Save: the keys of `edited` that differ from the stored Number, as one patch of it. */
+function saveNumber(numberId: string, edit: (config: NumberConfig) => NumberConfig): void {
+  const item = layoutTabs(working()).flatMap((t) => (t.kind === 'numbers' ? t.config.items : [])).find((n) => n.id === numberId)
+  if (!item) throw new Error(`no Number ${numberId}`)
+  const stored = numberConfigOfItem(item)
+  ws().patchNumberItem(numberId, configPatch<NumberConfig>(stored, edit(stored)))
+}
+
 /** `config` without `keys` (an editor dropping a setting: the patch then holds the key as `undefined`). */
 function without<C extends object, K extends keyof C>(config: C, ...keys: K[]): Omit<C, K> {
   return Object.fromEntries(Object.entries(config).filter(([k]) => !(keys as PropertyKey[]).includes(k))) as Omit<C, K>
@@ -154,7 +162,7 @@ describe('every layout write path of the workspace store stores rows import acce
       for (const preset of BREAKDOWN_PRESETS) {
         expect(ws().addWidget('breakdown', { kind: 'layout' }, { breakdown: breakdownPreset(preset) })).not.toBeNull()
       }
-      for (const kind of ['neglect', 'number', 'pivot'] as const) await add(kind, layoutId)
+      for (const kind of ['neglect', 'numbers'] as const) await add(kind, layoutId)
       await expectStoredValid(`added with badge ranges ${JSON.stringify(tabBadges)}`)
     }
     await expectExportImports('added with every default')
@@ -162,8 +170,8 @@ describe('every layout write path of the workspace store stores rows import acce
 
   // The names Name and icon… takes: its field holds up to `TAB_NAME_MAX` characters, for every kind.
   const NAMES = ['', '   ', 'Inbox', '  padded  ', 'Emoji 🚀 name', 'x'.repeat(NUMBER_NAME_MAX), 'x'.repeat(NUMBER_NAME_MAX + 1), 'x'.repeat(120), 'x'.repeat(TAB_NAME_MAX)]
-  /** The kinds whose name is their config's (`NUMBER_NAME_MAX` / `CHART_NAME_MAX`, 80), not the tab's own (200). */
-  const CONFIG_NAMED: readonly WidgetKind[] = ['number', 'breakdown', 'pivot', 'trend']
+  /** The kinds whose name is their config's (`NUMBER_NAME_MAX` / `CHART_NAME_MAX`, 80), not the tab's own (200) — a Number's, its item's. */
+  const CONFIG_NAMED: readonly WidgetKind[] = ['numbers', 'breakdown', 'trend']
 
   it.each(WIDGET_KINDS.filter((k) => !CONFIG_NAMED.includes(k)))('Name and icon…: a %s tab renamed with every name its field takes', async (kind) => {
     const layoutId = await open()
@@ -231,7 +239,7 @@ describe('every layout write path of the workspace store stores rows import acce
     const layoutId = await open()
     const listId = await useListDefinitionStore.getState().add({ name: 'Followed', owner: { layoutId } })
     await add('lens', layoutId)
-    const id = await add('number', layoutId)
+    const id = await add('numbers', layoutId)
     const edits: Array<[string, (c: NumberConfig) => NumberConfig]> = [
       ['a long name, colors, lit above', (c) => ({ ...c, name: LONGEST, color: '#7ec4bc', unlitColor: '#ABC', litWhen: 'above', litAt: 1_000_000, filter: CHIPS })],
       ['lit below 0, compared with last week, a breakdown', (c) => ({ ...c, litWhen: 'below', litAt: 0, compare: 'lastWeek', breakdown: 'priority', filter: EXPRESSION })],
@@ -250,13 +258,13 @@ describe('every layout write path of the workspace store stores rows import acce
       ['a count again', (c) => ({ ...without(c, 'list'), show: 'count', name: 'Open' })],
     ]
     for (const [what, edit] of edits) {
-      save(id, 'number', edit)
+      saveNumber(id, edit)
       await expectStoredValid(`a Number saved as ${what}`)
     }
     await expectExportImports('a Number edited')
   })
 
-  it('a chart editor’s Save: a Breakdown’s split, style and columns; a Pivot; Created vs completed', async () => {
+  it('a chart editor’s Save: a Breakdown’s split, style and columns; Created vs completed', async () => {
     const layoutId = await open()
     const breakdown = await add('breakdown', layoutId)
     const column = (i: number): BreakdownColumn => (
@@ -272,11 +280,6 @@ describe('every layout write path of the workspace store stores rows import acce
     for (const [what, edit] of breakdownEdits) {
       save(breakdown, 'breakdown', edit)
       await expectStoredValid(`a Breakdown saved as ${what}`)
-    }
-    const pivot = await add('pivot', layoutId)
-    for (const rows of BREAKDOWN_SPLITS) {
-      save(pivot, 'pivot', (c: PivotConfig) => ({ ...c, name: LONGEST, rows, cols: BREAKDOWN_SPLITS[(BREAKDOWN_SPLITS.indexOf(rows) + 1) % BREAKDOWN_SPLITS.length]!, filter: rows === 'people' ? CHIPS : EXPRESSION }))
-      await expectStoredValid(`a Pivot saved with rows by ${rows}`)
     }
     const trend = await add('trend', layoutId)
     const trendEdits: Array<(c: TrendTabConfig) => TrendTabConfig> = [
@@ -323,15 +326,13 @@ describe('every layout write path of the workspace store stores rows import acce
     for (const split of BREAKDOWN_SPLITS) {
       await ws().patchTabViewState(id('breakdown'), 'breakdown', { sorts: { [split]: { by: 'due', reversed: true }, people: { by: 'name' } } })
     }
-    await ws().patchTabViewState(id('pivot'), 'pivot', { sort: { by: 'person-12', reversed: true } })
-    await ws().patchTabViewState(id('pivot'), 'pivot', { sort: { by: 'total' } })
-    await expectStoredValid('the charts’ sorts')
+    await expectStoredValid('the Breakdown’s sorts')
     await expectExportImports('view state changed')
   })
 
   it('the cell and layout edits: split, insert, merge, move, collapse, resize, close; rename, hue, icon, duplicate, new', async () => {
     const layoutId = await open()
-    for (const kind of ['notes', 'calendar', 'number', 'number'] as const) await add(kind, layoutId)
+    for (const kind of ['notes', 'calendar', 'numbers', 'numbers'] as const) await add(kind, layoutId)
     const [notes, calendar, numberA, numberB] = layoutTabs(working()).map((t) => t.id) as [string, string, string, string]
     const steps: Array<[string, () => unknown]> = [
       ['split right', () => ws().splitCell(firstCell(), 'right')],
@@ -378,16 +379,16 @@ describe('every layout write path of the workspace store stores rows import acce
     expect(await ws().duplicateLayout('Copy of Daily')).not.toBeNull()
     await expectStoredValid('Duplicate layout')
     expect(await ws().createLayout('Fresh')).not.toBeNull()
-    await add('pivot', ws().activeLayoutId!)
+    await add('breakdown', ws().activeLayoutId!)
     await expectStoredValid('New layout')
     await expectExportImports('the cell and layout edits')
   })
 
   it('undo and redo of layout edits write valid rows too', async () => {
     const layoutId = await open()
-    const number = await add('number', layoutId)
+    const number = await add('numbers', layoutId)
     await add('lens', layoutId)
-    save(number, 'number', (c) => ({ ...c, show: 'group', items: [{ name: LONGEST, filter: CHIPS }] }))
+    saveNumber(number, (c) => ({ ...c, show: 'group', items: [{ name: LONGEST, filter: CHIPS }] }))
     ws().splitCell(firstCell(), 'right')
     ws().closeTab(number)
     await settleLayoutWrites()

@@ -9,6 +9,7 @@ import { usePlanner, useTasksDoneToday, type PlannerData } from '../../../hooks/
 import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { clearDelayedPlans, movePlannerTask, snoozePlannerTask, unplanPlannerTask } from '../../../services/planner-drop'
+import { doneTodayTaskDialog } from '../../../services/task-dialog'
 import { usePersonStore } from '../../../stores/person-store'
 import { usePlannerStore, type PlannerDragPreview } from '../../../stores/planner-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -33,6 +34,7 @@ import { CellControlsContext } from '../cell-controls'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
 import { CheckIcon, ResetIcon } from '../../shared/icons'
 import { MenuPopover } from '../../shared/MenuPopover'
+import { useTooltip } from '../../shared/use-tooltip'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskMenuExtrasContext } from '../../task/task-menu-extras'
 import { TaskRowExtrasContext } from '../../task/task-row-extras'
@@ -43,6 +45,7 @@ import { WidgetNameLine } from '../WidgetTopLine'
 import { PLANNER_HEADING_ATTR } from './planner-focus'
 import { plannerMenuEntries } from './planner-menu'
 import { RESET_PLAN_LABEL, usePlannerResetEntries } from './planner-reset'
+import { WeekLoadMeter } from './WeekLoadMeter'
 import { plannerRowExtras } from './planner-row-extras'
 import { PlannerRowTag } from './PlannerRowExtras'
 import { PlannerDock, PlannerFoldedDock } from './PlannerDock'
@@ -101,8 +104,9 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
 /**
  * The Planner (widget kind `planner`; its one setting the Unplanned filter): a scratch pad for
  * today and the week ahead. Its top line (alone in its cell): the name,
- * the window's range and **Reset plan** (`PlannerResetButton`; in a cell of
- * tabs the same three choices are under Reset plan › in the widget's ⋯).
+ * the window's range, the week load meter (`WeekLoadMeter`; Week load… in
+ * the widget's ⋯ elsewhere) and **Reset plan** (`PlannerResetButton`; in a
+ * cell of tabs the same three choices are under Reset plan › in the widget's ⋯).
  * Large — the strip of seven day tiles (`PlannerStrip`), then two panes:
  * on the left **one scrolling list of days** — Today (its rows, an `N
  * done` line, Add task), then every later day of the window in order, a
@@ -325,6 +329,7 @@ function PlannerBody({ tab, layout, size, hostRef }: {
             <BadgeCapsule counts={badge.counts} label={badge.summary.join('; ')} data-testid="planner-badge" />
           )}
           <span className={styles.topLineGap} aria-hidden="true" />
+          <WeekLoadMeter />
           <PlannerResetButton tab={tab} />
         </WidgetNameLine>
         {(tiles || !alone) && (
@@ -664,7 +669,30 @@ function PlannerRowWrap({ todoId, flagged, children }: { todoId: number; flagged
   )
 }
 
-/** Today: its rows, then `N done` — the tasks completed today, struck, on one line; a title opens its task. */
+/** `N done` under Today: opens the tasks completed today in the task dialog, as the top bar's tally does. */
+function DoneCount({ count }: { count: number }) {
+  const { triggerProps, tooltip } = useTooltip('Show the tasks done today')
+  return (
+    <button
+      type="button"
+      className={styles.doneCount}
+      data-planner-done-count=""
+      aria-label={`${count} done today. Show them`}
+      onClick={() => useUIStore.getState().showTaskDialog(doneTodayTaskDialog())}
+      {...triggerProps}
+    >
+      <span className={styles.doneCheck} aria-hidden="true"><CheckIcon size={14} /></span>
+      {count} done
+      {tooltip}
+    </button>
+  )
+}
+
+/**
+ * Today: its rows, then `N done` — the tasks completed today, struck, on one
+ * line. The count opens them in the task dialog, as the top bar's tally does;
+ * a title opens its task.
+ */
 function TodayGroup({ tabId, group, data, mobile, drag }: Omit<GroupProps, 'children' | 'empty'>) {
   const done = useTasksDoneToday()
   return (
@@ -678,8 +706,7 @@ function TodayGroup({ tabId, group, data, mobile, drag }: Omit<GroupProps, 'chil
     >
       {done.length > 0 && (
         <div className={styles.done} data-testid="planner-done">
-          <span className={styles.doneCheck} aria-hidden="true"><CheckIcon size={14} /></span>
-          <span className={styles.doneCount}>{done.length} done</span>
+          <DoneCount count={done.length} />
           <span className={styles.doneTitles}>
             {done.map((t, i) => (
               <Fragment key={t.id}>

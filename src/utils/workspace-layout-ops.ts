@@ -33,6 +33,7 @@ import {
 } from './workspace-grid'
 import { findTab, layoutIds, sameArrangement } from './workspace-layout-queries'
 import { sameIcon, type IconValue } from '../models/icon'
+import type { NumberConfig, NumberItem } from '../models/glance-widgets'
 import { insertAllAt, insertAt, removeAt, replaceAt, setCell, withCells, withTracks } from './workspace-layout-edit'
 import { cellMinHeightPx, cellMinWidthPx, isFitTrack } from './workspace-rows'
 import { trackSizing } from './workspace-table'
@@ -1406,6 +1407,24 @@ export function patchTabConfig<L extends LayoutBody, K extends WidgetKind>(
     if (patched === tab.config) return tab
     const config = Object.fromEntries(Object.entries(patched).filter(([, v]) => v !== undefined))
     return { ...tab, config } as LayoutTab
+  })
+}
+
+/**
+ * Layout config: shallow-patches the Number `itemId` of whichever Numbers
+ * widget holds it (its config; its id stays). A key patched to `undefined`
+ * is removed. The same layout when nothing changes or no widget holds it.
+ */
+export function patchNumberItem<L extends LayoutBody>(layout: L, itemId: string, patch: Partial<NumberConfig>): L {
+  const tab = layout.cells.flatMap((c) => c.tabs).find((t) => t.kind === 'numbers' && t.config.items.some((item) => item.id === itemId))
+  if (tab?.kind !== 'numbers') return layout
+  return updateTab(layout, tab.id, () => {
+    const items = tab.config.items.map((item) => {
+      if (item.id !== itemId) return item
+      const patched = shallowPatch(item, patch)
+      return patched === item ? item : Object.fromEntries(Object.entries(patched).filter(([, v]) => v !== undefined)) as NumberItem
+    })
+    return items.every((item, i) => item === tab.config.items[i]) ? tab : { ...tab, config: { ...tab.config, items } }
   })
 }
 

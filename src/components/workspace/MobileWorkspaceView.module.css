@@ -433,8 +433,17 @@
 .cellExpand {
   position: absolute;
   top: 0;
-  right: 0;
+  right: 6px;
   bottom: 0;
-  height: auto;
-  margin: 0;
+  margin: auto 0;
+}
+
+.cellExpand:not(:hover) {
+  background-color: var(--color-surface);
+}
+
+/* Expand row in the header (`TrackExpandButton`): at the header's end. */
+.headerExpand {
+  margin: 0 6px 0 auto;
+  align-self: center;
 }

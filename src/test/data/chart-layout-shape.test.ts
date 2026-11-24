@@ -157,51 +157,19 @@ describe('a Breakdown in a stored layout (D26 P8)', () => {
   })
 })
 
-describe('a Pivot in a stored layout (D26 P8)', () => {
-  it('round-trips; a bad axis or name is reset (a fix)', () => {
-    const tab = { id: 't', kind: 'pivot', config: { name: 'Who × status', filter: { ...emptyPredicate(), tags: [2] }, rows: 'tags', cols: 'priority' } }
-    expect(validateRow('layouts', layoutRow(tab))).toBe(true)
-    expect(tabOf(layoutRow(tab))).toEqual(tab)
-    expect(createTab('pivot', 'p').config).toEqual({ name: 'Pivot', filter: emptyPredicate(), rows: 'people', cols: 'status' })
-    for (const [key, value, reset] of [['rows', 'weeks', 'people'], ['cols', 7, 'status'], ['name', null, 'Pivot']] as const) {
-      const row = layoutRow({ ...tab, config: { ...tab.config, [key]: value } })
-      expect(checkLayoutBody(row)).toBe(`cells[0].tabs[0].config.${key}`)
-      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
-      expect((tabOf(row)?.config as unknown as Record<string, unknown>)[key]).toBe(reset)
-    }
-  })
-
-  // Item 8: its rows' sort is view state.
-  it('its sort round-trips as view state; a bad sort is dropped (a fix)', () => {
-    const config = { name: 'Pivot', filter: emptyPredicate(), rows: 'people', cols: 'status' }
-    for (const viewState of [{ sort: { by: 'status-3' } }, { sort: { by: 'total', reversed: true } }, { sort: { by: 'name' } }]) {
-      const tab = { id: 't', kind: 'pivot', config, viewState }
-      expect(validateRow('layouts', layoutRow(tab))).toBe(true)
-      expect(tabOf(layoutRow(tab))).toEqual(tab)
-    }
-    for (const sort of [{ by: 'a height' }, { by: 'total', reversed: false }, { by: 'name', extra: 1 }, 'total']) {
-      const row = layoutRow({ id: 't', kind: 'pivot', config, viewState: { sort } })
-      expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].viewState.sort')
-      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
-      expect(tabOf(row)).toEqual({ id: 't', kind: 'pivot', config })
-    }
-    // A tab without one reads as it did: no view state.
-    expect(tabOf(layoutRow({ id: 't', kind: 'pivot', config }))).toEqual({ id: 't', kind: 'pivot', config })
-  })
-})
-
-// Kinds removed after v78 shipped: the Status flow, then the Tag map (v79 dropped every saved one).
+// Chart kinds removed: the Status flow, then the Tag map (v79 dropped every saved one), then the Pivot (v90 did).
 describe.each([
   ['a Status flow', { id: 'gone', kind: 'statusFlow', config: { name: 'Flow', filter: emptyPredicate(), weeks: 12 } }],
   ['a Tag map', { id: 'gone', kind: 'tagMap', config: { name: 'Projects', filter: emptyPredicate(), tagIds: [1] } }],
-])('%s saved before it was removed (v78)', (_what, removed) => {
+  ['a Pivot', { id: 'gone', kind: 'pivot', config: { name: 'Who × status', filter: emptyPredicate(), rows: 'people', cols: 'status' }, viewState: { sort: { by: 'total' } } }],
+])('%s saved before it was removed', (_what, removed) => {
   const notes = { id: 'n', kind: 'notes', config: {} }
 
   it('is no widget kind any more', () => {
     expect(isWidgetKind(removed.kind)).toBe(false)
   })
 
-  it('in a v79 row (only a hand edit makes one) is an unknown kind: the check refuses it; the repair drops it (a fix) and its emptied cell closes', () => {
+  it('in a row of the current schema (only a hand edit makes one) is an unknown kind: the check refuses it; the repair drops it (a fix) and its emptied cell closes', () => {
     const row = { id: 1, name: 'Charts', sortOrder: 0, createdAt: DATE, modifiedAt: DATE,
       ...grid([[cell('a', [removed as unknown as LayoutTab]), cell('b', [notes as LayoutTab])]]) }
     expect(validateRow('layouts', row)).toBe('cells[0].tabs[0].kind')

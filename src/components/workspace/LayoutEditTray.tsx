@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KIND_GROUPS, widgetKindAddLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
@@ -24,7 +24,7 @@ import styles from './LayoutEditTray.module.css'
  */
 
 /** The chips shown; every other kind is under More ›. */
-const COMMON_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'number', 'breakdown']
+const COMMON_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'numbers', 'breakdown']
 
 /** The kinds under More ›, by group. */
 function moreKinds(): WidgetKind[] {
@@ -43,7 +43,7 @@ function addToSelected(kind: WidgetKind): void {
 }
 
 function TrayChip({ kind }: { kind: WidgetKind }) {
-  const label = widgetKindLabel(kind)
+  const label = widgetKindAddLabel(kind)
   const press = useRef<{ x: number; y: number; dragged: boolean } | null>(null)
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return
@@ -120,7 +120,7 @@ export function LayoutEditTray() {
   const moreRef = useRef<HTMLButtonElement | null>(null)
   const moreEntries: MenuEntry[] = moreKinds().map((kind) => ({
     kind: 'item',
-    label: widgetKindLabel(kind),
+    label: widgetKindAddLabel(kind),
     icon: <WidgetKindIcon kind={kind} />,
     onSelect: () => addToSelected(kind),
   }))

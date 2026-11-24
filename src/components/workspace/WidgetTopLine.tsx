@@ -2,11 +2,12 @@ import { Children, useContext, useLayoutEffect, type CSSProperties, type MouseEv
 import { tabTopLineIcon } from '../../models/workspace-layout'
 import { useSettingsStore } from '../../stores/settings-store'
 import { AppIcon } from '../shared/AppIcon'
-import { ChevronDownIcon, ExpandIcon, MoreIcon } from '../shared/icons'
+import { ExpandIcon, MoreIcon } from '../shared/icons'
 import type { TooltipLegendItem } from '../shared/TooltipBubble'
 import { useTooltip } from '../shared/use-tooltip'
 import { OPEN_LARGER_LABEL } from '../shared/widget-kind-menu-entries'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
+import { TrackExpandButton } from './TrackExpandButton'
 import styles from './WidgetTopLine.module.css'
 
 /**
@@ -39,16 +40,7 @@ export function CellControls({ value, floating = false, standsForTab = false }: 
       {...(standsForTab ? { [TOP_LINE_ATTR]: '', 'data-ws-tab': tabId } : {})}
     >
       {collapsed && (
-        <button
-          type="button"
-          className={styles.button}
-          aria-label="Expand row"
-          aria-expanded={false}
-          data-tooltip="Expand row"
-          onClick={(e) => { stop(e); onExpand() }}
-        >
-          <ChevronDownIcon size={14} />
-        </button>
+        <TrackExpandButton axis="rows" touch={touch} className={styles.expand} onClick={(e) => { stop(e); onExpand() }} />
       )}
       <span className={styles.controls}>
         {!touch && onOpenLarger && (
