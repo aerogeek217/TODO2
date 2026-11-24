@@ -65,8 +65,10 @@ describe('a List board’s picked lists', () => {
     expect(shortcutLayoutName(def(2, 'Clients', 2), [work, home], home)).toBe('Work')
   })
 
-  it('the compact line: as many 120px tiles as fit, the rest in +N', () => {
-    expect(compactShortcutTiles(2, 900)).toEqual({ columns: 7, shown: 2, more: 0 })
+  it('the compact line: as many 120px tiles as fit, the rest in +N; fewer share the line', () => {
+    // Seven would fit: the two tiles take the line between them.
+    expect(compactShortcutTiles(2, 900)).toEqual({ columns: 2, shown: 2, more: 0 })
+    expect(compactShortcutTiles(7, 900)).toEqual({ columns: 7, shown: 7, more: 0 })
     expect(compactShortcutTiles(6, 380)).toEqual({ columns: 3, shown: 2, more: 4 })
     expect(compactShortcutTiles(3, 0)).toEqual({ columns: 3, shown: 3, more: 0 })
   })

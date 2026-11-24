@@ -195,13 +195,14 @@ const SHORTCUT_TILE_GAP_PX = 8
 
 /**
  * How a compact face's one line of tiles fits `count` lists in `width`:
- * `columns` tiles across; `shown` of them lists, and `more` lists folded
- * into a last `+N` tile when they don't all fit. Unmeasured: every list.
+ * `columns` tiles across — no more than there are tiles, so they share the
+ * line —; `shown` of them lists, and `more` lists folded into a last `+N`
+ * tile when they don't all fit. Unmeasured: every list.
  */
 export function compactShortcutTiles(count: number, width: number): { columns: number; shown: number; more: number } {
   if (width <= 0) return { columns: Math.max(1, count), shown: count, more: 0 }
   const columns = Math.max(1, Math.floor((width + SHORTCUT_TILE_GAP_PX) / (SHORTCUT_COMPACT_TILE_MIN_PX + SHORTCUT_TILE_GAP_PX)))
-  if (count <= columns) return { columns, shown: count, more: 0 }
+  if (count <= columns) return { columns: Math.max(1, count), shown: count, more: 0 }
   const shown = Math.max(0, columns - 1)
   return { columns, shown, more: count - shown }
 }

@@ -24,7 +24,7 @@ This layout's lists are `utils/shortcuts.layoutListTabs`: every list tab of the 
 
 Its data is `hooks/use-shortcuts.useShortcutTile`: the list as it shows on opening, built with `useBuiltList` — the list as edited, its prompt pick and the screen filter. A picked list takes the pick made in its popup (a tab id of its own, `shortcutListTabId`); a tab of the layout takes that tab's own pick.
 
-- **The head.** The icon, then the name, 13px semibold; then the tab badge's capsule (`BadgeCapsule`, the list's own ranges, `useTabBadges`) and the count of tasks it shows. The icon and the name stay together; the capsule and count wrap under them, right-aligned, when the tile is too narrow for both.
+- **The head.** The icon, then the name, 13px semibold; then the tab badge's capsule (`BadgeCapsule`, the list's own ranges, `useTabBadges`) and the count of tasks it shows. The icon and the name stay together. A long name shortens with an ellipsis first; the capsule and count wrap under it, right-aligned, only when the name would have under 72px.
   - A tab of the layout shows that tab's icon as its strip does. A picked list shows the icon the strip shows for its list tab (`shortcutListIcon`): the tab of the list's own layout first, then any layout's, the open one as edited. A picked icon, else the list glyph; none for a tab given No icon. No tab shows the list: the list glyph.
 - **The squares.** A 10px square per open task it shows, 2px apart, the trouble first: overdue, due soon, follow-up late, on track, stale (`utils/list-wall`, a Lines box's `rowTone`). The state is the fill. The task's priority is a ring, with Focus's glow, as on the task's checkbox (`PriorityRing`, the square's 2px corner). A square's tooltip names its task, its state and its priority (`On track · Priority: Focus`), and a click opens the task.
 - **The titles.** The first task titles as built, 0–3, 16px lines, secondary to muted, each a little dimmer.
@@ -42,8 +42,8 @@ The tile is `--color-surface-high` with a 1px `--color-border-muted` edge and ra
 |-------|-----------|
 | small | the small face of every widget: its icon, its name and the number of lists. A click opens it larger |
 | rows | narrower than 360px: a row per list — icon, name, capsule, count — over a 6px bar of its open tasks, a segment per state as long as its share (dashed while it waits on its prompt) |
-| compact | at most 160px tall: one line of tiles at least 120px wide, squares where a row fits, no titles. The ones that don't fit end in a `+N` tile that opens it larger (`compactShortcutTiles`) |
-| large | a grid of tiles (`auto-fill`, 136px at least); with lists picked, then a dashed **Add a list** tile |
+| compact | at most 160px tall: one line of tiles at least 120px wide, squares where a row fits, no titles. Tiles that all fit share the line, as wide as each other; the ones that don't fit end in a `+N` tile that opens it larger (`compactShortcutTiles`) |
+| large | a grid of tiles as wide as each other (`auto-fit`, 136px at least: the columns no tile fills fold away, so the tiles share the row); with lists picked, then a dashed **Add a list** tile |
 
 - The name line (`WidgetNameLine`) shows List board with Settings › Show widget names. Off, there is none and the cell's controls float over its corner.
 - The large grid's rows run from a tile's head to what the tallest tile asks for (its head, its squares and three titles, `--board-content-max`), sharing the cell's height. Past that they scroll.

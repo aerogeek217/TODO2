@@ -1,5 +1,6 @@
 /*
- * The List board. Large: a grid of tiles (auto-fill, 136px at least) whose
+ * The List board. Large: a grid of tiles as wide as each other, sharing the
+ * row (auto-fit, 136px at least), whose
  * rows shrink from a tile with its squares and three task titles under its
  * head down to its head (`--board-content-max`, the tallest head and room any
  * tile asks for), then scroll. Compact: one line of tiles (`--shortcut-columns`).
@@ -141,7 +142,8 @@
   display: grid;
   flex: 1 0 0;
   min-height: 0;
-  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  /* auto-fit: the columns no tile fills fold away, so the tiles share the row, all as wide. */
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
   /* Never shorter than a tile's head (two lines when its capsule wraps). */
   grid-auto-rows: minmax(min-content, var(--board-tile-max));
   align-content: start;
@@ -230,7 +232,7 @@
   padding: 6px;
 }
 
-/* Icon · name · capsule · count; the capsule and count wrap under the name when the tile is too narrow for both. */
+/* Icon · name · capsule · count; the name shortens first, and the capsule and count wrap under it only when the name would have under 72px. */
 .head {
   display: flex;
   flex-wrap: wrap;
@@ -244,12 +246,12 @@
   flex-wrap: nowrap;
 }
 
-/* The icon and the name never part. */
+/* The icon and the name never part. Its basis (72px) is what the line keeps for it before the capsule and count wrap; then it fills the line. */
 .title {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 0 1 auto;
+  flex: 1 1 72px;
   min-width: 0;
 }
 

@@ -25,6 +25,8 @@ History before 2026-11-19 is in the git log.
 - **Expand row and Expand column look alike.** Both are now a bordered button with the same unfold icon — up and down
   for a collapsed row, left and right for a collapsed column. The cell menu's Expand row and Expand column show the
   same icon.
+- **List board tiles share the row.** Tiles widen to fill the space instead of leaving empty room at the end, and
+  are all the same width. A tile's task count stays beside its name: a long name shortens with "…" first.
 
 ## 2026-11-23, second deployment
 
