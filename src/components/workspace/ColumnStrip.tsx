@@ -6,11 +6,9 @@ import { openNumberList, openWidgetLarger } from '../../services/widget-popup'
 import type { ColumnStrip as Strip } from '../../utils/workspace-table'
 import { OPEN_LARGER_LABEL } from '../shared/widget-kind-menu-entries'
 import { TabIcon } from './TabIcon'
+import { TrackExpandButton } from './TrackExpandButton'
 import { useTabTitles } from './widget-hooks'
 import styles from './ColumnStrip.module.css'
-
-/** The strip's Expand button's name and tooltip. */
-const EXPAND_COLUMN_LABEL = 'Expand column'
 
 /** Opens a strip's widget larger: a Number that follows a list opens that list, as its click does. */
 function openLarger(tab: LayoutTab): void {
@@ -22,7 +20,7 @@ function openLarger(tab: LayoutTab): void {
  * A collapsed column as drawn outside the layout edit mode (`workspace-table
  * .columnStrips`): a strip `COLUMN_STRIP_PX` wide over the cells lying only
  * in collapsed columns, which draw nothing else. At its top **Expand
- * column** (›‹) expands its columns — view state, as Collapse row's expand;
+ * column** (`TrackExpandButton`, as a collapsed row's turned a quarter) expands its columns — view state, as Collapse row's expand;
  * under it each cell's active widget, its icon and name running down, a
  * press opening that widget larger (the widget popup) without expanding the
  * column. An empty cell names nothing.
@@ -34,16 +32,7 @@ export function ColumnStrip({ strip, style }: { strip: Strip; style: CSSProperti
   return (
     <section className={styles.strip} style={style} data-ws-column-strip={strip.trackIds.join(' ')} aria-label="Collapsed column">
       <div className={styles.inner}>
-        <button
-          type="button"
-          className={styles.expand}
-          aria-label={EXPAND_COLUMN_LABEL}
-          aria-expanded={false}
-          data-tooltip={EXPAND_COLUMN_LABEL}
-          onClick={expand}
-        >
-          <span aria-hidden="true">›‹</span>
-        </button>
+        <TrackExpandButton axis="columns" onClick={expand} />
         {tabs.map((tab, i) => (
           <button
             key={tab.id}

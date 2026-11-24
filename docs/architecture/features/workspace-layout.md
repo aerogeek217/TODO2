@@ -129,7 +129,7 @@ The table scrolls when the minimums don't fit. The minimums (`utils/workspace-ro
 Outside the layout edit mode the cells lying only in collapsed columns draw no body: `ColumnStrip` draws over them (`workspace-table.columnStrips`).
 
 - Cells over the same columns, one under another, make one strip; a cell spanning through the column parts it, and keeps its width in the other columns.
-- At its top **Expand column** (›‹) expands the strip's columns.
+- At its top **Expand column** expands the strip's columns: the same bordered button as a collapsed row's **Expand row** (`TrackExpandButton`), its unfold icon turned from up-and-down to left-and-right.
 - Under it, each cell's active widget, its icon and name running down. A press opens that widget larger (`openWidgetLarger`; a Number following a list, that list) and leaves the column collapsed. An empty cell names nothing.
 - The other columns take its room. The phone ignores a column's collapse.
 

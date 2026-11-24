@@ -164,6 +164,20 @@ export function ChevronLeftIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M10 4l-4 4 4 4" /></Svg>
 }
 
+/**
+ * Two chevrons pointing apart from a line: expand a collapsed row (`rows`,
+ * up and down) or column (`columns`, the same turned a quarter: left and right).
+ */
+export function UnfoldIcon({ axis, size = 14 }: { axis: 'rows' | 'columns'; size?: number }) {
+  return (
+    <Svg size={size}>
+      <g transform={axis === 'columns' ? 'rotate(90 8 8)' : undefined}>
+        <path d="M3 8h10M5.5 5L8 2.5 10.5 5M5.5 11L8 13.5 10.5 11" />
+      </g>
+    </Svg>
+  )
+}
+
 /** Two arrows chasing round: a recurring task. */
 export function RepeatIcon({ size = 10 }: { size?: number }) {
   return (

@@ -8,8 +8,9 @@ import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
 import { addTabToCell, useCardName, useTabTitle } from './widget-hooks'
 import { MenuPopover } from '../shared/MenuPopover'
-import { ChevronDownIcon, ChevronUpIcon, ExpandIcon, MoreIcon } from '../shared/icons'
+import { ChevronUpIcon, ExpandIcon, MoreIcon } from '../shared/icons'
 import { useWorkspaceDrag } from './workspace-drag'
+import { TrackExpandButton } from './TrackExpandButton'
 import styles from './WorkspaceCell.module.css'
 import type { WorkspaceCellProps } from './WorkspaceCell'
 import { trackScrollEdges } from '../../utils/scroll-edges'
@@ -379,16 +380,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, columnTrackIds = NO_T
           <StillRoom />
           {/* In the mode the card's ⋯ stands for these (the rulers collapse and expand rows): its room kept here. */}
           {editing ? <span className={styles.editMoreRoom} aria-hidden="true" /> : collapsed ? (
-            <button
-              type="button"
-              className={styles.expand}
-              aria-label="Expand row"
-              aria-expanded={false}
-              data-tooltip="Expand row"
-              onClick={() => setRowCollapsed(false)}
-            >
-              <ChevronDownIcon size={14} />
-            </button>
+            <TrackExpandButton axis="rows" className={styles.expand} onClick={() => setRowCollapsed(false)} />
           ) : (
             <div className={styles.actions}>
               {onOpenLarger && (

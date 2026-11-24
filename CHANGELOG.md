@@ -20,6 +20,11 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Changed
+
+- **Expand row and Expand column look alike.** Both are now a bordered button with the same unfold icon — up and down
+  for a collapsed row, left and right for a collapsed column.
+
 ## 2026-11-23, second deployment
 
 Data version 89. A browser's data and a sync file are upgraded on first use; an older copy of the app can't open

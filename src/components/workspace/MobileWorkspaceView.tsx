@@ -31,6 +31,7 @@ import { screenTaskDialog } from '../../services/task-dialog'
 import { shownOfTotalText } from '../shared/filters/counter-text'
 import { BadgeCapsule } from '../shared/BadgeCapsule'
 import { tabBadgeSummary } from '../../utils/tab-badges'
+import { TrackExpandButton } from './TrackExpandButton'
 import styles from './MobileWorkspaceView.module.css'
 import { withViewTransition } from '../shared/view-transition'
 import { CellControlsContext, type CellControlsValue } from './cell-controls'
@@ -402,15 +403,14 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
             }}
           />
           {collapsed ? (
-            <button
-              type="button"
-              className={styles.cellAction}
-              aria-label={`Expand ${rowNoun}`}
-              aria-expanded={false}
+            <TrackExpandButton
+              axis="rows"
+              label={`Expand ${rowNoun}`}
+              touch
+              tooltip={false}
+              className={styles.headerExpand}
               onClick={() => setRowCollapsed(false)}
-            >
-              <ChevronDownIcon size={16} />
-            </button>
+            />
           ) : (
             <button
               ref={setMoreButton}
@@ -455,16 +455,7 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
       )}
       {/* Collapsed, and no top line holds the controls slot (a Number): the cell's own Expand. */}
       {collapsed && !stripShown && active && slots === 0 && (
-        <button
-          type="button"
-          className={`${styles.cellAction} ${styles.cellExpand}`}
-          aria-label={`Expand ${rowNoun}`}
-          aria-expanded={false}
-          data-tooltip={`Expand ${rowNoun}`}
-          onClick={() => setRowCollapsed(false)}
-        >
-          <ChevronDownIcon size={16} />
-        </button>
+        <TrackExpandButton axis="rows" label={`Expand ${rowNoun}`} touch className={styles.cellExpand} onClick={() => setRowCollapsed(false)} />
       )}
       {tabSheet && (
         <ListTabSheet
