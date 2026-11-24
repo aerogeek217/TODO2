@@ -23,7 +23,10 @@
  * monthly on the month's last day); Focus / Urgent / Important flags; completed tasks old and recent
  * with `completed` events, one with no event, one reopened (with the 30-day
  * retention setting the old ones trigger the purge prompt); notes and
- * status updates (a few per task, one added with a follow-up); the global note; two layouts, each a
+ * status updates (a few per task, one added with a follow-up); 8 weeks of
+ * finished work for the week load (due dates kept, done late, moved and
+ * cleared; follow-ups followed up or missed; planned days kept, kept by a
+ * status update or moved; `planLogSince` 8 weeks back); the global note; two layouts, each a
  * table (D26) — Default (tall cells over a collapsed row, a fit row of
  * Numbers, a fixed strip of glance widgets) and Planning (a fit row of
  * Numbers across the top, lists — a tab at each zoom —, next week's
@@ -81,6 +84,23 @@ const PRNG_SEED = 0x7d02_5eed
 const UID_SEED = 0x0de7_5eed
 /** A separate stream for the earlier status updates, likewise. */
 const UPDATE_SEED = 0x57a7_5eed
+/** A separate stream for the week load's history, likewise. */
+const HISTORY_SEED = 0x3eec_5eed
+
+/** The week load's past weeks: the work done day by day, each title made a week's own by its day. */
+const HISTORY_DUE_TITLES = [
+  'Send the weekly status update',
+  'Review the sprint board',
+  'Approve the timesheets',
+  'Update the risk register',
+  'Reply to the vendor questions',
+  'Prepare the steering deck',
+  'File the expense report',
+] as const
+const HISTORY_FOLLOWUP_TITLES = ['Chase the contract signature', 'Check in on the data export', 'Nudge finance about the PO'] as const
+const HISTORY_PLAN_TITLES = ['Draft the retro notes', 'Tidy the team wiki', 'Write up the incident review'] as const
+/** Weeks of history before this one (the week load's usual week reads 8). */
+const HISTORY_WEEKS = 8
 
 interface Rng {
   next: () => number
@@ -799,6 +819,97 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     }
   })
 
+  // ── The week load's history: 8 weeks of finished work, Monday to Friday (`weekStartsOn` 1) ──
+  const historyRng = makeRng(HISTORY_SEED)
+  const thisMonday = -((today.getDay() + 6) % 7)
+  /** Kept before the export moment. */
+  const past = (ms: number) => Math.min(ms, nowMs - 60_000)
+  const monthDay = (n: number) => `${day(n).toLocaleString('en-US', { month: 'short' })} ${day(n).getDate()}`
+  const historyTask = (title: string, created: number, completed: number, fields: Partial<TodoRow>) => {
+    const id = todos.length + 1
+    const ev = (type: TodoEvent['type'], ts: number, from: string | null = null, to: string | null = null) => {
+      events.push({ todoId: id, type, fromValue: from, toValue: to, timestamp: iso(past(ts)) })
+    }
+    ev('created', created)
+    ev('completed', completed)
+    const row: TodoRow = {
+      id, uid: seededUid(uidRng), title, isCompleted: true, completedAt: iso(past(completed)), ...fields,
+      createdAt: iso(created), modifiedAt: iso(past(completed)), sortOrder: id - 1,
+    }
+    todos.push(reorder(row, ['id', 'uid', 'title', 'isCompleted', 'completedAt', 'dueDate', 'lastFollowupAt', 'createdAt', 'modifiedAt', 'sortOrder']))
+    return { id, ev }
+  }
+  for (let week = HISTORY_WEEKS; week >= 1; week--) {
+    const monday = thisMonday - 7 * week
+    const created = at(monday - 3, 9, historyRng.int(0, 59)).getTime()
+    for (let wd = 0; wd < 5; wd++) {
+      const n = monday + wd
+      // A due date: kept, done late, moved later on its day, or cleared on its day.
+      const roll = historyRng.next()
+      const title = `${HISTORY_DUE_TITLES[(week + wd) % HISTORY_DUE_TITLES.length] ?? ''} (${monthDay(n)})`
+      if (roll < 0.55) {
+        const t = historyTask(title, created, at(n, historyRng.int(10, 17), historyRng.int(0, 59)).getTime(), { dueDate: iso(day(n)) })
+        t.ev('deadline', created, null, iso(day(n)))
+      } else if (roll < 0.75) {
+        const t = historyTask(title, created, at(n + historyRng.int(1, 3), 16, historyRng.int(0, 59)).getTime(), { dueDate: iso(day(n)) })
+        t.ev('deadline', created, null, iso(day(n)))
+      } else if (roll < 0.92) {
+        const later = n + historyRng.int(2, 4)
+        const t = historyTask(title, created, at(later, 15, historyRng.int(0, 59)).getTime(), { dueDate: iso(day(later)) })
+        t.ev('deadline', created, null, iso(day(n)))
+        t.ev('deadline', at(n, 11, historyRng.int(0, 59)).getTime(), iso(day(n)), iso(day(later)))
+      } else {
+        const t = historyTask(title, created, at(n + 2, 15, historyRng.int(0, 59)).getTime(), {})
+        t.ev('deadline', created, null, iso(day(n)))
+        t.ev('deadline', at(n, 12, historyRng.int(0, 59)).getTime(), iso(day(n)), null)
+      }
+      // A follow-up every other day: followed up on its day (the follow-up cleared in the same write), or missed.
+      if (wd % 2 === 0) {
+        const fuTitle = `${HISTORY_FOLLOWUP_TITLES[(week + wd) % HISTORY_FOLLOWUP_TITLES.length] ?? ''} (${monthDay(n)})`
+        if (historyRng.chance(0.65)) {
+          const followedMs = at(n, historyRng.int(9, 12), historyRng.int(0, 59)).getTime()
+          const t = historyTask(fuTitle, created, at(n + 1, 14, historyRng.int(0, 59)).getTime(), { lastFollowupAt: iso(followedMs) })
+          t.ev('followup', created, null, iso(day(n)))
+          t.ev('followedUp', followedMs, null, iso(followedMs))
+          t.ev('followup', followedMs, iso(day(n)), null)
+        } else {
+          const doneMs = at(n + 2, 15, historyRng.int(0, 59)).getTime()
+          const t = historyTask(fuTitle, created, doneMs, {})
+          t.ev('followup', created, null, iso(day(n)))
+          t.ev('followup', doneMs, iso(day(n)), null)
+        }
+      }
+      // A plan on Tuesday and Thursday, made the evening before: kept, kept by a status update, or moved two days on.
+      if (wd === 1 || wd === 3) {
+        const planTitle = `${HISTORY_PLAN_TITLES[(week + wd) % HISTORY_PLAN_TITLES.length] ?? ''} (${monthDay(n)})`
+        const plannedMs = at(n - 1, 17, historyRng.int(0, 59)).getTime()
+        const roll2 = historyRng.next()
+        if (roll2 < 0.5) {
+          const doneMs = at(n, historyRng.int(10, 16), historyRng.int(0, 59)).getTime()
+          const t = historyTask(planTitle, created, doneMs, {})
+          t.ev('planned', plannedMs, null, iso(day(n)))
+          t.ev('planned', doneMs, iso(day(n)), null)
+        } else if (roll2 < 0.75) {
+          const doneMs = at(n + 3, 11, historyRng.int(0, 59)).getTime()
+          const t = historyTask(planTitle, created, doneMs, {})
+          t.ev('planned', plannedMs, null, iso(day(n)))
+          t.ev('planned', doneMs, iso(day(n)), null)
+          const outlinedMs = past(at(n - 1, 17, 50).getTime())
+          const writtenMs = past(at(n, 15, historyRng.int(0, 59)).getTime())
+          statusUpdates.push({ todoId: t.id, date: iso(day(n - 1)), text: 'Started an outline.', createdAt: iso(outlinedMs) })
+          statusUpdates.push({ todoId: t.id, date: iso(day(n)), text: 'First pass done; finishing it later this week.', createdAt: iso(writtenMs) })
+        } else {
+          const movedMs = at(n + 1, 9, historyRng.int(0, 59)).getTime()
+          const doneMs = at(n + 2, 16, historyRng.int(0, 59)).getTime()
+          const t = historyTask(planTitle, created, doneMs, {})
+          t.ev('planned', plannedMs, null, iso(day(n)))
+          t.ev('planned', movedMs, iso(day(n)), iso(day(n + 2)))
+          t.ev('planned', doneMs, iso(day(n + 2)), null)
+        }
+      }
+    }
+  }
+
   const idOf = (title: string): number => {
     const t = todos.find((r) => r.title === title)
     if (t?.id === undefined) throw new Error(`dev seed: no task titled "${title}"`)
@@ -1092,6 +1203,8 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     { key: 'followupDefaultInterval', value: '1w' },
     // Every task's history was logged (D26's history log H3) from before the first one.
     { key: 'historyLogSince', value: longAgo },
+    // Planned days recorded from 8 weeks before this week (the week load's history reaches back that far).
+    { key: 'planLogSince', value: iso(at(thisMonday - 7 * HISTORY_WEEKS, 0, 0)) },
     { key: 'seededAssignedStatusId', value: String(IDS.statuses.assigned) },
     { key: 'themeMode', value: 'dark' },
     { key: 'urgentDueWithinDays', value: '2' },

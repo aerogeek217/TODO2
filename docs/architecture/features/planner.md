@@ -129,6 +129,7 @@ Alone in its cell, the Planner's top line reads:
 - `Planner`;
 - the window's range (`Nov 20 – 26`; shifted, a button back to this week);
 - a badge capsule: what it holds that is due and due for a follow-up, in Settings' tab-badge ranges (as a [list tab's badge](lists.md));
+- the [week load](week-load.md) meter (`19 / 13`), not drawn in a widget 540px wide or less;
 - at its end, **Reset plan**: an icon and the words, the icon alone in a widget 420px wide or less.
 
 **Reset plan** opens a menu of **This week** (the shown range while the window is shifted) · **Today only** · **Delayed**. Each shows the count of tasks it would clear (`plannerResetCounts`) and is inert at 0 ([what each clears](#unplan-all-delayed-and-reset-plan)).
