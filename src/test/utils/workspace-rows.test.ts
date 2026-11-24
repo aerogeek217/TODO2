@@ -22,7 +22,7 @@ const number = (id: string) => freshNumberTab(id)
 
 describe('the kind flags', () => {
   it('the glance kinds are the Numbers and the charts; only the Numbers fit their height', () => {
-    expect(WIDGET_KINDS.filter(isGlanceKind)).toEqual(['numbers', 'breakdown', 'pivot', 'trend'])
+    expect(WIDGET_KINDS.filter(isGlanceKind)).toEqual(['numbers', 'breakdown', 'trend'])
     expect(WIDGET_KINDS.filter(isFitHeightKind)).toEqual(['numbers'])
   })
 

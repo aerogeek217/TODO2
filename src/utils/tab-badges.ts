@@ -60,8 +60,8 @@ export interface TabBadgeCounts {
   followupOverdue: number
 }
 
-/** `-1` overdue, `0` inside the range, `null` outside it (or with no date). A Breakdown's Due / Follow-up columns count by it too (D26 P8). */
-export function tabBadgeRangeHit(date: Date | null | undefined, range: TabBadgeRange, today: Date): -1 | 0 | null {
+/** `-1` overdue, `0` inside the range, `null` outside it (or with no date). */
+function tabBadgeRangeHit(date: Date | null | undefined, range: TabBadgeRange, today: Date): -1 | 0 | null {
   if (range === 'off') return null
   const days = daysUntil(date, today)
   if (days == null) return null

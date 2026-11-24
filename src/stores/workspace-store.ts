@@ -2051,7 +2051,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const shown = trimmed || (tab.kind === 'trend' ? trendName({}) : number ? numberTitle({ name: '' }) : widgetKindLabel(tab.kind))
       const description = `Renamed tab to “${shown}”`
       if (number) return Promise.resolve(edit((layout) => patchNumberItem(layout, tabId, { name: trimmed }), description))
-      if (tab.kind === 'breakdown' || tab.kind === 'pivot') {
+      if (tab.kind === 'breakdown') {
         return Promise.resolve(edit((layout) => patchTabConfig(layout, tabId, tab.kind, { name: trimmed }), description))
       }
       if (tab.kind === 'trend') {

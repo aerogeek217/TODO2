@@ -1064,11 +1064,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         S: cell('cell-someday', [lens('tab-someday', L.someday)]),
         W: cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
         T: cell('cell-stats', [lens('tab-hot', L.hot), lens('tab-recent', L.recentlyAdded), lens('tab-done', L.doneThisWeek)]),
-        Y: cell('cell-g-status', [
-          breakdown('tab-g-status', 'Status', 'status'),
-          // D26 P8: who has what, by status.
-          { id: 'tab-g-pivot', kind: 'pivot', config: { name: 'People × status', filter: filter(), rows: 'people', cols: 'status' } },
-        ]),
+        Y: cell('cell-g-status', [breakdown('tab-g-status', 'Status', 'status')]),
         K: cell('cell-month', [calendar('tab-month', 'month', 0, false)]),
         Q: cell('cell-g-due', [breakdown('tab-g-due', 'Due', 'due')]),
       }, [250, 250, 250, 250], [{ fit: true }, 300, 200, 300, { px: 220 }]),

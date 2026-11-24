@@ -53,11 +53,7 @@ import {
   breakdownViewProblem,
   pickBreakdownConfig,
   pickBreakdownView,
-  pickPivotConfig,
-  pivotConfigProblem,
 } from '../models/chart-widgets'
-// Item 8: a Pivot's view state — its rows' sort.
-import { pickPivotView, pivotViewProblem } from '../models/chart-widgets'
 import type { TodoPredicate } from '../models/filter-predicate'
 import { emptyPredicate } from '../models/filter-predicate'
 import { isRecord } from '../utils/is-record'
@@ -260,7 +256,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (bad) return `${path}.config.${bad}`
       return config.filter === undefined ? true : checkChartFilter(config.filter, path)
     }
-    // D26 P8: the chart widgets — their fields, then their filter as a Number's.
+    // D26 P8: the Breakdown — its fields, then its filter as a Number's.
     case 'breakdown': {
       const bad = breakdownConfigProblem(config)
       if (bad) return `${path}.config.${bad}`
@@ -272,13 +268,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
         if (shape !== true) return `${path}.config.${key}.${shape}`
         if (pickPredicate(raw).fixes.length > 0) return `${path}.config.${key}`
       }
-      return checkChartFilter(config.filter, path)
-    }
-    case 'pivot': {
-      const bad = pivotConfigProblem(config)
-      if (bad) return `${path}.config.${bad}`
-      const badView = view ? pivotViewProblem(view) : null
-      if (badView) return `${path}.viewState.${badView}`
       return checkChartFilter(config.filter, path)
     }
     case 'notes':
@@ -665,8 +654,8 @@ interface PickedCell {
  * (v77 converted every one), `followup`, `next7`, `stale`, `recent`,
  * `changes`, `today` and `eisenhowerSummary` (v78 dropped or converted
  * every one), `eisenhower`, `tagMap` and `statusFlow` (v79 dropped
- * every one), and `radar` and `pulse` (v83 dropped every one) — is an
- * unknown kind, dropped like one, and a cell it leaves without tabs closes.
+ * every one), `radar` and `pulse` (v83 dropped every one), and `pivot`
+ * (v90 dropped every one) — is an unknown kind, dropped like one, and a cell it leaves without tabs closes.
  *
  * Past `LAYOUT_PART_LIMIT` tracks, cells or tabs in the layout, the rest are
  * dropped and reported in `fixes`.
@@ -824,19 +813,12 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'trend':
         return { id, kind: 'trend', config: glance(pickTrendConfig(config, readNumberPredicate)) }
-      // D26 P8: the chart widgets.
+      // D26 P8: the Breakdown.
       case 'breakdown': {
         const viewState = glance(pickBreakdownView(view))
         const breakdown: LayoutTab = { id, kind: 'breakdown', config: glance(pickBreakdownConfig(config, chartFilterOf(config), readNumberPredicate)) }
         if (viewState) breakdown.viewState = viewState
         return breakdown
-      }
-      // Item 8: its view state is its rows' sort.
-      case 'pivot': {
-        const viewState = glance(pickPivotView(view))
-        const pivot: LayoutTab = { id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) }
-        if (viewState) pivot.viewState = viewState
-        return pivot
       }
     }
   }

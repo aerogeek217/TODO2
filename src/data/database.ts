@@ -208,7 +208,7 @@ export class Todo2Database extends Dexie {
     // v89: a task's plan state is a planned day or none — `unplanned` and Planned's `held` clause go (no store changes).
     this.version(89).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 89))
 
-    // v90: every Number lives in a Numbers widget — a cell of Numbers one, a Number among other kinds one of its own (no store changes).
+    // v90: the Pivot goes; every Number lives in a Numbers widget — a cell of Numbers one, a Number among other kinds one of its own (no store changes).
     this.version(90).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 90))
 
     // The next schema step N goes here, after the last:

@@ -290,7 +290,7 @@ describe('closing a widget editor', () => {
 })
 
 describe('Add widget opens no editor (decision 8)', () => {
-  it.each(['numbers', 'breakdown', 'pivot', 'trend'] as const)('a new %s is added with its first config and no editor', (kind) => {
+  it.each(['numbers', 'breakdown', 'trend'] as const)('a new %s is added with its first config and no editor', (kind) => {
     setup(numberTab('n', 'overdue'))
     let id: string | null = null
     act(() => { id = add(kind, { kind: 'cell', cellId: 'c' }) })

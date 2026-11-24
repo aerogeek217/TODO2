@@ -48,7 +48,7 @@ const GLANCE_KINDS = WIDGET_KINDS.filter(isGlanceKind) as GlanceWidgetKind[]
 
 /** The section id each section kind renders. */
 const SECTION_OF: Partial<Record<GlanceWidgetKind, string>> = {
-  trend: 'trend', breakdown: 'breakdown', pivot: 'pivot',
+  trend: 'trend', breakdown: 'breakdown',
 }
 
 beforeEach(() => {

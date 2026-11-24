@@ -18,7 +18,7 @@ import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { trendRangeLabel } from './glance-copy'
 import type { GlanceSummary } from './glance-summary'
 import { settingEntry } from './menu-entries'
-import { chartSettingEntries } from './chart-menu'
+import { breakdownSettingEntries } from './chart-menu'
 
 /** Opens Created vs completed's editor beside it (its tab shown first, as a chart's). */
 function openTrendEditor(tabId: string): void {
@@ -50,10 +50,9 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
         settingEntry('Range', TREND_RANGES.map((r) => ({ value: r, label: trendRangeLabel(r).replace(/^Last /, '') })), tab.config.range,
           (range) => ws().patchTabConfig(tab.id, 'trend', { range })),
       ]
-    // D26 P8: the chart widgets.
+    // D26 P8: the chart widget.
     case 'breakdown':
-    case 'pivot':
-      return chartSettingEntries(tab)
+      return breakdownSettingEntries(tab)
   }
 }
 

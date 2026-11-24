@@ -153,7 +153,7 @@ describe('dev seed generator', () => {
     expect(seed.layouts.some((l) => l.cells.some((c) => c.area.rowSpan > 1)), 'a cell spanning rows').toBe(true)
     const kinds = new Set(seed.layouts.flatMap((l) => l.cells)
       .flatMap((p) => p.tabs.map((t) => t.kind)))
-    expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'clusters', 'lens', 'neglect', 'notes', 'numbers', 'pivot', 'planner', 'shortcuts', 'trend'])
+    expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'clusters', 'lens', 'neglect', 'notes', 'numbers', 'planner', 'shortcuts', 'trend'])
     // Every Number in a Numbers widget (v90): the fit row's four, side by side.
     const widgets = seed.layouts.flatMap((l) => l.cells).flatMap((c) => c.tabs.flatMap((t) => (t.kind === 'numbers' ? [t] : [])))
     expect(widgets.map((t) => t.config.items.length)).toEqual([4, 6])

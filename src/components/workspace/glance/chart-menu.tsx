@@ -7,7 +7,7 @@ import {
   liveBreakdownSort,
   type BreakdownSort,
 } from '../../../models/chart-widgets'
-import type { ChartTab } from '../../../models/workspace-layout'
+import type { BreakdownTab } from '../../../models/workspace-layout'
 import { NONE_ROW_LABELS } from '../../../services/stats/breakdown'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -18,8 +18,8 @@ import { countWordOf, sortHeading, sortWords, SPLIT_CHOICE_LABELS, STYLE_LABELS 
 import { settingEntry, type Choice } from './menu-entries'
 
 /**
- * A chart widget's tab-menu settings (D26 P8), listed first in its ⋯ menu:
- * Edit … (its editor), then a Breakdown's Split by, Style, Sort (view
+ * A Breakdown's tab-menu settings (D26 P8), listed first in its ⋯ menu:
+ * Edit breakdown… (its editor), then its Split by, Style, Sort (view
  * state, saved at once, per split) and its none row — its count columns
  * are its editor's (board BC). Every other choice is layout config.
  */
@@ -33,7 +33,7 @@ function openChartEditor(tabId: string): void {
 const SHOWN_HIDDEN: readonly Choice<boolean>[] = [{ value: true, label: 'Shown' }, { value: false, label: 'Hidden' }]
 
 /** The sorts the headings give, as radio choices (the split's own order first, then the fixed headings', then each count column's — and its follow-up age's, where it has one). */
-function sortEntry(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry {
+function sortEntry(tab: BreakdownTab): MenuEntry {
   const { splitBy, show } = tab.config
   const columns = breakdownColumns(tab.config, useSettingsStore.getState().tabBadges)
   const stored = tab.viewState?.sorts?.[splitBy]
@@ -61,8 +61,8 @@ function sortEntry(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry {
 
 const SPLIT_CHOICES = BREAKDOWN_SPLITS.map((s) => ({ value: s, label: SPLIT_CHOICE_LABELS[s] }))
 
-/** A Breakdown's settings: Edit breakdown…, Split by, Style, Sort, its none row. */
-function breakdownEntries(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry[] {
+/** A Breakdown's settings, as its ⋯ menu lists them first: Edit breakdown…, Split by, Style, Sort, its none row. */
+export function breakdownSettingEntries(tab: BreakdownTab): MenuEntry[] {
   const ws = useWorkspaceStore.getState
   const config = tab.config
   const entries: MenuEntry[] = [
@@ -78,19 +78,4 @@ function breakdownEntries(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEn
       (showNone) => ws().patchTabConfig(tab.id, 'breakdown', { showNone })))
   }
   return entries
-}
-
-/** A chart tab's settings, as its ⋯ menu lists them first (a case per chart kind). */
-export function chartSettingEntries(tab: ChartTab): MenuEntry[] {
-  const ws = useWorkspaceStore.getState
-  switch (tab.kind) {
-    case 'breakdown':
-      return breakdownEntries(tab)
-    case 'pivot':
-      return [
-        { kind: 'item', label: 'Edit pivot…', onSelect: () => openChartEditor(tab.id) },
-        settingEntry('Rows', SPLIT_CHOICES, tab.config.rows, (rows) => ws().patchTabConfig(tab.id, 'pivot', { rows })),
-        settingEntry('Columns', SPLIT_CHOICES, tab.config.cols, (cols) => ws().patchTabConfig(tab.id, 'pivot', { cols })),
-      ]
-  }
 }

@@ -82,7 +82,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [88, upgradeV88],
   // The Planner holds nothing by hand: `unplanned` and Planned's `held` clause go.
   [89, upgradeV89],
-  // Every Number lives in a Numbers widget: a cell of Numbers becomes one, a Number among other kinds one of its own.
+  // The Pivot goes (a cell left without tabs closes); every Number lives in a Numbers widget: a cell of Numbers becomes one, a Number among other kinds one of its own.
   [90, upgradeV90],
 ])
 

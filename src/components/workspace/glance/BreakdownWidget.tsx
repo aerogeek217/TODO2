@@ -587,7 +587,6 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
     body = (
       <ChartPanel
         tabId={tab.id}
-        kind="breakdown"
         title={title}
         glyph={glyph}
         count={`${total} ${word}`}

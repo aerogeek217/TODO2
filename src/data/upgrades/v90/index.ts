@@ -1,8 +1,16 @@
 import type { DataRow, DataSet } from '../../schema-upgrades'
+import { layoutTabsOf, type TabStep } from './layout-tabs'
 
 /**
- * v90 — every Number lives in a Numbers widget (kind `numbers`, `config: {
- * items }`): in every layout,
+ * v90 — the Pivot removed, and every Number lives in a Numbers widget
+ * (kind `numbers`, `config: { items }`). In every layout, first
+ *
+ * - each `pivot` tab goes: a cell whose active tab went shows the tab
+ *   before it (else the one after); a cell left without tabs closes by the
+ *   absorb rule, and the grid lines nothing uses then go
+ *   (`./layout-tabs`). No list, setting or task is touched.
+ *
+ * Then
  *
  * - a cell whose tabs are all Numbers (`number`; one or more) becomes one
  *   Numbers widget holding them in their order, and its active tab is that
@@ -13,14 +21,15 @@ import type { DataRow, DataSet } from '../../schema-upgrades'
  * Each Number keeps its id, its config and its icon as its item's; a tab
  * name a Number stored apart from its config's (no build wrote one) is its
  * name when its config has none. A new widget's id is new to its layout
- * (`n-` + the first item's id, numbered while taken). Tracks, their `fitPx`
- * and their collapse stay: the rows stay fit rows.
+ * (`n-` + the first item's id, numbered while taken). This part keeps the
+ * tracks, their `fitPx` and their collapse: the rows stay fit rows.
  *
  * Follows the transform contract (`schema-upgrades`): pure, idempotent (a
- * layout without a Number tab comes back as the same object), tolerant of
- * missing tables and malformed rows (a cell or tab that isn't an object, a
- * Number without an id: left for the layout repair, which drops what is
- * still wrong); a table it leaves alone comes back as the same array.
+ * layout with neither a Pivot nor a Number tab comes back as the same
+ * object), tolerant of missing tables and malformed rows (a cell or tab
+ * that isn't an object, a Number without an id: left for the layout
+ * repair, which drops what is still wrong); a table it leaves alone comes
+ * back as the same array.
  */
 
 type Obj = Record<string, unknown>
@@ -89,10 +98,13 @@ function layoutOf(row: DataRow): DataRow {
   return { ...row, cells: next }
 }
 
+/** A Pivot tab goes. */
+const dropPivot: TabStep = (tab) => (tab.kind === 'pivot' ? null : tab)
+
 export function upgradeV90(data: DataSet): DataSet {
   const layouts = data.layouts
   if (!Array.isArray(layouts)) return data
-  const next = layouts.map((row) => (isRecord(row) ? layoutOf(row) : row))
+  const next = layouts.map((row) => (isRecord(row) ? layoutOf(layoutTabsOf(row, dropPivot)) : row))
   if (next.every((row, i) => row === layouts[i])) return data
   return { ...data, layouts: next }
 }

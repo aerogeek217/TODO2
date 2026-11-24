@@ -96,7 +96,7 @@ describe('a Number’s or a chart’s stored name past its limit is cut, never r
     }
   })
 
-  it.each(['breakdown', 'pivot', 'trend'] as const)('a %s named with 81 – 200 characters keeps its first 80, and every other setting', (kind) => {
+  it.each(['breakdown', 'trend'] as const)('a %s named with 81 – 200 characters keeps its first 80, and every other setting', (kind) => {
     for (const length of [81, 120, 200]) {
       const tab = createTab(kind, 't')
       const named = { ...tab, config: { ...tab.config, name: sentence(length) } } as LayoutTab
@@ -126,10 +126,10 @@ describe('a Number’s or a chart’s stored name past its limit is cut, never r
   })
 
   it('a name that is no text is still reset to the kind’s default', () => {
-    const tab = createTab('pivot', 't')
+    const tab = createTab('breakdown', 't')
     const picked = pickLayoutBody(bodyOf({ ...tab, config: { ...tab.config, name: 7 } } as unknown as LayoutTab))
     expect(picked.fixes).toEqual(['tab or cell settings reset'])
-    expect(picked.cells[0]!.tabs[0]!.config).toMatchObject({ name: 'Pivot' })
+    expect(picked.cells[0]!.tabs[0]!.config).toMatchObject({ name: 'Breakdown' })
   })
 
   it('readStoredName never cuts through a surrogate pair', () => {

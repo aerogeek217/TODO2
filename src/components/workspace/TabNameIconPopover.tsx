@@ -21,8 +21,7 @@ function storedName(tab: LayoutTab, listName: string | undefined): string {
     case 'lens': return listName ?? ''
     // TEMPORARY (`utils/number-views`): one Number's view is named as that Number.
     case 'numbers': return isNumberView(tab) ? numberTabOf(tab)?.config.name ?? '' : tab.name ?? ''
-    case 'breakdown':
-    case 'pivot': return tab.config.name
+    case 'breakdown': return tab.config.name
     case 'trend': return tab.config.name ?? ''
     default: return tab.name ?? ''
   }
@@ -40,7 +39,6 @@ function ownNameNote(tab: LayoutTab): string | null {
     case 'lens': return 'This tab shows a list, so the name is the list’s name.'
     case 'numbers': return isNumberView(tab) ? 'This tab shows a Number, so the name is the Number’s name.' : null
     case 'breakdown':
-    case 'pivot':
     case 'trend': return 'This tab shows a chart, so the name is the chart’s name.'
     default: return null
   }

@@ -35,11 +35,8 @@ import {
 import {
   CHART_NAME_MAX,
   newBreakdownConfig,
-  newPivotConfig,
   type BreakdownConfig,
   type BreakdownViewState,
-  type PivotConfig,
-  type PivotViewState,
 } from './chart-widgets'
 import type { ReviewSort } from './review'
 import type { IconValue, LineIconKey } from './icon'
@@ -68,11 +65,12 @@ export type WidgetKind =
   | 'lens' | 'calendar' | 'notes' | 'review' | 'planner' | 'shortcuts' | 'neglect' | 'clusters'
   | GlanceWidgetKind
 
-/** The glance widget kinds (D25 N): the Numbers and the charts, each a widget. */
-export type GlanceWidgetKind = 'numbers' | ChartWidgetKind | 'trend'
-
-/** The chart widgets (D26 P8): a filter, then what it is split by — each has a name, a filter and an editor. */
-export type ChartWidgetKind = 'breakdown' | 'pivot'
+/**
+ * The glance widget kinds (D25 N): the Numbers and the charts, each a
+ * widget. The Breakdown (D26 P8) is the chart widget: a filter, then what
+ * it is split by, with a name and an editor.
+ */
+export type GlanceWidgetKind = 'numbers' | 'breakdown' | 'trend'
 
 export type CalendarView = 'week' | 'month'
 
@@ -356,15 +354,11 @@ export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
 export type ClustersTab = TabOf<'clusters', NoTabSettings, NoTabSettings>
 export type NumbersTab = TabOf<'numbers', NumbersTabConfig, NoTabSettings>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
-// ── D26 P8: the chart widgets ──
+// ── D26 P8: the chart widget ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
-export type PivotTab = TabOf<'pivot', PivotConfig, PivotViewState>
-
-/** A chart widget's tab (D26 P8). */
-export type ChartTab = BreakdownTab | PivotTab
 
 /** A glance widget's tab (D25 N). */
-export type GlanceTab = NumbersTab | TrendTab | ChartTab
+export type GlanceTab = NumbersTab | TrendTab | BreakdownTab
 
 export type LayoutTab = ListTab | CalendarTab | NotesTab | ReviewTab | PlannerTab | ShortcutsTab | NeglectTab | ClustersTab | GlanceTab
 
@@ -617,9 +611,8 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   // Insights.
   // The Numbers: added as "Number", a widget of one Number (its + adds more).
   numbers: { ...glanceSpec('Numbers', newNumbersTab, true), addLabel: 'Number' },
-  // D26 P8: the chart widgets.
+  // D26 P8: the chart widget.
   breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
-  pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
   trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE, name: DEFAULT_TREND_NAME, show: DEFAULT_TREND_SHOW } })),
   // In Insights, but a whole widget, not a glance one (no glance minimums).
   neglect: {
@@ -676,9 +669,9 @@ export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
   return isGlanceKind(tab.kind)
 }
 
-/** A chart widget's tab (D26 P8). */
-export function isChartTab(tab: LayoutTab): tab is ChartTab {
-  return tab.kind === 'breakdown' || tab.kind === 'pivot'
+/** A Breakdown's tab (D26 P8). */
+export function isBreakdownTab(tab: LayoutTab): tab is BreakdownTab {
+  return tab.kind === 'breakdown'
 }
 
 /**
@@ -688,7 +681,7 @@ export function isChartTab(tab: LayoutTab): tab is ChartTab {
  * too (each Number's name is its item's).
  */
 export function tabOwnsName(kind: WidgetKind): boolean {
-  return kind === 'lens' || kind === 'breakdown' || kind === 'pivot' || kind === 'trend'
+  return kind === 'lens' || kind === 'breakdown' || kind === 'trend'
 }
 
 /** The longest tab name kept (as a layout's). */
@@ -703,7 +696,7 @@ export const TAB_NAME_MAX = 200
  * longer name would store a layout row the import check refuses.
  */
 export function tabNameMax(kind: WidgetKind): number {
-  if (kind === 'breakdown' || kind === 'pivot' || kind === 'trend') return CHART_NAME_MAX
+  if (kind === 'breakdown' || kind === 'trend') return CHART_NAME_MAX
   return TAB_NAME_MAX
 }
 
@@ -713,14 +706,14 @@ export function numberTitle(item: Pick<NumberItem, 'name'>): string {
 }
 
 /**
- * A non-list tab's title: a chart's is its name (`Late on Atlas`; a blank
- * one reads `Breakdown`, …), Created vs completed's its name
+ * A non-list tab's title: a Breakdown's is its name (`Late on Atlas`; a
+ * blank one reads `Breakdown`), Created vs completed's its name
  * (`trendName`), a Numbers widget of one Number that Number's
  * (`numberTitle`), every other kind's its tab name (items 11, 14), else
  * its kind's name.
  */
 export function kindTabTitle(tab: LayoutTab): string {
-  if (isChartTab(tab)) return tab.config.name.trim() || widgetKindLabel(tab.kind)
+  if (isBreakdownTab(tab)) return tab.config.name.trim() || widgetKindLabel(tab.kind)
   if (tab.kind === 'trend') return trendName(tab.config)
   const only = tab.kind === 'numbers' && tab.config.items.length === 1 ? tab.config.items[0] : undefined
   if (only) return numberTitle(only)
@@ -738,7 +731,6 @@ export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
   numbers: 'number',
   trend: 'chart',
   breakdown: 'bars',
-  pivot: 'table',
   neglect: 'scatter',
   clusters: 'clusters',
 }

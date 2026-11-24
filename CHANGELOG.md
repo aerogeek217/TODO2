@@ -33,6 +33,11 @@ History before 2026-11-19 is in the git log.
 - **A task's title looks like a field while you edit it.** In task details and on the review card, the title shows a
   box when you point at it and an outlined box while you type in it.
 
+### Removed
+
+- **Pivot widget.** Pivot widgets are removed from every layout; a cell that held only a Pivot closes, and its
+  neighbor takes its space. Breakdown and Created vs completed stay.
+
 ### Fixed
 
 - **Clicking one cell, then another, in Edit layout no longer combines them.** A click now only selects a cell. To

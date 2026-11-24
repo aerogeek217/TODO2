@@ -46,7 +46,6 @@ describe('Name and icon…: the Name field’s limit', () => {
     // A Number's name is its own (its item's).
     ['numbers', NUMBER_NAME_MAX],
     ['breakdown', CHART_NAME_MAX],
-    ['pivot', CHART_NAME_MAX],
     ['trend', CHART_NAME_MAX],
     ['notes', TAB_NAME_MAX],
     ['calendar', TAB_NAME_MAX],

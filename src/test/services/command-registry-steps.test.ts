@@ -68,7 +68,7 @@ describe('Add Widget ›', () => {
     const step = find(commands, 'add-widget')?.step ?? []
     expect(step.map((c) => [c.group, c.name])).toEqual([
       ['Tasks', 'List'], ['Tasks', 'Calendar'], ['Tasks', 'Review'], ['Tasks', 'Planner'], ['Tasks', 'Notes'], ['Tasks', 'List board'],
-      ['Insights', 'Number'], ['Insights', 'Breakdown'], ['Insights', 'Pivot'],
+      ['Insights', 'Number'], ['Insights', 'Breakdown'],
       ['Insights', 'Created vs completed'], ['Insights', 'Neglect map'],
       ['Insights', 'Work clusters'],
     ])

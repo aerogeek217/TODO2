@@ -513,9 +513,6 @@ describe('an id naming a member of Object.prototype is no id (cr34 S2)', () => {
       expect(columns).toHaveLength(1)
       expect(columns[0]!.id).toMatch(/^col-/)
       expect(tab.viewState).toBeUndefined()
-      const pivot = layoutRow(oneTab({ id: 't', kind: 'pivot', config: { name: 'P', filter: config.filter, rows: 'people', cols: 'status' }, viewState: { sort: { by: id } } }))
-      expect(validateRow('layouts', pivot)).toBe('cells[0].tabs[0].viewState.sort')
-      expect((sanitizeRow('layouts', pivot) as WorkspaceLayout).cells[0]!.tabs[0]!.viewState).toBeUndefined()
     }
   })
 })

@@ -40,10 +40,10 @@ describe('WidgetKindMenu', () => {
     expect(panelWords(kindsMenu())).toEqual([
       '[Tasks]', 'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board',
       '—', '[Insights]',
-      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters',
+      'Number', 'Breakdown', 'Created vs completed', 'Neglect map', 'Work clusters',
     ])
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
-      'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters',
+      'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board', 'Number', 'Breakdown', 'Created vs completed', 'Neglect map', 'Work clusters',
     ])
     expect(screen.getByRole('menuitemradio', { name: /^List(?! board)/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /^Notes/ })).toHaveAttribute('aria-checked', 'true')

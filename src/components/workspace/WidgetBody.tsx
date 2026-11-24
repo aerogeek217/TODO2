@@ -55,7 +55,6 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
     case 'numbers':
     case 'trend':
     case 'breakdown':
-    case 'pivot':
       return (
         <GlanceWidget
           tab={tab}

@@ -56,7 +56,7 @@ A change of structure is an undo step; view state is written straight onto the s
 
 ## Tabs and widget kinds
 
-`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `shortcuts` (the List board), `neglect`, `clusters`, and the glance kinds `numbers` (one Number or more), `breakdown`, `pivot` and `trend`.
+`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `shortcuts` (the List board), `neglect`, `clusters`, and the glance kinds `numbers` (one Number or more), `breakdown` and `trend`.
 
 Each tab has a per-kind `config`, the **layout config** saved with the layout, and an optional `viewState`.
 
@@ -66,7 +66,7 @@ Config:
 - A calendar: `dateTypes { due, followup, plan }` ([The Calendar](#the-calendar)). All may be off, an empty calendar.
   - `CalendarDateType` is one of its keys: the date a calendar drop sets. `shownCalendarDateTypes` lists the shown ones in the toolbar's order.
   - `toggleCalendarDateType(types, type)` switches one on or off.
-- The glance kinds (`models/glance-widgets`, `models/chart-widgets`): a Number's `NumberConfig`, Created vs completed's `TrendTabConfig`, a Breakdown's `BreakdownConfig`, a Pivot's `PivotConfig`. See [Glance widgets](glance-widgets.md) and [Charts](charts.md).
+- The glance kinds (`models/glance-widgets`, `models/chart-widgets`): a Number's `NumberConfig`, Created vs completed's `TrendTabConfig`, a Breakdown's `BreakdownConfig`. See [Glance widgets](glance-widgets.md) and [Charts](charts.md).
 - A Neglect map: `NeglectTabConfig` ([Task maps](task-maps.md#config)).
 - The List board: `source?` (`picked`, the default, or `layout`) and `lists?`, list ids of any layout, never under the key `listDefinitionId` ([List board](list-board.md#config)).
 - The others: `{}`.
@@ -196,7 +196,7 @@ Outside the mode there are no grips and no crossing handles, and nothing drags a
 - a Number counts every open task;
 - a chart splits them.
 
-Its editor is in its ⋯: **Edit list…**, **Edit number…**, **Edit breakdown…** / **Edit pivot…**, **Edit chart…**.
+Its editor is in its ⋯: **Edit list…**, **Edit number…**, **Edit breakdown…**, **Edit chart…**.
 
 Ways to add one, besides the cell menu's **Add widget as tab ›** ([Widget chrome](widget-chrome.md#the-cells-menu)):
 

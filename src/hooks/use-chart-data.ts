@@ -1,9 +1,8 @@
 import type { PersistedTodoItem, TodoPredicate } from '../models'
-import { breakdownColumns, DEFAULT_BREAKDOWN_OLDEST_BY, type BreakdownColumn, type BreakdownConfig, type PivotConfig } from '../models/chart-widgets'
+import { breakdownColumns, DEFAULT_BREAKDOWN_OLDEST_BY, type BreakdownColumn, type BreakdownConfig } from '../models/chart-widgets'
 import type { TabBadgeRanges } from '../models/list-definition'
 import { groupRestrictions } from '../services/build-list'
 import { computeBreakdown, type BreakdownColumnKeep, type BreakdownStats } from '../services/stats/breakdown'
-import { computePivot, type PivotStats } from '../services/stats/pivot'
 import type { RowRestrictions } from '../services/stats/row-restrictions'
 import type { StatsContext } from '../services/stats/stats-context'
 import { useSettingsStore } from '../stores/settings-store'
@@ -11,14 +10,14 @@ import { predicateToCriteria, type FilterCriteria } from '../utils/filter-criter
 import { matchesFilterWithLookups, type FilterSettings } from '../utils/filter-match'
 import type { TodoNameLookups } from '../utils/filter'
 import { sharedMemoByKey } from '../utils/shared-memo'
-import { lookupsFor, numberCountOf, useNumberCount, type NumberCount, type StatsBase } from './use-glance-data'
+import { lookupsFor, numberCountOf, type NumberCount, type StatsBase } from './use-glance-data'
 
 /**
- * The chart widgets' data (D26 P8), over the glance widgets' shared base
- * (`use-glance-data`): each chart's filter counts as a Number's does
- * (`useNumberCount`: its filter over the tasks the top bar shows), and its
- * statistic — a pure `services/stats/*` function — is memoized per chart
- * (`sharedMemoByKey`, keyed by its config), so any number of charts on
+ * A Breakdown's data (D26 P8), over the glance widgets' shared base
+ * (`use-glance-data`): its filter counts as a Number's does
+ * (`numberCountOf`: its filter over the tasks the top bar shows), and its
+ * rows — `services/stats/breakdown`, pure — are memoized per chart
+ * (`sharedMemoByKey`, keyed by its config), so any number of Breakdowns on
  * screen never evict one another.
  */
 
@@ -35,15 +34,6 @@ interface ChartTasks {
   count: NumberCount
   tasks: PersistedTodoItem[]
 }
-
-/** A chart's tasks: its filter over the screen-filtered tasks (`useNumberCount`). */
-function useChartTasks(base: StatsBase, filter: TodoPredicate): ChartTasks {
-  const count = useNumberCount(base, { filter })
-  const tasks = tasksOfMemo(count.ids.shown, base.todoById)
-  return { count, tasks }
-}
-
-// ── Breakdown ───────────────────────────────────────────────────────────────
 
 /**
  * A Breakdown's count columns (`breakdownColumns`): its own, else the two
@@ -90,8 +80,6 @@ function restrictionsOf(filter: TodoPredicate, field: 'personIds' | 'tags' | nul
   return field ? groupRestrictions(field, filter, screen) : []
 }
 const restrictionsMemo = sharedMemoByKey(restrictionsOf)
-/** A second set keyed alike (a Pivot reads both its people and its tags picks). */
-const restrictionsTagsMemo = sharedMemoByKey(restrictionsOf)
 
 const breakdownMemo = sharedMemoByKey(function breakdown(
   config: BreakdownConfig,
@@ -133,27 +121,4 @@ function breakdownDataOf(base: StatsBase, config: BreakdownConfig, appRanges: Ta
   const restrictions = restrictionsMemo(config.filter, field, chart.count.screen)
   const stats = breakdownMemo(config, chart.tasks, base.ctx, keeps, restrictions)
   return { ...chart, stats, columns }
-}
-
-// ── Pivot ───────────────────────────────────────────────────────────────────
-
-const pivotMemo = sharedMemoByKey(function pivot(
-  config: PivotConfig,
-  tasks: readonly PersistedTodoItem[],
-  ctx: StatsContext,
-  people: RowRestrictions,
-  tags: RowRestrictions,
-  ranges: TabBadgeRanges,
-): PivotStats {
-  return computePivot(tasks, ctx, { rows: config.rows, cols: config.cols, restrictions: { people, tags }, ranges })
-})
-
-/** A Pivot's heat table (`services/stats/pivot`) over its filter's tasks; a people or tags axis narrows by the `@` / `#` picks. */
-export function usePivotData(base: StatsBase, config: PivotConfig): ChartTasks & { stats: PivotStats } {
-  // Its people / tags order by the tasks due and due a follow-up in Settings' ranges.
-  const appRanges = useSettingsStore((s) => s.tabBadges)
-  const chart = useChartTasks(base, config.filter)
-  const people = restrictionsMemo(config.filter, 'personIds', chart.count.screen)
-  const tags = restrictionsTagsMemo(config.filter, 'tags', chart.count.screen)
-  return { ...chart, stats: pivotMemo(config, chart.tasks, base.ctx, people, tags, appRanges) }
 }

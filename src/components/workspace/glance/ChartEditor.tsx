@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useState, type RefObject } from 'react'
 import { WidgetEditorHost } from './WidgetEditorHost'
 import { createPortal } from 'react-dom'
 import {
@@ -19,10 +19,8 @@ import {
   type BreakdownShow,
   type BreakdownSplit,
   type BreakdownStyle,
-  type PivotConfig,
-  type PivotDim,
 } from '../../../models/chart-widgets'
-import { isChartTab, type ChartTab } from '../../../models/workspace-layout'
+import { isBreakdownTab, type BreakdownTab } from '../../../models/workspace-layout'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { NONE_ROW_LABELS } from '../../../services/stats/breakdown'
@@ -47,13 +45,13 @@ import { EditorFooter } from './EditorFooter'
 import styles from './ChartEditor.module.css'
 
 /**
- * The open chart editor (`chart-widgets-store.editorTabId`), under its
+ * The open Breakdown editor (`chart-widgets-store.editorTabId`), under its
  * chart's title (`[data-chart-head]`).
  */
 export function ChartEditorHost() {
   const tabId = useChartWidgetsStore((s) => s.editorTabId)
   const close = useChartWidgetsStore((s) => s.closeEditor)
-  return <WidgetEditorHost tabId={tabId} isKind={isChartTab} anchor="data-chart-head" close={close} Editor={ChartEditor} />
+  return <WidgetEditorHost tabId={tabId} isKind={isBreakdownTab} anchor="data-chart-head" close={close} Editor={ChartEditor} />
 }
 
 function Select<V extends string>({ label, value, options, labels, onChange }: {
@@ -231,51 +229,14 @@ function CountColumnsField({ config, patch }: { config: BreakdownConfig; patch: 
   )
 }
 
-/** A Pivot's own fields: what its rows and its columns split by. */
-function PivotFields({ config, patch }: { config: PivotConfig; patch: (p: Partial<PivotConfig>) => void }) {
-  return (
-    <div className={styles.grid}>
-      <Select<PivotDim> label="Rows" value={config.rows} options={BREAKDOWN_SPLITS} labels={SPLIT_CHOICE_LABELS} onChange={(rows) => patch({ rows })} />
-      <Select<PivotDim> label="Columns" value={config.cols} options={BREAKDOWN_SPLITS} labels={SPLIT_CHOICE_LABELS} onChange={(cols) => patch({ cols })} />
-    </div>
-  )
-}
-
-/** A chart's config, as its editor's draft holds it. */
-type ChartConfig = ChartTab['config']
-
-/** Each chart kind's noun, as its editor's title and close question name it. */
-const KIND_NOUNS: Record<ChartTab['kind'], string> = { breakdown: 'breakdown', pivot: 'pivot' }
+/** What the editor's filter is labelled (its field and its add button). */
+const FILTER_LABEL = 'Split tasks where'
 
 /**
- * What each chart kind's editor's filter is labelled and its own fields,
- * over the draft (`tab` carrying the draft config; a case per chart kind).
- */
-function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { filterLabel: string; fields: ReactNode } {
-  switch (tab.kind) {
-    case 'breakdown':
-      return {
-        filterLabel: 'Split tasks where',
-        fields: (
-          <>
-            <BreakdownFields config={tab.config} patch={patch} />
-            <CountColumnsField config={tab.config} patch={patch} />
-          </>
-        ),
-      }
-    case 'pivot':
-      return {
-        filterLabel: 'Split tasks where',
-        fields: <PivotFields config={tab.config} patch={patch} />,
-      }
-  }
-}
-
-/**
- * A chart's editor (D26 P8, the Number editor's pattern, board X): its
+ * A Breakdown's editor (D26 P8, the Number editor's pattern, board X): its
  * name, the filter it splits — the Graphical / Expression filter Edit list
- * has, with Reads as — and its kind's own fields (a Breakdown's split,
- * style and what it shows). A popover under the chart's title, opened by
+ * has, with Reads as — and its own fields (its split, style, what it shows
+ * and its count columns). A popover under the chart's title, opened by
  * its ⋯ menu's Edit …. Its controls edit a
  * copy of the config, which the chart draws live (`useEditorDraft`, Edit
  * list's pattern): Save writes the changes for good as one layout config
@@ -284,19 +245,18 @@ function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { f
  * ask Save / Discard / Keep editing.
  */
 function ChartEditor({ tab, anchorRef, onClose }: {
-  tab: ChartTab
+  tab: BreakdownTab
   /** The chart's title it sits under. */
   anchorRef: RefObject<HTMLElement | null>
   onClose: () => void
 }) {
   const id = useId()
-  const noun = KIND_NOUNS[tab.kind]
-  const edit = useEditorDraft<ChartConfig>({
+  const edit = useEditorDraft<BreakdownConfig>({
     tabId: tab.id,
     stored: tab.config,
-    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, tab.kind, p, `Edited ${noun} “${(p.name ?? tab.config.name).trim() || 'Untitled'}”`),
+    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, 'breakdown', p, `Edited breakdown “${(p.name ?? tab.config.name).trim() || 'Untitled'}”`),
     onClose,
-    promptTitle: `Save changes to ${noun} “${tab.config.name.trim() || 'Untitled'}”?`,
+    promptTitle: `Save changes to breakdown “${tab.config.name.trim() || 'Untitled'}”?`,
   })
   const config = edit.draft
   const patch = edit.patch
@@ -325,8 +285,6 @@ function ChartEditor({ tab, anchorRef, onClose }: {
     }
   }, [anchorRef, panelEl])
 
-  const title = `Edit ${noun}`
-  const { filterLabel, fields } = kindParts({ ...tab, config } as ChartTab, patch)
   const noFilter = !hasFilterClause(config.filter) && !config.filter.expression
   return createPortal(
     <PopoverRoot
@@ -342,7 +300,7 @@ function ChartEditor({ tab, anchorRef, onClose }: {
       data-chart-editor={tab.id}
     >
       <div className={styles.header}>
-        <span id={`${id}-title`} className={styles.title}>{title}</span>
+        <span id={`${id}-title`} className={styles.title}>Edit breakdown</span>
         <DialogCloseButton size={24} onClick={() => { edit.requestClose() }} />
       </div>
       <ExpressionReportProvider value={edit.reportExpression}>
@@ -360,19 +318,20 @@ function ChartEditor({ tab, anchorRef, onClose }: {
             />
           </label>
           <div className={styles.fieldset} role="group" aria-labelledby={`${id}-filter`}>
-            <span id={`${id}-filter`} className={styles.label}>{filterLabel}</span>
+            <span id={`${id}-filter`} className={styles.label}>{FILTER_LABEL}</span>
             <div className={styles.filter} data-testid="chart-editor-filter">
               <PredicateChips
                 predicate={config.filter}
                 onChange={(filter) => patch({ filter })}
-                addLabel={filterLabel}
+                addLabel={FILTER_LABEL}
                 layout="stack"
                 inDialog
                 before={noFilter ? <span className={styles.noFilter}>No filter — every open task</span> : undefined}
               />
             </div>
           </div>
-          {fields}
+          <BreakdownFields config={config} patch={patch} />
+          <CountColumnsField config={config} patch={patch} />
         </div>
       </ExpressionReportProvider>
       <EditorFooter draft={edit} />

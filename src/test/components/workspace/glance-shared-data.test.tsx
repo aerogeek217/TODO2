@@ -144,6 +144,7 @@ describe('glance widgets share their data', () => {
       createTab('breakdown', 'b-priority', { breakdown: { splitBy: 'priority' } }) as GlanceTab,
       createTab('breakdown', 'b-due', { breakdown: { splitBy: 'due' } }) as GlanceTab,
       createTab('breakdown', 'b-age', { breakdown: { splitBy: 'age', style: 'donut' } }) as GlanceTab,
+      createTab('breakdown', 'b-oldest', { breakdown: { splitBy: 'people', show: 'oldest' } }) as GlanceTab,
     ]
     expect(tabs.length).toBeGreaterThanOrEqual(12)
     const tree = () => <DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>

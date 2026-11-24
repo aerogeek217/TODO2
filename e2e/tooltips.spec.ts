@@ -56,8 +56,7 @@ const EVERY_KIND: WorkspaceSeed = {
         { cells: [
           { id: 'k4', tabs: [{ id: 'n1', kind: 'number', glance: { metric: 'open' } }, { id: 'n2', kind: 'number', glance: { metric: 'overdue' } }] },
         ] },
-        wsRow({ id: 'k5', tabs: [{ id: 'bd', kind: 'breakdown', glance: { name: 'People', splitBy: 'people' } }] }),
-        wsRow({ id: 'k6', tabs: [{ id: 'pv', kind: 'pivot' }, { id: 'tr', kind: 'trend' }] }),
+        wsRow({ id: 'k5', tabs: [{ id: 'bd', kind: 'breakdown', glance: { name: 'People', splitBy: 'people' } }, { id: 'tr', kind: 'trend' }] }),
       ] },
       { id: 'c3', rows: [
         wsRow({ id: 'k8', tabs: [{ id: 'map', kind: 'neglect' }] }),
@@ -74,7 +73,7 @@ test('no element has a native title: every widget kind, the task editor, Setting
   await seedWorkspace(page, EVERY_KIND)
   await expect(page.locator('[data-cal-entry]').first()).toBeVisible()
   expect(await nativeTitles(page)).toEqual([])
-  // The pivot and trend behind their tabs, the review.
+  // The trend and the review behind their tabs.
   for (const tab of ['tr', 'review']) {
     await page.locator(`[data-ws-tab="${tab}"]`).click()
     expect(await nativeTitles(page)).toEqual([])

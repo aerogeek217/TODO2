@@ -94,8 +94,6 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   trend: <path d={GLANCE_GLYPH.chart} />,
   // D26 P8 — Breakdown: a bar per row, longest first.
   breakdown: <path d="M2.5 3.5h11M2.5 8h7M2.5 12.5h4" />,
-  // Pivot: a table with a heading row and column.
-  pivot: <path d="M2.5 2.5h11v11h-11zM2.5 6h11M6 2.5v11M2.5 9.75h11M9.75 6v7.5" />,
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {
@@ -133,6 +131,7 @@ export function LineIcon({ name, size = 14 }: { name: LineIconKey; size?: number
     case 'link': return <LinkIcon size={size} />
     case 'ring': return <RingIcon size={size} />
     case 'radar': return <RadarIcon size={size} />
+    case 'table': return <TableIcon size={size} />
     case 'wall': return <WallIcon size={size} />
     default: return <WidgetKindIcon kind="lens" size={size} />
   }
@@ -367,6 +366,11 @@ function RadarIcon({ size = 14 }: { size?: number }) {
       <circle cx="10.4" cy="6" r="1.1" fill="currentColor" stroke="none" />
     </Svg>
   )
+}
+
+/** A table with a heading row and column: one of the pickable line icons (`LineIcon`). */
+function TableIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M2.5 2.5h11v11h-11zM2.5 6h11M6 2.5v11M2.5 9.75h11M9.75 6v7.5" /></Svg>
 }
 
 /** Blocks of squares, the last filled: one of the pickable line icons (`LineIcon`; once the List wall's glyph). */

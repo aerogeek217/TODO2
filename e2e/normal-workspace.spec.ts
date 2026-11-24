@@ -35,7 +35,7 @@ const quad: WsLayoutSeed = {
       { id: 'a', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'mapTab', kind: 'neglect' }] },
       { id: 'b', tabs: [{ id: 'calTab', kind: 'calendar' }] },
       { id: 'c', tabs: [{ id: 'trendTab', kind: 'trend' }] },
-      { id: 'd', tabs: [{ id: 'pivotTab', kind: 'pivot' }] },
+      { id: 'd', tabs: [{ id: 'breakdownTab', kind: 'breakdown' }] },
     ],
   },
 }
@@ -86,7 +86,7 @@ test('Remove widget on a lone widget leaves its cell, empty; the placeholder’s
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Remove widget' }).click()
   await empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Notes', exact: true }).click()
   await expect(wsCell(page, 'b')).not.toHaveAttribute('data-empty', 'true')
-  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab'], ['trendTab']], [[expect.any(String)], ['pivotTab']]])
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab'], ['trendTab']], [[expect.any(String)], ['breakdownTab']]])
 
   // Emptied once more, its Edit layout opens the mode with the cell selected.
   await openCellMenu(page, 'b')
@@ -112,10 +112,10 @@ test('outside the mode a tab dragged to another cell goes nowhere; inside its ow
   await drag(page, await pointIn(wsTab(page, 'mapTab')), await pointIn(wsCell(page, 'b').locator('[data-ws-cell-body]')), {
     during: async () => { await expect(page.getByTestId('ws-drop-ghost')).toHaveCount(0) },
   })
-  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab'], ['trendTab']], [['calTab'], ['pivotTab']]])
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab'], ['trendTab']], [['calTab'], ['breakdownTab']]])
   // Onto the left half of the first tab: before it.
   await drag(page, await pointIn(wsTab(page, 'mapTab')), await pointIn(wsTab(page, 'notesTab'), 0.2, 0.5))
-  await expect.poll(() => wsShape(page)).toEqual([[['mapTab', 'notesTab'], ['trendTab']], [['calTab'], ['pivotTab']]])
+  await expect.poll(() => wsShape(page)).toEqual([[['mapTab', 'notesTab'], ['trendTab']], [['calTab'], ['breakdownTab']]])
 })
 
 test('on a phone: no way into the layout edit mode, an empty cell offers nothing, and narrowing closes an open mode', async ({ page }) => {

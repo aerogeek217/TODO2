@@ -91,7 +91,7 @@ One file per feature, at most 4,000 words each. Each says how the feature behave
 | Filters | [filters](architecture/features/filters.md) | date clauses, Graphical or Expression, the expression grammar, a filter read back in words |
 | Lists | [lists](architecture/features/lists.md) | built lists, grouping, rows, zoom, badges, Edit list |
 | Glance widgets | [glance-widgets](architecture/features/glance-widgets.md) | what glance widgets share, the Number and its shapes, the widget editors, the history log |
-| Charts | [charts](architecture/features/charts.md) | Breakdown, Pivot, Created vs completed |
+| Charts | [charts](architecture/features/charts.md) | Breakdown, Created vs completed |
 | Task maps | [task-maps](architecture/features/task-maps.md) | the Neglect map, Work clusters |
 | Review | [review](architecture/features/review.md) | Review jumps, the rail and the card, the task layout the editor shares, the Review widget |
 | Check-ins | [check-ins](architecture/features/check-ins.md) | the message, the check-in dialog, Copy, the reply import |

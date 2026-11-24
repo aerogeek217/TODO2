@@ -219,7 +219,6 @@ function buildSeed(): Seed {
             { id: 'g4', kind: 'trend', config: { range: '12w', name: 'Opened and closed', show: 'cumulative', filter: { ...emptyPredicate(), tags: [1] } } },
             { id: 'g5', kind: 'breakdown', config: { name: 'Waiting on', filter: { ...emptyPredicate(), statusIds: [1] }, splitBy: 'people', style: 'donut', show: 'oldest', oldestBy: 'lastFollowup', showNone: false, columns: [{ id: 'due', name: 'Late', color: '#e86bf0', filter: { ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: -1 } } } }, litWhen: 'above', litAt: 0 }, { id: 'col-w', name: 'Waiting', color: '#7ec4bc', filter: { ...emptyPredicate(), statusIds: [1] }, litWhen: 'never' }] }, viewState: { sorts: { people: { by: 'due', reversed: true } } } },
             { id: 'g6', kind: 'breakdown', config: { name: 'Status', filter: emptyPredicate(), splitBy: 'status', style: 'stacked', show: 'count', showNone: true, columns: [] } },
-            { id: 'g7', kind: 'pivot', config: { name: 'Who × what', filter: { ...emptyPredicate(), statusIds: [1] }, rows: 'tags', cols: 'priority' } },
           ])
           const k4 = cell('k4')
           const k5 = cell('k5', [{ id: 't12', kind: 'notes', config: {} }])

@@ -20,16 +20,16 @@ describe('widget kinds', () => {
     // Tasks (List, Calendar, Review, Planner, Notes), then Insights — the Neglect map and the task maps last.
     expect(WIDGET_KINDS).toEqual([
       'lens', 'calendar', 'review', 'planner', 'notes', 'shortcuts',
-      'numbers', 'breakdown', 'pivot', 'trend', 'neglect', 'clusters',
+      'numbers', 'breakdown', 'trend', 'neglect', 'clusters',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
       'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board',
-      'Numbers', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters',
+      'Numbers', 'Breakdown', 'Created vs completed', 'Neglect map', 'Work clusters',
     ])
     // The menus that add a widget list the Numbers as one Number.
     expect(WIDGET_KINDS.map(widgetKindAddLabel)).toEqual([
       'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board',
-      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters',
+      'Number', 'Breakdown', 'Created vs completed', 'Neglect map', 'Work clusters',
     ])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'planner', 'notes', 'shortcuts'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])

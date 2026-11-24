@@ -5,16 +5,21 @@ import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../
 import { prepareImport } from '../../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { rowFixes, validateRow } from '../../data/import-validation'
+import { LAYOUT_PART_LIMIT } from '../../data/layout-shape'
+import { layoutSizeProblem } from '../../data/layout-size'
+import { emptyPredicate } from '../../models/filter-predicate'
 import type { LayoutBody, LayoutTab } from '../../models/workspace-layout'
-import { cell, grid, numberItem } from '../helpers/layout-builders'
+import { cell, grid, numberItem, picture } from '../helpers/layout-builders'
+import { expectWithin } from '../timing'
 
 /**
- * v90 — every Number lives in a Numbers widget: a cell of only Numbers
- * becomes one `numbers` widget holding them in order (its active tab that
- * widget), a Number among other kinds a widget of its own in its place;
- * each Number keeps its id, config and icon; tracks, `fitPx` and collapse
- * stay. The transform's own tests, then the pipeline and the browser
- * database.
+ * v90 — the Pivot removed: every `pivot` tab goes, a cell left without
+ * tabs closes by the absorb rule. And every Number lives in a Numbers
+ * widget: a cell of only Numbers becomes one `numbers` widget holding them
+ * in order (its active tab that widget), a Number among other kinds a
+ * widget of its own in its place; each Number keeps its id, config and
+ * icon; tracks, `fitPx` and collapse stay. The transform's own tests, then
+ * the pipeline and the browser database.
  */
 
 type Obj = Record<string, unknown>
@@ -31,6 +36,8 @@ const number = (id: string, metric: Parameters<typeof numberItem>[1] = 'open', e
 }
 /** The item a v89 Number tab becomes. */
 const item = (tab: LayoutTab, extra: Obj = {}): Obj => ({ ...(tab.config as Obj), id: tab.id, ...extra })
+/** A v89 Pivot tab, with its rows' sort. */
+const pivot = (id: string): LayoutTab => raw({ id, kind: 'pivot', config: { name: 'Who × status', filter: emptyPredicate(), rows: 'people', cols: 'status' }, viewState: { sort: { by: 'total' } } })
 const layout = (body: LayoutBody, extra: Obj = {}): DataRow => ({ id: 1, name: 'L', sortOrder: 0, createdAt: DATE, modifiedAt: DATE, ...body, ...extra })
 const bodyOf = (row: DataRow) => row as unknown as LayoutBody
 const cellOf = (row: DataRow, cellId: string) => bodyOf(row).cells.find((c) => c.id === cellId)
@@ -47,6 +54,82 @@ describe('v90: registered', () => {
     expect(CURRENT_DB_VERSION).toBeGreaterThanOrEqual(90)
     expect(OLDEST_SUPPORTED_DB_VERSION).toBe(87)
     expect(SCHEMA_UPGRADES.get(90)).toBe(upgradeV90)
+  })
+})
+
+describe('v90: the Pivot goes', () => {
+  it('a Pivot among other tabs goes; its cell keeps the rest, the active tab moving to the one before', () => {
+    const a = cell('a', [notes('n1'), pivot('gone'), notes('n2')], { activeTabId: 'gone' })
+    const out = upgradeOne(layout(grid([[a, cell('b', [notes('n3')])]])))
+    expect(cellOf(out, 'a')?.tabs).toEqual([notes('n1'), notes('n2')])
+    expect(cellOf(out, 'a')?.activeTabId).toBe('n1')
+    expect(picture(bodyOf(out))).toEqual(['a b'])
+    expectClean(out)
+  })
+
+  it('the first tab active and a Pivot: the one after it shows', () => {
+    const out = upgradeOne(layout(grid([[cell('a', [pivot('gone'), notes('n1')], { activeTabId: 'gone' })]])))
+    expect(cellOf(out, 'a')?.activeTabId).toBe('n1')
+    expectClean(out)
+  })
+
+  it('a cell of only a Pivot closes: the neighbour sharing its whole edge takes its space, the line between them goes', () => {
+    const out = upgradeOne(layout(grid([[cell('a', [pivot('p')]), cell('b', [notes('n')])]], { cols: [300, 700] })))
+    expect(picture(bodyOf(out))).toEqual(['b'])
+    expect(bodyOf(out).grid.columns).toEqual([{ id: 'c1', weight: 1000 }])
+    expectClean(out)
+  })
+
+  it('with no whole-edge neighbour, the cells along a side that cover its edge grow across it', () => {
+    const t = cell('t', [pivot('p')])
+    const out = upgradeOne(layout(grid([[t, t], [cell('l', [notes('n1')]), cell('r', [notes('n2')])]])))
+    expect(picture(bodyOf(out))).toEqual(['l r'])
+    expectClean(out)
+  })
+
+  it('a pinwheel’s centre has no taker: it stays as an empty cell', () => {
+    const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((id) => cell(id, [notes(`n-${id}`)])) as [ReturnType<typeof cell>, ReturnType<typeof cell>, ReturnType<typeof cell>, ReturnType<typeof cell>]
+    const out = upgradeOne(layout(grid([[a, a, b], [d, cell('e', [pivot('p')]), b], [d, c, c]])))
+    expect(picture(bodyOf(out))).toEqual(['a a b', 'd e b', 'd c c'])
+    expect(cellOf(out, 'e')?.tabs).toEqual([])
+    expectClean(out)
+  })
+
+  it('a cell that was empty before is left as it was', () => {
+    const out = upgradeOne(layout(grid([[cell('a'), cell('b', [notes('n'), pivot('p')])]])))
+    expect(picture(bodyOf(out))).toEqual(['a b'])
+    expect(cellOf(out, 'b')?.tabs).toEqual([notes('n')])
+  })
+
+  it('a Pivot beside Numbers goes first: the Numbers left are a cell of only Numbers, one widget', () => {
+    const a = number('a', 'overdue')
+    const b = number('b')
+    const out = upgradeOne(layout(grid([[cell('k', [pivot('p'), a, b], { activeTabId: 'p' })]])))
+    expect(cellOf(out, 'k')).toMatchObject({ tabs: [{ id: 'n-a', kind: 'numbers', config: { items: [item(a), item(b)] } }], activeTabId: 'n-a' })
+    expectClean(out)
+  })
+
+  it('a table that doesn’t read: the Pivot still goes, no cell closes (the repair closes what’s left empty)', () => {
+    const row: DataRow = { id: 5, grid: 'x', cells: [{ id: 'a', tabs: [pivot('p')] }, { id: 'b', tabs: [notes('n')] }] }
+    const out = upgradeOne(row) as { cells: Array<{ id: string; tabs: unknown[] }> }
+    expect(out.cells.map((c) => [c.id, c.tabs.length])).toEqual([['a', 0], ['b', 1]])
+  })
+
+  it('stays within a time bound at the part limit, just past it, and at the most the import admits', () => {
+    // `n` cells stacked in one column, every other one a Pivot: those close into the one above.
+    const stack = (n: number): DataRow => layout({
+      grid: { columns: [{ id: 'c', weight: 1 }], rows: Array.from({ length: n }, (_, i) => ({ id: `r${i}`, weight: 1 })) },
+      cells: Array.from({ length: n }, (_, i) => ({ id: `k${i}`, area: { col: 0, row: i, colSpan: 1, rowSpan: 1 }, tabs: [i % 2 ? pivot(`t${i}`) : notes(`t${i}`)] })),
+    })
+    for (const n of [LAYOUT_PART_LIMIT, LAYOUT_PART_LIMIT + 1, 3300]) {
+      const layouts = [stack(n)]
+      expect(layoutSizeProblem(layouts), `${n} cells`).toBeNull()
+      const data: DataSet = { layouts }
+      expectWithin(1000, () => {
+        const out = upgradeDataSet(data, 89, 90)
+        expect((out.layouts![0]!.cells as unknown[]).length).toBe(Math.ceil(n / 2))
+      })
+    }
   })
 })
 
@@ -114,7 +197,7 @@ describe('v90: a Number among other kinds becomes a Numbers widget of its own, i
 
 describe('v90: the contract', () => {
   it('pure and idempotent: the input untouched; run again, the same object back', () => {
-    const data: DataSet = { layouts: [layout(grid([[cell('s', [number('a'), number('b')]), cell('k', [notes('n'), number('c')])]]))] }
+    const data: DataSet = { layouts: [layout(grid([[cell('s', [number('a'), number('b')]), cell('k', [notes('n'), number('c')]), cell('p', [pivot('p1')])]]))] }
     const before = JSON.parse(JSON.stringify(data)) as DataSet
     const once = upgradeV90(data)
     expect(data).toEqual(before)
@@ -122,7 +205,7 @@ describe('v90: the contract', () => {
     expect(upgradeV90(once)).toBe(once)
   })
 
-  it('a layout without a Number tab comes back as the same object; other tables are the same arrays', () => {
+  it('a layout with neither a Pivot nor a Number tab comes back as the same object; other tables are the same arrays', () => {
     const plain = layout(grid([[cell('a', [notes('n')])]]), { id: 2 })
     const todos: DataRow[] = [{ id: 1, uid: 'u1', title: 'Kept', isCompleted: false, sortOrder: 0, createdAt: DATE, modifiedAt: DATE }]
     const settings: DataRow[] = [{ key: 'staleAfterDays', value: '30' }]
@@ -136,7 +219,7 @@ describe('v90: the contract', () => {
     const empty: DataSet = {}
     expect(upgradeV90(empty)).toBe(empty)
     const odd: DataSet = {
-      layouts: [null as unknown as DataRow, { id: 2, cells: 'none' }, { id: 3, cells: [null, { id: 'k', tabs: 'x' }, { id: 'j', tabs: [null, 4, { kind: 'number' }] }] }],
+      layouts: [null as unknown as DataRow, { id: 2, cells: 'none' }, { id: 3, cells: [null, { id: 'k', tabs: 'x' }, { id: 'j', tabs: [null, 4, { kind: 'number' }] }] }, { id: 4, grid: 'x', cells: [] }],
     }
     expect(upgradeV90(odd)).toBe(odd)
   })
@@ -164,6 +247,24 @@ describe('v90 through the pipeline', () => {
     expect(k?.tabs.map((t) => t.kind)).toEqual(['notes', 'numbers'])
     expect(k?.activeTabId).toBe(k?.tabs[1]?.id)
     expect(result.data.layouts[0]!.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 80 })
+  })
+
+  it('a v89 file imports without its Pivots, a cell of only a Pivot closed, and no warning', () => {
+    const file = {
+      [SCHEMA_VERSION_KEY]: 89,
+      todos: [],
+      layouts: [layout(grid([[cell('p', [pivot('p1')]), cell('k', [notes('n'), pivot('p2')], { activeTabId: 'p2' })]]))],
+      settings: [],
+    }
+    const result = prepareImport(JSON.parse(JSON.stringify(file)))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.upgraded).toBe(true)
+    expect(result.warnings).toEqual([])
+    const cells = result.data.layouts[0]!.cells
+    expect(cells.map((c) => c.id)).toEqual(['k'])
+    expect(cells[0]?.tabs.map((t) => t.id)).toEqual(['n'])
+    expect(cells[0]?.activeTabId).toBe('n')
+    expect(cells[0]?.area).toEqual({ col: 0, row: 0, colSpan: 1, rowSpan: 1 })
   })
 
   it('the registry runs it from v87 to the current version', () => {
@@ -228,5 +329,15 @@ describe('v90 in the browser database', () => {
     expect(row?.cells[0]?.tabs).toEqual([{ id: 'n-a', kind: 'numbers', config: { items: [item(a), item(b)] } }])
     expect(row?.cells[0]?.activeTabId).toBe('n-a')
     expect(row?.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 70 })
+  })
+
+  it('a v89 database opens without its Pivots, a cell of only a Pivot closed', async () => {
+    db.close()
+    await db.delete()
+    await createV89Db(layout(grid([[cell('p', [pivot('p1')]), cell('k', [notes('n'), pivot('p2')], { activeTabId: 'p2' })]]), { createdAt: new Date(DATE), modifiedAt: new Date(DATE) }))
+    await db.open()
+    const [row] = await db.layouts.toArray()
+    expect(row?.cells.map((c) => [c.id, c.tabs.map((t) => t.id), c.activeTabId])).toEqual([['k', ['n'], 'n']])
+    expect(row?.grid.columns).toHaveLength(1)
   })
 })

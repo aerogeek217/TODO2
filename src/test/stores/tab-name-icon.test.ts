@@ -168,14 +168,13 @@ describe('a tab’s name is never longer than its stored shape allows (cr34 H2 /
   it('the limit is the kind’s own: a chart’s is shorter than a tab’s; a Numbers widget’s is a tab’s', () => {
     expect(tabNameMax('numbers')).toBe(TAB_NAME_MAX)
     expect(tabNameMax('breakdown')).toBe(CHART_NAME_MAX)
-    expect(tabNameMax('pivot')).toBe(CHART_NAME_MAX)
     expect(tabNameMax('trend')).toBe(CHART_NAME_MAX)
     expect(tabNameMax('notes')).toBe(TAB_NAME_MAX)
     expect(tabNameMax('calendar')).toBe(TAB_NAME_MAX)
     expect(tabNameMax('lens')).toBe(TAB_NAME_MAX)
   })
 
-  it.each(['numbers', 'breakdown', 'pivot', 'trend'] as const)('a %s renamed past its limit is cut to it: the stored layout still imports', async (kind) => {
+  it.each(['numbers', 'breakdown', 'trend'] as const)('a %s renamed past its limit is cut to it: the stored layout still imports', async (kind) => {
     const id = await open([createTab('notes', 'n1')])
     const tabId = ws().addWidget(kind, { kind: 'cell', cellId: 'k' })!
     // A new Number is named as itself (its item's name, `NUMBER_NAME_MAX`).

@@ -239,7 +239,7 @@ describe('one live widget per tab: the cell shows a placeholder while its tab is
     }
   })
 
-  const kinds = ['lens', 'calendar', 'notes', 'review', 'neglect', 'numbers', 'trend', 'breakdown', 'pivot'] as const
+  const kinds = ['lens', 'calendar', 'notes', 'review', 'neglect', 'numbers', 'trend', 'breakdown'] as const
   it.each(kinds)('a %s tab: only the placeholder in the cell’s body while it is open larger', (kind) => {
     // A Number opens larger under its own id (the widget holds it).
     const tab = kind === 'lens' ? listTab : kind === 'numbers' ? numbersTab('nw', [numberItem('w', 'open', { breakdown: 'people' })]) : createTab(kind, 'w')
