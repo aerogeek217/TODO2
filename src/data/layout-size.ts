@@ -15,8 +15,9 @@ import { LAYOUT_PART_LIMIT } from './layout-shape'
  * Counted on the raw row, by the keys that hold a layout's parts in every
  * shape a layout has had: the table (`grid.columns`, `grid.rows`, `cells`,
  * each cell's `tabs`), the columns → rows → cells and the `top` / `bottom`
- * bands before it, and a retired Dashboard tab's part lists (`tiles`,
- * `listTiles`, `sections`), each of which became a cell.
+ * bands before it, a retired Dashboard tab's part lists (`tiles`,
+ * `listTiles`, `sections`), each of which became a cell, and a Numbers
+ * widget's Numbers (`config.items`).
  */
 
 /**
@@ -85,6 +86,8 @@ export function layoutPartCount(row: unknown): number {
       for (const part of list as unknown[]) stack.push(part)
     }
     if (node.kind === 'dashboard') count += dashboardParts(node)
+    // A Numbers widget's Numbers (v90 on): each a part.
+    if (node.kind === 'numbers' && isRecord(node.config) && Array.isArray(node.config.items)) count += node.config.items.length
   }
   return count
 }

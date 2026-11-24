@@ -30,6 +30,7 @@ import { tapCard } from './edit-card-actions'
 import { TabNameIconPopover } from './TabNameIconPopover'
 import { NumberStrip, NUMBER_SLOT_ATTR } from './NumberStrip'
 import { isNumberStripCell } from '../../utils/workspace-rows'
+import { numberViewCell } from '../../utils/number-views'
 import type { WidgetFace } from '../../utils/widget-face'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
@@ -125,7 +126,9 @@ function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = fals
 /** No column tracks given: the ⋯ has no Collapse column. */
 const NO_TRACKS: readonly string[] = []
 
-export function FilledCell({ cell, rowTrackIds, collapsed, columnTrackIds = NO_TRACKS, columnCollapsed = false, fitRow = false, style }: WorkspaceCellProps) {
+export function FilledCell({ cell: stored, rowTrackIds, collapsed, columnTrackIds = NO_TRACKS, columnCollapsed = false, fitRow = false, style }: WorkspaceCellProps) {
+  // TEMPORARY (`utils/number-views`): each Number drawn as a tab of its own.
+  const cell = numberViewCell(stored)
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const removeWidget = useWorkspaceStore((s) => s.removeWidget)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
@@ -432,7 +435,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, columnTrackIds = NO_T
             menuTabId={menu ? menu.tabId : null}
             onMore={toggleSlotMenu}
             onClose={closeTabAsked}
-            onAdd={() => { void useWorkspaceStore.getState().addWidget('number', { kind: 'cell', cellId: cell.id }) }}
+            onAdd={() => { void useWorkspaceStore.getState().addWidget('numbers', { kind: 'cell', cellId: cell.id }) }}
             onResult={setWidgetResult}
             onFace={setSlotFace}
           />

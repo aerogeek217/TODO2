@@ -7,6 +7,7 @@ import { registerOpenEditor } from '../../../stores/editor-leave'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { cell, emptyBody, grid } from '../../helpers/layout-builders'
+import { numberViews } from '../../../utils/number-views'
 
 /**
  * The palette's Add Widget › kind (J18; layout edit mode E4): the widget
@@ -102,7 +103,8 @@ describe('addWidgetAt: no editor opens on add (decision 8)', () => {
   it.each(WIDGET_KINDS.filter((k) => !WIDGET_KIND_SPECS[k].showsList))('%s is added and opens no editor', (kind) => {
     open(two())
     const id = addWidgetAt(kind, { kind: 'cell', cellId: 'left' })
-    expect(ws().cells.flatMap((c) => c.tabs).find((t) => t.id === id)?.kind).toBe(kind)
+    // A new Number is named by its own id (the widget holds it, `number-views`).
+    expect(numberViews(ws()).cells.flatMap((c) => c.tabs).find((t) => t.id === id)?.kind).toBe(kind)
     expect(useUIStore.getState()).toMatchObject({ numberEditorTabId: null, listEditor: null })
     expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, trendEditorTabId: null })
   })

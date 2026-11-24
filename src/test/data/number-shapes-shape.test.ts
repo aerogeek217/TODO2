@@ -4,8 +4,8 @@ import { checkLayoutBody } from '../../data/layout-shape'
 import { emptyPredicate } from '../../models/filter-predicate'
 import type { NumberConfig } from '../../models/glance-widgets'
 import { isNumberGoal, pickNumberGoal } from '../../models/number-shapes'
-import type { LayoutTab, NumberTab, WorkspaceLayout } from '../../models/workspace-layout'
-import { numberTab, single } from '../helpers/layout-builders'
+import type { LayoutTab, NumbersTab, WorkspaceLayout } from '../../models/workspace-layout'
+import { numberItem, single } from '../helpers/layout-builders'
 
 const DATE = '2026-09-01T09:00:00.000Z'
 
@@ -16,9 +16,18 @@ function layoutRow(tab: Record<string, unknown>): Record<string, unknown> {
   }
 }
 
-const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0] as NumberTab
+const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0] as NumbersTab
+/** The layout row's one Number as read, without its id. */
+const numberOf = (row: Record<string, unknown>): Partial<NumberConfig> => {
+  const { id: _id, ...config } = tabOf(row).config.items[0]!
+  void _id
+  return config
+}
+/** A layout row of one Numbers widget holding one Number, `config`, its id `t` (v90). */
+const numbersRow = (config: unknown) => layoutRow({ id: 'w', kind: 'numbers', config: { items: [{ id: 't', ...(config as object) }] } })
 
-const overdue = numberTab('t', 'overdue').config
+const { id: _t, ...overdue } = numberItem('t', 'overdue')
+void _t
 const tagged = { ...emptyPredicate(), tags: [3] }
 
 /** A Number of shape `show` with its field. */
@@ -35,10 +44,10 @@ describe('a Number’s shapes in a stored layout (D26 P6)', () => {
     ['list', shaped({ show: 'list', list: { listDefinitionId: 4 } })],
     ['list, none picked yet', shaped({ show: 'list' })],
   ])('%s round-trips', (_, config) => {
-    const good = layoutRow({ id: 't', kind: 'number', config })
+    const good = numbersRow(config)
     expect(validateRow('layouts', good)).toBe(true)
     expect(rowFixes('layouts', good)).toEqual([])
-    expect(tabOf(good)).toEqual({ id: 't', kind: 'number', config })
+    expect(numberOf(good)).toEqual(config)
   })
 
   it.each([
@@ -54,33 +63,33 @@ describe('a Number’s shapes in a stored layout (D26 P6)', () => {
     ['a list by a bad id', { ...shaped({ show: 'list' }), list: { listDefinitionId: 'x' } }, 'list', shaped({ show: 'list' })],
     ['a group without items', shaped({ show: 'group' }), 'items', shaped({ show: 'group', items: [{ name: 'Open', filter: emptyPredicate() }] })],
   ] as const)('%s is repaired (a fix)', (_, config, key, repaired) => {
-    const row = layoutRow({ id: 't', kind: 'number', config })
-    expect(checkLayoutBody(row)).toBe(`cells[0].tabs[0].config.${key}`)
+    const row = numbersRow(config)
+    expect(checkLayoutBody(row)).toBe(`cells[0].tabs[0].config.items[0].${key}`)
     expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
-    expect(tabOf(row).config).toEqual(repaired)
+    expect(numberOf(row)).toEqual(repaired)
   })
 
   it('a group keeps its first six counts; a bad name, colour or filter is reset', () => {
     const item = { name: 'A', filter: tagged }
-    const seven = layoutRow({ id: 't', kind: 'number', config: shaped({ show: 'group', items: Array.from({ length: 7 }, () => item) }) })
-    expect(checkLayoutBody(seven)).toBe('cells[0].tabs[0].config.items')
-    expect(tabOf(seven).config.items).toHaveLength(6)
+    const seven = numbersRow(shaped({ show: 'group', items: Array.from({ length: 7 }, () => item) }))
+    expect(checkLayoutBody(seven)).toBe('cells[0].tabs[0].config.items[0].items')
+    expect(numberOf(seven).items).toHaveLength(6)
 
-    const bad = layoutRow({ id: 't', kind: 'number', config: { ...shaped({ show: 'group' }), items: [{ name: 7, filter: tagged, color: 'teal' }, { name: 'B', filter: { tags: [1] } }] } })
-    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.items')
-    expect(tabOf(bad).config.items).toEqual([
+    const bad = numbersRow({ ...shaped({ show: 'group' }), items: [{ name: 7, filter: tagged, color: 'teal' }, { name: 'B', filter: { tags: [1] } }] })
+    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.items[0].items')
+    expect(numberOf(bad).items).toEqual([
       { name: 'Number', filter: tagged },
       { name: 'B', filter: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, tags: [1] } },
     ])
     // A bad item filter alone is named by its path.
-    const badFilter = layoutRow({ id: 't', kind: 'number', config: shaped({ show: 'group', items: [{ name: 'B', filter: { tags: [1] } as unknown as typeof tagged }] }) })
-    expect(checkLayoutBody(badFilter)).toBe('cells[0].tabs[0].config.items.0.filter.showCompleted')
+    const badFilter = numbersRow(shaped({ show: 'group', items: [{ name: 'B', filter: { tags: [1] } as unknown as typeof tagged }] }))
+    expect(checkLayoutBody(badFilter)).toBe('cells[0].tabs[0].config.items[0].items.0.filter.showCompleted')
   })
 
   it('a share’s second filter is read as a list’s is', () => {
-    const bad = layoutRow({ id: 't', kind: 'number', config: shaped({ show: 'share', of: { tags: [2] } as unknown as typeof tagged }) })
-    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.of.showCompleted')
-    expect(tabOf(bad).config.of).toEqual({ showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, tags: [2] })
+    const bad = numbersRow(shaped({ show: 'share', of: { tags: [2] } as unknown as typeof tagged }))
+    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.items[0].of.showCompleted')
+    expect(numberOf(bad).of).toEqual({ showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, tags: [2] })
   })
 
   it('a goal: one bound, a whole number in range, an optional week', () => {

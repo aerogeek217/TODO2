@@ -16,7 +16,8 @@ import {
   type Rect,
   type WorkspaceGeometry,
 } from '../../utils/workspace-drop'
-import { cell as spec, grid, type CellSpec } from '../helpers/layout-builders'
+import { cell as spec, grid, type CellSpec, freshNumberTab, numberItem, numbersTab } from '../helpers/layout-builders'
+import { numberViews } from '../../utils/number-views'
 import { pairPercent } from '../../utils/workspace-resize'
 import { FIT_TRACK_NOMINAL_PX } from '../../utils/workspace-table'
 
@@ -211,8 +212,8 @@ describe('the drop ghost', () => {
   })
 
   it('a fit row keeps the height it was drawn at', () => {
-    const n1 = spec('n1', [createTab('number', 'num1')])
-    const n2 = spec('n2', [createTab('number', 'num2')])
+    const n1 = spec('n1', [freshNumberTab('num1')])
+    const n2 = spec('n2', [freshNumberTab('num2')])
     const big = cell('big', ['t9'])
     const fit: WorkspaceLayout = { sortOrder: 0, name: 'L', ...grid([[n1, n2], [big, big]]), createdAt: new Date(0), modifiedAt: new Date(0) }
     const r = cellRectIn(fit, 'big', { ...table, rowPx: { r1: 70 } })!
@@ -220,11 +221,11 @@ describe('the drop ghost', () => {
     expect(r.bottom).toBeCloseTo(700)
   })
 
-  /** `[n1 n2] / [big big]`: a Numbers row (drawn 58px) over a cell. */
+  /** `[n1 n2] / [big big]`: a Numbers row (drawn 58px) over a cell — as the drags see it, each Number a tab (`number-views`). */
   function numbersOverBig(): WorkspaceLayout {
-    const n1 = spec('n1', [createTab('number', 'num1')])
-    const n2 = spec('n2', [createTab('number', 'num2')])
-    return { sortOrder: 0, name: 'L', ...grid([[n1, n2], [cell('big', ['t9']), cell('big', ['t9'])]]), createdAt: new Date(0), modifiedAt: new Date(0) }
+    const n1 = spec('n1', [freshNumberTab('num1')])
+    const n2 = spec('n2', [freshNumberTab('num2')])
+    return numberViews({ sortOrder: 0, name: 'L', ...grid([[n1, n2], [cell('big', ['t9']), cell('big', ['t9'])]]), createdAt: new Date(0), modifiedAt: new Date(0) })
   }
 
   it('a split below a fit row’s Number: the new fit row as tall as the row the Number came from, not a nominal height (widget feedback 2D)', () => {
@@ -238,7 +239,7 @@ describe('the drop ghost', () => {
 
   it('a row a drop leaves holding only Numbers fits them: the other rows take the rest (widget feedback 2D)', () => {
     // [n1 x1] / [big big]: the first row isn't a fit row (x1 is Notes); drawn 344px.
-    const n1 = spec('n1', [createTab('number', 'num1')])
+    const n1 = spec('n1', [freshNumberTab('num1')])
     const x1 = cell('x1', ['tx'])
     const big = cell('big', ['t9'])
     const l: WorkspaceLayout = { sortOrder: 0, name: 'L', ...grid([[n1, x1], [big, big]]), createdAt: new Date(0), modifiedAt: new Date(0) }
@@ -251,7 +252,7 @@ describe('the drop ghost', () => {
 
   it('fitRowHeights: a kept fit row its drawn height; a new one its cells’ origin row; none for weighted rows', () => {
     const l = numbersOverBig()
-    const next: WorkspaceLayout = { ...l, ...grid([[spec('n1', [createTab('number', 'num1')])], [spec('n2', [createTab('number', 'num2')])], [cell('big', ['t9'])]]) }
+    const next: WorkspaceLayout = { ...l, ...grid([[spec('n1', [freshNumberTab('num1')])], [spec('n2', [freshNumberTab('num2')])], [cell('big', ['t9'])]]) }
     // The rows of `next` are r1, r2, r3: r1 was a fit row (kept), r2 is new (num2 came from r1), r3 weighted.
     expect(fitRowHeights(l, next, { r1: 62, r2: 630 })).toEqual({ r1: 62, r2: 62 })
   })
@@ -342,11 +343,12 @@ describe('a strip of Numbers (flair P10)', () => {
     tabs: [{ id: 'a', rect: r(0, 0, 300, 60) }, { id: 'b', rect: r(300, 0, 600, 60) }, { id: 'c', rect: r(600, 0, 900, 60) }],
   }
   const geo: WorkspaceGeometry = { area: r(-6, -6, 906, 66), cells: [strip] }
-  const layout = {
+  // As the drags see it: each Number a tab of its own (`number-views`).
+  const layout = numberViews({
     name: 'L', sortOrder: 0, createdAt: new Date(0), modifiedAt: new Date(0),
     grid: { columns: [{ id: 'c1', weight: 1000 }], rows: [{ id: 'r1', weight: 1000 }] },
-    cells: [{ id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [createTab('number', 'a'), createTab('number', 'b'), createTab('number', 'c')] }],
-  } as WorkspaceLayout
+    cells: [{ id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [numbersTab('s', [numberItem('a'), numberItem('b'), numberItem('c')])] }],
+  } as WorkspaceLayout)
 
   it('its middle takes a drop between its slots, its sides still split', () => {
     expect(hitTestWorkspace(geo, { x: 470, y: 30 })).toEqual({ kind: 'tab-strip', cellId: 'k', index: 2, lineX: 599 })

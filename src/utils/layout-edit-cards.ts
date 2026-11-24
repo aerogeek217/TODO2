@@ -1,7 +1,7 @@
 import type { CellArea, GridAxis, LayoutBody, LayoutCell } from '../models/workspace-layout'
 import { cellById, crossAxis, mergeNeighbour, neighbours, readingOrder, sideAxis, spanOf, type Side } from './workspace-grid'
 import { cellAreaFits } from './workspace-layout-ops'
-import { isNumberStripCell } from './workspace-rows'
+import { cellNumberCount, isNumberStripCell } from './workspace-rows'
 
 /**
  * The layout edit mode's cards and slots (E3), pure: what a card's ruler
@@ -75,7 +75,7 @@ export function areaRulerName(area: CellArea, names: RulerNames): string {
 export function cardName(cell: Pick<LayoutCell, 'tabs'>, titles: readonly string[]): string {
   const n = cell.tabs.length
   if (n === 0) return ''
-  if (isNumberStripCell(cell)) return `${n} Numbers`
+  if (isNumberStripCell(cell)) return `${cellNumberCount(cell)} Numbers`
   const [a = 'A widget', b = 'a widget'] = titles
   if (n === 1) return a
   return n === 2 ? `${a}, ${b}` : `${a}, ${b} + ${n - 2}`

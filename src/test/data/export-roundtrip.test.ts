@@ -15,7 +15,7 @@ import { TODO_EVENT_TYPES } from '../../models/todo-event'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import { makeTodo, resetDb } from '../helpers'
-import { cell, emptyBody, grid, numberTab } from '../helpers/layout-builders'
+import { cell, emptyBody, grid, numberItem, numbersTab, numberTab } from '../helpers/layout-builders'
 
 /**
  * Export → JSON → import round-trip guarantee.
@@ -214,7 +214,8 @@ function buildSeed(): Seed {
             // The Planner (no settings) and its hand order.
             { id: 't24', kind: 'planner', config: {}, viewState: { order: ['uid-b', 'uid-a'] } },
             // The glance widgets, each with a setting off its default.
-            numberTab('g1', 'closedThisWeek'),
+            // A Numbers widget of two (v90): its own name and icon, a Number's icon.
+            numbersTab('g1', [numberItem('g1a', 'closedThisWeek', { icon: { kind: 'emoji', emoji: '✅' } }), numberItem('g1b', 'open')], { name: 'This week', icon: { kind: 'line', key: 'number' } }),
             { id: 'g4', kind: 'trend', config: { range: '12w', name: 'Opened and closed', show: 'cumulative', filter: { ...emptyPredicate(), tags: [1] } } },
             { id: 'g5', kind: 'breakdown', config: { name: 'Waiting on', filter: { ...emptyPredicate(), statusIds: [1] }, splitBy: 'people', style: 'donut', show: 'oldest', oldestBy: 'lastFollowup', showNone: false, columns: [{ id: 'due', name: 'Late', color: '#e86bf0', filter: { ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: -1 } } } }, litWhen: 'above', litAt: 0 }, { id: 'col-w', name: 'Waiting', color: '#7ec4bc', filter: { ...emptyPredicate(), statusIds: [1] }, litWhen: 'never' }] }, viewState: { sorts: { people: { by: 'due', reversed: true } } } },
             { id: 'g6', kind: 'breakdown', config: { name: 'Status', filter: emptyPredicate(), splitBy: 'status', style: 'stacked', show: 'count', showNone: true, columns: [] } },
@@ -341,7 +342,7 @@ describe('export → JSON → import round-trip', () => {
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
-    expect(tabs.some((t) => t.kind === 'number' && t.config.breakdown !== undefined)).toBe(true)
+    expect(tabs.some((t) => t.kind === 'numbers' && t.config.items.some((n) => n.breakdown !== undefined))).toBe(true)
   })
 
   it('restores every table deep-equal to the seed, with real Dates', async () => {

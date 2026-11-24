@@ -3,6 +3,7 @@ import { getActiveTab, type LayoutCell, type LayoutTab, type WorkspaceLayout } f
 import { edgeBetween, edgeStretches, isWholeLine, spanOf, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
 import { previewedLayout } from '../../utils/workspace-preview'
 import { absorbedCellIds, withStructurePreview } from '../../utils/structure-preview'
+import { numberViews } from '../../utils/number-views'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
 import { useCellRoomStore } from '../../stores/cell-room-store'
 import { cellTouchesCollapsedColumn, columnStrips, EDIT_GUTTER_PX, isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
@@ -259,7 +260,8 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
   const structure = useWorkspaceStore((s) => (s.editing != null && s.structurePreview?.layoutId === working.id ? s.structurePreview : null))
   const live = preview != null && preview.layoutId === working.id ? preview : null
   const layout = useMemo(() => (
-    structure ? withStructurePreview(working, structure.body, structure.newCellIds)
+    // TEMPORARY (`utils/number-views`): the preview drawn as the layout is, each Number a tab of its own.
+    structure ? withStructurePreview(working, numberViews(structure.body), structure.newCellIds)
       : live ? previewedLayout(working, live.body) : working
   ), [working, live, structure])
   const newIds = useMemo(() => new Set(structure?.newCellIds ?? []), [structure])
@@ -418,7 +420,9 @@ function Grain() {
  * each cell is a card (E3, `EditCard`): its content dims and takes no
  * presses — the card's surface under it does, and its tabs; nothing moves.
  */
-export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
+export function WorkspaceView({ layout: stored }: { layout: WorkspaceLayout }) {
+  // TEMPORARY (`utils/number-views`): each Number drawn as a tab of its own.
+  const layout = numberViews(stored)
   useExpandOrphanTracks(layout)
   const editing = useWorkspaceStore((s) => s.editing != null)
   return (

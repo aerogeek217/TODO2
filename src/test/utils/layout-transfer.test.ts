@@ -7,12 +7,13 @@ import {
   transferListPlan,
   type IncomingTransfer,
 } from '../../utils/layout-transfer'
-import { cell, emptyBody, grid, single } from '../helpers/layout-builders'
+import { cell, emptyBody, grid, single, freshNumberTab, numberItem, numbersTab } from '../helpers/layout-builders'
 
 const list = (id: string, listDefinitionId: number): LayoutTab => createTab('lens', id, { listDefinitionId })
+/** A Numbers widget of one Number (`id`) following list `listDefinitionId`. */
 const follower = (id: string, listDefinitionId: number): LayoutTab => {
-  const tab = createTab('number', id)
-  return { ...tab, config: { ...tab.config, show: 'list', list: { listDefinitionId } } } as LayoutTab
+  const tab = freshNumberTab(id)
+  return { ...tab, config: { items: [{ ...tab.config.items[0]!, show: 'list', list: { listDefinitionId } }] } }
 }
 const gen = () => {
   let n = 0
@@ -25,6 +26,18 @@ function incoming(tabs: LayoutTab[], over: Partial<IncomingTransfer> = {}): Inco
 
 describe('carriedTabs', () => {
   const source = grid([[cell('c1', [createTab('notes', 'a'), createTab('notes', 'b')], { activeTabId: 'b' }), cell('c2', [createTab('notes', 'z')])]])
+
+  it('a Numbers widget lands with its Numbers’ ids new to the target where they are taken there (C2), one id renamed the same everywhere', () => {
+    const widget = numbersTab('w', [numberItem('n1'), numberItem('n2')])
+    const from = single(cell('c', [widget]))
+    const target = single(cell('t', [createTab('notes', 'n1')]))
+    const r = carriedTabs(from, { kind: 'tab', tabId: 'w' }, target, gen())
+    expect(r?.tabs).toEqual([numbersTab('w', [numberItem('new-1'), numberItem('n2')])])
+    // A Number viewed as a tab of its own (its id the tab's and the Number's) keeps them one id.
+    const view = numbersTab('n1', [numberItem('n1')])
+    const r2 = carriedTabs(single(cell('c', [view])), { kind: 'tab', tabId: 'n1' }, target, gen())
+    expect(r2?.tabs).toEqual([numbersTab('new-1', [numberItem('new-1')])])
+  })
 
   it('carries one tab', () => {
     const r = carriedTabs(source, { kind: 'tab', tabId: 'z' }, emptyBody(), gen())

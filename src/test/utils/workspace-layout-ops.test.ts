@@ -38,7 +38,7 @@ import {
   withRowDrawnAt,
   type LayoutDropTarget,
 } from '../../utils/workspace-layout-ops'
-import { cell as spec, emptyBody, grid, picture, type CellSpec } from '../helpers/layout-builders'
+import { cell as spec, emptyBody, grid, picture, type CellSpec, freshNumberTab, numberWidgetId } from '../helpers/layout-builders'
 
 /** A cell of notes tabs (`<id>-t` unless named), its first tab active. */
 function cell(id: string, tabIds: string[] = [`${id}-t`]): CellSpec {
@@ -213,7 +213,7 @@ describe('insertTrack', () => {
   })
 
   it('skips a Numbers-only (fit) row and a collapsed row too: their weights share nothing (cr34 W6)', () => {
-    const n = spec('n', [createTab('number', 'num')])
+    const n = spec('n', [freshNumberTab('num')])
     // A list over a Numbers row, both weight 1000: Row at the bottom takes half of the list.
     const fit = layout(grid([[a], [n]], { rows: [1000, 1000] }))
     expect(trackSizing(fit, 'rows', 1).kind).toBe('fit')
@@ -677,8 +677,8 @@ describe('snapping and the "+" (D26 follow-ups, board BE)', () => {
 })
 
 describe('a Numbers-only (fit) row\'s divider', () => {
-  const n1 = spec('n1', [createTab('number', 'num1')])
-  const n2 = spec('n2', [createTab('number', 'num2')])
+  const n1 = spec('n1', [freshNumberTab('num1')])
+  const n2 = spec('n2', [freshNumberTab('num2')])
   const l = cell('l')
   // n1 n2
   // l  l
@@ -737,12 +737,12 @@ describe('a Numbers-only (fit) row\'s divider', () => {
 
   it('a row that stops being Numbers-only ignores it: weighted by its own weight; Numbers-only again, its height is back', () => {
     const out = sized()
-    const list = replaceTab(out, 'num1', createTab('notes', 'num1'))
+    const list = replaceTab(out, 'num1-w', createTab('notes', 'num1-w'))
     expect(list.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 116 })
     expect(trackSizing(list, 'rows', 0)).toEqual({ kind: 'weighted', weight: 1000 })
     const joined = addTab(out, createTab('notes', 'x1'), { kind: 'cell', cellId: 'n2' }, ids())
     expect(trackSizing(joined, 'rows', 0)).toEqual({ kind: 'weighted', weight: 1000 })
-    expect(trackSizing(replaceTab(list, 'num1', createTab('number', 'num1')), 'rows', 0)).toEqual({ kind: 'fixed', px: 116 })
+    expect(trackSizing(replaceTab(list, 'num1-w', freshNumberTab('num1')), 'rows', 0)).toEqual({ kind: 'fixed', px: 116 })
   })
 
   it('draws its cells at their small face while it fits, collapsed too; given a height, by their size', () => {
@@ -771,8 +771,8 @@ describe('a Numbers-only (fit) row\'s divider', () => {
 })
 
 describe('only the dragged line moves (J14)', () => {
-  const n1 = spec('n1', [createTab('number', 'num1')])
-  const n2 = spec('n2', [createTab('number', 'num2')])
+  const n1 = spec('n1', [freshNumberTab('num1')])
+  const n2 = spec('n2', [freshNumberTab('num2')])
   const a = cell('a')
   const b = cell('b')
   const minPx = () => 40
@@ -869,7 +869,7 @@ describe('a track held at its minimum: the divider still follows the pointer, no
   const a = cell('a')
   const b = cell('b')
   const c = cell('c')
-  const n1 = spec('n1', [createTab('number', 'num1')])
+  const n1 = spec('n1', [freshNumberTab('num1')])
   const WIDE = 2120
   /** The axis's tracks as the grid draws them in `total` px (no gaps), each cell at least its own minimum. */
   const drawn = (body: LayoutBody, axis: 'columns' | 'rows', total: number) => tableTrackSizes(body, axis, total, 0)
@@ -1186,7 +1186,7 @@ describe('random op sequences keep the table valid', () => {
 
   /** The tables a run starts from: one cell, a fixed (former band) row, a Numbers row, a fixed column. */
   function start(seed: number): WorkspaceLayout {
-    const number = (id: string) => spec(id, [createTab('number', `${id}-t`)], { activeTabId: `${id}-t` })
+    const number = (id: string) => spec(id, [freshNumberTab(`${id}-t`)], { activeTabId: numberWidgetId(`${id}-t`) })
     switch (seed % 4) {
       case 1: return layout(grid([[cell('band'), cell('band')], [cell('sa'), cell('sb')]], { rows: [{ px: 160 }, 1000] }))
       case 2: return layout(grid([[number('sn1'), number('sn2')], [cell('sa'), cell('sa')]]))
@@ -1258,7 +1258,8 @@ describe('random op sequences keep the table valid', () => {
       /** A new tab: mostly Notes, a Number one time in four (fit rows), now and then a chart (a glance cell). */
       const newTab = (): LayoutTab => {
         const r = rand()
-        return createTab(r < 0.65 ? 'notes' : r < 0.9 ? 'number' : 'breakdown', `x${++tabN}`)
+        const id = `x${++tabN}`
+        return createTab(r < 0.65 ? 'notes' : r < 0.9 ? 'numbers' : 'breakdown', id, { numberItemId: `${id}-n` })
       }
       let body: WorkspaceLayout = start(seed)
       for (let step = 0; step < STEPS; step++) {
@@ -1342,7 +1343,8 @@ describe('random op sequences keep the table valid', () => {
             // Change widget: a Notes tab a Number, or back — rows start and stop fitting.
             const id = pick(tabIds)
             const tab = id != null ? getTab(body, id) : undefined
-            if (tab) body = replaceTab(body, tab.id, createTab(tab.kind === 'number' ? 'notes' : 'number', tab.id))
+            if (tab) body = replaceTab(body, tab.id, createTab(tab.kind === 'numbers' ? 'notes' : 'numbers', tab.id, { numberItemId: `${tab.id}-n` }))
+
             break
           }
           // The layout edit mode's rulers (E2): a "+" on any line, Remove row / column, a sliver's Merge into, Even all.

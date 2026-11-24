@@ -4,6 +4,7 @@ import { validateRow } from '../../data/import-validation'
 import { CHART_NAME_MAX } from '../../models/chart-widgets'
 import { NUMBER_NAME_MAX, readStoredName } from '../../models/glance-widgets'
 import { createTab, TAB_NAME_MAX, type LayoutTab } from '../../models/workspace-layout'
+import { freshNumberTab } from '../helpers/layout-builders'
 
 const AREA = { col: 0, row: 0, colSpan: 1, rowSpan: 1 }
 const DATE = '2026-09-01T09:00:00.000Z'
@@ -81,7 +82,21 @@ describe('a Number’s or a chart’s stored name past its limit is cut, never r
     expect([NUMBER_NAME_MAX, CHART_NAME_MAX, TAB_NAME_MAX]).toEqual([80, 80, 200])
   })
 
-  it.each(['number', 'breakdown', 'pivot', 'trend'] as const)('a %s named with 81 – 200 characters keeps its first 80, and every other setting', (kind) => {
+  it('a Number named with 81 – 200 characters keeps its first 80, and every other setting', () => {
+    for (const length of [81, 120, 200]) {
+      const tab = freshNumberTab('t')
+      const item = tab.config.items[0]!
+      const named = { ...tab, config: { items: [{ ...item, name: sentence(length) }] } } as LayoutTab
+      expect(checkLayoutBody(bodyOf(named))).toBe('cells[0].tabs[0].config.items[0].name')
+      const picked = pickLayoutBody(bodyOf(named))
+      expect(picked.fixes).toEqual(['tab name shortened'])
+      expect(picked.cells[0]!.tabs[0]).toEqual({ ...tab, config: { items: [{ ...item, name: sentence(80) }] } })
+      expect(checkLayoutBody(picked)).toBe(true)
+      expect(pickLayoutBody(picked).fixes).toEqual([])
+    }
+  })
+
+  it.each(['breakdown', 'pivot', 'trend'] as const)('a %s named with 81 – 200 characters keeps its first 80, and every other setting', (kind) => {
     for (const length of [81, 120, 200]) {
       const tab = createTab(kind, 't')
       const named = { ...tab, config: { ...tab.config, name: sentence(length) } } as LayoutTab
@@ -96,17 +111,18 @@ describe('a Number’s or a chart’s stored name past its limit is cut, never r
   })
 
   it('a name at the limit is kept whole, no fix', () => {
-    const tab = createTab('number', 't')
-    const named = { ...tab, config: { ...tab.config, name: sentence(80) } } as LayoutTab
+    const tab = freshNumberTab('t')
+    const named = { ...tab, config: { items: [{ ...tab.config.items[0]!, name: sentence(80) }] } } as LayoutTab
     expect(checkLayoutBody(bodyOf(named))).toBe(true)
     expect(pickLayoutBody(bodyOf(named)).fixes).toEqual([])
   })
 
   it('a cut name beside a setting that is reset reports both', () => {
-    const tab = createTab('number', 't')
-    const picked = pickLayoutBody(bodyOf({ ...tab, config: { ...tab.config, name: sentence(90), compare: 'lastYear' } } as unknown as LayoutTab))
+    const tab = freshNumberTab('t')
+    const picked = pickLayoutBody(bodyOf({ ...tab, config: { items: [{ ...tab.config.items[0]!, name: sentence(90), compare: 'lastYear' }] } } as unknown as LayoutTab))
     expect(picked.fixes).toEqual(['tab or cell settings reset', 'tab name shortened'])
-    expect(picked.cells[0]!.tabs[0]!.config).toMatchObject({ name: sentence(80), compare: 'yesterday' })
+    expect((picked.cells[0]!.tabs[0]!.config as { items: unknown[] }).items[0]).toMatchObject({ name: sentence(80), compare: 'yesterday' })
+
   })
 
   it('a name that is no text is still reset to the kind’s default', () => {

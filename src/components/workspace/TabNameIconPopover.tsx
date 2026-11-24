@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { iconDescription, iconSummary } from '../../models/icon'
-import { tabNameMax, tabStripIcon, widgetKindLabel, type LayoutTab } from '../../models/workspace-layout'
-import { trendName } from '../../models/glance-widgets'
+import { numberTitle, tabNameMax, tabStripIcon, widgetKindLabel, type LayoutTab } from '../../models/workspace-layout'
+import { NUMBER_NAME_MAX, trendName } from '../../models/glance-widgets'
+import { isNumberView, numberTabOf, numberViews } from '../../utils/number-views'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { getTab } from '../../utils/workspace-layout-queries'
@@ -18,7 +19,8 @@ import styles from './TabNameIconPopover.module.css'
 function storedName(tab: LayoutTab, listName: string | undefined): string {
   switch (tab.kind) {
     case 'lens': return listName ?? ''
-    case 'number':
+    // TEMPORARY (`utils/number-views`): one Number's view is named as that Number.
+    case 'numbers': return isNumberView(tab) ? numberTabOf(tab)?.config.name ?? '' : tab.name ?? ''
     case 'breakdown':
     case 'pivot': return tab.config.name
     case 'trend': return tab.config.name ?? ''
@@ -28,6 +30,7 @@ function storedName(tab: LayoutTab, listName: string | undefined): string {
 
 /** What the field shows while blank: the name the tab then has. */
 function defaultName(tab: LayoutTab): string {
+  if (isNumberView(tab)) return numberTitle({ name: '' })
   return tab.kind === 'trend' ? trendName({}) : widgetKindLabel(tab.kind)
 }
 
@@ -35,7 +38,7 @@ function defaultName(tab: LayoutTab): string {
 function ownNameNote(tab: LayoutTab): string | null {
   switch (tab.kind) {
     case 'lens': return 'This tab shows a list, so the name is the list’s name.'
-    case 'number': return 'This tab shows a Number, so the name is the Number’s name.'
+    case 'numbers': return isNumberView(tab) ? 'This tab shows a Number, so the name is the Number’s name.' : null
     case 'breakdown':
     case 'pivot':
     case 'trend': return 'This tab shows a chart, so the name is the chart’s name.'
@@ -59,7 +62,7 @@ export function TabNameIconPopover({ tabId, anchor, onClose }: {
   anchor: RefObject<HTMLElement | null> | { x: number; y: number }
   onClose: () => void
 }) {
-  const tab = useWorkspaceStore((s) => (s.working ? getTab(s.working, tabId) : undefined))
+  const tab = useWorkspaceStore((s) => (s.working ? getTab(numberViews(s.working), tabId) : undefined))
   const listId = tab?.kind === 'lens' ? tab.config.listDefinitionId : undefined
   const listName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
   const [initial] = useState(() => (tab ? storedName(tab, listName) : ''))
@@ -123,7 +126,7 @@ export function TabNameIconPopover({ tabId, anchor, onClose }: {
           type="text"
           value={name}
           // The longest name the tab's kind stores (a Number's and a chart's are shorter than a tab's own).
-          maxLength={tabNameMax(tab.kind)}
+          maxLength={isNumberView(tab) ? NUMBER_NAME_MAX : tabNameMax(tab.kind)}
           placeholder={defaultName(tab)}
           disabled={listGone}
           aria-describedby={note ? `${ids}-note` : undefined}

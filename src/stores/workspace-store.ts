@@ -21,7 +21,8 @@ import { useListOrderStore } from './list-order-store'
 import { useTagStore } from './tag-store'
 import { useSettingsStore } from './settings-store'
 import { defaultBreakdownColumns } from '../models/chart-widgets'
-import { trendName } from '../models/glance-widgets'
+import { NUMBER_NAME_MAX, trendName, type NumberConfig } from '../models/glance-widgets'
+import { isNumberView, numberViews, throughNumberViews } from '../utils/number-views'
 import type { IconValue } from '../models/icon'
 import { projectTagIds } from '../utils/neglect-map'
 import { registerModuleReset, registerModuleSettle } from '../utils/module-reset'
@@ -31,6 +32,7 @@ import {
   widgetKindLabel,
   emptyLayoutBody,
   layoutBodyOf,
+  numberTitle,
   tabNameMax,
   withLayoutBody,
   type CellArea,
@@ -60,6 +62,7 @@ import {
   moveEdge,
   movePanel,
   moveTab,
+  patchNumberItem,
   patchTabConfig,
   patchTabViewState,
   placeIncomingTabs,
@@ -556,6 +559,8 @@ export interface WorkspaceState {
    * lists: a patch naming another's changes nothing.
    */
   patchTabConfig: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabConfigOf<K>>, description?: string) => void
+  /** Layout config: patches the Number `itemId` of whichever Numbers widget holds it (`patchNumberItem`); one undo step. */
+  patchNumberItem: (itemId: string, patch: Partial<NumberConfig>, description?: string) => void
   /** "Change widget": swaps the tab's kind in place, with the new kind's defaults. */
   changeTabKind: (tabId: string, kind: WidgetKind, seed?: TabSeed) => void
   /**
@@ -591,8 +596,10 @@ function randomId(): string {
  * in the seed) and for Change widget, which seeds nothing and splits by
  * people (board V1); every other preset, Custom among them, without.
  */
-function seedFor(kind: WidgetKind, seed: TabSeed | undefined): TabSeed | undefined {
+function seedFor(kind: WidgetKind, seed: TabSeed | undefined, genId: IdGen): TabSeed | undefined {
   if (kind === 'neglect' && !seed?.neglectTagIds) return { ...seed, neglectTagIds: projectTagIds(useTagStore.getState().tags) }
+  // A new Numbers widget's Number: an id new to the layout.
+  if (kind === 'numbers' && !seed?.numberItemId) return { ...seed, numberItemId: genId() }
   if (kind === 'breakdown' && !seed?.breakdown?.columns) {
     const followupAge = !seed?.breakdown || seed.breakdown.splitBy === 'people'
     return { ...seed, breakdown: { ...seed?.breakdown, columns: defaultBreakdownColumns(useSettingsStore.getState().tabBadges, { followupAge }) } }
@@ -971,7 +978,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const { working, saved } = get()
     if (!working || !saved) return false
     if (refusedByReplaceHold()) return false
-    let next = fn(working, idGenFor(working))
+    const genId = idGenFor(working)
+    // TEMPORARY (`utils/number-views`): the edit runs on the layout's view, each Number a tab of its own.
+    let next = throughNumberViews(working, (view) => fn(view, genId), genId)
     if (next === working) return false
     // The widgets in hand (Move / Copy to layout) may show the source's lists: Done gives them to this layout.
     const carried = incomingListIds(get().editing?.incoming)
@@ -992,7 +1001,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       set({ working: next, editing: withEditStep(session, working, opts.mergeKey), resizePreview: null, structurePreview: null })
       return true
     }
-    const description = typeof describe === 'function' ? describe(working, next) : describe
+    const description = typeof describe === 'function' ? describe(numberViews(working), numberViews(next)) : describe
     const committed: Layout = { ...next, modifiedAt: new Date() }
     commitEdit(saved, committed, description, opts)
     return true
@@ -1319,7 +1328,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         useUndoStore.getState().notify(`Layout “${incoming.sourceName}” is gone: “${incoming.name}” can’t move from it.`)
         return false
       }
-      sourceAfter = { ...removeTabsKeepCell(sourceBefore, incoming.sourceTabIds), modifiedAt: now }
+      // TEMPORARY (`utils/number-views`): the tabs carried are the source's view's.
+      const from = sourceBefore
+      sourceAfter = { ...throughNumberViews(from, (view) => removeTabsKeepCell(view, incoming.sourceTabIds), idGenFor(from)), modifiedAt: now }
     }
     // The lists the session made that the draft doesn't show go first (as Done's).
     await pruneListsAmong(session.layoutId, session.createdLists, draft)
@@ -1472,10 +1483,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     moveEditCard(cellId, target) {
-      const first = get().working?.cells.find((c) => c.id === cellId)?.tabs[0]
+      // TEMPORARY (`utils/number-views`): found by its first tab in the views (a Number by its own id).
+      const first = numberViews(get().working)?.cells.find((c) => c.id === cellId)?.tabs[0]
       if (!first) return false
       const changed = edit((layout, genId) => movePanel(layout, cellId, target, genId), 'Moved cell')
-      const after = get().working
+      const after = numberViews(get().working)
       const holder = changed && after ? findTab(after, first.id)?.cellId : undefined
       if (holder != null) get().selectEditCell(holder)
       return changed
@@ -1640,12 +1652,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (!(await readyToLeave())) return false
       const source = get().saved
       if (!source || refusedByReplaceHold()) return false
-      const carried = carriedTabs(source, what, source, idGenFor(source))
+      // TEMPORARY (`utils/number-views`): a Number is carried as its view, a tab of its own.
+      const sourceView = numberViews(source)
+      const carried = carriedTabs(sourceView, what, sourceView, idGenFor(source))
       if (!carried) {
         useUndoStore.getState().notify(`That widget isn’t in layout “${source.name}” any more.`)
         return false
       }
-      const titles = carried.sourceTabIds.map((id) => tabName(source, id))
+      const titles = carried.sourceTabIds.map((id) => tabName(sourceView, id))
       const name = cardName({ tabs: carried.tabs }, titles)
       let targetId: number
       if (typeof to === 'number') {
@@ -1659,7 +1673,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       }
       const target = get().working
       if (!target || target.id !== targetId || get().editing || refusedByReplaceHold()) return false
-      const landing = carriedTabs(source, what, target, idGenFor(target))
+      const landing = carriedTabs(sourceView, what, target, idGenFor(target))
       if (!landing) return false
       clearForEdit()
       const incoming: IncomingTransfer = {
@@ -1878,8 +1892,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     addWidget(kind, target, seed) {
       let tabId: string | null = null
       const changed = edit((layout, genId) => {
-        const tab = createTab(kind, genId(), seedFor(kind, seed))
-        tabId = tab.id
+        const tab = createTab(kind, genId(), seedFor(kind, seed, genId))
+        // TEMPORARY (`utils/number-views`): a new Number is drawn under its own id.
+        tabId = tab.kind === 'numbers' ? tab.config.items[0]?.id ?? tab.id : tab.id
         return addTab(layout, tab, target, genId)
       }, (_before, next) => `Added “${tabId != null ? tabName(next, tabId) : widgetKindLabel(kind)}”`)
       return changed ? tabId : null
@@ -2014,9 +2029,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       edit((layout) => patchTabConfig(layout, tabId, kind, patch), (before) => description ?? `Changed “${tabName(before, tabId)}”`)
     },
 
+    patchNumberItem(itemId, patch, description) {
+      edit((layout) => patchNumberItem(layout, itemId, patch), (before) => description ?? `Changed “${tabName(before, itemId)}”`)
+    },
+
     renameTab(tabId, name) {
       const working = get().working
-      const tab = working ? getTab(working, tabId) : undefined
+      // TEMPORARY (`utils/number-views`): a Number is named under its own id.
+      const tab = working ? getTab(numberViews(working), tabId) : undefined
       if (!tab) return Promise.resolve(false)
       if (tab.kind === 'lens') {
         // A list tab's name is its list's (the same write as Edit list's; a blank one keeps it).
@@ -2025,11 +2045,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         if (listId == null || !listName) return Promise.resolve(false)
         return useListDefinitionStore.getState().editList(listId, (d) => ({ ...d, name: listName }), `Renamed tab to “${listName}”`)
       }
-      // Never longer than the kind's stored name may be (`tabNameMax`).
-      const trimmed = name.trim().slice(0, tabNameMax(tab.kind)).trimEnd()
-      const shown = trimmed || (tab.kind === 'trend' ? trendName({}) : widgetKindLabel(tab.kind))
+      // Never longer than the kind's stored name may be (`tabNameMax`; a Number's, its item's).
+      const number = isNumberView(tab)
+      const trimmed = name.trim().slice(0, number ? NUMBER_NAME_MAX : tabNameMax(tab.kind)).trimEnd()
+      const shown = trimmed || (tab.kind === 'trend' ? trendName({}) : number ? numberTitle({ name: '' }) : widgetKindLabel(tab.kind))
       const description = `Renamed tab to “${shown}”`
-      if (tab.kind === 'number' || tab.kind === 'breakdown' || tab.kind === 'pivot') {
+      if (number) return Promise.resolve(edit((layout) => patchNumberItem(layout, tabId, { name: trimmed }), description))
+      if (tab.kind === 'breakdown' || tab.kind === 'pivot') {
         return Promise.resolve(edit((layout) => patchTabConfig(layout, tabId, tab.kind, { name: trimmed }), description))
       }
       if (tab.kind === 'trend') {
@@ -2044,13 +2066,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     changeTabKind(tabId, kind, seed) {
       edit(
-        (layout) => replaceTab(layout, tabId, withLabelOf(createTab(kind, tabId, seedFor(kind, seed)), getTab(layout, tabId))),
+        (layout, genId) => replaceTab(layout, tabId, withLabelOf(createTab(kind, tabId, seedFor(kind, seed, genId)), getTab(layout, tabId))),
         (before) => `Changed “${tabName(before, tabId)}” to ${widgetKindLabel(kind)}`,
       )
     },
 
     setActiveTab(tabId) {
-      return editView((layout) => setActiveTab(layout, tabId))
+      // TEMPORARY (`utils/number-views`): a Number is shown under its own id.
+      return editView((layout) => throughNumberViews(layout, (view) => setActiveTab(view, tabId), idGenFor(layout)))
     },
 
     setTrackCollapsed(trackIds, collapsed) {

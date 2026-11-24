@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../components/workspace/glance/GlanceWidget'
-import type { GlanceTab, NumberTab } from '../../models/workspace-layout'
+import type { GlanceTab, NumbersTab } from '../../models/workspace-layout'
 import { countReplayed, replayTasks } from '../../services/stats/filter-history'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -28,7 +28,7 @@ vi.mock('../../services/stats/filter-history', async (importOriginal) => {
   return { ...actual, replayTasks: vi.fn(actual.replayTasks), countReplayed: vi.fn(actual.countReplayed) }
 })
 
-const TABS: NumberTab[] = [numberTab('a', 'open'), numberTab('b', 'overdue'), numberTab('c', 'focus'), numberTab('d', 'urgent')]
+const TABS: NumbersTab[] = [numberTab('a', 'open'), numberTab('b', 'overdue'), numberTab('c', 'focus'), numberTab('d', 'urgent')]
 
 function show(tabs: readonly GlanceTab[]) {
   return render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)

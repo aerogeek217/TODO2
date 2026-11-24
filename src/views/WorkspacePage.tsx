@@ -48,6 +48,7 @@ import { addWidgetKindAt } from '../components/workspace/widget-hooks'
 import { focusEditItem } from '../components/workspace/edit-focus'
 import type { WidgetKind } from '../models/workspace-layout'
 import { findTab } from '../utils/workspace-layout-queries'
+import { numberViews } from '../utils/number-views'
 import { NEW_WIDGET_PROBE_ID } from '../utils/workspace-drop'
 import {
   isWorkspaceDragType,
@@ -172,7 +173,8 @@ function useWorkspaceDragState() {
 
   const update = useCallback((x: number, y: number) => {
     const current = dragRef.current
-    const layout = useWorkspaceStore.getState().working
+    // TEMPORARY (`utils/number-views`): drags see each Number as a tab of its own.
+    const layout = numberViews(useWorkspaceStore.getState().working)
     if (!current || !layout) return
     const geo = current.geometry
     const editing = useWorkspaceStore.getState().editing != null
@@ -273,7 +275,7 @@ function useWorkspaceDragState() {
     if (source.type === 'tab') ws.moveTab(source.tabId, current.target)
     else ws.movePanel(source.panelId, current.target)
     // In the mode: what moved is selected where it landed, and holds the focus.
-    const working = useWorkspaceStore.getState().working
+    const working = numberViews(useWorkspaceStore.getState().working)
     const holder = editing && tabId != null && working ? findTab(working, tabId)?.cellId : undefined
     if (holder != null) {
       useWorkspaceStore.getState().selectEditCell(holder)

@@ -3,7 +3,7 @@ import { createTab } from '../../models/workspace-layout'
 import { cellMinPx, solveTracks, tableTrackSizes, TABLE_HEADER_PX, trackMinimums, trackTemplate } from '../../utils/workspace-table'
 import { CELL_MIN_PX, CELL_MIN_WIDTH_PX } from '../../utils/workspace-resize'
 import { GLANCE_CELL_MIN_WIDTH_PX, GLANCE_ROW_MIN_PX } from '../../utils/workspace-rows'
-import { cell, grid } from '../helpers/layout-builders'
+import { cell, grid, freshNumberTab } from '../helpers/layout-builders'
 
 /**
  * How the table sizes its tracks (D26 P2): the CSS template, the cells'
@@ -11,7 +11,7 @@ import { cell, grid } from '../helpers/layout-builders'
  */
 
 const notes = (id: string) => cell(id, [createTab('notes', `${id}-t`)])
-const number = (id: string) => cell(id, [createTab('number', `${id}-t`)])
+const number = (id: string) => cell(id, [freshNumberTab(`${id}-t`)])
 
 describe('trackTemplate', () => {
   it('weights as fr (summing to 100) never under the cells’ minimums; px tracks as px', () => {

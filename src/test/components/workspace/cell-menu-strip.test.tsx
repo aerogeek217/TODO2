@@ -15,7 +15,7 @@ import { emptyPredicate } from '../../../models'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useFilterStore } from '../../../stores/filter-store'
-import { cell, grid, picture, single, type CellSpec } from '../../helpers/layout-builders'
+import { cell, grid, picture, single, type CellSpec, freshNumberTab } from '../../helpers/layout-builders'
 
 /**
  * The cell's menus (D26 P2 + AA1, UX cleanup 4A; layout edit mode E4 —
@@ -598,7 +598,7 @@ describe('tabs on demand (D26 AA1)', () => {
   })
 
   it('a glance widget alone: a right-click anywhere on it opens the menu; its slot floats over the cell (its line is in a button)', () => {
-    const k = cell('k', [createTab('number', 'num')])
+    const k = cell('k', [freshNumberTab('num')])
     open(single(k))
     renderCell(k)
     expect(topLine('k')).toHaveAttribute('data-ws-tab', 'num')
@@ -748,7 +748,7 @@ describe('a cell’s widget faces (D25 R)', () => {
 
   it('a fit row’s cell shows its widget’s small face, whatever its measured size', () => {
     stubSize(400, 400)
-    const n = cell('n', [createTab('number', 'num')])
+    const n = cell('n', [freshNumberTab('num')])
     open(single(n))
     renderCell(n, { fitRow: true })
     expect(cellEl('n').dataset.face).toBe('small')

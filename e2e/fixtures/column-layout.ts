@@ -59,8 +59,8 @@ const WEIGHT_TOTAL = 1000
 /** Positions this close are one line. */
 const EPSILON = 1e-9
 
-/** The widget kinds whose content sets a row's height: a row of them only is a fit row. */
-const FIT_KINDS: ReadonlySet<string> = new Set(['number'])
+/** The widget kinds whose content sets a row's height: a row of them only is a fit row (a seed's Number, a Numbers widget). */
+const FIT_KINDS: ReadonlySet<string> = new Set(['number', 'numbers'])
 
 function weightOf(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= SIZE_MAX ? v : 1

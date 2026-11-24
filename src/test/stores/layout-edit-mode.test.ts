@@ -13,7 +13,7 @@ import { runShortcutCommand } from '../../services/keyboard-shortcuts'
 import { refreshAllStores } from '../../services/refresh-all'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
 import { resetDb } from '../helpers'
-import { cell, grid } from '../helpers/layout-builders'
+import { cell, grid, freshNumberTab, numberWidgetId } from '../helpers/layout-builders'
 
 /**
  * The layout edit mode (layout edit mode E1): while it is on, `working` is a
@@ -39,7 +39,7 @@ async function settle() {
 }
 
 const KA = cell('ka', [createTab('notes', 'a1'), createTab('calendar', 'a2')], { activeTabId: 'a1' })
-const KB = cell('kb', [createTab('number', 'b1')], { activeTabId: 'b1' })
+const KB = cell('kb', [freshNumberTab('b1')], { activeTabId: numberWidgetId('b1') })
 
 function twoColumns(name = 'Daily'): Omit<WorkspaceLayout, 'id'> {
   return { sortOrder: 0, name, createdAt: T0, modifiedAt: T0, ...grid([[KA, KB]], { colIds: ['A', 'B'], rowIds: ['R'] }) }
@@ -110,7 +110,7 @@ describe('the draft', () => {
     expect(newCell).not.toBeNull()
     expect(ws().working?.cells).toHaveLength(3)
     expect(ws().saved?.cells).toHaveLength(2)
-    expect(tabsOf(ws().working, 'kb')).toEqual(['b1', 'a2'])
+    expect(tabsOf(ws().working, 'kb')).toEqual([numberWidgetId('b1'), 'a2'])
     expect(undoNames()).toEqual([])
     expect(ws().editing?.undo).toHaveLength(2)
     expect((await stored(id!)).cells).toHaveLength(2)

@@ -1,5 +1,5 @@
 import { BREAKDOWN_PRESET_LABELS, BREAKDOWN_PRESETS, breakdownPreset, type BreakdownPreset } from '../../models/chart-widgets'
-import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KIND_GROUPS, widgetKindAddLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
 import { afterLeavingEditors } from '../../stores/editor-leave'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
@@ -104,7 +104,7 @@ export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconS
                 onClick={() => addKind(kind)}
               >
                 <span className={iconClassName}><WidgetKindIcon kind={kind} size={iconSize} /></span>
-                {widgetKindLabel(kind)}
+                {widgetKindAddLabel(kind)}
               </button>
             ))}
           </div>

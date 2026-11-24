@@ -73,7 +73,7 @@ describe('Add Widget ›', () => {
       ['Insights', 'Work clusters'],
     ])
     step.find((c) => c.name === 'Number')?.action()
-    expect(addWidget).toHaveBeenCalledWith('number')
+    expect(addWidget).toHaveBeenCalledWith('numbers')
     expect(commands.filter((c) => c.category === 'layout').map((c) => c.name)).toEqual(['Go to Layout', 'Add Widget', 'New Layout…', 'Duplicate Layout…', 'Edit Layout'])
   })
 

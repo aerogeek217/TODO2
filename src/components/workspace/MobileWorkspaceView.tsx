@@ -10,6 +10,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { isFitCell, isNumberStripCell } from '../../utils/workspace-rows'
+import { numberViews } from '../../utils/number-views'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { smallFaceClick, useCellFace, useHeldBodyHeight } from './cell-face'
@@ -543,7 +544,9 @@ function MobileTable({ layout }: { layout: WorkspaceLayout }) {
  * unsaved changes. `status` sits in the top bar beside search (the storage
  * status button).
  */
-export function MobileWorkspaceView({ layout, status }: { layout: WorkspaceLayout; status?: ReactNode }) {
+export function MobileWorkspaceView({ layout: stored, status }: { layout: WorkspaceLayout; status?: ReactNode }) {
+  // TEMPORARY (`utils/number-views`): each Number drawn as a tab of its own.
+  const layout = numberViews(stored)
   return (
     <div className={styles.root} data-ws-mobile>
       <MobileTopBar name={layout.name} hue={layout.hue} icon={layout.icon} status={status} />

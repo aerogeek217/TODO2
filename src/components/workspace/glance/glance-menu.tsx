@@ -5,6 +5,7 @@ import {
   TREND_RANGES,
 } from '../../../models/glance-widgets'
 import type { GlanceTab } from '../../../models/workspace-layout'
+import { numberTabOf } from '../../../utils/number-views'
 import { wrapClipboardHtml, writeRichClipboard } from '../../../services/rich-clipboard'
 import { COPY_REFUSED_NOTICE } from '../../../services/task-copy'
 import { useUndoStore } from '../../../stores/undo-store'
@@ -29,15 +30,19 @@ function openTrendEditor(tabId: string): void {
 function settingEntries(tab: GlanceTab): MenuEntry[] {
   const ws = useWorkspaceStore.getState
   switch (tab.kind) {
-    case 'number':
+    // One Number's view (`utils/number-views`): that Number's entries, under its own id.
+    case 'numbers': {
+      const number = numberTabOf(tab)
+      if (!number) return []
       return [
-        { kind: 'item', label: 'Edit number…', onSelect: () => openNumberEditor(tab.id) },
+        { kind: 'item', label: 'Edit number…', onSelect: () => openNumberEditor(number.id) },
         // A count's breakdown (D26 P6: the other shapes have none).
-        ...(tab.config.show === 'count' ? [settingEntry('Breakdown', NUMBER_BREAKDOWNS.map((b) => ({ value: b, label: NUMBER_BREAKDOWN_LABELS[b] })),
-          tab.config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN,
-          (breakdown) => ws().patchTabConfig(tab.id, 'number', { breakdown }),
+        ...(number.config.show === 'count' ? [settingEntry('Breakdown', NUMBER_BREAKDOWNS.map((b) => ({ value: b, label: NUMBER_BREAKDOWN_LABELS[b] })),
+          number.config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN,
+          (breakdown) => ws().patchNumberItem(number.id, { breakdown }),
           'Shown under the count when the cell has room for the whole widget.')] : []),
       ]
+    }
     case 'trend':
       return [
         // Its editor (`TrendEditorHost`): name, filter, Show as, range; its tab shown first as a chart's.

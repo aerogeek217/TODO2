@@ -9,7 +9,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
-import { cell, grid, single } from '../helpers/layout-builders'
+import { cell, grid, single, freshNumberTab } from '../helpers/layout-builders'
 
 /**
  * Move / Copy to layout: a widget or a cell of the open layout is carried to
@@ -22,9 +22,10 @@ const ws = () => useWorkspaceStore.getState()
 const undoStore = () => useUndoStore.getState()
 
 const listTab = (id: string, listDefinitionId: number): LayoutTab => createTab('lens', id, { listDefinitionId })
+/** A Numbers widget of one Number (`id`) following list `listDefinitionId`. */
 const follower = (id: string, listDefinitionId: number): LayoutTab => {
-  const tab = createTab('number', id)
-  return { ...tab, config: { ...tab.config, show: 'list', list: { listDefinitionId } } } as LayoutTab
+  const tab = freshNumberTab(id)
+  return { ...tab, config: { items: [{ ...tab.config.items[0]!, show: 'list', list: { listDefinitionId } }] } }
 }
 
 function def(name: string, owner: ListOwner): Omit<ListDefinition, 'id'> {

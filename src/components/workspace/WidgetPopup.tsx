@@ -11,6 +11,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { shortcutListIcon } from '../../utils/shortcuts'
 import { layoutTabs } from '../../utils/workspace-layout-queries'
+import { numberTabOf, numberViews } from '../../utils/number-views'
 import { DialogFrame } from '../shared/Dialog'
 import { DialogCloseButton } from '../shared/DialogCloseButton'
 import { MoreIcon } from '../shared/icons'
@@ -100,10 +101,12 @@ export function WidgetPopupHost() {
   const target = useUIStore((s) => s.widgetPopup)
   const reviewView = useUIStore((s) => s.popupReviewView)
   const layoutTab = useWorkspaceStore((s) => (
-    target != null && (target.kind === 'tab' || target.kind === 'list') && s.working ? layoutTabs(s.working).find((t) => t.id === target.tabId) : undefined
+    // TEMPORARY (`utils/number-views`): a Number is its view, under its own id.
+    target != null && (target.kind === 'tab' || target.kind === 'list') && s.working ? layoutTabs(numberViews(s.working)).find((t) => t.id === target.tabId) : undefined
   ))
   // A Number that follows a list: the list as a list tab of the Number's id (its prompt picks are the Number's).
-  const followedListId = layoutTab?.kind === 'number' && layoutTab.config.show === 'list' ? layoutTab.config.list?.listDefinitionId : undefined
+  const followed = layoutTab?.kind === 'numbers' ? numberTabOf(layoutTab)?.config : undefined
+  const followedListId = followed?.show === 'list' ? followed.list?.listDefinitionId : undefined
   // A Shortcuts tile's list, of any layout: a list tab of its own id (`shortcutListTabId`), with its list tab's icon.
   const shortcutDef = useListDefinitionStore((s) => (
     target?.kind === 'shortcut' ? s.listDefinitions.find((d) => d.id === target.listDefinitionId) : undefined

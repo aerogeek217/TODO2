@@ -9,8 +9,9 @@ import { NUMBER_NAME_MAX } from '../../models/glance-widgets'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { getTab } from '../../utils/workspace-layout-queries'
+import { numberViews } from '../../utils/number-views'
 import { resetDb } from '../helpers'
-import { cell, grid } from '../helpers/layout-builders'
+import { cell, grid, freshNumberTab } from '../helpers/layout-builders'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
@@ -33,7 +34,8 @@ async function stored(id: number): Promise<PersistedWorkspaceLayout> {
 }
 
 const ws = () => useWorkspaceStore.getState()
-const tab = (id: string) => { const w = ws().working; return w ? getTab(w, id) : undefined }
+/** Tab `id` as the workspace draws it: a Number its own tab, under its own id (`number-views`). */
+const tab = (id: string) => { const w = ws().working; return w ? getTab(numberViews(w), id) : undefined }
 const undoNames = () => useUndoStore.getState().undoStack.map((e) => e.description)
 const undo = () => useUndoStore.getState().undo()
 const redo = () => useUndoStore.getState().redo()
@@ -71,11 +73,11 @@ describe('a tab’s name (items 11, 14)', () => {
     expect(undoNames()).toEqual([])
   })
 
-  it('a Number’s name is its config.name', async () => {
-    await open([createTab('number', 'u1')])
+  it('a Number’s name is its own (its item’s)', async () => {
+    await open([freshNumberTab('u1')])
     await ws().renameTab('u1', 'Late')
     const t = tab('u1')
-    expect(t?.kind === 'number' && t.config.name).toBe('Late')
+    expect(t?.kind === 'numbers' && t.config.items[0]?.name).toBe('Late')
     expect(t).not.toHaveProperty('name')
     expect(undoNames()).toEqual(['Renamed tab to “Late”'])
   })
@@ -143,9 +145,9 @@ describe('a tab’s icon (items 11, 14)', () => {
     await open([{ ...createTab('calendar', 'c1'), name: 'Deadlines', icon: { kind: 'emoji', emoji: '📅' } }])
     ws().changeTabKind('c1', 'notes')
     expect(tab('c1')).toMatchObject({ kind: 'notes', name: 'Deadlines', icon: { kind: 'emoji', emoji: '📅' } })
-    ws().changeTabKind('c1', 'number')
-    expect(tab('c1')).toMatchObject({ kind: 'number', icon: { kind: 'emoji', emoji: '📅' } })
-    expect(tab('c1')).not.toHaveProperty('name')
+    // The Numbers take a name of their own too (the widget's), kept.
+    ws().changeTabKind('c1', 'numbers')
+    expect(getTab(ws().working!, 'c1')).toMatchObject({ kind: 'numbers', name: 'Deadlines', icon: { kind: 'emoji', emoji: '📅' } })
   })
 
   it('names the tab in other undo steps (Removed “…”)', async () => {
@@ -163,8 +165,8 @@ describe('a tab’s name is never longer than its stored shape allows (cr34 H2 /
     expect(rowFixes('layouts', row)).toEqual([])
   }
 
-  it('the limit is the kind’s own: a Number’s and a chart’s are shorter than a tab’s', () => {
-    expect(tabNameMax('number')).toBe(NUMBER_NAME_MAX)
+  it('the limit is the kind’s own: a chart’s is shorter than a tab’s; a Numbers widget’s is a tab’s', () => {
+    expect(tabNameMax('numbers')).toBe(TAB_NAME_MAX)
     expect(tabNameMax('breakdown')).toBe(CHART_NAME_MAX)
     expect(tabNameMax('pivot')).toBe(CHART_NAME_MAX)
     expect(tabNameMax('trend')).toBe(CHART_NAME_MAX)
@@ -173,10 +175,11 @@ describe('a tab’s name is never longer than its stored shape allows (cr34 H2 /
     expect(tabNameMax('lens')).toBe(TAB_NAME_MAX)
   })
 
-  it.each(['number', 'breakdown', 'pivot', 'trend'] as const)('a %s renamed past its limit is cut to it: the stored layout still imports', async (kind) => {
+  it.each(['numbers', 'breakdown', 'pivot', 'trend'] as const)('a %s renamed past its limit is cut to it: the stored layout still imports', async (kind) => {
     const id = await open([createTab('notes', 'n1')])
     const tabId = ws().addWidget(kind, { kind: 'cell', cellId: 'k' })!
-    const max = tabNameMax(kind)
+    // A new Number is named as itself (its item's name, `NUMBER_NAME_MAX`).
+    const max = kind === 'numbers' ? NUMBER_NAME_MAX : tabNameMax(kind)
     // The longest name the field took before (a tab's 200), and one longer than any field.
     for (const [letter, length] of [['x', TAB_NAME_MAX], ['y', 500]] as const) {
       expect(await ws().renameTab(tabId, letter.repeat(length))).toBe(true)
@@ -190,7 +193,7 @@ describe('a tab’s name is never longer than its stored shape allows (cr34 H2 /
   })
 
   it('a name at the limit is kept whole; a cut that ends in a space is trimmed', async () => {
-    const id = await open([createTab('number', 'u1')])
+    const id = await open([freshNumberTab('u1')])
     await ws().renameTab('u1', 'n'.repeat(NUMBER_NAME_MAX))
     expect(kindTabTitle(tab('u1')!)).toBe('n'.repeat(NUMBER_NAME_MAX))
     await ws().renameTab('u1', `${'a'.repeat(NUMBER_NAME_MAX - 1)} tail`)

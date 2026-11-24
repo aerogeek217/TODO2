@@ -62,8 +62,8 @@ afterEach(() => {
 describe('glance widgets share their data', () => {
   it('fifteen glance widgets filter the tasks once, and once again after a task changes', () => {
     const glanceKinds = WIDGET_KINDS.filter(isGlanceKind)
-    const kinds: GlanceWidgetKind[] = [...glanceKinds, ...Array.from({ length: 15 - glanceKinds.length }, (): GlanceWidgetKind => 'number')]
-    const tabs = kinds.map((k, i) => (k === 'number' ? numberTab(`w${i}`, i % 2 ? 'open' : 'overdue') : createTab(k, `w${i}`)) as GlanceTab)
+    const kinds: GlanceWidgetKind[] = [...glanceKinds, ...Array.from({ length: 15 - glanceKinds.length }, (): GlanceWidgetKind => 'numbers')]
+    const tabs = kinds.map((k, i) => (k === 'numbers' ? numberTab(`w${i}`, i % 2 ? 'open' : 'overdue') : createTab(k, `w${i}`)) as GlanceTab)
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
     expect(document.querySelectorAll('[data-glance]')).toHaveLength(15)
     // Once for the shared base.

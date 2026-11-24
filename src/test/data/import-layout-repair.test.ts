@@ -5,9 +5,9 @@ import { prepareImportText } from '../../data/import-pipeline'
 import { rowFixes, validateRow } from '../../data/import-validation'
 import { layoutRepository } from '../../data/layout-repository'
 import { restoreFromImportData } from '../../data/restore'
-import type { WorkspaceLayout } from '../../models/workspace-layout'
+import type { NumbersTab, WorkspaceLayout } from '../../models/workspace-layout'
 import { makeTodo, resetDb } from '../helpers'
-import { cell, numberTab, single } from '../helpers/layout-builders'
+import { cell, numberItem, numbersTab, single } from '../helpers/layout-builders'
 
 /**
  * One layout row the check rejects no longer takes the whole file with it
@@ -35,14 +35,14 @@ describe('a stored layout the check rejects: export → import', () => {
     expect(LONG_NAME.length).toBeLessThanOrEqual(200)
     await db.todos.add(makeTodo({ title: 'Kept task' }))
     await db.layouts.bulkAdd([
-      layout('Numbers', single(cell('k', [numberTab('n1', 'open', { name: LONG_NAME }), numberTab('n2', 'overdue')])), 0),
+      layout('Numbers', single(cell('k', [numbersTab('s', [numberItem('n1', 'open', { name: LONG_NAME }), numberItem('n2', 'overdue')])])), 0),
       layout('Plain', single(cell('k', [{ id: 't', kind: 'notes', config: {} }])), 1),
     ])
   })
 
   it('the stored row is one the check rejects', async () => {
     const [bad, good] = await db.layouts.orderBy('id').toArray()
-    expect(validateRow('layouts', bad)).toBe('cells[0].tabs[0].config.name')
+    expect(validateRow('layouts', bad)).toBe('cells[0].tabs[0].config.items[0].name')
     expect(validateRow('layouts', good)).toBe(true)
   })
 
@@ -69,10 +69,11 @@ describe('a stored layout the check rejects: export → import', () => {
       expect(rowFixes('layouts', row)).toEqual([])
     }
     // Every tab is still there, and the task beside it.
-    expect(rows[0]!.cells[0]!.tabs.map((t) => t.id)).toEqual(['n1', 'n2'])
+    const numbers = rows[0]!.cells[0]!.tabs[0]!.config as NumbersTab['config']
+    expect(numbers.items.map((n) => n.id)).toEqual(['n1', 'n2'])
     // The long name is cut to the limit, not replaced by the default name.
     expect(prepared.warnings).toEqual(['Fixed 1 layout: "Numbers" (tab name shortened)'])
-    expect((rows[0]!.cells[0]!.tabs[0]!.config as { name: string }).name).toBe(LONG_NAME.slice(0, 80))
+    expect(numbers.items[0]!.name).toBe(LONG_NAME.slice(0, 80))
     expect((await db.todos.toArray()).map((t) => t.title)).toEqual(['Kept task'])
     // Read back, nothing is left to repair: no notice, and view state saves again.
     expect((await layoutRepository.getAll()).map((r) => r.fixes)).toEqual([[], []])

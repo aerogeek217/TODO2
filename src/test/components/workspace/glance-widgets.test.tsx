@@ -19,7 +19,7 @@ import { trendEventsKey, useTrendEventsStore } from '../../../stores/trend-event
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
-import { numberTab, single } from '../../helpers/layout-builders'
+import { numberTab, single, freshNumberTab } from '../../helpers/layout-builders'
 import { NumberEditorHost } from '../../../components/workspace/glance/NumberEditor'
 import type { PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
@@ -83,7 +83,7 @@ afterEach(() => {
 
 describe('Number widget', () => {
   it('a new Number counts every open task, never lit, with its 14 days and the change since yesterday', () => {
-    setup(createTab('number', 'n'))
+    setup(freshNumberTab('n'))
     expect(number().dataset.number).toBe('n')
     expect(numberCount()).toBe('19')
     expect(number().dataset.lit).toBeUndefined()
@@ -206,9 +206,9 @@ describe('Number widget', () => {
     const colorWhenLit = within(editor).getByRole('group', { name: 'Color when lit' })
     expect(within(editor).getByRole('group', { name: 'Color otherwise' })).not.toBeNull()
     fireEvent.click(within(colorWhenLit).getByRole('radio', { name: /^Auto/ }))
-    const stored = () => (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as typeof tab).config
+    const stored = () => (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as typeof tab).config.items[0]!
     // Nothing written until Save.
-    expect(stored()).toBe(tab.config)
+    expect(stored()).toBe(tab.config.items[0])
     expect(layoutSteps()).toEqual([])
     fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
     expect(document.querySelector('[data-number-editor]')).toBeNull()
@@ -257,7 +257,7 @@ describe('section widgets', () => {
   it('no glance widget is a selection scope (none shows task rows)', () => {
     for (const kind of GLANCE_KINDS) {
       const { unmount } = setup(createTab(kind, `w-${kind}`) as GlanceTab)
-      const root = document.querySelector<HTMLElement>(`[data-glance="${kind}"]`)!
+      const root = document.querySelector<HTMLElement>('[data-glance]')!
       expect(root.hasAttribute('data-selection-scope')).toBe(false)
       unmount()
     }
@@ -313,9 +313,19 @@ describe('glance tab menus', () => {
   }
 
   it.each([
-    ['number', 'Breakdown', 'By tag', { breakdown: 'tags' }],
-    ['number', 'Breakdown', 'By status', { breakdown: 'status' }],
-    ['number', 'Breakdown', 'By priority', { breakdown: 'priority' }],
+    ['By tag', 'tags'],
+    ['By status', 'status'],
+    ['By priority', 'priority'],
+  ] as const)('a Number: Breakdown › %s patches its Number', (choice, breakdown) => {
+    const patchNumberItem = vi.fn()
+    useWorkspaceStore.setState({ patchNumberItem })
+    const menu = glanceMenu(freshNumberTab('n'), undefined)!
+    expect(item(menu.settingEntries, 'Breakdown').note).toBeTruthy()
+    choose(menu.settingEntries, 'Breakdown', choice)
+    expect(patchNumberItem).toHaveBeenCalledWith('n', { breakdown })
+  })
+
+  it.each([
     ['trend', 'Range', '12 weeks', { range: '12w' }],
     ['breakdown', 'Split by', 'Tags', { splitBy: 'tags', checkins: undefined }],
     ['breakdown', 'Style', 'Donut', { style: 'donut' }],
@@ -332,17 +342,18 @@ describe('glance tab menus', () => {
   })
 
   it('a Number’s menu opens its editor: Edit number…', () => {
-    const entry = item(glanceMenu(createTab('number', 'n'), undefined)!.settingEntries, 'Edit number…')
+    const entry = item(glanceMenu(freshNumberTab('n'), undefined)!.settingEntries, 'Edit number…')
     entry.onSelect!()
     expect(useUIStore.getState().numberEditorTabId).toBe('n')
   })
 
   it('picking the current value changes nothing; Copy is offered once the widget has reported its lines', () => {
-    const patchTabConfig = vi.fn()
-    useWorkspaceStore.setState({ patchTabConfig })
-    const tab = createTab('number', 'n')
+    const patchNumberItem = vi.fn()
+    useWorkspaceStore.setState({ patchNumberItem })
+    const tab = freshNumberTab('n')
     choose(glanceMenu(tab, undefined)!.settingEntries, 'Breakdown', 'None')
-    expect(patchTabConfig).not.toHaveBeenCalled()
+    expect(patchNumberItem).not.toHaveBeenCalled()
+
     expect(glanceMenu(tab, undefined)!.actions).toEqual([])
     expect(glanceMenu(tab, { plain: 'Overdue 2', html: '<p>x</p>' })!.actions.map((a) => a.label)).toEqual(['Copy'])
     expect(glanceMenu(undefined, undefined)).toBeUndefined()
@@ -351,7 +362,7 @@ describe('glance tab menus', () => {
 
 describe('faces (D25 R)', () => {
   // The section widgets' faces; the Number draws its own.
-  const SECTION_FACE_KINDS = GLANCE_KINDS.filter((k) => k !== 'number')
+  const SECTION_FACE_KINDS = GLANCE_KINDS.filter((k) => k !== 'numbers')
   const smallFace = () => document.querySelector<HTMLElement>('[data-testid="glance-small-face"]')
   const smallValue = () => within(smallFace()!).getByTestId('glance-small-value').textContent
 

@@ -3,6 +3,7 @@ import { getActiveTab, type LayoutTab } from '../../models/workspace-layout'
 import { afterLeavingEditors } from '../../stores/editor-leave'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { openNumberList, openWidgetLarger } from '../../services/widget-popup'
+import { numberTabOf } from '../../utils/number-views'
 import type { ColumnStrip as Strip } from '../../utils/workspace-table'
 import { OPEN_LARGER_LABEL } from '../shared/widget-kind-menu-entries'
 import { TabIcon } from './TabIcon'
@@ -12,7 +13,8 @@ import styles from './ColumnStrip.module.css'
 
 /** Opens a strip's widget larger: a Number that follows a list opens that list, as its click does. */
 function openLarger(tab: LayoutTab): void {
-  if (tab.kind === 'number' && tab.config.show === 'list') void openNumberList(tab.id)
+  // TEMPORARY (`utils/number-views`): a Number is its view.
+  if (tab.kind === 'numbers' && numberTabOf(tab)?.config.show === 'list') void openNumberList(tab.id)
   else void openWidgetLarger(tab.id)
 }
 

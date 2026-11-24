@@ -44,6 +44,7 @@ import {
   readStoredName,
   trendConfigProblem,
   type NumberConfig,
+  type NumberItem,
   type PickedConfig,
 } from '../models/glance-widgets'
 import {
@@ -243,16 +244,13 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (!isNeglectColourBy(config.colourBy)) return `${path}.config.colourBy`
       if (!isNeglectUntouchedDays(config.untouchedDays)) return `${path}.config.untouchedDays`
       return true
-    case 'number': {
-      // Its fields (`numberConfigProblem`), then its filter: a stored
-      // predicate with nothing its read (`pickPredicate`) would change.
-      const bad = numberConfigProblem(config)
-      if (bad) return `${path}.config.${bad}`
-      // Its predicates: its filter, and its shape's (D26 P6).
-      for (const [key, raw] of numberPredicates(config)) {
-        const shape = checkPredicateShape(raw)
-        if (shape !== true) return `${path}.config.${key}.${shape}`
-        if (pickPredicate(raw).fixes.length > 0) return `${path}.config.${key}`
+    // The Numbers: one Number or more, each checked as a Number (its id in `checkTabs`).
+    case 'numbers': {
+      const items: unknown = config.items
+      if (!Array.isArray(items) || items.length === 0) return `${path}.config.items`
+      for (let i = 0; i < items.length; i++) {
+        const bad = numberItemProblem(items[i])
+        if (bad != null) return `${path}.config.items[${i}]${bad}`
       }
       return true
     }
@@ -436,6 +434,43 @@ function readNumberPredicate(raw: unknown): PickedConfig<TodoPredicate> {
   return { config: filter.predicate, fixed: filter.fixes.length > 0 }
 }
 
+/**
+ * Where a stored Number of a Numbers widget goes wrong (its id is
+ * `checkTabs`'): its fields (`numberConfigProblem`), its predicates — each a
+ * stored predicate with nothing its read (`pickPredicate`) would change —
+ * and its icon, as the path under the item (`.name`, `.filter.…`, `''` for
+ * an item that isn't an object), else `null`.
+ */
+function numberItemProblem(item: unknown): string | null {
+  if (!isRecord(item)) return ''
+  const bad = numberConfigProblem(item)
+  if (bad) return `.${bad}`
+  // Its predicates: its filter, and its shape's (D26 P6).
+  for (const [key, raw] of numberPredicates(item)) {
+    const shape = checkPredicateShape(raw)
+    if (shape !== true) return `.${key}.${shape}`
+    if (pickPredicate(raw).fixes.length > 0) return `.${key}`
+  }
+  return item.icon !== undefined && !isIconValue(item.icon) ? '.icon' : null
+}
+
+/**
+ * A stored Number of a Numbers widget as the repair reads it — its id is the
+ * caller's —: its config (`numberConfigOf`), its icon when it reads (else
+ * dropped, `fixed`).
+ */
+function numberItemOf(id: string, raw: Obj): PickedConfig<NumberItem> {
+  const picked = numberConfigOf(raw)
+  const item: NumberItem = { id, ...picked.config }
+  let fixed = picked.fixed
+  if (raw.icon !== undefined) {
+    const icon = pickIconValue(raw.icon)
+    if (icon) item.icon = icon
+    else fixed = true
+  }
+  return { ...picked, config: item, fixed }
+}
+
 /** A stored Number's predicates, by their path in its config: its filter, its share's `of`, its group items' filters (D26 P6). */
 function numberPredicates(config: Record<string, unknown>): Array<[string, unknown]> {
   const out: Array<[string, unknown]> = [['filter', config.filter]]
@@ -464,6 +499,12 @@ function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) =
     if (!isWidgetKind(tab.kind)) return `${tp}.kind`
     const settings = checkTabSettings(tab, tab.kind, tp)
     if (settings !== true) return settings
+    // A Numbers widget's Numbers: each id fresh in the layout's id space.
+    const items = tab.kind === 'numbers' && isRecord(tab.config) && Array.isArray(tab.config.items) ? tab.config.items as unknown[] : []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (!isRecord(item) || !isId(item.id) || !fresh(item.id)) return `${tp}.config.items[${i}].id`
+    }
     // Items 11, 14: the tab's own name and its picked icon, both optional.
     if (tab.name !== undefined && !isTabName(tab.name)) return `${tp}.name`
     if (tab.icon !== undefined && !isIconValue(tab.icon)) return `${tp}.icon`
@@ -580,7 +621,7 @@ export function checkLayoutBody(body: RawLayoutBody): true | string {
 
 /** A part `pickLayoutBody` dropped or reset, counted. */
 type LayoutFix = 'grid' | 'rebuilt' | 'lines' | 'track' | 'cell' | 'tab' | 'size' | 'settings' | 'name'
-  | 'trackLimit' | 'cellLimit' | 'tabLimit'
+  | 'trackLimit' | 'cellLimit' | 'tabLimit' | 'itemLimit'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   grid: ['grid reset', 'grid reset'],
@@ -595,6 +636,7 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   trackLimit: ['track past the limit of 1,000 dropped', 'tracks past the limit of 1,000 dropped'],
   cellLimit: ['cell past the limit of 1,000 dropped', 'cells past the limit of 1,000 dropped'],
   tabLimit: ['tab past the limit of 1,000 dropped', 'tabs past the limit of 1,000 dropped'],
+  itemLimit: ['Number past the limit of 1,000 dropped', 'Numbers past the limit of 1,000 dropped'],
 }
 
 interface PickedLayoutBody extends LayoutBody {
@@ -657,6 +699,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
   let tracksKept = 0
   let cellsKept = 0
   let tabsKept = 0
+  let itemsKept = 0
   // The grid as stored no longer holds: the cells are restacked.
   let rebuild = false
 
@@ -755,8 +798,30 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       // The glance kinds: a bad or missing setting is reset to its default;
       // no view state.
-      case 'number':
-        return { id, kind: 'number', config: glance(numberConfigOf(config)) }
+      // The Numbers: each Number with a fresh id read as a Number (`numberItemOf`), the rest dropped
+      // (a reset), the first `LAYOUT_PART_LIMIT` of the layout kept; a widget left with none goes.
+      case 'numbers': {
+        const stored: unknown[] = Array.isArray(config.items) ? config.items : []
+        if (!Array.isArray(config.items)) fix('settings')
+        const items: NumberItem[] = []
+        for (const raw of stored) {
+          if (!isRecord(raw) || !fresh(raw.id)) {
+            fix('settings')
+            continue
+          }
+          if (itemsKept >= LAYOUT_PART_LIMIT) {
+            fix('itemLimit')
+            continue
+          }
+          items.push(glance(numberItemOf(raw.id, raw)))
+          itemsKept++
+        }
+        if (items.length === 0) {
+          fix('tab')
+          return null
+        }
+        return { id, kind: 'numbers', config: { items } }
+      }
       case 'trend':
         return { id, kind: 'trend', config: glance(pickTrendConfig(config, readNumberPredicate)) }
       // D26 P8: the chart widgets.
@@ -937,7 +1002,7 @@ function restacked(picked: readonly PickedCell[], columns: readonly GridTrack[],
     })
     .map((x) => x.p)
     .slice(0, LAYOUT_PART_LIMIT)
-  const taken = new Set<string>(order.flatMap((p) => [p.cell.id, ...p.cell.tabs.map((t) => t.id)]))
+  const taken = new Set<string>(order.flatMap((p) => [p.cell.id, ...p.cell.tabs.flatMap((t) => [t.id, ...(t.kind === 'numbers' ? t.config.items.map((item) => item.id) : [])])]))
   const trackId = (stored: GridTrack | undefined, fallback: string): string => {
     if (stored && !taken.has(stored.id)) {
       taken.add(stored.id)

@@ -7,7 +7,7 @@ import { prepareImport } from '../../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { emptyPredicate } from '../../models/filter-predicate'
 import type { LayoutBody, LayoutTab } from '../../models/workspace-layout'
-import { cell, grid, numberTab } from '../helpers/layout-builders'
+import { cell, grid, numberItem } from '../helpers/layout-builders'
 
 /**
  * v89 — a task's plan state is a planned day or none: `unplanned` goes from
@@ -44,8 +44,8 @@ const checkin = (pred: Obj): DataRow => ({ key: 'checkinTaskFilter', value: JSON
 const upgradePredicate = (pred: Obj): Obj => predicateOf(upgradeV89({ listDefinitions: [list(pred)] }).listDefinitions?.[0])
 
 describe('v89: registered', () => {
-  it('is the current version, above the floor', () => {
-    expect(CURRENT_DB_VERSION).toBe(89)
+  it('is registered above the floor, at or below the current version', () => {
+    expect(CURRENT_DB_VERSION).toBeGreaterThanOrEqual(89)
     expect(OLDEST_SUPPORTED_DB_VERSION).toBe(87)
     expect(SCHEMA_UPGRADES.get(89)).toBe(upgradeV89)
   })
@@ -114,7 +114,7 @@ describe('v89: Planned’s `held` clause goes from a predicate', () => {
       layouts: [
         layout(grid([[
           cell('a', [planner('p', predicate({ expression: { kind: 'or', items: [focus, heldAtom] } }))]),
-          cell('b', [numberTab('k', 'open', { filter: predicate({ dates: { planned: HELD } }) as never })]),
+          cell('b', [raw({ id: 'k', kind: 'number', config: { ...numberItem('k', 'open'), id: undefined, filter: predicate({ dates: { planned: HELD } }) } })]),
         ]])),
         plain,
       ],

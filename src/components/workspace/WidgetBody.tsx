@@ -52,7 +52,7 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
       return <NeglectMapWidget tab={tab} />
     case 'clusters':
       return <WorkClustersWidget tab={tab} />
-    case 'number':
+    case 'numbers':
     case 'trend':
     case 'breakdown':
     case 'pivot':

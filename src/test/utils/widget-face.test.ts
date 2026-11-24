@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createTab, type NumberTab } from '../../models/workspace-layout'
+import { createTab, type NumbersTab } from '../../models/workspace-layout'
+import type { NumberItem } from '../../models/glance-widgets'
 import {
   MEDIUM_FACE_MAX_HEIGHT_PX,
   plannerFaceFor,
@@ -10,11 +11,13 @@ import {
   tabOpensLarger,
   widgetFaceFor,
 } from '../../utils/widget-face'
+import { freshNumberTab } from '../helpers/layout-builders'
 
 describe('tabOpensLarger', () => {
-  const number = (config: Partial<NumberTab['config']>): NumberTab => {
-    const tab = createTab('number', 'n')
-    return { ...tab, config: { ...tab.config, ...config } }
+  /** A Numbers widget of one Number with `config` over a new one's. */
+  const number = (config: Partial<NumberItem>): NumbersTab => {
+    const tab = freshNumberTab('n')
+    return { ...tab, config: { items: [{ ...tab.config.items[0]!, ...config }] } }
   }
 
   it('every kind but a Number, at any face (its large one too)', () => {
@@ -42,6 +45,12 @@ describe('tabOpensLarger', () => {
 
   it('never a Number that follows a list (its click opens the list)', () => {
     expect(tabOpensLarger(number({ show: 'list' }), 'small')).toBe(false)
+  })
+
+  it('a Numbers widget of several Numbers: not as a whole (each Number offers its own)', () => {
+    const one = number({ show: 'share' })
+    const two: NumbersTab = { ...one, config: { items: [...one.config.items, { ...one.config.items[0]!, id: 'm' }] } }
+    expect(tabOpensLarger(two, 'small')).toBe(false)
   })
 })
 

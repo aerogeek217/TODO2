@@ -5,6 +5,7 @@
  */
 
 import type { TodoPredicate } from './filter-predicate'
+import type { IconValue } from './icon'
 import {
   DEFAULT_NUMBER_OLDEST_BY,
   isNumberListRef,
@@ -85,8 +86,32 @@ export interface NumberConfig {
 }
 
 /** A new Number's config: an empty filter (every open task), never lit, against yesterday. */
-export function newNumberConfig(filter: TodoPredicate): NumberConfig {
+function newNumberConfig(filter: TodoPredicate): NumberConfig {
   return { name: DEFAULT_NUMBER_NAME, filter, show: 'count', litWhen: 'never', compare: 'yesterday' }
+}
+
+/**
+ * One Number of a Numbers widget (`NumbersTabConfig.items`): its config, its
+ * id — in its layout's id space, so no item id is a track's, a cell's, a
+ * tab's or another item's — and its own icon (absent = never picked; `{ kind:
+ * 'none' }` = No icon, picked).
+ */
+export interface NumberItem extends NumberConfig {
+  id: string
+  icon?: IconValue
+}
+
+/** A new Number with id `id`: `newNumberConfig`'s config. */
+export function newNumberItem(id: string, filter: TodoPredicate): NumberItem {
+  return { id, ...newNumberConfig(filter) }
+}
+
+/** A Number's config without its item's id and icon. */
+export function numberConfigOfItem(item: NumberItem): NumberConfig {
+  const { id: _id, icon: _icon, ...config } = item
+  void _id
+  void _icon
+  return config
 }
 
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/

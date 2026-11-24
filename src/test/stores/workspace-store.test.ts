@@ -10,7 +10,7 @@ import { useTagStore } from '../../stores/tag-store'
 import { edgeBetween, wholeLine } from '../../utils/workspace-grid'
 import { trackSizing } from '../../utils/workspace-table'
 import type { LayoutBody } from '../../models/workspace-layout'
-import { cell, emptyBody, grid, picture, type GridOptions } from '../helpers/layout-builders'
+import { cell, emptyBody, grid, picture, type GridOptions, freshNumberTab, numberWidgetId } from '../helpers/layout-builders'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
@@ -429,8 +429,8 @@ describe('sizes are view state', () => {
 
   it('a Numbers-only row: its divider gives it a height (fitPx), saved at once, its weight kept; clearing it lets it fit again', async () => {
     // kn (a Number) | kc (a Number) over R; kb across S.
-    const kn = cell('kn', [createTab('number', 'n1')])
-    const kc = cell('kc', [createTab('number', 'n2')])
+    const kn = cell('kn', [freshNumberTab('n1')])
+    const kc = cell('kc', [freshNumberTab('n2')])
     const [id] = await seedAndInit({ ...twoColumns(), ...grid([[kn, kc], [KB, KB]], { colIds: ['A', 'B'], rowIds: ['R', 'S'] }) })
     await ws().moveEdge(wholeLine(ws().working!, 'rows', 1), 40, { sizes: [76, 600] })
     expect(ws().working!.grid.rows[0]).toEqual({ id: 'R', weight: 1000, fitPx: 116 })
@@ -442,8 +442,8 @@ describe('sizes are view state', () => {
   })
 
   it('a Numbers-only row given a height that stops being one is weighted again, by its own weight', async () => {
-    const kn = cell('kn', [createTab('number', 'n1')])
-    const kc = cell('kc', [createTab('number', 'n2')])
+    const kn = cell('kn', [freshNumberTab('n1')])
+    const kc = cell('kc', [freshNumberTab('n2')])
     await seedAndInit({ ...twoColumns(), ...grid([[kn, kc], [KB, KB]], { colIds: ['A', 'B'], rowIds: ['R', 'S'] }) })
     await ws().moveEdge(wholeLine(ws().working!, 'rows', 1), 40, { sizes: [76, 600] })
     ws().changeTabKind('n1', 'notes')
@@ -650,14 +650,14 @@ describe('layouts', () => {
 
 describe('an open editor holding changes is asked before the layout is left (cr34 T6, D3)', () => {
   type Answer = 'save' | 'discard' | 'keep'
-  const NUMBER = cell('kn', [createTab('number', 'u1')], { activeTabId: 'u1' })
+  const NUMBER = cell('kn', [freshNumberTab('u1')], { activeTabId: numberWidgetId('u1') })
   const withNumber = (name: string): Omit<WorkspaceLayout, 'id'> => ({
     sortOrder: 0, name, createdAt: T0, modifiedAt: T0, ...grid([[NUMBER]], { colIds: ['A'], rowIds: ['R'] }),
   })
-  const numberName = (l: LayoutBody | null | undefined) => {
-    const tab = l?.cells.flatMap((c) => c.tabs).find((t) => t.id === 'u1')
-    return tab?.kind === 'number' ? tab.config.name : undefined
-  }
+  /** The Number `u1`'s name, in whichever Numbers widget holds it. */
+  const numberName = (l: LayoutBody | null | undefined) => l?.cells.flatMap((c) => c.tabs)
+    .flatMap((t) => (t.kind === 'numbers' ? t.config.items : []))
+    .find((n) => n.id === 'u1')?.name
 
   /**
    * A widget editor open on the Number with a changed name, as the store
@@ -669,7 +669,7 @@ describe('an open editor holding changes is asked before the layout is left (cr3
     let changed = true
     const ask = vi.fn(() => {
       if (answer === 'keep') return Promise.resolve(false)
-      if (answer === 'save') ws().patchTabConfig('u1', 'number', { name: 'Saved by the editor' }, 'Edited number “Open”')
+      if (answer === 'save') ws().patchNumberItem('u1', { name: 'Saved by the editor' }, 'Edited number “Open”')
       changed = false
       return Promise.resolve(true)
     })

@@ -16,7 +16,7 @@ import {
   tapOutcome,
   trackReached,
 } from '../../utils/layout-edit-cards'
-import { cell as spec, grid, type CellSpec } from '../helpers/layout-builders'
+import { cell as spec, grid, type CellSpec, freshNumberTab } from '../helpers/layout-builders'
 
 /** The layout edit mode's card helpers (E3), pure. */
 
@@ -49,7 +49,7 @@ describe('ruler names', () => {
 })
 
 describe('cardName (a card named in the mode)', () => {
-  const tabs = (kind: 'notes' | 'number', n: number) => Array.from({ length: n }, (_, i) => createTab(kind, `t${i}`))
+  const tabs = (kind: 'notes' | 'number', n: number) => Array.from({ length: n }, (_, i) => (kind === 'number' ? freshNumberTab(`t${i}`) : createTab(kind, `t${i}`)))
 
   it('a lone widget its title; a card of tabs its first two and how many more; a Numbers strip its count; a slot nothing', () => {
     expect(cardName({ tabs: tabs('notes', 1) }, ['Tasks'])).toBe('Tasks')
@@ -162,7 +162,7 @@ describe('tapOutcome', () => {
 })
 
 describe('mergeChoices and their words (the merge buttons, Merge ▾)', () => {
-  const number = (id: string) => spec(id, [createTab('number', `${id}-t`)])
+  const number = (id: string) => spec(id, [freshNumberTab(`${id}-t`)])
   // a  | b
   // c  | b
   // n1 | n2 | e   — under three columns

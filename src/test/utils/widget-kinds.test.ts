@@ -6,11 +6,12 @@ import {
   toggleCalendarDateType,
   WIDGET_KIND_SPECS,
   WIDGET_KINDS,
+  widgetKindAddLabel,
   widgetKindLabel,
 } from '../../models/workspace-layout'
 import { checkLayoutBody, pickLayoutBody } from '../../data/layout-shape'
 import { tabTitle } from '../../components/workspace/widget-hooks'
-import { numberTab, single } from '../helpers/layout-builders'
+import { numberTab, single, freshNumberTab } from '../helpers/layout-builders'
 import { emptyPredicate } from '../../models/filter-predicate'
 
 /** The widget-kind table and what derives from it. */
@@ -19,9 +20,14 @@ describe('widget kinds', () => {
     // Tasks (List, Calendar, Review, Planner, Notes), then Insights — the Neglect map and the task maps last.
     expect(WIDGET_KINDS).toEqual([
       'lens', 'calendar', 'review', 'planner', 'notes', 'shortcuts',
-      'number', 'breakdown', 'pivot', 'trend', 'neglect', 'clusters',
+      'numbers', 'breakdown', 'pivot', 'trend', 'neglect', 'clusters',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
+      'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board',
+      'Numbers', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters',
+    ])
+    // The menus that add a widget list the Numbers as one Number.
+    expect(WIDGET_KINDS.map(widgetKindAddLabel)).toEqual([
       'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board',
       'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters',
     ])
@@ -48,8 +54,9 @@ describe('widget kinds', () => {
     expect(createTab('lens', 'a', { listDefinitionId: 4 })).toEqual({ id: 'a', kind: 'lens', config: { listDefinitionId: 4 } })
     expect(createTab('calendar', 'b')).toEqual({ id: 'b', kind: 'calendar', config: { dateTypes: { due: true, followup: true, plan: true } } })
     expect(createTab('notes', 'c')).toEqual({ id: 'c', kind: 'notes', config: {} })
-    // A Number: an empty filter (every open task), named Open, never lit, against yesterday.
-    expect(createTab('number', 'e')).toEqual({ id: 'e', kind: 'number', config: { name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' } })
+    // A Numbers widget of one Number: an empty filter (every open task), named Open, never lit, against yesterday.
+    expect(createTab('numbers', 'e', { numberItemId: 'n' })).toEqual({ id: 'e', kind: 'numbers', config: { items: [{ id: 'n', name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' }] } })
+
     // A Neglect map colours by the tags it is given (the store passes the `Project: …` ones), 14 days.
     expect(createTab('neglect', 'f')).toEqual({ id: 'f', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [] }, untouchedDays: 14 } })
     expect(createTab('neglect', 'f', { neglectTagIds: [3, 8] }).config).toEqual({ colourBy: { kind: 'tags', tagIds: [3, 8] }, untouchedDays: 14 })
@@ -75,7 +82,7 @@ describe('widget kinds', () => {
     expect(tabTitle(createTab('lens', 'a'), undefined)).toBe('List')
     expect(tabTitle(createTab('calendar', 'b'), 'Team')).toBe('Calendar')
     // A Number reads its name (a blank one: Number).
-    expect(tabTitle(createTab('number', 'n'), undefined)).toBe('Open')
+    expect(tabTitle(freshNumberTab('n'), undefined)).toBe('Open')
     expect(tabTitle(numberTab('n', 'closedThisWeek'), undefined)).toBe('Closed this week')
     expect(tabTitle(numberTab('n', 'open', { name: '  ' }), undefined)).toBe('Number')
     expect(tabTitle(createTab('trend', 't'), undefined)).toBe('Created vs completed')
@@ -85,7 +92,7 @@ describe('widget kinds', () => {
     expect(tabListId(createTab('lens', 'a', { listDefinitionId: 4 }))).toBe(4)
     expect(tabListId(createTab('lens', 'a'))).toBeUndefined()
     expect(tabListId(createTab('calendar', 'c'))).toBeUndefined()
-    expect(tabListId(createTab('number', 'd'))).toBeUndefined()
+    expect(tabListId(freshNumberTab('d'))).toBeUndefined()
   })
 })
 

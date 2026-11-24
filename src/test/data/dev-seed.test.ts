@@ -153,7 +153,10 @@ describe('dev seed generator', () => {
     expect(seed.layouts.some((l) => l.cells.some((c) => c.area.rowSpan > 1)), 'a cell spanning rows').toBe(true)
     const kinds = new Set(seed.layouts.flatMap((l) => l.cells)
       .flatMap((p) => p.tabs.map((t) => t.kind)))
-    expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'clusters', 'lens', 'neglect', 'notes', 'number', 'pivot', 'planner', 'shortcuts', 'trend'])
+    expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'clusters', 'lens', 'neglect', 'notes', 'numbers', 'pivot', 'planner', 'shortcuts', 'trend'])
+    // Every Number in a Numbers widget (v90): the fit row's four, side by side.
+    const widgets = seed.layouts.flatMap((l) => l.cells).flatMap((c) => c.tabs.flatMap((t) => (t.kind === 'numbers' ? [t] : [])))
+    expect(widgets.map((t) => t.config.items.length)).toEqual([4, 6])
   })
 
   it('shows the planned date: plans on and after real dates, a Planner filter, a list and a Number', () => {
@@ -177,7 +180,8 @@ describe('dev seed generator', () => {
     const predicate = list?.membership.kind === 'custom' ? list.membership.predicate : undefined
     expect(predicate?.dates).toEqual({ planned: { match: 'set' } })
     expect(predicate?.expression).toBeUndefined()
-    expect(tabs.some((t) => t.kind === 'number' && t.config.filter.dates.planned !== undefined), 'a Number filtered by Planned').toBe(true)
+    const numbers = tabs.flatMap((t) => (t.kind === 'numbers' ? t.config.items : []))
+    expect(numbers.some((n) => n.filter.dates.planned !== undefined), 'a Number filtered by Planned').toBe(true)
   })
 
   it('shows a list tab at each zoom and a Neglect map by project, kept whole by the layout repair (D25)', () => {

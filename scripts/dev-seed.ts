@@ -55,12 +55,12 @@ import type { ListDefinition } from '../src/models/list-definition'
 import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-predicate'
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { BreakdownConfig } from '../src/models/chart-widgets'
-import { numberConfigOfMetric, type V77NumberMetric } from '../src/test/helpers/number-metrics.ts'
+import { numberConfigOfMetric, type V77NumberMetric } from './number-metrics.ts'
 import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 89
+export const DEV_SEED_SCHEMA_VERSION = 90
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -907,7 +907,10 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   const calendar = (id: string, view: 'week' | 'month', offset: number, followup = true): TabRow =>
     ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup, plan: true } }, viewState: { view, offset } })
   const notes = (id: string): TabRow => ({ id, kind: 'notes', config: {} })
-  const number = (id: string, metric: V77NumberMetric): TabRow => ({ id, kind: 'number', config: numberConfigOfMetric(metric) }) as TabRow
+  /** A Number (a Numbers widget's item): a metric's ready-made config under its own id. */
+  const number = (id: string, metric: V77NumberMetric): Record<string, unknown> => ({ id, ...numberConfigOfMetric(metric) })
+  /** A Numbers widget (v90): its Numbers side by side, evenly divided. */
+  const numbers = (id: string, items: ReadonlyArray<Record<string, unknown>>): TabRow => ({ id, kind: 'numbers', config: { items } }) as unknown as TabRow
   /** A Breakdown (D26 P8): every open task split by `splitBy`, as bars, unless `over` says otherwise. */
   const breakdown = (id: string, name: string, splitBy: BreakdownConfig['splitBy'], over: Partial<BreakdownConfig> = {}): TabRow =>
     ({ id, kind: 'breakdown', config: { name, filter: filter(), splitBy, style: 'bars', show: 'count', showNone: true, ...over } })
@@ -981,13 +984,13 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         B: cell('cell-board', [lens('tab-board', L.focus)]),
         C: cell('cell-cal', [calendar('tab-cal', 'week', 0)]),
         S: cell('cell-soon', [lens('tab-soon', L.dueSoon)]),
-        // A strip of Numbers (flair P10): one cell, side by side, evenly divided.
-        O: cell('cell-open', [
+        // A Numbers widget (v90): four Numbers side by side, evenly divided.
+        O: cell('cell-open', [numbers('tab-numbers', [
           number('tab-open', 'open'),
           number('tab-late', 'overdue'),
           number('tab-followup-due', 'followupDue'),
           number('tab-due-today', 'dueToday'),
-        ]),
+        ])]),
         X: cell('cell-status', [breakdown('tab-status', 'Status', 'status', { style: 'stacked' })]),
         T: cell('cell-trend', [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }]),
         // Waiting on (D26 P8 / Z3): the Waiting tasks by person, oldest last follow-up first.
@@ -1012,7 +1015,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         'S W T Y',
         'K K K Q',
       ], {
-        a: cell('cell-n-late', [
+        a: cell('cell-n-late', [numbers('tab-n-numbers', [
           number('tab-n-late', 'overdue'),
           number('tab-n-followup', 'followupDue'),
           number('tab-n-today', 'dueToday'),
@@ -1021,17 +1024,14 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           // A Number filtered by the planned date: the plans whose day has passed (the Planner's Delayed).
           {
             id: 'tab-n-delayed',
-            kind: 'number',
-            config: {
-              name: 'Delayed plans',
-              filter: filter({ dates: { planned: range(null, { kind: 'relative', token: 'yesterday' }) } }),
-              show: 'count',
-              litWhen: 'above',
-              litAt: 0,
-              compare: 'yesterday',
-            },
-          } as TabRow,
-        ]),
+            name: 'Delayed plans',
+            filter: filter({ dates: { planned: range(null, { kind: 'relative', token: 'yesterday' }) } }),
+            show: 'count',
+            litWhen: 'above',
+            litAt: 0,
+            compare: 'yesterday',
+          },
+        ])]),
         // A list tab at each zoom (D25 C + I1): Stacked, Rows and Lines; then the plans, grouped by Planned.
         H: cell('cell-horizon', [
           lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines'), lens('tab-planned', L.planned),

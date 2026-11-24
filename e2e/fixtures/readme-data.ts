@@ -15,7 +15,7 @@
 
 type Obj = Record<string, unknown>
 
-export const README_SCHEMA_VERSION = 89
+export const README_SCHEMA_VERSION = 90
 
 const PEOPLE = [
   { key: 'priya', name: 'Priya Nair', initials: 'PN', color: '#4f8cff' },
@@ -148,19 +148,20 @@ const range = (start: Obj | null, end: Obj | null) => ({ match: 'range', start, 
 const DUE = '#e86bf0'
 const FOLLOWUP = '#f5c842'
 
+/** A Number (an item of a Numbers widget). */
 const number = (id: string, name: string, f: Obj, lit: { color?: string; above?: number } = {}) => ({
   id,
-  kind: 'number',
-  config: {
-    name,
-    ...(lit.color ? { color: lit.color } : {}),
-    filter: f,
-    show: 'count',
-    litWhen: lit.above !== undefined ? 'above' : 'never',
-    ...(lit.above !== undefined ? { litAt: lit.above } : {}),
-    compare: 'yesterday',
-  },
+  name,
+  ...(lit.color ? { color: lit.color } : {}),
+  filter: f,
+  show: 'count',
+  litWhen: lit.above !== undefined ? 'above' : 'never',
+  ...(lit.above !== undefined ? { litAt: lit.above } : {}),
+  compare: 'yesterday',
 })
+
+/** A Numbers widget (v90): its Numbers side by side. */
+const numbers = (id: string, items: Obj[]) => ({ id, kind: 'numbers', config: { items } })
 
 const byPerson = (id: string) => ({
   id,
@@ -286,12 +287,12 @@ export function readmeData(today: Date = new Date()): Obj {
         { id: C.list, tabs: [{ id: 'tab-list', kind: 'lens', config: { listDefinitionId: 1 } }], activeTabId: 'tab-list', area: { col: 0, row: 0, colSpan: 1, rowSpan: 2 } },
         {
           id: C.numbers,
-          tabs: [
+          tabs: [numbers('tab-n-numbers', [
             number('tab-n-open', 'Open', filter()),
             number('tab-n-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } })),
             number('tab-n-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 }),
-          ],
-          activeTabId: 'tab-n-open', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 },
+          ])],
+          activeTabId: 'tab-n-numbers', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 },
         },
         { id: 'cell-t-breakdown', tabs: [byPerson('tab-t-breakdown')], activeTabId: 'tab-t-breakdown', area: { col: 1, row: 1, colSpan: 1, rowSpan: 1 } },
         { id: C.calendar, tabs: [{ id: 'tab-cal', kind: 'calendar', config: { dateTypes: { due: true, followup: false, plan: false } }, viewState: { view: 'week', offset: 0 } }], activeTabId: 'tab-cal', area: { col: 0, row: 2, colSpan: 2, rowSpan: 1 } },
@@ -310,12 +311,12 @@ export function readmeData(today: Date = new Date()): Obj {
       cells: [
         {
           id: C.planningNumbers,
-          tabs: [
+          tabs: [numbers('tab-p-numbers', [
             number('tab-p-open', 'Open', filter()),
             number('tab-p-week', 'Due this week', filter({ dates: { deadline: range(rel('today'), offset(6)) } })),
             number('tab-p-late', 'Overdue', filter({ dates: { deadline: range(null, rel('yesterday')) } }), { color: DUE, above: 0 }),
-          ],
-          activeTabId: 'tab-p-open', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 },
+          ])],
+          activeTabId: 'tab-p-numbers', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 },
         },
         { id: C.breakdown, tabs: [byPerson('tab-breakdown')], activeTabId: 'tab-breakdown', area: { col: 0, row: 1, colSpan: 1, rowSpan: 1 } },
         { id: C.trend, tabs: [{ id: 'tab-trend', kind: 'trend', config: { range: '4w', name: 'Created vs completed', show: 'bars' } }], activeTabId: 'tab-trend', area: { col: 0, row: 2, colSpan: 1, rowSpan: 1 } },

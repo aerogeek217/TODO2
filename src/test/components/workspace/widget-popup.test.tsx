@@ -6,7 +6,8 @@ import { WorkspaceCell } from '../../../components/workspace/WorkspaceCell'
 import { WidgetPopupHost } from '../../../components/workspace/WidgetPopup'
 import { backupScheduler } from '../../../data/backup-scheduler'
 import { emptyPredicate } from '../../../models'
-import { createTab, type LayoutBody, type LayoutCell, type NumberTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import { createTab, type LayoutBody, type LayoutCell, type NumbersTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import type { NumberItem } from '../../../models/glance-widgets'
 import { replaceData } from '../../../services/replace-data'
 import { openNumberList, openReviewPopup, openWidgetLarger } from '../../../services/widget-popup'
 import { listTabZoom } from '../../../services/list-zoom'
@@ -18,7 +19,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { makeTodo, resetEntityStores } from '../../helpers'
-import { cell, grid, single, type CellSpec } from '../../helpers/layout-builders'
+import { cell, grid, single, type CellSpec, freshNumberTab, numberItem, numbersTab, numberWidgetId } from '../../helpers/layout-builders'
 
 /**
  * The widget popup (Open larger): its host follows the open layout's tab, its
@@ -238,17 +239,19 @@ describe('one live widget per tab: the cell shows a placeholder while its tab is
     }
   })
 
-  const kinds = ['lens', 'calendar', 'notes', 'review', 'neglect', 'number', 'trend', 'breakdown', 'pivot'] as const
+  const kinds = ['lens', 'calendar', 'notes', 'review', 'neglect', 'numbers', 'trend', 'breakdown', 'pivot'] as const
   it.each(kinds)('a %s tab: only the placeholder in the cell’s body while it is open larger', (kind) => {
-    const tab = kind === 'lens' ? listTab : createTab(kind, 'w')
+    // A Number opens larger under its own id (the widget holds it).
+    const tab = kind === 'lens' ? listTab : kind === 'numbers' ? numbersTab('nw', [numberItem('w', 'open', { breakdown: 'people' })]) : createTab(kind, 'w')
+    const id = kind === 'numbers' ? 'w' : tab.id
     renderCells(cell('k', [tab]))
     const before = bodyOf('k').innerHTML
     expect(placeholderIn('k')).toBeNull()
-    act(() => { void openWidgetLarger(tab.id) })
+    act(() => { void openWidgetLarger(id) })
     expect(popup()).not.toBeNull()
     const shown = [...bodyOf('k').children].filter((el) => !el.hasAttribute('data-face-opener'))
     expect(shown).toHaveLength(1)
-    expect(shown[0]?.getAttribute('data-open-larger-placeholder')).toBe(tab.id)
+    expect(shown[0]?.getAttribute('data-open-larger-placeholder')).toBe(id)
     closePopup()
     expect(placeholderIn('k')).toBeNull()
     expect(bodyOf('k').innerHTML).toBe(before)
@@ -320,10 +323,7 @@ describe('one live widget per tab: the cell shows a placeholder while its tab is
 })
 
 describe('the list a Number follows, open larger (the popup’s `list` kind)', () => {
-  const following = (): NumberTab => {
-    const tab = createTab('number', 'num')
-    return { ...tab, config: { ...tab.config, show: 'list', list: { listDefinitionId: 7 } } }
-  }
+  const following = (): NumbersTab => numbersTab(numberWidgetId('num'), [{ ...freshNumberTab('num').config.items[0]!, show: 'list', list: { listDefinitionId: 7 } }])
 
   it('shows the list as a list tab of the Number’s id; the Number’s cell keeps its Number', async () => {
     renderCells(cell('k', [following()]))
@@ -438,10 +438,7 @@ describe('the level a list shows, for the zoom controls (cr34 U4)', () => {
 })
 
 describe('a Number’s Open larger', () => {
-  const number = (config: Partial<NumberTab['config']>): NumberTab => {
-    const tab = createTab('number', 'num')
-    return { ...tab, config: { ...tab.config, ...config } }
-  }
+  const number = (config: Partial<NumberItem>): NumbersTab => numbersTab(numberWidgetId('num'), [{ ...freshNumberTab('num').config.items[0]!, ...config }])
   const slotButtons = () => Array.from(document.querySelectorAll('[data-cell-controls] button')).map((b) => b.getAttribute('aria-label'))
 
   it('a plain count has none', () => {

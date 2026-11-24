@@ -1,13 +1,18 @@
 import { expect, type Locator, type Page } from '@playwright/test'
-import { createTab, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
-import { isV77Metric, numberConfigOfMetric } from '../../src/test/helpers/number-metrics'
+import { createTab, WIDGET_KINDS, widgetKindAddLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
+import { isV77Metric, numberConfigOfMetric } from '../../scripts/number-metrics'
 import { layoutTableOf } from './column-layout'
 import { DB_NAME, readStore } from './db'
 import { box, pointIn, type Point } from './geometry'
 
 export interface WsTabSeed {
   id: string
-  kind: WidgetKind
+  /**
+   * `number`: one Number, under its own id — seeded into a Numbers widget
+   * as v90 converts one (`withNumbersWidgets`): a cell of only Numbers holds
+   * one widget of them all, a Number among other kinds a widget of its own.
+   */
+  kind: WidgetKind | 'number'
   /** List tabs: index into `listDefinitions`. */
   listDefIdx?: number
   /** The tab's picked icon as stored (items 11, 14), e.g. `{ kind: 'line', key: 'flag' }`. */
@@ -163,6 +168,39 @@ export function wsTableOf(layout: WsLayoutSeed): WsTable {
   return layoutTableOf(columnsForm) as unknown as WsTable
 }
 
+/**
+ * `table` with its Numbers in Numbers widgets, as v90 converts a stored
+ * layout: a cell of only Numbers holds one widget of them all (`n-` + its
+ * first Number's id; the cell's active tab), a Number among other kinds a
+ * widget of its own in its place (the active tab follows it). Each Number
+ * keeps its id and icon; its config is a new Number's with its `glance`
+ * over it.
+ */
+function withNumbersWidgets(table: WsTable): WsTable {
+  const { id: _id, ...fresh } = createTab('numbers', '', { numberItemId: '' }).config.items[0]!
+  void _id
+  const itemOf = (tab: WsTabSeed) => ({ ...structuredClone(fresh), ...tab.glance, id: tab.id, ...(tab.icon ? { icon: tab.icon } : {}) })
+  const widgetOf = (tabs: WsTabSeed[]): WsTabSeed => ({ id: `n-${tabs[0]?.id ?? ''}`, kind: 'numbers', glance: { items: tabs.map(itemOf) } })
+  // A Numbers widget seeded as one, without its Numbers: one new Number, `<its id>-1`.
+  const filled = (tab: WsTabSeed): WsTabSeed => (tab.kind === 'numbers' && !tab.glance?.items
+    ? { ...tab, glance: { ...tab.glance, items: [{ ...structuredClone(fresh), id: `${tab.id}-1` }] } }
+    : tab)
+  return {
+    ...table,
+    cells: table.cells.map((seeded) => {
+      const cell = { ...seeded, tabs: seeded.tabs.map(filled) }
+      if (!cell.tabs.some((t) => t.kind === 'number')) return cell
+      if (cell.tabs.every((t) => t.kind === 'number')) {
+        const widget = widgetOf(cell.tabs)
+        return { ...cell, tabs: [widget], activeTabId: widget.id }
+      }
+      const tabs = cell.tabs.map((t) => (t.kind === 'number' ? widgetOf([t]) : t))
+      const active = cell.tabs.find((t) => t.id === cell.activeTabId)
+      return { ...cell, tabs, ...(active?.kind === 'number' ? { activeTabId: `n-${active.id}` } : {}) }
+    }),
+  }
+}
+
 /** `table` with each Number seeded by a `metric` given that metric's ready-made config. */
 function withNumberConfigs(table: WsTable): WsTable {
   return {
@@ -311,7 +349,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
   if (stale !== undefined) throw staleServerError(stale)
   // Every kind's new tab, as the app makes it: the seeded tabs start from these.
   const newTabs = Object.fromEntries(WIDGET_KINDS.map((kind) => [kind, createTab(kind, '')])) as Record<WidgetKind, LayoutTab>
-  const payload = { ...seed, tables: seed.layouts.map(wsTableOf).map(withNumberConfigs), predicate: emptyPredicate(), newTabs }
+  const payload = { ...seed, tables: seed.layouts.map(wsTableOf).map(withNumberConfigs).map(withNumbersWidgets), predicate: emptyPredicate(), newTabs }
   await page.evaluate(async ({ db, seed }) => {
     const idb = await new Promise<IDBDatabase>((resolve, reject) => {
       const req = indexedDB.open(db)
@@ -425,7 +463,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     type TabSeed = (typeof seed.tables)[number]['cells'][number]['tabs'][number]
     type CellSeed = (typeof seed.tables)[number]['cells'][number]
     const buildTab = (tab: TabSeed) => {
-      const base = structuredClone(seed.newTabs[tab.kind])
+      // Every Number is in a Numbers widget by now (`withNumbersWidgets`).
+      const base = structuredClone(seed.newTabs[tab.kind as Exclude<typeof tab.kind, 'number'>])
       const out: Record<string, unknown> = { ...base, id: tab.id }
       const config = { ...(base.config as Record<string, unknown>) }
       if (tab.kind === 'lens' && tab.listDefIdx != null) {
@@ -893,7 +932,7 @@ export function wsDivider(page: Page, a: string, b: string): Locator {
 }
 
 /** The Insights kinds' names: the add-widget and Change widget menus list them in a submenu. */
-const INSIGHTS_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('insights').map(widgetKindLabel))
+const INSIGHTS_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('insights').map(widgetKindAddLabel))
 
 /**
  * Picks the kind named `label` in the open add-widget (`Add widget`) or

@@ -158,7 +158,12 @@ function own<T>(record: Readonly<Record<string, T>>, tabId: string): T | undefin
 }
 
 function addTabIds(layout: WorkspaceLayout | null, into: Set<string>): void {
-  if (layout) for (const tab of layoutTabs(layout)) into.add(tab.id)
+  if (!layout) return
+  for (const tab of layoutTabs(layout)) {
+    into.add(tab.id)
+    // A Numbers widget's Numbers: one that follows a list keeps its picks under its own id.
+    if (tab.kind === 'numbers') for (const item of tab.config.items) into.add(item.id)
+  }
 }
 
 /**

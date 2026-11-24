@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { createTab, type LayoutBody } from '../../models/workspace-layout'
 import { columnShare, isSliverTrack, removeTrackMessage, trackCanCollapse, rowMark, runPlaceWords, sliverRun, trackNames } from '../../utils/layout-rulers'
 import { trackRemoval } from '../../utils/workspace-layout-ops'
-import { cell as spec, grid, type CellSpec } from '../helpers/layout-builders'
+import { cell as spec, grid, numberItem, numbersTab, type CellSpec } from '../helpers/layout-builders'
 
 /** The rulers' words and tracks (layout edit mode E2): letters, shares, marks, slivers, and Remove's message. */
 
+/** A cell of `tabIds`: notes, or Numbers widgets of one Number each (the widget's id the tab id). */
 function cell(id: string, kind: 'notes' | 'number' = 'notes', tabIds: string[] = [`${id}-t`]): CellSpec {
-  const tabs = tabIds.map((t) => createTab(kind, t))
+  const tabs = tabIds.map((t) => (kind === 'number' ? numbersTab(t, [numberItem(`${t}-n`)]) : createTab(kind, t)))
   return spec(id, tabs, tabs[0] ? { activeTabId: tabs[0].id } : {})
 }
 

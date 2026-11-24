@@ -4,7 +4,7 @@ import {
   tabListId,
   WIDGET_KIND_GROUPS,
   WIDGET_KIND_SPECS,
-  widgetKindLabel,
+  widgetKindAddLabel,
   widgetKindsOf,
   type LayoutCell,
   type LayoutTab,
@@ -354,15 +354,15 @@ function addTabEntry(a: CellMenuActions): MenuEntry {
   const kindItem = (kind: WidgetKind): MenuItemEntry => (kind === 'breakdown'
     ? {
         kind: 'item',
-        label: widgetKindLabel(kind),
+        label: widgetKindAddLabel(kind),
         icon: <WidgetKindIcon kind={kind} />,
         childrenWidth: ADD_TAB_SUBMENU_WIDTH_PX,
         children: [
-          { kind: 'label', text: widgetKindLabel(kind) },
+          { kind: 'label', text: widgetKindAddLabel(kind) },
           ...BREAKDOWN_PRESETS.map((preset): MenuEntry => ({ kind: 'item', label: BREAKDOWN_PRESET_LABELS[preset], onSelect: () => a.onAddTab(kind, preset) })),
         ],
       }
-    : { kind: 'item', label: widgetKindLabel(kind), icon: <WidgetKindIcon kind={kind} />, onSelect: () => a.onAddTab(kind) })
+    : { kind: 'item', label: widgetKindAddLabel(kind), icon: <WidgetKindIcon kind={kind} />, onSelect: () => a.onAddTab(kind) })
   return {
     kind: 'item',
     label: addTabLabel(a.cell),

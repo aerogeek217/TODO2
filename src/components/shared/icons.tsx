@@ -90,7 +90,7 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
     </>
   ),
   // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`GLANCE_GLYPH`).
-  number: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
+  numbers: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
   trend: <path d={GLANCE_GLYPH.chart} />,
   // D26 P8 — Breakdown: a bar per row, longest first.
   breakdown: <path d="M2.5 3.5h11M2.5 8h7M2.5 12.5h4" />,

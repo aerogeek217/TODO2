@@ -43,23 +43,28 @@ export function cellsOnlyInRow(body: LayoutBody, row: number): LayoutCell[] {
   return body.cells.filter((c) => c.area.row === row && c.area.rowSpan === 1)
 }
 
-/** Whether a cell holds tabs and every one is of a `fitHeight` kind (one Number, or a strip of them). */
+/** Whether a cell holds tabs and every one is of a `fitHeight` kind (Numbers widgets: one Number or several). */
 export function isFitCell(cell: Pick<LayoutCell, 'tabs'>, fit: KindFlag = isFitHeightKind): boolean {
   return cell.tabs.length > 0 && cell.tabs.every((tab) => fit(tab.kind))
 }
 
+/** How many Numbers a cell holds: its Numbers widgets' items, counted (a tab of a test's own fit kind counts as one). */
+export function cellNumberCount(cell: Pick<LayoutCell, 'tabs'>): number {
+  return cell.tabs.reduce((n, tab) => n + (tab.kind === 'numbers' ? tab.config.items.length : 1), 0)
+}
+
 /**
- * Whether a cell draws its tabs as a strip, side by side and evenly divided,
- * with no tab strip (flair P10): two or more tabs, every one a Number
- * (`fitHeight`). Derived, never stored.
+ * Whether a cell draws its Numbers as a strip, side by side and evenly
+ * divided, with no tab strip (flair P10): a cell of only `fitHeight` tabs
+ * holding two or more Numbers. Derived, never stored.
  */
 export function isNumberStripCell(cell: Pick<LayoutCell, 'tabs'>, fit: KindFlag = isFitHeightKind): boolean {
-  return cell.tabs.length > 1 && isFitCell(cell, fit)
+  return isFitCell(cell, fit) && cellNumberCount(cell) > 1
 }
 
 /**
  * Whether row track `row` fits its content: some cells lie only in it and
- * each holds only `fitHeight` tabs (a Number, or a strip of them). Cells
+ * each holds only `fitHeight` tabs (Numbers widgets). Cells
  * spanning through it don't count. Derived, never stored.
  */
 export function isFitTrack(body: LayoutBody, row: number, fit: KindFlag = isFitHeightKind): boolean {

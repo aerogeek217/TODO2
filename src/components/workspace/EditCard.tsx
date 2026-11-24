@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import { widgetKindLabel, type LayoutCell, type LayoutTab } from '../../models/workspace-layout'
+import { widgetKindAddLabel, type LayoutCell, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { cardName, cellRulerName, cornerArea, emptySlots, otherCards, stretchedArea, trackReached } from '../../utils/layout-edit-cards'
 import { mergeNeighbour, sameArea } from '../../utils/workspace-grid'
@@ -223,7 +223,7 @@ export function EditBlueprint({ tab, title, belowStrip }: { tab: LayoutTab; titl
           <TabIcon tab={tab} size={14} className={styles.blueprintIcon} />
           <span className={styles.blueprintText}>{title}</span>
         </span>
-        <span className={styles.blueprintKind}>{widgetKindLabel(tab.kind)}</span>
+        <span className={styles.blueprintKind}>{widgetKindAddLabel(tab.kind)}</span>
       </span>
     </span>
   )

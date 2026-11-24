@@ -1,6 +1,6 @@
 import { useMemo, type MouseEvent } from 'react'
 import { DEFAULT_NUMBER_BREAKDOWN } from '../../../models/glance-widgets'
-import type { NumberTab } from '../../../models/workspace-layout'
+import type { NumberTab } from '../../../utils/number-views'
 import { useNumberCount, useNumberHistory, useStatsBase } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { PRIORITY_GROUP_RINGS } from '../../../services/stats/breakdown'
