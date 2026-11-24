@@ -1,6 +1,6 @@
 import type { PersistedTodoItem, Person, Status, Tag, TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models'
 import { effectiveSortDirection, isTodoGroupBy } from '../models'
-import { PLANNED_HELD_GROUP_KEY, assignedEntitiesById, partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
+import { assignedEntitiesById, partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
 import { compareTodosByDate, pickTodoDate, type WeekStart } from '../utils/effective-date'
 import { bySortOrder } from '../utils/sort-order'
 import { startOfDay } from '../utils/date'
@@ -89,7 +89,7 @@ interface ListSortContext {
  *   first, then unranked oldest first), else `sortOrder` (then id).
  * - `name` — alphabetical title, ties by `sortOrder`.
  * - `deadline` / `planned` / `followup` — ascending date (a planned day:
- *   earliest first), undated (no plan, held too) last, ties by `sortOrder`.
+ *   earliest first), undated (no plan) last, ties by `sortOrder`.
  * - `lastFollowup` / `completed` — ascending moment (oldest first; Completed
  *   is picked descending, newest first), never followed up / open last,
  *   ties by `sortOrder`.
@@ -205,13 +205,12 @@ function priorityComparator(ctx: ListSortContext, sign: 1 | -1): (a: PersistedTo
   }
 }
 
-/** Group colours of date sections (Planned's Unplanned group muted); the trailing "No …" sections are muted too. */
-const DATE_ACCENTS: Partial<Record<DateBucketKey | typeof PLANNED_HELD_GROUP_KEY, string>> = {
+/** Group colours of date sections; the trailing "No …" sections are muted too. */
+const DATE_ACCENTS: Partial<Record<DateBucketKey, string>> = {
   overdue: 'var(--color-overdue)',
   today: 'var(--color-accent-text)',
   week: 'var(--color-text-secondary)',
   later: 'var(--color-text-muted)',
-  [PLANNED_HELD_GROUP_KEY]: 'var(--color-text-muted)',
 }
 
 const UNGROUPED_ACCENT = 'var(--color-text-muted)'
@@ -270,8 +269,7 @@ function preferGroups<G extends { key: string; todos: PersistedTodoItem[] }>(gro
  * Sort `members` and split them into sections for `spec.groupBy`.
  *
  * Group order: dates Overdue → Today → This Week → Later (Planned:
- * Delayed → Today → This Week → Later → Unplanned, the tasks held in the
- * Planner's Unplanned tray); status by its
+ * Delayed → Today → This Week → Later); status by its
  * registry `sortOrder`; people and tags alphabetically (or in the
  * restrict order); Priority Focus → Urgent → Important (Urgent = effective
  * Urgent). A task with

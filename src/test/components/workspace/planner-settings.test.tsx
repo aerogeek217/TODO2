@@ -76,7 +76,8 @@ beforeEach(() => {
     todos: [
       makeTodo({ id: 1, uid: 'focus', title: 'Someday focus', focus: true, sortOrder: 1 }),
       makeTodo({ id: 2, uid: 'errand', title: 'Pick up dry cleaning', sortOrder: 2 }),
-      makeTodo({ id: 3, uid: 'held', title: 'Clean up shared drive', unplanned: true, sortOrder: 3 }),
+      // In Focus, but planned for Saturday: on its day, never in Unplanned.
+      makeTodo({ id: 3, uid: 'planned', title: 'Clean up shared drive', focus: true, doDate: new Date(2026, 10, 21), sortOrder: 3 }),
       makeTodo({ id: 4, uid: 'dated', title: 'Dated errand', dueDate: new Date(2026, 10, 22), sortOrder: 4 }),
     ],
   })
@@ -90,23 +91,27 @@ afterEach(() => {
 })
 
 describe('the Unplanned filter line', () => {
-  it('reads Focus for a Planner that never set one; Unplanned holds the Focus task and the held one', () => {
+  it('reads Focus for a Planner that never set one; Unplanned holds the Focus task with no plan', () => {
     setup()
     expect(within(line()).getByRole('button', { name: 'Unplanned filter: Focus' })).toBeInTheDocument()
-    expect(unplanned()).toEqual(['Clean up shared drive', 'Someday focus'])
+    expect(unplanned()).toEqual(['Someday focus'])
+    // A planned Focus task sits on its planned day.
+    expect(document.querySelector('[data-planner-group="2026-11-21"]')).toHaveTextContent('Clean up shared drive')
   })
 
   it('reads a stored filter in words; Unplanned follows it, the dated task on its day all the same', () => {
     setup({ id: 'plan', kind: 'planner', config: { unplanned: { ...emptyPredicate(), tags: [4] } } })
     expect(line()).toHaveTextContent('errands')
-    expect(unplanned()).toEqual(['Clean up shared drive', 'Pick up dry cleaning'])
+    expect(unplanned()).toEqual(['Pick up dry cleaning'])
     expect(document.querySelector('[data-planner-group="2026-11-22"]')).toHaveTextContent('Dated errand')
   })
 
-  it('an empty filter: nothing joins on its own, only what was unplanned by hand', () => {
+  it('an empty filter: nothing joins — Unplanned stays empty', () => {
     setup({ id: 'plan', kind: 'planner', config: { unplanned: emptyPredicate() } })
-    expect(within(line()).getByRole('button', { name: 'Unplanned filter: nothing joins on its own' })).toHaveTextContent('Nothing joins on its own')
-    expect(unplanned()).toEqual(['Clean up shared drive'])
+    const none = within(line()).getByRole('button', { name: 'Unplanned filter: nothing joins' })
+    expect(none).toHaveTextContent(/^Nothing joins$/)
+    expect(none).toHaveAttribute('data-tooltip', 'Unplanned stays empty · click to edit')
+    expect(unplanned()).toEqual([])
   })
 })
 
@@ -120,7 +125,7 @@ describe('the Planner settings', () => {
     expect(within(dialog).getByRole('group', { name: 'Unplanned holds' })).toBeInTheDocument()
     expect(within(dialog).getByRole('radio', { name: 'Graphical' })).toHaveAttribute('aria-checked', 'true')
     expect(within(dialog).getByTestId('list-filter-chip')).toHaveTextContent('Focus')
-    expect(dialog).toHaveTextContent('An open task with no day that matches joins Unplanned on its own. Empty, nothing joins on its own: only what you unplan.')
+    expect(dialog).toHaveTextContent('An open task with no day and no plan that matches joins Unplanned. Empty, Unplanned stays empty.')
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(settings()).toBeNull()
@@ -139,25 +144,26 @@ describe('the Planner settings', () => {
     setup()
     openFromLine()
     typeFilter('#errands')
-    expect(unplanned()).toEqual(['Clean up shared drive', 'Pick up dry cleaning'])
+    expect(unplanned()).toEqual(['Pick up dry cleaning'])
     expect(stored().config).toEqual({})
     fireEvent.click(within(settings()!).getByRole('button', { name: 'Save' }))
     expect(settings()).toBeNull()
     expect(stored().config.unplanned?.expression).toEqual({ kind: 'tag', id: 4 })
     expect(layoutSteps()).toEqual(['Changed what counts as unplanned'])
     expect(useWidgetPreviewStore.getState().configs).toEqual({})
-    expect(unplanned()).toEqual(['Clean up shared drive', 'Pick up dry cleaning'])
+    expect(unplanned()).toEqual(['Pick up dry cleaning'])
     await act(async () => { await useUndoStore.getState().undo() })
     expect(stored().config).toEqual({})
-    expect(unplanned()).toEqual(['Clean up shared drive', 'Someday focus'])
+    expect(unplanned()).toEqual(['Someday focus'])
   })
 
-  it('emptied, nothing joins on its own', () => {
+  it('emptied, nothing joins', () => {
     setup()
     openFromLine()
     fireEvent.click(within(settings()!).getByRole('button', { name: 'Remove filter' }))
-    expect(settings()).toHaveTextContent('No filter — nothing joins on its own')
-    expect(unplanned()).toEqual(['Clean up shared drive'])
+    expect(settings()).toHaveTextContent('No filter — nothing joins')
+    expect(settings()).not.toHaveTextContent('on its own')
+    expect(unplanned()).toEqual([])
     fireEvent.click(within(settings()!).getByRole('button', { name: 'Save' }))
     expect(stored().config.unplanned).toEqual(emptyPredicate())
   })
@@ -176,7 +182,7 @@ describe('the Planner settings', () => {
     await answer(title, 'Discard')
     expect(settings()).toBeNull()
     expect(stored().config).toEqual({})
-    expect(unplanned()).toEqual(['Clean up shared drive', 'Someday focus'])
+    expect(unplanned()).toEqual(['Someday focus'])
     expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
     expect(layoutSteps()).toEqual([])
   })

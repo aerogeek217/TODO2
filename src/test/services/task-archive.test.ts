@@ -127,16 +127,18 @@ describe('buildTaskArchive', () => {
     expect(prepared.data.todos[1]?.doDate).toBeUndefined()
   })
 
-  it('carries a task held in Unplanned (schema v86) through the append pipeline', async () => {
+  it('a v88 archive with a task held in Unplanned comes through the append pipeline without it (schema v89), its planned day kept', async () => {
     const s = await seed()
-    await db.todos.update(s.oldDone, { unplanned: true })
+    const doDate = new Date(2026, 10, 20)
+    await db.todos.update(s.oldBare, { doDate })
     const archive = await buildTaskArchive([s.oldDone, s.oldBare])
-    expect(archive.todos.map((t) => t.unplanned)).toEqual([true, undefined])
-    const json = JSON.stringify(archive)
-    expect(selfCheckTaskArchiveJson(json)).toBeNull()
-    const prepared = prepareImportText(json, { purpose: 'append' })
+    const v88 = { ...archive, [SCHEMA_VERSION_KEY]: 88, todos: archive.todos.map((t, i) => (i === 0 ? { ...t, unplanned: true } : t)) }
+    const prepared = prepareImportText(JSON.stringify(v88), { purpose: 'append' })
     if (!prepared.ok) throw new Error(prepared.error)
-    expect(prepared.data.todos.map((t) => t.unplanned)).toEqual([true, undefined])
+    expect(prepared.upgraded).toBe(true)
+    expect(prepared.warnings).toEqual([])
+    expect(prepared.data.todos.map((t) => 'unplanned' in t)).toEqual([false, false])
+    expect(prepared.data.todos.map((t) => t.doDate)).toEqual([undefined, doDate])
   })
 
   it('skips ids that no longer exist', async () => {

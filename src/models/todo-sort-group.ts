@@ -25,7 +25,7 @@ export type TodoSortBy =
 export type TodoGroupBy =
   | 'none'        // flat list — no group headers
   | 'deadline'    // relative buckets on dueDate (Overdue / Today / This week / …)
-  | 'planned'     // relative buckets on doDate (Delayed / Today / This week / …), then Unplanned (held)
+  | 'planned'     // relative buckets on doDate (Delayed / Today / This week / …)
   | 'followup'    // relative buckets on nextFollowupAt
   | 'people'      // many-to-many
   | 'status'

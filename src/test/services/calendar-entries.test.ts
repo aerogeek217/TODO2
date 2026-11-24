@@ -109,11 +109,17 @@ describe('buildEntries — plans', () => {
     expect(entries.find((e) => e.kind === 'plan')?.key).toBe('plan-2')
   })
 
-  it('a task held in Unplanned has no plan entry; nor one with no planned day', () => {
-    const held = makeTodo({ id: 1, unplanned: true, dueDate: today })
-    const none = makeTodo({ id: 2, dueDate: today })
-    const entries = [...buildEntries([held, none], days, { dateTypes: plans }).values()].flat()
+  it('a task with no planned day has no plan entry, whatever its other dates', () => {
+    const dueOnly = makeTodo({ id: 1, dueDate: today })
+    const followupOnly = makeTodo({ id: 2, nextFollowupAt: today })
+    const entries = [...buildEntries([dueOnly, followupOnly], days, { dateTypes: plans }).values()].flat()
     expect(entries).toHaveLength(0)
+  })
+
+  it('a plan entry for any planned day: a task with no due date or follow-up has one too', () => {
+    const t = makeTodo({ id: 1, doDate: today })
+    const entries = [...buildEntries([t], days, { dateTypes: plans }).values()].flat()
+    expect(entries.map((e) => [e.todo.id, e.kind])).toEqual([[1, 'plan']])
   })
 
   it('plans off: no plan entries', () => {

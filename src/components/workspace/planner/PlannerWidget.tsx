@@ -8,7 +8,7 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { usePlanner, useTasksDoneToday, type PlannerData } from '../../../hooks/use-planner'
 import { useRowFieldsUsed } from '../../../hooks/use-row-fields-used'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { clearPlannerTask, movePlannerTask, snoozePlannerTask, unplanDelayedTasks, unplanPlannerTask } from '../../../services/planner-drop'
+import { clearDelayedPlans, movePlannerTask, snoozePlannerTask, unplanPlannerTask } from '../../../services/planner-drop'
 import { usePersonStore } from '../../../stores/person-store'
 import { usePlannerStore, type PlannerDragPreview } from '../../../stores/planner-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -31,7 +31,7 @@ import { plannerDropId, TASK_DROP_KIND, type PlannerDropData } from '../../../ut
 import { plannerFaceFor, plannerPortrait, plannerStripFits } from '../../../utils/widget-face'
 import { CellControlsContext } from '../cell-controls'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
-import { ArrowDownIcon, CheckIcon, ResetIcon } from '../../shared/icons'
+import { CheckIcon, ResetIcon } from '../../shared/icons'
 import { MenuPopover } from '../../shared/MenuPopover'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskMenuExtrasContext } from '../../task/task-menu-extras'
@@ -108,9 +108,9 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
  * done` line, Add task), then every later day of the window in order, a
  * day with nothing on it a quiet heading —, and on the right, on a darker
  * ground, the trays: **Delayed** (planned for a day that has passed; shown
- * while it holds a task), the **↓ Unplan** button on a rule (every Delayed
- * task to Unplanned; with Delayed) and **Unplanned** (held there, and the
- * tasks with no plan and no date that match its filter — read back in words
+ * while it holds a task), the **Clear plans** button on a rule (every
+ * Delayed task's plan cleared; with Delayed) and **Unplanned** (the tasks
+ * with no plan and no date that match its filter — read back in words
  * under the heading, `PlannerFilterLine`; always there). Medium in a tall,
  * narrow cell (`plannerPortrait`, board R1): the strip over the day list,
  * and the trays **docked** under it on the darker ground (`PlannerDock`:
@@ -131,17 +131,17 @@ function scrollToDay(host: HTMLElement | null, key: string, page: boolean): void
  *
  * **Rows** carry four Planner-only things (`PlannerRowExtras`, through
  * `TaskRowExtrasContext`; the flag is the Planner's own, around the row): a
- * **corner flag** on every placed row (a planned day, or held in
- * Unplanned); a **tag** after the title — a Delayed row's planned day, a
- * held row's natural day, or `1 day after due` on a row planned past a
- * real date, a button opening its fixes —; that passed date **drawn late**;
+ * **corner flag** on every placed row (a planned day); a **tag** after the
+ * title — a Delayed row's planned day, or `1 day after due` on a row
+ * planned past a real date, a button opening its fixes —; that passed date
+ * **drawn late**;
  * and **Snooze** / **Unplan** buttons on hover and focus (desktop).
  *
  * **Drops** (desktop): every tile and every group takes a dragged task — a
  * row of this Planner, a list's row, a calendar entry — as a dnd-kit
  * droppable (`TASK_DROP_KIND.plannerDay` / `.plannerGroup`); the page's one
  * dispatcher makes the drop (`services/planner-drop`: the task planned for
- * the day, its plan cleared on its own date's day, held in Unplanned, or
+ * the day, its plan cleared on its own date's day or on Unplanned, or
  * refused — Delayed takes no drop — and never a due date or a follow-up),
  * and a drop into a group also stores the row's place in the hand order
  * (the tab's `order`). While a task is dragged over it (`usePlannerDrag`)
@@ -239,7 +239,7 @@ function PlannerBody({ tab, layout, size, hostRef }: {
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   // The phone has no drag, so a day with nothing on it has nothing to offer there.
   const days = useMemo(() => (isMobile ? view.days.filter((g) => g.tasks.length > 0) : view.days), [isMobile, view.days])
-  // Delayed takes no drop: it shows only while it holds a task, and the Unplan button with it. Unplanned is a target, so it is always there where rows drag.
+  // Delayed takes no drop: it shows only while it holds a task, and the Clear plans button with it. Unplanned is a target, so it is always there where rows drag.
   const showDelayed = view.delayed.tasks.length > 0
   const showUnplanned = !isMobile || view.unplanned.tasks.length > 0
   const range = plannerRangeLabel(view.window)
@@ -262,13 +262,12 @@ function PlannerBody({ tab, layout, size, hostRef }: {
     return { active, preview, mark: preview && writes ? { key: preview.key } : null, shown }
   }, [active, preview, shown])
 
-  // ── Plan for day ›, Snooze, Unplan and Clear plan, in each row's task menu ──
+  // ── Plan for day ›, Snooze and Unplan, in each row's task menu ──
   const plannerWindow = view.window
   const menuExtras = useCallback((todo: Task) => plannerMenuEntries(todo, plannerWindow, {
     move: (target) => { void movePlannerTask(tabId, { todoId: todo.id, target, window: plannerWindow }) },
     snooze: () => { void snoozePlannerTask(tabId, todo.id, plannerWindow) },
     unplan: () => { void unplanPlannerTask(tabId, todo.id, plannerWindow) },
-    clear: () => { void clearPlannerTask(todo.id, plannerWindow) },
   }), [tabId, plannerWindow])
 
   // ── Each row's tag, hover buttons and late dates ──
@@ -278,10 +277,10 @@ function PlannerBody({ tab, layout, size, hostRef }: {
     [placements, tabId, plannerWindow],
   )
 
-  // Unplan all Delayed: the Delayed rows as they are — a row lingering after its completion left out.
-  const unplanAll = useCallback(() => {
+  // Clear Delayed plans: the Delayed rows as they are — a row lingering after its completion left out.
+  const clearDelayed = useCallback(() => {
     const tasks = view.delayed.tasks.filter((t) => !keptTodos?.has(t.id))
-    void unplanDelayedTasks({ window: view.window, delayed: { ...view.delayed, tasks } })
+    void clearDelayedPlans({ window: view.window, delayed: { ...view.delayed, tasks } })
   }, [view.window, view.delayed, keptTodos])
 
   const today = <TodayGroup tabId={tabId} group={view.today} data={data} mobile={isMobile} drag={drag} />
@@ -290,7 +289,7 @@ function PlannerBody({ tab, layout, size, hostRef }: {
   const trays = (
     <>
       {showDelayed && <DayGroup tabId={tabId} group={view.delayed} data={data} mobile={isMobile} drag={drag} />}
-      {showDelayed && <UnplanAll onUnplan={unplanAll} />}
+      {showDelayed && <ClearDelayed onClear={clearDelayed} />}
       {showUnplanned && (
         <DayGroup
           tabId={tabId}
@@ -425,26 +424,25 @@ function PlannerResetButton({ tab }: { tab: PlannerTab }) {
 }
 
 /**
- * The **↓ Unplan** button, centered on a hairline rule between Delayed and
- * Unplanned (only while Delayed holds a task): every Delayed task to
- * Unplanned, one undo step (`services/planner-drop.unplanDelayedTasks`).
- * Named `Unplan all Delayed tasks` — its visible word leads its name.
+ * The **Clear plans** button, centered on a hairline rule between Delayed
+ * and Unplanned (only while Delayed holds a task): every Delayed task's plan
+ * cleared, one undo step (`services/planner-drop.clearDelayedPlans`). Named
+ * `Clear Delayed plans`.
  */
-function UnplanAll({ onUnplan }: { onUnplan: () => void }) {
+function ClearDelayed({ onClear }: { onClear: () => void }) {
   return (
-    <div className={styles.unplanAll} data-planner-unplan-all="">
-      <span className={styles.unplanRule} aria-hidden="true" />
+    <div className={styles.clearDelayed} data-planner-clear-delayed="">
+      <span className={styles.clearDelayedRule} aria-hidden="true" />
       <button
         type="button"
-        className={styles.unplanButton}
-        aria-label="Unplan all Delayed tasks"
-        data-tooltip="Move all Delayed tasks to Unplanned"
-        onClick={onUnplan}
+        className={styles.clearDelayedButton}
+        aria-label="Clear Delayed plans"
+        data-tooltip="Clear the plan of every Delayed task: each goes back to where its own dates put it"
+        onClick={onClear}
       >
-        <ArrowDownIcon size={14} />
-        Unplan
+        Clear plans
       </button>
-      <span className={styles.unplanRule} aria-hidden="true" />
+      <span className={styles.clearDelayedRule} aria-hidden="true" />
     </div>
   )
 }
@@ -528,7 +526,7 @@ interface GroupProps {
  * completed here lingers, then folds (`PlannerData.leaving`). A day with
  * nothing on it is a quiet heading — its name muted, no count
  * (`data-planner-empty`) — and still takes a drop. A placed row (a planned
- * day, or held in Unplanned) carries the **corner flag** at its top-left
+ * day) carries the **corner flag** at its top-left
  * (`PlannerRowWrap`).
  *
  * The whole group is a drop target (a droppable, not on the phone): its

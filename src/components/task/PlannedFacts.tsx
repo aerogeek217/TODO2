@@ -26,7 +26,7 @@ import styles from './TaskDetails.module.css'
 const PLAN_PAST_MESSAGE = 'Plan a day from today on'
 
 /** What the Planned cell reads: the plan state and the real dates it may fall after. */
-type PlannedSubject = Pick<TodoItem, 'doDate' | 'unplanned' | 'dueDate' | 'nextFollowupAt'>
+type PlannedSubject = Pick<TodoItem, 'doDate' | 'dueDate' | 'nextFollowupAt'>
 
 interface PlannedFactsProps {
   task: PlannedSubject
@@ -43,7 +43,7 @@ interface PlannedFactsProps {
 /**
  * **Planned**, the fact band's last cell (after Due; task layout B — the
  * task editor and the review card alike): the task's plan state
- * (`doDate` / `unplanned`), on two short lines as Due. The first is a typed
+ * (`doDate`), on two short lines as Due. The first is a typed
  * date field as Due's (`TypedDateField`): a day typed (`fri`, `11/30`,
  * `2w`) or picked from the calendar plans the task for it (`onPlan`) —
  * today or later; an earlier day typed is refused with a message, the
@@ -51,8 +51,6 @@ interface PlannedFactsProps {
  * while there is one; an emptied field clears it too. Its states at rest:
  *
  * - not planned — `Not planned`, muted;
- * - held — `Unplanned`, muted, with the Planner's corner flag at the
- *   cell's top-left;
  * - a planned day — the hollow bar (the Planner's plan mark) and the day
  *   in the rows' words, how far it is under the field, muted
  *   (`tomorrow`); planned after a real date, `1 day after due ▾` under it
@@ -70,13 +68,12 @@ function PlannedFacts({ task, editable, onPlan, onFix, onClear }: PlannedFactsPr
   const [fixesOpen, setFixesOpen] = useState(false)
 
   const planned = plannerPlannedDay(task)
-  const held = planned == null && task.unplanned === true
   const hasPlan = plannerHasPlan(task)
   const missed = planned != null && planned.getTime() < startOfDay(today).getTime()
   const conflicts = planned && !missed ? plannerConflicts(task, planned, today) : []
   const fixes = plannerConflictFixes(conflicts)
   const words = planned ? factDateWords(planned, today, rowDates, 'next') : null
-  const state = planned ? (missed ? 'missed' : conflicts.length > 0 ? 'late' : 'planned') : held ? 'held' : 'none'
+  const state = planned ? (missed ? 'missed' : conflicts.length > 0 ? 'late' : 'planned') : 'none'
 
   const entry = useTypedDate({
     value: planned ?? undefined,
@@ -96,16 +93,15 @@ function PlannedFacts({ task, editable, onPlan, onFix, onClear }: PlannedFactsPr
       <span className={styles.planBar} aria-hidden="true" />
       <span className={styles.planDay}>{words.words}</span>
     </>
-  ) : held ? <span className={styles.planHeld}>Unplanned</span> : undefined
+  ) : undefined
   // Under the field: how far the day is (a missed day's with Delayed); none with the fixes there instead.
   const under = !words ? undefined
     : missed ? [words.relative, 'Delayed'].filter(Boolean).join(' · ')
       : conflicts.length === 0 ? words.relative : undefined
-  const name = planned && words ? `Planned: ${words.full}` : held ? 'Planned: Unplanned' : 'Planned: not planned'
+  const name = planned && words ? `Planned: ${words.full}` : 'Planned: not planned'
 
   return (
     <FactSection fact="planned">
-      {held && <span className={styles.planFlag} data-planned-flag="" aria-hidden="true" />}
       <div className={styles.dateValue} data-planned-state={state}>
         {editable ? (
           <TypedDateField
@@ -117,7 +113,7 @@ function PlannedFacts({ task, editable, onPlan, onFix, onClear }: PlannedFactsPr
             empty="Not planned"
             words={face}
             fill
-            clear={{ label: 'Clear plan', shown: hasPlan }}
+            clear={{ label: 'Clear plan' }}
             pick={{ label: 'Pick planned day', min: today }}
           />
         ) : (
@@ -197,7 +193,7 @@ export function DraftPlannedFacts({ plan, dates, onPlan, onMoveDate }: {
 }) {
   const task: PlannedSubject = {
     ...dates,
-    ...(plan === 'unplanned' ? { unplanned: true as const } : plan ? { doDate: plan.day } : {}),
+    ...(plan ? { doDate: plan.day } : {}),
   }
   return (
     <PlannedFacts

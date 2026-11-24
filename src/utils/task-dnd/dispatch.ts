@@ -75,8 +75,8 @@ export interface PlannerDropRequest {
 interface PlannerOps {
   /**
    * Makes the drop: the one write the Planner's rule decides for the task
-   * (its plan state: a planned day, held in Unplanned, cleared — or
-   * nothing; never a real date) and its place in the hand order. Called
+   * (its plan state: a planned day, cleared — or nothing; never a real
+   * date) and its place in the hand order. Called
    * once per drop.
    */
   drop: (request: PlannerDropRequest) => Promise<void> | void

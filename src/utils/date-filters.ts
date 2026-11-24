@@ -1,6 +1,5 @@
 import { DATE_FIELD_VALUES, type DateField } from '../models/app-view'
 import {
-  HELD_DATE_FIELD,
   NEGATABLE_DATE_FIELDS,
   OPTIONAL_DATE_FIELDS,
   type DateAnchor,
@@ -14,8 +13,7 @@ import { dateAnchorsEqual, readDateAnchor } from './date-anchor'
  * pass every clause. These helpers keep the map in its stored form — only
  * clauses that filter, `includeNoDate` only when true and only on the
  * optional types (`OPTIONAL_DATE_FIELDS`: the due date, the planned day,
- * the next and the last follow-up), `set` / `unset` only on those, `held`
- * only on Planned, a range's "is not" (`not`)
+ * the next and the last follow-up), `set` / `unset` only on those, a range's "is not" (`not`)
  * only when true and never on Completed (`NEGATABLE_DATE_FIELDS`), with no
  * `includeNoDate` beside it (a negated range keeps undated tasks anyway) —
  * so two maps that filter the same compare equal.
@@ -70,12 +68,11 @@ export function freeDateField(dates: DateFilters | null | undefined, offered: re
 /**
  * A clause as stored for `field`, or `null` when it doesn't filter or
  * doesn't apply there (Any / None — `set` / `unset` — on Completed / Created
- * / Modified; `held` on any type but Planned).
+ * / Modified).
  */
 export function normalizeDateMatch(field: DateField, m: DateMatch | null | undefined): DateMatch | null {
   if (!isDateMatchOn(m)) return null
   const optional = isOptionalDateField(field)
-  if (m.match === 'held') return field === HELD_DATE_FIELD ? { match: 'held' } : null
   if (m.match !== 'range') return optional ? { match: m.match } : null
   const not = m.not === true && isNegatableDateField(field)
   return {

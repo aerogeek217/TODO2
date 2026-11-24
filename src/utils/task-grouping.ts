@@ -57,14 +57,8 @@ function parseId(prefix: string, key: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** Planned's group of the tasks held in the Planner's Unplanned tray (after the date buckets, before Not planned). */
-export const PLANNED_HELD_GROUP_KEY = 'unplanned'
-
-/** Planned's labels: the date buckets' (the one before today is Delayed, as the Planner's tray), then Unplanned. */
-const PLANNED_GROUP_LABELS: Record<string, string> = { ...DATE_BUCKET_LABELS, overdue: 'Delayed', [PLANNED_HELD_GROUP_KEY]: 'Unplanned' }
-
-/** Planned's group order: the date buckets, then Unplanned. */
-const PLANNED_GROUP_ORDER: readonly string[] = [...DATE_BUCKET_ORDER, PLANNED_HELD_GROUP_KEY]
+/** Planned's labels: the date buckets' (the one before today is Delayed, as the Planner's tray). */
+const PLANNED_GROUP_LABELS: Record<string, string> = { ...DATE_BUCKET_LABELS, overdue: 'Delayed' }
 
 /**
  * Resolve the group key(s) for `todo` under `groupBy`.
@@ -77,8 +71,7 @@ const PLANNED_GROUP_ORDER: readonly string[] = [...DATE_BUCKET_ORDER, PLANNED_HE
  *
  * Bucket keys for `deadline` / `planned` / `followup` are the shared
  * relative-date keys (`overdue` / `today` / `week` / `later`, see
- * `utils/bucket-by-date`); a task held in the Planner's Unplanned tray is
- * Planned's `PLANNED_HELD_GROUP_KEY`.
+ * `utils/bucket-by-date`).
  *
  * Priority keys are `priority-focus` / `-urgent` / `-important`
  * (`utils/priority-groups`); a task with none of them is ungrouped (No
@@ -115,8 +108,7 @@ export function getGroupKey(
     case 'followup':
       return dateBucketKey(todo.nextFollowupAt ? new Date(todo.nextFollowupAt) : null, ctx.today, ctx.weekStartsOn)
     case 'planned':
-      if (todo.doDate) return dateBucketKey(new Date(todo.doDate), ctx.today, ctx.weekStartsOn)
-      return todo.unplanned === true ? PLANNED_HELD_GROUP_KEY : null
+      return dateBucketKey(todo.doDate ? new Date(todo.doDate) : null, ctx.today, ctx.weekStartsOn)
     case 'priority': {
       const groups = priorityGroupsOf(todo, { today: ctx.today, urgentRange: ctx.urgentRange ?? null })
       return groups.length === 0 ? null : groups.map(priorityGroupKey)
@@ -131,7 +123,7 @@ export function getGroupKey(
  * names are looked up in `ctx.peopleById` / `ctx.tagsById`; status names
  * via `ctx.statuses`; deadline/followup keys map to the shared date labels
  * ("Overdue" / "Today" / "This Week" / "Later"), planned keys to Planned's
- * ("Delayed" / "Today" / "This Week" / "Later" / "Unplanned").
+ * ("Delayed" / "Today" / "This Week" / "Later").
  */
 export function getGroupLabel(
   key: string,
@@ -243,15 +235,9 @@ function orderGroupKeys(
         })
       }
       case 'deadline':
-      case 'followup': {
-        const idx = (k: string) => (isDateBucketKey(k) ? DATE_BUCKET_ORDER.indexOf(k) : DATE_BUCKET_ORDER.length)
-        return keys.slice().sort((a, b) => idx(a) - idx(b))
-      }
+      case 'followup':
       case 'planned': {
-        const idx = (k: string) => {
-          const i = PLANNED_GROUP_ORDER.indexOf(k)
-          return i < 0 ? PLANNED_GROUP_ORDER.length : i
-        }
+        const idx = (k: string) => (isDateBucketKey(k) ? DATE_BUCKET_ORDER.indexOf(k) : DATE_BUCKET_ORDER.length)
         return keys.slice().sort((a, b) => idx(a) - idx(b))
       }
       case 'people':

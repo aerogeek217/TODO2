@@ -9,8 +9,7 @@ import type { TypedDate } from './use-typed-date'
 
 /**
  * A typed date field in the one date look (`FactDateField`): the input,
- * its × (`clear`: while it holds text, or while `clear.shown` says so; it
- * keeps the focus where it is), the host's own buttons (`extra`, Due's ↻)
+ * its × (`clear`: while it holds text; it keeps the focus where it is), the host's own buttons (`extra`, Due's ↻)
  * and the calendar (`FollowupDateButton`: one click opens the browser's
  * picker, `min` / `max` its range). Its help line is the host's to place
  * (`entry.help`).
@@ -29,8 +28,8 @@ export function TypedDateField({
   empty: string
   words?: ReactNode
   fill?: boolean
-  /** The × (writes null) — none without. `shown`: also while the field is empty (Planned's held state). */
-  clear?: { label: string; shown?: boolean }
+  /** The × (writes null) — none without. */
+  clear?: { label: string }
   pick: { label: string; min?: Date; max?: Date }
   /** Buttons between the × and the calendar (Due's ↻). */
   extra?: ReactNode
@@ -63,7 +62,7 @@ export function TypedDateField({
           autoComplete="off"
           spellCheck={false}
         />
-        {clear && (input.text !== '' || clear.shown) && (
+        {clear && input.text !== '' && (
           <RemoveButton
             size={24}
             className={styles.inputClear}

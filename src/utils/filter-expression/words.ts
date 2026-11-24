@@ -1,7 +1,7 @@
 import type { DateField } from '../../models/app-view'
 import type { FilterExpr } from '../../models/filter-expression'
 import type { DateMatch } from '../../models/filter-predicate'
-import { HELD_WORDS, describeDateMatch } from '../date-words'
+import { describeDateMatch } from '../date-words'
 import { DATE_FIELD_LABELS_SHORT } from '../filter-labels'
 import { MARKER_LABELS } from '../markers'
 import { dateTypeIsOptional, isBeforeToday, periodOf } from './dates'
@@ -19,7 +19,7 @@ import { normalizeExpression } from './tree'
  * - Everything else is a word term: a date as its Graphical chip says it
  *   (`due within the next 7 days`, `last follow-up 7+ days ago`), a named
  *   period by its name (`completed this month`), `overdue`, `follow-up
- *   late`, `held in Unplanned`; text as `mentions “invoice”`; the "none" choices (`unassigned`,
+ *   late`; text as `mentions “invoice”`; the "none" choices (`unassigned`,
  *   `no tags`) and their "any" (`assigned`, `has a tag`).
  * - The top-level `and`'s terms are joined by ` · ` (a `not` term reads
  *   `not x`); a top-level `or` by `, or`; an `or` inside anything else is
@@ -82,7 +82,6 @@ const UNSET_WORDS: Record<DateField, string> = {
 function dateWords(field: DateField, m: DateMatch, orNone = false): string {
   if (m.match === 'set') return SET_WORDS[field]
   if (m.match === 'unset') return UNSET_WORDS[field]
-  if (m.match === 'held') return HELD_WORDS
   const label = DATE_FIELD_LABELS_SHORT[field].toLowerCase()
   const none = orNone ? `, or ${field === 'lastFollowup' ? 'never' : 'none'}` : ''
   // The shortcuts the expression has words for (`overdue`, `followup late`): before today, no start.

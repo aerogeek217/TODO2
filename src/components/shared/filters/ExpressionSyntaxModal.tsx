@@ -56,9 +56,8 @@ const SECTIONS: SyntaxSection[] = [
     label: 'Which date',
     rows: [
       { syntax: 'due  ·  due any  ·  no due', meaning: 'Due date' },
-      { syntax: 'planned  ·  planned any  ·  planned none', meaning: 'Planned day, as the Planner plans it; none includes tasks held in Unplanned' },
+      { syntax: 'planned  ·  planned any  ·  planned none', meaning: 'Planned day, as the Planner plans it' },
       { syntax: 'planned fri  ·  planned < today', meaning: 'Planned for Friday · a plan whose day has passed (Delayed)' },
-      { syntax: 'unplanned', meaning: 'Held in the Planner’s Unplanned tray' },
       { syntax: 'followup  ·  followup any  ·  no followup', meaning: 'Next follow-up' },
       { syntax: 'followed  ·  followed any  ·  never followed', meaning: 'Last follow-up' },
       { syntax: 'created  ·  modified  ·  completed', meaning: 'Every task has the first two; completed ranges bring completed tasks in' },

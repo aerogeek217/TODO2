@@ -225,7 +225,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const [draftPlan, setDraftPlan] = useState<TaskPlan>(() => {
     if (mode !== 'create') return null
     if (seed?.doDate) return { day: seed.doDate }
-    if (seed?.unplanned) return 'unplanned'
     return quickAddSeed?.resolved.doDate ? { day: quickAddSeed.resolved.doDate } : null
   })
   // The repeat's interval as stored (`2w`), `''` for none (`editor-fields`).
@@ -493,7 +492,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       ...(draftUrgent ? { urgent: true } : {}),
       ...(draftImportant ? { important: true } : {}),
       ...(draftFocus ? { focus: true } : {}),
-      ...(draftPlan === 'unplanned' ? { unplanned: true as const } : draftPlan ? { doDate: draftPlan.day } : {}),
+      ...(draftPlan ? { doDate: draftPlan.day } : {}),
     }
     const assignments = { personIds: [...pendingPersonIds], tagIds: [...pendingTagIds] }
     if (props.onSaveDraft) {
@@ -522,7 +521,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     urgent: draftUrgent,
     important: draftImportant,
     focus: draftFocus,
-    plan: draftPlan === 'unplanned' ? 'unplanned' : draftPlan?.day.getTime(),
+    plan: draftPlan?.day.getTime(),
     repeat,
     people: [...pendingPersonIds].sort((a, b) => a - b),
     tags: [...pendingTagIds].sort((a, b) => a - b),

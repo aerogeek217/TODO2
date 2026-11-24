@@ -87,11 +87,6 @@
   flex: 1 0 144px;
 }
 
-/* Planned holds the held state's corner flag. */
-.fact[data-fact='planned'] {
-  position: relative;
-}
-
 /* A fact's header: the writing's section label (`.sectionLabel`), no colour and no icon. */
 .factHeading {
   font-size: var(--font-size-xs);
@@ -587,11 +582,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Held in Unplanned: `Unplanned`, muted. */
-.planHeld {
-  color: var(--color-text-muted);
-}
-
 .dateValue[data-planned-state='missed'] .planBar {
   opacity: 0.6;
 }
@@ -626,18 +616,6 @@
 
 .planConflict .statusCaret {
   color: inherit;
-}
-
-/* Held in Unplanned: the Planner's corner flag, at the cell's top-left. */
-.planFlag {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 9px;
-  height: 9px;
-  background: var(--color-text-secondary);
-  clip-path: polygon(0 0, 100% 0, 0 100%);
-  pointer-events: none;
 }
 
 /* ── Due and Planned: two short lines ── */

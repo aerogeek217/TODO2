@@ -7,6 +7,7 @@ import { useWorkspaceStore } from '../stores/workspace-store'
 import { startOfDay, startOfToday } from '../utils/date'
 import { shortTitle } from '../utils/text'
 import {
+  plannerClearDelayed,
   plannerClearLeaves,
   plannerDayLabel,
   plannerDropWrite,
@@ -19,7 +20,6 @@ import {
   plannerResetWeekLabel,
   plannerShows,
   plannerSnoozeDay,
-  plannerUnplanDelayed,
   plannerWindow,
   type PlannerDropPosition,
   type PlannerFix,
@@ -34,10 +34,10 @@ import type { PlannerDropRequest } from '../utils/task-dnd'
 
 /**
  * The Planner's writes — the only place a Planner drop, Plan for day ›,
- * Snooze, Unplan, Unplan all Delayed, Reset plan or a conflict's fix writes
+ * Snooze, Unplan, Clear Delayed plans, Reset plan or a conflict's fix writes
  * from (a drag is the drop rule; every other move to a day is a pick,
  * planned outright). Everything but a fix's date move changes **the plan only**
- * (`todo-store.setPlans`: both plan fields in one task write, one undo step,
+ * (`todo-store.setPlans`: the planned day in one task write, one undo step,
  * no stamp, no history event) — never a due date or a follow-up; what to
  * write is `utils/planner`'s decision (`plannerDrop`).
  */
@@ -101,26 +101,31 @@ export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDra
  * tab's view state, `order` — the stored one with the row's new place
  * merged in: saved at once, no undo step, as a list's manual order), then
  * the one task write: its plan state (`plannerDropWrite` → `setPlan`: a
- * planned day, held in Unplanned, or cleared — one undo step, no stamp). A
- * refused drop, and one that changes nothing, write no task. A plan that
- * takes the task **out of view** (`plan.hidden`: a day the Planner shows it
- * on nowhere — a Snooze past the window with no real date inside it) shows
- * the snackbar, named for the day, with its Undo (`Planned for Fri, Nov
- * 27`): nothing leaves the Planner silently — in a Planner only (`tabId`;
- * outside one there is no Planner to leave). A plan write that fails
+ * planned day, or cleared — one undo step, no stamp). A refused drop, and
+ * one that changes nothing, write no task. A plan that takes the task **out
+ * of view** (`plan.hidden`: a day the Planner shows it on nowhere — a Snooze
+ * past the window with no real date inside it) shows the snackbar, named for
+ * the day, with its Undo (`Planned for Fri, Nov 27`), and an Unplan that
+ * takes it out of the Planner (`plan.leaves`) says so (`Removed “Title” from
+ * the Planner`): nothing leaves the Planner silently — in a Planner only
+ * (`tabId`; outside one there is no Planner to leave). A plan write that fails
  * (`setPlan` says so and tells the user) takes the hand order back to what
  * the tab stored before, so the row doesn't keep a place among the rows of
  * a group it never reached.
  */
 export async function applyPlannerMove(tabId: string | null, todoId: number, plan: PlannerMovePlan): Promise<void> {
-  const { drop, order, hidden } = plan
+  const { drop, order, hidden, leaves } = plan
   const before = order ? storedOrder(tabId) : null
   if (order && tabId != null) void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { order })
   const write = plannerDropWrite(drop)
   if (write === undefined) return
-  const saved = hidden && tabId != null
-    ? await useTodoStore.getState().setPlan([todoId], write, `Planned for ${plannerDayLabel(hidden)}`, true)
-    : await useTodoStore.getState().setPlan([todoId], write)
+  const store = useTodoStore.getState()
+  const title = shortTitle(store.todos.find((t) => t.id === todoId)?.title ?? '')
+  const notice = tabId == null ? null
+    : hidden ? `Planned for ${plannerDayLabel(hidden)}`
+      : leaves ? `Removed “${title}” from the Planner`
+        : null
+  const saved = notice ? await store.setPlan([todoId], write, notice, true) : await store.setPlan([todoId], write)
   // Only while the tab still stores this move's order: a later drop's stays.
   if (!saved && order && before && tabId != null && sameOrder(storedOrder(tabId), order)) {
     void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { order: [...before] })
@@ -171,7 +176,11 @@ export function planPlannerTaskToday(tabId: string, todoId: number, window: Plan
   return movePlannerTask(tabId, { todoId, target: { kind: 'day', day: window.today, pick: true }, window })
 }
 
-/** **Unplan**: the Unplanned tray's drop for one row — held there, or (a task matching the Unplanned filter with no date in the window) its plan cleared. */
+/**
+ * **Unplan**: the Unplanned tray's drop for one row — its plan cleared, back
+ * to where its own dates or the Unplanned filter put it; one that then shows
+ * nowhere leaves the Planner, the snackbar saying so (`applyPlannerMove`).
+ */
 export function unplanPlannerTask(tabId: string, todoId: number, window: PlannerSpan): Promise<void> {
   return movePlannerTask(tabId, { todoId, target: { kind: 'unplanned' }, window })
 }
@@ -194,16 +203,35 @@ type PlannerRows = PlannerView<PersistedTodoItem>
 
 const tasksWord = (n: number): string => `${n} ${n === 1 ? 'task' : 'tasks'}`
 
-/**
- * **Unplan all Delayed**: every task the Planner's Delayed tray shows
- * (`view`) to Unplanned — each as its own Unplan would — in one write and
- * one undo step, with the snackbar's Undo.
- */
-export async function unplanDelayedTasks(view: Pick<PlannerRows, 'window' | 'delayed'>): Promise<void> {
-  const plans = plannerUnplanDelayed(view)
-  await useTodoStore.getState().setPlans(plans, `Unplanned ${tasksWord(plans.length)} from Delayed`, true)
+/** How many of `n` tasks leave the Planner, in Reset plan's words (` 1 of them leaves the Planner.`); empty when none. */
+function leaveWords(left: number, n: number, past = false): string {
+  if (left === 0) return ''
+  if (left === n) return past ? ` ${left === 1 ? 'It left' : 'They all left'} the Planner.` : ` ${left === 1 ? 'It leaves' : 'They all leave'} the Planner.`
+  return past ? ` ${left} of them left the Planner.` : ` ${left} of them ${left === 1 ? 'leaves' : 'leave'} the Planner.`
 }
 
+/**
+ * **Clear Delayed plans**: the plan of every task the Planner's Delayed
+ * tray shows (`view`) cleared — each back to where its own dates or the
+ * Unplanned filter put it — in one write and one undo step, with the
+ * snackbar's Undo, saying how many then left the Planner as Reset plan says
+ * it (`Cleared 3 Delayed plans. 1 of them left the Planner.`). It asks
+ * nothing.
+ */
+export async function clearDelayedPlans(view: Pick<PlannerRows, 'window' | 'delayed'>): Promise<void> {
+  const plans = plannerClearDelayed(view)
+  if (plans.length === 0) return
+  const ids = new Set(plans.map((p) => p.id))
+  const left = view.delayed.tasks.filter((t) => ids.has(t.id) && plannerClearLeaves(t, view.window)).length
+  const what = plans.length === 1 ? 'Cleared 1 Delayed plan.' : `Cleared ${plans.length} Delayed plans.`
+  await useTodoStore.getState().setPlans(plans, `${what}${leaveWords(left, plans.length, true)}`, true)
+}
+
+/** Why a task leaving on a reset was in the Planner: its planned day (`Planned Thu, Nov 26`). */
+function resetLeaveNote(task: PersistedTodoItem): string {
+  const planned = plannerPlannedDay(task)
+  return planned ? `Planned ${plannerDayLabel(planned)}` : ''
+}
 
 /**
  * **Reset plan**: clears the plan state of the tasks of `scope` in the
@@ -216,12 +244,6 @@ export async function unplanDelayedTasks(view: Pick<PlannerRows, 'window' | 'del
  * `… today`, `… Delayed`. Cancel writes nothing; with nothing to clear it
  * asks nothing.
  */
-/** Why a task leaving on a reset was in the Planner: held in Unplanned, or planned for a day (`Planned Thu, Nov 26`). */
-function resetLeaveNote(task: PersistedTodoItem): string {
-  const planned = plannerPlannedDay(task)
-  return planned ? `Planned ${plannerDayLabel(planned)}` : 'Held in Unplanned'
-}
-
 export async function resetPlannerPlan(view: PlannerRows, scope: PlannerResetScope): Promise<void> {
   const tasks = plannerResetTasks(view, scope)
   if (tasks.length === 0) return
@@ -229,12 +251,9 @@ export async function resetPlannerPlan(view: PlannerRows, scope: PlannerResetSco
   const words = scope === 'week' ? (week === 'This week' ? 'this week' : week) : scope === 'today' ? 'today' : 'Delayed'
   const leaving = tasks.filter((t) => plannerClearLeaves(t, view.window))
   const n = leaving.length
-  const leaveWords = n === 0 ? ''
-    : n === tasks.length ? ` ${n === 1 ? 'It leaves' : 'They all leave'} the Planner.`
-      : ` ${n} of them ${n === 1 ? 'leaves' : 'leave'} the Planner.`
   const ok = await useUIStore.getState().askConfirmation({
     title: `Reset plan: ${words}?`,
-    message: `This clears the plan of ${tasksWord(tasks.length)}: each goes back to where its own dates put it.${leaveWords} No due date or follow-up changes.`,
+    message: `This clears the plan of ${tasksWord(tasks.length)}: each goes back to where its own dates put it.${leaveWords(n, tasks.length)} No due date or follow-up changes.`,
     ...(n > 0 ? {
       list: {
         label: `Leaving the Planner — no date in it, not in the Unplanned filter`,
@@ -273,7 +292,7 @@ export async function applyPlannerFix(tabId: string | null, todoId: number, fix:
   if (!todo) return
   const day = startOfDay(new Date(fix.to))
   const date = fix.date === 'due' ? { dueDate: day } : { nextFollowupAt: day }
-  const changes = plannerFixClearsPlan(todo, fix, window) ? { ...date, doDate: undefined, unplanned: undefined } : date
+  const changes = plannerFixClearsPlan(todo, fix, window) ? { ...date, doDate: undefined } : date
   const undo = useUndoStore.getState()
   // The edit leaves the task in view, or a compound step is already running: the plain edit.
   if (tabId == null || plannerShows({ ...todo, ...changes }, window) || undo.groupToken != null || undo.isPerformingUndoRedo) {

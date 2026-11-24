@@ -44,7 +44,7 @@ const FULL_PREDICATE: TodoPredicate = {
   searchText: 'invoice',
   dates: {
     deadline: { match: 'range', start: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' }, end: { kind: 'offset', days: 30 }, includeNoDate: true },
-    planned: { match: 'held' },
+    planned: { match: 'set' },
     followup: { match: 'unset' },
     lastFollowup: { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true },
     completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'today' } },
@@ -100,7 +100,6 @@ function buildSeed(): Seed {
       {
         id: 3, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e03', title: 'Call the vendor', isCompleted: false,
         nextFollowupAt: at('2026-10-13T00:00:00.000Z'),
-        unplanned: true as const,
         createdAt: at('2026-09-04T11:00:00.000Z'), modifiedAt: at('2026-09-05T09:30:00.000Z'),
         sortOrder: 2,
       },
@@ -326,7 +325,7 @@ describe('export → JSON → import round-trip', () => {
     // Every date type and every kind of date clause.
     const clauses = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.entries(d.membership.predicate.dates) : [])
     expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(DATE_FIELD_VALUES))
-    expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset', 'held']))
+    expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset']))
     expect(clauses.some(([, m]) => m.match === 'range' && m.includeNoDate === true)).toBe(true)
     expect(clauses.some(([, m]) => m.match === 'range' && m.not === true)).toBe(true)
     const rows = seed.layouts.flatMap((l) => l.grid.rows)

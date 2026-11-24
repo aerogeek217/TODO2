@@ -1,5 +1,6 @@
 import type { Transaction } from 'dexie'
 import { upgradeV88 } from './upgrades/v88'
+import { upgradeV89 } from './upgrades/v89'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -78,6 +79,8 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
 export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([
   // Every List wall tab becomes a List board of its layout's lists.
   [88, upgradeV88],
+  // The Planner holds nothing by hand: `unplanned` and Planned's `held` clause go.
+  [89, upgradeV89],
 ])
 
 /**

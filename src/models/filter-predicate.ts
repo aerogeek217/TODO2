@@ -73,16 +73,11 @@ export type OffsetUnit = 'w' | 'm' | 'y'
  *   and a task without the date passes.
  * - `set` / `unset` — the date is set / empty (the optional types only,
  *   `OPTIONAL_DATE_FIELDS`: every task has a created and a modified date).
- *   Planned's `unset` keeps the tasks held in the Planner's Unplanned tray
- *   too (a held task has no planned day).
- * - `held` — Planned only: the task is held in the Planner's Unplanned tray
- *   (`TodoItem.unplanned`; the expression's `unplanned`).
  */
 export type DateMatch =
   | DateRangeMatch
   | { match: 'set' }
   | { match: 'unset' }
-  | { match: 'held' }
 
 export interface DateRangeMatch {
   match: 'range'
@@ -122,9 +117,6 @@ export const OPTIONAL_DATE_FIELDS: readonly DateField[] = ['deadline', 'planned'
  * (`utils/filter-criteria.admitsCompleted`), and a negated one isn't defined.
  */
 export const NEGATABLE_DATE_FIELDS: readonly DateField[] = ['deadline', 'planned', 'followup', 'lastFollowup', 'created', 'modified']
-
-/** The date type whose clause may be `held` (`DateMatch`): Planned. */
-export const HELD_DATE_FIELD = 'planned' satisfies DateField
 
 /** Longest text filter a stored list keeps (its "Text contains" input has the same limit). */
 export const PREDICATE_SEARCH_TEXT_MAX = 500

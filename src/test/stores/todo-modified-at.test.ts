@@ -66,7 +66,10 @@ const writes: Array<[string, Write]> = [
   ['markFollowedUp', (ids) => useTodoStore.getState().markFollowedUp(ids)],
   // Writes the row and leaves the stamp: the two copies still agree.
   ['setPlan', (ids) => useTodoStore.getState().setPlan(ids, { day: new RealDate(2026, 9, 20) })],
-  ['setPlan (held)', (ids) => useTodoStore.getState().setPlan(ids, 'unplanned')],
+  ['setPlan (clear)', async (ids) => {
+    await useTodoStore.getState().setPlan(ids, { day: new RealDate(2026, 9, 20) })
+    return useTodoStore.getState().setPlan(ids, null)
+  }],
 ]
 
 describe('the store and the database hold the same modifiedAt', () => {

@@ -21,7 +21,7 @@ export interface TaskRowExtras {
   /**
    * Words added to the row's accessible description — what a mark the
    * surface draws on the row says (the Planner's corner flag: `planned`,
-   * `set aside`): on a desktop row's checkbox, on a line, and after the
+   * `planned for Wed`): on a desktop row's checkbox, on a line, and after the
    * phone row's own description.
    */
   description?: string

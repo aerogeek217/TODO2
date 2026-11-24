@@ -1,5 +1,5 @@
 import { useRef, useState, type MouseEvent } from 'react'
-import { applyPlannerFix, clearPlannerTask, planPlannerTaskToday, snoozePlannerTask, unplanPlannerTask } from '../../../services/planner-drop'
+import { applyPlannerFix, planPlannerTaskToday, snoozePlannerTask, unplanPlannerTask } from '../../../services/planner-drop'
 import {
   plannerDayWords,
   plannerFixLabel,
@@ -43,7 +43,6 @@ function moveRow(from: Element, keyboard: boolean, todoId: number, write: () => 
  * A Planner row's tag, after its title (`utils/planner.plannerRowTag`):
  *
  * - a Delayed row: the day it was planned for, in words (`Wed`), muted;
- * - a row held in Unplanned that has a natural day: that day, muted;
  * - a row planned past a real date: `1 day after due` in the deadline
  *   color — a **button** that opens the row's fixes as a menu
  *   (`plannerFixLabel`: `Move due date to Tue, Nov 24`, `Plan for Mon, Nov
@@ -60,7 +59,7 @@ function moveRow(from: Element, keyboard: boolean, todoId: number, write: () => 
 export function PlannerRowTag({ tabId, todoId, tag, window }: { tabId: string; todoId: number; tag: RowTag; window: Span }) {
   const { today } = window
   const label = plannerRowTagLabel(tag, today)
-  const hint = plannerRowTagHint(tag, today)
+  const hint = plannerRowTagHint(tag)
   const ref = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   /** The menu was opened from the keyboard: its pick's focus follows the row. */
@@ -104,13 +103,12 @@ export function PlannerRowTag({ tabId, todoId, tag, window }: { tabId: string; t
 /**
  * A Planner row's hover buttons, at its title's end (shown as the row's
  * placeholders are: hover, focus within; desktop only): **Snooze** — the
- * next day — and **Unplan** — to Unplanned. A row in Unplanned has neither:
- * nothing there is planned to put off, so it has **Today** — planned for
- * today (Plan for day › Today in its menu) — and, held there (its corner
- * flag), **Remove** — its plan cleared, out of the Planner (`leaves`:
- * `plannerClearLeaves`) — or, when its date or Focus keeps it in the
- * Planner, **Clear** (Clear plan in its menu). Pressed from the keyboard,
- * the focus follows the row to its new place (`planner-focus`).
+ * next day — and, on a placed row, **Unplan** — its plan cleared; it reads
+ * **Remove** when that takes the task out of the Planner (`leaves`:
+ * `plannerClearLeaves`). A row in Unplanned has neither: nothing there is
+ * planned, so it has **Today** — planned for today (Plan for day › Today in
+ * its menu). Pressed from the keyboard, the focus follows the row to its
+ * new place (`planner-focus`).
  */
 export function PlannerRowActions({ tabId, todoId, placement, window, leaves = false }: {
   tabId: string
@@ -132,17 +130,6 @@ export function PlannerRowActions({ tabId, todoId, placement, window, leaves = f
         >
           Today
         </button>
-        {placement.placed && (
-          <button
-            type="button"
-            className={styles.rowAction}
-            data-row-cell="planner-clear"
-            data-tooltip={leaves ? 'Remove from the Planner' : 'Clear the plan'}
-            onClick={rowClick((e) => moveRow(e.currentTarget, fromKeyboard(e), todoId, () => clearPlannerTask(todoId, window)))}
-          >
-            {leaves ? 'Remove' : 'Clear'}
-          </button>
-        )}
       </span>
     )
   }
@@ -158,15 +145,17 @@ export function PlannerRowActions({ tabId, todoId, placement, window, leaves = f
       >
         Snooze
       </button>
-      <button
-        type="button"
-        className={styles.rowAction}
-        data-row-cell="planner-unplan"
-        data-tooltip="Move to Unplanned"
-        onClick={rowClick((e) => moveRow(e.currentTarget, fromKeyboard(e), todoId, () => unplanPlannerTask(tabId, todoId, window)))}
-      >
-        Unplan
-      </button>
+      {placement.placed && (
+        <button
+          type="button"
+          className={styles.rowAction}
+          data-row-cell="planner-unplan"
+          data-tooltip={leaves ? 'Clear the plan: it leaves the Planner' : 'Clear the plan'}
+          onClick={rowClick((e) => moveRow(e.currentTarget, fromKeyboard(e), todoId, () => unplanPlannerTask(tabId, todoId, window)))}
+        >
+          {leaves ? 'Remove' : 'Unplan'}
+        </button>
+      )}
     </span>
   )
 }

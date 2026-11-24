@@ -88,7 +88,7 @@ export function FactDateField({ date, kind, tone, empty, words, showWords = true
   kind: FactDateKind
   tone?: FactDateTone
   empty: string
-  /** The words at rest in place of the date's own (Due's day alone, Planned's plan mark and day, `Unplanned`). */
+  /** The words at rest in place of the date's own (Due's day alone, Planned's plan mark and day). */
   words?: ReactNode
   showWords?: boolean
   /** Fills its cell's width (the band's Due and Planned) instead of the footer's 160px. */

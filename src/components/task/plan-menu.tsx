@@ -18,7 +18,7 @@ import { WidgetKindIcon } from '../shared/icons'
 import { pickDate } from '../shared/pick-date'
 
 /** Clear plan's words: **Remove from Planner** when it takes the task out of the Planner (`plannerClearLeaves`). */
-export function clearPlanLabel(todo: PersistedTodoItem, window: PlannerSpan): string {
+function clearPlanLabel(todo: PersistedTodoItem, window: PlannerSpan): string {
   return plannerClearLeaves(todo, window) ? 'Remove from Planner' : 'Clear plan'
 }
 
@@ -85,8 +85,6 @@ export function pickPlanDateItem(todo: Pick<TodoItem, 'doDate'>, today: Date, mo
  *
  * - the days (`planDayItems`);
  * - **Pick a date…** (`pickPlanDateItem`);
- * - **Unplanned** — held in the Planner's Unplanned tray with no day (any
- *   open task: it joins the Planner so), checked while it is there;
  * - **Clear plan** — while it has a plan state (`clearPlannerTask`): back to
  *   where its own dates put it; **Remove from Planner** when that takes it
  *   out of the Planner.
@@ -96,7 +94,6 @@ export function pickPlanDateItem(todo: Pick<TodoItem, 'doDate'>, today: Date, mo
  */
 function planMenuEntries(todo: PersistedTodoItem, today: Date): MenuEntry[] {
   const window = plannerWindow(today)
-  const placement = plannerPlacement(todo, window)
   const move = (target: PlannerTarget) => { void movePlannerTask(null, { todoId: todo.id, target, window }) }
   const clear: MenuEntry[] = plannerHasPlan(todo)
     ? [{ kind: 'item', label: clearPlanLabel(todo, window), onSelect: () => { void clearPlannerTask(todo.id, window) } }]
@@ -105,7 +102,6 @@ function planMenuEntries(todo: PersistedTodoItem, today: Date): MenuEntry[] {
     ...planDayItems(todo, window, move),
     { kind: 'separator' },
     pickPlanDateItem(todo, window.today, move),
-    { kind: 'item', label: 'Unplanned', radio: true, checked: placement?.where === 'unplanned', onSelect: () => move({ kind: 'unplanned' }) },
     ...clear,
   ]
 }

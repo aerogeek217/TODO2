@@ -39,7 +39,7 @@ export const TEST_SEAMS: Readonly<Record<string, readonly string[]>> = {
   'components/workspace/glance/menu-entries.tsx': ['toggledId'],
   'components/workspace/glance/number-colors.ts': ['dimmed'],
   'components/workspace/neglect/NeglectMapWidget.tsx': ['SLIPPING_LISTED'],
-  'components/workspace/planner/planner-menu.tsx': ['PlannerMenuActions', 'UNPLAN_OFF'],
+  'components/workspace/planner/planner-menu.tsx': ['PlannerMenuActions'],
   'components/workspace/widget-hooks.ts': ['addWidgetAt', 'tabTitle'],
   'components/workspace/workspace-drag.ts': ['DROP_FAILED_NOTICE'],
   'data/audit.ts': ['MAX_SAMPLES_PER_ISSUE'],

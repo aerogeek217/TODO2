@@ -191,7 +191,6 @@ export async function appendImportTasks(
       if (t.lastFollowupAt != null) row.lastFollowupAt = t.lastFollowupAt
       if (t.nextFollowupAt != null) row.nextFollowupAt = t.nextFollowupAt
       if (t.doDate != null) row.doDate = t.doDate
-      else if (t.unplanned === true) row.unplanned = true
       if (t.recurrenceRule != null) row.recurrenceRule = t.recurrenceRule
       if (t.focus === true) row.focus = true
       if (t.urgent === true) row.urgent = true

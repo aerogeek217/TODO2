@@ -57,7 +57,7 @@ export function choicesWith<T extends string>(choices: readonly T[], current: T)
 /** A group choice's muted note in the Group menu. */
 export const GROUP_NOTE: Partial<Record<TodoGroupBy, string>> = {
   priority: 'Focus, Urgent, Important, No priority · a task shows in each of its groups',
-  planned: 'Delayed, Today, This Week, Later, Unplanned (held in the Planner), Not planned',
+  planned: 'Delayed, Today, This Week, Later, Not planned',
 }
 
 /** A sort choice's muted note in the Sort menu. */

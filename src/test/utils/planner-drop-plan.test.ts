@@ -231,8 +231,28 @@ describe('plannerMovePlan', () => {
 
   it('clears the plan on the task’s own date’s day, and unplans on Unplanned', () => {
     expect(plannerMovePlan(task({ doDate: day(4), dueDate: day(2) }), WINDOW, on(2))).toEqual({ drop: { kind: 'own', day: day(2) }, moves: true })
-    expect(plannerMovePlan(task({ doDate: day(2), dueDate: day(1) }), WINDOW, UNPLANNED)).toEqual({ drop: { kind: 'unplan', hold: true }, moves: true })
-    expect(plannerMovePlan(task({ doDate: day(2), focus: true }), WINDOW, UNPLANNED)).toEqual({ drop: { kind: 'unplan', hold: false }, moves: true })
+    // Back to its natural day, or kept in Unplanned by the filter (Focus): it stays in the Planner.
+    expect(plannerMovePlan(task({ doDate: day(2), dueDate: day(1) }), WINDOW, UNPLANNED)).toEqual({ drop: { kind: 'unplan' }, moves: true })
+    expect(plannerMovePlan(task({ doDate: day(2), focus: true }), WINDOW, UNPLANNED)).toEqual({ drop: { kind: 'unplan' }, moves: true })
+  })
+
+  it('an Unplan that takes the task out of the Planner says so: `leaves`', () => {
+    // Planned, no date in the window, not in Focus: with its plan cleared the Planner shows it nowhere.
+    expect(plannerMovePlan(task({ doDate: day(2) }), WINDOW, UNPLANNED)).toEqual({ drop: { kind: 'unplan' }, moves: true, leaves: true })
+    expect(plannerMovePlan(task({ uid: 'a', doDate: day(-2) }), WINDOW, UNPLANNED, at(['f'], 0))).toMatchObject({ drop: { kind: 'unplan' }, moves: true, leaves: true })
+    // A date past the window is no natural day: it leaves too.
+    expect(plannerMovePlan(task({ doDate: day(2), dueDate: day(9) }), WINDOW, UNPLANNED).leaves).toBe(true)
+    // Next week's window reaches that date: it goes back to it.
+    expect(plannerMovePlan(task({ doDate: day(8), dueDate: day(9) }), { today: TODAY, last: day(13) }, UNPLANNED).leaves).toBeUndefined()
+    // Only an Unplan: a drop on its own day, or on another day, never leaves.
+    expect(plannerMovePlan(task({ doDate: day(4), dueDate: day(2) }), WINDOW, on(2)).leaves).toBeUndefined()
+    expect(plannerMovePlan(task({ doDate: day(2) }), WINDOW, on(3)).leaves).toBeUndefined()
+  })
+
+  it('refuses a task with no plan on Unplanned: nothing is put there by hand', () => {
+    expect(plannerMovePlan(task({ dueDate: day(3) }), WINDOW, UNPLANNED)).toEqual({ drop: { kind: 'refuse' }, moves: false })
+    expect(plannerMovePlan(task({ uid: 'd', nextFollowupAt: day(1) }), WINDOW, UNPLANNED, at(['f'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
+    expect(plannerMovePlan(task({ dueDate: day(-3) }), WINDOW, UNPLANNED)).toEqual({ drop: { kind: 'refuse' }, moves: false })
   })
 
   it('writes the order with a row that changes group, where it was dropped', () => {
@@ -249,10 +269,10 @@ describe('plannerMovePlan', () => {
       order: ['a', 'b', 'c', 'new', 'd', 'e', 'f'],
       moves: true,
     })
-    // A dated row held in Unplanned, above f.
-    const dated = task({ uid: 'd', dueDate: day(3) })
+    // A planned row with a later due date unplanned above f: the order keeps the place it was dropped at.
+    const dated = task({ uid: 'd', doDate: day(1), dueDate: day(3) })
     expect(plannerMovePlan(dated, WINDOW, UNPLANNED, at(['f'], 0))).toEqual({
-      drop: { kind: 'unplan', hold: true },
+      drop: { kind: 'unplan' },
       order: ['a', 'b', 'c', 'e', 'd', 'f'],
       moves: true,
     })
@@ -268,15 +288,19 @@ describe('plannerMovePlan', () => {
     // A late task sits in Today: a drop there is a reorder too.
     const late = task({ uid: 'a', dueDate: day(-4) })
     expect(plannerMovePlan(late, WINDOW, on(0), at(['a', 'b', 'c'], 2)).order).toEqual(['b', 'c', 'a', 'd', 'e', 'f'])
-    // Unplanned among its own: a Focus row and a held one.
+    // Unplanned among its own: Focus rows, either moved past the other.
     const focus = task({ uid: 'f', focus: true })
     expect(plannerMovePlan(focus, WINDOW, UNPLANNED, at(['f', 'g'], 1, [...SHOWN, 'g']))).toEqual({
       drop: { kind: 'none' },
       order: ['a', 'b', 'c', 'd', 'e', 'g', 'f'],
       moves: false,
     })
-    const held = task({ uid: 'g', unplanned: true, dueDate: day(1) })
-    expect(plannerMovePlan(held, WINDOW, UNPLANNED, at(['f', 'g'], 0, [...SHOWN, 'g'])).order).toEqual(['a', 'b', 'c', 'd', 'e', 'g', 'f'])
+    const other = task({ uid: 'g', focus: true })
+    expect(plannerMovePlan(other, WINDOW, UNPLANNED, at(['f', 'g'], 0, [...SHOWN, 'g']))).toEqual({
+      drop: { kind: 'none' },
+      order: ['a', 'b', 'c', 'd', 'e', 'g', 'f'],
+      moves: false,
+    })
     // Delayed among its own: the one drop Delayed takes.
     const missed = task({ uid: 'y', doDate: day(-2) })
     expect(plannerMovePlan(missed, WINDOW, DELAYED, at(['x', 'y'], 0, ['a', 'x', 'y']))).toEqual({
@@ -301,9 +325,15 @@ describe('plannerMovePlan', () => {
     expect(plannerMovePlan(done, WINDOW, on(3), at(['d', 'e'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
   })
 
-  it('holds a list’s row with no plan and no date dropped on Unplanned, at its place there', () => {
-    const plan = plannerMovePlan(task({ uid: 'new' }), WINDOW, UNPLANNED, at(['f'], 0))
-    expect(plan).toMatchObject({ drop: { kind: 'unplan', hold: true }, moves: true })
+  it('refuses a list’s row with no plan dropped on Unplanned: no write, no order', () => {
+    expect(plannerMovePlan(task({ uid: 'new' }), WINDOW, UNPLANNED, at(['f'], 0))).toEqual({ drop: { kind: 'refuse' }, moves: false })
+  })
+
+  it('unplans a list’s row planned past the window that the filter takes in, at its place in Unplanned', () => {
+    // Planned past the window, no date: the Planner doesn't show it; cleared, Focus puts it in Unplanned.
+    const plan = plannerMovePlan(task({ uid: 'new', doDate: day(9), focus: true }), WINDOW, UNPLANNED, at(['f'], 0))
+    expect(plan).toMatchObject({ drop: { kind: 'unplan' }, moves: true })
+    expect(plan.leaves).toBeUndefined()
     expect(plan.order?.slice(-2)).toEqual(['new', 'f'])
   })
 

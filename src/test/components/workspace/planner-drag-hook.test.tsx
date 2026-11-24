@@ -221,7 +221,7 @@ describe('over a group', () => {
     expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: MON_KEY, drop: { kind: 'none' }, index: 0 })
   })
 
-  it('has no place for a refused drop; a list’s row with no date has one in Unplanned', () => {
+  it('has no place for a refused drop: Delayed, Unplanned for a task with no plan, a completed task anywhere', () => {
     render(<Harness />)
     // Delayed takes no drop.
     start(monday, MON_KEY)
@@ -229,19 +229,17 @@ describe('over a group', () => {
     move(410)
     expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'delayed', drop: { kind: 'refuse' }, index: null })
     end()
-    // A list's row with no plan and no date, not in Focus: held, so it joins the Planner in Unplanned.
+    // A dated row with no plan: nothing is put in Unplanned by hand.
+    start(monday, MON_KEY)
+    over(group('unplanned'))
+    move(470)
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'refuse' }, index: null })
+    end()
+    // A list's row with no plan and no date, not in Focus: refused too.
     start(makeTodo({ id: 9, uid: 'plain' }), null, { listTabId: 'a-list', sectionKey: 'all', rowKey: 'all|9' })
     over(group('unplanned'))
     move(470)
-    expect(preview()).toMatchObject({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan', hold: true } })
-    expect(preview()?.index).not.toBeNull()
-    end()
-    // A planned task with no date, not in Focus: held, so it has a place in Unplanned.
-    start(makeTodo({ id: 10, uid: 'bare', doDate: day(1) }), null)
-    over(group('unplanned'))
-    move(470)
-    expect(preview()).toMatchObject({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan', hold: true } })
-    expect(preview()?.index).not.toBeNull()
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'refuse' }, index: null })
     end()
     // A completed task is refused everywhere.
     start({ ...chase, isCompleted: true }, TODAY_KEY)
@@ -249,19 +247,29 @@ describe('over a group', () => {
     expect(preview()).toMatchObject({ drop: { kind: 'refuse' }, index: null })
   })
 
-  it('unplans on Unplanned with a place there: a dated row held, a Focus row’s plan cleared', () => {
+  it('unplans a planned row on Unplanned, with a place there only when the cleared task would sit there', () => {
     render(<Harness />)
-    start(monday, MON_KEY)
+    // Planned, in Focus with no date: the Unplanned filter keeps it there once cleared.
+    start(makeTodo({ id: 6, uid: 'planned', focus: true, doDate: day(1) }), null)
     over(group('unplanned'))
     // Above the middle of the tray's one row (475).
     move(465)
-    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan', hold: true }, index: 0 })
-    end()
-    start(makeTodo({ id: 6, uid: 'planned', focus: true, doDate: day(1) }), null)
-    over(group('unplanned'))
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan' }, index: 0 })
     // Past the middle of the group's one row.
     move(490)
-    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan', hold: false }, index: 1 })
+    expect(preview()?.index).toBe(1)
+    end()
+    // Planned, with a due date in the window: cleared, it goes back to its day — no place in Unplanned.
+    start(makeTodo({ id: 10, uid: 'venue', doDate: day(1), dueDate: day(3) }), null)
+    over(group('unplanned'))
+    move(470)
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan' }, index: null })
+    end()
+    // Planned, no date, not in Focus: cleared, it leaves the Planner — no place either.
+    start(makeTodo({ id: 11, uid: 'bare', doDate: day(1) }), null)
+    over(group('unplanned'))
+    move(470)
+    expect(preview()).toEqual({ tabId: 'plan', over: 'group', key: 'unplanned', drop: { kind: 'unplan' }, index: null })
   })
 
   it('reorders a Delayed row among its own', () => {

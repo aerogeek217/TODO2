@@ -113,9 +113,6 @@ export function describeRange(start: DateAnchor | null, end: DateAnchor | null):
   return ''
 }
 
-/** A task held in the Planner's Unplanned tray, in words (Planned's `held`). */
-export const HELD_WORDS = 'held in Unplanned'
-
 /** How a type's clause names its tasks without the date: never followed up; no due date / next follow-up. */
 function noDateWord(field: DateField): string {
   return field === 'lastFollowup' ? 'never' : 'none'
@@ -124,13 +121,12 @@ function noDateWord(field: DateField): string {
 /**
  * One `field` clause in words: `within the next 14 days`, `on or before Oct
  * 31, or none` (Last follow-up: `, or never`); Show Any `any date`, None
- * `none` (Last follow-up: `never`); Planned's `held` `held in Unplanned`; an "is not" range with `not` (`not
+ * `none` (Last follow-up: `never`); an "is not" range with `not` (`not
  * within the next 14 days`, `not within the last 7 days`).
  */
 export function describeDateMatch(m: DateMatch, field: DateField): string {
   if (m.match === 'set') return 'any date'
   if (m.match === 'unset') return noDateWord(field)
-  if (m.match === 'held') return HELD_WORDS
   const range = describeRange(m.start, m.end)
   if (m.not === true) return `not ${range}`
   return m.includeNoDate === true ? `${range}, or ${noDateWord(field)}` : range

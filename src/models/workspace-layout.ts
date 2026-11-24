@@ -201,11 +201,10 @@ export interface ReviewTabViewState {
 
 /**
  * A Planner's settings (layout config): `unplanned`, the filter an open task
- * with no day matches to join the Unplanned tray on its own. Absent: Focus
+ * with no day and no plan matches to join the Unplanned tray. Absent: Focus
  * (`plannerUnplannedFilter`), so a Planner that never set one holds what it
- * always did; an empty predicate: nothing joins on its own, only the tasks
- * unplanned by hand. It decides Unplanned only, never which days a task sits
- * on.
+ * always did; an empty predicate: nothing joins, Unplanned stays empty. It
+ * decides Unplanned only, never which days a task sits on.
  */
 export interface PlannerTabConfig {
   unplanned?: TodoPredicate

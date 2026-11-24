@@ -161,9 +161,7 @@ function todoDate(todo: TodoItem, field: DateField): Date | null {
 
 /**
  * Whether a task passes one date clause: Any / None (`set` / `unset`) by whether the
- * date is set (a task held in the Planner's Unplanned tray has no planned
- * day, so Planned's None keeps it); `held` (Planned only) by whether the
- * task is held there; a range by the date as a day (anchors resolved against
+ * date is set; a range by the date as a day (anchors resolved against
  * `today`; either end open), a task without the date passing only with
  * `includeNoDate`. An "is not" range (`not`; ignored on Completed, which
  * has none) passes the dated tasks the range without it fails, and every
@@ -173,7 +171,6 @@ export function matchesDateMatch(todo: TodoItem, field: DateField, clause: DateM
   const raw = todoDate(todo, field)
   if (clause.match === 'set') return raw != null
   if (clause.match === 'unset') return raw == null
-  if (clause.match === 'held') return field === 'planned' && todo.unplanned === true
   if (clause.start == null && clause.end == null) return true
   const not = clause.not === true && isNegatableDateField(field)
   if (!raw) return not || clause.includeNoDate === true

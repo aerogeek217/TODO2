@@ -1,7 +1,6 @@
 import { DATE_FIELD_VALUES, type DateField } from '../models'
 import { readOffsetAnchor } from '../utils/date-anchor'
 import {
-  HELD_DATE_FIELD,
   MARKER_CLAUSES_MAX,
   NO_PRIORITY,
   MARKER_KEYS,
@@ -107,7 +106,7 @@ const DATE_FILTER_WORDS: Record<DateField, string> = {
  * for a range with neither end (no filter, not stored), `undefined` when
  * malformed — an unknown `match`, a bad range end, `includeNoDate` or
  * `not` (not a boolean), Any / None (`set` / `unset`) on a type that is a range only
- * (completed, created, modified), `held` on any type but Planned, or an "is not" on Completed's range (not
+ * (completed, created, modified), or an "is not" on Completed's range (not
  * defined there; dropping only the switch would turn the filter round, so
  * the clause goes). `includeNoDate` is kept only when true, on the optional
  * types (`OPTIONAL_DATE_FIELDS`), and not beside `not` (a negated range
@@ -119,7 +118,6 @@ function readDateMatch(field: DateField, v: unknown, fixes: PredicateFix[]): Dat
   if (!isRecord(v)) return undefined
   const optional = OPTIONAL_DATE_FIELDS.includes(field)
   if (v.match === 'set' || v.match === 'unset') return optional ? { match: v.match } : undefined
-  if (v.match === 'held') return field === HELD_DATE_FIELD ? { match: 'held' } : undefined
   if (v.match !== 'range') return undefined
   const start = readRangeEnd(v.start)
   const end = readRangeEnd(v.end)

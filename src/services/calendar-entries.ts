@@ -41,8 +41,7 @@ function compareCalendarEntries(a: CalendarEntry, b: CalendarEntry): number {
  *
  * One entry per shown date type: a task is placed on its due date's day
  * (`dateTypes.due`), on its next follow-up's day (`dateTypes.followup`) and
- * on its planned day (`dateTypes.plan`: `doDate`; a task held in Unplanned
- * has none) — more than once on one day when they fall on it. A completed
+ * on its planned day (`dateTypes.plan`: `doDate`) — more than once on one day when they fall on it. A completed
  * task's entries are placed as an open one's. Recurring tasks also get a virtual
  * due entry on every other occurrence in range (only while due dates are
  * shown; occurrences repeat the due date). Entries within a day are ordered
@@ -102,7 +101,7 @@ export function buildEntries(
       const day = startOfDay(new Date(t.nextFollowupAt))
       if (inRange(day)) push(t, 'followup', day, false, `followup-${t.id}`)
     }
-    if (types.plan && t.doDate && t.unplanned !== true) {
+    if (types.plan && t.doDate) {
       const day = startOfDay(new Date(t.doDate))
       if (inRange(day)) push(t, 'plan', day, false, `plan-${t.id}`)
     }

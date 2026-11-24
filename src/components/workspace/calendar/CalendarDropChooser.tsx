@@ -37,7 +37,7 @@ function typeItem(type: CalendarDateType, todo: PersistedTodoItem, date: Date): 
       return {
         label: 'Plan',
         icon: <span className={styles.chooserPlan}><span className={styles.planBar} /></span>,
-        note: todo.unplanned ? 'held in Unplanned' : currentValue(todo.doDate, date),
+        note: currentValue(todo.doDate, date),
         shortcut: 'P',
       }
   }

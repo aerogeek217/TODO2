@@ -17,8 +17,7 @@
  * pushed out (deadline history); next follow-ups incl. overdue and today,
  * some followed up before; a handful of open tasks planned for a day (the
  * Planner's: days past — Delayed —, today and the next few days; some on
- * their own due day, some after their due date or follow-up) and three held
- * in its Unplanned tray; a Planner with an Unplanned filter of its own
+ * their own due day, some after their due date or follow-up); a Planner with an Unplanned filter of its own
  * (`/focus or #quick-win`), a list sorted and grouped by Planned and a Number
  * filtered by it; recurring tasks (one
  * monthly on the month's last day); Focus / Urgent / Important flags; completed tasks old and recent
@@ -61,7 +60,7 @@ import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 88
+export const DEV_SEED_SCHEMA_VERSION = 89
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -232,8 +231,6 @@ interface TaskOpts {
   followedUp?: number
   /** The planned day: the day the (open) task is planned for (schema v85). */
   doDay?: number
-  /** Held in the Planner's Unplanned tray (schema v86): an open task with a date, off its day. */
-  held?: true
   recur?: RecurWord
   status?: StatusKey
   people?: PersonKey[]
@@ -455,9 +452,9 @@ const PROJECTS: ProjectDef[] = [
       ['Weekly metrics email', { recur: 'weekly', due: 1, tags: ['docs'] }],
       ['Renew the domain registration', { recur: 'yearly', due: 60 }],
       ['Submit timesheet', { recur: 'weekly', due: -2, tags: ['quick-win'] }],
-      ['Clean up the shared drive', { followup: -12, held: true, status: 'parked' }],
+      ['Clean up the shared drive', { followup: -12, status: 'parked' }],
       'Update the vendor contact list',
-      ['Review access for departing contractors', { due: 5, held: true, tags: ['security'], people: ['sam'] }],
+      ['Review access for departing contractors', { due: 5, tags: ['security'], people: ['sam'] }],
       'Audit shared service accounts',
       ['Book flights for the November offsite', { followup: 2, doDay: 2, tags: ['travel'] }],
       'Renew the parking permit',
@@ -472,7 +469,7 @@ const PROJECTS: ProjectDef[] = [
       'Respond to the IT asset inventory request',
       'Unsubscribe from noisy alert emails',
       "Back up the team's dashboards",
-      ['Organize the team wiki sidebar', { followup: -15, held: true }],
+      ['Organize the team wiki sidebar', { followup: -15 }],
       'Review the office move plan',
       ['Request a new monitor', { followup: 0, doDay: -1, tags: ['quick-win'] }],
       'Update the email signature with the new title',
@@ -739,7 +736,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     if (lastFollowupMs !== null) todo.lastFollowupAt = iso(lastFollowupMs)
     if (o.followup !== undefined && completedMs === null) todo.nextFollowupAt = iso(day(o.followup))
     if (o.doDay !== undefined && completedMs === null) todo.doDate = iso(day(o.doDay))
-    else if (o.held && completedMs === null) todo.unplanned = true
     if (o.recur) {
       todo.recurrenceRule = o.recur === 'monthly' && due && due.getDate() >= 29
         ? { every: { ...RECUR_EVERY.monthly }, originalDayOfMonth: due.getDate() }
@@ -757,7 +753,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     if (todo.lastFollowupAt) ev('followedUp', lastFollowupMs ?? created, null, todo.lastFollowupAt)
     // Field order of the model (cosmetic — keeps diffs against real exports readable).
     todos.push(reorder(todo, ['id', 'uid', 'title', 'notes', 'isCompleted', 'completedAt', 'dueDate',
-      'lastFollowupAt', 'nextFollowupAt', 'doDate', 'unplanned', 'recurrenceRule', 'focus', 'urgent', 'important', 'createdAt', 'modifiedAt',
+      'lastFollowupAt', 'nextFollowupAt', 'doDate', 'recurrenceRule', 'focus', 'urgent', 'important', 'createdAt', 'modifiedAt',
       'statusId', 'sortOrder']))
 
     const personIds = new Set([...(o.people ?? []).map((p) => IDS.people[p]), ...(o.orgs ?? []).map((g) => IDS.orgs[g])])
@@ -900,17 +896,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         ],
       },
     }), 'followup', 'people', plan),
-    // The planned date: every task with a plan state — `planned any or unplanned` —, sorted and grouped by
-    // Planned (Delayed · Today · This Week · Later · Unplanned).
-    list(L.planned, 'Planned', filter({
-      expression: {
-        kind: 'or',
-        items: [
-          { kind: 'date', field: 'planned', match: { match: 'set' } },
-          { kind: 'date', field: 'planned', match: { match: 'held' } },
-        ],
-      },
-    }), 'planned', 'planned', plan),
+    // The planned date: every task with a plan state — `planned any` —, sorted and grouped by
+    // Planned (Delayed · Today · This Week · Later).
+    list(L.planned, 'Planned', filter({ dates: { planned: { match: 'set' } } }), 'planned', 'planned', plan),
   ]
 
   // ── Layouts ──

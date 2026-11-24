@@ -9,8 +9,8 @@ import { DateFilterPanel, type DateFilterHost } from '../../../../components/sha
  * The date panel: a type button naming the type being edited and its menu
  * of the seven types (lit = filtering, with its clause; checked = selected),
  * a range per type, Show (Calendar · Relative, and Any · None on Due /
- * Planned / Next follow-up / Last follow-up — cr25 P8), Planned's None box
- * (held in Unplanned), Completed a range only (no Is not), Clear <Type> and
+ * Planned / Next follow-up / Last follow-up — cr25 P8), Completed a range
+ * only (no Is not), Clear <Type> and
  * Clear all. Picking a type never writes. A Relative end is typed (`+2w`, `-1m`) or a rolling day picked from its chevron. Today is Mon 2 Nov 2026.
  */
 
@@ -650,50 +650,37 @@ describe('DateFilterPanel', () => {
       fireEvent.click(show('Any'))
       expect(log.at(-1)).toEqual({ planned: { match: 'set' } })
       expect(screen.getByText('Only tasks that have a planned date.')).toBeInTheDocument()
-      expect(screen.queryByRole('checkbox', { name: 'Only tasks held in Unplanned' })).toBeNull()
+      expect(screen.queryByRole('checkbox')).toBeNull()
     })
 
-    it('None shows “Only tasks held in Unplanned”, switching the clause between unset and held', () => {
+    it('None is no planned date, with no box under it; Clear Planned drops it', () => {
       const log: DateFilters[] = []
       render(<Harness log={log} initialField="planned" />)
       fireEvent.click(show('None'))
       expect(log.at(-1)).toEqual({ planned: { match: 'unset' } })
       expect(within(body()).getByText('none')).toBeInTheDocument()
-      const box = screen.getByRole('checkbox', { name: 'Only tasks held in Unplanned' })
-      expect(box).not.toBeChecked()
-      fireEvent.click(box)
-      expect(log.at(-1)).toEqual({ planned: { match: 'held' } })
-      expect(box).toBeChecked()
-      expect(show('None')).toHaveAttribute('aria-checked', 'true')
-      expect(within(body()).getByText('held in Unplanned')).toBeInTheDocument()
-      expect(typeItem('Planned')).toHaveAccessibleName('Planned, held in Unplanned')
-      fireEvent.click(typeButton())
-      fireEvent.click(box)
-      expect(log.at(-1)).toEqual({ planned: { match: 'unset' } })
-      // Clear Planned drops it either way.
-      fireEvent.click(box)
+      expect(typeItem('Planned')).toHaveAccessibleName('Planned, none')
+      expect(screen.getByText('Only tasks with no planned date.')).toBeInTheDocument()
+      expect(screen.queryByRole('checkbox')).toBeNull()
+      expect(screen.queryByText(/held in Unplanned/)).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: 'Clear Planned' }))
       expect(log.at(-1)).toEqual({})
     })
 
-    it('a held clause opens on None with the box ticked; Any replaces it', () => {
+    it('a None clause opens on None; Any replaces it', () => {
       const log: DateFilters[] = []
-      render(<Harness log={log} initial={{ planned: { match: 'held' } }} />)
+      render(<Harness log={log} initial={{ planned: { match: 'unset' } }} />)
       expectType('Planned', true)
       expect(show('None')).toHaveAttribute('aria-checked', 'true')
-      expect(screen.getByRole('checkbox', { name: 'Only tasks held in Unplanned' })).toBeChecked()
       fireEvent.click(show('Any'))
       expect(log.at(-1)).toEqual({ planned: { match: 'set' } })
     })
 
-    it('the phone sheet: the box is a switch', () => {
-      const log: DateFilters[] = []
-      render(<Harness log={log} variant="sheet" initial={{ planned: { match: 'unset' } }} />)
-      const sw = screen.getByRole('switch', { name: 'Only tasks held in Unplanned' })
-      expect(sw).toHaveAttribute('aria-checked', 'false')
-      fireEvent.click(sw)
-      expect(log.at(-1)).toEqual({ planned: { match: 'held' } })
-      expect(sw).toHaveAttribute('aria-checked', 'true')
+    it('the phone sheet: None has no switch under it', () => {
+      render(<Harness log={[]} variant="sheet" initial={{ planned: { match: 'unset' } }} />)
+      expect(show('None')).toHaveAttribute('aria-checked', 'true')
+      expect(screen.queryByRole('switch')).toBeNull()
+      expect(screen.getByText('Only tasks with no planned date.')).toBeInTheDocument()
     })
   })
 })

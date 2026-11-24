@@ -16,7 +16,7 @@ import { makeTodo, resetDb } from '../../helpers'
 
 /**
  * **Planned**, the task layout's last fact (`task/PlannedFacts`): its
- * states (not planned, held, a planned day, after a real date, missed) in
+ * states (not planned, a planned day, after a real date, missed) in
  * a typed date field like the follow-ups' — a day typed or picked plans it
  * outright, the due day too, as the plan write (no stamp, one undo step);
  * a day before today refused —, the fixes, × Clear plan, an open editor
@@ -87,15 +87,12 @@ describe('the Planned cell’s states', () => {
     expect(lines(cell()).under).toBeEmptyDOMElement()
   })
 
-  it('held: `Unplanned`, muted, with the corner flag and ×', async () => {
-    const { cell } = await openStored({ unplanned: true })
-    expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'held')
-    expect(words(cell())).toHaveTextContent(/^Unplanned$/)
-    expect(words(cell()).querySelector('[class*="planHeld"]')).not.toBeNull()
-    expect(field(cell())).toHaveValue('')
-    expect(cell().querySelector('[data-planned-flag]')).not.toBeNull()
+  it('× only while the field holds a day: emptied, it goes', async () => {
+    const { cell } = await openStored({ doDate: day(2) })
     expect(within(lines(cell()).first).getByRole('button', { name: 'Clear plan' })).toBeInTheDocument()
-    expect(lines(cell()).under).toBeEmptyDOMElement()
+    type(cell(), '')
+    expect(within(cell()).queryByRole('button', { name: 'Clear plan' })).toBeNull()
+    expect(cell().querySelector('[data-planned-flag]')).toBeNull()
   })
 
   it('a planned day: the hollow bar and the day in the rows’ words with ×; how far it is under the field', async () => {
@@ -186,15 +183,13 @@ describe('setting the plan', () => {
     expect((await stored()).modifiedAt).toEqual(STAMP)
   })
 
-  it('× clears a planned day, and a held task’s Unplanned too, with no stamp', async () => {
+  it('× clears a planned day with no stamp, and goes with it', async () => {
     const { cell } = await openStored({ doDate: day(2) })
     fireEvent.click(within(cell()).getByRole('button', { name: 'Clear plan' }))
     await waitFor(async () => expect((await stored()).doDate).toBeUndefined())
     await waitFor(() => expect(words(cell())).toHaveTextContent('Not planned'))
-    await act(async () => { await useTodoStore.getState().setPlan([7], 'unplanned') })
-    await waitFor(() => expect(cell().querySelector('[data-planned-flag]')).not.toBeNull())
-    fireEvent.click(within(cell()).getByRole('button', { name: 'Clear plan' }))
-    await waitFor(async () => expect((await stored()).unplanned).toBeUndefined())
+    expect(cell().querySelector('[data-planned-state]')).toHaveAttribute('data-planned-state', 'none')
+    expect(within(cell()).queryByRole('button', { name: 'Clear plan' })).toBeNull()
     expect((await stored()).modifiedAt).toEqual(STAMP)
   })
 
@@ -219,8 +214,9 @@ describe('setting the plan', () => {
     await act(async () => { await useTodoStore.getState().setPlan([7], { day: day(2) }) })
     await waitFor(() => expect(words(cell())).toHaveTextContent('11/22'))
     await waitFor(() => expect(field(cell())).toHaveValue('Sun 22 Nov'))
-    await act(async () => { await useTodoStore.getState().setPlan([7], 'unplanned') })
-    await waitFor(() => expect(words(cell())).toHaveTextContent('Unplanned'))
+    await act(async () => { await useTodoStore.getState().setPlan([7], null) })
+    await waitFor(() => expect(words(cell())).toHaveTextContent(/^Not planned$/))
+    expect(field(cell())).toHaveValue('')
   })
 })
 

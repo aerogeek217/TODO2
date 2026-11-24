@@ -1,7 +1,6 @@
 import { useContext, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { DatePendingNotContext, type PendingNot } from './date-pending-not'
 import type { DateAnchor, DateFilters, DateRangeMatch } from '../../../models'
-import { HELD_DATE_FIELD } from '../../../models/filter-predicate'
 import type { DateField } from '../../../models/app-view'
 import {
   activeDateFields,
@@ -36,8 +35,7 @@ import { shortcutScope } from '../../../utils/dom-contract'
 /**
  * What the Show row picks (D23 board B): a range entered as calendar dates
  * or relative to today, or — the optional types (Due, Planned, Next / Last
- * follow-up) — any task with the date (`set`) or none without it (`unset`;
- * Planned's `held` reads as None, its box ticked).
+ * follow-up) — any task with the date (`set`) or none without it (`unset`).
  */
 type ShowMode = DateEntryMode | 'set' | 'unset'
 
@@ -68,9 +66,6 @@ const NO_DATE_WORDS: Partial<Record<DateField, { also: string; kept: string; has
 
 /** The line under a Completed range: it brings the completed tasks it keeps in. */
 const COMPLETED_NOTE = 'Shows tasks completed in this range, even where completed tasks are hidden.'
-
-/** The box under Planned's None: it narrows None to the tasks held in the Planner's Unplanned tray (`held`). */
-const HELD_BOX_LABEL = 'Only tasks held in Unplanned'
 
 /**
  * What a host's date panel offers, where it differs from the default (every
@@ -140,8 +135,7 @@ interface DateFilterPanelProps {
  * toggle; every type but Completed), From / To (`DateAnchorInput` in the
  * range's mode; under a Relative end, its day today) and "Also tasks with no
  * …" — under Is not, a line saying those are kept — (Completed: a line
- * saying it shows completed tasks; Planned's None: Only tasks held in
- * Unplanned), and a footer with Clear <Type> and
+ * saying it shows completed tasks), and a footer with Clear <Type> and
  * Clear all. The same component in the top bar, a list's + Filter / date
  * chip, Edit list, the check-in filter (`host` omits Completed) and the phone Filters sheet.
  */
@@ -181,8 +175,7 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const hasEnd = start !== null || end !== null
   // The mode picked or pinned for the type, else the one its ends read as (a new range: Relative); ends only Relative can show, Relative.
   const entryMode: DateEntryMode = fitsCalendar(start, end) ? modes[field] ?? entryModeOf(start, end) : 'relative'
-  // Planned's `held` reads as its None (the box under it ticked).
-  const show: ShowMode = optional && clause && clause.match !== 'range' ? (clause.match === 'held' ? 'unset' : clause.match) : entryMode
+  const show: ShowMode = optional && clause && clause.match !== 'range' ? clause.match : entryMode
   const inRange = show === 'calendar' || show === 'relative'
   const showChoices = optional ? OPTIONAL_CHOICES : RANGE_CHOICES
   const negatable = isNegatableDateField(field)
@@ -272,10 +265,6 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
     forgetModes()
     onChange({})
   }
-
-  // Planned's None: the box switches it between no planned date (`unset`) and held in Unplanned (`held`).
-  const held = clause?.match === 'held'
-  const setHeld = (on: boolean) => onChange(withDateMatch(dates, field, { match: on ? 'held' : 'unset' }))
 
   // The type button: Enter / Space (a click) or ↓ open the menu; the menu's Esc brings the focus back here.
   const onTypeKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
@@ -457,24 +446,7 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
             ))}
             {rangeNote && <p className={styles.explain}>{rangeNote}</p>}
           </>
-        ) : show === 'unset' && field === HELD_DATE_FIELD ? (sheet ? (
-          <div className={styles.noDate}>
-            <span>{HELD_BOX_LABEL}</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={held}
-              aria-label={HELD_BOX_LABEL}
-              className={`${sheetStyles.toggle} ${held ? sheetStyles.toggleActive : ''}`}
-              onClick={() => setHeld(!held)}
-            />
-          </div>
         ) : (
-          <label className={styles.noDate}>
-            <input type="checkbox" className={styles.check} checked={held} onChange={() => setHeld(!held)} />
-            {HELD_BOX_LABEL}
-          </label>
-        )) : (
           <p className={styles.explain}>
             {show === 'set' ? noDateWords?.has : noDateWords?.none}
           </p>
