@@ -134,6 +134,8 @@ test.describe('desktop', () => {
         { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'n', kind: 'notes' }] })] },
         { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] })] },
       ] }],
+      // Notes' top line is its name line: shown with Show widget names on.
+      settings: { showWidgetNames: 'true' },
     })
     const line = wsTab(page, 'n')
     await expect(line).toContainText('Notes')

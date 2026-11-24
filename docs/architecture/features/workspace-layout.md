@@ -143,7 +143,7 @@ Outside the layout edit mode each divider has a pill at its stretch's middle (`C
 
 - Between columns ◂ ▸ (`Collapse the column on the left` / `on the right`); between rows ▴ ▾ (`Collapse the row above` / `below`). Plural when it collapses more than one track.
 - Each collapses every track of its axis the cells beside the stretch on that side cover, as Collapse row does a cell's rows. A side of only empty cells has no button.
-- It is a sibling of the divider, not inside it: pressing it never starts a resize, and a drag elsewhere on the divider still does.
+- It is a sibling of the divider, not inside it. A click on a button collapses; a press that moves 4px (`PILL_DRAG_PX`) becomes the divider's drag from where it was pressed, and that click collapses nothing. A double-click on the pill collapses (the divider's even-out is a double-click elsewhere on it).
 
 ### Plain drag and Alt + drag
 

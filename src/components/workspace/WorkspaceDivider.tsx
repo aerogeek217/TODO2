@@ -72,7 +72,18 @@ function collapsePillLabel(axis: GridAxis, side: 'before' | 'after', count: numb
  * as Collapse row). A sibling of the divider, not inside it: a press on it
  * never starts a resize.
  */
-function CollapsePill({ axis, collapse, style }: { axis: GridAxis; collapse: DividerCollapse; style: CSSProperties }) {
+/** How far a press on the pill moves before it is the divider's drag instead of a collapse, px. */
+const PILL_DRAG_PX = 4
+
+function CollapsePill({ axis, collapse, style, onGrip, dragged }: {
+  axis: GridAxis
+  collapse: DividerCollapse
+  style: CSSProperties
+  /** A press on the pill: moved past `PILL_DRAG_PX` it becomes the divider's resize. */
+  onGrip: (e: ReactPointerEvent<HTMLElement>) => void
+  /** Whether the press that ends in this click became a drag (then nothing collapses). */
+  dragged: () => boolean
+}) {
   const sides = (['before', 'after'] as const).filter((side) => collapse[side].length > 0)
   if (sides.length === 0) return null
   const run = (ids: readonly string[]) => afterLeavingEditors(() => { void useWorkspaceStore.getState().setTrackCollapsed(ids, true) })
@@ -91,7 +102,8 @@ function CollapsePill({ axis, collapse, style }: { axis: GridAxis; collapse: Div
               className={styles.pillButton}
               aria-label={label}
               data-tooltip={label}
-              onClick={() => run(collapse[side])}
+              onPointerDown={onGrip}
+              onClick={() => { if (!dragged()) run(collapse[side]) }}
             >
               {icon(side)}
             </button>
@@ -315,28 +327,58 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     showResizePreview(null, handle)
   }
 
-  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
+  /** Starts a drag of this divider (`el`) by pointer `pointerId`, from `start` along its axis. False when it can't. */
+  const startDrag = (el: HTMLElement, pointerId: number, start: number, altKey: boolean): boolean => {
     const layout = useWorkspaceStore.getState().working
-    const table = e.currentTarget.closest<HTMLElement>('[data-ws-table]')
-    if (!layout || !table) return
+    const table = el.closest<HTMLElement>('[data-ws-table]')
+    if (!layout || !table) return false
     const sizes = drawnSizes(table, stretch.axis)
-    if (sizes.length !== layout.grid[stretch.axis].length) return
-    e.preventDefault()
-    e.currentTarget.setPointerCapture?.(e.pointerId)
+    if (sizes.length !== layout.grid[stretch.axis].length) return false
+    el.setPointerCapture?.(pointerId)
     dragRef.current = {
-      pointerId: e.pointerId,
-      start: axisX ? e.clientX : e.clientY,
+      pointerId,
+      start,
       layout,
-      moved: movedIn(layout, e.altKey),
-      breakOff: e.altKey,
+      moved: movedIn(layout, altKey),
+      breakOff: altKey,
       opts: { sizes, minPx: minPxIn(layout), gap: drawnGap(table, stretch.axis) },
       structural: false,
       delta: 0,
     }
     pointer.listen(onPointerMove, onPointerUp)
-    setBreaking(dividerBreaksOff(layout, stretch, { breakOff: e.altKey, fit }))
+    setBreaking(dividerBreaksOff(layout, stretch, { breakOff: altKey, fit }))
     setDragging(true)
+    return true
+  }
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    if (startDrag(e.currentTarget, e.pointerId, axisX ? e.clientX : e.clientY, e.altKey)) e.preventDefault()
+  }
+
+  /** The press that ends in the pill's click became a drag: that click collapses nothing. */
+  const pillDraggedRef = useRef(false)
+  /** A press on the collapse pill: a click collapses; moved a few px, it is this divider's resize, from where it was pressed. */
+  const onPillGrip = (e: ReactPointerEvent<HTMLElement>) => {
+    if (e.button !== 0) return
+    pillDraggedRef.current = false
+    const { pointerId, clientX: x0, clientY: y0, altKey } = e
+    const done = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', done)
+      window.removeEventListener('pointercancel', done)
+    }
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId || Math.hypot(ev.clientX - x0, ev.clientY - y0) < PILL_DRAG_PX) return
+      done()
+      const el = elRef.current
+      if (!el) return
+      pillDraggedRef.current = startDrag(el, pointerId, axisX ? x0 : y0, altKey)
+      if (pillDraggedRef.current) onPointerMove(ev)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', done)
+    window.addEventListener('pointercancel', done)
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -456,7 +498,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
         aria-hidden="true"
         data-ws-divider-line={`${beforeId}|${afterId}`}
       />
-      {collapse && <CollapsePill axis={stretch.axis} collapse={collapse} style={style} />}
+      {collapse && <CollapsePill axis={stretch.axis} collapse={collapse} style={style} onGrip={onPillGrip} dragged={() => pillDraggedRef.current} />}
       {snap && <SnapGuide axis={stretch.axis} line={snap.line} tracks={snap.tracks} />}
     </>
   )

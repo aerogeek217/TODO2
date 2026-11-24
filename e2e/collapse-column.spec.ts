@@ -120,6 +120,23 @@ test.describe('the divider’s pill between columns', () => {
     await expect.poll(() => storedTracks(page, 'columns')).toEqual([false, false])
   })
 
+  test('a drag that starts on the pill resizes instead of collapsing', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [twoColumns] })
+    const a0 = await edges(wsCell(page, 'a'))
+    await hoverDivider(page, wsDivider(page, 'a', 'b'))
+    const pill = page.getByRole('button', { name: 'Collapse the column on the right' })
+    await expect(pill).toBeVisible()
+    const p = await box(pill)
+    const from = { x: p.x + p.width / 2, y: p.y + p.height / 2 }
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(from.x - 120, from.y, { steps: 12 })
+    await releaseDrag(page)
+    await expect.poll(async () => Math.round(a0.right - (await edges(wsCell(page, 'a'))).right)).toBeGreaterThan(100)
+    await expect(strip(page)).toHaveCount(0)
+    await expect.poll(() => storedTracks(page, 'columns')).toEqual([false, false])
+  })
+
   test('the cell’s ⋯ has Collapse column beside Collapse row', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await wsCell(page, 'b').hover()
