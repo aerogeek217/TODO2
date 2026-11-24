@@ -4,6 +4,7 @@ import { edgeBetween, edgeStretches, isWholeLine, spanOf, stretchCells, type Edg
 import { previewedLayout } from '../../utils/workspace-preview'
 import { absorbedCellIds, withStructurePreview } from '../../utils/structure-preview'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
+import { useCellRoomStore } from '../../stores/cell-room-store'
 import { cellTouchesCollapsedColumn, columnStrips, EDIT_GUTTER_PX, isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
 import { isFitTrack } from '../../utils/workspace-rows'
 import { pairPercent } from '../../utils/workspace-resize'
@@ -264,6 +265,7 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
   const newIds = useMemo(() => new Set(structure?.newCellIds ?? []), [structure])
   const goneIds = useMemo(() => new Set(structure ? absorbedCellIds(working, structure.body) : []), [working, structure])
   const selectedId = useWorkspaceStore((s) => s.editing?.selectedCellId ?? null)
+  const measuredMins = useCellRoomStore((s) => s.minHeights)
   const { rows, columns } = layout.grid
   // Outside the mode a collapsed column is its strips; in the mode its cells are cards like any other.
   const strips = useMemo(() => (editing ? [] : columnStrips(layout)), [editing, layout])
@@ -284,7 +286,8 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
       className={styles.table}
       style={{
         gridTemplateColumns: trackTemplate(layout, 'columns', editing ? EDIT_GUTTER_PX : WORKSPACE_GUTTER_PX),
-        gridTemplateRows: trackTemplate(layout, 'rows', editing ? EDIT_GUTTER_PX : WORKSPACE_GUTTER_PX),
+        // Outside the mode a row is held at what its widgets measured (a List board's lines of tiles).
+        gridTemplateRows: trackTemplate(layout, 'rows', editing ? EDIT_GUTTER_PX : WORKSPACE_GUTTER_PX, editing ? undefined : measuredMins),
       }}
       data-ws-table
       data-ws-row-tracks={rows.map((t) => t.id).join(' ')}

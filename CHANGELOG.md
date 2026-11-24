@@ -25,8 +25,11 @@ History before 2026-11-19 is in the git log.
 - **Expand row and Expand column look alike.** Both are now a bordered button with the same unfold icon — up and down
   for a collapsed row, left and right for a collapsed column. The cell menu's Expand row and Expand column show the
   same icon.
-- **List board tiles share the row.** Tiles widen to fill the space instead of leaving empty room at the end, and
-  are all the same width. A tile's task count stays beside its name: a long name shortens with "…" first.
+- **List board tiles fit their names and wrap.** Every tile is the same width — as wide as the longest name needs —
+  and tiles fill each line, wrapping onto more lines instead of hiding the extras behind a "+N" card. A List board's
+  row always stays tall enough to show every card.
+- **Slimmer List board tiles.** A tile shows its task count only when it has no colored capsule (the count is in its
+  tooltip), drops the list icon every list shares (an icon or emoji you picked still shows), and has tighter padding.
 
 ### Fixed
 

@@ -95,7 +95,8 @@ test.describe('Lists I pick', () => {
     await expect(clients.locator('[data-app-icon]')).toHaveCount(1)
     await expect(tile(page, 'Errands').locator('[data-app-icon="line"]')).toHaveCount(1)
     await expect(clients.locator('[data-shortcut-badge] [data-badge-part="due"]')).toHaveText('1')
-    await expect(clients.locator('[data-shortcut-count]')).toHaveText('4')
+    // Its count is in its tooltip: beside a capsule the head leaves it out.
+    await expect(clients.locator('[data-shortcut-count]')).toHaveCount(0)
     await expect(clients.locator('button[data-tone]')).toHaveCount(4)
     await expect(clients.locator('button[data-tone]').first()).toHaveAttribute('data-tone', 'late')
     await expect(clients.locator('[data-peek-line]')).toHaveText(['Call Acme', 'Send the invoice', 'Renew the lease'])
@@ -134,11 +135,12 @@ test.describe('Lists I pick', () => {
     await expect.poll(face).toBe('large')
     await expect.poll(peekLines).toBe(6)
     await expect.poll(squares).toBe(8)
-    // A body about 400px wide: two tiles across, so the Add a list tile starts a second row.
+    // A body about 370px wide (tiles of 120px, as wide as their heads ask): two tiles across, so the Add a list tile
+    // starts a second row.
     const wide = (await widget(page).boundingBox())?.width ?? 1
-    const width = Math.round(1440 * 400 / wide)
+    const width = Math.round(1440 * 370 / wide)
     await page.setViewportSize({ width, height: 900 })
-    await expect.poll(async () => Math.abs(((await widget(page).boundingBox())?.width ?? 0) - 400)).toBeLessThan(40)
+    await expect.poll(async () => Math.abs(((await widget(page).boundingBox())?.width ?? 0) - 370)).toBeLessThan(8)
     // Shorter and shorter, from a body about 320px tall (two rows of tiles): a large face with fewer titles, its squares kept, comes before the compact one.
     const chrome = Math.round(900 - ((await widget(page).boundingBox())?.height ?? 0))
     let fewer = false
@@ -164,6 +166,52 @@ test.describe('Lists I pick', () => {
     await expect(widget(page).locator('button[data-tone]')).toHaveCount(0)
     await expect(tile(page, 'Clients').locator('[data-board-bar] [data-tone]')).toHaveCount(2)
   })
+})
+
+/** A short board across the top (a weight of 1 against 20) showing this layout's six lists, each a tab in the cell under it. */
+const WRAP_NAMES = ['Errands', 'Clients', 'Someday', 'Overdue and due soon', 'Reading', 'Calls']
+const WRAP_SEED: WorkspaceSeed = {
+  listDefinitions: WRAP_NAMES.map((name) => ({ name })),
+  tasks: TASKS,
+  layouts: [{
+    name: 'Home',
+    table: {
+      areas: ['b', 'l'],
+      rows: [1, 20],
+      cells: [
+        { id: 'b', tabs: [{ id: 't-board', kind: 'shortcuts', board: { source: 'layout' } }] },
+        { id: 'l', tabs: WRAP_NAMES.map((_, i) => ({ id: `t-${i}`, kind: 'lens' as const, listDefIdx: i })) },
+      ],
+    },
+  }],
+}
+
+test('tiles share one width wide enough for every name, wrap instead of folding into +N, and the row grows to fit them', async ({ page }) => {
+  await seedWorkspace(page, WRAP_SEED)
+  const board = wsCell(page, 'b').locator('[data-shortcuts]')
+  const boardTiles = board.locator('[data-shortcut-tile]')
+  await expect(boardTiles).toHaveCount(6)
+  await expect(board.locator('[data-shortcuts-more]')).toHaveCount(0)
+  const widths = () => boardTiles.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)))
+  const cut = () => board.locator('[data-shortcut-name]').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth).length)
+  const lines = () => boardTiles.evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size)
+  const unseen = () => boardTiles.evaluateAll((els) => {
+    const cell = els[0]?.closest('[data-ws-cell]')?.getBoundingClientRect()
+    return cell ? els.filter((e) => e.getBoundingClientRect().bottom > cell.bottom + 0.5).length : els.length
+  })
+  // Wide: one line, every tile as wide as the next, no name cut short, the row at its least (one line of heads).
+  await expect.poll(lines).toBe(1)
+  const w = await widths()
+  expect(Math.max(...w) - Math.min(...w)).toBeLessThanOrEqual(1)
+  expect(await cut()).toBe(0)
+  await expect.poll(async () => Math.round((await wsCell(page, 'b').boundingBox())?.height ?? 0)).toBe(63)
+  // Narrower: the tiles wrap onto more lines, still one width, and the row grows so none is cut off.
+  await page.setViewportSize({ width: 700, height: 900 })
+  await expect.poll(lines).toBeGreaterThan(1)
+  await expect.poll(unseen).toBe(0)
+  const v = await widths()
+  expect(Math.max(...v) - Math.min(...v)).toBeLessThanOrEqual(1)
+  expect(await cut()).toBe(0)
 })
 
 test.describe('This layout’s lists', () => {

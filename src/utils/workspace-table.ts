@@ -88,10 +88,14 @@ export function cellTouchesCollapsedColumn(body: LayoutBody, cell: LayoutCell): 
  * `workspace-rows.cellMinHeightPx`); collapsed along `axis`, its header's
  * height or its strip's width.
  */
-export function cellMinPx(body: LayoutBody, cell: LayoutCell, axis: GridAxis): number {
+export function cellMinPx(body: LayoutBody, cell: LayoutCell, axis: GridAxis, measured?: MeasuredMins): number {
   if (isCellCollapsedIn(body, cell, axis)) return collapsedPx(axis)
-  return axis === 'columns' ? cellMinWidthPx(cell) : cellMinHeightPx(cell)
+  if (axis === 'columns') return cellMinWidthPx(cell)
+  return Math.max(cellMinHeightPx(cell), measured?.[cell.id] ?? 0)
 }
+
+/** Least heights (px) a cell's widget measured for it, by cell id (`stores/cell-room-store`: a List board's lines of tiles). */
+type MeasuredMins = Readonly<Record<string, number>>
 
 /**
  * A track's size (px) that doesn't share the free space, for summing what a
@@ -123,7 +127,7 @@ function settledPx(sizing: TrackSizing, axis: GridAxis): number | null {
  * above those sizes: weights set from the sizes as drawn draw the same
  * table (`workspace-layout-ops.drawnByWeight`, cr34 W7).
  */
-export function trackMinimums(body: LayoutBody, axis: GridAxis, gap: number): number[] {
+export function trackMinimums(body: LayoutBody, axis: GridAxis, gap: number, measured?: MeasuredMins): number[] {
   const sizings = trackSizings(body, axis)
   const mins = sizings.map(() => 0)
   const cells = [...body.cells].sort((a, b) => {
@@ -148,7 +152,7 @@ export function trackMinimums(body: LayoutBody, axis: GridAxis, gap: number): nu
       }
     }
     // What the cell needs of its weighted tracks together, and how far their minimums are short of it.
-    const need = cellMinPx(body, cell, axis) - settledPart
+    const need = cellMinPx(body, cell, axis, measured) - settledPart
     const short = need - have
     if (short <= 0 || weighted.length === 0) continue
     const weightOf = (t: number) => {
@@ -175,11 +179,12 @@ export function trackMinimums(body: LayoutBody, axis: GridAxis, gap: number): nu
  * the header's height (a column its strip's width), a fit one `auto`, a weighted one its share of the
  * free space as `fr` — scaled so the shares sum to 100 (`fr` under 1 in
  * total would leave space empty) — never under its minimum
- * (`minmax(<min>px, <n>fr)`).
+ * (`minmax(<min>px, <n>fr)`) — a cell's minimum raised to what its widget
+ * measured for it (`measured`).
  */
-export function trackTemplate(body: LayoutBody, axis: GridAxis, gap: number): string {
+export function trackTemplate(body: LayoutBody, axis: GridAxis, gap: number, measured?: MeasuredMins): string {
   const sizings = trackSizings(body, axis)
-  const mins = trackMinimums(body, axis, gap)
+  const mins = trackMinimums(body, axis, gap, measured)
   const total = sizings.reduce((sum, s) => (s.kind === 'weighted' ? sum + s.weight : sum), 0) || 1
   return sizings.map((s, i) => {
     switch (s.kind) {
