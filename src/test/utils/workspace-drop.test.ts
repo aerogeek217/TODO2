@@ -9,6 +9,7 @@ import {
   dropTargetForHit,
   fitRowHeights,
   hitTestWorkspace,
+  numberStripHitAt,
   sameDropHit,
   tabBand,
   type CellGeometry,
@@ -350,6 +351,23 @@ describe('a strip of Numbers (flair P10)', () => {
   it('its middle takes a drop between its slots, its sides still split', () => {
     expect(hitTestWorkspace(geo, { x: 470, y: 30 })).toEqual({ kind: 'tab-strip', cellId: 'k', index: 2, lineX: 599 })
     expect(hitTestWorkspace(geo, { x: 450, y: 2 })).toEqual({ kind: 'cell-body', cellId: 'k', zone: 'top' })
+  })
+
+  it('its ends keep room for a drop before the first Number and after the last: only an end slot’s outer quarter splits', () => {
+    // A 900px strip's side zones would be 120px, past the first slot's middle (150): its outer quarter (75px) instead.
+    expect(hitTestWorkspace(geo, { x: 100, y: 30 })).toEqual({ kind: 'tab-strip', cellId: 'k', index: 0, lineX: -1 })
+    expect(hitTestWorkspace(geo, { x: 800, y: 30 })).toEqual({ kind: 'tab-strip', cellId: 'k', index: 3, lineX: 901 })
+    expect(hitTestWorkspace(geo, { x: 40, y: 30 })).toEqual({ kind: 'cell-body', cellId: 'k', zone: 'left' })
+    expect(hitTestWorkspace(geo, { x: 860, y: 30 })).toEqual({ kind: 'cell-body', cellId: 'k', zone: 'right' })
+  })
+
+  it('outside the mode (nothing splits) a point anywhere over it is a drop between its slots, its very edges too', () => {
+    expect(numberStripHitAt(geo, { x: 2, y: 30 })).toEqual({ kind: 'tab-strip', cellId: 'k', index: 0, lineX: -1 })
+    expect(numberStripHitAt(geo, { x: 898, y: 2 })).toEqual({ kind: 'tab-strip', cellId: 'k', index: 3, lineX: 901 })
+    expect(numberStripHitAt(geo, { x: 450, y: 90 })).toBeNull()
+    // Dragging the last Number to the start: index 0 among the others.
+    const target = dropTargetForHit(layout, geo, numberStripHitAt(geo, { x: 2, y: 30 })!, { type: 'tab', tabId: 'c' })
+    expect(target).toEqual({ kind: 'cell', cellId: 'k', index: 0 })
   })
 
   it('dragging a slot onto another place reorders it; the label says Add to strip', () => {

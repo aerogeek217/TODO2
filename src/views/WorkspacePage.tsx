@@ -26,7 +26,7 @@ import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignme
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, isPlannerDropData, type CalendarDropChoiceRequest, type PlannerDropRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
-import { dropChangesLayout, dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, ownStripHit, sameDropHit } from '../utils/workspace-drop'
+import { dropChangesLayout, dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, numberStripHitAt, ownStripHit, sameDropHit } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
@@ -177,7 +177,8 @@ function useWorkspaceDragState() {
     const geo = current.geometry
     const editing = useWorkspaceStore.getState().editing != null
     const found = hitTestWorkspace(geo, { x, y })
-    const hit = editing ? found : ownStripHit(layout, found, current.source)
+    // Outside the mode only a drop in its own strip counts: over a strip of Numbers, its ends too (no side splits).
+    const hit = editing ? found : ownStripHit(layout, found?.kind === 'tab-strip' ? found : numberStripHitAt(geo, { x, y }), current.source)
     const target = hit ? dropTargetForHit(layout, geo, hit, current.source) : null
     // The drop ghost only in the mode: outside it the strip's insert line says where the tab goes.
     const ghost = editing && target ? dropGhost(layout, geo, current.source, target, current.tabs.map((t) => t.id)) : null

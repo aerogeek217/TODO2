@@ -66,6 +66,17 @@ test('a Number drags within the strip to reorder it', async ({ page }) => {
   await expect.poll(() => order(page)).toEqual(['num2', 'num1'])
 })
 
+test('a Number drags to either end of a wide strip, its very edges included', async ({ page }) => {
+  await seedWorkspace(page, seed([number('num1', 'open'), number('num2', 'overdue'), number('num4', 'dueToday'), number('num5', 'urgent')]))
+  await expect(slots(page)).toHaveCount(4)
+  // The last Number to the strip's left edge: where its side zone used to leave no room before the first.
+  await drag(page, await pointIn(slots(page).nth(3), 0.5, 0.5), await pointIn(slots(page).first(), 0.02, 0.5))
+  await expect.poll(() => order(page)).toEqual(['num5', 'num1', 'num2', 'num4'])
+  // And the first back past the last one's middle, near the right edge.
+  await drag(page, await pointIn(slots(page).first(), 0.5, 0.5), await pointIn(slots(page).nth(3), 0.95, 0.5))
+  await expect.poll(() => order(page)).toEqual(['num1', 'num2', 'num4', 'num5'])
+})
+
 test('outside the layout edit mode a Number dragged out of the strip goes nowhere', async ({ page }) => {
   await seedWorkspace(page, seed())
   await drag(page, await pointIn(slots(page).nth(1), 0.5, 0.5), await pointIn(wsCell(page, 'a'), 0.5, 0.5))
