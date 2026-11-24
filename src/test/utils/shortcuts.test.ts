@@ -114,7 +114,11 @@ describe('the List board’s faces', () => {
   it('small, rows (narrow), compact (short), large', () => {
     const shape = (width: number, height: number) => shortcutsShape(shortcutsFaceFor({ width, height }), width)
     expect(shape(170, 400)).toBe('small')
-    expect(shape(600, 80)).toBe('small')
+    // Wide, its line of tiles holds down to a tile's head (63px), under the small face's 90.
+    expect(shape(600, 80)).toBe('compact')
+    expect(shape(600, 63)).toBe('compact')
+    expect(shape(600, 62)).toBe('small')
+    expect(shape(300, 80)).toBe('small')
     expect(shape(300, 400)).toBe('rows')
     expect(shape(300, 140)).toBe('rows')
     expect(shape(600, 140)).toBe('compact')

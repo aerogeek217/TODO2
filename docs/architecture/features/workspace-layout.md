@@ -122,7 +122,8 @@ The table scrolls when the minimums don't fit. The minimums (`utils/workspace-ro
 
 - a cell: `CELL_MIN_PX` high and 120px wide;
 - a glance cell: 64px high and 72px wide;
-- a cell of Numbers (one, or a strip): 58px high, a fit row's height.
+- a cell of Numbers (one, or a strip): 58px high, a fit row's height;
+- a cell of one List board: 63px high, its line of tiles' heads (`LIST_BOARD_MIN_HEIGHT_PX`).
 
 ### A collapsed column's strip
 

@@ -357,7 +357,8 @@ describe('the List board’s faces', () => {
   })
 
   it('small: its name and the number of lists, of either source', () => {
-    height = 80
+    // Wide, under a tile's head (63px): a short wide board keeps its line of tiles down to that.
+    height = 50
     setup(picked([1, 2]))
     const { unmount } = render(<Live />)
     expect(screen.getByRole('group', { name: 'List board: 2 lists' })).toBeInTheDocument()

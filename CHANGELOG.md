@@ -33,6 +33,10 @@ History before 2026-11-19 is in the git log.
 - **Clicking one cell, then another, in Edit layout no longer combines them.** A click now only selects a cell. To
   move, swap or join cells by clicking, press **Move** on the selected cell's toolbar first (or Space); dragging works
   as before.
+- **A Number drags to either end of its strip.** Dragging a Number to the first or last place in a wide row of Numbers
+  works again.
+- **A List board's row shrinks to its cards.** A row holding a List board can be made as short as one line of its
+  cards, without empty space under them.
 
 ## 2026-11-23, second deployment
 

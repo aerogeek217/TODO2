@@ -42,7 +42,7 @@ The tile is `--color-surface-high` with a 1px `--color-border-muted` edge and ra
 |-------|-----------|
 | small | the small face of every widget: its icon, its name and the number of lists. A click opens it larger |
 | rows | narrower than 360px: a row per list — icon, name, capsule, count — over a 6px bar of its open tasks, a segment per state as long as its share (dashed while it waits on its prompt) |
-| compact | at most 160px tall: one line of tiles at least 120px wide, squares where a row fits, no titles. Tiles that all fit share the line, as wide as each other; the ones that don't fit end in a `+N` tile that opens it larger (`compactShortcutTiles`) |
+| compact | at most 160px tall — and, 360px wide or more, down to 63px, the tiles' heads, where other widgets show their small face: one line of tiles at least 120px wide, squares where a row fits, no titles. Tiles that all fit share the line, as wide as each other; the ones that don't fit end in a `+N` tile that opens it larger (`compactShortcutTiles`) |
 | large | a grid of tiles as wide as each other (`auto-fit`, 136px at least: the columns no tile fills fold away, so the tiles share the row); with lists picked, then a dashed **Add a list** tile |
 
 - The name line (`WidgetNameLine`) shows List board with Settings › Show widget names. Off, there is none and the cell's controls float over its corner.

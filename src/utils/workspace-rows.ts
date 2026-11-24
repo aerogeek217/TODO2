@@ -29,6 +29,14 @@ export const GLANCE_ROW_MIN_PX = 64
 export const FIT_ROW_PX = 58
 /** The smallest width (px) of a glance cell: a Number's small face reads in it, so a row of them needn't scroll the table. */
 export const GLANCE_CELL_MIN_WIDTH_PX = 72
+/**
+ * The smallest height (px) of a cell holding one List board: its one line of
+ * tiles, each tile only its head — the board's padding 8 + 10 and a tile's
+ * 45 (its padding 11 + 11, its head 18, the 4px gap and its room's least
+ * 1px; `ShortcutsWidget.module.css`). Its face keeps that line down to this
+ * height (`widget-face.shortcutsFaceFor`).
+ */
+export const LIST_BOARD_MIN_HEIGHT_PX = 63
 
 /** The cells lying only in row track `row` (starting and ending in it). */
 export function cellsOnlyInRow(body: LayoutBody, row: number): LayoutCell[] {
@@ -67,10 +75,11 @@ function isGlanceCell(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanc
 /**
  * The smallest height (px) a cell may take: `FIT_ROW_PX` for a cell of
  * Numbers (`isFitCell` — a fit row's height; a strip that wraps grows past it), `GLANCE_ROW_MIN_PX` for any
- * other glance cell, else `CELL_MIN_PX`.
+ * other glance cell, `LIST_BOARD_MIN_HEIGHT_PX` for a cell of one List board (no tab strip over it), else `CELL_MIN_PX`.
  */
 export function cellMinHeightPx(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind, fit: KindFlag = isFitHeightKind): number {
   if (isFitCell(cell, fit)) return FIT_ROW_PX
+  if (cell.tabs.length === 1 && cell.tabs[0]?.kind === 'shortcuts') return LIST_BOARD_MIN_HEIGHT_PX
   return isGlanceCell(cell, glance) ? GLANCE_ROW_MIN_PX : CELL_MIN_PX
 }
 

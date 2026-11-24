@@ -10,6 +10,7 @@ import {
   isFitTrack,
   isNumberStripCell,
   isGlanceKind,
+  LIST_BOARD_MIN_HEIGHT_PX,
 } from '../../utils/workspace-rows'
 import { CELL_MIN_PX } from '../../utils/workspace-resize'
 import { cell, grid } from '../helpers/layout-builders'
@@ -69,5 +70,11 @@ describe('fit tracks', () => {
     // Two Numbers in one cell are a strip (flair P10): a fit cell.
     expect(cellMinHeightPx(cell('nn', [number('x3'), number('x4')]))).toBe(FIT_ROW_PX)
     expect(cellMinHeightPx(L)).toBe(CELL_MIN_PX)
+  })
+
+  it('a cell of one List board may shrink to its line of tiles’ heads (63px); with a tab strip over it, not', () => {
+    expect(cellMinHeightPx(cell('b', [createTab('shortcuts', 'b1')]))).toBe(LIST_BOARD_MIN_HEIGHT_PX)
+    expect(LIST_BOARD_MIN_HEIGHT_PX).toBe(63)
+    expect(cellMinHeightPx(cell('bb', [createTab('shortcuts', 'b2'), notes('b3')]))).toBe(CELL_MIN_PX)
   })
 })

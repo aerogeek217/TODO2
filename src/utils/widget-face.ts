@@ -1,5 +1,6 @@
 import { DEFAULT_NUMBER_BREAKDOWN } from '../models/glance-widgets'
 import type { LayoutTab } from '../models/workspace-layout'
+import { LIST_BOARD_MIN_HEIGHT_PX } from './workspace-rows'
 
 /**
  * A widget's face (D25 R): how much of it a cell has room for, picked from
@@ -184,15 +185,19 @@ export function plannerStripFits(size: { width: number; height: number }, room: 
 const SHORTCUTS_ROWS_MAX_WIDTH_PX = 360
 
 /**
- * A Shortcuts face (2026-11-23): small as every widget's; medium while the
- * body is narrower than `SHORTCUTS_ROWS_MAX_WIDTH_PX` (its rows) or no
- * taller than `MEDIUM_FACE_MAX_HEIGHT_PX` (its compact line of tiles);
- * else large, a grid of tiles. Unmeasured is `large`.
+ * A Shortcuts face: small as every widget's — except that a body at least
+ * `SHORTCUTS_ROWS_MAX_WIDTH_PX` wide keeps its compact line of tiles down to
+ * `LIST_BOARD_MIN_HEIGHT_PX` (a tile's head); medium while the body is
+ * narrower than `SHORTCUTS_ROWS_MAX_WIDTH_PX` (its rows) or no taller than
+ * `MEDIUM_FACE_MAX_HEIGHT_PX` (its compact line of tiles); else large, a
+ * grid of tiles. Unmeasured is `large`.
  */
 export function shortcutsFaceFor(size: { width: number; height: number }): WidgetFace {
   const face = widgetFaceFor(size)
-  if (face !== 'large') return face
   const { width, height } = size
+  // Wide enough for the line of tiles: it shows down to a tile's head, not only above the small face's height.
+  if (face === 'small') return width >= SHORTCUTS_ROWS_MAX_WIDTH_PX && height >= LIST_BOARD_MIN_HEIGHT_PX ? 'medium' : 'small'
+  if (face !== 'large') return face
   if (width <= 0 && height <= 0) return 'large'
   return width < SHORTCUTS_ROWS_MAX_WIDTH_PX ? 'medium' : 'large'
 }
