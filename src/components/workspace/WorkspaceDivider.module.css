@@ -181,3 +181,89 @@
   background: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-accent-bg);
 }
+
+/* A divider's collapse pill (outside the layout edit mode): a sibling after
+ * its line, placed as the divider is, the pill at its stretch's middle.
+ * Hidden (not focusable) at rest; the divider's hover shows it after 120ms,
+ * its focus at once, and it stays while hovered or holding the focus — not
+ * during a drag. Between columns its buttons stack (◂ over ▸), between rows
+ * they sit side by side (▴ ▾). */
+.pillWrap {
+  position: relative;
+  z-index: var(--z-above-3);
+  pointer-events: none;
+}
+
+.pillColumns {
+  justify-self: start;
+  width: var(--workspace-gutter);
+  margin-left: calc(-1 * var(--workspace-gutter));
+}
+
+.pillRows {
+  align-self: start;
+  height: var(--workspace-gutter);
+  margin-top: calc(-1 * var(--workspace-gutter));
+}
+
+.pill {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-bright);
+  box-shadow: var(--shadow-raised);
+  transform: translate(-50%, -50%);
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity var(--transition-fast) 0ms, visibility var(--transition-fast) 0ms;
+}
+
+.pillColumns .pill {
+  flex-direction: column;
+}
+
+.pillButton {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.pillButton:hover {
+  background: var(--color-accent-bg);
+}
+
+.pillButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.divider:hover + .lineLight + .pillWrap .pill {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 120ms;
+}
+
+.divider:focus-visible + .lineLight + .pillWrap .pill,
+.pill:hover,
+.pill:focus-within {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0ms;
+}
+
+.dragging + .lineLight + .pillWrap .pill {
+  visibility: hidden;
+  opacity: 0;
+}

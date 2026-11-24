@@ -188,6 +188,17 @@ describe('cellMenuFor (outside the mode: what is inside a cell changes in place)
     expect(words(cellMenuFor(notes(), numbers))).toEqual(['[Notes]', 'Change widget', '—', 'Add widget as tab', 'Remove widget', 'Collapse row'])
   })
 
+  it('Collapse column beside Collapse row collapses its columns; with one of them collapsed it reads Expand column', () => {
+    const onCollapseColumn = vi.fn()
+    const menu = cellMenuFor(notes(), actions({ onCollapseColumn, onEditLayout: vi.fn() }))
+    expect(words(menu)).toEqual([
+      '[Notes]', 'Change widget', '—', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Collapse column', '—', 'Edit layout',
+    ])
+    select(item(menu, 'Collapse column'))
+    select(item(cellMenuFor(notes(), actions({ columnCollapsed: true, onCollapseColumn })), 'Expand column'))
+    expect(onCollapseColumn.mock.calls).toEqual([[true], [false]])
+  })
+
   it('collapsed reads Expand row, which expands it', () => {
     const onCollapse = vi.fn()
     select(item(cellMenuFor(notes(), actions({ collapsed: true, onCollapse })), 'Expand row'))

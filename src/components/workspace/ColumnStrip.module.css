@@ -1,0 +1,85 @@
+/* A collapsed column's strip: a card as narrow as its track
+ * (`COLUMN_STRIP_PX`, 34px), Expand column at its top, then the widgets'
+ * icons and names running down it. Its content is drawn out of flow, so it
+ * never sizes a track (a fit row's `auto` stays its other cells'). */
+.strip {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-glass-card);
+  overflow: hidden;
+}
+
+.inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0;
+  overflow: hidden;
+}
+
+.expand,
+.widget {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.expand {
+  flex: none;
+  width: 26px;
+  height: 24px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1;
+}
+
+.widget {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  max-width: 100%;
+  padding: 8px 4px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  writing-mode: vertical-rl;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.expand:hover,
+.widget:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.expand:focus-visible,
+.widget:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-accent-text);
+  transform: rotate(90deg);
+}
+
+.name {
+  min-height: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

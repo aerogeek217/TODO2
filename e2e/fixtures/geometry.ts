@@ -16,6 +16,15 @@ export async function pointIn(locator: Locator, fx = 0.5, fy = 0.5): Promise<Poi
   return { x: b.x + b.width * fx, y: b.y + b.height * fy }
 }
 
+/**
+ * Where a divider is pressed to drag it: a quarter along its length, clear
+ * of the collapse pill its hover or focus shows at its middle (the pill is
+ * its own target: a press there never resizes).
+ */
+export function dividerGrip(b: Box): Point {
+  return b.height > b.width ? { x: b.x + b.width / 2, y: b.y + b.height / 4 } : { x: b.x + b.width / 4, y: b.y + b.height / 2 }
+}
+
 /** The locator's box lies inside the viewport, at least `margin` px from every edge (half a pixel of rounding allowed). */
 export async function expectInsideViewport(page: Page, locator: Locator, margin = 8): Promise<void> {
   const vp = page.viewportSize()

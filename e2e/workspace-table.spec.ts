@@ -26,7 +26,7 @@ import {
   finishLayoutEdit,
   tabAreaPoint,
 } from './fixtures/workspace'
-import { box, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
+import { box, dividerGrip, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
 /**
@@ -322,7 +322,8 @@ test.describe('dividers', () => {
     // c borders the same line, at a "T": one divider for the whole of it.
     await expect(page.locator('[data-ws-divider][data-axis="columns"]')).toHaveCount(1)
     const d = await box(divider)
-    await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 + 100, y: d.y + d.height / 2 })
+    const grip = dividerGrip(d)
+    await drag(page, grip, { x: grip.x + 100, y: grip.y })
     await expect.poll(async () => Math.round((await box(a)).width - before)).toBeGreaterThan(90)
     await expectLayoutStored(page)
     const resized = Math.round((await box(a)).width)
@@ -342,7 +343,8 @@ test.describe('dividers', () => {
 
     // Far left: the cells stop at their 120px.
     const d2 = await box(divider)
-    await drag(page, { x: d2.x + d2.width / 2, y: d2.y + d2.height / 2 }, { x: 0, y: d2.y + d2.height / 2 })
+    const grip2 = dividerGrip(d2)
+    await drag(page, grip2, { x: 0, y: grip2.y })
     await expect.poll(async () => Math.round((await box(a)).width)).toBe(120)
   })
 
@@ -360,7 +362,7 @@ test.describe('dividers', () => {
     const xBottom = (await edges(wsCell(page, 'x'))).bottom
     const aBox = await edges(wsCell(page, 'a'))
     const d = await box(divider)
-    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const from = dividerGrip(d)
     let mid = { a: 0, b: 0 }
     await page.keyboard.down('Alt')
     await drag(page, from, { x: from.x, y: from.y + 100 }, {
@@ -409,7 +411,7 @@ test.describe('dividers', () => {
     const said = await watchSnackbar(page)
 
     const d = await box(wsDivider(page, 'a', 'b'))
-    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const from = dividerGrip(d)
     await page.keyboard.down('Alt')
     await drag(page, from, { x: from.x, y: from.y + 100 })
     await page.keyboard.up('Alt')
@@ -431,7 +433,7 @@ test.describe('dividers', () => {
 
     // The move again, undone and then redone: stored as moved.
     const d2 = await box(wsDivider(page, 'a', 'b'))
-    const from2 = { x: d2.x + d2.width / 2, y: d2.y + d2.height / 2 }
+    const from2 = dividerGrip(d2)
     await page.keyboard.down('Alt')
     await drag(page, from2, { x: from2.x, y: from2.y + 100 })
     await page.keyboard.up('Alt')
@@ -500,7 +502,8 @@ test.describe('dividers', () => {
     const cWidth = Math.round((await box(wsCell(page, 'c'))).width)
     const d = await box(wsDivider(page, 'a', 'b'))
     await page.keyboard.down('Alt')
-    await page.mouse.dblclick(d.x + d.width / 2, d.y + d.height / 2)
+    const at = dividerGrip(d)
+    await page.mouse.dblclick(at.x, at.y)
     await page.keyboard.up('Alt')
     // Even within one gutter: the new line's track brings a gap inside a.
     await expect.poll(async () => Math.abs(Math.round((await box(wsCell(page, 'a'))).width - (await box(wsCell(page, 'b'))).width))).toBeLessThanOrEqual(8)
@@ -523,7 +526,7 @@ test.describe('dividers', () => {
     })
     const divider = wsDivider(page, 'a', 'b')
     const d = await box(divider)
-    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const from = dividerGrip(d)
     const cdLine = (await edges(wsCell(page, 'c'))).right + 3
     /** How far the a|b line, as drawn, is from the pointer at `x`. */
     const offLine = async (x: number) => {
@@ -565,7 +568,7 @@ test.describe('dividers', () => {
     })
     const divider = wsDivider(page, 'a', 'b')
     const d = await box(divider)
-    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const from = dividerGrip(d)
     const xyLine = (await edges(wsCell(page, 'x'))).bottom + 3
     const to = { x: from.x, y: from.y + 100 }
     await page.mouse.move(from.x, from.y)
@@ -679,7 +682,8 @@ test.describe('a collapsed row no filled cell lies only in expands by itself (cr
     // The middle row is a row again: p's and a's line can be dragged.
     const aTop = (await edges(wsCell(page, 'a'))).top
     const d = await box(wsDivider(page, 'p', 'a'))
-    await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2, y: d.y + d.height / 2 + 40 })
+    const grip = dividerGrip(d)
+    await drag(page, grip, { x: grip.x, y: grip.y + 40 })
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).top - aTop)).toBeGreaterThan(30)
   })
 

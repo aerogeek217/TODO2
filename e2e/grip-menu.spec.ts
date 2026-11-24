@@ -5,7 +5,7 @@ import { box, pointIn } from './fixtures/geometry'
 /**
  * The cell menus (UX cleanup 4A; layout edit mode E3, E4) in a real
  * browser: outside the layout edit mode there is no grip — a cell's ⋯ opens
- * the widget's entries, Add widget as tab ›, Remove widget, Collapse row
+ * the widget's entries, Add widget as tab ›, Remove widget, Collapse row / column
  * and Edit layout. In the mode (E3) the grip is gone too: the cell is a
  * card, its ⋯ (Cell layout) opens its menu (Move to, Swap with, Insert,
  * Merge with, Stretch, Move / Copy cell to layout, Remove widget, Close cell) under it; Enter on the
@@ -56,7 +56,7 @@ const layoutMenu = (page: Page) => page.getByRole('menu', { name: 'Cell layout' 
 const optionsMenu = (page: Page) => page.getByRole('menu', { name: 'Cell options' })
 const labels = (menu: Locator) => menu.locator(':scope > [role^="menuitem"]').evaluateAll((els) => els.map((el) => el.getAttribute('data-menu-label')))
 
-test('outside the mode: no grip, no drag handle; the ⋯ the widget’s entries, Add widget as tab, Remove widget, Collapse row, Edit layout', async ({ page }) => {
+test('outside the mode: no grip, no drag handle; the ⋯ the widget’s entries, Add widget as tab, Remove widget, Collapse row and column, Edit layout', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   const cell = wsCell(page, 'a')
   await cell.hover()
@@ -64,7 +64,7 @@ test('outside the mode: no grip, no drag handle; the ⋯ the widget’s entries,
   await expect(page.locator('[data-ws-panel-handle]')).toHaveCount(0)
   await cell.getByRole('button', { name: 'Cell options' }).click()
   await expect(optionsMenu(page)).toBeVisible()
-  expect(await labels(optionsMenu(page))).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Move to layout', 'Copy to layout', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Edit layout'])
+  expect(await labels(optionsMenu(page))).toEqual(['Open larger', 'Name and icon…', 'Change widget', 'Move to layout', 'Copy to layout', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Collapse column', 'Edit layout'])
 })
 
 const CARD_MENU = ['Move to', 'Swap with', 'Join as tabs', 'Insert', 'Merge with', 'Stretch right', 'Stretch down', 'Move cell to layout', 'Copy cell to layout', 'Remove widget', 'Close cell']

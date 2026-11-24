@@ -1,14 +1,15 @@
 import { memo, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { getActiveTab, type LayoutCell, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { edgeBetween, edgeStretches, isWholeLine, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
+import { edgeBetween, edgeStretches, isWholeLine, spanOf, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
 import { previewedLayout } from '../../utils/workspace-preview'
 import { absorbedCellIds, withStructurePreview } from '../../utils/structure-preview'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
-import { EDIT_GUTTER_PX, isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
+import { cellTouchesCollapsedColumn, columnStrips, EDIT_GUTTER_PX, isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
 import { isFitTrack } from '../../utils/workspace-rows'
 import { pairPercent } from '../../utils/workspace-resize'
 import { WorkspaceCell } from './WorkspaceCell'
-import { WorkspaceDivider, type DividerValue } from './WorkspaceDivider'
+import { WorkspaceDivider, type DividerCollapse, type DividerValue } from './WorkspaceDivider'
+import { ColumnStrip } from './ColumnStrip'
 import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
@@ -39,14 +40,33 @@ function EmptyLayout() {
   )
 }
 
-/** Whether row line `line` can move: no collapsed row track beside it (a Numbers-only row can: it takes a fixed height). */
-function rowLineMoves(layout: WorkspaceLayout, line: number): boolean {
-  return [line - 1, line].every((t) => trackSizing(layout, 'rows', t).kind !== 'collapsed')
+/**
+ * Whether a stretch gets a divider: a line beside a collapsed row or column
+ * has nothing to resize (a Numbers-only row's can: it takes a fixed
+ * height), and a row line's stretch along collapsed columns only lies
+ * inside their strip.
+ */
+function resizable(layout: WorkspaceLayout, stretch: EdgeStretch): boolean {
+  if (stretch.axis === 'rows' && layout.grid.columns.slice(stretch.from, stretch.to).every((t) => t.collapsed === true)) return false
+  return [stretch.line - 1, stretch.line].every((t) => trackSizing(layout, stretch.axis, t).kind !== 'collapsed')
 }
 
-/** Whether a stretch gets a divider: a row line beside a collapsed track has nothing to resize. */
-function resizable(layout: WorkspaceLayout, stretch: EdgeStretch): boolean {
-  return stretch.axis === 'columns' || rowLineMoves(layout, stretch.line)
+/**
+ * What a divider's pill collapses on each side of its stretch (track ids):
+ * every track of its axis the cells beside it there cover, collapsed
+ * together as Collapse row collapses a cell's rows — none when no cell there
+ * holds a widget (a folded track no widget lies only in opens again at once).
+ */
+function dividerCollapse(layout: WorkspaceLayout, stretch: EdgeStretch): DividerCollapse {
+  const { before, after } = stretchCells(layout, stretch)
+  const side = (cells: readonly LayoutCell[]): string[] => {
+    if (!cells.some((c) => c.tabs.length > 0)) return []
+    const spans = cells.map((c) => spanOf(c.area, stretch.axis))
+    const start = Math.min(...spans.map(([s]) => s))
+    const end = Math.max(...spans.map(([, e]) => e))
+    return layout.grid[stretch.axis].slice(start, end).map((t) => t.id)
+  }
+  return { before: side(before), after: side(after) }
 }
 
 /** The Numbers-only (fit) row tracks beside a row stretch — fitting, or given a height by a divider (`isFitTrack`). */
@@ -141,7 +161,12 @@ function dividerItems(layout: WorkspaceLayout, handle: ResizeHandle | null): Div
  * labelled with the cells beside it. (Layout edit mode E4: no crossing
  * handles — a divider's plain drag moves its whole line, Alt-drag its piece.)
  */
-function Dividers({ layout, handle }: { layout: WorkspaceLayout; handle: ResizeHandle | null }) {
+function Dividers({ layout, handle, pills }: {
+  layout: WorkspaceLayout
+  handle: ResizeHandle | null
+  /** Each divider's collapse pill (outside the layout edit mode). */
+  pills: boolean
+}) {
   const active = useMemo(() => layout.cells.map((c) => getActiveTab(c)).filter((t): t is LayoutTab => t != null), [layout.cells])
   const titles = useTabTitles(active)
   const titleOf = (cellId: string | undefined) => {
@@ -164,6 +189,7 @@ function Dividers({ layout, handle }: { layout: WorkspaceLayout; handle: ResizeH
           fitTrackIds={fitTracksBeside(layout, stretch)}
           // E4: a plain drag moves the whole line; Alt-drag breaks a piece that is part of one off.
           partOfLine={!isWholeLine(layout, stretch)}
+          collapse={pills ? dividerCollapse(layout, stretch) : undefined}
         />
       ))}
     </>
@@ -180,19 +206,34 @@ function Dividers({ layout, handle }: { layout: WorkspaceLayout; handle: ResizeH
  * The props a cell takes as objects are rebuilt from plain values here, so
  * they stay the same objects between renders.
  */
-const TableCell = memo(function TableCell({ cell, rowTracks, collapsed, fitRow, gridArea, gone = false }: {
+const TableCell = memo(function TableCell({ cell, rowTracks, columnTracks, collapsed, columnCollapsed, fitRow, gridArea, gone = false }: {
   cell: LayoutCell
   /** The ids of the row tracks it covers, as JSON (a string compares by its content; an id may hold any character). */
   rowTracks: string
+  /** The ids of the column tracks it covers, as JSON. */
+  columnTracks: string
   collapsed: boolean
+  /** Some column track it covers is collapsed. */
+  columnCollapsed: boolean
   fitRow: boolean
   gridArea: string
   /** A merge's preview took its tabs: drawn hidden under the merged cell, so its widgets stay mounted. */
   gone?: boolean
 }) {
   const rowTrackIds = useMemo(() => JSON.parse(rowTracks) as string[], [rowTracks])
+  const columnTrackIds = useMemo(() => JSON.parse(columnTracks) as string[], [columnTracks])
   const style = useMemo<CSSProperties>(() => (gone ? { gridArea, visibility: 'hidden' } : { gridArea }), [gridArea, gone])
-  return <WorkspaceCell cell={cell} rowTrackIds={rowTrackIds} collapsed={collapsed} fitRow={fitRow} style={style} />
+  return (
+    <WorkspaceCell
+      cell={cell}
+      rowTrackIds={rowTrackIds}
+      columnTrackIds={columnTrackIds}
+      collapsed={collapsed}
+      columnCollapsed={columnCollapsed}
+      fitRow={fitRow}
+      style={style}
+    />
+  )
 })
 
 /** No table to measure (outside the layout edit mode). */
@@ -202,8 +243,11 @@ const UNMEASURED_TABLE = { current: null }
  * The layout's table as one CSS grid (D26): each track sized by
  * `workspace-table.trackTemplate` (weights as `fr` never under the cells'
  * minimums — the table scrolls when they don't fit —, px, a fit row
- * `auto`, a collapsed row its header), each cell placed on its area, and a
- * divider in the gutter along each stretch of grid line. While a resize
+ * `auto`, a collapsed row its header, a collapsed column its strip), each
+ * cell placed on its area — outside the layout edit mode the cells lying
+ * only in collapsed columns drawn as those columns' strips (`ColumnStrip`) —,
+ * and a divider in the gutter along each stretch of grid line, with its
+ * collapse pill outside the mode. While a resize
  * drag previews a structural move (`resizePreview`), the table draws as its
  * release will leave it: the preview's tracks, each cell (the same element,
  * keyed by its id) at its area there.
@@ -220,7 +264,10 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
   const newIds = useMemo(() => new Set(structure?.newCellIds ?? []), [structure])
   const goneIds = useMemo(() => new Set(structure ? absorbedCellIds(working, structure.body) : []), [working, structure])
   const selectedId = useWorkspaceStore((s) => s.editing?.selectedCellId ?? null)
-  const { rows } = layout.grid
+  const { rows, columns } = layout.grid
+  // Outside the mode a collapsed column is its strips; in the mode its cells are cards like any other.
+  const strips = useMemo(() => (editing ? [] : columnStrips(layout)), [editing, layout])
+  const stripped = useMemo(() => new Set(strips.flatMap((s) => s.cells.map((c) => c.id))), [strips])
   const tableRef = useRef<HTMLDivElement | null>(null)
   // Measured only in the mode (the cards' and slots' ruler names).
   const drawn = useDrawnTracks(editing ? tableRef : UNMEASURED_TABLE, layout)
@@ -259,13 +306,16 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
             />,
           ]
         }
+        if (stripped.has(cell.id)) return []
         const tracks = rows.slice(row, row + rowSpan)
         const drawnCell = (
           <TableCell
             key={cell.id}
             cell={cell}
             rowTracks={JSON.stringify(tracks.map((t) => t.id))}
+            columnTracks={JSON.stringify(columns.slice(col, col + colSpan).map((t) => t.id))}
             collapsed={isCellCollapsedIn(layout, cell)}
+            columnCollapsed={cellTouchesCollapsedColumn(layout, cell)}
             fitRow={rowSpan === 1 && rowDrawsFitFaces(layout, row)}
             gridArea={`${row + 1} / ${col + 1} / span ${rowSpan} / span ${colSpan}`}
             gone={goneIds.has(cell.id)}
@@ -276,6 +326,13 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
           ? [drawnCell, <EditSelection key="edit-selection" layout={working} tableRef={tableRef} />]
           : [drawnCell]
       })}
+      {strips.map((s) => (
+        <ColumnStrip
+          key={`strip:${s.trackIds.join(' ')}:${s.r0}`}
+          strip={s}
+          style={{ gridArea: `${s.r0 + 1} / ${s.c0 + 1} / ${s.r1 + 1} / ${s.c1 + 1}` }}
+        />
+      ))}
       {structure && layout.cells.filter((c) => structure.grewCellIds.includes(c.id)).map((c) => (
         // A cell the edit grows across the new track: outlined over it.
         <div
@@ -289,7 +346,7 @@ function Table({ layout: working }: { layout: WorkspaceLayout }) {
         </div>
       ))}
       {/* While a preview shows, no divider: the table shows an edit not yet made. */}
-      {!structure && <Dividers layout={layout} handle={live && layout !== working ? live.handle : null} />}
+      {!structure && <Dividers layout={layout} handle={live && layout !== working ? live.handle : null} pills={!editing} />}
       {stretched && stretch && editView && (
         <div
           className={styles.stretchGhost}
@@ -352,8 +409,8 @@ function Grain() {
 
 /**
  * The open layout, filling the page: its table of cells, or the empty-layout
- * tiles. A collapsed row it arrives with that nothing can expand, expands
- * (`useExpandOrphanTracks`). In the layout edit mode (`data-layout-editing`)
+ * tiles. A collapsed row or column it arrives with that nothing can expand,
+ * expands (`useExpandOrphanTracks`). In the layout edit mode (`data-layout-editing`)
  * the workspace is tinted under a faint dot grid with an accent outline, and
  * each cell is a card (E3, `EditCard`): its content dims and takes no
  * presses — the card's surface under it does, and its tabs; nothing moves.

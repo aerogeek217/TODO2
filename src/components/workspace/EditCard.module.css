@@ -150,6 +150,18 @@
   }
 }
 
+/* A narrow card (in a collapsed column, a strip's width): the name runs down it, no kind. */
+@container (max-width: 60px) {
+  .blueprintInner {
+    padding: 36px 4px;
+    writing-mode: vertical-rl;
+  }
+
+  .blueprintKind {
+    display: none;
+  }
+}
+
 /* The selected card's toolbar takes the label's place. */
 :global([data-ws-cell]):has([data-edit-toolbar]) .label {
   display: none;

@@ -3,6 +3,7 @@ import { registerModuleReset } from '../../utils/module-reset'
 import { flushSync } from 'react-dom'
 import type { GridAxis, LayoutBody } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { afterLeavingEditors } from '../../stores/editor-leave'
 import { isWholeLine, type EdgeStretch } from '../../utils/workspace-grid'
 import { dividerBreaksOff, dividerMoveStretch, dividerTooltip } from '../../utils/divider-moves'
 import { edgeSnapLine, evenStretchDelta, moveEdge, withRowDrawnAt, type MoveEdgeOptions } from '../../utils/workspace-layout-ops'
@@ -11,6 +12,7 @@ import { trackSizing } from '../../utils/workspace-table'
 import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { shortcutScope } from '../../utils/dom-contract'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon } from '../shared/icons'
 import { drawnGap, drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
 import styles from './WorkspaceDivider.module.css'
 
@@ -19,6 +21,12 @@ export interface DividerValue {
   now: number
   max?: number
   text?: string
+}
+
+/** What a divider's collapse pill collapses on each side of its stretch: track ids, none for no button there. */
+export interface DividerCollapse {
+  before: readonly string[]
+  after: readonly string[]
 }
 
 interface WorkspaceDividerProps {
@@ -42,6 +50,56 @@ interface WorkspaceDividerProps {
   fitTrackIds?: readonly string[]
   /** Its stretch is part of its line (not the whole of it): Alt-drag breaks it off (its tooltip says so). */
   partOfLine?: boolean
+  /** Its collapse pill (outside the layout edit mode): the tracks each of its buttons collapses. Absent: no pill. */
+  collapse?: DividerCollapse
+}
+
+/**
+ * A pill button's name: `Collapse the column on the left`, `Collapse the
+ * rows below` — plural when it collapses more than one track.
+ */
+function collapsePillLabel(axis: GridAxis, side: 'before' | 'after', count: number): string {
+  const noun = axis === 'columns' ? 'column' : 'row'
+  const where = axis === 'columns' ? (side === 'before' ? 'on the left' : 'on the right') : (side === 'before' ? 'above' : 'below')
+  return `Collapse the ${noun}${count > 1 ? 's' : ''} ${where}`
+}
+
+/**
+ * A divider's collapse pill, drawn after it and its line (CSS shows it from
+ * the divider's hover, after 120ms, or focus, and while it is hovered or
+ * holds the focus): between columns ◂ ▸, between rows ▴ ▾, each collapsing
+ * the tracks on its side (`setTrackCollapsed`, view state — no undo step,
+ * as Collapse row). A sibling of the divider, not inside it: a press on it
+ * never starts a resize.
+ */
+function CollapsePill({ axis, collapse, style }: { axis: GridAxis; collapse: DividerCollapse; style: CSSProperties }) {
+  const sides = (['before', 'after'] as const).filter((side) => collapse[side].length > 0)
+  if (sides.length === 0) return null
+  const run = (ids: readonly string[]) => afterLeavingEditors(() => { void useWorkspaceStore.getState().setTrackCollapsed(ids, true) })
+  const icon = (side: 'before' | 'after') => (axis === 'columns'
+    ? (side === 'before' ? <ChevronLeftIcon size={12} /> : <ChevronRightIcon size={12} />)
+    : (side === 'before' ? <ChevronUpIcon size={12} /> : <ChevronDownIcon size={12} />))
+  return (
+    <div className={`${styles.pillWrap} ${axis === 'columns' ? styles.pillColumns : styles.pillRows}`} style={style} data-ws-divider-pill={axis}>
+      <div className={styles.pill}>
+        {sides.map((side) => {
+          const label = collapsePillLabel(axis, side, collapse[side].length)
+          return (
+            <button
+              key={side}
+              type="button"
+              className={styles.pillButton}
+              aria-label={label}
+              data-tooltip={label}
+              onClick={() => run(collapse[side])}
+            >
+              {icon(side)}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 /** What a divider drag keeps from its start. */
@@ -114,9 +172,11 @@ function SnapGuide({ axis, line, tracks }: { axis: GridAxis; line: number; track
  * `fitPx`, view state). ←/→ (↑/↓) move the whole line 16px, Alt + them the
  * piece, the focus staying on it (a run of them is one undo step); a
  * double-click evens the whole line's two tracks (Alt: moves the piece
- * midway between its own cells), or lets a fit row fit again.
+ * midway between its own cells), or lets a fit row fit again. Outside the
+ * layout edit mode its hover or focus shows its collapse pill
+ * (`CollapsePill`), which collapses the columns (rows) on either side.
  */
-export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, style, fitTrackIds = [], partOfLine = false }: WorkspaceDividerProps) {
+export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, style, fitTrackIds = [], partOfLine = false, collapse }: WorkspaceDividerProps) {
   const axisX = stretch.axis === 'columns'
   const dragRef = useRef<DragState | null>(null)
   const elRef = useRef<HTMLDivElement | null>(null)
@@ -396,6 +456,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
         aria-hidden="true"
         data-ws-divider-line={`${beforeId}|${afterId}`}
       />
+      {collapse && <CollapsePill axis={stretch.axis} collapse={collapse} style={style} />}
       {snap && <SnapGuide axis={stretch.axis} line={snap.line} tracks={snap.tracks} />}
     </>
   )
