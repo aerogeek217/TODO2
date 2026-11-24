@@ -180,7 +180,19 @@ function withNumbersWidgets(table: WsTable): WsTable {
   const { id: _id, ...fresh } = createTab('numbers', '', { numberItemId: '' }).config.items[0]!
   void _id
   const itemOf = (tab: WsTabSeed) => ({ ...structuredClone(fresh), ...tab.glance, id: tab.id, ...(tab.icon ? { icon: tab.icon } : {}) })
-  const widgetOf = (tabs: WsTabSeed[]): WsTabSeed => ({ id: `n-${tabs[0]?.id ?? ''}`, kind: 'numbers', glance: { items: tabs.map(itemOf) } })
+  // A widget's id new to the layout, as v90 picks it: `n-` + its first Number's id, numbered while taken.
+  const taken = new Set<string>([...table.grid.columns, ...table.grid.rows].map((t) => String(t.id)))
+  for (const cell of table.cells) {
+    taken.add(cell.id)
+    for (const tab of cell.tabs) taken.add(tab.id)
+  }
+  const widgetOf = (tabs: WsTabSeed[]): WsTabSeed => {
+    const base = `n-${tabs[0]?.id ?? ''}`
+    let id = base
+    for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
+    taken.add(id)
+    return { id, kind: 'numbers', glance: { items: tabs.map(itemOf) } }
+  }
   // A Numbers widget seeded as one, without its Numbers: one new Number, `<its id>-1`.
   const filled = (tab: WsTabSeed): WsTabSeed => (tab.kind === 'numbers' && !tab.glance?.items
     ? { ...tab, glance: { ...tab.glance, items: [{ ...structuredClone(fresh), id: `${tab.id}-1` }] } }
@@ -195,8 +207,8 @@ function withNumbersWidgets(table: WsTable): WsTable {
         return { ...cell, tabs: [widget], activeTabId: widget.id }
       }
       const tabs = cell.tabs.map((t) => (t.kind === 'number' ? widgetOf([t]) : t))
-      const active = cell.tabs.find((t) => t.id === cell.activeTabId)
-      return { ...cell, tabs, ...(active?.kind === 'number' ? { activeTabId: `n-${active.id}` } : {}) }
+      const at = cell.tabs.findIndex((t) => t.id === cell.activeTabId)
+      return { ...cell, tabs, ...(cell.tabs[at]?.kind === 'number' ? { activeTabId: tabs[at]?.id } : {}) }
     }),
   }
 }
