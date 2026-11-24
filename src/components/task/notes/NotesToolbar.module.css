@@ -2,7 +2,8 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 4px 8px;
+  /* In a cell whose controls float over its corner (no name line), its right end keeps clear of them. */
+  padding: 4px calc(8px + var(--cell-controls-reserve, 0px)) 4px 8px;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface-high);
   flex-wrap: wrap;
