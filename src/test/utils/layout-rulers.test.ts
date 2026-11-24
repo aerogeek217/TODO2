@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createTab, type LayoutBody } from '../../models/workspace-layout'
-import { columnShare, isSliverTrack, removeTrackMessage, rowCanCollapse, rowMark, runPlaceWords, sliverRun, trackNames } from '../../utils/layout-rulers'
+import { columnShare, isSliverTrack, removeTrackMessage, trackCanCollapse, rowMark, runPlaceWords, sliverRun, trackNames } from '../../utils/layout-rulers'
 import { trackRemoval } from '../../utils/workspace-layout-ops'
 import { cell as spec, grid, type CellSpec } from '../helpers/layout-builders'
 
@@ -46,11 +46,15 @@ describe('names and marks', () => {
     expect([0, 1, 2].map((i) => rowMark(body, i))).toEqual(['fit', 'folded', null])
   })
 
-  it('a row collapses only while a filled cell lies only in it', () => {
+  it('a row or a column collapses only while a filled cell lies only in it', () => {
     const t = cell('t')
     const body = grid([[t, cell('a')], [t, spec('e', [])]])
-    expect(rowCanCollapse(body, 0)).toBe(true)
-    expect(rowCanCollapse(body, 1)).toBe(false)
+    expect(trackCanCollapse(body, 'rows', 0)).toBe(true)
+    expect(trackCanCollapse(body, 'rows', 1)).toBe(false)
+    expect(trackCanCollapse(body, 'columns', 0)).toBe(true)
+    expect(trackCanCollapse(body, 'columns', 1)).toBe(true)
+    const wide = cell('w')
+    expect(trackCanCollapse(grid([[wide, wide], [cell('p'), spec('f', [])]]), 'columns', 1)).toBe(false)
   })
 })
 

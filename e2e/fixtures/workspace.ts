@@ -29,6 +29,8 @@ export interface WsTabSeed {
    * (`numberConfigOfMetric`), its other fields over that.
    */
   glance?: Record<string, unknown>
+  /** List board tabs (kind `shortcuts`): config fields over the kind's defaults, e.g. `{ source: 'layout' }`. */
+  board?: Record<string, unknown>
   /** Neglect map tabs: the config (defaults: colour by no tags, 14 days). */
   neglect?: {
     /** Colour by these tags (names from `tags`), by people, or not at all. */
@@ -73,7 +75,7 @@ export function wsRow(cell: WsCellSeed, extra: Omit<WsRowSeed, 'cells'> = {}): W
   return { ...extra, cells: [cell] }
 }
 
-/** A grid track's size: a weight (a number), or `{ px }` (fixed); `collapsed` on a row. */
+/** A grid track's size: a weight (a number), or `{ px }` (fixed); `collapsed` on a row or a column. */
 export type WsTrackSeed = number | { weight?: number; px?: number; collapsed?: boolean }
 
 /**
@@ -220,8 +222,6 @@ export interface WorkspaceSeed {
     followupInDays?: number
     /** The planned day (the Planner's `doDate`, schema v85), days from today. */
     doInDays?: number
-    /** Held in the Planner's Unplanned tray (`unplanned`, schema v86); ignored beside `doInDays`. */
-    unplanned?: boolean
     /** Hour of the due date (default midnight). */
     dueHour?: number
     /** The repeat, by its old name; stored as its interval (schema v84: weekly `{ count: 1, unit: 'w' }`). */
@@ -397,7 +397,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
           },
         } : {}),
         ...(task.followupInDays != null ? { nextFollowupAt: day(task.followupInDays) } : {}),
-        ...(task.doInDays != null ? { doDate: day(task.doInDays) } : task.unplanned ? { unplanned: true } : {}),
+        ...(task.doInDays != null ? { doDate: day(task.doInDays) } : {}),
         ...(task.lastFollowupInDays != null ? { lastFollowupAt: atDay(task.lastFollowupInDays) } : {}),
         ...(task.status != null ? { statusId: statusIds.get(task.status) } : {}),
         ...(task.urgent ? { urgent: true } : {}),
@@ -444,6 +444,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         if (n.untouchedDays != null) config.untouchedDays = n.untouchedDays
       }
       if (tab.glance) Object.assign(config, tab.glance)
+      if (tab.kind === 'shortcuts' && tab.board) Object.assign(config, tab.board)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
       if (tab.zoom != null) out.viewState = { ...(out.viewState as object | undefined), zoom: tab.zoom }
       if (tab.icon) out.icon = tab.icon
@@ -769,13 +770,35 @@ export async function openCellMenu(page: Page, cellId: string): Promise<void> {
 /**
  * Opens card `cellId`'s menu in the layout edit mode, `Cell layout` (E3: the
  * card's ⋯, at its top-right): Move to ▸, Swap with ▸, Split ▸, Merge with
- * ▸, Stretch right / down, Remove widget, Close cell. Open the mode first
- * (`enterLayoutEdit`); rows and columns are the rulers' ("+", their menus).
+ * ▸, Stretch right / down, Remove widget, Close cell (a selected card's
+ * toolbar holds the ⋯ then). Open the mode first (`enterLayoutEdit`); rows
+ * and columns are the selection's edge tabs (`insertBeside`) and the
+ * headers' menus.
  */
 export async function openCellLayoutMenu(page: Page, cellId: string): Promise<Locator> {
   await wsCell(page, cellId).hover()
   await wsCell(page, cellId).getByRole('button', { name: 'Cell layout' }).click()
   return page.getByRole('menu', { name: 'Cell layout' })
+}
+
+/** A selected card's or slot's edge tab in the layout edit mode: where its track goes. */
+export type EdgeTab = 'Row above' | 'Row below' | 'Column left' | 'Column right'
+
+/**
+ * In the layout edit mode, selects card or slot `cellId` (its focus: no
+ * move armed) and returns its edge tab `edge` (`+ Row above` …), a full
+ * row / column on that edge's line.
+ */
+export async function edgeTab(page: Page, cellId: string, edge: EdgeTab): Promise<Locator> {
+  await page.locator(`[data-edit-focus="${cellId}"]`).focus()
+  const tab = page.getByRole('button', { name: `Insert ${edge.toLowerCase()}`, exact: true })
+  await expect(tab).toBeVisible()
+  return tab
+}
+
+/** Clicks card or slot `cellId`'s edge tab `edge` (`edgeTab`): the track inserted, its first new cell selected. */
+export async function insertBeside(page: Page, cellId: string, edge: EdgeTab): Promise<void> {
+  await (await edgeTab(page, cellId, edge)).click()
 }
 
 /** The ⋯'s Add widget as tab › (a lone widget) or Add tab › (a cell showing a tab strip). */
@@ -796,7 +819,7 @@ export async function addWidgetAsTab(page: Page, cellId: string, label: string, 
 
 /**
  * A layout-wide edit made in the layout edit mode (the cards, their menus,
- * the rulers live only there): opens the mode, runs `edit` on the draft,
+ * the headers live only there): opens the mode, runs `edit` on the draft,
  * then Done — stored as one undo step, `Edited layout “X”`.
  */
 export async function editLayout(page: Page, edit: () => Promise<void>): Promise<void> {
@@ -814,7 +837,7 @@ export function layoutEditBar(page: Page): Locator {
  * Opens the layout edit mode (E1) from the open layout's tab menu (Edit
  * layout…) — or the picker's, while the layouts are folded into it — and
  * waits for its bar. Everything layout-wide — the cards and their menus,
- * whole-cell and cross-cell drags, the drop ghost, the rulers, the tray —
+ * whole-cell and cross-cell drags, the drop ghost, the headers, the tray —
  * is drawn only there, and acts on the draft until `finishLayoutEdit`.
  */
 export async function enterLayoutEdit(page: Page): Promise<void> {

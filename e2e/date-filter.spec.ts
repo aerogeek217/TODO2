@@ -77,7 +77,7 @@ async function lightEveryDateType(page: Page) {
       ...st.filters,
       dates: {
         deadline: { match: 'set' },
-        planned: { match: 'held' },
+        planned: { match: 'unset' },
         followup: { match: 'set' },
         lastFollowup: { ...range(null, { kind: 'offset', days: -14 }), includeNoDate: true },
         completed: range({ kind: 'relative', token: 'start-of-week' }, null),
@@ -389,11 +389,11 @@ test('the type menu at 336px: the seven types, every one lit with its clause; no
   await expectTypeMenuUnclipped(page, panel, 28)
   // Show's four choices fit its row (cr25 P8).
   await expectShowUnclipped(panel, ['Calendar', 'Relative', 'Any', 'None'])
-  // Planned held: None, its box ticked.
+  // Planned None: its line, no box under it.
   await pickDateType(page, panel, 'Planned')
   await expect(panel.getByRole('radio', { name: 'None' })).toHaveAttribute('aria-checked', 'true')
-  await expect(panel.getByRole('checkbox', { name: 'Only tasks held in Unplanned' })).toBeChecked()
-  await expect(dateBody(panel)).toContainText('held in Unplanned')
+  await expect(dateBody(panel).getByRole('checkbox')).toHaveCount(0)
+  await expect(dateBody(panel)).toContainText('Only tasks with no planned date.')
   // Completed is a range only (Calendar · Relative, no Is not), with its line.
   await pickDateType(page, panel, 'Completed')
   await expect(panel.getByRole('radiogroup')).toHaveCount(1)

@@ -67,10 +67,10 @@ describe('Add Widget ›', () => {
     const commands = createCommands(makeContext({ getLayouts: () => layouts, addWidget }))
     const step = find(commands, 'add-widget')?.step ?? []
     expect(step.map((c) => [c.group, c.name])).toEqual([
-      ['Tasks', 'List'], ['Tasks', 'Calendar'], ['Tasks', 'Review'], ['Tasks', 'Planner'], ['Tasks', 'Notes'], ['Tasks', 'Shortcuts'],
+      ['Tasks', 'List'], ['Tasks', 'Calendar'], ['Tasks', 'Review'], ['Tasks', 'Planner'], ['Tasks', 'Notes'], ['Tasks', 'List board'],
       ['Insights', 'Number'], ['Insights', 'Breakdown'], ['Insights', 'Pivot'],
       ['Insights', 'Created vs completed'], ['Insights', 'Neglect map'],
-      ['Insights', 'Work clusters'], ['Insights', 'List wall'],
+      ['Insights', 'Work clusters'],
     ])
     step.find((c) => c.name === 'Number')?.action()
     expect(addWidget).toHaveBeenCalledWith('number')

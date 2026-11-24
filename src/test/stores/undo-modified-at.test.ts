@@ -193,19 +193,21 @@ describe('a plan in the Planner is not an edit: its step never moves the Modifie
     expect(useTodoStore.getState().todos.filter((t) => ids.includes(t.id)).map((t) => t.doDate)).toEqual([new Date(2026, 10, 20), new Date(2026, 10, 20)])
   })
 
-  it('holding a task in Unplanned, its undo and its redo leave the stamp too', async () => {
+  it('clearing a plan, its undo and its redo leave the stamp too', async () => {
     const ids = await staleTasks('A', 'B')
+    const day = new Date(2026, 10, 20)
+    await useTodoStore.getState().setPlan(ids, { day })
     later(1)
-    await useTodoStore.getState().setPlan(ids, 'unplanned')
+    await useTodoStore.getState().setPlan(ids, null)
     for (const id of ids) expect(await stamp(id)).toEqual(T0)
     later(2)
     await useUndoStore.getState().undo()
     for (const id of ids) expect(await stamp(id)).toEqual(T0)
-    expect(useTodoStore.getState().todos.filter((t) => ids.includes(t.id)).map((t) => t.unplanned)).toEqual([undefined, undefined])
+    expect(useTodoStore.getState().todos.filter((t) => ids.includes(t.id)).map((t) => t.doDate)).toEqual([day, day])
     later(3)
     await useUndoStore.getState().redo()
     for (const id of ids) expect(await stamp(id)).toEqual(T0)
-    expect(useTodoStore.getState().todos.filter((t) => ids.includes(t.id)).map((t) => t.unplanned)).toEqual([true, true])
+    expect(useTodoStore.getState().todos.filter((t) => ids.includes(t.id)).map((t) => t.doDate)).toEqual([undefined, undefined])
   })
 
   it('its undo and redo leave a stamp a later edit wrote, and that edit’s undo still puts T0 back', async () => {

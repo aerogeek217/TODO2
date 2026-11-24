@@ -30,13 +30,13 @@ export function PlannerFilterLine({ tabId, filter }: { tabId: string; filter: To
         <button
           type="button"
           className={styles.filterNone}
-          aria-label={`${UNPLANNED_FILTER_LABEL}: nothing joins on its own`}
-          data-tooltip="Only what you unplan · click to edit"
+          aria-label={`${UNPLANNED_FILTER_LABEL}: nothing joins`}
+          data-tooltip="Unplanned stays empty · click to edit"
           data-testid="planner-filter-none"
           onClick={open}
         >
           <FunnelIcon size={12} />
-          <span className={styles.filterNoneWords}>Nothing joins on its own</span>
+          <span className={styles.filterNoneWords}>Nothing joins</span>
         </button>
       )}
     </div>

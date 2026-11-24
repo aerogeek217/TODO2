@@ -4,7 +4,7 @@ A change a popover shows either sticks or the user is warned. A popover saves wh
 
 ## Popovers
 
-- Esc or a click off saves what was typed: `FollowupPopover`, `SubtaskChecklist` in every host, `TaskNotePopover`, the Due cell's date popover (`task/DueFacts`: its date and its repeat; Esc in a repeat being typed puts it back first).
+- Esc or a click off saves what was typed: `FollowupPopover`, `SubtaskChecklist` in every host, `TaskNotePopover`, the Due field's repeat popover (`task/DueFacts`; Esc in a repeat being typed puts it back first).
 - A row's follow-up popover is `ui-store.followupPopover` (`openFollowupPopover` / `closeFollowupPopover`), shown by `FollowupPopoverHost`.
 - So do, in the task editor, the Status updates add line and the **+ Add subtask** line: Esc leaves them, and the editor's close adds what they hold.
 - Each writes it in an unmount cleanup, so every way of closing is covered. Only a Cancel button drops it.

@@ -339,6 +339,26 @@ describe('view state', () => {
     expect('collapsed' in (await stored(id!)).grid.rows[0]!).toBe(false)
   })
 
+  it('a column’s collapse is view state as a row’s: stored at once, no undo step, kept by a reload', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    await ws().setTrackCollapsed(['B'], true)
+    expect(undoNames()).toEqual([])
+    expect((await stored(id!)).grid.columns.map((c) => c.collapsed === true)).toEqual([false, true])
+    await reload()
+    expect(ws().working!.grid.columns.map((c) => c.collapsed === true)).toEqual([false, true])
+    await ws().setTrackCollapsed('B', false)
+    expect('collapsed' in (await stored(id!)).grid.columns[1]!).toBe(false)
+  })
+
+  it('an undo keeps a column collapsed since the step, as it keeps a row’s', async () => {
+    await seedAndInit(twoColumns())
+    ws().addWidget('notes', { kind: 'cell', cellId: 'ka' })
+    await ws().setTrackCollapsed('B', true)
+    await undo()
+    expect(tabsOf(ws().working, 'ka')).toHaveLength(2)
+    expect(ws().working!.grid.columns.map((c) => c.collapsed === true)).toEqual([false, true])
+  })
+
   it('a details-width write is view state: stored at once, no undo step; clearing removes it', async () => {
     const [id] = await seedAndInit(twoColumns())
     await ws().patchTabViewState('b1', 'lens', { detailsWidth: 310 })

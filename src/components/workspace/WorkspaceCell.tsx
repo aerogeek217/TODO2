@@ -15,6 +15,10 @@ export interface WorkspaceCellProps {
   rowTrackIds: readonly string[]
   /** Every row track it covers is collapsed: the cell shows only its header. */
   collapsed: boolean
+  /** The ids of the column tracks it covers: what Collapse column collapses (none: no entry). */
+  columnTrackIds?: readonly string[]
+  /** Some column track it covers is collapsed: its ⋯ offers Expand column instead. */
+  columnCollapsed?: boolean
   /** It lies in a row track that fits its content (`isFitTrack`): the widget shows its small face (D25 R). */
   fitRow?: boolean
   style?: CSSProperties

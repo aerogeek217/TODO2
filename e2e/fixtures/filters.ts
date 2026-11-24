@@ -34,14 +34,19 @@ export function filterPills(page: Page): Locator {
   return filterTray(page).locator('[data-top-bar-pill]')
 }
 
-/** The funnel at the tray's left: a toggle that pauses the screen filter (pressed while paused). */
+/** The funnel at the tray's left: one click clears every screen filter (Undo in the snackbar); disabled with none. */
 export function filterFunnel(page: Page): Locator {
-  return filterTray(page).getByRole('button', { name: 'Pause the filter' })
+  return filterTray(page).getByRole('button', { name: 'Clear the filter' })
 }
 
-/** The field's × (while a filter is on): one click clears every screen filter. */
+/** The funnel, by its role: one click clears every screen filter. */
 export function filterClear(page: Page): Locator {
   return filterTray(page).locator('[data-clear-filters]')
+}
+
+/** The field's pause toggle at its right end (while a filter is on): pressed while paused. */
+export function filterPause(page: Page): Locator {
+  return filterTray(page).getByRole('button', { name: 'Pause the filter' })
 }
 
 /** Show completed's pill (`done`, at rest) — its ×. */

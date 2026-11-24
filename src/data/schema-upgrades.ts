@@ -1,4 +1,6 @@
 import type { Transaction } from 'dexie'
+import { upgradeV88 } from './upgrades/v88'
+import { upgradeV89 } from './upgrades/v89'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -71,11 +73,15 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * Registry of data transforms keyed by the target schema version. A version
  * with no entry is an identity step (index-only bumps, empty-table additions).
  *
- * Only versions above the floor (`OLDEST_SUPPORTED_DB_VERSION`) have entries;
- * none yet — the floor is the current version. Each transform lives in
- * `data/upgrades/v<N>-*.ts` (or `v<N>/`, by parts).
+ * Only versions above the floor (`OLDEST_SUPPORTED_DB_VERSION`) have entries.
+ * Each transform lives in `data/upgrades/v<N>-*.ts` (or `v<N>/`, by parts).
  */
-export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>()
+export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([
+  // Every List wall tab becomes a List board of its layout's lists.
+  [88, upgradeV88],
+  // The Planner holds nothing by hand: `unplanned` and Planned's `held` clause go.
+  [89, upgradeV89],
+])
 
 /**
  * Applies the registry transforms for `fromVersion + 1 … toVersion` in order.

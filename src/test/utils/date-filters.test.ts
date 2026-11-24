@@ -91,7 +91,7 @@ describe('the date types a scope can still take (cr25 P4b)', () => {
     expect(freeDateField(undefined)).toBe('deadline')
     expect(freeDateField({ lastFollowup: { match: 'range', start: { kind: 'offset', days: -7 }, end: TODAY, not: true } })).toBe('deadline')
     expect(freeDateField({ deadline: { match: 'set' }, followup: { match: 'unset' } })).toBe('planned')
-    expect(freeDateField({ deadline: { match: 'set' }, planned: { match: 'held' }, followup: { match: 'unset' } })).toBe('lastFollowup')
+    expect(freeDateField({ deadline: { match: 'set' }, planned: { match: 'unset' }, followup: { match: 'unset' } })).toBe('lastFollowup')
     // A range without an end doesn't filter: its type is still free.
     expect(freeDateField({ deadline: { match: 'range', start: null, end: null } })).toBe('deadline')
     const all: DateFilters = {

@@ -37,12 +37,12 @@ describe('glance widget kinds', () => {
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'planner', 'notes', 'shortcuts'])
-    // Insights: the glance widgets, then the Neglect map and the task maps — whole widgets, not glance ones. The group
+    // Insights: the glance widgets, then the Neglect map and Work clusters — whole widgets, not glance ones. The group
     // is the menus' only: the Calendar (Tasks) and the Neglect map (Insights) alike are not glance kinds.
-    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'insights')).toEqual([...glance, 'neglect', 'clusters', 'listwall'])
-    expect(['calendar', 'neglect', 'clusters', 'listwall'].some((k) => isWidgetKind(k) && isGlanceKind(k))).toBe(false)
-    // The Dashboard (v77), the kinds D26 retired (v78), the Eisenhower (after v78), Project pulse and the Pressure radar (v83) are gone.
-    for (const gone of ['dashboard', 'followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary', 'people', 'tags', 'status', 'eisenhower', 'pulse', 'radar']) {
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'insights')).toEqual([...glance, 'neglect', 'clusters'])
+    expect(['calendar', 'neglect', 'clusters'].some((k) => isWidgetKind(k) && isGlanceKind(k))).toBe(false)
+    // The Dashboard (v77), the kinds D26 retired (v78), the Eisenhower (after v78), Project pulse and the Pressure radar (v83) and the List wall (v88) are gone.
+    for (const gone of ['dashboard', 'followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary', 'people', 'tags', 'status', 'eisenhower', 'pulse', 'radar', 'listwall']) {
       expect(isWidgetKind(gone), gone).toBe(false)
     }
   })

@@ -51,19 +51,17 @@ function openTagsDropdown() {
   fireEvent.click(screen.getByRole('button', { name: 'Add tag' }))
 }
 
-/** Opens the Due cell's date popover (its date, or `Set a date`). */
-function openDuePopover(): HTMLElement {
-  fireEvent.click(screen.getByRole('button', { name: /^(Due date:|Set due date)/ }))
-  return screen.getByRole('dialog', { name: 'Due date' })
+/** Opens the Due field's repeat popover (its ↻). */
+function openRepeatPopover(): HTMLElement {
+  fireEvent.click(within(document.querySelector('[data-fact="due"]') as HTMLElement).getByRole('button', { name: /^Repeat/ }))
+  return screen.getByRole('dialog', { name: 'Repeat' })
 }
 
-/** Types a due date into the date popover's input and leaves it (which writes it). */
+/** Picks a due date in the Due field's calendar (the browser's picker on its hidden date input). */
 function setDueDate(value: string) {
-  const popover = document.querySelector('[data-due-popover]') ? screen.getByRole('dialog', { name: 'Due date' }) : openDuePopover()
-  const input = popover.querySelector<HTMLInputElement>('input[type="date"]')
-  if (!input) throw new Error('no due date input')
+  const input = document.querySelector<HTMLInputElement>('[data-fact="due"] input[type="date"]')
+  if (!input) throw new Error('no due date picker')
   fireEvent.change(input, { target: { value } })
-  fireEvent.blur(input)
 }
 
 function renderCreateMode(overrides: Record<string, unknown> = {}) {
@@ -727,7 +725,6 @@ describe('TaskEditPopup', () => {
       const { onCreate } = renderCreateMode()
       typeTitle('Call plumber')
       setDueDate('2026-10-11')
-      fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
       const urgent = () => screen.getByRole('button', { name: 'Urgent' })
       expect(urgent()).toHaveAttribute('data-urgent', 'date')
       expect(urgent()).toHaveAttribute('aria-pressed', 'false')
@@ -760,9 +757,9 @@ describe('TaskEditPopup', () => {
         id: 6, title: 'Water plants', dueDate: new Date(2026, 3, 20), recurrenceRule: { every: { count: 1, unit: 'w' as const } },
       })
       const { onUpdate } = renderEditMode(todo)
-      // No standing repeat field in the band: it is in the date's popover.
+      // No standing repeat field in the band: it is in the ↻'s popover.
       expect(document.querySelector('[data-fact="due"] [data-repeat-field]')).toBeNull()
-      openDuePopover()
+      openRepeatPopover()
       expect(screen.getByRole('textbox', { name: 'Repeat every' })).toHaveValue('1w')
       fireEvent.keyDown(screen.getByRole('textbox', { name: 'Repeat every' }), { key: 'Escape' })
 
@@ -770,12 +767,9 @@ describe('TaskEditPopup', () => {
       const updated = onUpdate.mock.calls.at(-1)![0] as PersistedTodoItem
       expect(updated.dueDate).toBeUndefined()
       expect(updated.recurrenceRule).toBeUndefined()
-      openDuePopover()
-      expect(screen.queryByRole('textbox', { name: 'Repeat every' })).toBeNull()
-      expect(screen.queryByRole('button', { name: 'Clear due date' })).toBeNull()
     })
 
-    describe('the Due cell', () => {
+    describe('the Due field', () => {
       beforeEach(() => {
         vi.useFakeTimers({ toFake: ['Date'] })
         vi.setSystemTime(new Date(2026, 10, 19, 10)) // Thu 19 Nov 2026
@@ -784,38 +778,96 @@ describe('TaskEditPopup', () => {
       afterEach(() => { vi.useRealTimers() })
       const cell = () => document.querySelector('[data-fact="due"]') as HTMLElement
       const under = () => cell().querySelector('[data-date-under]') as HTMLElement
+      const field = () => within(cell()).getByRole('textbox', { name: 'Due date' })
+      const words = () => cell().querySelector('[data-fact-date-field] > span[aria-hidden="true"]') as HTMLElement
 
-      it('two lines: the date, the repeat glyph named by its rule, ×; how far it is under them', () => {
+      it('a field like the follow-ups’: the date’s words at rest, ×, ↻ named by its rule, the calendar; how far it is under it', () => {
         renderEditMode(makeTodo({ id: 21, title: 'Sync', dueDate: new Date(2026, 10, 21), recurrenceRule: { every: { count: 2, unit: 'w' } } }))
-        const date = screen.getByRole('button', { name: 'Due date: Saturday, November 21, 2026' })
-        expect(date).toHaveTextContent(/^11\/21$/)
-        expect(date).toHaveAttribute('aria-haspopup', 'dialog')
-        const glyph = screen.getByRole('img', { name: 'Every 2 weeks' })
-        expect(glyph).toHaveAttribute('data-tooltip', 'Every 2 weeks')
-        expect(screen.getByRole('button', { name: 'Clear due date' })).toBeInTheDocument()
+        expect(cell().querySelector('[data-fact-date-field]')).toHaveAttribute('data-tooltip', 'Saturday, November 21, 2026')
+        expect(words()).toHaveTextContent(/^11\/21$/)
+        expect(field()).toHaveValue('Sat 21 Nov')
+        expect(within(cell()).getByRole('button', { name: 'Clear due date' })).toBeInTheDocument()
+        const repeat = within(cell()).getByRole('button', { name: 'Repeat: Every 2 weeks' })
+        expect(repeat).toHaveAttribute('data-tooltip', 'Every 2 weeks')
+        expect(repeat).toHaveAttribute('data-on')
+        expect(repeat).toHaveAttribute('aria-haspopup', 'dialog')
+        expect(within(cell()).getByRole('button', { name: 'Pick due date' })).toBeInTheDocument()
         expect(under()).toHaveTextContent('in 2 days')
         expect(under()).toHaveAttribute('data-tooltip', 'in 2 days')
       })
 
-      it('a late date says how late under it; no repeat, no glyph', () => {
+      it('a late date: its words in the late tone, how late under it; no repeat, the ↻ unlit', () => {
         renderEditMode(makeTodo({ id: 22, title: 'Late', dueDate: new Date(2026, 10, 16) }))
         expect(under()).toHaveTextContent('3 days late')
-        expect(within(cell()).queryByRole('img')).toBeNull()
+        expect(words().querySelector('[data-tone="due-past"]')).toHaveTextContent('11/16')
+        const repeat = within(cell()).getByRole('button', { name: 'Repeat' })
+        expect(repeat).not.toHaveAttribute('data-on')
+        expect(repeat).not.toHaveAttribute('data-due-repeat')
       })
 
-      it('without a date: `Set a date`, opening the same popover; the second line kept empty', () => {
+      it('without a date: `None`, no × and no ↻; the second line kept empty', () => {
         renderEditMode(makeTodo({ id: 23, title: 'Undated' }))
-        expect(screen.getByRole('button', { name: 'Set due date' })).toHaveTextContent('Set a date')
+        expect(words()).toHaveTextContent(/^None$/)
+        expect(field()).toHaveValue('')
         expect(under()).toBeEmptyDOMElement()
         expect(within(cell()).queryByRole('button', { name: 'Clear due date' })).toBeNull()
-        const popover = openDuePopover()
-        expect(popover.querySelector('input[type="date"]')).toHaveValue('')
-        // Gated on a date, as before.
-        expect(within(popover).queryByRole('textbox', { name: 'Repeat every' })).toBeNull()
+        expect(within(cell()).queryByRole('button', { name: /^Repeat/ })).toBeNull()
+      })
+
+      it('typed text says what it means under the field and is written when the field is left; ⏎ leaves it', () => {
+        const { onUpdate } = renderEditMode(makeTodo({ id: 24, title: 'Sync', dueDate: new Date(2026, 10, 23) }))
+        fireEvent.focus(field())
+        fireEvent.change(field(), { target: { value: 'fri' } })
+        expect(under()).toHaveTextContent('→ Fri 20 Nov · tomorrow')
+        expect(onUpdate).not.toHaveBeenCalled()
+        fireEvent.blur(field())
+        expect(onUpdate).toHaveBeenCalledTimes(1)
+        expect(onUpdate).toHaveBeenLastCalledWith({ dueDate: new Date(2026, 10, 20) })
+        fireEvent.focus(field())
+        fireEvent.change(field(), { target: { value: '2w' } })
+        fireEvent.keyDown(field(), { key: 'Enter' })
+        fireEvent.blur(field())
+        expect(onUpdate).toHaveBeenCalledTimes(2)
+        expect(onUpdate).toHaveBeenLastCalledWith({ dueDate: new Date(2026, 11, 3) })
+      })
+
+      it('a text that doesn’t read says so and is never written; Esc puts the stored date back', () => {
+        const { onUpdate } = renderEditMode(makeTodo({ id: 25, title: 'Sync', dueDate: new Date(2026, 10, 23) }))
+        fireEvent.focus(field())
+        fireEvent.change(field(), { target: { value: 'soonish' } })
+        expect(field()).toHaveAttribute('aria-invalid', 'true')
+        expect(under()).toHaveTextContent('Try 2w, 10d, 1m, fri, 24 Oct or 10/24')
+        fireEvent.blur(field())
+        expect(onUpdate).not.toHaveBeenCalled()
+        fireEvent.focus(field())
+        fireEvent.keyDown(field(), { key: 'Escape' })
+        expect(field()).toHaveValue('Mon 23 Nov')
+        expect(onUpdate).not.toHaveBeenCalled()
+        // The editor stays open: the field held the Esc.
+        expect(screen.getByRole('dialog', { name: 'Edit task' })).toBeInTheDocument()
+      })
+
+      it('the calendar opens the browser’s picker in one click; a pick writes the date', () => {
+        const { onUpdate } = renderEditMode(makeTodo({ id: 26, title: 'Sync', dueDate: new Date(2026, 10, 23) }))
+        fireEvent.click(within(cell()).getByRole('button', { name: 'Pick due date' }))
+        expect(HTMLInputElement.prototype.showPicker).toHaveBeenCalledTimes(1)
+        const picker = cell().querySelector<HTMLInputElement>('input[type="date"]')!
+        expect(picker).toHaveValue('2026-11-23')
+        fireEvent.change(picker, { target: { value: '2026-12-01' } })
+        expect(onUpdate).toHaveBeenLastCalledWith({ dueDate: new Date(2026, 11, 1) })
+        expect(field()).toHaveValue('Tue 1 Dec')
+      })
+
+      it('× clears the date and its repeat', () => {
+        const { onUpdate } = renderEditMode(makeTodo({ id: 27, title: 'Sync', dueDate: new Date(2026, 10, 23), recurrenceRule: { every: { count: 1, unit: 'w' } } }))
+        fireEvent.click(within(cell()).getByRole('button', { name: 'Clear due date' }))
+        expect(onUpdate).toHaveBeenCalledTimes(1)
+        expect(onUpdate.mock.calls[0]![0]).toMatchObject({ dueDate: undefined, recurrenceRule: undefined })
+        expect(field()).toHaveValue('')
       })
     })
 
-    describe('the date popover', () => {
+    describe('the repeat popover', () => {
       beforeEach(() => {
         vi.useFakeTimers({ toFake: ['Date'] })
         vi.setSystemTime(new Date(2026, 10, 19, 10)) // Thu 19 Nov 2026
@@ -823,88 +875,59 @@ describe('TaskEditPopup', () => {
       afterEach(() => { vi.useRealTimers() })
       const repeatField = () => screen.getByRole('textbox', { name: 'Repeat every' })
       const readBack = () => document.querySelector('[data-repeat-readback]')
-      const dateInput = () => screen.getByRole('dialog', { name: 'Due date' }).querySelector('input[type="date"]') as HTMLInputElement
-      const popoverOpen = () => document.querySelector('[data-due-popover]') != null
+      const popoverOpen = () => document.querySelector('[data-repeat-popover]') != null
 
-      it('opens on the date with the focus in its date; Esc closes it, the focus back on the date', () => {
+      it('opens from the ↻ with the focus in Repeat every; Esc closes it, the focus back on the ↻', () => {
         renderEditMode(makeTodo({ id: 30, title: 'Sync', dueDate: new Date(2026, 10, 23) }))
-        const trigger = screen.getByRole('button', { name: /^Due date:/ })
+        const trigger = screen.getByRole('button', { name: 'Repeat' })
         fireEvent.click(trigger)
         expect(trigger).toHaveAttribute('aria-expanded', 'true')
-        expect(dateInput()).toHaveValue('2026-11-23')
-        expect(document.activeElement).toBe(dateInput())
-        fireEvent.keyDown(dateInput(), { key: 'Escape' })
+        expect(screen.getByRole('dialog', { name: 'Repeat' })).toBeInTheDocument()
+        expect(document.activeElement).toBe(repeatField())
+        fireEvent.keyDown(repeatField(), { key: 'Escape' })
         expect(popoverOpen()).toBe(false)
         expect(document.activeElement).toBe(trigger)
       })
 
-      it('a date typed is written when the field is left, one update; ⏎ writes it and closes', () => {
-        const { onUpdate } = renderEditMode(makeTodo({ id: 31, title: 'Sync', dueDate: new Date(2026, 10, 23) }))
-        openDuePopover()
-        fireEvent.change(dateInput(), { target: { value: '2026-11-25' } })
-        expect(onUpdate).not.toHaveBeenCalled()
-        fireEvent.blur(dateInput())
-        expect(onUpdate).toHaveBeenCalledTimes(1)
-        expect(onUpdate).toHaveBeenLastCalledWith({ dueDate: new Date(2026, 10, 25) })
-        fireEvent.change(dateInput(), { target: { value: '2026-11-27' } })
-        fireEvent.keyDown(dateInput(), { key: 'Enter' })
-        expect(onUpdate).toHaveBeenCalledTimes(2)
-        expect(onUpdate).toHaveBeenLastCalledWith({ dueDate: new Date(2026, 10, 27) })
-        expect(popoverOpen()).toBe(false)
-      })
-
-      it('what was typed is kept however it closes: a press outside writes the date and the repeat', () => {
+      it('what was typed is kept however it closes: a press outside writes the repeat', () => {
         const { onUpdate } = renderEditMode(makeTodo({ id: 32, title: 'Sync', dueDate: new Date(2026, 10, 23) }))
-        openDuePopover()
-        fireEvent.change(dateInput(), { target: { value: '2026-11-30' } })
-        fireEvent.mouseDown(document.body)
-        expect(popoverOpen()).toBe(false)
-        expect(onUpdate).toHaveBeenCalledTimes(1)
-        expect(onUpdate).toHaveBeenLastCalledWith({ dueDate: new Date(2026, 10, 30) })
-
-        openDuePopover()
+        openRepeatPopover()
         fireEvent.change(repeatField(), { target: { value: '3d' } })
         fireEvent.mouseDown(document.body)
         expect(popoverOpen()).toBe(false)
-        expect(onUpdate).toHaveBeenCalledTimes(2)
+        expect(onUpdate).toHaveBeenCalledTimes(1)
         expect(onUpdate).toHaveBeenLastCalledWith({ recurrenceRule: { every: { count: 3, unit: 'd' } } })
       })
 
-      it('an emptied or half-typed date writes nothing', () => {
-        const { onUpdate } = renderEditMode(makeTodo({ id: 33, title: 'Sync', dueDate: new Date(2026, 10, 23) }))
-        openDuePopover()
-        fireEvent.change(dateInput(), { target: { value: '' } })
-        fireEvent.blur(dateInput())
-        fireEvent.keyDown(dateInput(), { key: 'Escape' })
-        expect(onUpdate).not.toHaveBeenCalled()
-      })
-
-      it('Clear due date clears the date and its repeat, closes, and writes nothing typed after', () => {
+      it('Stop repeating, while it repeats: removes the repeat, closes, and writes nothing typed after', () => {
         const { onUpdate } = renderEditMode(makeTodo({ id: 34, title: 'Sync', dueDate: new Date(2026, 10, 23), recurrenceRule: { every: { count: 1, unit: 'w' } } }))
-        openDuePopover()
+        openRepeatPopover()
         fireEvent.change(repeatField(), { target: { value: '2w' } })
-        fireEvent.click(within(screen.getByRole('dialog', { name: 'Due date' })).getByRole('button', { name: 'Clear due date' }))
+        fireEvent.click(within(screen.getByRole('dialog', { name: 'Repeat' })).getByRole('button', { name: 'Stop repeating' }))
         expect(popoverOpen()).toBe(false)
         expect(onUpdate).toHaveBeenCalledTimes(1)
-        expect(onUpdate.mock.calls[0]![0]).toMatchObject({ dueDate: undefined, recurrenceRule: undefined })
-        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Set due date' }))
+        expect(onUpdate).toHaveBeenLastCalledWith({ recurrenceRule: undefined })
+        cleanup()
+        renderEditMode(makeTodo({ id: 35, title: 'Once', dueDate: new Date(2026, 10, 23) }))
+        openRepeatPopover()
+        expect(screen.queryByRole('button', { name: 'Stop repeating' })).toBeNull()
       })
 
       it('reads back the repeat and its next date; empty, No repeat', () => {
         renderEditMode(makeTodo({ id: 7, title: 'Sync', dueDate: new Date(2026, 10, 23), recurrenceRule: { every: { count: 2, unit: 'w' } } }))
-        openDuePopover()
+        openRepeatPopover()
         expect(repeatField()).toHaveValue('2w')
         expect(readBack()).toHaveTextContent('Every 2 weeks · next Mon, Dec 7')
         cleanup()
         renderEditMode(makeTodo({ id: 8, title: 'Once', dueDate: new Date(2026, 10, 23) }))
-        openDuePopover()
+        openRepeatPopover()
         expect(repeatField()).toHaveValue('')
         expect(readBack()).toHaveTextContent('No repeat')
       })
 
       it('⏎ writes a typed interval as one update, its day of the month kept for months, and closes the popover', () => {
         const { onUpdate } = renderEditMode(makeTodo({ id: 9, title: 'Rent', dueDate: new Date(2026, 0, 31) }))
-        openDuePopover()
+        openRepeatPopover()
         fireEvent.change(repeatField(), { target: { value: '1m' } })
         expect(readBack()).toHaveTextContent('Every month · next')
         fireEvent.keyDown(repeatField(), { key: 'Enter' })
@@ -915,7 +938,7 @@ describe('TaskEditPopup', () => {
 
       it('a blur writes it; emptied, the repeat goes; unchanged, nothing is written', () => {
         const { onUpdate } = renderEditMode(makeTodo({ id: 10, title: 'Sync', dueDate: new Date(2026, 10, 23), recurrenceRule: { every: { count: 1, unit: 'w' } } }))
-        openDuePopover()
+        openRepeatPopover()
         fireEvent.focus(repeatField())
         fireEvent.blur(repeatField())
         expect(onUpdate).not.toHaveBeenCalled()
@@ -926,7 +949,7 @@ describe('TaskEditPopup', () => {
 
       it('a text that doesn’t read says how to write one and is never written; Esc puts the stored text back, a second Esc closes', () => {
         const { onUpdate } = renderEditMode(makeTodo({ id: 11, title: 'Sync', dueDate: new Date(2026, 10, 23), recurrenceRule: { every: { count: 1, unit: 'w' } } }))
-        openDuePopover()
+        openRepeatPopover()
         fireEvent.change(repeatField(), { target: { value: '2x' } })
         expect(screen.getByRole('alert')).toHaveTextContent('Use a number and d, w, m or y: 3d, 2w, 1m, 1y')
         expect(repeatField()).toHaveAttribute('aria-invalid', 'true')

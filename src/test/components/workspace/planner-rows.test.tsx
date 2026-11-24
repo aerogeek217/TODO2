@@ -21,9 +21,9 @@ import { clearFilterStore, getByTooltip, makeTodo, resetEntityStores } from '../
 
 /**
  * The four Planner-only things on a Planner's rows — the corner flag on a
- * placed row, the tag after the title (a Delayed row's planned day, a held
- * row's natural day, a conflict's words as a button with its fixes), the
- * passed date drawn late, the Snooze / Unplan hover buttons —, Reset plan
+ * placed row, the tag after the title (a Delayed row's planned day, a
+ * conflict's words as a button with its fixes), the passed date drawn late,
+ * the Snooze / Unplan (or Remove) / Today hover buttons —, Reset plan
  * (the top line's control and the ⋯ menu's submenu), and that a row outside
  * a Planner is untouched by any of it.
  */
@@ -50,13 +50,11 @@ const TODOS = (): PersistedTodoItem[] => [
   makeTodo({ id: 7, uid: 'past-followup', title: 'Past its follow-up', nextFollowupAt: day(4), dueDate: day(20), doDate: day(6), sortOrder: 7 }),
   // Delayed: planned for Wed 18.
   makeTodo({ id: 8, uid: 'missed', title: 'Missed plan', doDate: day(-2), dueDate: day(10), sortOrder: 8 }),
-  // Unplanned: held with a natural day (Mon 23), held with none, in Focus.
-  makeTodo({ id: 9, uid: 'held', title: 'Held call', unplanned: true, nextFollowupAt: day(3), sortOrder: 9 }),
-  makeTodo({ id: 10, uid: 'held-bare', title: 'Held, no date', unplanned: true, sortOrder: 10 }),
+  // Unplanned: in Focus.
   makeTodo({ id: 11, uid: 'focus', title: 'Someday focus', focus: true, sortOrder: 11 }),
 ]
 
-const PLACED = ['Planned for today', 'Monday plan', 'Past its due date', 'Past both dates', 'Past its follow-up', 'Missed plan', 'Held, no date', 'Held call']
+const PLACED = ['Planned for today', 'Monday plan', 'Past its due date', 'Past both dates', 'Past its follow-up', 'Missed plan']
 
 function show(host: WidgetFaceHost = {}, tab: PlannerTab = PLANNER) {
   return render(
@@ -111,7 +109,7 @@ afterEach(() => {
 })
 
 describe('the corner flag', () => {
-  it('is on every row with a plan state — a planned day, Delayed, held in Unplanned — and on no other', () => {
+  it('is on every row with a plan — a planned day, Delayed — and on no other: never on a row in Unplanned', () => {
     show()
     expect(flagged()).toEqual(PLACED)
     // There by its own date, or in Unplanned by Focus alone: no flag.
@@ -142,14 +140,12 @@ describe('the corner flag', () => {
     expect(root().querySelector('[data-mark="plan"]')).not.toBeNull()
   })
 
-  it('is drawn only: the row’s accessible description says it in words — planned, planned for a day, set aside', () => {
+  it('is drawn only: the row’s accessible description says it in words — planned, planned for a day', () => {
     show()
     const box = (title: string) => within(rowOf(title)).getByRole('checkbox')
     expect(box('Monday plan')).toHaveAccessibleDescription('planned')
     expect(box('Past its due date')).toHaveAccessibleDescription('planned')
     expect(box('Missed plan')).toHaveAccessibleDescription('planned for Wed')
-    expect(box('Held call')).toHaveAccessibleDescription('set aside')
-    expect(box('Held, no date')).toHaveAccessibleDescription('set aside')
     // A row with no flag has none; its checkbox keeps its name.
     expect(box('Monday deadline')).not.toHaveAttribute('aria-description')
     expect(box('Someday focus')).not.toHaveAttribute('aria-description')
@@ -195,11 +191,10 @@ describe('the corner flag', () => {
 })
 
 describe('the tag after the title', () => {
-  it('a Delayed row: the day it was planned for; a held row with a natural day: that day; a row planned past a real date: how far past', () => {
+  it('a Delayed row: the day it was planned for; a row planned past a real date: how far past; none in Unplanned', () => {
     show()
     expect(tags()).toEqual({
       'Missed plan': 'Wed',
-      'Held call': 'Mon',
       'Past its due date': '1 day after due',
       'Past both dates': '3 days after due',
       'Past its follow-up': '2 days after follow-up',
@@ -208,8 +203,7 @@ describe('the tag after the title', () => {
     expect(tagOf('Missed plan')).toHaveAttribute('data-planner-tag', 'planned')
     expect(tagOf('Missed plan')?.tagName).toBe('SPAN')
     expect(getByTooltip(rowOf('Missed plan'), 'Planned for Wed, Nov 18')).toBe(tagOf('Missed plan'))
-    expect(tagOf('Held call')).toHaveAttribute('data-planner-tag', 'natural')
-    expect(getByTooltip(rowOf('Held call'), 'Its own date puts it on Mon, Nov 23')).toBe(tagOf('Held call'))
+    expect(tagOf('Someday focus')).toBeNull()
     expect(tagOf('Past its due date')).toHaveAttribute('data-planner-tag', 'conflict')
     expect(tagOf('Past its due date')?.tagName).toBe('BUTTON')
     expect(within(rowOf('Past its due date')).getByRole('button', { name: '1 day after due' })).toHaveAttribute('aria-haspopup', 'menu')
@@ -230,7 +224,7 @@ describe('the tag after the title', () => {
   it('is on a Lines row too', () => {
     useSettingsStore.setState({ listZoom: 'lines' })
     show()
-    expect(tags()).toMatchObject({ 'Missed plan': 'Wed', 'Held call': 'Mon', 'Past its due date': '1 day after due' })
+    expect(tags()).toMatchObject({ 'Missed plan': 'Wed', 'Past its due date': '1 day after due' })
     expect(rowOf('Past its due date').querySelector('[data-task-title]')?.nextElementSibling).toBe(tagOf('Past its due date'))
   })
 
@@ -267,7 +261,7 @@ describe('the tag after the title', () => {
       show()
       fireEvent.click(within(open('Past its due date')).getByRole('menuitem', { name: 'Move due date to Tue, Nov 24' }))
       expect(update).toHaveBeenCalledTimes(1)
-      expect(update).toHaveBeenCalledWith(5, { dueDate: day(4), doDate: undefined, unplanned: undefined })
+      expect(update).toHaveBeenCalledWith(5, { dueDate: day(4), doDate: undefined })
       expect(setPlan).not.toHaveBeenCalled()
       expect(openEdit).not.toHaveBeenCalled()
       expect(screen.queryByRole('menu', { name: 'Fix the plan' })).toBeNull()
@@ -369,9 +363,8 @@ describe('the date a plan falls after', () => {
     // Both.
     expect(cell('Past both dates', 'due')).toHaveAttribute('data-date-level', 'late')
     expect(cell('Past both dates', 'followup')).toHaveAttribute('data-date-level', 'late')
-    // A Delayed row's and a held row's dates are not drawn late.
+    // A Delayed row's dates are not drawn late.
     expect(cell('Missed plan', 'due')).toHaveAttribute('data-date-level', 'later')
-    expect(cell('Held call', 'followup')).toHaveAttribute('data-followup', 'upcoming')
   })
 
   it('in the Stacked style too', () => {
@@ -384,15 +377,18 @@ describe('the date a plan falls after', () => {
 })
 
 describe('the hover buttons', () => {
-  it('Snooze and Unplan on a row of a day and of Delayed; Today on a row in Unplanned — and, held there, Remove or Clear', () => {
+  it('Snooze on a row of a day and of Delayed, with Unplan on a placed one — Remove when clearing takes it out; Today alone in Unplanned', () => {
     show()
-    for (const title of ['Due today', 'Planned for today', 'Monday deadline', 'Monday plan', 'Past its due date', 'Missed plan']) {
-      expect(actionsOf(title)).toEqual(['Snooze', 'Unplan'])
-    }
-    // Held with no date: clearing takes it out of the Planner. Held with a date in the window: back on that day. Focus: nothing to clear.
-    expect(actionsOf('Held, no date')).toEqual(['Today', 'Remove'])
-    expect(actionsOf('Held call')).toEqual(['Today', 'Clear'])
+    // There by its own date: nothing to unplan.
+    for (const title of ['Due today', 'Monday deadline']) expect(actionsOf(title)).toEqual(['Snooze'])
+    // Placed, and its own date keeps it in the Planner once cleared.
+    for (const title of ['Past its due date', 'Past both dates', 'Past its follow-up']) expect(actionsOf(title)).toEqual(['Snooze', 'Unplan'])
+    // Placed, with no date in the window and not in Focus: clearing takes it out.
+    for (const title of ['Planned for today', 'Monday plan', 'Missed plan']) expect(actionsOf(title)).toEqual(['Snooze', 'Remove'])
+    // In Unplanned: never placed, so only Today — no Clear or Remove there.
     expect(actionsOf('Someday focus')).toEqual(['Today'])
+    expect(rowOf('Someday focus').querySelector('[data-row-cell="planner-clear"], [data-row-cell="planner-unplan"]')).toBeNull()
+    expect(rowOf('Monday plan').querySelector('[data-row-cell="planner-unplan"]')).toHaveTextContent('Remove')
     // In the row's hover cluster, at the title's end.
     expect(rowOf('Due today').querySelector('[data-planner-actions]')?.closest('[data-row-cluster]')).not.toBeNull()
   })
@@ -400,15 +396,16 @@ describe('the hover buttons', () => {
   it('are in a stacked row too, and on no Lines row', () => {
     width = 400
     show({ forced: 'large' })
-    expect(actionsOf('Monday plan')).toEqual(['Snooze', 'Unplan'])
-    expect(actionsOf('Held call')).toEqual(['Today', 'Clear'])
+    expect(actionsOf('Past its due date')).toEqual(['Snooze', 'Unplan'])
+    expect(actionsOf('Monday plan')).toEqual(['Snooze', 'Remove'])
+    expect(actionsOf('Someday focus')).toEqual(['Today'])
     cleanup()
     useSettingsStore.setState({ listZoom: 'lines' })
     show({ forced: 'large' })
     expect(root().querySelector('[data-planner-actions]')).toBeNull()
   })
 
-  it('Snooze plans the row for the next day; Unplan moves it to Unplanned — and neither opens the task', () => {
+  it('Snooze plans the row for the next day; Unplan clears its plan, Remove too, saying so — and none opens the task', () => {
     const { setPlan, update } = watch()
     show()
     const press = (title: string, name: string) => fireEvent.click(within(rowOf(title)).getByRole('button', { name }))
@@ -420,58 +417,41 @@ describe('the hover buttons', () => {
     // A Delayed row: tomorrow.
     press('Missed plan', 'Snooze')
     expect(setPlan).toHaveBeenLastCalledWith([8], { day: day(1) })
-    press('Monday deadline', 'Unplan')
-    expect(setPlan).toHaveBeenLastCalledWith([3], 'unplanned')
-    // No date of its own and not in Focus: held, so it stays in the Planner.
-    press('Monday plan', 'Unplan')
-    expect(setPlan).toHaveBeenLastCalledWith([4], 'unplanned')
+    // Back to its due day: the plain plan write.
+    press('Past its due date', 'Unplan')
+    expect(setPlan).toHaveBeenLastCalledWith([5], null)
+    // No date of its own and not in Focus: it leaves the Planner, and the snackbar says so.
+    press('Monday plan', 'Remove')
+    expect(setPlan).toHaveBeenLastCalledWith([4], null, 'Removed “Monday plan” from the Planner', true)
     expect(setPlan).toHaveBeenCalledTimes(5)
     expect(update).not.toHaveBeenCalled()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('Today plans an Unplanned row for today, held or in Focus', () => {
+  it('Today plans an Unplanned row for today', () => {
     const { setPlan, update } = watch()
     show()
-    const press = (title: string) => fireEvent.click(within(rowOf(title)).getByRole('button', { name: 'Today' }))
-    press('Someday focus')
+    fireEvent.click(within(rowOf('Someday focus')).getByRole('button', { name: 'Today' }))
     expect(setPlan).toHaveBeenLastCalledWith([11], { day: day(0) })
-    press('Held call')
-    expect(setPlan).toHaveBeenLastCalledWith([9], { day: day(0) })
-    press('Held, no date')
-    expect(setPlan).toHaveBeenLastCalledWith([10], { day: day(0) })
     expect(update).not.toHaveBeenCalled()
-    expect(getByTooltip(rowOf('Held call'), 'Plan for today')).toHaveTextContent('Today')
-  })
-
-  it('Remove and Clear clear a held row’s plan: one write, no date', async () => {
-    const { setPlan, update } = watch()
-    show()
-    fireEvent.click(within(rowOf('Held, no date')).getByRole('button', { name: 'Remove' }))
-    await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([10], null, 'Removed “Held, no date” from the Planner', true))
-    fireEvent.click(within(rowOf('Held call')).getByRole('button', { name: 'Clear' }))
-    await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([9], null))
-    expect(update).not.toHaveBeenCalled()
-    expect(getByTooltip(rowOf('Held, no date'), 'Remove from the Planner')).toHaveTextContent('Remove')
-    expect(getByTooltip(rowOf('Held call'), 'Clear the plan')).toHaveTextContent('Clear')
+    expect(getByTooltip(rowOf('Someday focus'), 'Plan for today')).toHaveTextContent('Today')
   })
 
   it('say what they do in a tooltip', () => {
     show()
     expect(getByTooltip(rowOf('Monday plan'), 'Plan for Tue, Nov 24')).toHaveTextContent('Snooze')
-    expect(getByTooltip(rowOf('Monday plan'), 'Move to Unplanned')).toHaveTextContent('Unplan')
+    expect(getByTooltip(rowOf('Past its due date'), 'Clear the plan')).toHaveTextContent('Unplan')
+    expect(getByTooltip(rowOf('Monday plan'), 'Clear the plan: it leaves the Planner')).toHaveTextContent('Remove')
   })
 })
 
 describe('the focus follows a row moved from the keyboard', () => {
   /** The plan writes applied to the store's tasks (no database): the rows move as they would. */
   function livePlans() {
-    const setPlan = vi.fn((ids: number[], plan: { day: Date } | 'unplanned' | null) => {
+    const setPlan = vi.fn((ids: number[], plan: { day: Date } | null) => {
       act(() => {
         useTodoStore.setState({
-          todos: useTodoStore.getState().todos.map((t) => (ids.includes(t.id)
-            ? { ...t, doDate: plan && plan !== 'unplanned' ? plan.day : undefined, unplanned: plan === 'unplanned' ? true as const : undefined }
-            : t)),
+          todos: useTodoStore.getState().todos.map((t) => (ids.includes(t.id) ? { ...t, doDate: plan ? plan.day : undefined } : t)),
         })
       })
       return Promise.resolve(true)
@@ -496,27 +476,42 @@ describe('the focus follows a row moved from the keyboard', () => {
   })
 
   it('Unplan: to the row in Unplanned — its Today button, the row having no Unplan there', async () => {
+    useTodoStore.setState({ todos: [...TODOS(), makeTodo({ id: 12, title: 'Focus plan', focus: true, doDate: day(3), sortOrder: 12 })] })
     livePlans()
     show()
-    keyPress(button('Monday deadline', 'Unplan'))
-    await waitFor(() => expect(groupOf('Monday deadline')).toBe('Unplanned'))
-    await waitFor(() => expect(document.activeElement).toBe(button('Monday deadline', 'Today')))
+    keyPress(button('Focus plan', 'Unplan'))
+    await waitFor(() => expect(groupOf('Focus plan')).toBe('Unplanned'))
+    await waitFor(() => expect(document.activeElement).toBe(button('Focus plan', 'Today')))
+  })
+
+  it('Unplan back to its own day: to the row there — its Snooze button, the row having no Unplan there', async () => {
+    livePlans()
+    show()
+    keyPress(button('Past its due date', 'Unplan'))
+    await waitFor(() => expect(groupOf('Past its due date')).toBe('Mon, Nov 23'))
+    await waitFor(() => expect(document.activeElement).toBe(button('Past its due date', 'Snooze')))
   })
 
   it('Remove: the row gone, to the row that took its place', async () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'First plan', doDate: day(1), sortOrder: 1 }),
+        makeTodo({ id: 2, title: 'Second plan', doDate: day(1), sortOrder: 2 }),
+      ],
+    })
     livePlans()
     show()
-    keyPress(button('Held, no date', 'Remove'))
-    await waitFor(() => expect(root().querySelector('[data-task-title="Held, no date"]')).toBeNull())
-    await waitFor(() => expect(document.activeElement?.closest('[data-planner-group]')?.getAttribute('aria-label')).toBe('Unplanned'))
+    keyPress(button('First plan', 'Remove'))
+    await waitFor(() => expect(root().querySelector('[data-task-title="First plan"]')).toBeNull())
+    await waitFor(() => expect(document.activeElement?.closest('[data-planner-row]')).toBe(rowOf('Second plan')))
   })
 
   it('Today: to the row in Today — its Snooze button', async () => {
     livePlans()
     show()
-    keyPress(button('Held call', 'Today'))
-    await waitFor(() => expect(groupOf('Held call')).toBe('Today'))
-    await waitFor(() => expect(document.activeElement).toBe(button('Held call', 'Snooze')))
+    keyPress(button('Someday focus', 'Today'))
+    await waitFor(() => expect(groupOf('Someday focus')).toBe('Today'))
+    await waitFor(() => expect(document.activeElement).toBe(button('Someday focus', 'Snooze')))
   })
 
   it('a fix: the tag gone with the conflict, to the row it was on', async () => {
@@ -576,15 +571,15 @@ describe('on the phone', () => {
   it('a placed row has its flag and its tag (on a line under it), a passed date is drawn late — and there are no hover buttons', () => {
     show({ heightFree: true })
     expect(flagged()).toEqual(PLACED)
-    expect(tags()).toMatchObject({ 'Missed plan': 'Wed', 'Held call': 'Mon', 'Past its due date': '1 day after due' })
+    expect(tags()).toMatchObject({ 'Missed plan': 'Wed', 'Past its due date': '1 day after due' })
     expect(root().querySelector('[data-planner-actions]')).toBeNull()
     expect(rowOf('Past its due date').querySelector('[data-row-part="due"]')).toHaveAttribute('data-date-level', 'late')
     expect(rowOf('Monday deadline').querySelector('[data-row-part="due"]')).toHaveAttribute('data-date-level', 'soon')
     // A follow-up the plan falls after shows there, late (the phone shows a follow-up only when it asks for action).
     expect(rowOf('Past its follow-up').querySelector('[data-row-part="followup"]')).toHaveAttribute('data-date-level', 'late')
-    expect(rowOf('Held call').querySelector('[data-row-part="followup"]')).toBeNull()
-    // The flag in words, after what the row's details say.
-    expect(within(rowOf('Held, no date')).getByRole('button', { name: 'Held, no date' })).toHaveAttribute('aria-description', 'set aside')
+    // The flag in words, after what the row's details say; none on a row in Unplanned.
+    expect(within(rowOf('Monday plan')).getByRole('button', { name: 'Monday plan' })).toHaveAttribute('aria-description', 'planned')
+    expect(within(rowOf('Someday focus')).getByRole('button', { name: 'Someday focus' })).not.toHaveAttribute('aria-description')
     expect(within(rowOf('Missed plan')).getByRole('button', { name: 'Missed plan' }).getAttribute('aria-description')).toMatch(/planned for Wed$/)
     // The conflict's tag opens its fixes there too.
     fireEvent.click(tagOf('Past its due date')!)
@@ -610,14 +605,14 @@ describe('Reset plan', () => {
     expect(button).toHaveTextContent('Reset plan')
     expect(button).toHaveAttribute('aria-haspopup', 'menu')
     expect(button.closest('[data-widget-top-line]')).not.toBeNull()
-    // This week: every placed task the Planner shows (8). Today only: the one planned for today. Delayed: one.
-    expect(rows(openMenu())).toEqual([['This week', '8', false], ['Today only', '1', false], ['Delayed', '1', false]])
+    // This week: every placed task the Planner shows (6). Today only: the one planned for today. Delayed: one.
+    expect(rows(openMenu())).toEqual([['This week', '6', false], ['Today only', '1', false], ['Delayed', '1', false]])
   })
 
   it('a choice with nothing to clear is inert', () => {
     useTodoStore.setState({ todos: TODOS().filter((t) => t.uid !== 'missed' && t.uid !== 'planned-today') })
     alone()
-    expect(rows(openMenu())).toEqual([['This week', '6', false], ['Today only', '0', true], ['Delayed', '0', true]])
+    expect(rows(openMenu())).toEqual([['This week', '4', false], ['Today only', '0', true], ['Delayed', '0', true]])
     cleanup()
     useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'By its date', dueDate: day(1) })] })
     alone()
@@ -628,7 +623,7 @@ describe('Reset plan', () => {
     const { setPlan, update, askConfirmation } = watch()
     alone()
     fireEvent.click(within(openMenu()).getByRole('menuitem', { name: /^This week/ }))
-    await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([2, 4, 5, 6, 7, 8, 10, 9], null, 'Reset plan: this week', true))
+    await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([2, 4, 5, 6, 7, 8], null, 'Reset plan: this week', true))
     fireEvent.click(within(openMenu()).getByRole('menuitem', { name: /^Today only/ }))
     await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([2], null, 'Reset plan: today', true))
     fireEvent.click(within(openMenu()).getByRole('menuitem', { name: /^Delayed/ }))
@@ -671,7 +666,7 @@ describe('Reset plan', () => {
     expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Unplanned filter…', 'Reset plan'])
     const choices = item(result.current, 'Reset plan').children ?? []
     expect(choices.map((e) => (e.kind === 'item' ? [e.label, e.note, e.disabled] : e.kind))).toEqual([
-      ['This week', '8', false], ['Today only', '1', false], ['Delayed', '1', false],
+      ['This week', '6', false], ['Today only', '1', false], ['Delayed', '1', false],
     ])
     act(() => { item(choices, 'Delayed').onSelect?.() })
     await waitFor(() => expect(setPlan).toHaveBeenCalledWith([8], null, 'Reset plan: Delayed', true))
@@ -685,7 +680,7 @@ describe('Reset plan', () => {
     const before = renders
     // A plan cleared: the Planner's counts change, the other cell's menu hook is not run again.
     act(() => { useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 4 ? { ...t, doDate: undefined } : t)) }) })
-    expect(usePlannerStore.getState().resets[plannerWindowKey(undefined, 'plan')]?.counts).toEqual({ week: 7, today: 1, delayed: 1 })
+    expect(usePlannerStore.getState().resets[plannerWindowKey(undefined, 'plan')]?.counts).toEqual({ week: 5, today: 1, delayed: 1 })
     expect(renders).toBe(before)
     expect(result.current).toEqual([])
   })
@@ -694,7 +689,7 @@ describe('Reset plan', () => {
     const key = plannerWindowKey(undefined, 'plan')
     const { unmount } = show()
     const report = usePlannerStore.getState().resets[key]
-    expect(report?.counts).toEqual({ week: 8, today: 1, delayed: 1 })
+    expect(report?.counts).toEqual({ week: 6, today: 1, delayed: 1 })
     // A change that moves no count (a title): the same report, so no menu is built again.
     act(() => { useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 1 ? { ...t, title: 'Renamed' } : t)) }) })
     expect(usePlannerStore.getState().resets[key]).toBe(report)

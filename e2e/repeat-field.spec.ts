@@ -5,15 +5,16 @@ import { pickInReview, seedWorkspace, wsRow, type WorkspaceSeed } from './fixtur
 
 /**
  * A task's repeat is typed (schema v84, board R1) behind its due date: in the
- * task editor and the review card the Due cell's date opens a small popover
- * whose `Repeat every [2w]` ⏎ or a blur writes — the stored rule an
- * interval, a month's day of the month kept —, ⏎ closing the popover with
- * the focus back on the date; the read-back says it with the next due date,
- * an empty field removes it, a text that doesn't read says how to write one
- * and is never written, Esc puts the stored text back and keeps the popover
- * open, a second Esc closes it (and nothing around it), and a press outside
- * keeps what was typed. The cell shows the rows' repeat glyph, named by the
- * rule; the rows say it in words (`Every 2 weeks`) in the due date's tooltip.
+ * task editor and the review card the Due field's ↻ (lit while the task
+ * repeats, named and tooltipped by the rule) opens a small popover whose
+ * `Repeat every [2w]` ⏎ or a blur writes — the stored rule an interval, a
+ * month's day of the month kept —, ⏎ closing the popover with the focus back
+ * on the ↻; the read-back says it with the next due date, an empty field
+ * removes it, a text that doesn't read says how to write one and is never
+ * written, Esc puts the stored text back and keeps the popover open, a second
+ * Esc closes it (and nothing around it), a press outside keeps what was
+ * typed, and Stop repeating removes it. The rows say it in words
+ * (`Every 2 weeks`) in the due date's tooltip.
  */
 
 const TITLE = 'Team sync'
@@ -47,31 +48,33 @@ function nextWords(days: number): string {
 
 async function exerciseRepeat(page: Page, host: Locator) {
   const due = host.locator('[data-fact="due"]')
-  const date = due.getByRole('button', { name: /^Due date:/ })
-  const glyph = due.getByRole('img')
-  const popover = page.getByRole('dialog', { name: 'Due date' })
+  const button = due.getByRole('button', { name: /^Repeat/ })
+  const popover = page.getByRole('dialog', { name: 'Repeat' })
   const field = popover.getByRole('textbox', { name: 'Repeat every' })
   const readBack = popover.locator('[data-repeat-readback]')
-  // No standing field in the band: the rows' glyph names the stored weekly repeat.
-  await expect(due.getByRole('textbox')).toHaveCount(0)
-  await expect(glyph).toHaveAccessibleName(/^Every (Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/)
+  // No standing repeat field in the band: the ↻, lit, names the stored weekly repeat.
+  await expect(due.getByRole('textbox', { name: 'Repeat every' })).toHaveCount(0)
+  await expect(button).toHaveAccessibleName(/^Repeat: Every (Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/)
+  await expect(button).toHaveAttribute('data-on', '')
 
-  // The date opens the popover: the stored weekly repeat (v84: 1w), read back with its weekday and next date.
-  await date.click()
+  // The ↻ opens the popover: the stored weekly repeat (v84: 1w), read back with its weekday and next date.
+  await button.click()
+  await expect(field).toBeFocused()
   await expect(field).toHaveValue('1w')
   await expect(readBack).toHaveText(`Every ${new Date(Date.now() + 4 * 86_400_000).toLocaleDateString('en-US', { weekday: 'short' })} · next ${nextWords(11)}`)
 
-  // ⏎ writes a typed interval and closes the popover, the focus back on the date.
+  // ⏎ writes a typed interval and closes the popover, the focus back on the ↻.
   await field.fill('2w')
   await expect(readBack).toHaveText(`Every 2 weeks · next ${nextWords(18)}`)
   await field.press('Enter')
   await expect(popover).toBeHidden()
-  await expect(date).toBeFocused()
+  await expect(button).toBeFocused()
   await expect.poll(() => storedRepeat(page)).toBe('2w')
-  await expect(glyph).toHaveAccessibleName('Every 2 weeks')
+  await expect(button).toHaveAccessibleName('Repeat: Every 2 weeks')
+  await expect(button).toHaveAttribute('data-tooltip', 'Every 2 weeks')
 
-  // A text that doesn't read: its hint, nothing written — ⏎ and a blur alike. Enter on the date opens it.
-  await date.press('Enter')
+  // A text that doesn't read: its hint, nothing written — ⏎ and a blur alike. Enter on the ↻ opens it.
+  await button.press('Enter')
   await field.fill('2x')
   await expect(popover.getByRole('alert')).toHaveText('Use a number and d, w, m or y: 3d, 2w, 1m, 1y')
   await field.press('Enter')
@@ -87,22 +90,34 @@ async function exerciseRepeat(page: Page, host: Locator) {
   await field.press('Escape')
   await expect(popover).toBeHidden()
   await expect(host).toBeVisible()
-  await expect(date).toBeFocused()
+  await expect(button).toBeFocused()
 
   // A press outside keeps what was typed.
-  await date.click()
+  await button.click()
   await field.fill('3m')
   await due.getByText('Due', { exact: true }).click()
   await expect(popover).toBeHidden()
   await expect.poll(() => storedRepeat(page)).toBe('3m')
 
-  // Emptied, the repeat goes, and the glyph with it.
-  await date.click()
+  // Emptied, the repeat goes, and the ↻ goes out.
+  await button.click()
   await field.fill('')
   await expect(readBack).toHaveText('No repeat')
   await field.press('Enter')
   await expect.poll(() => storedRepeat(page)).toBeUndefined()
-  await expect(glyph).toHaveCount(0)
+  await expect(button).toHaveAccessibleName('Repeat')
+  await expect(button).not.toHaveAttribute('data-on')
+
+  // Set again, then Stop repeating removes it.
+  await button.click()
+  await field.fill('3m')
+  await field.press('Enter')
+  await expect.poll(() => storedRepeat(page)).toBe('3m')
+  await button.click()
+  await popover.getByRole('button', { name: 'Stop repeating' }).click()
+  await expect(popover).toBeHidden()
+  await expect.poll(() => storedRepeat(page)).toBeUndefined()
+  await expect(button).toHaveAccessibleName('Repeat')
 }
 
 test.describe('the typed repeat', () => {
@@ -121,7 +136,7 @@ test.describe('the typed repeat', () => {
     await expect(dialog).toBeVisible()
     await exerciseRepeat(page, dialog)
 
-    // One undo step per write: Ctrl+Z brings back the 3-month repeat.
+    // One undo step per write: Ctrl+Z brings back the 3-month repeat Stop repeating removed.
     await dialog.getByRole('button', { name: /^Close/ }).first().click()
     await expect(dialog).toBeHidden()
     await page.keyboard.press('Control+z')
@@ -130,7 +145,7 @@ test.describe('the typed repeat', () => {
     await expect(page.getByRole('tooltip')).toContainText('Every 3 months')
   })
 
-  test('the review card: the same popover', async ({ page }) => {
+  test('the review card: the same ↻ and popover', async ({ page }) => {
     await seedWorkspace(page, REVIEW_SEED)
     await pickInReview(page, 'rv1', 'Aisha')
     const card = page.locator('[data-review-widget="rv1"] [data-review-card]')

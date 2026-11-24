@@ -160,13 +160,13 @@ describe('TopBar typed filter (P2)', () => {
     expect(options[0]).toHaveTextContent('Approve the budget')
   })
 
-  it('the field’s × clears the typed expression and its text with every chip', () => {
+  it('the funnel clears the typed expression and its text with every chip', () => {
     renderBar()
     type('@Aisha or #q4')
     rest()
     expect(f().expression).toBeDefined()
     act(() => input().blur())
-    fireEvent.click(within(tray()).getByRole('button', { name: 'Clear all filters' }))
+    fireEvent.click(within(tray()).getByRole('button', { name: 'Clear the filter' }))
     expect(f().expression).toBeUndefined()
     expect(useFilterStore.getState().isActive).toBe(false)
     expect(input().value).toBe('')

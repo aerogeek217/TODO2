@@ -34,7 +34,7 @@ components/
 ├── layout/             → the top bar and its screen-filter tray, the layout edit bar, the storage pill,
 │                         the phone's sync button and bottom tab bar
 ├── workspace/          → the layout's table of cells, cell chrome, the layout edit mode, the widget popup, and the
-│                         widgets: list/, calendar/, glance/, neglect/, clusters/, listwall/, planner/, review/, shortcuts/, NotesWidget
+│                         widgets: list/, calendar/, glance/, neglect/, clusters/, planner/, review/, shortcuts/ (the List board), NotesWidget
 ├── task/               → task rows (desktop and phone), Quick Add, the task menu, the task editor,
 │                         status-updates/, subtasks/, notes/, dnd/
 ├── overlays/           → the command palette, the task dialog, the filtered-tasks panel, dialogs,
@@ -83,8 +83,8 @@ One file per feature, at most 4,000 words each. Each says how the feature behave
 | Status updates and subtasks | [status-updates-and-subtasks](architecture/features/status-updates-and-subtasks.md) | dated status updates and following up by entering one, the checklist, notes → tasks |
 | Workspace layout | [workspace-layout](architecture/features/workspace-layout.md) | the table and its tabs, rendering, dividers, adding a widget, hue and icon, the Calendar, the phone |
 | Layout autosave | [layout-autosave](architecture/features/layout-autosave.md) | how a layout is written, what is one undo step, lists following an edit, view state, failed writes; opening, creating, duplicating and deleting layouts |
-| Layout ops | [layout-ops](architecture/features/layout-ops.md) | split and insert, removing and merging tracks, cells, collapsing a row |
-| Layout edit mode | [layout-edit-mode](architecture/features/layout-edit-mode.md) | the draft, rulers, cards and slots, the tray, drops and the ghost |
+| Layout ops | [layout-ops](architecture/features/layout-ops.md) | split and insert, removing and merging tracks, cells, collapsing rows and columns |
+| Layout edit mode | [layout-edit-mode](architecture/features/layout-edit-mode.md) | the draft, the room and headers, the selection's edge tabs and merge buttons, cards and slots, the tray, drops and the ghost |
 | Move / Copy to layout | [cross-layout-moves](architecture/features/cross-layout-moves.md) | the menu entries, placing the widgets, Done and Cancel, the two-layout write and its undo, what goes with a tab |
 | Widget chrome | [widget-chrome](architecture/features/widget-chrome.md) | cell menus, tabs on demand, the strip of Numbers, fit rows, faces, Open larger |
 | Screen filter | [screen-filter](architecture/features/screen-filter.md) | the top bar's chips and typed filter, the pause, the counter |
@@ -92,12 +92,12 @@ One file per feature, at most 4,000 words each. Each says how the feature behave
 | Lists | [lists](architecture/features/lists.md) | built lists, grouping, rows, zoom, badges, Edit list |
 | Glance widgets | [glance-widgets](architecture/features/glance-widgets.md) | what glance widgets share, the Number and its shapes, the widget editors, the history log |
 | Charts | [charts](architecture/features/charts.md) | Breakdown, Pivot, Created vs completed |
-| Task maps | [task-maps](architecture/features/task-maps.md) | the Neglect map, Work clusters, the List wall |
+| Task maps | [task-maps](architecture/features/task-maps.md) | the Neglect map, Work clusters |
 | Review | [review](architecture/features/review.md) | Review jumps, the rail and the card, the task layout the editor shares, the Review widget |
 | Check-ins | [check-ins](architecture/features/check-ins.md) | the message, the check-in dialog, Copy, the reply import |
 | Planner | [planner](architecture/features/planner.md) | a task's plan state, placement, the window, drops, Snooze and Unplan, Reset plan |
 | Planner widget | [planner-widget](architecture/features/planner-widget.md) | the Planner's faces, its rows, drag feedback, menus |
-| Shortcuts | [shortcuts](architecture/features/shortcuts.md) | a tile per picked list of any layout, its faces, adding, removing and reordering, the list in the popup |
+| List board | [list-board](architecture/features/list-board.md) | a tile per list — picked from any layout, or this layout's —, squares and titles, its faces, Which lists, adding, removing and reordering, the list in the popup |
 | Ambience | [ambience](architecture/features/ambience.md) | the sky, the seasons, the settings |
 | Popovers and editors | [popovers-and-editors](architecture/features/popovers-and-editors.md) | what a dismissal keeps, the editor-leave rule and everything that asks it |
 
@@ -112,7 +112,7 @@ Two layers, picked by what's being verified (setup, fixtures and helpers: [archi
 
 **Diagnosis vs. regression.** The Chrome DevTools MCP server (`mcp__chrome-devtools__*`) is a *spike* tool — drive an interaction live in real Chromium, then codify the regression in Playwright. See CLAUDE.md "Tools — Chrome DevTools MCP".
 
-**Manual-testing seed.** `npm run seed:dev` writes a realistic export in the current schema to `dev-data/seed-v87.json` (gitignored) for Settings → Import / Export → Import JSON.
+**Manual-testing seed.** `npm run seed:dev` writes a realistic export in the current schema to `dev-data/seed-v89.json` (gitignored) for Settings → Import / Export → Import JSON.
 
 ## Detail References
 

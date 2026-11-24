@@ -1,6 +1,7 @@
 /* A divider (D26 P2): a grid item of the table, in the gutter before the
- * track after its line, along its stretch. The visible gutter is 6px; the
- * hit area reaches 2px into each neighbour (10px). */
+ * track after its line, along its stretch. The gutter is `--workspace-gutter`
+ * (6px; 16px in the layout edit mode); the hit area reaches 2px into each
+ * neighbour. Its line is drawn in the gutter's middle. */
 .divider {
   position: relative;
   z-index: var(--z-above-2);
@@ -57,14 +58,14 @@
 .betweenColumns::after {
   top: 0;
   bottom: 0;
-  left: 2px;
+  left: calc(50% - 1px);
   width: 2px;
 }
 
 .betweenCells::after {
   left: 0;
   right: 0;
-  top: 2px;
+  top: calc(50% - 1px);
   height: 2px;
 }
 
@@ -118,7 +119,7 @@
 .guideColumns::after {
   top: 0;
   bottom: 0;
-  left: 2px;
+  left: calc(50% - 1px);
   width: 2px;
 }
 
@@ -131,7 +132,7 @@
 .guideRows::after {
   left: 0;
   right: 0;
-  top: 2px;
+  top: calc(50% - 1px);
   height: 2px;
 }
 
@@ -179,4 +180,90 @@
 .dragging:not([data-break]) + .lineLight::after {
   background: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-accent-bg);
+}
+
+/* A divider's collapse pill (outside the layout edit mode): a sibling after
+ * its line, placed as the divider is, the pill at its stretch's middle.
+ * Hidden (not focusable) at rest; the divider's hover shows it after 120ms,
+ * its focus at once, and it stays while hovered or holding the focus — not
+ * during a drag. Between columns its buttons stack (◂ over ▸), between rows
+ * they sit side by side (▴ ▾). */
+.pillWrap {
+  position: relative;
+  z-index: var(--z-above-3);
+  pointer-events: none;
+}
+
+.pillColumns {
+  justify-self: start;
+  width: var(--workspace-gutter);
+  margin-left: calc(-1 * var(--workspace-gutter));
+}
+
+.pillRows {
+  align-self: start;
+  height: var(--workspace-gutter);
+  margin-top: calc(-1 * var(--workspace-gutter));
+}
+
+.pill {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-bright);
+  box-shadow: var(--shadow-raised);
+  transform: translate(-50%, -50%);
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity var(--transition-fast) 0ms, visibility var(--transition-fast) 0ms;
+}
+
+.pillColumns .pill {
+  flex-direction: column;
+}
+
+.pillButton {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.pillButton:hover {
+  background: var(--color-accent-bg);
+}
+
+.pillButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.divider:hover + .lineLight + .pillWrap .pill {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 120ms;
+}
+
+.divider:focus-visible + .lineLight + .pillWrap .pill,
+.pill:hover,
+.pill:focus-within {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0ms;
+}
+
+.dragging + .lineLight + .pillWrap .pill {
+  visibility: hidden;
+  opacity: 0;
 }

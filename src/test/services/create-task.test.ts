@@ -129,20 +129,18 @@ describe('create a task — the planned day', () => {
       const steps = useUndoStore.getState().undoStack.length
       const { todo } = await make()
       expect(todo).toMatchObject({ title: 'Deck', doDate: inTwo })
-      expect(todo.unplanned).toBeUndefined()
       expect(todo.modifiedAt).toEqual(todo.createdAt)
       expect((await db.todos.get(todo.id))?.doDate).toEqual(inTwo)
       expect(useUndoStore.getState().undoStack).toHaveLength(steps + 1)
     }
   })
 
-  it('the editor’s Planned cell wins over a typed /plan; held in Unplanned is kept', async () => {
+  it('the editor’s Planned cell wins over a typed /plan; left empty, the typed /plan plans it', async () => {
     const inThree = addDays(startOfToday(), 3)
     const picked = await viaEditor({ title: 'Deck /plan tomorrow', doDate: inThree })
     expect(picked.todo.doDate).toEqual(inThree)
-    const held = await viaEditor({ title: 'Notes /plan tomorrow', unplanned: true })
-    expect(held.todo.unplanned).toBe(true)
-    expect(held.todo.doDate).toBeUndefined()
+    const typed = await viaEditor({ title: 'Notes /plan tomorrow' })
+    expect(typed.todo).toMatchObject({ title: 'Notes', doDate: addDays(startOfToday(), 1) })
   })
 })
 

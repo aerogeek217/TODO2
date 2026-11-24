@@ -226,8 +226,8 @@ test.describe('the Planner', () => {
     const cell = wsCell(page, 'k1')
     await expect(cell).toHaveAttribute('data-face', 'large')
     await expect(planner(page)).toHaveAttribute('data-planner-face', 'large')
-    // Alone in its cell: its top line names it, with the week's range.
-    await expect(cell.getByTestId('top-line-name')).toHaveText('Planner')
+    // Alone in its cell: its top line holds the week's range (no name: widget names are off by default).
+    await expect(cell.getByTestId('top-line-name')).toHaveCount(0)
     await expect(cell.getByTestId('planner-range')).toBeVisible()
 
     // The strip: the arrows at its ends, seven tiles of one width between them.

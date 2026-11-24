@@ -2,7 +2,7 @@
 
 The glance widgets are the Insights kinds that count and chart tasks: the Number, the charts (Breakdown and Pivot) and Created vs completed. Each is a widget kind of its own, composed in the layout's table. Their components are in `components/workspace/glance/`, their configs in `models/glance-widgets`, `models/number-shapes` and `models/chart-widgets`, their statistics in `services/stats/*`, and their data hooks in `hooks/use-glance-data`, `hooks/use-number-shapes` and `hooks/use-chart-data`.
 
-This file covers what they share, the Number and its shapes, the widget editors, the task dialog and the history log. Breakdown, Pivot and Created vs completed are in [Charts](charts.md). The whole-widget maps that share their menu group (the Neglect map, Work clusters, the List wall) are in [Task maps](task-maps.md).
+This file covers what they share, the Number and its shapes, the widget editors, the task dialog and the history log. Breakdown, Pivot and Created vs completed are in [Charts](charts.md). The whole-widget maps that share their menu group (the Neglect map, Work clusters) are in [Task maps](task-maps.md).
 
 ## What every glance widget shares
 
@@ -29,7 +29,7 @@ The three maps are whole widgets: they are in `insights` for the menus only, wit
 ### In the menus
 
 - The add-widget and **Change widget** menus list them under **Insights**, after the **Tasks** kinds (List, Calendar, Review, Planner, Notes).
-- The order is Number, Breakdown, Pivot and Created vs completed, then the Neglect map, Work clusters and the List wall.
+- The order is Number, Breakdown, Pivot and Created vs completed, then the Neglect map and Work clusters.
 - Adding a Breakdown opens its presets: **People** · **Tags** · **Status** · **Custom** ([Charts](charts.md)).
 
 ### Tab titles

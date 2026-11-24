@@ -38,8 +38,8 @@ export interface TodoItem {
    * The planned day: the day the user plans to work on the task — a
    * calendar day stored at local midnight. Shown and set in the Planner;
    * filters (the `planned` date type), list sorts and groups read it, no
-   * row column or Markdown export does. One of a task's two **plan
-   * states**, with `unplanned` (never both). Planning is
+   * row column or Markdown export does. It is the task's **plan state**:
+   * a planned day, or none. Planning is
    * not an edit of the task: a plan write never stamps `modifiedAt`
    * (`todo-store.setPlan`, `KEEP_STAMPS`) and logs no history event, and it
    * never changes a due date or a follow-up. Completing a repeating task
@@ -47,15 +47,6 @@ export interface TodoItem {
    * indexed. Absent = no planned day (schema v85).
    */
   doDate?: Date
-  /**
-   * Held in the Planner's Unplanned tray: the task has a due date or a
-   * follow-up that would put it on a day, and the user took it off that day.
-   * Only `true` is stored, and never beside `doDate` (the other plan state).
-   * Written, cleared on a repeating completion and left out by Duplicate as
-   * `doDate` is; no stamp, no history event. Not indexed. Absent = not held
-   * (schema v86).
-   */
-  unplanned?: true
   recurrenceRule?: RecurrenceRule
   /**
    * On the user's short list of tasks to work on now. Shown as a marker on
@@ -77,11 +68,8 @@ export interface TodoItem {
   sortOrder: number
 }
 
-/**
- * A task's plan state in the Planner: a planned day (`doDate`), held in its
- * Unplanned tray (`unplanned`), or — `null` — neither. The two are exclusive.
- */
-export type TaskPlan = { day: Date } | 'unplanned' | null
+/** A task's plan state in the Planner: a planned day (`doDate`), or — `null` — none. */
+export type TaskPlan = { day: Date } | null
 
 /** One task's plan to write (`todo-store.setPlans`). */
 export interface TaskPlanChange {

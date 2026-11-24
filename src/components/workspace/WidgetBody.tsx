@@ -8,7 +8,6 @@ import type { GlanceSummary } from './glance/glance-summary'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 import { NeglectMapWidget } from './neglect/NeglectMapWidget'
 import { WorkClustersWidget } from './clusters/WorkClustersWidget'
-import { ListWallWidget } from './listwall/ListWallWidget'
 import { PlannerWidget } from './planner/PlannerWidget'
 import { ShortcutsWidget } from './shortcuts/ShortcutsWidget'
 import { GlanceWidget } from './glance/GlanceWidget'
@@ -53,8 +52,6 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
       return <NeglectMapWidget tab={tab} />
     case 'clusters':
       return <WorkClustersWidget tab={tab} />
-    case 'listwall':
-      return <ListWallWidget tab={tab} />
     case 'number':
     case 'trend':
     case 'breakdown':

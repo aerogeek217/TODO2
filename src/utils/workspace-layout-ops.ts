@@ -15,7 +15,7 @@ import {
 import {
   cellById,
   crossAxis,
-  expandOrphanRows,
+  expandOrphanTracks,
   neighbours,
   normalizeGrid,
   rectOf,
@@ -165,8 +165,8 @@ function sideTakers(layout: LayoutBody, cell: LayoutCell, side: Side): LayoutCel
  * cover that whole edge (`sideTakers`, the sides in the same order), which
  * all grow across it; with none of those either (the centre of a pinwheel),
  * the cell stays as an empty cell (no tabs). The same layout for an unknown
- * cell, or an empty one with no taker. A collapsed row the close leaves
- * with no filled cell lying only in it expands (`expandOrphanRows`, as
+ * cell, or an empty one with no taker. A collapsed track the close leaves
+ * with no filled cell lying only in it expands (`expandOrphanTracks`, as
  * `normalizeGrid` does it).
  */
 export function closeCell<L extends LayoutBody>(layout: L, cellId: string): L {
@@ -184,7 +184,7 @@ export function closeCell<L extends LayoutBody>(layout: L, cellId: string): L {
     return normalizeGrid(setCell(grown, cellId, null))
   }
   if (cell.tabs.length === 0) return layout
-  return expandOrphanRows(setCell(layout, cellId, withStrip(cell, { tabs: [] })))
+  return expandOrphanTracks(setCell(layout, cellId, withStrip(cell, { tabs: [] })))
 }
 
 /**
@@ -249,17 +249,23 @@ export function splitCell<L extends LayoutBody>(
 }
 
 /**
- * `layout` with the row tracks under `cell` expanded when every one of them
- * is collapsed: a new (empty) cell never comes out collapsed — it would
- * show only a header, and an empty cell has no Expand. A split's other half
- * keeps its collapse when it lies in other tracks (a split below / above);
- * beside it in the same row, the row expands (collapse is the row's).
+ * `layout` with the tracks under `cell` expanded, each axis on its own,
+ * when every one of them is collapsed: a new (empty) cell never comes out
+ * collapsed — it would show only a header (or lie in a column's strip), and
+ * an empty cell has no Expand. A split's other half keeps its collapse when
+ * it lies in other tracks (a split below / above a folded row, left / right
+ * of a folded column); beside it in the same row (column), the row (column)
+ * expands: collapse is the track's.
  */
 function expandedFor<L extends LayoutBody>(layout: L, cell: LayoutCell): L {
-  const [start, end] = spanOf(cell.area, 'rows')
-  const rows = layout.grid.rows.slice(start, end)
-  if (rows.length === 0 || !rows.every((t) => t.collapsed === true)) return layout
-  return rows.reduce<L>((next, t) => setTrackCollapsed(next, t.id, false), layout)
+  let next = layout
+  for (const axis of ['columns', 'rows'] as const) {
+    const [start, end] = spanOf(cell.area, axis)
+    const tracks = next.grid[axis].slice(start, end)
+    if (tracks.length === 0 || !tracks.every((t) => t.collapsed === true)) continue
+    next = tracks.reduce<L>((acc, t) => setTrackCollapsed(acc, t.id, false), next)
+  }
+  return next
 }
 
 /**
@@ -1264,20 +1270,25 @@ function updateTab<L extends LayoutBody>(layout: L, tabId: string, fn: (tab: Lay
 }
 
 /**
- * View state: collapse / expand a row track (by id). Column tracks don't
- * collapse. Collapse row sets every track a cell covers, one call each, so
- * a collapse is taken as it is; an expand also expands any collapsed row it
- * leaves with nothing to expand it (`expandOrphanRows`): a cell that was
- * folded over this track and another now reaches into an expanded row.
+ * View state: collapse / expand a track (by id), a row or a column. Collapse
+ * row (column) sets every track a cell covers, one call each, so a collapse
+ * is taken as it is; an expand also expands any collapsed track it leaves
+ * with nothing to expand it (`expandOrphanTracks`): a cell that was folded
+ * over this track and another now reaches into an expanded one.
  */
 export function setTrackCollapsed<L extends LayoutBody>(layout: L, trackId: string, collapsed: boolean): L {
-  const idx = layout.grid.rows.findIndex((t) => t.id === trackId)
-  const track = layout.grid.rows[idx]
-  if (!track || (track.collapsed === true) === collapsed) return layout
-  const { collapsed: _drop, ...rest } = track
-  void _drop
-  const next = withTracks(layout, 'rows', replaceAt(layout.grid.rows, idx, collapsed ? { ...rest, collapsed: true } : rest))
-  return collapsed ? next : expandOrphanRows(next)
+  for (const axis of ['rows', 'columns'] as const) {
+    const tracks = layout.grid[axis]
+    const idx = tracks.findIndex((t) => t.id === trackId)
+    const track = tracks[idx]
+    if (!track) continue
+    if ((track.collapsed === true) === collapsed) return layout
+    const { collapsed: _drop, ...rest } = track
+    void _drop
+    const next = withTracks(layout, axis, replaceAt(tracks, idx, collapsed ? { ...rest, collapsed: true } : rest))
+    return collapsed ? next : expandOrphanTracks(next)
+  }
+  return layout
 }
 
 /** The row tracks a cell covers (its ids, top to bottom). */
@@ -1286,6 +1297,14 @@ export function cellRowTracks(layout: LayoutBody, cellId: string): GridTrack[] {
   if (!cell) return []
   const r = rectOf(cell.area)
   return layout.grid.rows.slice(r.r0, r.r1)
+}
+
+/** The column tracks a cell covers (left to right). */
+export function cellColumnTracks(layout: LayoutBody, cellId: string): GridTrack[] {
+  const cell = cellById(layout, cellId)
+  if (!cell) return []
+  const r = rectOf(cell.area)
+  return layout.grid.columns.slice(r.c0, r.c1)
 }
 
 /** Whether a cell is collapsed: every row track it covers is. */
@@ -1433,16 +1452,16 @@ export function withTrackIdsOf<L extends LayoutBody>(body: L, model: LayoutBody)
  * "edit mode changes the grid; what's inside a cell changes in place"):
  * removes a tab as `closeTab` does, but a cell it leaves with no tabs stays
  * where it is as an empty cell — its space goes to no neighbour (only the
- * mode's Close cell gives a cell away, `closeCell`). A collapsed row the
+ * mode's Close cell gives a cell away, `closeCell`). A collapsed track the
  * removal leaves with no filled cell lying only in it expands
- * (`expandOrphanRows`). The same layout for an unknown tab.
+ * (`expandOrphanTracks`). The same layout for an unknown tab.
  */
 export function removeTabKeepCell<L extends LayoutBody>(layout: L, tabId: string): L {
   const loc = findTab(layout, tabId)
   const cell = loc ? layout.cells[loc.cellIdx] : undefined
   if (!loc || !cell) return layout
   if (cell.tabs.length > 1) return closeTab(layout, tabId)
-  return expandOrphanRows(setCell(layout, cell.id, withStrip(cell, { tabs: [] })))
+  return expandOrphanTracks(setCell(layout, cell.id, withStrip(cell, { tabs: [] })))
 }
 
 /**

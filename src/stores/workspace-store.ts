@@ -118,9 +118,9 @@ interface ResizePreview {
 }
 
 /**
- * The layout edit mode's preview of a structural edit before it is made
- * (layout editor round two, concept A): a "+" hovered or focused, a
- * toolbar's Split hovered — the table drawn as the edit would leave it
+ * The layout edit mode's preview of a structural edit before it is made: an
+ * edge tab, a toolbar's Split, a merge button or a Merge ▾ entry hovered —
+ * the table drawn as the edit would leave it
  * (`body`, from `utils/structure-preview.structureProbe`), its new empty
  * cells and the cells that grow marked, and the edit said in words in the
  * mode bar (`hint`). Transient: never saved, never an undo step; every edit
@@ -133,6 +133,8 @@ export interface StructurePreview {
   newCellIds: readonly string[]
   /** The cells that grow across the new track: outlined. */
   grewCellIds: readonly string[]
+  /** The words on a grown cell's outline (default `stretches`; `''` none: a merge's cell). */
+  grewLabel?: string
   /** The edit in words, for the mode bar. */
   hint: string
 }

@@ -31,6 +31,7 @@ import {
   type PlannerTabConfig,
   type PlannerTabViewState,
   SHORTCUTS_LISTS_MAX,
+  isShortcutsSource,
   type ShortcutsTabConfig,
   TAB_NAME_MAX,
 } from '../models/workspace-layout'
@@ -284,7 +285,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     }
     case 'notes':
     case 'clusters':
-    case 'listwall':
       return true
     // Item 12: a Review widget — no settings (its config the empty object), and its sort.
     case 'review': {
@@ -301,8 +301,9 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       const problem = view ? pickPlannerView(view).problem : null
       return problem ? `${path}.viewState.${problem}` : true
     }
-    // Shortcuts: its lists, positive whole numbers, each once, up to `SHORTCUTS_LISTS_MAX`.
+    // The List board: its source, one it knows; its lists, positive whole numbers, each once, up to `SHORTCUTS_LISTS_MAX`.
     case 'shortcuts':
+      if (config.source !== undefined && !isShortcutsSource(config.source)) return `${path}.config.source`
       return config.lists !== undefined && pickShortcutLists(config.lists).fixed ? `${path}.config.lists` : true
   }
 }
@@ -310,7 +311,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
 const isListRef = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0
 
 /**
- * Shortcuts' list ids as read: positive whole numbers, each once, in order,
+ * A List board's list ids as read: positive whole numbers, each once, in order,
  * the first `SHORTCUTS_LISTS_MAX`; anything else dropped (a fix). A list
  * deleted since stays (the widget skips it).
  */
@@ -320,12 +321,22 @@ function pickShortcutLists(raw: unknown): { lists: number[]; fixed: boolean } {
   return { lists: kept, fixed: kept.length !== raw.length }
 }
 
-/** Shortcuts' settings as read: its lists (`pickShortcutLists`); a key it doesn't have is dropped (a fix). Absent stays absent. */
+/**
+ * A List board's settings as read: its source, one it knows (else dropped,
+ * a fix: the lists picked); its lists (`pickShortcutLists`); a key it
+ * doesn't have is dropped (a fix). Absent stays absent.
+ */
 function pickShortcutsConfig(config: Obj): { config: ShortcutsTabConfig; fixed: boolean } {
-  const extra = Object.keys(config).some((k) => k !== 'lists')
-  if (config.lists === undefined) return { config: {}, fixed: extra }
-  const picked = pickShortcutLists(config.lists)
-  return { config: { lists: picked.lists }, fixed: extra || picked.fixed }
+  let fixed = Object.keys(config).some((k) => k !== 'lists' && k !== 'source')
+  const out: ShortcutsTabConfig = {}
+  if (isShortcutsSource(config.source)) out.source = config.source
+  else if (config.source !== undefined) fixed = true
+  if (config.lists !== undefined) {
+    const picked = pickShortcutLists(config.lists)
+    out.lists = picked.lists
+    if (picked.fixed) fixed = true
+  }
+  return { config: out, fixed }
 }
 
 /** The first field of a Review widget's view state (item 12) its read would reset, else null. */
@@ -492,7 +503,7 @@ function withTabLabel(tab: LayoutTab, raw: Obj, fix: () => void, cut: () => void
 }
 
 
-/** A track as stored: an object with a fresh id, a size (a weight or px) and, on a row, a boolean `collapsed` and a `fitPx` (a positive number). */
+/** A track as stored: an object with a fresh id, a size (a weight or px), a boolean `collapsed` and, on a row, a `fitPx` (a positive number). */
 function checkTrack(track: unknown, path: string, rows: boolean, fresh: (id: string) => boolean): true | string {
   if (!isRecord(track)) return path
   if (!isId(track.id) || !fresh(track.id)) return `${path}.id`
@@ -501,7 +512,7 @@ function checkTrack(track: unknown, path: string, rows: boolean, fresh: (id: str
   } else if (!isWeight(track.weight)) {
     return `${path}.weight`
   }
-  if (track.collapsed !== undefined && (!rows || typeof track.collapsed !== 'boolean')) return `${path}.collapsed`
+  if (track.collapsed !== undefined && typeof track.collapsed !== 'boolean') return `${path}.collapsed`
   if (track.fitPx !== undefined && (!rows || !isWeight(track.fitPx))) return `${path}.fitPx`
   return true
 }
@@ -517,7 +528,7 @@ function isAreaShape(v: unknown): v is CellArea {
 /**
  * `true` when a layout row's table is valid, else the path of the first bad
  * field (`grid.columns[0].weight`, `cells[2].area`, …): every track an id
- * and a size (a weight, or `px`; only a row track may be `collapsed`),
+ * and a size (a weight, or `px`; a row or column track may be `collapsed`),
  * every cell an id, an area and a strip of valid tabs (an empty strip is an
  * empty cell), ids unique across tracks, cells and tabs, the cells tiling
  * the grid exactly (`validateTiling`), and every inner line some cell's
@@ -718,10 +729,6 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       case 'clusters':
         if (Object.keys(config).length > 0) fix('settings')
         return { id, kind: 'clusters', config: {} }
-      // The List wall: no settings either.
-      case 'listwall':
-        if (Object.keys(config).length > 0) fix('settings')
-        return { id, kind: 'listwall', config: {} }
       // Item 12: a Review widget — no settings: a config key (an earlier build's kind `by` or pick
       // `pick`, which v79 removed) is dropped, a fix; its view state's sort as checked.
       case 'review': {
@@ -740,7 +747,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         if (Object.keys(picked.view).length > 0) planner.viewState = picked.view
         return planner
       }
-      // Shortcuts: its lists as read (`pickShortcutsConfig`). No view state: any is dropped.
+      // The List board: its source and lists as read (`pickShortcutsConfig`). No view state: any is dropped.
       case 'shortcuts': {
         const settings = pickShortcutsConfig(config)
         if (settings.fixed) fix('settings')
@@ -799,8 +806,8 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       // Reset below, to the axis's average weight.
       fix('size')
     }
-    if (raw.collapsed === true && rows) track.collapsed = true
-    else if (raw.collapsed !== undefined && (!rows || typeof raw.collapsed !== 'boolean')) fix('settings')
+    if (raw.collapsed === true) track.collapsed = true
+    else if (raw.collapsed !== undefined && typeof raw.collapsed !== 'boolean') fix('settings')
     // A Numbers-only row's height (view state): kept beside its size, never in place of it.
     if (raw.fitPx !== undefined) {
       if (rows && isWeight(raw.fitPx)) track.fitPx = raw.fitPx

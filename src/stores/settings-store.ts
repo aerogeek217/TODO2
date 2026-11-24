@@ -122,6 +122,8 @@ interface SettingsData {
   staleFade: boolean
   /** "Tally of today’s tasks": the top bar scratches a mark per task completed today. On by default. */
   tallyMarks: boolean
+  /** "Show widget names": a widget alone in its cell names itself on its name line. Off by default. */
+  showWidgetNames: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
   /**
@@ -191,6 +193,7 @@ interface SettingsState extends SettingsData {
   setStaleCobwebs: (on: boolean) => Promise<void>
   setStaleFade: (on: boolean) => Promise<void>
   setTallyMarks: (on: boolean) => Promise<void>
+  setShowWidgetNames: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /**
    * Remembers the check-in filter (kept without people; no filter = the row
@@ -537,6 +540,14 @@ export const SETTINGS = {
     failure: 'Couldn’t save whether the top bar shows a tally of today’s tasks.',
     undo: ({ tallyMarks: on }) => (on ? 'Tally of today’s tasks on' : 'Tally of today’s tasks off'),
   }),
+  showWidgetNames: setting(['showWidgetNames'], {
+    read: (rows) => ({ showWidgetNames: rows.get(K.showWidgetNames) === 'true' }),
+    // Stored only when on: absent = off.
+    rows: ({ showWidgetNames: on }) => rowUnlessDefault(K.showWidgetNames, 'true', !on),
+    label: 'whether widgets show their names',
+    failure: 'Couldn’t save whether widgets show their names.',
+    undo: ({ showWidgetNames: on }) => (on ? 'Widget names shown' : 'Widget names hidden'),
+  }),
   urgentDueWithinDays: setting(['urgentDueWithinDays'], {
     read: (rows) => ({
       urgentDueWithinDays: rowOr(rows, K.urgentDueWithinDays, DEFAULT_URGENT_DUE_WITHIN_DAYS, (v) => {
@@ -760,6 +771,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setTallyMarks(on) {
     await SETTINGS.tallyMarks.write({ tallyMarks: on })
+  },
+
+  async setShowWidgetNames(on) {
+    await SETTINGS.showWidgetNames.write({ showWidgetNames: on })
   },
 
   async setUrgentDueWithinDays(range) {

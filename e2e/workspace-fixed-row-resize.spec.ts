@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { edges, expectLayoutStored, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed } from './fixtures/workspace'
-import { box } from './fixtures/geometry'
+import { box, dividerGrip } from './fixtures/geometry'
 
 /**
  * A divider moves only its own line (J14): beside a Numbers-only (fit) row
@@ -45,7 +45,7 @@ async function rowLines(page: Page, ids: readonly string[]): Promise<number[]> {
 /** Drags a row divider straight down by `dy` px (a trusted mouse, 12 steps). */
 async function dragDivider(page: Page, before: string, after: string, dy: number): Promise<void> {
   const b = await box(wsDivider(page, before, after))
-  const from = { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+  const from = dividerGrip(b)
   await page.mouse.move(from.x, from.y)
   await page.mouse.down()
   await page.mouse.move(from.x, from.y + dy, { steps: 12 })
@@ -90,7 +90,7 @@ test.describe('a fit row between weighted rows', () => {
     await seedWorkspace(page, { layouts: [sandwich] })
     const before = await rowLines(page, cells)
     const b = await box(wsDivider(page, 'n1', 'b'))
-    const from = { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+    const from = dividerGrip(b)
     await page.mouse.move(from.x, from.y)
     await page.mouse.down()
     await page.mouse.move(from.x, from.y + 70, { steps: 12 })
@@ -121,7 +121,8 @@ test.describe('a fit row between weighted rows', () => {
     await expect.poll(async () => Math.round((await rowLines(page, cells))[2] ?? 0)).toBe(Math.round((fit[2] ?? 0) + 80))
     const tall = await rowLines(page, cells)
     const d = await box(wsDivider(page, 'n1', 'b'))
-    await page.mouse.dblclick(d.x + d.width / 2, d.y + d.height / 2)
+    const at = dividerGrip(d)
+    await page.mouse.dblclick(at.x, at.y)
     await expectLayoutStored(page)
     await expect.poll(async () => Math.round((await rowLines(page, cells))[2] ?? 0)).toBe(Math.round(fit[2] ?? 0))
     // Its top line and the table's ends where they were before the double-click.

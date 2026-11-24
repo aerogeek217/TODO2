@@ -19,12 +19,12 @@ Detail reference for the test setup (`src/test/`, `e2e/`, `vitest.config.ts`, `p
 | expectWithin | src/test/timing.ts | `expectWithin(ms, run)` — "stays fast on huge input" checks: the best of up to three runs against the bound (a super-linear regression slows every run, load slows one) |
 | pinTimeZone, DST_ZONE | src/test/time-zone.ts | `pinTimeZone(zone)` in a `describe` runs its tests in that zone (`process.env.TZ`, the worker's own put back after), so a daylight-saving test asserts on the UTC deploy too; `DST_ZONE` = `America/Chicago`. Build the dates inside the tests. `services/stats/history-dst.test` (cr34 T13) replays history over a 14-day window holding the 25-hour day and one holding the 23-hour day: an event belongs to its calendar day, a due date is late from the next, the log's first exact day is the day it began |
 | Priority tints | src/test/services/priority-tints.test.ts, e2e/priority-tints.spec.ts | `/urgent`, `/important` and `/focus` each carry their own tint (cr34 T9). The unit test: the three pure maps (`tokenTints`, `searchTints`, `expressionTints`) and a rule for every `TokenTint` in each stylesheet that draws it (the list is typed as the whole union, so a new tint must say where it is drawn). The spec, in a real browser: Quick Add's field and chips, the notes editor, the top bar's filter field, Edit list's expression field and the Review field typed and as pills — each token's computed color and fill are its `--color-marker-*` tokens, three different colors; a color set in Settings › Theme colors reaches a typed token and stays after a reload |
-| Top bar typed filter | e2e/top-bar-expression.spec.ts, src/test/stores/screen-expression.test.ts, src/test/components/layout/top-bar-search-tokens.test.tsx, src/test/utils/filter-expression.test.ts (search box forms) | Feedback P2. The store test: a typed expression split into chips and an expression (`screenFilterOf`), both narrowing the screen-filtered tasks, `fieldFilter` as typed vs canonical, Clear all (the field's ×), the panel's review and the group narrowing reading both, the new-task seeds. The JSDOM test: the field applies after the pause / on ⏎, holds what no chip says, never applies an unreadable text (its error, Esc), the pills and their ×, the results dropdown, the funnel. The spec, in a real browser: an `or` expression narrowing a list and the counter, pills and their ×, the funnel, the error line keeping the last filter, Esc, and a text chips can say showing checked in the Filter menu's pickers |
+| Top bar typed filter | e2e/top-bar-expression.spec.ts, src/test/stores/screen-expression.test.ts, src/test/components/layout/top-bar-search-tokens.test.tsx, src/test/utils/filter-expression.test.ts (search box forms) | Feedback P2. The store test: a typed expression split into chips and an expression (`screenFilterOf`), both narrowing the screen-filtered tasks, `fieldFilter` as typed vs canonical, Clear all (the field's ×), the panel's review and the group narrowing reading both, the new-task seeds. The JSDOM test: the field applies after the pause / on ⏎, holds what no chip says, never applies an unreadable text (its error, Esc), the pills and their ×, the results dropdown, the funnel (clear) and the field's pause toggle. The spec, in a real browser: an `or` expression narrowing a list and the counter, pills and their ×, the funnel's clear and the pause toggle, the error line keeping the last filter, Esc, and a text chips can say showing checked in the Filter menu's pickers |
 | Folder cycles | src/test/architecture/folder-cycles.test.ts | Scans every relative import in `src/` (static, dynamic, CSS, `composes … from`) into a graph of folders (`components/<area>`, the other top-level folders, each top-level file) and fails on any cycle. Its allow-list of edges is empty; an entry would fail once its edge is gone. It holds the layers in place, lowest first: `models` / `utils` → `data` → `stores` → `services` → `hooks` → `components` → `views` |
 | Doc budgets | src/test/architecture/doc-budgets.test.ts | Keeps the docs small enough to load: `docs/ARCHITECTURE.md` at most 3,000 words, each file under `docs/architecture/features/` at most 4,000 (a word is a run of non-whitespace), each row of `testing.md`, `state.md` and `models-and-data.md` at most 300 (the pipes between cells left out), every feature file linked from the map, and every relative link in the map, the feature files and those three layer tables pointing at a file that exists. `services-and-utils.md` and `components.md` are held by a ratchet: `doc-budgets.baseline.json` lists their rows over 300 by name with their word counts, and a long row it does not list, a listed row that grows, or an entry whose row is at or under 300 or gone fails. Over budget, the detail moves to a feature file or the feature file is split in two |
 | Export use | src/test/architecture/export-use.test.ts · export-graph.ts · test-seams.ts | Every export of the app (`src/` outside `src/test/`) is imported by another app file (or `scripts/`, a root config), or is a **test seam** listed in `test-seams.ts` — only tests import it (a pure helper tested on its own, a test oracle such as `filter-match.matchesComposedFilter`, a hook such as `module-reset.resetModuleState`); seams stay exported in place. `export-graph` parses every TypeScript file of the repository with the compiler's parser and resolves each import — static, type, dynamic (`import('…').then((m) => m.X)` reads `X`), `typeof import()`, named re-exports and `export *` — to the module that declares the name. It fails on an export nothing in the app imports that isn't listed (un-export it, or delete it), and on a listed seam that is gone, now imported by the app, or imported by no test (cr34 J3) |
 | Style checks | src/test/styles/ | Contrast ratios of the text tokens (D19: the warm light theme on every surface, the accent and each layout hue at 3:1 for the focus ring, the heat map's late numbers and counts on every step, muted tab labels at the cell header's foot, a stored colour as text in light — each preset hue's and v78's four metric colours' token, and a dark-theme tone shaded by `--custom-color-shade`, at 4.5:1 on every light surface, J21), no `[data-theme]` selector in a component stylesheet, no hard-coded white, every token used and every `var()` defined, every `font-size` a `--font-size-*` token, no `--font-size-legacy-*` and no inline literal `fontSize` (`font-sizes.test.ts`) |
-| Dev seed check | src/test/data/dev-seed.test.ts | Keeps `npm run seed:dev`'s output (`scripts/dev-seed.ts` → `dev-data/seed-v87.json`, a realistic export in the current schema — `Org:` people, `Project:` tags, two layouts drawn as tables (D26: tall cells spanning rows, a collapsed row, a fit row of Numbers, a fixed strip — a former band) owning their lists ("Done this week": a Completed range sorted newest first; "Not followed up lately": Last follow-up up to 14 days ago or none; "Follow-ups to chase": an expression, `not followed within last 7 days or not followup within 14 days`; a list tab at each zoom and a Neglect map coloured by the `Project:` tags, in Planning — the layout repair keeps both whole; Numbers from the ready-made configs of `src/test/helpers/number-metrics` (imported with its extension, so plain Node runs it); Breakdowns — Status, People, Waiting on, Tags, Priority —, a Pivot, Created vs completed and the task maps), a check-in filter, flags and follow-ups, open tasks with a planned day (Delayed, today, ahead; on a due day, after a due date or follow-up; one repeating), three held in Unplanned, a Planner with its own Unplanned filter, a list sorted and grouped by Planned and a Number filtered by it, a few status updates on some tasks (none after today, the newest `followedUp` where the task was followed up), dates relative to the run day) current and clean: its version is `CURRENT_DB_VERSION` (a schema step must move the seed with it — its rows are typed by the models), and it imports with no warnings and leaves nothing for the audit |
+| Dev seed check | src/test/data/dev-seed.test.ts | Keeps `npm run seed:dev`'s output (`scripts/dev-seed.ts` → `dev-data/seed-v89.json`, a realistic export in the current schema — `Org:` people, `Project:` tags, two layouts drawn as tables (D26: tall cells spanning rows, a collapsed row, a fit row of Numbers, a fixed strip — a former band) owning their lists ("Done this week": a Completed range sorted newest first; "Not followed up lately": Last follow-up up to 14 days ago or none; "Follow-ups to chase": an expression, `not followed within last 7 days or not followup within 14 days`; a list tab at each zoom and a Neglect map coloured by the `Project:` tags, in Planning — the layout repair keeps both whole; Numbers from the ready-made configs of `src/test/helpers/number-metrics` (imported with its extension, so plain Node runs it); Breakdowns — Status, People, Waiting on, Tags, Priority —, a Pivot, Created vs completed, the task maps and two List boards — this layout's lists and lists picked from both layouts), a check-in filter, flags and follow-ups, open tasks with a planned day (Delayed, today, ahead; on a due day, after a due date or follow-up; one repeating; no task carries `unplanned`), a Planner with its own Unplanned filter, a list of every planned task (`planned any`) sorted and grouped by Planned and a Number filtered by it, a few status updates on some tasks (none after today, the newest `followedUp` where the task was followed up), dates relative to the run day) current and clean: its version is `CURRENT_DB_VERSION` (a schema step must move the seed with it — its rows are typed by the models), and it imports with no warnings and leaves nothing for the audit |
 | Check-in reply captures | src/test/fixtures/checkin-replies/ | Pasted replies to the sample check-in email (`sample-tasks.ts`, its README): `<name>.html` / `.txt` (the paste's two flavours) and an optional `<name>.expected.json`, each read by `test/services/checkin-reply/fixtures.test.ts` (a new pair is tested automatically for the general contract). Four synthetic ones (hand-made imitations, not real client output): new Outlook inline, classic Outlook inline, classic Outlook plain quoted — their `Status:` rows with the newest update's `(MM/DD)` typed over or kept —, and `synthetic-progress-label-plain-quoted` (cr27: a reply to an email sent before status updates, its `Progress:` label read as Status) |
 | cell, grid, single, emptyBody, picture, numberTab, CellSpec, TrackSpec, GridOptions | src/test/helpers/layout-builders.ts | Builders for layouts in the table shape (D26), so a test says what it builds: `grid([[a, a, b], [c, d, b]])` — each inner array a row track, each entry a column track, each `cell(id, tabs)` covering the tracks where it appears (a rectangle); tracks `c1 …` / `r1 …` (or `opts.prefix`-ed), weight 1000 unless `opts` gives the column / row sizes (`TrackSpec`: a weight, or `{ px }` / `collapsed`). `single(cell)` one cell, `emptyBody()` none; `picture(body)` draws a body back as rows of cell ids (what a test asserts on); `numberTab(id, metric?, patch?)` a Number from a metric's ready-made config (`number-metrics`) |
 | layoutSteps, settleLayoutWrites | src/test/helpers/layout-steps.ts | `layoutSteps()`: the names of the undo steps of structural layout edits (`workspace-store.isLayoutEditStep`), oldest first — what a test checks where it once checked the layout was unsaved; `settleLayoutWrites` re-exported (every committed edit's write and what follows it) |
@@ -45,13 +45,13 @@ Detail reference for the test setup (`src/test/`, `e2e/`, `vitest.config.ts`, `p
 | Task-row locators, rowTitles | e2e/fixtures/seed.ts | The task-row locators and the titles in display order |
 | readStore, readStores, writeStores, assignedNames, afterTransactionsOn | e2e/fixtures/db.ts | Reads and writes the app's IndexedDB straight; `afterTransactionsOn` resolves once the app's transactions on given stores have finished |
 | purgeDialog, openPurgeNotice, reviewPurge, dismissPurgeNotice | e2e/fixtures/purge-notice.ts | The storage pill's purge notice (desktop, or the phone's sync sheet) and the purge dialog it opens |
-| box, pointIn, expectInsideViewport, clickOutside | e2e/fixtures/geometry.ts | Geometry helpers |
+| box, pointIn, dividerGrip, expectInsideViewport, clickOutside | e2e/fixtures/geometry.ts | Geometry helpers; `dividerGrip`, where a spec presses a divider: a quarter along it, clear of its collapse pill |
 | stripState, stripAt, expectFits, shrinks, widestWidthWhere, findStripWidths, DESKTOP_MIN_WIDTH | e2e/fixtures/tab-strip.ts | A cell's tab strip as drawn, and **the window widths where it changes how it fits, found by measuring** (cr34 T10): a spec never names the width where tabs shrink or fold — a label or a header button changing size moved those and turned specs red with nothing broken. `stripState` reads the settled strip (every two frames until two reads agree); `findStripWidths` widens until the tabs stop growing (their full widths), then halves down to `fullAt` (the narrowest window at full width) and `foldAt` (the widest that folds a tab); `widestWidthWhere(holds)` halves for any condition that holds from some width down (throws when the range doesn't bracket it); `expectFits` is the rules (no tab cut off, the strip clear of the header's buttons, `+N` iff a tab is folded and no room for one). `DESKTOP_MIN_WIDTH` is one past the phone breakpoint. `e2e/tab-strip-fit.spec.ts`, `tab-strip-refit.spec.ts` (a sweep over the widths that shrink without folding) and `tab-strip-open-larger.spec.ts` (the header's Open larger hidden under 340px of header, the ⋯ entry kept; the strip fitting again when the button comes and goes with a Number's face, the header's width unchanged) use it |
 | installClock, tooltipDelayPassed, pageTasksDone | e2e/fixtures/clock.ts | Time a spec must let pass, without a sleep (cr34 T11): `installClock(page)` before the page loads puts the app's timers on Playwright's clock (which runs like the real one), `tooltipDelayPassed` runs it a second on — every timer due fires, a hover's 400 ms tooltip delay among them — and waits a turn of the page's task queue (`pageTasksDone`), so "no tooltip opened" is exact on any machine; the same wait after the same hover with no popover open must find the tooltip (`tooltip.spec`, `workspace-list-widget.spec`) |
 | render counter, expectCounterLive | e2e/fixtures/render-count.ts | Counts named components' renders through a stand-in React DevTools hook installed before the app loads (dev server names), for "this interaction renders no row" checks without timing. It leans on React's fiber internals, so `expectCounterLive` first proves it still sees renders and a React change fails loudly |
 | readSyncFile, attachSyncHandle, stubFilePermission, setPermissionAnswer, answerPermission | e2e/fixtures/sync-file.ts | `readSyncFile` reads an OPFS sync file only once `fileStorageService.whenIdle()` resolves (a `File` read while a save swaps the file in throws `NotFoundError`); `attachSyncHandle` stores a sync file's handle as an earlier session would; the permission stubs script the browser's answers for the launch question |
 | built-csp | e2e/built-csp.spec.ts | Builds both targets into a temp folder and runs them (online served over http, offline from `file://`) with no CSP violations. **The offline file's request audit** (cr25 P5): every request the context makes (pages, popups, frames, WebSockets) and every CSP violation (DOM events and console reports, across reloads) is recorded while it drives the built file from disk — Quick Add, an inline rename, the Edit task dialog, a completion, every Settings section, the check-in dialog's sandboxed preview, Export JSON (a `blob:` download) and Import JSON of it through the file input (the File System Access pickers removed), the glance widgets (a Number's small face and its tasks, a Breakdown opened larger; the Tags and Status Breakdowns, Created vs completed) and the Neglect map (a dot opening the editor), and the sync file end to end (Create New File, edits land in it, reload → the launch question → Grant access, the next edit lands); any URL but `file:` (with no host — a UNC share is SMB), `data:`, `blob:`, `about:` fails, as does any violation. The sync test runs its own Chromium with `--allow-file-access-from-files` (the only way a `file://` page gets OPFS), its save picker handing out an OPFS file — a real `FileSystemFileHandle`. It also runs the build's egress check (`scripts/offline-file.checkOfflineFile`) on the written file. `seedWorkspace` / `seedTaskList` take a start `url` for it |
-| Before / after screenshots | e2e/type-shots.spec.ts | Opt-in, not a regression (`TYPE_SHOTS=<folder>`, the seed `TYPE_SHOTS_SEED`, default `dev-data/seed-v87.json`): imports the dev seed plus a "Shots" layout (a list at each zoom, a Review widget) and screenshots most screens — each layout, the editors, the palette, Quick Add, the filter menus, Settings, the phone's sheets — at 1440 × 900, 1920 × 1080 and 390 × 844 in both themes, Ambience off; `TYPE_SHOTS_SWEEP=1` also lists each screen's form controls with their computed font size. An unchanged tree gives the same pictures on the same day (the backups list's time aside) |
+| Before / after screenshots | e2e/type-shots.spec.ts | Opt-in, not a regression (`TYPE_SHOTS=<folder>`, the seed `TYPE_SHOTS_SEED`, default `dev-data/seed-v89.json`): imports the dev seed plus a "Shots" layout (a list at each zoom, a Review widget) and screenshots most screens — each layout, the editors, the palette, Quick Add, the filter menus, Settings, the phone's sheets — at 1440 × 900, 1920 × 1080 and 390 × 844 in both themes, Ambience off; `TYPE_SHOTS_SWEEP=1` also lists each screen's form controls with their computed font size. An unchanged tree gives the same pictures on the same day (the backups list's time aside) |
 | Timings of the built file | e2e/perf-offline.spec.ts | Opt-in, not a regression (`PERF=1`, after `npm run seed:dev` and `npm run build`): opens `dist/todo2.html` from disk on the GPU, imports the dev seed plus a seven-cell layout, and prints / writes per scenario the press-to-shown and press-to-settled times, Event Timing, script / style / layout time, long frames, React renders and (traced) style-recalc element counts — layout and tab switches, a press after a layout tab, pointer crossings, focus moves, typing, completing, Open larger, adding widgets, idle. `PERF_FILE` another build, `PERF_ONLY`, `PERF_RUNS`, `PERF_DROP_RULES` / `PERF_ADD_CSS` (experiments), `PERF_TRACE_DIR`. |
 | README screenshots | e2e/readme-shots.spec.ts, e2e/fixtures/readme-data.ts | Opt-in, not a regression (`README_SHOTS=1`, or a folder to write to): the README's five pictures in `docs/screenshots/` — the workspace, a list, the Review widget (the README's layouts hold none, so the shot makes one on a layout of its own and jumps to it with a person, as a Review button does — `services/review-jump.jumpToReview`), the insight widgets, Quick Add — in the dark theme over a small made-up dataset (a product team's tasks, dates relative to the run day), each cropped to what it shows. Run with `--workers=1 --timeout=600000` |
 | Review jumps | e2e/review-jump.spec.ts, e2e/filtered-tasks-review.spec.ts, src/test/services/review-jump.test.ts, src/test/services/review.test.ts | A Review button's jump. The specs, in a real browser: on the open layout a list's Review these N tasks sets the widget's field to the list's filter and the focus lands on the card's update line, nothing saved; with the Review widget on another layout the person menu's Review with X opens the popup review with `@Name` instead — no layout switch, the other widget left alone —, a second Review replaces it, a reload clears it; with no Review widget anywhere every entry point still shows (the person menu, the palette, the tab menu) and opens the popup review, the task editor over it; an open editor with changes asks first — Keep editing cancels, Discard goes on; the filtered-tasks panel's Review and the phone's screen-filter dialog's open the popup review (the phone's full screen at the Review widget's medium face). The unit tests: `jumpToReview` (the open layout's widget, a replace without asking, the popup review with none there — another layout's never switched to —, the editor-leave question, a widget open larger closed unless it is that widget, the task dialog and the filtered-tasks panel closed) and each entry point's filter (`services/review`: a person, a tag, several people — names with spaces, quotes and parentheses printing as the field reads them —, a list as it shows incl. its prompt pick, every open task as an empty `and`, the top bar's chips and text search, every Breakdown split's rows keeping exactly the row's tasks, ANDed with the chart's and a count column's filter). The Review widget's session (place, marks, drafts, ✓) is `src/test/stores/review-session.test.ts` |
@@ -202,7 +202,7 @@ What each Planner test file covers. The rules are in [planner](features/planner.
 - **A task's natural day**: both dates; a tie is the due date's; a late date lands on today; the last day is inclusive; a date past the window; a plan does not move it.
 - **What the Planner holds.**
 - **Where a task sits**, in every plan state:
-  - held, also when its dates move;
+  - only `doDate` counts: a stored `unplanned` is ignored;
   - a planned day passed → Delayed; in the window; beyond it → not shown;
   - no plan → its natural day; a Focus task with none → Unplanned (the default filter);
   - completed.
@@ -216,20 +216,20 @@ What each Planner test file covers. The rules are in [planner](features/planner.
   - The shifted window: Today and the trays kept, all seven days listed, a task between tomorrow and the window in no group.
 - **The drop rule**, as a table:
   - on a day: planned; cleared on its natural day; nothing where it sits; refused before today;
-  - on Unplanned: held (a planned task with no date the filter doesn't match too, so Unplan never takes a task out of the Planner); a matching task's plan cleared; nothing; refused;
+  - on Unplanned: a planned task loses its plan — back to its natural day, kept in Unplanned by the filter, or out of the Planner; nothing where it sits; a task with no plan refused;
   - on Delayed: no drop;
   - a completed task;
   - what each writes;
   - a task planned for its own day keeps its plan where it sits; another task's own day is tested before where it sits.
 - **A plan on a real date's day**: placed, a tile mark, Delayed once past, planned later past the window.
 - **A task planned later**: on its natural day, placed, in conflict; `plannerShows`; in the view, the tiles and Reset plan's counts; Snooze from its planned day.
-- **A row's tag**: a Delayed row's planned day; a held row's natural day; a conflict with every fix once; its words and tooltip; the day in words.
+- **A row's tag**: a Delayed row's planned day; none in Unplanned; a conflict with every fix once; its words and tooltip; the day in words.
 - The dates drawn late.
 - **A Move date fix** that puts the task on its planned day by its own dates (the plan cleared), and ones that do not (another, earlier date; past the window).
-- **Snooze, Unplan and Unplan all Delayed**: each task is in Unplanned afterwards.
+- **Unplan and Clear Delayed plans**: Unplan is the Unplanned drop, refused without a plan; Clear Delayed plans clears every Delayed plan, each task where its own dates put it.
 - **Reset plan**: its scopes and counts, and the week scope's name (This week, or the shifted window's range).
 - **The labels**: a tile's name with its marks; a placed row's state in words.
-- **The Unplanned filter** (`PlannerJoins`): absent is Focus; a custom one and an empty one decide Unplanned only (a dated task stays on its day); asked without the plan state; Unplan, Clear vs Remove and Unplan all Delayed with each.
+- **The Unplanned filter** (`PlannerJoins`): absent is Focus; a custom one and an empty one decide Unplanned only (a dated task stays on its day); asked without the plan state; an empty one keeps Unplanned empty; Unplan (a task with no plan refused), Clear vs Remove and Clear Delayed plans with each.
 - **Daylight saving** (`pinTimeZone`): the same over both changes, for the window, a plan across the change, conflict days and Snooze.
 
 ### The window: `planner-store.test` and the hook
@@ -260,7 +260,7 @@ JSDOM, with the body's size mocked.
 - The hand order and the screen filter.
 - **The strip**:
   - its names;
-  - its marks: solid ticks for real dates wherever the task is planned or held, hollow ones for plans, eight then `+N`;
+  - its marks: solid ticks for real dates wherever the task is planned, Delayed too, hollow ones for plans, eight then `+N`;
   - the week rule: a Monday and a Sunday first day of the week, none in a window that starts on it.
 - **A tile's click** scrolls the day list and picks nothing. The pane's `scrollTo` and boxes are stood in for: smooth, at once under reduced motion, nothing where the list does not scroll, a shifted window.
 - The week arrows, and the window kept across a remount.
@@ -268,8 +268,8 @@ JSDOM, with the body's size mocked.
 - Today's foot: `N done`, and no Add task row.
 - **The trays**:
   - a passed plan in Delayed, above Unplanned and never in Today;
-  - the Unplan button between them, and its one write;
-  - a held dated row in Unplanned;
+  - the Clear plans button between them, its one write and its words for the tasks that left the Planner;
+  - Unplanned holding the matching tasks with no plan and no day, a dated Focus task on its day;
   - the trays kept while the window is shifted, and in one column.
 - A completed row and a repeating occurrence linger, then leave.
 - The rows' zoom: one grid per pane.
@@ -288,13 +288,13 @@ JSDOM, with the body's size mocked.
 
 JSDOM.
 
-- **The corner flag**: on placed rows only (Rows, Stacked, Lines, the phone); around the row, not in it.
-- **Each tag**: a Delayed row's day; a held row's; a conflict's words, as a button. It sits after the title's text, leads a Stacked row's details, and is on a line.
+- **The corner flag**: on rows with a plan only, never in Unplanned (Rows, Stacked, Lines, the phone); around the row, not in it.
+- **Each tag**: a Delayed row's day; a conflict's words, as a button; none in Unplanned. It sits after the title's text, leads a Stacked row's details, and is on a line.
 - **The fix menu**: its entries for a due date, a follow-up and both; a pick's write (the date edited, the plan cleared; the plan moved); Esc handing the focus back.
 - The passed date is drawn late, and no other.
 - **The hover buttons**:
-  - Snooze and Unplan on a row of a day or of Delayed;
-  - in Unplanned: Today, and on a held row Remove or Clear;
+  - Snooze on a row of a day or of Delayed, Unplan on a placed one, reading Remove when clearing takes it out;
+  - in Unplanned: Today alone;
   - none on a Lines row or the phone;
   - their writes and tooltips.
 - **Reset plan**:
@@ -305,7 +305,7 @@ JSDOM.
   - the report they read, `planner-store.resets`: one per change of a count, the action reading the view of the moment, none for a Planner that is not drawn, another cell's menu hook not run again by a task change.
 - **A row planned later**: on its date's day, flagged, `planned Fri, Nov 27` as a button with the fixes, its date late, Snooze from the planned day.
 - The flag's words in the row's accessible description: a checkbox, a line, the phone row.
-- **The focus follows a row moved from the keyboard**: Snooze, Unplan, Today, Remove, a fix; the row that took its place; the group's heading; a pointer's press moves none.
+- **The focus follows a row moved from the keyboard**: Snooze, Unplan (back to its own day: its Snooze), Today, Remove, a fix; the row that took its place; the group's heading; a pointer's press moves none.
 - **A row outside a Planner**:
   - a desktop row, a stacked row, a line and a phone row draw the same markup with no provider as with one that adds nothing;
   - a list widget's row has no flag, tag or buttons, and its dates are as late as they are whatever plan the task has;
@@ -330,14 +330,14 @@ The faces follow `ResizeObserver`, so specs test them.
 
 `src/test/stores/task-plan.test.ts` runs `setPlan` and `setPlans` on the real store and database:
 
-- each plan state, both fields in the task's one write;
-- one undo step restoring both;
+- a planned day, and a clear with null, each named, only the planned day in the task's one write;
+- one undo step putting the day back;
 - no stamp on the write, its undo or its redo;
 - no history event, and no real date written;
 - nothing written when nothing changes;
 - a failed write rolled back, reported and resolved `false`, never a rejection;
-- two overlapping failed writes never leaving a planned day beside `unplanned`, and the tasks read back as stored;
-- a repeating completion clearing the plan state: checkbox and bulk, undo and redo, a failed write;
+- a failed write taking back only a day the task still holds from it (a plan made meanwhile stays); two overlapping failed writes leaving the plan as stored, read back from the database;
+- a repeating completion clearing the planned day: checkbox and bulk, undo and redo, a failed write;
 - Duplicate and Make subtask of… leaving it behind.
 
 ### The drops, the hand order and the row menu
@@ -351,7 +351,7 @@ The faces follow `ResizeObserver`, so specs test them.
   - every shown task is given a place;
   - only the tasks that no longer exist are dropped;
   - the same with the two trays' rows in the sequence.
-- `plannerMovePlan`: each decision with and without a place; a reorder with no write (in a day, in Unplanned, in Delayed); a row dropped where it is; a refused drop; the window it is read against.
+- `plannerMovePlan`: each decision with and without a place; a reorder with no write (in a day, in Unplanned, in Delayed); a row dropped where it is; a refused drop — a task or a list's row with no plan on Unplanned; `leaves` for an Unplan that takes the task out; a list's row planned past the window unplanned into Unplanned at its place; the window it is read against.
 
 `dispatch-planner.test`, the dispatcher's Planner branch:
 
@@ -365,10 +365,10 @@ The faces follow `ResizeObserver`, so specs test them.
 
 - **A drop on a day**:
   - a row there by its follow-up or its due date is planned for the day, its date untouched: no stamp, no history event, one undo step and its undo;
-  - a planned or held row moved, both fields in the one write;
+  - a planned row and a Delayed one moved, the planned day only in the one write;
   - the plan cleared on the task's own date's day;
   - nothing on the row's own day.
-- **Unplanned**: holding a dated row; holding a planned task with no date that is not in Focus, and its undo; clearing a Focus row's plan.
+- **Unplanned**: a planned dated row back on its date, no snackbar; a planned task with no date, not in Focus, leaving the Planner with the snackbar, and its undo; a Focus row's plan cleared (Focus keeps it); a task with no plan refused — no write, no order, no undo step; a place in the tray only for a row the filter keeps.
 - **Delayed** takes no drop but its own reorder. A completed task is refused.
 - **Rows from elsewhere**: a list's row and a calendar entry by the same rule; the task as stored, not as dragged; a task gone.
 - **The order**:
@@ -382,8 +382,8 @@ The faces follow `ResizeObserver`, so specs test them.
   - the cap.
 - **Plan for day ›**'s writes.
 - **Snooze**: the next day; tomorrow from a tray; the plan cleared on the natural day.
-- **Unplan.**
-- **Unplan all Delayed and Reset plan's three scopes**: each one write and one undo step with the snackbar, its undo and redo; the step is named for the shown range in a shifted window. Reset plan asks first.
+- **Unplan**: the Unplanned drop for one row; one that then shows nowhere leaves with the snackbar, and its undo; outside a Planner the plain clear; nothing for a row in Unplanned or a task with no plan.
+- **Clear Delayed plans and Reset plan's three scopes**: each one write and one undo step with the snackbar, its undo and redo; Clear Delayed plans names one plan or many and how many left the Planner; the step is named for the shown range in a shifted window. Reset plan asks first.
 - **Snooze past the window**:
   - no date: out of view, the snackbar `Planned for Fri, Nov 27` and its undo;
   - a date in the window: the row stays, planned later, no snackbar.
@@ -397,18 +397,18 @@ The faces follow `ResizeObserver`, so specs test them.
 `planner-drag.test` (JSDOM, the store's preview set by hand):
 
 - the target's tile and group marked, with no tone;
-- nothing for a refused drop (the not-allowed cursor) or a no-write one;
+- nothing for a refused drop (the not-allowed cursor) — a task with no plan over Unplanned — or a no-write one; Unplanned marked for an Unplan, with a slot or without;
 - another Planner's preview ignored;
 - the drop slot at each place, in a tray, in an empty day, and in place of Today's empty line;
 - the label's texts and absence, and its place above the row at the window's foot;
-- Plan for day ›, Snooze and Unplan in a row's menu, and their writes (the plan only).
+- Plan for day ›, Snooze and Unplan in a row's menu, and their writes (the plan only): Unplan reads Remove from Planner and says so when the task leaves; none on a row with no plan.
 
 `planner-drag-hook.test` is isolated: dnd-kit's monitor is stood in for, and the drag's events are sent by hand over mocked boxes.
 
 - an own row, or a task from elsewhere; a drag with no task ignored;
 - the preview over a tile and over a group: the place by the pointer among the rows without the task's own, for a list's row too;
-- no place for a refused drop;
-- a planned task with no date held, with a place in Unplanned;
+- no place for a refused drop: Delayed, Unplanned for a task with no plan, a completed task;
+- a planned row unplanned on Unplanned, with a place there only when the cleared task would sit there;
 - the trays;
 - the preview dropped off its targets, at the end, on cancel and on unmount;
 - another Planner's left alone.
@@ -417,7 +417,7 @@ The faces follow `ResizeObserver`, so specs test them.
 
 - Plan for day ›'s submenu: the line saying a pick plans the task, the days, the checked day, where the row is, a shifted window;
 - Snooze's day;
-- Unplan off, with its reason, in Unplanned;
+- Unplan only on a row with a plan, last, reading Remove from Planner when the task then leaves; none, never a disabled entry, on a row with no plan;
 - none for a completed task;
 - their place in the task menu.
 
@@ -430,15 +430,15 @@ Trusted-mouse drags. Dates are read from the database as days from today and a t
 - A follow-up row on a later tile: the neutral mark, the label, a planned day, the follow-up and the stamp untouched.
 - A due row on a tile: a planned day, the due date kept, no stamp; its undo and redo.
 - A row dropped on the day its own date puts it loses its plan.
-- A dated row held in Unplanned across a reload.
-- A Focus row planned and unplanned.
+- A row with no plan dropped on Unplanned is refused; a planned row dropped there loses its plan, back on its date.
+- A Focus row planned, then dropped on Unplanned: it just loses its plan.
 - A passed plan in Delayed, not Today. Delayed refuses a drop: the not-allowed cursor, nothing written, no undo step.
 - A reorder inside Today kept across a reload: the stored order, no task touched.
 - Reorders leave the rows they cannot see in place: one the screen filter hides, a day the shifted window leaves out.
 - A drop into another day's group at its place, then at the top of Today.
 - A list widget's row on a tile and into a group; the list's row and order untouched.
 - A Planner row on a list (nothing) and on a calendar day (the calendar's due date, the plan kept).
-- Snooze, Unplan and Plan for day › from the keyboard: Shift+F10, the arrows, Enter. Unplan is off, with its reason, in Unplanned.
+- Snooze, Unplan and Plan for day › from the keyboard: Shift+F10, the arrows, Enter. No Unplan with no plan to clear, nor in Unplanned.
 - The medium face's one column.
 - A Planner under the widget popup takes no drop.
 - Esc cancels a drag over a group.
@@ -452,26 +452,26 @@ Trusted-mouse drags. Dates are read from the database as days from today and a t
 
 - The days over the dock, the top line's arrows, the tiles' ticks, the days-in-view line following a scroll.
 - The dock's edge dragged: live, stored, kept across a reload. Then ↓ and a double-click.
-- Folded, and kept across a reload. A dated row dropped on the bar is held in Unplanned with its date kept (the bar marked, the label `Unplan`). A click unfolds it.
+- Folded, and kept across a reload. A planned row dropped on the bar loses its plan (the bar marked, the label `Unplan`); one with none is refused. A click unfolds it.
 
 **The layout and the rows' marks**
 
-- The large face: the days' seven groups on the left with their quiet headings; Delayed, the Unplan button and Unplanned top to bottom on the right, on a darker ground; the tiles' solid and hollow ticks and their one width; the week rule.
+- The large face: the days' seven groups on the left with their quiet headings; Delayed, the Clear plans button and Unplanned top to bottom on the right, on a darker ground; the tiles' solid and hollow ticks and their one width; the week rule.
 - In a short Planner:
   - a tile's click scrolls the day list to its day (a near day to the pane's top, a late one as far as the list goes) and picks nothing;
   - a day's group scrolled out behind the strip takes no drop (the tile's instead);
   - a tray's row dropped on an empty day's quiet heading.
 - Hover Snooze: a Today row to tomorrow, its flag and tag, the due date kept.
-- Hover Unplan: held, the tag of the day it came off. There the row has only a Today button, and hover Today brings it back.
-- Unplan keeps a planned task with no date and no Focus in Unplanned across a reload.
-- The ↓ Unplan button: the Delayed rows' tags, its tooltip, both tasks held in one step, the snackbar's Undo.
+- Hover Unplan: the plan cleared, the row back on its due day, unflagged and untagged, with no Unplan left. A row in Unplanned has only a Today button, and hover Today plans it.
+- Unplan of a planned task with no date and no Focus reads Remove: it leaves the Planner, the snackbar says so, and Undo brings it back.
+- The Clear plans button: the Delayed rows' tags, its tooltip, every plan cleared in one step, the snackbar saying how many left the Planner, its Undo.
 - Reset plan › This week from the top line: the counts, the question it asks first, every plan cleared and no date, the snackbar's Undo, a choice inert at 0. Today only from a tabbed cell's ⋯ menu.
 - A row planned after its due date:
   - the tag; the date drawn late (bold, banded); the tag in view and pressable under the hover buttons; its menu's two fixes; Esc back to the tag; Enter from the keyboard;
   - Move due date to …: the date edited and stamped; the plan, flag and tag gone; one undo step;
   - Plan for …: the plan cleared on the date's day, the date untouched.
 - Panes narrow enough for Stacked rows: the flag at the row's corner, taking no press and staying on the lifted row's slot; the tag leading the details; the late date; the hover buttons; the fixes.
-- The phone's one column: the groups in order, flags and tags, no hover buttons, a tile's tap, the Unplan button.
+- The phone's one column: the groups in order, flags and tags, no hover buttons, a tile's tap, the Clear plans button.
 
 **The keyboard**
 

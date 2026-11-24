@@ -180,7 +180,8 @@
 
 .cornerSlipping {
   top: 0;
-  right: 0;
+  /* Clear of the cell's floating controls when it has no name line. */
+  right: var(--cell-controls-reserve, 0px);
   color: var(--color-deadline);
   opacity: 1;
 }

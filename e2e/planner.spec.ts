@@ -7,8 +7,9 @@ import { filterClear, filterField } from './fixtures/filters'
 /**
  * The Planner's drags and its row menu: the Planner is a scratch pad, so a
  * row dropped on a day tile or in a group changes **only its plan** — a
- * planned day, cleared on the day its own date puts it; held in Unplanned
- * for a dated row — and never its due date or its follow-up; the Delayed
+ * planned day, cleared on the day its own date puts it or on Unplanned
+ * (which refuses a row with no plan: nothing is put there by hand) — and
+ * never its due date or its follow-up; the Delayed
  * tray (a plan whose day has passed) takes no drop. A drop into a group
  * also puts the row where it was dropped (the hand order, saved with the
  * layout). While it is dragged the target is dashed in one neutral color
@@ -20,7 +21,7 @@ import { filterClear, filterField } from './fixtures/filters'
  * calendar's drop; one on a list does nothing.
  *
  * And its layout: the days in one list on the left (a tile's click scrolls
- * to its day), the trays on the right with the ↓ Unplan button between
+ * to its day), the trays on the right with the Clear plans button between
  * them, Reset plan, and a row's Planner marks — the corner flag, the tag
  * and its fixes, the late date, the hover Snooze / Unplan — at Rows, at
  * Stacked and on the phone.
@@ -77,7 +78,7 @@ const dayWords = (page: Page, days: number) => page.evaluate((n) => {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }, days)
 
-interface StoredTask { title: string; uid: string; doDate?: Date; unplanned?: boolean; dueDate?: Date; nextFollowupAt?: Date; modifiedAt: Date }
+interface StoredTask { title: string; uid: string; doDate?: Date; dueDate?: Date; nextFollowupAt?: Date; modifiedAt: Date }
 
 /** A stored date as `[days from today, hour, minute]`; null when absent. */
 function dayAndTime(value: Date | undefined, now: Date): [number, number, number] | null {
@@ -87,14 +88,13 @@ function dayAndTime(value: Date | undefined, now: Date): [number, number, number
   return [Math.round((midnight(d) - midnight(now)) / 86_400_000), d.getHours(), d.getMinutes()]
 }
 
-/** What the database holds of the task: its plan (`doDate`, `held`), and each real date, as `[days from today, hour, minute]`. */
+/** What the database holds of the task: its plan (`doDate`), and each real date, as `[days from today, hour, minute]`. */
 async function stored(page: Page, title: string) {
   const task = (await readStore<StoredTask>(page, 'todos')).find((t) => t.title === title)
   if (!task) throw new Error(`no task "${title}"`)
   const now = new Date()
   return {
     doDate: dayAndTime(task.doDate, now),
-    held: task.unplanned === true,
     dueDate: dayAndTime(task.dueDate, now),
     followup: dayAndTime(task.nextFollowupAt, now),
     modifiedAt: new Date(task.modifiedAt).getTime(),
@@ -141,7 +141,7 @@ test('a row there by its follow-up, dropped on a later tile: it keeps its follow
   await expect(label(page)).toHaveCount(0)
   // Only the plan: the planned day at local midnight, the follow-up where it was, the task not stamped.
   await expect.poll(async () => (await stored(page, 'Chase the invoice')).doDate).toEqual([3, 0, 0])
-  expect(await stored(page, 'Chase the invoice')).toEqual({ doDate: [3, 0, 0], held: false, dueDate: null, followup: [0, 0, 0], modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Chase the invoice')).toEqual({ doDate: [3, 0, 0], dueDate: null, followup: [0, 0, 0], modifiedAt: STAMP_MS })
 })
 
 test('a row there by its due date, dropped on a tile: a planned day, the due date kept — and the undo of the plan leaves the Modified date alone', async ({ page }) => {
@@ -158,14 +158,14 @@ test('a row there by its due date, dropped on a tile: a planned day, the due dat
   await expect(titles(group(page, inTwo))).toHaveText(['Call the caterer'])
   await expect.poll(async () => (await stored(page, 'Book the venue')).doDate).toEqual([4, 0, 0])
   // Planning doesn't touch the task's due date or its Modified date.
-  expect(await stored(page, 'Book the venue')).toEqual({ doDate: [4, 0, 0], held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Book the venue')).toEqual({ doDate: [4, 0, 0], dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
 
   // One undo step: the plan goes, the row is back on its due date, the stamp as it was.
   await expect.poll(() => newestUndoStep(page)).toMatch(/^Planned “Book the venue”/)
   await page.keyboard.press('Control+z')
   await expect(titles(group(page, inTwo))).toHaveText(['Book the venue', 'Call the caterer'])
   await expect.poll(async () => (await stored(page, 'Book the venue')).doDate).toBeNull()
-  expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
   // And its redo.
   await page.keyboard.press('Control+y')
   await expect(titles(group(page, inFour))).toHaveText(['Book the venue'])
@@ -187,7 +187,7 @@ test('a row dropped on the day its own date puts it loses its plan', async ({ pa
   await expect(titles(group(page, inFive))).toHaveText(['Write the brief'])
   await expect(titles(todayGroup(page))).toHaveText(['Renew the domain', 'Chase the invoice'])
   await expect.poll(async () => (await stored(page, 'Write the brief')).doDate).toBeNull()
-  expect(await stored(page, 'Write the brief')).toEqual({ doDate: null, held: false, dueDate: [5, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Write the brief')).toEqual({ doDate: null, dueDate: [5, 0, 0], followup: null, modifiedAt: STAMP_MS })
 
   // A row planned away from its follow-up's day and dropped back into that day's group: the same.
   await drag(page, await grip(rowOf(group(page, inTwo), 'Call the caterer')), await pointIn(tile(page, inFive)))
@@ -199,45 +199,56 @@ test('a row dropped on the day its own date puts it loses its plan', async ({ pa
   })
   await expect(titles(group(page, inTwo))).toHaveText(['Book the venue', 'Call the caterer'])
   await expect.poll(async () => (await stored(page, 'Call the caterer')).doDate).toBeNull()
-  expect(await stored(page, 'Call the caterer')).toEqual({ doDate: null, held: false, dueDate: null, followup: [2, 0, 0], modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Call the caterer')).toEqual({ doDate: null, dueDate: null, followup: [2, 0, 0], modifiedAt: STAMP_MS })
 })
 
-test('a dated row dropped on Unplanned is held there, keeps its date, and is still there after a reload', async ({ page }) => {
+test('a row with no plan dropped on Unplanned is refused; a planned row dropped there loses its plan and goes back to its date', async ({ page }) => {
   await seedWorkspace(page, WIDE)
   const inTwo = await dayKeyIn(page, 2)
+  const inFive = await dayKeyIn(page, 5)
   const unplanned = unplannedGroup(page)
   await expect(titles(unplanned)).toHaveText(['Someday focus'])
   // The tile's name: its rows, then its marks — a due date and a follow-up fall on the day.
   await expect(tile(page, inTwo)).toHaveAccessibleName(/: 2 tasks, 1 due, 1 follow-up$/)
 
+  // A row there by its due date, no plan: nothing is put in Unplanned by hand — refused, no mark, no label, nothing written.
+  const steps = await newestUndoStep(page)
   await drag(page, await grip(rowOf(group(page, inTwo), 'Book the venue')), await pointIn(unplanned, 0.5, 0.7), {
+    during: async () => {
+      await expect(page.locator('html')).toHaveAttribute('data-drop-refused', '')
+      await expect(planner(page).locator('[data-planner-drop]')).toHaveCount(0)
+      await expect(label(page)).toHaveCount(0)
+      await expect(unplanned.locator('[data-drop-slot]')).toHaveCount(0)
+    },
+  })
+  await expect(page.locator('html')).not.toHaveAttribute('data-drop-refused')
+  await expect(titles(unplanned)).toHaveText(['Someday focus'])
+  await expect(titles(group(page, inTwo))).toHaveText(['Book the venue', 'Call the caterer'])
+  await expect(tile(page, inTwo)).toHaveAccessibleName(/: 2 tasks, 1 due, 1 follow-up$/)
+  expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await newestUndoStep(page)).toBe(steps)
+
+  // A planned row with a date: Unplanned marked, the label says Unplan — no slot there, it won't sit in Unplanned.
+  await drag(page, await grip(rowOf(todayGroup(page), 'Write the brief')), await pointIn(unplanned, 0.5, 0.7), {
     during: async () => {
       await expectMarked(unplanned)
       await expect(label(page)).toHaveText('Unplan')
       await expect(page.locator('html')).not.toHaveAttribute('data-drop-refused')
+      await expect(unplanned.locator('[data-drop-slot]')).toHaveCount(0)
     },
   })
-  await expect(titles(unplanned)).toContainText(['Book the venue'])
-  await expect(titles(unplanned)).toHaveCount(2)
-  await expect(titles(group(page, inTwo))).toHaveText(['Call the caterer'])
-  // One row fewer; the held task's due date still marks the day.
-  await expect(tile(page, inTwo)).toHaveAccessibleName(/: 1 task, 1 due, 1 follow-up$/)
-  await expect.poll(async () => (await stored(page, 'Book the venue')).held).toBe(true)
-  expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, held: true, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
-  await expect.poll(() => newestUndoStep(page)).toMatch(/^Unplanned “Book the venue”/)
+  // Its plan cleared: back on its due date's day, not in Unplanned; the date and the stamp as they were.
+  await expect(titles(group(page, inFive))).toHaveText(['Write the brief'])
+  await expect(titles(unplanned)).toHaveText(['Someday focus'])
+  await expect(titles(todayGroup(page))).toHaveText(['Renew the domain', 'Chase the invoice'])
+  await expect.poll(async () => (await stored(page, 'Write the brief')).doDate).toBeNull()
+  expect(await stored(page, 'Write the brief')).toEqual({ doDate: null, dueDate: [5, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  await expect.poll(() => newestUndoStep(page)).toMatch(/^Cleared the plan of “Write the brief”/)
 
   await expectLayoutStored(page)
   await page.reload()
-  await expect(titles(unplannedGroup(page))).toContainText(['Book the venue'])
-  await expect(titles(unplannedGroup(page))).toHaveCount(2)
-  await expect(titles(group(page, inTwo))).toHaveText(['Call the caterer'])
-  expect((await stored(page, 'Book the venue')).held).toBe(true)
-
-  // A planned row with a date is held too: its planned day goes in the same write.
-  await drag(page, await grip(rowOf(todayGroup(page), 'Write the brief')), await pointIn(unplannedGroup(page), 0.5, 0.85))
-  await expect(titles(unplannedGroup(page))).toContainText(['Write the brief'])
-  await expect.poll(async () => (await stored(page, 'Write the brief')).held).toBe(true)
-  expect(await stored(page, 'Write the brief')).toEqual({ doDate: null, held: true, dueDate: [5, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  await expect(titles(group(page, inFive))).toHaveText(['Write the brief'])
+  await expect(titles(unplannedGroup(page))).toHaveText(['Someday focus'])
 })
 
 test('a Focus row dropped on a day is planned there; dropped back on Unplanned it just loses its plan', async ({ page }) => {
@@ -261,8 +272,8 @@ test('a Focus row dropped on a day is planned there; dropped back on Unplanned i
   await expect(titles(unplanned)).toHaveText(['Someday focus'])
   await expect(titles(group(page, inThree))).toHaveCount(0)
   await expect.poll(async () => (await stored(page, 'Someday focus')).doDate).toBeNull()
-  // No date to be kept off: not held, just without a plan.
-  expect(await stored(page, 'Someday focus')).toEqual({ doDate: null, held: false, dueDate: null, followup: null, modifiedAt: STAMP_MS })
+  // Without a plan; Focus — the Unplanned filter — keeps it there.
+  expect(await stored(page, 'Someday focus')).toEqual({ doDate: null, dueDate: null, followup: null, modifiedAt: STAMP_MS })
 })
 
 test('a plan whose day has passed shows in Delayed, not Today — and Delayed takes no drop', async ({ page }) => {
@@ -297,7 +308,7 @@ test('a plan whose day has passed shows in Delayed, not Today — and Delayed ta
   await expect(page.locator('html')).not.toHaveAttribute('data-drop-refused')
   await expect(titles(group(page, inTwo))).toHaveText(['Book the venue', 'Call the caterer'])
   await expect(titles(delayed)).toHaveText(['Old plan', 'Missed review'])
-  expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
   expect(await newestUndoStep(page)).toBe(steps)
 
   // A Delayed row dropped on Today, the day its due date puts it: its plan is cleared and it shows in Today by its date.
@@ -307,7 +318,7 @@ test('a plan whose day has passed shows in Delayed, not Today — and Delayed ta
   await expect(titles(todayGroup(page))).toContainText(['Missed review'])
   await expect(titles(delayed)).toHaveText(['Old plan'])
   await expect.poll(async () => (await stored(page, 'Missed review')).doDate).toBeNull()
-  expect(await stored(page, 'Missed review')).toEqual({ doDate: null, held: false, dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Missed review')).toEqual({ doDate: null, dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
 
   // The other one planned again, for tomorrow: Delayed empties and goes.
   await drag(page, await grip(rowOf(delayed, 'Old plan')), await pointIn(tile(page, await dayKeyIn(page, 1))), {
@@ -461,7 +472,7 @@ test('a list widget’s row dropped on a tile is planned by the same rule; the l
   })
   await expect(titles(today)).toHaveText(['Call the caterer', 'Renew the domain', 'Chase the invoice', 'Write the brief'])
   await expect.poll(async () => (await stored(page, 'Call the caterer')).doDate).toEqual([0, 0, 0])
-  expect(await stored(page, 'Call the caterer')).toEqual({ doDate: [0, 0, 0], held: false, dueDate: null, followup: [2, 0, 0], modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Call the caterer')).toEqual({ doDate: [0, 0, 0], dueDate: null, followup: [2, 0, 0], modifiedAt: STAMP_MS })
   expect(await readStore(page, 'listOrders')).toEqual([])
 })
 
@@ -491,7 +502,7 @@ test('a Planner row dropped on a list does nothing; on a calendar day it is the 
   })
   await expect(page.locator('[data-drag-overlay]')).toHaveCount(0)
   expect(await titles(list).allTextContents()).toEqual(before)
-  expect(await stored(page, 'Write the brief')).toEqual({ doDate: [0, 0, 0], held: false, dueDate: [5, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Write the brief')).toEqual({ doDate: [0, 0, 0], dueDate: [5, 0, 0], followup: null, modifiedAt: STAMP_MS })
   expect(await readStore(page, 'listOrders')).toEqual([])
   expect(await storedOrder(page)).toBeNull()
 
@@ -534,32 +545,37 @@ test('Snooze, Unplan and Plan for day › from the keyboard: the plan moves, no 
   // Snooze: a row there by its due date is planned for the next day; the item names it.
   let menu = await openMenu(rowOf(group(page, inTwo), 'Book the venue'))
   await expect(menu.getByRole('menuitem', { name: /^Snooze/ })).toContainText(await dayWords(page, 3))
-  await expect(menu.getByRole('menuitem', { name: /^Unplan/ })).toBeEnabled()
+  // No plan to clear: no Unplan.
+  await expect(menu.getByRole('menuitem', { name: /^(Unplan|Remove from Planner)/ })).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('menu')).toHaveCount(0)
   await pickItem(rowOf(group(page, inTwo), 'Book the venue'), /^Snooze/)
   await expect(titles(group(page, inThree))).toHaveText(['Book the venue'])
   await expect.poll(async () => (await stored(page, 'Book the venue')).doDate).toEqual([3, 0, 0])
-  expect(await stored(page, 'Book the venue')).toEqual({ doDate: [3, 0, 0], held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Book the venue')).toEqual({ doDate: [3, 0, 0], dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
   // Again: one more day.
   await pickItem(rowOf(group(page, inThree), 'Book the venue'), /^Snooze/)
   await expect(titles(group(page, inFour))).toHaveText(['Book the venue'])
   await expect.poll(async () => (await stored(page, 'Book the venue')).doDate).toEqual([4, 0, 0])
 
-  // Unplan: the dated row is held in Unplanned, its due date kept.
+  // Unplan: the plan cleared — the row back on its due date's day, the due date kept.
   await pickItem(rowOf(group(page, inFour), 'Book the venue'), /^Unplan/)
-  await expect(titles(unplannedGroup(page))).toContainText(['Book the venue'])
+  await expect(titles(group(page, inTwo))).toHaveText(['Book the venue', 'Call the caterer'])
   await expect(titles(group(page, inFour))).toHaveCount(0)
-  await expect.poll(async () => (await stored(page, 'Book the venue')).held).toBe(true)
-  expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, held: true, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
-  // There, Unplan is off and says why, and there is no Snooze: nothing there is planned to put off.
-  menu = await openMenu(rowOf(unplannedGroup(page), 'Book the venue'))
-  const unplan = menu.getByRole('menuitem', { name: /^Unplan/ })
-  await expect(unplan).toBeDisabled()
-  await expect(unplan).toHaveAttribute('aria-description', /Unplanned already/)
+  await expect(titles(unplannedGroup(page))).toHaveText(['Someday focus'])
+  await expect.poll(async () => (await stored(page, 'Book the venue')).doDate).toBeNull()
+  expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await newestUndoStep(page)).toBe('Cleared the plan of “Book the venue”')
+  // A row in Unplanned has no Snooze and no Unplan: nothing there is planned to put off or clear.
+  menu = await openMenu(rowOf(unplannedGroup(page), 'Someday focus'))
+  await expect(menu.getByRole('menuitem', { name: /^Plan for day/ })).toBeVisible()
   await expect(menu.getByRole('menuitem', { name: /^Snooze/ })).toHaveCount(0)
+  await expect(menu.getByRole('menuitem', { name: /^(Unplan|Remove from Planner)/ })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
 
   // Plan for day ›: with →, its submenu — a pick plans the task outright; no No day.
+  menu = await openMenu(rowOf(group(page, inTwo), 'Book the venue'))
   await arrowTo(menu.getByRole('menuitem', { name: /^Plan for day/ }))
   await page.keyboard.press('ArrowRight')
   let sub = page.getByRole('menu').last()
@@ -568,14 +584,15 @@ test('Snooze, Unplan and Plan for day › from the keyboard: the plan moves, no 
   await expect(sub.getByRole('menuitemradio')).toHaveCount(7)
   await expect(sub.getByRole('menuitemradio', { name: 'No day' })).toHaveCount(0)
   await expect(sub.getByRole('menuitemradio', { checked: true })).toHaveCount(0)
-  // Its own due date's day (noted `due`): planned for it outright, no longer held (a drag there would clear the plan).
+  // Its own due date's day (noted `due`): planned for it outright (a drag there would clear the plan).
   await expect(sub.getByRole('menuitemradio', { name: new RegExp(`^${await dayWords(page, 2)}`) })).toContainText('due')
   await arrowTo(sub.getByRole('menuitemradio', { name: new RegExp(`^${await dayWords(page, 2)}`) }))
   await page.keyboard.press('Enter')
   await expect(page.getByRole('menu')).toHaveCount(0)
   await expect(titles(group(page, inTwo))).toContainText(['Book the venue'])
-  await expect.poll(async () => (await stored(page, 'Book the venue')).held).toBe(false)
-  expect(await stored(page, 'Book the venue')).toEqual({ doDate: [2, 0, 0], held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  await expect(flagOf(rowOf(group(page, inTwo), 'Book the venue'))).toHaveCount(1)
+  await expect.poll(async () => (await stored(page, 'Book the venue')).doDate).toEqual([2, 0, 0])
+  expect(await stored(page, 'Book the venue')).toEqual({ doDate: [2, 0, 0], dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
 
   // A row there by its follow-up: the same words, its follow-up's day noted and nothing checked (no plan); a pick plans it and leaves the follow-up.
   menu = await openMenu(rowOf(todayGroup(page), 'Chase the invoice'))
@@ -590,7 +607,7 @@ test('Snooze, Unplan and Plan for day › from the keyboard: the plan moves, no 
   await expect(page.getByRole('menu')).toHaveCount(0)
   await expect(titles(group(page, inThree))).toHaveText(['Chase the invoice'])
   await expect.poll(async () => (await stored(page, 'Chase the invoice')).doDate).toEqual([3, 0, 0])
-  expect(await stored(page, 'Chase the invoice')).toEqual({ doDate: [3, 0, 0], held: false, dueDate: null, followup: [0, 0, 0], modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Chase the invoice')).toEqual({ doDate: [3, 0, 0], dueDate: null, followup: [0, 0, 0], modifiedAt: STAMP_MS })
 })
 
 test('the medium face: one column takes the same drops', async ({ page }) => {
@@ -673,14 +690,14 @@ test('a drag let go mid-way over a group is one drop: Esc cancels it and nothing
   await expect(planner(page).locator('[data-drop-slot]')).toHaveCount(0)
   await releaseDrag(page)
   await expect(titles(todayGroup(page))).toHaveText(['Renew the domain', 'Chase the invoice', 'Write the brief'])
-  expect(await stored(page, 'Chase the invoice')).toEqual({ doDate: null, held: false, dueDate: null, followup: [0, 0, 0], modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Chase the invoice')).toEqual({ doDate: null, dueDate: null, followup: [0, 0, 0], modifiedAt: STAMP_MS })
   expect(await storedOrder(page)).toBeNull()
   expect(await newestUndoStep(page)).toBeNull()
 })
 
 // ── The layout: the days on the left, the trays on the right ────────────────
 
-/** A week with every Planner state: placed and not, a plan past its due date, Delayed, held. */
+/** A week with every Planner state: placed and not, a plan past its due date, Delayed, Unplanned by its filter. */
 const WEEK: NonNullable<WorkspaceSeed['tasks']> = [
   { title: 'Renew the domain', dueInDays: 0, modifiedAt: STAMP },
   { title: 'Write the brief', doInDays: 0, dueInDays: 5, modifiedAt: STAMP },
@@ -691,7 +708,7 @@ const WEEK: NonNullable<WorkspaceSeed['tasks']> = [
   { title: 'From a list', doInDays: 4, modifiedAt: STAMP },
   { title: 'Missed review', doInDays: -1, dueInDays: 9, modifiedAt: STAMP },
   { title: 'Old plan', doInDays: -3, modifiedAt: STAMP },
-  { title: 'Held call', unplanned: true, followupInDays: 3, modifiedAt: STAMP },
+  { title: 'Call back', followupInDays: 3, modifiedAt: STAMP },
   { title: 'Someday focus', focus: true, modifiedAt: STAMP },
 ]
 
@@ -704,7 +721,7 @@ const daysPane = (page: Page) => planner(page).locator('[data-planner-pane="days
 const traysPane = (page: Page) => planner(page).locator('[data-planner-pane="trays"]')
 const flagOf = (row: Locator) => row.locator('xpath=ancestor::*[@data-planner-row][1]').locator('[data-planner-flag]')
 const tagOf = (row: Locator) => row.locator('[data-planner-tag]')
-const unplanAll = (page: Page) => planner(page).getByRole('button', { name: 'Unplan all Delayed tasks' })
+const clearDelayed = (page: Page) => planner(page).getByRole('button', { name: 'Clear Delayed plans' })
 /** A day's short weekday (`Wed`), `days` from today: a tag's words within six days. */
 const weekday = (page: Page, days: number) => page.evaluate((n) => {
   const d = new Date()
@@ -723,11 +740,11 @@ test('the large face: the days in one list on the left, the trays on a darker gr
   await expect(group(page, keys[1]!)).toHaveAttribute('data-planner-empty', '')
   await expect(group(page, keys[1]!).getByTestId('planner-group-count')).toHaveCount(0)
   await expect(group(page, keys[2]!)).not.toHaveAttribute('data-planner-empty')
-  // Right: Delayed, the Unplan button, Unplanned — top to bottom.
-  expect(await traysPane(page).locator('[data-planner-group], [data-planner-unplan-all]').evaluateAll((els) => els.map((el) => el.getAttribute('data-planner-group') ?? 'unplan')))
-    .toEqual(['delayed', 'unplan', 'unplanned'])
+  // Right: Delayed, the Clear plans button, Unplanned — top to bottom.
+  expect(await traysPane(page).locator('[data-planner-group], [data-planner-clear-delayed]').evaluateAll((els) => els.map((el) => el.getAttribute('data-planner-group') ?? 'clear')))
+    .toEqual(['delayed', 'clear', 'unplanned'])
   const [left, right, delayed, button, unplanned] = await Promise.all([
-    box(daysPane(page)), box(traysPane(page)), box(delayedGroup(page)), box(unplanAll(page)), box(unplannedGroup(page)),
+    box(daysPane(page)), box(traysPane(page)), box(delayedGroup(page)), box(clearDelayed(page)), box(unplannedGroup(page)),
   ])
   expect(left.x + left.width).toBeLessThanOrEqual(right.x + 1)
   expect(Math.abs(left.y - right.y)).toBeLessThanOrEqual(1)
@@ -742,11 +759,11 @@ test('the large face: the days in one list on the left, the trays on a darker gr
 
   // The strip: a solid tick per real date, a hollow one per plan; the count is the rows on the day.
   const marks = (key: string) => tile(page, key).locator('[data-mark]').evaluateAll((els) => els.map((el) => el.getAttribute('data-mark')))
-  // In two days: two due dates (one of them planned a day later), no plan. In three: that plan, and the held call's follow-up.
+  // In two days: two due dates (one of them planned a day later), no plan. In three: that plan, and a follow-up.
   expect(await marks(keys[2]!)).toEqual(['due', 'due'])
   await expect(tile(page, keys[2]!).getByTestId('planner-tile-count')).toHaveText('1')
   expect(await marks(keys[3]!)).toEqual(['followup', 'plan'])
-  await expect(tile(page, keys[3]!).getByTestId('planner-tile-count')).toHaveText('1')
+  await expect(tile(page, keys[3]!).getByTestId('planner-tile-count')).toHaveText('2')
   // A solid tick is filled, a hollow one outlined.
   const plan = tile(page, keys[3]!).locator('[data-mark="plan"]')
   expect(await plan.evaluate((el) => { const s = getComputedStyle(el); return [s.backgroundColor, s.borderTopStyle] })).toEqual(['rgba(0, 0, 0, 0)', 'solid'])
@@ -855,7 +872,7 @@ test.describe('a short Planner', () => {
 
 // ── A row's hover buttons ───────────────────────────────────────────────────
 
-test('hover Snooze moves a Today row to tomorrow; hover Unplan moves it to Unplanned; hover Today brings it back — the plan only', async ({ page }) => {
+test('hover Snooze moves a Today row to tomorrow; hover Unplan sends it back to its due day; an Unplanned row’s hover Today plans it — the plan only', async ({ page }) => {
   await seedWorkspace(page, ALONE)
   const tomorrow = await dayKeyIn(page, 1)
   const row = rowOf(todayGroup(page), 'Renew the domain')
@@ -866,7 +883,8 @@ test('hover Snooze moves a Today row to tomorrow; hover Unplan moves it to Unpla
   await row.hover({ position: { x: 80, y: 10 } })
   await expect.poll(() => row.locator('[data-row-cluster]').evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
   await expect(snooze).toBeVisible()
-  await expect(unplan).toBeVisible()
+  // There by its due date, no plan: nothing to clear, so no Unplan.
+  await expect(unplan).toHaveCount(0)
   await snooze.click()
   // Tomorrow, with its flag and — planned a day after its due date — its tag; the due date as it was.
   const moved = rowOf(group(page, tomorrow), 'Renew the domain')
@@ -874,86 +892,113 @@ test('hover Snooze moves a Today row to tomorrow; hover Unplan moves it to Unpla
   await expect(flagOf(moved)).toHaveCount(1)
   await expect(tagOf(moved)).toHaveText('1 day after due')
   await expect.poll(async () => (await stored(page, 'Renew the domain')).doDate).toEqual([1, 0, 0])
-  expect(await stored(page, 'Renew the domain')).toEqual({ doDate: [1, 0, 0], held: false, dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Renew the domain')).toEqual({ doDate: [1, 0, 0], dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
   // The editor did not open.
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
-  // Unplan, from the row's hover: held in Unplanned, with a tag of the day it came off; there only a Today button.
+  // Unplan, from the row's hover: the plan cleared — back in Today by its due date, unflagged, untagged.
   await moved.hover({ position: { x: 80, y: 10 } })
+  await expect(moved.getByRole('button', { name: 'Unplan' })).toHaveAttribute('data-tooltip', 'Clear the plan')
   await moved.getByRole('button', { name: 'Unplan' }).click()
-  const held = rowOf(unplannedGroup(page), 'Renew the domain')
-  await expect(held).toBeVisible()
-  await expect(tagOf(held)).toHaveText('Today')
-  await expect(flagOf(held)).toHaveCount(1)
-  await expect.poll(async () => (await stored(page, 'Renew the domain')).held).toBe(true)
-  expect(await stored(page, 'Renew the domain')).toEqual({ doDate: null, held: true, dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
-  await held.hover({ position: { x: 80, y: 10 } })
-  const today = held.getByRole('button', { name: 'Today' })
-  await expect(today).toBeVisible()
-  await expect(held.getByRole('button', { name: 'Snooze' })).toHaveCount(0)
-  await expect(held.getByRole('button', { name: 'Unplan' })).toHaveCount(0)
-  // Each a step of its own.
-  expect(await newestUndoStep(page)).toBe('Unplanned “Renew the domain”')
-
-  // Today: planned for today outright — due today too, so a plan on its own date's day — no longer held, flagged.
-  await today.click()
   const back = rowOf(todayGroup(page), 'Renew the domain')
   await expect(back).toBeVisible()
-  await expect(flagOf(back)).toHaveCount(1)
-  await expect.poll(async () => (await stored(page, 'Renew the domain')).held).toBe(false)
-  expect(await stored(page, 'Renew the domain')).toEqual({ doDate: [0, 0, 0], held: false, dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  await expect(rowOf(group(page, tomorrow), 'Renew the domain')).toHaveCount(0)
+  await expect(flagOf(back)).toHaveCount(0)
+  await expect(tagOf(back)).toHaveCount(0)
+  await expect.poll(async () => (await stored(page, 'Renew the domain')).doDate).toBeNull()
+  expect(await stored(page, 'Renew the domain')).toEqual({ doDate: null, dueDate: [0, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  // No plan left: Snooze, but no Unplan.
+  await back.hover({ position: { x: 80, y: 10 } })
+  await expect(back.getByRole('button', { name: 'Snooze' })).toBeVisible()
+  await expect(back.getByRole('button', { name: 'Unplan' })).toHaveCount(0)
+  // Each a step of its own.
+  expect(await newestUndoStep(page)).toBe('Cleared the plan of “Renew the domain”')
+
+  // A row in Unplanned (by its filter): no tag, no flag; its hover has only Today.
+  const loose = rowOf(unplannedGroup(page), 'Someday focus')
+  await expect(tagOf(loose)).toHaveCount(0)
+  await expect(flagOf(loose)).toHaveCount(0)
+  await loose.hover({ position: { x: 80, y: 10 } })
+  const today = loose.getByRole('button', { name: 'Today' })
+  await expect(today).toBeVisible()
+  await expect(loose.getByRole('button', { name: 'Snooze' })).toHaveCount(0)
+  await expect(loose.getByRole('button', { name: 'Unplan' })).toHaveCount(0)
+  await expect(loose.getByRole('button', { name: 'Remove', exact: true })).toHaveCount(0)
+
+  // Today: planned for today outright, flagged.
+  await today.click()
+  const planned = rowOf(todayGroup(page), 'Someday focus')
+  await expect(planned).toBeVisible()
+  await expect(flagOf(planned)).toHaveCount(1)
+  await expect(titles(unplannedGroup(page))).toHaveCount(0)
+  await expect.poll(async () => (await stored(page, 'Someday focus')).doDate).toEqual([0, 0, 0])
+  expect(await stored(page, 'Someday focus')).toEqual({ doDate: [0, 0, 0], dueDate: null, followup: null, modifiedAt: STAMP_MS })
 })
 
-test('Unplan keeps a planned task with no date, not in Focus, in the Planner: it is held in Unplanned', async ({ page }) => {
+test('Unplan of a planned task with no date, not in Focus, reads Remove: it leaves the Planner, the snackbar says so, and Undo brings it back', async ({ page }) => {
   await seedWorkspace(page, ALONE)
   const inFour = await dayKeyIn(page, 4)
   const row = rowOf(group(page, inFour), 'From a list')
   await expect(flagOf(row)).toHaveCount(1)
   await row.hover({ position: { x: 80, y: 10 } })
-  await row.getByRole('button', { name: 'Unplan' }).click()
-  const held = rowOf(unplannedGroup(page), 'From a list')
-  await expect(held).toBeVisible()
-  // No date of its own: no tag, but the flag of a held row.
-  await expect(tagOf(held)).toHaveCount(0)
-  await expect(flagOf(held)).toHaveCount(1)
-  await expect.poll(async () => stored(page, 'From a list')).toEqual({ doDate: null, held: true, dueDate: null, followup: null, modifiedAt: STAMP_MS })
+  // Clearing its plan takes it out of the Planner: the button says Remove.
+  await expect(row.getByRole('button', { name: 'Unplan' })).toHaveCount(0)
+  const remove = row.getByRole('button', { name: 'Remove', exact: true })
+  await expect(remove).toBeVisible()
+  await expect(remove).toHaveAttribute('data-tooltip', 'Clear the plan: it leaves the Planner')
+  await remove.click()
+  await expect(rowOf(planner(page), 'From a list')).toHaveCount(0)
   await expect(group(page, inFour)).toHaveAttribute('data-planner-empty', '')
-  // Still there after a reload.
-  await page.reload()
-  await expect(rowOf(unplannedGroup(page), 'From a list')).toBeVisible()
+  await expect.poll(async () => stored(page, 'From a list')).toEqual({ doDate: null, dueDate: null, followup: null, modifiedAt: STAMP_MS })
+  const snackbar = page.locator('[data-snackbar-live]')
+  await expect(snackbar).toContainText('Removed “From a list” from the Planner')
+  // Undo: back on its planned day, flagged.
+  await snackbar.getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(flagOf(rowOf(group(page, inFour), 'From a list'))).toHaveCount(1)
+  await expect.poll(async () => (await stored(page, 'From a list')).doDate).toEqual([4, 0, 0])
 })
 
-// ── Delayed: the tags, the Unplan button ────────────────────────────────────
+// ── Delayed: the tags, the Clear plans button ───────────────────────────────
 
-test('the ↓ Unplan button moves every Delayed task to Unplanned in one step; Undo brings them back', async ({ page }) => {
-  await seedWorkspace(page, ALONE)
+test('the Clear plans button clears every Delayed plan in one step, saying how many left the Planner; Undo brings them back', async ({ page }) => {
+  // A third Delayed task, with a follow-up tomorrow: cleared, it stays in the Planner.
+  await seedWorkspace(page, { ...ALONE, tasks: [...WEEK, { title: 'Missed call', doInDays: -2, followupInDays: 1, modifiedAt: STAMP }] })
   const delayed = delayedGroup(page)
-  await expect(titles(delayed)).toHaveText(['Old plan', 'Missed review'])
+  await expect(titles(delayed)).toHaveText(['Old plan', 'Missed call', 'Missed review'])
   // Each Delayed row: its flag and the day it was planned for.
   await expect(tagOf(rowOf(delayed, 'Missed review'))).toHaveText(await weekday(page, -1))
   await expect(tagOf(rowOf(delayed, 'Old plan'))).toHaveText(await weekday(page, -3))
-  await expect(delayed.locator('[data-planner-flag]')).toHaveCount(2)
-  // A held row with a date: the day it came off.
-  await expect(tagOf(rowOf(unplannedGroup(page), 'Held call'))).toHaveText(await weekday(page, 3))
+  await expect(delayed.locator('[data-planner-flag]')).toHaveCount(3)
+  // A row in Unplanned by its filter: no tag.
+  await expect(tagOf(rowOf(unplannedGroup(page), 'Someday focus'))).toHaveCount(0)
 
-  const button = unplanAll(page)
+  const button = clearDelayed(page)
+  await expect(button).toHaveText('Clear plans')
   await button.hover()
-  await expect(page.getByRole('tooltip')).toHaveText('Move all Delayed tasks to Unplanned')
+  await expect(page.getByRole('tooltip')).toHaveText('Clear the plan of every Delayed task: each goes back to where its own dates put it')
   await button.click()
   await expect(delayed).toHaveCount(0)
   await expect(button).toHaveCount(0)
-  await expect(titles(unplannedGroup(page))).toHaveText(['Missed review', 'Old plan', 'Held call', 'Someday focus'])
-  await expect.poll(async () => (await stored(page, 'Old plan')).held).toBe(true)
-  // Both held — the one with no date too —, no date and no stamp touched.
-  expect(await stored(page, 'Old plan')).toEqual({ doDate: null, held: true, dueDate: null, followup: null, modifiedAt: STAMP_MS })
-  expect(await stored(page, 'Missed review')).toEqual({ doDate: null, held: true, dueDate: [9, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  // Each back where its own dates put it: the follow-up's day; the other two — no date in the window — leave the Planner. Nothing joins Unplanned.
+  const tomorrow = group(page, await dayKeyIn(page, 1))
+  await expect(titles(tomorrow)).toHaveText(['Missed call'])
+  await expect(flagOf(rowOf(tomorrow, 'Missed call'))).toHaveCount(0)
+  await expect(rowOf(planner(page), 'Old plan')).toHaveCount(0)
+  await expect(rowOf(planner(page), 'Missed review')).toHaveCount(0)
+  await expect(titles(unplannedGroup(page))).toHaveText(['Someday focus'])
+  await expect.poll(async () => (await stored(page, 'Old plan')).doDate).toBeNull()
+  // No date and no stamp touched.
+  expect(await stored(page, 'Old plan')).toEqual({ doDate: null, dueDate: null, followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Missed review')).toEqual({ doDate: null, dueDate: [9, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Missed call')).toEqual({ doDate: null, dueDate: null, followup: [1, 0, 0], modifiedAt: STAMP_MS })
 
   const snackbar = page.locator('[data-snackbar-live]')
-  await expect(snackbar).toContainText('Unplanned 2 tasks from Delayed')
+  await expect(snackbar).toContainText('Cleared 3 Delayed plans. 2 of them left the Planner.')
   await snackbar.getByRole('button', { name: 'Undo', exact: true }).click()
-  await expect(titles(delayedGroup(page))).toHaveText(['Old plan', 'Missed review'])
+  await expect(titles(delayedGroup(page))).toHaveText(['Old plan', 'Missed call', 'Missed review'])
   await expect.poll(async () => (await stored(page, 'Old plan')).doDate).toEqual([-3, 0, 0])
-  expect(await stored(page, 'Missed review')).toEqual({ doDate: [-1, 0, 0], held: false, dueDate: [9, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Missed review')).toEqual({ doDate: [-1, 0, 0], dueDate: [9, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect((await stored(page, 'Missed call')).doDate).toEqual([-2, 0, 0])
 })
 
 // ── Reset plan ──────────────────────────────────────────────────────────────
@@ -965,41 +1010,44 @@ async function confirmReset(page: Page): Promise<void> {
 
 test('Reset plan › This week clears every plan the Planner shows; Undo puts them back', async ({ page }) => {
   await seedWorkspace(page, ALONE)
-  await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(6)
+  await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(5)
   await planner(page).getByRole('button', { name: 'Reset plan' }).click()
   const menu = page.getByRole('menu', { name: 'Reset plan' })
-  // Six placed tasks; one planned for today; two Delayed.
-  await expect(menu.getByRole('menuitem')).toHaveText([/^This week\s*6$/, /^Today only\s*1$/, /^Delayed\s*2$/])
+  // Five placed tasks; one planned for today; two Delayed.
+  await expect(menu.getByRole('menuitem')).toHaveText([/^This week\s*5$/, /^Today only\s*1$/, /^Delayed\s*2$/])
   await menu.getByRole('menuitem', { name: /^This week/ }).click()
   // It asks first: how many plans, and how many tasks then leave the Planner.
   const ask = page.getByRole('dialog', { name: 'Reset plan: this week?' })
-  await expect(ask).toContainText('This clears the plan of 6 tasks')
-  // The tasks that then leave the Planner are named, held or planned with no date in it.
-  await expect(ask.getByRole('list', { name: /^Leaving the Planner/ }).getByRole('listitem').first()).toBeVisible()
+  await expect(ask).toContainText('This clears the plan of 5 tasks')
+  // The tasks that then leave the Planner are named, each with its planned day: no date in the window.
+  const leaving = ask.getByRole('list', { name: /^Leaving the Planner/ })
+  await expect(leaving.getByRole('listitem')).toHaveCount(3)
+  await expect(leaving.getByRole('listitem').filter({ hasText: 'From a list' })).toContainText(`Planned ${await dayWords(page, 4)}`)
+  await expect(ask).not.toContainText('Held in Unplanned')
   await confirmReset(page)
   // No flag left; a planned task with no date and no Focus leaves the widget (Reset may remove it), the dated ones sit by their dates.
   await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(0)
   await expect(delayedGroup(page)).toHaveCount(0)
   await expect(titles(unplannedGroup(page))).toHaveText(['Someday focus'])
   await expect(titles(group(page, await dayKeyIn(page, 2)))).toHaveText(['Book the venue', 'Migrate the invoices'])
-  await expect(titles(group(page, await dayKeyIn(page, 3)))).toHaveText(['Held call'])
+  await expect(titles(group(page, await dayKeyIn(page, 3)))).toHaveText(['Call back'])
   await expect.poll(async () => (await stored(page, 'Migrate the invoices')).doDate).toBeNull()
-  for (const title of ['Write the brief', 'Migrate the invoices', 'From a list', 'Missed review', 'Old plan', 'Held call']) {
+  for (const title of ['Write the brief', 'Migrate the invoices', 'From a list', 'Missed review', 'Old plan']) {
     const task = await stored(page, title)
-    expect([title, task.doDate, task.held, task.modifiedAt]).toEqual([title, null, false, STAMP_MS])
+    expect([title, task.doDate, task.modifiedAt]).toEqual([title, null, STAMP_MS])
   }
   // The dates stand.
   expect((await stored(page, 'Migrate the invoices')).dueDate).toEqual([2, 0, 0])
-  expect((await stored(page, 'Held call')).followup).toEqual([3, 0, 0])
+  expect((await stored(page, 'Call back')).followup).toEqual([3, 0, 0])
 
   // One undo step, offered by the snackbar.
   const snackbar = page.locator('[data-snackbar-live]')
   await expect(snackbar).toContainText('Reset plan: this week')
   await snackbar.getByRole('button', { name: 'Undo', exact: true }).click()
-  await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(6)
+  await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(5)
   await expect(titles(delayedGroup(page))).toHaveText(['Old plan', 'Missed review'])
   await expect.poll(async () => (await stored(page, 'Migrate the invoices')).doDate).toEqual([3, 0, 0])
-  expect(await stored(page, 'Held call')).toEqual({ doDate: null, held: true, dueDate: null, followup: [3, 0, 0], modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Old plan')).toEqual({ doDate: [-3, 0, 0], dueDate: null, followup: null, modifiedAt: STAMP_MS })
   expect((await stored(page, 'From a list')).doDate).toEqual([4, 0, 0])
 
   // A choice with nothing to clear is inert.
@@ -1098,7 +1146,7 @@ test('the Unplanned filter: its words open the Planner settings, and what it hol
   const stored = await readStore<{ cells: Array<{ tabs: Array<{ id: string; config: { unplanned?: { expression?: unknown } } }> }> }>(page, 'layouts')
   expect(stored.flatMap((l) => l.cells).flatMap((c) => c.tabs).find((t) => t.id === 'plan')?.config.unplanned?.expression).toMatchObject({ kind: 'tag' })
 
-  // From the widget's ⋯: emptied, nothing joins on its own.
+  // From the widget's ⋯: emptied, nothing joins.
   await openCellMenu(page, 'k1')
   await page.getByRole('menuitem', { name: 'Unplanned filter…' }).click()
   await expect(dialog).toBeVisible()
@@ -1106,7 +1154,7 @@ test('the Unplanned filter: its words open the Planner settings, and what it hol
   await dialog.getByRole('textbox', { name: 'Filter expression' }).press('Tab')
   await expect(unplannedGroup(page).getByText('Nothing unplanned')).toBeVisible()
   await dialog.getByRole('button', { name: 'Save' }).click()
-  await expect(line).toHaveText('Nothing joins on its own')
+  await expect(line).toHaveText('Nothing joins')
 })
 
 test('in the widget popup, the Planner settings redraw Unplanned as the filter is edited, as in a cell', async ({ page }) => {
@@ -1175,7 +1223,7 @@ test('a row planned after its due date shows the tag and the date drawn late; Mo
   // The due date moved to the planned day; its own date puts the row there now: no plan, no flag, no tag.
   await expect.poll(async () => (await stored(page, 'Migrate the invoices')).dueDate).toEqual([3, 0, 0])
   const task = await stored(page, 'Migrate the invoices')
-  expect([task.doDate, task.held, task.followup]).toEqual([null, false, null])
+  expect([task.doDate, task.followup]).toEqual([null, null])
   // A real edit: stamped.
   expect(task.modifiedAt).toBeGreaterThan(STAMP_MS)
   const after = rowOf(group(page, inThree), 'Migrate the invoices')
@@ -1201,9 +1249,10 @@ test('Plan for … moves the plan to the date’s day and leaves the date alone'
   await expect(row).toBeVisible()
   await expect(tagOf(row)).toHaveCount(0)
   await expect(flagOf(row)).toHaveCount(1)
-  await expect(group(page, inThree)).toHaveAttribute('data-planner-empty', '')
+  // Gone from the day it was planned for: only that day's follow-up is left there.
+  await expect(titles(group(page, inThree))).toHaveText(['Call back'])
   await expect.poll(async () => (await stored(page, 'Migrate the invoices')).doDate).toEqual([2, 0, 0])
-  expect(await stored(page, 'Migrate the invoices')).toEqual({ doDate: [2, 0, 0], held: false, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Migrate the invoices')).toEqual({ doDate: [2, 0, 0], dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
 })
 
 // ── The keyboard: the focus follows the row ─────────────────────────────────
@@ -1231,12 +1280,21 @@ test('from the keyboard, the focus follows a row that Snooze, Unplan or a fix mo
   await expect.poll(focused).toEqual({ on: 'Snooze', row: 'Book the venue', group: inFour })
   expect((await stored(page, 'Book the venue')).doDate).toEqual([4, 0, 0])
 
-  // Tab to Unplan, Space: the row goes to Unplanned, in the other pane, and the focus with it (its Today: it has no Snooze or Unplan there).
+  // Tab to Unplan, Space: the plan cleared, the row goes back to its due date's day, and the focus with it (its Snooze: with no plan it has no Unplan).
   await page.keyboard.press('Tab')
   await expect.poll(focused).toEqual({ on: 'Unplan', row: 'Book the venue', group: inFour })
   await page.keyboard.press('Space')
-  await expect.poll(focused).toEqual({ on: 'Today', row: 'Book the venue', group: 'unplanned' })
-  await expect(rowOf(unplannedGroup(page), 'Book the venue')).toBeInViewport()
+  await expect.poll(focused).toEqual({ on: 'Snooze', row: 'Book the venue', group: inTwo })
+  await expect(rowOf(group(page, inTwo!), 'Book the venue')).toBeInViewport()
+  expect((await stored(page, 'Book the venue')).doDate).toBeNull()
+
+  // Remove (an Unplan that takes the row out of the Planner), Enter: the focus goes to the row that took its place in its group.
+  const oldPlan = rowOf(delayedGroup(page), 'Old plan').getByRole('button', { name: 'Remove', exact: true })
+  await oldPlan.focus()
+  await page.keyboard.press('Enter')
+  await expect(rowOf(planner(page), 'Old plan')).toHaveCount(0)
+  await expect.poll(focused).toEqual({ on: 'Remove', row: 'Missed review', group: 'delayed' })
+  await expect(page.locator('[data-snackbar-live]')).toContainText('Removed “Old plan” from the Planner')
 
   // A fix: Enter on the tag opens its menu, Enter picks Move due date — the tag goes with the conflict, the focus stays in the row.
   await tagOf(rowOf(group(page, inThree!), 'Migrate the invoices')).focus()
@@ -1282,7 +1340,7 @@ test('Snooze from the window’s last day: a dated row stays there, planned late
   await expect(tagOf(dated)).toHaveText(`planned ${nextDay}`)
   await expect(dated.locator('[data-row-cell="due"]')).toHaveAttribute('data-date-level', 'late')
   await expect(page.locator('[data-snackbar-live]')).not.toContainText('Planned for')
-  expect(await stored(page, 'Due on the last day')).toEqual({ doDate: [7, 0, 0], held: false, dueDate: [6, 0, 0], followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Due on the last day')).toEqual({ doDate: [7, 0, 0], dueDate: [6, 0, 0], followup: null, modifiedAt: STAMP_MS })
   // Its tag offers the fixes.
   await tagOf(dated).click()
   await expect(page.getByRole('menu', { name: 'Fix the plan' }).getByRole('menuitem')).toHaveText([`Move due date to ${nextDay}`, `Plan for ${await dayWords(page, 6)}`])
@@ -1357,7 +1415,7 @@ test.describe('panes narrow enough for Stacked rows', () => {
     expect(Math.round(f.width)).toBe(9)
     expect(await flag.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none')
     // Every placed row has one; a row there by its date has none.
-    await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(6)
+    await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(5)
     await expect(flagOf(rowOf(group(page, await dayKeyIn(page, 2)), 'Book the venue'))).toHaveCount(0)
     // The tag leads the details line, under the title; the due date is drawn late.
     const tag = tagOf(row)
@@ -1390,18 +1448,18 @@ test.describe('panes narrow enough for Stacked rows', () => {
 test.describe('on the phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('one column: Today, the days with tasks, Delayed, the Unplan button, Unplanned — flags and tags, no hover buttons', async ({ page }) => {
+  test('one column: Today, the days with tasks, Delayed, the Clear plans button, Unplanned — flags and tags, no hover buttons', async ({ page }) => {
     await seedWorkspace(page, ALONE)
     const column = planner(page).locator('[data-planner-layout="column"]')
     await expect(column).toBeVisible()
     await expect(planner(page).locator('[data-planner-pane]')).toHaveCount(0)
     const keys = await Promise.all([0, 2, 3, 4].map((n) => dayKeyIn(page, n)))
-    expect(await column.locator('[data-planner-group], [data-planner-unplan-all]').evaluateAll((els) => els.map((el) => el.getAttribute('data-planner-group') ?? 'unplan')))
-      .toEqual([...keys, 'delayed', 'unplan', 'unplanned'])
+    expect(await column.locator('[data-planner-group], [data-planner-clear-delayed]').evaluateAll((els) => els.map((el) => el.getAttribute('data-planner-group') ?? 'clear')))
+      .toEqual([...keys, 'delayed', 'clear', 'unplanned'])
     // Top to bottom, in one scroll.
-    const tops = await column.locator('[data-planner-group], [data-planner-unplan-all]').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top))
+    const tops = await column.locator('[data-planner-group], [data-planner-clear-delayed]').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top))
     expect([...tops].sort((a, b) => a - b)).toEqual(tops)
-    await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(6)
+    await expect(planner(page).locator('[data-planner-flag]')).toHaveCount(5)
     await expect(planner(page).locator('[data-planner-actions]')).toHaveCount(0)
     const conflict = planner(page).locator('[data-planner-row]').filter({ hasText: 'Migrate the invoices' })
     await expect(conflict.locator('[data-planner-tag]')).toHaveText('1 day after due')
@@ -1409,11 +1467,11 @@ test.describe('on the phone', () => {
     // A tile's tap brings its day into view.
     await tile(page, keys[3]!).tap()
     await expect(group(page, keys[3]!)).toBeInViewport()
-    // The Unplan button works by tap.
-    await unplanAll(page).scrollIntoViewIfNeeded()
-    await unplanAll(page).tap()
+    // The Clear plans button works by tap.
+    await clearDelayed(page).scrollIntoViewIfNeeded()
+    await clearDelayed(page).tap()
     await expect(delayedGroup(page)).toHaveCount(0)
-    await expect.poll(async () => (await stored(page, 'Old plan')).held).toBe(true)
+    await expect.poll(async () => (await stored(page, 'Old plan')).doDate).toBeNull()
   })
 })
 
@@ -1438,48 +1496,57 @@ const ANYWHERE: WorkspaceSeed = {
   }],
 }
 
-/** Opens Plan for day › in the task menu that is open, and picks the day or Unplanned (`item`: its name's start). */
+/** Opens Plan for day › in the task menu that is open and picks the day (`item`: its name's start); there is no Unplanned item. */
 async function planFor(page: Page, item: string): Promise<void> {
   const menu = page.getByRole('menu', { name: 'Task actions' })
   await menu.getByRole('menuitem', { name: /^Plan for day/ }).hover()
+  await expect(page.getByRole('menuitemradio', { name: /^Today/ })).toBeVisible()
+  await expect(page.getByRole('menuitemradio', { name: /^Unplanned/ })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: /^Unplanned/ })).toHaveCount(0)
   await page.getByRole('menuitemradio', { name: new RegExp(`^${item}`) }).click()
 }
 
-test('a task with no date joins the Planner from a list row’s menu — Unplanned, flagged — and Remove takes it out again', async ({ page }) => {
+test('a task with no date joins the Planner from a list row’s menu — planned for a day, flagged — and Remove takes it out again', async ({ page }) => {
   await seedWorkspace(page, ANYWHERE)
   const list = wsCell(page, 'k2')
   await expect(rowOf(planner(page), 'Loose idea')).toHaveCount(0)
   await rowOf(list, 'Loose idea').locator('[data-title-text]').click({ button: 'right' })
-  await planFor(page, 'Unplanned')
-  const row = rowOf(unplannedGroup(page), 'Loose idea')
+  await planFor(page, 'Today')
+  const row = rowOf(todayGroup(page), 'Loose idea')
   await expect(row).toHaveCount(1)
   await expect(planner(page).locator('[data-planner-row]').filter({ hasText: 'Loose idea' }).locator('[data-planner-flag]')).toHaveCount(1)
-  await expect.poll(async () => (await stored(page, 'Loose idea')).held).toBe(true)
+  await expect.poll(async () => (await stored(page, 'Loose idea')).doDate).toEqual([0, 0, 0])
   expect((await stored(page, 'Loose idea')).modifiedAt).toBe(STAMP_MS)
 
-  // Held with no date: its hover offers Today and Remove.
+  // Planned with no date: clearing the plan takes it out, so its hover offers Snooze and Remove.
   await row.hover()
-  await expect(row.locator('[data-planner-actions] button')).toHaveText(['Today', 'Remove'])
-  await row.getByRole('button', { name: 'Remove' }).click()
+  await expect(row.locator('[data-planner-actions] button')).toHaveText(['Snooze', 'Remove'])
+  await row.getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(rowOf(planner(page), 'Loose idea')).toHaveCount(0)
-  await expect.poll(async () => (await stored(page, 'Loose idea')).held).toBe(false)
+  await expect.poll(async () => (await stored(page, 'Loose idea')).doDate).toBeNull()
   const snackbar = page.locator('[data-snackbar-live]')
   await expect(snackbar).toContainText('Removed “Loose idea” from the Planner')
   await snackbar.getByRole('button', { name: 'Undo', exact: true }).click()
-  await expect(rowOf(unplannedGroup(page), 'Loose idea')).toHaveCount(1)
+  await expect(rowOf(todayGroup(page), 'Loose idea')).toHaveCount(1)
+  await expect.poll(async () => (await stored(page, 'Loose idea')).doDate).toEqual([0, 0, 0])
 })
 
-test('a list row dropped on Unplanned joins the Planner, even with no date', async ({ page }) => {
+test('a list row with no plan dropped on Unplanned is refused: nothing is put there by hand', async ({ page }) => {
   await seedWorkspace(page, ANYWHERE)
   const list = wsCell(page, 'k2')
+  const steps = await newestUndoStep(page)
   await drag(page, await grip(rowOf(list, 'Loose idea')), await pointIn(unplannedGroup(page)), {
     during: async () => {
-      await expectMarked(unplannedGroup(page))
-      await expect(label(page)).toHaveText('Unplan')
+      await expect(page.locator('html')).toHaveAttribute('data-drop-refused', '')
+      await expect(planner(page).locator('[data-planner-drop]')).toHaveCount(0)
+      await expect(label(page)).toHaveCount(0)
     },
   })
-  await expect(rowOf(unplannedGroup(page), 'Loose idea')).toHaveCount(1)
-  await expect.poll(async () => (await stored(page, 'Loose idea')).held).toBe(true)
+  await expect(page.locator('html')).not.toHaveAttribute('data-drop-refused')
+  await expect(rowOf(planner(page), 'Loose idea')).toHaveCount(0)
+  expect(await stored(page, 'Loose idea')).toEqual({ doDate: null, dueDate: null, followup: null, modifiedAt: STAMP_MS })
+  expect(await newestUndoStep(page)).toBe(steps)
+  expect(await storedOrder(page)).toBeNull()
 })
 
 test('the task editor’s ⋯ plans the task for a day: the plan only', async ({ page }) => {
@@ -1490,7 +1557,7 @@ test('the task editor’s ⋯ plans the task for a day: the plan only', async ({
   await page.getByRole('menuitem', { name: /^Plan for day/ }).hover()
   await page.getByRole('menuitemradio', { name: await dayWords(page, 3), exact: true }).click()
   await expect.poll(async () => (await stored(page, 'Loose idea')).doDate).toEqual([3, 0, 0])
-  expect(await stored(page, 'Loose idea')).toEqual({ doDate: [3, 0, 0], held: false, dueDate: null, followup: null, modifiedAt: STAMP_MS })
+  expect(await stored(page, 'Loose idea')).toEqual({ doDate: [3, 0, 0], dueDate: null, followup: null, modifiedAt: STAMP_MS })
   await editor.getByRole('button', { name: 'Done' }).click()
   await expect(titles(group(page, await dayKeyIn(page, 3)))).toHaveText(['Loose idea'])
 })
@@ -1515,7 +1582,7 @@ test('a calendar entry — in a full day’s popover too — opens the task menu
  * The portrait layout (board R1, 2026-11-21): in a tall, narrow cell the
  * days scroll on top and the trays dock under them; the dock's top edge
  * shares the height (saved as view state), its chevron folds it to one bar
- * that still takes a drop to Unplanned; the week arrows sit in the top
+ * that still takes Unplanned's drop; the week arrows sit in the top
  * line, and a line under the tiles marks the days in view.
  */
 test.describe('the portrait layout', () => {
@@ -1613,7 +1680,7 @@ test.describe('the portrait layout', () => {
     await expect.poll(async () => Math.round((await box(dock(page))).height)).toBe(Math.round(before))
   })
 
-  test('folded, the dock is one bar: it stays folded after a reload, takes a row as a drop on Unplanned, and unfolds on a click', async ({ page }) => {
+  test('folded, the dock is one bar: it stays folded after a reload, takes Unplanned’s drop — a planned row loses its plan, one with none is refused — and unfolds on a click', async ({ page }) => {
     await seedWorkspace(page, TALL)
     await planner(page).getByRole('button', { name: 'Fold the trays' }).click()
     await expect(bar(page)).toBeVisible()
@@ -1624,21 +1691,37 @@ test.describe('the portrait layout', () => {
     await expect(bar(page)).toBeVisible()
     await expect(bar(page)).toHaveAccessibleName('Show the trays: Unplanned 1')
 
-    // A dated row dropped on the bar is held in Unplanned, its date kept.
+    // A row with no plan (there by its due date) dropped on the bar: refused — no mark, no label — and nothing is written.
     const inTwo = await dayKeyIn(page, 2)
+    const steps = await newestUndoStep(page)
     await rowOf(group(page, inTwo), 'Book the venue').scrollIntoViewIfNeeded()
     await drag(page, await grip(rowOf(group(page, inTwo), 'Book the venue')), await pointIn(bar(page)), {
+      during: async () => {
+        await expect(page.locator('html')).toHaveAttribute('data-drop-refused', '')
+        await expect(bar(page)).not.toHaveAttribute('data-planner-drop')
+        await expect(label(page)).toHaveCount(0)
+      },
+    })
+    await expect(page.locator('html')).not.toHaveAttribute('data-drop-refused')
+    expect(await stored(page, 'Book the venue')).toEqual({ doDate: null, dueDate: [2, 0, 0], followup: null, modifiedAt: STAMP_MS })
+    expect(await newestUndoStep(page)).toBe(steps)
+    await expect(bar(page)).toHaveAccessibleName('Show the trays: Unplanned 1')
+
+    // A planned row dropped on the bar: its plan cleared — in Focus, so Unplanned's filter takes it.
+    const inOne = await dayKeyIn(page, 1)
+    await rowOf(group(page, inOne), 'Planned focus').scrollIntoViewIfNeeded()
+    await drag(page, await grip(rowOf(group(page, inOne), 'Planned focus')), await pointIn(bar(page)), {
       during: async () => {
         await expectMarked(bar(page))
         await expect(label(page)).toHaveText('Unplan')
       },
     })
-    await expect.poll(async () => (await stored(page, 'Book the venue')).held).toBe(true)
-    expect((await stored(page, 'Book the venue')).dueDate).toEqual([2, 0, 0])
+    await expect.poll(async () => (await stored(page, 'Planned focus')).doDate).toBeNull()
+    expect((await stored(page, 'Planned focus')).modifiedAt).toBe(STAMP_MS)
     await expect(bar(page)).toHaveAccessibleName('Show the trays: Unplanned 2')
 
     await bar(page).click()
-    await expect(rowOf(dock(page).locator('[data-planner-group="unplanned"]'), 'Book the venue')).toBeVisible()
+    await expect(rowOf(dock(page).locator('[data-planner-group="unplanned"]'), 'Planned focus')).toBeVisible()
     await expect.poll(async () => (await storedView(page)).dockFolded).toBeUndefined()
   })
 })

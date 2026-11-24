@@ -50,6 +50,8 @@ test('Change widget › List: the tab shows a new list, no editor', async ({ pag
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Existing' }],
     layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
+    // Notes' top line is its name line: shown with Show widget names on.
+    settings: { showWidgetNames: 'true' },
   })
   // Alone in its cell: the top line stands for the tab, its right-click the ⋯ menu.
   await wsTab(page, 'notesTab').click({ button: 'right' })

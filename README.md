@@ -30,7 +30,7 @@ A task holds its priority, status, people, tags and due date beside its notes, a
 
 ### Plan the day and the week
 
-The Planner is a scratch pad for the week. Today and the days ahead sit in one list, and each task lands on the day it is due or due for a follow-up. Drag a task onto another day to plan it there: planning a task for a day never changes its dates. When a plan runs past a due date, the Planner says so on the row and offers to fix it, by moving the due date or by planning the task for the day it is due. Plans you didn't get to wait in Delayed, and Unplanned holds whatever you have set aside, plus whatever its filter brings in (Focus tasks, to begin with). The planned day is a date like the others: it shows on the calendar and in task details, and lists can filter, sort and group by it.
+The Planner is a scratch pad for the week. Today and the days ahead sit in one list, and each task lands on the day it is due or due for a follow-up. Drag a task onto another day to plan it there: planning a task for a day never changes its dates. When a plan runs past a due date, the Planner says so on the row and offers to fix it, by moving the due date or by planning the task for the day it is due. Plans you didn't get to wait in Delayed, and Unplanned holds the tasks with no day that its filter brings in (Focus tasks, to begin with). The planned day is a date like the others: it shows on the calendar and in task details, and lists can filter, sort and group by it.
 
 ![The Planner: a strip of the next seven days over a list of today and the days ahead on the left, with Delayed and Unplanned tasks on the right](docs/screenshots/planner.png)
 
@@ -49,9 +49,9 @@ Press `Ctrl` + `Space` anywhere and type. `@` adds a person, `#` a tag, `!` a st
 ### And also
 
 - A week and month **calendar** of due dates, follow-ups and plans, that you can drag tasks onto
-- A **Neglect map** of what is slipping, **Work clusters** of who works on what, and a **List wall** showing every list at once
+- A **Neglect map** of what is slipping and **Work clusters** of who works on what
 - Free-form **notes** that turn into tasks
-- **Shortcuts** to lists on any layout: a tile per list with its counts and first tasks, opening the list in place
+- A **List board** of lists from any layout, or every list in this one: a tile per list with a colored square per task and its first tasks, opening the list in place
 - **One filter for the whole screen**: type `@priya #launch due fri` (or `planned this week`) in the top bar, and pause it with a click
 - **Check-ins**: copy a status request for each person from their open tasks into your own message, then paste the reply back in
 - A **command palette** (`Ctrl` + `K`) and editable keyboard shortcuts

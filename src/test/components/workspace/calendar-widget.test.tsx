@@ -227,7 +227,7 @@ describe('CalendarWidget plans', () => {
         ...useTodoStore.getState().todos,
         makeTodo({ id: 5, title: 'Planned Fri', doDate: day(16), dueDate: day(20), sortOrder: 5 }),
         makeTodo({ id: 6, title: 'Missed plan', doDate: day(13), sortOrder: 6 }),
-        makeTodo({ id: 7, title: 'Held', unplanned: true, dueDate: day(22), sortOrder: 7 }),
+        makeTodo({ id: 7, title: 'Due only', dueDate: day(22), sortOrder: 7 }),
       ],
     })
   })
@@ -245,7 +245,7 @@ describe('CalendarWidget plans', () => {
     expect(kinds).toEqual(['due', 'plan'])
     // Its due date is its own entry, on its own day.
     expect(within(dayCell(day(20))!).getByText('Planned Fri').closest('[data-cal-entry]')).toHaveAttribute('data-cal-entry', 'due')
-    // A held task has no plan entry.
+    // A task with no planned day has no plan entry.
     expect(document.querySelectorAll('[data-cal-entry="plan"]')).toHaveLength(2)
   })
 
@@ -454,11 +454,13 @@ describe('CalendarDropChooser', () => {
     fireEvent.keyDown(menu, { key: 'p' })
     expect(picks[0]).toBe('plan')
     cleanup()
-    const menu2 = renderChooser(() => {}, { due: false, followup: true, plan: true }, { unplanned: true })
+    const menu2 = renderChooser(() => {}, { due: false, followup: true, plan: true })
     const items2 = within(menu2).getAllByRole('menuitem')
     expect(items2).toHaveLength(2)
     expect(items2[0]?.textContent).toContain('Follow-up')
-    expect(items2[1]?.textContent).toContain('held in Unplanned')
+    // No planned day: the Plan item reads not set (never held in Unplanned).
+    expect(items2[1]?.textContent).toContain('not set')
+    expect(items2[1]?.textContent).not.toContain('Unplanned')
   })
 })
 

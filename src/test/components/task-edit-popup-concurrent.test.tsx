@@ -12,7 +12,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
-import { getByTooltip, resetDb } from '../helpers'
+import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
 
 const due = new Date(2026, 5, 15)
@@ -74,7 +74,9 @@ describe('TaskEditPopup with concurrent changes to its task', () => {
     })
 
     expect(titleInput().value).toBe('Half-typed tit')
-    expect(getByTooltip(document.body, /^Due /)).toBeTruthy()
+    // The Due field shows the new date: its words' tooltip the full date, its text the date.
+    expect(document.querySelector('[data-fact="due"] [data-fact-date-field]')?.getAttribute('data-tooltip')).toMatch(/, \d{4}$/)
+    expect(screen.getByRole('textbox', { name: 'Due date' })).not.toHaveValue('')
     // The title wasn't saved yet: the store still has the old one.
     expect(useTodoStore.getState().todos.find((t) => t.id === id)?.title).toBe('Old title')
   })

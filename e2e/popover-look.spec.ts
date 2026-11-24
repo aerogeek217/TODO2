@@ -191,7 +191,7 @@ for (const theme of ['dark', 'light'] as const) {
       await expectRinged(page, button, false)
 
       // No chip any more (the field's pills are the filter); the funnel clears it.
-      await page.getByRole('button', { name: 'Clear all filters' }).click()
+      await page.getByRole('button', { name: 'Clear the filter' }).click()
     })
 
     test('a filter picker with a caret only fades in: the caret stays on its edge every frame (cr33 U2)', async ({ page }) => {

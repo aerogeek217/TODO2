@@ -164,22 +164,19 @@ interface TodoState {
    */
   setPlan: (ids: number[], plan: TaskPlan, description?: string, snackbar?: boolean) => Promise<boolean>
   /**
-   * Sets each task's **plan state** in the Planner, both of its fields in
-   * the one task write: a planned day (`doDate`, its day at local midnight;
-   * `unplanned` removed), held in Unplanned (`unplanned: true`; `doDate`
-   * removed), or — `null` — neither. One undo step for all of them — with
-   * the snackbar and its Undo only when `snackbar` says so (the Planner's
-   * bulk actions: Reset plan, Unplan all Delayed) —, named `description`
-   * (default: `Planned “Title”`, `Unplanned “Title”`, `Cleared the plan of
-   * “Title”`, `Changed the plan of 3 tasks`). Planning is not an edit: the write, its undo and its redo
-   * leave every task's `modifiedAt` as it is (`KEEP_STAMPS`), no history
-   * event is logged, and no due date or follow-up is ever written. Only the
-   * tasks whose plan changes are written; the undo puts back both fields.
-   * **It never rejects**: a write that fails is taken back — each task's two
-   * fields together, and only where the task still holds both of this
-   * write's values, so two overlapping failures can't leave a planned day
-   * beside `unplanned` —, the tasks are read back from the database, the
-   * user is told (`Couldn't save the plan of
+   * Sets each task's **plan state** in the Planner: a planned day
+   * (`doDate`, its day at local midnight), or — `null` — none. One task
+   * write and one undo step for all of them — with the snackbar and its
+   * Undo only when `snackbar` says so (the Planner's bulk actions: Reset
+   * plan, Clear Delayed plans; a plan that takes a task out of a Planner) —,
+   * named `description` (default: `Planned “Title”`, `Cleared the plan of
+   * “Title”`, `Changed the plan of 3 tasks`). Planning is not an edit: the
+   * write, its undo and its redo leave every task's `modifiedAt` as it is
+   * (`KEEP_STAMPS`), no history event is logged, and no due date or
+   * follow-up is ever written. Only the tasks whose plan changes are
+   * written. **It never rejects**: a write that fails is taken back (only
+   * where the task still holds this write's day), the tasks are read back
+   * from the database, the user is told (`Couldn't save the plan of
    * “Title”.` / `… of 3 tasks.`), and it resolves `false`; `true` otherwise.
    */
   setPlans: (plans: readonly TaskPlanChange[], description?: string, snackbar?: boolean) => Promise<boolean>
@@ -384,9 +381,9 @@ export const useTodoStore = create<TodoState>((set, get) => {
   async function setCompleted(ids: number[], completed: boolean, stamp?: StampChanges): Promise<void> {
     // Split recurring tasks (advance their due date) from normal tasks (toggle completion)
     const allTodos = get().todos.filter((t) => ids.includes(t.id))
-    // The next occurrence: its due date advanced and its plan state (the
-    // occurrence just done was the one planned or held) cleared; `prev` puts them back.
-    type OccurrenceFields = Pick<PersistedTodoItem, 'dueDate' | 'doDate' | 'unplanned'>
+    // The next occurrence: its due date advanced and its planned day (the
+    // occurrence just done was the one planned) cleared; `prev` puts them back.
+    type OccurrenceFields = Pick<PersistedTodoItem, 'dueDate' | 'doDate'>
     type RecurringAdvance = {
       id: number
       prev: OccurrenceFields
@@ -400,8 +397,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
         if (!advance) continue
         recurringAdvances.push({
           id: t.id,
-          prev: { dueDate: t.dueDate, doDate: t.doDate, unplanned: t.unplanned },
-          nextChanges: { dueDate: advance.dueDate, doDate: undefined, unplanned: undefined },
+          prev: { dueDate: t.dueDate, doDate: t.doDate },
+          nextChanges: { dueDate: advance.dueDate, doDate: undefined },
         })
       }
     }
@@ -733,17 +730,16 @@ export const useTodoStore = create<TodoState>((set, get) => {
     if (!todo) return
 
     // Recurring task: advance its due date instead of completing — the next
-    // occurrence isn't planned, so its plan state (the planned day, held in
-    // Unplanned) goes — and the checklist starts over (one undo step with
+    // occurrence isn't planned, so its planned day goes — and the checklist starts over (one undo step with
     // the advance).
     if (!todo.isCompleted && todo.recurrenceRule) {
       const advance = advanceRecurring(todo)
       if (advance) {
         const description = `Advance recurring "${todo.title}"`
-        const nextChanges = { dueDate: advance.dueDate, doDate: undefined, unplanned: undefined }
-        const prevChanges = { dueDate: todo.dueDate, doDate: todo.doDate, unplanned: todo.unplanned }
-        // An undo / redo: the due date and the plan state, and the step's stamp put back.
-        const write = async (changes: Pick<PersistedTodoItem, 'dueDate' | 'doDate' | 'unplanned'>, stamp: StampChanges) => {
+        const nextChanges = { dueDate: advance.dueDate, doDate: undefined }
+        const prevChanges = { dueDate: todo.dueDate, doDate: todo.doDate }
+        // An undo / redo: the due date and the planned day, and the step's stamp put back.
+        const write = async (changes: Pick<PersistedTodoItem, 'dueDate' | 'doDate'>, stamp: StampChanges) => {
           await todoRepository.bulkUpdate([{ todoId: id, changes }], stamp)
           set({ todos: restamped(get().todos.map((t) => (t.id === id ? { ...t, ...changes } : t)), stamp) })
         }
@@ -856,12 +852,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
   async setPlans(plans: readonly TaskPlanChange[], description?: string, snackbar = false) {
     if (plans.length === 0) return true
-    // Both plan fields in each task's one write: a planned day or held, never both.
-    const fields = (plan: TaskPlan): Pick<PersistedTodoItem, 'doDate' | 'unplanned'> => (
-      plan === 'unplanned' ? { doDate: undefined, unplanned: true }
-        : plan ? { doDate: startOfDay(plan.day), unplanned: undefined }
-          : { doDate: undefined, unplanned: undefined }
-    )
+    const fields = (plan: TaskPlan): Pick<PersistedTodoItem, 'doDate'> => ({ doDate: plan ? startOfDay(plan.day) : undefined })
     const changes = new Map(plans.map((p) => [p.id, fields(p.plan)]))
     let label = description
     if (!label) {
@@ -869,13 +860,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const only = plans.length === 1 && first ? get().todos.find((t) => t.id === first.id) : undefined
       if (only && first) {
         const title = `“${shortTitle(only.title)}”`
-        label = first.plan === 'unplanned' ? `Unplanned ${title}` : first.plan ? `Planned ${title}` : `Cleared the plan of ${title}`
+        label = first.plan ? `Planned ${title}` : `Cleared the plan of ${title}`
       } else {
         label = `Changed the plan of ${plans.length} tasks`
       }
     }
     try {
-      await reloadOnFailure(bulkUpdateTasks(changes, label, get, set, { stamp: KEEP_STAMPS, showSnackbar: snackbar, together: true }))
+      await reloadOnFailure(bulkUpdateTasks(changes, label, get, set, { stamp: KEEP_STAMPS, showSnackbar: snackbar }))
       return true
     } catch {
       // Rolled back and logged by `bulkUpdateTasks`, and the tasks read back; most callers fire and forget.

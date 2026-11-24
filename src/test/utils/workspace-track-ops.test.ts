@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createTab, type LayoutBody, type WorkspaceLayout } from '../../models/workspace-layout'
-import { isNormalized, orphanCollapsedRows, validateTiling } from '../../utils/workspace-grid'
+import { isNormalized, orphanCollapsedTracks, validateTiling } from '../../utils/workspace-grid'
 import { isFitTrack } from '../../utils/workspace-rows'
 import {
   evenTracks,
@@ -291,12 +291,12 @@ describe('removeTrack', () => {
     const t = cell('t')
     const base = layout(grid([[cell('a'), t], [cell('b'), t]], { rows: [{ weight: 500, collapsed: true }, 500] }))
     // Row 1 collapsed is held by a (lying only in it).
-    expect(orphanCollapsedRows(base)).toEqual([])
+    expect(orphanCollapsedTracks(base, 'rows')).toEqual([])
     const kept = removeTrack(base, 'rows', 1, ids())
     expect(kept.grid.rows[0]?.collapsed).toBe(true)
     // Column 1 goes: a and b join t, which reaches into the expanded row — row 1 expands.
     const out = removeTrack(base, 'columns', 0, ids())
-    expect(orphanCollapsedRows(out)).toEqual([])
+    expect(orphanCollapsedTracks(out, 'rows')).toEqual([])
     expect(out.grid.rows.every((x) => x.collapsed !== true)).toBe(true)
     expect(tabsOf(out, 't')).toEqual(['t-t', 'a-t', 'b-t'])
     expectValid(out)

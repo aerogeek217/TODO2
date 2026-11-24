@@ -102,7 +102,7 @@ describe('a layout’s lists in the workspace', () => {
     render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
     fireEvent.click(screen.getByRole('button', { name: 'Cell options' }))
     fireEvent.click(within(screen.getByRole('menu', { name: 'Cell options' })).getByRole('menuitem', { name: 'Add widget as tab' }))
-    fireEvent.click(within(screen.getAllByRole('menu').at(-1)!).getByRole('menuitem', { name: /^List(?! wall)/ }))
+    fireEvent.click(within(screen.getAllByRole('menu').at(-1)!).getByRole('menuitem', { name: /^List(?! board)/ }))
     expect(screen.queryByText('Add list')).toBeNull()
     const { listId } = await addedListTab()
     expect(listId).not.toBe(2)

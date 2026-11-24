@@ -3,11 +3,14 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { createTab, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
 import {
+  boardTileRoom,
   compactShortcutTiles,
+  layoutListTabs,
   shortcutChoices,
   shortcutLayoutName,
   shortcutListIcon,
-  shortcutPeekLines,
+  shortcutsSource,
+  tabIsShowing,
   withShortcutAdded,
   withShortcutMoved,
   withShortcutRemoved,
@@ -30,7 +33,7 @@ const work: PersistedWorkspaceLayout = {
   ...single(cell('w', [lens('t2', 2), { ...lens('t1-copy', 1), icon: { kind: 'emoji', emoji: '🌿' } }])),
 }
 
-describe('Shortcuts’ lists', () => {
+describe('a List board’s picked lists', () => {
   it('adds at the end (once), removes, moves', () => {
     expect(withShortcutAdded([1, 2], 3)).toEqual([1, 2, 3])
     expect(withShortcutAdded([1, 2], 2)).toEqual([1, 2])
@@ -51,32 +54,61 @@ describe('Shortcuts’ lists', () => {
     expect(shortcutChoices(defs, [work, home], home, [1, 3, 5]).map((g) => g.layoutName)).toEqual(['Work'])
   })
 
-  it('a list’s icon: its own layout’s tab’s picked one, else another layout’s; its layout’s name (the open one as edited)', () => {
+  it('a list’s icon: its own layout’s tab’s strip icon, else another layout’s; its layout’s name (the open one as edited)', () => {
     expect(shortcutListIcon(def(1, 'Errands', 1), [work, home], home)).toEqual({ kind: 'line', key: 'flag' })
     // Its own layout shows it on no tab: the tab elsewhere.
     expect(shortcutListIcon(def(1, 'Errands', 3), [work, home], home)).toEqual({ kind: 'emoji', emoji: '🌿' })
-    // A tab with no icon picked, and no tab at all: none.
-    expect(shortcutListIcon(def(2, 'Clients', 2), [work, home], home)).toBeUndefined()
-    expect(shortcutListIcon(def(9, 'Gone', 2), [work, home], home)).toBeUndefined()
+    // A tab with no icon picked, and no tab at all: the list glyph, as the strip shows it.
+    expect(shortcutListIcon(def(2, 'Clients', 2), [work, home], home)).toEqual({ kind: 'line', key: 'list' })
+    expect(shortcutListIcon(def(9, 'Gone', 2), [work, home], home)).toEqual({ kind: 'line', key: 'list' })
     expect(shortcutLayoutName(def(1, 'Errands', 1), [work, home], { ...home, name: 'Home (renamed)' })).toBe('Home (renamed)')
     expect(shortcutLayoutName(def(2, 'Clients', 2), [work, home], home)).toBe('Work')
   })
 
-  it('the compact line: as many 150px tiles as fit, the rest in +N', () => {
-    expect(compactShortcutTiles(2, 900)).toEqual({ columns: 5, shown: 2, more: 0 })
-    expect(compactShortcutTiles(6, 470)).toEqual({ columns: 3, shown: 2, more: 4 })
+  it('the compact line: as many 120px tiles as fit, the rest in +N', () => {
+    expect(compactShortcutTiles(2, 900)).toEqual({ columns: 7, shown: 2, more: 0 })
+    expect(compactShortcutTiles(6, 380)).toEqual({ columns: 3, shown: 2, more: 4 })
     expect(compactShortcutTiles(3, 0)).toEqual({ columns: 3, shown: 3, more: 0 })
   })
 
-  it('peek lines: as many whole 16px lines as the height holds, three at most', () => {
-    expect(shortcutPeekLines(1)).toBe(0)
-    expect(shortcutPeekLines(33)).toBe(2)
-    expect(shortcutPeekLines(200)).toBe(3)
-    expect(shortcutPeekLines(0)).toBe(3)
+  it('a tile’s room: squares first (whole 12px rows, four at most), then titles in what is left', () => {
+    // 112px across: 9 squares a row; 20 squares want 3 rows (34px), a 6px gap and three 16px titles.
+    expect(boardTileRoom(20, 5, { width: 112, height: 200 })).toEqual({ columns: 9, rows: 3, lines: 3, want: 88 })
+    // Shorter: the titles go first…
+    expect(boardTileRoom(20, 5, { width: 112, height: 60 })).toMatchObject({ rows: 3, lines: 1 })
+    expect(boardTileRoom(20, 5, { width: 112, height: 40 })).toMatchObject({ rows: 3, lines: 0 })
+    // …then the rows of squares.
+    expect(boardTileRoom(20, 5, { width: 112, height: 22 })).toMatchObject({ rows: 2, lines: 0 })
+    expect(boardTileRoom(20, 5, { width: 112, height: 4 })).toMatchObject({ rows: 0, lines: 0 })
+    // A big list stops at four rows (its +N); no squares, only titles; no titles asked for.
+    expect(boardTileRoom(200, 5, { width: 112, height: 400 })).toMatchObject({ rows: 4, lines: 3, want: 46 + 6 + 48 })
+    expect(boardTileRoom(0, 2, { width: 112, height: 400 })).toEqual({ columns: 9, rows: 0, lines: 2, want: 32 })
+    expect(boardTileRoom(20, 5, { width: 112, height: 400 }, false)).toEqual({ columns: 9, rows: 3, lines: 0, want: 34 })
+    // Unmeasured: 9 across, all of it.
+    expect(boardTileRoom(20, 5, { width: 0, height: 0 })).toMatchObject({ columns: 9, rows: 3, lines: 3 })
   })
 })
 
-describe('Shortcuts’ faces', () => {
+describe('the layout’s lists', () => {
+  it('every list tab whose list exists, in reading order (by cell, then strip order); whether its cell shows it', () => {
+    const lens = (id: string, listDefinitionId?: number) => ({ ...createTab('lens', id), config: listDefinitionId != null ? { listDefinitionId } : {} })
+    const body = grid([
+      [cell('a', [lens('t1', 1), createTab('notes', 'n'), lens('t2', 2)], { activeTabId: 't2' }), cell('b', [lens('t3', 3), lens('t4')])],
+      [cell('c', [lens('t5', 9), lens('t6', 1)]), cell('b')],
+    ])
+    expect(layoutListTabs(body, (id) => id !== 9).map((t) => t.id)).toEqual(['t1', 't2', 't3', 't6'])
+    expect(tabIsShowing(body, 't2')).toBe(true)
+    expect(tabIsShowing(body, 't1')).toBe(false)
+    expect(tabIsShowing(body, 't3')).toBe(true)
+  })
+
+  it('a board’s source: absent is the lists picked', () => {
+    expect(shortcutsSource({})).toBe('picked')
+    expect(shortcutsSource({ source: 'layout', lists: [1] })).toBe('layout')
+  })
+})
+
+describe('the List board’s faces', () => {
   it('small, rows (narrow), compact (short), large', () => {
     const shape = (width: number, height: number) => shortcutsShape(shortcutsFaceFor({ width, height }), width)
     expect(shape(170, 400)).toBe('small')

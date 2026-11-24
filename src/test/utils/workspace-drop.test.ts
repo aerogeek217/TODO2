@@ -410,3 +410,36 @@ describe('the layout edit mode: a card swaps on a middle, joins on a tab area', 
     expect(dropGhost(layout(), geo(), { type: 'panel', panelId: 'b1' }, { kind: 'swap', cellId: 'b1' }, ['t4'])).toBeNull()
   })
 })
+
+describe('the insert zones follow the frame (the layout edit mode’s room)', () => {
+  /** The mode's table: cells start 26px in from the area's top and left, 14px from its right and bottom, 16px apart. */
+  function framed(): WorkspaceGeometry {
+    return {
+      area: rect(0, 0, 1040, 740),
+      frame: { left: 26, top: 26, right: 14, bottom: 14 },
+      cells: [cellGeo('a1', 26, 510, 26, 360, ['t1', 't2']), cellGeo('b1', 526, 1026, 26, 726, ['t4']), cellGeo('a2', 26, 510, 376, 726, ['t3'])],
+    }
+  }
+
+  it('reaches over the frame and 18px into the edge cells', () => {
+    const geo = framed()
+    // The header band is the left edge's zone; 18px past it too.
+    expect(hitTestWorkspace(geo, { x: 10, y: 600 })).toEqual({ kind: 'insert', edge: 'left' })
+    expect(hitTestWorkspace(geo, { x: 43, y: 600 })).toEqual({ kind: 'insert', edge: 'left' })
+    expect(hitTestWorkspace(geo, { x: 46, y: 600 })).toMatchObject({ kind: 'cell-body', zone: 'left' })
+    // The right margin is 14px: 32px in from the area's edge.
+    expect(hitTestWorkspace(geo, { x: 1040 - 31, y: 600 })).toEqual({ kind: 'insert', edge: 'right' })
+    expect(hitTestWorkspace(geo, { x: 1040 - 34, y: 600 })).toMatchObject({ kind: 'cell-body', zone: 'right' })
+    // The top band (where the column headers are) inserts a row; a cell's strip under it still takes the tab.
+    expect(hitTestWorkspace(geo, { x: 300, y: 12 })).toEqual({ kind: 'insert', edge: 'top' })
+    expect(hitTestWorkspace(geo, { x: 300, y: 30 })).toMatchObject({ kind: 'tab-strip', cellId: 'a1' })
+    // The 16px gap between cells is no zone of its own.
+    expect(hitTestWorkspace(geo, { x: 518, y: 200 })).toBeNull()
+  })
+
+  it('outside the mode (no frame measured) the zones are 24px in from the edge, as the 6px gutter and 18px of the cell', () => {
+    const geo = geometry()
+    expect(hitTestWorkspace(geo, { x: 23, y: 600 })).toEqual({ kind: 'insert', edge: 'left' })
+    expect(hitTestWorkspace(geo, { x: 26, y: 600 })).toMatchObject({ kind: 'cell-body' })
+  })
+})

@@ -7,6 +7,7 @@ import { mergeNeighbour, sameArea } from '../../utils/workspace-grid'
 import { MenuPopover } from '../shared/MenuPopover'
 import { MoreIcon, PlusIcon } from '../shared/icons'
 import { EDIT_CARD_MENU_LABEL, editCardMenuEntries, useTransferMenu } from './cell-menu'
+import { EditCardToolbar } from './EditCardToolbar'
 import { ARROW_SIDES, drawnAxis, focusAfterTap, moveSelection, onCardKey, selectOnFocus, tapCard, type CardMenuAt } from './edit-card-actions'
 import { EDIT_FOCUS_ATTR, focusEditItem } from './edit-focus'
 import { useLayoutEditView, useRulerNames } from './layout-edit-view'
@@ -141,11 +142,17 @@ function EditCardCorner({ cell }: { cell: LayoutCell }) {
 /**
  * A card's chrome over its content (E3): its label (the widget's icon and
  * name; a card with a tab strip shows its tabs instead), its ⋯ (**Cell
- * layout**: the card's menu) and its corner. Clicks on the label fall
- * through to the content and the surface.
+ * layout**: the card's menu) and its corner. Selected (and nothing
+ * dragged), its toolbar instead of the ⋯ (`EditCardToolbar`, whose own ⋯
+ * opens the menu). Clicks on the label fall through to the content and the
+ * surface.
  */
-export function EditCardControls({ cell, label, stripLabel, labelTab, menuOpen, setMoreButton, onMore }: {
+export function EditCardControls({ cell, name, selected, label, stripLabel, labelTab, menuOpen, setMoreButton, onMore }: {
   cell: LayoutCell
+  /** The card's name (`useCardName`). */
+  name: string
+  /** It is the selection, with nothing dragged: its toolbar shows. */
+  selected: boolean
   /** The card's label (none: a strip of tabs names it). */
   label: string | null
   /**
@@ -174,6 +181,9 @@ export function EditCardControls({ cell, label, stripLabel, labelTab, menuOpen, 
           <span className={styles.labelText}>{stripLabel}</span>
         </span>
       )}
+      {selected ? (
+        <EditCardToolbar cell={cell} name={name} menuOpen={menuOpen} setMoreButton={setMoreButton} onMore={onMore} />
+      ) : (
       <button
         ref={setMoreButton}
         type="button"
@@ -192,6 +202,7 @@ export function EditCardControls({ cell, label, stripLabel, labelTab, menuOpen, 
       >
         <MoreIcon size={14} />
       </button>
+      )}
       <EditCardCorner cell={cell} />
     </>
   )

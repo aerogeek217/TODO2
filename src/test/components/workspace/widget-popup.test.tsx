@@ -182,6 +182,8 @@ describe('closing the popup over an editor opened from it that holds changes', (
 })
 
 describe('one live widget per tab: the cell shows a placeholder while its tab is open larger', () => {
+  beforeEach(() => { useSettingsStore.setState({ showWidgetNames: true }) })
+
   it('a list: its rows are in the popup only, the cell names it as open larger; closed, the cell’s list is back', () => {
     renderCells(cell('k', [listTab]))
     expect(document.querySelectorAll('[data-list-host="l"]')).toHaveLength(1)

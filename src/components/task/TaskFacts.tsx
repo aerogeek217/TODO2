@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Status } from '../../models'
 import { useToday } from '../../hooks/use-today'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -75,19 +75,26 @@ function useFactDateTitle(date: Date | null | undefined, kind: FactDateKind): st
 }
 
 /**
- * A typed date field (a follow-up's, in the footer) in the one date
- * look: at rest it shows the date's words over the field (`FactDateWords`)
- * — the field's own text hidden under them, in its quiet box —, and a click
- * or the focus shows the field as typed (`Mon 16 Nov`, typed entry such as
- * `2w` or `fri`). A field holding typed text that isn't set (`showWords`
- * false) shows its text.
+ * A typed date field (the footer's follow-up fields, the band's Due and
+ * Planned; `TypedDateField` fills it) in the one date look: at rest it
+ * shows the date's words over the field (`FactDateWords`, or the host's
+ * `words`) — the field's own text hidden under them, in its quiet box —,
+ * and a click or the focus shows the field as typed (`Mon 16 Nov`, typed
+ * entry such as `2w` or `fri`). A field holding typed text that isn't set
+ * (`showWords` false) shows its text.
  */
-export function FactDateField({ date, kind, tone, empty, showWords = true, testId, children }: {
+export function FactDateField({ date, kind, tone, empty, words, showWords = true, fill = false, ends = 1, testId, children }: {
   date: Date | null | undefined
   kind: FactDateKind
   tone?: FactDateTone
   empty: string
+  /** The words at rest in place of the date's own (Due's day alone, Planned's plan mark and day). */
+  words?: ReactNode
   showWords?: boolean
+  /** Fills its cell's width (the band's Due and Planned) instead of the footer's 160px. */
+  fill?: boolean
+  /** How many buttons end the field at rest (the calendar; Due's ↻ too): the words keep clear of them. */
+  ends?: number
   /** `data-testid` on the field (the review's `review-last-followup`). */
   testId?: string
   /** The field: its input wrap (`Followup.module.css`'s `editorInputWrap`). */
@@ -95,11 +102,19 @@ export function FactDateField({ date, kind, tone, empty, showWords = true, testI
 }) {
   const title = useFactDateTitle(date, kind)
   return (
-    <div className={styles.dateField} data-fact-date-field="" data-words={showWords || undefined} data-testid={testId} data-tooltip={title}>
+    <div
+      className={styles.dateField}
+      data-fact-date-field=""
+      data-words={showWords || undefined}
+      data-fill={fill || undefined}
+      data-testid={testId}
+      data-tooltip={title}
+      style={ends !== 1 ? { '--date-field-ends': ends } as CSSProperties : undefined}
+    >
       {children}
       {showWords && (
         <span className={styles.dateFieldWords} aria-hidden="true">
-          <FactDateWords date={date} kind={kind} tone={tone} empty={empty} />
+          {words ?? <FactDateWords date={date} kind={kind} tone={tone} empty={empty} />}
         </span>
       )}
     </div>

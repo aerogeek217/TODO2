@@ -18,14 +18,14 @@ The operations that change a layout's table: splitting and inserting tracks, rem
   - It takes half of the cell's track.
   - The cells spanning across the line grow into it, and the gaps beside them become new empty cells.
   - At an outer edge it is `insertTrack`.
-- `insertTrackAt` (the edit mode's rulers): a full row / column on any line of the table.
+- `insertTrackAt` (the edit mode's edge tabs and header menus): a full row / column on any line of the table.
   - The cells crossing the line grow across; its other places become new empty cells. At the edges it is `insertTrack`.
   - Given a run of lines whose tracks between are slivers (`through`), it first merges the slivers into the major track beside them. The new track then goes on the one line left, sized from that major.
-  - A hovered "+" previews the result (`utils/structure-preview`).
+  - A hovered edge tab previews the result (`utils/structure-preview`).
 
 ## Remove and merge tracks
 
-- `removeTrack` (a ruler's **Remove row** / **Remove column**), refused for an axis's last track:
+- `removeTrack` (a header's **Remove row** / **Remove column**), refused for an axis's last track:
   - Along the axis, a cell spanning the track (through it, or starting or ending in it) shrinks.
   - A cell lying only in it moves into its *place*: the neighboring track over its own extent. The neighbor is the track before, else the one after.
     - A place of only empty cells: the cell moves into it. Those cells give it up, and what is left of them is cut into rectangles.
@@ -55,10 +55,13 @@ The operations that change a layout's table: splitting and inserting tracks, rem
 - `removeTabKeepCell` (**Remove widget**): the same, but a lone widget's cell stays, empty, and no neighbor takes its space.
 - `moveEdge`: a divider ([Dividers](workspace-layout.md#dividers)).
 
-## Collapse row
+## Collapse row and column
 
-- `setTrackCollapsed`: **Collapse row** collapses every row track the cell covers, so its side-by-side neighbors fold with it.
-  - The cells lying only in a collapsed track show their top lines; a cell spanning through it gets shorter.
-  - Column tracks don't collapse.
-- **A collapsed row expands by itself once no filled cell lies only in collapsed rows over it**: its cell closed, moved away, or grown on into an expanded row (`workspace-grid.expandOrphanRows`, the end of every op's `normalizeGrid`).
-- A stored layout that arrives with such a row has it expanded when the workspace shows it, as view state (`use-expand-orphan-rows`).
+- `setTrackCollapsed` (a track by id, a row or a column): **Collapse row** collapses every row track the cell covers, so its side-by-side neighbors fold with it; **Collapse column** every column track, so the cells stacked with it fold too.
+  - The cells lying only in collapsed rows show their top lines; a cell spanning through one gets shorter.
+  - The cells lying only in collapsed columns draw as the column's strip ([The strip](workspace-layout.md#a-collapsed-columns-strip)); a cell spanning through one gets narrower.
+- View state, as a size: written at once, no undo step. An undo of a structural edit keeps each track's collapse of the moment it runs, where it is the same track (`withViewStateOf`).
+- **A collapsed track expands by itself once no filled cell lies only in collapsed tracks of its axis over it**: its cell closed, moved away, or grown on into an expanded track (`workspace-grid.expandOrphanTracks`, the end of every op's `normalizeGrid`).
+- A new empty cell never comes out collapsed: when every track of an axis under it is collapsed, they expand (a split under a cell in a folded column expands the column).
+- A stored layout that arrives with such a track has it expanded when the workspace shows it, as view state (`use-expand-orphan-tracks`).
+- `services/workspace-tabs.showTab` (an editor opening beside a widget) expands the rows and columns of its cell.

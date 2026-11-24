@@ -337,7 +337,7 @@
   min-width: 0;
 }
 
-/* The trays — Delayed, the Unplan button, Unplanned — on a darker ground, with a scroll of their own. */
+/* The trays — Delayed, the Clear plans button, Unplanned — on a darker ground, with a scroll of their own. */
 .traysPane {
   flex: 1 1 0;
   min-width: 0;
@@ -345,7 +345,7 @@
   background: var(--color-inset-deep);
 }
 
-/* One column: Today, the days ahead, Delayed, the Unplan button, Unplanned in one scroll. */
+/* One column: Today, the days ahead, Delayed, the Clear plans button, Unplanned in one scroll. */
 .column {
   flex: 1 1 auto;
 }
@@ -607,10 +607,10 @@
   font-weight: var(--font-weight-medium);
 }
 
-/* ── The Unplan button: every Delayed task to Unplanned ────────────────── */
+/* ── The Clear plans button: every Delayed task's plan cleared ─────────── */
 
 /* Centered on a hairline rule between Delayed and Unplanned. */
-.unplanAll {
+.clearDelayed {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -619,23 +619,22 @@
   padding: 0 6px 0 4px;
 }
 
-.unplanAll + .group {
+.clearDelayed + .group {
   margin-top: 2px;
 }
 
-.unplanRule {
+.clearDelayedRule {
   flex: 1 1 0;
   height: 1px;
   background: var(--color-tint-10);
 }
 
-.unplanButton {
+.clearDelayedButton {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   height: 26px;
-  padding: 0 12px 0 9px;
+  padding: 0 12px;
   border: none;
   border-radius: 13px;
   background: var(--color-tint-8);
@@ -648,11 +647,11 @@
   cursor: pointer;
 }
 
-.unplanButton:hover {
+.clearDelayedButton:hover {
   background: var(--color-tint-14);
 }
 
-.unplanButton:focus-visible {
+.clearDelayedButton:focus-visible {
   box-shadow: inset 0 0 0 1px var(--color-tint-16), var(--focus-ring);
 }
 
@@ -678,7 +677,7 @@
   pointer-events: none;
 }
 
-/* The tag after a row's title: a muted pill — the day a Delayed row was planned for, the day a held row came off. */
+/* The tag after a row's title: a muted pill — the day a Delayed row was planned for. */
 .rowTag {
   flex: none;
   display: inline-flex;
@@ -853,6 +852,29 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-decoration: line-through;
+}
+
+/* A done task's title: plain struck text that opens the task. */
+.doneTitle {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: inherit;
+  cursor: pointer;
+}
+
+.doneTitle:hover {
+  color: var(--color-text-secondary);
+}
+
+.doneTitle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* ── Small face ────────────────────────────────────────────────────────── */

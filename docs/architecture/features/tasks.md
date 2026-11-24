@@ -13,7 +13,7 @@ In normal use a task write goes UI → Zustand stores → repositories → Dexie
 - `nextFollowupAt?: Date` is a day at local midnight. New tasks get today + `settings.followupDefaultInterval`, or none while Settings' automatic next follow-up is off ([Settings](settings.md#the-automatic-next-follow-up)). It has no index: it is filtered in memory.
 - `focus?: boolean` means in focus. Only `true` is stored, and taking a task out deletes the key. It has no index. The Focus marker and the Priority (markers) filter read it ([Filters](filters.md#priority-filters)).
 - `urgent?: boolean` / `important?: boolean` are flags: only `true` is stored, with no index. A task is also urgent when its due date is within `settings.urgentDueWithinDays` (`utils/urgency.isEffectivelyUrgent`). That never sets the flag.
-- The plan state (`doDate`, `unplanned`) is the Planner's: [Planner › Plan state](planner.md#plan-state).
+- The plan state (`doDate`, the planned day) is the Planner's: [Planner › Plan state](planner.md#plan-state).
 
 ## The sync file
 
@@ -41,13 +41,13 @@ A `/plan <date>` in the text (Quick Add, the editor's title, a note's line; `/du
 - Fields already holding the value are skipped. No change means no write and no undo step.
 - The edit is written as a patch via `todoRepository.update(id, changes)`. Undo, redo and a failed write's rollback touch only those fields.
 - It **never rejects**. A failed write is rolled back, the snackbar says `Couldn't save your change to "<title>".` and it resolves `false` (else `true`). So fire-and-forget callers leave no unhandled rejection, and `checkin-reply/apply` stops on `false`.
-- In the task layout (the editor and the review card) the due date and its repeat are written from the Due cell's date popover ([The fact band](review.md#the-fact-band)). A date and a repeat are an `update` each, written on ⏎, a blur or the popover closing. A new date keeps the repeat, anchored to it (`utils/recurrence.dueDateChanges`). Clear due date removes both in one write.
+- In the task layout (the editor and the review card) the due date is written from the Due field and its repeat from the field's ↻ popover ([The fact band](review.md#the-fact-band)). A date and a repeat are an `update` each: a date typed when the field is left, or picked; a repeat on ⏎, a blur or the popover closing. A new date keeps the repeat, anchored to it (`utils/recurrence.dueDateChanges`). Clear due date removes both in one write.
 
 ### Completing
 
 - `toggleComplete` completes or reopens one task, as one undo step. Every completion shows the undo snackbar, because a completed row may fold out of its list. Reopening a task stays quiet.
-- A recurring task advances instead (`advanceRecurring`). The advance clears the task's plan state (`doDate`, `unplanned`), since the next occurrence isn't planned, and its undo puts it back. The advance keeps its own snackbar.
-- `bulkSetCompleted` writes the completions and the recurring advances in one `bulkUpdate` transaction, each advance clearing its plan state likewise. Its undo is one transaction too. A failed write rolls back and re-reads the tasks (`loadAll`).
+- A recurring task advances instead (`advanceRecurring`). The advance clears the task's planned day (`doDate`), since the next occurrence isn't planned, and its undo puts it back. The advance keeps its own snackbar.
+- `bulkSetCompleted` writes the completions and the recurring advances in one `bulkUpdate` transaction, each advance clearing its planned day likewise. Its undo is one transaction too. A failed write rolls back and re-reads the tasks (`loadAll`).
 - The optimistic completion state mirrors the repository's `completedAt` rule (`resolveCompletedAt`).
 
 ### Bulk fields and flags

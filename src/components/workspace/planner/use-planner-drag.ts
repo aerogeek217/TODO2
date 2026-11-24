@@ -3,7 +3,7 @@ import { useDndMonitor, type DragMoveEvent, type DragOverEvent, type DragStartEv
 import type { PersistedTodoItem } from '../../../models'
 import { usePlannerStore, type PlannerDragPreview } from '../../../stores/planner-store'
 import { contentY, listRowDropTarget, measureListGeometry, type ListGeometry } from '../../../utils/list-row-drop'
-import { plannerDrop, plannerTargetKey, type PlannerDrop } from '../../../utils/planner'
+import { plannerDrop, plannerPlacement, plannerTargetKey, type PlannerDrop } from '../../../utils/planner'
 import { rowKey } from '../../../utils/scoped-selection'
 import { isPlannerDropData, TASK_DROP_KIND, type PlannerDropData } from '../../../utils/task-dnd'
 import { watchDragRelease } from '../drag-release'
@@ -36,8 +36,8 @@ function ownRow(data: unknown, tabId: string): ListRowDragData | null {
     : null
 }
 
-/** A drop's day (planned for it, or its own date's) or whether it holds, for comparing two. */
-const dropDetail = (drop: PlannerDrop): number | boolean | null => ('day' in drop ? drop.day.getTime() : 'hold' in drop ? drop.hold : null)
+/** A drop's day (planned for it, or its own date's), for comparing two. */
+const dropDetail = (drop: PlannerDrop): number | null => ('day' in drop ? drop.day.getTime() : null)
 
 const samePreview = (a: PlannerDragPreview | null, b: PlannerDragPreview | null): boolean =>
   a === b || (a != null && b != null && a.tabId === b.tabId && a.over === b.over && a.key === b.key && a.index === b.index
@@ -93,8 +93,9 @@ export function usePlannerDrag(tabId: string, hostRef: RefObject<HTMLElement | n
     const group = over.type === TASK_DROP_KIND.plannerGroup ? over.group : undefined
     let index: number | null = null
     const pointer = pointerRef.current
-    // A place only where the drop brings the row into the group (an Unplan always does: held, or kept there by the Unplanned filter), or it is there already.
-    const lands = drop.kind === 'plan' || drop.kind === 'own' || drop.kind === 'unplan'
+    // A place only where the drop brings the row into the group (an Unplan only when the Unplanned filter then keeps it there), or it is there already.
+    const lands = drop.kind === 'plan' || drop.kind === 'own'
+      || (drop.kind === 'unplan' && plannerPlacement({ ...todo, doDate: undefined }, over.window)?.where === 'unplanned')
       || (drop.kind === 'none' && group?.rows.includes(todo.uid) === true)
     if (group && pointer && lands) {
       const measured = measuredRef.current.get(group.key)

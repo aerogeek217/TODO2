@@ -34,7 +34,8 @@ const TODOS = (): PersistedTodoItem[] => [
   makeTodo({ id: 5, uid: 'mon-do', title: 'Monday plan', doDate: day(3), sortOrder: 5 }),
   makeTodo({ id: 6, uid: 'missed', title: 'Missed plan', doDate: day(-1), sortOrder: 6 }),
   makeTodo({ id: 7, uid: 'focus', title: 'Someday focus', focus: true, sortOrder: 7 }),
-  makeTodo({ id: 8, uid: 'held', title: 'Held call', unplanned: true, nextFollowupAt: day(2), sortOrder: 8 }),
+  makeTodo({ id: 8, uid: 'sun-call', title: 'Sunday call', nextFollowupAt: day(2), sortOrder: 8 }),
+  makeTodo({ id: 9, uid: 'idea', title: 'Focus idea', focus: true, sortOrder: 9 }),
 ]
 
 function show(tab: PlannerTab = PLANNER) {
@@ -98,12 +99,22 @@ describe('the target of a drag', () => {
     expect(marked()).toEqual(['tile 2026-11-23', 'group 2026-11-23'])
   })
 
-  it('marks Unplanned when the drop unplans', () => {
+  it('marks Unplanned when the drop unplans — with a place there or without (the cleared task goes elsewhere)', () => {
     show()
-    hover(preview('group', 'unplanned', { kind: 'unplan', hold: true }, 1))
+    hover(preview('group', 'unplanned', { kind: 'unplan' }, 1))
     expect(marked()).toEqual(['group unplanned'])
-    hover(preview('group', 'unplanned', { kind: 'unplan', hold: false }, 0))
+    expect(document.documentElement).not.toHaveAttribute('data-drop-refused')
+    hover(preview('group', 'unplanned', { kind: 'unplan' }, null))
     expect(marked()).toEqual(['group unplanned'])
+    expect(root().querySelector('[data-drop-slot]')).toBeNull()
+  })
+
+  it('a task with no plan over Unplanned is refused: no mark, no slot, the not-allowed cursor', () => {
+    show()
+    hover(preview('group', 'unplanned', { kind: 'refuse' }))
+    expect(marked()).toEqual([])
+    expect(root().querySelector('[data-drop-slot]')).toBeNull()
+    expect(document.documentElement).toHaveAttribute('data-drop-refused')
   })
 
   it('marks nothing for a refused drop and shows the not-allowed cursor — Delayed takes no drop; nor for a drop that writes nothing', () => {
@@ -144,9 +155,9 @@ describe('the drop slot', () => {
 
   it('shows in a tray too: among Unplanned’s rows, and in Delayed for a reorder of its own', () => {
     show()
-    expect(sequence('unplanned')).toEqual(['Held call', 'Someday focus'])
-    hover(preview('group', 'unplanned', { kind: 'unplan', hold: true }, 1))
-    expect(sequence('unplanned')).toEqual(['Held call', '(slot)', 'Someday focus'])
+    expect(sequence('unplanned')).toEqual(['Someday focus', 'Focus idea'])
+    hover(preview('group', 'unplanned', { kind: 'unplan' }, 1))
+    expect(sequence('unplanned')).toEqual(['Someday focus', '(slot)', 'Focus idea'])
     hover(preview('group', 'delayed', { kind: 'none' }, 1))
     expect(sequence('delayed')).toEqual(['Missed plan', '(slot)'])
   })
@@ -183,10 +194,8 @@ describe('the lifted row’s label', () => {
     expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Plan · Today')
     hover(preview('group', '2026-11-25', { kind: 'own', day: day(5) }, 0))
     expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Its date · Wed, Nov 25')
-    hover(preview('group', 'unplanned', { kind: 'unplan', hold: true }, 0))
-    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Unplan')
-    hover(preview('group', 'unplanned', { kind: 'unplan', hold: false }, 0))
-    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent('Unplan')
+    hover(preview('group', 'unplanned', { kind: 'unplan' }, 0))
+    expect(screen.getByTestId('planner-drag-label')).toHaveTextContent(/^Unplan$/)
     expect(screen.getByTestId('planner-drag-label').textContent).not.toMatch(/Follow-up|Due|Do ·/)
   })
 
@@ -271,8 +280,8 @@ describe('Plan for day ›, Snooze and Unplan in a row’s task menu', () => {
     // Monday plan is planned for Monday already.
     fireEvent.click(within(openMove('Monday plan')).getByRole('menuitemradio', { name: /^Mon, Nov 23/ }))
     expect(setPlan).not.toHaveBeenCalled()
-    // Held call: its follow-up is Sunday — picking Sunday plans it for Sunday (a drag there would clear the plan).
-    fireEvent.click(within(openMove('Held call')).getByRole('menuitemradio', { name: /^Sun, Nov 22/ }))
+    // Sunday call: its follow-up is Sunday — picking Sunday plans it for Sunday (a drag there would write nothing).
+    fireEvent.click(within(openMove('Sunday call')).getByRole('menuitemradio', { name: /^Sun, Nov 22/ }))
     expect(setPlan).toHaveBeenCalledTimes(1)
     expect(setPlan).toHaveBeenLastCalledWith([8], { day: day(2) })
     // Monday deadline sits on Monday by its due date: picking Monday plans it there.
@@ -301,20 +310,41 @@ describe('Plan for day ›, Snooze and Unplan in a row’s task menu', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('Unplan holds a row in Unplanned — a dated one, and one with no date that would leave the Planner; it is off in Unplanned', () => {
+  it('Unplan clears a planned row’s plan — Remove from Planner, saying so, when that takes it out; none on a row with no plan', async () => {
     const { setPlan, update } = watch()
     show()
-    fireEvent.click(within(openMenu('Monday deadline')).getByRole('menuitem', { name: /^Unplan/ }))
-    expect(setPlan).toHaveBeenLastCalledWith([4], 'unplanned')
-    fireEvent.click(within(openMenu('Monday plan')).getByRole('menuitem', { name: /^Unplan/ }))
-    expect(setPlan).toHaveBeenLastCalledWith([5], 'unplanned')
-    fireEvent.click(within(openMenu('Missed plan')).getByRole('menuitem', { name: /^Unplan/ }))
-    expect(setPlan).toHaveBeenLastCalledWith([6], 'unplanned')
-    expect(setPlan).toHaveBeenCalledTimes(3)
+    // Planned for today, due in 9 days (past the window): cleared, it leaves the Planner.
+    fireEvent.click(within(openMenu('Planned for today')).getByRole('menuitem', { name: /^Remove from Planner/ }))
+    await act(async () => { await Promise.resolve() })
+    expect(setPlan).toHaveBeenLastCalledWith([3], null, 'Removed “Planned for today” from the Planner', true)
+    fireEvent.click(within(openMenu('Missed plan')).getByRole('menuitem', { name: /^Remove from Planner/ }))
+    await act(async () => { await Promise.resolve() })
+    expect(setPlan).toHaveBeenLastCalledWith([6], null, 'Removed “Missed plan” from the Planner', true)
+    expect(setPlan).toHaveBeenCalledTimes(2)
 
-    const off = within(openMenu('Someday focus')).getByRole('menuitem', { name: /^Unplan/ })
-    expect(off).toBeDisabled()
-    expect(off).toHaveAttribute('aria-description', expect.stringMatching(/Unplanned already/))
+    // No plan to clear: no Unplan, no Remove — on a day by its date, or in Unplanned.
+    for (const title of ['Monday deadline', 'Someday focus']) {
+      const menu = openMenu(title)
+      expect(within(menu).queryByRole('menuitem', { name: /^Unplan/ })).toBeNull()
+      expect(within(menu).queryByRole('menuitem', { name: /^Remove from Planner/ })).toBeNull()
+      fireEvent.keyDown(menu, { key: 'Escape' })
+    }
     expect(update).not.toHaveBeenCalled()
+  })
+
+  it('Unplan reads Unplan when the task stays: back to its own day, or kept in Unplanned by Focus', async () => {
+    const { setPlan } = watch()
+    useTodoStore.setState({ todos: [
+      ...TODOS(),
+      makeTodo({ id: 10, uid: 'dated-plan', title: 'Dated plan', doDate: day(1), dueDate: day(4), sortOrder: 10 }),
+      makeTodo({ id: 11, uid: 'focus-plan', title: 'Focus plan', focus: true, doDate: day(1), sortOrder: 11 }),
+    ] })
+    show()
+    fireEvent.click(within(openMenu('Dated plan')).getByRole('menuitem', { name: /^Unplan/ }))
+    await act(async () => { await Promise.resolve() })
+    expect(setPlan).toHaveBeenLastCalledWith([10], null)
+    fireEvent.click(within(openMenu('Focus plan')).getByRole('menuitem', { name: /^Unplan/ }))
+    await act(async () => { await Promise.resolve() })
+    expect(setPlan).toHaveBeenLastCalledWith([11], null)
   })
 })

@@ -12,7 +12,7 @@ export const RESET_PLAN_LABEL = 'Reset plan'
 
 /** Reset plan's choices, in the menu's order; the first is named by the report: `This week`, or the days shown while the window is shifted. */
 const RESET_SCOPES: ReadonlyArray<{ scope: PlannerResetScope; label: string; clears: string }> = [
-  { scope: 'week', label: 'This week', clears: 'Clears every plan the Planner shows: planned days, Delayed, and tasks held in Unplanned' },
+  { scope: 'week', label: 'This week', clears: 'Clears every plan the Planner shows: planned days and Delayed' },
   { scope: 'today', label: 'Today only', clears: 'Clears the plans for today' },
   { scope: 'delayed', label: 'Delayed', clears: 'Clears the plans of the Delayed tasks' },
 ]

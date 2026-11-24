@@ -37,7 +37,7 @@ const isPlannerTab = (tab: LayoutTab): tab is PlannerTab => tab.kind === 'planne
  * undo step —, Cancel drops it; Esc, × or a press elsewhere close it at once
  * while nothing changed, else ask Save / Discard / Keep editing. A Planner
  * that never set a filter shows Focus (`plannerUnplannedFilter`); an empty
- * one means nothing joins on its own.
+ * one means nothing joins.
  */
 function PlannerSettings({ tab, anchorRef, onClose }: {
   tab: PlannerTab
@@ -110,10 +110,10 @@ function PlannerSettings({ tab, anchorRef, onClose }: {
                 addLabel="Unplanned holds"
                 layout="stack"
                 inDialog
-                before={empty ? <span className={styles.noFilter}>No filter — nothing joins on its own</span> : undefined}
+                before={empty ? <span className={styles.noFilter}>No filter — nothing joins</span> : undefined}
               />
             </div>
-            <span className={styles.hint}>An open task with no day that matches joins Unplanned on its own. Empty, nothing joins on its own: only what you unplan.</span>
+            <span className={styles.hint}>An open task with no day and no plan that matches joins Unplanned. Empty, Unplanned stays empty.</span>
           </div>
         </div>
       </ExpressionReportProvider>

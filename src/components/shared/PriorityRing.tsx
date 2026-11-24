@@ -47,7 +47,7 @@ export function PriorityRing({ summary, completed, size, corner, label }: {
   completed: boolean
   /** The box's side, px. */
   size: number
-  /** The box's corner radius, px, where it isn't a checkbox's or a Lines box's (a List wall square's 2px). */
+  /** The box's corner radius, px, where it isn't a checkbox's or a Lines box's (a List board square's 2px). */
   corner?: number
   /** The ring's accessible name (the phone row's: it has no gutter); absent = hidden from assistive tech. */
   label?: string

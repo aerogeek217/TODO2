@@ -105,6 +105,8 @@ test('two lists’ rows select alike; one widget at a time', async ({ page }) =>
  */
 test('a click outside the rows clears the selection; rows, the bulk bar, menus and drags keep it', async ({ page }) => {
   await seedWorkspace(page, {
+    // The Notes and Neglect map cells' top lines are their name lines: shown with Show widget names on.
+    settings: { showWidgetNames: 'true' },
     listDefinitions: [{ name: 'Tasks' }],
     tasks: [{ title: 'alpha' }, { title: 'bravo' }, { title: 'charlie' }],
     layouts: [{

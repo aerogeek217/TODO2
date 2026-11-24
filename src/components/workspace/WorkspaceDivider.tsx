@@ -3,6 +3,7 @@ import { registerModuleReset } from '../../utils/module-reset'
 import { flushSync } from 'react-dom'
 import type { GridAxis, LayoutBody } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { afterLeavingEditors } from '../../stores/editor-leave'
 import { isWholeLine, type EdgeStretch } from '../../utils/workspace-grid'
 import { dividerBreaksOff, dividerMoveStretch, dividerTooltip } from '../../utils/divider-moves'
 import { edgeSnapLine, evenStretchDelta, moveEdge, withRowDrawnAt, type MoveEdgeOptions } from '../../utils/workspace-layout-ops'
@@ -11,15 +12,21 @@ import { trackSizing } from '../../utils/workspace-table'
 import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { shortcutScope } from '../../utils/dom-contract'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon } from '../shared/icons'
 import { drawnGap, drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
 import styles from './WorkspaceDivider.module.css'
-import { GUTTER_PLUS_ATTR, useGutterPlus } from './gutter-plus'
 
 /** A divider's `aria-valuenow`, with its `aria-valuemax` (none for a px size) and `aria-valuetext`. */
 export interface DividerValue {
   now: number
   max?: number
   text?: string
+}
+
+/** What a divider's collapse pill collapses on each side of its stretch: track ids, none for no button there. */
+export interface DividerCollapse {
+  before: readonly string[]
+  after: readonly string[]
 }
 
 interface WorkspaceDividerProps {
@@ -43,6 +50,68 @@ interface WorkspaceDividerProps {
   fitTrackIds?: readonly string[]
   /** Its stretch is part of its line (not the whole of it): Alt-drag breaks it off (its tooltip says so). */
   partOfLine?: boolean
+  /** Its collapse pill (outside the layout edit mode): the tracks each of its buttons collapses. Absent: no pill. */
+  collapse?: DividerCollapse
+}
+
+/**
+ * A pill button's name: `Collapse the column on the left`, `Collapse the
+ * rows below` — plural when it collapses more than one track.
+ */
+function collapsePillLabel(axis: GridAxis, side: 'before' | 'after', count: number): string {
+  const noun = axis === 'columns' ? 'column' : 'row'
+  const where = axis === 'columns' ? (side === 'before' ? 'on the left' : 'on the right') : (side === 'before' ? 'above' : 'below')
+  return `Collapse the ${noun}${count > 1 ? 's' : ''} ${where}`
+}
+
+/**
+ * A divider's collapse pill, drawn after it and its line (CSS shows it from
+ * the divider's hover, after 120ms, or focus, and while it is hovered or
+ * holds the focus): between columns ◂ ▸, between rows ▴ ▾, each collapsing
+ * the tracks on its side (`setTrackCollapsed`, view state — no undo step,
+ * as Collapse row). A sibling of the divider, not inside it: a press on it
+ * never starts a resize.
+ */
+/** How far a press on the pill moves before it is the divider's drag instead of a collapse, px. */
+const PILL_DRAG_PX = 4
+
+function CollapsePill({ axis, collapse, style, onGrip, dragged }: {
+  axis: GridAxis
+  collapse: DividerCollapse
+  style: CSSProperties
+  /** A press on the pill: moved past `PILL_DRAG_PX` it becomes the divider's resize. */
+  onGrip: (e: ReactPointerEvent<HTMLElement>) => void
+  /** Whether the press that ends in this click became a drag (then nothing collapses). */
+  dragged: () => boolean
+}) {
+  const sides = (['before', 'after'] as const).filter((side) => collapse[side].length > 0)
+  if (sides.length === 0) return null
+  const run = (ids: readonly string[]) => afterLeavingEditors(() => { void useWorkspaceStore.getState().setTrackCollapsed(ids, true) })
+  const icon = (side: 'before' | 'after') => (axis === 'columns'
+    ? (side === 'before' ? <ChevronLeftIcon size={12} /> : <ChevronRightIcon size={12} />)
+    : (side === 'before' ? <ChevronUpIcon size={12} /> : <ChevronDownIcon size={12} />))
+  return (
+    <div className={`${styles.pillWrap} ${axis === 'columns' ? styles.pillColumns : styles.pillRows}`} style={style} data-ws-divider-pill={axis}>
+      <div className={styles.pill}>
+        {sides.map((side) => {
+          const label = collapsePillLabel(axis, side, collapse[side].length)
+          return (
+            <button
+              key={side}
+              type="button"
+              className={styles.pillButton}
+              aria-label={label}
+              data-tooltip={label}
+              onPointerDown={onGrip}
+              onClick={() => { if (!dragged()) run(collapse[side]) }}
+            >
+              {icon(side)}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 /** What a divider drag keeps from its start. */
@@ -115,10 +184,11 @@ function SnapGuide({ axis, line, tracks }: { axis: GridAxis; line: number; track
  * `fitPx`, view state). ←/→ (↑/↓) move the whole line 16px, Alt + them the
  * piece, the focus staying on it (a run of them is one undo step); a
  * double-click evens the whole line's two tracks (Alt: moves the piece
- * midway between its own cells), or lets a fit row fit again.
+ * midway between its own cells), or lets a fit row fit again. Outside the
+ * layout edit mode its hover or focus shows its collapse pill
+ * (`CollapsePill`), which collapses the columns (rows) on either side.
  */
-export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, style, fitTrackIds = [], partOfLine = false }: WorkspaceDividerProps) {
-  const gutterPlus = useGutterPlus()
+export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, style, fitTrackIds = [], partOfLine = false, collapse }: WorkspaceDividerProps) {
   const axisX = stretch.axis === 'columns'
   const dragRef = useRef<DragState | null>(null)
   const elRef = useRef<HTMLDivElement | null>(null)
@@ -257,29 +327,58 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     showResizePreview(null, handle)
   }
 
-  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
-    gutterPlus?.(null)
+  /** Starts a drag of this divider (`el`) by pointer `pointerId`, from `start` along its axis. False when it can't. */
+  const startDrag = (el: HTMLElement, pointerId: number, start: number, altKey: boolean): boolean => {
     const layout = useWorkspaceStore.getState().working
-    const table = e.currentTarget.closest<HTMLElement>('[data-ws-table]')
-    if (!layout || !table) return
+    const table = el.closest<HTMLElement>('[data-ws-table]')
+    if (!layout || !table) return false
     const sizes = drawnSizes(table, stretch.axis)
-    if (sizes.length !== layout.grid[stretch.axis].length) return
-    e.preventDefault()
-    e.currentTarget.setPointerCapture?.(e.pointerId)
+    if (sizes.length !== layout.grid[stretch.axis].length) return false
+    el.setPointerCapture?.(pointerId)
     dragRef.current = {
-      pointerId: e.pointerId,
-      start: axisX ? e.clientX : e.clientY,
+      pointerId,
+      start,
       layout,
-      moved: movedIn(layout, e.altKey),
-      breakOff: e.altKey,
+      moved: movedIn(layout, altKey),
+      breakOff: altKey,
       opts: { sizes, minPx: minPxIn(layout), gap: drawnGap(table, stretch.axis) },
       structural: false,
       delta: 0,
     }
     pointer.listen(onPointerMove, onPointerUp)
-    setBreaking(dividerBreaksOff(layout, stretch, { breakOff: e.altKey, fit }))
+    setBreaking(dividerBreaksOff(layout, stretch, { breakOff: altKey, fit }))
     setDragging(true)
+    return true
+  }
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    if (startDrag(e.currentTarget, e.pointerId, axisX ? e.clientX : e.clientY, e.altKey)) e.preventDefault()
+  }
+
+  /** The press that ends in the pill's click became a drag: that click collapses nothing. */
+  const pillDraggedRef = useRef(false)
+  /** A press on the collapse pill: a click collapses; moved a few px, it is this divider's resize, from where it was pressed. */
+  const onPillGrip = (e: ReactPointerEvent<HTMLElement>) => {
+    if (e.button !== 0) return
+    pillDraggedRef.current = false
+    const { pointerId, clientX: x0, clientY: y0, altKey } = e
+    const done = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', done)
+      window.removeEventListener('pointercancel', done)
+    }
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId || Math.hypot(ev.clientX - x0, ev.clientY - y0) < PILL_DRAG_PX) return
+      done()
+      const el = elRef.current
+      if (!el) return
+      pillDraggedRef.current = startDrag(el, pointerId, axisX ? x0 : y0, altKey)
+      if (pillDraggedRef.current) onPointerMove(ev)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', done)
+    window.addEventListener('pointercancel', done)
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -360,12 +459,6 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     <>
       <div
         ref={elRef}
-        onPointerMove={(e) => {
-          // Round two (concept A): in the layout edit mode a "+" follows the pointer along the line.
-          if (!gutterPlus || dragRef.current || e.buttons !== 0) return
-          const r = e.currentTarget.getBoundingClientRect()
-          gutterPlus({ axis: stretch.axis, line: stretch.line, x: axisX ? r.left + r.width / 2 : e.clientX, y: axisX ? e.clientY : r.top + r.height / 2, from: axisX ? r.top : r.left, to: axisX ? r.bottom : r.right })
-        }}
         className={`${styles.divider} ${axisX ? styles.betweenColumns : styles.betweenCells} ${dragging ? styles.dragging : ''}`}
         data-tooltip={dragging ? undefined : dividerTooltip(partOfLine, fit)}
         style={style}
@@ -390,12 +483,9 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
           // Mid-drag the drag decides (a preview moving the element fires a fresh enter).
           if (!dragRef.current) setBreaking(e.altKey && partOfLine && !fit)
         }}
-        onPointerLeave={(e) => {
+        onPointerLeave={() => {
           setHovered(false)
           if (!dragRef.current) setBreaking(false)
-          // Onto its "+": it stays; anywhere else it goes.
-          const to = e.relatedTarget
-          if (gutterPlus && !(to instanceof Element && to.closest(`[${GUTTER_PLUS_ATTR}]`))) gutterPlus(null)
         }}
         onLostPointerCapture={(e) => recapture(e.currentTarget, e.pointerId, dragRef.current?.pointerId === e.pointerId)}
         onDoubleClick={onDoubleClick}
@@ -408,6 +498,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
         aria-hidden="true"
         data-ws-divider-line={`${beforeId}|${afterId}`}
       />
+      {collapse && <CollapsePill axis={stretch.axis} collapse={collapse} style={style} onGrip={onPillGrip} dragged={() => pillDraggedRef.current} />}
       {snap && <SnapGuide axis={stretch.axis} line={snap.line} tracks={snap.tracks} />}
     </>
   )

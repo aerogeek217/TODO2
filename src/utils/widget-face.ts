@@ -180,23 +180,6 @@ export function plannerStripFits(size: { width: number; height: number }, room: 
   return height <= 0 || height >= (room.topLine ? PLANNER_TOP_LINE_PX : 0) + PLANNER_STRIP_HEIGHT_PX + PLANNER_TODAY_ROW_PX
 }
 
-/** A List wall's body this narrow or narrower (and not small) shows its bars, a line per list. */
-const LIST_WALL_BARS_MAX_WIDTH_PX = 560
-
-/**
- * A List wall's face (2026-11-18): small as every widget's; medium — a bar
- * per list — while the body is too narrow for blocks of squares
- * (`LIST_WALL_BARS_MAX_WIDTH_PX`); else large, whose blocks trade rows for
- * columns in a short cell (`list-wall.wallGridShape`). Unmeasured is `large`.
- */
-export function listWallFaceFor(size: { width: number; height: number }): WidgetFace {
-  const { width, height } = size
-  if (width <= 0 && height <= 0) return 'large'
-  // A medium height is no reason for bars: the blocks fit two rows of squares in it.
-  if (widgetFaceFor(size) === 'small') return 'small'
-  return width <= LIST_WALL_BARS_MAX_WIDTH_PX ? 'medium' : 'large'
-}
-
 /** A Shortcuts body narrower than this (and not small) shows its rows face: a row per list. */
 const SHORTCUTS_ROWS_MAX_WIDTH_PX = 360
 

@@ -84,11 +84,8 @@ describe('dev seed generator', () => {
     expect(doDays.some((v) => v === todayMs), 'planned today').toBe(true)
     expect(doDays.some((v) => v > todayMs), 'planned ahead').toBe(true)
     expect(planned.some((t) => t.recurrenceRule !== undefined), 'a repeating task planned').toBe(true)
-    // Held in Unplanned (schema v86): open tasks with a date, never beside a planned day.
-    const held = seed.todos.filter((t) => t.unplanned !== undefined)
-    expect(held.length).toBeGreaterThanOrEqual(2)
-    expect(held.every((t) => t.unplanned === true && !t.isCompleted && t.doDate === undefined)).toBe(true)
-    expect(held.every((t) => t.dueDate !== undefined || t.nextFollowupAt !== undefined)).toBe(true)
+    // A plan state is a planned day or none (schema v89): no task is held in Unplanned.
+    expect(seed.todos.filter((t) => 'unplanned' in t).map((t) => t.title)).toEqual([])
     const exportedMs = Date.parse(seed.exportedAt)
     const last = seed.todos.map((t) => ms(t.lastFollowupAt)).filter((v) => v !== undefined)
     expect(last.length).toBeGreaterThan(0)
@@ -156,7 +153,7 @@ describe('dev seed generator', () => {
     expect(seed.layouts.some((l) => l.cells.some((c) => c.area.rowSpan > 1)), 'a cell spanning rows').toBe(true)
     const kinds = new Set(seed.layouts.flatMap((l) => l.cells)
       .flatMap((p) => p.tabs.map((t) => t.kind)))
-    expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'clusters', 'lens', 'listwall', 'neglect', 'notes', 'number', 'pivot', 'planner', 'shortcuts', 'trend'])
+    expect([...kinds].sort()).toEqual(['breakdown', 'calendar', 'clusters', 'lens', 'neglect', 'notes', 'number', 'pivot', 'planner', 'shortcuts', 'trend'])
   })
 
   it('shows the planned date: plans on and after real dates, a Planner filter, a list and a Number', () => {
@@ -167,7 +164,6 @@ describe('dev seed generator', () => {
     expect(planned.some((t) => t.dueDate !== undefined && dayOf(t.doDate)! > dayOf(t.dueDate)!), 'a plan after its due date').toBe(true)
     expect(planned.some((t) => t.nextFollowupAt !== undefined && dayOf(t.doDate)! > dayOf(t.nextFollowupAt)!), 'a plan after its follow-up').toBe(true)
     expect(planned.filter((t) => dayOf(t.doDate)! < TODAY.getTime()).length, 'Delayed').toBeGreaterThanOrEqual(2)
-    expect(seed.todos.filter((t) => t.unplanned === true).length, 'held').toBeGreaterThanOrEqual(3)
 
     const tabs = seed.layouts.flatMap((l) => l.cells.flatMap((c) => c.tabs))
     const planner = tabs.find((t) => t.kind === 'planner')
@@ -177,6 +173,10 @@ describe('dev seed generator', () => {
     })
     const list = seed.listDefinitions.find((d) => d.id === DEV_SEED_IDS.lists.planned)
     expect(list && { sort: list.sort, grouping: list.grouping }).toEqual({ sort: 'planned', grouping: 'planned' })
+    // Every task with a plan state: `planned any`.
+    const predicate = list?.membership.kind === 'custom' ? list.membership.predicate : undefined
+    expect(predicate?.dates).toEqual({ planned: { match: 'set' } })
+    expect(predicate?.expression).toBeUndefined()
     expect(tabs.some((t) => t.kind === 'number' && t.config.filter.dates.planned !== undefined), 'a Number filtered by Planned').toBe(true)
   })
 

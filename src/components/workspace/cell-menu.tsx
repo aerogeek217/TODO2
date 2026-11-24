@@ -21,6 +21,8 @@ import type { MenuEntry, MenuItemEntry } from '../shared/MenuPopover'
 import type { WidgetKindMenuContent, WidgetMenuAction } from '../shared/widget-kind-menu-entries'
 import {
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   ChevronUpIcon,
   CloseCellIcon,
   CloseIcon,
@@ -56,7 +58,7 @@ import { createListAndTab, openEditList, useListOwnerLayoutId } from './widget-h
  * widget ›), then **Add widget as tab ›** (every kind, under Tasks and
  * Insights), **Remove widget** (a lone widget's cell stays, empty) — in a
  * cell showing a tab strip **Add tab ›** and **Remove tab** —,
- * Collapse / Expand row, and last **Edit layout**, which opens the layout
+ * Collapse / Expand row and column, and last **Edit layout**, which opens the layout
  * edit mode with this cell selected. Inside the mode a cell is a card, and
  * its menu (the card's ⋯, a right-click on the card, Enter on it: **Cell
  * layout**, `editCardMenuEntries`) places it: Move to ▸, Swap with ▸,
@@ -112,6 +114,10 @@ export interface CellMenuActions {
   /** Every row track it covers is collapsed: Expand row instead of Collapse row. */
   collapsed: boolean
   onCollapse: (next: boolean) => void
+  /** Some column track it covers is collapsed: Expand column instead of Collapse column. */
+  columnCollapsed?: boolean
+  /** Collapse / Expand column: every column track it covers. Absent: no entry. */
+  onCollapseColumn?: (next: boolean) => void
   onCloseTab: (tabId: string) => void
   /** Add widget as tab › a kind (a Breakdown with its preset): a new tab of this cell, made its active one. */
   onAddTab: (kind: WidgetKind, preset?: BreakdownPreset) => void
@@ -370,14 +376,23 @@ function addTabEntry(a: CellMenuActions): MenuEntry {
   }
 }
 
-/** Collapse / Expand row (outside the mode, in the ⋯: view state). */
-function collapseEntry(a: CellMenuActions): MenuEntry {
-  return {
+/** Collapse / Expand row, then Collapse / Expand column (outside the mode, in the ⋯: view state). */
+function collapseEntries(a: CellMenuActions): MenuEntry[] {
+  const row: MenuEntry = {
     kind: 'item',
     label: a.collapsed ? 'Expand row' : 'Collapse row',
     icon: a.collapsed ? <ChevronDownIcon size={14} /> : <ChevronUpIcon />,
     onSelect: () => a.onCollapse(!a.collapsed),
   }
+  const onColumn = a.onCollapseColumn
+  if (!onColumn) return [row]
+  const folded = a.columnCollapsed === true
+  return [row, {
+    kind: 'item',
+    label: folded ? 'Expand column' : 'Collapse column',
+    icon: folded ? <ChevronRightIcon size={14} /> : <ChevronLeftIcon size={14} />,
+    onSelect: () => onColumn(!folded),
+  }]
 }
 
 /** Remove widget (outside the mode): removes this widget's tab — a lone widget's cell stays, empty (`workspace-store.removeWidget`). */
@@ -408,12 +423,12 @@ export const CELL_MENU_LABEL: Readonly<Record<CellMenuPart, string>> = {
 
 /**
  * The entries of the cell's ⋯ menu (outside the layout edit mode): the
- * widget's entries, then Add widget as tab ›, Remove widget and Collapse /
- * Expand row, then Edit layout.
+ * widget's entries, then Add widget as tab ›, Remove widget, Collapse /
+ * Expand row and column, then Edit layout.
  */
 export function cellMenuFor(widget: readonly MenuEntry[], a: CellMenuActions): MenuEntry[] {
   const moved = mergedCellMenu(widget, transferEntries(a.transfer, { move: 'Move to layout', copy: 'Copy to layout' }))
-  const own = mergedCellMenu(moved, [addTabEntry(a), ...removeWidgetEntry(a), collapseEntry(a)])
+  const own = mergedCellMenu(moved, [addTabEntry(a), ...removeWidgetEntry(a), ...collapseEntries(a)])
   return mergedCellMenu(own, editLayoutEntry(a))
 }
 

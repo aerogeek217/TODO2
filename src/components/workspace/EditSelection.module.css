@@ -1,0 +1,99 @@
+/* The layout edit mode's controls around the selection (`EditSelection`):
+ * absolutely placed in the table (positioned in the mode,
+ * `WorkspaceView.module.css`) by its own coordinates, so they scroll with
+ * it and take no part in its grid. Edge tabs are centred on their point in
+ * a seam (they overlap the cards beside it by a few px); a merge button is
+ * centred across its neighbour under the neighbour's name. While one draws
+ * its edit, the others fade. */
+.layer {
+  display: contents;
+}
+
+.edgeTab,
+.mergeButton {
+  position: absolute;
+  z-index: calc(var(--z-above-3) + 2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-sizing: border-box;
+  margin: 0;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+
+.layer[data-previewing] > :not([data-hot]) {
+  opacity: 0.12;
+}
+
+/* ── An edge tab: a pill in the seam, its words across (a row) or down (a column) ── */
+
+.edgeTab {
+  height: 20px;
+  padding: 0 9px;
+  border: 1px solid var(--color-accent-dim);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+  color: var(--color-accent-text);
+  font-size: var(--font-size-badge);
+  font-weight: var(--font-weight-bold);
+  transform: translate(-50%, -50%);
+}
+
+.edgeTab:is([data-side='left'], [data-side='right']) {
+  width: 20px;
+  height: auto;
+  padding: 9px 0;
+  writing-mode: vertical-rl;
+}
+
+/* The left one reads bottom to top, as its seam faces the card from the left. */
+.edgeTab[data-side='left'] {
+  transform: translate(-50%, -50%) rotate(180deg);
+}
+
+.edgeTab:hover,
+.edgeTab[data-hot] {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.edgeTab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── A merge button: on the neighbour, in the follow-up color (a merge's preview outlines it too) ── */
+
+.mergeButton {
+  height: 24px;
+  padding: 0 11px;
+  border: 1px dashed color-mix(in srgb, var(--color-followup) 70%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-followup) 10%, var(--color-surface));
+  color: var(--color-followup);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  transform: translateX(-50%);
+}
+
+.mergeButton:hover,
+.mergeButton[data-hot] {
+  border-style: solid;
+  background: var(--color-followup);
+  color: var(--color-surface);
+}
+
+.mergeButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.mergeWords {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

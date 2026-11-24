@@ -24,7 +24,6 @@ import {
   unitOffsetOf,
   shiftAnchor,
   tokenOfWords,
-  UNPLANNED_WORD,
   type PeriodWord,
 } from './dates'
 import { expressionDepth, expressionSize, normalizeExpression } from './tree'
@@ -46,8 +45,7 @@ import { expressionDepth, expressionSize, normalizeExpression } from './tree'
  *   comparison with a day (`<` `<=` `>` `>=` `=`: `due <= fri`, `followup >=
  *   +7d`; `<` / `>` step to the day before / after, `= this week` is the
  *   period), `a..b`, `within [last] N days`; `no due`, `no followup`, `never
- *   followed`, `overdue`, `followup late`; `unplanned` — held in the
- *   Planner's Unplanned tray (`planned none` keeps those too). The older words `before` / `by` /
+ *   followed`, `overdue`, `followup late`. The older words `before` / `by` /
  *   `after` / `from` a day still read (as `<` / `<=` / `>` / `>=`);
  * - a day: `today`, `tomorrow`, `yesterday`, `+3d` / `-30d` (days from
  *   today), `fri`, `next fri`, `11/30`, `start of next week`, and the older
@@ -205,7 +203,7 @@ function lex(text: string): Lex[] {
 // ── Parser ──────────────────────────────────────────────────────────────────
 
 /** Words that end a text phrase: they start a term or join terms. */
-export const KEYWORDS: ReadonlySet<string> = new Set(['and', 'or', 'not', 'no', 'any', 'never', 'overdue', 'done', UNPLANNED_WORD, ...DATE_WORDS.keys()])
+export const KEYWORDS: ReadonlySet<string> = new Set(['and', 'or', 'not', 'no', 'any', 'never', 'overdue', 'done', ...DATE_WORDS.keys()])
 
 const PRIORITIES: ReadonlyMap<string, MarkerKey> = new Map([['urgent', 'urgent'], ['important', 'important'], ['focus', 'focus']])
 
@@ -454,10 +452,6 @@ class Parser {
     if (w === 'overdue') {
       this.span(t, 'due')
       return { kind: 'date', field: 'deadline', match: BEFORE_TODAY }
-    }
-    if (w === UNPLANNED_WORD) {
-      this.span(t, 'date')
-      return { kind: 'date', field: 'planned', match: { match: 'held' } }
     }
     if (w === 'no') return this.noTerm(t)
     if (w === 'any') return this.anyTerm(t)

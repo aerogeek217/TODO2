@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { edges, expectSameEdges, openCellMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed, expectDividerStep, expectLayoutStored, newestUndoStep } from './fixtures/workspace'
-import { box, type Point } from './fixtures/geometry'
+import { box, dividerGrip, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
 /**
@@ -27,9 +27,6 @@ function crossing(page: Page): Locator {
   return page.locator('[data-ws-crossing]')
 }
 
-function centre(b: { x: number; y: number; width: number; height: number }): Point {
-  return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
-}
 
 /**
  * A trusted-mouse drag of a resize handle: presses at `from`, moves to `to`
@@ -67,7 +64,7 @@ test.describe('pieces and whole lines', () => {
   test('a plain drag of one piece moves the whole line across the crossing: view state, saved at once, no undo step', async ({ page }) => {
     await seedWorkspace(page, { layouts: [quad] })
     const a0 = await edges(wsCell(page, 'a'))
-    const from = centre(await box(wsDivider(page, 'a', 'c')))
+    const from = dividerGrip(await box(wsDivider(page, 'a', 'c')))
     await dragHandle(page, from, { x: from.x, y: from.y + 80 })
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - a0.bottom)).toBeGreaterThan(70)
     // The whole line: b follows a across the "+", d shrinks from its top.
@@ -84,7 +81,7 @@ test.describe('pieces and whole lines', () => {
     await seedWorkspace(page, { layouts: [quad] })
     const a0 = await edges(wsCell(page, 'a'))
     const c0 = await edges(wsCell(page, 'c'))
-    const from = centre(await box(wsDivider(page, 'a', 'b')))
+    const from = dividerGrip(await box(wsDivider(page, 'a', 'b')))
     await dragHandle(page, from, { x: from.x + 100, y: from.y }, async () => {
       await expect(wsDivider(page, 'a', 'b')).toHaveAttribute('data-break', '')
     }, { alt: true })
@@ -99,7 +96,7 @@ test.describe('pieces and whole lines', () => {
     const divider = wsDivider(page, 'a', 'c')
     const line = page.locator('[data-ws-divider-line="a|c"]')
     expect(await opacity(line)).toBe('0')
-    const at = centre(await box(divider))
+    const at = dividerGrip(await box(divider))
     await page.mouse.move(at.x, at.y)
     await expect.poll(() => opacity(line)).toBe('1')
     // Across the whole table.
@@ -122,7 +119,7 @@ test.describe('pieces and whole lines', () => {
     await page.keyboard.press('ArrowDown')
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - a0.bottom)).toBe(16)
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'b'))).bottom - b0.bottom)).toBe(16)
-    const at = centre(await box(wsDivider(page, 'a', 'c')))
+    const at = dividerGrip(await box(wsDivider(page, 'a', 'c')))
     await page.mouse.dblclick(at.x, at.y)
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - a0.bottom)).toBe(0)
     await wsDivider(page, 'a', 'c').focus()
@@ -140,14 +137,14 @@ test.describe('snapping', () => {
     const a0 = await edges(wsCell(page, 'a'))
 
     // 1. The right column's row piece down 80px: the two columns' row pieces at different heights.
-    let from = centre(await box(wsDivider(page, 'b', 'd')))
+    let from = dividerGrip(await box(wsDivider(page, 'b', 'd')))
     await dragHandle(page, from, { x: from.x, y: from.y + 80 }, undefined, { alt: true })
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'b'))).bottom - a0.bottom)).toBeGreaterThan(70)
     await expectDividerStep(page)
     expect(Math.abs((await edges(wsCell(page, 'a'))).bottom - a0.bottom)).toBeLessThanOrEqual(4)
 
     // 2. Back up to within a few px of the left column's line: it snaps, the guide shows along that line.
-    from = centre(await box(wsDivider(page, 'b', 'd')))
+    from = dividerGrip(await box(wsDivider(page, 'b', 'd')))
     const aBottom = (await edges(wsCell(page, 'a'))).bottom
     const bBottom = (await edges(wsCell(page, 'b'))).bottom
     await dragHandle(page, from, { x: from.x, y: from.y - (bBottom - aBottom) + 5 }, async () => {
@@ -167,7 +164,7 @@ test.describe('snapping', () => {
     // 3. A plain drag of the left piece: both pieces move together (the whole line), the column line stays put.
     const before = await edges(wsCell(page, 'a'))
     const bBefore = await edges(wsCell(page, 'b'))
-    const x = centre(await box(wsDivider(page, 'a', 'c')))
+    const x = dividerGrip(await box(wsDivider(page, 'a', 'c')))
     await dragHandle(page, x, { x: x.x, y: x.y + 70 })
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - before.bottom)).toBeGreaterThan(60)
     const after = await edges(wsCell(page, 'a'))
@@ -194,8 +191,8 @@ test.describe('a structural drag previews its result', () => {
     await page.locator('[data-ws-cell]').evaluateAll((els) => { for (const el of els) (el as HTMLElement & { __mark?: boolean }).__mark = true })
     const marked = () => page.locator('[data-ws-cell]').evaluateAll((els) => els.every((el) => (el as HTMLElement & { __mark?: boolean }).__mark === true))
     const a0 = await edges(wsCell(page, 'a'))
-    const from = centre(await box(wsDivider(page, 'a', 'b')))
-    const target = centre(await box(wsDivider(page, 'e', 'f')))
+    const from = dividerGrip(await box(wsDivider(page, 'a', 'b')))
+    const target = dividerGrip(await box(wsDivider(page, 'e', 'f')))
     const mid: Partial<Record<'a' | 'b', Awaited<ReturnType<typeof edges>>>> = {}
     // To 4px short of the e|f line: it snaps onto it.
     await dragHandle(page, from, { x: target.x - 4, y: from.y }, async () => {
@@ -218,8 +215,8 @@ test.describe('a structural drag previews its result', () => {
   test('Esc mid-drag puts the table back as it was; nothing changes', async ({ page }) => {
     await seedWorkspace(page, { layouts: [steps] })
     const a0 = await edges(wsCell(page, 'a'))
-    const from = centre(await box(wsDivider(page, 'a', 'b')))
-    const target = centre(await box(wsDivider(page, 'e', 'f')))
+    const from = dividerGrip(await box(wsDivider(page, 'a', 'b')))
+    const target = dividerGrip(await box(wsDivider(page, 'e', 'f')))
     await page.mouse.move(from.x, from.y)
     await page.keyboard.down('Alt')
     await page.mouse.down()
@@ -254,7 +251,7 @@ test.describe('a Numbers-only row', () => {
     const divider = page.locator('[data-ws-divider][data-axis="rows"]')
     await expect(divider).toHaveCount(1)
     await expect(divider).toHaveAttribute('data-fit', '')
-    const from = centre(await box(divider))
+    const from = dividerGrip(await box(divider))
     await dragHandle(page, from, { x: from.x, y: from.y + 80 })
     await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBeGreaterThan(fit + 70)
     const tall = Math.round((await box(wsCell(page, 'n1'))).height)
@@ -268,7 +265,7 @@ test.describe('a Numbers-only row', () => {
     await page.reload()
     await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBe(tall)
 
-    const d = centre(await box(divider))
+    const d = dividerGrip(await box(divider))
     await page.mouse.dblclick(d.x, d.y)
     await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBe(fit)
     await expect.poll(async () => (await storedRows(page))[0]?.fitPx).toBeUndefined()
@@ -279,7 +276,7 @@ test.describe('a Numbers-only row', () => {
     const fit = (await box(wsCell(page, 'n1'))).height
     const height = async () => (await box(wsCell(page, 'n1'))).height
     const divider = page.locator('[data-ws-divider][data-axis="rows"]')
-    const from = centre(await box(divider))
+    const from = dividerGrip(await box(divider))
     // A press with a 1px jiggle, then a drag up: the row is as tall as it was, and still fits (no height of its own).
     await dragHandle(page, from, { x: from.x, y: from.y - 1 })
     expect(await height()).toBe(fit)
@@ -293,7 +290,7 @@ test.describe('a Numbers-only row', () => {
     // ↓ gives it 16px more; a long drag up then stops at the height it fits at.
     await page.keyboard.press('ArrowDown')
     await expect.poll(async () => Math.round(await height())).toBe(Math.round(fit) + 16)
-    const d = centre(await box(divider))
+    const d = dividerGrip(await box(divider))
     await dragHandle(page, d, { x: d.x, y: d.y - 200 })
     await expect.poll(async () => Math.round(await height())).toBe(Math.round(fit))
   })

@@ -21,8 +21,6 @@ export interface TaskDraft {
   recurrence?: Interval
   /** The planned day (`/plan`, the editor's Planned cell): written with the task, no stamp of its own. */
   doDate?: Date
-  /** Held in the Planner's Unplanned tray (the editor's Planned cell); never beside `doDate`. */
-  unplanned?: true
   statusId?: number
   urgent: boolean
   important: boolean
@@ -195,12 +193,12 @@ export function draftFromEditor(
     : resolved.followupNone ? null : resolved.nextFollowupAt
   const dueDate = partial.dueDate ?? resolved.dueDate
   const recurrence = partial.recurrenceRule?.every ?? resolved.recurrence
-  const doDate = partial.doDate ?? (partial.unplanned === true ? undefined : resolved.doDate)
+  const doDate = partial.doDate ?? resolved.doDate
   return {
     title: resolved.title || rawTitle,
     ...(dueDate ? { dueDate } : {}),
     ...(recurrence ? { recurrence } : {}),
-    ...(doDate ? { doDate } : partial.unplanned === true ? { unplanned: true as const } : {}),
+    ...(doDate ? { doDate } : {}),
     ...withStatus(resolved.statusId ?? existingId(partial.statusId, ctx.statuses)),
     urgent: partial.urgent === true || resolved.urgent === true,
     important: partial.important === true || resolved.important === true,
@@ -253,7 +251,7 @@ function draftFields(draft: TaskDraft): Omit<TodoChanges, 'nextFollowupAt' | 'ti
   return {
     ...(draft.dueDate ? { dueDate: draft.dueDate } : {}),
     ...(draft.dueDate && draft.recurrence ? { recurrenceRule: makeRecurrenceRule(draft.recurrence, draft.dueDate) } : {}),
-    ...(draft.doDate ? { doDate: draft.doDate } : draft.unplanned ? { unplanned: true as const } : {}),
+    ...(draft.doDate ? { doDate: draft.doDate } : {}),
     ...withStatus(draft.statusId),
     ...(draft.urgent ? { urgent: true as const } : {}),
     ...(draft.important ? { important: true as const } : {}),

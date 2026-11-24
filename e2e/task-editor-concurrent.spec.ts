@@ -50,7 +50,8 @@ test('a title typed in the editor survives a bulk due-date change; saving keeps 
 
   // The change lands while the title is focused and unsaved.
   await bulkSetDue(page, ['alpha', 'beta'], [2026, 11, 24])
-  await expect(page.locator('[data-tooltip^="Due "]')).toBeVisible()
+  // The editor's Due field now holds the date the bulk change set.
+  await expect(page.getByRole('textbox', { name: 'Due date' })).not.toHaveValue('')
   await expect(title).toBeFocused()
   await expect(title).toHaveValue('alpha renamed')
 

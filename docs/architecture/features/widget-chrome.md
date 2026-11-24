@@ -14,7 +14,7 @@ Outside the mode the cell has one menu, named **Cell options**. It opens from th
 2. **Move to layout ›** / **Copy to layout ›** ([Move / Copy to layout](cross-layout-moves.md)).
 3. **Add widget as tab ›**: every kind under Tasks and Insights, a Breakdown's presets. The new widget is a tab of this cell, made its active one; a List gets a new blank list (`widget-hooks.addTabToCell`).
 4. **Remove widget**: that tab.
-5. **Collapse row** / **Expand row**.
+5. **Collapse row** / **Expand row**, then **Collapse column** / **Expand column**: every row (column) track the cell covers. Expand column shows while any column it covers is collapsed.
 6. **Edit layout**, last: the mode, this cell selected.
 
 - In a cell showing a tab strip, the two read **Add tab ›** and **Remove tab** (`cell-menu.showsTabStrip`). A Numbers strip keeps the widget words.
@@ -58,7 +58,7 @@ The widget's own top line (`WidgetTopLine`) names it and stands for its tab (`da
 - the calendar: its month header;
 - a Number: its label;
 - a chart: its title;
-- Notes and the Neglect map: a name line.
+- Notes, the Neglect map, Work clusters, the Planner and the List board: a name line (`WidgetNameLine`), its name shown only with Settings › **Show widget names** on (off by default). Off, the line keeps only its other content (the Planner's range, Work clusters' count, which takes the legend's tooltip); with none it isn't drawn.
 
 It ends with the cell's controls slot (`CellControls`, lent through `CellControlsContext`):
 
@@ -66,7 +66,7 @@ It ends with the cell's controls slot (`CellControls`, lent through `CellControl
 - They show on the cell's hover and focus-within and always on touch, with no fade.
 - Floating over a face and hidden, they take no press: a tap or a press at a Number's or a small face's corner reaches the face.
 - While collapsed, the slot has an **Expand row** button that always shows.
-- A face with no top line (a small face, a Number whose label is inside its button) gets the slot floating over the cell's top-right corner.
+- A face with no top line (a small face, a Number whose label is inside its button, a hidden name line) gets the slot floating over the cell's top-right corner, above the face (the body frame isolates the widget's own layers). The body is then `data-controls-floating` and sets `--cell-controls-reserve` (60px), what a face keeps clear of in that corner: the Neglect map's Slipping word.
 
 ### Two or more widgets: the tab strip
 
@@ -125,7 +125,7 @@ A widget draws its small, medium or large face by its cell body's measured size 
 | medium | at most 160px tall |
 | large | anything else |
 
-- These have faces: the List, the Calendar, the Neglect map and every glance widget; and by thresholds of their own, Review ([Review](review.md)), the Planner ([Planner](planner.md)), Shortcuts ([Shortcuts](shortcuts.md)), Work clusters and the List wall ([Task maps](task-maps.md)).
+- These have faces: the List, the Calendar, the Neglect map and every glance widget; and by thresholds of their own, Review ([Review](review.md)), the Planner ([Planner](planner.md)), the List board ([List board](list-board.md)) and Work clusters ([Task maps](task-maps.md)).
 - Notes is always whole.
 - A fit row's cell is at its small face.
 - A click on a small face, or its focus-only `Open …` button, opens the widget larger.
@@ -138,7 +138,7 @@ Its state is `ui-store.widgetPopup`: what the popup shows (`WidgetPopupTarget`),
 
 - `{ kind: 'tab', tabId }`: a tab of the layout.
 - `{ kind: 'list', tabId }`: the list a Number follows ([Numbers](#numbers)).
-- `{ kind: 'shortcut', listDefinitionId }`: a list of any layout, from a Shortcuts tile ([Shortcuts](shortcuts.md#opening-a-list)).
+- `{ kind: 'shortcut', listDefinitionId }`: a list of any layout, from a List board's tile ([List board](list-board.md#opening-a-picked-list)).
 - `{ kind: 'review' }`: the popup review ([Review](review.md)).
 
 ### Size, header and layers

@@ -167,8 +167,8 @@ describe('cellMenuFor (outside the mode: what is inside a cell changes in place)
     const onAddTab = vi.fn()
     const add = childrenOf(cellMenuFor(notes(), actions({ onAddTab })), 'Add widget as tab')
     expect(words(add)).toEqual([
-      '[Tasks]', 'List', 'Calendar', 'Review', 'Planner', 'Notes', 'Shortcuts',
-      '—', '[Insights]', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters', 'List wall',
+      '[Tasks]', 'List', 'Calendar', 'Review', 'Planner', 'Notes', 'List board',
+      '—', '[Insights]', 'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Neglect map', 'Work clusters',
     ])
     select(item(add, 'Calendar'))
     select(item(childrenOf(add, 'Breakdown'), 'People'))
@@ -186,6 +186,17 @@ describe('cellMenuFor (outside the mode: what is inside a cell changes in place)
     expect(words(cellMenuFor(notes(), strip))).toEqual(['[Notes]', 'Change widget', '—', 'Add tab', 'Remove tab', 'Collapse row'])
     const numbers = actions({ cell: { id: 'k', tabs: [createTab('number', 'n'), createTab('number', 'm')] } })
     expect(words(cellMenuFor(notes(), numbers))).toEqual(['[Notes]', 'Change widget', '—', 'Add widget as tab', 'Remove widget', 'Collapse row'])
+  })
+
+  it('Collapse column beside Collapse row collapses its columns; with one of them collapsed it reads Expand column', () => {
+    const onCollapseColumn = vi.fn()
+    const menu = cellMenuFor(notes(), actions({ onCollapseColumn, onEditLayout: vi.fn() }))
+    expect(words(menu)).toEqual([
+      '[Notes]', 'Change widget', '—', 'Add widget as tab', 'Remove widget', 'Collapse row', 'Collapse column', '—', 'Edit layout',
+    ])
+    select(item(menu, 'Collapse column'))
+    select(item(cellMenuFor(notes(), actions({ columnCollapsed: true, onCollapseColumn })), 'Expand column'))
+    expect(onCollapseColumn.mock.calls).toEqual([[true], [false]])
   })
 
   it('collapsed reads Expand row, which expands it', () => {

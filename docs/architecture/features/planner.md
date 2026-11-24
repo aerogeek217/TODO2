@@ -6,19 +6,12 @@ This file is the rules: a task's plan state, where a task sits, the Unplanned fi
 
 ## Plan state
 
-A task's **plan state** is one of three, kept on the task (`models/todo-item.TaskPlan`):
-
-- none;
-- a **planned day** (`doDate?: Date` on `TodoItem`): the day the user plans to work on the task, a day at local midnight;
-- **held in Unplanned** (`unplanned?: true`; only `true` is stored).
-
-Never both. Neither field is indexed. Besides the Planner, the plan state is shown and set in the task layout's [Planned cell](review.md#the-fact-band) (the task editor and the review card) and named on the review's medium card; Quick Add's `/plan <date>` sets it on a new task ([Creating](tasks.md#creating)). The [Calendar](workspace-layout.md#the-calendar) shows a planned day as a plan entry (Plans, a date type) and a drag of it plans the task for another day outright. Filters read it as the **Planned** date type (`DateField` `planned`: the planned day; its `held` clause, the expression's `unplanned`, is held in Unplanned), and lists sort and group by it; no row column, Markdown export or check-in message reads it.
+A task's **plan state** is a **planned day** or none, kept on the task (`models/todo-item.TaskPlan`): `doDate?: Date` on `TodoItem`, the day the user plans to work on the task, a day at local midnight. It is not indexed. Nothing is put in the Planner by hand: a task with no plan shows there only by its own dates or the Unplanned filter. Besides the Planner, the plan state is shown and set in the task layout's [Planned cell](review.md#the-fact-band) (the task editor and the review card) and named on the review's medium card; Quick Add's `/plan <date>` sets it on a new task ([Creating](tasks.md#creating)). The [Calendar](workspace-layout.md#the-calendar) shows a planned day as a plan entry (Plans, a date type) and a drag of it plans the task for another day outright. Filters read it as the **Planned** date type (`DateField` `planned`), and lists sort and group by it; no row column, Markdown export or check-in message reads it.
 
 It is set in the Planner, or from **Plan for day ›** outside it (`task/plan-menu.planForDayEntries`): in every task menu — a list row's, a calendar entry's (the day popover's too), a search result's — and in the task editor's and the [review card](review.md)'s ⋯. That submenu offers:
 
 - this week's days, read against this week's window, the task's due and follow-up days noted (`due`, `follow-up`) and its planned day checked. A pick **plans that day outright**, the task's own date's day too (a `pick` target, `PlannerTarget.pick`); only a [drag](#the-drop-rule) onto that day clears the plan;
 - **Pick a date…** — any day from today on, in the browser's date picker (`shared/pick-date`: one hidden date input of the page's own, since the menu is gone by then), planned the same way;
-- **Unplanned** — any open task joins the Planner there;
 - with a plan state, **Clear plan** — reading **Remove from Planner** when that takes the task out of it (`utils/planner.plannerClearLeaves` → `services/planner-drop.clearPlannerTask`), the snackbar saying so.
 
 A Planner's own rows have its [menu](planner-widget.md#menus) instead.
@@ -29,22 +22,21 @@ Planning is not an edit. `todo-store.setPlan(ids, plan, description?, snackbar?)
 
 | `plan` | Written |
 |---|---|
-| `{ day }` | `doDate` at local midnight, `unplanned` removed |
-| `'unplanned'` | `unplanned: true`, `doDate` removed |
-| `null` | neither field |
+| `{ day }` | `doDate` at local midnight |
+| `null` | `doDate` removed |
 
-- **Both fields go in the task's one write** (`store-helpers.bulkUpdateTasks`): every task in one database write and one undo step. Only the tasks whose plan changes are written.
-- The snackbar and its Undo show only when `snackbar` is passed: Reset plan, Unplan all Delayed, and a plan that takes the task out of view ([a move to a day that shows it nowhere](#nothing-leaves-the-planner-silently), Remove from Planner). The step is named `description`, else `Planned “Title”` / `Unplanned “Title”` / `Cleared the plan of “Title”` / `Changed the plan of 3 tasks`.
-- It leaves every task's `modifiedAt` as it is — on the write, its undo and its redo (which put both fields back), in the store and the database (`utils/task-stamps.KEEP_STAMPS`, a stamp that lists no task). Every other [task write](tasks.md) stamps it.
+- **Every task in one database write and one undo step** (`store-helpers.bulkUpdateTasks`). Only the tasks whose plan changes are written.
+- The snackbar and its Undo show only when `snackbar` is passed: Reset plan, Clear Delayed plans, and a plan that takes the task out of view or out of the Planner ([nothing leaves silently](#nothing-leaves-the-planner-silently), Remove from Planner). The step is named `description`, else `Planned “Title”` / `Cleared the plan of “Title”` / `Changed the plan of 3 tasks`.
+- It leaves every task's `modifiedAt` as it is — on the write, its undo and its redo, in the store and the database (`utils/task-stamps.KEEP_STAMPS`, a stamp that lists no task). Every other [task write](tasks.md) stamps it.
 - It logs no history event and never writes a due date or a follow-up.
-- It never rejects. A write that fails is taken back: a task's two plan fields together, and only while both still hold that write's values, so overlapping failures can't leave a planned day beside `unplanned` (`bulkUpdateTasks`' `together`). The tasks are read back, the user is told (`Couldn't save the plan of “Title”.`) and it resolves `false`; otherwise `true`.
+- It never rejects. A write that fails is taken back, only where the task still holds that write's day. The tasks are read back, the user is told (`Couldn't save the plan of “Title”.`) and it resolves `false`; otherwise `true`.
 
 What other operations do with the plan state:
 
 - Completing a repeating task clears it on the next occurrence (the checkbox and the bulk path — a check-in reply's too); the undo puts it back.
 - Duplicate doesn't copy it.
 - Make subtask of… drops it without naming it.
-- Exports, backups, the sync file, task archives and the append import carry it. A file holding both fields keeps the planned day (import validation).
+- Exports, backups, the sync file, task archives and the append import carry it.
 
 ## Which tasks it holds
 
@@ -58,7 +50,6 @@ A task's **natural day** (`utils/planner.plannerNaturalDay`) is the earlier of i
 
 | The task | Where it sits |
 |---|---|
-| Held | the **Unplanned** tray |
 | Planned for a day before today | the **Delayed** tray (nothing joins Today on its own) |
 | Planned for a day inside the window, today included | that day |
 | Planned for a day past the window's last day (**planned later**) | its natural day when it has one — a real date inside the window, or overdue, still shows the task, as a placed row there; else not shown in this window |
@@ -81,12 +72,12 @@ The row shows them in its [tag](planner-widget.md#four-planner-only-things); wha
 
 ## The Unplanned filter
 
-**What joins Unplanned on its own** is the tab's filter, `PlannerTab.config.unplanned` (a `TodoPredicate`, layout config):
+**What joins Unplanned** is the tab's filter, `PlannerTab.config.unplanned` (a `TodoPredicate`, layout config):
 
 - Absent, it is Focus (`plannerUnplannedFilter`: `/focus`), the default of every Planner.
-- Empty, nothing joins on its own: Unplanned holds only the tasks unplanned by hand.
+- Empty, nothing joins: Unplanned stays empty.
 - It decides **Unplanned only**. A task with a date in the window sits on its day, matching or not.
-- The hook evaluates it with a list's matcher (`matchesFilterWithLookups`) over the tasks the screen filter already narrowed, and hands it to the rules in the window (`PlannerJoins`, `window.joins`). Every rule that asks whether a task joins Unplanned reads it: the placement, `inPlanner`, the Unplanned drop and Unplan, Unplan all Delayed, and Clear vs Remove (`plannerClearLeaves`).
+- The hook evaluates it with a list's matcher (`matchesFilterWithLookups`) over the tasks the screen filter already narrowed, and hands it to the rules in the window (`PlannerJoins`, `window.joins`). Every rule that asks whether a task joins Unplanned reads it: the placement, `inPlanner`, and whether clearing a plan takes a task out of the Planner (`plannerClearLeaves`: Clear vs Remove, Unplan, Clear Delayed plans).
 - It is asked of the task as it would be with no plan state.
 - Outside a Planner (Plan for day › in a task menu, the task layout's Planned cell) there is no tab: the rules read Focus.
 - The layout repair reads it as a list's predicate. One that is no predicate is dropped (Focus again), a fix.
@@ -120,7 +111,7 @@ While the window is shifted, a task dated or planned between tomorrow and the wi
 Each tile holds:
 
 - `count` — the rows sitting on its day;
-- `dates` — the real dates falling on it: one mark per due date and per follow-up of every open task, wherever it is planned or held. A late one counts on today's tile;
+- `dates` — the real dates falling on it: one mark per due date and per follow-up of every open task, wherever it is planned. A late one counts on today's tile;
 - `plans` — the tasks whose planned day it is.
 
 They are drawn as the tile's ticks (`utils/day-ticks.dayTicks`, drawn by `shared/DayTicks` — the Calendar's small day cells draw the same): a **solid tick** per real date — due dates in the deadline color, then follow-ups in the follow-up color — then a **hollow tick** (outlined, in the secondary text color) per plan. Eight in all, then `+N`.
@@ -129,7 +120,7 @@ Where each part is drawn is in [Faces](planner-widget.md#faces).
 
 ## Hand order
 
-Inside a group the tasks follow the tab's **hand order** (`PlannerTabViewState.order`): task `uid`s, one sequence for the widget, view state, written by a drop into a group (see [The row's place](#the-rows-place)). The rest come after them by reason (due, follow-up, plan, held, the Unplanned filter), then date, then `sortOrder` (`plannerOrder`).
+Inside a group the tasks follow the tab's **hand order** (`PlannerTabViewState.order`): task `uid`s, one sequence for the widget, view state, written by a drop into a group (see [The row's place](#the-rows-place)). The rest come after them by reason (due, follow-up, plan, the Unplanned filter), then date, then `sortOrder` (`plannerOrder`).
 
 ## Top line and Reset plan
 
@@ -171,16 +162,15 @@ Every day tile and every group — Today (today), each day ahead (an empty day's
 | | planned for `T` and sits there | nothing (the order only): a plan on its natural day is kept |
 | | `T` is its natural day | whatever plan state it has is cleared (`own`) — a later plan too; with none to clear, nothing |
 | | sits there already | nothing (the order only) |
-| | any other | planned for `T` (`plan`: `doDate = T`, `unplanned` cleared) |
+| | any other | planned for `T` (`plan`: `doDate = T`) |
 | **Unplanned** | sits there already | nothing (the order only) |
-| | has a natural day | **held** (`unplanned`, `doDate` cleared) |
-| | planned, without one | matching the Unplanned filter it just loses its plan (the filter keeps it there), else it is held too — **Unplan never takes a task out of the Planner** |
-| | any other | held too — Unplanned is how a task with no date joins the Planner, flagged |
+| | planned | its plan cleared (`unplan`): back to its natural day, kept in Unplanned by the Unplanned filter, or out of the Planner, [said so](#nothing-leaves-the-planner-silently) |
+| | any other | refused: nothing is put in Unplanned by hand |
 | **Delayed** | any | **takes no drop**; a row already in it only reorders |
 
-**Only a drag is a drop.** Every other move to a day is a pick (`target.pick`) and plans the day outright, `T` its natural day too: Plan for day ›, Pick a date…, a conflict's Plan for {day}, Snooze and an Unplanned row's Today. Nothing is written only when it is planned for `T` already, and a day before today is refused.
+**Only a drag is a drop.** Every other move to a day is a pick (`target.pick`) and plans the day outright, `T` its natural day too: Plan for day ›, Pick a date…, the Planned field's day, a conflict's Plan for {day}, Snooze and an Unplanned row's Today. Nothing is written only when it is planned for `T` already, and a day before today is refused.
 
-**No due date and no follow-up is ever written.** Each drop is one task write of both plan fields and one undo step (`todo-store.setPlan`: [the plan write](#the-plan-write), no stamp, no history event).
+**No due date and no follow-up is ever written.** Each drop is one task write of the plan and one undo step (`todo-store.setPlan`: [the plan write](#the-plan-write), no stamp, no history event).
 
 ### The row's place
 
@@ -200,7 +190,7 @@ A Planner row dropped on a Calendar widget's day is the calendar's drop, as any 
 ### Snooze and Unplan
 
 - **Snooze** plans the task for the day after the day it sits on — after its planned day, for a row planned later — never earlier than tomorrow. A Delayed row goes to tomorrow. A row in Unplanned offers no Snooze.
-- **Unplan** is the Unplanned drop for one row.
+- **Unplan** is the Unplanned drop for one row: its plan cleared.
 
 Both go through the same decision (`plannerSnooze`, `plannerUnplan`). Snooze is a pick: a task landing on its natural day is planned for it. They are a row's [buttons](planner-widget.md#four-planner-only-things) and entries in its [menu](planner-widget.md#menus).
 
@@ -208,19 +198,20 @@ Both go through the same decision (`plannerSnooze`, `plannerUnplan`). Snooze is 
 
 - A Snooze from the window's last day keeps a task with a real date in the window where that date puts it, planned later.
 - One with no such date goes out of view (the strip's `›` shows it). The move that took it there — Snooze, a drop, Plan for day › — shows the snackbar naming the day, with Undo (`Planned for Fri, Nov 27`; `plannerMovePlan`'s `hidden`, from `plannerShows`). Outside a Planner there is none to leave, so a day picked past the week shows no snackbar.
+- An Unplan — a drop on Unplanned, the row's button or menu — whose task then shows nowhere (no date in the window, not matching the Unplanned filter) takes it out of the Planner, and the snackbar says so, with Undo (`Removed “Title” from the Planner`; `plannerMovePlan`'s `leaves`, from `plannerClearLeaves`).
 - A fix that moves a date past the window does the same (`Moved the due date to Fri, Nov 27`).
 
-### Unplan all Delayed and Reset plan
+### Clear Delayed plans and Reset plan
 
-**Unplan all Delayed** moves every Delayed task to Unplanned (`plannerUnplanDelayed` → `services/planner-drop.unplanDelayedTasks`). It asks nothing.
+**Clear Delayed plans** clears the plan of every Delayed task (`plannerClearDelayed` → `services/planner-drop.clearDelayedPlans`): each goes back to its natural day, joins Unplanned by the filter, or leaves the Planner. It asks nothing; its snackbar says how many left, as Reset plan says it (`Cleared 3 Delayed plans. 1 of them left the Planner.`).
 
-**Reset plan** clears the plan state of one of three scopes (`plannerResetTasks` → `resetPlannerPlan`), each **after asking** (the shared confirm prompt: how many plans it clears and how many of those tasks then leave the Planner, those named one per line under it — held, or `Planned Thu, Nov 26` — as the prompt's `list`):
+**Reset plan** clears the plan state of one of three scopes (`plannerResetTasks` → `resetPlannerPlan`), each **after asking** (the shared confirm prompt: how many plans it clears and how many of those tasks then leave the Planner, those named one per line under it — `Planned Thu, Nov 26` — as the prompt's `list`):
 
-- the days shown — every task with a plan state that the Planner shows or holds: planned days it shows, Delayed, held in Unplanned. It is named `This week` only while the window starts today, else by its range, `Nov 27 – Dec 3` (`plannerResetWeekLabel`);
+- the days shown — every task with a plan state that the Planner shows: planned days it shows and Delayed. It is named `This week` only while the window starts today, else by its range, `Nov 27 – Dec 3` (`plannerResetWeekLabel`);
 - today only — the tasks planned for today;
 - Delayed.
 
-Unplan all Delayed and each reset are one write and one undo step, with the snackbar's Undo.
+Clear Delayed plans and each reset are one write and one undo step, with the snackbar's Undo.
 
 ### A conflict's fix
 

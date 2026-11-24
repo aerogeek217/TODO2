@@ -32,18 +32,19 @@ describe('ExpressionSyntaxModal — the When rows', () => {
     expect(within(when).getByText(/The older words still read/)).toBeTruthy()
   })
 
-  it('lists Planned beside the other dates, and the unplanned shortcut', () => {
+  it('lists Planned beside the other dates (no unplanned shortcut)', () => {
     render(<ExpressionSyntaxModal onClose={() => {}} />)
     const which = screen.getByRole('region', { name: 'Which date' })
     const rows = within(which).getAllByText((_, el) => el?.tagName === 'CODE').map((el) => el.textContent)
-    expect(rows.slice(0, 5)).toEqual([
+    expect(rows.slice(0, 4)).toEqual([
       'due  ·  due any  ·  no due',
       'planned  ·  planned any  ·  planned none',
       'planned fri  ·  planned < today',
-      'unplanned',
       'followup  ·  followup any  ·  no followup',
     ])
-    const examples = ['planned any', 'planned none', 'planned fri', 'planned < today', 'unplanned']
+    expect(rows).not.toContain('unplanned')
+    expect(within(which).getByText('Planned day, as the Planner plans it')).toBeTruthy()
+    const examples = ['planned any', 'planned none', 'planned fri', 'planned < today']
     for (const example of examples) {
       const r = parseExpression(example, opts)
       expect(r.ok, `${example}: ${r.ok ? '' : r.error.message}`).toBe(true)

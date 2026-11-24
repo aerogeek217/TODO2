@@ -41,7 +41,7 @@ const SHAPES: [string, DateField, DateFilters][] = [
   ['Any', 'deadline', { deadline: { match: 'set' } }],
   ['None', 'followup', { followup: { match: 'unset' } }],
   ['Planned, a range', 'planned', { planned: range(token('today'), offset(7)) }],
-  ['Planned, held in Unplanned', 'planned', { planned: { match: 'held' } }],
+  ['Planned, none', 'planned', { planned: { match: 'unset' } }],
   ['Completed', 'completed', { completed: range(token('start-of-week'), token('end-of-week')) }],
   ['Completed, dates', 'completed', { completed: range(fixed(2026, 10, 1), null) }],
   ['every type at once', 'deadline', {

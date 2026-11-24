@@ -644,29 +644,17 @@ describe('validateImportData', () => {
     }
   })
 
-  it('a todo held in Unplanned (schema v86): `true` is kept, anything but a boolean fails, false / absent / null is not held, and beside a planned day the day wins', () => {
-    const held = validateImportData(validData({ todos: [makeTodo({ nextFollowupAt: now, unplanned: true })] }))
-    expect(held).toMatchObject({ ok: true, warnings: [] })
-    if (held.ok) {
-      expect(held.data.todos[0]!.unplanned).toBe(true)
-      expect(held.data.todos[0]!.doDate).toBeUndefined()
+  it('a stray `unplanned` on a todo (no field since schema v89) is dropped like any unknown key, whatever its value; a planned day beside it is kept', () => {
+    for (const unplanned of [true, false, null, 'yes', 1, {}]) {
+      const result = validateImportData(validData({ todos: [makeTodo({ nextFollowupAt: now, unplanned })] }))
+      expect(result, JSON.stringify(unplanned)).toMatchObject({ ok: true, warnings: [] })
+      if (result.ok) expect('unplanned' in result.data.todos[0]!, JSON.stringify(unplanned)).toBe(false)
     }
-
-    for (const unplanned of ['yes', 1, {}, 'true']) {
-      expect(validateImportData(validData({ todos: [makeTodo({ unplanned })] })).ok, JSON.stringify(unplanned)).toBe(false)
-    }
-    for (const todo of [makeTodo(), makeTodo({ unplanned: null }), makeTodo({ unplanned: false })]) {
-      const none = validateImportData(validData({ todos: [todo] }))
-      expect(none.ok).toBe(true)
-      if (none.ok) expect(none.data.todos[0]!.unplanned).toBeUndefined()
-    }
-
-    // The two plan states are exclusive: a file holding both keeps the planned day.
     const both = validateImportData(validData({ todos: [makeTodo({ doDate: '2026-11-20T06:00:00.000Z', unplanned: true })] }))
-    expect(both.ok).toBe(true)
+    expect(both).toMatchObject({ ok: true, warnings: [] })
     if (both.ok) {
       expect(both.data.todos[0]!.doDate).toEqual(new Date('2026-11-20T06:00:00.000Z'))
-      expect(both.data.todos[0]!.unplanned).toBeUndefined()
+      expect('unplanned' in both.data.todos[0]!).toBe(false)
     }
   })
 

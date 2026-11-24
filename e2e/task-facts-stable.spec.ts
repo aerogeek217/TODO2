@@ -6,8 +6,8 @@ import { pickInReview, seedWorkspace, wsRow, type WorkspaceSeed } from './fixtur
 /**
  * The task layout holds still while a field changes (E6): in the task editor
  * and the review card, a change to one fact — the due date (none, today, a
- * weekday, a numeric date in words, late), its repeat (the glyph after the
- * date), the priority toggles (the Urgent tint that a due date brings), the
+ * weekday, a numeric date in words, late), its repeat (the ↻ in its field
+ * lit), the priority toggles (the Urgent tint that a due date brings), the
  * status, a person or a tag added and removed, the footer's follow-up —
  * moves neither the header nor any fact cell, nor the band's own box, by
  * more than a pixel. Each cell's width is the band's to give
@@ -87,26 +87,23 @@ async function dayValue(page: Page, days: number): Promise<string> {
 }
 
 /**
- * Sets the due date through the date's popover (its date input, ⏎ writing it and closing the
- * popover) — or, with `null`, clears it with the cell's × — and waits for it to land.
+ * Sets the due date through the Due field's calendar (its picker's date input) — or, with `null`,
+ * clears it with the field's × — and waits for it to land.
  */
 async function setDue(page: Page, host: Locator, days: number | null) {
   const due = host.locator('[data-fact="due"]')
+  const field = due.locator('[data-fact-date-field]')
   if (days == null) {
+    await field.hover()
     await due.getByRole('button', { name: 'Clear due date' }).click()
-    await expect(due.getByRole('button', { name: 'Set due date' })).toBeVisible()
+    await expect(due.getByRole('textbox', { name: 'Due date' })).toHaveValue('')
     return
   }
   const value = await dayValue(page, days)
-  await due.getByRole('button', { name: /^(Due date:|Set due date)/ }).click()
-  const popover = page.getByRole('dialog', { name: 'Due date' })
-  const input = popover.locator('input[type="date"]')
-  await input.fill(value)
-  await input.press('Enter')
-  await expect(popover).toBeHidden()
+  await due.locator('input[type="date"]').fill(value, { force: true })
   const [y, m, d] = value.split('-').map(Number) as [number, number, number]
   const full = new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-  await expect(due.getByRole('button', { name: `Due date: ${full}` })).toBeVisible()
+  await expect(field).toHaveAttribute('data-tooltip', full)
 }
 
 /** The Urgent toggle's mark colour against the urgent colour, both as the page computes them. */
@@ -144,17 +141,16 @@ async function expectStillThroughChanges(page: Page, host: Locator, header: Reco
   await expect.poll(() => urgentTinted(priority('Urgent'))).toBe(true)
   await check('the Urgent tint shows')
 
-  // Its repeat, typed in the date's popover: the glyph comes and goes after the date.
+  // Its repeat, typed in the ↻'s popover: the ↻ lights and goes out in the field.
   const due = facts.locator('[data-fact="due"]')
-  const popover = page.getByRole('dialog', { name: 'Due date' })
+  const popover = page.getByRole('dialog', { name: 'Repeat' })
   const repeat = popover.getByRole('textbox', { name: 'Repeat every' })
-  for (const [value, name] of [['1w', /^Every \w{3}$/], ['3m', /^Every 3 months$/], ['', null]] as const) {
-    await due.getByRole('button', { name: /^Due date:/ }).click()
+  for (const [value, name] of [['1w', /^Repeat: Every \w{3}$/], ['3m', /^Repeat: Every 3 months$/], ['', /^Repeat$/]] as const) {
+    await due.getByRole('button', { name: /^Repeat/ }).click()
     await repeat.fill(value)
     await repeat.press('Enter')
     await expect(popover).toBeHidden()
-    if (name) await expect(due.getByRole('img')).toHaveAccessibleName(name)
-    else await expect(due.getByRole('img')).toHaveCount(0)
+    await expect(due.getByRole('button', { name: /^Repeat/ })).toHaveAccessibleName(name)
     await check(`repeat ${value || 'none'}`)
   }
 

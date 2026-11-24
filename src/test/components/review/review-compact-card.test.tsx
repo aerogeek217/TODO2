@@ -77,7 +77,7 @@ describe('the review card’s essentials (the widget’s medium face)', () => {
       expect(planned.querySelector('[aria-hidden="true"]')).not.toBeNull()
       const onTime = facts(makeTodo({ id: 1, title: 'Vendor', dueDate: new Date(2026, 10, 27), doDate: new Date(2026, 10, 25) }))
       expect(onTime.querySelector('[data-fact="planned"]')).not.toHaveAttribute('data-tone')
-      expect(facts(makeTodo({ id: 1, title: 'Vendor', unplanned: true })).querySelector('[data-fact="planned"]')).toBeNull()
+      expect(facts(makeTodo({ id: 1, title: 'Vendor' })).querySelector('[data-fact="planned"]')).toBeNull()
     } finally {
       vi.useRealTimers()
     }

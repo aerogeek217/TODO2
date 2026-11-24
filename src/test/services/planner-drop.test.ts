@@ -8,6 +8,7 @@ import { createTab, PLANNER_ORDER_MAX, type PersistedWorkspaceLayout, type Plann
 import {
   applyPlannerFix,
   applyPlannerMove,
+  clearDelayedPlans,
   clearPlannerTask,
   movePlannerTask,
   planPlannerDrop,
@@ -15,7 +16,6 @@ import {
   planTaskForDay,
   resetPlannerPlan,
   snoozePlannerTask,
-  unplanDelayedTasks,
   unplanPlannerTask,
 } from '../../services/planner-drop'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
@@ -46,10 +46,10 @@ import { resetStores } from '../store-tracking'
 /**
  * The Planner's one writer (`services/planner-drop`), on the real stores
  * and database: each decision of the drop rule is exactly one task write —
- * the task's plan state (a planned day, held in Unplanned, cleared: both
- * fields at once, one undo step, no stamp, no history event) — or none; a
- * due date or a follow-up is never written by a drop, Plan for day ›,
- * Snooze, Unplan, Unplan all Delayed or Reset plan — only by a conflict's
+ * the task's plan state (a planned day, or cleared: one undo step, no
+ * stamp, no history event) — or none; a due date or a follow-up is never
+ * written by a drop, Plan for day ›, Snooze, Unplan, Clear Delayed plans
+ * or Reset plan — only by a conflict's
  * Move date fix, which is a real edit. A drop into a group stores the hand
  * order on the Planner's tab. Drops are driven as the page drives them:
  * `dispatchTaskDrop` → the plan → the write.
@@ -110,11 +110,10 @@ async function plan(id: number) {
   const stored = await storedTask(id)
   const shown = useTodoStore.getState().todos.find((t) => t.id === id)
   expect(shown?.doDate?.getTime()).toBe(stored.doDate?.getTime())
-  expect(shown?.unplanned).toBe(stored.unplanned)
   expect(shown?.dueDate?.getTime()).toBe(stored.dueDate?.getTime())
   expect(shown?.nextFollowupAt?.getTime()).toBe(stored.nextFollowupAt?.getTime())
   expect(shown?.modifiedAt.getTime()).toBe(stored.modifiedAt.getTime())
-  return { doDate: stored.doDate, unplanned: stored.unplanned, nextFollowupAt: stored.nextFollowupAt, dueDate: stored.dueDate, modifiedAt: stored.modifiedAt }
+  return { doDate: stored.doDate, nextFollowupAt: stored.nextFollowupAt, dueDate: stored.dueDate, modifiedAt: stored.modifiedAt }
 }
 
 /** The Planner as it shows the store's tasks this week. */
@@ -192,12 +191,12 @@ describe('a drop on a day: the task is planned, its real dates untouched', () =>
     expect(w.setPlan).toHaveBeenCalledWith([task.id], { day: day(3) })
     expect(w.tasks()).toBe(1)
     expect(w.realDates()).toBe(0)
-    expect(await plan(task.id)).toEqual({ doDate: day(3), unplanned: undefined, nextFollowupAt: day(0, 12), dueDate: undefined, modifiedAt: STAMP })
+    expect(await plan(task.id)).toEqual({ doDate: day(3), nextFollowupAt: day(0, 12), dueDate: undefined, modifiedAt: STAMP })
     expect(await eventCount(task.id)).toBe(events)
     expect(steps()).toEqual(['Planned “Chase”'])
 
     await useUndoStore.getState().undo()
-    expect(await plan(task.id)).toEqual({ doDate: undefined, unplanned: undefined, nextFollowupAt: day(0, 12), dueDate: undefined, modifiedAt: STAMP })
+    expect(await plan(task.id)).toEqual({ doDate: undefined, nextFollowupAt: day(0, 12), dueDate: undefined, modifiedAt: STAMP })
     expect(useTodoStore.getState().todos.find((t) => t.id === task.id)?.modifiedAt).toEqual(STAMP)
     await useUndoStore.getState().redo()
     expect(await plan(task.id)).toMatchObject({ doDate: day(3), modifiedAt: STAMP })
@@ -211,47 +210,48 @@ describe('a drop on a day: the task is planned, its real dates untouched', () =>
     expect(w.setPlan).toHaveBeenCalledWith([task.id], { day: day(4) })
     expect(w.tasks()).toBe(1)
     expect(w.realDates()).toBe(0)
-    expect(await plan(task.id)).toEqual({ doDate: day(4), unplanned: undefined, nextFollowupAt: undefined, dueDate: day(2, 9), modifiedAt: STAMP })
+    expect(await plan(task.id)).toEqual({ doDate: day(4), nextFollowupAt: undefined, dueDate: day(2, 9), modifiedAt: STAMP })
     expect(steps()).toHaveLength(1)
   })
 
-  it('a planned row gets another day; a held one a day, no longer held — both fields in the one write', async () => {
+  it('a planned row gets another day, a Delayed one a day in the window — the planned day only, in the one write', async () => {
     const brief = await seed('Brief', { doDate: day(0), nextFollowupAt: day(1), dueDate: day(5) })
-    const held = await seed('Held', { unplanned: true, dueDate: day(1) })
+    const missed = await seed('Missed', { doDate: day(-2), dueDate: day(1) })
     const w = watchWrites()
     await drop(brief, tile(on(2)))
-    await drop(held, tile(on(3)))
+    await drop(missed, tile(on(3)))
     expect(w.tasks()).toBe(2)
     expect(w.bulkUpdate.mock.calls.map((c) => c[0])).toEqual([
-      [{ todoId: brief.id, changes: { doDate: day(2), unplanned: undefined } }],
-      [{ todoId: held.id, changes: { doDate: day(3), unplanned: undefined } }],
+      [{ todoId: brief.id, changes: { doDate: day(2) } }],
+      [{ todoId: missed.id, changes: { doDate: day(3) } }],
     ])
-    expect(await plan(brief.id)).toEqual({ doDate: day(2), unplanned: undefined, nextFollowupAt: day(1), dueDate: day(5), modifiedAt: STAMP })
-    expect(await plan(held.id)).toEqual({ doDate: day(3), unplanned: undefined, nextFollowupAt: undefined, dueDate: day(1), modifiedAt: STAMP })
-    // The undo holds it again.
+    expect(await plan(brief.id)).toEqual({ doDate: day(2), nextFollowupAt: day(1), dueDate: day(5), modifiedAt: STAMP })
+    expect(await plan(missed.id)).toEqual({ doDate: day(3), nextFollowupAt: undefined, dueDate: day(1), modifiedAt: STAMP })
+    // The undo puts it back in Delayed.
     await useUndoStore.getState().undo()
-    expect(await plan(held.id)).toMatchObject({ doDate: undefined, unplanned: true, modifiedAt: STAMP })
+    expect(await plan(missed.id)).toMatchObject({ doDate: day(-2), modifiedAt: STAMP })
+    expect(viewNow().delayed.tasks.map((t) => t.id)).toEqual([missed.id])
   })
 
-  it('on the day its own date puts it, the task loses its plan: planned elsewhere, delayed or held', async () => {
+  it('on the day its own date puts it, the task loses its plan: planned elsewhere, delayed or planned later', async () => {
     const planned = await seed('Planned', { dueDate: day(2), doDate: day(4) })
     const delayed = await seed('Delayed', { nextFollowupAt: day(1), doDate: day(-2) })
-    const held = await seed('Held', { dueDate: day(3), unplanned: true })
+    const later = await seed('Later', { dueDate: day(3), doDate: day(9) })
     const late = await seed('Late', { dueDate: day(-4), doDate: day(2) })
     const w = watchWrites()
     await drop(planned, tile(on(2)))
     await drop(delayed, tile(on(1)))
-    await drop(held, tile(on(3)))
+    await drop(later, tile(on(3)))
     await drop(late, tile(on(0)))
-    expect(w.setPlan.mock.calls).toEqual([[[planned.id], null], [[delayed.id], null], [[held.id], null], [[late.id], null]])
+    expect(w.setPlan.mock.calls).toEqual([[[planned.id], null], [[delayed.id], null], [[later.id], null], [[late.id], null]])
     expect(w.realDates()).toBe(0)
-    for (const t of [planned, delayed, held, late]) {
+    for (const t of [planned, delayed, later, late]) {
       const after = await plan(t.id)
-      expect(after).toMatchObject({ doDate: undefined, unplanned: undefined, modifiedAt: STAMP })
+      expect(after).toMatchObject({ doDate: undefined, modifiedAt: STAMP })
       expect(after.dueDate).toEqual(t.dueDate)
       expect(after.nextFollowupAt).toEqual(t.nextFollowupAt)
     }
-    expect(steps()).toEqual(['Cleared the plan of “Planned”', 'Cleared the plan of “Delayed”', 'Cleared the plan of “Held”', 'Cleared the plan of “Late”'])
+    expect(steps()).toEqual(['Cleared the plan of “Planned”', 'Cleared the plan of “Delayed”', 'Cleared the plan of “Later”', 'Cleared the plan of “Late”'])
   })
 
   it('writes nothing on the day the row is on — Today for a late one', async () => {
@@ -270,68 +270,82 @@ describe('a drop on a day: the task is planned, its real dates untouched', () =>
 describe('a drop on Unplanned', () => {
   const unplanned = (rows: string[] = [], shown: string[] = ['x']) => group(UNPLANNED, PLANNER_UNPLANNED_KEY, rows, shown)
 
-  it('holds a task with a date there: `unplanned` set and the planned day cleared in the one write, its dates kept', async () => {
-    const due = await seed('Due', { dueDate: day(2) })
+  it('a planned task with a date goes back to it: the planned day cleared in the one write, its dates kept — no snackbar', async () => {
+    const due = await seed('Due', { dueDate: day(2), doDate: day(4) })
     const chase = await seed('Chase', { nextFollowupAt: day(0), doDate: day(3) })
     const w = watchWrites()
     await drop(due, unplanned())
     await drop(chase, unplanned())
-    expect(w.setPlan.mock.calls).toEqual([[[due.id], 'unplanned'], [[chase.id], 'unplanned']])
+    expect(w.setPlan.mock.calls).toEqual([[[due.id], null], [[chase.id], null]])
     expect(w.bulkUpdate.mock.calls.map((c) => c[0])).toEqual([
-      [{ todoId: due.id, changes: { doDate: undefined, unplanned: true } }],
-      [{ todoId: chase.id, changes: { doDate: undefined, unplanned: true } }],
+      [{ todoId: due.id, changes: { doDate: undefined } }],
+      [{ todoId: chase.id, changes: { doDate: undefined } }],
     ])
     expect(w.realDates()).toBe(0)
-    expect(await plan(due.id)).toEqual({ doDate: undefined, unplanned: true, nextFollowupAt: undefined, dueDate: day(2), modifiedAt: STAMP })
-    expect(await plan(chase.id)).toEqual({ doDate: undefined, unplanned: true, nextFollowupAt: day(0), dueDate: undefined, modifiedAt: STAMP })
-    expect(steps()).toEqual(['Unplanned “Due”', 'Unplanned “Chase”'])
+    expect(await plan(due.id)).toEqual({ doDate: undefined, nextFollowupAt: undefined, dueDate: day(2), modifiedAt: STAMP })
+    expect(await plan(chase.id)).toEqual({ doDate: undefined, nextFollowupAt: day(0), dueDate: undefined, modifiedAt: STAMP })
+    expect(steps()).toEqual(['Cleared the plan of “Due”', 'Cleared the plan of “Chase”'])
+    expect(useUndoStore.getState().snackbar).toBeNull()
+    // Each back on the day its own date puts it.
+    const view = viewNow()
+    expect(view.placements.get(due.uid)).toMatchObject({ where: 'day', day: day(2), reason: 'due', placed: false })
+    expect(view.placements.get(chase.uid)).toMatchObject({ where: 'day', day: day(0), reason: 'followup', placed: false })
 
-    // The undo of the second puts its planned day back and lets it go.
+    // The undo of the second puts its planned day back.
     await useUndoStore.getState().undo()
-    expect(await plan(chase.id)).toMatchObject({ doDate: day(3), unplanned: undefined, modifiedAt: STAMP })
+    expect(await plan(chase.id)).toMatchObject({ doDate: day(3), modifiedAt: STAMP })
   })
 
-  it('never takes a task out of the Planner: a planned task with no date, not in Focus, is held — and Unplan’s undo plans it again', async () => {
+  it('a planned task with no date, not in Focus, leaves the Planner: the snackbar says so — and its undo plans it again', async () => {
     const bare = await seed('From a list', { doDate: day(2) })
     const w = watchWrites()
-    await unplanPlannerTask('plan', bare.id, WINDOW)
-    expect(w.setPlan).toHaveBeenCalledWith([bare.id], 'unplanned')
-    expect(await plan(bare.id)).toMatchObject({ doDate: undefined, unplanned: true, modifiedAt: STAMP })
-    const shown = plannerView(useTodoStore.getState().todos, { today: TODAY })
-    expect(shown.unplanned.tasks.map((t) => t.id)).toEqual([bare.id])
-    expect(shown.placements.get(bare.uid)).toMatchObject({ where: 'unplanned', placed: true })
+    await drop(bare, unplanned())
+    expect(w.setPlan).toHaveBeenCalledTimes(1)
+    expect(w.setPlan).toHaveBeenCalledWith([bare.id], null, 'Removed “From a list” from the Planner', true)
+    expect(w.realDates()).toBe(0)
+    expect(await plan(bare.id)).toMatchObject({ doDate: undefined, modifiedAt: STAMP })
+    expect(viewNow().placements.has(bare.uid)).toBe(false)
+    expect(steps()).toEqual(['Removed “From a list” from the Planner'])
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Removed “From a list” from the Planner' })
+    expect(useUndoStore.getState().snackbar?.notice).toBeUndefined()
     await useUndoStore.getState().undo()
-    expect(await plan(bare.id)).toMatchObject({ doDate: day(2), unplanned: undefined, modifiedAt: STAMP })
+    expect(await plan(bare.id)).toMatchObject({ doDate: day(2), modifiedAt: STAMP })
+    expect(viewNow().placements.get(bare.uid)).toMatchObject({ where: 'day', day: day(2), reason: 'plan', placed: true })
   })
 
-  it('a Focus task with no date just loses its plan (not held)', async () => {
+  it('a Focus task with no date just loses its plan: Focus keeps it in Unplanned', async () => {
     const task = await seed('Focus', { focus: true, doDate: day(1), dueDate: day(20) })
     const w = watchWrites()
     await drop(task, unplanned())
     expect(w.setPlan).toHaveBeenCalledWith([task.id], null)
-    expect(await plan(task.id)).toEqual({ doDate: undefined, unplanned: undefined, nextFollowupAt: undefined, dueDate: day(20), modifiedAt: STAMP })
+    expect(await plan(task.id)).toEqual({ doDate: undefined, nextFollowupAt: undefined, dueDate: day(20), modifiedAt: STAMP })
+    expect(viewNow().placements.get(task.uid)).toMatchObject({ where: 'unplanned', reason: 'filter', placed: false })
+    expect(useUndoStore.getState().snackbar).toBeNull()
   })
 
   it('writes nothing for a row that is there already', async () => {
     const focus = await seed('Focus', { focus: true })
-    const held = await seed('Held', { unplanned: true, dueDate: day(1) })
+    const other = await seed('Other', { focus: true, nextFollowupAt: day(20) })
     const w = watchWrites()
-    await drop(focus, unplanned([focus.uid, held.uid], [focus.uid, held.uid]))
-    await drop(held, unplanned([focus.uid, held.uid], [focus.uid, held.uid]))
+    await drop(focus, unplanned([focus.uid, other.uid], [focus.uid, other.uid]))
+    await drop(other, unplanned([focus.uid, other.uid], [focus.uid, other.uid]))
     expect(w.tasks()).toBe(0)
     expect(w.patch).not.toHaveBeenCalled()
     expect(steps()).toEqual([])
   })
 
-  it('holds a task with no plan, no date and no Focus: it joins the Planner, flagged, one undo step', async () => {
+  it('refuses a task with no plan: nothing is put in Unplanned by hand — no write, no order, no undo step', async () => {
     const focus = await seed('Focus', { focus: true })
     const plain = await seed('Plain')
+    const dated = await seed('Dated', { dueDate: day(2) })
+    const late = await seed('Late', { nextFollowupAt: day(-3) })
     const w = watchWrites()
-    await drop(plain, unplanned([focus.uid], [focus.uid]), over(PLANNER_UNPLANNED_KEY, 0))
-    expect(w.tasks()).toBe(1)
-    expect(w.realDates()).toBe(0)
-    expect(await plan(plain.id)).toMatchObject({ unplanned: true, doDate: undefined, modifiedAt: STAMP })
-    expect(steps()).toEqual(['Unplanned “Plain”'])
+    for (const t of [plain, dated, late]) await drop(t, unplanned([focus.uid], [focus.uid, dated.uid, late.uid]), over(PLANNER_UNPLANNED_KEY, 0))
+    expect(w.tasks()).toBe(0)
+    expect(w.patch).not.toHaveBeenCalled()
+    expect(await storedOrder()).toBeUndefined()
+    expect(steps()).toEqual([])
+    expect(viewNow().placements.has(plain.uid)).toBe(false)
   })
 })
 
@@ -473,14 +487,25 @@ describe('the hand order', () => {
     expect(await storedOrder()).toEqual(before)
   })
 
-  it('a dated row dropped into Unplanned is held where it was dropped, among the tray’s rows', async () => {
-    const a = await seed('A', { dueDate: day(1) })
+  it('a planned row the filter keeps, dropped into Unplanned, lands where it was dropped among the tray’s rows', async () => {
+    const a = await seed('A', { focus: true, doDate: day(1) })
     const f = await seed('F', { focus: true })
-    const g = await seed('G', { unplanned: true, nextFollowupAt: day(2) })
+    const g = await seed('G', { focus: true })
     const shown = [a.uid, f.uid, g.uid]
     await drop(a, group(UNPLANNED, PLANNER_UNPLANNED_KEY, [f.uid, g.uid], shown), over(PLANNER_UNPLANNED_KEY, 1))
-    expect(await plan(a.id)).toMatchObject({ unplanned: true, dueDate: day(1) })
+    expect(await plan(a.id)).toMatchObject({ doDate: undefined, modifiedAt: STAMP })
     expect(await storedOrder()).toEqual([f.uid, a.uid, g.uid])
+  })
+
+  it('a row with no plan dropped into Unplanned is refused: no write, no order', async () => {
+    const a = await seed('A', { dueDate: day(1) })
+    const f = await seed('F', { focus: true })
+    const w = watchWrites()
+    await drop(a, group(UNPLANNED, PLANNER_UNPLANNED_KEY, [f.uid], [a.uid, f.uid]), over(PLANNER_UNPLANNED_KEY, 0))
+    expect(w.tasks()).toBe(0)
+    expect(w.patch).not.toHaveBeenCalled()
+    expect(await storedOrder()).toBeUndefined()
+    expect(await plan(a.id)).toMatchObject({ doDate: undefined, dueDate: day(1), modifiedAt: STAMP })
   })
 
   it('is written before the task, in the drop’s own turn', async () => {
@@ -606,7 +631,7 @@ describe('Plan for day › (no pointer)', () => {
 
     // Back onto its own date's day: the plan cleared. The day it is on: nothing.
     await movePlannerTask('plan', { todoId: venue.id, target: on(2), window: WINDOW })
-    expect(await plan(venue.id)).toMatchObject({ doDate: undefined, unplanned: undefined, dueDate: day(2) })
+    expect(await plan(venue.id)).toMatchObject({ doDate: undefined, dueDate: day(2) })
     const before = w.tasks()
     await movePlannerTask('plan', { todoId: venue.id, target: on(2), window: WINDOW })
     await movePlannerTask('plan', { todoId: chase.id, target: on(3), window: WINDOW })
@@ -695,21 +720,22 @@ describe('Snooze', () => {
 
   it('a Delayed or Unplanned row goes to tomorrow', async () => {
     const delayed = await seed('Delayed', { doDate: day(-3) })
-    const held = await seed('Held', { unplanned: true, dueDate: day(4) })
     const focus = await seed('Focus', { focus: true })
-    for (const t of [delayed, held, focus]) await snoozePlannerTask('plan', t.id, WINDOW)
-    for (const t of [delayed, held, focus]) expect(await plan(t.id)).toMatchObject({ doDate: day(1), unplanned: undefined })
+    const far = await seed('Far', { focus: true, dueDate: day(20) })
+    for (const t of [delayed, focus, far]) await snoozePlannerTask('plan', t.id, WINDOW)
+    for (const t of [delayed, focus, far]) expect(await plan(t.id)).toMatchObject({ doDate: day(1), modifiedAt: STAMP })
+    expect(await plan(far.id)).toMatchObject({ dueDate: day(20) })
   })
 
   it('is a pick: landing on its own date’s day plans it there outright', async () => {
     const task = await seed('Venue', { doDate: day(1), dueDate: day(2) })
-    const held = await seed('Held', { unplanned: true, nextFollowupAt: day(1) })
+    const missed = await seed('Missed', { doDate: day(-2), nextFollowupAt: day(1) })
     const w = watchWrites()
     await snoozePlannerTask('plan', task.id, WINDOW)
-    await snoozePlannerTask('plan', held.id, WINDOW)
-    expect(w.setPlan.mock.calls).toEqual([[[task.id], { day: day(2) }], [[held.id], { day: day(1) }]])
-    expect(await plan(task.id)).toMatchObject({ doDate: day(2), unplanned: undefined, dueDate: day(2), modifiedAt: STAMP })
-    expect(await plan(held.id)).toMatchObject({ doDate: day(1), unplanned: undefined, nextFollowupAt: day(1), modifiedAt: STAMP })
+    await snoozePlannerTask('plan', missed.id, WINDOW)
+    expect(w.setPlan.mock.calls).toEqual([[[task.id], { day: day(2) }], [[missed.id], { day: day(1) }]])
+    expect(await plan(task.id)).toMatchObject({ doDate: day(2), dueDate: day(2), modifiedAt: STAMP })
+    expect(await plan(missed.id)).toMatchObject({ doDate: day(1), nextFollowupAt: day(1), modifiedAt: STAMP })
     expect(w.realDates()).toBe(0)
   })
 
@@ -723,13 +749,15 @@ describe('Snooze', () => {
 
 describe('Today (an Unplanned row’s button)', () => {
   it('is a pick: today planned outright, today its own date’s day too', async () => {
-    const held = await seed('Held', { unplanned: true, nextFollowupAt: day(0) })
     const loose = await seed('Loose', { focus: true })
+    const far = await seed('Far', { focus: true, nextFollowupAt: day(20) })
+    const dueToday = await seed('Due today', { dueDate: day(0) })
     const w = watchWrites()
-    await planPlannerTaskToday('plan', held.id, WINDOW)
-    await planPlannerTaskToday('plan', loose.id, WINDOW)
-    expect(w.setPlan.mock.calls).toEqual([[[held.id], { day: day(0) }], [[loose.id], { day: day(0) }]])
-    expect(await plan(held.id)).toMatchObject({ doDate: day(0), unplanned: undefined, modifiedAt: STAMP })
+    for (const t of [loose, far, dueToday]) await planPlannerTaskToday('plan', t.id, WINDOW)
+    expect(w.setPlan.mock.calls).toEqual([[[loose.id], { day: day(0) }], [[far.id], { day: day(0) }], [[dueToday.id], { day: day(0) }]])
+    expect(await plan(far.id)).toMatchObject({ doDate: day(0), nextFollowupAt: day(20), modifiedAt: STAMP })
+    expect(await plan(dueToday.id)).toMatchObject({ doDate: day(0), dueDate: day(0), modifiedAt: STAMP })
+    expect(viewNow().today.tasks.map((t) => t.id).sort((a, b) => a - b)).toEqual([loose.id, far.id, dueToday.id])
   })
 
   it('snoozing twice moves on a day each time; one undo step each', async () => {
@@ -752,69 +780,131 @@ describe('Today (an Unplanned row’s button)', () => {
 })
 
 describe('Unplan', () => {
-  it('is the Unplanned drop for one row: held with a date, else its plan cleared', async () => {
+  it('is the Unplanned drop for one row: its plan cleared — back to its date, or kept in Unplanned by Focus', async () => {
     const dated = await seed('Dated', { doDate: day(3), dueDate: day(1) })
-    const byDate = await seed('By date', { nextFollowupAt: day(2) })
     const focus = await seed('Focus', { focus: true, doDate: day(2) })
+    const missed = await seed('Missed', { doDate: day(-2), nextFollowupAt: day(2) })
     const w = watchWrites()
-    for (const t of [dated, byDate, focus]) await unplanPlannerTask('plan', t.id, WINDOW)
-    expect(w.setPlan.mock.calls).toEqual([[[dated.id], 'unplanned'], [[byDate.id], 'unplanned'], [[focus.id], null]])
+    for (const t of [dated, focus, missed]) await unplanPlannerTask('plan', t.id, WINDOW)
+    expect(w.setPlan.mock.calls).toEqual([[[dated.id], null], [[focus.id], null], [[missed.id], null]])
     expect(w.realDates()).toBe(0)
     expect(w.patch).not.toHaveBeenCalled()
-    expect(await plan(dated.id)).toMatchObject({ doDate: undefined, unplanned: true, dueDate: day(1), modifiedAt: STAMP })
-    expect(await plan(byDate.id)).toMatchObject({ unplanned: true, nextFollowupAt: day(2), modifiedAt: STAMP })
-    expect(await plan(focus.id)).toMatchObject({ doDate: undefined, unplanned: undefined })
+    expect(useUndoStore.getState().snackbar).toBeNull()
+    expect(await plan(dated.id)).toMatchObject({ doDate: undefined, dueDate: day(1), modifiedAt: STAMP })
+    expect(await plan(focus.id)).toMatchObject({ doDate: undefined, modifiedAt: STAMP })
+    expect(await plan(missed.id)).toMatchObject({ doDate: undefined, nextFollowupAt: day(2), modifiedAt: STAMP })
+    const view = viewNow()
+    expect(view.placements.get(dated.uid)).toMatchObject({ where: 'day', day: day(1), reason: 'due', placed: false })
+    expect(view.placements.get(focus.uid)).toMatchObject({ where: 'unplanned', reason: 'filter', placed: false })
+    // From Delayed, a task with a natural day lands on that day.
+    expect(view.placements.get(missed.uid)).toMatchObject({ where: 'day', day: day(2), reason: 'followup', placed: false })
+    expect(view.delayed.tasks).toEqual([])
   })
 
-  it('writes nothing for a row in Unplanned already', async () => {
-    const held = await seed('Held', { unplanned: true, dueDate: day(1) })
-    const focus = await seed('Focus', { focus: true })
+  it('one that then shows nowhere leaves the Planner: the snackbar says so, and its undo plans the task again and brings it back', async () => {
+    const bare = await seed('Bare', { doDate: day(-3) })
     const w = watchWrites()
-    await unplanPlannerTask('plan', held.id, WINDOW)
-    await unplanPlannerTask('plan', focus.id, WINDOW)
+    await unplanPlannerTask('plan', bare.id, WINDOW)
+    expect(w.setPlan).toHaveBeenCalledWith([bare.id], null, 'Removed “Bare” from the Planner', true)
+    expect(await plan(bare.id)).toMatchObject({ doDate: undefined, modifiedAt: STAMP })
+    expect(viewNow().placements.has(bare.uid)).toBe(false)
+    expect(steps()).toEqual(['Removed “Bare” from the Planner'])
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Removed “Bare” from the Planner' })
+    await useUndoStore.getState().undo()
+    expect(await plan(bare.id)).toMatchObject({ doDate: day(-3), modifiedAt: STAMP })
+    expect(viewNow().delayed.tasks.map((t) => t.id)).toEqual([bare.id])
+    await useUndoStore.getState().redo()
+    expect(viewNow().placements.has(bare.uid)).toBe(false)
+  })
+
+  it('outside a Planner there is no Planner to leave: the plain clear, no snackbar', async () => {
+    const bare = await seed('Bare', { doDate: day(2) })
+    const w = watchWrites()
+    await movePlannerTask(null, { todoId: bare.id, target: UNPLANNED, window: WINDOW })
+    expect(w.setPlan.mock.calls).toEqual([[[bare.id], null]])
+    expect(steps()).toEqual(['Cleared the plan of “Bare”'])
+    expect(useUndoStore.getState().snackbar).toBeNull()
+  })
+
+  it('writes nothing for a row in Unplanned already, nor for a task with no plan', async () => {
+    const focus = await seed('Focus', { focus: true })
+    const dated = await seed('Dated', { dueDate: day(1) })
+    const plain = await seed('Plain')
+    const w = watchWrites()
+    for (const t of [focus, dated, plain]) await unplanPlannerTask('plan', t.id, WINDOW)
     expect(w.tasks()).toBe(0)
+    expect(steps()).toEqual([])
   })
 })
 
-describe('Unplan all Delayed', () => {
-  it('moves every Delayed task to Unplanned in one write and one undo step — held with a date, else cleared; nothing else changes', async () => {
+describe('Clear Delayed plans', () => {
+  it('clears the plan of every Delayed task in one write and one undo step — each back to its date or Focus, or out of the Planner; nothing else changes', async () => {
     const dated = await seed('Dated', { doDate: day(-1), dueDate: day(2) })
     const late = await seed('Late', { doDate: day(-3), nextFollowupAt: day(-5) })
     const focus = await seed('Focus', { doDate: day(-2), focus: true })
+    const bare = await seed('Bare', { doDate: day(-4) })
     const today = await seed('Today', { doDate: day(0) })
-    const held = await seed('Held', { unplanned: true, dueDate: day(1) })
     const view = viewNow()
-    expect(view.delayed.tasks.map((t) => t.id).sort()).toEqual([dated.id, late.id, focus.id].sort())
+    expect(view.delayed.tasks.map((t) => t.id).sort((a, b) => a - b)).toEqual([dated.id, late.id, focus.id, bare.id])
     const w = watchWrites()
-    await unplanDelayedTasks(view)
+    await clearDelayedPlans(view)
     expect(w.tasks()).toBe(1)
     expect(w.realDates()).toBe(0)
-    expect(steps()).toEqual(['Unplanned 3 tasks from Delayed'])
+    expect(w.setPlan).not.toHaveBeenCalled()
+    expect(steps()).toEqual(['Cleared 4 Delayed plans. 1 of them left the Planner.'])
     // With the snackbar and its Undo.
-    expect(useUndoStore.getState().snackbar?.description).toBe('Unplanned 3 tasks from Delayed')
-    expect(await plan(dated.id)).toMatchObject({ doDate: undefined, unplanned: true, dueDate: day(2), modifiedAt: STAMP })
-    expect(await plan(late.id)).toMatchObject({ doDate: undefined, unplanned: true, nextFollowupAt: day(-5), modifiedAt: STAMP })
-    expect(await plan(focus.id)).toMatchObject({ doDate: undefined, unplanned: undefined, modifiedAt: STAMP })
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Cleared 4 Delayed plans. 1 of them left the Planner.' })
+    expect(useUndoStore.getState().snackbar?.notice).toBeUndefined()
+    expect(await plan(dated.id)).toMatchObject({ doDate: undefined, dueDate: day(2), modifiedAt: STAMP })
+    expect(await plan(late.id)).toMatchObject({ doDate: undefined, nextFollowupAt: day(-5), modifiedAt: STAMP })
+    expect(await plan(focus.id)).toMatchObject({ doDate: undefined, modifiedAt: STAMP })
+    expect(await plan(bare.id)).toMatchObject({ doDate: undefined, modifiedAt: STAMP })
     expect(await plan(today.id)).toMatchObject({ doDate: day(0) })
-    expect(await plan(held.id)).toMatchObject({ unplanned: true })
     const after = viewNow()
     expect(after.delayed.tasks).toEqual([])
-    expect(after.unplanned.tasks.map((t) => t.id).sort()).toEqual([dated.id, late.id, focus.id, held.id].sort())
+    expect(after.unplanned.tasks.map((t) => t.id)).toEqual([focus.id])
+    expect(after.placements.get(dated.uid)).toMatchObject({ where: 'day', day: day(2), reason: 'due' })
+    // A late follow-up sits in Today.
+    expect(after.placements.get(late.uid)).toMatchObject({ where: 'day', day: day(0), reason: 'followup' })
+    expect(after.placements.has(bare.uid)).toBe(false)
 
     await useUndoStore.getState().undo()
-    expect(viewNow().delayed.tasks.map((t) => t.id).sort()).toEqual([dated.id, late.id, focus.id].sort())
-    for (const t of [dated, late, focus]) expect(await plan(t.id)).toMatchObject({ doDate: t.doDate, unplanned: undefined, modifiedAt: STAMP })
+    expect(viewNow().delayed.tasks.map((t) => t.id).sort((a, b) => a - b)).toEqual([dated.id, late.id, focus.id, bare.id])
+    for (const t of [dated, late, focus, bare]) expect(await plan(t.id)).toMatchObject({ doDate: t.doDate, modifiedAt: STAMP })
     await useUndoStore.getState().redo()
     expect(viewNow().delayed.tasks).toEqual([])
-    expect(steps()).toEqual(['Unplanned 3 tasks from Delayed'])
+    expect(steps()).toEqual(['Cleared 4 Delayed plans. 1 of them left the Planner.'])
+  })
+
+  it('names one plan or many, and says when it or all of them left the Planner', async () => {
+    // Each seed starts a fresh undo stack: the step each clear names.
+    const named: (string | undefined)[] = []
+    const clear = async () => { await clearDelayedPlans(viewNow()); named.push(steps().at(-1)) }
+    await seed('Bare 1', { doDate: day(-1) })
+    await clear()
+    await seed('Bare 2', { doDate: day(-1) })
+    await seed('Bare 3', { doDate: day(-2) })
+    await clear()
+    await seed('Dated', { doDate: day(-1), dueDate: day(3) })
+    await clear()
+    await seed('Dated 2', { doDate: day(-1), dueDate: day(3) })
+    await seed('Dated 3', { doDate: day(-2), dueDate: day(4) })
+    await clear()
+    expect(named).toEqual([
+      'Cleared 1 Delayed plan. It left the Planner.',
+      'Cleared 2 Delayed plans. They all left the Planner.',
+      'Cleared 1 Delayed plan.',
+      'Cleared 2 Delayed plans.',
+    ])
   })
 
   it('with nothing in Delayed: no write, no step', async () => {
     await seed('Today', { doDate: day(0) })
     const w = watchWrites()
-    await unplanDelayedTasks(viewNow())
+    await clearDelayedPlans(viewNow())
     expect(w.tasks()).toBe(0)
     expect(steps()).toEqual([])
+    expect(useUndoStore.getState().snackbar).toBeNull()
   })
 })
 
@@ -825,12 +915,11 @@ describe('Reset plan', () => {
       byDate: await seed('By date', { dueDate: day(0) }),
       plannedMon: await seed('Planned Mon', { doDate: day(3) }),
       delayed: await seed('Delayed', { doDate: day(-2), nextFollowupAt: day(1) }),
-      held: await seed('Held', { unplanned: true, dueDate: day(2) }),
       focus: await seed('Focus', { focus: true }),
       far: await seed('Far', { doDate: day(9) }),
     }
   }
-  const NO_PLAN = { doDate: undefined, unplanned: undefined, modifiedAt: STAMP }
+  const NO_PLAN = { doDate: undefined, modifiedAt: STAMP }
   /** The confirm prompt Reset plan asks, answered `answer`; its questions. */
   let asked: ConfirmPrompt[] = []
   function answer(yes: boolean) {
@@ -846,27 +935,27 @@ describe('Reset plan', () => {
 
   it('asks first — how many plans it clears, naming the tasks that then leave the Planner; Cancel writes nothing', async () => {
     await week()
-    await seed('Parked', { unplanned: true })
+    await seed('Parked', { doDate: day(5) })
     answer(false)
     const w = watchWrites()
     await resetPlannerPlan(viewNow(), 'week')
     expect(asked).toHaveLength(1)
     expect(asked[0]).toMatchObject({ title: 'Reset plan: this week?', confirmLabel: 'Reset plan' })
-    expect(asked[0]?.message).toBe('This clears the plan of 5 tasks: each goes back to where its own dates put it. 2 of them leave the Planner. No due date or follow-up changes.')
-    // The ones leaving are named: no date in the Planner, not in the Unplanned filter — held, or on a day only by their plan.
+    expect(asked[0]?.message).toBe('This clears the plan of 4 tasks: each goes back to where its own dates put it. 2 of them leave the Planner. No due date or follow-up changes.')
+    // The ones leaving are named, each with its planned day: no date in the Planner, not in the Unplanned filter — on a day only by their plan.
     expect(asked[0]?.list?.label).toBe('Leaving the Planner — no date in it, not in the Unplanned filter')
     expect(asked[0]?.list?.items.map((i) => [i.text, i.note])).toEqual([
       ['Planned Mon', `Planned ${plannerDayLabel(day(3))}`],
-      ['Parked', 'Held in Unplanned'],
+      ['Parked', `Planned ${plannerDayLabel(day(5))}`],
     ])
     expect(w.tasks()).toBe(0)
     expect(steps()).toEqual([])
   })
 
-  it('this week: clears every plan state the Planner shows or holds, one write and one undo step; real dates and plans past the window stay', async () => {
+  it('this week: clears every plan the Planner shows, one write and one undo step; real dates and plans past the window stay', async () => {
     const t = await week()
     const view = viewNow()
-    expect(plannerResetCounts(view)).toEqual({ week: 4, today: 1, delayed: 1 })
+    expect(plannerResetCounts(view)).toEqual({ week: 3, today: 1, delayed: 1 })
     const w = watchWrites()
     await resetPlannerPlan(view, 'week')
     expect(w.tasks()).toBe(1)
@@ -875,7 +964,7 @@ describe('Reset plan', () => {
     // With the snackbar and its Undo.
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Reset plan: this week' })
     expect(useUndoStore.getState().snackbar?.notice).toBeUndefined()
-    for (const task of [t.plannedToday, t.plannedMon, t.delayed, t.held]) expect(await plan(task.id)).toMatchObject(NO_PLAN)
+    for (const task of [t.plannedToday, t.plannedMon, t.delayed]) expect(await plan(task.id)).toMatchObject(NO_PLAN)
     expect(await plan(t.plannedToday.id)).toMatchObject({ dueDate: day(3) })
     expect(await plan(t.delayed.id)).toMatchObject({ nextFollowupAt: day(1) })
     expect(await plan(t.far.id)).toMatchObject({ doDate: day(9) })
@@ -885,8 +974,7 @@ describe('Reset plan', () => {
     expect(await plan(t.plannedToday.id)).toMatchObject({ doDate: day(0), modifiedAt: STAMP })
     expect(await plan(t.plannedMon.id)).toMatchObject({ doDate: day(3), modifiedAt: STAMP })
     expect(await plan(t.delayed.id)).toMatchObject({ doDate: day(-2), modifiedAt: STAMP })
-    expect(await plan(t.held.id)).toMatchObject({ unplanned: true, doDate: undefined, modifiedAt: STAMP })
-    expect(plannerResetCounts(viewNow())).toEqual({ week: 4, today: 1, delayed: 1 })
+    expect(plannerResetCounts(viewNow())).toEqual({ week: 3, today: 1, delayed: 1 })
   })
 
   it('today only: the tasks planned for today', async () => {
@@ -896,8 +984,7 @@ describe('Reset plan', () => {
     expect(await plan(t.plannedToday.id)).toMatchObject(NO_PLAN)
     expect(await plan(t.plannedMon.id)).toMatchObject({ doDate: day(3) })
     expect(await plan(t.delayed.id)).toMatchObject({ doDate: day(-2) })
-    expect(await plan(t.held.id)).toMatchObject({ unplanned: true })
-    expect(plannerResetCounts(viewNow())).toEqual({ week: 3, today: 0, delayed: 1 })
+    expect(plannerResetCounts(viewNow())).toEqual({ week: 2, today: 0, delayed: 1 })
   })
 
   it('Delayed only', async () => {
@@ -906,8 +993,8 @@ describe('Reset plan', () => {
     expect(steps()).toEqual(['Reset plan: Delayed'])
     expect(await plan(t.delayed.id)).toMatchObject(NO_PLAN)
     expect(await plan(t.plannedToday.id)).toMatchObject({ doDate: day(0) })
-    expect(await plan(t.held.id)).toMatchObject({ unplanned: true })
-    expect(plannerResetCounts(viewNow())).toEqual({ week: 3, today: 1, delayed: 0 })
+    expect(await plan(t.plannedMon.id)).toMatchObject({ doDate: day(3) })
+    expect(plannerResetCounts(viewNow())).toEqual({ week: 2, today: 1, delayed: 0 })
   })
 
   it('with the window shifted the step is named for the days shown', async () => {
@@ -947,7 +1034,7 @@ describe('a conflict’s fixes', () => {
     const w = watchWrites()
     await applyPlannerFix('plan', task.id, move!, WINDOW)
     expect(w.update).toHaveBeenCalledTimes(1)
-    expect(w.update).toHaveBeenCalledWith(task.id, { dueDate: day(3), doDate: undefined, unplanned: undefined })
+    expect(w.update).toHaveBeenCalledWith(task.id, { dueDate: day(3), doDate: undefined })
     expect(w.setPlan).not.toHaveBeenCalled()
     const after = await storedTask(task.id)
     // The planned day at local midnight: not the old time of day, not noon.
@@ -955,7 +1042,6 @@ describe('a conflict’s fixes', () => {
     expect(after.dueDate?.getHours()).toBe(0)
     // Its own date puts it on that day now: the plan went with the edit.
     expect(after.doDate).toBeUndefined()
-    expect(after.unplanned).toBeUndefined()
     expect(after.modifiedAt).toEqual(NOW)
     expect(await eventCount(task.id)).toBe(events + 1)
     expect(steps()).toEqual(['Edit "Venue"'])
@@ -971,7 +1057,7 @@ describe('a conflict’s fixes', () => {
     expect(undone.doDate).toEqual(day(3))
     expect(steps()).toEqual([])
     await useUndoStore.getState().redo()
-    expect(await plan(task.id)).toMatchObject({ dueDate: day(3), doDate: undefined, unplanned: undefined })
+    expect(await plan(task.id)).toMatchObject({ dueDate: day(3), doDate: undefined })
   })
 
   it('the plan stays while another, earlier date still puts the task elsewhere; the second fix clears it', async () => {
@@ -983,7 +1069,7 @@ describe('a conflict’s fixes', () => {
     expect(await plan(task.id)).toMatchObject({ dueDate: day(5), nextFollowupAt: day(2), doDate: day(5) })
     expect(plannerPlacement(useTodoStore.getState().todos.find((t) => t.id === task.id)!, WINDOW)).toMatchObject({ placed: true, conflicts: [{ date: 'followup' }] })
     await applyPlannerFix('plan', task.id, fixes(task.id, 'followup')[0]!, WINDOW)
-    expect(w.update).toHaveBeenLastCalledWith(task.id, { nextFollowupAt: day(5), doDate: undefined, unplanned: undefined })
+    expect(w.update).toHaveBeenLastCalledWith(task.id, { nextFollowupAt: day(5), doDate: undefined })
     expect(await plan(task.id)).toMatchObject({ dueDate: day(5), nextFollowupAt: day(5), doDate: undefined })
     expect(w.setPlan).not.toHaveBeenCalled()
   })
@@ -995,7 +1081,7 @@ describe('a conflict’s fixes', () => {
     expect(move).toEqual({ kind: 'move-date', date: 'followup', to: day(4) })
     const w = watchWrites()
     await applyPlannerFix('plan', task.id, move!, WINDOW)
-    expect(w.update).toHaveBeenCalledWith(task.id, { nextFollowupAt: day(4), doDate: undefined, unplanned: undefined })
+    expect(w.update).toHaveBeenCalledWith(task.id, { nextFollowupAt: day(4), doDate: undefined })
     const after = await storedTask(task.id)
     expect(after.nextFollowupAt).toEqual(day(4))
     expect(after.nextFollowupAt?.getHours()).toBe(0)
@@ -1044,7 +1130,7 @@ describe('a conflict’s fixes', () => {
     await applyPlannerFix('plan', task.id, planFix!, WINDOW)
     expect(w.setPlan).toHaveBeenCalledWith([task.id], { day: day(1) })
     expect(w.realDates()).toBe(0)
-    expect(await plan(task.id)).toMatchObject({ doDate: day(1), unplanned: undefined, dueDate: day(1), modifiedAt: STAMP })
+    expect(await plan(task.id)).toMatchObject({ doDate: day(1), dueDate: day(1), modifiedAt: STAMP })
   })
 
   it('outside a Planner (the task layout’s Planned cell): the same fixes, a date moved out of view with no snackbar', async () => {
@@ -1093,7 +1179,7 @@ describe('a calendar’s plan drop (planTaskForDay): planned outright, the plan 
     expect(w.setPlan).toHaveBeenCalledWith([task.id], { day: day(3) })
     expect(w.tasks()).toBe(1)
     expect(w.realDates()).toBe(0)
-    expect(await plan(task.id)).toEqual({ doDate: day(3), unplanned: undefined, nextFollowupAt: undefined, dueDate: day(4, 9), modifiedAt: STAMP })
+    expect(await plan(task.id)).toEqual({ doDate: day(3), nextFollowupAt: undefined, dueDate: day(4, 9), modifiedAt: STAMP })
     expect(await eventCount(task.id)).toBe(events)
     expect(steps()).toEqual(['Planned “Draft”'])
     await useUndoStore.getState().undo()
@@ -1106,10 +1192,10 @@ describe('a calendar’s plan drop (planTaskForDay): planned outright, the plan 
     expect(await plan(task.id)).toMatchObject({ doDate: day(4), dueDate: day(4, 9), modifiedAt: STAMP })
   })
 
-  it('a list row dropped on a calendar showing only plans is planned; a held one is no longer held', async () => {
-    const task = await seed('Held', { unplanned: true })
+  it('a list row with no plan dropped on a calendar showing only plans is planned', async () => {
+    const task = await seed('Loose')
     await calendarDrop(task, day(2), {}, { due: false, followup: false, plan: true })
-    expect(await plan(task.id)).toEqual({ doDate: day(2), unplanned: undefined, nextFollowupAt: undefined, dueDate: undefined, modifiedAt: STAMP })
+    expect(await plan(task.id)).toEqual({ doDate: day(2), nextFollowupAt: undefined, dueDate: undefined, modifiedAt: STAMP })
   })
 
   it('a day before today is refused, as the Planner refuses it; a completed task too', async () => {
@@ -1130,39 +1216,42 @@ describe('Unplan, Clear and Remove with the Unplanned filter', () => {
   const CUSTOM = { ...WINDOW, joins: (t: PlannerTask) => (t as PersistedTodoItem).title.startsWith('Errand') }
   const EMPTY = { ...WINDOW, joins: () => false }
 
-  it('Unplan: a planned task the filter keeps just loses its plan; Focus held once the filter isn’t Focus', async () => {
+  it('Unplan: a planned task the filter keeps just loses its plan; Focus leaves once the filter isn’t Focus — the snackbar says so', async () => {
     const errand = await seed('Errand: stamps', { doDate: day(2) })
     const focus = await seed('Focus', { focus: true, doDate: day(2) })
     const w = watchWrites()
     await unplanPlannerTask('plan', errand.id, CUSTOM)
     await unplanPlannerTask('plan', focus.id, CUSTOM)
-    expect(w.setPlan.mock.calls).toEqual([[[errand.id], null], [[focus.id], 'unplanned']])
-    expect(await plan(errand.id)).toMatchObject({ doDate: undefined, unplanned: undefined, modifiedAt: STAMP })
-    expect(await plan(focus.id)).toMatchObject({ doDate: undefined, unplanned: true, modifiedAt: STAMP })
+    expect(w.setPlan.mock.calls).toEqual([[[errand.id], null], [[focus.id], null, 'Removed “Focus” from the Planner', true]])
+    expect(await plan(errand.id)).toMatchObject({ doDate: undefined, modifiedAt: STAMP })
+    expect(await plan(focus.id)).toMatchObject({ doDate: undefined, modifiedAt: STAMP })
   })
 
-  it('Unplan with an empty filter: always held — nothing would keep the task there', async () => {
+  it('Unplan with an empty filter: a task with no date in the window leaves the Planner; one with a date goes back to it', async () => {
     const focus = await seed('Focus', { focus: true, doDate: day(2) })
+    const dated = await seed('Dated', { doDate: day(3), dueDate: day(1) })
     const w = watchWrites()
     await unplanPlannerTask('plan', focus.id, EMPTY)
-    expect(w.setPlan.mock.calls).toEqual([[[focus.id], 'unplanned']])
+    await unplanPlannerTask('plan', dated.id, EMPTY)
+    expect(w.setPlan.mock.calls).toEqual([[[focus.id], null, 'Removed “Focus” from the Planner', true], [[dated.id], null]])
   })
 
   it('Clear plan is Remove from Planner (the snackbar) only when the filter doesn’t keep the task', async () => {
-    const focus = await seed('Focus', { focus: true, unplanned: true })
-    const errand = await seed('Errand: keys', { unplanned: true })
+    const focus = await seed('Focus', { focus: true, doDate: day(2) })
+    const errand = await seed('Errand: keys', { doDate: day(2) })
+    const replan = (id: number) => useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, doDate: day(2) } : t)) })
     const w = watchWrites()
     // Focus, the default: Focus keeps it — a plain Clear.
     await clearPlannerTask(focus.id, WINDOW)
     expect(w.setPlan.mock.calls.at(-1)).toEqual([[focus.id], null])
-    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === focus.id ? { ...t, unplanned: true } : t)) })
+    replan(focus.id)
     // A custom filter that doesn't hold Focus: Remove from Planner.
     await clearPlannerTask(focus.id, CUSTOM)
     expect(w.setPlan.mock.calls.at(-1)).toEqual([[focus.id], null, 'Removed “Focus” from the Planner', true])
     // The custom filter keeps the errand: a plain Clear; the empty one keeps nothing: Remove.
     await clearPlannerTask(errand.id, CUSTOM)
     expect(w.setPlan.mock.calls.at(-1)).toEqual([[errand.id], null])
-    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === errand.id ? { ...t, unplanned: true } : t)) })
+    replan(errand.id)
     await clearPlannerTask(errand.id, EMPTY)
     expect(w.setPlan.mock.calls.at(-1)).toEqual([[errand.id], null, 'Removed “Errand: keys” from the Planner', true])
   })

@@ -62,7 +62,7 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M6.5 2.5h3v3.5h-3zM10.5 2.5h3v3.5h-3zM2.5 9.5h11M2.5 13h7" />
     </>
   ),
-  // Shortcuts: three rounded tiles, and an arrow out where the fourth would be.
+  // The List board: three rounded tiles, and an arrow out where the fourth would be.
   shortcuts: (
     <>
       <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.25" />
@@ -87,13 +87,6 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <circle cx="11.5" cy="5" r="1.75" />
       <circle cx="9.5" cy="11.5" r="2" />
       <path d="M7.4 5.3l2.4-.2M6.4 7.6l1.9 2.3" />
-    </>
-  ),
-  // The List wall: blocks of squares.
-  listwall: (
-    <>
-      <path d="M2.5 2.5h4v4h-4zM9.5 2.5h4v4h-4zM2.5 9.5h4v4h-4z" />
-      <path d="M9.5 9.5h4v4h-4z" fill="currentColor" stroke="none" />
     </>
   ),
   // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`GLANCE_GLYPH`).
@@ -140,6 +133,7 @@ export function LineIcon({ name, size = 14 }: { name: LineIconKey; size?: number
     case 'link': return <LinkIcon size={size} />
     case 'ring': return <RingIcon size={size} />
     case 'radar': return <RadarIcon size={size} />
+    case 'wall': return <WallIcon size={size} />
     default: return <WidgetKindIcon kind="lens" size={size} />
   }
 }
@@ -279,11 +273,6 @@ export function ResetIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M3 8a5 5 0 1 0 1.6-3.7M3 2.8v2.7h2.7" /></Svg>
 }
 
-/** An arrow down (the Planner's Unplan: Delayed down into Unplanned). */
-export function ArrowDownIcon({ size = 14 }: { size?: number }) {
-  return <Svg size={size} strokeWidth={1.8}><path d="M8 3v10M4 9l4 4 4-4" /></Svg>
-}
-
 /** Redo: the undo arrow, mirrored. */
 export function RedoIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M10.5 3l3 3-3 3" /><path d="M13.5 6h-7a4 4 0 0 0 0 8H9" /></Svg>
@@ -339,10 +328,6 @@ export function FunnelIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /></Svg>
 }
 
-/** The funnel struck through: the screen filter paused (the top bar's funnel). */
-export function FunnelOffIcon({ size = 12 }: { size?: number }) {
-  return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /><path d="M2 1.5 14 14.5" /></Svg>
-}
 
 /** A ring with a wedge: one of the pickable line icons (`LineIcon`; once Project pulse's glyph). */
 function RingIcon({ size = 14 }: { size?: number }) {
@@ -357,6 +342,16 @@ function RadarIcon({ size = 14 }: { size?: number }) {
       <circle cx="8" cy="8" r="2.5" />
       <path d="M8 2.5v11M2.5 8h11" strokeWidth="1" />
       <circle cx="10.4" cy="6" r="1.1" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}
+
+/** Blocks of squares, the last filled: one of the pickable line icons (`LineIcon`; once the List wall's glyph). */
+function WallIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M2.5 2.5h4v4h-4zM9.5 2.5h4v4h-4zM2.5 9.5h4v4h-4z" />
+      <path d="M9.5 9.5h4v4h-4z" fill="currentColor" stroke="none" />
     </Svg>
   )
 }
@@ -523,9 +518,14 @@ export function LockIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-/** Two bars: sync paused. */
+/** Two bars: sync paused; the screen filter's pause. */
 export function PauseIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M6 4v8M10 4v8" /></Svg>
+}
+
+/** A triangle pointing right: resume (the screen filter paused). */
+export function PlayIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M5.5 3.5v9l7-4.5z" /></Svg>
 }
 
 /** A circle with an exclamation mark: something failed. */

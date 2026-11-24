@@ -1,12 +1,9 @@
 /* The layout edit mode's cards and slots (E3, `EditCard`). A card's
  * surface lies under its content (z 0; the content dims and takes no
  * presses, so a press anywhere lands on the surface), its chrome — the
- * label, the ⋯ and the corner — over it (z 2). Everything clears the
- * rulers' strips and their "+"s (`LayoutRulers.module.css`): the strips
- * cover the top 10px of the first row's cells and the left 10px of the
- * first column's; a "+" disc reaches 12px in (its target 14px), on a line —
- * so the ⋯ sits 16px down; the label, 10px down and 12px in, meets the
- * "+" discs beside it. */
+ * label, the ⋯ and the corner — over it (z 2), the selected card's toolbar
+ * over that (z 3, `EditCardToolbar.module.css`). The headers sit in the
+ * frame outside the cards, so the chrome keeps to the card's own corners. */
 
 .surface {
   position: absolute;
@@ -153,6 +150,23 @@
   }
 }
 
+/* A narrow card (in a collapsed column, a strip's width): the name runs down it, no kind. */
+@container (max-width: 60px) {
+  .blueprintInner {
+    padding: 36px 4px;
+    writing-mode: vertical-rl;
+  }
+
+  .blueprintKind {
+    display: none;
+  }
+}
+
+/* The selected card's toolbar takes the label's place. */
+:global([data-ws-cell]):has([data-edit-toolbar]) .label {
+  display: none;
+}
+
 /* A blueprint names the card itself: no label pill over it, no dimmed body under it. */
 :global([data-ws-cell][data-blueprint]) .label:not(.stripLabel) {
   display: none;
@@ -183,7 +197,7 @@
 /* Its ⋯: the card's menu (Cell layout). */
 .more {
   position: absolute;
-  top: 16px;
+  top: 6px;
   right: 6px;
   z-index: 2;
   display: inline-flex;

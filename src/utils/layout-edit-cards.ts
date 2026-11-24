@@ -1,5 +1,5 @@
 import type { CellArea, GridAxis, LayoutBody, LayoutCell } from '../models/workspace-layout'
-import { cellById, crossAxis, neighbours, readingOrder, sideAxis, spanOf, type Side } from './workspace-grid'
+import { cellById, crossAxis, mergeNeighbour, neighbours, readingOrder, sideAxis, spanOf, type Side } from './workspace-grid'
 import { cellAreaFits } from './workspace-layout-ops'
 import { isNumberStripCell } from './workspace-rows'
 
@@ -226,4 +226,67 @@ export function tapOutcome(state: TapState, target: TapTarget): TapOutcome {
   if (armed === target.cellId) return { kind: 'disarm' }
   if (target.zone === 'middle') return { kind: 'swap', from: armed, with: target.cellId }
   return target.zone === 'tabs' ? { kind: 'join', from: armed, into: target.cellId } : { kind: 'select', cellId: target.cellId }
+}
+
+// ── Merging with a neighbour ────────────────────────────────────────────────
+
+/**
+ * What a merge with a neighbour makes: one cell of tabs (`tabs`), one strip
+ * of Numbers when both hold only Numbers (`strip`), or the card stretched
+ * over an empty slot (`slot`).
+ */
+export type MergeKind = 'tabs' | 'strip' | 'slot'
+
+/** A neighbour card `cellId` makes a rectangle with: which side it is on, and what the merge makes. */
+export interface MergeChoice {
+  side: Side
+  cell: LayoutCell
+  kind: MergeKind
+}
+
+/**
+ * The neighbours card `cellId` merges with (`mergeNeighbour`: each shares a
+ * whole edge with it), left, above, right, below — the merge buttons and
+ * the toolbar's Merge ▾. None for an empty cell (a slot selected).
+ */
+export function mergeChoices(body: LayoutBody, cellId: string): MergeChoice[] {
+  const cell = cellById(body, cellId)
+  if (!cell || cell.tabs.length === 0) return []
+  return (['left', 'top', 'right', 'bottom'] as const).flatMap((side) => {
+    const other = mergeNeighbour(body, cellId, side)
+    if (!other) return []
+    const kind: MergeKind = other.tabs.length === 0 ? 'slot'
+      : isNumberStripCell({ tabs: [...cell.tabs, ...other.tabs] }) ? 'strip' : 'tabs'
+    return [{ side, cell: other, kind }]
+  })
+}
+
+/** The arrow from the selection towards a neighbour on `side`. */
+export const MERGE_ARROW: Readonly<Record<Side, string>> = { left: '←', top: '↑', right: '→', bottom: '↓' }
+
+const SIDE_PLACE: Readonly<Record<Side, string>> = { left: 'left', top: 'above', right: 'right', bottom: 'below' }
+
+/**
+ * A merge button's words, from the selection's side (`name`: the
+ * neighbour's active widget's title): `Merge as tabs with Tasks`,
+ * `Merge with Overdue` (two Numbers cells: they stay a strip), `Stretch
+ * over this slot`; `short` (a narrow neighbour): `Merge as tabs`, `Merge`,
+ * `Stretch here`.
+ */
+export function mergeButtonWords(kind: MergeKind, name: string, short = false): string {
+  switch (kind) {
+    case 'slot': return short ? 'Stretch here' : 'Stretch over this slot'
+    case 'strip': return short ? 'Merge' : `Merge with ${name}`
+    case 'tabs': return short ? 'Merge as tabs' : `Merge as tabs with ${name}`
+  }
+}
+
+/** A Merge ▾ entry's words: `As tabs with Tasks (above)`, `With Overdue (below)`, `Over the empty slot (right)`. */
+export function mergeMenuWords(choice: Pick<MergeChoice, 'kind' | 'side'>, name: string): string {
+  const where = `(${SIDE_PLACE[choice.side]})`
+  switch (choice.kind) {
+    case 'slot': return `Over the empty slot ${where}`
+    case 'strip': return `With ${name} ${where}`
+    case 'tabs': return `As tabs with ${name} ${where}`
+  }
 }

@@ -110,7 +110,7 @@ function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = fals
  * what's inside a cell changes in place. Outside the mode the ⋯ — and a
  * right-click or Shift+F10 — opens the widget's own entries, Add widget as
  * tab ›, Remove widget (a lone widget's cell stays, empty), Collapse /
- * Expand row and Edit layout (`cell-menu`); tabs reorder only in their own
+ * Expand row and column and Edit layout (`cell-menu`); tabs reorder only in their own
  * strip. In the mode (E3) the cell is a card (`EditCard`): its surface,
  * under the dimmed content, drags it from anywhere and selects it on a
  * click; its tabs (and a strip's Numbers) drag on their own to another card
@@ -121,7 +121,10 @@ function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = fals
  * shows that tab (Open larger), a placeholder in its place: a tab has one
  * live widget at a time (`OpenLargerPlaceholder`).
  */
-export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style }: WorkspaceCellProps) {
+/** No column tracks given: the ⋯ has no Collapse column. */
+const NO_TRACKS: readonly string[] = []
+
+export function FilledCell({ cell, rowTrackIds, collapsed, columnTrackIds = NO_TRACKS, columnCollapsed = false, fitRow = false, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const removeWidget = useWorkspaceStore((s) => s.removeWidget)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
@@ -145,6 +148,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
    */
   const closeTabAsked = useCallback((tabId: string) => afterLeavingEditors(() => removeWidget(tabId)), [removeWidget])
   const setRowCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(rowTrackIds, next) }), [setTrackCollapsed, rowTrackIds])
+  const setColumnCollapsed = useCallback((next: boolean) => afterLeavingEditors(() => { void setTrackCollapsed(columnTrackIds, next) }), [setTrackCollapsed, columnTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   // The card's name in the layout edit mode (Swap with ▸, a swap's ghost, the armed move's hint).
@@ -247,6 +251,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         tabTitle: menuTitle,
         collapsed,
         onCollapse: setRowCollapsed,
+        ...(columnTrackIds.length > 0 ? { columnCollapsed, onCollapseColumn: setColumnCollapsed } : {}),
         onCloseTab: closeTabAsked,
         onAddTab: (kind, preset) => addTabToCell(cell.id, kind, preset),
         onEditLayout: () => { void useWorkspaceStore.getState().enterEdit({ cellId: cell.id }) },
@@ -452,6 +457,9 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             role={stripShown ? 'tabpanel' : undefined}
             aria-labelledby={stripShown ? `ws-tab-${active.id}` : undefined}
             data-ws-cell-body={cell.id}
+            // The cell's controls float over the body's top-right corner (no top line holds them): a face keeps
+            // what it must reach out of that corner (`--cell-controls-reserve`).
+            data-controls-floating={controls && claims.slots === 0 ? '' : undefined}
             // A small face opens its widget larger (a widget's own click goes first).
             onClick={drag || collapsed ? undefined : smallFaceClick(cellFace)}
           >
@@ -478,6 +486,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       {editing && active && (
         <EditCardControls
           cell={cell}
+          name={cardName}
+          selected={editSelected && drag == null}
           label={stripShown ? null : numberStrip ? `${cell.tabs.length} Numbers` : activeTitle}
           stripLabel={stripShown ? activeTitle : undefined}
           labelTab={numberStrip ? undefined : active}

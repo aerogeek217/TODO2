@@ -63,18 +63,17 @@ describe('PredicateChips — date chips', () => {
     expect(created).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('a Planned chip opens the panel on Planned (held: None, the box ticked)', () => {
+  it('a Planned chip opens the panel on Planned (None picked)', () => {
     const log: TodoPredicate[] = []
-    render(<Harness initial={{ ...twoDates, dates: { ...twoDates.dates, planned: { match: 'held' } } }} log={log} />)
+    render(<Harness initial={{ ...twoDates, dates: { ...twoDates.dates, planned: { match: 'unset' } } }} log={log} />)
     const chips = screen.getAllByTestId('list-filter-chip')
     expect(chips.map((c) => c.getAttribute('data-date-field'))).toEqual(['deadline', 'planned', 'created'])
     fireEvent.click(within(chips[1]!).getByRole('button', { name: /Planned/ }))
     const dialog = screen.getByRole('dialog', { name: 'Date filters' })
     expect(within(dialog).getByRole('button', { name: /^Date type: / })).toHaveAccessibleName('Date type: Planned, filtering')
-    const box = within(dialog).getByRole('checkbox', { name: 'Only tasks held in Unplanned' })
-    expect(box).toBeChecked()
-    fireEvent.click(box)
-    expect(log.at(-1)?.dates.planned).toEqual({ match: 'unset' })
+    expect(within(dialog).getByRole('radio', { name: 'None' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Any' }))
+    expect(log.at(-1)?.dates.planned).toEqual({ match: 'set' })
   })
 
   it('+ Filter › Dates opens the panel on the first type that doesn’t filter yet, so it adds a chip (cr25 P4b)', () => {

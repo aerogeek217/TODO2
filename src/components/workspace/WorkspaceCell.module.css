@@ -110,6 +110,13 @@
   display: flex;
   flex-direction: column;
   position: relative;
+  /* A widget's own layers stay inside it: the cell's floating controls are always over the face. */
+  isolation: isolate;
+}
+
+/* The width of the cell's floating controls (Open larger and the ⋯, at the corner's 4px): what a face keeps clear of. */
+.body[data-controls-floating] {
+  --cell-controls-reserve: 60px;
 }
 
 .body {
@@ -150,7 +157,7 @@
 /* The slot's × (`DialogCloseButton`, 24px): its top-right corner. */
 .emptyClose {
   position: absolute;
-  top: 10px;
+  top: 6px;
   right: 6px;
 }
 
@@ -262,6 +269,11 @@
 
 .collapsed .body [data-widget-top-line] {
   visibility: visible;
+}
+
+/* In the layout edit mode the blueprint names a collapsed card: its top line (inert there) would say it twice. */
+.collapsed[data-blueprint] .body [data-widget-top-line] {
+  visibility: hidden;
 }
 
 .collapsed .body [data-glance] {

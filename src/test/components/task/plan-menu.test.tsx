@@ -13,8 +13,8 @@ import { makeTodo } from '../../helpers'
 /**
  * **Plan for day ›** outside a Planner (`task/plan-menu.planForDayEntries`):
  * every task menu and the task editor's ⋯ — this week's days, Pick a
- * date…, Unplanned (any open task joins the Planner there) and, with a plan
- * state, Clear plan or Remove from Planner. Each a plan write only; a day
+ * date… and, with a planned day, Clear plan or Remove from Planner — no
+ * Unplanned: nothing is put there by hand. Each a plan write only; a day
  * picked is planned outright, the task's own date's day too.
  */
 
@@ -51,14 +51,16 @@ afterEach(() => {
 })
 
 describe('Plan for day ›', () => {
-  it('lists this week’s days, then Pick a date… and Unplanned — no Clear plan for a task with no plan state', () => {
+  it('lists this week’s days, then Pick a date… — no Unplanned, and no Clear plan for a task with no plan', () => {
     const { item, children } = entry(todo())
     expect(item.label).toBe('Plan for day')
     expect(item.note).toBeUndefined()
     expect(labels(children)).toEqual([
       'Today', 'Sat, Nov 21', 'Sun, Nov 22', 'Mon, Nov 23', 'Tue, Nov 24', 'Wed, Nov 25', 'Thu, Nov 26',
-      '(separator)', 'Pick a date…', 'Unplanned',
+      '(separator)', 'Pick a date…',
     ])
+    expect(labels(entry(todo({ focus: true })).children)).not.toContain('Unplanned')
+    expect(labels(entry(todo({ doDate: day(3) })).children)).not.toContain('Unplanned')
   })
 
   it('names where the task sits in the Planner, notes its own dates’ days and checks its planned day', () => {
@@ -72,16 +74,16 @@ describe('Plan for day ›', () => {
     const planned = entry(todo({ dueDate: day(2), doDate: day(3) }))
     expect(planned.item.note).toBe('Mon, Nov 23')
     expect(checked(planned.children)).toEqual(['Mon, Nov 23'])
-    const held = entry(todo({ unplanned: true }))
-    expect(held.item.note).toBe('Unplanned')
-    expect(held.pick('Unplanned').checked).toBe(true)
+    // In Unplanned by the Unplanned filter (Focus): named there, nothing checked.
+    const focus = entry(todo({ focus: true }))
+    expect(focus.item.note).toBe('Unplanned')
+    expect(checked(focus.children)).toEqual([])
   })
 
   it('offers Remove from Planner when clearing takes the task out of it, else Clear plan', () => {
-    expect(labels(entry(todo({ unplanned: true })).children).at(-1)).toBe('Remove from Planner')
     expect(labels(entry(todo({ doDate: day(3) })).children).at(-1)).toBe('Remove from Planner')
     // Its date (or Focus) keeps it in the Planner.
-    expect(labels(entry(todo({ unplanned: true, dueDate: day(2) })).children).at(-1)).toBe('Clear plan')
+    expect(labels(entry(todo({ doDate: day(3), dueDate: day(2) })).children).at(-1)).toBe('Clear plan')
     expect(labels(entry(todo({ doDate: day(3), focus: true })).children).at(-1)).toBe('Clear plan')
   })
 
@@ -89,16 +91,14 @@ describe('Plan for day ›', () => {
     expect(planForDayEntries(todo({ isCompleted: true }), TODAY)).toEqual([])
   })
 
-  it('a day plans the task, Unplanned holds any open task, Remove clears it — plan writes only', async () => {
+  it('a day plans the task, Remove clears its plan — plan writes only', async () => {
     const task = todo()
     const { setPlan, update } = watchPlans([task])
     entry(task).pick('Mon, Nov 23').onSelect?.()
     await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([1], { day: day(3) }))
-    entry(task).pick('Unplanned').onSelect?.()
-    await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([1], 'unplanned'))
-    const held = todo({ unplanned: true })
-    useTodoStore.setState({ todos: [held] })
-    entry(held).pick('Remove from Planner').onSelect?.()
+    const planned = todo({ doDate: day(3) })
+    useTodoStore.setState({ todos: [planned] })
+    entry(planned).pick('Remove from Planner').onSelect?.()
     await waitFor(() => expect(setPlan).toHaveBeenLastCalledWith([1], null, 'Removed “Task” from the Planner', true))
     expect(update).not.toHaveBeenCalled()
   })

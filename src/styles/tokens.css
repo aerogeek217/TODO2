@@ -47,6 +47,12 @@
 
   /* Workspace (a table of cells) */
   --workspace-gutter: 6px;
+  /* The layout edit mode's room: its gaps (`workspace-table.EDIT_GUTTER_PX`),
+     and the frame round the table — the headers' band top and left, a margin
+     right and bottom. */
+  --edit-gutter: 16px;
+  --edit-frame-start: 26px;
+  --edit-frame-end: 14px;
   --cell-header-height: 32px;
   --cell-tab-height: 26px;
   --cell-body-min-height: 80px;

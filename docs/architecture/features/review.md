@@ -111,24 +111,24 @@ The cells, in order:
 - **Priority**: Focus · Urgent · Important, each toggle the app's own mark alone (26 × 24px, 4px apart). Off, it has a faint ring in the muted color. On, it takes the marker's color on its tint, and Important's star fills. The name is in the accessible name and the tooltip (`Add to Focus`, `Mark urgent`, `Mark important`, or their undoing). Urgent is the flag alone: when only the due date makes the task urgent, its mark is tinted in the urgent color while not pressed, and the tooltip says why.
 - **Status**.
 - **People** and **Tags**: each value a pill with its own ×, then a dashed round **+**, always shown, that opens the picker.
-- **Due** (`task/DueFacts`), on two short lines. The first holds the date (a button, in the rows' words), the rows' repeat glyph while it repeats (named by the rule, `Every 2 weeks`) and ×. Under them is how far the date is (`in 2 days`, `3 days late`), muted and cut with an ellipsis. Both lines are kept without a date, so setting or clearing it never changes the band's height.
-- **Planned** (`task/PlannedFacts`): the [plan state](planner.md#plan-state), on two lines as Due: the value and × on the first, its words under it. Its value is a button opening the **Plan for day** menu (`task/plan-menu.planMenuEntries`: the week's days, Pick a date…, Unplanned, Clear plan); × clears the plan.
+- **Due** (`task/DueFacts`), on two short lines. The first is a typed date field like the footer's follow-up fields (`task/TypedDateField`): at rest the date in the rows' words, in the late or soon color as the row's (its tooltip the full date), or `None`. A click shows the text: typed `fri`, `11/30` or `2w`, written when the field is left (⏎, Tab, a blur); Esc puts the stored date back; a text that doesn't read is kept unwritten. In the field: × (**Clear due date**, on hover and focus), the **↻** repeat button while there is a date, and the calendar, which opens the browser's picker in one click. Under the field is how far the date is (`in 2 days`, `3 days late`), muted and cut with an ellipsis; while typing, what the text means (`→ Fri 27 Nov · in 4 days`, or how to write one). Both lines are kept without a date, so setting or clearing it never changes the band's height.
+- **Planned** (`task/PlannedFacts`): the [plan state](planner.md#plan-state), in the same kind of field over its words. A day typed or picked plans the task for it (`planTaskForDay`: a pick, as Plan for day ›'s). It takes today or later: an earlier day typed is refused with `Plan a day from today on`, and the picker starts at today. × (**Clear plan**, while a day is planned) clears it (`clearPlannerTask`), and so does an emptied field.
 
 Planned's states:
 
 - not planned: `Not planned`, muted, on the first line;
-- held: `Held` over `in Unplanned`, with the Planner's corner flag at the cell's top-left;
-- a planned day: the hollow bar and the day in the rows' words, how far it is under them, muted (`tomorrow`);
+- a planned day: the hollow bar and the day in the rows' words, how far it is under the field, muted (`tomorrow`);
 - after a real date: `1 day after due ▾` (or `… after follow-up`) under the day in the deadline color, opening [the Planner's fixes](planner.md#a-conflicts-fix);
 - missed (a day passed): muted, `3 days ago · Delayed` under the day.
 
-Every write there is the plan write (no stamp, one undo step), except a fix's date move. The cell reads the task as stored, so a plan changed elsewhere (a Planner drag, a menu, undo) shows in an open editor at once. A completed task's plan shows with nothing to open. The editor's create mode holds the plan until Create (`DraftPlannedFacts`), which writes it with the task.
+Every write there is the plan write (no stamp, one undo step), except a fix's date move. The cell reads the task as stored, so a plan changed elsewhere (a Planner drag, a menu, undo) shows in an open editor at once. A completed task's plan shows as words, with nothing to set. The editor's create mode holds the plan until Create (`DraftPlannedFacts`), which writes it with the task.
 
-The repeat is set from the due date. The date, or `Set a date` without one, opens a small popover named **Due date** (`DueDatePopover`, the app's anchored popover). Enter or Space on the date opens it too; the focus moves in, and goes back to the date when it closes. It follows the [popover rule](popovers-and-editors.md#popovers): what was typed is kept however it closes.
+The repeat is set from the due date. The Due field's **↻** is lit in the accent while the task repeats; its name and tooltip are the rule in words (`Every 2 weeks`). A click, Enter or Space opens a small popover named **Repeat** (the app's anchored popover); the focus moves in, and goes back to the ↻ when it closes. It follows the [popover rule](popovers-and-editors.md#popovers): what was typed is kept however it closes.
 
-- **Date**: the date input, whose calendar button opens the browser's picker. It is written when the field is left, on ⏎ (which also closes the popover) and when the popover closes. An empty or half-typed date writes nothing.
-- **Repeat every** (`task/RepeatField`), shown while there is a date: typed (`2w`) and read back as `Every 2 weeks · next Mon, Dec 7`, or `No repeat`. ⏎, a blur or the popover closing writes it, one undo step; ⏎ also closes the popover. Esc puts the stored text back and keeps the popover open; a second Esc closes it. A text that doesn't read says how and isn't written.
-- **Clear due date** clears the date and its repeat and closes the popover. Nothing typed in it is written afterwards.
+- **Repeat every** (`task/RepeatField`): typed (`2w`) and read back as `Every 2 weeks · next Mon, Dec 7`, or `No repeat`. ⏎, a blur or the popover closing writes it, one undo step; ⏎ also closes the popover. Esc puts the stored text back and keeps the popover open; a second Esc closes it. A text that doesn't read says how and isn't written. Emptied, the repeat goes.
+- **Stop repeating**, while it repeats, removes the repeat and closes the popover. Nothing typed in it is written afterwards.
+
+× on the field clears the date and its repeat in one write.
 
 ### The two columns
 

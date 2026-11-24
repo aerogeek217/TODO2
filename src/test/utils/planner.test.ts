@@ -37,7 +37,8 @@ import {
   plannerUnplan,
   plannerClearLeaves,
   plannerHasPlan,
-  plannerUnplanDelayed,
+  plannerClearDelayed,
+  plannerMovePlan,
   plannerView,
   plannerWindow,
   type PlannerConflict,
@@ -59,6 +60,15 @@ let seq = 0
 function task(over: Partial<PlannerTask> = {}): PlannerTask & { id: number } {
   seq += 1
   return { id: seq, uid: `t${seq}`, isCompleted: false, sortOrder: seq, ...over }
+}
+
+/**
+ * A stored row still carrying the `unplanned` field the schema no longer has
+ * (a hand-made row, or one an upgrade missed): a task cannot be held, so the
+ * Planner reads it as the same task without the field.
+ */
+function leftover(over: Partial<PlannerTask> = {}): PlannerTask & { id: number } {
+  return Object.assign(task(over), { unplanned: true })
 }
 
 const uids = (tasks: readonly PlannerTask[]) => tasks.map((t) => t.uid)
@@ -126,17 +136,16 @@ describe('plannerNaturalDay', () => {
     expect(natural({ nextFollowupAt: day(6, 23) })?.[2]).toBe('followup')
   })
 
-  it('is not moved by a plan: a planned or held task keeps its own day', () => {
+  it('is not moved by a plan: a planned task keeps its own day, a passed plan too', () => {
     expect(natural({ dueDate: day(2), doDate: day(5) })).toEqual(['2026-11-22', '2026-11-22', 'due'])
-    expect(natural({ nextFollowupAt: day(3), unplanned: true })).toEqual(['2026-11-23', '2026-11-23', 'followup'])
+    expect(natural({ nextFollowupAt: day(3), doDate: day(-2) })).toEqual(['2026-11-23', '2026-11-23', 'followup'])
   })
 })
 
 describe('inPlanner', () => {
-  it('holds Focus tasks, planned tasks, held tasks and tasks with a natural day', () => {
+  it('holds Focus tasks, planned tasks and tasks with a natural day', () => {
     expect(inPlanner(task({ focus: true }), SPAN)).toBe(true)
     expect(inPlanner(task({ doDate: day(30) }), SPAN)).toBe(true)
-    expect(inPlanner(task({ unplanned: true }), SPAN)).toBe(true)
     expect(inPlanner(task({ dueDate: day(6) }), SPAN)).toBe(true)
     expect(inPlanner(task({ nextFollowupAt: day(6, 12) }), SPAN)).toBe(true)
     expect(inPlanner(task({ dueDate: day(-40) }), SPAN)).toBe(true)
@@ -148,7 +157,9 @@ describe('inPlanner', () => {
     expect(inPlanner(task({ nextFollowupAt: day(7) }), SPAN)).toBe(false)
     expect(inPlanner(task({ focus: true, isCompleted: true }), SPAN)).toBe(false)
     expect(inPlanner(task({ doDate: day(0), isCompleted: true }), SPAN)).toBe(false)
-    expect(inPlanner(task({ unplanned: true, isCompleted: true }), SPAN)).toBe(false)
+    // A task cannot be held: a stored `unplanned` field brings nothing in.
+    expect(inPlanner(leftover(), SPAN)).toBe(false)
+    expect(inPlanner(leftover({ dueDate: day(7) }), SPAN)).toBe(false)
   })
 })
 
@@ -157,19 +168,17 @@ describe('plannerPlacement: where a task sits', () => {
   /** where · the day it sits on · why · placed. */
   const shape = (p: PlannerPlacement | null) => (p ? [p.where, p.day ? dayKey(p.day) : null, p.reason, p.placed] : null)
 
-  it('held → the Unplanned tray, whatever its dates — and it keeps the day it came off', () => {
-    const held = place({ unplanned: true, dueDate: day(2), nextFollowupAt: day(1) })
-    expect(shape(held)).toEqual(['unplanned', null, 'held', true])
-    expect(held?.natural && dayKey(held.natural.day)).toBe('2026-11-21')
-    expect(held?.planned).toBeNull()
-  })
-
-  it('a held task whose dates move stays held: later, earlier, past the window, or gone', () => {
-    for (const dates of [{ dueDate: day(5) }, { dueDate: day(-3) }, { dueDate: day(40) }, {}] as Partial<PlannerTask>[]) {
-      expect(shape(place({ unplanned: true, ...dates }))).toEqual(['unplanned', null, 'held', true])
-    }
-    expect(place({ unplanned: true, dueDate: day(40) })?.natural).toBeNull()
-    expect(place({ unplanned: true })?.natural).toBeNull()
+  it('a stored task cannot be held: the placement ignores anything but doDate', () => {
+    // A natural day: it sits there, not placed.
+    const dated = plannerPlacement(leftover({ dueDate: day(2), nextFollowupAt: day(1) }), SPAN)
+    expect(shape(dated)).toEqual(['day', '2026-11-21', 'followup', false])
+    expect(dated?.planned).toBeNull()
+    // Late, past the window, or no date: today, nowhere, nowhere.
+    expect(shape(plannerPlacement(leftover({ dueDate: day(-3) }), SPAN))).toEqual(['day', '2026-11-20', 'due', false])
+    expect(plannerPlacement(leftover({ dueDate: day(40) }), SPAN)).toBeNull()
+    expect(plannerPlacement(leftover(), SPAN)).toBeNull()
+    // Matching the Unplanned filter: in Unplanned by the filter, not placed.
+    expect(shape(plannerPlacement(leftover({ focus: true }), SPAN))).toEqual(['unplanned', null, 'filter', false])
   })
 
   it('a planned day before today → the Delayed tray, never Today', () => {
@@ -217,7 +226,7 @@ describe('plannerPlacement: where a task sits', () => {
     expect(shape(there)).toEqual(['day', '2026-11-28', 'plan', true])
     expect(plannerPlannedLater(there)).toBe(false)
     // Not planned later: a plain dated row, a row on its planned day, the trays.
-    for (const fields of [{ dueDate: day(1) }, { doDate: day(2) }, { doDate: day(-2) }, { unplanned: true as const }]) {
+    for (const fields of [{ dueDate: day(1) }, { doDate: day(2) }, { doDate: day(-2) }, { focus: true }]) {
       expect(plannerPlannedLater(place(fields))).toBe(false)
     }
     expect(plannerPlannedLater(null)).toBe(false)
@@ -261,12 +270,13 @@ describe('plannerPlacement: where a task sits', () => {
 
   it('completed tasks are not shown, whatever their plan', () => {
     expect(place({ isCompleted: true, doDate: day(1) })).toBeNull()
-    expect(place({ isCompleted: true, unplanned: true })).toBeNull()
+    expect(place({ isCompleted: true, focus: true })).toBeNull()
     expect(place({ isCompleted: true, dueDate: day(0), focus: true })).toBeNull()
   })
 
-  it('a row both planned and held (a hand-made row) reads as planned', () => {
-    expect(shape(place({ doDate: day(2), unplanned: true }))).toEqual(['day', '2026-11-22', 'plan', true])
+  it('a planned row still carrying a stored `unplanned` field reads by its planned day', () => {
+    expect(shape(plannerPlacement(leftover({ doDate: day(2) }), SPAN))).toEqual(['day', '2026-11-22', 'plan', true])
+    expect(shape(plannerPlacement(leftover({ doDate: day(-2) }), SPAN))).toEqual(['delayed', null, 'plan', true])
   })
 })
 
@@ -357,7 +367,7 @@ describe('conflicts: a plan that falls after a real date', () => {
 
   it('only for a row on its planned day: none in Delayed, in Unplanned or without a plan', () => {
     expect(conflicts({ doDate: day(-1), dueDate: day(-5) })).toEqual([])
-    expect(conflicts({ unplanned: true, dueDate: day(-5) })).toEqual([])
+    expect(conflicts({ focus: true, dueDate: day(20) })).toEqual([])
     expect(conflicts({ dueDate: day(-5) })).toEqual([])
     // The pure check says what a plan for a day would fall after, whatever the task holds.
     expect(plannerConflicts({ dueDate: day(-5) }, day(-1), TODAY).map((c) => c.days)).toEqual([4])
@@ -386,26 +396,25 @@ describe('plannerOrder', () => {
     expect(uids(ordered)).toEqual(uids([planned, followup, lateDue, due, plannedFirst]))
   })
 
-  it('orders Delayed by the day planned, oldest first; Unplanned held rows before Focus ones', () => {
+  it('orders Delayed by the day planned, oldest first; Unplanned by sort order', () => {
     const recent = task({ doDate: day(-1) })
     const old = task({ doDate: day(-9) })
     const focusB = task({ focus: true, sortOrder: 5 })
     const focusA = task({ focus: true, sortOrder: 2 })
-    const heldLate = task({ unplanned: true, dueDate: day(4) })
-    const heldSoon = task({ unplanned: true, nextFollowupAt: day(1) })
-    const view = plannerView([recent, old, focusB, focusA, heldLate, heldSoon], { today: TODAY })
+    const focusFar = task({ focus: true, dueDate: day(20), sortOrder: 3 })
+    const view = plannerView([recent, old, focusB, focusA, focusFar], { today: TODAY })
     expect(uids(view.delayed.tasks)).toEqual(uids([old, recent]))
-    expect(uids(view.unplanned.tasks)).toEqual(uids([heldSoon, heldLate, focusA, focusB]))
+    expect(uids(view.unplanned.tasks)).toEqual(uids([focusA, focusFar, focusB]))
   })
 
   it('the hand order holds in the trays too', () => {
     const a = task({ doDate: day(-1) })
     const b = task({ doDate: day(-2) })
     const c = task({ focus: true })
-    const d = task({ unplanned: true, dueDate: day(1) })
-    const view = plannerView([a, b, c, d], { today: TODAY, order: [c.uid, a.uid] })
+    const d = task({ focus: true })
+    const view = plannerView([a, b, c, d], { today: TODAY, order: [d.uid, a.uid] })
     expect(uids(view.delayed.tasks)).toEqual(uids([a, b]))
-    expect(uids(view.unplanned.tasks)).toEqual(uids([c, d]))
+    expect(uids(view.unplanned.tasks)).toEqual(uids([d, c]))
   })
 })
 
@@ -417,13 +426,13 @@ describe('plannerView', () => {
     const mon = task({ doDate: day(3) })
     const thu = task({ dueDate: day(6) })
     const missed = task({ doDate: day(-1), dueDate: day(0) })
-    const held = task({ unplanned: true, dueDate: day(2) })
+    const focusFar = task({ focus: true, dueDate: day(9) })
     const focus = task({ focus: true })
     const done = task({ dueDate: day(0), isCompleted: true })
     const far = task({ dueDate: day(7) })
     const plannedFar = task({ doDate: day(8) })
     const plain = task()
-    const view = plannerView([late, now, plannedToday, mon, thu, missed, held, focus, done, far, plannedFar, plain], { today: TODAY })
+    const view = plannerView([late, now, plannedToday, mon, thu, missed, focusFar, focus, done, far, plannedFar, plain], { today: TODAY })
     expect(view.today.kind).toBe('today')
     expect(view.today.key).toBe('2026-11-20')
     // A plan whose day has passed is in Delayed, not Today.
@@ -434,11 +443,12 @@ describe('plannerView', () => {
     expect(view.delayed).toMatchObject({ key: PLANNER_DELAYED_KEY, kind: 'delayed', day: null })
     expect(uids(view.delayed.tasks)).toEqual(uids([missed]))
     expect(view.unplanned).toMatchObject({ key: PLANNER_UNPLANNED_KEY, kind: 'unplanned', day: null })
-    expect(uids(view.unplanned.tasks)).toEqual(uids([held, focus]))
+    expect(uids(view.unplanned.tasks)).toEqual(uids([focusFar, focus]))
     // Display order: Today, the days, Delayed, Unplanned.
-    expect(uids(view.tasks)).toEqual(uids([late, now, plannedToday, mon, thu, missed, held, focus]))
+    expect(uids(view.tasks)).toEqual(uids([late, now, plannedToday, mon, thu, missed, focusFar, focus]))
     expect([...view.placements.keys()].sort()).toEqual(uids(view.tasks).sort())
-    expect(view.tasks.filter((t) => view.placements.get(t.uid)?.placed).map((t) => t.uid)).toEqual(uids([plannedToday, mon, missed, held]))
+    // Placed: the rows with a planned day — never an Unplanned row.
+    expect(view.tasks.filter((t) => view.placements.get(t.uid)?.placed).map((t) => t.uid)).toEqual(uids([plannedToday, mon, missed]))
   })
 
   it('lists every later day of the window after Today, the empty ones too', () => {
@@ -467,14 +477,14 @@ describe('plannerView', () => {
         task({ dueDate: day(-1) }), task({ nextFollowupAt: day(0) }), task({ doDate: day(0) }),
         task({ doDate: day(2) }), task({ dueDate: day(2) }), task({ nextFollowupAt: day(2) }),
         // In the trays: on no tile's count.
-        task({ doDate: day(-1) }), task({ unplanned: true, dueDate: day(1) }), task({ focus: true }),
+        task({ doDate: day(-1) }), task({ doDate: day(-2), dueDate: day(1) }), task({ focus: true }),
       ]
       const view = plannerView(tasks, { today: TODAY })
       expect(view.tiles.map((t) => t.key)).toEqual(view.window.days.map(dayKey))
       expect(view.tiles.map((t) => t.isToday)).toEqual([true, false, false, false, false, false, false])
       expect(view.tiles[0]).toMatchObject({ count: 3, dates: ['due', 'followup'], plans: 1 })
       expect(view.tiles[2]).toMatchObject({ count: 3, dates: ['due', 'followup'], plans: 1 })
-      // The held task's due date still marks its day; nothing sits there.
+      // The Delayed task's due date still marks its day; nothing sits there.
       expect(view.tiles[1]).toMatchObject({ count: 0, dates: ['due'], plans: 0 })
     })
 
@@ -489,8 +499,8 @@ describe('plannerView', () => {
       const view = plannerView([
         // Due Sun, planned Tue: its due date marks Sun, its plan Tue.
         task({ dueDate: day(2), doDate: day(4) }),
-        // Due and follow-up both on Sun, held in Unplanned: two marks on Sun, on no day's count.
-        task({ dueDate: day(2), nextFollowupAt: day(2), unplanned: true }),
+        // Due and follow-up both on Sun, planned for a day that passed (Delayed): two marks on Sun, on no day's count.
+        task({ dueDate: day(2), nextFollowupAt: day(2), doDate: day(-1) }),
         // Follow-up Sat, due Mon, no plan: sits on Sat; both dates mark their days.
         task({ nextFollowupAt: day(1), dueDate: day(3) }),
         // Planned for a day that passed (Delayed): its due date still marks Tue; its plan marks no tile.
@@ -541,8 +551,8 @@ describe('plannerView', () => {
     const past = task({ dueDate: day(14) })
     const focus = task({ focus: true })
     const missed = task({ doDate: day(-3) })
-    const held = task({ unplanned: true, dueDate: day(2) })
-    const view = plannerView([late, now, between, plannedBetween, inWindow, lastDay, past, focus, missed, held], { today: TODAY, offset: 7 })
+    const focusFar = task({ focus: true, dueDate: day(20) })
+    const view = plannerView([late, now, between, plannedBetween, inWindow, lastDay, past, focus, missed, focusFar], { today: TODAY, offset: 7 })
 
     it('keeps Today as today', () => {
       expect(view.today.key).toBe('2026-11-20')
@@ -564,11 +574,11 @@ describe('plannerView', () => {
     })
 
     it('leaves a task dated or planned between tomorrow and the window in no group; the trays stay', () => {
-      expect(uids(view.tasks)).toEqual(uids([late, now, inWindow, lastDay, missed, held, focus]))
+      expect(uids(view.tasks)).toEqual(uids([late, now, inWindow, lastDay, missed, focus, focusFar]))
       expect(view.placements.has(between.uid)).toBe(false)
       expect(view.placements.has(plannedBetween.uid)).toBe(false)
       expect(uids(view.delayed.tasks)).toEqual(uids([missed]))
-      expect(uids(view.unplanned.tasks)).toEqual(uids([held, focus]))
+      expect(uids(view.unplanned.tasks)).toEqual(uids([focus, focusFar]))
     })
 
     it('gives a task dated past this week a day once the window reaches it', () => {
@@ -595,11 +605,10 @@ describe('plannerDrop: the drop rule', () => {
 
   describe('on a day', () => {
     it('plans the task for the day, whatever put it where it is — never a real date', () => {
-      // By its follow-up, by its due date, by a plan, held, delayed, Focus with no date.
+      // By its follow-up, by its due date, by a plan, delayed, Focus with no date.
       expect(drop({ nextFollowupAt: day(1) }, on(3))).toEqual({ kind: 'plan', day: day(3) })
       expect(drop({ dueDate: day(1), nextFollowupAt: day(4) }, on(3))).toEqual({ kind: 'plan', day: day(3) })
       expect(drop({ doDate: day(1), nextFollowupAt: day(0) }, on(3))).toEqual({ kind: 'plan', day: day(3) })
-      expect(drop({ unplanned: true, dueDate: day(1) }, on(3))).toEqual({ kind: 'plan', day: day(3) })
       expect(drop({ doDate: day(-2), dueDate: day(1) }, on(3))).toEqual({ kind: 'plan', day: day(3) })
       expect(drop({ focus: true }, on(0))).toEqual({ kind: 'plan', day: day(0) })
       // An earlier day than its date too.
@@ -612,11 +621,13 @@ describe('plannerDrop: the drop rule', () => {
       expect(drop({ doDate: day(12) }, on(2))).toEqual({ kind: 'plan', day: day(2) })
     })
 
-    it('on its natural day: the plan is cleared (no planned day, not held)', () => {
+    it('on its natural day: the plan is cleared', () => {
       expect(drop({ dueDate: day(2), doDate: day(4) }, on(2))).toEqual({ kind: 'own', day: day(2) })
+      expect(plannerDropWrite(drop({ dueDate: day(2), doDate: day(4) }, on(2)))).toBeNull()
       expect(drop({ nextFollowupAt: day(1), dueDate: day(3), doDate: day(5) }, on(1))).toEqual({ kind: 'own', day: day(1) })
-      expect(drop({ unplanned: true, nextFollowupAt: day(3) }, on(3))).toEqual({ kind: 'own', day: day(3) })
       expect(drop({ doDate: day(-1), dueDate: day(2) }, on(2))).toEqual({ kind: 'own', day: day(2) })
+      // A stored `unplanned` field is no plan to clear: there already.
+      expect(plannerDrop(leftover({ nextFollowupAt: day(3) }), SPAN, on(3))).toEqual({ kind: 'none' })
       // A late date's natural day is today.
       expect(drop({ dueDate: day(-4), doDate: day(3) }, on(0))).toEqual({ kind: 'own', day: day(0) })
       // A plan past the window, dropped from a list on its date's day.
@@ -650,42 +661,62 @@ describe('plannerDrop: the drop rule', () => {
   })
 
   describe('on Unplanned', () => {
-    it('holds a task with a natural day, planned or not', () => {
-      expect(drop({ dueDate: day(1) }, UNPLANNED)).toEqual({ kind: 'unplan', hold: true })
-      expect(drop({ nextFollowupAt: day(-1), focus: true }, UNPLANNED)).toEqual({ kind: 'unplan', hold: true })
-      expect(drop({ doDate: day(2), dueDate: day(1) }, UNPLANNED)).toEqual({ kind: 'unplan', hold: true })
-      expect(drop({ doDate: day(-2), nextFollowupAt: day(3) }, UNPLANNED)).toEqual({ kind: 'unplan', hold: true })
+    it('a planned task loses its plan, wherever its plan or its dates put it', () => {
+      // With a natural day, in Focus, delayed, on a day of the window, past it.
+      expect(drop({ doDate: day(2), dueDate: day(1) }, UNPLANNED)).toEqual({ kind: 'unplan' })
+      expect(drop({ doDate: day(-2), nextFollowupAt: day(3) }, UNPLANNED)).toEqual({ kind: 'unplan' })
+      expect(drop({ focus: true, doDate: day(2) }, UNPLANNED)).toEqual({ kind: 'unplan' })
+      expect(drop({ focus: true, doDate: day(-2), dueDate: day(20) }, UNPLANNED)).toEqual({ kind: 'unplan' })
+      expect(drop({ doDate: day(2) }, UNPLANNED)).toEqual({ kind: 'unplan' })
+      expect(drop({ doDate: day(12) }, UNPLANNED)).toEqual({ kind: 'unplan' })
+      expect(plannerDropWrite(drop({ doDate: day(2) }, UNPLANNED))).toBeNull()
     })
 
-    it('a Focus task without one just loses its plan: Focus keeps it in Unplanned', () => {
-      expect(drop({ focus: true, doDate: day(2) }, UNPLANNED)).toEqual({ kind: 'unplan', hold: false })
-      expect(drop({ focus: true, doDate: day(-2), dueDate: day(20) }, UNPLANNED)).toEqual({ kind: 'unplan', hold: false })
-    })
-
-    it('Unplan never takes a task out of the Planner: a planned task with no date in the window, not in Focus, is held', () => {
-      const cases: Array<Partial<PlannerTask>> = [{ doDate: day(2) }, { doDate: day(-2) }, { doDate: day(0), dueDate: day(30) }]
-      for (const fields of cases) {
+    it('the cleared task goes back to its natural day, stays in Unplanned by the filter, or leaves the Planner', () => {
+      const cleared = (fields: Partial<PlannerTask>) => {
         const planned = task(fields)
-        const decided = plannerDrop(planned, SPAN, UNPLANNED)
-        expect(decided).toEqual({ kind: 'unplan', hold: true })
-        // What it writes leaves the task in the Unplanned tray.
-        const write = plannerDropWrite(decided)
-        expect(write).toBe('unplanned')
-        const after: PlannerTask = { ...planned, doDate: undefined, unplanned: true }
-        expect(plannerPlacement(after, SPAN)).toMatchObject({ where: 'unplanned', reason: 'held', placed: true })
+        expect(plannerDrop(planned, SPAN, UNPLANNED)).toEqual({ kind: 'unplan' })
+        return plannerPlacement({ ...planned, doDate: undefined }, SPAN)
       }
+      expect(cleared({ doDate: day(4), dueDate: day(1) })).toMatchObject({ where: 'day', day: day(1), reason: 'due', placed: false })
+      expect(cleared({ doDate: day(-2), focus: true })).toMatchObject({ where: 'unplanned', reason: 'filter', placed: false })
+      expect(cleared({ doDate: day(2) })).toBeNull()
+      expect(cleared({ doDate: day(0), dueDate: day(30) })).toBeNull()
+    })
+
+    it('Unplan takes a planned task with no date in the window and not matching the filter out of the Planner: leaves', () => {
+      for (const fields of [{ doDate: day(2) }, { doDate: day(-2) }, { doDate: day(0), dueDate: day(30) }] as Array<Partial<PlannerTask>>) {
+        const planned = task(fields)
+        expect(plannerClearLeaves(planned, SPAN)).toBe(true)
+        expect(plannerMovePlan(planned, SPAN, UNPLANNED)).toEqual({ drop: { kind: 'unplan' }, moves: true, leaves: true })
+      }
+      // With a position too: the order is stored and it still leaves.
+      const planned = task({ doDate: day(2) })
+      const moved = plannerMovePlan(planned, SPAN, UNPLANNED, { rows: ['x'], index: 0, shown: [planned.uid, 'x'] })
+      expect(moved).toMatchObject({ drop: { kind: 'unplan' }, moves: true, leaves: true })
+      expect(moved.order).toBeDefined()
+      // Kept by a natural day or the filter: no leaves.
+      expect(plannerMovePlan(task({ doDate: day(4), dueDate: day(1) }), SPAN, UNPLANNED)).not.toHaveProperty('leaves')
+      expect(plannerMovePlan(task({ doDate: day(4), focus: true }), SPAN, UNPLANNED)).not.toHaveProperty('leaves')
+      // Only an Unplan leaves: a drop on a day, or on its own day, never does.
+      expect(plannerMovePlan(task({ doDate: day(2) }), SPAN, on(4))).not.toHaveProperty('leaves')
+      expect(plannerMovePlan(task({ doDate: day(4), dueDate: day(2) }), SPAN, on(2))).not.toHaveProperty('leaves')
     })
 
     it('where it sits already: nothing', () => {
       expect(drop({ focus: true }, UNPLANNED)).toEqual({ kind: 'none' })
-      expect(drop({ unplanned: true, dueDate: day(1) }, UNPLANNED)).toEqual({ kind: 'none' })
-      expect(drop({ unplanned: true }, UNPLANNED)).toEqual({ kind: 'none' })
+      expect(plannerDrop(leftover({ focus: true }), SPAN, UNPLANNED)).toEqual({ kind: 'none' })
     })
 
-    it('any other open task is held: Unplanned is how a task with no date joins the Planner', () => {
-      expect(drop({}, UNPLANNED)).toEqual({ kind: 'unplan', hold: true })
-      expect(drop({ dueDate: day(30) }, UNPLANNED)).toEqual({ kind: 'unplan', hold: true })
+    it('a drop on Unplanned refuses a task with no plan: nothing is put in Unplanned by hand', () => {
+      expect(drop({}, UNPLANNED)).toEqual({ kind: 'refuse' })
+      expect(drop({ dueDate: day(1) }, UNPLANNED)).toEqual({ kind: 'refuse' })
+      expect(drop({ nextFollowupAt: day(-1), focus: true }, UNPLANNED)).toEqual({ kind: 'refuse' })
+      expect(drop({ dueDate: day(30) }, UNPLANNED)).toEqual({ kind: 'refuse' })
       expect(drop({ isCompleted: true }, UNPLANNED)).toEqual({ kind: 'refuse' })
+      // A stored `unplanned` field is no plan.
+      expect(plannerDrop(leftover({ dueDate: day(1) }), SPAN, UNPLANNED)).toEqual({ kind: 'refuse' })
+      expect(plannerMovePlan(task({ dueDate: day(1) }), SPAN, UNPLANNED)).toEqual({ drop: { kind: 'refuse' }, moves: false })
     })
   })
 
@@ -694,7 +725,7 @@ describe('plannerDrop: the drop rule', () => {
       expect(drop({ dueDate: day(1) }, DELAYED)).toEqual({ kind: 'refuse' })
       expect(drop({ doDate: day(2) }, DELAYED)).toEqual({ kind: 'refuse' })
       expect(drop({ focus: true }, DELAYED)).toEqual({ kind: 'refuse' })
-      expect(drop({ unplanned: true }, DELAYED)).toEqual({ kind: 'refuse' })
+      expect(drop({}, DELAYED)).toEqual({ kind: 'refuse' })
       expect(drop({ doDate: day(-1) }, DELAYED)).toEqual({ kind: 'none' })
     })
   })
@@ -705,11 +736,10 @@ describe('plannerDrop: the drop rule', () => {
     }
   })
 
-  it('what each drop writes: both plan fields’ state, or nothing', () => {
+  it('what each drop writes: a planned day, no plan, or nothing', () => {
     expect(plannerDropWrite({ kind: 'plan', day: day(3) })).toEqual({ day: day(3) })
     expect(plannerDropWrite({ kind: 'own', day: day(3) })).toBeNull()
-    expect(plannerDropWrite({ kind: 'unplan', hold: true })).toBe('unplanned')
-    expect(plannerDropWrite({ kind: 'unplan', hold: false })).toBeNull()
+    expect(plannerDropWrite({ kind: 'unplan' })).toBeNull()
     expect(plannerDropWrite({ kind: 'refuse' })).toBeUndefined()
     expect(plannerDropWrite({ kind: 'none' })).toBeUndefined()
   })
@@ -743,7 +773,7 @@ describe('Snooze', () => {
 
   it('a Delayed or Unplanned row (or one not shown) goes to tomorrow', () => {
     expect(snoozeDay({ doDate: day(-4) })).toBe('2026-11-21')
-    expect(snoozeDay({ unplanned: true, dueDate: day(5) })).toBe('2026-11-21')
+    expect(snoozeDay({ focus: true, dueDate: day(9) })).toBe('2026-11-21')
     expect(snoozeDay({ focus: true })).toBe('2026-11-21')
     expect(snoozeDay({})).toBe('2026-11-21')
     expect(dayKey(plannerSnoozeDay(null, new Date(2026, 10, 20, 23, 59)))).toBe('2026-11-21')
@@ -761,8 +791,8 @@ describe('Snooze', () => {
     expect(snooze({ doDate: day(1), dueDate: day(2) })).toEqual({ kind: 'plan', day: day(2) })
     // Delayed, follow-up tomorrow.
     expect(snooze({ doDate: day(-1), nextFollowupAt: day(1) })).toEqual({ kind: 'plan', day: day(1) })
-    // Held, due tomorrow.
-    expect(snooze({ unplanned: true, dueDate: day(1) })).toEqual({ kind: 'plan', day: day(1) })
+    // Planned for today, follow-up tomorrow.
+    expect(snooze({ doDate: day(0), nextFollowupAt: day(1) })).toEqual({ kind: 'plan', day: day(1) })
     // A drag onto that day still clears the plan.
     expect(plannerDrop(task({ doDate: day(1), dueDate: day(2) }), SPAN, { kind: 'day', day: day(2) })).toEqual({ kind: 'own', day: day(2) })
   })
@@ -803,32 +833,31 @@ describe('a row’s tag and late dates', () => {
     const tag = plannerRowTag(placed({ doDate: day(-2), dueDate: day(3) }))
     expect(tag).toEqual({ kind: 'planned', day: day(-2) })
     expect(plannerRowTagLabel(tag!, TODAY)).toBe('Wed')
-    expect(plannerRowTagHint(tag!, TODAY)).toBe('Planned for Wed, Nov 18')
+    expect(plannerRowTagHint(tag!)).toBe('Planned for Wed, Nov 18')
   })
 
-  it('a row held in Unplanned with a natural day: that day; without one, no tag', () => {
-    const tag = plannerRowTag(placed({ unplanned: true, nextFollowupAt: day(3) }))
-    expect(tag).toEqual({ kind: 'natural', day: day(3) })
-    expect(plannerRowTagLabel(tag!, TODAY)).toBe('Mon')
-    expect(plannerRowTagHint(tag!, TODAY)).toBe('Its own date puts it on Mon, Nov 23')
-    // A late date puts it on today.
-    const late = plannerRowTag(placed({ unplanned: true, dueDate: day(-4) }))
-    expect(plannerRowTagLabel(late!, TODAY)).toBe('Today')
-    expect(plannerRowTagHint(late!, TODAY)).toBe('Its own date puts it on Today')
-    expect(plannerRowTag(placed({ unplanned: true }))).toBeNull()
-    expect(plannerRowTag(placed({ unplanned: true, dueDate: day(30) }))).toBeNull()
+  it('an Unplanned row has no tag, whatever its placement holds', () => {
     expect(plannerRowTag(placed({ focus: true }))).toBeNull()
+    expect(plannerRowTag(placed({ focus: true, dueDate: day(30) }))).toBeNull()
+    expect(plannerRowTag(plannerPlacement(leftover({ focus: true }), SPAN))).toBeNull()
+    // Even a placement in Unplanned that carries a natural day (none is made so).
+    expect(plannerRowTag({
+      where: 'unplanned', day: null, reason: 'filter', placed: false, planned: null,
+      natural: { day: day(3), date: day(3), reason: 'followup' }, conflicts: [],
+    })).toBeNull()
+    // A stored `unplanned` field puts a row on its own day, with no tag.
+    expect(plannerRowTag(plannerPlacement(leftover({ nextFollowupAt: day(3) }), SPAN))).toBeNull()
   })
 
   it('a row planned past a real date: the conflict in words, with its fixes', () => {
     const tag = plannerRowTag(placed({ doDate: day(4), dueDate: day(3) }))
     expect(tag).toMatchObject({ kind: 'conflict', conflict: { date: 'due', days: 1 } })
     expect(plannerRowTagLabel(tag!, TODAY)).toBe('1 day after due')
-    expect(plannerRowTagHint(tag!, TODAY)).toBe('Planned 1 day after its due date')
+    expect(plannerRowTagHint(tag!)).toBe('Planned 1 day after its due date')
     expect(tag?.kind === 'conflict' && tag.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual(['Move due date to Tue, Nov 24', 'Plan for Mon, Nov 23'])
     const followup = plannerRowTag(placed({ doDate: day(4), nextFollowupAt: day(2) }))
     expect(plannerRowTagLabel(followup!, TODAY)).toBe('2 days after follow-up')
-    expect(plannerRowTagHint(followup!, TODAY)).toBe('Planned 2 days after its follow-up')
+    expect(plannerRowTagHint(followup!)).toBe('Planned 2 days after its follow-up')
   })
 
   it('with both dates passed the tag is the due date’s, and the menu holds every fix once', () => {
@@ -851,7 +880,7 @@ describe('a row’s tag and late dates', () => {
     const tag = plannerRowTag(placed({ doDate: day(7), dueDate: day(6) }))
     expect(tag).toEqual({ kind: 'later', day: day(7), fixes: [{ kind: 'move-date', date: 'due', to: day(7) }, { kind: 'plan', day: day(6) }] })
     expect(plannerRowTagLabel(tag!, TODAY)).toBe('planned Fri, Nov 27')
-    expect(plannerRowTagHint(tag!, TODAY)).toBe('Planned for Fri, Nov 27, after the days shown')
+    expect(plannerRowTagHint(tag!)).toBe('Planned for Fri, Nov 27, after the days shown')
     expect(tag?.kind === 'later' && tag.fixes.map((f) => plannerFixLabel(f, TODAY))).toEqual(['Move due date to Fri, Nov 27', 'Plan for Thu, Nov 26'])
     // Its date is drawn late, as for any plan past a date.
     expect(plannerLateDates(placed({ doDate: day(7), dueDate: day(6) }))).toEqual({ due: true, followup: false })
@@ -868,17 +897,17 @@ describe('a row’s tag and late dates', () => {
     expect(plannerRowTag(undefined)).toBeNull()
   })
 
-  it('a placed row’s plan state in words, for its accessible description: planned, planned for a day, set aside', () => {
+  it('a placed row’s plan state in words, for its accessible description: planned, planned for a day', () => {
     expect(plannerRowStateWords(placed({ doDate: day(2) }), TODAY)).toBe('planned')
     expect(plannerRowStateWords(placed({ doDate: day(4), dueDate: day(3) }), TODAY)).toBe('planned')
     expect(plannerRowStateWords(placed({ doDate: day(-2) }), TODAY)).toBe('planned for Wed')
     expect(plannerRowStateWords(placed({ doDate: day(-9) }), TODAY)).toBe('planned for Nov 11')
     expect(plannerRowStateWords(placed({ doDate: day(7), dueDate: day(6) }), TODAY)).toBe('planned for Fri, Nov 27')
-    expect(plannerRowStateWords(placed({ unplanned: true }), TODAY)).toBe('set aside')
-    expect(plannerRowStateWords(placed({ unplanned: true, dueDate: day(1) }), TODAY)).toBe('set aside')
-    // Not placed: nothing to say.
+    // Not placed: nothing to say — an Unplanned row never is, a stored `unplanned` field changes nothing.
     expect(plannerRowStateWords(placed({ dueDate: day(1) }), TODAY)).toBeNull()
     expect(plannerRowStateWords(placed({ focus: true }), TODAY)).toBeNull()
+    expect(plannerRowStateWords(plannerPlacement(leftover({ focus: true }), SPAN), TODAY)).toBeNull()
+    expect(plannerRowStateWords(plannerPlacement(leftover({ dueDate: day(1) }), SPAN), TODAY)).toBeNull()
     expect(plannerRowStateWords(placed({ doDate: day(2), dueDate: day(2) }), TODAY)).toBe('planned')
     expect(plannerRowStateWords(null, TODAY)).toBeNull()
   })
@@ -897,9 +926,9 @@ describe('a row’s tag and late dates', () => {
     expect(plannerLateDates(placed({ doDate: day(4), dueDate: day(6), nextFollowupAt: day(1) }))).toEqual({ due: false, followup: true })
     expect(plannerLateDates(placed({ doDate: day(5), dueDate: day(2), nextFollowupAt: day(1) }))).toEqual({ due: true, followup: true })
     expect(plannerLateDates(placed({ doDate: day(1), dueDate: day(3) }))).toBeNull()
-    // Delayed and held rows have no conflict: nothing is drawn late that isn't.
+    // Delayed and Unplanned rows have no conflict: nothing is drawn late that isn't.
     expect(plannerLateDates(placed({ doDate: day(-2), dueDate: day(-3) }))).toBeNull()
-    expect(plannerLateDates(placed({ unplanned: true, dueDate: day(1) }))).toBeNull()
+    expect(plannerLateDates(placed({ focus: true, dueDate: day(20) }))).toBeNull()
     expect(plannerLateDates(null)).toBeNull()
   })
 })
@@ -934,42 +963,48 @@ describe('a Move date fix that puts the task on its planned day by its own dates
 
   it('is false for a task with no planned day', () => {
     expect(plannerFixClearsPlan(task({ dueDate: day(1) }), move('due', 3), SPAN)).toBe(false)
-    expect(plannerFixClearsPlan(task({ unplanned: true, dueDate: day(1) }), move('due', 3), SPAN)).toBe(false)
+    expect(plannerFixClearsPlan(leftover({ dueDate: day(1) }), move('due', 3), SPAN)).toBe(false)
   })
 })
 
-describe('Unplan and Unplan all Delayed', () => {
-  it('Unplan is the Unplanned drop for one row', () => {
-    expect(plannerUnplan(task({ doDate: day(2), dueDate: day(1) }), SPAN)).toEqual({ kind: 'unplan', hold: true })
-    expect(plannerUnplan(task({ focus: true, doDate: day(2) }), SPAN)).toEqual({ kind: 'unplan', hold: false })
-    expect(plannerUnplan(task({ doDate: day(2) }), SPAN)).toEqual({ kind: 'unplan', hold: true })
+describe('Unplan and Clear Delayed plans', () => {
+  it('Unplan is the Unplanned drop for one row: a plan cleared, refused without one', () => {
+    expect(plannerUnplan(task({ doDate: day(2), dueDate: day(1) }), SPAN)).toEqual({ kind: 'unplan' })
+    expect(plannerUnplan(task({ focus: true, doDate: day(2) }), SPAN)).toEqual({ kind: 'unplan' })
+    expect(plannerUnplan(task({ doDate: day(2) }), SPAN)).toEqual({ kind: 'unplan' })
     expect(plannerUnplan(task({ focus: true }), SPAN)).toEqual({ kind: 'none' })
-    expect(plannerUnplan(task({}), SPAN)).toEqual({ kind: 'unplan', hold: true })
+    expect(plannerUnplan(task({}), SPAN)).toEqual({ kind: 'refuse' })
+    expect(plannerUnplan(task({ dueDate: day(1) }), SPAN)).toEqual({ kind: 'refuse' })
   })
 
-  it('Unplan all Delayed: every Delayed task held, a Focus one with no date its plan cleared — each stays in the Planner; nothing else', () => {
+  it('Clear Delayed plans: every Delayed task’s plan cleared, each where its own dates put it; nothing else', () => {
     const dated = task({ doDate: day(-1), dueDate: day(2) })
     const late = task({ doDate: day(-3), nextFollowupAt: day(-5) })
     const focus = task({ doDate: day(-2), focus: true })
     const bare = task({ doDate: day(-2) })
     const farDate = task({ doDate: day(-2), dueDate: day(30) })
-    const others = [task({ doDate: day(1) }), task({ unplanned: true, dueDate: day(1) }), task({ dueDate: day(0) }), task({ focus: true })]
+    const others = [task({ doDate: day(1) }), task({ dueDate: day(1) }), task({ dueDate: day(0) }), task({ focus: true })]
     const view = plannerView([dated, late, focus, bare, farDate, ...others], { today: TODAY })
     expect(uids(view.delayed.tasks).sort()).toEqual(uids([dated, late, focus, bare, farDate]).sort())
-    const plans = plannerUnplanDelayed(view)
+    const plans = plannerClearDelayed(view)
     expect(new Map(plans.map((p) => [p.id, p.plan]))).toEqual(new Map<number, unknown>([
-      [dated.id, 'unplanned'], [late.id, 'unplanned'], [focus.id, null], [bare.id, 'unplanned'], [farDate.id, 'unplanned'],
+      [dated.id, null], [late.id, null], [focus.id, null], [bare.id, null], [farDate.id, null],
     ]))
-    // Every one of them is in Unplanned afterwards.
-    const written = new Map(plans.map((p) => [p.id, p.plan]))
-    const after = [dated, late, focus, bare, farDate].map((t): PlannerTask => ({ ...t, doDate: undefined, unplanned: written.get(t.id) === 'unplanned' ? true : undefined }))
+    // Afterwards: on its natural day, in Unplanned by the filter, or out of the Planner.
+    const after = [dated, late, focus, bare, farDate].map((t): PlannerTask & { id: number } => ({ ...t, doDate: undefined }))
     const next = plannerView([...after, ...others], { today: TODAY })
     expect(next.delayed.tasks).toEqual([])
-    for (const t of after) expect(next.placements.get(t.uid)?.where).toBe('unplanned')
+    const where = (t: PlannerTask) => {
+      const p = next.placements.get(t.uid)
+      return p ? [p.where, p.day ? dayKey(p.day) : null] : null
+    }
+    expect(after.map(where)).toEqual([['day', '2026-11-22'], ['day', '2026-11-20'], ['unplanned', null], null, null])
+    // The ones that leave are the ones Clear plan says leave.
+    expect([dated, late, focus, bare, farDate].map((t) => plannerClearLeaves(t, SPAN))).toEqual([false, false, false, true, true])
   })
 
   it('with nothing in Delayed: no change', () => {
-    expect(plannerUnplanDelayed(plannerView([task({ doDate: day(1) })], { today: TODAY }))).toEqual([])
+    expect(plannerClearDelayed(plannerView([task({ doDate: day(1) })], { today: TODAY }))).toEqual([])
   })
 })
 
@@ -981,16 +1016,17 @@ describe('Reset plan', () => {
   const byDateMon = task({ dueDate: day(3) })
   const delayedA = task({ doDate: day(-1) })
   const delayedB = task({ doDate: day(-5), dueDate: day(2) })
-  const held = task({ unplanned: true, dueDate: day(2) })
+  // A stored `unplanned` field is no plan: it sits on Sun by its due date, nothing to reset.
+  const stale = leftover({ dueDate: day(2) })
   const focus = task({ focus: true })
   const plannedFar = task({ doDate: day(9) })
   const done = task({ doDate: day(0), isCompleted: true })
-  const all = [plannedToday, plannedTodayDated, byDateToday, plannedMon, byDateMon, delayedA, delayedB, held, focus, plannedFar, done]
+  const all = [plannedToday, plannedTodayDated, byDateToday, plannedMon, byDateMon, delayedA, delayedB, stale, focus, plannedFar, done]
   const view = plannerView(all, { today: TODAY })
   const reset = (scope: PlannerResetScope) => uids(plannerResetTasks(view, scope)).sort()
 
-  it('this week: every task with a plan state the Planner shows or holds — planned days in the window, Delayed, held', () => {
-    expect(reset('week')).toEqual(uids([plannedToday, plannedTodayDated, plannedMon, delayedA, delayedB, held]).sort())
+  it('this week: every planned task the Planner shows — planned days in the window and Delayed', () => {
+    expect(reset('week')).toEqual(uids([plannedToday, plannedTodayDated, plannedMon, delayedA, delayedB]).sort())
   })
 
   it('today only: the tasks planned for today', () => {
@@ -1002,14 +1038,14 @@ describe('Reset plan', () => {
   })
 
   it('counts each scope', () => {
-    expect(plannerResetCounts(view)).toEqual({ week: 6, today: 2, delayed: 2 })
-    expect(plannerResetCounts(plannerView([byDateToday, focus], { today: TODAY }))).toEqual({ week: 0, today: 0, delayed: 0 })
+    expect(plannerResetCounts(view)).toEqual({ week: 5, today: 2, delayed: 2 })
+    expect(plannerResetCounts(plannerView([byDateToday, focus, stale], { today: TODAY }))).toEqual({ week: 0, today: 0, delayed: 0 })
   })
 
-  it('a shifted window: its own planned days, with today’s, Delayed and held — not the days between', () => {
+  it('a shifted window: its own planned days, with today’s and Delayed — not the days between', () => {
     const shifted = plannerView([...all, task({ doDate: day(4) })], { today: TODAY, offset: 7 })
-    expect(uids(plannerResetTasks(shifted, 'week')).sort()).toEqual(uids([plannedToday, plannedTodayDated, delayedA, delayedB, held, plannedFar]).sort())
-    expect(plannerResetCounts(shifted)).toEqual({ week: 6, today: 2, delayed: 2 })
+    expect(uids(plannerResetTasks(shifted, 'week')).sort()).toEqual(uids([plannedToday, plannedTodayDated, delayedA, delayedB, plannedFar]).sort())
+    expect(plannerResetCounts(shifted)).toEqual({ week: 5, today: 2, delayed: 2 })
   })
 })
 
@@ -1052,8 +1088,7 @@ describe('labels', () => {
     expect(plannerDropLabel({ kind: 'plan', day: day(5) }, TODAY)).toBe('Plan · Wed, Nov 25')
     expect(plannerDropLabel({ kind: 'plan', day: day(0) }, TODAY)).toBe('Plan · Today')
     expect(plannerDropLabel({ kind: 'own', day: day(5) }, TODAY)).toBe('Its date · Wed, Nov 25')
-    expect(plannerDropLabel({ kind: 'unplan', hold: true }, TODAY)).toBe('Unplan')
-    expect(plannerDropLabel({ kind: 'unplan', hold: false }, TODAY)).toBe('Unplan')
+    expect(plannerDropLabel({ kind: 'unplan' }, TODAY)).toBe('Unplan')
     expect(plannerDropLabel({ kind: 'refuse' }, TODAY)).toBeNull()
     expect(plannerDropLabel({ kind: 'none' }, TODAY)).toBeNull()
   })
@@ -1115,23 +1150,26 @@ describe('across a daylight-saving change', () => {
 })
 
 describe('Clear plan', () => {
-  it('a task has a plan state with a planned day (a redundant one too) or held in Unplanned', () => {
+  it('a task has a plan state only with a planned day (a redundant one too)', () => {
     expect(plannerHasPlan(task({ doDate: day(2) }))).toBe(true)
-    expect(plannerHasPlan(task({ unplanned: true }))).toBe(true)
     expect(plannerHasPlan(task({ dueDate: day(2), doDate: day(2) }))).toBe(true)
     expect(plannerHasPlan(task({ dueDate: day(2), focus: true }))).toBe(false)
+    // A stored `unplanned` field is no plan state.
+    expect(plannerHasPlan(leftover())).toBe(false)
+    expect(plannerHasPlan(leftover({ doDate: day(2) }))).toBe(true)
   })
 
   it('takes the task out of the Planner only when nothing else keeps it there: no date in the window, not in Focus', () => {
-    expect(plannerClearLeaves(task({ unplanned: true }), SPAN)).toBe(true)
     expect(plannerClearLeaves(task({ doDate: day(3) }), SPAN)).toBe(true)
     expect(plannerClearLeaves(task({ doDate: day(-2) }), SPAN)).toBe(true)
-    expect(plannerClearLeaves(task({ unplanned: true, dueDate: day(30) }), SPAN)).toBe(true)
-    expect(plannerClearLeaves(task({ unplanned: true, dueDate: day(2) }), SPAN)).toBe(false)
-    expect(plannerClearLeaves(task({ unplanned: true, nextFollowupAt: day(-4) }), SPAN)).toBe(false)
+    expect(plannerClearLeaves(task({ doDate: day(2), dueDate: day(30) }), SPAN)).toBe(true)
+    expect(plannerClearLeaves(task({ doDate: day(4), dueDate: day(2) }), SPAN)).toBe(false)
+    expect(plannerClearLeaves(task({ doDate: day(-1), nextFollowupAt: day(-4) }), SPAN)).toBe(false)
     expect(plannerClearLeaves(task({ doDate: day(3), focus: true }), SPAN)).toBe(false)
-    // No plan state: nothing to clear.
+    // No plan state: nothing to clear — a stored `unplanned` field included.
     expect(plannerClearLeaves(task({}), SPAN)).toBe(false)
+    expect(plannerClearLeaves(leftover(), SPAN)).toBe(false)
+    expect(plannerClearLeaves(leftover({ focus: true }), SPAN)).toBe(false)
     // Planned past the window with no date in it: the Planner doesn't show it now, so clearing takes nothing out.
     expect(plannerClearLeaves(task({ doDate: day(12) }), SPAN)).toBe(false)
   })
@@ -1163,59 +1201,67 @@ describe('the Unplanned filter (`PlannerJoins`)', () => {
     expect(plannerPlacement(task({ dueDate: day(2) }), EMPTY)).toMatchObject({ where: 'day', reason: 'due' })
   })
 
-  it('empty, nothing joins on its own: only a task unplanned by hand is in Unplanned', () => {
+  it('empty, nothing joins on its own: Unplanned stays empty', () => {
     expect(plannerPlacement(task({ focus: true }), EMPTY)).toBeNull()
-    expect(plannerPlacement(task({ unplanned: true }), EMPTY)).toMatchObject({ where: 'unplanned', reason: 'held', placed: true })
+    expect(plannerPlacement(leftover(), EMPTY)).toBeNull()
+    expect(plannerPlacement(leftover({ focus: true }), EMPTY)).toBeNull()
     expect(inPlanner(task({ focus: true }), EMPTY)).toBe(false)
   })
 
-  it('the view takes it: Unplanned holds the matching tasks and the held ones', () => {
+  it('the view takes it: Unplanned holds the matching tasks only', () => {
     const focus = task({ focus: true })
     const match = errand()
-    const held = task({ unplanned: true })
-    const tasks = [focus, match, held]
-    expect(uids(plannerView(tasks, { today: TODAY }).unplanned.tasks)).toEqual(uids([held, focus]))
-    expect(uids(plannerView(tasks, { today: TODAY, joins: errands }).unplanned.tasks)).toEqual(uids([held, match]))
-    expect(uids(plannerView(tasks, { today: TODAY, joins: () => false }).unplanned.tasks)).toEqual(uids([held]))
+    const stale = leftover()
+    const tasks = [focus, match, stale]
+    expect(uids(plannerView(tasks, { today: TODAY }).unplanned.tasks)).toEqual(uids([focus]))
+    expect(uids(plannerView(tasks, { today: TODAY, joins: errands }).unplanned.tasks)).toEqual(uids([match]))
+    expect(plannerView(tasks, { today: TODAY, joins: () => false }).unplanned.tasks).toEqual([])
     expect(plannerView(tasks, { today: TODAY, joins: errands }).window.joins).toBe(errands)
   })
 
-  it('Unplan: a planned task the filter keeps just loses its plan; one it doesn’t is held', () => {
-    expect(plannerUnplan(errand({ doDate: day(2) }), CUSTOM)).toEqual({ kind: 'unplan', hold: false })
-    expect(plannerUnplan(task({ focus: true, doDate: day(2) }), CUSTOM)).toEqual({ kind: 'unplan', hold: true })
-    expect(plannerUnplan(task({ focus: true, doDate: day(2) }), EMPTY)).toEqual({ kind: 'unplan', hold: true })
+  it('Unplan: a planned task loses its plan whatever the filter; one with no plan the filter doesn’t keep is refused', () => {
+    expect(plannerUnplan(errand({ doDate: day(2) }), CUSTOM)).toEqual({ kind: 'unplan' })
+    expect(plannerUnplan(task({ focus: true, doDate: day(2) }), CUSTOM)).toEqual({ kind: 'unplan' })
+    expect(plannerUnplan(task({ focus: true, doDate: day(2) }), EMPTY)).toEqual({ kind: 'unplan' })
+    expect(plannerUnplan(errand({ doDate: day(2), dueDate: day(1) }), CUSTOM)).toEqual({ kind: 'unplan' })
+    // In Unplanned already by the filter: nothing; not matching it, with no plan: refused.
     expect(plannerUnplan(errand(), CUSTOM)).toEqual({ kind: 'none' })
-    // A task with a natural day is held whatever the filter says.
-    expect(plannerUnplan(errand({ doDate: day(2), dueDate: day(1) }), CUSTOM)).toEqual({ kind: 'unplan', hold: true })
+    expect(plannerUnplan(task({ focus: true }), CUSTOM)).toEqual({ kind: 'refuse' })
+    expect(plannerUnplan(task({ focus: true }), EMPTY)).toEqual({ kind: 'refuse' })
+    // Whether it leaves is the filter's: kept by it, or out of the Planner.
+    expect(plannerMovePlan(errand({ doDate: day(2) }), CUSTOM, { kind: 'unplanned' })).not.toHaveProperty('leaves')
+    expect(plannerMovePlan(task({ focus: true, doDate: day(2) }), CUSTOM, { kind: 'unplanned' })).toMatchObject({ leaves: true })
   })
 
   it('asks the filter of the task as it would be with no plan state', () => {
-    const seen: Array<Pick<PlannerTask, 'doDate' | 'unplanned'>> = []
+    const seen: Array<Pick<PlannerTask, 'doDate'>> = []
     const joins = (t: PlannerTask) => {
-      seen.push({ doDate: t.doDate, unplanned: t.unplanned })
+      seen.push({ doDate: t.doDate })
       return false
     }
-    plannerUnplan(task({ doDate: day(2) }), plannerWindow(TODAY, 0, joins))
+    plannerMovePlan(task({ doDate: day(2) }), plannerWindow(TODAY, 0, joins), { kind: 'unplanned' })
     plannerPlacement(task({ doDate: day(-2), focus: true }), plannerWindow(TODAY, 0, joins))
-    inPlanner(task({ unplanned: true }), plannerWindow(TODAY, 0, joins))
-    plannerClearLeaves(task({ unplanned: true }), plannerWindow(TODAY, 0, joins))
+    inPlanner(task({ focus: true }), plannerWindow(TODAY, 0, joins))
+    plannerClearLeaves(task({ doDate: day(3) }), plannerWindow(TODAY, 0, joins))
     expect(seen.length).toBeGreaterThan(0)
-    expect(seen.every((t) => t.doDate === undefined && t.unplanned === undefined)).toBe(true)
+    expect(seen.every((t) => t.doDate === undefined)).toBe(true)
   })
 
   it('Clear plan reads Remove from Planner when the filter doesn’t keep the task', () => {
-    expect(plannerClearLeaves(errand({ unplanned: true }), CUSTOM)).toBe(false)
-    expect(plannerClearLeaves(task({ unplanned: true, focus: true }), CUSTOM)).toBe(true)
+    expect(plannerClearLeaves(errand({ doDate: day(3) }), CUSTOM)).toBe(false)
+    expect(plannerClearLeaves(task({ doDate: day(3), focus: true }), CUSTOM)).toBe(true)
     expect(plannerClearLeaves(task({ doDate: day(3), focus: true }), SPAN)).toBe(false)
     expect(plannerClearLeaves(task({ doDate: day(3), focus: true }), EMPTY)).toBe(true)
     // A date in the window keeps it, whatever the filter.
-    expect(plannerClearLeaves(task({ unplanned: true, dueDate: day(2) }), EMPTY)).toBe(false)
+    expect(plannerClearLeaves(task({ doDate: day(4), dueDate: day(2) }), EMPTY)).toBe(false)
   })
 
-  it('Unplan all Delayed asks the filter for each task', () => {
+  it('Clear Delayed plans clears every Delayed plan; whether each leaves is the filter’s', () => {
     const missedErrand = errand({ doDate: day(-2) })
     const missedFocus = task({ focus: true, doDate: day(-1) })
     const view = plannerView([missedErrand, missedFocus], { today: TODAY, joins: errands })
-    expect(plannerUnplanDelayed(view)).toEqual([{ id: missedErrand.id, plan: null }, { id: missedFocus.id, plan: 'unplanned' }])
+    expect(plannerClearDelayed(view)).toEqual([{ id: missedErrand.id, plan: null }, { id: missedFocus.id, plan: null }])
+    expect(plannerClearLeaves(missedErrand, view.window)).toBe(false)
+    expect(plannerClearLeaves(missedFocus, view.window)).toBe(true)
   })
 })

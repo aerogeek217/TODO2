@@ -1,13 +1,16 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { enterLayoutEdit, expectLayoutStored, newestUndoStep, seedWorkspace, type WsLayoutSeed } from './fixtures/workspace'
+import { edgeTab, enterLayoutEdit, expectLayoutStored, newestUndoStep, seedWorkspace, type WsLayoutSeed } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
- * The layout edit mode's rulers (E2) in a real browser: entering the mode
- * draws a ruler on every track and a "+" on every line, overlaid so no cell
- * moves; a "+" inserts a full row on the draft; a row ruler's Remove row
- * moves the row's widget into the cell above as a tab (its menu says so);
- * Done stores the draft as one step, and the global Undo puts it back.
+ * The layout edit mode's room, headers and edge tabs in a real browser:
+ * entering the mode steps the table in — a frame round it, 26px top and
+ * left for the headers, 14px right and bottom, and 16px gaps — with a
+ * header on every track in the frame, outside the cards, and no "+"
+ * anywhere; the selected card's headers light, and its edge tab inserts a
+ * full row on the draft; a row header's Remove row moves the row's widget
+ * into the cell above as a tab (its menu says so); Done stores the draft
+ * as one step, and the global Undo puts it back.
  */
 
 const main: WsLayoutSeed = {
@@ -40,36 +43,66 @@ async function storedMain(page: Page): Promise<{ cells: Array<{ id: string; tabs
   return row
 }
 
-test('rulers without a shift, insert a row by “+”, Remove row moves a widget as a tab, Done, then the global Undo', async ({ page }) => {
+async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  const b = await locator.boundingBox()
+  if (!b) throw new Error('no bounding box')
+  return b
+}
+
+test('the room and the headers, a row by an edge tab, Remove row moves a widget as a tab, Done, then the global Undo', async ({ page }) => {
   await seedWorkspace(page, { layouts: [main] })
-  const before = await cellBoxes(page)
   await enterLayoutEdit(page)
   await expect(bar(page)).toBeVisible()
 
-  // The rulers: a column ruler per column, a row ruler per row, a "+" on every line; no cell moved.
-  await expect(page.getByRole('button', { name: 'Column A options' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Column B options' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Row 2 options' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Insert column here' })).toHaveCount(3)
-  await expect(page.getByRole('button', { name: 'Insert row here' })).toHaveCount(3)
-  expect(await cellBoxes(page)).toEqual(before)
+  // The room: the cards 16px apart, 26px in from the area's top and left, 14px from its right and bottom.
+  const area = await boxOf(page.locator('[data-ws-area]'))
+  const a = await boxOf(page.locator('[data-ws-cell="m-a"]'))
+  const b = await boxOf(page.locator('[data-ws-cell="m-b"]'))
+  const c = await boxOf(page.locator('[data-ws-cell="m-c"]'))
+  expect(Math.round(a.x - area.x)).toBe(26)
+  expect(Math.round(a.y - area.y)).toBe(26)
+  expect(Math.round(b.x - (a.x + a.width))).toBe(16)
+  expect(Math.round(c.y - (a.y + a.height))).toBe(16)
+  expect(Math.round(area.x + area.width - (b.x + b.width))).toBe(14)
+  expect(Math.round(area.y + area.height - (c.y + c.height))).toBe(14)
 
-  // The last row line's "+": a full row at the bottom, on the draft only.
-  await page.getByRole('button', { name: 'Insert row here' }).last().click()
+  // A header per track in the frame, outside the cards; no "+" and no edge tab before a selection.
+  const colA = page.getByRole('button', { name: 'Column A options' })
+  const row2 = page.getByRole('button', { name: 'Row 2 options' })
+  await expect(page.getByRole('button', { name: 'Column B options' })).toBeVisible()
+  const colBox = await boxOf(colA)
+  const rowBox = await boxOf(row2)
+  expect(colBox.y + colBox.height).toBeLessThanOrEqual(a.y)
+  expect(rowBox.x + rowBox.width).toBeLessThanOrEqual(c.x)
+  await expect(page.getByRole('button', { name: /^Insert (row|column) here$/ })).toHaveCount(0)
+  await expect(page.locator('[data-edge-tab]')).toHaveCount(0)
+  // A column's share shows on its header's hover.
+  await colA.hover()
+  await expect(colA).toContainText('50%')
+
+  // The Breakdown selected: its headers light (A, B and 2), its edge tabs sit in the seams round it.
+  const below = await edgeTab(page, 'm-c', 'Row below')
+  await expect(page.locator('[data-ruler][data-lit]')).toHaveCount(3)
+  await expect(row2).toHaveAttribute('data-lit', '')
+  const above = await boxOf(page.getByRole('button', { name: 'Insert row above', exact: true }))
+  expect(above.y + above.height / 2).toBeGreaterThan(a.y + a.height)
+  expect(above.y + above.height / 2).toBeLessThan(c.y)
+  // Its Row below: a full row at the bottom, on the draft only; its new slot selected.
+  await below.click()
   await expect(cells(page)).toHaveCount(4)
+  await expect(page.locator('[data-ws-table] [data-ws-cell][data-empty="true"]')).toHaveAttribute('data-edit-selected', '')
   await expect(page.getByRole('button', { name: 'Row 3 options' })).toBeVisible()
   expect((await storedMain(page)).cells).toHaveLength(3)
   expect(await newestUndoStep(page)).toBeNull()
 
   // Row 2's menu: Remove row says the Breakdown joins Notes as a tab.
-  const ruler = page.getByRole('button', { name: 'Row 2 options' })
-  await ruler.click()
+  await row2.click()
   const remove = page.getByRole('menuitem', { name: /Remove row/ })
   await expect(remove).toContainText('Breakdown joins Notes as a tab.')
-  // Esc closes the menu and hands the focus back to its ruler; the mode stays.
+  // Esc closes the menu and hands the focus back to its header; the mode stays.
   await page.keyboard.press('Escape')
   await expect(remove).toHaveCount(0)
-  await expect(ruler).toBeFocused()
+  await expect(row2).toBeFocused()
   await expect(bar(page)).toBeVisible()
   await page.keyboard.press('Enter')
   await page.getByRole('menuitem', { name: /Remove row/ }).click()
@@ -81,12 +114,12 @@ test('rulers without a shift, insert a row by “+”, Remove row moves a widget
   await bar(page).getByRole('button', { name: 'Done', exact: true }).click()
   await expect(bar(page)).toHaveCount(0)
   await expectLayoutStored(page)
-  await expect.poll(async () => (await storedMain(page)).cells.find((c) => c.id === 'm-a')?.tabs.map((t) => t.id)).toEqual(['m-notes', 'm-bd'])
+  await expect.poll(async () => (await storedMain(page)).cells.find((x) => x.id === 'm-a')?.tabs.map((t) => t.id)).toEqual(['m-notes', 'm-bd'])
   await expect.poll(() => newestUndoStep(page)).toBe('Edited layout “Main”')
 
   // The global Undo puts the layout back.
   await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()
-  await expect.poll(async () => (await storedMain(page)).cells.map((c) => c.id).sort()).toEqual(['m-a', 'm-b', 'm-c'])
+  await expect.poll(async () => (await storedMain(page)).cells.map((x) => x.id).sort()).toEqual(['m-a', 'm-b', 'm-c'])
   await expect(cells(page)).toHaveCount(3)
   await expect(page.locator('[data-ws-cell="m-c"]')).toBeVisible()
 })
@@ -106,35 +139,30 @@ const slivered: WsLayoutSeed = {
   },
 }
 
-async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
-  const b = await locator.boundingBox()
-  if (!b) throw new Error('no bounding box')
-  return b
-}
-
-test('the "+" beside a sliver previews and inserts a full-width row; a line a cell crosses previews new slots only beside it', async ({ page }) => {
+test('an edge tab beside a sliver previews and inserts a full-width row; a line a cell crosses previews new slots only beside it', async ({ page }) => {
   await seedWorkspace(page, { layouts: [slivered] })
   await enterLayoutEdit(page)
   const table = page.locator('[data-ws-table]')
   const fresh = page.locator('[data-preview-new]')
 
-  // The sliver: a tick, no number; one "+" for it and its two lines, named by the rows around it.
+  // The sliver: a tick in the header band, no number.
   await expect(page.getByRole('button', { name: 'Row 2 options' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Row 3 options' })).toHaveCount(0)
-  await expect(page.locator('[data-ruler-plus="rows:2"]')).toHaveCount(0)
-  const plus = page.locator('[data-ruler-plus="rows:1"]')
-  await expect(plus).toHaveAttribute('data-tooltip', 'Insert row between 1 and 2')
+  await expect(page.getByRole('button', { name: 'Narrow row after 1 options' })).toBeVisible()
 
-  // Hovered (round two, concept A): the table makes room — one new slot across the whole table —,
-  // the "+" pinned where it was, and the bar says it.
+  // The Calendar's Row below, on the sliver's line: hovered, the table makes room — one new slot across the
+  // whole table (the sliver and its lines one line) —, the tab staying where it was, and the bar says it.
   const t = await boxOf(table)
-  await plus.hover()
+  const tab = await edgeTab(page, 's-b', 'Row below')
+  const at = await boxOf(tab)
+  await tab.hover()
   await expect(fresh).toHaveCount(1)
   expect((await boxOf(fresh.first())).width).toBeGreaterThan(t.width * 0.9)
   await expect(page.getByTestId('layout-edit-preview-hint')).toHaveText(/^Row between 1 and 2/)
+  expect(await boxOf(tab)).toEqual(at)
 
   // Clicked: a full-width empty row, the sliver gone; every widget kept; the preview gone.
-  await page.locator('[data-pinned]').click()
+  await tab.click()
   await expect(fresh).toHaveCount(0)
   const slots = page.locator('[data-edit-slot]')
   await expect(slots).toHaveCount(1)
@@ -146,7 +174,7 @@ test('the "+" beside a sliver previews and inserts a full-width row; a line a ce
   // Column line 1 is crossed by the new row's cell: the new column's slots lie in rows 1 and 3 only, the row's cell growing across.
   await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2)
   await expect(page.locator('[data-structure-preview]')).toHaveCount(0)
-  await page.locator('[data-ruler-plus="columns:1"]').hover()
+  await (await edgeTab(page, 's-a', 'Column right')).hover()
   await expect(fresh).toHaveCount(2)
   const slot = await boxOf(slots.first())
   const [top, bottom] = [await boxOf(fresh.nth(0)), await boxOf(fresh.nth(1))]
@@ -159,7 +187,7 @@ test('the "+" beside a sliver previews and inserts a full-width row; a line a ce
   await expect(page.locator('[data-ruler^="columns:"]')).toHaveCount(2)
 })
 
-test('a Numbers row that fits its content keeps its height in the mode: no cell moves', async ({ page }) => {
+test('a Numbers row that fits its content keeps its height in the mode', async ({ page }) => {
   const number = (id: string, metric: string) => ({ id, kind: 'number' as const, glance: { metric } })
   await seedWorkspace(page, {
     layouts: [{
@@ -176,8 +204,10 @@ test('a Numbers row that fits its content keeps its height in the mode: no cell 
       },
     }],
   })
-  const before = await cellBoxes(page)
+  // The Numbers' heights (the cards step in for the room: the weighted row gives it).
+  const numberHeights = async () => (await cellBoxes(page)).filter((_, i) => i !== 2 && i !== 3).map((box) => box.split(',')[3])
+  const before = await numberHeights()
   await enterLayoutEdit(page)
   await expect(page.getByRole('button', { name: 'Row 3 options' })).toBeVisible()
-  expect(await cellBoxes(page)).toEqual(before)
+  expect(await numberHeights()).toEqual(before)
 })

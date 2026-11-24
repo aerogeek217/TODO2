@@ -293,7 +293,7 @@ test.describe('desktop', () => {
     // Shift+Tab from the field goes back to the funnel (the pills' × are no tab stops).
     await filterField(page).focus()
     await page.keyboard.press('Shift+Tab')
-    await expect(tray(page).getByRole('button', { name: 'Pause the filter' })).toBeFocused()
+    await expect(tray(page).getByRole('button', { name: 'Clear the filter' })).toBeFocused()
     await show.focus()
     await page.keyboard.press('Tab')
     // Shift+Tab from the panel's first control goes back to the counter.

@@ -20,6 +20,57 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-23, second deployment
+
+Data version 89. A browser's data and a sync file are upgraded on first use; an older copy of the app can't open
+them afterwards.
+
+### Added
+
+- **Today's tally opens a list.** Click the tally marks in the top bar to see the tasks you completed today.
+- **Show widget names** (Settings › Appearance › Theme). Off by default: a widget alone in its cell (Notes, the
+  Neglect map, Work clusters, the Planner, the List board) no longer spends a line on its name. Turn it on to bring
+  the names back.
+- **Collapse a column.** Hover the line between two columns and press ◂ or ▸ on the small pill that appears: that
+  column folds to a thin strip naming its widgets, and the other columns take its room. Click a name to open that
+  widget larger; click ›‹ at the strip's top to bring the column back. Collapse column is also in a widget's ⋯ menu
+  and in the column's menu while editing the layout. A collapsed column is saved with the layout, so it syncs.
+- **The same pill collapses rows.** Hover the line between two rows for ▴ ▾: collapse the row above or below.
+
+### Changed
+
+- **The List board replaces Shortcuts and the List wall.** One widget (Add widget › Tasks › List board) shows a tile
+  per list: the lists you pick from any layout, or every list in this layout — choose with Which lists in its ⋯ menu.
+  A tile shows the list's icon, badge and count, a colored square per open task (overdue, due soon, follow-up late,
+  on track, stale; click one to open the task), then its first task titles as room allows. Click a tile to open the
+  list; a list of this layout also offers Show in its cell. Tiles are narrower, so more fit on a row, and the color
+  legend ends each tile's tooltip. Your Shortcuts widgets become List boards of the lists you picked, and each List
+  wall becomes a List board showing this layout's lists.
+- **Calmer layout editing.** Edit layout gives the cards room: a margin around the layout and wider gaps between
+  cells (the cards shrink a little while you edit). Column letters and row numbers sit in that margin, outside the
+  cards, and light up for the card you select. The plus signs are gone: select a card and labeled tabs beside it add
+  a Row above, Row below, Column left or Column right, showing the new row or column while you point at them. The
+  selected card carries its own toolbar (Split, Merge, Remove and its menu), and each neighbor it can merge with shows
+  a button such as "Merge as tabs with Tasks" that shows the result before you click.
+- **The funnel clears the filter again.** One click on the top bar's funnel clears every filter, and the snackbar's
+  Undo brings it back. Pausing moved to a small ⏸ button at the right end of the filter field, which shows while a
+  filter is on; ▶ resumes it.
+- **Due and Planned are date fields, like Follow-up's.** In the task editor and the review card, type a date
+  (`fri`, `11/30`, `2w`) or click the calendar once to pick one. Repeat is the ↻ button in the Due field, lit while
+  the task repeats: click it to set Repeat every or Stop repeating. Planned takes today or later, and its × clears the
+  plan.
+- **The Planner's plan is a day, or none.** Tasks are no longer put in Unplanned by hand: Unplanned shows the tasks
+  with no day that its filter brings in (Focus tasks, to begin with). Unplan, and dropping a planned task on
+  Unplanned, clear its plan, so it goes back to its own date's day; one with no date in the week leaves the Planner,
+  and the snackbar says so with Undo. Delayed's button is now Clear plans. Plan for day no longer offers Unplanned,
+  and filters lose "held in Unplanned" (`unplanned`). Tasks you had set aside in Unplanned go back to their own day.
+
+### Fixed
+
+- In Edit layout, the selected card's toolbar no longer runs off the right edge of the window or covers the card
+  above it, and a collapsed card shows its name once.
+- The Planner's done tasks open again: click a title on Today's "done" line to open that task.
+
 ## 2026-11-23
 
 Data version 87, unchanged — and now the oldest this version reads (see Removed).

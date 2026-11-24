@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   drag,
+  insertBeside,
   dragTab,
   expectOpenLayout,
   openCellLayoutMenu,
@@ -203,8 +204,8 @@ test.describe('resize and collapse', () => {
   test('a new column and a resize of it are stored at once, kept over a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await editLayout(page, async () => {
-      // The rulers' "+" after the last column (E2).
-      await page.locator('[data-ruler-plus="columns:2"]').click()
+      // The last column's card's edge tab: a column after it.
+      await insertBeside(page, 'b1', 'Column right')
     })
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)

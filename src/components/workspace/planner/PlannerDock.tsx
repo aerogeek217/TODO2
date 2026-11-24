@@ -22,13 +22,13 @@ interface PlannerDockProps {
   share: number | undefined
   /** The column the days and the dock share: measured for a drag's share. */
   stackRef: RefObject<HTMLElement | null>
-  /** The trays' rows (Delayed, the Unplan button, Unplanned). */
+  /** The trays' rows (Delayed, the Clear plans button, Unplanned). */
   children: ReactNode
 }
 
 /**
- * The trays dock of a portrait Planner (board R1): Delayed, the Unplan
- * button and Unplanned on the darker ground under the days, in a scroll of
+ * The trays dock of a portrait Planner (board R1): Delayed, the Clear
+ * plans button and Unplanned on the darker ground under the days, in a scroll of
  * their own (`data-planner-pane="trays"`, so a drag measures and scrolls it
  * as the large face's right pane). Its top edge is a **separator**: a drag
  * shares the height between the days and the dock (live, saved once at the

@@ -27,7 +27,7 @@ export interface FilterCriteria {
   /**
    * The date filters, one clause per date type, all of which must pass:
    *   'deadline'     → todo.dueDate
-   *   'planned'      → todo.doDate (`held`: todo.unplanned)
+   *   'planned'      → todo.doDate
    *   'followup'     → todo.nextFollowupAt
    *   'lastFollowup' → todo.lastFollowupAt
    *   'completed'    → todo.completedAt (completed tasks only)

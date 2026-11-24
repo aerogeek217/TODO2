@@ -7,6 +7,9 @@ import {
   cellRulerName,
   cornerArea,
   emptySlots,
+  mergeButtonWords,
+  mergeChoices,
+  mergeMenuWords,
   otherCards,
   spatialNeighbour,
   stretchedArea,
@@ -152,5 +155,41 @@ describe('tapOutcome', () => {
     expect(tapOutcome(armedA, { kind: 'card', cellId: 'b', zone: 'tabs' })).toEqual({ kind: 'join', from: 'a', into: 'b' })
     expect(tapOutcome(armedA, { kind: 'card', cellId: 'b', zone: 'edge' })).toEqual({ kind: 'select', cellId: 'b' })
     expect(tapOutcome(armedA, { kind: 'card', cellId: 'a', zone: 'edge' })).toEqual({ kind: 'disarm' })
+  })
+})
+
+describe('mergeChoices and their words (the merge buttons, Merge ▾)', () => {
+  const number = (id: string) => spec(id, [createTab('number', `${id}-t`)])
+  // a  | b
+  // c  | b
+  // n1 | n2 | e   — under three columns
+  const body = grid([
+    [cell('a'), cell('b'), cell('b')],
+    [cell('c'), cell('b'), cell('b')],
+    [number('n1'), number('n2'), slot('e')],
+  ])
+
+  it('lists the neighbours sharing a whole edge, left, above, right, below — with what the merge makes', () => {
+    // c: a above (a whole edge), n1 below; b (two rows high, two columns wide) is no rectangle.
+    expect(mergeChoices(body, 'c').map((m) => [m.side, m.cell.id, m.kind])).toEqual([['top', 'a', 'tabs'], ['bottom', 'n1', 'tabs']])
+    // n1: c above; n2 on its right — both only Numbers: one strip.
+    expect(mergeChoices(body, 'n1').map((m) => [m.side, m.cell.id, m.kind])).toEqual([['top', 'c', 'tabs'], ['right', 'n2', 'strip']])
+    // n2: the slot on its right.
+    expect(mergeChoices(body, 'n2').find((m) => m.cell.id === 'e')?.kind).toBe('slot')
+  })
+
+  it('offers none for a slot (a slot selected has no merge buttons) or an unknown cell', () => {
+    expect(mergeChoices(body, 'e')).toEqual([])
+    expect(mergeChoices(body, 'nope')).toEqual([])
+  })
+
+  it('words a button from the selection’s side, short in a narrow neighbour; a Merge ▾ entry with its place', () => {
+    expect(mergeButtonWords('tabs', 'Tasks')).toBe('Merge as tabs with Tasks')
+    expect(mergeButtonWords('strip', 'Overdue')).toBe('Merge with Overdue')
+    expect(mergeButtonWords('slot', '')).toBe('Stretch over this slot')
+    expect(['tabs', 'strip', 'slot'].map((k) => mergeButtonWords(k as 'tabs', 'X', true))).toEqual(['Merge as tabs', 'Merge', 'Stretch here'])
+    expect(mergeMenuWords({ kind: 'tabs', side: 'top' }, 'Tasks')).toBe('As tabs with Tasks (above)')
+    expect(mergeMenuWords({ kind: 'strip', side: 'left' }, 'Open')).toBe('With Open (left)')
+    expect(mergeMenuWords({ kind: 'slot', side: 'right' }, '')).toBe('Over the empty slot (right)')
   })
 })

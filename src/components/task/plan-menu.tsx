@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, TaskPlan, TodoItem } from '../../models'
+import type { PersistedTodoItem, TodoItem } from '../../models'
 import { clearPlannerTask, movePlannerTask } from '../../services/planner-drop'
 import { formatDateWith, startOfDay } from '../../utils/date'
 import {
@@ -18,7 +18,7 @@ import { WidgetKindIcon } from '../shared/icons'
 import { pickDate } from '../shared/pick-date'
 
 /** Clear plan's words: **Remove from Planner** when it takes the task out of the Planner (`plannerClearLeaves`). */
-export function clearPlanLabel(todo: PersistedTodoItem, window: PlannerSpan): string {
+function clearPlanLabel(todo: PersistedTodoItem, window: PlannerSpan): string {
   return plannerClearLeaves(todo, window) ? 'Remove from Planner' : 'Clear plan'
 }
 
@@ -85,19 +85,15 @@ export function pickPlanDateItem(todo: Pick<TodoItem, 'doDate'>, today: Date, mo
  *
  * - the days (`planDayItems`);
  * - **Pick a date…** (`pickPlanDateItem`);
- * - **Unplanned** — held in the Planner's Unplanned tray with no day (any
- *   open task: it joins the Planner so), checked while it is there;
  * - **Clear plan** — while it has a plan state (`clearPlannerTask`): back to
  *   where its own dates put it; **Remove from Planner** when that takes it
  *   out of the Planner.
  *
- * The task menus' submenu (`planForDayEntries`) and the task layout's
- * Planned cell (`PlannedFacts`) show it. Each pick is a plan write (no
- * stamp, one undo step), never a due date or a follow-up.
+ * The task menus' submenu (`planForDayEntries`) shows it. Each pick is a
+ * plan write (no stamp, one undo step), never a due date or a follow-up.
  */
-export function planMenuEntries(todo: PersistedTodoItem, today: Date): MenuEntry[] {
+function planMenuEntries(todo: PersistedTodoItem, today: Date): MenuEntry[] {
   const window = plannerWindow(today)
-  const placement = plannerPlacement(todo, window)
   const move = (target: PlannerTarget) => { void movePlannerTask(null, { todoId: todo.id, target, window }) }
   const clear: MenuEntry[] = plannerHasPlan(todo)
     ? [{ kind: 'item', label: clearPlanLabel(todo, window), onSelect: () => { void clearPlannerTask(todo.id, window) } }]
@@ -106,34 +102,7 @@ export function planMenuEntries(todo: PersistedTodoItem, today: Date): MenuEntry
     ...planDayItems(todo, window, move),
     { kind: 'separator' },
     pickPlanDateItem(todo, window.today, move),
-    { kind: 'item', label: 'Unplanned', radio: true, checked: placement?.where === 'unplanned', onSelect: () => move({ kind: 'unplanned' }) },
     ...clear,
-  ]
-}
-
-/**
- * The Plan for day menu of a task not yet created (the task editor's create
- * and draft modes), over its plan held until Create: the same days, Pick a
- * date… and Unplanned, each setting the plan (`onPlan`), and **Clear plan**
- * while it has one. Nothing is written.
- */
-export function draftPlanMenuEntries(
-  task: Pick<TodoItem, 'doDate' | 'unplanned' | 'dueDate' | 'nextFollowupAt'>,
-  today: Date,
-  onPlan: (plan: TaskPlan) => void,
-): MenuEntry[] {
-  const window = plannerWindow(today)
-  const move = (target: PlannerTarget) => {
-    if (target.kind === 'day') onPlan({ day: startOfDay(new Date(target.day)) })
-    else if (target.kind === 'unplanned') onPlan('unplanned')
-  }
-  const held = task.doDate == null && task.unplanned === true
-  return [
-    ...planDayItems(task, window, move),
-    { kind: 'separator' },
-    pickPlanDateItem(task, window.today, move),
-    { kind: 'item', label: 'Unplanned', radio: true, checked: held, onSelect: () => move({ kind: 'unplanned' }) },
-    ...(task.doDate != null || held ? [{ kind: 'item' as const, label: 'Clear plan', onSelect: () => onPlan(null) }] : []),
   ]
 }
 

@@ -4,14 +4,14 @@ import {
   cellAtTrack,
   edgeBetween,
   edgeStretches,
-  expandOrphanRows,
+  expandOrphanTracks,
   isNormalized,
   isWholeLine,
   lineCrossings,
   mergeTracks,
   neighbours,
   normalizeGrid,
-  orphanCollapsedRows,
+  orphanCollapsedTracks,
   readingOrder,
   stretchCells,
   unionArea,
@@ -155,14 +155,14 @@ describe('collapsed rows nothing can expand (cr34 M8)', () => {
 
   it('a collapsed row is held by a filled cell lying wholly in collapsed rows over it', () => {
     // p q — the row folded, both cells in it
-    expect(orphanCollapsedRows(grid([[p, q]], { rows: [folded] }))).toEqual([])
+    expect(orphanCollapsedTracks(grid([[p, q]], { rows: [folded] }), 'rows')).toEqual([])
     // p q
     // p r — p covers both folded rows: it holds them; q and r each their own
-    expect(orphanCollapsedRows(grid([[p, q], [p, r]], { rows: [folded, folded] }))).toEqual([])
+    expect(orphanCollapsedTracks(grid([[p, q], [p, r]], { rows: [folded, folded] }), 'rows')).toEqual([])
     // No collapsed row: nothing to do, the same object.
     const plain = grid([[p, q]])
-    expect(orphanCollapsedRows(plain)).toEqual([])
-    expect(expandOrphanRows(plain)).toBe(plain)
+    expect(orphanCollapsedTracks(plain, 'rows')).toEqual([])
+    expect(expandOrphanTracks(plain)).toBe(plain)
   })
 
   it('one with only cells that reach into an expanded row, or only an empty cell, is an orphan', () => {
@@ -170,24 +170,24 @@ describe('collapsed rows nothing can expand (cr34 M8)', () => {
     // q s — the middle row folded: q and s both reach out of it
     // q r
     const spanned = grid([[p, s], [q, s], [q, r]], { rows: [1000, folded, 1000] })
-    expect(orphanCollapsedRows(spanned)).toEqual([1])
+    expect(orphanCollapsedTracks(spanned, 'rows')).toEqual([1])
     // e e — e an empty cell alone in the folded row
     // q q
     const lone = grid([[e, e], [q, q]], { rows: [folded, 1000] })
-    expect(orphanCollapsedRows(lone)).toEqual([0])
+    expect(orphanCollapsedTracks(lone, 'rows')).toEqual([0])
     // Beside a filled cell of the same row it is held (by that cell).
-    expect(orphanCollapsedRows(grid([[e, p], [q, q]], { rows: [folded, 1000] }))).toEqual([])
+    expect(orphanCollapsedTracks(grid([[e, p], [q, q]], { rows: [folded, 1000] }), 'rows')).toEqual([])
   })
 
-  it('expandOrphanRows expands them and only them; normalizeGrid ends with it', () => {
+  it('expandOrphanTracks expands them and only them; normalizeGrid ends with it', () => {
     // p s
     // e s — the last two rows folded: r holds the last; the middle one has an empty cell, and s reaches up out of it
     // r r
     const body = grid([[p, s], [e, s], [r, r]], { rows: [1000, { px: 80, collapsed: true }, folded] })
-    const out = expandOrphanRows(body)
+    const out = expandOrphanTracks(body)
     expect(out.grid.rows).toEqual([{ id: 'r1', weight: 1000 }, { id: 'r2', px: 80 }, { id: 'r3', weight: 1000, collapsed: true }])
     expect(out.cells).toBe(body.cells)
-    expect(expandOrphanRows(out)).toBe(out)
+    expect(expandOrphanTracks(out)).toBe(out)
     expect(isNormalized(body)).toBe(false)
     expect(normalizeGrid(body)).toEqual(out)
     expect(isNormalized(out)).toBe(true)

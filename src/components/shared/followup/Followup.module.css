@@ -305,6 +305,11 @@
   text-overflow: ellipsis;
 }
 
+/* A help line saying why the text isn't a date: in the danger color, as the review's. */
+.editorHint.helpError {
+  color: var(--color-danger);
+}
+
 @media (max-width: 640px) {
   .editorInputWrap {
     flex-basis: 150px;

@@ -51,7 +51,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['track weight past the size cap', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 9e307 }, { id: 'c2', weight: 1 }] })), 'grid.columns[0].weight'],
   ['track with a weight and px', layoutRow(twoCells({ rows: [{ id: 'r1', weight: 1, px: 100 }] })), 'grid.rows[0].px'],
   ['track px past the size cap', layoutRow(twoCells({ rows: [{ id: 'r1', px: 1e308 }] })), 'grid.rows[0].px'],
-  ['column track collapsed', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 1, collapsed: true }, { id: 'c2', weight: 1 }] })), 'grid.columns[0].collapsed'],
+  ['column collapsed not a boolean', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 1, collapsed: 1 }, { id: 'c2', weight: 1 }] })), 'grid.columns[0].collapsed'],
   ['row collapsed not a boolean', layoutRow(twoCells({ rows: [{ id: 'r1', weight: 1, collapsed: 'yes' }] })), 'grid.rows[0].collapsed'],
   ['row fitPx not positive', layoutRow(twoCells({ rows: [{ id: 'r1', weight: 1, fitPx: 0 }] })), 'grid.rows[0].fitPx'],
   ['column track fitPx', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 1, fitPx: 90 }, { id: 'c2', weight: 1 }] })), 'grid.columns[0].fitPx'],
@@ -154,6 +154,22 @@ describe('layouts row validation', () => {
   it('accepts every kind, an empty cell, fixed and collapsed rows, and an empty layout', () => {
     expect(validateRow('layouts', layoutRow(EVERY_KIND, { lastUsedAt: DATE, hue: 'violet' }))).toBe(true)
     expect(validateRow('layouts', layoutRow(EMPTY))).toBe(true)
+  })
+
+  it('accepts a collapsed column, and the repair keeps its collapse', () => {
+    const filled = [
+      { id: 'k1', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 't1', kind: 'notes', config: {} }] },
+      { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 't2', kind: 'notes', config: {} }] },
+    ]
+    const row = layoutRow(twoCells({ columns: [{ id: 'c1', weight: 500 }, { id: 'c2', weight: 500, collapsed: true }] }, filled))
+    expect(validateRow('layouts', row)).toBe(true)
+    // A repair for another fault (a stale active tab) keeps it.
+    const stale = layoutRow(twoCells({ columns: [{ id: 'c1', weight: 500 }, { id: 'c2', weight: 500, collapsed: true }] }, [
+      { ...filled[0], activeTabId: 'gone' },
+      filled[1],
+    ]))
+    const repaired = sanitizeRow('layouts', stale) as WorkspaceLayout
+    expect(repaired.grid.columns).toEqual([{ id: 'c1', weight: 500 }, { id: 'c2', weight: 500, collapsed: true }])
   })
 
   it.each(REJECTED)('rejects %s', (_label, row, field) => {
@@ -462,8 +478,8 @@ describe('an id naming a member of Object.prototype is no id (cr34 S2)', () => {
 
   it.each(KEYS)('a cell or a track named %s is refused by the check; the repair keeps what is left', (id) => {
     const cellRow = layoutRow(twoCells({}, [
-      { id, area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [notes('t1')] },
-      { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [notes('t2')] },
+      { id, area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 't1', kind: 'notes', config: {} }] },
+      { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 't2', kind: 'notes', config: {} }] },
     ]))
     expect(validateRow('layouts', cellRow)).toBe('cells[0].id')
     expect(partIds(sanitizeRow('layouts', cellRow) as WorkspaceLayout).filter((p) => p in Object.prototype)).toEqual([])

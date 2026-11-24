@@ -4,7 +4,7 @@ import type { CellArea, GridAxis, GridTrack, LayoutBody, LayoutCell } from '../m
  * The layout's table (D26): its tracks, its lines and where its cells are.
  * Pure reads plus the two checks every layout op ends with —
  * `normalizeGrid` (merges a line no cell's edge lies on, expands a collapsed
- * row nothing can expand, keeps the cells in reading order) and
+ * row or column nothing can expand, keeps the cells in reading order) and
  * `validateTiling` (the cells cover the grid exactly).
  *
  * Coordinates are track indices. A cell covers the columns `col …
@@ -195,49 +195,55 @@ function dropNonEdgeLines<B extends LayoutBody>(body: B, axis: GridAxis): B {
 }
 
 /**
- * The collapsed row tracks (their indices) that nothing can expand: no
- * filled cell lies wholly in collapsed tracks over them. Only such a cell
- * draws folded and offers Expand row — a cell spanning on into an expanded
- * row doesn't, and an empty cell has no Expand at all — so a collapsed track
- * without one is a header's height of table with no way back (and no
- * divider on either side of it).
+ * The collapsed tracks of `axis` (their indices) that nothing can expand:
+ * no filled cell lies wholly in collapsed tracks of that axis over them.
+ * Only such a cell folds and offers Expand — a folded row its header's
+ * Expand row, a folded column's strip its Expand column; a cell spanning on
+ * into an expanded track doesn't, and an empty cell has no Expand at all —
+ * so a collapsed track without one is a header's (a strip's) size of table
+ * with no way back (and no divider on either side of it).
  */
-export function orphanCollapsedRows(body: LayoutBody): number[] {
-  const rows = body.grid.rows
-  if (!rows.some((t) => t.collapsed === true)) return []
+export function orphanCollapsedTracks(body: LayoutBody, axis: GridAxis): number[] {
+  const tracks = body.grid[axis]
+  if (!tracks.some((t) => t.collapsed === true)) return []
   const held = new Set<number>()
   for (const c of body.cells) {
     if (c.tabs.length === 0) continue
-    const [start, end] = spanOf(c.area, 'rows')
+    const [start, end] = spanOf(c.area, axis)
     let folded = end > start
-    for (let r = start; r < end && folded; r++) folded = rows[r]?.collapsed === true
-    if (folded) for (let r = start; r < end; r++) held.add(r)
+    for (let t = start; t < end && folded; t++) folded = tracks[t]?.collapsed === true
+    if (folded) for (let t = start; t < end; t++) held.add(t)
   }
-  return rows.flatMap((t, r) => (t.collapsed === true && !held.has(r) ? [r] : []))
+  return tracks.flatMap((t, i) => (t.collapsed === true && !held.has(i) ? [i] : []))
 }
 
 /**
- * `body` with every collapsed row track nothing can expand
- * (`orphanCollapsedRows`) expanded: a collapsed row expands by itself once
- * no filled cell lies only in it (its cell closed, moved away, or grown on
- * into an expanded row). The same object when there is none.
+ * `body` with every collapsed track nothing can expand
+ * (`orphanCollapsedTracks`, rows and columns) expanded: a collapsed row or
+ * column expands by itself once no filled cell lies only in it (its cell
+ * closed, moved away, or grown on into an expanded track). The same object
+ * when there is none.
  */
-export function expandOrphanRows<B extends LayoutBody>(body: B): B {
-  const orphans = new Set(orphanCollapsedRows(body))
-  if (orphans.size === 0) return body
-  const rows = body.grid.rows.map((t, r) => {
-    if (!orphans.has(r)) return t
-    const { collapsed: _c, ...rest } = t
-    void _c
-    return rest
-  })
-  return { ...body, grid: { ...body.grid, rows } }
+export function expandOrphanTracks<B extends LayoutBody>(body: B): B {
+  let next = body
+  for (const axis of ['columns', 'rows'] as const) {
+    const orphans = new Set(orphanCollapsedTracks(next, axis))
+    if (orphans.size === 0) continue
+    const tracks = next.grid[axis].map((t, i) => {
+      if (!orphans.has(i)) return t
+      const { collapsed: _c, ...rest } = t
+      void _c
+      return rest
+    })
+    next = { ...next, grid: { ...next.grid, [axis]: tracks } }
+  }
+  return next
 }
 
 /**
  * The body in its normal form: every inner line some cell's edge (a line
- * that is none goes — its two tracks merge, `mergeTracks`), no collapsed row
- * that nothing can expand (`expandOrphanRows`), no tracks when there are no
+ * that is none goes — its two tracks merge, `mergeTracks`), no collapsed
+ * track that nothing can expand (`expandOrphanTracks`), no tracks when there are no
  * cells, and the cells in reading order. Assumes a valid tiling
  * (`validateTiling`). The same object when it already is.
  */
@@ -248,7 +254,7 @@ export function normalizeGrid<B extends LayoutBody>(body: B): B {
   }
   let next = body
   for (const axis of ['columns', 'rows'] as const) next = dropNonEdgeLines(next, axis)
-  next = expandOrphanRows(next)
+  next = expandOrphanTracks(next)
   const ordered = next.cells.every((c, i) => i === 0 || readingCompare(next.cells[i - 1] as LayoutCell, c) < 0)
   if (!ordered) next = { ...next, cells: readingOrder(next) }
   return next

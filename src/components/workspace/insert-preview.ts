@@ -3,13 +3,15 @@ import { useWorkspaceStore, type StructurePreview } from '../../stores/workspace
 import { structureProbe } from '../../utils/structure-preview'
 import { insertTrackAt, splitCell } from '../../utils/workspace-layout-ops'
 import type { Side } from '../../utils/workspace-grid'
+import type { MergeKind } from '../../utils/layout-edit-cards'
+import { mergeCells } from '../../utils/workspace-layout-ops'
 
 /**
- * The layout edit mode's previews of an edit not yet made (layout editor
- * round two, concept A): the table draws what the edit would leave
- * (`workspace-store.structurePreview`, drawn by `WorkspaceView`), and the
- * mode bar says it in words. A "+" under the pointer is pinned while the
- * table reflows under it (`LayoutRulers`' pinned "+"), so the preview never flickers.
+ * The layout edit mode's previews of an edit not yet made: the table draws
+ * what the edit would leave (`workspace-store.structurePreview`, drawn by
+ * `WorkspaceView`), and the mode bar says it in words. The selection's
+ * controls stay where they were while the table reflows under them
+ * (`EditSelection`), so the preview never flickers.
  */
 
 /** `a`, `a and b`, `a, b and c`. */
@@ -25,7 +27,11 @@ function grewWords(layout: WorkspaceLayout, grewIds: readonly string[], cellName
   return ` · ${listWords(names)} ${names.length === 1 ? 'stretches' : 'stretch'} ${across}`
 }
 
-/** A full row / column on the run of lines `first` … `last` (a "+"): its preview, `where` its place in words (`between 1 and 2`). */
+/**
+ * A full row / column on the run of lines `first` … `last` (an edge tab):
+ * its preview, `where` its place in words (`between 1 and 2`), sized from
+ * track `from` (`insertTrackAt`).
+ */
 export function insertPreview(
   layout: WorkspaceLayout,
   axis: GridAxis,
@@ -33,8 +39,9 @@ export function insertPreview(
   last: number,
   where: string,
   cellName: (cell: LayoutCell) => string,
+  from?: number,
 ): StructurePreview | null {
-  const probe = structureProbe(layout, (l, genId) => insertTrackAt(l, axis, first, genId, undefined, last).layout)
+  const probe = structureProbe(layout, (l, genId) => insertTrackAt(l, axis, first, genId, from, last).layout)
   if (!probe || layout.id == null) return null
   const noun = axis === 'columns' ? 'Column' : 'Row'
   return {
@@ -54,6 +61,21 @@ export function splitPreview(layout: WorkspaceLayout, cell: LayoutCell, side: Si
     ...probe,
     hint: `Split “${cellName(cell)}” in two, ${way} · the new half is an empty slot${grewWords(layout, probe.grewCellIds, cellName, 'over the new line')} · click to split`,
   }
+}
+
+/**
+ * Card `cell` merged with its neighbour `other` (a merge button, Merge ▾):
+ * its preview — the merged cell outlined, the card's tabs first, the
+ * neighbour's after (`mergeCells`).
+ */
+export function mergePreview(layout: WorkspaceLayout, cell: LayoutCell, other: LayoutCell, kind: MergeKind, cellName: (cell: LayoutCell) => string): StructurePreview | null {
+  const probe = structureProbe(layout, (l) => mergeCells(l, cell.id, other.id))
+  if (!probe || layout.id == null) return null
+  const count = cell.tabs.length + other.tabs.length
+  const hint = kind === 'slot'
+    ? `Stretch ${cellName(cell)} over the empty slot · click to stretch`
+    : `Merge ${cellName(cell)} with ${cellName(other)} · ${kind === 'strip' ? `one strip, ${count} Numbers` : `one cell, ${count} tabs`} · click to merge`
+  return { layoutId: layout.id, ...probe, grewCellIds: [cell.id], grewLabel: '', hint }
 }
 
 /** Sets the preview (`null` clears it). */

@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import {
   drag,
+  insertBeside,
   dragPanel,
   dragTab,
   edges,
@@ -25,7 +26,7 @@ import {
   finishLayoutEdit,
   tabAreaPoint,
 } from './fixtures/workspace'
-import { box, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
+import { box, dividerGrip, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
 /**
@@ -70,6 +71,15 @@ async function areaBox(page: Page) {
   return box(page.locator('[data-ws-area]'))
 }
 
+/** The room the table's tracks share (px): inside its padding — in the layout edit mode, inside its frame. */
+function tableRoom(page: Page): Promise<{ width: number; height: number }> {
+  return page.locator('[data-ws-table]').evaluate((t) => {
+    const s = getComputedStyle(t)
+    const px = (v: string) => Number.parseFloat(v) || 0
+    return { width: t.clientWidth - px(s.paddingLeft) - px(s.paddingRight), height: t.clientHeight - px(s.paddingTop) - px(s.paddingBottom) }
+  })
+}
+
 /**
  * Drags tab `tabId` to `to`, checking the ghost's label while over it, and
  * returns the ghost's edges as drawn there.
@@ -109,12 +119,13 @@ test.describe('drops and the ghost', () => {
     await seedWorkspace(page, { layouts: [aBc] })
     await enterLayoutEdit(page)
     const a = await areaBox(page)
+    const room = await tableRoom(page)
     const row = await dragWithGhost(page, 'mapTab', { x: a.x + 300, y: a.y + 3 }, 'Insert row · full width')
-    await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round(a.width - 12))
+    await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round(room.width))
     expectSameEdges(row, await edges(cellOf(page, 'mapTab')))
 
     const col = await dragWithGhost(page, 'notes2', { x: a.x + a.width - 8, y: a.y + a.height / 2 }, 'Insert column · full height')
-    await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).height)).toBe(Math.round(a.height - 12))
+    await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).height)).toBe(Math.round(room.height))
     expectSameEdges(col, await edges(cellOf(page, 'notes2')))
   })
 
@@ -232,12 +243,12 @@ test.describe('whole-cell drags', () => {
         await expectInsideViewport(page, page.getByTestId('ws-panel-ghost'), 0)
       },
     })
-    await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round(a.width - 12))
+    await expect.poll(async () => Math.round((await box(cellOf(page, 'mapTab'))).width)).toBe(Math.round((await tableRoom(page)).width))
   })
 })
 
 test.describe('the cell menu', () => {
-  test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); the rulers’ first “+” a row at the top', async ({ page }) => {
+  test('Merge with ▸ Below joins the cell under it (Right is off: no rectangle); a top card’s Row above a row at the top', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     await enterLayoutEdit(page)
     await openCellLayoutMenu(page, 'a')
@@ -246,21 +257,23 @@ test.describe('the cell menu', () => {
     await page.getByRole('menuitem', { name: 'Below', exact: true }).click()
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab', 'notes2']], [['calTab']]])
 
-    // The rulers' first row "+" (E2).
-    await page.locator('[data-ruler-plus="rows:0"]').click()
+    // A top card's edge tab: a full row at the top, as wide as the table's room (inside its frame).
+    await insertBeside(page, 'a', 'Row above')
     const empty = page.getByRole('region', { name: 'Empty cell' })
     await expect(empty).toBeVisible()
-    const a = await areaBox(page)
-    expect(Math.round((await box(empty)).width)).toBe(Math.round(a.width - 12))
+    const room = await page.locator('[data-ws-table]').evaluate((t) => {
+      const s = getComputedStyle(t)
+      return t.clientWidth - Number.parseFloat(s.paddingLeft) - Number.parseFloat(s.paddingRight)
+    })
+    expect(Math.round((await box(empty)).width)).toBe(Math.round(room))
   })
 
   test('Close cell gives its place to a neighbour sharing its whole edge; with none it stays an empty cell', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     await enterLayoutEdit(page)
-    const area = await areaBox(page)
     await openCellLayoutMenu(page, 'c')
     await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
-    await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).height)).toBe(Math.round(area.height - 12))
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).height)).toBe(Math.round((await tableRoom(page)).height))
 
     // A pinwheel: the middle cell shares no whole edge with any other.
     await seedWorkspace(page, {
@@ -309,7 +322,8 @@ test.describe('dividers', () => {
     // c borders the same line, at a "T": one divider for the whole of it.
     await expect(page.locator('[data-ws-divider][data-axis="columns"]')).toHaveCount(1)
     const d = await box(divider)
-    await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 + 100, y: d.y + d.height / 2 })
+    const grip = dividerGrip(d)
+    await drag(page, grip, { x: grip.x + 100, y: grip.y })
     await expect.poll(async () => Math.round((await box(a)).width - before)).toBeGreaterThan(90)
     await expectLayoutStored(page)
     const resized = Math.round((await box(a)).width)
@@ -329,7 +343,8 @@ test.describe('dividers', () => {
 
     // Far left: the cells stop at their 120px.
     const d2 = await box(divider)
-    await drag(page, { x: d2.x + d2.width / 2, y: d2.y + d2.height / 2 }, { x: 0, y: d2.y + d2.height / 2 })
+    const grip2 = dividerGrip(d2)
+    await drag(page, grip2, { x: 0, y: grip2.y })
     await expect.poll(async () => Math.round((await box(a)).width)).toBe(120)
   })
 
@@ -347,7 +362,7 @@ test.describe('dividers', () => {
     const xBottom = (await edges(wsCell(page, 'x'))).bottom
     const aBox = await edges(wsCell(page, 'a'))
     const d = await box(divider)
-    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const from = dividerGrip(d)
     let mid = { a: 0, b: 0 }
     await page.keyboard.down('Alt')
     await drag(page, from, { x: from.x, y: from.y + 100 }, {
@@ -396,7 +411,7 @@ test.describe('dividers', () => {
     const said = await watchSnackbar(page)
 
     const d = await box(wsDivider(page, 'a', 'b'))
-    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const from = dividerGrip(d)
     await page.keyboard.down('Alt')
     await drag(page, from, { x: from.x, y: from.y + 100 })
     await page.keyboard.up('Alt')
@@ -418,7 +433,7 @@ test.describe('dividers', () => {
 
     // The move again, undone and then redone: stored as moved.
     const d2 = await box(wsDivider(page, 'a', 'b'))
-    const from2 = { x: d2.x + d2.width / 2, y: d2.y + d2.height / 2 }
+    const from2 = dividerGrip(d2)
     await page.keyboard.down('Alt')
     await drag(page, from2, { x: from2.x, y: from2.y + 100 })
     await page.keyboard.up('Alt')
@@ -487,7 +502,8 @@ test.describe('dividers', () => {
     const cWidth = Math.round((await box(wsCell(page, 'c'))).width)
     const d = await box(wsDivider(page, 'a', 'b'))
     await page.keyboard.down('Alt')
-    await page.mouse.dblclick(d.x + d.width / 2, d.y + d.height / 2)
+    const at = dividerGrip(d)
+    await page.mouse.dblclick(at.x, at.y)
     await page.keyboard.up('Alt')
     // Even within one gutter: the new line's track brings a gap inside a.
     await expect.poll(async () => Math.abs(Math.round((await box(wsCell(page, 'a'))).width - (await box(wsCell(page, 'b'))).width))).toBeLessThanOrEqual(8)
@@ -510,7 +526,7 @@ test.describe('dividers', () => {
     })
     const divider = wsDivider(page, 'a', 'b')
     const d = await box(divider)
-    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const from = dividerGrip(d)
     const cdLine = (await edges(wsCell(page, 'c'))).right + 3
     /** How far the a|b line, as drawn, is from the pointer at `x`. */
     const offLine = async (x: number) => {
@@ -552,7 +568,7 @@ test.describe('dividers', () => {
     })
     const divider = wsDivider(page, 'a', 'b')
     const d = await box(divider)
-    const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    const from = dividerGrip(d)
     const xyLine = (await edges(wsCell(page, 'x'))).bottom + 3
     const to = { x: from.x, y: from.y + 100 }
     await page.mouse.move(from.x, from.y)
@@ -666,7 +682,8 @@ test.describe('a collapsed row no filled cell lies only in expands by itself (cr
     // The middle row is a row again: p's and a's line can be dragged.
     const aTop = (await edges(wsCell(page, 'a'))).top
     const d = await box(wsDivider(page, 'p', 'a'))
-    await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2, y: d.y + d.height / 2 + 40 })
+    const grip = dividerGrip(d)
+    await drag(page, grip, { x: grip.x, y: grip.y + 40 })
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).top - aTop)).toBeGreaterThan(30)
   })
 
@@ -704,8 +721,9 @@ test.describe('reload and lists', () => {
     // A whole cell moves in the layout edit mode (E4); Done stores it as one step.
     await enterLayoutEdit(page)
     const a = await areaBox(page)
+    const room = await tableRoom(page)
     await dragPanel(page, 'c', { x: a.x + 300, y: a.y + 3 })
-    await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).width)).toBe(Math.round(a.width - 12))
+    await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).width)).toBe(Math.round(room.width))
     await finishLayoutEdit(page)
     await expectLayoutStep(page, 'Edited layout “Main”')
     await page.reload()

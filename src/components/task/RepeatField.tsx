@@ -10,8 +10,8 @@ import styles from './TaskDetails.module.css'
 const NEXT = ' · next '
 
 /**
- * The due date's repeat, in the Due cell's date popover (`DueFacts`; the
- * task editor's and the review card's; schema v84): `Repeat every [2w]`,
+ * The due date's repeat, in the Due field's repeat popover (`DueFacts`;
+ * the task editor's and the review card's; schema v84): `Repeat every [2w]`,
  * typed in the app's one interval grammar (`utils/interval`: a number and d,
  * w, m or y), read back under it — `Every 2 weeks · next Mon, Dec 7` (the
  * next due date completing the task gives), `No repeat` while empty. ⏎ or a
@@ -80,8 +80,8 @@ export function RepeatField({ value, due, onChange, onDone }: {
   const readBack = next == null ? words : <>{words}{NEXT}<b>{next}</b></>
   return (
     <div className={styles.repeat} data-repeat-field="">
-      <label className={styles.duePopRow}>
-        <span className={styles.duePopLabel}>Repeat</span>
+      <label className={styles.repeatRow}>
+        <span className={styles.repeatLabel}>Repeat</span>
         <span className={styles.repeatEvery}>every</span>
         <input
           className={styles.repeatInput}
