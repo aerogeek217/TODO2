@@ -381,27 +381,41 @@
   text-decoration: line-through;
 }
 
-/* The title, edited in place (`ReviewTitleField`), as the task editor's: drawn as the title — no box;
- * the caret marks the focus. Its look is `.cardTitle`'s / `.compactTitle`'s. */
+/* The title, edited in place (`ReviewTitleField`), as the task editor's: its text in `.cardTitle`'s /
+ * `.compactTitle`'s look, in a field that shows a box on hover and the box with the accent ring while it
+ * is typed in. Its padding sits in a negative margin (the input's own, the large face's wrapper's), so the
+ * text stays where it lines up with the card. */
 .titleInput {
   display: block;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   margin: 0;
-  padding: 0;
+  padding: 4px 6px;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: transparent;
   font-family: inherit;
   resize: none;
   overflow: hidden;
   outline: none;
   cursor: text;
+  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
+input.titleInput {
+  margin: -4px -6px;
+}
+
+.titleInput:hover {
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.titleInput:focus,
 .titleInput:focus-visible {
-  box-shadow: none;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
 }
 
 .titleInput::placeholder {
@@ -414,11 +428,13 @@
   display: grid;
   flex: 1 1 auto;
   min-width: 0;
+  margin: -4px -6px;
 }
 
 .titleField::after {
   content: attr(data-replicated) ' ';
   visibility: hidden;
+  padding: 4px 6px;
   white-space: pre-wrap;
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);

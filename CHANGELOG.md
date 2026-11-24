@@ -30,6 +30,8 @@ History before 2026-11-19 is in the git log.
   row always stays tall enough to show every card.
 - **Slimmer List board tiles.** A tile shows its task count only when it has no colored capsule (the count is in its
   tooltip), drops the list icon every list shares (an icon or emoji you picked still shows), and has tighter padding.
+- **A task's title looks like a field while you edit it.** In task details and on the review card, the title shows a
+  box when you point at it and an outlined box while you type in it.
 
 ### Fixed
 

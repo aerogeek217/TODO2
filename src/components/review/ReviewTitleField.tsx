@@ -6,8 +6,9 @@ import styles from './Review.module.css'
 const TITLE_MAX = 500
 
 /**
- * The review card's title, edited in place as the task editor's is: a plain
- * field drawn as the title (no box; the caret marks the focus) that writes on
+ * The review card's title, edited in place as the task editor's is: a field
+ * drawn as the title (a box on hover, the box with the accent ring while it is
+ * typed in) that writes on
  * ⏎ and on blur — one undo step, after the notes typed so far (`write`) — and
  * never a blank title (the stored one comes back). Esc puts the stored title
  * back and leaves the field. While it isn't being typed in it follows the
