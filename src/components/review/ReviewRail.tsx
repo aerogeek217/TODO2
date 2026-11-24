@@ -12,6 +12,7 @@ import { ClockIcon } from '../shared/MarkerIcons'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { PriorityRing } from '../shared/PriorityRing'
 import { useReviewSession, useReviewSessionApi } from './review-session-context'
+import { useReviewTaskMenu } from './review-task-menu'
 import styles from './Review.module.css'
 
 /**
@@ -27,7 +28,8 @@ import styles from './Review.module.css'
  * magenta). The current row has the accent's tint and a 2px accent edge on
  * its left; a row followed up today dims its title. A click on a row jumps to it; with
  * `onOpenTask` (the Review widget, widget feedback item 13) a double-click
- * opens the task in its editor; ← / → on a row go Back / Skip. A row's
+ * opens the task in its editor; a right-click opens the task menu for that
+ * task (`review-task-menu`); ← / → on a row go Back / Skip. A row's
  * box is a checkbox (`onToggleComplete`) that completes its task
  * without opening it (a tab stop after its row; a press on it never picks
  * the row): a completed task leaves a live queue, the current one staying,
@@ -53,6 +55,7 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const rowDates = useSettingsStore((s) => s.rowDates)
   const listRef = useRef<HTMLOListElement>(null)
+  const taskMenu = useReviewTaskMenu(onOpenTask)
 
   // The current row stays in view as the review moves on; the focus in the
   // rail (stepping with J / K, ← / → there) moves with it.
@@ -116,6 +119,7 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => session.getState().go(i)}
                 onDoubleClick={onOpenTask ? () => onOpenTask(id) : undefined}
+                onContextMenu={taskMenu.onContextMenu(id)}
                 onKeyDown={onRowKeyDown}
               >
                 <span className={styles.railMark} aria-hidden="true">{mark === 'done' ? '✓' : mark === 'skipped' ? '–' : ''}</span>
@@ -158,6 +162,7 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
           return [row]
         })}
       </ol>
+      {taskMenu.menuId != null && taskMenu.menu(todoById.get(taskMenu.menuId))}
     </nav>
   )
 }

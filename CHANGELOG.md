@@ -20,6 +20,11 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Added
+
+- **Right-click a task in a review** for the task menu: a row of the queue, or the card's title row. It acts on
+  that one task.
+
 ## 2026-11-24
 
 Data version 90. A browser's data and a sync file are upgraded on first use; an older copy of the app can't open
