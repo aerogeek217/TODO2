@@ -157,7 +157,7 @@ describe('the popover', () => {
     expect(within(popover()).getByTestId('week-load-count')).toHaveTextContent('5')
     expect(popover()).toHaveTextContent('dates · usual 4')
     expect(pills()).toEqual(['50% slipped', '1 over usual'])
-    expect(words()).toBe('3 still ahead this week; 1 slipped so far (1 done late).')
+    expect(words()).toBe('3 still ahead this week; 1 slipped so far (1 late).')
     expect(dayNames()).toEqual([
       'Mon, Nov 23: 1 due (1 late)',
       'Tue, Nov 24: 1 due (1 done)',

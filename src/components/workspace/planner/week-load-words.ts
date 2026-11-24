@@ -105,18 +105,18 @@ export function loadPill(week: WeekLoadWeek, usual: number): { text: string; ove
   return { text: d < 0 ? `Room for ${-d}` : 'At usual', over: false }
 }
 
-/** What slipped, by how: `4 done late, 8 moved, 1 removed`. */
+/** What slipped, by how: `4 late, 8 moved, 1 removed`. */
 function slipWords(week: WeekLoadWeek): string {
   const { late, moved, removed } = week.totals
   const bits: string[] = []
-  if (late) bits.push(`${late} done late`)
+  if (late) bits.push(`${late} late`)
   if (moved) bits.push(`${moved} moved`)
   if (removed) bits.push(`${removed} removed`)
   return bits.join(', ')
 }
 
 /**
- * The line under the chart. A past week: `13 of 26 slipped: 4 done late, 8
+ * The line under the chart. A past week: `13 of 26 slipped: 4 late, 8
  * moved, 1 removed.` (`Nothing slipped.`); this week: `12 still ahead this
  * week; 2 slipped so far (2 moved).`; a week ahead: `Already over your usual
  * week.` / `Already at your usual week.` / `Room for 4 more before your

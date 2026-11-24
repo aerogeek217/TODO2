@@ -82,7 +82,7 @@ Top down:
   - Under the baseline, the weekday and date; today's in the accent.
 - **The legend**: Due, Follow-up, Planned, Usual (the dashed line), and the empty box: `Slipped` on a past week, `Slipped or ahead` this week, `Ahead` on a week to come.
 - **One line of words**:
-  - a past week: `13 of 26 slipped: 4 done late, 8 moved, 1 removed.`, or `Nothing slipped.`;
+  - a past week: `13 of 26 slipped: 4 late, 8 moved, 1 removed.`, or `Nothing slipped.`;
   - this week: `12 still ahead this week; 2 slipped so far (2 moved).`;
   - a week ahead: `Already over your usual week.`, `Already at your usual week.` or `Room for 4 more before your usual week.`
 - **The notes**, one line each, when the week reaches back before a log began.
