@@ -85,7 +85,7 @@ In the mode the card's ⋯ stands for these.
 
 ## A strip of Numbers
 
-A cell of two or more tabs, every one a Number, draws no tab strip (`workspace-rows.isNumberStripCell`). `NumberStrip` draws its Numbers side by side, evenly divided.
+A cell of Numbers widgets holding two or more Numbers draws no tab strip (`workspace-rows.isNumberStripCell`); each Number is drawn as a tab of its own (`utils/number-views`). `NumberStrip` draws its Numbers side by side, evenly divided.
 
 - The grid is `repeat(auto-fit, minmax(72px, 1fr))`: the Numbers wrap onto another line when each can't keep 72px, and the fit row grows with it.
 - Each Number is a slot of its own (`[data-number-slot]`) with:

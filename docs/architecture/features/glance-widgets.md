@@ -14,7 +14,7 @@ This file covers what they share, the Number and its shapes, the widget editors,
 
 ### The kinds and their flags
 
-`GlanceWidgetKind` (`models/workspace-layout`) is `number`, the two chart kinds (`breakdown`, `pivot`) and `trend`, which is Created vs completed. `isGlanceKind` and `isGlanceTab` tell them.
+`GlanceWidgetKind` (`models/workspace-layout`) is `numbers`, the two chart kinds (`breakdown`, `pivot`) and `trend`, which is Created vs completed. `isGlanceKind` and `isGlanceTab` tell them. A Numbers widget (`numbers`, its name **Numbers**, added as **Number**) holds one Number or more in `config.items`, each a Number's config with its own id and icon (`NumberItem`); the workspace draws each of its Numbers as a tab of its own (`utils/number-views`).
 
 Each kind's `WidgetKindSpec` in `WIDGET_KIND_SPECS` carries three flags:
 
@@ -22,7 +22,7 @@ Each kind's `WidgetKindSpec` in `WIDGET_KIND_SPECS` carries three flags:
 - `glance`: the glance kinds.
   - A track of only glance cells may shrink to 64px, and a glance cell to 72px wide ([Workspace layout](workspace-layout.md)).
   - A right-click anywhere on one alone in its cell opens the cell's ⋯.
-- `fitHeight`: a Number only. A row track whose cells hold only Numbers fits its content ([Widget chrome](widget-chrome.md)).
+- `fitHeight`: the Numbers only. A row track whose cells hold only Numbers fits its content ([Widget chrome](widget-chrome.md)).
 
 The three maps are whole widgets: they are in `insights` for the menus only, with neither `glance` nor `fitHeight`. The Calendar has neither too.
 
@@ -36,7 +36,7 @@ The three maps are whole widgets: they are in `insights` for the menus only, wit
 
 `kindTabTitle(tab)` gives a non-list tab's title:
 
-- A Number's or a chart's tab reads its name. Blank, it reads its kind's name (`Number`, `Breakdown`).
+- A chart's tab reads its name. Blank, it reads its kind's name (`Breakdown`). A Numbers widget of one Number reads that Number's name (blank: `Number`); of several, its tab name, else `Numbers`.
 - Created vs completed reads its name, else `Created vs completed` (`trendName`).
 - Any other tab reads its tab name, else its kind's name.
 

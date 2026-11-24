@@ -56,7 +56,7 @@ A change of structure is an undo step; view state is written straight onto the s
 
 ## Tabs and widget kinds
 
-`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `shortcuts` (the List board), `neglect`, `clusters`, and the glance kinds `number`, `breakdown`, `pivot` and `trend`.
+`LayoutTab` is a union discriminated on `kind`, one of `WIDGET_KINDS`: `lens` (the list widget), `calendar`, `notes`, `review`, `planner`, `shortcuts` (the List board), `neglect`, `clusters`, and the glance kinds `numbers` (one Number or more), `breakdown`, `pivot` and `trend`.
 
 Each tab has a per-kind `config`, the **layout config** saved with the layout, and an optional `viewState`.
 
