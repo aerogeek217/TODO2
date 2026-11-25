@@ -13,7 +13,7 @@ import { showTab } from '../../../services/workspace-tabs'
 import { useCellRoomStore } from '../../../stores/cell-room-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { WALL_TONE_NAMES, WALL_TONES, wallCountsText } from '../../../utils/list-wall'
-import { boardLines, boardMinHeight, boardTileMinWidth, boardTileRoom, shortcutLists, shortcutsSource } from '../../../utils/shortcuts'
+import { boardLines, boardMinHeight, boardTileFit, boardTileRoom, shortcutLists, shortcutsSource, type BoardHead } from '../../../utils/shortcuts'
 import { shortcutsFaceFor, shortcutsShape, type ShortcutsShape } from '../../../utils/widget-face'
 import { AppIcon } from '../../shared/AppIcon'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
@@ -44,6 +44,7 @@ const BOARD_LEGEND: readonly TooltipLegendItem[] = WALL_TONES.map((t) => ({
 }))
 
 const NO_IDS: readonly number[] = []
+const NO_HEAD: BoardHead = { bare: 0, icon: 0 }
 
 /** A tile's words for assistive tech: its name, its count, its badge, its layout (a list picked). */
 function tileLabel(data: ShortcutTileData, withLayout: boolean): string {
@@ -67,7 +68,7 @@ function tileLabel(data: ShortcutTileData, withLayout: boolean): string {
  * per list with its bar; compact — the tiles' heads, squares where a row
  * fits; large — the tiles with their titles, then (lists picked) a dashed
  * Add a list tile. Both wrap the tiles, every tile as wide as the widest
- * head asks (`boardTileMinWidth`), and alone in its cell the board holds its
+ * head asks (`boardTileFit`), and alone in its cell the board holds its
  * row at least as tall as its lines of heads (`boardMinHeight`,
  * `stores/cell-room-store`): no tile is ever cut off. Its name line shows with Settings › Show widget names.
  * Lists picked drag to reorder (their own `DndContext`; not on touch), one
@@ -152,26 +153,30 @@ function Tiles({ tab, source, entries, shape, width }: TilesProps) {
   const [menu, setMenu] = useState<TileMenu | null>(null)
   // The height each tile's head, squares and titles ask for: the tallest sets the tiles' most height.
   const [wants, setWants] = useState<ReadonlyMap<string, number>>(new Map())
-  // The width each tile's head asks for on one line: the widest sets every tile's width.
-  const [heads, setHeads] = useState<ReadonlyMap<string, number>>(new Map())
+  // The width each tile's head asks for on one line, with and without its icon: the widest sets every tile's width.
+  const [heads, setHeads] = useState<ReadonlyMap<string, BoardHead>>(new Map())
   // A press that ended a drag is no click: the tile it ends on doesn't open.
   const dragged = useRef(false)
   const picked = source === 'picked'
   const tiled = shape !== 'rows'
   const dragIds = entries.map((e) => dragIdOf(e.key))
   const tallest = Math.max(0, ...entries.map((e) => wants.get(e.key) ?? 0))
-  const tileMin = boardTileMinWidth(entries.map((e) => heads.get(e.key) ?? 0))
   const withAdd = shape === 'large' && picked
+  const count = entries.length + (withAdd ? 1 : 0)
   // The lines as the grid draws them: its own width (a scrollbar beside it counted), else the board's less its padding.
   const [gridRef, grid] = useElementSize()
   const gridWidth = grid.width > 0 ? grid.width : width - BOARD_PADDING_X_PX
-  useBoardRowMin(tiled ? boardLines(entries.length + (withAdd ? 1 : 0), gridWidth, tileMin) : null)
+  const { tileMin, icons } = boardTileFit(entries.map((e) => heads.get(e.key) ?? NO_HEAD), count, gridWidth)
+  useBoardRowMin(tiled ? boardLines(count, gridWidth, tileMin) : null)
 
   const onWant = useCallback((key: string, want: number) => {
     setWants((prev) => (prev.get(key) === want ? prev : new Map(prev).set(key, want)))
   }, [])
-  const onHeadWidth = useCallback((key: string, w: number) => {
-    setHeads((prev) => (prev.get(key) === w ? prev : new Map(prev).set(key, w)))
+  const onHeadWidth = useCallback((key: string, h: BoardHead) => {
+    setHeads((prev) => {
+      const was = prev.get(key)
+      return was && was.bare === h.bare && was.icon === h.icon ? prev : new Map(prev).set(key, h)
+    })
   }, [])
   const open = (entry: BoardEntry) => {
     if (dragged.current) return
@@ -195,6 +200,7 @@ function Tiles({ tab, source, entries, shape, width }: TilesProps) {
       entry={entry}
       shape={shape}
       disabled={touch || !picked}
+      showIcons={!tiled || icons}
       onOpen={() => open(entry)}
       onMenu={(at) => setMenu({ entry, at })}
       onWant={onWant}
@@ -240,9 +246,18 @@ function AddTile({ tab }: { tab: ShortcutsTab }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button ref={ref} type="button" className={styles.addTile} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} data-shortcuts-add="">
+      <button
+        ref={ref}
+        type="button"
+        className={styles.addTile}
+        aria-label={ADD_SHORTCUT_LABEL}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        data-shortcuts-add=""
+      >
         <PlusIcon />
-        {ADD_SHORTCUT_LABEL}
+        <span className={styles.addLabel}>{ADD_SHORTCUT_LABEL}</span>
       </button>
       {open && <AddMenu tab={tab} anchor={ref} onClose={() => setOpen(false)} />}
     </>
@@ -253,11 +268,13 @@ interface TileProps {
   entry: BoardEntry
   shape: TileShape
   disabled: boolean
+  /** Whether a head shows its icon: the board hides them all when that puts its tiles on fewer lines. */
+  showIcons: boolean
   onOpen: () => void
   onMenu: (at: { x: number; y: number }) => void
   onWant: (key: string, want: number) => void
-  /** A tile (not a row): tells the board the width its head asks for on one line. */
-  onHeadWidth?: (key: string, width: number) => void
+  /** A tile (not a row): tells the board the width its head asks for on one line, with and without its icon. */
+  onHeadWidth?: (key: string, head: BoardHead) => void
 }
 
 /** The board's padding across and the room its name line takes (px; the stylesheet's `.scroll`, `WidgetNameLine`). */
@@ -287,11 +304,12 @@ function useBoardRowMin(lines: number | null): void {
 
 /**
  * The width a tile's head asks for on one line, told to the board
- * (`boardTileMinWidth`): the title with its name untruncated, the gap, the
+ * (`boardTileFit`): the title with its name untruncated, the gap, the
  * capsule or count, the padding. Measured again as `content` (what the head
  * shows) changes, and as the capsule or count resizes.
  */
-function useHeadWidth(entryKey: string, onHeadWidth: ((key: string, width: number) => void) | undefined, content: string) {
+function useHeadWidth(entryKey: string, onHeadWidth: ((key: string, head: BoardHead) => void) | undefined, content: string, hasIcon: boolean, showIcon: boolean) {
+  const iconLead = useRef(0)
   const titleRef = useRef<HTMLSpanElement | null>(null)
   const nameRef = useRef<HTMLSpanElement | null>(null)
   const metaRef = useRef<HTMLSpanElement | null>(null)
@@ -304,13 +322,16 @@ function useHeadWidth(entryKey: string, onHeadWidth: ((key: string, width: numbe
     const measure = () => {
       // The title grows to fill the line, so never its own width (that would ratchet every tile wider): the icon and
       // gap before the name, and the name's whole text. The corner badge sits on the border, out of the line: the
-      // tile need only be wide enough to hold it.
-      const lead = Math.max(0, name.getBoundingClientRect().left - title.getBoundingClientRect().left)
+      // tile need only be wide enough to hold it. An icon the board hides measures nothing: its last width stands.
+      const shown = Math.max(0, name.getBoundingClientRect().left - title.getBoundingClientRect().left)
+      if (!hasIcon) iconLead.current = 0
+      else if (shown > 0) iconLead.current = shown
       const metaWidth = meta.offsetWidth
-      const line = lead + name.scrollWidth + (metaWidth > 0 ? HEAD_COLUMN_GAP_PX + metaWidth : 0) + TILE_PADDING_X_PX
+      const line = name.scrollWidth + (metaWidth > 0 ? HEAD_COLUMN_GAP_PX + metaWidth : 0) + TILE_PADDING_X_PX
       const corner = cornerRef.current ? cornerRef.current.offsetWidth + CORNER_ROOM_PX : 0
-      const width = Math.max(line, corner)
-      if (width > TILE_PADDING_X_PX) onHeadWidth(entryKey, Math.ceil(width))
+      const bare = Math.ceil(Math.max(line, corner))
+      const icon = Math.ceil(Math.max(0, Math.max(line + iconLead.current, corner) - bare))
+      if (bare > TILE_PADDING_X_PX) onHeadWidth(entryKey, { bare, icon })
     }
     measure()
     if (typeof ResizeObserver === 'undefined') return
@@ -318,7 +339,7 @@ function useHeadWidth(entryKey: string, onHeadWidth: ((key: string, width: numbe
     ro.observe(meta)
     if (cornerRef.current) ro.observe(cornerRef.current)
     return () => ro.disconnect()
-  }, [entryKey, onHeadWidth, content])
+  }, [entryKey, onHeadWidth, content, hasIcon, showIcon])
   return { titleRef, nameRef, metaRef, cornerRef }
 }
 
@@ -327,7 +348,7 @@ function useHeadWidth(entryKey: string, onHeadWidth: ((key: string, width: numbe
  * marks — the squares are buttons of their own, so they sit beside it, not
  * in it.
  */
-function SortableTile({ entry, shape, disabled, onOpen, onMenu, onWant, onHeadWidth }: TileProps) {
+function SortableTile({ entry, shape, disabled, showIcons, onOpen, onMenu, onWant, onHeadWidth }: TileProps) {
   const data = useShortcutTile(entry)
   const { setNodeRef, attributes, listeners, style, isDragging } = useSortableRow(dragIdOf(entry.key))
   const [headRef, head] = useElementSize()
@@ -335,12 +356,16 @@ function SortableTile({ entry, shape, disabled, onOpen, onMenu, onWant, onHeadWi
   // A tile shows the list tab's icon, as its strip does, and no count, so it stays narrow: the count is in its
   // tooltip and its squares. Only a list waiting on its prompt keeps its —, the one sign it is waiting. A row (the
   // rows face) keeps its count.
+  // The board hides every tile's icon when that puts its tiles on fewer lines (`boardTileFit`).
   const icon = data?.icon
+  const showIcon = !!icon && showIcons
   const showCount = !tile || data?.count == null
   const { titleRef, nameRef, metaRef, cornerRef } = useHeadWidth(
     entry.key,
     onHeadWidth,
     data ? `${icon ? 'i' : ''}|${data.name}|${showCount ? (data.count ?? '—') : ''}|${data.badge?.summary.join(',') ?? ''}` : '',
+    !!icon,
+    showIcon,
   )
   const picked = !entry.tab
   const countLine = data && data.count != null ? `${plural(data.count, 'task')} · ` : ''
@@ -387,7 +412,7 @@ function SortableTile({ entry, shape, disabled, onOpen, onMenu, onWant, onHeadWi
       <span className={styles.body}>
         <span ref={headRef} className={styles.head} aria-hidden="true">
           <span ref={titleRef} className={styles.title}>
-            {icon && <AppIcon icon={icon} size={13} className={styles.icon} />}
+            {icon && showIcon && <AppIcon icon={icon} size={13} className={styles.icon} />}
             <span ref={nameRef} className={styles.name} data-shortcut-name="">{data.name}</span>
           </span>
           <span ref={metaRef} className={styles.meta}>

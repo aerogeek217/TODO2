@@ -20,6 +20,11 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+### Changed
+
+- List board tiles are only as wide as the longest list name, so more fit on a line. When hiding the lists' icons would
+  fit the tiles on fewer lines, the icons are hidden.
+
 ## 2026-11-24, second deployment
 
 ### Added
