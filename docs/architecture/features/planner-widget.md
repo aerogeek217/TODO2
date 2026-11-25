@@ -77,7 +77,7 @@ While a task is dragged over the Planner (`use-planner-drag` → `planner-store.
 
 - The target's tile and group are dashed in one neutral color, since no real date changes (`data-planner-drop`).
 - The list's blank drop slot shows where the row would land. The looks are the list's: the dragged row is its slot in its own group, or faded in place when headed elsewhere, and the others are dimmed while they make room.
-- **The lifted row carries a label** under it — above it at the window's foot — saying what the drop does to the plan (`PlannerDragLabel`, in the page's drag overlay): `Plan · Wed, Nov 25`, `Unplan`, or — the plan cleared on the task's own date's day — `Its date · Wed, Nov 25`. An Unplan shows a slot in Unplanned only when the Unplanned filter then keeps the row there.
+- **The lifted row carries a label** under it — above it at the window's foot — saying what the drop does to the plan (`PlannerDragLabel`, in the page's drag overlay): `Plan · Wed, Nov 25`, `Unplan`, or — the plan cleared on the task's own date's day — `Its date · Wed, Nov 25`. A row moved within a sorted Unplanned reads `Manual order`: the drop switches it to Manual. An Unplan shows a slot in Unplanned only when the Unplanned filter then keeps the row there.
 - A refused target has no mark, no slot and no label, and shows the not-allowed cursor.
 - A drop that moves the row to another group lands where it was let go. A reorder settles onto the row.
 
@@ -123,6 +123,7 @@ Alone in its cell, the top line holds the **week load meter** (`planner/WeekLoad
 
 - It is a button on a faint plate: the funnel, then the [filter](planner.md#the-unplanned-filter) read back in words as a list's filter line reads it (`wholeExpression` → `ExpressionWords`: `Focus`, `Focus, or errands`), fading with `+N more`, the exact text in its tooltip. Its name is `Unplanned filter: …`.
 - An empty filter reads `Nothing joins`.
+- **Unplanned's sort** ends the line (`planner/PlannerSortControl`, `[data-planner-sort]`), as a list's line ends with its sort: the sort in words (`Manual ▾`, `Due ↓ ▾`, named `Unplanned sort: …`). It opens a popover (`Sort Unplanned`) holding Edit list's Sort by row with its ↑ / ↓ (`shared/ListEditorBody.SortFields`). A pick is written at once as one layout config update and one undo step (`Sorted Unplanned by Name`). The folded bar shows the filter without it. What a sort does is in [Hand order](planner.md#hand-order).
 
 A click on it, or **Unplanned filter…** in the widget's ⋯, opens the **Planner settings** (`planner/PlannerSettings`, `role=dialog` `Planner settings`, hosted on the workspace page like the other widget editors, `planner-store.settingsTabId`). It opens beside the filter line, else the folded bar, else the widget.
 

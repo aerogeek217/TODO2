@@ -543,6 +543,21 @@
   flex: none;
 }
 
+/* Unplanned's sort at the line's end, as a list's line ends with its group · sort; it never shrinks, the filter's words do. */
+.filterLine {
+  gap: 6px;
+}
+
+.filterLine.filterLine > .sort {
+  flex: none;
+  margin-left: auto;
+}
+
+/* In the folded bar the filter alone: the sort is in the dock unfolded. */
+.dockBarFilter .sort {
+  display: none;
+}
+
 /* An empty filter: nothing joins on its own. */
 .filterNone {
   display: inline-flex;

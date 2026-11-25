@@ -367,7 +367,7 @@ export interface PlannerView<T> {
   placements: ReadonlyMap<string, PlannerPlacement>
 }
 
-interface PlannerViewOptions {
+interface PlannerViewOptions<T> {
   today: Date
   /** The window's offset in days (a multiple of 7; default 0). */
   offset?: number
@@ -375,6 +375,8 @@ interface PlannerViewOptions {
   order?: readonly string[]
   /** The Unplanned filter (`PlannerJoins`); absent: Focus. */
   joins?: PlannerJoins
+  /** How the Unplanned tray sorts (the tab's Unplanned sort, as a list sorts); absent: the hand order. */
+  unplannedCompare?: (a: T, b: T) => number
 }
 
 /** The reasons in the order they sort and their ticks draw: deadlines, follow-ups, plans, then the rest. */
@@ -415,9 +417,10 @@ const DATE_RANK: Record<PlannerDateKind, number> = { due: 0, followup: 1 }
  * Delayed and Unplanned trays, and the window's tiles. While the window is
  * shifted, Today stays today's, the days ahead start at the window's first
  * day, and a task whose day lies between tomorrow and the window is in no
- * group — the tiles are the window's.
+ * group — the tiles are the window's. Unplanned follows the hand order, or
+ * `unplannedCompare` when the tab sorts it.
  */
-export function plannerView<T extends PlannerTask>(tasks: readonly T[], options: PlannerViewOptions): PlannerView<T> {
+export function plannerView<T extends PlannerTask>(tasks: readonly T[], options: PlannerViewOptions<T>): PlannerView<T> {
   const window = plannerWindow(options.today, options.offset, options.joins)
   const { today } = window
   const todayKey = dayKey(today)
@@ -483,7 +486,8 @@ export function plannerView<T extends PlannerTask>(tasks: readonly T[], options:
   })
 
   const delayed: PlannerGroup<T> = { key: PLANNER_DELAYED_KEY, kind: 'delayed', day: null, tasks: ordered(delayedTasks) }
-  const unplanned: PlannerGroup<T> = { key: PLANNER_UNPLANNED_KEY, kind: 'unplanned', day: null, tasks: ordered(unplannedTasks) }
+  const unplannedSorted = options.unplannedCompare ? [...unplannedTasks].sort(options.unplannedCompare) : ordered(unplannedTasks)
+  const unplanned: PlannerGroup<T> = { key: PLANNER_UNPLANNED_KEY, kind: 'unplanned', day: null, tasks: unplannedSorted }
   const shown: T[] = [...todayGroup.tasks]
   for (const day of window.days) {
     const key = dayKey(day)

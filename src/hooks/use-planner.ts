@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { PersistedTodoItem, TodoPredicate } from '../models'
-import type { LayoutBody, PlannerTab } from '../models/workspace-layout'
+import type { LayoutBody, PlannerTab, PlannerUnplannedSort } from '../models/workspace-layout'
 import { plannerWindowKey, usePlannerStore, usePlannerWindow } from '../stores/planner-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
+import { listSortComparator } from '../services/list-sections'
 import { resetPlannerPlan } from '../services/planner-drop'
 import { hasFilterClause } from '../utils/filter-clauses'
 import type { TodoNameLookups } from '../utils/filter'
@@ -83,11 +84,31 @@ function useUnplannedJoins(filter: TodoPredicate | undefined): PlannerJoins | un
 }
 
 /**
+ * The Unplanned tray's order for a Planner whose config sorts it `sort` (a
+ * list's sort and direction, `listSortComparator`, over the shared base's
+ * day, urgent range, people and statuses); none for manual or no sort: the
+ * hand order.
+ */
+function useUnplannedCompare(sort: PlannerUnplannedSort | undefined): ((a: Task, b: Task) => number) | undefined {
+  const { ctx } = useStatsBase()
+  const by = sort?.by
+  const direction = sort?.direction
+  return useMemo(() => (by == null || by === 'manual' ? undefined : listSortComparator(by, {
+    today: ctx.today,
+    urgentRange: ctx.urgentRange,
+    direction,
+    assignedPeopleMap: ctx.assignedPeopleMap,
+    statuses: ctx.statuses,
+  })), [by, direction, ctx])
+}
+
+/**
  * A Planner tab's data: the open tasks the screen filter shows
  * (`useScreenTasks`) placed for the tab's window
  * (`stores/planner-store`, by the open layout and the tab) in its hand order (`order`, the tab's view
  * state), an open task with no day joining Unplanned when it matches the
- * tab's Unplanned filter (`config.unplanned`; absent: Focus) — `tab` as
+ * tab's Unplanned filter (`config.unplanned`; absent: Focus), Unplanned
+ * sorted as the tab sorts it (`config.unplannedSort`) — `tab` as
  * drawn, its editor's unsaved filter included. With `linger`, a row completed here lingers, then folds, as a
  * list's does (`useLeavingRows`): the view is built with it as it was just
  * before, and `keptTodos` says what it shows meanwhile.
@@ -104,6 +125,7 @@ export function usePlanner(tab: PlannerTab, linger: boolean): PlannerData {
   const today = useToday()
   const screenTasks = useScreenTasks()
   const joins = useUnplannedJoins(tab.config.unplanned)
+  const unplannedCompare = useUnplannedCompare(tab.config.unplannedSort)
   const windowKey = plannerWindowKey(useWorkspaceStore((s) => s.working?.id), tabId)
   const { offset } = usePlannerWindow(windowKey)
   const ranges = useSettingsStore((s) => s.tabBadges)
@@ -113,7 +135,7 @@ export function usePlanner(tab: PlannerTab, linger: boolean): PlannerData {
   const leaving = linger ? completed : NO_LEAVING
 
   const { view, kept, current } = useMemo(() => {
-    const options = { today, offset, order, joins }
+    const options = { today, offset, order, joins, unplannedCompare }
     const built = plannerView(screenTasks, options)
     if (leaving.size === 0) return { view: built, kept: NO_IDS, current: built }
     const rows = (v: PlannerView<Task>) => new Set(groupIds([v.today, ...v.days, v.delayed, v.unplanned]))
@@ -122,7 +144,7 @@ export function usePlanner(tab: PlannerTab, linger: boolean): PlannerData {
     if (dropped.size === 0) return { view: built, kept: NO_IDS, current: built }
     const before = [...dropped].flatMap((id) => leaving.get(id)?.before ?? [])
     return { view: plannerView([...screenTasks.filter((t) => !dropped.has(t.id)), ...before], options), kept: dropped, current: built }
-  }, [screenTasks, today, offset, order, joins, leaving])
+  }, [screenTasks, today, offset, order, joins, unplannedCompare, leaving])
   usePlannerResetReport(windowKey, current)
 
   useEffect(() => { shownIdsRef.current = new Set(groupIds([view.today, ...view.days, view.delayed, view.unplanned])) })

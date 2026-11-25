@@ -443,8 +443,8 @@ function groupChoicesFor(current: TodoGroupBy): Choice<TodoGroupBy>[] {
 }
 
 /** Sort by's choices, the current one kept when it is no longer offered. */
-function sortChoicesFor(current: TodoSortBy): Choice<TodoSortBy>[] {
-  return choicesWith<TodoSortBy>(LIST_SORT_CHOICES, current)
+function sortChoicesFor(current: TodoSortBy, offered: readonly TodoSortBy[] = LIST_SORT_CHOICES): Choice<TodoSortBy>[] {
+  return choicesWith<TodoSortBy>(offered, current)
     .map((s) => ({ value: s, label: SORT_LABEL[s], description: SORT_NOTE[s] }))
 }
 
@@ -457,10 +457,13 @@ interface GroupSortRowsProps {
   value: GroupSortValue
   /** Each row's label element, with the id above; a plain label by default. */
   label?: (field: 'group' | 'sort') => ReactNode
-  onGroup: (grouping: TodoGroupBy) => void
+  /** A grouping picked; absent: no Group by row (`SortFields`). */
+  onGroup?: (grouping: TodoGroupBy) => void
   /** A sort picked (the caller keeps or drops the direction: `withListSort`). */
   onSort: (sort: TodoSortBy) => void
   onDirection: (direction: TodoSortDirection) => void
+  /** The sorts Sort by offers; absent: a list's (`LIST_SORT_CHOICES`). */
+  sortChoices?: readonly TodoSortBy[]
 }
 
 /**
@@ -468,30 +471,32 @@ interface GroupSortRowsProps {
  * opening its radio menu, Sort by with its ↑ / ↓ toggle while the sort has
  * a direction.
  */
-function GroupSortRows({ idBase, value, label, onGroup, onSort, onDirection }: GroupSortRowsProps) {
+function GroupSortRows({ idBase, value, label, onGroup, onSort, onDirection, sortChoices }: GroupSortRowsProps) {
   const rowLabel = label ?? ((field: 'group' | 'sort') => (
     <span className={styles.label} id={`${idBase}-${field}-label`}>{ROW_LABEL[field]}</span>
   ))
   return (
     <>
-      <div className={styles.row}>
-        {rowLabel('group')}
-        <ChoiceSelect
-          labelId={`${idBase}-group-label`}
-          label={ROW_LABEL.group}
-          value={value.grouping}
-          choices={groupChoicesFor(value.grouping)}
-          placeholder={value.grouping === 'none' ? `${ROW_LABEL.group}…` : undefined}
-          onPick={(v) => onGroup(v as TodoGroupBy)}
-        />
-      </div>
+      {onGroup && (
+        <div className={styles.row}>
+          {rowLabel('group')}
+          <ChoiceSelect
+            labelId={`${idBase}-group-label`}
+            label={ROW_LABEL.group}
+            value={value.grouping}
+            choices={groupChoicesFor(value.grouping)}
+            placeholder={value.grouping === 'none' ? `${ROW_LABEL.group}…` : undefined}
+            onPick={(v) => onGroup(v as TodoGroupBy)}
+          />
+        </div>
+      )}
       <div className={styles.row}>
         {rowLabel('sort')}
         <ChoiceSelect
           labelId={`${idBase}-sort-label`}
           label={ROW_LABEL.sort}
           value={value.sort}
-          choices={sortChoicesFor(value.sort)}
+          choices={sortChoicesFor(value.sort, sortChoices)}
           onPick={(v) => onSort(v as TodoSortBy)}
         />
         {sortHasDirection(value.sort) && (
@@ -520,6 +525,31 @@ export function GroupSortFields({ value, onChange }: { value: GroupSortValue; on
         idBase={idBase}
         value={value}
         onGroup={(grouping) => onChange({ ...value, grouping })}
+        onSort={(sort) => onChange(withListSort(value, sort))}
+        onDirection={(direction) => onChange(withSortDirection(value, direction))}
+      />
+    </div>
+  )
+}
+
+/**
+ * Sort by on its own, as Edit list shows it (its compact form, with its
+ * ↑ / ↓): the Planner's Unplanned sort. `choices` are the sorts it offers;
+ * `onChange` gets the sort and direction, the direction carried over or
+ * dropped as Edit list does (`withListSort`).
+ */
+export function SortFields({ value, choices, onChange }: {
+  value: Pick<GroupSortValue, 'sort' | 'sortDirection'>
+  choices: readonly TodoSortBy[]
+  onChange: (next: Pick<GroupSortValue, 'sort' | 'sortDirection'>) => void
+}) {
+  const idBase = useId()
+  return (
+    <div className={`${styles.form} ${styles.compact}`}>
+      <GroupSortRows
+        idBase={idBase}
+        value={{ ...value, grouping: 'none' }}
+        sortChoices={choices}
         onSort={(sort) => onChange(withListSort(value, sort))}
         onDirection={(direction) => onChange(withSortDirection(value, direction))}
       />

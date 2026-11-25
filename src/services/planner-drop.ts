@@ -1,4 +1,5 @@
 import type { PersistedTodoItem } from '../models'
+import type { PlannerTab } from '../models/workspace-layout'
 import type { PlannerDragPreview } from '../stores/planner-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
@@ -52,13 +53,30 @@ interface PlannerMove {
   position?: PlannerDropPosition | null
 }
 
-/** The hand order the Planner `tabId` of the open layout stores (none: no such tab, or it never had one; or no tab — a menu outside a Planner). */
-function storedOrder(tabId: string | null): readonly string[] {
-  if (tabId == null) return []
+/** The Planner `tabId` of the open layout (none: no such tab, or no tab — a menu outside a Planner). */
+function plannerTab(tabId: string | null): PlannerTab | undefined {
+  if (tabId == null) return undefined
   const layout = useWorkspaceStore.getState().working
   const tab = layout ? getTab(layout, tabId) : undefined
-  return tab?.kind === 'planner' ? tab.viewState?.order ?? [] : []
+  return tab?.kind === 'planner' ? tab : undefined
 }
+
+/** The hand order the Planner `tabId` of the open layout stores (none: no such tab, or it never had one; or no tab — a menu outside a Planner). */
+function storedOrder(tabId: string | null): readonly string[] {
+  return plannerTab(tabId)?.viewState?.order ?? []
+}
+
+/** Whether the Planner `tabId` sorts its Unplanned tray (a sort other than manual). */
+function sortsUnplanned(tabId: string | null): boolean {
+  const by = plannerTab(tabId)?.config.unplannedSort?.by
+  return by != null && by !== 'manual'
+}
+
+/** A planned move in a Planner, and whether it is a reorder in a sorted Unplanned: its sort then switches to manual. */
+type PlannerMoveWrite = PlannerMovePlan & { manual?: true }
+
+/** The undo step of a reorder in a sorted Unplanned. */
+const SWITCHED_TO_MANUAL = 'Switched Unplanned to manual order'
 
 const sameOrder = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((uid, i) => uid === b[i])
 
@@ -69,13 +87,20 @@ const sameOrder = (a: readonly string[], b: readonly string[]): boolean => a.len
  * show now keep theirs, and only those the todo store no longer holds
  * (deleted, purged) leave it.
  */
-function planPlannerMove(tabId: string | null, move: PlannerMove): PlannerMovePlan | null {
+function planPlannerMove(tabId: string | null, move: PlannerMove): PlannerMoveWrite | null {
   const todos = useTodoStore.getState().todos
   const todo = todos.find((t) => t.id === move.todoId)
   if (!todo) return null
-  if (!move.position) return plannerMovePlan(todo, move.window, move.target)
+  const { position } = move
+  if (!position) return plannerMovePlan(todo, move.window, move.target)
   const uids = new Set(todos.map((t) => t.uid))
-  return plannerMovePlan(todo, move.window, move.target, move.position, { order: storedOrder(tabId), exists: (uid) => uids.has(uid) })
+  // A sorted Unplanned shows its rows by the sort, not the hand order: their stored places go, so the order
+  // written is the rows as they show with the dropped one moved — a reorder there switches it to manual.
+  const sorted = move.target.kind === 'unplanned' && sortsUnplanned(tabId)
+  const rows = new Set(sorted ? position.rows : [])
+  const order = storedOrder(tabId).filter((uid) => !rows.has(uid))
+  const plan = plannerMovePlan(todo, move.window, move.target, position, { order, exists: (uid) => uids.has(uid) })
+  return sorted && plan.drop.kind === 'none' && plan.order ? { ...plan, manual: true } : plan
 }
 
 /**
@@ -85,7 +110,7 @@ function planPlannerMove(tabId: string | null, move: PlannerMove): PlannerMovePl
  * widget sets as the pointer moves) — only while it is of that very group:
  * with none, the drop still writes its plan and the hand order stays.
  */
-export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDragPreview | null): PlannerMovePlan | null {
+export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDragPreview | null): PlannerMoveWrite | null {
   const { group } = request
   const index = group && preview?.tabId === request.tabId && preview.over === 'group' && preview.key === group.key ? preview.index : null
   return planPlannerMove(request.tabId, {
@@ -99,7 +124,10 @@ export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDra
 /**
  * Makes a planned move in the Planner `tabId`. The hand order first (the
  * tab's view state, `order` — the stored one with the row's new place
- * merged in: saved at once, no undo step, as a list's manual order), then
+ * merged in: saved at once, no undo step, as a list's manual order); a
+ * reorder in a sorted Unplanned (`manual`) also switches its sort to manual,
+ * one undo step (`Switched Unplanned to manual order`), as a drag in a
+ * sorted list does; then
  * the one task write: its plan state (`plannerDropWrite` → `setPlan`: a
  * planned day, or cleared — one undo step, no stamp). A refused drop, and
  * one that changes nothing, write no task. A plan that takes the task **out
@@ -113,10 +141,11 @@ export function planPlannerDrop(request: PlannerDropRequest, preview: PlannerDra
  * the tab stored before, so the row doesn't keep a place among the rows of
  * a group it never reached.
  */
-export async function applyPlannerMove(tabId: string | null, todoId: number, plan: PlannerMovePlan): Promise<void> {
+export async function applyPlannerMove(tabId: string | null, todoId: number, plan: PlannerMoveWrite): Promise<void> {
   const { drop, order, hidden, leaves } = plan
   const before = order ? storedOrder(tabId) : null
   if (order && tabId != null) void useWorkspaceStore.getState().patchTabViewState(tabId, 'planner', { order })
+  if (plan.manual && tabId != null) useWorkspaceStore.getState().patchTabConfig(tabId, 'planner', { unplannedSort: { by: 'manual' } }, SWITCHED_TO_MANUAL)
   const write = plannerDropWrite(drop)
   if (write === undefined) return
   const store = useTodoStore.getState()

@@ -27,8 +27,10 @@ import {
   PLANNER_DOCK_SHARE_MAX,
   PLANNER_DOCK_SHARE_MIN,
   PLANNER_ORDER_MAX,
+  PLANNER_UNPLANNED_SORTS,
   type PlannerTab,
   type PlannerTabConfig,
+  type PlannerUnplannedSort,
   type PlannerTabViewState,
   SHORTCUTS_LISTS_MAX,
   isShortcutsSource,
@@ -37,6 +39,7 @@ import {
 } from '../models/workspace-layout'
 import { isIconValue, pickIconValue } from '../models/icon'
 import { isReviewSort } from '../models/review'
+import { sortHasDirection, type TodoSortBy } from '../models/todo-sort-group'
 import {
   numberConfigProblem,
   pickNumberConfig,
@@ -285,6 +288,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
         if (shape !== true) return `${path}.config.unplanned.${shape}`
         if (pickPredicate(config.unplanned).fixes.length > 0) return `${path}.config.unplanned`
       }
+      if (config.unplannedSort !== undefined && pickUnplannedSort(config.unplannedSort).fixed) return `${path}.config.unplannedSort`
       const problem = view ? pickPlannerView(view).problem : null
       return problem ? `${path}.viewState.${problem}` : true
     }
@@ -352,13 +356,41 @@ function pickReviewView(view: Obj | undefined): { view: ReviewTabViewState; fixe
  * key it doesn't have. Absent stays absent: Focus.
  */
 function pickPlannerConfig(config: Obj): { config: PlannerTabConfig; fixed: boolean } {
-  let fixed = Object.keys(config).some((k) => k !== 'unplanned')
+  let fixed = Object.keys(config).some((k) => k !== 'unplanned' && k !== 'unplannedSort')
+  const out: PlannerTabConfig = {}
   const raw = config.unplanned
-  if (raw === undefined) return { config: {}, fixed }
-  if (checkPredicateShape(raw) !== true) return { config: {}, fixed: true }
-  const read = pickPredicate(raw)
-  if (read.fixes.length > 0) fixed = true
-  return { config: { unplanned: read.predicate }, fixed }
+  if (raw !== undefined) {
+    if (checkPredicateShape(raw) !== true) fixed = true
+    else {
+      const read = pickPredicate(raw)
+      if (read.fixes.length > 0) fixed = true
+      out.unplanned = read.predicate
+    }
+  }
+  if (config.unplannedSort !== undefined) {
+    const sort = pickUnplannedSort(config.unplannedSort)
+    if (sort.fixed) fixed = true
+    if (sort.sort) out.unplannedSort = sort.sort
+  }
+  return { config: out, fixed }
+}
+
+/**
+ * A Planner's Unplanned sort as read: a sort Unplanned offers
+ * (`PLANNER_UNPLANNED_SORTS`), else none — manual, a fix; `direction` kept
+ * only as `desc` on a sort that has one, else dropped, a fix; any other key
+ * dropped, a fix.
+ */
+function pickUnplannedSort(raw: unknown): { sort?: PlannerUnplannedSort; fixed: boolean } {
+  if (!isRecord(raw) || !(PLANNER_UNPLANNED_SORTS as readonly unknown[]).includes(raw.by)) return { fixed: true }
+  const by = raw.by as TodoSortBy
+  let fixed = Object.keys(raw).some((k) => k !== 'by' && k !== 'direction')
+  const sort: PlannerUnplannedSort = { by }
+  if (raw.direction !== undefined) {
+    if (raw.direction === 'desc' && sortHasDirection(by)) sort.direction = 'desc'
+    else fixed = true
+  }
+  return { sort, fixed }
 }
 
 const PLANNER_VIEW_KEYS = new Set(['order', 'dockShare', 'dockFolded'])

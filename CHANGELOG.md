@@ -22,6 +22,9 @@ History before 2026-11-19 is in the git log.
 
 ### Changed
 
+- The Planner's Unplanned tray can be sorted as a list is: the sort button at the end of its filter line offers a
+  list's sorts and their direction. Dragging a row within a sorted Unplanned switches it to Manual, keeping the order
+  you dropped.
 - List board tiles are only as wide as the longest list name, so more fit on a line. When hiding the lists' icons would
   fit the tiles on fewer lines, the icons are hidden.
 

@@ -38,6 +38,7 @@ import {
   type PlannerTask,
 } from '../../utils/planner'
 import { TASK_DRAG_KIND, TASK_DROP_KIND, dispatchTaskDrop, type PlannerDropData, type PlannerDropRequest } from '../../utils/task-dnd'
+import { getTab } from '../../utils/workspace-layout-queries'
 import { addTask } from '../add-task'
 import { resetDb } from '../helpers'
 import { cell, grid } from '../helpers/layout-builders'
@@ -495,6 +496,39 @@ describe('the hand order', () => {
     await drop(a, group(UNPLANNED, PLANNER_UNPLANNED_KEY, [f.uid, g.uid], shown), over(PLANNER_UNPLANNED_KEY, 1))
     expect(await plan(a.id)).toMatchObject({ doDate: undefined, modifiedAt: STAMP })
     expect(await storedOrder()).toEqual([f.uid, a.uid, g.uid])
+  })
+
+  it('a row moved within a sorted Unplanned: the order as it shows with the row moved, and the sort switched to manual — one undo step', async () => {
+    const f = await seed('F', { focus: true })
+    const g = await seed('G', { focus: true })
+    const h = await seed('H', { focus: true })
+    // A hand order from before the sort (G above F), then Unplanned sorted by name: F, G, H.
+    await drop(g, group(UNPLANNED, PLANNER_UNPLANNED_KEY, [f.uid, g.uid, h.uid], [f.uid, g.uid, h.uid]), over(PLANNER_UNPLANNED_KEY, 0))
+    expect(await storedOrder()).toEqual([g.uid, f.uid, h.uid])
+    ws().patchTabConfig('plan', 'planner', { unplannedSort: { by: 'name' } }, 'Sorted Unplanned by Name')
+    useUndoStore.getState().clear()
+    const shown = [f.uid, g.uid, h.uid]
+    const w = watchWrites()
+    await drop(h, group(UNPLANNED, PLANNER_UNPLANNED_KEY, shown, shown), over(PLANNER_UNPLANNED_KEY, 1))
+    expect(w.tasks()).toBe(0)
+    // The stored G-above-F goes: the rows as sorted, H moved between F and G.
+    expect(await storedOrder()).toEqual([f.uid, h.uid, g.uid])
+    const tab = () => getTab(ws().working!, 'plan') as PlannerTab
+    expect(tab().config.unplannedSort).toEqual({ by: 'manual' })
+    expect(steps()).toEqual(['Switched Unplanned to manual order'])
+    await useUndoStore.getState().undo()
+    expect(tab().config.unplannedSort).toEqual({ by: 'name' })
+  })
+
+  it('a planned row unplanned into a sorted Unplanned keeps the sort: only a move within it switches', async () => {
+    const a = await seed('A', { focus: true, doDate: day(1) })
+    const f = await seed('F', { focus: true })
+    ws().patchTabConfig('plan', 'planner', { unplannedSort: { by: 'name' } }, 'Sorted Unplanned by Name')
+    useUndoStore.getState().clear()
+    await drop(a, group(UNPLANNED, PLANNER_UNPLANNED_KEY, [f.uid], [a.uid, f.uid]), over(PLANNER_UNPLANNED_KEY, 1))
+    expect(await plan(a.id)).toMatchObject({ doDate: undefined })
+    expect((getTab(ws().working!, 'plan') as PlannerTab).config.unplannedSort).toEqual({ by: 'name' })
+    expect(steps()).not.toContain('Switched Unplanned to manual order')
   })
 
   it('a row with no plan dropped into Unplanned is refused: no write, no order', async () => {

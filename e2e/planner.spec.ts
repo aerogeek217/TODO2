@@ -1125,10 +1125,11 @@ test('the Unplanned filter: its words open the Planner settings, and what it hol
     tasks: [...TASKS, { title: 'Pick up dry cleaning', tags: ['errands'], modifiedAt: STAMP }, { title: 'Dated errand', tags: ['errands'], dueInDays: 2, modifiedAt: STAMP }],
   })
   const line = unplannedGroup(page).locator('[data-planner-filter-line]')
-  await expect(line).toHaveText('Focus')
+  const words = line.getByRole('button', { name: /^Unplanned filter/ })
+  await expect(words).toHaveText('Focus')
   await expect(titles(unplannedGroup(page))).toHaveText(['Someday focus'])
 
-  await line.getByRole('button').click()
+  await words.click()
   const dialog = page.getByRole('dialog', { name: 'Planner settings' })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByRole('group', { name: 'Unplanned holds' })).toBeVisible()
@@ -1154,7 +1155,44 @@ test('the Unplanned filter: its words open the Planner settings, and what it hol
   await dialog.getByRole('textbox', { name: 'Filter expression' }).press('Tab')
   await expect(unplannedGroup(page).getByText('Nothing unplanned')).toBeVisible()
   await dialog.getByRole('button', { name: 'Save' }).click()
-  await expect(line).toHaveText('Nothing joins')
+  await expect(words).toHaveText('Nothing joins')
+})
+
+test('the Unplanned sort: a pick sorts the tray at once; a row moved within it switches it to manual', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...WIDE,
+    tasks: [
+      { title: 'Book flights', focus: true, modifiedAt: STAMP },
+      { title: 'Answer Sam', focus: true, modifiedAt: STAMP },
+      { title: 'Call the bank', focus: true, modifiedAt: STAMP },
+    ],
+  })
+  const unplanned = unplannedGroup(page)
+  await expect(titles(unplanned)).toHaveText(['Book flights', 'Answer Sam', 'Call the bank'])
+  const sort = unplanned.getByRole('button', { name: /^Unplanned sort/ })
+  await expect(sort).toHaveText('Manual')
+
+  await sort.click()
+  const popover = page.getByRole('dialog', { name: 'Sort Unplanned' })
+  await popover.getByRole('button', { name: /Sort by/ }).click()
+  await page.getByRole('menuitemradio', { name: /^Name/ }).click()
+  await expect(titles(unplanned)).toHaveText(['Answer Sam', 'Book flights', 'Call the bank'])
+  await page.keyboard.press('Escape')
+  await expect(popover).toHaveCount(0)
+  await expect(sort).toHaveText('Name')
+  await expectLayoutStored(page)
+  expect(await newestUndoStep(page)).toBe('Sorted Unplanned by Name')
+
+  // Call the bank dragged above Answer Sam: the tray keeps that order and its sort is Manual again.
+  await drag(page, await grip(rowOf(unplanned, 'Call the bank')), await pointIn(rowOf(unplanned, 'Answer Sam'), 0.5, 0.2), {
+    during: async () => { await expect(label(page)).toHaveText('Manual order') },
+  })
+  await expect(titles(unplanned)).toHaveText(['Call the bank', 'Answer Sam', 'Book flights'])
+  await expect(sort).toHaveText('Manual')
+  await expectLayoutStored(page)
+  expect(await newestUndoStep(page)).toBe('Switched Unplanned to manual order')
+  await page.reload()
+  await expect(titles(unplannedGroup(page))).toHaveText(['Call the bank', 'Answer Sam', 'Book flights'])
 })
 
 test('in the widget popup, the Planner settings redraw Unplanned as the filter is edited, as in a cell', async ({ page }) => {
@@ -1169,7 +1207,7 @@ test('in the widget popup, the Planner settings redraw Unplanned as the filter i
   const inPopup = popup.locator('[data-planner="plan"] [data-planner-group="unplanned"]')
   await expect(titles(inPopup)).toHaveText(['Someday focus'])
 
-  await inPopup.locator('[data-planner-filter-line]').getByRole('button').click()
+  await inPopup.locator('[data-planner-filter-line]').getByRole('button', { name: /^Unplanned filter/ }).click()
   const dialog = page.getByRole('dialog', { name: 'Planner settings' })
   await expect(dialog).toBeVisible()
   await dialog.getByRole('radio', { name: 'Expression' }).click()
