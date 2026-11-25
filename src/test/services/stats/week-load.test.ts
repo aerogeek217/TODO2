@@ -129,6 +129,28 @@ describe('what became of it', () => {
     expect(on(load, nov(19), 'due')).toEqual(counts({ done: 1 }))
   })
 
+  it('keeps the tasks behind every count, by day, kind and outcome', () => {
+    const tasks = [
+      task({ id: 1, dueDate: nov(19), isCompleted: true, completedAt: nov(19, 12) }),
+      task({ id: 2, dueDate: nov(18) }),
+      task({ id: 3, nextFollowupAt: nov(27) }),
+    ]
+    const load = run(tasks, { events: [ev(1, 'deadline', nov(16, 15), iso(nov(16)), iso(nov(19))), ev(1, 'completed', nov(19, 12))] })
+    const day = (d: number) => load.weeks.flatMap((w) => w.days).find((x) => x.date.getTime() === nov(d).getTime())!
+    expect(day(16).taskIds.due.moved).toEqual([1])
+    expect(day(19).taskIds.due.done).toEqual([1])
+    expect(day(18).taskIds.due.late).toEqual([2])
+    expect(day(27).taskIds.followup.ahead).toEqual([3])
+    // As many ids as each count, everywhere.
+    for (const d of load.weeks.flatMap((w) => w.days)) {
+      for (const kind of ['due', 'followup', 'planned'] as const) {
+        for (const outcome of ['done', 'late', 'moved', 'removed', 'ahead'] as const) {
+          expect(d.taskIds[kind][outcome]).toHaveLength(d.kinds[kind][outcome])
+        }
+      }
+    }
+  })
+
   it('moved: after the day, while still open', () => {
     const t = task({ id: 1, dueDate: nov(27) })
     const load = run([t], { events: [ev(1, 'deadline', nov(18, 10), iso(nov(16)), iso(nov(27)))] })

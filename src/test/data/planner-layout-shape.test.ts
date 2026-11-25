@@ -21,7 +21,7 @@ const planner = (viewState?: unknown, config: unknown = {}) => layoutRow({ id: '
 describe('the Planner’s stored tab', () => {
   it('a new Planner passes the check unchanged', () => {
     const tab = createTab('planner', 'p')
-    expect(tab).toEqual({ id: 'p', kind: 'planner', config: {} })
+    expect(tab).toEqual({ id: 'p', kind: 'planner', config: {}, icon: { kind: 'line', key: 'planner' } })
     const row = layoutRow(tab as unknown as Record<string, unknown>)
     expect(checkLayoutBody(row)).toBe(true)
     expect(rowFixes('layouts', row)).toEqual([])

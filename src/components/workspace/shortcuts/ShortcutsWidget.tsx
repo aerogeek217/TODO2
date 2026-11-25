@@ -13,7 +13,7 @@ import { showTab } from '../../../services/workspace-tabs'
 import { useCellRoomStore } from '../../../stores/cell-room-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { WALL_TONE_NAMES, WALL_TONES, wallCountsText } from '../../../utils/list-wall'
-import { boardLines, boardMinHeight, boardTileMinWidth, boardTileRoom, isListGlyph, shortcutLists, shortcutsSource } from '../../../utils/shortcuts'
+import { boardLines, boardMinHeight, boardTileMinWidth, boardTileRoom, shortcutLists, shortcutsSource } from '../../../utils/shortcuts'
 import { shortcutsFaceFor, shortcutsShape, type ShortcutsShape } from '../../../utils/widget-face'
 import { AppIcon } from '../../shared/AppIcon'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
@@ -266,6 +266,8 @@ const NAME_LINE_PX = 28
 /** A tile's padding across and the gap between its name and its capsule or count (px; `.tile > .body`, `.head`). */
 const TILE_PADDING_X_PX = 18
 const HEAD_COLUMN_GAP_PX = 4
+/** What a tile keeps beside its corner badge: its inset from the right edge, and as much again on the left. */
+const CORNER_ROOM_PX = 24
 
 /**
  * Alone in its cell (`CellControlsContext`), the board holds its row at least
@@ -293,6 +295,7 @@ function useHeadWidth(entryKey: string, onHeadWidth: ((key: string, width: numbe
   const titleRef = useRef<HTMLSpanElement | null>(null)
   const nameRef = useRef<HTMLSpanElement | null>(null)
   const metaRef = useRef<HTMLSpanElement | null>(null)
+  const cornerRef = useRef<HTMLSpanElement | null>(null)
   useLayoutEffect(() => {
     const title = titleRef.current
     const name = nameRef.current
@@ -300,18 +303,23 @@ function useHeadWidth(entryKey: string, onHeadWidth: ((key: string, width: numbe
     if (!onHeadWidth || !title || !name || !meta) return
     const measure = () => {
       // The title grows to fill the line, so never its own width (that would ratchet every tile wider): the icon and
-      // gap before the name, and the name's whole text.
+      // gap before the name, and the name's whole text. The corner badge sits on the border, out of the line: the
+      // tile need only be wide enough to hold it.
       const lead = Math.max(0, name.getBoundingClientRect().left - title.getBoundingClientRect().left)
-      const width = lead + name.scrollWidth + HEAD_COLUMN_GAP_PX + meta.offsetWidth + TILE_PADDING_X_PX
+      const metaWidth = meta.offsetWidth
+      const line = lead + name.scrollWidth + (metaWidth > 0 ? HEAD_COLUMN_GAP_PX + metaWidth : 0) + TILE_PADDING_X_PX
+      const corner = cornerRef.current ? cornerRef.current.offsetWidth + CORNER_ROOM_PX : 0
+      const width = Math.max(line, corner)
       if (width > TILE_PADDING_X_PX) onHeadWidth(entryKey, Math.ceil(width))
     }
     measure()
     if (typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(measure)
     ro.observe(meta)
+    if (cornerRef.current) ro.observe(cornerRef.current)
     return () => ro.disconnect()
   }, [entryKey, onHeadWidth, content])
-  return { titleRef, nameRef, metaRef }
+  return { titleRef, nameRef, metaRef, cornerRef }
 }
 
 /**
@@ -324,11 +332,12 @@ function SortableTile({ entry, shape, disabled, onOpen, onMenu, onWant, onHeadWi
   const { setNodeRef, attributes, listeners, style, isDragging } = useSortableRow(dragIdOf(entry.key))
   const [headRef, head] = useElementSize()
   const tile = shape !== 'rows'
-  // A tile shows its icon only when it is the list's own (not the glyph every list shares), and its count only
-  // with no capsule beside it: the count is in its tooltip and its squares.
-  const icon = data?.icon && !(tile && isListGlyph(data.icon)) ? data.icon : undefined
-  const showCount = !tile || !data?.badge
-  const { titleRef, nameRef, metaRef } = useHeadWidth(
+  // A tile shows the list tab's icon, as its strip does, and no count, so it stays narrow: the count is in its
+  // tooltip and its squares. Only a list waiting on its prompt keeps its —, the one sign it is waiting. A row (the
+  // rows face) keeps its count.
+  const icon = data?.icon
+  const showCount = !tile || data?.count == null
+  const { titleRef, nameRef, metaRef, cornerRef } = useHeadWidth(
     entry.key,
     onHeadWidth,
     data ? `${icon ? 'i' : ''}|${data.name}|${showCount ? (data.count ?? '—') : ''}|${data.badge?.summary.join(',') ?? ''}` : '',
@@ -382,7 +391,7 @@ function SortableTile({ entry, shape, disabled, onOpen, onMenu, onWant, onHeadWi
             <span ref={nameRef} className={styles.name} data-shortcut-name="">{data.name}</span>
           </span>
           <span ref={metaRef} className={styles.meta}>
-            {data.badge && <BadgeCapsule counts={data.badge.counts} data-shortcut-badge="" />}
+            {!tile && data.badge && <BadgeCapsule counts={data.badge.counts} data-shortcut-badge="" />}
             {showCount && <span className={styles.count} data-shortcut-count="">{data.count ?? '—'}</span>}
           </span>
         </span>
@@ -390,6 +399,12 @@ function SortableTile({ entry, shape, disabled, onOpen, onMenu, onWant, onHeadWi
           ? <BoardBar wall={data.wall} />
           : <Room data={data} entryKey={entry.key} headHeight={head.height} withTitles={shape === 'large'} onWant={onWant} />}
       </span>
+      {/* A tile's capsule is a corner badge on its top border, out of the head's line, so it adds no width. */}
+      {tile && data.badge && (
+        <span ref={cornerRef} className={styles.cornerBadge} aria-hidden="true" data-corner-badge="">
+          <BadgeCapsule counts={data.badge.counts} data-shortcut-badge="" />
+        </span>
+      )}
       {shape !== 'rows' && (
         <button
           type="button"

@@ -1,12 +1,12 @@
 # Week load
 
-How well the dates that put tasks on each day were kept, week by week, against the usual week. A meter in the [Planner](planner-widget.md)'s top line opens a popover with one week's chart, day by day. It always counts every task: the [screen filter](screen-filter.md) is never applied, so the meter means the whole workload whatever filter is on.
+How well the dates that put tasks on each day were kept, week by week, against the usual week. A meter at the top of every [Planner](planner-widget.md) opens a popover with one week's chart, day by day; each part of the chart lists its tasks. It always counts every task: the [screen filter](screen-filter.md) is never applied, so the meter means the whole workload whatever filter is on.
 
 ## The rules
 
 `services/stats/week-load.computeWeekLoad` is pure. `hooks/use-week-load.useWeekLoad` hands it every task, their events (`trend-events-store`'s `week-load` window: from 8 weeks before this week's start, the trend's event types plus `followup`, `followedUp` and `planned`), the status updates, Settings' first day of the week (`weekStartsOn`), the two log stamps and now. The hook is `null` until the events are read, and memoized on the tasks, the events, the status updates, the day and the settings.
 
-The result holds 15 weeks, 8 back to 6 ahead, this week at offset 0. Each week has its 7 days, and each day, for each kind — `due`, `followup`, `planned` —, the counts `done`, `late`, `moved`, `removed`, `ahead`. Each week also has its totals, its slipped share and its notes. The result also holds the usual week.
+The result holds 15 weeks, 8 back to 6 ahead, this week at offset 0. Each week has its 7 days, and each day, for each kind — `due`, `followup`, `planned` —, the counts `done`, `late`, `moved`, `removed`, `ahead`, and the tasks behind each count (`taskIds`). Each week also has its totals, its slipped share and its notes. The result also holds the usual week.
 
 ### Where a date lands
 
@@ -54,11 +54,18 @@ The **slipped share** (`slipPct`) is `slipped / (done + slipped)` over the week 
 - It draws nothing until the events are read.
 - **In a widget 540px wide or less it is not drawn**, before Reset plan's words go at 420px. Measured in Chromium: with the name shown, the week arrows in the top line, a badge and a range across two months, the line keeps about 40px to spare at 541px.
 
+### The bar
+
+Where the top line has no meter, the same meter is a **slim bar across the top of the Planner's body** (`WeekLoadMeter bar`, `data-week-load-bar`), under the top line and over the strip: the track as wide as the widget, then `19 / 13`, 20px tall. It has the meter's name, tooltip and popover, which opens under its left end.
+
+- It shows in a cell of tabs, in the widget popup and on the phone, where there is no top line.
+- Alone in its cell it shows only at 540px or less, as the line's meter goes (`data-alone`, a container query).
+
 **The usual week is shown whole**: a half rounds up (12.5 → 13). Every comparison in words (the pill, the line under the chart) uses that shown number, so the words agree with what is on screen. The marks sit at the exact value.
 
 ## The ⋯ menu's Week load…
 
-A cell of tabs, the widget popup and a narrow widget have no meter. The widget's ⋯ menu has **Week load…** between Unplanned filter… and Reset plan › while the Planner is drawn (`planner-reset.usePlannerMenuEntries`).
+The widget's ⋯ menu also has **Week load…** between Unplanned filter… and Reset plan › while the Planner is drawn (`planner-reset.usePlannerMenuEntries`).
 
 - It sets `planner-store.weekLoadTabId`. `WeekLoadHost`, on the workspace page, opens the popover beside that tab's widget (the popup's while the popup shows it), on its right, or on its left where the right has no room.
 - A press on the widget closes it. Esc hands the focus back to what opened it (the ⋯ button), else to the widget's first control.
@@ -78,7 +85,8 @@ Top down:
   - A box is outlined in its kind's color and filled from the bottom as far as its dates were done, so it reads as a progress bar. Its empty part is slipped on a day gone by and still ahead on a day to come.
   - A dashed mark across the column sits at that weekday's usual: `usual.perWeek × weekdayShares[i]`.
   - Every column shares one scale (`week-load-words.chartScale`): the busiest day of all 15 weeks, or the highest usual mark, never under 6. So the weeks compare as they are stepped.
-  - Each column is `role=img`, its name and tooltip the day in words: `Wed, Nov 25: 3 due (2 done, 1 late); 2 follow-up (2 ahead)`, or `Thu, Nov 26: nothing`.
+  - Each column is a `group` named with the day in words: `Wed, Nov 25: 3 due (2 done, 1 late); 2 follow-up (2 ahead)`, or `Thu, Nov 26: nothing`.
+  - **Each box is two buttons**: its filled part (done) and the rest (slipped on a day gone by, still ahead on a day to come), each as tall as its share. Each is named and has a tooltip in words: `Wed, Nov 25 · 2 due done`, `Wed, Nov 25 · 3 due: 1 late, 2 moved`, `Fri, Nov 27 · 2 follow-up ahead`. A click closes the popover and opens the [task dialog](widget-chrome.md) on its tasks (`week-load-words.weekLoadDrill`, from the result's `taskIds`): titled `Due · Wed, Nov 25`, the done part's tasks as they are, the rest's under **Late**, **Moved**, **Removed** and **Ahead**.
   - Under the baseline, the weekday and date; today's in the accent.
 - **The legend**: Due, Follow-up, Planned, Usual (the dashed line), and the empty box: `Slipped` on a past week, `Slipped or ahead` this week, `Ahead` on a week to come.
 - **One line of words**:
@@ -105,4 +113,4 @@ The kinds' colors are the app's: due `--color-deadline`, follow-up `--color-foll
 | The styles | `components/workspace/planner/WeekLoad.module.css` |
 | The ⋯ entry | `components/workspace/planner/planner-reset.tsx` |
 
-Tests: `src/test/services/stats/week-load.test.ts` (one per rule), `src/test/hooks/use-week-load.test.tsx`, `src/test/components/workspace/planner-week-load.test.tsx` (the meter, the popover's weeks, stepping, the ⋯ entry), `e2e/planner-week-load.spec.ts` (placement and flip, the narrow widget, focus on Esc).
+Tests: `src/test/services/stats/week-load.test.ts` (one per rule), `src/test/hooks/use-week-load.test.tsx`, `src/test/components/workspace/planner-week-load.test.tsx` (the meter, the popover's weeks, stepping, the ⋯ entry), `e2e/planner-week-load.spec.ts` (placement and flip, the narrow widget and its bar, focus on Esc, a part opening its tasks).

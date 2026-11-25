@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { REVIEW_POPUP_TAB_ID } from '../../models/review'
-import { shortcutListTabId, type LayoutTab, type ListTab, type ListTabViewState, type ReviewTab } from '../../models/workspace-layout'
+import { kindIcon, shortcutListTabId, type LayoutTab, type ListTab, type ListTabViewState, type ReviewTab } from '../../models/workspace-layout'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { WidgetFaceContext, type WidgetFaceHost } from '../../hooks/use-widget-face'
 import { onDataReplaced } from '../../services/replace-data'
@@ -141,7 +141,7 @@ export function WidgetPopupHost() {
     }),
   } : null), [holdsView, listTabId])
   const reviewTab = useMemo<ReviewTab>(
-    () => ({ id: REVIEW_POPUP_TAB_ID, kind: 'review', config: {}, viewState: reviewView }),
+    () => ({ id: REVIEW_POPUP_TAB_ID, kind: 'review', config: {}, icon: kindIcon('review'), viewState: reviewView }),
     [reviewView],
   )
   const tab: LayoutTab | undefined = target?.kind === 'review' ? reviewTab : holdsView ? listTab : layoutTab

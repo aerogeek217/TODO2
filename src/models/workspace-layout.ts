@@ -720,7 +720,7 @@ export function kindTabTitle(tab: LayoutTab): string {
   return tab.name?.trim() || widgetKindLabel(tab.kind)
 }
 
-/** Each kind's own glyph among the line icons (the strip's icon for a tab never given one, J1). */
+/** Each kind's own glyph among the line icons: the icon a new tab of that kind is given (`createTab`). */
 export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
   lens: 'list',
   calendar: 'calendar',
@@ -735,13 +735,21 @@ export const KIND_LINE_ICON: { readonly [K in WidgetKind]: LineIconKey } = {
   clusters: 'clusters',
 }
 
-/**
- * The icon a tab's strip shows (J1): its picked one (`none` included), else
- * its kind's glyph.
- */
-export function tabStripIcon(tab: Pick<LayoutTab, 'kind' | 'icon'>): IconValue {
-  return tab.icon ?? { kind: 'line', key: isWidgetKind(tab.kind) ? KIND_LINE_ICON[tab.kind] : 'list' }
+/** A kind's own glyph as an icon value: what a new tab of that kind is given. */
+export function kindIcon(kind: WidgetKind): IconValue {
+  return { kind: 'line', key: KIND_LINE_ICON[kind] }
 }
+
+/**
+ * The icon a tab shows, wherever it shows one: the one stored on it, else
+ * none. There is no default drawn in its place — a new tab is given its
+ * kind's glyph (`createTab`), and a tab without one shows none everywhere.
+ */
+export function tabStripIcon(tab: Pick<LayoutTab, 'icon'>): IconValue {
+  return tab.icon ?? NO_ICON
+}
+
+const NO_ICON: IconValue = { kind: 'none' }
 
 /**
  * The icon a tab's top line leads with alone in its cell (J2): a picked one,
@@ -751,9 +759,9 @@ export function tabTopLineIcon(tab: Pick<LayoutTab, 'icon'>): IconValue | undefi
   return tab.icon && tab.icon.kind !== 'none' ? tab.icon : undefined
 }
 
-/** A new tab of `kind` with that kind's default config. */
+/** A new tab of `kind` with that kind's default config, given its kind's glyph as its icon. */
 export function createTab<K extends WidgetKind>(kind: K, id: string, seed: TabSeed = {}): TabOfKind<K> {
-  return WIDGET_KIND_SPECS[kind].newTab(id, seed)
+  return { ...WIDGET_KIND_SPECS[kind].newTab(id, seed), icon: kindIcon(kind) }
 }
 
 /**

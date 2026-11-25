@@ -1,5 +1,6 @@
 import {
   DEFAULT_WEIGHT,
+  KIND_LINE_ICON,
   tabOwnsName,
   type CellArea,
   type GridAxis,
@@ -1369,15 +1370,28 @@ export function setTabLabel<L extends LayoutBody>(
   })
 }
 
+/** Whether `tab`'s icon is its kind's own glyph, the one a new tab of its kind is given. */
+function isKindGlyph(tab: LayoutTab): boolean {
+  return tab.icon?.kind === 'line' && tab.icon.key === KIND_LINE_ICON[tab.kind]
+}
+
 /**
  * `next` (a tab of another kind, Change widget) keeping what the user gave
- * `from`: its picked icon, and its tab name when `next`'s kind takes one
+ * `from`: an icon of its own (its kind's glyph becomes `next`'s kind's; no
+ * icon stays none), and its tab name when `next`'s kind takes one
  * (`tabOwnsName` false).
  */
 export function withLabelOf(next: LayoutTab, from: LayoutTab | undefined): LayoutTab {
   if (!from) return next
   let out = next
-  if (from.icon) out = { ...out, icon: from.icon }
+  // The icon: an icon of its own stays; the old kind's glyph becomes the new kind's (the new tab's own); none stays none.
+  const ownIcon = from.icon && from.icon.kind !== 'none' && !isKindGlyph(from) ? from.icon : undefined
+  if (ownIcon) out = { ...out, icon: ownIcon }
+  else if (!from.icon || from.icon.kind === 'none') {
+    const { icon: _icon, ...rest } = out
+    void _icon
+    out = rest as LayoutTab
+  }
   if (from.name && !tabOwnsName(next.kind)) out = { ...out, name: from.name }
   return out
 }

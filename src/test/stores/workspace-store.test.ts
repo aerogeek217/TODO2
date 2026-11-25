@@ -150,7 +150,7 @@ describe('structural edits are saved at once, each an undo step', () => {
     await seedAndInit(twoColumns())
     const tabId = ws().addWidget('neglect', { kind: 'cell', cellId: 'kb' })
     const tabs = () => ws().working!.cells.flatMap((k) => k.tabs)
-    expect(tabs().find((t) => t.id === tabId)).toEqual({ id: tabId, kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 6] }, untouchedDays: 14 } })
+    expect(tabs().find((t) => t.id === tabId)).toEqual({ id: tabId, kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 6] }, untouchedDays: 14 }, icon: { kind: 'line', key: 'scatter' } })
     ws().changeTabKind('a1', 'neglect')
     expect(tabs().find((t) => t.id === 'a1')?.config).toEqual({ colourBy: { kind: 'tags', tagIds: [4, 6] }, untouchedDays: 14 })
     const seeded = ws().addWidget('neglect', { kind: 'cell', cellId: 'kb' }, { neglectTagIds: [5] })
@@ -178,7 +178,8 @@ describe('structural edits are saved at once, each an undo step', () => {
     ws().patchTabConfig('a2', 'calendar', { dateTypes: { due: false, followup: true, plan: false } })
     expect(cellOf(await stored(id!), 'ka')!.tabs[1]!.config).toEqual({ dateTypes: { due: false, followup: true, plan: false } })
     ws().changeTabKind('b1', 'notes')
-    expect(cellOf(await stored(id!), 'kb')!.tabs[0]).toEqual({ id: 'b1', kind: 'notes', config: {} })
+    // The list glyph it had becomes the notes glyph.
+    expect(cellOf(await stored(id!), 'kb')!.tabs[0]).toEqual({ id: 'b1', kind: 'notes', config: {}, icon: { kind: 'line', key: 'notes' } })
     ws().patchTabConfig('b1', 'notes', {}, 'Edited notes')
     expect(undoNames().at(-1)).not.toBe('Edited notes') // no change: no step
     await undo()

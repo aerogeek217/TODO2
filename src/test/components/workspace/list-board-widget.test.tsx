@@ -137,18 +137,20 @@ describe('Lists I pick', () => {
     expect(tooltipOf(within(tile(1)!).getByRole('button', { name: /Open$/ }))).toMatch(/^Errands · Home1 task · 1 on track/)
   })
 
-  it('shows its list tab’s own icon (none for the list glyph every list shares), its badge capsule — its count only with no capsule —, its squares and first titles', () => {
+  it('shows the icon stored on its list tab, as the strip does, its badge capsule — its count only with no capsule —, its squares and first titles', () => {
     setup(picked([1, 2]))
     render(<Live />)
-    // Errands' tab has an icon of its own; Clients' shows the list glyph, which a tile leaves out.
+    // Errands' tab has the flag; Clients' the list glyph a new list tab is given, shown as any icon is.
     expect(tile(1)!.querySelector('[data-app-icon="line"]')).not.toBeNull()
-    expect(tile(2)!.querySelector('[data-app-icon]')).toBeNull()
+    expect(tile(2)!.querySelector('[data-app-icon="line"]')).not.toBeNull()
     // Clients: one task overdue and one due soon, the capsule's due part; its count of 4 is in its tooltip, not beside it.
     expect(tile(2)!.querySelector('[data-shortcut-badge] [data-badge-part="due"]')).toHaveTextContent('2')
+    // On a tile the capsule is a corner badge, out of the head's line.
+    expect(tile(2)!.querySelector('[data-corner-badge] [data-shortcut-badge]')).not.toBeNull()
     expect(tile(2)!.querySelector('[data-shortcut-count]')).toBeNull()
-    // Errands: no capsule, so its count shows.
+    // Errands: no capsule, and no count either, so the tile stays narrow — the count is in its tooltip and squares.
     expect(tile(1)!.querySelector('[data-shortcut-badge]')).toBeNull()
-    expect(tile(1)!.querySelector('[data-shortcut-count]')).toHaveTextContent('1')
+    expect(tile(1)!.querySelector('[data-shortcut-count]')).toBeNull()
     // A square per open task, the trouble first.
     expect(squareTones(tile(2)!)).toEqual(['late', 'soon', 'followup', 'stale'])
     // The first three titles, as built.
@@ -162,9 +164,10 @@ describe('Lists I pick', () => {
     expect(tile(3)!.querySelector('[data-shortcut-badge]')).toBeNull()
     expect(tile(3)!.querySelectorAll('[data-peek-line], [data-tone]')).toHaveLength(0)
     act(() => { useListWidgetStore.setState({ picks: { [shortcutListTabId(3)]: [] } }) })
-    // Its five tasks: in its tooltip (beside it too, with no capsule) and a square each.
+    // Its five tasks: in its tooltip and a square each; the — goes, and no count takes its place.
     expect(tooltipOf(within(tile(3)!).getByRole('button', { name: /Open$/ }))).toMatch(/5 tasks · /)
     expect(squareTones(tile(3)!)).toHaveLength(5)
+    expect(tile(3)!.querySelector('[data-shortcut-count]')).toBeNull()
   })
 
   it('empty: a line and an Add a list button', () => {
@@ -240,6 +243,15 @@ describe('adding, removing and moving (one undo step each)', () => {
 })
 
 describe('This layout’s lists', () => {
+  it('a list tab with no icon stored shows none on its tile, as on its strip', () => {
+    const { icon: _icon, ...bare } = lens('t-errands', 1)
+    void _icon
+    setup(ofLayout(), [bare, lens('t-who-home', 3)])
+    render(<Live />)
+    expect(tabTile('t-errands')!.querySelector('[data-app-icon]')).toBeNull()
+    expect(tabTile('t-who-home')!.querySelector('[data-app-icon="line"]')).not.toBeNull()
+  })
+
   it('a tile per list tab of the open layout, in reading order, each with its tab’s own icon and prompt pick', () => {
     setup(ofLayout())
     render(<Live />)
@@ -346,6 +358,10 @@ describe('the List board’s faces', () => {
     expect(tileIds()).toEqual([1, 2])
     expect(document.querySelectorAll('[data-peek-line], button[data-tone]')).toHaveLength(0)
     expect([...tile(2)!.querySelectorAll('[data-board-bar] [data-tone]')].map((s) => s.getAttribute('data-tone'))).toEqual(['late', 'soon', 'followup', 'stale'])
+    // A row keeps its capsule in its line, and its count beside it.
+    expect(tile(2)!.querySelector('[data-corner-badge]')).toBeNull()
+    expect(tile(2)!.querySelector('[data-shortcut-badge]')).not.toBeNull()
+    expect(tile(2)!.querySelector('[data-shortcut-count]')).toHaveTextContent('4')
   })
 
   it('compact when short: every tile, wrapping — none folded into +N; squares, no titles', () => {

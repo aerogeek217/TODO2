@@ -190,10 +190,10 @@ describe('audit: lists that belong to no layout', () => {
     expect(lists.map((d) => d.owner)).toEqual([{ layoutId: 1 }, { layoutId: 4 }, { layoutId: 2 }, { layoutId: 2 }, { layoutId: 4 }])
     const recovered = await db.layouts.get(4)
     expect(recovered).toMatchObject({ name: 'Recovered lists', sortOrder: 3 })
-    // One cell of list tabs, in the list order.
+    // One cell of list tabs, in the list order, each a new tab with the list glyph.
     expect(recovered!.cells[0]!.tabs).toEqual([
-      { id: 'tab-1', kind: 'lens', config: { listDefinitionId: 5 } },
-      { id: 'tab-2', kind: 'lens', config: { listDefinitionId: 2 } },
+      { id: 'tab-1', kind: 'lens', config: { listDefinitionId: 5 }, icon: { kind: 'line', key: 'list' } },
+      { id: 'tab-2', kind: 'lens', config: { listDefinitionId: 2 }, icon: { kind: 'line', key: 'list' } },
     ])
     expect((await auditData()).issues).toEqual([])
   })

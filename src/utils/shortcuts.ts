@@ -1,6 +1,6 @@
 import type { IconValue } from '../models/icon'
 import { ownerLayoutId, type PersistedListDefinition } from '../models/list-definition'
-import { getActiveTab, KIND_LINE_ICON, tabStripIcon, type LayoutBody, type ListTab, type PersistedWorkspaceLayout, type ShortcutsSource, type ShortcutsTabConfig } from '../models/workspace-layout'
+import { getActiveTab, tabStripIcon, type LayoutBody, type ListTab, type PersistedWorkspaceLayout, type ShortcutsSource, type ShortcutsTabConfig } from '../models/workspace-layout'
 import { bySortOrder } from './sort-order'
 import { readingOrder } from './workspace-grid'
 import { layoutTabs } from './workspace-layout-queries'
@@ -68,7 +68,7 @@ function layoutsAsShown(layouts: readonly PersistedWorkspaceLayout[], working: P
   return layouts.map((l) => (working && l.id === working.id ? working : l))
 }
 
-/** The icon the strip shows for the first list tab in `layout` showing list `id` (`tabStripIcon`): none for No icon. */
+/** The icon stored on the first list tab in `layout` showing list `id`: none for a tab without one. */
 function iconIn(layout: LayoutBody, id: number): IconValue | undefined {
   for (const tab of layoutTabs(layout)) {
     if (tab.kind === 'lens' && tab.config.listDefinitionId === id) {
@@ -79,14 +79,10 @@ function iconIn(layout: LayoutBody, id: number): IconValue | undefined {
   return undefined
 }
 
-/** A list's icon where no tab shows it: the list glyph. */
-const LIST_GLYPH: IconValue = { kind: 'line', key: KIND_LINE_ICON.lens }
-
 /**
- * A list's icon on its tile: the icon the strip shows for the list tab
- * showing it — its own layout's first, then any layout's (the open one as
- * edited) — a picked one, else the list glyph; none for a tab given No
- * icon. No tab shows it: the list glyph.
+ * A list's icon on its tile: the icon stored on the list tab showing it —
+ * its own layout's first, then any layout's (the open one as edited) —; none
+ * for a tab without one, and none when no tab shows the list.
  */
 export function shortcutListIcon(
   def: Pick<PersistedListDefinition, 'id' | 'owner'>,
@@ -99,7 +95,7 @@ export function shortcutListIcon(
   const hasTab = (l: LayoutBody) => layoutTabs(l).some((t) => t.kind === 'lens' && t.config.listDefinitionId === def.id)
   if (owner && hasTab(owner)) return iconIn(owner, def.id)
   const other = shown.find(hasTab)
-  return other ? iconIn(other, def.id) : LIST_GLYPH
+  return other ? iconIn(other, def.id) : undefined
 }
 
 /** The name of the layout list `def` belongs to (the open one's as edited); empty without one. */
@@ -225,7 +221,3 @@ export function boardMinHeight(lines: number): number {
   return LIST_BOARD_MIN_HEIGHT_PX + Math.max(0, lines - 1) * (BOARD_TILE_HEAD_PX + BOARD_TILE_GAP_PX)
 }
 
-/** Whether `icon` is the list glyph every list tab shows unless given its own: a tile shows no icon then. */
-export function isListGlyph(icon: IconValue): boolean {
-  return icon.kind === 'line' && icon.key === KIND_LINE_ICON.lens
-}

@@ -11,6 +11,8 @@ import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../../models'
 import type { PlannerTab } from '../../../models/workspace-layout'
 import { usePlannerStore } from '../../../stores/planner-store'
+import type { TaskDialogPayload } from '../../../stores/task-dialog-payload'
+import { useUIStore } from '../../../stores/ui-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
 import { useTodoStore } from '../../../stores/todo-store'
@@ -101,7 +103,7 @@ const title = () => within(popover()).getByTestId('week-load-title').textContent
 const pills = () => [...popover().querySelectorAll('[data-testid="week-load-slip"], [data-testid="week-load-pill"]')].map((p) => p.textContent)
 const words = () => within(popover()).getByTestId('week-load-words').textContent
 const notes = () => within(popover()).queryAllByTestId('week-load-note').map((n) => n.textContent)
-const dayNames = () => within(popover()).getAllByRole('img').map((d) => d.getAttribute('aria-label'))
+const dayNames = () => within(popover()).getAllByRole('group').map((d) => d.getAttribute('aria-label'))
 const step = (name: 'Previous week' | 'Next week', times = 1) => {
   for (let i = 0; i < times; i++) fireEvent.click(within(popover()).getByRole('button', { name }))
 }
@@ -171,10 +173,36 @@ describe('the popover', () => {
     expect(notes()).toEqual(['Planned days are recorded from Nov 25'])
     // Today's weekday and date in the accent.
     expect(popover().querySelector('[data-today][aria-hidden="true"]')).toHaveTextContent('We25')
-    // A box per kind, filled as far as done: Tuesday's due box full, Monday's empty.
-    const box = (day: number) => within(popover()).getAllByRole('img')[day]!.querySelector<HTMLElement>('[data-kind="due"]')!
-    expect(box(1).style.getPropertyValue('--p')).toBe('100%')
-    expect(box(0).style.getPropertyValue('--p')).toBe('0%')
+    // A box per kind, its two parts as tall as their shares: Tuesday's due box all done, Monday's all slipped.
+    const parts = (day: number) => [...within(popover()).getAllByRole('group')[day]!.querySelectorAll<HTMLElement>('[data-kind="due"] [data-week-load-part]')]
+      .map((b) => [b.dataset.weekLoadPart, b.style.flexBasis])
+    expect(parts(1)).toEqual([['done', '100%']])
+    expect(parts(0)).toEqual([['rest', '100%']])
+  })
+
+  it('a box’s part, named in words, opens the task dialog on its tasks and closes the popover', () => {
+    const showTaskDialog = vi.fn()
+    useUIStore.setState({ showTaskDialog })
+    open()
+    const monday = within(popover()).getAllByRole('group')[0]!
+    const slipped = within(monday).getByRole('button', { name: 'Mon, Nov 23 · 1 due: 1 late. Show the tasks' })
+    fireEvent.click(slipped)
+    expect(screen.queryByRole('dialog', { name: 'Week load' })).toBeNull()
+    const payload = showTaskDialog.mock.calls[0]![0] as TaskDialogPayload
+    expect(payload.title).toBe('Due · Mon, Nov 23')
+    expect(payload.description).toBe('Tasks whose due dates on Mon, Nov 23 slipped.')
+    expect(payload.source).toEqual({ kind: 'groups', groups: [{ key: 'late', label: 'Late', todoIds: [expect.any(Number)] }] })
+    // The done part: its tasks as they are.
+    fireEvent.click(screen.getByRole('button', { name: /^This week/ }))
+    const tuesday = within(popover()).getAllByRole('group')[1]!
+    fireEvent.click(within(tuesday).getByRole('button', { name: 'Tue, Nov 24 · 1 due done. Show the tasks' }))
+    const done = showTaskDialog.mock.calls[1]![0] as TaskDialogPayload
+    expect(done.title).toBe('Due · Tue, Nov 24')
+    expect(done.source).toEqual({ kind: 'todos', todoIds: [expect.any(Number)] })
+    // A day to come: what is still ahead.
+    fireEvent.click(screen.getByRole('button', { name: /^This week/ }))
+    const friday = within(popover()).getAllByRole('group')[4]!
+    expect(within(friday).getByRole('button', { name: 'Fri, Nov 27 · 1 due ahead. Show the tasks' })).toBeInTheDocument()
   })
 
   it('a past week: its record, what slipped and how', () => {
@@ -248,9 +276,16 @@ describe('Week load… in the widget’s ⋯ menu', () => {
     </DndContext>,
   )
 
-  it('is next to Reset plan ›; with no top line (a cell of tabs) it opens the popover beside the widget', () => {
+  it('is next to Reset plan ›; with no top line (a cell of tabs) the meter is a bar across the top, and it opens the popover beside the widget', () => {
     tabs()
-    expect(screen.queryByRole('button', { name: /^This week:/ })).toBeNull()
+    expect(document.querySelector('[data-week-load-meter]')).toBeNull()
+    const bar = document.querySelector<HTMLElement>('[data-week-load-bar]')!
+    expect(bar).toHaveAccessibleName('This week: 5 dates, usual 4')
+    expect(bar).not.toHaveAttribute('data-alone')
+    fireEvent.click(bar)
+    expect(title()).toBe('This week · Nov 23 – 29')
+    fireEvent.click(bar)
+    expect(screen.queryByRole('dialog', { name: 'Week load' })).toBeNull()
     const { result } = renderHook(() => usePlannerMenuEntries(PLANNER))
     expect(result.current.map((e) => (e.kind === 'item' ? e.label : e.kind))).toEqual(['Unplanned filter…', 'Week load…', 'Reset plan'])
     const entry = result.current.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === 'Week load…')!
@@ -269,8 +304,11 @@ describe('Week load… in the widget’s ⋯ menu', () => {
       onMore: () => {}, collapsed: false, onExpand: () => {}, claim: () => () => {},
     }
     render(<DndContext><CellControlsContext.Provider value={controls}><PlannerWidget tab={PLANNER} /></CellControlsContext.Provider></DndContext>)
-    const meter = screen.getByRole('button', { name: 'This week: 5 dates, usual 4' })
+    const meter = document.querySelector<HTMLElement>('[data-week-load-meter]')!
+    expect(meter).toHaveAccessibleName('This week: 5 dates, usual 4')
     const reset = screen.getByRole('button', { name: 'Reset plan' })
     expect(meter.compareDocumentPosition(reset) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The bar is there for a narrow widget only (`data-alone`: the stylesheet shows it at 540px or less).
+    expect(document.querySelector('[data-week-load-bar]')).toHaveAttribute('data-alone')
   })
 })

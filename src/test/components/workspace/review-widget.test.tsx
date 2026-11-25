@@ -437,6 +437,46 @@ describe('the Review widget: the progress and its faces', () => {
     expect(openEditPopup).toHaveBeenCalledWith(3)
   })
 
+  it('a right-click on a rail row opens the task menu for that task, without picking the row', () => {
+    const openEditPopup = vi.fn()
+    useUIStore.setState({ openEditPopup })
+    const toggleComplete = vi.fn(async () => {})
+    useTodoStore.setState({ toggleComplete })
+    renderAt('large')
+    setFilter(person(1))
+    const title = (screen.getByTestId('review-card-title') as HTMLInputElement).value
+    fireEvent.contextMenu(document.querySelector<HTMLElement>('[data-review-row="3"]')!, { button: 2, clientX: 40, clientY: 60 })
+    const menu = screen.getByRole('menu', { name: 'Task actions' })
+    expect(screen.getByTestId('review-card-title')).toHaveValue(title)
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Open' }))
+    expect(openEditPopup).toHaveBeenCalledWith(3)
+    expect(screen.queryByRole('menu', { name: 'Task actions' })).toBeNull()
+    // One task only, never the selection.
+    useUIStore.setState({ selectedTodoIds: new Set([1, 2, 3]) })
+    fireEvent.contextMenu(document.querySelector<HTMLElement>('[data-review-row="3"]')!, { button: 2 })
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Task actions' })).getByRole('menuitem', { name: 'Mark complete' }))
+    expect(toggleComplete).toHaveBeenCalledWith(3)
+  })
+
+  it('a right-click on the card’s title row opens the task menu; in the title field the browser keeps its own', () => {
+    renderAt('large')
+    setFilter(person(1))
+    const titleField = screen.getByTestId('review-card-title')
+    const id = Number(titleField.closest('[data-review-card]')?.getAttribute('data-review-card'))
+    expect(fireEvent.contextMenu(titleField, { button: 2 })).toBe(true)
+    expect(screen.queryByRole('menu', { name: 'Task actions' })).toBeNull()
+    fireEvent.contextMenu(document.querySelector<HTMLElement>(`[data-review-card="${id}"] [data-task-meta]`)!, { button: 2 })
+    expect(screen.getByRole('menu', { name: 'Task actions' })).toBeInTheDocument()
+  })
+
+  it('medium face: a right-click on the title row opens the task menu', () => {
+    renderAt('medium')
+    setFilter(person(1))
+    const card = document.querySelector<HTMLElement>('[data-review-face="medium"]')!
+    fireEvent.contextMenu(card.querySelector<HTMLElement>('input[type="checkbox"]')!, { button: 2 })
+    expect(screen.getByRole('menu', { name: 'Task actions' })).toBeInTheDocument()
+  })
+
   it('at rest each term of the filter is a pill with its own ×, which takes that term out', () => {
     renderAt('large')
     setFilter({ kind: 'and', items: [{ kind: 'or', items: [person(1), person(2)] }, { kind: 'not', item: { kind: 'priority', value: 'urgent' } }] })

@@ -115,7 +115,7 @@ The widget's ⋯ menu (the cell's and the widget popup's, `planner-reset.usePlan
 
 ## The week load meter
 
-Alone in its cell, the top line holds the **week load meter** (`planner/WeekLoadMeter`) before Reset plan: this week's dates against the usual week, opening a popover of one week's chart by day. Where there is no meter, **Week load…** in the ⋯ menu opens the same popover beside the widget. What it counts and draws is in [Week load](week-load.md).
+Alone in its cell, the top line holds the **week load meter** (`planner/WeekLoadMeter`) before Reset plan: this week's dates against the usual week, opening a popover of one week's chart by day. Where the line has no meter — a cell of tabs, the popup, the phone, a widget 540px wide or less — it is a slim bar across the top of the body. **Week load…** in the ⋯ menu opens the same popover beside the widget. What it counts and draws is in [Week load](week-load.md).
 
 ## The Unplanned filter's editor
 

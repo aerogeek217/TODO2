@@ -109,10 +109,13 @@ describe('a tab’s name (items 11, 14)', () => {
 })
 
 describe('a tab’s icon (items 11, 14)', () => {
-  it('never picked: the strip shows the kind’s glyph (J1), the top line none (J2)', async () => {
-    await open([createTab('calendar', 'c1')])
+  it('a new tab is given its kind’s glyph; a tab with none stored shows none, in the strip and the top line', async () => {
+    await open([createTab('calendar', 'c1'), { id: 'c2', kind: 'calendar', config: { dateTypes: { due: true, followup: true, plan: true } } }])
+    expect(tab('c1')?.icon).toEqual({ kind: 'line', key: 'calendar' })
     expect(tabStripIcon(tab('c1')!)).toEqual({ kind: 'line', key: 'calendar' })
-    expect(tabTopLineIcon(tab('c1')!)).toBeUndefined()
+    expect(tabTopLineIcon(tab('c1')!)).toEqual({ kind: 'line', key: 'calendar' })
+    expect(tabStripIcon(tab('c2')!)).toEqual({ kind: 'none' })
+    expect(tabTopLineIcon(tab('c2')!)).toBeUndefined()
   })
 
   it('a pick is stored and is one undo step; No icon is stored explicitly', async () => {
@@ -130,7 +133,7 @@ describe('a tab’s icon (items 11, 14)', () => {
     expect(tab('c1')?.icon).toEqual({ kind: 'emoji', emoji: '🔥', show: 'color' })
     await undo()
     await undo()
-    expect(tab('c1')).not.toHaveProperty('icon')
+    expect(tab('c1')?.icon).toEqual({ kind: 'line', key: 'calendar' })
     await redo()
     expect(tab('c1')?.icon).toEqual({ kind: 'emoji', emoji: '🔥' })
   })
@@ -148,6 +151,20 @@ describe('a tab’s icon (items 11, 14)', () => {
     // The Numbers take a name of their own too (the widget's), kept.
     ws().changeTabKind('c1', 'numbers')
     expect(getTab(ws().working!, 'c1')).toMatchObject({ kind: 'numbers', name: 'Deadlines', icon: { kind: 'emoji', emoji: '📅' } })
+  })
+
+  it('Change widget: the old kind’s glyph becomes the new kind’s; a tab with no icon stays without one', async () => {
+    await open([createTab('calendar', 'c1'), { id: 'c2', kind: 'calendar', config: { dateTypes: { due: true, followup: true, plan: true } } }, { ...createTab('calendar', 'c3'), icon: { kind: 'none' } }])
+    ws().changeTabKind('c1', 'notes')
+    expect(tab('c1')?.icon).toEqual({ kind: 'line', key: 'notes' })
+    ws().changeTabKind('c2', 'notes')
+    expect(tab('c2')).not.toHaveProperty('icon')
+    ws().changeTabKind('c3', 'notes')
+    expect(tab('c3')).not.toHaveProperty('icon')
+    // A line icon of its own that is another kind's glyph is still its own: kept.
+    ws().setTabIcon('c1', { kind: 'line', key: 'review' })
+    ws().changeTabKind('c1', 'planner')
+    expect(tab('c1')?.icon).toEqual({ kind: 'line', key: 'review' })
   })
 
   it('names the tab in other undo steps (Removed “…”)', async () => {

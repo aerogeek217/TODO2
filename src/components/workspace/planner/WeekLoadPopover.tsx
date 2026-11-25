@@ -6,6 +6,7 @@ import { useToday } from '../../../hooks/use-today'
 import { useWeekLoad } from '../../../hooks/use-week-load'
 import { WEEK_LOAD_KINDS, type WeekLoad, type WeekLoadDay, type WeekLoadKind } from '../../../services/stats/week-load'
 import { usePlannerStore } from '../../../stores/planner-store'
+import { useUIStore } from '../../../stores/ui-store'
 import { formatDateWith } from '../../../utils/date'
 import { widgetElement } from '../../../utils/dom-contract'
 import { ChevronLeftIcon, ChevronRightIcon } from '../../shared/icons'
@@ -19,11 +20,15 @@ import {
   loadPill,
   WEEK_LOAD_COLOR,
   noteWords,
+  partCount,
+  partWords,
   slipPill,
   usualShown,
   weekRange,
   weekTitle,
   weekWords,
+  weekLoadDrill,
+  type WeekLoadPart,
 } from './week-load-words'
 import styles from './WeekLoad.module.css'
 
@@ -139,7 +144,7 @@ export function WeekLoadPopover({ load, anchorRef, placement, anchorIsInside = t
       </div>
       <div className={styles.chart}>
         {week.days.map((day, i) => (
-          <DayColumn key={day.date.getTime()} day={day} scale={scale} usual={load.usual.perWeek * (load.usual.weekdayShares[i] ?? 0)} />
+          <DayColumn key={day.date.getTime()} day={day} scale={scale} usual={load.usual.perWeek * (load.usual.weekdayShares[i] ?? 0)} onDrill={onClose} />
         ))}
         <span className={styles.base} aria-hidden="true" />
         {week.days.map((day) => (
@@ -174,13 +179,17 @@ function WeekStep({ direction, disabled, onStep }: { direction: -1 | 1; disabled
   )
 }
 
-/** One day's column: its count, then its boxes bottom up and the weekday's usual mark; named in words. */
-function DayColumn({ day, scale, usual }: { day: WeekLoadDay; scale: number; usual: number }) {
+/**
+ * One day's column: its count, then its boxes bottom up and the weekday's usual mark; a group named in words. Each
+ * box is two buttons — its filled part (done) and the rest (slipped, or still ahead) —, each opening the task dialog
+ * on its tasks (`weekLoadDrill`); the popover closes as it opens (`onDrill`).
+ */
+function DayColumn({ day, scale, usual, onDrill }: { day: WeekLoadDay; scale: number; usual: number; onDrill: () => void }) {
   const n = dayTotal(day)
   const words = dayWords(day)
   return (
-    <div className={styles.day} role="img" aria-label={words} data-tooltip={words} data-today={day.when === 'today' ? '' : undefined} data-week-load-day="">
-      <span className={styles.dayCount}>{n || ''}</span>
+    <div className={styles.day} role="group" aria-label={words} data-today={day.when === 'today' ? '' : undefined} data-week-load-day="">
+      <span className={styles.dayCount} aria-hidden="true">{n || ''}</span>
       <span className={styles.column}>
         {WEEK_LOAD_KINDS.map((k) => {
           const c = day.kinds[k]
@@ -191,13 +200,36 @@ function DayColumn({ day, scale, usual }: { day: WeekLoadDay; scale: number; usu
               key={k}
               className={styles.box}
               data-kind={k}
-              style={{ height: `calc(${(100 * total) / scale}% - 1px)`, '--c': WEEK_LOAD_COLOR[k], '--p': `${(100 * c.done) / total}%` } as CSSProperties}
-            />
+              style={{ height: `calc(${(100 * total) / scale}% - 1px)`, '--c': WEEK_LOAD_COLOR[k] } as CSSProperties}
+            >
+              {(['done', 'rest'] as const).map((part) => partCount(c, part) > 0 && (
+                <BoxPart key={part} day={day} kind={k} part={part} share={(100 * partCount(c, part)) / total} onDrill={onDrill} />
+              ))}
+            </span>
           )
         })}
         {usual > 0 && <span className={styles.usualMark} style={{ bottom: `${(100 * usual) / scale}%` }} />}
       </span>
     </div>
+  )
+}
+
+/** A box's part: a button as tall as its share, named (and its tooltip) in words; a click lists its tasks. */
+function BoxPart({ day, kind, part, share, onDrill }: { day: WeekLoadDay; kind: WeekLoadKind; part: WeekLoadPart; share: number; onDrill: () => void }) {
+  const words = partWords(day, kind, part)
+  return (
+    <button
+      type="button"
+      className={part === 'done' ? styles.partDone : styles.partRest}
+      style={{ flexBasis: `${share}%` }}
+      aria-label={`${words}. Show the tasks`}
+      data-tooltip={words}
+      data-week-load-part={part}
+      onClick={() => {
+        onDrill()
+        useUIStore.getState().showTaskDialog(weekLoadDrill(day, kind, part))
+      }}
+    />
   )
 }
 

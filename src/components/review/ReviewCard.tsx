@@ -41,6 +41,7 @@ import { TaskPlannedFacts } from '../task/PlannedFacts'
 import { useEditorStatusUpdates, useEditorSubtasks } from '../task/use-editor-entries'
 import { useReviewSessionApi } from './review-session-context'
 import { useReviewFollowUp, type ReviewFollowUp } from './use-review-follow-up'
+import { useReviewTaskMenu } from './review-task-menu'
 import { ReviewTitleField } from './ReviewTitleField'
 import styles from './Review.module.css'
 
@@ -83,6 +84,7 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
   const update = (changes: TodoChanges) => afterNotes(() => useTodoStore.getState().update(todoId, changes))
 
   useFocusUpdateLineOnOpen(updateRef, focusOnOpen)
+  const taskMenu = useReviewTaskMenu()
 
   const toggleComplete = () => {
     const shownCompleted = todo.isCompleted
@@ -128,7 +130,8 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
   return (
     <>
       <div className={styles.card} data-review-card={todoId}>
-        <div className={styles.cardTop}>
+        {/* A right-click on the title row: the task menu (notes typed so far written first). */}
+        <div className={styles.cardTop} onContextMenu={taskMenu.onContextMenu(todoId, () => { void flushNotes() })}>
           <div className={styles.cardBox}>
             <RowCheckbox
               summary={summary}
@@ -147,6 +150,7 @@ export function ReviewCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; foc
           </span>
           <ReviewCardMenu todoId={todoId} afterNotes={afterNotes} />
         </div>
+        {taskMenu.menu(todo)}
         <TaskDetailsBody
           facts={(
             <>
@@ -518,6 +522,7 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
   const f = useReviewFollowUp(todo, NO_NOTES, updateRef)
   const selectOnFocus = useSelectAllOnFocus()
   useFocusUpdateLineOnOpen(updateRef, focusOnOpen)
+  const taskMenu = useReviewTaskMenu()
   const { today } = f
   const summary = markerSummary(todo, today, urgentRange)
   const dues = dueState(todo, today, urgentRange)
@@ -547,7 +552,7 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
     <>
       <div className={styles.compactCard} data-review-card={todoId} data-review-face="medium">
         <div className={styles.compactHead}>
-          <div className={styles.compactTop}>
+          <div className={styles.compactTop} onContextMenu={taskMenu.onContextMenu(todoId)}>
             <RowCheckbox
               summary={summary}
               checked={todo.isCompleted}
@@ -561,6 +566,7 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
               write={(title) => { void useTodoStore.getState().update(todoId, { title }) }}
             />
           </div>
+          {taskMenu.menu(todo)}
           <p className={styles.compactFacts} data-testid="review-facts">
             {facts.map((fact, i) => (
               <span key={fact.key} data-tone={fact.tone} data-fact={fact.key}>

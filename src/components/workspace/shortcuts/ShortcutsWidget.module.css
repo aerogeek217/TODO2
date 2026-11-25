@@ -227,7 +227,7 @@
   padding: 6px;
 }
 
-/* Icon · name · capsule · count; the name shortens first, and the capsule and count wrap under it only when the name would have under 72px. */
+/* Icon · name · capsule (a row's count; a waiting tile's —); the name shortens first, and the capsule and count wrap under it only when the name would have under 72px. */
 .head {
   display: flex;
   flex-wrap: wrap;
@@ -382,6 +382,19 @@
 }
 
 /* A tile's ⋯: bottom right, over its last title on the tile's surface, while the pointer is over the tile or the focus in it. */
+/* A tile's capsule: a corner badge straddling its top border on the right, over the press (the pointer passes). */
+.cornerBadge {
+  position: absolute;
+  top: -7px;
+  right: 10px;
+  z-index: 1;
+  display: flex;
+  border-radius: 999px;
+  background: var(--color-surface-high);
+  box-shadow: 0 0 0 2px var(--color-surface);
+  pointer-events: none;
+}
+
 .more {
   position: absolute;
   right: 6px;

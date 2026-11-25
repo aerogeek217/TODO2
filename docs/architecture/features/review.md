@@ -72,6 +72,7 @@ The rail has a sort at its top: `Sort: Priority ▾` by default. The choices are
 - Back / Skip step in this order.
 - Picking a sort keeps the current card.
 - ← / → on a row are Back / Skip.
+- A right-click on a row opens the task menu for that task, without picking the row (`review/review-task-menu`).
 
 ### Rows
 
@@ -148,6 +149,7 @@ Its title row:
 
 - The box and the title. The title is a field edited in place as the editor's (`ReviewTitleField`): ⏎ or a blur writes it, one undo step, never blank; Esc puts it back. It wraps and grows; on the medium face it is one line.
 - `Created … · Modified …`, gone while the card is under 560px wide.
+- A right-click on the title row opens the task menu for this task, as a rail row's does. In the title field the browser keeps its own menu. The notes typed so far are written first.
 - A ⋯ with the editor header's actions: **Open in editor**, **Duplicate** (the copy opens in the editor), **Make subtask of…**, **Plan for day ›** ([Planner](planner.md)) and **Delete**. A task that goes leaves the live queue, and the review moves on.
 
 Its **footer**:
@@ -265,7 +267,7 @@ Only the rail's sort is view state, saved at once: **Priority** where the tab st
 
 **Medium**: `ReviewCompactCard`.
 
-- The title.
+- The title. A right-click on its row opens the task menu.
 - A one-line facts summary. Last is there; it is edited through Open card ↗. After the priority, `Planned 11/28` with the hollow bar, in the deadline color while the plan falls after a real date.
 - The updates dock: the Status updates heading, the latest two entries, the update line (⏎ follows up) and the Next row (the field and the quick intervals, which give way in a narrow card).
 - The footer with **Open card ↗** (the editor).
