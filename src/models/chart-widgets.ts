@@ -35,7 +35,7 @@ function isChartName(v: unknown): v is string {
 
 /**
  * What a Breakdown splits its tasks by: their people, their tags, their
- * status, their priority (the Priority sort's groups: Focus, Urgent +
+ * status, their priority (the exclusive priority groups: Focus, Urgent +
  * Important, Urgent, Important, No priority), their due date (Overdue,
  * Today, the next 7 days, later, none) or their age (since created).
  */

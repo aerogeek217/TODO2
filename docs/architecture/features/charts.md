@@ -19,7 +19,7 @@ Its config is `BreakdownConfig`, layout config:
 `{ name, filter, splitBy, style, show, oldestBy?, showNone, columns? }`
 
 - `splitBy`: `people`, `tags`, `status`, `priority`, `due` or `age` (since created).
-  - Priority: the Priority sort's exclusive groups, each with its ring.
+  - Priority: the exclusive priority groups, each with its ring.
   - Due: Overdue · Today · Next 7 days · Later. The first reads Before today once a completed task is among them.
 - `style`: it is drawn as `bars`, a `donut` or one `stacked` bar.
 - `show`: each row's `count`, or its `oldest` task's age. `oldestBy` is stored only with `oldest`; absent is the last follow-up.

@@ -485,6 +485,16 @@ describe('plannerView', () => {
     expect(uids(view.tasks).slice(-3)).toEqual(uids([c, b, a]))
   })
 
+  it('a tie the Unplanned sort leaves keeps the hand order', () => {
+    const a = task({ focus: true, sortOrder: 1, dueDate: day(9) })
+    const b = task({ focus: true, sortOrder: 2 })
+    const c = task({ focus: true, sortOrder: 3 })
+    // Undated first, then the hand order: c before b, as dragged.
+    const byUndated = (x: typeof a, y: typeof a) => Number(x.dueDate != null) - Number(y.dueDate != null)
+    const view = plannerView([a, b, c], { today: TODAY, order: [c.uid, a.uid, b.uid], unplannedCompare: byUndated })
+    expect(uids(view.unplanned.tasks)).toEqual(uids([c, b, a]))
+  })
+
   describe('tiles', () => {
     it('count the rows sitting on each day', () => {
       const tasks = [

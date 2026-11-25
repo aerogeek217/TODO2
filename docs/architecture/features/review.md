@@ -40,7 +40,7 @@ Either way:
 - **A Breakdown row's Review icon** sends the Breakdown's own filter AND the row (`breakdownRowTerm`):
   - a person, tag or status;
   - a people or tags row under picks on both the Breakdown and the top bar also gets `not` the ones every pick names, so the review keeps what the row counts;
-  - a priority group as the Priority sort's exclusive groups (`/urgent and /important and not /focus`, …);
+  - a priority group as the exclusive priority groups (`/urgent and /important and not /focus`, …);
   - a due or age bucket as a day-offset range of the due or created date;
   - the none row: Unassigned / No tags / No status / No priority / No due date.
 - **A Breakdown count column's count** sends the same, AND that column's filter.

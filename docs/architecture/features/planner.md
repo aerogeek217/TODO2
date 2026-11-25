@@ -122,7 +122,7 @@ Where each part is drawn is in [Faces](planner-widget.md#faces).
 
 Inside a group the tasks follow the tab's **hand order** (`PlannerTabViewState.order`): task `uid`s, one sequence for the widget, view state, written by a drop into a group (see [The row's place](#the-rows-place)). The rest come after them by reason (due, follow-up, plan, the Unplanned filter), then date, then `sortOrder` (`plannerOrder`).
 
-**Unplanned can be sorted** as a list is (`PlannerTabConfig.unplannedSort`, layout config: `{ by, direction? }`). A sort other than Manual orders the tray by a list's comparator (`list-sections.listSortComparator`, passed to `plannerView` as `unplannedCompare` by `hooks/use-planner`), and the hand order counts there no more. Absent or `manual`, the hand order. The sorts are a list's but Planned and Completed (`PLANNER_UNPLANNED_SORTS`): Unplanned holds open tasks with no plan.
+**Unplanned can be sorted** as a list is (`PlannerTabConfig.unplannedSort`, layout config: `{ by, direction? }`). A sort other than Manual orders the tray by a list's comparator (`list-sections.listSortComparator`, passed to `plannerView` as `unplannedCompare` by `hooks/use-planner`). The hand order is its last tie-break: the tray is sorted stably from the hand order, with the comparator's own tie-break off (`tieBreak: () => 0`). Absent or `manual`, the hand order. The sorts are a list's but Planned and Completed (`PLANNER_UNPLANNED_SORTS`): Unplanned holds open tasks with no plan.
 
 ## Top line and Reset plan
 

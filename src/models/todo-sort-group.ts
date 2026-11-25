@@ -10,7 +10,7 @@
 
 export type TodoSortBy =
   | 'manual'      // per-list manual order (ranks), else sortOrder
-  | 'priority'    // Focus, Urgent + Important, Urgent, Important, none; then due date
+  | 'priority'    // a ladder: Urgent, then Important, then Focus; then due date
   | 'name'        // alphabetical title
   | 'deadline'    // dueDate (UI label "Due")
   | 'planned'     // doDate (UI label "Planned"; earliest first, no plan last)

@@ -97,9 +97,10 @@ export function priorityRing(summary: Pick<MarkerSummary, 'focus' | 'urgent' | '
 }
 
 /**
- * A task's place in the Priority sort, first to last: Focus, then Urgent and
- * Important, Urgent, Important, none. Urgent is effective urgent (flagged or
- * due within `range`, overdue included).
+ * A task's priority group, exclusive, first to last: Focus, then Urgent and
+ * Important, Urgent, Important, none — the Breakdown's priority rows and the
+ * review's. Urgent is effective urgent (flagged or due within `range`,
+ * overdue included). The Priority sort ranks by `prioritySortRank`.
  */
 export function priorityRank(todo: MarkerFields, today: Date, range: UrgentDueWithinDays): number {
   if (todo.focus === true) return 0
@@ -108,6 +109,17 @@ export function priorityRank(todo: MarkerFields, today: Date, range: UrgentDueWi
   if (urgent && important) return 1
   if (urgent) return 2
   return important ? 3 : 4
+}
+
+/**
+ * A task's place in the Priority sort, 0–7: a ladder of Urgent, then
+ * Important, then Focus, each rung splitting the one above it — Urgent +
+ * Important + Focus, Urgent + Important, Urgent + Focus, Urgent, Important +
+ * Focus, Important, Focus, none. Urgent is effective urgent, as in
+ * `priorityRank`.
+ */
+export function prioritySortRank(todo: MarkerFields, today: Date, range: UrgentDueWithinDays): number {
+  return (hasMarker(todo, 'urgent', today, range) ? 0 : 4) + (todo.important === true ? 0 : 2) + (todo.focus === true ? 0 : 1)
 }
 
 /** The settings a Priority filter is evaluated with: the urgent range. */

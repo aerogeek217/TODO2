@@ -83,11 +83,14 @@ function useUnplannedJoins(filter: TodoPredicate | undefined): PlannerJoins | un
   )
 }
 
+/** No tie-break of the sort's own: Unplanned's rows arrive in its hand order. */
+const handOrderTie = (): number => 0
+
 /**
  * The Unplanned tray's order for a Planner whose config sorts it `sort` (a
  * list's sort and direction, `listSortComparator`, over the shared base's
- * day, urgent range, people and statuses); none for manual or no sort: the
- * hand order.
+ * day, urgent range, people and statuses), its ties left to the hand order;
+ * none for manual or no sort: the hand order.
  */
 function useUnplannedCompare(sort: PlannerUnplannedSort | undefined): ((a: Task, b: Task) => number) | undefined {
   const { ctx } = useStatsBase()
@@ -99,6 +102,8 @@ function useUnplannedCompare(sort: PlannerUnplannedSort | undefined): ((a: Task,
     direction,
     assignedPeopleMap: ctx.assignedPeopleMap,
     statuses: ctx.statuses,
+    // The rows come in the hand order and sort stably: a tie keeps it.
+    tieBreak: handOrderTie,
   })), [by, direction, ctx])
 }
 

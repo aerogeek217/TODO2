@@ -409,15 +409,21 @@ describe('listSortComparator', () => {
     const order = (todos: PersistedTodoItem[], c: Parameters<typeof listSortComparator>[1] = ctx) =>
       [...todos].sort(listSortComparator('priority', c)).map((t) => t.title)
 
-    it('puts Focus first, then Urgent + Important, Urgent, Important, none', () => {
+    it('a ladder: Urgent, then Important, then Focus, each splitting the rung above', () => {
       const todos = [
         makeTodo({ id: 1, title: 'none', sortOrder: 1 }),
-        makeTodo({ id: 2, title: 'important', important: true, sortOrder: 2 }),
-        makeTodo({ id: 3, title: 'urgent', urgent: true, sortOrder: 3 }),
-        makeTodo({ id: 4, title: 'urgent + important', urgent: true, important: true, sortOrder: 4 }),
-        makeTodo({ id: 5, title: 'focus', focus: true, sortOrder: 5 }),
+        makeTodo({ id: 2, title: 'focus', focus: true, sortOrder: 2 }),
+        makeTodo({ id: 3, title: 'important', important: true, sortOrder: 3 }),
+        makeTodo({ id: 4, title: 'important + focus', important: true, focus: true, sortOrder: 4 }),
+        makeTodo({ id: 5, title: 'urgent', urgent: true, sortOrder: 5 }),
+        makeTodo({ id: 6, title: 'urgent + focus', urgent: true, focus: true, sortOrder: 6 }),
+        makeTodo({ id: 7, title: 'urgent + important', urgent: true, important: true, sortOrder: 7 }),
+        makeTodo({ id: 8, title: 'all three', urgent: true, important: true, focus: true, sortOrder: 8 }),
       ]
-      expect(order(todos)).toEqual(['focus', 'urgent + important', 'urgent', 'important', 'none'])
+      expect(order(todos)).toEqual([
+        'all three', 'urgent + important', 'urgent + focus', 'urgent',
+        'important + focus', 'important', 'focus', 'none',
+      ])
     })
 
     it('counts a task due within the urgent range as urgent; outside it, not', () => {
@@ -633,7 +639,20 @@ describe('listSortComparator — descending', () => {
       makeTodo({ id: 6, title: 'important', important: true, sortOrder: 6 }),
     ]
     const order = [...todos].sort(listSortComparator('priority', { today, urgentRange: null, direction: 'desc' })).map((t) => t.title)
-    expect(order).toEqual(['due 25th', 'due 30th', 'undated a', 'undated b', 'important', 'focus'])
+    expect(order).toEqual(['due 25th', 'due 30th', 'undated a', 'undated b', 'focus', 'important'])
+  })
+
+  it('every sort ties by the list’s manual order, or by tieBreak when given', () => {
+    const todos = [
+      makeTodo({ id: 1, title: 'Same', sortOrder: 1 }),
+      makeTodo({ id: 2, title: 'Same', sortOrder: 2 }),
+      makeTodo({ id: 3, title: 'Same', sortOrder: 3 }),
+    ]
+    const manualRanks = new Map([[3, 1], [1, 2], [2, 3]])
+    for (const sortBy of ['name', 'deadline', 'created', 'priority'] as const) {
+      expect(ids(todos, sortBy, { manualRanks }), sortBy).toEqual([3, 1, 2])
+      expect(ids([...todos].reverse(), sortBy, { manualRanks, tieBreak: () => 0 }), sortBy).toEqual([3, 2, 1])
+    }
   })
 
   it('manual and the categorical sorts have no direction', () => {

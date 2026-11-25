@@ -140,7 +140,7 @@ const IMPORTANT: FilterExpr = { kind: 'priority', value: 'important' }
 const FOCUS: FilterExpr = { kind: 'priority', value: 'focus' }
 const not = (item: FilterExpr): FilterExpr => ({ kind: 'not', item })
 
-/** Each priority row: the Priority sort's exclusive groups (`utils/markers.priorityRank`). */
+/** Each priority row: the exclusive priority groups (`utils/markers.priorityRank`). */
 const PRIORITY_TERMS: Record<PriorityGroupKey, FilterExpr> = {
   focus: FOCUS,
   urgentImportant: { kind: 'and', items: [URGENT, IMPORTANT, not(FOCUS)] },

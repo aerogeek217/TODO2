@@ -375,7 +375,7 @@ interface PlannerViewOptions<T> {
   order?: readonly string[]
   /** The Unplanned filter (`PlannerJoins`); absent: Focus. */
   joins?: PlannerJoins
-  /** How the Unplanned tray sorts (the tab's Unplanned sort, as a list sorts); absent: the hand order. */
+  /** How the Unplanned tray sorts (the tab's Unplanned sort, as a list sorts), its ties kept in the hand order; absent: the hand order. */
   unplannedCompare?: (a: T, b: T) => number
 }
 
@@ -486,7 +486,8 @@ export function plannerView<T extends PlannerTask>(tasks: readonly T[], options:
   })
 
   const delayed: PlannerGroup<T> = { key: PLANNER_DELAYED_KEY, kind: 'delayed', day: null, tasks: ordered(delayedTasks) }
-  const unplannedSorted = options.unplannedCompare ? [...unplannedTasks].sort(options.unplannedCompare) : ordered(unplannedTasks)
+  // Sorted from the hand order (a stable sort): a tie the sort leaves keeps it.
+  const unplannedSorted = options.unplannedCompare ? ordered(unplannedTasks).sort(options.unplannedCompare) : ordered(unplannedTasks)
   const unplanned: PlannerGroup<T> = { key: PLANNER_UNPLANNED_KEY, kind: 'unplanned', day: null, tasks: unplannedSorted }
   const shown: T[] = [...todayGroup.tasks]
   for (const day of window.days) {
