@@ -95,7 +95,7 @@ test.describe('Lists I pick', () => {
     await expect(clients.locator('[data-app-icon]')).toHaveCount(1)
     await expect(tile(page, 'Errands').locator('[data-app-icon="line"]')).toHaveCount(1)
     await expect(clients.locator('[data-shortcut-badge] [data-badge-part="due"]')).toHaveText('1')
-    // Its count is in its tooltip: beside a capsule the head leaves it out.
+    // Its count is in its tooltip: a tile's head leaves it out.
     await expect(clients.locator('[data-shortcut-count]')).toHaveCount(0)
     await expect(clients.locator('button[data-tone]')).toHaveCount(4)
     await expect(clients.locator('button[data-tone]').first()).toHaveAttribute('data-tone', 'late')
