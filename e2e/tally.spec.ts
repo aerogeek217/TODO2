@@ -38,6 +38,8 @@ function expectClear(g: Awaited<ReturnType<typeof geometry>>, at: string) {
   if (!g.tally) return
   expect(g.tally.left - g.trayRight, `clear of the tray at ${at}`).toBeGreaterThanOrEqual(9)
   expect(g.rightLeft - g.tally.right, `clear of the right zone at ${at}`).toBeGreaterThanOrEqual(9)
+  // Against the right zone (the storage pill's sync dot), not the tray.
+  expect(g.rightLeft - g.tally.right, `beside the right zone at ${at}`).toBeLessThanOrEqual(12)
   expect(g.tally.top, `inside the bar at ${at}`).toBeGreaterThanOrEqual(g.bar.top)
   expect(g.tally.bottom, `inside the bar at ${at}`).toBeLessThanOrEqual(g.bar.bottom)
 }
