@@ -20,6 +20,8 @@ History before 2026-11-19 is in the git log.
 
 ## Unreleased
 
+## 2026-11-24, second deployment
+
 ### Added
 
 - **Right-click a task in a review** for the task menu: a row of the queue, or the card's title row. It acts on
